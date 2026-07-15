@@ -11,6 +11,7 @@
     "leaderLabel": "Leader Assistant",
     "leaderPlaceholder": "Select an assistant to lead the team",
     "workspaceLabel": "Workspace",
+    "workspacePlaceholder": "Workspace path (optional)",
     "submit": "Create",
     "cancel": "Cancel",
     "noAssistants": "No assistants available. Install one first."

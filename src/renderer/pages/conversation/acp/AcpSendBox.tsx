@@ -62,6 +62,9 @@ const useAcpMessage = (conversation_id: string) => {
   const aiProcessingRef = useRef(aiProcessing);
   const stopPendingRef = useRef(false);
   const activeTurnStartTimeRef = useRef<number | undefined>(undefined);
+  // Per-instance finish timeout (was a window global singleton that collided when multiple AcpSendBox
+  // instances mounted — e.g. a team detail page with Leader + a teammate chat). 附录 A4 / 风险 10.
+  const finishTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Track whether current turn has content output
   // Only reset aiProcessing when finish arrives after content (not after tool calls)
@@ -147,10 +150,10 @@ const useAcpMessage = (conversation_id: string) => {
 
       // Cancel pending finish timeout if new message arrives
       // 如果真正的会话活动在 finish 后继续到达，取消待处理的 finish timeout
-      const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+      const pendingTimeout = finishTimeoutRef.current;
       if (pendingTimeout && shouldCancelAcpFinishTimeout(message.type)) {
         clearTimeout(pendingTimeout);
-        (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+        finishTimeoutRef.current = undefined;
       }
 
       // Handle clear_incomplete_tools before transformMessage (it's not a standard message type)
@@ -229,9 +232,9 @@ const useAcpMessage = (conversation_id: string) => {
                 setThought({ subject: '', description: '' });
                 setProcessingStartTime(undefined);
               }
-              (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+              finishTimeoutRef.current = undefined;
             }, 1000);
-            (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = timeoutId;
+            finishTimeoutRef.current = timeoutId;
             hasContentInTurnRef.current = false;
             // Log request completion
             if (requestTraceRef.current) {
@@ -386,10 +389,10 @@ const useAcpMessage = (conversation_id: string) => {
   // Reset state when conversation changes and restore actual running status
   useEffect(() => {
     // Clear pending finish timeout when conversation changes
-    const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+    const pendingTimeout = finishTimeoutRef.current;
     if (pendingTimeout) {
       clearTimeout(pendingTimeout);
-      (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+      finishTimeoutRef.current = undefined;
     }
 
     setThought({ subject: '', description: '' });
@@ -444,10 +447,10 @@ const useAcpMessage = (conversation_id: string) => {
 
   const clearRuntimeState = useCallback(() => {
     // Clear pending finish timeout
-    const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+    const pendingTimeout = finishTimeoutRef.current;
     if (pendingTimeout) {
       clearTimeout(pendingTimeout);
-      (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+      finishTimeoutRef.current = undefined;
     }
 
     setRunning(false);
@@ -484,7 +487,7 @@ const useAcpMessage = (conversation_id: string) => {
     aiProcessingRef.current = true;
   }, []);
 
-  return { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing };
+  return { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef };
 };
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
@@ -549,7 +552,7 @@ const AcpSendBox: React.FC<{
   teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
 }> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, onAiProcessingChange }) => {
-  const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing } = useAcpMessage(conversation_id);
+  const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -573,10 +576,10 @@ const AcpSendBox: React.FC<{
       hasInitialized.current = true;
 
       // 清除任何残留的定时器
-      const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+      const pendingTimeout = finishTimeoutRef.current;
       if (pendingTimeout) {
         clearTimeout(pendingTimeout);
-        (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+        finishTimeoutRef.current = undefined;
       }
     }
 

@@ -1,5 +1,5 @@
 import { ipcBridge } from '@/common';
-import type { ITeamRunEvent } from '@/common/ipcBridge';
+import type { ITeamRunEvent, ITeamSlotWork } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { mainLog } from '@process/utils/mainLogger';
 import type { SlotWakeGate } from './SlotWakeGate';
@@ -252,6 +252,15 @@ export class TeamRunManager {
       last_slow_notified_at_ms: null,
     };
     run.active_child_turns.set(reservation.slot_id, child);
+    ipcBridge.team.onChildTurnStarted.emit({
+      team_id: run.team_id,
+      team_run_id: run.team_run_id,
+      slot_id: child.slot_id,
+      role: child.role,
+      conversation_id: child.conversation_id,
+      turn_id: turnId,
+      status: 'started',
+    });
     if (run.status === 'accepted' && run.started_at == null) {
       run.status = 'running';
       run.started_at = Date.now();
@@ -267,6 +276,12 @@ export class TeamRunManager {
     if (!child) return;
     if (child.turn_id !== turn.turn_id) return; // stale protection
     run.active_child_turns.delete(slot);
+    const childEventBase = { team_id: run.team_id, team_run_id: run.team_run_id, slot_id: slot, role: child.role, conversation_id: child.conversation_id, turn_id: turn.turn_id };
+    if (turn.status === 'cancelled') {
+      ipcBridge.team.onChildTurnCancelled.emit({ ...childEventBase, status: 'cancelled' });
+    } else if (turn.status !== 'failed') {
+      ipcBridge.team.onChildTurnCompleted.emit({ ...childEventBase, status: 'completed' });
+    }
     if (turn.status === 'failed') {
       run.status = 'failed';
       run.completed_at = Date.now();
@@ -415,7 +430,32 @@ export class TeamRunManager {
       active_child_count: run.active_child_turns.size,
       pending_wake_count: this.totalPendingWakeCount(run),
       starting_child_count: run.starting_reservations.size,
+      slot_work: this.buildSlotWork(run),
     };
+  }
+
+  /** Aggregate per-slot work for the run event (附录 II.11 ITeamSlotWork). */
+  private buildSlotWork(run: TeamRunRecord): ITeamSlotWork[] {
+    const roles = new Map<string, TeamRole>();
+    for (const q of run.pending_wakes.values()) if (q.length > 0) roles.set(q[0].slot_id, q[0].role);
+    for (const r of run.starting_reservations.values()) roles.set(r.slot_id, r.role);
+    for (const c of run.active_child_turns.values()) roles.set(c.slot_id, c.role);
+    const result: ITeamSlotWork[] = [];
+    for (const [slotId, role] of roles) {
+      let startingForSlot = 0;
+      for (const res of run.starting_reservations.values()) if (res.slot_id === slotId) startingForSlot += 1;
+      const active = run.active_child_turns.get(slotId);
+      result.push({
+        slot_id: slotId,
+        role,
+        pending_wake_count: run.pending_wakes.get(slotId)?.length ?? 0,
+        starting_child_count: startingForSlot,
+        paused: run.slot_wake_gate.isPaused(slotId) || undefined,
+        suppressed_wake_count: run.slot_wake_gate.suppressedCount(slotId) || undefined,
+        active_turn_id: active?.turn_id,
+      });
+    }
+    return result;
   }
 
   private emitRun(channel: RunEventChannel): void {

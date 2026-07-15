@@ -1,5 +1,6 @@
 import { ipcBridge } from '@/common';
 import { teamService } from '@process/services/team/TeamService';
+import { teamStore } from '@process/services/team/TeamStore';
 import { mainError } from '@process/utils/mainLogger';
 
 function errEnvelope(err: unknown): never {
@@ -138,12 +139,47 @@ export function initTeamBridge(): void {
     }
   });
 
-  // Run-lifecycle providers ship in later stages (TeamRun / EventLoop / CrashRecovery).
+  // Session lifecycle + member controls.
+  ipcBridge.team.ensureSession.provider(async ({ teamId }) => {
+    try {
+      await teamService.rebuildTeam(teamId);
+    } catch (err) {
+      mainError('TeamBridge', 'ensureSession failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
+  ipcBridge.team.stopSession.provider(async ({ teamId }) => {
+    try {
+      await teamService.stopTeamSession(teamId);
+    } catch (err) {
+      mainError('TeamBridge', 'stopSession failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
+  ipcBridge.team.pauseMember.provider(async ({ teamId, slotId }) => {
+    try {
+      await teamService.pauseMember(teamId, slotId);
+    } catch (err) {
+      mainError('TeamBridge', 'pauseMember failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
+  ipcBridge.team.renameMember.provider(async ({ memberId, name }) => {
+    try {
+      const member = teamStore.getMember(memberId);
+      if (!member) throw new Error(`Member not found: ${memberId}`);
+      teamService.renameMember(member.team_id, memberId, name);
+    } catch (err) {
+      mainError('TeamBridge', 'renameMember failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
+  // Secondary providers not yet wired (not used by the current UI).
   ipcBridge.team.updateTeam.provider(async () => errEnvelope(new Error('Not implemented')));
   ipcBridge.team.renameTeam.provider(async () => errEnvelope(new Error('Not implemented')));
-  ipcBridge.team.renameMember.provider(async () => errEnvelope(new Error('Not implemented')));
   ipcBridge.team.reorderMembers.provider(async () => errEnvelope(new Error('Not implemented')));
-  ipcBridge.team.pauseMember.provider(async () => errEnvelope(new Error('Not implemented')));
-  ipcBridge.team.ensureSession.provider(async () => errEnvelope(new Error('Not implemented')));
-  ipcBridge.team.stopSession.provider(async () => errEnvelope(new Error('Not implemented')));
 }

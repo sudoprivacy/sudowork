@@ -20,6 +20,9 @@ vi.mock('@/common', () => ({
       onRunCompleted: { emit: emits.completed },
       onRunCancelled: { emit: emits.cancelled },
       onRunFailed: { emit: emits.failed },
+      onChildTurnStarted: { emit: vi.fn() },
+      onChildTurnCompleted: { emit: vi.fn() },
+      onChildTurnCancelled: { emit: vi.fn() },
     },
   },
 }));

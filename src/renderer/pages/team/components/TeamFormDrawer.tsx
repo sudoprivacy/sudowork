@@ -95,7 +95,7 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
           <Input value={name} onChange={setName} placeholder={t('team.create.namePlaceholder')} />
         </Form.Item>
         <Form.Item label={t('team.create.workspaceLabel')}>
-          <Input value={workspace} onChange={setWorkspace} placeholder='/path/to/workspace' />
+          <Input value={workspace} onChange={setWorkspace} placeholder={t('team.create.workspacePlaceholder')} />
         </Form.Item>
         <Form.Item label={t('team.create.leaderLabel')}>
           {loading ? (

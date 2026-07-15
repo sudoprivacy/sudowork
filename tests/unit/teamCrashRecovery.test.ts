@@ -46,15 +46,16 @@ beforeEach(() => {
 
 describe('CrashRecovery.detectCrash (附录 I.3)', () => {
   const cr = makeCr(makeMember('teammate', 'Al'));
-  it('ignores non-error / non-disconnect events', () => {
+  it('ignores non-disconnect events (a bare error status is recoverable, not a crash)', () => {
     expect(cr.detectCrash({ type: 'content', content: {} })).toBeNull();
     expect(cr.detectCrash({ type: 'agent_status', content: { status: 'connected' } })).toBeNull();
+    expect(cr.detectCrash({ type: 'agent_status', content: { status: 'error', error: 'auth failed' } })).toBeNull();
   });
-  it('classifies process-exit and session-not-found', () => {
-    expect(cr.detectCrash({ type: 'agent_status', content: { status: 'error', error: 'process exited code 1' } })).toEqual({ kind: 'ProcessExited', msg: 'process exited code 1' });
-    expect(cr.detectCrash({ type: 'agent_status', content: { status: 'error', error: 'Session not found' } })).toEqual({ kind: 'SessionNotFound', msg: 'Session not found' });
+  it('classifies process-exit and session-not-found on disconnect', () => {
+    expect(cr.detectCrash({ type: 'agent_status', content: { status: 'disconnected', error: 'process exited code 1' } })).toEqual({ kind: 'ProcessExited', msg: 'process exited code 1' });
+    expect(cr.detectCrash({ type: 'agent_status', content: { status: 'disconnected', error: 'Session not found' } })).toEqual({ kind: 'SessionNotFound', msg: 'Session not found' });
   });
-  it('falls back to Unknown for disconnected/error without a known phrase', () => {
+  it('falls back to Unknown for disconnected without a known phrase', () => {
     expect(cr.detectCrash({ type: 'agent_status', content: { status: 'disconnected' } })).toEqual({ kind: 'Unknown', msg: 'disconnected' });
     expect(cr.detectCrash({ type: 'error', content: { error: 'something broke' } })).toEqual({ kind: 'Unknown', msg: 'something broke' });
   });

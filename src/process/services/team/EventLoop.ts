@@ -153,7 +153,10 @@ export class EventLoop {
       mainWarn('EventLoop', `turn failed for ${this.deps.slotId}:`, e);
       // Err → don't mark read; return the reservation to the pending queue head for the next wake.
       this.deps.teamRun.retryChildStartLater(reservation);
-      this.markIdle();
+      // Do not clobber a 'failed' status that crash recovery may have just set (when the stream
+      // disconnected event arrives before this sendMessage rejection — 附录 I.3 race).
+      const current = this.deps.lookupMember(this.deps.slotId);
+      if (!current || current.status !== 'failed') this.markIdle();
       return null;
     } finally {
       this.deps.crashRecovery?.disarmWakeTimeout(this.deps.slotId);

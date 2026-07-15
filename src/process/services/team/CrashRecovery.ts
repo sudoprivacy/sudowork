@@ -43,9 +43,12 @@ export class CrashRecovery {
 
   constructor(private readonly deps: CrashRecoveryDeps) {}
 
-  /** Classify a stream event as a crash reason, or null if it is not an error/disconnect. */
+  /** Classify a stream event as a crash reason, or null if it is not an error/disconnect (附录 I.3). */
   detectCrash(msg: { type: string; content?: { status?: string; error?: string } }): CrashReason | null {
-    if (msg.type !== 'error' && msg.content?.status !== 'disconnected' && msg.content?.status !== 'error') return null;
+    // Only a real disconnect (process/session gone) is a crash. A bare 'error' status is NOT treated
+    // as a crash — AcpAgent emits it for recoverable connection/auth failures, and killing the agent
+    // + writing a testament there would be too aggressive. (Plan I.3: disconnected / error event.)
+    if (msg.type !== 'error' && msg.content?.status !== 'disconnected') return null;
     const text = msg.content?.error ?? '';
     if (text.includes('process exited')) return { kind: 'ProcessExited', msg: text };
     if (text.includes('Session not found')) return { kind: 'SessionNotFound', msg: text };

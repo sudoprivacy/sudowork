@@ -11,6 +11,7 @@ import ChatSider from '@renderer/pages/conversation/ChatSider';
 import AcpModelSelector from '@renderer/components/AcpModelSelector';
 import { unwrapTeamResult } from './utils';
 import { useTeamSession } from './hooks/useTeamSession';
+import { useTeamRunView } from './hooks/useTeamRunView';
 import TeamMemberListTab from './components/TeamMemberListTab';
 
 function TeamDetailPage() {
@@ -18,9 +19,19 @@ function TeamDetailPage() {
   const navigate = useNavigate();
   const { teamId = '' } = useParams<{ teamId: string }>();
   const { team, statusMap, loading, removeMember } = useTeamSession(teamId);
+  const teamRunView = useTeamRunView(teamId);
   const [leaderConv, setLeaderConv] = useState<TChatConversation | undefined>(undefined);
 
   const leader = useMemo(() => team?.assistants.find((a) => a.role === 'leader') ?? null, [team]);
+
+  // Rebuild the team runtime on mount (附录 §1.3 / 关键事实 4): after an app restart the in-memory
+  // sessions are gone, so ensureSession re-attaches members + drains unread backlog.
+  useEffect(() => {
+    if (!teamId) return;
+    void ipcBridge.team.ensureSession.invoke({ teamId }).catch(() => {
+      /* ignore — session rebuild best-effort */
+    });
+  }, [teamId]);
 
   useEffect(() => {
     if (!leader?.conversation_id) return;
@@ -64,6 +75,7 @@ function TeamDetailPage() {
   }
 
   const memberTabNode = <TeamMemberListTab team={team} statusMap={statusMap} onRemoveMember={handleRemoveMember} />;
+  const runStatus = teamRunView.activeRun?.status;
 
   return (
     <ChatLayout
@@ -73,6 +85,7 @@ function TeamDetailPage() {
       conversationId={leader.conversation_id}
       workspaceEnabled
       headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} />}
+      headerExtra={runStatus ? <span className={`text-12px px-8px py-2px rounded-full ${runStatus === 'running' ? 'bg-green-500/10 text-green-600' : 'bg-gray-400/10 text-gray-500'}`}>{t(`team.status.${runStatus === 'running' ? 'active' : 'idle'}`)}</span> : null}
       sider={<ChatSider conversation={leaderConv} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} />}
     >
       <AcpChat conversation_id={leader.conversation_id} backend={leader.assistant_backend as AcpBackend} agentName={leader.assistant_name} workspace={team.workspace ?? undefined} teamSendMessage={leaderTeamSendMessage} />

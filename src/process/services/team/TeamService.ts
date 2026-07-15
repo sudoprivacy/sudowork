@@ -5,6 +5,7 @@ import * as http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { ipcBridge } from '@/common';
 import type { IResponseMessage, ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
+import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
@@ -281,38 +282,92 @@ class TeamService {
     };
     teamStore.insertMember(member);
 
-    // Build an independent AcpAgent (skipCache keeps it out of the shared task list).
-    const task = WorkerManage.buildConversation(createResult.conversation, { skipCache: true });
-    const agent = (task ?? null) as unknown as AcpAgent | null;
-    if (!agent) {
-      // Attach failed (事实 8): roll back the member, do NOT start an event loop (which would
-      // otherwise retryChildStartLater forever against a null agent), and notify the leader.
-      teamStore.softDeleteMember(slotId);
-      const leaderId = this.leaderSlotOrNull(teamId);
-      if (leaderId) {
+    // Attach the member runtime (build AcpAgent + event loop). Per 事实 8 an attach failure does NOT
+    // roll back — the member stays so the leader sees it failed, and is notified via spawn_attach_failure.
+    const attached = await this.attachRuntime(teamId, member, createResult.conversation, session);
+    if (!attached) {
+      const failed = teamStore.getMember(slotId) ?? member;
+      ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(failed) });
+      return failed;
+    }
+
+    teamStore.updateMember(slotId, { status: 'idle', conversation_id: conversationId });
+
+    // Welcome a new teammate (附录 §1.3 / I.2 spawn_welcome): a lifecycle wake for an introductory
+    // turn. Per 事实 8 a welcome-write failure fully rolls back the slot. The leader needs no welcome.
+    if (role === 'teammate') {
+      const welcomeFrom = this.leaderSlotOrNull(teamId) ?? 'user';
+      const welcomeId = uuid();
+      try {
         teamStore.insertMail({
-          id: uuid(),
+          id: welcomeId,
           team_id: teamId,
-          to_member_id: leaderId,
-          from_member_id: slotId,
+          to_member_id: slotId,
+          from_member_id: welcomeFrom,
           type: 'message',
-          content: `Failed to attach agent for '${params.name}' (${backend}). Spawn aborted.`,
+          content: `Welcome to team "${team.name}". You are a teammate named '${params.name}'. Wait for the leader to assign work and coordinate only via the team_* tools.`,
           summary: null,
           files: null,
           read: false,
           created_at: Date.now(),
         });
+      } catch (e) {
+        // welcome write failed → full rollback (事实 8)
+        await this.removeMember(teamId, slotId);
+        throw e;
+      }
+      const { lease } = session.teamRun.acquireWake(slotId, role, 'spawn_welcome');
+      session.teamRun.commitLease(lease.lease_id, { slot_id: slotId, role, source: 'spawn_welcome', message_id: welcomeId });
+      this.notifyWake(teamId, slotId);
+    }
+
+    ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(member) });
+    return member;
+  }
+
+  /**
+   * Build a member's AcpAgent + event loop and register it (shared by spawn + rebuild). Per 事实 8,
+   * an attach failure (buildConversation returns null) does NOT roll back: the member is marked
+   * failed, the leader is notified via a spawn_attach_failure wake, and no event loop is started
+   * (so it never retries a null agent). Returns true when attached.
+   */
+  private async attachRuntime(teamId: string, member: TeamMember, conversation: TChatConversation, session: TeamSession): Promise<boolean> {
+    const task = WorkerManage.buildConversation(conversation, { skipCache: true });
+    const agent = (task ?? null) as unknown as AcpAgent | null;
+    if (!agent) {
+      teamStore.updateMember(member.id, { status: 'failed' });
+      ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: member.id, status: 'failed', last_message: 'attach failed' });
+      const leaderId = this.leaderSlotOrNull(teamId);
+      if (leaderId) {
+        const mailId = uuid();
+        const { lease } = session.teamRun.acquireWake(leaderId, 'lead', 'spawn_attach_failure');
+        try {
+          teamStore.insertMail({
+            id: mailId,
+            team_id: teamId,
+            to_member_id: leaderId,
+            from_member_id: member.id,
+            type: 'message',
+            content: `Failed to attach agent for '${member.name}'. Spawn aborted.`,
+            summary: null,
+            files: null,
+            read: false,
+            created_at: Date.now(),
+          });
+        } catch {
+          session.teamRun.abortLease(lease.lease_id);
+          return false;
+        }
+        session.teamRun.commitLease(lease.lease_id, { slot_id: leaderId, role: 'lead', source: 'spawn_attach_failure', message_id: mailId });
         this.notifyWake(teamId, leaderId);
       }
-      throw new Error(`Failed to attach agent for ${params.name}`);
+      return false;
     }
     const runtime: MemberRuntime = { member: { ...member }, agent, eventLoop: null };
-    session.members.set(slotId, runtime);
-
-    // Spawn the member's event loop (signal-wake turn driver).
+    session.members.set(member.id, runtime);
     const eventLoop = new EventLoop({
       teamId,
-      slotId,
+      slotId: member.id,
       member: runtime.member,
       getAgent: () => runtime.agent,
       wakeGate: session.wakeGate,
@@ -324,33 +379,33 @@ class TeamService {
     });
     runtime.eventLoop = eventLoop;
     eventLoop.start();
+    return true;
+  }
 
-    teamStore.updateMember(slotId, { status: 'idle', conversation_id: conversationId });
-
-    // Welcome a new teammate (附录 §1.3 / I.2 spawn_welcome): a lifecycle wake so the member runs
-    // an introductory turn. The leader is driven directly by the user, so it needs no welcome.
-    if (role === 'teammate') {
-      const welcomeFrom = this.leaderSlotOrNull(teamId) ?? 'user';
-      const welcomeId = uuid();
-      teamStore.insertMail({
-        id: welcomeId,
-        team_id: teamId,
-        to_member_id: slotId,
-        from_member_id: welcomeFrom,
-        type: 'message',
-        content: `Welcome to team "${team.name}". You are a teammate named '${params.name}'. Wait for the leader to assign work and coordinate only via the team_* tools.`,
-        summary: null,
-        files: null,
-        read: false,
-        created_at: Date.now(),
-      });
-      const { lease } = session.teamRun.acquireWake(slotId, role, 'spawn_welcome');
-      session.teamRun.commitLease(lease.lease_id, { slot_id: slotId, role, source: 'spawn_welcome', message_id: welcomeId });
-      this.notifyWake(teamId, slotId);
+  /**
+   * Rebuild a team's runtime from the database (附录 §1.3 TeamSession.rebuild / 关键事实 4). Called via
+   * the ensureSession bridge when a user re-opens a team after an app restart: in-memory sessions are
+   * gone, so each member is re-attached and any unread mailbox backlog is re-drained.
+   */
+  async rebuildTeam(teamId: string): Promise<void> {
+    const team = teamStore.getTeam(teamId);
+    if (!team) return;
+    if (this.sessions.has(teamId)) return; // already active
+    const session = await this.ensureSession(teamId);
+    const members = teamStore.listMembersByTeam(teamId);
+    for (const m of members) {
+      if (!m.conversation_id) continue;
+      const convResult = getDatabase().getConversation(m.conversation_id);
+      if (!convResult.success || !convResult.data) continue;
+      await this.attachRuntime(teamId, m, convResult.data, session);
     }
+    new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
+    mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
+  }
 
-    ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(member) });
-    return member;
+  /** Stop a team's runtime (附录 §1.3 TeamSession.stop): tear down members + HTTP loopback. */
+  async stopTeamSession(teamId: string): Promise<void> {
+    await this.stopSession(teamId);
   }
 
   /** User message to the team leader. */
@@ -485,6 +540,24 @@ class TeamService {
   /** Renew an operation lease timeout (附录 I.1 renewActiveLease). Stage 5: leases have no timeout yet, so this is a forward-compatible no-op. */
   renewActiveLease(teamId: string, leaseId: string): void {
     this.sessions.get(teamId)?.teamRun.renewActiveLease(leaseId);
+  }
+
+  /** Pause a member (附录 II.9 stop button): gate its wakes + cancel its in-flight turn. */
+  async pauseMember(teamId: string, slotId: string): Promise<void> {
+    const session = this.sessions.get(teamId);
+    if (!session) return;
+    session.wakeGate.pause(slotId);
+    await this.cancelChildTurn(teamId, slotId);
+  }
+
+  /** Rename a member (附录 II.4): update DB + runtime snapshot + event. Mirrors team_rename_agent. */
+  renameMember(teamId: string, memberId: string, name: string): void {
+    const target = teamStore.getMember(memberId);
+    if (!target || target.team_id !== teamId) throw new Error(`Member not found: ${memberId}`);
+    teamStore.updateMember(memberId, { name });
+    const rt = this.sessions.get(teamId)?.members.get(memberId);
+    if (rt) rt.member.name = name;
+    ipcBridge.team.onMemberRenamed.emit({ team_id: teamId, slot_id: memberId, name });
   }
 
   /** Set the team-level permission mode: persist + broadcast (new members inherit via spawnMember). */

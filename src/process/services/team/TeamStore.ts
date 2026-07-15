@@ -414,7 +414,7 @@ class TeamStore {
   }
 
   getTask(taskId: string): TeamTask | null {
-    const result = getDatabase().queryOne<TeamTaskRow>(`SELECT * FROM team_tasks WHERE id = ?`, taskId);
+    const result = getDatabase().queryOne<TeamTaskRow>(`SELECT * FROM team_tasks WHERE id = ? AND status != 'deleted'`, taskId);
     if (!result.success) throw new Error(result.error);
     return result.data ? rowToTask(result.data) : null;
   }
