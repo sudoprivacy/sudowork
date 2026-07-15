@@ -1,0 +1,79 @@
+import { getAgentPriority, resolvePresetAgentBackend } from '@/types/acpTypes';
+
+/** Structural input shapes (DetectedAgent is not exported from AcpDetector; IAssistantInfo is). */
+export interface DetectedAgentLike {
+  backend: string;
+  name: string;
+  customAgentId?: string;
+  isPreset?: boolean;
+  avatar?: string | null;
+  presetAgentType?: string;
+}
+
+export interface InstalledAssistantLike {
+  isBuiltin: boolean;
+  isHubInstalled: boolean;
+  name: string;
+  meta: {
+    id?: string;
+    display_name?: string;
+    presetAgentType?: string;
+    avatar?: string | null;
+  };
+}
+
+export interface TeamAssistantEntry {
+  assistant_id: string;
+  name: string;
+  backend: string;
+  preset_agent_type: string | null;
+  avatar: string | null;
+  is_preset: boolean;
+}
+
+/**
+ * Merge guide-detected agents ∪ installed assistants (附录 A2).
+ *
+ * Dedupe by the `isBuiltin ? "builtin-"+(id||name) : (id||name)` key (matches AcpDetector's
+ * customAgentId formula). Installed assistants win over the matching detected entry and report
+ * their resolved backend (not 'custom'). remote-agent (enterprise) is dropped. Result is sorted by
+ * the shared getAgentPriority (stable, so same-priority entries keep insertion order).
+ */
+export function mergeTeamAssistants(detected: DetectedAgentLike[], installed: InstalledAssistantLike[]): TeamAssistantEntry[] {
+  const seen = new Set<string>();
+  const result: TeamAssistantEntry[] = [];
+
+  // Installed assistants first (resolved backend preferred over the 'custom' tag in detected).
+  for (const info of installed) {
+    const key = info.isBuiltin ? `builtin-${info.meta.id || info.name}` : info.meta.id || info.name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({
+      assistant_id: key,
+      name: info.meta.display_name || info.name,
+      backend: resolvePresetAgentBackend(info.meta.presetAgentType),
+      preset_agent_type: info.meta.presetAgentType ?? null,
+      avatar: info.meta.avatar ?? null,
+      is_preset: info.isBuiltin || info.isHubInstalled,
+    });
+  }
+
+  // Detected CLI presets / custom / extension agents not already covered.
+  for (const d of detected) {
+    if (d.backend === 'remote-agent') continue; // enterprise — not a C-end team member
+    const key = d.customAgentId ?? d.backend;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({
+      assistant_id: key,
+      name: d.name,
+      backend: d.backend,
+      preset_agent_type: d.presetAgentType ?? null,
+      avatar: d.avatar ?? null,
+      is_preset: d.isPreset ?? false,
+    });
+  }
+
+  result.sort((a, b) => getAgentPriority(a.backend) - getAgentPriority(b.backend));
+  return result;
+}

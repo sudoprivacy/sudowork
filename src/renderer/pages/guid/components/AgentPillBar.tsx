@@ -2,6 +2,7 @@ import { Robot } from '@icon-park/react';
 import React from 'react';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { getAgentPriority } from '@/types/acpTypes';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import type { AvailableAgent } from '../types';
 
@@ -21,30 +22,11 @@ type AgentPillBarProps = {
 };
 
 const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAgentKey, getAgentKey, onSelectAgent, sessionMode, onSessionModeChange, isEnterprise, localModeAvailable }) => {
-  // Define priority order for agent display
-  const getAgentPriority = (agent: AvailableAgent): number => {
-    const backend = agent.backend;
-    switch (backend) {
-      case 'remote-agent':
-        return -1; // Moss Server (enterprise) - highest priority
-      case 'scode':
-        return 0; // Sudo Code - highest priority for consumer
-      case 'claude':
-        return 2;
-      case 'gemini':
-        return 3;
-      case 'custom':
-        return 4; // Extensions/custom agents last
-      default:
-        return 5; // Other agents come after
-    }
-  };
-
   // Sort agents according to priority
   const sortedAgents = [...availableAgents].sort((a, b) => {
     // For non-custom agents, use priority-based sorting
     if (a.backend !== 'custom' && b.backend !== 'custom') {
-      return getAgentPriority(a) - getAgentPriority(b);
+      return getAgentPriority(a.backend) - getAgentPriority(b.backend);
     }
 
     // For custom agents, keep their relative order but sort them after prioritized agents

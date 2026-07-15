@@ -13,6 +13,7 @@ import { resolvePresetAgentBackend, type PresetAgentType } from '@/types/acpType
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import type AcpAgent from '@process/task/AcpAgent';
+import { acpDetector } from '@/agent/acp/AcpDetector';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { createConversation } from '../conversationService';
 import { teamStore, type Team, type TeamMail, type TeamMember } from './TeamStore';
@@ -20,6 +21,8 @@ import { buildGovernancePrompt } from './GovernancePrompt';
 import { EventLoop } from './EventLoop';
 import { TeamRunManager } from './TeamRun';
 import { RecoveryDrain } from './RecoveryDrain';
+import { TaskBoard } from './TaskBoard';
+import { mergeTeamAssistants, type DetectedAgentLike, type InstalledAssistantLike } from './assistantMerger';
 import { SlotWakeGate } from './SlotWakeGate';
 import type { WakeSource } from './WakeSource';
 
@@ -48,6 +51,8 @@ interface TeamSession {
   members: Map<string, MemberRuntime>;
   wakeGate: SlotWakeGate;
   teamRun: TeamRunManager;
+  /** Pending shutdown requests: slot_id → reason. Drives the shutdown-protocol interception in team_send_message. */
+  pendingShutdowns: Map<string, string | null>;
   httpServer: http.Server | null;
   port: number;
   token: string;
@@ -361,7 +366,15 @@ class TeamService {
     if (existing) return existing;
     const { server, port, token } = await this.startTeamHttpServer(teamId);
     const wakeGate = new SlotWakeGate();
-    const session: TeamSession = { members: new Map(), wakeGate, teamRun: new TeamRunManager(teamId, wakeGate), httpServer: server, port, token };
+    const session: TeamSession = {
+      members: new Map(),
+      wakeGate,
+      teamRun: new TeamRunManager(teamId, wakeGate),
+      pendingShutdowns: new Map(),
+      httpServer: server,
+      port,
+      token,
+    };
     this.sessions.set(teamId, session);
     mainLog('TeamService', `team ${teamId} loopback on 127.0.0.1:${port}`);
     return session;
@@ -489,6 +502,20 @@ class TeamService {
             })),
           },
         };
+      case 'team_task_create':
+      case 'team_task_update':
+      case 'team_task_list':
+        return this.toolTask(teamId, tool, args);
+      case 'team_rename_agent':
+        return this.toolRenameAgent(teamId, caller, args);
+      case 'team_shutdown_agent':
+        return this.toolShutdownAgent(teamId, caller, args);
+      case 'team_list_assistants':
+        return this.toolListAssistants(args);
+      case 'team_describe_assistant':
+        return this.toolDescribeAssistant(args);
+      case 'team_list_models':
+        return this.toolListModels(args);
       default:
         return { ok: false, error: `unknown tool: ${tool}` };
     }
@@ -503,6 +530,12 @@ class TeamService {
     }
     const session = this.sessions.get(teamId);
     if (!session) return { ok: false, error: 'team session not active' };
+
+    // Shutdown-protocol interception (附录 I.6): a teammate with a pending shutdown replies with an
+    // exact string. These are protocol signals, not delivered messages.
+    const interception = this.interceptShutdownReply(teamId, caller, message, session);
+    if (interception) return interception;
+
     const wakeSource: WakeSource = 'mcp_send_message';
     let targets: string[];
     if (to === '*') {
@@ -564,6 +597,208 @@ class TeamService {
     }
   }
 
+  /** team_task_*: Any-team-agent. CRUD over the shared task board (cycle-checked, no wake). */
+  private toolTask(teamId: string, tool: string, args: Record<string, unknown>): TeamToolResult {
+    const board = new TaskBoard(teamId);
+    try {
+      switch (tool) {
+        case 'team_task_create': {
+          const subject = args.subject;
+          if (typeof subject !== 'string' || !subject.trim()) return { ok: false, error: 'team_task_create requires a non-empty "subject"' };
+          const task = board.createTask({
+            subject,
+            description: typeof args.description === 'string' ? args.description : null,
+            owner: typeof args.owner === 'string' ? args.owner : null,
+            blocked_by: Array.isArray(args.blocked_by) ? args.blocked_by.filter((id): id is string => typeof id === 'string') : [],
+          });
+          return { ok: true, data: task };
+        }
+        case 'team_task_update': {
+          const taskId = args.task_id;
+          if (typeof taskId !== 'string') return { ok: false, error: 'team_task_update requires a string "task_id"' };
+          const updates: Record<string, unknown> = {};
+          if (typeof args.status === 'string') updates.status = args.status;
+          if (typeof args.description === 'string') updates.description = args.description;
+          if (typeof args.owner === 'string') updates.owner = args.owner;
+          if (Array.isArray(args.blocked_by)) updates.blocked_by = args.blocked_by.filter((id): id is string => typeof id === 'string');
+          const task = board.updateTask(taskId, updates);
+          return { ok: true, data: task };
+        }
+        case 'team_task_list':
+          return { ok: true, data: { tasks: board.listTasks() } };
+        default:
+          return { ok: false, error: `unknown task tool: ${tool}` };
+      }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  /**
+   * team_list_assistants (附录 A2): merge guide-detected agents ∪ installed assistants (deduped,
+   * remote-agent dropped, priority-sorted). The merge is a pure function in assistantMerger.ts.
+   */
+  private async toolListAssistants(_args: Record<string, unknown>): Promise<TeamToolResult> {
+    let installed: InstalledAssistantLike[] = [];
+    try {
+      installed = (await assistantManager.getInstalledAssistants()) as unknown as InstalledAssistantLike[];
+    } catch (e) {
+      mainWarn('TeamService', 'getInstalledAssistants failed:', e);
+    }
+    const detected = acpDetector.getDetectedAgents() as unknown as DetectedAgentLike[];
+    const assistants = mergeTeamAssistants(detected, installed);
+    return { ok: true, data: { assistants } };
+  }
+
+  /** team_describe_assistant (附录 A2): return the assistant's rules + skills (for spawn presetContext). */
+  private async toolDescribeAssistant(args: Record<string, unknown>): Promise<TeamToolResult> {
+    const assistantId = args.assistant_id;
+    if (typeof assistantId !== 'string') return { ok: false, error: 'team_describe_assistant requires string "assistant_id"' };
+    const lookupName = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
+    const meta = await assistantManager.getAssistantMeta(lookupName);
+    if (!meta) return { ok: false, error: `unknown assistant: ${assistantId}` };
+    const locale = typeof args.locale === 'string' ? args.locale : DEFAULT_LOCALE;
+    let rules: string | null = null;
+    if (meta.ruleFile) {
+      try {
+        rules = await readAssistantResource('rules', lookupName, locale, ruleFilePattern);
+      } catch {
+        rules = null;
+      }
+    }
+    return {
+      ok: true,
+      data: {
+        assistant_id: assistantId,
+        rules,
+        enabled_skills: meta.enabledSkills ?? meta.defaultEnabledSkills ?? [],
+        preset_agent_type: meta.presetAgentType ?? null,
+        backend: resolvePresetAgentBackend(meta.presetAgentType),
+      },
+    };
+  }
+
+  /** team_list_models (附录 I.6): list model configs for an assistant (or empty). */
+  private async toolListModels(args: Record<string, unknown>): Promise<TeamToolResult> {
+    const assistantId = args.assistant_id;
+    if (typeof assistantId === 'string') {
+      const lookupName = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
+      const meta = await assistantManager.getAssistantMeta(lookupName);
+      if (!meta) return { ok: false, error: `unknown assistant: ${assistantId}` };
+      const models = meta.modelConfigs ? Object.keys(meta.modelConfigs) : [];
+      return { ok: true, data: { assistant_id: assistantId, models } };
+    }
+    return { ok: true, data: { models: [] } };
+  }
+
+  /** team_rename_agent: Lead-only — renames a member (DB + runtime snapshot + event). */
+  private toolRenameAgent(teamId: string, caller: TeamMember, args: Record<string, unknown>): TeamToolResult {
+    if (caller.role !== 'lead') return { ok: false, error: 'Only the team lead can rename agents' };
+    const slotId = args.slot_id;
+    const newName = args.new_name;
+    if (typeof slotId !== 'string' || typeof newName !== 'string' || !newName.trim()) {
+      return { ok: false, error: 'team_rename_agent requires string "slot_id" and non-empty "new_name"' };
+    }
+    const target = teamStore.getMember(slotId);
+    if (!target || target.team_id !== teamId) return { ok: false, error: `unknown member: ${slotId}` };
+    teamStore.updateMember(slotId, { name: newName });
+    // Mutate the runtime snapshot in place so the member's EventLoop (which holds the same ref) sees the new name.
+    const rt = this.sessions.get(teamId)?.members.get(slotId);
+    if (rt) rt.member.name = newName;
+    ipcBridge.team.onMemberRenamed.emit({ team_id: teamId, slot_id: slotId, name: newName });
+    return { ok: true, data: { slot_id: slotId, name: newName } };
+  }
+
+  /** team_shutdown_agent: Lead-only — initiates the graceful shutdown protocol (附录 I.6). */
+  private toolShutdownAgent(teamId: string, caller: TeamMember, args: Record<string, unknown>): TeamToolResult {
+    if (caller.role !== 'lead') return { ok: false, error: 'Only the team lead can shutdown agents' };
+    const targetId = args.slot_id;
+    if (typeof targetId !== 'string') return { ok: false, error: 'team_shutdown_agent requires string "slot_id"' };
+    const target = teamStore.getMember(targetId);
+    if (!target || target.team_id !== teamId) return { ok: false, error: `unknown member: ${targetId}` };
+    if (target.role === 'lead') return { ok: false, error: 'cannot shutdown the team lead' };
+    const session = this.sessions.get(teamId);
+    if (!session) return { ok: false, error: 'team session not active' };
+    const reason = typeof args.reason === 'string' ? args.reason : null;
+
+    // Track the pending shutdown so the teammate's reply can be intercepted.
+    session.pendingShutdowns.set(targetId, reason);
+    // Lifecycle wake (mcp_shutdown_request bypasses pause): write shutdown_request + wake the target.
+    const { lease } = session.teamRun.acquireWake(targetId, target.role, 'mcp_shutdown_request');
+    const mailId = uuid();
+    try {
+      teamStore.insertMail({
+        id: mailId,
+        team_id: teamId,
+        to_member_id: targetId,
+        from_member_id: caller.id,
+        type: 'shutdown_request',
+        content: reason ? `Lead requested shutdown: ${reason}` : 'Lead requested shutdown.',
+        summary: null,
+        files: null,
+        read: false,
+        created_at: Date.now(),
+      });
+    } catch {
+      session.teamRun.abortLease(lease.lease_id);
+      session.pendingShutdowns.delete(targetId);
+      return { ok: false, error: 'failed to write shutdown request' };
+    }
+    session.teamRun.commitLease(lease.lease_id, { slot_id: targetId, role: target.role, source: 'mcp_shutdown_request', message_id: mailId });
+    this.notifyWake(teamId, targetId);
+    return { ok: true, data: { status: 'shutdown_requested', slot_id: targetId } };
+  }
+
+  /**
+   * Shutdown-protocol reply interception (附录 I.6). Returns a result when the caller (with a pending
+   * shutdown) replies with the exact protocol string; otherwise null to continue normal delivery.
+   * - 'shutdown_approved' → after 500ms, remove the agent.
+   * - 'shutdown_rejected:<reason>' → write the reason to the leader and wake it.
+   */
+  private interceptShutdownReply(teamId: string, caller: TeamMember, message: string, session: TeamSession): TeamToolResult | null {
+    if (!session.pendingShutdowns.has(caller.id)) return null;
+    if (message === 'shutdown_approved') {
+      session.pendingShutdowns.delete(caller.id);
+      const targetId = caller.id;
+      // Delay 500ms so the MCP response reaches the agent before it is killed.
+      setTimeout(() => {
+        void this.removeMember(teamId, targetId);
+      }, 500);
+      return { ok: true, data: { status: 'shutdown_approved_received', slot_id: targetId } };
+    }
+    const rejectedPrefix = 'shutdown_rejected:';
+    if (message.startsWith(rejectedPrefix)) {
+      const reason = message.slice(rejectedPrefix.length);
+      session.pendingShutdowns.delete(caller.id);
+      const leaderId = this.leaderSlotOrNull(teamId);
+      if (leaderId) {
+        const { lease } = session.teamRun.acquireWake(leaderId, 'lead', 'shutdown_rejected');
+        const mailId = uuid();
+        try {
+          teamStore.insertMail({
+            id: mailId,
+            team_id: teamId,
+            to_member_id: leaderId,
+            from_member_id: caller.id,
+            type: 'message',
+            content: `Teammate '${caller.name}' rejected shutdown: ${reason}`,
+            summary: null,
+            files: null,
+            read: false,
+            created_at: Date.now(),
+          });
+        } catch {
+          session.teamRun.abortLease(lease.lease_id);
+          return { ok: true, data: { status: 'shutdown_rejected', reason } };
+        }
+        session.teamRun.commitLease(lease.lease_id, { slot_id: leaderId, role: 'lead', source: 'shutdown_rejected', message_id: mailId });
+        this.notifyWake(teamId, leaderId);
+      }
+      return { ok: true, data: { status: 'shutdown_rejected', reason } };
+    }
+    return null;
+  }
+
   // ---- helpers ----
 
   private notifyWake(teamId: string, slotId: string): void {
@@ -583,6 +818,10 @@ class TeamService {
     const lead = teamStore.listMembersByTeam(teamId).find((m) => m.role === 'lead');
     if (!lead) throw new Error('Team has no leader');
     return lead.id;
+  }
+
+  private leaderSlotOrNull(teamId: string): string | null {
+    return teamStore.listMembersByTeam(teamId).find((m) => m.role === 'lead')?.id ?? null;
   }
 }
 

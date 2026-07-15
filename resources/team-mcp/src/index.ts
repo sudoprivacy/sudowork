@@ -88,8 +88,9 @@ function forwardTool(tool: string, args: Record<string, unknown>): Promise<Loopb
   });
 }
 
-// Stage 2 ships the first 3 tools; the remaining 8 (task_*, rename, shutdown,
-// list_assistants, describe_assistant, list_models) arrive in later stages.
+// All 11 team_* tools (附录 I.6). Every call forwards uniformly over HTTP loopback
+// to TeamService, which resolves the caller's role from slot_id and enforces
+// Lead-only tools (spawn/rename/shutdown) server-side.
 const TOOLS: Tool[] = [
   {
     name: 'team_send_message',
@@ -125,6 +126,97 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'team_task_create',
+    description: 'Create a task on the shared task board. blocked_by lists task_ids this task waits on; cycles are rejected.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subject: { type: 'string' },
+        description: { type: 'string' },
+        owner: { type: 'string', description: 'slot_id of the member owning the task.' },
+        blocked_by: { type: 'array', items: { type: 'string' }, description: 'task_ids this task depends on.' },
+      },
+      required: ['subject'],
+    },
+  },
+  {
+    name: 'team_task_update',
+    description: 'Update a task. Setting status to a terminal value (completed/failed/cancelled) dismantles its dependency edges. blocked_by changes are cycle-checked.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string' },
+        status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'failed', 'cancelled'] },
+        description: { type: 'string' },
+        owner: { type: 'string' },
+        blocked_by: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['task_id'],
+    },
+  },
+  {
+    name: 'team_task_list',
+    description: 'List all tasks on the shared task board.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'team_rename_agent',
+    description: 'Rename a team member. Lead-only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slot_id: { type: 'string' },
+        new_name: { type: 'string' },
+      },
+      required: ['slot_id', 'new_name'],
+    },
+  },
+  {
+    name: 'team_shutdown_agent',
+    description: 'Ask a teammate to shut down gracefully. Lead-only; the team lead cannot be shut down. The teammate replies via team_send_message with "shutdown_approved" or "shutdown_rejected:<reason>".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slot_id: { type: 'string' },
+        reason: { type: 'string' },
+      },
+      required: ['slot_id'],
+    },
+  },
+  {
+    name: 'team_list_assistants',
+    description: 'List assistants available to spawn as teammates (merged guide agents + installed assistants, deduped and priority-sorted). Each entry has an assistant_id usable with team_spawn_agent.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'team_describe_assistant',
+    description: 'Describe a single assistant: its rules, enabled skills, preset agent type, and resolved backend. Use to populate spawn context.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        assistant_id: { type: 'string' },
+        locale: { type: 'string' },
+      },
+      required: ['assistant_id'],
+    },
+  },
+  {
+    name: 'team_list_models',
+    description: 'List the model configs available for an assistant (by assistant_id).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        assistant_id: { type: 'string' },
+      },
     },
   },
 ];
