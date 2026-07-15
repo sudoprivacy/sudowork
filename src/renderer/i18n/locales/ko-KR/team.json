@@ -27,7 +27,15 @@
     "workspaceTitle": "워크스페이스",
     "workspaceCustom": "사용자 지정 워크스페이스",
     "workspaceTemporary": "팀 임시 워크스페이스",
-    "workspacePending": "워크스페이스가 아직 준비되지 않았습니다"
+    "workspacePending": "워크스페이스가 아직 준비되지 않았습니다",
+    "empty": {
+      "subtitle": "목표를 설명하면 팀을 조율해 완료까지 진행하겠습니다.",
+      "prompt": {
+        "productDevQaOps": "제품, 개발, 테스트, 운영이 협업해 기능을 출시하기",
+        "growth": "마케팅, 콘텐츠, 디자인, 광고 집행이 협업해 성장 전략 세우기",
+        "delivery": "책임자, 실행, 리스크 관리, 회고가 협업해 프로젝트 납품 추진하기"
+      }
+    }
   },
   "status": {
     "pending": "대기 중",

@@ -202,6 +202,7 @@ class TeamService {
     const leader = await this.spawnMember(teamId, {
       assistant_id: leaderAssistantId,
       name: leaderName || name,
+      conversationName: name,
       model: leaderModel,
       role: 'lead',
     });
@@ -225,7 +226,7 @@ class TeamService {
     return teamStore.getTeam(teamId) ?? { ...team, ...updates, updated_at: Date.now() };
   }
 
-  async spawnMember(teamId: string, params: { assistant_id: string; name: string; model?: string; role?: 'lead' | 'teammate' }): Promise<TeamMember> {
+  async spawnMember(teamId: string, params: { assistant_id: string; name: string; conversationName?: string; model?: string; role?: 'lead' | 'teammate' }): Promise<TeamMember> {
     const team = teamStore.getTeam(teamId);
     if (!team) throw new Error(`Team not found: ${teamId}`);
     const role = params.role || 'teammate';
@@ -273,11 +274,12 @@ class TeamService {
 
     const createResult = await createConversation({
       type: 'acp',
-      name: params.name,
+      name: params.conversationName || params.name,
       extra: {
         backend,
         workspace: team.workspace || undefined,
         customWorkspace: isResolvingInitialTeamWorkspace ? false : customWorkspace,
+        workspaceDisplayName: team.name,
         teamOwnedWorkspace: true,
         presetAssistantId: params.assistant_id,
         presetContext: presetContext || undefined,

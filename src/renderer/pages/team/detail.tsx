@@ -1,9 +1,10 @@
 import { Spin } from '@arco-design/web-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
+import { emitter } from '@/renderer/utils/emitter';
 import type { AcpBackend } from '@/types/acpTypes';
 import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
 import ChatLayout from '@renderer/pages/conversation/ChatLayout';
@@ -13,6 +14,7 @@ import { unwrapTeamResult } from './utils';
 import { useTeamSession } from './hooks/useTeamSession';
 import { useTeamRunView } from './hooks/useTeamRunView';
 import TeamMemberListTab from './components/TeamMemberListTab';
+import TeamLeaderEmptyState from './components/TeamLeaderEmptyState';
 
 function TeamDetailPage() {
   const { t } = useTranslation();
@@ -57,6 +59,13 @@ function TeamDetailPage() {
     [teamId]
   );
 
+  const onEmptyPromptClick = useCallback(
+    (prompt: string) => {
+      emitter.emit('sendbox.fill', { text: prompt, conversationId: leader?.conversation_id ?? undefined });
+    },
+    [leader?.conversation_id]
+  );
+
   const handleRemoveMember = (slotId: string) => {
     void removeMember(slotId);
   };
@@ -88,7 +97,15 @@ function TeamDetailPage() {
       headerExtra={runStatus ? <span className={`text-12px px-8px py-2px rounded-full ${runStatus === 'running' ? 'bg-green-500/10 text-green-600' : 'bg-gray-400/10 text-gray-500'}`}>{t(`team.status.${runStatus === 'running' ? 'active' : 'idle'}`)}</span> : null}
       sider={<ChatSider conversation={leaderConv} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} />}
     >
-      <AcpChat conversation_id={leader.conversation_id} backend={leader.assistant_backend as AcpBackend} agentName={leader.assistant_name} workspace={team.workspace ?? undefined} teamSendMessage={leaderTeamSendMessage} />
+      <AcpChat
+        conversation_id={leader.conversation_id}
+        backend={leader.assistant_backend as AcpBackend}
+        agentName={leader.assistant_name}
+        workspace={team.workspace ?? undefined}
+        teamSendMessage={leaderTeamSendMessage}
+        showEmptyStateWhenNoMessages
+        emptyState={<TeamLeaderEmptyState assistantName={leader.assistant_name} assistantAvatar={leader.icon} assistantBackend={leader.assistant_backend} onPromptClick={onEmptyPromptClick} />}
+      />
     </ChatLayout>
   );
 }

@@ -27,7 +27,15 @@
     "workspaceTitle": "ワークスペース",
     "workspaceCustom": "カスタムワークスペース",
     "workspaceTemporary": "チーム一時ワークスペース",
-    "workspacePending": "ワークスペースはまだ準備できていません"
+    "workspacePending": "ワークスペースはまだ準備できていません",
+    "empty": {
+      "subtitle": "目標を説明してください。チームを調整して完了まで進めます。",
+      "prompt": {
+        "productDevQaOps": "プロダクト、開発、テスト、運用で協力して機能をリリースする",
+        "growth": "マーケティング、コンテンツ、デザイン、広告運用で成長施策を立てる",
+        "delivery": "責任者、実行担当、リスク管理、振り返りでプロジェクトを推進する"
+      }
+    }
   },
   "status": {
     "pending": "待機中",

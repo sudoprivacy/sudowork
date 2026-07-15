@@ -1463,6 +1463,7 @@ export interface ICreateConversationParams {
   extra: {
     workspace?: string;
     customWorkspace?: boolean;
+    workspaceDisplayName?: string;
     teamOwnedWorkspace?: boolean;
     defaultFiles?: string[];
     backend?: AcpBackendAll;

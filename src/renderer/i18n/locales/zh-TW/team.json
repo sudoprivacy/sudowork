@@ -27,7 +27,15 @@
     "workspaceTitle": "工作空間",
     "workspaceCustom": "自訂工作空間",
     "workspaceTemporary": "團隊臨時工作空間",
-    "workspacePending": "工作空間尚未就緒"
+    "workspacePending": "工作空間尚未就緒",
+    "empty": {
+      "subtitle": "描述你的目標，我來協調團隊完成它",
+      "prompt": {
+        "productDevQaOps": "讓產品、研發、測試、運維協作落地一個功能",
+        "growth": "讓市場、內容、設計、投放協作制定成長方案",
+        "delivery": "讓負責人、執行、風控、覆盤協作推進專案交付"
+      }
+    }
   },
   "status": {
     "pending": "等待中",

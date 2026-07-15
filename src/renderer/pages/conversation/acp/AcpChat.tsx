@@ -16,10 +16,12 @@ const AcpChat: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
   agentName?: string;
+  emptyState?: React.ReactNode;
+  showEmptyStateWhenNoMessages?: boolean;
   /** Team override: when set, sends go through the team API instead of the single-chat ACP API (附录 II.8). */
   teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
-}> = ({ conversation_id, workspace, backend, sessionMode, agentName, teamSendMessage }) => {
-  useMessageLstCache(conversation_id);
+}> = ({ conversation_id, workspace, backend, sessionMode, agentName, emptyState, showEmptyStateWhenNoMessages, teamSendMessage }) => {
+  const { loaded: messagesLoaded } = useMessageLstCache(conversation_id);
   const [aiProcessing, setAiProcessing] = useState(false);
 
   // Reset aiProcessing when conversation changes
@@ -33,7 +35,7 @@ const AcpChat: React.FC<{
       <div className='flex-1 flex flex-col px-20px min-h-0'>
         <LocalImageView.Provider value={{ root: workspace || '' }}>
           <FlexFullContainer>
-            <MessageList className='flex-1' aiProcessing={aiProcessing}></MessageList>
+            <MessageList className='flex-1' aiProcessing={aiProcessing} emptyState={emptyState} isEmptyStateReady={Boolean(showEmptyStateWhenNoMessages && messagesLoaded)}></MessageList>
           </FlexFullContainer>
         </LocalImageView.Provider>
         <SafetyChatConfirm conversation_id={conversation_id}>

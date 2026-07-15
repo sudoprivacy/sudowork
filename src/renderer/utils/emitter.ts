@@ -39,7 +39,7 @@ interface EventTypes {
     },
   ];
   // 填充输入框事件 / Fill sendbox input event
-  'sendbox.fill': [string]; // prompt text to fill
+  'sendbox.fill': [string | { text: string; conversationId?: string }]; // prompt text to fill
   'agent.connection.status': [string, string]; // [conversationId, status]
   'staroffice.install.request': [{ conversationId: string; text: string; detectedUrl?: string | null }];
   'staroffice.install.finished': [{ conversationId: string }];

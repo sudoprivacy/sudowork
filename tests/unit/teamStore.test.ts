@@ -85,12 +85,13 @@ beforeEach(() => {
 });
 
 describe('team migrations', () => {
-  it('CURRENT_DB_VERSION is 25', () => {
-    expect(CURRENT_DB_VERSION).toBe(25);
+  it('CURRENT_DB_VERSION is 26', () => {
+    expect(CURRENT_DB_VERSION).toBe(26);
   });
-  it('ALL_MIGRATIONS includes v24 and v25', () => {
+  it('ALL_MIGRATIONS includes v24, v25, and v26', () => {
     expect(ALL_MIGRATIONS.some((m) => m.version === 24)).toBe(true);
     expect(ALL_MIGRATIONS.some((m) => m.version === 25)).toBe(true);
+    expect(ALL_MIGRATIONS.some((m) => m.version === 26)).toBe(true);
   });
   it('migration_v24 has name + up/down functions', () => {
     const m = ALL_MIGRATIONS.find((x) => x.version === 24)!;

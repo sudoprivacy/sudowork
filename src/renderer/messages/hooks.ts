@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
 import { composeMessage } from '@/common/chatLib';
@@ -334,10 +334,18 @@ export const useAddOrUpdateMessage = () => {
   );
 };
 
-export const useMessageLstCache = (key: string) => {
+export const useMessageLstCache = (key: string): { loaded: boolean } => {
   const update = useUpdateMessageList();
+  const [loaded, setLoaded] = useState(false);
+
   useEffect(() => {
-    if (!key) return;
+    if (!key) {
+      setLoaded(true);
+      return;
+    }
+
+    let cancelled = false;
+    setLoaded(false);
 
     // 1. 先通知主进程 flush 所有 pending 消息，确保切换会话时消息不丢失
     ipcBridge.conversation.flushPendingMessages
@@ -346,6 +354,7 @@ export const useMessageLstCache = (key: string) => {
       .finally(() => {
         // 2. 延迟一小段时间确保 flush 完成后再读取数据库
         setTimeout(() => {
+          if (cancelled) return;
           void ipcBridge.database.getConversationMessages
             .invoke({
               conversation_id: key,
@@ -353,6 +362,7 @@ export const useMessageLstCache = (key: string) => {
               pageSize: 10000, // Load all messages (up to 10k per conversation)
             })
             .then((messages) => {
+              if (cancelled) return;
               if (messages && Array.isArray(messages)) {
                 // Merge DB messages with any real-time streaming messages already in the list.
                 // This prevents a race condition where streaming messages (added via IPC before
@@ -377,10 +387,19 @@ export const useMessageLstCache = (key: string) => {
             })
             .catch((error) => {
               console.error('[useMessageLstCache] Failed to load messages from database:', error);
+            })
+            .finally(() => {
+              if (!cancelled) setLoaded(true);
             });
         }, 100);
       });
-  }, [key]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [key, update]);
+
+  return { loaded };
 };
 
 export const beforeUpdateMessageList = (fn: (list: TMessage[]) => TMessage[]) => {

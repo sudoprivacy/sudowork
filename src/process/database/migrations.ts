@@ -1507,6 +1507,69 @@ const migration_v25: IMigration = {
 };
 
 /**
+ * Migration v25 -> v26: Backfill team conversation display names.
+ */
+const migration_v26: IMigration = {
+  version: 26,
+  name: 'Backfill team conversation display names',
+  up: (db) => {
+    const now = Date.now();
+    db.exec(`
+      UPDATE conversations
+      SET extra = json_set(COALESCE(extra, '{}'), '$.workspaceDisplayName', (
+            SELECT teams.name
+            FROM team_members
+            JOIN teams ON teams.id = team_members.team_id
+            WHERE team_members.conversation_id = conversations.id
+              AND team_members.deleted = 0
+              AND teams.deleted = 0
+          )),
+          updated_at = ${now}
+      WHERE id IN (
+        SELECT team_members.conversation_id
+        FROM team_members
+        JOIN teams ON teams.id = team_members.team_id
+        WHERE team_members.conversation_id IS NOT NULL
+          AND team_members.deleted = 0
+          AND teams.deleted = 0
+      );
+
+      UPDATE conversations
+      SET name = (
+            SELECT teams.name
+            FROM team_members
+            JOIN teams ON teams.id = team_members.team_id
+            WHERE team_members.conversation_id = conversations.id
+              AND teams.leader_member_id = team_members.id
+              AND team_members.deleted = 0
+              AND teams.deleted = 0
+          ),
+          updated_at = ${now}
+      WHERE id IN (
+        SELECT team_members.conversation_id
+        FROM team_members
+        JOIN teams ON teams.id = team_members.team_id
+        WHERE team_members.conversation_id IS NOT NULL
+          AND teams.leader_member_id = team_members.id
+          AND team_members.deleted = 0
+          AND teams.deleted = 0
+      );
+    `);
+    mainLog('Migration v26', 'Backfilled team conversation display names');
+  },
+  down: (db) => {
+    db.exec(`
+      UPDATE conversations
+      SET extra = json_remove(extra, '$.workspaceDisplayName')
+      WHERE id IN (
+        SELECT conversation_id FROM team_members WHERE conversation_id IS NOT NULL
+      );
+    `);
+    mainLog('Migration v26', 'Rolled back: Removed team conversation display names');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1515,7 +1578,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
-  migration_v25,
+  migration_v25, migration_v26,
 ];
 
 /**

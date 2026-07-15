@@ -27,7 +27,15 @@
     "workspaceTitle": "Workspace",
     "workspaceCustom": "Custom workspace",
     "workspaceTemporary": "Temporary team workspace",
-    "workspacePending": "Workspace is not ready"
+    "workspacePending": "Workspace is not ready",
+    "empty": {
+      "subtitle": "Describe your goal, and I will coordinate the team to get it done.",
+      "prompt": {
+        "productDevQaOps": "Have product, engineering, QA, and operations collaborate to ship a feature",
+        "growth": "Have marketing, content, design, and ads collaborate on a growth plan",
+        "delivery": "Have owners, executors, risk control, and retrospectives collaborate to deliver a project"
+      }
+    }
   },
   "status": {
     "pending": "Pending",

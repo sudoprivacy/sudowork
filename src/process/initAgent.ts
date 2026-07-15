@@ -60,6 +60,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
     extra: {
       workspace: workspace,
       customWorkspace,
+      workspaceDisplayName: extra.workspaceDisplayName,
       teamOwnedWorkspace: extra.teamOwnedWorkspace,
       backend: extra.backend,
       cliPath: extra.cliPath,

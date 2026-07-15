@@ -118,9 +118,11 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?:
 interface MessageListProps {
   className?: string;
   aiProcessing?: boolean; // AI processing state
+  emptyState?: React.ReactNode;
+  isEmptyStateReady?: boolean;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = false }) => {
+const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = false, emptyState, isEmptyStateReady = false }) => {
   const list = useMessageList();
   const conversationContext = useConversationContextSafe();
   const { t } = useTranslation();
@@ -397,6 +399,8 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     return withTimeSeparators;
   }, [list, aiProcessing, showToolCalls]);
 
+  const isShowingEmptyState = Boolean(isEmptyStateReady && emptyState && processedList.length === 0 && !aiProcessing);
+
   // Use auto-scroll hook
   const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, handleScrollerRef, showScrollButton, scrollToBottom, hideScrollButton, bottomSpacerHeight } = useAutoScroll({
     messages: list,
@@ -500,6 +504,11 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
     <div className={classNames('relative flex-1 h-full', className)} onContextMenu={handleContextMenu}>
       {/* Context Menu Rendering */}
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
+      {isShowingEmptyState ? (
+        <div className='absolute inset-0 z-1 flex items-center justify-center px-20px pointer-events-none'>
+          <div className='w-full pointer-events-auto'>{emptyState}</div>
+        </div>
+      ) : null}
       {/* Use PreviewGroup to wrap all messages for cross-message image preview */}
       <Image.PreviewGroup actionsLayout={['zoomIn', 'zoomOut', 'originalSize', 'rotateLeft', 'rotateRight']}>
         <ImagePreviewContext.Provider value={{ inPreviewGroup: true }}>

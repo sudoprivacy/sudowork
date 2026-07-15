@@ -620,10 +620,15 @@ const AcpSendBox: React.FC<{
   // Listen for sendbox.fill event to populate input from external sources
   useAddEventListener(
     'sendbox.fill',
-    (text: string) => {
-      setContentRef.current(text);
+    (payload: string | { text: string; conversationId?: string }) => {
+      if (typeof payload === 'string') {
+        setContentRef.current(payload);
+        return;
+      }
+      if (payload.conversationId && payload.conversationId !== conversation_id) return;
+      setContentRef.current(payload.text);
     },
-    []
+    [conversation_id]
   );
 
   // Check for and send initial message from guid page

@@ -27,7 +27,15 @@
     "workspaceTitle": "Çalışma Alanı",
     "workspaceCustom": "Özel çalışma alanı",
     "workspaceTemporary": "Geçici takım çalışma alanı",
-    "workspacePending": "Çalışma alanı hazır değil"
+    "workspacePending": "Çalışma alanı hazır değil",
+    "empty": {
+      "subtitle": "Hedefinizi açıklayın, ekibi koordine edip tamamlanmasını sağlayayım.",
+      "prompt": {
+        "productDevQaOps": "Ürün, geliştirme, test ve operasyon ekipleriyle bir özelliği yayına alın",
+        "growth": "Pazarlama, içerik, tasarım ve reklam ekipleriyle büyüme planı oluşturun",
+        "delivery": "Sorumlular, uygulayıcılar, risk kontrolü ve retrospektif ile proje teslimini ilerletin"
+      }
+    }
   },
   "status": {
     "pending": "Bekliyor",
