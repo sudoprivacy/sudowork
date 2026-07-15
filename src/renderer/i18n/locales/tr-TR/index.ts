@@ -14,6 +14,7 @@ import codex from './codex.json';
 import tools from './tools.json';
 import gemini from './gemini.json';
 import cron from './cron.json';
+import team from './team.json';
 import starOffice from './starOffice.json';
 import guid from './guid.json';
 import agent from './agent.json';
@@ -38,6 +39,7 @@ export default {
   tools,
   gemini,
   cron,
+  team,
   starOffice,
   guid,
   agent,

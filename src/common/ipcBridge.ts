@@ -1168,6 +1168,7 @@ export const team = {
   // Team CRUD
   listTeams: bridge.buildProvider<ITeam[], { userId: string }>('team.list-teams'),
   getTeam: bridge.buildProvider<ITeam | null, { teamId: string }>('team.get-team'),
+  listMembers: bridge.buildProvider<ITeamMember[], { teamId: string }>('team.list-members'),
   createTeam: bridge.buildProvider<ITeam, ICreateTeamParams>('team.create-team'),
   updateTeam: bridge.buildProvider<ITeam, { teamId: string; updates: Partial<ITeam> }>('team.update-team'),
   removeTeam: bridge.buildProvider<void, { teamId: string }>('team.remove-team'),

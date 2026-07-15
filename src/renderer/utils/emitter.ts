@@ -61,6 +61,9 @@ interface EventTypes {
   'right-panel.browser.open': [{ url: string; switchTab?: boolean }];
   // Cron job list refresh (e.g. after delete from detail page)
   'cron.jobs.refresh': void;
+  // Team collaboration events (附录 II)
+  'team.list.refresh': void;
+  'team.members.changed': [string]; // teamId
 }
 
 export const emitter = new EventEmitter<EventTypes>();

@@ -1,0 +1,44 @@
+{
+  "list": {
+    "title": "Teams",
+    "empty": "No teams yet. Create one to start collaborating.",
+    "createButton": "New Team"
+  },
+  "create": {
+    "drawerTitle": "Create Team",
+    "nameLabel": "Team Name",
+    "namePlaceholder": "Enter a team name",
+    "leaderLabel": "Leader Assistant",
+    "leaderPlaceholder": "Select an assistant to lead the team",
+    "workspaceLabel": "Workspace",
+    "submit": "Create",
+    "cancel": "Cancel",
+    "noAssistants": "No assistants available. Install one first."
+  },
+  "detail": {
+    "memberTab": "Team Members",
+    "leaderChat": "Leader",
+    "selectMember": "Select a member"
+  },
+  "status": {
+    "pending": "Pending",
+    "idle": "Idle",
+    "active": "Working",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "role": {
+    "leader": "Leader",
+    "teammate": "Teammate"
+  },
+  "actions": {
+    "rename": "Rename",
+    "remove": "Remove",
+    "delete": "Delete",
+    "export": "Export"
+  },
+  "confirm": {
+    "deleteTeam": "Delete this team? Members will be removed.",
+    "removeMember": "Remove this member from the team?"
+  }
+}

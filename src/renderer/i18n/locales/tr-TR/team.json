@@ -1,0 +1,44 @@
+{
+  "list": {
+    "title": "Takımlar",
+    "empty": "Henüz takım yok. İşbirliği için bir tane oluşturun.",
+    "createButton": "Yeni Takım"
+  },
+  "create": {
+    "drawerTitle": "Takım Oluştur",
+    "nameLabel": "Takım Adı",
+    "namePlaceholder": "Bir takım adı girin",
+    "leaderLabel": "Lider Asistan",
+    "leaderPlaceholder": "Takıma liderlik edecek bir asistan seçin",
+    "workspaceLabel": "Çalışma Alanı",
+    "submit": "Oluştur",
+    "cancel": "İptal",
+    "noAssistants": "Kullanılabilir asistan yok. Önce bir tane yükleyin."
+  },
+  "detail": {
+    "memberTab": "Takım Üyeleri",
+    "leaderChat": "Lider",
+    "selectMember": "Bir üye seçin"
+  },
+  "status": {
+    "pending": "Bekliyor",
+    "idle": "Boşta",
+    "active": "Çalışıyor",
+    "completed": "Tamamlandı",
+    "failed": "Başarısız"
+  },
+  "role": {
+    "leader": "Lider",
+    "teammate": "Takım Arkadaşı"
+  },
+  "actions": {
+    "rename": "Yeniden Adlandır",
+    "remove": "Kaldır",
+    "delete": "Sil",
+    "export": "Dışa Aktar"
+  },
+  "confirm": {
+    "deleteTeam": "Bu takım silinsin mi? Üyeler kaldırılacak.",
+    "removeMember": "Bu üye takımdan kaldırılsın mı?"
+  }
+}

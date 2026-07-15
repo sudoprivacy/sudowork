@@ -69,7 +69,8 @@
     "skillStore": "スキルストア",
     "security": "セキュリティ",
     "webui": "リモート接続",
-    "cron": "スケジュールタスク"
+    "cron": "スケジュールタスク",
+    "team": "チーム"
   },
   "ariaLabel": {
     "close": "閉じる",

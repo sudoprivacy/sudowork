@@ -545,8 +545,10 @@ const AcpSendBox: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
   agentName?: string;
+  /** Team override: when set, sends route through the team API instead of the single-chat ACP API (附录 II.8). */
+  teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
-}> = ({ conversation_id, backend, sessionMode, agentName, onAiProcessingChange }) => {
+}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, onAiProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const workspaceFiles = useWorkspaceFiles();
@@ -654,6 +656,10 @@ const AcpSendBox: React.FC<{
         beginProcessing();
 
         // Send the message
+        if (teamSendMessage) {
+          await teamSendMessage({ input, files, msg_id });
+          return;
+        }
         const result = await ipcBridge.acpConversation.sendMessage.invoke({
           input,
           msg_id,
@@ -741,6 +747,10 @@ const AcpSendBox: React.FC<{
 
     // Send message via ACP
     try {
+      if (teamSendMessage) {
+        await teamSendMessage({ input: message, files: allFiles, msg_id });
+        return;
+      }
       await ipcBridge.acpConversation.sendMessage.invoke({
         input: message,
         msg_id,

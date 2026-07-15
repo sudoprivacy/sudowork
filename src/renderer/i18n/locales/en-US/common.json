@@ -75,7 +75,8 @@
     "skillStore": "Skill Store",
     "security": "Security",
     "webui": "Remote Access",
-    "cron": "Scheduled Tasks"
+    "cron": "Scheduled Tasks",
+    "team": "Teams"
   },
   "ariaLabel": {
     "close": "Close",

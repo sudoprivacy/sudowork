@@ -30,6 +30,15 @@ export function initTeamBridge(): void {
     }
   });
 
+  ipcBridge.team.listMembers.provider(async ({ teamId }) => {
+    try {
+      return teamService.listMembers(teamId);
+    } catch (err) {
+      mainError('TeamBridge', 'listMembers failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
   ipcBridge.team.createTeam.provider(async (params) => {
     try {
       return await teamService.createTeam(params.user_id, params.name, params.workspace ?? null, params.leader_assistant_id, params.leader_name, params.leader_model);

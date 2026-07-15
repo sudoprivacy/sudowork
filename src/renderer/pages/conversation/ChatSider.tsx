@@ -12,12 +12,20 @@ import './workspace/workspace-card.css';
 
 type RightPanelTab = 'workspace' | 'browser' | 'terminal' | 'deliverables';
 
+/** Optional 5th tab (e.g. team members) — when omitted, ChatSider behaves exactly as before (附录 II P1-2). */
+export interface ExtraPanelTab {
+  id: string;
+  label: React.ReactNode;
+  node: React.ReactNode;
+}
+
 const ChatSider: React.FC<{
   conversation?: TChatConversation;
-}> = ({ conversation }) => {
+  extraTab?: ExtraPanelTab;
+}> = ({ conversation, extraTab }) => {
   const { t } = useTranslation();
   const storageKey = React.useMemo(() => (conversation?.id ? `${STORAGE_KEYS.RIGHT_PANEL_ACTIVE_TAB}:${conversation.id}` : null), [conversation?.id]);
-  const [activeTab, setActiveTab] = React.useState<RightPanelTab>('workspace');
+  const [activeTab, setActiveTab] = React.useState<RightPanelTab | string>('workspace');
 
   React.useEffect(() => {
     if (!storageKey) {
@@ -87,6 +95,12 @@ const ChatSider: React.FC<{
               </button>
             );
           })}
+          {extraTab ? (
+            <button type='button' role='tab' aria-selected={activeTab === extraTab.id} className={`right-panel-tabs__item ${activeTab === extraTab.id ? 'right-panel-tabs__item--active' : ''}`} onClick={() => setActiveTab(extraTab.id)}>
+              <span className='relative z-10'>{extraTab.label}</span>
+              <span aria-hidden='true' className='right-panel-tabs__indicator' />
+            </button>
+          ) : null}
         </div>
         <div className='right-panel-stack'>
           <div className={`right-panel-stack__pane ${activeTab === 'workspace' ? 'right-panel-stack__pane--active' : ''}`}>{workspaceNode}</div>
@@ -99,6 +113,7 @@ const ChatSider: React.FC<{
           <div className={`right-panel-stack__pane ${activeTab === 'deliverables' ? 'right-panel-stack__pane--active' : ''}`}>
             <DeliverablesPanel conversationId={conversation?.id} active={activeTab === 'deliverables'} />
           </div>
+          {extraTab ? <div className={`right-panel-stack__pane ${activeTab === extraTab.id ? 'right-panel-stack__pane--active' : ''}`}>{extraTab.node}</div> : null}
         </div>
       </div>
     </>

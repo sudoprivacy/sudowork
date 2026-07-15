@@ -1,0 +1,44 @@
+{
+  "list": {
+    "title": "团队",
+    "empty": "还没有团队。创建一个开始协作。",
+    "createButton": "新建团队"
+  },
+  "create": {
+    "drawerTitle": "创建团队",
+    "nameLabel": "团队名称",
+    "namePlaceholder": "输入团队名称",
+    "leaderLabel": "Leader 助手",
+    "leaderPlaceholder": "选择一个助手担任团队 Leader",
+    "workspaceLabel": "工作空间",
+    "submit": "创建",
+    "cancel": "取消",
+    "noAssistants": "没有可用助手，请先安装一个。"
+  },
+  "detail": {
+    "memberTab": "团队成员",
+    "leaderChat": "Leader",
+    "selectMember": "选择一个成员"
+  },
+  "status": {
+    "pending": "等待中",
+    "idle": "空闲",
+    "active": "工作中",
+    "completed": "已完成",
+    "failed": "失败"
+  },
+  "role": {
+    "leader": "Leader",
+    "teammate": "Teammate"
+  },
+  "actions": {
+    "rename": "重命名",
+    "remove": "移除",
+    "delete": "删除",
+    "export": "导出"
+  },
+  "confirm": {
+    "deleteTeam": "删除该团队？成员将被移除。",
+    "removeMember": "将该成员移出团队？"
+  }
+}

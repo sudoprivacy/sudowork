@@ -1,0 +1,44 @@
+{
+  "list": {
+    "title": "チーム",
+    "empty": "チームがありません。作成して協業を始めましょう。",
+    "createButton": "新規チーム"
+  },
+  "create": {
+    "drawerTitle": "チーム作成",
+    "nameLabel": "チーム名",
+    "namePlaceholder": "チーム名を入力",
+    "leaderLabel": "リーダーアシスタント",
+    "leaderPlaceholder": "チームを率いるアシスタントを選択",
+    "workspaceLabel": "ワークスペース",
+    "submit": "作成",
+    "cancel": "キャンセル",
+    "noAssistants": "利用可能なアシスタントがありません。先にインストールしてください。"
+  },
+  "detail": {
+    "memberTab": "チームメンバー",
+    "leaderChat": "リーダー",
+    "selectMember": "メンバーを選択"
+  },
+  "status": {
+    "pending": "待機中",
+    "idle": "アイドル",
+    "active": "作業中",
+    "completed": "完了",
+    "failed": "失敗"
+  },
+  "role": {
+    "leader": "リーダー",
+    "teammate": "チームメイト"
+  },
+  "actions": {
+    "rename": "名前変更",
+    "remove": "削除",
+    "delete": "削除",
+    "export": "エクスポート"
+  },
+  "confirm": {
+    "deleteTeam": "このチームを削除しますか？メンバーは削除されます。",
+    "removeMember": "このメンバーをチームから削除しますか？"
+  }
+}
