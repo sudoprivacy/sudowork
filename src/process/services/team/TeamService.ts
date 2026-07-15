@@ -137,9 +137,17 @@ class TeamService {
     const session = this.sessions.get(found.teamId);
     if (!session) return;
     session.crashRecovery.resetWakeTimeout(found.slotId);
+    const streamErrorText = this.extractStreamErrorText(msg);
     const reason = session.crashRecovery.detectCrash({ type: msg.type, content: (msg.data as { status?: string; error?: string } | null) ?? undefined });
-    if (!reason) return;
     const isLeader = session.members.get(found.slotId)?.member.role === 'lead';
+    if (!reason) {
+      if (streamErrorText && session.crashRecovery.isRateLimited({ kind: 'Unknown', msg: streamErrorText })) {
+        teamStore.updateMember(found.slotId, { status: 'failed' });
+        ipcBridge.team.onAgentStatusChanged.emit({ team_id: found.teamId, slot_id: found.slotId, status: 'failed', last_message: 'rate limited' });
+        session.teamRun.handleSlotCrash(found.slotId, isLeader);
+      }
+      return;
+    }
     if (session.crashRecovery.isRateLimited(reason)) {
       // 429 / quota → mark failed, no crash recovery (no testament / no kill).
       teamStore.updateMember(found.slotId, { status: 'failed' });
@@ -147,11 +155,11 @@ class TeamService {
       session.teamRun.handleSlotCrash(found.slotId, isLeader);
       return;
     }
-    session.crashRecovery.handleCrash(found.slotId, reason);
     // Clean up TeamRun state (appendix I.1 / 事实 9): a crashed slot's pending wake would otherwise
     // strand the run active; a leader crash must fail the run. Also stop the dead member's loop so
     // it does not retry a crashed agent.
     session.teamRun.handleSlotCrash(found.slotId, isLeader);
+    session.crashRecovery.handleCrash(found.slotId, reason);
     const rt = session.members.get(found.slotId);
     if (rt?.eventLoop) void rt.eventLoop.stop();
   }
@@ -163,6 +171,14 @@ class TeamService {
       }
     }
     return null;
+  }
+
+  private extractStreamErrorText(msg: IResponseMessage): string {
+    const data = msg.data as unknown;
+    if (typeof data === 'string') return data;
+    if (!data || typeof data !== 'object') return '';
+    const record = data as { error?: unknown; content?: unknown; status?: unknown };
+    return [record.error, record.content, record.status].filter((value): value is string => typeof value === 'string').join(' ');
   }
 
   async createTeam(userId: string, name: string, workspace: string | null, leaderAssistantId: string, leaderName?: string, leaderModel?: string): Promise<Team> {
@@ -374,7 +390,7 @@ class TeamService {
       teamRun: session.teamRun,
       crashRecovery: session.crashRecovery,
       leaderSlotId: () => this.leaderSlot(teamId),
-      onWakeSlot: (targetSlot) => this.notifyWake(teamId, targetSlot),
+      onWakeSlot: (targetSlot, source, messageId) => this.recordSystemWake(teamId, targetSlot, source, messageId),
       lookupMember: (sid) => this.lookupMember(teamId, sid),
     });
     runtime.eventLoop = eventLoop;
@@ -477,6 +493,8 @@ class TeamService {
       rt.agent.kill().catch(() => {
         /* ignore */
       });
+    session?.crashRecovery.dispose(slotId);
+    session?.teamRun.clearSlot(slotId);
     session?.members.delete(slotId);
     session?.wakeGate.clear(slotId);
     teamStore.softDeleteMember(slotId);
@@ -582,9 +600,10 @@ class TeamService {
         teamStore.updateMember(slot, { status });
         ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: slot, status, last_message: lastMessage });
       },
-      writeMail: (toMemberId, fromMemberId, type, content) =>
+      writeMail: (toMemberId, fromMemberId, type, content) => {
+        const id = uuid();
         teamStore.insertMail({
-          id: uuid(),
+          id,
           team_id: teamId,
           to_member_id: toMemberId,
           from_member_id: fromMemberId,
@@ -594,8 +613,10 @@ class TeamService {
           files: null,
           read: false,
           created_at: Date.now(),
-        }),
-      notifyWake: (slot) => this.notifyWake(teamId, slot),
+        });
+        return id;
+      },
+      notifyWake: (slot, source, messageId) => this.recordSystemWake(teamId, slot, source, messageId),
     });
     const session: TeamSession = {
       members: new Map(),
@@ -1035,6 +1056,29 @@ class TeamService {
 
   private notifyWake(teamId: string, slotId: string): void {
     this.sessions.get(teamId)?.members.get(slotId)?.eventLoop?.notifyWake();
+  }
+
+  private recordSystemWake(teamId: string, slotId: string, source: WakeSource, messageId?: string | null): void {
+    const session = this.sessions.get(teamId);
+    if (!session) return;
+    const member = teamStore.getMember(slotId);
+    if (!member || member.team_id !== teamId) return;
+    if (source === 'idle_notification' && member.role === 'lead' && !this.shouldWakeLeaderAfterIdle(teamId, slotId)) {
+      return;
+    }
+    const { lease } = session.teamRun.acquireWake(slotId, member.role, source);
+    session.teamRun.commitLease(lease.lease_id, { slot_id: slotId, role: member.role, source, message_id: messageId ?? null });
+    this.notifyWake(teamId, slotId);
+  }
+
+  private shouldWakeLeaderAfterIdle(teamId: string, leaderSlotId: string): boolean {
+    const members = teamStore.listMembersByTeam(teamId);
+    const leader = members.find((m) => m.id === leaderSlotId && m.role === 'lead');
+    if (!leader || leader.status === 'failed' || leader.status === 'error' || leader.status === 'completed') return false;
+    const teammates = members.filter((m) => m.role === 'teammate');
+    if (teammates.length === 0) return false;
+    const settledStatuses = new Set(['idle', 'completed', 'failed', 'error']);
+    return teammates.every((m) => settledStatuses.has(m.status));
   }
 
   private lookupMember(teamId: string, slotId: string): TeamMember | null {

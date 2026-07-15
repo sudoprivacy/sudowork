@@ -323,6 +323,22 @@ export class TeamRunManager {
     else this.maybeComplete();
   }
 
+  /** Clear all in-memory run state owned by a removed slot. */
+  clearSlot(slot: string): void {
+    const run = this.record;
+    if (!run) return;
+    run.pending_wakes.delete(slot);
+    for (const [id, res] of run.starting_reservations) {
+      if (res.slot_id === slot) run.starting_reservations.delete(id);
+    }
+    run.active_child_turns.delete(slot);
+    for (const [id, lease] of run.active_operation_leases) {
+      if (lease.slot_id === slot) run.active_operation_leases.delete(id);
+    }
+    run.slot_wake_gate.clear(slot);
+    this.maybeComplete();
+  }
+
   private failRun(): void {
     const run = this.record;
     if (!run || !this.isActive(run)) return;

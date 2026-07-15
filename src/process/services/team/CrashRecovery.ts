@@ -18,9 +18,9 @@ export interface CrashRecoveryDeps {
   /** Set member status + broadcast agentStatusChanged. */
   setStatus: (slot: string, status: string, lastMessage?: string) => void;
   /** Write a mailbox message (testament / notification). */
-  writeMail: (toMemberId: string, fromMemberId: string, type: TeamMailboxType, content: string) => void;
+  writeMail: (toMemberId: string, fromMemberId: string, type: TeamMailboxType, content: string) => string;
   /** Wake a slot (e.g. the leader after a teammate crash). */
-  notifyWake: (slot: string, source: WakeSource) => void;
+  notifyWake: (slot: string, source: WakeSource, messageId?: string | null) => void;
 }
 
 /**
@@ -48,7 +48,7 @@ export class CrashRecovery {
     // Only a real disconnect (process/session gone) is a crash. A bare 'error' status is NOT treated
     // as a crash — AcpAgent emits it for recoverable connection/auth failures, and killing the agent
     // + writing a testament there would be too aggressive. (Plan I.3: disconnected / error event.)
-    if (msg.type !== 'error' && msg.content?.status !== 'disconnected') return null;
+    if (msg.content?.status !== 'disconnected') return null;
     const text = msg.content?.error ?? '';
     if (text.includes('process exited')) return { kind: 'ProcessExited', msg: text };
     if (text.includes('Session not found')) return { kind: 'SessionNotFound', msg: text };
@@ -92,8 +92,8 @@ export class CrashRecovery {
       const testament = reason.kind === 'Unknown' ? `Teammate '${member.name}' crashed during task (reason: ${reason.msg}). Last message: ${lastMessage ?? ''}.` : `Teammate '${member.name}' crashed (reason: ${reason.kind}).`;
       const leaderId = this.deps.leaderSlotId();
       if (leaderId) {
-        this.deps.writeMail(leaderId, slot, 'message', testament);
-        this.deps.notifyWake(leaderId, 'crash_notification');
+        const messageId = this.deps.writeMail(leaderId, slot, 'message', testament);
+        this.deps.notifyWake(leaderId, 'crash_notification', messageId);
       }
     }
     this.deps.setStatus(slot, 'failed', reason.kind === 'Unknown' ? reason.msg : reason.kind);

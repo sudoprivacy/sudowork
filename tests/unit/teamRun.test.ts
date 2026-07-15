@@ -237,6 +237,31 @@ describe('TeamRun handleSlotCrash (附录 I.1 / 事实 9)', () => {
   });
 });
 
+describe('TeamRun clearSlot (member removal cleanup)', () => {
+  it('removes pending wakes, reservations, active turns, leases, and retained gate state for a slot', () => {
+    const gate = new SlotWakeGate();
+    const m = new TeamRunManager('team-1', gate);
+    const { lease } = m.acquireWake('t1', 'teammate', 'user_message');
+    m.commitLease(lease.lease_id, { slot_id: 't1', role: 'teammate', source: 'user_message', message_id: 'm1' });
+    const heldLease = m.acquireWake('t1', 'teammate', 'mcp_send_message').lease;
+    const reservation = m.claimWakeForTurn('t1', 'user_message')!;
+    m.recordChildStarted(reservation, 'turn-1', 'conv-1');
+    gate.pause('t1');
+
+    expect(m.getRecord()!.active_operation_leases.has(heldLease.lease_id)).toBe(true);
+    expect(m.getRecord()!.active_child_turns.has('t1')).toBe(true);
+    expect(gate.hasRetainedWork('t1')).toBe(true);
+
+    m.clearSlot('t1');
+
+    expect(m.pendingWakeCount('t1')).toBe(0);
+    expect(m.getRecord()!.active_operation_leases.has(heldLease.lease_id)).toBe(false);
+    expect(m.getRecord()!.active_child_turns.has('t1')).toBe(false);
+    expect(gate.hasRetainedWork('t1')).toBe(false);
+    expect(m.getRecord()!.status).toBe('completed');
+  });
+});
+
 describe('TeamRun recoverMailboxBacklog', () => {
   it('creates a recovery_drain run with pending wakes for backlogged slots', () => {
     const m = newManager();

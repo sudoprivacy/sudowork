@@ -43,7 +43,7 @@ export interface EventLoopDeps {
   crashRecovery?: { armWakeTimeout: (slot: string) => void; disarmWakeTimeout: (slot: string) => void } | null;
   leaderSlotId: () => string | null;
   /** Wake another slot in the same team (e.g. leader after a teammate goes idle). */
-  onWakeSlot: (slotId: string, source: WakeSource) => void;
+  onWakeSlot: (slotId: string, source: WakeSource, messageId?: string | null) => void;
   /** Resolve a slot_id to its member (sender lookup for message projection). */
   lookupMember: (slotId: string) => TeamMember | null;
 }
@@ -172,8 +172,9 @@ export class EventLoop {
     if (member.role === 'teammate') {
       const leaderId = this.deps.leaderSlotId();
       if (leaderId) {
+        const mailId = uuid();
         teamStore.insertMail({
-          id: uuid(),
+          id: mailId,
           team_id: teamId,
           to_member_id: leaderId,
           from_member_id: slotId,
@@ -184,7 +185,7 @@ export class EventLoop {
           read: false,
           created_at: Date.now(),
         });
-        this.deps.onWakeSlot(leaderId, 'idle_notification');
+        this.deps.onWakeSlot(leaderId, 'idle_notification', mailId);
       }
     }
 

@@ -256,7 +256,7 @@ describe('EventLoop turn driving (附录 I.5)', () => {
     await flush();
 
     expect(insertMailWithType('idle_notification')).toHaveLength(1);
-    expect(h.onWakeSlot).toHaveBeenCalledWith('leader', 'idle_notification');
+    expect(h.onWakeSlot).toHaveBeenCalledWith('leader', 'idle_notification', expect.any(String));
   });
 
   it('leader does not self-wake: no idle_notification, no wake after a turn', async () => {

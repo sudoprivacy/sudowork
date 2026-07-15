@@ -41,6 +41,7 @@ function makeCr(member: TeamMember): CrashRecovery {
 beforeEach(() => {
   setStatus.mockReset();
   writeMail.mockReset();
+  writeMail.mockReturnValue('mail-crash');
   notifyWake.mockReset();
 });
 
@@ -57,7 +58,7 @@ describe('CrashRecovery.detectCrash (附录 I.3)', () => {
   });
   it('falls back to Unknown for disconnected without a known phrase', () => {
     expect(cr.detectCrash({ type: 'agent_status', content: { status: 'disconnected' } })).toEqual({ kind: 'Unknown', msg: 'disconnected' });
-    expect(cr.detectCrash({ type: 'error', content: { error: 'something broke' } })).toEqual({ kind: 'Unknown', msg: 'something broke' });
+    expect(cr.detectCrash({ type: 'error', content: { error: 'something broke' } })).toBeNull();
   });
 });
 
@@ -97,7 +98,7 @@ describe('CrashRecovery.handleCrash (附录 I.3)', () => {
     expect(result).toBe('leader');
     expect(writeMail).toHaveBeenCalledWith('leader', 's1', 'message', expect.stringContaining('crashed (reason: ProcessExited)'));
     expect(setStatus).toHaveBeenCalledWith('s1', 'failed', 'ProcessExited');
-    expect(notifyWake).toHaveBeenCalledWith('leader', 'crash_notification');
+    expect(notifyWake).toHaveBeenCalledWith('leader', 'crash_notification', 'mail-crash');
   });
 
   it('Unknown reason testament includes the message and last message', () => {
