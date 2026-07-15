@@ -80,6 +80,11 @@ export default defineConfig({
         'src/process/utils/enabledSkillFilter.ts',
         // Team collaboration
         'src/process/services/team/TeamStore.ts',
+        'src/process/services/team/WakeSource.ts',
+        'src/process/services/team/SlotWakeGate.ts',
+        'src/process/services/team/EventLoop.ts',
+        'src/process/services/team/MessageProjection.ts',
+        'src/process/services/team/GovernancePrompt.ts',
         'src/utils/configureChromium.ts',
         // ACP
         'src/agent/acp/AcpAdapter.ts',
