@@ -3,6 +3,7 @@ import { uuid } from '@/common/utils';
 import { mainWarn } from '@process/utils/mainLogger';
 import type AcpAgent from '@process/task/AcpAgent';
 import { teamStore, type TeamMail, type TeamMember } from './TeamStore';
+import { mirrorUnreadToConversation } from './MessageProjection';
 import type { SlotWakeGate } from './SlotWakeGate';
 import type { WakeSource } from './WakeSource';
 
@@ -34,6 +35,8 @@ export interface EventLoopDeps {
   leaderSlotId: () => string | null;
   /** Wake another slot in the same team (e.g. leader after a teammate goes idle). */
   onWakeSlot: (slotId: string, source: WakeSource) => void;
+  /** Resolve a slot_id to its member (sender lookup for message projection). */
+  lookupMember: (slotId: string) => TeamMember | null;
 }
 
 /**
@@ -101,12 +104,15 @@ export class EventLoop {
     const agent = this.deps.getAgent();
     if (!agent) return false;
     this.busy = true;
-    teamStore.updateMember(this.deps.slotId, { status: 'working' });
-    ipcBridge.team.onAgentStatusChanged.emit({ team_id: this.deps.teamId, slot_id: this.deps.slotId, status: 'active' });
     try {
+      // I.7: mirror non-user unread into this member's conversation as left bubbles (deduped),
+      // before driving the agent turn. User messages are added as right bubbles by the agent itself.
+      mirrorUnreadToConversation(this.deps.member.team_id, this.deps.member, messages, this.deps.lookupMember);
+      teamStore.updateMember(this.deps.slotId, { status: 'working' });
+      ipcBridge.team.onAgentStatusChanged.emit({ team_id: this.deps.teamId, slot_id: this.deps.slotId, status: 'active' });
       const text = messages.map((m) => m.content).join('\n\n');
       await agent.sendMessage({ content: text, msg_id: uuid() });
-      // Peek-then-mark: Ok + Failed both mark; Err (retryable) would stay unread — stage 2 marks on success.
+      // Peek-then-mark: Ok + Failed both mark (agent resolved); Err (thrown) leaves messages unread for re-delivery.
       teamStore.markReadBatch(messages.map((m) => m.id));
       return true;
     } catch (e) {
