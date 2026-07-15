@@ -82,6 +82,8 @@ export default defineConfig({
         'src/process/services/team/TeamStore.ts',
         'src/process/services/team/WakeSource.ts',
         'src/process/services/team/SlotWakeGate.ts',
+        'src/process/services/team/TeamRun.ts',
+        'src/process/services/team/RecoveryDrain.ts',
         'src/process/services/team/EventLoop.ts',
         'src/process/services/team/MessageProjection.ts',
         'src/process/services/team/GovernancePrompt.ts',
