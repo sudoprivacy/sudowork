@@ -10,6 +10,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import type AcpAgent from '@process/task/AcpAgent';
 import { createConversation } from '../conversationService';
 import { teamStore, type Team, type TeamMember, type TeamMail } from './TeamStore';
+import { buildGovernancePrompt } from './GovernancePrompt';
 
 const DEFAULT_LOCALE = 'en-US';
 /** Soft cap on concurrent member processes (each member = one CLI subprocess). */
@@ -110,14 +111,17 @@ class TeamService {
     const presetAgentType = meta?.presetAgentType;
     const backend = resolvePresetAgentBackend(presetAgentType);
     const enabledSkills = meta?.enabledSkills ?? [];
-    let presetContext: string | null = null;
+    let rulesText: string | null = null;
     if (meta?.ruleFile) {
       try {
-        presetContext = await readAssistantResource('rules', lookupName, DEFAULT_LOCALE, ruleFilePattern);
+        rulesText = await readAssistantResource('rules', lookupName, DEFAULT_LOCALE, ruleFilePattern);
       } catch {
         mainWarn('TeamService', `Failed to read rules for assistant ${lookupName}`);
       }
     }
+    // A3: assistant rules + team governance (soft guidance), injected as presetContext.
+    const governance = buildGovernancePrompt(role, team.name, params.name);
+    const presetContext = [rulesText, governance].filter(Boolean).join('\n\n') || null;
 
     const slotId = uuid();
     // Stage 1: per-member team-mcp bridge injection is wired (A1) but the team-mcp server itself
