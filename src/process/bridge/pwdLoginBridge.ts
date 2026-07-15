@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '../../common';
 import { mainError } from '@process/utils/mainLogger';
 import { handlePwdLogin, listPwdLoginEntries, registerPwdLoginEntry, deletePwdLoginEntry, savePwdLoginCredential } from '@process/services/pwdLogin/pwdLoginService';
 import { PwdLoginErrorCode } from '@process/services/pwdLogin/errors';
+import { ipcBridge } from '../../common';
 
 /**
  * Wire the pwd_login IPC channel to the trusted handler.

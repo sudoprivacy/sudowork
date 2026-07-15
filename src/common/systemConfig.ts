@@ -172,7 +172,10 @@ export function getLogReportBaseUrl(): string {
 }
 
 export function getCosReleaseBase(): string {
-  return resolve(getSystemConfigCache()?.version_update?.cos_domain, BUILD_COS_RELEASE_BASE);
+  // `cos_domain` is dispatched as a bare host (no scheme); prepend https:// so callers can
+  // fetch()/setFeedURL() it directly. Without this the URL fails to parse and update checks silently no-op.
+  const base = resolve(getSystemConfigCache()?.version_update?.cos_domain, BUILD_COS_RELEASE_BASE);
+  return /^https?:\/\//i.test(base) ? base : `https://${base}`;
 }
 
 // ---- feature-switch helpers (fail-open: cache empty => keep current behavior) ----

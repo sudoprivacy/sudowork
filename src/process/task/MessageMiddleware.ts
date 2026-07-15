@@ -8,7 +8,7 @@ import type { TMessage } from '@/common/chatLib';
 import { ipcBridge } from '@/common';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { getCronProvider } from '@process/providers/cron';
-import { getClientCronEnabled } from '@process/services/cron/cronPolicy';
+import { getClientCronEnabled, isCronAdminUser } from '@process/services/cron/cronPolicy';
 import { detectCronCommands, stripCronCommands, type CronCommand } from './CronCommandDetector';
 import { hasThinkTags, stripThinkTags } from './ThinkTagDetector';
 
@@ -181,26 +181,37 @@ export async function processCronInMessage(conversationId: string, agentType: Ac
  * Handle detected cron commands
  */
 async function handleCronCommands(conversationId: string, agentType: AcpBackendAll, commands: CronCommand[]): Promise<string[]> {
-  // Org policy gate (issue #854): conversations whose transcripts already
-  // teach the cron commands will keep emitting them after an admin disables
-  // the feature — refuse here with an explicit response so the agent relays
-  // an honest answer instead of hallucinating success.
-  if (!(await getClientCronEnabled())) {
-    return ['⛔ Scheduled tasks are disabled by your organization. Tell the user that an administrator must enable them, and do not retry the command.'];
-  }
-
-  const responses: string[] = [];
-
   // Route through the active provider, not the local cronService singleton, so
   // a remote-mode agent's jobs land on moss (RemoteCronProvider → gated moss
   // API) — the same backend the cron UI reads/writes. Local mode's provider
   // delegates to cronService, so that path is unchanged. (#854/#835)
   const provider = getCronProvider();
 
+  // Org policy gate (issue #854): the client_cron_enabled flag blocks CREATING
+  // jobs, not managing existing ones. With the remote (moss) provider, owners
+  // and co-owners may still list and delete their jobs — the list endpoint is
+  // scoped to the caller's own/co-owned jobs and deletes are rejected
+  // server-side (canManageJob) for jobs the caller does not own. Non-remote
+  // providers have no server-side ownership model, so they keep the blanket
+  // refusal (agents whose transcripts teach the commands get an honest answer
+  // instead of hallucinating success).
+  const cronEnabled = await getClientCronEnabled();
+  if (!cronEnabled && provider.type !== 'remote') {
+    return ['⛔ Scheduled tasks are disabled by your organization. Tell the user that an administrator must enable them, and do not retry the command.'];
+  }
+
+  const responses: string[] = [];
+
   for (const cmd of commands) {
     try {
       switch (cmd.kind) {
         case 'create': {
+          // Admin-capable users bypass the creation gate, mirroring the moss
+          // server's cron_disabled_by_org check (which it enforces anyway).
+          if (!cronEnabled && !isCronAdminUser()) {
+            responses.push('⛔ Creating scheduled tasks is disabled by your organization. Tell the user that an administrator must enable the feature, and do not retry the command. Existing tasks can still be listed with [CRON_LIST] and deleted with [CRON_DELETE: task-id].');
+            break;
+          }
           const job = await provider.addJob({
             name: cmd.name,
             schedule: { kind: 'cron', expr: cmd.schedule, description: cmd.scheduleDescription },

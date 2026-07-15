@@ -1,14 +1,11 @@
+import { mainLog, mainError } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
 import { dynamicNexusVfsService, type NexusVfsStatus } from '../services/nexus-vfs/DynamicNexusVfsService';
 import { serviceManager } from '../services/serviceManager';
-import { mainLog, mainError } from '@process/utils/mainLogger';
 
 export function initNexusBridge(): void {
   ipcBridge.nexus.getStatus.provider(async () => {
-    const [running, installed] = await Promise.all([
-      dynamicNexusVfsService.checkActualRunning(),
-      dynamicNexusVfsService.checkInstalled(),
-    ]);
+    const [running, installed] = await Promise.all([dynamicNexusVfsService.checkActualRunning(), dynamicNexusVfsService.checkInstalled()]);
     return {
       success: true,
       data: {

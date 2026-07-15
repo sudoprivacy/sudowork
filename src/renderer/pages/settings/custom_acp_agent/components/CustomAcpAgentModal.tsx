@@ -1,4 +1,4 @@
-import { Alert, Input, Spin, Collapse } from '@arco-design/web-react';
+import { Alert, Input, Spin, Collapse, Modal } from '@arco-design/web-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import CodeMirror from '@uiw/react-codemirror';
@@ -7,7 +7,6 @@ import { Check } from 'lucide-react';
 import type { AcpBackendConfig, AcpBackend } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
-import AionModal from '@/renderer/components/base/AionModal';
 import { uuid } from '@/common/utils';
 import { acpConversation } from '@/common/ipcBridge';
 
@@ -236,105 +235,91 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
   if (!visible) return null;
 
   return (
-    <AionModal
-      visible={visible}
-      onCancel={onCancel}
-      onOk={handleSubmit}
-      okButtonProps={{ disabled: isSubmitDisabled() }}
-      header={{
-        title: agent ? t('settings.editCustomAgent', '编辑自定义代理') : t('settings.configureCustomAgent', '配置'),
-        showClose: true,
-      }}
-      style={{ width: 520, height: 'auto', maxHeight: '80vh' }}
-      contentStyle={{
-        borderRadius: 16,
-        padding: '20px',
-        background: 'var(--bg-muted)',
-        overflow: 'auto',
-      }}
-    >
-      <div className='space-y-4'>
-        {/* CLI 选择卡片（仅新增模式显示）/ CLI selection cards (only shown in add mode) */}
-        {!agent && (
-          <div>
-            <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.selectCli', '选择 CLI')}</div>
-            {loadingAgents ? (
-              <div className='f-center py-4'>
-                <Spin />
-              </div>
-            ) : detectedAgents.length === 0 ? (
-              <Alert type='warning' content={t('settings.noCliDetected', '未检测到 CLI 工具。请先安装支持 ACP 协议的 CLI。')} />
-            ) : (
-              <div className='grid grid-cols-2 gap-2'>
-                {detectedAgents.map((detectedAgent) => {
-                  const logo = BACKEND_LOGO_MAP[detectedAgent.backend];
-                  const isSelected = selectedCli === detectedAgent.cliPath;
-                  return (
-                    <div
-                      key={detectedAgent.cliPath}
-                      className={`p-2.5 rd-8px cursor-pointer transition-all flex items-center gap-2 relative border ${isSelected ? 'bg-muted border-primary' : 'bg-muted border-transparent hover:bg-subtle hover:border-light'}`}
-                      onClick={() => handleSelectCli(detectedAgent.cliPath || '')}
-                    >
-                      {logo && <img src={logo} alt={`${detectedAgent.name} logo`} className='size-6 object-contain flex-shrink-0' />}
-                      <div className='min-w-0 flex-1'>
-                        <div className='font-medium text-sm text-foreground'>{detectedAgent.name}</div>
+    <Modal visible={visible} onCancel={onCancel} onOk={handleSubmit} okButtonProps={{ disabled: isSubmitDisabled() }} title={agent ? t('settings.editCustomAgent', '编辑自定义代理') : t('settings.configureCustomAgent', '配置')} style={{ width: 520 }}>
+      <div style={{ padding: '20px', background: 'var(--bg-muted)', overflow: 'auto', maxHeight: 'calc(80vh - 120px)', borderRadius: 16 }}>
+        <div className='space-y-4'>
+          {/* CLI 选择卡片（仅新增模式显示）/ CLI selection cards (only shown in add mode) */}
+          {!agent && (
+            <div>
+              <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.selectCli', '选择 CLI')}</div>
+              {loadingAgents ? (
+                <div className='f-center py-4'>
+                  <Spin />
+                </div>
+              ) : detectedAgents.length === 0 ? (
+                <Alert type='warning' content={t('settings.noCliDetected', '未检测到 CLI 工具。请先安装支持 ACP 协议的 CLI。')} />
+              ) : (
+                <div className='grid grid-cols-2 gap-2'>
+                  {detectedAgents.map((detectedAgent) => {
+                    const logo = BACKEND_LOGO_MAP[detectedAgent.backend];
+                    const isSelected = selectedCli === detectedAgent.cliPath;
+                    return (
+                      <div
+                        key={detectedAgent.cliPath}
+                        className={`p-2.5 rd-8px cursor-pointer transition-all flex items-center gap-2 relative border ${isSelected ? 'bg-muted border-primary' : 'bg-muted border-transparent hover:bg-subtle hover:border-light'}`}
+                        onClick={() => handleSelectCli(detectedAgent.cliPath || '')}
+                      >
+                        {logo && <img src={logo} alt={`${detectedAgent.name} logo`} className='size-6 object-contain flex-shrink-0' />}
+                        <div className='min-w-0 flex-1'>
+                          <div className='font-medium text-sm text-foreground'>{detectedAgent.name}</div>
+                        </div>
+                        {isSelected && <Check size={16} className='text-primary flex-shrink-0' />}
                       </div>
-                      {isSelected && <Check size={16} className='text-primary flex-shrink-0' />}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* 显示名称输入（选中 CLI 或编辑模式时显示）/ Display name input (shown when CLI selected or in edit mode) */}
-        {(selectedCli || agent) && (
-          <div>
-            <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.agentDisplayName', '显示名称')}</div>
-            <Input value={agentName} onChange={(v) => setAgentName(v)} placeholder={t('settings.agentNamePlaceholder', '请输入代理名称')} />
-          </div>
-        )}
+          {/* 显示名称输入（选中 CLI 或编辑模式时显示）/ Display name input (shown when CLI selected or in edit mode) */}
+          {(selectedCli || agent) && (
+            <div>
+              <div className='mb-2 text-sm font-medium text-foreground'>{t('settings.agentDisplayName', '显示名称')}</div>
+              <Input value={agentName} onChange={(v) => setAgentName(v)} placeholder={t('settings.agentNamePlaceholder', '请输入代理名称')} />
+            </div>
+          )}
 
-        {/* 高级配置（可折叠 JSON 编辑器）/ Advanced config (collapsible JSON editor) */}
-        {(selectedCli || agent) && (
-          <Collapse
-            activeKey={showAdvanced ? ['advanced'] : []}
-            // Arco Collapse.onChange 签名：(key, keys, e) => void，第二个参数 keys 是当前激活的 key 数组
-            // Arco Collapse.onChange signature: (key, keys, e) => void, second param keys is array of active keys
-            onChange={(_key, keys) => setShowAdvanced(keys.includes('advanced'))}
-            bordered={false}
-            style={{ background: 'transparent' }}
-          >
-            <Collapse.Item name='advanced' header={<span className='text-sm text-secondary'>{t('settings.advancedMode', '高级 (JSON)')}</span>}>
-              <div className='pt-2'>
-                <CodeMirror
-                  value={jsonInput}
-                  height='180px'
-                  theme={theme}
-                  extensions={[json()]}
-                  onChange={(value: string) => setJsonInput(value)}
-                  placeholder={`{
+          {/* 高级配置（可折叠 JSON 编辑器）/ Advanced config (collapsible JSON editor) */}
+          {(selectedCli || agent) && (
+            <Collapse
+              activeKey={showAdvanced ? ['advanced'] : []}
+              // Arco Collapse.onChange 签名：(key, keys, e) => void，第二个参数 keys 是当前激活的 key 数组
+              // Arco Collapse.onChange signature: (key, keys, e) => void, second param keys is array of active keys
+              onChange={(_key, keys) => setShowAdvanced(keys.includes('advanced'))}
+              bordered={false}
+              style={{ background: 'transparent' }}
+            >
+              <Collapse.Item name='advanced' header={<span className='text-sm text-secondary'>{t('settings.advancedMode', '高级 (JSON)')}</span>}>
+                <div className='pt-2'>
+                  <CodeMirror
+                    value={jsonInput}
+                    height='180px'
+                    theme={theme}
+                    extensions={[json()]}
+                    onChange={(value: string) => setJsonInput(value)}
+                    placeholder={`{
   "defaultCliPath": "my-agent",
   "enabled": true,
   "env": {},
   "acpArgs": ["--acp"]
 }`}
-                  basicSetup={{
-                    lineNumbers: true,
-                    foldGutter: true,
-                    dropCursor: false,
-                    allowMultipleSelections: false,
-                  }}
-                  className={`text-12px border ${validation.isValid || !jsonInput.trim() ? 'border-light' : 'border-danger'} rd-6px overflow-hidden [&_.cm-editor]:rd-6px`}
-                />
-                {!validation.isValid && jsonInput.trim() && <div className='mt-2 text-xs text-danger'>{validation.errorMessage}</div>}
-              </div>
-            </Collapse.Item>
-          </Collapse>
-        )}
+                    basicSetup={{
+                      lineNumbers: true,
+                      foldGutter: true,
+                      dropCursor: false,
+                      allowMultipleSelections: false,
+                    }}
+                    className={`text-12px border ${validation.isValid || !jsonInput.trim() ? 'border-light' : 'border-danger'} rd-6px overflow-hidden [&_.cm-editor]:rd-6px`}
+                  />
+                  {!validation.isValid && jsonInput.trim() && <div className='mt-2 text-xs text-danger'>{validation.errorMessage}</div>}
+                </div>
+              </Collapse.Item>
+            </Collapse>
+          )}
+        </div>
       </div>
-    </AionModal>
+    </Modal>
   );
 };
 

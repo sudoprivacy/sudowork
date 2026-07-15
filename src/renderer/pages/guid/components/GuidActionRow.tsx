@@ -1,20 +1,12 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { Button, Dropdown, Tooltip } from '@arco-design/web-react';
-import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
+import { Button, Dropdown } from '@arco-design/web-react';
+import { ArrowUp, FolderOpen, Plus, Shield, Upload } from 'lucide-react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
-import ActionChip from '@/renderer/components/ui/ActionChip';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
-import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
-import styles from '../index.module.css';
+import BdpanImportFilePicker from '@/renderer/components/base/BdpanImportFilePicker';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';
 
@@ -40,8 +32,8 @@ type GuidActionRowProps = {
   localeKey: string;
   onClosePresetTag: () => void;
 
-  // Skill selector trigger
-  onTriggerSkillSelector?: () => void;
+  // Skill selector trigger node (Popover-wrapped button built by parent)
+  skillTriggerNode?: React.ReactNode;
 
   // Send button
   loading: boolean;
@@ -63,7 +55,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   customAgents,
   localeKey,
   onClosePresetTag,
-  onTriggerSkillSelector,
+  skillTriggerNode,
   loading,
   isButtonDisabled,
   onSend,
@@ -82,7 +74,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   return (
     <>
       <div className='flex items-center justify-between w-full gap-2 mt-3'>
-        <div className={`${styles.actionTools} inline-flex items-center gap-2.5 shrink min-w-0`}>
+        <div className='inline-flex items-center gap-2.5 shrink min-w-0'>
           <Dropdown
             trigger={'click'}
             popupVisible={fileMenuOpen}
@@ -105,7 +97,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                       });
                   }}
                 >
-                  <UploadOne theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
+                  <Upload size={16} color='var(--text-secondary)' />
                   <span>{t('conversation.welcome.downloadLocalFile')}</span>
                 </div>
                 <div
@@ -134,43 +126,30 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                       });
                   }}
                 >
-                  <FolderOpen theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
+                  <FolderOpen size={16} color='var(--text-secondary)' />
                   <span>{t('conversation.welcome.specifyWorkspace')}</span>
                 </div>
               </div>
             }
           >
             <span className='relative'>
-              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={'var(--text-secondary)'} />} />
-              {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
-              {/* {files.length > 0 && (
-                <Tooltip className={'!max-w-max'} content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}>
-                  <span className='sr-only'>File({files.length})</span>
-                </Tooltip>
-              )} */}
+              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={16} color='var(--text-secondary)' />} />
+              {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
             </span>
           </Dropdown>
 
-          {onTriggerSkillSelector && (
-            <Tooltip content={t('guid.addSkillTooltip', { defaultValue: '添加技能' })} position='top'>
-              <span>
-                <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('conversation.welcome.skill', { defaultValue: '技能' })} onClick={onTriggerSkillSelector} />
-              </span>
-            </Tooltip>
-          )}
+          {skillTriggerNode}
 
           {modelSelectorNode}
 
-          {supportsModeSwitch(modeBackend) && (
-            <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield theme='outline' size='14' fill='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />
-          )}
+          {supportsModeSwitch(modeBackend) && <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield size={14} color='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />}
 
           {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
         </div>
-        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />} onClick={onSend} />
+        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} color='white' />} onClick={onSend} />
       </div>
 
-      <BdpanFileSelector
+      <BdpanImportFilePicker
         visible={bdpanSelectorVisible}
         onCancel={() => setBdpanSelectorVisible(false)}
         onConfirm={(paths) => {

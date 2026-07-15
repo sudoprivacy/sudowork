@@ -23,7 +23,7 @@ import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerati
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
-import { addScodeAutoModel, extractCustomProvidersFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
+import { addScodeAutoModel, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
 import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 const TAG = 'ScodeBridge';
@@ -189,9 +189,7 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
 export async function resolveImageModelForMainSync(): Promise<{ modelId: string | null }> {
   const { ProcessConfig } = await import('@process/initStorage');
   const { fetchSpecificImagePricingItems } = await import('@/common/imagePricingSource');
-  const { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } = await import(
-    '@/common/imageGenerationModelConfig'
-  );
+  const { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } = await import('@/common/imageGenerationModelConfig');
   const { getSystemConfigCache } = await import('@/common/systemConfig');
 
   // 冷启动竞态修复：syncImageModelOnStartup 可能在 ensureMainSystemConfig（填充 systemConfigCache）

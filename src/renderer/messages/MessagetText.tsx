@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Alert, Message, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Lightning } from '@icon-park/react';
 import classNames from 'classnames';
@@ -21,7 +15,7 @@ import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import MarkdownView from '../components/Markdown';
 import HorizontalFileList from '../components/HorizontalFileList';
 import FilePreview from '../components/FilePreview';
-import CollapsibleContent from '../components/CollapsibleContent';
+import { CollapsibleContent } from '../components/CollapsibleContent';
 import MessageCronBadge from './MessageCronBadge';
 import GeneratedFileCards from './GeneratedFileCard';
 
@@ -221,7 +215,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
                 return (
                   <Tag
                     key={skillName}
-                    className='text-12px bg-primary-light b-1 b-solid b-border-2 rd-4px'
+                    className='text-12px b-1 b-solid b-border-2 rd-4px'
                     style={{
                       backgroundColor: 'var(--color-primary-light-1)',
                       borderColor: 'var(--color-primary-light-2)',

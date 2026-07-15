@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Input, Message } from '@arco-design/web-react';
-import { Lock } from '@icon-park/react';
+import { Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { validatePassword } from '@/renderer/utils/passwordValidation';
 import { useAuth } from '@renderer/context/AuthContext';
@@ -63,12 +63,12 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ visible, onCl
       <div className='flex flex-col gap-4'>
         <div className='flex flex-col gap-2'>
           <div className='text-12px font-600 text-secondary ml-1'>{t('settings.changePassword.oldPasswordLabel', '原始密码')}</div>
-          <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('settings.changePassword.oldPasswordPlaceholder', '请输入原始密码')} value={oldPassword} onChange={setOldPassword} maxLength={20} className='!rd-12px h-10' />
+          <Input.Password size='large' prefix={<Lock size={16} />} placeholder={t('settings.changePassword.oldPasswordPlaceholder', '请输入原始密码')} value={oldPassword} onChange={setOldPassword} maxLength={20} className='!rd-12px h-10' />
         </div>
         <div className='flex flex-col gap-2'>
           <div className='text-12px font-600 text-secondary ml-1'>{t('settings.changePassword.newPasswordLabel', '新密码')}</div>
-          <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('settings.changePassword.newPasswordPlaceholder', '8-20 位，含大写、小写、数字')} value={newPassword} onChange={setNewPassword} maxLength={20} className='!rd-12px h-10' />
-          <div className='text-12px text-tertiary ml-1'>{t('settings.changePassword.ruleHint', '8-20 位，需同时包含大写字母、小写字母和数字。')}</div>
+          <Input.Password size='large' prefix={<Lock size={16} />} placeholder={t('settings.changePassword.newPasswordPlaceholder', '8-20 位，含大写、小写、数字')} value={newPassword} onChange={setNewPassword} maxLength={20} className='!rd-12px h-10' />
+          <div className='text-12px text-secondary ml-1'>{t('settings.changePassword.ruleHint', '8-20 位，需同时包含大写字母、小写字母和数字。')}</div>
         </div>
       </div>
     </Modal>

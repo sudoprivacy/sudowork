@@ -70,5 +70,37 @@
     "webui": "Uzak Erişim",
     "cron": "Zamanlanmış Görevler"
   },
-  "enabled": "Etkin"
+  "enabled": "Etkin",
+  "uninstall": "Kaldır",
+  "ariaLabel": {
+    "close": "Kapat",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "more": "Daha fazla seçenek",
+    "refresh": "Yenile",
+    "search": "Ara",
+    "send": "Mesaj gönder",
+    "add": "Ekle",
+    "remove": "Kaldır",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "confirm": "Onayla",
+    "back": "Geri",
+    "next": "İleri",
+    "previous": "Önceki",
+    "expand": "Genişlet",
+    "collapse": "Daralt",
+    "menu": "Menü",
+    "settings": "Ayarlar",
+    "copy": "Kopyala",
+    "download": "İndir",
+    "upload": "Yükle",
+    "file": "Dosya",
+    "folder": "Klasör",
+    "newConversation": "Yeni sohbet",
+    "openFolder": "Klasörü aç",
+    "addSkill": "Beceri ekle"
+  },
+  "errorBoundaryTitle": "Bir Hata Oluştu",
+  "errorBoundaryMessage": "Beklenmedik bir hata oluştu, lütfen yeniden yüklemeyi deneyin"
 }

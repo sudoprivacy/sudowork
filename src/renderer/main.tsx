@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect, useCallback } from 'react';
 import AppLoader from '@renderer/components/AppLoader';
 import InitLoading from '@renderer/components/InitLoading';
@@ -17,6 +11,7 @@ import Router from '@renderer/router';
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary';
 import { ipcBridge } from '@/common';
 import { fetchSystemConfig, isProductImprovementEnabled, type SystemConfig } from '@/common/systemConfig';
+import { dropSlashCommandCache } from '@renderer/hooks/useSlashCommands';
 
 /**
  * Fetch systemConfig in the renderer AND push the snapshot to the main process so the
@@ -68,6 +63,26 @@ const Main = () => {
         });
     }
   }, [initReady, isEnterprise, isOptInChecked]);
+
+  // Global cleanup on the consolidated conversation.reaped broadcast from main.
+  // This covers every delete path (user-delete AND preset-assistant uninstall,
+  // the latter never touching the renderer delete hook), so renderer-side caches
+  // are dropped regardless of how the conversation was reaped. Map deletes are
+  // idempotent, so racing with the invoke return is harmless.
+  useEffect(() => {
+    const unsubscribe = ipcBridge.conversation.reaped.on((payload) => {
+      if (!payload?.id) return;
+      dropSlashCommandCache(payload.id);
+      void import('@/renderer/shared/dify/sessionBinding')
+        .then(({ unbindAssistantSession }) => unbindAssistantSession(payload.id))
+        .catch(() => {
+          /* best-effort */
+        });
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Handle opt-in dialog close
   const handleOptInClose = useCallback(async (confirmed: boolean) => {

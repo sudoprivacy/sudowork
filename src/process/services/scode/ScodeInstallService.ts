@@ -19,15 +19,20 @@ import * as os from 'os';
 import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
+import scodePlatforms from '@/shared/scode-platforms.json';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
 import { SCODE_HOME, LEGACY_SCODE_HOME, SCODE_MIGRATED_ENTRY_NAMES } from './scodePaths';
 
 const TAG = 'ScodeInstallService';
 
-/** OS name mapping: Node.js process.platform → scode archive OS name */
-const SCODE_OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows' };
-/** Architecture mapping: Node.js process.arch → scode archive arch name */
-const SCODE_ARCH_NAME_MAP: Record<string, string> = { arm64: 'arm64', x64: 'x64' };
+/**
+ * SSOT for scode's per-platform archive naming lives in
+ * `src/shared/scode-platforms.json` — imported directly rather than shadowed
+ * in a per-file map, so a new arch is a single-file change (see the earlier
+ * SCODE_OS_NAME_MAP omission that silently broke linux builds).
+ */
+type ScodePlatformSpec = { os: string; arch: string; ext: string };
+const SCODE_PLATFORMS = scodePlatforms.platforms as Record<string, ScodePlatformSpec>;
 
 /**
  * Scode root = sudowork's **isolated** engine-scode home (`~/.nexus/sudowork/sudocode`).
@@ -123,17 +128,18 @@ function getScodeExeName(): string {
   return process.platform === 'win32' ? 'scode.exe' : 'scode';
 }
 
-/** Get the archive file extension */
-function getArchiveExtension(): string {
-  return process.platform === 'win32' ? '.zip' : '.tar.gz';
+/** Look up the current platform's archive spec in the SSOT map. */
+function getPlatformSpec(): ScodePlatformSpec {
+  const key = `${process.platform}-${process.arch}`;
+  const spec = SCODE_PLATFORMS[key];
+  if (!spec) throw new Error(`Unsupported platform: ${key}`);
+  return spec;
 }
 
-/** Get the platform-specific archive name */
+/** Get the platform-specific archive name, e.g. `scode-linux-x64.tar.gz`. */
 function getPlatformArchiveName(): string {
-  const osName = SCODE_OS_NAME_MAP[process.platform];
-  const archName = SCODE_ARCH_NAME_MAP[process.arch];
-  if (!osName || !archName) throw new Error(`Unsupported platform: ${process.platform}-${process.arch}`);
-  return `scode-${osName}-${archName}${getArchiveExtension()}`;
+  const spec = getPlatformSpec();
+  return `scode-${spec.os}-${spec.arch}${spec.ext}`;
 }
 
 /** Get the versioned archive filename */

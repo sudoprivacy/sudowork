@@ -13,9 +13,6 @@ import { getCosReleaseBase, isVersionUpdateEnabled } from '@/common/systemConfig
 /** COS mirror base URL for Chinese users (release bucket, server-driven cos_domain) */
 const getCosMirrorBase = (): string => `${getCosReleaseBase()}/sudowork/release/latest`;
 
-/** Timeout for GitHub API accessibility check */
-const GITHUB_API_TIMEOUT = 5000; // 5 seconds
-
 /** Mirror source status */
 interface MirrorStatus {
   useMirror: boolean;
@@ -204,29 +201,6 @@ class AutoUpdaterService extends EventEmitter {
   }
 
   /**
-   * Detect if GitHub API is accessible.
-   * Returns true if accessible, false if mirror should be used.
-   */
-  async detectGitHubAccessible(): Promise<boolean> {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT);
-
-      await fetch('https://api.github.com/rate_limit', {
-        signal: controller.signal,
-        method: 'HEAD',
-      });
-
-      clearTimeout(timeoutId);
-      log.info('GitHub API accessible, using GitHub as update source');
-      return true;
-    } catch {
-      log.info('GitHub API unreachable, will use COS mirror for updates');
-      return false;
-    }
-  }
-
-  /**
    * Get the yml filename for the current platform.
    */
   private getYmlFileName(): string {
@@ -245,14 +219,14 @@ class AutoUpdaterService extends EventEmitter {
   /**
    * Switch to COS mirror source.
    */
-  async switchToMirror(): Promise<void> {
+  async switchToMirror(reason: MirrorStatus['reason'] = 'auto'): Promise<void> {
     autoUpdater.setFeedURL({
       provider: 'generic',
       url: getCosMirrorBase(),
     });
 
-    this._mirrorStatus = { useMirror: true, reason: 'github_unreachable' };
-    log.info(`Switched to COS mirror: ${getCosMirrorBase()}/${this.getYmlFileName()}`);
+    this._mirrorStatus = { useMirror: true, reason };
+    log.info(`Switched to COS mirror (${reason}): ${getCosMirrorBase()}/${this.getYmlFileName()}`);
   }
 
   private setupEventHandlers(): void {
@@ -403,6 +377,10 @@ class AutoUpdaterService extends EventEmitter {
     try {
       // Ensure clean state: prevent stale allowDowngrade=true from prior setAllowPrerelease(true) calls
       autoUpdater.allowDowngrade = false;
+      // Force COS mirror so the startup notification and the in-app "check for updates"
+      // share the same source of truth (otherwise: startup reads GitHub via bundled
+      // app-update.yml, in-app reads COS — the two can disagree during rollouts).
+      await this.switchToMirror();
       await autoUpdater.checkForUpdatesAndNotify();
     } catch (error) {
       log.error('Auto-update check failed:', error);

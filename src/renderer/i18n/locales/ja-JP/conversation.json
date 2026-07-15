@@ -1,4 +1,9 @@
 {
+  "interruptConfirm": {
+    "title": "現在の応答を中断しますか？",
+    "body": "エージェントの応答中に新しいメッセージを送ると、現在の応答を中断して新しいメッセージを即座に処理します。",
+    "ok": "中断"
+  },
   "welcome": {
     "title": "Hi、今日の予定は何ですか？",
     "placeholder": "メッセージの送信、ファイルの追加、フォルダーの追加、またはスケジュールタスクの作成...",
@@ -44,14 +49,14 @@
     "renameFailed": "名前の変更に失敗しました",
     "batchManage": "Batch Manage",
     "batchModeExit": "Exit Batch Mode",
-    "selectAll": "Select All",
-    "selectedCount": "{{count}} selected",
-    "batchExport": "Batch Export",
-    "batchExportConfirm": "Export {{count}} selected topics?",
-    "batchDelete": "Batch Delete",
-    "batchDeleteConfirm": "Delete {{count}} selected topics?",
-    "batchDeleteSuccess": "{{count}} topics deleted",
-    "batchNoSelection": "Please select topics first",
+    "selectAll": "すべて選択",
+    "selectedCount": "{{count}} 件選択中",
+    "batchExport": "一括エクスポート",
+    "batchExportConfirm": "選択した {{count}} 件をエクスポートしますか？",
+    "batchDelete": "一括削除",
+    "batchDeleteConfirm": "選択した {{count}} 件を削除しますか？",
+    "batchDeleteSuccess": "{{count}} 件を削除しました",
+    "batchNoSelection": "まずトピックを選択してください",
     "export": "Export",
     "exportDialogTitle": "Export Topics",
     "exportDialogSingleDescription": "Export current topic conversation records (JSON + Markdown) and workspace files into a ZIP package.",
@@ -69,7 +74,9 @@
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
     "deleteSuccess": "削除しました",
-    "deleteFailed": "削除に失敗しました"
+    "deleteFailed": "削除に失敗しました",
+    "timeline": "会話",
+    "scheduledTab": "スケジュールタスク"
   },
   "dropdown": {
     "cliAgents": "CLI Agents",

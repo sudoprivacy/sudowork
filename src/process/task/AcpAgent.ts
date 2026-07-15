@@ -57,6 +57,7 @@ import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/ge
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
 import { cdpPort as chromiumCdpPort } from '@/utils/configureChromium';
+import { parseImageCapability, type IImageCapability } from '@/common/imageUtils';
 import { clearSkillsCache, getCustomSkillsDir, ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
@@ -92,8 +93,6 @@ import { hasCronCommands } from './CronCommandDetector';
 import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryCommand } from './ChannelInfoDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
-import { parseImageCapability, type IImageCapability } from '@/common/imageUtils';
-import { ConfigStorage } from '@/common/storage';
 import { StreamTextBuffer, CronTextAccumulator, preprocessContentMessage } from './acp/AcpMessagePipeline';
 import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
@@ -982,7 +981,7 @@ This identity statement takes priority over the default identity in USER.md.
         // makes getImageTargetSize fall back to sudowork defaults (Decision 1's
         // graceful-degradation hard rule).
         const imageCapability: IImageCapability | null = parseImageCapability(this.connection.getInitializeResponse());
-        const economyMode = (await ConfigStorage.get('image.economyMode').catch((): boolean | undefined => undefined)) === true;
+        const economyMode = ProcessConfig.getSync('image.economyMode') === true;
 
         const processed = await processAtFileReferences(contentToSend, this.workspace, data.files, this.persistedModelId, {
           capability: imageCapability,
@@ -2310,22 +2309,18 @@ This identity statement takes priority over the default identity in USER.md.
       };
     }
 
-    let result: AcpModelInfo | null = null;
-    try {
-      result = await this.setModelByConfigOption(normalizedModelId);
-    } catch (error) {
-      if (this.options.backend !== 'scode') {
-        throw error;
-      }
-      mainWarn('[AcpAgent]', `scode: setModel("${normalizedModelId}") failed, restarting connection to apply model/auth mode: ${error instanceof Error ? error.message : String(error)}`);
-      try {
-        await this.restartAndConnect();
-        result = this.getModelInfo();
-      } catch (restartError) {
-        mainWarn('[AcpAgent]', `scode: restart after model switch failed: ${restartError instanceof Error ? restartError.message : String(restartError)}`);
-        throw error;
-      }
-    }
+    // The live `session/set_model` RPC is the single authoritative model-switch
+    // path: scode's handle_acp_model_switch rebuilds the runtime with the new
+    // model + auth mode in place, keeping the session intact (the "not connected"
+    // guard above already reconnects a dropped socket first). A failure here is a
+    // real switch failure and surfaces to the caller — we no longer respawn the
+    // engine as a fallback. That legacy fallback existed only to make the process
+    // re-read the model from env at startup; the live RPC now applies model + auth
+    // in place, so it was redundant. Recovering a hung/dead connection is a
+    // separate concern with its own path (conversation.restart-and-connect / the
+    // "Restart & Connect" action), and the resume fix (session/load) means a
+    // switch never needs a restart to keep context.
+    const result = await this.setModelByConfigOption(normalizedModelId);
 
     if (result) {
       this.persistedModelId = result.currentModelId || normalizedModelId;

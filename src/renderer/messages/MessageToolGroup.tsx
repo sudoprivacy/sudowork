@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Alert, Button, Image, Message, Radio, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Download, LoadingOne } from '@icon-park/react';
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -195,7 +189,6 @@ const ImageDisplay: React.FC<{
   relativePath?: string;
 }> = ({ imgUrl, relativePath }) => {
   const { t } = useTranslation();
-  const [messageApi, messageContext] = Message.useMessage();
   const [imageUrl, setImageUrl] = useState<string>(imgUrl);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -241,7 +234,7 @@ const ImageDisplay: React.FC<{
               [blob.type]: blob,
             }),
           ]);
-          messageApi.success(t('messages.copySuccess', { defaultValue: 'Copied' }));
+          Message.success(t('messages.copySuccess', { defaultValue: 'Copied' }));
           return;
         } catch (clipboardError) {
           console.warn('[ImageDisplay] Clipboard API failed, trying fallback:', clipboardError);
@@ -265,11 +258,11 @@ const ImageDisplay: React.FC<{
       ctx.drawImage(img, 0, 0);
       canvas.toBlob(async (canvasBlob) => {
         if (!canvasBlob) {
-          messageApi.error(t('messages.copyFailed', { defaultValue: 'Failed to copy' }));
+          Message.error(t('messages.copyFailed', { defaultValue: 'Failed to copy' }));
           return;
         }
         if (!navigator.clipboard || !window.isSecureContext || typeof navigator.clipboard.write !== 'function') {
-          messageApi.error(t('messages.copyFailed', { defaultValue: 'Failed to copy' }));
+          Message.error(t('messages.copyFailed', { defaultValue: 'Failed to copy' }));
           return;
         }
         try {
@@ -278,17 +271,17 @@ const ImageDisplay: React.FC<{
               'image/png': canvasBlob,
             }),
           ]);
-          messageApi.success(t('messages.copySuccess', { defaultValue: 'Copied' }));
+          Message.success(t('messages.copySuccess', { defaultValue: 'Copied' }));
         } catch (canvasError) {
           console.error('[ImageDisplay] Canvas fallback also failed:', canvasError);
-          messageApi.error(t('messages.copyFailed', { defaultValue: 'Failed to copy' }));
+          Message.error(t('messages.copyFailed', { defaultValue: 'Failed to copy' }));
         }
       }, 'image/png');
     } catch (error) {
       console.error('Failed to copy image:', error);
-      messageApi.error(t('messages.copyFailed', { defaultValue: 'Failed to copy' }));
+      Message.error(t('messages.copyFailed', { defaultValue: 'Failed to copy' }));
     }
-  }, [getImageBlob, imageUrl, t, messageApi]);
+  }, [getImageBlob, imageUrl, t]);
 
   const handleDownload = useCallback(async () => {
     try {
@@ -305,12 +298,12 @@ const ImageDisplay: React.FC<{
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      messageApi.success(t('messages.downloadSuccess', { defaultValue: 'Download successful' }));
+      Message.success(t('messages.downloadSuccess', { defaultValue: 'Download successful' }));
     } catch (error) {
       console.error('Failed to download image:', error);
-      messageApi.error(t('messages.downloadFailed', { defaultValue: 'Failed to download' }));
+      Message.error(t('messages.downloadFailed', { defaultValue: 'Failed to download' }));
     }
-  }, [getImageBlob, relativePath, t, messageApi]);
+  }, [getImageBlob, relativePath, t]);
 
   // 加载状态 Loading state
   if (loading) {
@@ -348,7 +341,6 @@ const ImageDisplay: React.FC<{
 
   return (
     <>
-      {messageContext}
       <div className='flex flex-col gap-8px my-8px' style={{ width: '40%' }}>
         {/* 图片预览 Image preview - 如果已在 PreviewGroup 中则直接渲染，否则包裹 PreviewGroup */}
         {inPreviewGroup ? imageElement : <Image.PreviewGroup>{imageElement}</Image.PreviewGroup>}

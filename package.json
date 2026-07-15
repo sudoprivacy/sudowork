@@ -1,7 +1,7 @@
 {
   "name": "sudowork",
   "productName": "sudowork",
-  "version": "0.2.10",
+  "version": "0.2.12",
   "description": "新一代企业AI应用平台--AgentOPS|办公专家",
   "main": "./out/main/index.js",
   "engines": {
@@ -16,8 +16,8 @@
     "webui:prod": "cross-env NODE_ENV=production bun run cli -- --webui",
     "webui:prod:remote": "cross-env NODE_ENV=production bun run cli -- --webui --remote",
     "resetpass": "bun run cli -- --resetpass",
-    "package": "node  electron-vite build",
-    "make": "node  electron-vite build",
+    "package": "electron-vite build",
+    "make": "electron-vite build",
     "clean": "rm -rf out dist .vite",
     "dist": "node  scripts/build-with-builder.js",
     "cli:download": "bun run nexus-vfs:download && bun run nexus-vfs:download && bun run scode:download && bun run node:download",
@@ -177,6 +177,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@xmldom/xmldom": "^0.8.11",
     "@xterm/addon-fit": "^0.11.0",
+    "ahooks": "^3.9.7",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.4.1",
     "buffer": "^6.0.3",

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>sudo stack on DGX Spark — 本地 GPU + 云，一层薄路由</title>
+<style>
+  :root { --fg:#1a1d24; --muted:#5b6472; --bg:#ffffff; --card:#f6f8fa; --line:#e3e8ef; --accent:#3b6fd4; --code:#0b2942; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6edf3; --muted:#9aa7b5; --bg:#0d1117; --card:#161b22; --line:#232c37; --accent:#6ea8fe; --code:#c9d1d9; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:900px; margin:0 auto; padding:40px 22px 80px; }
+  h1 { font-size:1.9rem; line-height:1.25; margin:0 0 6px; }
+  h2 { font-size:1.3rem; margin:2.4em 0 .5em; padding-bottom:.25em; border-bottom:1px solid var(--line); }
+  h3 { font-size:1.05rem; margin:1.6em 0 .4em; }
+  p, li { color:var(--fg); }
+  .sub { color:var(--muted); font-size:1.02rem; margin:.2em 0 1.2em; }
+  .tag { display:inline-block; font-size:.75rem; color:var(--accent); border:1px solid var(--line);
+    border-radius:999px; padding:2px 10px; margin-right:6px; }
+  code { background:var(--card); padding:.12em .4em; border-radius:5px; font-size:.9em;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--code); }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; overflow-x:auto; }
+  pre code { background:none; padding:0; }
+  table { border-collapse:collapse; width:100%; margin:1em 0; font-size:.94rem; display:block; overflow-x:auto; }
+  th,td { border:1px solid var(--line); padding:8px 11px; text-align:left; vertical-align:top; }
+  th { background:var(--card); }
+  blockquote { margin:1.2em 0; padding:.6em 1em; border-left:3px solid var(--accent);
+    background:var(--card); border-radius:0 8px 8px 0; color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:1em 0; }
+  .mermaid { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:1.2em 0; text-align:center; }
+  .muted { color:var(--muted); }
+  .kbd { font-size:.82rem; color:var(--muted); }
+  hr { border:none; border-top:1px solid var(--line); margin:2.4em 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>sudo stack on DGX Spark</h1>
+  <p class="sub">在一台本地 NVIDIA DGX Spark（GB10）上跑完整 sudo 技术栈——按请求选<strong>本地 GPU</strong> 或 <strong>云 API</strong>，并支持<strong>本地 post-training</strong>。一层薄路由把两者聚合成一个端点。</p>
+  <div>
+    <span class="tag">架构设计</span><span class="tag">local-first inference</span><span class="tag">edge delivery</span>
+  </div>
+
+  <h2>1. 目标</h2>
+  <p>把 sudo 的整条栈（<strong>sudocode</strong> / <strong>nexus</strong> / <strong>nova-gateway</strong> / <strong>gpustack</strong>）落到一台桌面级 AI 超算 DGX Spark 上，达成三件事：</p>
+  <ul>
+    <li><strong>本地 GPU vs 云 API 可选</strong>——同一个客户端，既能用本地 GB10 上的开源模型，也能用云端各家商用 API。</li>
+    <li><strong>本地 post-training</strong>——在 128GB 统一内存上做 LoRA / QLoRA 级别的微调与持续适配（"meta-learning" 循环）。</li>
+    <li><strong>可交付的边缘形态</strong>——把这套架构做成能交付到"客户自己的一台 GPU 盒子"上的标准部署。</li>
+  </ul>
+
+  <h2>2. 架构：一层薄路由聚合本地与云</h2>
+  <p>长期正确的形态是：客户端只面对<strong>一个</strong>端点——<strong>本地 sudorouter（nova-gateway）</strong>。它挂两类 channel：本地 gpustack，以及把<strong>远程 sudorouter（sudorouter.ai · SaaS）</strong>「stack」上去的一条上游 channel。</p>
+
+  <div class="mermaid">
+flowchart LR
+    A["sudocode / sudowork<br/>(客户端)"] --> R{"本地 sudorouter<br/>(nova-gateway)"}
+    R -->|"本地 channel"| G["gpustack @ GB10<br/>vLLM / SGLang 本地推理"]
+    R -->|"上游 channel · stack"| S["远程 sudorouter<br/>(sudorouter.ai · SaaS)"]
+    G --- H["GB10 Blackwell<br/>128GB 统一内存"]
+    S --- C1["Anthropic / OpenAI / …"]
+    classDef local stroke:#3b6fd4,stroke-width:2px;
+    classDef cloud stroke:#d98a3b,stroke-width:2px;
+    class G,H local;
+    class S,C1 cloud;
+  </div>
+
+  <h3>为什么要一层本地路由，而不是让客户端各连各的？</h3>
+  <table>
+    <tr><th>能力</th><th>本地路由带来什么</th></tr>
+    <tr><td>单一端点</td><td>客户端只配一个 base_url，本地/云的选择靠模型名路由，客户端无感。</td></tr>
+    <tr><td>凭证收敛</td><td>边缘机器上只放<strong>一个</strong>凭证（SaaS router 的 key），而不是把每家云的 key 都堆上去——尤其适合"不完全可信/借用/客户"的机器。</td></tr>
+    <tr><td>本地优先 + 回退</td><td>本地 GPU 忙 / 掉线时自动回退到云，反之亦然。</td></tr>
+    <tr><td>GUI 友好</td><td>sudowork 这类非技术界面只看到一个"混合模型列表"。</td></tr>
+    <tr><td>可观测 / 计费</td><td>本地/云统一日志、配额、限流的收口点。</td></tr>
+  </table>
+  <blockquote>对<strong>只用 sudocode</strong> 的最小场景，也可以先不上本地路由——sudocode 原生支持 per-model 端点（本地模型指 gpustack、云模型指 SaaS）。本地 nova-gateway 是当引入 sudowork GUI、多客户端、统一策略时的<strong>长期正确</strong>形态。</blockquote>
+
+  <h3>本地模型如何进入统一列表？——SSOT + 引用式聚合</h3>
+  <p><strong>gpustack 是本地模型的 SSOT</strong>：部署一个本地模型，它会自动出现在 gpustack 的 <code>/v1-openai/models</code>（自动建 model-route）。本地 nova-gateway 应当<strong>引用</strong>这个来源，而不是各存一份会漂移的副本：</p>
+  <ul>
+    <li><strong>调用</strong>：本地 channel 按模型名<strong>透传</strong>给 gpustack——无需为每个本地模型单独配置。</li>
+    <li><strong>发现</strong>（统一 <code>/v1/models</code> 列表，供 GUI 下拉等）：优先<strong>请求时实时合并</strong> gpustack 的 <code>/v1/models</code>（保持 SSOT、零漂移）；若网关不支持实时合并，才退到<strong>低频小同步</strong>把列表并入本地 channel（接受小延迟）。</li>
+  </ul>
+  <blockquote>「小同步」是<strong>兜底，不是首选</strong>：能实时引用就别缓存副本——否则本地新模型不出现、已删模型残留，都是漂移。设计原则：<strong>本地模型的真相只有一个（gpustack），路由层引用它、不复制它。</strong></blockquote>
+
+  <h2>3. 各层组件与职责</h2>
+  <div class="mermaid">
+flowchart TB
+    subgraph client["客户端层"]
+      SC["sudocode<br/>(黑客向 CLI 引擎)"]
+      SW["sudowork<br/>(非技术 GUI)"]
+    end
+    subgraph route["路由层"]
+      NG["nova-gateway = sudorouter<br/>(OpenAI 兼容, 多 channel)"]
+    end
+    subgraph serve["本地推理层"]
+      GP["gpustack<br/>(编排 vLLM / SGLang / TRT-LLM)"]
+    end
+    subgraph train["训练层 (独立)"]
+      PT["NGC PyTorch 容器<br/>+ peft / trl / LoRA"]
+    end
+    SC --> NG
+    SW --> SC
+    NG --> GP
+    PT -.->|checkpoint / LoRA| GP
+    GP --> HW["GB10 Blackwell + CUDA"]
+    PT --> HW
+  </div>
+  <table>
+    <tr><th>组件</th><th>角色</th><th>说明</th></tr>
+    <tr><td><strong>sudocode</strong></td><td>CLI 引擎</td><td>Rust 原生，可移植到 aarch64；sudowork 用它当引擎。</td></tr>
+    <tr><td><strong>nexus</strong></td><td>VFS / kernel</td><td>Rust + Python，多平台构建。</td></tr>
+    <tr><td><strong>nova-gateway</strong></td><td>路由 (sudorouter)</td><td>Go；OpenAI 兼容网关，支持自定义上游 channel → 天然支持 "stacking"。</td></tr>
+    <tr><td><strong>gpustack</strong></td><td>本地推理层</td><td>编排 vLLM / SGLang / TensorRT-LLM，暴露 OpenAI 兼容端点。<em>只 serving，不训练。</em></td></tr>
+    <tr><td><strong>训练栈</strong></td><td>post-training</td><td>官方 NGC PyTorch 容器 + HF peft/trl 或 LLaMA-Factory；与 serving 解耦。</td></tr>
+  </table>
+
+  <h2>4. 本地推理选型：统一内存的反直觉</h2>
+  <p>DGX Spark 的特点是<strong>大容量、中带宽</strong>：128GB 统一内存能装下很大的模型，但内存带宽相对显卡低一个量级。逐 token 生成是<strong>带宽瓶颈</strong>，所以：</p>
+  <ul>
+    <li>大 <strong>dense</strong> 模型（如 70B）能装下但吐字慢。</li>
+    <li>最优解 = <strong>大 MoE 模型（激活参数少）+ 4-bit 量化</strong>：容量装下全部专家，每 token 只读一小部分激活参数 → 又快又聪明。Blackwell 原生支持 FP4。</li>
+  </ul>
+  <table>
+    <tr><th>档位</th><th>代表</th><th>单机适配</th></tr>
+    <tr><td>甜点</td><td>~120B MoE（少激活参数）4-bit</td><td>✅ 装得下且留足上下文，吐字快，是这台机器"人无我有"的一档</td></tr>
+    <tr><td>压容量</td><td>~235B MoE 4-bit</td><td>⚠️ 顶满内存、慢、上下文紧；官方跑这级用双机互联</td></tr>
+    <tr><td>稳妥</td><td>≤32B dense</td><td>✅ 轻松，但 dense 生成偏慢</td></tr>
+  </table>
+  <blockquote>⚠️ <strong>统一内存的坑</strong>：<code>gpu-memory-utilization</code> 只是 KV-cache 的大小<em>提示</em>，<strong>不是安全阀</strong>——模型加载 / MoE 预处理的<strong>瞬时分配</strong>会绕过它，抓走近乎全部内存把操作系统饿死（甚至整机 livelock、只能断电）。统一内存下 GPU 分配与系统内存是同一块物理内存，真正的护栏见 §7：为 OS/SSH 留<strong>硬内存保留</strong> + <strong>内存看门狗</strong> + 按<strong>峰值</strong>选型。</blockquote>
+
+  <h2>5. 本地 vs 云：把 SaaS 路由 "stack" 成一条上游</h2>
+  <p>本地 sudorouter（nova-gateway）支持<strong>自定义 OpenAI 兼容 channel</strong>，所以把<strong>远程 sudorouter（sudorouter.ai）</strong>当作一条上游 channel 加进来即可——一条通道带出所有云模型，本地无需重配每家 key。</p>
+  <div class="mermaid">
+flowchart LR
+    U["请求 (按模型名)"] --> R{"本地 sudorouter"}
+    R -->|"model = 本地名"| L["gpustack @ GB10"]
+    R -->|"model = 云名"| X["Custom channel<br/>→ sudorouter.ai"]
+    X --> Y["云端 fan-out<br/>到各家商用 API"]
+  </div>
+
+  <h2>6. 本地 post-training 循环</h2>
+  <p>gpustack 只做 serving；post-training 用独立训练栈。两者通过 checkpoint / LoRA 衔接，形成一个本地闭环：</p>
+  <div class="mermaid">
+flowchart LR
+    D["本地数据 / 反馈"] --> T["训练栈<br/>(NGC PyTorch + LoRA/QLoRA)"]
+    T --> CK["checkpoint / adapter"]
+    CK --> SV["gpustack 加载并 serving"]
+    SV --> RT["nova-gateway 路由给客户端"]
+    RT --> D
+  </div>
+  <p class="muted">单 GB10 规模：LoRA / QLoRA + 中小模型现实可行；不适合全量预训练。128GB 统一内存让可微调的模型比普通显卡大得多。</p>
+
+  <h2>7. 部署要点（通用）</h2>
+  <ul>
+    <li><strong>平台</strong>：aarch64（ARM）+ Blackwell GPU + 最新 CUDA；整栈按标准 aarch64 Linux port 处理，非重写。</li>
+    <li><strong>容器化推理</strong>：gpustack 经容器运行时把 GPU 透传给引擎容器（vLLM/SGLang）；引擎镜像需与本机 CUDA/架构匹配的变体。</li>
+    <li><strong>受限网络</strong>：在网络受限地区，工具链与镜像走区域镜像源，或"在有出口的机器上取好、经局域网推送"。凭证与站点信息不入库、不入交付文档。</li>
+    <li><strong>凭证边界</strong>：边缘机器上只保留一个上游凭证（SaaS router key）；其余云 key 留在云端路由。</li>
+    <li><strong>服务地址与物理网卡解耦</strong>：边缘机器的网卡一定会变（拔网线、切 WiFi、DHCP 漂移）。路由层的多网卡 failover 是标准能力，但<strong>救不了你</strong>——真正的坑是<strong>组件把自己注册在某张网卡的 IP 上</strong>：网卡一消失，该地址随之消失，整个栈停摆，而网络其实一直是通的。推理节点与引擎应<strong>宣告与物理网卡无关的地址</strong>（容器运行时的宿主机桥接地址，或一张常驻虚拟网卡）。</li>
+    <li><strong>健壮性（统一内存机型必做）</strong>：① 给 OS/SSH 设 cgroup <strong>硬内存保留</strong>（<code>MemoryMin</code>）——失控时机器仍可远程恢复、无需断电；② 常驻一个<strong>内存看门狗</strong>：监控系统可用内存，濒临耗尽才回收失控引擎（读系统级 available，能覆盖绕过 cgroup 记账的 GPU 分配）；③ 引擎容器加 cgroup 内存上限做纵深防御。看门狗设计上<strong>宽容、不过早失败</strong>——真正的护栏是让失败变廉价（干净 kill）而非频繁触发。<strong>一次只常驻一个模型</strong>，其余留盘；按<strong>峰值</strong>（含预处理）而非稳态选型。（本地↔云 fallback 见 §2 / §5。）</li>
+  </ul>
+
+  <hr />
+  <p class="kbd">本文档描述架构，不含任何机器凭证 / 网络密钥 / 站点信息。修订随源文件更新（ShareOne 以 GitHub URL 做 backing，自动同步）。</p>
+
+</div>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad:true, theme: dark ? 'dark' : 'default', securityLevel:'loose' });
+</script>
+</body>
+</html>

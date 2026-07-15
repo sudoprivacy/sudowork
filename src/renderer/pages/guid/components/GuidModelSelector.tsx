@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Dropdown, Tooltip } from '@arco-design/web-react';
 import { Brain, Plus, Right } from '@icon-park/react';
 import classNames from 'classnames';
@@ -173,7 +167,16 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
 
                         // Manual mode: show submenu with specific models
                         if (option?.subModels && option.subModels.length > 0) {
-                          return <GeminiSubMenu key={provider.id + modelName} label={option.label || modelName} healthStatus={healthStatus} subModels={option.subModels} isSelected={(value) => currentModel?.id + (currentModel?.useModel ?? '') === provider.id + value} onSelect={(value) => handleSelectModel(provider, value)} />;
+                          return (
+                            <GeminiSubMenu
+                              key={provider.id + modelName}
+                              label={option.label || modelName}
+                              healthStatus={healthStatus}
+                              subModels={option.subModels}
+                              isSelected={(value) => currentModel?.id + (currentModel?.useModel ?? '') === provider.id + value}
+                              onSelect={(value) => handleSelectModel(provider, value)}
+                            />
+                          );
                         }
 
                         // Normal mode: show single item

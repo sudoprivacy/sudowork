@@ -13,12 +13,12 @@
  * directly to the workspace root instead of .drafts/.
  */
 
-import { DRAFTS_DIR_ALIASES, DRAFTS_DIR_NAME } from '@/common/constants';
-import { mainLog, mainError } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import type { Dirent } from 'fs';
 import path from 'path';
+import { mainLog, mainError } from '@process/utils/mainLogger';
+import { DRAFTS_DIR_ALIASES, DRAFTS_DIR_NAME } from '@/common/constants';
 import { FileIntentClassifier, detectFileIntent, matchesDraftPattern, matchesFinalPattern, type FileIntent, type FileIntentSource } from './FileIntentClassifier';
 
 /**
@@ -169,7 +169,11 @@ export async function cleanupIntermediateFiles(workspace: string, options: Clean
   try {
     const workspaceRoot = path.resolve(workspace);
     const draftsDir = path.join(workspaceRoot, DRAFTS_DIR_NAME);
-    const protectedFinalPaths = new Set(Array.from(options.protectedFinalPaths || []).map((protectedPath) => normalizeProtectedPath(workspaceRoot, protectedPath)).filter((protectedPath): protectedPath is string => protectedPath !== null));
+    const protectedFinalPaths = new Set(
+      Array.from(options.protectedFinalPaths || [])
+        .map((protectedPath) => normalizeProtectedPath(workspaceRoot, protectedPath))
+        .filter((protectedPath): protectedPath is string => protectedPath !== null)
+    );
 
     // Read workspace root entries
     if (!fsSync.existsSync(workspaceRoot)) {
@@ -354,10 +358,7 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
     }
 
     const inDrafts = isPathInside(draftsDir, srcPath);
-    const destPath =
-      file.intent === 'draft'
-        ? path.join(draftsDir, path.basename(srcPath))
-        : resolveRootDestination(workspaceRoot, srcPath, file.requestedPath || trackedKey);
+    const destPath = file.intent === 'draft' ? path.join(draftsDir, path.basename(srcPath)) : resolveRootDestination(workspaceRoot, srcPath, file.requestedPath || trackedKey);
 
     const resolvedDestPath = path.resolve(destPath);
     if (srcPath === resolvedDestPath) {
@@ -424,7 +425,7 @@ export async function cleanupTrackedDraftsOnCancel(workspace: string, trackedFil
  * Matches any workspace ending with -temp- followed by digits (Unix timestamp)
  * Examples: scode-temp-1234567890, sudoclaw-temp-1234567890, claude-temp-1234567890
  */
-const TEMP_WORKSPACE_REGEX = /-temp-\d+$/;
+export const TEMP_WORKSPACE_REGEX = /-temp-\d+$/;
 
 /**
  * Check if a directory name is a temporary workspace

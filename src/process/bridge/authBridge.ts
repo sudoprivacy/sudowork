@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AuthType, clearCachedCredentialFile, Config, getOauthInfoWithCache, loginWithOauth, Storage } from '@office-ai/aioncli-core';
-import { ipcBridge } from '../../common';
 import * as fs from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
-import { getDataPath } from '../utils';
+import { AuthType, clearCachedCredentialFile, Config, getOauthInfoWithCache, loginWithOauth, Storage } from '@office-ai/aioncli-core';
 import { mainLog, mainWarn, mainError, mainDebug } from '@process/utils/mainLogger';
-import { updateUserMdUsernameStatement, updateIdentityMdName } from '../services/sudoclaw/SudoclawInstallService';
 import { userBreadcrumbs } from '@process/telemetry/BreadcrumbTracker';
+import { getDataPath } from '../utils';
+import { ipcBridge } from '../../common';
+import { updateUserMdUsernameStatement, updateIdentityMdName } from '../services/sudoclaw/SudoclawInstallService';
 
 export function initAuthBridge(): void {
   ipcBridge.googleAuth.status.provider(async ({ proxy }) => {
@@ -188,7 +188,7 @@ WQIDAQAB
       const encrypted = await fsPromises.readFile(filePath, 'utf-8');
       // Return encrypted content (base64) - skill should send this to server for decryption
       return { success: true, data: encrypted.trim() };
-    } catch (error) {
+    } catch {
       // File doesn't exist or read error
       return { success: true, data: null };
     }
@@ -201,7 +201,7 @@ WQIDAQAB
       await fsPromises.unlink(filePath);
       mainLog('Sudowork Auth', 'User phone file deleted');
       return { success: true };
-    } catch (error) {
+    } catch {
       // File doesn't exist, that's fine
       return { success: true };
     }

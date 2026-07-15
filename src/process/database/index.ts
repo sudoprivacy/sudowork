@@ -1347,6 +1347,25 @@ export class SudoworkDatabase {
   }
 
   /**
+   * Find the ids of all conversations associated with a specific preset assistant.
+   * Read-only; used by the reaper path so the actual delete goes through
+   * reapConversation (which releases every resource, not just DB rows).
+   *
+   * @param presetAssistantId - The assistant ID (UUID or name) to match against extra.presetAssistantId
+   * @returns Query result with the matched conversation ids
+   */
+  findConversationIdsByPresetAssistantId(presetAssistantId: string): IQueryResult<{ conversationIds: string[] }> {
+    try {
+      const findStmt = this.db.prepare(`SELECT id FROM conversations WHERE json_extract(extra, '$.presetAssistantId') = ?`);
+      const rows = findStmt.all(presetAssistantId) as Array<{ id: string }>;
+      return { success: true, data: { conversationIds: rows.map((r) => r.id) } };
+    } catch (error: any) {
+      mainError('Database', 'Failed to find conversations by presetAssistantId:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Delete all conversations associated with a specific preset assistant.
    * Used when deleting a custom assistant to cleanup related conversations.
    *

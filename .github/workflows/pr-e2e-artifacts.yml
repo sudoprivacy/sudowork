@@ -1,8 +1,18 @@
 name: '✓PR E2E Artifacts'
 
+# Runs the real Python + YAML e2e infra (tests/e2e/runner.py + tests/e2e/cases/*.yaml)
+# against a headless Electron launched with mock enterprise auth pre-seeded. Kept as
+# workflow_dispatch (opt-in) so the smoke matrix on every PR isn't slowed by full e2e —
+# trigger from Actions UI or `gh workflow run pr-e2e-artifacts.yml --ref <branch>` when
+# a change touches the interrupt+queue / ACP / renderer paths.
+
 on:
   workflow_dispatch:
-
+    inputs:
+      case_filter:
+        description: 'Name substring (matches runner.py --case)'
+        required: false
+        default: 'interrupt-queue-batched-flush'
 
 concurrency:
   group: pr-e2e-artifacts-${{ github.run_id }}
@@ -18,7 +28,7 @@ jobs:
   e2e-artifacts:
     name: E2E Artifacts (Linux)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -34,27 +44,198 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup just
-        uses: extractions/setup-just@v2
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
 
-      - name: Install dependencies
+      - name: Install Python e2e deps
+        # ai-dev-browser >= 0.13.0 is a HARD floor, not a preference: from that
+        # version a `throw` inside an evaluated JS body raises JsEvaluationError
+        # instead of being handed back through the value channel. Our fiber-probe
+        # assertions are written as `throw new Error(...)`, so on an older version
+        # every one of them would score PASS regardless of what it found.
+        run: python -m pip install --upgrade pip pyyaml 'ai-dev-browser>=0.13.0'
+
+      - name: Install Rust toolchain (for mock-anthropic-service)
+        # The mock LLM upstream (sudocode's mock-anthropic-service) is a test
+        # crate, not a release artifact — so we build it from source at a
+        # pinned tag rather than inventing a cross-repo release contract for it.
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve pinned sudocode ref
+        # spawn_mock_llm derives the sudocode tag from the scode engine version
+        # in src/shared/runtime-versions.json (SSOT) — e.g. scode 0.1.13 → v0.1.13,
+        # so the mock and the scode binary under test come from ONE commit.
+        # Asking the script for it (rather than re-deriving in YAML) keeps that
+        # rule in one place, and gives the cache a key that invalidates exactly
+        # when the pinned revision moves and on nothing else.
+        run: echo "SUDOCODE_REF=$(python -m tests.e2e.ci_setup.spawn_mock_llm --print-ref)" >> "$GITHUB_ENV"
+
+      - name: Cache cargo build (sudocode mock-anthropic-service)
+        # CARGO_TARGET_DIR deliberately lives OUTSIDE the sudocode checkout.
+        # spawn_mock_llm wipes a non-git checkout dir before cloning, so a
+        # target/ nested inside it would be deleted immediately after the cache
+        # restored it — which is exactly what happened: the cache reported a hit
+        # and every run still paid a ~3min cold rebuild.
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ runner.temp }}/cargo-target
+          # `v2` is a cache-format epoch, and it is load-bearing: actions/cache
+          # does NOT save when the primary key hits exactly. The v1 entries were
+          # archived from the old in-checkout target/ path, so without a new key
+          # they would be restored (as a "hit") into paths cargo never reads,
+          # forever, and the corrected path would never be populated.
+          key: mock-anthropic-service-v2-${{ runner.os }}-${{ env.SUDOCODE_REF }}
+          restore-keys: |
+            mock-anthropic-service-v2-${{ runner.os }}-
+
+      - name: Install node dependencies
         run: bun install --no-frozen-lockfile
 
       - name: Run postinstall
         run: npm run postinstall || true
 
-      - name: Install Linux display dependencies (E2E)
+      - name: Rebuild native modules for Electron ABI
+        # This job uses `bun run package` (electron-vite) rather than
+        # electron-forge, so postinstall's default CI-skip path leaves
+        # better-sqlite3 at Node.js's ABI and Electron fails to load it.
+        # SUDOWORK_FORCE_REBUILD=1 opts back into the local-dev rebuild
+        # path — the actual electron-rebuild invocation still lives in
+        # scripts/rebuildNativeModules.js (SSOT).
+        run: SUDOWORK_FORCE_REBUILD=1 node scripts/postinstall.js
+
+      - name: Install Linux display + Electron runtime dependencies
+        # Electron on Linux needs a bunch of system libs (nss, atk, cairo, cups, etc.);
+        # missing any of them makes the main process die on startup with no CDP.
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgbm-dev xvfb
+          sudo apt-get install -y \
+            libgbm-dev xvfb \
+            libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 \
+            libxcomposite1 libxdamage1 libxrandr2 libxkbcommon0 \
+            libpangocairo-1.0-0 libpango-1.0-0 libcairo2 \
+            libasound2t64
 
-      - name: Run E2E tests (with screenshots)
-        run: xvfb-run --auto-servernum just e2e-test
+      - name: Build Electron artifacts (main+preload+renderer)
+        run: bun run package
+
+      - name: Fix Electron chrome-sandbox permissions
+        # Chromium's SUID sandbox on Linux requires chrome-sandbox to be
+        # root-owned with mode 4755. bun install as a non-root user leaves
+        # it user-owned, and Electron aborts with a FATAL abort at startup
+        # if the binary is present but mis-permissioned (which is exactly
+        # what we hit: FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166).
+        # Chown to root instead of --no-sandbox to keep the security model intact.
+        run: |
+          SB=node_modules/electron/dist/chrome-sandbox
+          if [ -f "$SB" ]; then
+            sudo chown root:root "$SB"
+            sudo chmod 4755 "$SB"
+            ls -l "$SB"
+          else
+            echo "chrome-sandbox not found — nothing to fix" >&2
+          fi
+
+      - name: Download scode binary archive
+        # Populates resources/v{VERSION}-scode-linux-x64.tar.gz which
+        # tests/e2e/ci_setup/seed_scode_env.py extracts into
+        # ~/.nexus/sudowork/sudocode/. Non-fatal on 404 (matches build:linux).
+        run: bun run scode:download
+
+      - name: Spawn mock-anthropic-service (background)
+        # Builds sudocode's mock-anthropic-service at the pinned tag (cached),
+        # spawns it on 127.0.0.1:0, and writes MOCK_ANTHROPIC_BASE_URL to
+        # $GITHUB_ENV + a URL file for the next step. --detach so this step
+        # returns as soon as the URL is captured; the child stays alive until
+        # the job ends.
+        env:
+          # Must match the cached path above, and must sit outside the sudocode
+          # checkout that spawn_mock_llm wipes before cloning.
+          CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}"
+          python tests/e2e/ci_setup/spawn_mock_llm.py \
+            --github-env "$GITHUB_ENV" \
+            --pidfile "${RUNNER_TEMP}/mock-llm.pid" \
+            --url-file "${RUNNER_TEMP}/mock-llm.url" \
+            --detach
+          echo "URL captured: $(cat "${RUNNER_TEMP}/mock-llm.url")"
+
+      - name: Seed embedded scode engine (binary + sudocode.json)
+        # Idempotent: extracts the scode archive into ~/.nexus/sudowork/sudocode/
+        # and writes sudocode.json with apiKey.anthropic pointed at the mock URL.
+        # The Sudo Code assistant surfaces automatically once the binary + ready
+        # marker are in place; no DB rows to seed.
+        run: |
+          set -euo pipefail
+          python -m tests.e2e.ci_setup.seed_scode_env \
+            --mock-url "${MOCK_ANTHROPIC_BASE_URL}" \
+            --api-key test-pty-key
+
+      - name: Start Xvfb virtual display
+        # Manually launch Xvfb so both the Electron subprocess (spawned by
+        # restart_electron.py detached) and the runner (spawned in a later step)
+        # can attach to the same $DISPLAY. Wrapping via `xvfb-run bash -c '…'` broke
+        # earlier because xvfb-run cleaned up the display before the runner attached.
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          sleep 2
+          echo "xvfb-run pid=$!"
+
+      - name: Launch Electron with mock enterprise auth (background)
+        # restart_electron.py kills any stale Electron, seeds ConfigStorage with
+        # mock auth, launches launch-dev.js with NEXUS_CDP_PORT=9232, and polls
+        # the CDP endpoint until ready. Runs in its OWN step so its stdout/stderr
+        # show up in the CI log if it fails.
+        #
+        # SUDOWORK_SKIP_PREREQ_CHECK=1 bypasses launch-dev.js's `validatePrereqs`
+        # which insists on native/nexus-napi/nexus-napi.node existing. Building the
+        # NAPI binding needs the napi-rs CLI + Rust toolchain — that is scope for
+        # a heavier smoke tier; the interrupt+queue case doesn't touch VFS so it
+        # runs fine without the native binding. Documented bypass, not a hack.
+        run: |
+          set -euo pipefail
+          echo "=== env sanity ==="
+          which python && python --version
+          which node && node --version
+          echo "DISPLAY=$DISPLAY"
+          ls tests/e2e/restart_electron.py
+          echo "=== restarting electron ==="
+          python tests/e2e/restart_electron.py --enterprise --auth --port 9232
+        env:
+          CI: true
+          E2E_DEV: '1'
+          NEXUS_EXTENSIONS_PATH: ${{ github.workspace }}/examples
+          NEXUS_CDP_PORT: '9232'
+          SUDOWORK_SKIP_PREREQ_CHECK: '1'
+
+      - name: Run e2e runner against CDP
+        run: |
+          set -euo pipefail
+          cd tests/e2e
+          python runner.py --port 9232 --case "$CASE_FILTER"
         env:
           CI: true
           E2E_DEV: '1'
           E2E_SCREENSHOTS: '1'
-          NEXUS_EXTENSIONS_PATH: ${{ github.workspace }}/examples
+          NEXUS_CDP_PORT: '9232'
+          CASE_FILTER: ${{ inputs.case_filter || 'interrupt-queue-batched-flush' }}
+
+      - name: Dump launch log on failure
+        # If Electron never came up on CDP, restart_electron.py writes its full
+        # launcher stdout/stderr to $RUNNER_TEMP/e2e-launch.log. Surfacing it in
+        # the job log is the difference between a silent "did not start in time"
+        # and a debuggable stack trace.
+        if: failure()
+        run: |
+          echo "=== e2e-launch.log ==="
+          cat "${RUNNER_TEMP:-/tmp}/e2e-launch.log" 2>&1 | tail -200 || echo "(no launch log)"
 
       - name: Upload E2E report (self-contained with screenshots & traces)
         if: always()
@@ -65,5 +246,6 @@ jobs:
             tests/e2e/report/
             tests/e2e/results/
             tests/e2e/screenshots/
+            ${{ runner.temp }}/e2e-launch.log
           retention-days: 14
           if-no-files-found: ignore

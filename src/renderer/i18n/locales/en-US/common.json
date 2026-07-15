@@ -105,5 +105,8 @@
     "newConversation": "New conversation",
     "openFolder": "Open folder",
     "addSkill": "Add skill"
-  }
+  },
+  "uninstall": "Uninstall",
+  "errorBoundaryTitle": "Something Went Wrong",
+  "errorBoundaryMessage": "An unexpected error occurred, please try reloading"
 }

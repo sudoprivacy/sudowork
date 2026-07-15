@@ -6,7 +6,7 @@
 
 import type { ChildProcess } from 'child_process';
 import { spawn } from 'child_process';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'fs';
 import { app } from 'electron';
 import path from 'path';
 import os from 'os';
@@ -151,8 +151,7 @@ class McporterService {
       // 列出解压后的目录结构帮助调试
       mainWarn('McporterService', 'Expected CLI not found, listing extracted structure...');
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const items = require('fs').readdirSync(MCPORTER_EXTRACT_DIR);
+        const items = readdirSync(MCPORTER_EXTRACT_DIR);
         mainLog('McporterService', 'Extracted items:', items.join(', '));
       } catch {
         // ignored
@@ -707,7 +706,7 @@ class McporterService {
     if (existsSync(wrapperPath)) {
       // 已存在，检查是否需要更新（CLI 路径是否正确）
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const existingContent = require('fs').readFileSync(wrapperPath, 'utf-8');
+      const existingContent = readFileSync(wrapperPath, 'utf-8');
       if (existingContent.includes(cliPath)) {
         mainLog('McporterService', 'Wrapper already exists and is up-to-date');
         return;
@@ -769,7 +768,7 @@ class McporterService {
     ];
 
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('fs').writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
+    writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
   }
 
   /**
@@ -811,7 +810,7 @@ class McporterService {
     ];
 
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('fs').writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
+    writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
   }
 
   /**

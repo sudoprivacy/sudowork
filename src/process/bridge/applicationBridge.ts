@@ -5,16 +5,16 @@
  */
 
 import { app } from 'electron';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import { ipcBridge } from '../../common';
 import { getSystemDir, ProcessEnv } from '../initStorage';
 import { copyDirectoryRecursively } from '../utils';
 import WorkerManage from '../WorkerManage';
 import { getZoomFactor, setZoomFactor } from '../utils/zoom';
-import { getCdpStatus, updateCdpConfig, verifyCdpReady } from '../../utils/configureChromium';
+import { getCdpStatus, updateCdpConfig } from '../../utils/configureChromium';
 import { initStatusManager } from '../services/initStatus';
 import { getChannelManager } from '../../channels';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
 import { mainLog, mainError } from '../utils/mainLogger';
 
 export function initApplicationBridge(): void {
@@ -42,9 +42,11 @@ export function initApplicationBridge(): void {
       void serviceManager.startup();
 
       // Start ChannelManager
-      getChannelManager().initialize().catch((error) => {
-        mainError('Application', 'Failed to initialize ChannelManager (hot-start):', error);
-      });
+      getChannelManager()
+        .initialize()
+        .catch((error) => {
+          mainError('Application', 'Failed to initialize ChannelManager (hot-start):', error);
+        });
 
       mainLog('Application', 'Consumer services start requested successfully');
       return { success: true };

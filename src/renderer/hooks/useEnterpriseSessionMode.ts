@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useCallback, useEffect } from 'react';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
@@ -46,25 +40,28 @@ export function useEnterpriseSessionMode(options?: EnterpriseSessionModeOptions)
     return resolveAllowedSessionMode(getRendererSessionMode(), { localModeAvailable, remoteModeAvailable });
   });
 
-  const setSessionMode = useCallback(async (mode: EnterpriseSessionMode) => {
-    const nextMode = resolveAllowedSessionMode(mode, { localModeAvailable, remoteModeAvailable });
+  const setSessionMode = useCallback(
+    async (mode: EnterpriseSessionMode) => {
+      const nextMode = resolveAllowedSessionMode(mode, { localModeAvailable, remoteModeAvailable });
 
-    // 1. Save to local storage
-    await ConfigStorage.set('guid.sessionMode', nextMode);
-    setSessionModeState(nextMode);
-    setRendererSessionMode(nextMode);
+      // 1. Save to local storage
+      await ConfigStorage.set('guid.sessionMode', nextMode);
+      setSessionModeState(nextMode);
+      setRendererSessionMode(nextMode);
 
-    // 2. Notify main process
-    try {
-      await ipcBridge.eeclaw.setSessionMode.invoke({ mode: nextMode });
-    } catch (error) {
-      console.error('[useEnterpriseSessionMode] Failed to notify main process:', error);
-    }
+      // 2. Notify main process
+      try {
+        await ipcBridge.eeclaw.setSessionMode.invoke({ mode: nextMode });
+      } catch (error) {
+        console.error('[useEnterpriseSessionMode] Failed to notify main process:', error);
+      }
 
-    // 3. Trigger refresh events
-    emitter.emit('sessionMode.changed', nextMode);
-    emitter.emit('chat.history.refresh');
-  }, [localModeAvailable, remoteModeAvailable]);
+      // 3. Trigger refresh events
+      emitter.emit('sessionMode.changed', nextMode);
+      emitter.emit('chat.history.refresh');
+    },
+    [localModeAvailable, remoteModeAvailable]
+  );
 
   useEffect(() => {
     const nextMode = resolveAllowedSessionMode(sessionMode, { localModeAvailable, remoteModeAvailable });

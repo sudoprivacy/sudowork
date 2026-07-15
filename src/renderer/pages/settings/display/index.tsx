@@ -29,7 +29,7 @@ const DisplaySettings: React.FC = () => {
         {/* 内容区域 / Content Area */}
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
-            <div className='py-3.5 md:py-4 rd-16px space-y-2.5 md:space-y-3'>
+            <div className='space-y-3'>
               <div className='w-full flex flex-col divide-y divide-light'>
                 {displayItems.map((item) => (
                   <PreferenceRow key={item.key} label={item.label}>

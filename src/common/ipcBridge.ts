@@ -78,13 +78,22 @@ export const conversation = {
   get: bridge.buildProvider<TChatConversation | undefined, { id: string }>('get-conversation'), // 获取对话信息
   getAssociateConversation: bridge.buildProvider<TChatConversation[], { conversation_id: string }>('get-associated-conversation'), // 获取关联对话
   remove: bridge.buildProvider<boolean, { id: string; deleteWorkspace?: boolean }>('remove-conversation'), // 删除对话
+  // Broadcast from main after a conversation is reaped (all resources released). SSOT
+  // cleanup signal so renderer-side caches can drop their entries regardless of which
+  // delete path (user-delete / assistant-uninstall) triggered it.
+  reaped: bridge.buildEmitter<{ id: string }>('conversation.reaped'),
   update: bridge.buildProvider<boolean, { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }>('update-conversation'), // 更新对话信息
   reset: bridge.buildProvider<void, IResetConversationParams>('reset-conversation'), // 重置对话
-  stop: bridge.buildProvider<IBridgeResponse<{}>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
-  sendMessage: bridge.buildProvider<IBridgeResponse<{}>, ISendMessageParams>('chat.send.message'), // 发送消息（统一接口）
+  stop: bridge.buildProvider<IBridgeResponse<Record<string, never>>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
+  sendMessage: bridge.buildProvider<IBridgeResponse<Record<string, never>>, ISendMessageParams>('chat.send.message'), // 发送消息（统一接口）
   getSlashCommands: bridge.buildProvider<IBridgeResponse<{ commands: SlashCommandItem[] }>, { conversation_id: string }>('conversation.get-slash-commands'),
   confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('conversation.confirm.message'), // 通用确认消息
   responseStream: bridge.buildEmitter<IResponseMessage>('chat.response.stream'), // 接收消息（统一接口）
+  // Input queue (interrupt / message-queue): pending user inputs held while a turn runs.
+  // Process is the SSOT (turnInputCoordinator); the renderer only reflects this for the queue chips.
+  inputQueueUpdate: bridge.buildEmitter<{ conversation_id: string; queue: Array<{ id: string; preview: string }> }>('conversation.input-queue-update'),
+  // Pull a queued input back out (Up-arrow): removes it from the process queue and returns its content.
+  dequeueInput: bridge.buildProvider<IBridgeResponse<{ content: string } | null>, { conversation_id: string; id?: string }>('conversation.dequeue-input'),
   getWorkspace: bridge.buildProvider<IDirOrFile[], { conversation_id: string; workspace: string; path: string; search?: string }>('conversation.get-workspace'),
   getRemoteWorkspace: bridge.buildProvider<IRemoteWorkspaceResponse, { conversation_id: string; path?: string; search?: string }>('conversation.get-remote-workspace'),
   previewRemoteWorkspaceFile: bridge.buildProvider<IBridgeResponse<MossWorkspaceFilePreview>, { conversation_id: string; path: string }>('conversation.preview-remote-workspace-file'),
@@ -93,7 +102,7 @@ export const conversation = {
   responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
   getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
-  restartAndConnect: bridge.buildProvider<IBridgeResponse<{}>, { conversation_id: string }>('conversation.restart-and-connect'),
+  restartAndConnect: bridge.buildProvider<IBridgeResponse<Record<string, never>>, { conversation_id: string }>('conversation.restart-and-connect'),
   syncWorkspaceSkills: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('conversation.sync-workspace-skills'),
   // Flush all pending messages to database immediately (used before reading from DB)
   flushPendingMessages: bridge.buildProvider<void, { conversation_id: string }>('conversation.flush-pending-messages'),
@@ -307,7 +316,7 @@ export const fileStream = {
 
 export const googleAuth = {
   login: bridge.buildProvider<IBridgeResponse<{ account: string }>, { proxy?: string }>('google.auth.login'),
-  logout: bridge.buildProvider<void, {}>('google.auth.logout'),
+  logout: bridge.buildProvider<void, Record<string, never>>('google.auth.logout'),
   status: bridge.buildProvider<IBridgeResponse<{ account: string }>, { proxy?: string }>('google.auth.status'),
 };
 
@@ -1333,7 +1342,7 @@ export interface IResponseMessage {
   conversation_id: string;
 }
 
-export interface IBridgeResponse<D = {}> {
+export interface IBridgeResponse<D = Record<string, never>> {
   success: boolean;
   data?: D;
   msg?: string;
@@ -2404,7 +2413,7 @@ export const eeclaw = {
   /** Set session mode (remote/local) for enterprise mode and update main process cache */
   setSessionMode: bridge.buildProvider<void, { mode: 'remote' | 'local' }>('eeclaw.set-session-mode'),
   /** Logout from enterprise server and clear local credentials */
-  logout: bridge.buildProvider<IBridgeResponse<{}>, void>('eeclaw.logout'),
+  logout: bridge.buildProvider<IBridgeResponse<Record<string, never>>, void>('eeclaw.logout'),
   /** Emitted when the main process refreshes the enterprise auth token */
   tokenRefreshed: bridge.buildEmitter<{ access_token: string; refresh_token: string; expires_at: number }>('eeclaw.token-refreshed'),
   /** Emitted when the enterprise token is invalid and cannot be refreshed (e.g. OAuth2 session without a refresh token) — the user must sign in again */

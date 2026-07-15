@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '../../common';
-import { getConversationProvider, isRemoteProvider } from '../providers';
 import { mainError } from '@process/utils/mainLogger';
+import { ipcBridge } from '../../common';
+import { getConversationProvider } from '../providers';
 
 export function initDatabaseBridge(): void {
   // Get conversation messages from database (or remote provider)

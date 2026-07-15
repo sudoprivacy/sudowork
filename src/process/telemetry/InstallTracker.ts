@@ -189,7 +189,7 @@ export class InstallTracker {
   /** 获取存储的安装 ID */
   private async getStoredInstallId(): Promise<string | null> {
     try {
-      const { ProcessConfig } = require('../initStorage');
+      const { ProcessConfig } = await import('../initStorage');
       return await ProcessConfig.get(INSTALL_ID_KEY);
     } catch {
       return null;
@@ -199,7 +199,7 @@ export class InstallTracker {
   /** 获取存储的之前版本 */
   private async getStoredPreviousVersion(): Promise<string | null> {
     try {
-      const { ProcessConfig } = require('../initStorage');
+      const { ProcessConfig } = await import('../initStorage');
       return await ProcessConfig.get(PREVIOUS_VERSION_KEY);
     } catch {
       return null;
@@ -209,7 +209,7 @@ export class InstallTracker {
   /** 存储安装信息 */
   private async storeInstallInfo(): Promise<void> {
     try {
-      const { ProcessConfig } = require('../initStorage');
+      const { ProcessConfig } = await import('../initStorage');
       const currentVersion = buildVersion;
 
       await ProcessConfig.set(INSTALL_ID_KEY, this.installId);

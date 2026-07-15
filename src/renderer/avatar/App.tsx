@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useEffect, useState } from 'react';
 import staticLogo from '../assets/sudowork-icon-dark.svg';
 import thinkingGif from '../assets/sudoclaw_transparent_large.gif';

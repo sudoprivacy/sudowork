@@ -211,6 +211,18 @@ export interface IConfigStorageRefer {
   'agent.promptTimeout'?: number;
   // Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收
   'agent.idleTimeout'?: number;
+  // Auto-interrupt: sending a new message while the agent is responding cancels the
+  // current turn and sends the new one. Default OFF on sudowork (gray-release first).
+  // 自动打断：回复中发送新消息会中断当前轮并立即处理。sudowork 默认关闭（先灰度）。
+  'agent.autoInterrupt'?: boolean;
+  // Message queue: while responding, new messages are held and replayed in submission
+  // order after the turn finishes (instead of being blocked). Default ON.
+  // 消息队列：回复中新消息入队，结束后按提交顺序依次发送。默认开启。
+  'agent.messageQueue'?: boolean;
+  // Whether the user has answered the first-time auto-interrupt confirmation
+  // (是/否/以后都自动). Once set, the confirm dialog is not shown again.
+  // 是否已回答首次“自动打断”确认弹窗；置位后不再弹出。
+  'agent.autoInterruptConfirmed'?: boolean;
   // Remote agent idle detach timeout in minutes. After a finished remote session is idle for
   // this long, the client tears down the WebSocket (detach only — does NOT terminate the Moss
   // session). 0 disables detach. undefined ⇒ default (30 min).

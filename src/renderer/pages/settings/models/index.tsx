@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Message, Popconfirm, Space, Spin, Tag, Typography } from '@arco-design/web-react';
 import { IconCloud, IconDelete, IconEdit, IconPlus, IconRefresh, IconSettings } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -115,7 +109,7 @@ const SudocodeModelSettings: React.FC = () => {
           <Button icon={<IconRefresh />} onClick={loadConfig}>
             {t('common.refresh', '刷新')}
           </Button>
-          <Button type='primary' icon={<IconPlus />} onClick={openAddDialog} className='!bg-[var(--ui-accent-orange)] !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
+          <Button type='primary' icon={<IconPlus />} onClick={openAddDialog} className='!bg-primary !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
             {t('settings.addModel', '添加模型')}
           </Button>
         </Space>
@@ -175,7 +169,7 @@ const SudocodeModelSettings: React.FC = () => {
                     <Space>
                       <Tag bordered>{maskSecret(provider.apiKey) || t('common.notSet', '未设置')}</Tag>
                       <Popconfirm title={t('settings.sudocodeModel.deleteProviderConfirm', '删除该第三方提供商及其模型？')} onOk={() => void handleRemoveProvider(provider.id)}>
-                        <Button status='danger' icon={<IconDelete className='text-16px' />} loading={saving}>
+                        <Button status='danger' icon={<IconDelete style={{ fontSize: 16 }} />} loading={saving}>
                           {t('common.delete', '删除')}
                         </Button>
                       </Popconfirm>

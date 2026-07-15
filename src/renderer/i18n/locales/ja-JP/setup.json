@@ -4,5 +4,33 @@
     "placeholder": "https://your-sudowork-server.com",
     "hint": "空欄の場合はデフォルトのサーバーを使用します",
     "invalidUrl": "有効な HTTP/HTTPS アドレスを入力してください"
+  },
+  "init": {
+    "headerTitle": "実行環境を準備中",
+    "startupTitle": "コアサービスを起動中",
+    "allReady": "すべてのコンポーネントが準備完了",
+    "failed": "初期化に失敗しました",
+    "startingCoreServices": "コアサービスを起動しています。Sudocode と Nexus が完了するまでお待ちください",
+    "validatingComponents": "コアサービスの状態を確認中です。しばらくお待ちください",
+    "preparingEnvironment": "実行環境を準備中...",
+    "retryCountdown": "{{seconds}}秒後に自動再試行（{{attempt}}/{{maxAttempts}}回目）",
+    "statusDone": "完了",
+    "statusError": "エラー",
+    "statusActive": "進行中",
+    "statusPending": "待機中",
+    "processing": "処理中...",
+    "autoRetry": "自動再試行",
+    "waitingForLogs": "ログ出力を待機中...",
+    "manualReinstall": "手動再インストール",
+    "manualReinstallHint": "起動失敗後は自動再インストールされません。必要に応じてコアコンポーネントを手動で再インストールするか、スキップしてアプリに進んでください。",
+    "quit": "終了",
+    "step": {
+      "scode": { "label": "Sudocode", "description": "デフォルト ACP エージェントランタイム" },
+      "nexus": { "label": "Nexus OS コアエンジン", "description": "ローカルコアサービスエンジン" },
+      "git": { "label": "Git 環境", "description": "バージョン管理コンポーネント" },
+      "node": { "label": "Node.js ランタイム", "description": "JavaScript 実行環境" },
+      "claude": { "label": "Claude Code CLI", "description": "コマンドラインエージェントツール" },
+      "bdpan": { "label": "bdpan CLI", "description": "ファイル同期ツール" }
+    }
   }
 }

@@ -100,5 +100,8 @@
     "openFolder": "フォルダを開く",
     "addSkill": "スキルを追加"
   },
-  "enabled": "有効"
+  "enabled": "有効",
+  "uninstall": "アンインストール",
+  "errorBoundaryTitle": "エラーが発生しました",
+  "errorBoundaryMessage": "予期しないエラーが発生しました。再読み込みをお試しください"
 }

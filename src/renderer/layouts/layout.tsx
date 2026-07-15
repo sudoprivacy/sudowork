@@ -1,12 +1,7 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutContext } from '@renderer/context/LayoutContext';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
@@ -56,6 +51,7 @@ const useDebug = () => {
 const DEFAULT_SIDER_WIDTH = 260;
 
 const Layout: React.FC = () => {
+  const { t } = useTranslation();
   const { config } = useTenantConfig(); // 获取租户配置
   const [collapsed, setCollapsed] = useState(false);
   const { onClick } = useDebug();
@@ -70,7 +66,7 @@ const Layout: React.FC = () => {
     emitter.emit('guid.reset');
     void navigate('/guid');
   }, [navigate]);
-  const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
+  useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   useDeepLink();
   const location = useLocation();
@@ -113,7 +109,7 @@ const Layout: React.FC = () => {
                   onClick();
                   goToNewConversation();
                 }}
-                aria-label='New conversation'
+                aria-label={t('common.ariaLabel.newConversation', '新会话')}
               >
                 <img src={config.logo || SudoworkIcon} alt={config.app_name} className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130' style={{ objectFit: 'contain' }} />
               </div>
@@ -128,7 +124,6 @@ const Layout: React.FC = () => {
 
           <ArcoLayout.Content className='bg-2 layout-content flex flex-col min-h-0 overflow-y-hidden'>
             <Outlet />
-            {multiAgentContextHolder}
             {directorySelectionContextHolder}
             <UpdateModal />
             <DebugPanel />

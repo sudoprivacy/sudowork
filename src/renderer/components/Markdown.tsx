@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 
 import SyntaxHighlighter from 'react-syntax-highlighter';

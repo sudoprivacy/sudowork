@@ -10,8 +10,8 @@ import type { TMessage } from '@/common/chatLib';
 import type { TChatConversation } from '@/common/storage';
 import { ExtensionRegistry } from '@/extensions';
 import { getDatabase } from '@process/database';
-import WorkerManage from '../WorkerManage';
 import { mainError } from '@process/utils/mainLogger';
+import WorkerManage from '../WorkerManage';
 
 const STATUS_TO_SYNCING = new Set(['connecting', 'connected', 'authenticated']);
 const ACTIVITY_SNAPSHOT_TTL_MS = 3000;

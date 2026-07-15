@@ -4,5 +4,33 @@
     "placeholder": "https://your-sudowork-server.com",
     "hint": "留空則使用預設伺服器",
     "invalidUrl": "請輸入有效的 HTTP/HTTPS 位址"
+  },
+  "init": {
+    "headerTitle": "正在準備執行環境",
+    "startupTitle": "正在啟動核心服務",
+    "allReady": "所有元件就緒",
+    "failed": "初始化失敗",
+    "startingCoreServices": "核心服務啟動中，請等待 Sudocode 與 Nexus 完成就緒",
+    "validatingComponents": "正在確認核心服務狀態，請稍候",
+    "preparingEnvironment": "正在準備執行環境...",
+    "retryCountdown": "{{seconds}} 秒後自動重試（第 {{attempt}}/{{maxAttempts}} 次）",
+    "statusDone": "已完成",
+    "statusError": "異常",
+    "statusActive": "進行中",
+    "statusPending": "等待中",
+    "processing": "處理中...",
+    "autoRetry": "自動重試",
+    "waitingForLogs": "等待關鍵日誌輸出...",
+    "manualReinstall": "手動重裝",
+    "manualReinstallHint": "啟動失敗後不會再自動重裝，可按需手動重裝核心元件，或先跳過進入應用。",
+    "quit": "退出",
+    "step": {
+      "scode": { "label": "Sudocode", "description": "預設 ACP 代理執行時" },
+      "nexus": { "label": "Nexus OS 核心引擎", "description": "本地核心服務引擎" },
+      "git": { "label": "Git 環境", "description": "版本控制基礎元件" },
+      "node": { "label": "Node.js 執行時", "description": "JavaScript 執行環境" },
+      "claude": { "label": "Claude Code CLI", "description": "命令列代理工具" },
+      "bdpan": { "label": "bdpan CLI", "description": "檔案同步工具" }
+    }
   }
 }

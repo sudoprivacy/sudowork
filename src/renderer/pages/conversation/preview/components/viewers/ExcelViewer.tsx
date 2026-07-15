@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
@@ -120,7 +114,6 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeSheet, setActiveSheet] = useState<string>('');
-  const [messageApi, messageContextHolder] = Message.useMessage();
   const toolbarExtrasContext = usePreviewToolbarExtras();
   const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
 
@@ -133,29 +126,24 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
 
   // Refs for install handler
   const filePathRef = useRef(filePath);
-  const messageApiRef = useRef(messageApi);
 
   useEffect(() => {
     filePathRef.current = filePath;
   }, [filePath]);
 
-  useEffect(() => {
-    messageApiRef.current = messageApi;
-  }, [messageApi]);
-
   const handleOpenInSystem = useCallback(async () => {
     if (!filePath) {
-      messageApi.error(t('preview.errors.openWithoutPath'));
+      Message.error(t('preview.errors.openWithoutPath'));
       return;
     }
 
     try {
       await ipcBridge.shell.openFile.invoke(filePath);
-      messageApi.success(t('preview.openInSystemSuccess'));
+      Message.success(t('preview.openInSystemSuccess'));
     } catch {
-      messageApi.error(t('preview.openInSystemFailed'));
+      Message.error(t('preview.openInSystemFailed'));
     }
-  }, [filePath, messageApi, t]);
+  }, [filePath, t]);
 
   const handleRefresh = useCallback(async () => {
     if (filePath) {
@@ -185,13 +173,13 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           }
         }
       } catch {
-        messageApi.error(t('preview.excel.loadFailed'));
+        Message.error(t('preview.excel.loadFailed'));
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     }
-  }, [filePath, useLibreOffice, messageApi, t]);
+  }, [filePath, useLibreOffice, t]);
 
   const handleInstallLibreOffice = useCallback(async () => {
     setInstallingLibreOffice(true);
@@ -200,10 +188,10 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
     try {
       const res = await libreOfficeIpc.install.invoke();
       if (!res?.success) {
-        messageApiRef.current?.error?.(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
       }
     } catch (e) {
-      messageApiRef.current?.error?.(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
     }
     // Don't reset installingLibreOffice here — the installResult event will handle it
   }, [t]);
@@ -549,8 +537,6 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
   if (useLibreOffice && pdfPath) {
     return (
       <div className='h-full w-full flex flex-col'>
-        {messageContextHolder}
-
         {!usePortalToolbar && !hideToolbar && (
           <div className='flex items-center justify-between h-40px px-12px border-b flex-shrink-0'>
             <div className='flex items-center gap-8px'>
@@ -594,7 +580,6 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
     <div className='h-full w-full flex flex-col'>
       {/* 注入滚动条样式 / Inject scrollbar styles */}
       <style>{EXCEL_SCROLLBAR_CSS}</style>
-      {messageContextHolder}
 
       {!usePortalToolbar && !hideToolbar && (
         <div className='flex items-center justify-between h-40px px-12px border-b flex-shrink-0'>

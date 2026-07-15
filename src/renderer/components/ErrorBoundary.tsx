@@ -1,12 +1,22 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
+import React, { Component } from 'react';
 import { Button } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
+
+function ErrorFallback({ errorMessage, onRetry }: { errorMessage?: string; onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className='error-boundary-fallback'>
+      <div className='error-boundary-fallback__title'>{t('common.errorBoundaryTitle', '出错了')}</div>
+      <div className='error-boundary-fallback__message'>{errorMessage || t('common.errorBoundaryMessage', '发生了未知错误，请尝试重新加载')}</div>
+      <div className='error-boundary-fallback__action'>
+        <Button type='primary' onClick={onRetry}>
+          {t('common.retry', '重试')}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   children: ReactNode;
@@ -59,19 +69,7 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
-      return (
-        <div className="error-boundary-fallback">
-          <div className="error-boundary-fallback__title">出错了</div>
-          <div className="error-boundary-fallback__message">
-            {this.state.error?.message || '发生了未知错误，请尝试重新加载'}
-          </div>
-          <div className="error-boundary-fallback__action">
-            <Button type="primary" onClick={this.handleRetry}>
-              重试
-            </Button>
-          </div>
-        </div>
-      );
+      return <ErrorFallback errorMessage={this.state.error?.message} onRetry={this.handleRetry} />;
     }
 
     return this.props.children;

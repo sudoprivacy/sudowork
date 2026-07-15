@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as path from 'path';
 import { channel } from '@/common/ipcBridge';
 import { getChannelManager } from '@/channels/core/ChannelManager';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ExtensionRegistry } from '@/extensions';
 import { toAssetUrl } from '@/extensions/assetProtocol';
-import * as path from 'path';
-import type { IChannelPluginStatus, IChannelUser, IChannelPairingRequest, IChannelSession } from '@/channels/types';
-import { hasPluginCredentials, rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
+import type { IChannelPluginStatus } from '@/channels/types';
+import { hasPluginCredentials } from '@/channels/types';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
 /**

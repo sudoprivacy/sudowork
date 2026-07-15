@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import classNames from 'classnames';
 import React, { forwardRef } from 'react';
 
@@ -25,7 +19,7 @@ const ActionChip = forwardRef<HTMLButtonElement, ActionChipProps>(({ icon, label
       title={title}
       disabled={disabled}
       className={classNames(
-        'inline-flex h-7 min-w-0 items-center gap-2 rd-full border border-solid px-12px text-13px font-500 transition-colors',
+        'inline-flex h-7 min-w-0 items-center gap-2 rd-full border px-3 text-13px font-500 transition-colors',
         'bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground',
         'disabled:cursor-not-allowed disabled:opacity-55',
         active && 'border-[rgba(var(--ui-accent-orange-rgb),0.44)] bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)] hover:bg-[rgba(var(--ui-accent-orange-rgb),0.16)]',
@@ -35,7 +29,7 @@ const ActionChip = forwardRef<HTMLButtonElement, ActionChipProps>(({ icon, label
       onClick={onClick}
       {...rest}
     >
-      {icon && <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center text-inherit'>{icon}</span>}
+      {icon && <span className='inline-flex size-4 shrink-0 items-center justify-center text-inherit'>{icon}</span>}
       <span className='min-w-0 truncate'>{label}</span>
     </button>
   );

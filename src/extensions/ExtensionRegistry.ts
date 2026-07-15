@@ -155,7 +155,21 @@ export class ExtensionRegistry {
       await this.resolveContributions();
       this.initialized = true;
       const elapsed = Date.now() - startTime;
-      console.log(`[Extensions] Registry initialized in ${elapsed}ms: ` + `${this.extensions.length} extension(s), ` + `${this._acpAdapters.length} adapter(s), ` + `${this._mcpServers.length} MCP server(s), ` + `${this._assistants.length} assistant(s), ` + `${this._agents.length} agent(s), ` + `${this._skills.length} skill(s), ` + `${this._themes.length} theme(s), ` + `${this._channelPlugins.size} channel plugin(s), ` + `${this._webuiContributions.length} webui contribution(s), ` + `${this._settingsTabs.length} settings tab(s), ` + `${this._modelProviders.length} model provider(s), ` + `${Object.keys(this._extI18n).length} i18n locale(s)`);
+      console.log(
+        `[Extensions] Registry initialized in ${elapsed}ms: ` +
+          `${this.extensions.length} extension(s), ` +
+          `${this._acpAdapters.length} adapter(s), ` +
+          `${this._mcpServers.length} MCP server(s), ` +
+          `${this._assistants.length} assistant(s), ` +
+          `${this._agents.length} agent(s), ` +
+          `${this._skills.length} skill(s), ` +
+          `${this._themes.length} theme(s), ` +
+          `${this._channelPlugins.size} channel plugin(s), ` +
+          `${this._webuiContributions.length} webui contribution(s), ` +
+          `${this._settingsTabs.length} settings tab(s), ` +
+          `${this._modelProviders.length} model provider(s), ` +
+          `${Object.keys(this._extI18n).length} i18n locale(s)`
+      );
     } catch (error) {
       console.error('[Extensions] Failed to initialize registry:', error);
       // Do NOT mark as initialized on error — allow retry on next call

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import EventEmitter from 'eventemitter3';
 import type { DependencyList } from 'react';
 import { useEffect } from 'react';
@@ -55,6 +49,8 @@ interface EventTypes {
   'assistants.changed': void;
   // Guide 页面重置事件 / Guide page reset event (triggered by "New Conversation")
   'guid.reset': void;
+  // Skill selector open via @ trigger
+  'skill-selector.open': void;
   // Command palette events
   'commandPalette.open': void;
   'commandPalette.close': void;

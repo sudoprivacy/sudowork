@@ -1,7 +1,6 @@
 import { Button, Dropdown, Menu, Switch, Tooltip } from '@arco-design/web-react';
 import { IconRefresh, IconSettings } from '@arco-design/web-react/icon';
-import { Check, CloseOne, CloseSmall, LoadingOne, Write, DeleteFour } from '@icon-park/react';
-import { LogIn } from 'lucide-react';
+import { Check, Loader2, LogIn, Pencil, Trash2, X } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IMcpServer } from '@/common/storage';
@@ -26,11 +25,11 @@ interface McpServerHeaderProps {
 
 const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: IMcpOAuthStatus) => {
   if (status === 'testing' || oauthStatus?.isChecking) {
-    return <LoadingOne fill={'var(--foreground)'} />;
+    return <Loader2 size={16} className='animate-spin text-foreground' />;
   }
 
   if (status === 'error') {
-    return <CloseSmall fill={'var(--danger)'} />;
+    return <X size={16} className='text-danger' />;
   }
 
   if (oauthStatus?.needsLogin) {
@@ -38,10 +37,10 @@ const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: IMcpOAuthSta
   }
 
   if (status === 'connected' || oauthStatus?.isAuthenticated) {
-    return <Check fill={'var(--success)'} className='items-center' />;
+    return <Check size={16} className='text-success' />;
   }
 
-  return <CloseOne fill={'var(--text-secondary)'} />;
+  return <X size={16} className='text-secondary' />;
 };
 
 const getStatusText = (status?: IMcpServer['status'], oauthStatus?: IMcpOAuthStatus, t?: any) => {
@@ -99,16 +98,16 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
             <Dropdown
               trigger='hover'
               droplist={
-                <Menu>
+                <Menu className={'w-32'}>
                   <Menu.Item key='edit' onClick={() => onEditServer(server)}>
-                    <div className='flex items-center gap-2'>
-                      <Write size={'14'} />
+                    <div className='flex items-center gap-3'>
+                      <Pencil size={14} />
                       {t('settings.mcpEditServer', '编辑')}
                     </div>
                   </Menu.Item>
                   <Menu.Item key='delete' onClick={() => onDeleteServer(server.id)}>
-                    <div className='flex items-center gap-2 text-danger'>
-                      <DeleteFour size={'14'} />
+                    <div className='flex items-center gap-3 text-danger'>
+                      <Trash2 size={14} />
                       {t('settings.mcpDeleteServer', '删除')}
                     </div>
                   </Menu.Item>

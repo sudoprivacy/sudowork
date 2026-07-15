@@ -703,6 +703,7 @@ const createWindow = (): void => {
           } else {
             // Check for updates after 3 seconds delay
             // 3秒后检查更新
+            mainLog('App', 'Stable release, auto-check will use COS mirror');
             setTimeout(() => {
               void autoUpdaterService.checkForUpdatesAndNotify();
             }, 3000);

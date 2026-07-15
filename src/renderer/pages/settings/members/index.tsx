@@ -193,7 +193,7 @@ const MemberManagement: React.FC = () => {
         </Badge>
       }
     >
-      <div className='flex flex-col gap-6 py-2'>
+      <div className='flex flex-col gap-6 pb-2'>
         <Tabs activeTab={activeTab} onChange={setActiveTab} type='capsule'>
           <Tabs.TabPane key='pending' title={t('settings.memberPendingTab', { count: pendingUsers.length, defaultValue: '待审批 ({{count}})' })}>
             <div className='mt-4 bg-muted min-h-50'>

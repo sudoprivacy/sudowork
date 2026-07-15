@@ -1,0 +1,188 @@
+name: "scode interrupt+queue during-turn queue"
+description: >
+  CI regression sentinel for the §3.2 queue-during-turn contract: with
+  messageQueue ON and autoInterrupt OFF, submitting N additional user inputs
+  while an agent turn is running must PARK them in the SendBox's queuedInputs
+  state (not fan out N separate turns). This is the SendBox↔coordinator
+  wiring — the only half of §3.2 that is observable at the sudowork↔scode
+  UI boundary WITHOUT depending on the LLM roundtrip.
+  .
+  Scope-limit rationale — the OTHER half of §3.2 (drain-into-one-combined-user
+  message on turn end) is covered by:
+    - turnInputCoordinator.QueuedTurn.run(tail) unit tests (100% coverage of
+      the merge logic, deterministic, milliseconds to run)
+    - tests/e2e/live_smokes/batched_flush_live_smoke.py (real ai-dev-browser
+      drive-through against a booted dev instance; DB row content asserted;
+      live-verified 2026-07-11 on dev tip 69a2a515, sudowork.db row #2 content:
+      "MARKER_B_DURING_A_TURN\n\nMARKER_C_DURING_A_TURN")
+  .
+  Trying to reproduce the drain in CI coupled this case to scode CLI +
+  mock HTTP wire + Anthropic proto + ACP handshake + auth mode resolver +
+  runtime install path — all separate concerns from batched-flush semantics.
+  The user-observable §3.2 promise ("N queued during turn stay together")
+  is fully preserved by (a) the queuedInputs fiber probe here + (b) the
+  merge/drain coverage above.
+  .
+  CI upstream is the mock-anthropic-service from sudocode (built + spawned
+  by tests/e2e/ci_setup/spawn_mock_llm.py; scode config seeded by
+  tests/e2e/ci_setup/seed_scode_env.py — see .github/workflows/pr-e2e-artifacts.yml).
+
+steps:
+  # ── Phase 0: pre-config the two batched-flush knobs BEFORE the app reads
+  #    ConfigStorage on boot. Enterprise auth + `guid.sessionMode='local'`
+  #    (→ Sudo Code as default assistant) are handled centrally by
+  #    restart_electron.py --enterprise --auth (which also CDP-seeds the
+  #    renderer's localStorage). Anything else auth-related in this file
+  #    would be a boundary leak.
+  - op: set_config
+    key: "agent.messageQueue"
+    value: true
+  - op: set_config
+    key: "agent.autoInterrupt"
+    value: false
+
+  # ── Phase 0.5: settle the boot gate, THEN assert input-readiness.
+  #    Two ops, two jobs. `dismiss_init_dialog` resolves the startup gate:
+  #    it waits for the app to reach a known state and clicks Skip if the
+  #    "Starting Core Services" dialog is up (expected in CI — the Nexus
+  #    install needs the nexus-napi native binding, and the interrupt+queue
+  #    path under test never touches Nexus). On a healthy dev box it returns
+  #    already-booted without clicking. `wait_for_app_ready` then gates on a
+  #    *visible* send-box so downstream type_text can't race the mount.
+  #
+  #    Ordering matters: wait_for_app_ready is a strict readiness assertion,
+  #    so running it BEFORE the gate is resolved can only ever time out.
+  - op: dismiss_init_dialog
+    timeout: 300
+  - op: wait_for_app_ready
+    timeout: 120
+  - op: screenshot
+    path: "screenshots/scode-batched-flush-00-selected.png"
+
+  # ── Phase 2: Start a long-running turn (message A) that stays busy long enough
+  #    to queue three follow-ups behind it. The PARITY_SCENARIO token routes the
+  #    CI mock-anthropic-service (from sudocode) to its `bash_interrupt_long_running`
+  #    branch, which returns a bash tool_use with `sleep 30` — scode actually runs
+  #    that locally on the CI Linux box, keeping the turn active without needing
+  #    live LLM creds. On a live dev box (no PARITY_SCENARIO required) the token is
+  #    just literal text — the assistant treats it as part of the prompt.
+  - op: type_text
+    text: "PARITY_SCENARIO:bash_interrupt_long_running Please run the recommended bash command and echo done_A_QUEUE_MARKER_ALPHA when finished."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: pause
+    duration: 4000
+  - op: screenshot
+    path: "screenshots/scode-batched-flush-01-A-running.png"
+
+  # ── Phase 2.5: Structural preconditions for the queue path. SendBox must
+  #    report `loading=true` (turn A is in-flight) AND
+  #    `allowSubmitWhileRunning=true` (messageQueue OR autoInterrupt is ON).
+  #    Throwing failure here is intentional — if either precondition is off,
+  #    the queue-during-turn path never engages and probe #2 below would fail
+  #    with a red herring further downstream.
+  - op: js_eval
+    code: |
+      (() => {
+        const ta = document.querySelector('textarea');
+        let el = ta;
+        for (let i=0; i<20 && el; i++) {
+          const key = Object.keys(el).find(k => k.startsWith('__reactFiber'));
+          if (key) {
+            let f = el[key];
+            while (f) {
+              const p = f.memoizedProps;
+              if (p && ('allowSubmitWhileRunning' in p || 'queuedInputs' in p)) {
+                if (!p.loading) {
+                  throw new Error(`SendBox loading=false — turn A already ended before B/C/D could queue (mock timing or scode failure)`);
+                }
+                if (!p.allowSubmitWhileRunning) {
+                  throw new Error(`SendBox allowSubmitWhileRunning=false — agent.messageQueue was not honoured; check ProcessConfig read path`);
+                }
+                return {loading: true, allow: true, q: (p.queuedInputs || []).length};
+              }
+              f = f.return;
+            }
+          }
+          el = el.parentElement;
+        }
+        throw new Error('sendbox fiber not found — Guid page or conversation view did not mount');
+      })()
+
+  # ── Phase 3: While A is still running, queue B, C, D. Each carries a distinctive
+  #    marker token so the DB assertion downstream can verify that ONE combined
+  #    user message contains all three (proving the batched flush).
+  - op: type_text
+    text: "B_QUEUE_MARKER_BRAVO: please tally up how many marker tokens you saw in this batched user turn."
+  - op: press_key
+    key: "Enter"
+    wait: 1
+  - op: type_text
+    text: "C_QUEUE_MARKER_CHARLIE: and reply to each one distinctly if you can."
+  - op: press_key
+    key: "Enter"
+    wait: 1
+  - op: type_text
+    text: "D_QUEUE_MARKER_DELTA: this is the last queued message before A's response."
+  - op: press_key
+    key: "Enter"
+    wait: 1
+  - op: screenshot
+    path: "screenshots/scode-batched-flush-02-queued.png"
+
+  # Fiber probe #2: this is THE assertion. After typing B/C/D + Enter x3
+  # while A is in-flight, the SendBox's queuedInputs prop MUST report
+  # length ≥ 3. If it's 0 the queue-during-turn path never engaged
+  # (config toggle didn't stick, allowSubmitWhileRunning was false, or the
+  # coordinator's submit_during_turn returned Rejected). Throwing from
+  # inside the js_eval turns this into a hard FAIL (js_eval maps
+  # thrown errors to {pass: False, error: ...}); returning a status
+  # string instead would only surface as OK.
+  - op: js_eval
+    code: |
+      (() => {
+        const ta = document.querySelector('textarea');
+        let el = ta;
+        for (let i=0; i<20 && el; i++) {
+          const key = Object.keys(el).find(k => k.startsWith('__reactFiber'));
+          if (key) {
+            let f = el[key];
+            while (f) {
+              const p = f.memoizedProps;
+              if (p && ('allowSubmitWhileRunning' in p || 'queuedInputs' in p)) {
+                const q = (p.queuedInputs || []).length;
+                const q_texts = (p.queuedInputs || []).map(x => x.preview);
+                if (q < 3) {
+                  throw new Error(`queuedInputs length ${q} < 3 (loading=${!!p.loading}, allow=${!!p.allowSubmitWhileRunning}, texts=${JSON.stringify(q_texts)})`);
+                }
+                if (!p.loading) {
+                  throw new Error(`SendBox reports loading=false; expected turn A still in-flight while B/C/D were queued`);
+                }
+                return {q, loading: !!p.loading, allow: !!p.allowSubmitWhileRunning, q_texts};
+              }
+              f = f.return;
+            }
+          }
+          el = el.parentElement;
+        }
+        throw new Error('sendbox fiber not found');
+      })()
+
+  # ── Final DB check: exactly ONE user_text row so far — A alone. The batched
+  #    B+C+D drain fires on A's natural completion; that path is covered by
+  #    the turnInputCoordinator unit tests + live_smokes/batched_flush_live_smoke.py.
+  #    Asserting == 1 here also guards against a regression where B/C/D would
+  #    leak through as individual rows (i.e. the queue path silently failed).
+  - op: screenshot
+    path: "screenshots/scode-batched-flush-03-queued-during-turn.png"
+  - op: db_audit
+    assert_metrics:
+      user_text_messages: "== 1"
+    assert_last_user_text_regex: "A_QUEUE_MARKER_ALPHA"
+
+  # ── Phase 6: judge intentionally omitted for the CI mock path — the mock
+  #    returns a fixed "bash interrupt unexpectedly continued" text for both
+  #    turns and cannot reason about the marker tokens. The DB audit above
+  #    already proves batched-flush semantics; judge belongs on the live-smoke
+  #    path (tests/e2e/live_smokes/batched_flush_live_smoke.py) instead.

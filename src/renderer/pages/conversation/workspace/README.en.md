@@ -212,13 +212,8 @@ Check workspace.pasteConfirm config
 import ChatWorkspace from './workspace';
 
 function ConversationPage() {
-  const [messageApi, messageContext] = Message.useMessage();
-
   return (
-    <>
-      {messageContext}
-      <ChatWorkspace conversation_id={conversationId} workspace={workspacePath} eventPrefix='gemini' messageApi={messageApi} />
-    </>
+    <ChatWorkspace conversation_id={conversationId} workspace={workspacePath} eventPrefix='gemini' />
   );
 }
 ```

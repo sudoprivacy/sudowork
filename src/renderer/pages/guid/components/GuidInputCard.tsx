@@ -1,20 +1,15 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
+import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { IconClose, IconPaste } from '@arco-design/web-react/icon';
-import { CloseSmall, FolderOpen, Lightning } from '@icon-park/react';
+import { FolderOpen, Lightning } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
 import FilePreview from '@/renderer/components/FilePreview';
-import styles from '../index.module.css';
 
 type GuidInputCardProps = {
+  textareaRef?: React.Ref<RefTextAreaType>;
   // Input state
   input: string;
   onInputChange: (value: string) => void;
@@ -39,8 +34,6 @@ type GuidInputCardProps = {
   mentionDropdown: React.ReactNode;
 
   // Skill selector state
-  skillSelectorOpen?: boolean;
-  skillSelectorMenu?: React.ReactNode;
   selectedSkills?: string[];
   onRemoveSkill?: (skillName: string) => void;
   getSkillDisplayName?: (skillName: string) => { displayName: string; emoji: string };
@@ -59,6 +52,7 @@ type GuidInputCardProps = {
 
 // eslint-disable-next-line max-len
 const GuidInputCard: React.FC<GuidInputCardProps> = ({
+  textareaRef,
   input,
   onInputChange,
   onKeyDown,
@@ -76,8 +70,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   mentionOpen,
   mentionSelectorBadge,
   mentionDropdown,
-  skillSelectorOpen,
-  skillSelectorMenu,
   selectedSkills,
   onRemoveSkill,
   getSkillDisplayName,
@@ -132,7 +124,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 
   return (
     <div
-      className={`${styles.guidInputCard} relative p-16px ${dir ? 'pb-8px' : ''} b bg-fill-1 b-solid rd-20px flex flex-col ${mentionOpen || skillSelectorOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
+      className={`w-full box-border relative p-16px ${dir ? 'pb-8px' : ''} b bg-fill-1 b-solid rd-20px flex flex-col ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
@@ -155,7 +147,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       {selectedSkills && selectedSkills.length > 0 && (
         <div className='flex flex-col gap-6px mb-8px'>
           <div className='flex items-center gap-4px text-11px text-secondary'>
-            <Lightning size='12' className='text-[var(--ui-accent-orange)]' />
+            <Lightning size='12' />
             <span>当前使用技能</span>
           </div>
           <div className='flex flex-wrap gap-6px'>
@@ -163,18 +155,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
               const skillInfo = getSkillDisplayName?.(skillName);
               const displayName = skillInfo?.displayName || skillName;
               return (
-                <Tag
-                  key={skillName}
-                  closable
-                  closeIcon={<CloseSmall theme='outline' size='12' />}
-                  onClose={() => onRemoveSkill?.(skillName)}
-                  className='text-12px b-1 b-solid rd-4px'
-                  style={{
-                    backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.1)',
-                    borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.32)',
-                  }}
-                >
-                  <Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />
+                <Tag key={skillName} closable onClose={() => onRemoveSkill?.(skillName)} className='text-12px rd-full' icon={<Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />}>
                   {displayName}
                 </Tag>
               );
@@ -183,9 +164,10 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         </div>
       )}
       <Input.TextArea
+        ref={textareaRef}
         autoSize={textareaAutoSize}
         placeholder={placeholder}
-        className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0 ${styles.lightPlaceholder}`}
+        className={`text-16px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !p-0`}
         value={input}
         onChange={onInputChange}
         onPaste={onPaste}
@@ -201,13 +183,8 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           {mentionDropdown}
         </div>
       )}
-      {skillSelectorOpen && skillSelectorMenu && (
-        <div className='absolute z-50' style={{ left: 16, top: 44 }}>
-          {skillSelectorMenu}
-        </div>
-      )}
       {files.length > 0 && (
-        <div className='flex flex-wrap items-center gap-8px mt-12px mb-12px'>
+        <div className='flex flex-wrap items-center gap-3 my-3'>
           {files.map((path) => (
             <FilePreview key={path} path={path} onRemove={() => onRemoveFile(path)} />
           ))}

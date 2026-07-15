@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -34,23 +28,22 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const webviewRef = useRef<ElectronWebView>(null);
-  const [messageApi, messageContextHolder] = Message.useMessage();
   const toolbarExtrasContext = usePreviewToolbarExtras();
   const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
 
   const handleOpenInSystem = useCallback(async () => {
     if (!filePath) {
-      messageApi.error(t('preview.errors.openWithoutPath'));
+      Message.error(t('preview.errors.openWithoutPath'));
       return;
     }
 
     try {
       await ipcBridge.shell.openFile.invoke(filePath);
-      messageApi.success(t('preview.openInSystemSuccess'));
+      Message.success(t('preview.openInSystemSuccess'));
     } catch {
-      messageApi.error(t('preview.openInSystemFailed'));
+      Message.error(t('preview.openInSystemFailed'));
     }
-  }, [filePath, messageApi, t]);
+  }, [filePath, t]);
 
   useEffect(() => {
     try {
@@ -132,7 +125,6 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
   if (error) {
     return (
       <div className='flex items-center justify-center h-full'>
-        {messageContextHolder}
         <div className='text-center'>
           <div className='text-16px text-danger mb-8px'>❌ {error}</div>
           <div className='text-12px text-secondary'>{t('preview.pdf.unableDisplay')}</div>
@@ -144,7 +136,6 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
   if (loading) {
     return (
       <div className='flex items-center justify-center h-full'>
-        {messageContextHolder}
         <div className='text-14px text-secondary'>{t('preview.loading')}</div>
       </div>
     );
@@ -152,7 +143,6 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
 
   return (
     <div className='h-full w-full flex flex-col'>
-      {messageContextHolder}
       {!usePortalToolbar && !hideToolbar && (
         <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
           <div className='flex items-center gap-8px'>

@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Picture } from '@icon-park/react';
 import React, { useCallback } from 'react';
 import type { IMessageFileSend } from '@/common/chatLib';

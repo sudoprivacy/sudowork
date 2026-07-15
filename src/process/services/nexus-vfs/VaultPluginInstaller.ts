@@ -243,7 +243,9 @@ class VaultPluginInstaller {
       if (actualSha !== expectedSha) {
         try {
           fs.unlinkSync(archivePath);
-        } catch {}
+        } catch {
+          /* best-effort cleanup */
+        }
         const msg = `nexus-vault SHA256 mismatch for ${artifact}: expected ${expectedSha}, got ${actualSha}`;
         emit('error', msg);
         throw new Error(msg);
@@ -282,7 +284,9 @@ class VaultPluginInstaller {
     } else {
       try {
         fs.unlinkSync(installedSig);
-      } catch {}
+      } catch {
+        /* best-effort cleanup */
+      }
       mainWarn('NexusVault', `Archive ${artifact} contains no ${sigName}; cluster signature verification will reject this plugin.`);
     }
 
@@ -295,7 +299,9 @@ class VaultPluginInstaller {
       if (!bundledPath) {
         fs.unlinkSync(archivePath);
       }
-    } catch {}
+    } catch {
+      /* best-effort cleanup */
+    }
 
     emit('idle', `nexus-vault installed: ${installedDylib}`, 100);
   }
@@ -365,14 +371,18 @@ class VaultPluginInstaller {
             file.on('error', (err) => {
               try {
                 fs.unlinkSync(destPath);
-              } catch {}
+              } catch {
+                /* best-effort cleanup */
+              }
               reject(err);
             });
           })
           .on('error', (err) => {
             try {
               fs.unlinkSync(destPath);
-            } catch {}
+            } catch {
+              /* best-effort cleanup */
+            }
             reject(err);
           });
       };

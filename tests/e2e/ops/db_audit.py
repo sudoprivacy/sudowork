@@ -51,13 +51,23 @@ def _extract_tool_output_text(content) -> str:
 
 
 def _count_metrics(rows):
-    """rows: list of (id, type, content, status, created_at) tuples.
+    """rows: list of (id, type, content, status, created_at, position) tuples.
 
-    Returns (counts_dict, trace_lines).
+    Returns (counts_dict, trace_lines, user_text_bodies).
+    `user_text_bodies` is the ordered list of user-typed text row bodies —
+    exposed so tests can assert on content (e.g. batched-flush proving the
+    LAST user_text row contains all three queued markers in ONE row).
     """
     m = {
         "total_messages": 0,
         "tool_calls": 0,
+        # For the interrupt+queue e2e (§3.2 batched flush): a queue-mode drain of N
+        # inputs must produce exactly ONE combined user message, not N. Count only
+        # first-in-turn user messages (position=='right', type=='text', not a
+        # continuation of a tool loop), and record the longest user message so a
+        # test can also assert "did the combined batched turn make it in as one row".
+        "user_text_messages": 0,
+        "user_text_max_len": 0,
         "hint_field_seen": 0,          # v0.8.3 Failure: auto-inject
         "click_by_text_fails": 0,
         "find_by_text_calls": 0,
@@ -74,11 +84,23 @@ def _count_metrics(rows):
         "read_calls": 0,
     }
     trace_lines = []
-    for idx, (_id, rtype, content, status, _ts) in enumerate(rows):
+    user_text_bodies: list[str] = []
+    for idx, (_id, rtype, content, status, _ts, position) in enumerate(rows):
         m["total_messages"] += 1
         if rtype != "acp_tool_call":
             snip = (content or "").replace("\n", " ")[:160]
-            trace_lines.append(f"[#{idx} {rtype}] {snip}")
+            # User-typed text (position='right', type='text') for the batched-flush test.
+            if rtype == "text" and position == "right":
+                try:
+                    payload_ = json.loads(content or "{}")
+                    body = str(payload_.get("content", "") or "")
+                except Exception:
+                    body = ""
+                m["user_text_messages"] += 1
+                if len(body) > m["user_text_max_len"]:
+                    m["user_text_max_len"] = len(body)
+                user_text_bodies.append(body)
+            trace_lines.append(f"[#{idx} {rtype} {position}] {snip}")
             continue
         try:
             payload = json.loads(content or "{}")
@@ -86,6 +108,9 @@ def _count_metrics(rows):
             trace_lines.append(f"[#{idx} parse-err]")
             continue
 
+        # `position` is bound from the outer tuple destructuring; unused for tool_call rows
+        # but explicitly ignored here to keep the loop's structure symmetric.
+        _ = position
         m["tool_calls"] += 1
         update = payload.get("update") or {}
         raw = update.get("rawInput") or {}
@@ -140,7 +165,7 @@ def _count_metrics(rows):
         trace_lines.append(
             f"[#{idx} {title} {st}] CMD: {cmd_s[:120]} | OUT: {out_snip}"
         )
-    return m, trace_lines
+    return m, trace_lines, user_text_bodies
 
 
 def _check_rule(value: int, rule: str) -> tuple:
@@ -158,6 +183,7 @@ async def db_audit(
     since: str = "case_start",
     max_tool_calls: int = None,
     assert_metrics: dict = None,
+    assert_last_user_text_regex: str = None,
     print_trace: bool = True,
     nexus_dir: str = None,
 ) -> dict:
@@ -172,6 +198,11 @@ async def db_audit(
         max_tool_calls: if set, fail when tool_calls > this
         assert_metrics: dict of {metric_name: rule_str}, e.g.
             {"hint_field_seen": ">= 1", "click_by_text_fails": "== 0"}
+        assert_last_user_text_regex: pattern (re.DOTALL) that MUST match the
+            LAST user-typed text row's body. Purpose: batched-flush case needs
+            to prove that N queued messages merged into ONE user row containing
+            ALL N markers — a shape assertion `user_text_messages == 2` alone
+            passes even if the "batched" row is empty or contains one marker.
         print_trace: dump per-tool-call trace to stdout
         nexus_dir: override DB dir (default ~/.nexus)
 
@@ -211,13 +242,13 @@ async def db_audit(
         conv_id = conversation
 
     rows = cur.execute(
-        "SELECT id, type, content, status, created_at FROM messages "
+        "SELECT id, type, content, status, created_at, position FROM messages "
         "WHERE conversation_id = ? AND created_at > ? ORDER BY created_at ASC",
         (conv_id, cutoff_ms),
     ).fetchall()
     con.close()
 
-    counts, trace_lines = _count_metrics(rows)
+    counts, trace_lines, user_text_bodies = _count_metrics(rows)
     counts["conversation_id"] = conv_id
     counts["cutoff_ms"] = cutoff_ms
 
@@ -234,6 +265,20 @@ async def db_audit(
             ok, desc = _check_rule(counts[metric], rule)
             if not ok:
                 failures.append(f"{metric}: {desc}")
+    if assert_last_user_text_regex:
+        if not user_text_bodies:
+            failures.append(
+                f"assert_last_user_text_regex: no user_text rows found "
+                f"(pattern={assert_last_user_text_regex!r})"
+            )
+        else:
+            last_body = user_text_bodies[-1]
+            if not re.search(assert_last_user_text_regex, last_body, re.DOTALL):
+                snip = last_body.replace("\n", "\\n")[:200]
+                failures.append(
+                    f"assert_last_user_text_regex: pattern {assert_last_user_text_regex!r} "
+                    f"did not match last user_text body {snip!r}"
+                )
 
     passed = len(failures) == 0
 

@@ -1,21 +1,19 @@
 import { Button, Switch } from '@arco-design/web-react';
 import { IconPlus } from '@arco-design/web-react/icon';
-import { AlarmClock, Info, Sun } from '@icon-park/react';
+import { AlarmClock, Info, Sun } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAppMode } from '@renderer/hooks/useAppMode';
-import { useEnterpriseSessionMode } from '@renderer/hooks/useEnterpriseSessionMode';
+import { useCronAccess } from '@renderer/hooks/useCronAccess';
 import { useAddEventListener } from '@renderer/utils/emitter';
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
-import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import EmptyState from '@/renderer/components/base/EmptyState';
 import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawer';
 import Item from '@/renderer/pages/cron/components/Item';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { getJobStatusFlags } from '@/renderer/pages/cron/utils';
-import { useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
 function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
@@ -25,7 +23,7 @@ function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
       {jobs.map((job) => {
         const { isPaused } = getJobStatusFlags(job);
         return (
-          <div key={job.id} className='item-card' onClick={() => onSelectJob(job)}>
+          <div key={job.id} className='card' onClick={() => onSelectJob(job)}>
             <div className='text-15px font-medium text-foreground mb-2'>{job.name}</div>
             {!isPaused && job.schedule.description && <div className='text-13px text-secondary mb-2'>{job.schedule.description}</div>}
             {!isPaused && job.state.nextRunAtMs && (
@@ -45,12 +43,12 @@ export default function CronPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { isEnterprise } = useAppMode();
-  const { user } = useAuth();
-  const canUseLocalCronMode = !isEnterprise || user?.localModeAvailable === true;
-  const { sessionMode, setSessionMode } = useEnterpriseSessionMode({
-    localModeAvailable: canUseLocalCronMode,
-    remoteModeAvailable: isEnterprise,
-  });
+  // Creation is gated by the org flag (admins bypass); owners/co-owners keep
+  // view/edit/run/delete on their existing jobs even while creation is disabled.
+  const { isCronCreateEnabled } = useCronAccess();
+  // Enterprise scheduled tasks are always moss-hosted (the legacy enterprise
+  // "local" cron mode is deprecated); consumer mode is always local.
+  const sessionMode: 'remote' | 'local' = isEnterprise ? 'remote' : 'local';
   const { jobs, loading, error, refetch } = useAllCronJobs();
 
   const [keepAwake, setKeepAwake] = useState(false);
@@ -76,84 +74,58 @@ export default function CronPage() {
   const [drawerVisible, setDrawerVisible] = useState(false);
 
   return (
-    <PageWrapper>
-      <div className='flex flex-col h-full w-full'>
-        <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
-          <div className='space-y-4'>
-            {/* Header */}
-            <div className='flex items-center justify-between gap-4'>
-              <div className='min-w-0'>
-                <h2 className='text-20px font-bold text-foreground m-0 mb-1'>{t('cron.scheduledTasks', '定时任务')}</h2>
-                <div className='text-13px text-secondary'>{t('cron.create.listSubtitle', '设定定时任务，让 Agent 按计划自动执行')}</div>
-              </div>
-              {jobs.length > 0 && (
-                 <Button type='primary' shape='round' icon={<IconPlus />} onClick={() => setDrawerVisible(true)}>
-                   {t('cron.create.button', '新建任务')}
-                 </Button>
-              )}
+    <PageWrapper
+      title={t('cron.scheduledTasks', '定时任务')}
+      subtitle={t('cron.create.listSubtitle', '设定定时任务，让 Agent 按计划自动执行')}
+      actions={
+        jobs.length > 0 &&
+        isCronCreateEnabled && (
+          <Button type='primary' shape='round' icon={<IconPlus />} onClick={() => setDrawerVisible(true)}>
+            {t('cron.create.button', '新建任务')}
+          </Button>
+        )
+      }
+    >
+      <div className='space-y-4'>
+        {/* Error state (remote mode) */}
+        {error && sessionMode === 'remote' && (
+          <div className='bg-red-1 rd-12px px-4 py-3 flex items-center justify-between'>
+            <div className='flex items-center gap-2 text-13px text-red-6'>
+              <Info size={16} />
+              <span>{t('cron.error.serverUnavailable', '无法连接服务器')}</span>
             </div>
-
-            {/* Enterprise mode: Remote/Local switcher */}
-            {isEnterprise && (
-              <div className='bg-2 rd-12px px-4 py-3 flex items-center justify-between'>
-                <div className='flex items-center gap-2 text-13px text-secondary'>
-                  <Info theme='outline' size={16} fill={'var(--text-secondary)'} />
-                  <span>{t('cron.mode.select', '数据存储位置')}</span>
-                </div>
-                <div className='flex items-center gap-1'>
-                  {canUseLocalCronMode && (
-                    <Button size='small' shape='round' type={sessionMode === 'local' ? 'primary' : 'text'} onClick={() => setSessionMode('local')}>
-                      {t('cron.mode.local', '本地')}
-                    </Button>
-                  )}
-                  <Button size='small' shape='round' type={sessionMode === 'remote' ? 'primary' : 'text'} onClick={() => setSessionMode('remote')}>
-                    {t('cron.mode.remote', '云端')}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Error state (remote mode) */}
-            {error && sessionMode === 'remote' && (
-              <div className='bg-red-1 rd-12px px-4 py-3 flex items-center justify-between'>
-                <div className='flex items-center gap-2 text-13px text-red-6'>
-                  <Info theme='outline' size={16} />
-                  <span>{t('cron.error.serverUnavailable', '无法连接服务器')}</span>
-                </div>
-                <Button size='small' shape='round' onClick={() => void refetch()}>
-                  {t('common.retry', '重试')}
-                </Button>
-              </div>
-            )}
-
-            {/* Keep-awake banner (local mode only) */}
-            {sessionMode === 'local' && (
-              <Item
-                icon={<Sun theme='outline' size={20} />}
-                title={t('cron.create.keepAwake', '保持唤醒')}
-                description={t('cron.create.awakeBanner', '定时任务仅在电脑唤醒时运行')}
-                status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', '已启用') : t('common.disabled', '已关闭')}</span>}
-                action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />}
-              />
-            )}
-
-            {/* Job cards or empty state */}
-            {!loading && jobs.length === 0 ? (
-              <EmptyState
-                simple
-                icon={<AlarmClock theme='outline' size={56} className='text-[var(--ui-accent-orange)]' />}
-                title={t('cron.noTasks', '暂无定时任务')}
-                description={t('cron.create.emptyHint', '创建自动执行的 Agent 任务')}
-                actions={[{ label: t('cron.create.button', '新建任务'), onClick: () => setDrawerVisible(true) }]}
-              />
-            ) : (
-              <CronJobCardGrid jobs={jobs} onSelectJob={(job) => void navigate(`/app/cron/${job.id}`)} />
-            )}
+            <Button size='small' shape='round' onClick={() => void refetch()}>
+              {t('common.retry', '重试')}
+            </Button>
           </div>
-        </AionScrollArea>
+        )}
 
-        <CronJobFormDrawer visible={drawerVisible} editJob={null} sessionMode={sessionMode} onClose={() => setDrawerVisible(false)} onSaved={() => void refetch()} />
+        {/* Keep-awake banner (local mode only) */}
+        {sessionMode === 'local' && (
+          <Item
+            icon={<Sun size={20} />}
+            title={t('cron.create.keepAwake', '保持唤醒')}
+            description={t('cron.create.awakeBanner', '定时任务仅在电脑唤醒时运行')}
+            status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', '已启用') : t('common.disabled', '已关闭')}</span>}
+            action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />}
+          />
+        )}
+
+        {/* Job cards or empty state */}
+        {!loading && jobs.length === 0 ? (
+          <EmptyState
+            simple
+            icon={<AlarmClock size={56} className='text-secondary' />}
+            title={t('cron.noTasks', '暂无定时任务')}
+            description={t('cron.create.emptyHint', '创建自动执行的 Agent 任务')}
+            actions={isCronCreateEnabled ? [{ label: t('cron.create.button', '新建任务'), onClick: () => setDrawerVisible(true) }] : undefined}
+          />
+        ) : (
+          <CronJobCardGrid jobs={jobs} onSelectJob={(job) => void navigate(`/app/cron/${job.id}`)} />
+        )}
       </div>
+
+      <CronJobFormDrawer visible={drawerVisible} editJob={null} sessionMode={sessionMode} onClose={() => setDrawerVisible(false)} onSaved={() => void refetch()} />
     </PageWrapper>
   );
 }

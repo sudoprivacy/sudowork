@@ -75,8 +75,8 @@ async def _wait_db(timeout: float, idle_seconds: float,
     Fallback: DB message activity gap (for cases where tab is unavailable).
     """
     if state.CASE_START_MS == 0:
-        return {"timeout": True, "mode": "db",
-                "error": "state.CASE_START_MS is 0 — wait_for_response needs runner context"}
+        return {"pass": False, "mode": "db",
+                "reason": "state.CASE_START_MS is 0 — wait_for_response needs runner context"}
 
     nexus_dir = Path.home() / ".nexus"
     deadline = time.time() + timeout
@@ -172,8 +172,8 @@ async def _wait_db(timeout: float, idle_seconds: float,
                     "idle_seconds": round(time.time() - idle_start, 1),
                     "polls": poll_count}
 
-    return {"timeout": True, "mode": "db", "conversation_id": conv_id,
-            "polls": poll_count}
+    return {"pass": False, "mode": "db", "conversation_id": conv_id,
+            "reason": f"agent turn did not complete within {timeout}s (polls={poll_count})"}
 
 
 async def _wait_programmatic(tab, timeout: float) -> dict:
@@ -214,7 +214,8 @@ async def _wait_programmatic(tab, timeout: float) -> dict:
         if stable_count >= 3:
             return {"done": True, "mode": "programmatic", "text": text}
 
-    return {"timeout": True, "mode": "programmatic", "text": prev_text}
+    return {"pass": False, "mode": "programmatic", "text": prev_text,
+            "reason": f"page text did not stabilise within {timeout}s"}
 
 
 async def _wait_llm(tab, timeout: float, expect: str = None) -> dict:

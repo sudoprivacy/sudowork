@@ -3,17 +3,17 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-d
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
-import { useCronEnabled } from './hooks/useCronEnabled';
+import { useCronAccess } from './hooks/useCronAccess';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
 const MossSessionPage = React.lazy(() => import('./pages/moss-session/MossSessionPage'));
 const About = React.lazy(() => import('./pages/settings/about'));
-const AgentSettings = React.lazy(() => import('./pages/settings/AgentSettings'));
+const AgentSettings = React.lazy(() => import('./pages/agents'));
 const DisplaySettings = React.lazy(() => import('./pages/settings/display'));
 const GeminiSettings = React.lazy(() => import('./pages/settings/gemini'));
 const SudocodeModelSettings = React.lazy(() => import('./pages/settings/models'));
-const SkillSettings = React.lazy(() => import('./pages/settings/SkillSettings'));
+const Skills = React.lazy(() => import('./pages/skills'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
@@ -52,6 +52,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/moss-session/:sessionId', component: MossSessionPage },
   { path: '/settings/gemini', component: GeminiSettings },
   { path: '/settings/model', component: SudocodeModelSettings },
+  { path: '/app/agent', component: AgentSettings },
   { path: '/settings/agent', component: AgentSettings },
   { path: '/settings/display', component: DisplaySettings },
   { path: '/settings/channels', component: ChannelsPage },
@@ -60,7 +61,8 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/system', component: SystemSettings },
   { path: '/settings/about', component: About },
   { path: '/settings/tools', component: ToolsSettings },
-  { path: '/settings/skill', component: SkillSettings },
+  { path: '/app/skills', component: Skills },
+  { path: '/settings/skill', component: Skills },
   { path: '/app/security', component: SecurityPage },
   { path: '/app/channels', component: ChannelsPage },
   { path: '/settings/security', component: SecurityPage },
@@ -79,7 +81,7 @@ export const REGISTERED_ROUTE_PATHS = ['/login', '/register', '/', ...PROTECTED_
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
   const { isEnterprise } = useAppMode();
-  const cronEnabled = useCronEnabled();
+  const { isCronVisible } = useCronAccess();
   const location = useLocation();
 
   if (status === 'checking') {
@@ -100,8 +102,9 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <Navigate to='/settings/enterprise' replace />;
   }
 
-  // Client cron disabled: the cron settings page is not reachable.
-  if (!cronEnabled && location.pathname.startsWith('/app/cron')) {
+  // Cron UI hidden (org disabled it and the user is neither an admin nor an
+  // owner/co-owner of any job): the cron pages are not reachable.
+  if (!isCronVisible && location.pathname.startsWith('/app/cron')) {
     return <Navigate to='/settings/agent' replace />;
   }
 

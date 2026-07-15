@@ -82,6 +82,15 @@ async def run_case(tab, case_path: Path) -> dict:
 
         # Check result — ops with a "pass" key are assertions (judge, db_audit,
         # check_port_isolation, etc.); everything else is a plain action.
+        #
+        # An action that reports "error" FAILS the case. It used to only print
+        # ERROR and leave the counters alone, which meant a case could report
+        # green with broken steps in the middle: `mouse_click` not finding its
+        # target, `type_text` hitting `no_input`, etc. all scored as nothing at
+        # all. A case only went red if it happened to carry a separate
+        # assertion op that noticed the damage downstream — so the honesty of
+        # the whole suite rested on the author remembering to add one. An op
+        # that could not do its job is a failure; that is the whole contract.
         if "pass" in result:
             if result["pass"]:
                 passed += 1
@@ -92,6 +101,7 @@ async def run_case(tab, case_path: Path) -> dict:
             reason = result.get("reason", "")
             print(f"  [{i+1}] {status}: {op_name} — {reason}")
         elif "error" in result:
+            failed += 1
             print(f"  [{i+1}] ERROR: {op_name} — {result['error']}")
         else:
             print(f"  [{i+1}] OK: {op_name}")

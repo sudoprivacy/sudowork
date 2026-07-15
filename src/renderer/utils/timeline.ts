@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * Timeline utility functions for conversation history grouping
  * 会话历史分组的时间线工具函数
  */

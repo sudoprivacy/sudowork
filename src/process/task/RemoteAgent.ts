@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import BaseAgent from './BaseAgent';
+import * as nodePath from 'node:path';
+import * as fs from 'node:fs';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/ipcBridge';
@@ -12,18 +13,18 @@ import type { AcpQuestionAnswerItem, TMessage } from '@/common/chatLib';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
+import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 import { mainLog, mainError, mainWarn } from '../utils/mainLogger';
 import { getDatabase } from '../database/export';
 import { addOrUpdateMessage } from '../message';
-import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
-import * as nodePath from 'node:path';
-import * as fs from 'node:fs';
 import { initMossApi } from '../remote/MossSessionApi';
-import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 import { filterEnabledSkillNames } from '../utils/enabledSkillFilter';
 import { ProcessConfig, getBundledBuiltinSkillDir } from '../initStorage';
+import { CRON_RESTRICTED_INSTRUCTION, isCronSkillAllowed } from '../services/cron/cronPolicy';
 import { hasCronCommands } from './CronCommandDetector';
-import { isCronSkillAllowed } from '../services/cron/cronPolicy';
+import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
+import BaseAgent from './BaseAgent';
+import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 
 /**
  * Cron instruction inlined into a remote session's first message. The moss
@@ -31,13 +32,15 @@ import { isCronSkillAllowed } from '../services/cron/cronPolicy';
  * - When cron is ALLOWED: the full skill (single source of truth for the
  *   [CRON_CREATE]/[CRON_LIST]/[CRON_DELETE] contract the local AcpAgent points
  *   at by path).
- * - When cron is DISABLED: an explicit ban, so the agent does NOT silently
- *   hallucinate "task created". Banning must be active, not just omission.
+ * - When cron is DISABLED: an explicit creation ban that keeps the
+ *   list/delete contract — owners/co-owners may still manage their existing
+ *   jobs (moss enforces per-job ownership). Banning creation must be active,
+ *   not just omission, or the agent hallucinates "task created".
  */
 async function buildRemoteCronInstruction(): Promise<string> {
   if (!(await isCronSkillAllowed())) {
-    mainLog('RemoteAgent', 'cron disabled by org — injecting explicit ban instruction');
-    return CRON_DISABLED_INSTRUCTION;
+    mainLog('RemoteAgent', 'cron disabled by org — injecting restricted (list/delete-only) instruction');
+    return CRON_RESTRICTED_INSTRUCTION;
   }
   try {
     // Read from the bundled SOURCE, not getBuiltinSkillsDir() — the latter
@@ -50,11 +53,9 @@ async function buildRemoteCronInstruction(): Promise<string> {
     return `[Scheduled Task Skill — you MUST follow this to manage scheduled tasks; output the [CRON_*] commands directly in your reply]\n${skillContent}`;
   } catch (err) {
     mainError('RemoteAgent', `Failed to read cron SKILL.md: ${err}`);
-    return CRON_DISABLED_INSTRUCTION;
+    return CRON_RESTRICTED_INSTRUCTION;
   }
 }
-
-const CRON_DISABLED_INSTRUCTION = '[Scheduled Tasks — DISABLED]\n' + 'Scheduled task / cron functionality is disabled by your organization. ' + 'You CANNOT create, list, modify, or delete scheduled tasks. ' + 'If the user asks you to schedule, create, or manage a recurring/timed task, you MUST tell them that scheduled tasks are disabled by their organization and that an administrator must enable the feature. ' + 'NEVER claim that a scheduled task was created, and NEVER invent a task ID.';
 
 /**
  * Default idle detach timeout for finished remote sessions.
@@ -560,7 +561,73 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       // step for remote-agent tasks; that local copy both fails on the packaged
       // app's read-only cwd and would be useless to the remote agent.)
       let contentToSend = data.content;
+
+      // Inline image attachments as base64 content blocks (fix A). Images are
+      // sent as vision input to the remote agent (scode) via moss's acpBridge —
+      // NOT uploaded-and-@referenced, because scode can't Read an image file
+      // back as vision. processAtFileReferences also strips the image's @-mention
+      // from the text so the agent won't try to Read it (avoids double-send).
+      // Non-image files still go through the upload + @ref path below so the
+      // remote agent can Read them.
+      let inlineImages: Array<{ type: 'image'; data: string; mimeType: string }> = [];
+      const inlinedImagePaths = new Set<string>();
       if (data.files && data.files.length > 0) {
+        try {
+          // Mirror local mode (AcpAgent): prepend an @-ref for every attached
+          // file so processAtFileReferences matches them even when the user
+          // didn't type an @-mention (e.g. paperclip/drag attach). The processor
+          // inlines image files as base64 blocks and strips their @-refs from
+          // the text; non-image @-refs it leaves in place, which we then strip
+          // out below (they point at local paths meaningless to the remote).
+          const fileRefs = data.files
+            .map((filePath) => {
+              const normalized = filePath.replace(/\\/g, '/');
+              return normalized.includes(' ') ? `@"${normalized}"` : '@' + normalized;
+            })
+            .join(' ');
+          const matchContent = `${fileRefs} ${contentToSend}`;
+
+          // processAtFileReferences early-returns (no image processing) when
+          // workspace is falsy, so pass a real directory. We match uploaded
+          // files by basename (not workspace resolution), so the directory of
+          // the first attached file is a safe, always-valid value.
+          const matchWorkspace = nodePath.dirname(data.files[0]);
+          const processed = await processAtFileReferences(
+            matchContent,
+            matchWorkspace,
+            data.files,
+            undefined // modelId only tunes image resize target; default is fine
+          );
+          if (processed.images.length > 0) {
+            inlineImages = processed.images.map((img) => ({
+              type: 'image' as const,
+              data: img.data,
+              mimeType: img.mimeType,
+            }));
+            for (const img of processed.images) {
+              if (img.filePath) inlinedImagePaths.add(img.filePath);
+            }
+            // Strip any leftover synthetic @-refs (non-image files) from the
+            // text so they don't leak into the remote prompt; the original user
+            // text is preserved. Non-image files still get uploaded + @ref below.
+            let cleanedText = processed.text;
+            for (const filePath of data.files) {
+              if (inlinedImagePaths.has(filePath)) continue;
+              const normalized = filePath.replace(/\\/g, '/');
+              const ref = normalized.includes(' ') ? `@"${normalized}"` : '@' + normalized;
+              cleanedText = cleanedText.split(ref).join('').trim();
+            }
+            contentToSend = cleanedText || data.content;
+            mainLog('RemoteAgent', `Inlined ${inlineImages.length} image(s) as content blocks, mimeTypes=[${inlineImages.map((i) => i.mimeType).join(', ')}]`);
+          }
+        } catch (err) {
+          mainWarn('RemoteAgent', `Image inlining failed, falling back to upload path: ${err}`);
+        }
+      }
+
+      // Non-image files still need remote upload + @ref for the agent to Read.
+      const filesToUpload = (data.files || []).filter((p) => !inlinedImagePaths.has(p));
+      if (filesToUpload.length > 0) {
         if (!this.mossSessionId) {
           mainError('RemoteAgent', 'No mossSessionId available; cannot upload attachments to remote workspace');
           this.emitErrorMessage('无法上传附件：会话尚未就绪，请稍后重试 / Cannot upload attachment: session not ready, please retry');
@@ -585,7 +652,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
         const remoteRefs: string[] = [];
         const failedFiles: Array<{ name: string; error: string }> = [];
-        for (const localPath of data.files) {
+        for (const localPath of filesToUpload) {
           const relName = nodePath.basename(localPath);
           try {
             const stat = await fs.promises.stat(localPath);
@@ -642,6 +709,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         content: contentToSend,
         files: data.files,
         msg_id: data.msg_id,
+        images: inlineImages.length > 0 ? inlineImages : undefined,
       });
 
       if (!result.success) {

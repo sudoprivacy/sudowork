@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * WorkspaceSkills — renders the "可用技能" tab inside the right-side workspace
  * card. Visual layout mirrors `components/skill-grid.tsx` from the ui.zip
  * reference: a 2-column grid of `rounded-lg` cards, each with a 32×32 rounded
@@ -549,7 +543,13 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
           <div className='workspace-card__empty-icon'>
             <Code theme='outline' size='20' fill='currentColor' />
           </div>
-          <div className='workspace-card__empty-title'>{initialLoading ? t('conversation.workspace.skillsLoading', { defaultValue: '正在扫描技能...' }) : (searchQuery ?? '').trim() ? t('conversation.workspace.skillsSearchEmpty', { defaultValue: '未找到匹配的技能' }) : t('conversation.workspace.skillsEmpty', { defaultValue: '工作空间暂无可用技能' })}</div>
+          <div className='workspace-card__empty-title'>
+            {initialLoading
+              ? t('conversation.workspace.skillsLoading', { defaultValue: '正在扫描技能...' })
+              : (searchQuery ?? '').trim()
+                ? t('conversation.workspace.skillsSearchEmpty', { defaultValue: '未找到匹配的技能' })
+                : t('conversation.workspace.skillsEmpty', { defaultValue: '工作空间暂无可用技能' })}
+          </div>
           {!(searchQuery ?? '').trim() && !initialLoading && <div className='workspace-card__empty-desc'>{resolveEmptyDescription(eventPrefix, backend, dataSource, t)}</div>}
         </div>
       </div>

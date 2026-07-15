@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -33,7 +27,6 @@ const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
 const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar = false }) => {
   void content;
   const { t } = useTranslation();
-  const [messageApi, messageContextHolder] = Message.useMessage();
   const toolbarExtrasContext = usePreviewToolbarExtras();
   const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
 
@@ -48,28 +41,23 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
   const [installPercent, setInstallPercent] = useState<number | undefined>(undefined);
   const [installPhase, setInstallPhase] = useState<string | undefined>(undefined);
   const [reloadTrigger, setReloadTrigger] = useState(0);
-  const messageApiRef = useRef(messageApi);
   const filePathRef = useRef(filePath);
 
   useEffect(() => {
     filePathRef.current = filePath;
   }, [filePath]);
 
-  useEffect(() => {
-    messageApiRef.current = messageApi;
-  }, [messageApi]);
-
   const handleOpenInSystem = useCallback(async () => {
     if (!filePath) {
-      messageApiRef.current.error(t('preview.errors.openWithoutPath'));
+      Message.error(t('preview.errors.openWithoutPath'));
       return;
     }
 
     try {
       await ipcBridge.shell.openFile.invoke(filePath);
-      messageApiRef.current.info(t('preview.openInSystemSuccess'));
+      Message.info(t('preview.openInSystemSuccess'));
     } catch {
-      messageApiRef.current.error(t('preview.openInSystemFailed'));
+      Message.error(t('preview.openInSystemFailed'));
     }
   }, [filePath, t]);
 
@@ -80,10 +68,10 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
     try {
       const res = await libreOfficeIpc.install.invoke();
       if (!res?.success) {
-        messageApiRef.current?.error?.(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
       }
     } catch (e) {
-      messageApiRef.current?.error?.(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'LibreOffice' }));
     }
     // Don't reset installingLibreOffice here — the installResult event will handle it
   }, [t]);
@@ -130,7 +118,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
         }
       } catch {
         try {
-          messageApiRef.current.error(t('preview.ppt.loadFailed'));
+          Message.error(t('preview.ppt.loadFailed'));
         } catch {
           // Ignore if messageApi is not initialized
         }
@@ -201,7 +189,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
         const errorMessage = err instanceof Error ? err.message : defaultMessage;
         setError(`${errorMessage}\n${t('preview.pathLabel')}: ${filePath}`);
         try {
-          messageApiRef.current.error(errorMessage);
+          Message.error(errorMessage);
         } catch {
           // Ignore if messageApi is not initialized
         }
@@ -245,7 +233,6 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
   if (loading) {
     return (
       <div className='flex items-center justify-center h-full'>
-        {messageContextHolder}
         <div className='text-14px text-secondary'>{t('preview.ppt.loading')}</div>
       </div>
     );
@@ -254,7 +241,6 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
   if (error) {
     return (
       <div className='flex items-center justify-center h-full'>
-        {messageContextHolder}
         <div className='text-center'>
           <div className='text-16px text-danger mb-8px'>❌ {error}</div>
           <div className='text-12px text-secondary'>{t('preview.ppt.invalid')}</div>
@@ -274,8 +260,6 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
   if (useLibreOffice && pdfPath) {
     return (
       <div className='h-full w-full flex flex-col'>
-        {messageContextHolder}
-
         {!usePortalToolbar && !hideToolbar && (
           <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
             <div className='flex items-center gap-8px'>

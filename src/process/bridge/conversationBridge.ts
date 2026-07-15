@@ -9,13 +9,16 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
-import { cronService } from '@process/services/cron/CronService';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
+import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
+import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
+import type { TChatConversation } from '@/common/storage';
+import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ipcBridge } from '../../common';
 import { uuid } from '../../common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
-import { getSkillsDir, ProcessChat } from '../initStorage';
-import { ConversationService } from '../services/conversationService';
+import { getSkillsDir, ProcessChat, ProcessConfig } from '../initStorage';
 import type AcpAgent from '../task/AcpAgent';
 import type RemoteAgent from '../task/RemoteAgent';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
@@ -27,19 +30,24 @@ import { INTERMEDIATE_DIR_SEGMENTS } from '../task/FileIntentClassifier';
 import WorkerManage from '../WorkerManage';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
-import { startConversationTracking, endConversationSuccess, endConversationError } from '../telemetry';
 import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
+import { turnInputCoordinator } from '../task/turnInputCoordinator';
+import { reapConversation } from '../services/conversationReaper';
 import { closeBrowserTabsByConversation } from './browserPanelBridge';
 import { closeTerminalsByConversation } from './terminalBridge';
 import { migrateConversationToDatabase } from './migrationUtils';
-import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
-import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
-import type { TChatConversation } from '@/common/storage';
-import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
-import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
+
+// Emit the current input-queue snapshot to the renderer. The process (turnInputCoordinator)
+// is the SSOT; the renderer only reflects this for the queue chips.
+const emitInputQueue = (conversation_id: string) => (queue: Array<{ id: string; content: string }>) => {
+  ipcBridge.conversation.inputQueueUpdate.emit({
+    conversation_id,
+    queue: queue.map((q) => ({ id: q.id, preview: (q.content || '').slice(0, 120) })),
+  });
+};
 
 type RemoteConversationExtra = NonNullable<TChatConversation['extra']> & {
   mossSessionId?: string;
@@ -464,86 +472,10 @@ export function initConversationBridge(): void {
 
   ipcBridge.conversation.remove.provider(async ({ id, deleteWorkspace }) => {
     try {
-      // Get conversation to check source before deletion
-      const db = getDatabase();
-      const convResult = db.getConversation(id);
-      const conversation = convResult.data;
-      const source = conversation?.source;
-      const workspacePath = (conversation?.extra as { workspace?: string } | undefined)?.workspace;
-      const isCronExecutionConversation = !!(conversation?.extra as { cronJobId?: string } | undefined)?.cronJobId;
-
-      // Kill the running task if exists
-      WorkerManage.kill(id);
-
-      // Reap any right-panel terminals tied to this conversation. Call the
-      // function directly — bridge.invoke from main → main does NOT route to
-      // the local provider (main adapter's emit only broadcasts to renderers).
-      try {
-        closeTerminalsByConversation(id);
-      } catch (err) {
-        mainWarn('conversationBridge', 'closeTerminalsByConversation failed', err);
-      }
-
-      // Reap any right-panel BrowserPanel tabs tied to this conversation.
-      // Same direct-call pattern as closeTerminalsByConversation. The
-      // function also broadcasts rightPanelBrowser.convClosed so the
-      // renderer-side BrowserPanel can drop its module-level state for
-      // this conv.
-      try {
-        closeBrowserTabsByConversation(id);
-      } catch (err) {
-        mainWarn('conversationBridge', 'closeBrowserTabsByConversation failed', err);
-      }
-
-      // Delete associated cron jobs
-      try {
-        if (!isCronExecutionConversation) {
-          const jobs = await cronService.listJobsByConversation(id);
-          for (const job of jobs) {
-            await cronService.removeJob(job.id);
-            ipcBridge.cron.onJobRemoved.emit({ jobId: job.id });
-          }
-        }
-      } catch (cronError) {
-        mainWarn('conversationBridge', 'Failed to cleanup cron jobs:', cronError);
-      }
-
-      // If source is not 'sudowork' (e.g., telegram), cleanup channel resources
-      if (source && source !== 'sudowork') {
-        try {
-          const { getChannelManager } = await import('@/channels/core/ChannelManager');
-          const channelManager = getChannelManager();
-          if (channelManager.isInitialized()) {
-            await channelManager.cleanupConversation(id);
-            mainLog('conversationBridge', `Cleaned up channel resources for ${source} conversation ${id}`);
-          }
-        } catch (cleanupError) {
-          mainWarn('conversationBridge', 'Failed to cleanup channel resources:', cleanupError);
-        }
-      }
-
-      // Delete workspace folder if requested
-      // 如果用户选择了同时删除工作区文件夹，则删除
-      if (deleteWorkspace && workspacePath) {
-        try {
-          await fs.rm(workspacePath, { recursive: true, force: true });
-          mainLog('conversationBridge', `Deleted workspace folder: ${workspacePath}`);
-        } catch (workspaceError) {
-          mainWarn('conversationBridge', `Failed to delete workspace folder ${workspacePath}:`, workspaceError);
-        }
-      }
-
-      // Use Provider abstraction layer for deletion (will cascade delete messages due to foreign key)
-      // 使用 Provider 抽象层删除会话（由于外键约束会级联删除消息）
-      const provider = getConversationProvider();
-      const success = await provider.deleteConversation(id);
-
-      if (!success) {
-        mainError('conversationBridge', 'Failed to delete conversation');
-        return false;
-      }
-
-      return true;
+      // Route all cleanup through the reaper SSOT so every resource this
+      // conversation owns is released in one ordered, DRY path.
+      const res = await reapConversation(id, { reason: 'user-delete', deleteWorkspace });
+      return res.dbDeleted;
     } catch (error) {
       mainError('conversationBridge', 'Failed to remove conversation:', error);
       return false;
@@ -912,7 +844,7 @@ export function initConversationBridge(): void {
                 const json = JSON.parse(stdout.trim()) as { code?: number; error?: string };
                 jsonCode = json.code;
                 jsonError = json.error || undefined;
-              } catch (_err) {
+              } catch {
                 // Ignore non-JSON output and fall back to stderr/stdout text.
               }
               if (jsonCode === 0) {
@@ -981,6 +913,38 @@ export function initConversationBridge(): void {
         setupChannelResponseRouting(conversation);
       }
 
+      // Local (ACP) interactive path routes through the turn-input coordinator so a new
+      // message can interrupt or queue against an in-flight turn (settings-gated). The
+      // coordinator returns at accept/queue time (not turn end) — safe because the
+      // renderer drives turn lifecycle + errors via the response stream, not this result.
+      // See docs/plans/2026-07-01-conversation-interrupt-and-queue.html.
+      if (task.type === 'acp') {
+        const autoInterrupt = (await ProcessConfig.get('agent.autoInterrupt').catch(() => false)) === true;
+        const messageQueue = (await ProcessConfig.get('agent.messageQueue').catch(() => true)) !== false;
+        const status = turnInputCoordinator.submit(
+          conversation_id,
+          {
+            id: payload.msg_id,
+            content: payload.content,
+            // Batched flush (§3.2): when the coordinator flushes N queued items at turn-end,
+            // it hands the tail (N-1 items) to this head. We merge their text into the head's
+            // user message so exactly ONE session/prompt goes out for the whole batch. Only
+            // text is merged — tail items are text-only in practice (queued sends without
+            // attachments); their `files`/`skills` slots are not exposed to the coordinator.
+            run: (tail) => {
+              if (!tail || tail.length === 0) return task.sendMessage(payload);
+              const combined = [payload.content, ...tail.map((t) => t.content)].join('\n\n');
+              return task.sendMessage({ ...payload, content: combined });
+            },
+          },
+          () => task.stop(),
+          { autoInterrupt, messageQueue },
+          emitInputQueue(conversation_id)
+        );
+        mainLog('conversationBridge', `sendMessage: coordinator status=${status} for ${conversation_id}`);
+        return status === 'busy' ? { success: false, msg: 'busy' } : { success: true };
+      }
+
       try {
         await task.sendMessage(payload);
         mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
@@ -993,6 +957,14 @@ export function initConversationBridge(): void {
       mainError('conversationBridge', `sendMessage failed for ${conversation_id}: ${errorMessage}`, err);
       return { success: false, msg: errorMessage };
     }
+  });
+
+  // Pull the last (or a specific) queued input back out — Up-arrow in the sendbox.
+  // Removes it from the coordinator (SSOT) and returns its content for the editor.
+  ipcBridge.conversation.dequeueInput.provider(async ({ conversation_id, id }) => {
+    const removed = turnInputCoordinator.dequeue(conversation_id, id, emitInputQueue(conversation_id));
+    if (!removed) return { success: true, data: null };
+    return { success: true, data: { content: removed.content } };
   });
 
   // 通用 confirmMessage 实现
@@ -1011,6 +983,7 @@ export function initConversationBridge(): void {
   // Session-level approval memory — now only relevant for ACP agents
   ipcBridge.conversation.approval.check.provider(async ({ conversation_id, action, commandType }) => {
     // Approval checking is handled by ACP agents internally now
+    console.log(conversation_id, action, commandType);
     return false;
   });
 

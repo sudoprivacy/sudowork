@@ -1,4 +1,4 @@
-import { Button, Dropdown, Message, Tag } from '@arco-design/web-react';
+import { Button, Dropdown, Message, Modal, Tag } from '@arco-design/web-react';
 import { Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +7,7 @@ import type { AcpBackend } from '@/types/acpTypes';
 import { transformMessage, type TMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
-import SendBox from '@/renderer/components/sendbox';
+import SendBox from '@/renderer/components/Sendbox';
 import ThoughtDisplay, { type ThoughtData } from '@/renderer/components/ThoughtDisplay';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/useSendBoxFiles';
@@ -16,7 +16,7 @@ import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
-import BdpanFileSelector from '@/renderer/components/BdpanFileSelector';
+import BdpanImportFilePicker from '@/renderer/components/base/BdpanImportFilePicker';
 import FilePreview from '@/renderer/components/FilePreview';
 import HorizontalFileList from '@/renderer/components/HorizontalFileList';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -24,6 +24,7 @@ import { useLatestRef } from '@/renderer/hooks/useLatestRef';
 import { useOpenFileSelector } from '@/renderer/hooks/useOpenFileSelector';
 import PwdLoginApprovalModal, { type PwdLoginApprovalDecision } from '@/renderer/components/PwdLoginApprovalModal';
 import type { TokenUsageData } from '@/common/storage';
+import { ConfigStorage } from '@/common/storage';
 import ContextUsageIndicator from '@/renderer/components/ContextUsageIndicator';
 import { useAutoTitle } from '@/renderer/hooks/useAutoTitle';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
@@ -701,11 +702,20 @@ const AcpSendBox: React.FC<{
     if (loginMatch) {
       const title = loginMatch[1].trim();
       if (!title) {
-        messageApiRef.current.warning(t('pwdLogin.slash.missingTitle', { defaultValue: 'Usage: /login <title>' }));
+        Message.warning(t('pwdLogin.slash.missingTitle', { defaultValue: 'Usage: /login <title>' }));
         return;
       }
       setPwdLoginModal({ visible: true, title });
       return;
+    }
+
+    // First-interrupt confirm: only when auto-interrupt is on and a turn is running (queue
+    // mode doesn't interrupt, so no confirm). Answering "打断" persists so it asks only once.
+    if ((running || aiProcessing) && autoInterruptEnabled && !autoInterruptConfirmed) {
+      const ok = await confirmFirstInterrupt();
+      if (!ok) return;
+      setAutoInterruptConfirmed(true);
+      void ConfigStorage.set('agent.autoInterruptConfirmed', true).catch(() => {});
     }
 
     // Fallback to local state if skills not provided by event (rare, but safer)
@@ -793,10 +803,6 @@ const AcpSendBox: React.FC<{
   const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [pwdLoginModal, setPwdLoginModal] = useState<{ visible: boolean; title: string }>({ visible: false, title: '' });
-  const [messageApi, messageContextHolder] = Message.useMessage();
-  const messageApiRef = useRef(messageApi);
-  messageApiRef.current = messageApi;
-
   // /login <title> — user-triggered auto-login via saved credentials.
   // Intercepted in onSendHandler before the text hits the agent, so the
   // title + pwd_login machinery never crosses the LLM boundary.
@@ -812,9 +818,9 @@ const AcpSendBox: React.FC<{
           conversation_id,
         });
         if (result.ok) {
-          messageApiRef.current.success(t('pwdLogin.result.success', { title, defaultValue: 'Logged into {{title}}' }));
+          Message.success(t('pwdLogin.result.success', { title, defaultValue: 'Logged into {{title}}' }));
         } else {
-          messageApiRef.current.error(
+          Message.error(
             t('pwdLogin.result.failure', {
               title,
               error: result.error ?? 'unknown',
@@ -823,7 +829,7 @@ const AcpSendBox: React.FC<{
           );
         }
       } catch (err) {
-        messageApiRef.current.error(t('pwdLogin.result.exception', { defaultValue: 'Auto-login error' }));
+        Message.error(t('pwdLogin.result.exception', { defaultValue: 'Auto-login error' }));
         console.error('[pwdLogin] invoke failed:', err);
       }
     },
@@ -833,9 +839,9 @@ const AcpSendBox: React.FC<{
   useEffect(() => {
     return ipcBridge.bdpan.downloadResult.on((result) => {
       if (result.success) {
-        messageApiRef.current.success(t('conversation.bdpan.download.success'));
+        Message.success(t('conversation.bdpan.download.success'));
       } else {
-        messageApiRef.current.error(result.error ?? t('conversation.bdpan.download.failed'));
+        Message.error(result.error ?? t('conversation.bdpan.download.failed'));
       }
     });
   }, [t]);
@@ -860,9 +866,53 @@ const AcpSendBox: React.FC<{
 
   const selectedFileCount = filterUserVisibleFiles(uploadFile).length + filterUserVisibleAtPath(atPath).filter((item) => (typeof item === 'string' ? true : item.isFile)).length;
 
+  // 对话打断 / 消息队列：允许回复中提交（任一开关开启即可）+ 反射当前输入队列（用于 chips）。
+  // 决策矩阵在进程侧 turnInputCoordinator（SSOT）；这里只读设置 + 展示。
+  const [allowSubmitWhileRunning, setAllowSubmitWhileRunning] = useState(false);
+  const [autoInterruptEnabled, setAutoInterruptEnabled] = useState(false);
+  const [autoInterruptConfirmed, setAutoInterruptConfirmed] = useState(false);
+  const [queuedInputs, setQueuedInputs] = useState<Array<{ id: string; preview: string }>>([]);
+  useEffect(() => {
+    let alive = true;
+    void Promise.all([ConfigStorage.get('agent.autoInterrupt').catch(() => false), ConfigStorage.get('agent.messageQueue').catch(() => true), ConfigStorage.get('agent.autoInterruptConfirmed').catch(() => false)]).then(([ai, mq, confirmed]) => {
+      if (!alive) return;
+      setAllowSubmitWhileRunning(ai === true || mq !== false);
+      setAutoInterruptEnabled(ai === true);
+      setAutoInterruptConfirmed(confirmed === true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // First time an auto-interrupt would fire, confirm once — the first interrupt of a live
+  // reply can surprise even after opting in. Answering "打断" persists so it never asks again.
+  const confirmFirstInterrupt = useCallback(
+    () =>
+      new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: t('conversation.interruptConfirm.title'),
+          content: t('conversation.interruptConfirm.body'),
+          okText: t('conversation.interruptConfirm.ok'),
+          cancelText: t('common.cancel'),
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      }),
+    [t]
+  );
+  useEffect(() => {
+    return ipcBridge.conversation.inputQueueUpdate.on((data) => {
+      if (data.conversation_id === conversation_id) setQueuedInputs(data.queue);
+    });
+  }, [conversation_id]);
+  const handleDequeueLast = useCallback(async () => {
+    const res = await ipcBridge.conversation.dequeueInput.invoke({ conversation_id });
+    const dequeued = res?.success ? res.data?.content : undefined;
+    if (dequeued) setContent(dequeued);
+  }, [conversation_id, setContent]);
+
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
-      {messageContextHolder}
       <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox
@@ -874,6 +924,9 @@ const AcpSendBox: React.FC<{
         topAttached={Boolean(thought?.subject) || running || aiProcessing}
         placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
+        allowSubmitWhileRunning={allowSubmitWhileRunning}
+        queuedInputs={queuedInputs}
+        onDequeueLast={handleDequeueLast}
         className='z-10'
         onFilesAdded={handleFilesAdded}
         supportedExts={allSupportedExts}
@@ -912,7 +965,7 @@ const AcpSendBox: React.FC<{
             >
               <span className='relative'>
                 <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill={'var(--text-secondary)'} />} />
-                {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-[var(--ui-accent-orange)] px-3px text-9px text-white font-600 pointer-events-none'>{selectedFileCount}</span>}
+                {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-white font-600 pointer-events-none'>{selectedFileCount}</span>}
               </span>
             </Dropdown>
             <AgentModeSelector
@@ -1011,7 +1064,7 @@ const AcpSendBox: React.FC<{
           emitter.emit('acp.selected.file.append', [item]);
         }}
       ></SendBox>
-      <BdpanFileSelector
+      <BdpanImportFilePicker
         visible={bdpanSelectorVisible}
         onCancel={() => setBdpanSelectorVisible(false)}
         onConfirm={(paths) => {

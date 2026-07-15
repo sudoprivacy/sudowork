@@ -316,7 +316,14 @@ function cleanupSudoclawWindowsLocks(): void {
   }
 
   try {
-    const script = ["$patterns = @('.nexus\\\\sudoclaw\\\\cli', 'launcher.mjs gateway', 'openclaw.mjs gateway')", 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | Where-Object {', '  $cmd = $_.CommandLine', '  foreach ($pattern in $patterns) { if ($cmd -like "*${pattern}*") { return $true } }', '  return $false', '} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'].join('; ');
+    const script = [
+      "$patterns = @('.nexus\\\\sudoclaw\\\\cli', 'launcher.mjs gateway', 'openclaw.mjs gateway')",
+      'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | Where-Object {',
+      '  $cmd = $_.CommandLine',
+      '  foreach ($pattern in $patterns) { if ($cmd -like "*${pattern}*") { return $true } }',
+      '  return $false',
+      '} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }',
+    ].join('; ');
     execFileSync('powershell.exe', ['-NoProfile', '-Command', script], {
       stdio: 'ignore',
       windowsHide: true,
@@ -924,7 +931,18 @@ export function patchOpenclawKeepImageData(): void {
   // minified-ish but the string literals + structure give us a stable
   // anchor. We look for the specific sequence `delete cleaned.data;`
   // followed by the `{ ...cleaned, bytes, omitted: true }` return.
-  const originalBranch = 'if (type === "image") {\n' + '      const data3 = typeof entry.data === "string" ? entry.data : void 0;\n' + '      const bytes = data3 ? data3.length : void 0;\n' + '      const cleaned = { ...entry };\n' + '      delete cleaned.data;\n' + '      return {\n' + '        ...cleaned,\n' + '        bytes,\n' + '        omitted: true\n' + '      };\n' + '    }';
+  const originalBranch =
+    'if (type === "image") {\n' +
+    '      const data3 = typeof entry.data === "string" ? entry.data : void 0;\n' +
+    '      const bytes = data3 ? data3.length : void 0;\n' +
+    '      const cleaned = { ...entry };\n' +
+    '      delete cleaned.data;\n' +
+    '      return {\n' +
+    '        ...cleaned,\n' +
+    '        bytes,\n' +
+    '        omitted: true\n' +
+    '      };\n' +
+    '    }';
   if (!source.includes(originalBranch)) {
     mainWarn('Sudoclaw', 'patchOpenclawKeepImageData: pattern not found in openclaw bundle (upstream may have restructured sanitizeToolResult). Image pixels will continue to be stripped before the LLM sees them — multimodal tools like captcha reading from page_screenshot will not work.');
     return;
@@ -1143,7 +1161,8 @@ export function patchOpenclawPdfDescription(): void {
     return;
   }
   const originalPhrase = 'Supports native PDF analysis for Anthropic and Google models, with text/image extraction fallback for other providers. Use pdf for a single path/URL, or pdfs for multiple (up to 10). Provide a prompt describing what to analyze.';
-  const replacementPhrase = 'Supports native PDF analysis for Anthropic and Google models. Use pdf for a single path/URL, or pdfs for multiple (up to 10). Provide a prompt describing what to analyze. For non-PDF image files (jpg/png/gif/webp), use the `read` tool instead — pdf only accepts PDF input.';
+  const replacementPhrase =
+    'Supports native PDF analysis for Anthropic and Google models. Use pdf for a single path/URL, or pdfs for multiple (up to 10). Provide a prompt describing what to analyze. For non-PDF image files (jpg/png/gif/webp), use the `read` tool instead — pdf only accepts PDF input.';
   if (!source.includes(originalPhrase)) {
     mainWarn('Sudoclaw', 'patchOpenclawPdfDescription: pattern not found in openclaw bundle (upstream may have already reworded). LLMs may continue to misuse pdf for image OCR.');
     return;

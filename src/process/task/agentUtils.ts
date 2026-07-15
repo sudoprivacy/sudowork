@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DRAFTS_DIR_NAME } from '@/common/constants';
-import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
-import { isCronSkillAllowed } from '@process/services/cron/cronPolicy';
-import { AcpSkillManager, buildSkillsIndexText, type SkillIndex } from './AcpSkillManager';
-import type { PresetAgentType } from '@/types/acpTypes';
-import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+import { DRAFTS_DIR_NAME } from '@/common/constants';
+import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
+import { CRON_RESTRICTED_INSTRUCTION, isCronSkillAllowed } from '@process/services/cron/cronPolicy';
+import type { PresetAgentType } from '@/types/acpTypes';
+import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
+import { AcpSkillManager, buildSkillsIndexText, type SkillIndex } from './AcpSkillManager';
 
 /** mcporter CLI 路径（解压后的 JS 文件，跨平台相同） */
 const MCPORTER_CLI_PATH = path.join(os.homedir(), '.nexus', 'mcporter', 'package', 'node_modules', 'mcporter', 'dist', 'cli.js');
@@ -409,12 +409,13 @@ Skill capabilities are subject to organization policy: if the system refuses a s
     instructions.push(skillsInstruction);
   }
 
-  // Explicit ban: when cron is disabled, omitting the skill is not enough — the
-  // agent may still hallucinate a created task from prior knowledge. Tell it
-  // directly that scheduled tasks are unavailable. (Omitted in personal mode and
-  // when cron is enabled.)
+  // Explicit creation ban: when cron is disabled, omitting the skill is not
+  // enough — the agent may still hallucinate a created task from prior
+  // knowledge. The instruction keeps the list/delete contract, since owners and
+  // co-owners may still manage their existing jobs. (Omitted in personal mode
+  // and when cron is enabled.)
   if (!cronAllowed) {
-    instructions.push('[Scheduled Tasks — DISABLED]\n' + 'Scheduled task / cron functionality is disabled by your organization. You CANNOT create, list, modify, or delete scheduled tasks. ' + 'If asked to schedule or manage a recurring/timed task, tell the user it is disabled by their organization and an administrator must enable it. ' + 'NEVER claim a scheduled task was created, and NEVER invent a task ID.');
+    instructions.push(CRON_RESTRICTED_INSTRUCTION);
   }
 
   if (instructions.length === 0) {

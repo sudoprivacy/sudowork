@@ -1,10 +1,5 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useCallback } from 'react';
+import { Message } from '@arco-design/web-react';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile, MossWorkspaceFilePreview } from '@/common/ipcBridge';
 import type { PreviewContentType } from '@/common/types/preview';
@@ -12,7 +7,7 @@ import { emitter } from '@/renderer/utils/emitter';
 import { LARGE_TEXT_PREVIEW_MAX_LENGTH, LARGE_TEXT_PREVIEW_THRESHOLD } from '@/renderer/pages/conversation/preview/constants';
 import { removeWorkspaceEntry, renameWorkspaceEntry } from '@/renderer/utils/workspaceFs';
 import type { FileOrFolderItem } from '@/renderer/types/files';
-import type { MessageApi, RenameModalState, DeleteModalState } from '../types';
+import type { RenameModalState, DeleteModalState } from '../types';
 import { getPathSeparator, replacePathInList, updateTreeForRename } from '../utils/treeHelpers';
 
 // Module-level cache for LibreOffice availability
@@ -59,7 +54,6 @@ interface UseWorkspaceFileOpsOptions {
   conversation_id?: string;
   dataSource?: 'local' | 'moss-session';
   readonly?: boolean;
-  messageApi: MessageApi;
   t: (key: string) => string;
 
   // Dependencies from useWorkspaceTree
@@ -175,7 +169,6 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
     conversation_id,
     dataSource = 'local',
     readonly = false,
-    messageApi,
     t,
     setFiles,
     setSelected,
@@ -206,10 +199,10 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       try {
         await ipcBridge.shell.openFile.invoke(nodeData.fullPath);
       } catch {
-        messageApi.error(t('conversation.workspace.contextMenu.openFailed') || 'Failed to open');
+        Message.error(t('conversation.workspace.contextMenu.openFailed') || 'Failed to open');
       }
     },
-    [messageApi, t]
+    [t]
   );
 
   /**
@@ -222,10 +215,10 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       try {
         await ipcBridge.shell.showItemInFolder.invoke(nodeData.fullPath);
       } catch {
-        messageApi.error(t('conversation.workspace.contextMenu.revealFailed') || 'Failed to reveal');
+        Message.error(t('conversation.workspace.contextMenu.revealFailed') || 'Failed to reveal');
       }
     },
-    [messageApi, t]
+    [t]
   );
 
   /**
@@ -253,12 +246,12 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       const res = await removeWorkspaceEntry(deleteModal.target.fullPath);
       if (!res?.success) {
         const errorMsg = res?.msg || t('conversation.workspace.contextMenu.deleteFailed');
-        messageApi.error(errorMsg);
+        Message.error(errorMsg);
         setDeleteModal((prev) => ({ ...prev, loading: false }));
         return;
       }
 
-      messageApi.success(t('conversation.workspace.contextMenu.deleteSuccess'));
+      Message.success(t('conversation.workspace.contextMenu.deleteSuccess'));
       setSelected([]);
       selectedKeysRef.current = [];
       selectedNodeRef.current = null;
@@ -270,10 +263,10 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       closeDeleteModal();
       setTimeout(() => refreshWorkspace(), 200);
     } catch {
-      messageApi.error(t('conversation.workspace.contextMenu.deleteFailed'));
+      Message.error(t('conversation.workspace.contextMenu.deleteFailed'));
       setDeleteModal((prev) => ({ ...prev, loading: false }));
     }
-  }, [deleteModal.target, closeDeleteModal, eventPrefix, conversation_id, messageApi, refreshWorkspace, t, setSelected, selectedKeysRef, selectedNodeRef, setDeleteModal]);
+  }, [deleteModal.target, closeDeleteModal, eventPrefix, conversation_id, refreshWorkspace, t, setSelected, selectedKeysRef, selectedNodeRef, setDeleteModal]);
 
   /**
    * 超时包装器
@@ -308,7 +301,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
     const trimmedName = renameModal.value.trim();
 
     if (!trimmedName) {
-      messageApi.warning(t('conversation.workspace.contextMenu.renameEmpty'));
+      Message.warning(t('conversation.workspace.contextMenu.renameEmpty'));
       return;
     }
 
@@ -335,7 +328,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       const response = await waitWithTimeout(renameWorkspaceEntry(target.fullPath, trimmedName));
       if (!response?.success) {
         const errorMsg = response?.msg || t('conversation.workspace.contextMenu.renameFailed');
-        messageApi.error(errorMsg);
+        Message.error(errorMsg);
         return;
       }
 
@@ -361,19 +354,19 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         selectedNodeRef.current = null;
       }
 
-      messageApi.success(t('conversation.workspace.contextMenu.renameSuccess'));
+      Message.success(t('conversation.workspace.contextMenu.renameSuccess'));
       // Notify @file selector to refresh / 通知 @文件 选择器刷新
       emitter.emit(`${eventPrefix}.workspace.refresh` as any);
     } catch (error) {
       if (error instanceof Error && error.message === 'timeout') {
-        messageApi.error(t('conversation.workspace.contextMenu.renameTimeout'));
+        Message.error(t('conversation.workspace.contextMenu.renameTimeout'));
       } else {
-        messageApi.error(t('conversation.workspace.contextMenu.renameFailed'));
+        Message.error(t('conversation.workspace.contextMenu.renameFailed'));
       }
     } finally {
       setRenameLoading(false);
     }
-  }, [closeRenameModal, eventPrefix, conversation_id, messageApi, renameLoading, renameModal, t, waitWithTimeout, setFiles, setExpandedKeys, setSelected, selectedKeysRef, selectedNodeRef, setRenameLoading]);
+  }, [closeRenameModal, eventPrefix, conversation_id, renameLoading, renameModal, t, waitWithTimeout, setFiles, setExpandedKeys, setSelected, selectedKeysRef, selectedNodeRef, setRenameLoading]);
 
   /**
    * 添加到聊天
@@ -395,9 +388,9 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
       if (eventPrefix === 'acp') {
         emitter.emit('acp.selected.file.append', [payload]);
       }
-      messageApi.success(t('conversation.workspace.contextMenu.addedToChat'));
+      Message.success(t('conversation.workspace.contextMenu.addedToChat'));
     },
-    [closeContextMenu, ensureNodeSelected, eventPrefix, conversation_id, messageApi, t]
+    [closeContextMenu, ensureNodeSelected, eventPrefix, conversation_id, t]
   );
 
   /**
@@ -615,10 +608,10 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           editable: readonly || dataSource === 'moss-session' || contentType === 'markdown' || contentType === 'image' || contentType === 'video' || contentType === 'audio' || isLargeTextTruncated ? false : undefined,
         });
       } catch {
-        messageApi.error(t('conversation.workspace.contextMenu.previewFailed'));
+        Message.error(t('conversation.workspace.contextMenu.previewFailed'));
       }
     },
-    [closeContextMenu, dataSource, conversation_id, openPreview, readonly, workspace, messageApi, t]
+    [closeContextMenu, dataSource, conversation_id, openPreview, readonly, workspace, t]
   );
 
   /**

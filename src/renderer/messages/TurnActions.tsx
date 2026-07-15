@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { Alert, Message, Tooltip } from '@arco-design/web-react';
 import { Copy, FileWord, ShareOne } from '@icon-park/react';
 import React, { useState, useCallback, useEffect } from 'react';

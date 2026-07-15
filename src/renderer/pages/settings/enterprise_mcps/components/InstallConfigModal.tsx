@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Input, Button, Message } from '@arco-design/web-react';
-import AionModal from '@/renderer/components/base/AionModal';
+import { Input, Message, Modal } from '@arco-design/web-react';
 import type { EnterpriseMcpTemplateDto } from '../types';
 
 interface InstallConfigModalProps {
@@ -67,22 +66,7 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
   const hasNoConfig = items.length === 0 && authItems.length === 0;
 
   return (
-    <AionModal
-      visible={visible}
-      size='medium'
-      header={`安装 · ${template.name}`}
-      onCancel={onCancel}
-      footer={
-        <div className='flex justify-end gap-2'>
-          <Button onClick={onCancel} disabled={submitting}>
-            取消
-          </Button>
-          <Button type='primary' loading={submitting} onClick={handleSubmit}>
-            安装
-          </Button>
-        </div>
-      }
-    >
+    <Modal visible={visible} style={{ width: 600 }} title={`安装 · ${template.name}`} onCancel={onCancel} onOk={handleSubmit} okText='安装' cancelText='取消' okButtonProps={{ loading: submitting }} cancelButtonProps={{ disabled: submitting }}>
       <div className='flex flex-col gap-4 py-1'>
         {template.description && <div className='text-13px text-secondary leading-relaxed'>{template.description}</div>}
 
@@ -161,7 +145,7 @@ const InstallConfigModal: React.FC<InstallConfigModalProps> = ({ visible, templa
           </div>
         )}
       </div>
-    </AionModal>
+    </Modal>
   );
 };
 

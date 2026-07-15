@@ -10,7 +10,6 @@ import { ipcBridge } from '@/common';
 
 export const useMultiAgentDetection = () => {
   const { t } = useTranslation();
-  const [message, contextHolder] = Message.useMessage();
 
   useEffect(() => {
     const checkMultiAgentMode = async () => {
@@ -19,7 +18,7 @@ export const useMultiAgentDetection = () => {
         if (response && response.success && response.data) {
           const acpAgents = filterAvailableAgentsForUi(response.data);
           if (acpAgents.length > 1) {
-            message.success(t('conversation.welcome.multiAgentModeEnabled'));
+            Message.success(t('conversation.welcome.multiAgentModeEnabled'));
           }
         }
       } catch (error) {
@@ -31,7 +30,5 @@ export const useMultiAgentDetection = () => {
     checkMultiAgentMode().catch((error) => {
       console.error('Multi-agent detection failed:', error);
     });
-  }, []); // 空依赖数组确保只在组件初始化时执行一次
-
-  return { contextHolder };
+  }, [t]); // 空依赖数组确保只在组件初始化时执行一次
 };

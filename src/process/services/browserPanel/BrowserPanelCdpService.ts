@@ -341,7 +341,7 @@ class BrowserPanelCdpService {
         status: params.response.status,
         statusText: params.response.statusText,
         mimeType: params.response.mimeType,
-      }),
+      })
     );
     if (!matched) {
       // Some sub-frame and ServiceWorker flows can emit `responseReceived`
@@ -362,14 +362,14 @@ class BrowserPanelCdpService {
   private onLoadingFinished(state: TabState, params: CdpLoadingFinished): void {
     state.network.updateLatest(
       (r) => r.requestId === params.requestId,
-      (r) => ({ ...r, durationMs: this.elapsedMs(state) - r.startedAt }),
+      (r) => ({ ...r, durationMs: this.elapsedMs(state) - r.startedAt })
     );
   }
 
   private onLoadingFailed(state: TabState, params: CdpLoadingFailed): void {
     state.network.updateLatest(
       (r) => r.requestId === params.requestId,
-      (r) => ({ ...r, failed: true, errorText: params.errorText, canceled: params.canceled, durationMs: this.elapsedMs(state) - r.startedAt }),
+      (r) => ({ ...r, failed: true, errorText: params.errorText, canceled: params.canceled, durationMs: this.elapsedMs(state) - r.startedAt })
     );
   }
 

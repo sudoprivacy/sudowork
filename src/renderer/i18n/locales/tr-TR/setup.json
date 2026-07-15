@@ -4,5 +4,33 @@
     "placeholder": "https://your-sudowork-server.com",
     "hint": "Boş bırakırsanız varsayılan sunucu kullanılır",
     "invalidUrl": "Lütfen geçerli bir HTTP/HTTPS adresi girin"
+  },
+  "init": {
+    "headerTitle": "Çalışma Ortamı Hazırlanıyor",
+    "startupTitle": "Temel Servisler Başlatılıyor",
+    "allReady": "Tüm Bileşenler Hazır",
+    "failed": "Başlatma Başarısız",
+    "startingCoreServices": "Temel servisler başlatılıyor, Sudocode ve Nexus'un hazır olmasını bekleyin",
+    "validatingComponents": "Temel servis durumu doğrulanıyor, lütfen bekleyin",
+    "preparingEnvironment": "Çalışma ortamı hazırlanıyor...",
+    "retryCountdown": "{{seconds}} saniye sonra otomatik yeniden deneme ({{attempt}}/{{maxAttempts}} deneme)",
+    "statusDone": "Tamamlandı",
+    "statusError": "Hata",
+    "statusActive": "Devam Ediyor",
+    "statusPending": "Beklemede",
+    "processing": "İşleniyor...",
+    "autoRetry": "Otomatik Yeniden Deneme",
+    "waitingForLogs": "Log çıktısı bekleniyor...",
+    "manualReinstall": "Manuel Yeniden Kurulum",
+    "manualReinstallHint": "Başlatma başarısız olduktan sonra otomatik yeniden kurulum yapılmaz. Gerekirse temel bileşenleri manuel olarak yeniden kurabilir veya atlayarak uygulamaya girebilirsiniz.",
+    "quit": "Çık",
+    "step": {
+      "scode": { "label": "Sudocode", "description": "Varsayılan ACP Ajan Çalışma Zamanı" },
+      "nexus": { "label": "Nexus OS Çekirdek Motoru", "description": "Yerel Çekirdek Servis Motoru" },
+      "git": { "label": "Git Ortamı", "description": "Sürüm Kontrolü Temel Bileşeni" },
+      "node": { "label": "Node.js Çalışma Zamanı", "description": "JavaScript Yürütme Ortamı" },
+      "claude": { "label": "Claude Code CLI", "description": "Komut Satırı Ajan Aracı" },
+      "bdpan": { "label": "bdpan CLI", "description": "Dosya Senkronizasyon Aracı" }
+    }
   }
 }

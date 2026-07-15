@@ -97,11 +97,6 @@ export function resolveTenantConfig(config?: TenantConfigInput | null): Required
     // Only an explicit `false` hides tool calls; null/undefined → default shown.
     client_show_tool_calls: config?.client_show_tool_calls === false ? false : true,
     // Use the configured limit only when it is a positive number; otherwise default.
-    workspace_upload_limit_bytes:
-      typeof config?.workspace_upload_limit_bytes === 'number' &&
-      Number.isFinite(config.workspace_upload_limit_bytes) &&
-      config.workspace_upload_limit_bytes > 0
-        ? config.workspace_upload_limit_bytes
-        : DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES,
+    workspace_upload_limit_bytes: typeof config?.workspace_upload_limit_bytes === 'number' && Number.isFinite(config.workspace_upload_limit_bytes) && config.workspace_upload_limit_bytes > 0 ? config.workspace_upload_limit_bytes : DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES,
   };
 }

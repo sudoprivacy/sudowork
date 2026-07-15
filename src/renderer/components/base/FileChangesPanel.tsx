@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import classNames from 'classnames';
 import React, { useState } from 'react';
 import { Down, PreviewOpen } from '@icon-park/react';
@@ -57,12 +51,12 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
   }
 
   return (
-    <div className={classNames('w-full box-border rounded-8px overflow-hidden border border-solid border-[var(--aou-2)]', className)} style={{ width: '100%' }}>
+    <div className={classNames('w-full box-border rounded-8px overflow-hidden border border-[var(--aou-2)]', className)} style={{ width: '100%' }}>
       {/* 标题栏 / Header */}
-      <div className='flex items-center justify-between px-16px py-12px cursor-pointer select-none' onClick={() => setExpanded(!expanded)}>
-        <div className='flex items-center gap-8px'>
+      <div className='flex items-center justify-between px-4 py-3 cursor-pointer select-none' onClick={() => setExpanded(!expanded)}>
+        <div className='flex items-center gap-2'>
           {/* 绿色圆点 / Green dot */}
-          <span className='w-8px h-8px rounded-full shrink-0' style={{ backgroundColor: '#52c41a' }}></span>
+          <span className='size-2 rounded-full shrink-0' style={{ backgroundColor: '#52c41a' }}></span>
           {/* 标题 / Title */}
           <span className='text-14px text-foreground font-medium'>{title}</span>
         </div>
@@ -74,17 +68,17 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
       {expanded && (
         <div className='w-full bg-2'>
           {files.map((file, index) => (
-            <div key={`${file.fullPath}-${index}`} className={classNames('group flex items-center justify-between px-16px py-12px hover:bg-3 transition-colors')}>
+            <div key={`${file.fullPath}-${index}`} className={classNames('group flex items-center justify-between px-4 py-3 hover:bg-3 transition-colors')}>
               {/* 文件名 / File name */}
               <div className='flex items-center min-w-0'>
                 <span className='text-14px text-foreground truncate'>{file.fileName}</span>
               </div>
               {/* 变更统计 + 预览按钮 / Change statistics + Preview button */}
-              <div className='flex items-center gap-8px shrink-0'>
+              <div className='flex items-center gap-2 shrink-0'>
                 {/* 变更统计 - 点击打开 diff 对比 / Change stats - click to open diff view */}
                 {(file.insertions > 0 || file.deletions > 0) && (
                   <span
-                    className={classNames('flex items-center gap-4px rd-4px px-4px py-2px', onDiffClick && 'cursor-pointer hover:bg-4 transition-colors')}
+                    className={classNames('flex items-center gap-1 rd-4px px-1 py-0.5', onDiffClick && 'cursor-pointer hover:bg-4 transition-colors')}
                     onClick={(e) => {
                       e.stopPropagation();
                       onDiffClick?.(file);
@@ -104,7 +98,7 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
                 )}
                 {/* 预览按钮 - 点击打开文件预览 / Preview button - click to open file preview */}
                 <span
-                  className='group-hover:opacity-100 transition-opacity shrink-0 ml-4px flex items-center gap-4px text-12px text-secondary cursor-pointer rd-4px px-4px py-2px hover:bg-4'
+                  className='group-hover:opacity-100 transition-opacity shrink-0 ml-1 flex items-center gap-1 text-12px text-secondary cursor-pointer rd-4px px-1 py-0.5 hover:bg-4'
                   onClick={(e) => {
                     e.stopPropagation();
                     onFileClick?.(file);

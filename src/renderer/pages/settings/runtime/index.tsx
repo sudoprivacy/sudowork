@@ -589,7 +589,7 @@ export default function RuntimeSettings() {
     <PageWrapper title={t('settings.runtimeSettings.title')} subtitle={t('settings.runtimeSettings.description')}>
       <div className='flex flex-col h-full w-full'>
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
-          <div className='space-y-4 pt-4'>
+          <div className='space-y-4'>
             <div className='bg-muted rd-16px border px-4 md:px-6 lg:px-7 py-4 md:py-4.5'>
               <div className='flex flex-col divide-y divide-light'>
                 {tableData.map((record) => (

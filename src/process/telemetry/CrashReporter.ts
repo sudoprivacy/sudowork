@@ -29,6 +29,7 @@ import { getProductImprovementApiKey } from '../credentialsCache';
 import { getTelemetryEncryptor, initTelemetryEncryptor } from './TelemetryEncryptor';
 import { getUserContextSync } from './UserContext';
 import { ENCRYPTION_CONFIG } from './keys';
+import { getSudoLogTelemetryReporter } from './SudoLogTelemetryReporter';
 
 // ============================================================
 // 常量定义
@@ -240,6 +241,7 @@ export class CrashReporter {
 
     // 缓存事件（如果未初始化）或直接添加到队列
     this.cacheOrAddEvent(storedEvent);
+    getSudoLogTelemetryReporter().enqueueCrashEvent(event);
     mainError('CrashReporter', `Native crash captured: ${crashReason} (process: ${processType})`);
   }
 
@@ -292,6 +294,7 @@ export class CrashReporter {
 
     // 缓存事件（如果未初始化）或直接添加到队列
     this.cacheOrAddEvent(storedEvent);
+    getSudoLogTelemetryReporter().enqueueCrashEvent(event);
     mainError('CrashReporter', `Renderer crash captured: ${crashReason}`);
   }
 
@@ -340,6 +343,7 @@ export class CrashReporter {
 
     // 缓存事件（如果未初始化）或直接添加到队列
     this.cacheOrAddEvent(storedEvent);
+    getSudoLogTelemetryReporter().enqueueCrashEvent(event);
     mainError('CrashReporter', `Exception captured: ${error.name}: ${error.message}`);
   }
 
@@ -387,6 +391,7 @@ export class CrashReporter {
 
     // 缓存事件（如果未初始化）或直接添加到队列
     this.cacheOrAddEvent(storedEvent);
+    getSudoLogTelemetryReporter().enqueueCrashEvent(event);
     mainError('CrashReporter', `Renderer exception captured: ${data.error_name}: ${data.error_message}`);
   }
 

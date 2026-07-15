@@ -1,14 +1,8 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState } from 'react';
 import { Button } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import Tabs from '@/renderer/components/ui/Tabs';
-import { DEFAULT_PROMPT_CATEGORIES } from '../constants';
+import { DEFAULT_PROMPT_CATEGORIES } from '../utils/constants';
 
 type PromptTemplatesProps = {
   /** Whether the component should be visible */
@@ -30,7 +24,7 @@ const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectProm
   const currentCategory = DEFAULT_PROMPT_CATEGORIES.find((c) => c.key === activeCategory);
 
   return (
-    <div className='w-full mb-4 [animation:fade-in_0.3s_ease-out]'>
+    <div className='w-full mb-4 animate-fade-in animate-duration-400 animate-ease-out'>
       {/* Title */}
       <div className='flex items-center gap-6px mb-10px'>
         <span className='text-13px text-secondary'>💡 {t('guid.promptTemplates.title', { defaultValue: '常用提示词' })}</span>
@@ -50,7 +44,7 @@ const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectProm
 
       {/* Expanded prompt list */}
       {activeCategory && currentCategory && (
-        <div className='flex flex-wrap gap-2 mt-2 [animation:panel-slide-in_0.25s_ease-out]'>
+        <div className='flex flex-wrap gap-2 mt-2 animate-fade-in animate-duration-400 animate-ease-out'>
           {currentCategory.prompts.map((prompt) => (
             <Button key={prompt.labelKey} size='small' shape='square' className='!border !border-[var(--border-default)]' onClick={() => onSelectPrompt(t(prompt.contentKey))}>
               {t(prompt.labelKey)}

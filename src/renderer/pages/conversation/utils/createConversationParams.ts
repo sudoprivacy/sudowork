@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { ConfigStorage } from '@/common/storage';
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { TProviderWithModel } from '@/common/storage';
