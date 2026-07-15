@@ -199,6 +199,11 @@ extraResources:
   # subprocess after sudowork registers it in ~/.claude.json at first run.
   - from: resources/browser-panel-mcp/index.js
     to: browser-panel-mcp/index.js
+  # team-mcp server bundle (esbuild output from scripts/build-team-mcp.js).
+  # Per-member: TeamService injects it via ACP session/new.mcp_servers (K2 wire
+  # format) for each team agent. Normal sessions never load it.
+  - from: resources/team-mcp/index.js
+    to: team-mcp/index.js
   # Nexus binary - versioned, optional (may not be available for all platforms)
   # Copy from the resources directory with filters; using a glob in `from`
   # is not reliable for electron-builder file-set matching.
