@@ -13,7 +13,8 @@
     "workspaceLabel": "Çalışma Alanı",
     "submit": "Oluştur",
     "cancel": "İptal",
-    "noAssistants": "Kullanılabilir asistan yok. Önce bir tane yükleyin."
+    "noAssistants": "Kullanılabilir asistan yok. Önce bir tane yükleyin.",
+    "createFailed": "Ekip oluşturulamadı. Bilgileri kontrol edip tekrar deneyin."
   },
   "detail": {
     "memberTab": "Takım Üyeleri",

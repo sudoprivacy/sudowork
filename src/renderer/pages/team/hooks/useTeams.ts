@@ -6,8 +6,8 @@ import { fromBackendTeam } from '../mapper';
 import type { TTeam } from '../types';
 import { unwrapTeamResult } from '../utils';
 
-async function fetchTeams(userId: string): Promise<TTeam[]> {
-  const teams = unwrapTeamResult(await ipcBridge.team.listTeams.invoke({ userId })) ?? [];
+async function fetchTeams(): Promise<TTeam[]> {
+  const teams = unwrapTeamResult(await ipcBridge.team.listTeams.invoke()) ?? [];
   const withMembers = await Promise.all(
     teams.map(async (t) => {
       const members = unwrapTeamResult(await ipcBridge.team.listMembers.invoke({ teamId: t.id })) ?? [];
@@ -18,12 +18,11 @@ async function fetchTeams(userId: string): Promise<TTeam[]> {
 }
 
 /**
- * useTeams — the C-end team list (附录 II.3). SWR-cached by user id; revalidates on team list events.
+ * useTeams — the C-end team list (附录 II.3). SWR-cached after authentication; revalidates on team list events.
  */
 export function useTeams() {
-  const { user } = useAuth();
-  const userId = user?.id;
-  const { data, mutate, isLoading } = useSWR(userId ? ['teams', userId] : null, () => fetchTeams(userId!), {
+  const { status } = useAuth();
+  const { data, mutate, isLoading } = useSWR(status === 'authenticated' ? ['teams'] : null, fetchTeams, {
     revalidateOnFocus: false,
   });
 

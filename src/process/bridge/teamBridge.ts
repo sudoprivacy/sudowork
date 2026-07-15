@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { getDatabase } from '@process/database';
 import { teamService } from '@process/services/team/TeamService';
 import { teamStore } from '@process/services/team/TeamStore';
 import { mainError } from '@process/utils/mainLogger';
@@ -13,9 +14,9 @@ function errEnvelope(err: unknown): never {
  * run-lifecycle providers are stubbed until later stages ship the full runtime.
  */
 export function initTeamBridge(): void {
-  ipcBridge.team.listTeams.provider(async ({ userId }) => {
+  ipcBridge.team.listTeams.provider(async () => {
     try {
-      return teamService.listTeams(userId);
+      return teamService.listTeams(getDatabase().getDefaultUserId());
     } catch (err) {
       mainError('TeamBridge', 'listTeams failed:', err);
       return errEnvelope(err);
@@ -42,7 +43,7 @@ export function initTeamBridge(): void {
 
   ipcBridge.team.createTeam.provider(async (params) => {
     try {
-      return await teamService.createTeam(params.user_id, params.name, params.workspace ?? null, params.leader_assistant_id, params.leader_name, params.leader_model);
+      return await teamService.createTeam(getDatabase().getDefaultUserId(), params.name, params.workspace ?? null, params.leader_assistant_id, params.leader_name, params.leader_model);
     } catch (err) {
       mainError('TeamBridge', 'createTeam failed:', err);
       return errEnvelope(err);

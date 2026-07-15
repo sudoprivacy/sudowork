@@ -13,7 +13,8 @@
     "workspaceLabel": "워크스페이스",
     "submit": "생성",
     "cancel": "취소",
-    "noAssistants": "사용 가능한 어시스턴트가 없습니다. 먼저 설치하세요."
+    "noAssistants": "사용 가능한 어시스턴트가 없습니다. 먼저 설치하세요.",
+    "createFailed": "팀 생성에 실패했습니다. 정보를 확인한 후 다시 시도하세요."
   },
   "detail": {
     "memberTab": "팀 멤버",

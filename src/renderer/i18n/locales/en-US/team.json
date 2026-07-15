@@ -14,7 +14,8 @@
     "workspacePlaceholder": "Workspace path (optional)",
     "submit": "Create",
     "cancel": "Cancel",
-    "noAssistants": "No assistants available. Install one first."
+    "noAssistants": "No assistants available. Install one first.",
+    "createFailed": "Failed to create team. Check the information and try again."
   },
   "detail": {
     "memberTab": "Team Members",

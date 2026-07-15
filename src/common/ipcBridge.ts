@@ -1166,7 +1166,7 @@ export const cron = {
 // Team collaboration API / 多 Agent 团队协作接口
 export const team = {
   // Team CRUD
-  listTeams: bridge.buildProvider<ITeam[], { userId: string }>('team.list-teams'),
+  listTeams: bridge.buildProvider<ITeam[], void>('team.list-teams'),
   getTeam: bridge.buildProvider<ITeam | null, { teamId: string }>('team.get-team'),
   listMembers: bridge.buildProvider<ITeamMember[], { teamId: string }>('team.list-members'),
   createTeam: bridge.buildProvider<ITeam, ICreateTeamParams>('team.create-team'),
@@ -1324,7 +1324,6 @@ export interface ITeamTask {
 }
 
 export interface ICreateTeamParams {
-  user_id: string;
   name: string;
   workspace?: string;
   leader_assistant_id: string;

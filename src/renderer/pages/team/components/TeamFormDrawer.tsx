@@ -1,9 +1,8 @@
-import { Button, Drawer, Form, Input, Radio, Spin } from '@arco-design/web-react';
+import { Button, Drawer, Form, Input, Message, Radio, Spin } from '@arco-design/web-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import { getAgentPriority } from '@/types/acpTypes';
-import { useAuth } from '@/renderer/context/AuthContext';
 import { unwrapTeamResult } from '../utils';
 
 interface SelectableAssistant {
@@ -21,7 +20,6 @@ interface ITeamFormDrawerProps {
 
 function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const [name, setName] = useState('');
   const [workspace, setWorkspace] = useState('');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -66,13 +64,11 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
   const selected = useMemo(() => assistants.find((a) => a.assistant_id === selectedId), [assistants, selectedId]);
 
   const handleSubmit = async () => {
-    if (!user?.id) return;
     if (!name.trim() || !selected) return;
     setSubmitting(true);
     try {
       const team = unwrapTeamResult(
         await ipcBridge.team.createTeam.invoke({
-          user_id: user.id,
           name: name.trim(),
           workspace: workspace.trim() || undefined,
           leader_assistant_id: selected.assistant_id,
@@ -83,6 +79,7 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
       onClose();
     } catch (e) {
       console.error('[TeamFormDrawer] createTeam failed:', e);
+      Message.error(t('team.create.createFailed'));
     } finally {
       setSubmitting(false);
     }

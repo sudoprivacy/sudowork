@@ -156,6 +156,10 @@ export class SudoworkDatabase {
       .run(this.defaultUserId, this.defaultUserId, this.systemPasswordPlaceholder, now, now);
   }
 
+  getDefaultUserId(): string {
+    return this.defaultUserId;
+  }
+
   getSystemUser(): IUser | null {
     const user = this.db.prepare('SELECT * FROM users WHERE id = ?').get(this.defaultUserId) as IUser | undefined;
     return user ?? null;

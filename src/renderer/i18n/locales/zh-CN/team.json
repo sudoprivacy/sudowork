@@ -13,7 +13,8 @@
     "workspaceLabel": "工作空间",
     "submit": "创建",
     "cancel": "取消",
-    "noAssistants": "没有可用助手，请先安装一个。"
+    "noAssistants": "没有可用助手，请先安装一个。",
+    "createFailed": "创建团队失败，请检查后重试。"
   },
   "detail": {
     "memberTab": "团队成员",
