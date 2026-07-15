@@ -46,11 +46,34 @@ export const BUILD_COS_RELEASE_BASE: string = (typeof __COS_RELEASE_BASE__ !== '
 // ---- typed system-config shape (interface doc 1.4) ----
 export interface SystemConfig {
   login_method?: number;
+  third_party_auth?: ThirdPartyAuthConfig;
   log_report?: { enabled: number; baseurl?: string };
   version_update?: { enabled: number; cos_domain?: string };
   product_improvement?: { enabled: number; encryption_required?: boolean };
   sudorouter_baseurl?: string;
   skillhub_baseurl?: string;
+}
+
+export interface ThirdPartyAuthProvider {
+  id: string;
+  name: string;
+  type: 'cas';
+  cas_url: string;
+  login_path?: string;
+  validate_path?: string;
+  logout_path?: string;
+  logout_service_url?: string;
+  service_param?: string;
+  service_encode_mode?: 'component' | 'raw';
+  callback_mode?: 'direct_app' | 'server_callback';
+  server_callback_url?: string;
+  app_callback_url?: string;
+}
+
+export interface ThirdPartyAuthConfig {
+  enabled?: boolean;
+  default_provider?: string;
+  providers?: ThirdPartyAuthProvider[];
 }
 
 /** Decrypted credentials plaintext (interface doc 2.4.3 — fields are conditional). */

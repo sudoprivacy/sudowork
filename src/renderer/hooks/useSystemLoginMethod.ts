@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { ipcBridge } from '@/common';
-import { fetchSystemConfig } from '@/common/systemConfig';
+import { fetchSystemConfig, type SystemConfig } from '@/common/systemConfig';
+import { THIRD_PARTY_LOGIN_METHOD } from '@/common/thirdPartyAuthConfig';
 
-/** 0 = 手机验证码（现状）；1 = 用户名密码（本次新增） */
-export type LoginMethod = 0 | 1;
+/** 0 = 手机验证码；1 = 用户名密码；2 = 三方认证登录 */
+export type LoginMethod = 0 | 1 | 2;
 
 export interface SystemLoginMethodState {
-  /** null 表示尚未拿到结果；拿到后为 0 或 1 */
+  /** null 表示尚未拿到结果；拿到后为 0、1 或 2 */
   loginMethod: LoginMethod | null;
+  systemConfig: SystemConfig | null;
   isLoading: boolean;
   error: Error | null;
 }
@@ -15,16 +17,17 @@ export interface SystemLoginMethodState {
 // 模块级内存缓存 + 时间戳：登录页与用户中心复用，避免重复请求
 const CACHE_TTL_MS = 5 * 60 * 1000;
 let cachedLoginMethod: LoginMethod | null = null;
+let cachedSystemConfig: SystemConfig | null = null;
 let cachedAt = 0;
 // 进行中的请求去重，避免并发触发多次
-let inflight: Promise<LoginMethod> | null = null;
+let inflight: Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null }> | null = null;
 
-async function fetchLoginMethod(): Promise<LoginMethod> {
+async function fetchLoginMethod(): Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null }> {
   if (cachedLoginMethod !== null && Date.now() - cachedAt < CACHE_TTL_MS) {
-    return cachedLoginMethod;
+    return { loginMethod: cachedLoginMethod, systemConfig: cachedSystemConfig };
   }
   if (inflight) return inflight;
-  inflight = (async (): Promise<LoginMethod> => {
+  inflight = (async (): Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null }> => {
     try {
       // Reuse the shared client; fetchSystemConfig() also fills the renderer's
       // system-config module cache (setSystemConfigCache) so synchronous base-url
@@ -34,14 +37,15 @@ async function fetchLoginMethod(): Promise<LoginMethod> {
       if (data) {
         void ipcBridge.systemConfig.syncFromRenderer.invoke({ data }).catch(() => {});
       }
-      const loginMethod: LoginMethod = data?.login_method === 1 ? 1 : 0;
+      const loginMethod: LoginMethod = data?.login_method === THIRD_PARTY_LOGIN_METHOD ? 2 : data?.login_method === 1 ? 1 : 0;
       cachedLoginMethod = loginMethod;
+      cachedSystemConfig = data;
       cachedAt = Date.now();
-      return loginMethod;
+      return { loginMethod, systemConfig: data };
     } catch (err) {
       // 失败兜底：按手机验证码（login_method=0，即维持现状），控制台告警，不打断用户
       console.warn('[useSystemLoginMethod] fetch system-config failed, fallback to login_method=0:', err);
-      return 0;
+      return { loginMethod: 0, systemConfig: null };
     } finally {
       inflight = null;
     }
@@ -52,6 +56,7 @@ async function fetchLoginMethod(): Promise<LoginMethod> {
 export function useSystemLoginMethod(): SystemLoginMethodState {
   const [state, setState] = useState<SystemLoginMethodState>(() => ({
     loginMethod: cachedLoginMethod,
+    systemConfig: cachedSystemConfig,
     isLoading: cachedLoginMethod === null,
     error: null,
   }));
@@ -59,9 +64,9 @@ export function useSystemLoginMethod(): SystemLoginMethodState {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const loginMethod = await fetchLoginMethod();
+      const { loginMethod, systemConfig } = await fetchLoginMethod();
       if (cancelled) return;
-      setState({ loginMethod, isLoading: false, error: null });
+      setState({ loginMethod, systemConfig, isLoading: false, error: null });
     })();
     return () => {
       cancelled = true;

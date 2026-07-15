@@ -14,6 +14,7 @@ import WindowControls from '../../components/WindowControls';
 import { useAuth } from '../../context/AuthContext';
 import AppLoader from '../../components/AppLoader';
 import PasswordAuthPanel from './PasswordAuthPanel';
+import ThirdPartyAuthPanel from './ThirdPartyAuthPanel';
 import './LoginPage.css';
 
 // Generate a random state token to bind the OAuth2 authorize request to its callback.
@@ -57,7 +58,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { status, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
   const { isEnterprise } = useAppMode();
-  const { loginMethod } = useSystemLoginMethod();
+  const { loginMethod, systemConfig } = useSystemLoginMethod();
 
   // Enterprise login state
   const [loginTab, setLoginTab] = useState<'password' | 'key' | 'oauth2'>('password');
@@ -592,6 +593,25 @@ const LoginPage: React.FC = () => {
           <div className='login-page__background-circle login-page__background-circle--sm' />
         </div>
         <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
+      </div>
+    );
+  }
+
+  // C 端：三方认证登录方式（login_method=2）
+  if (loginMethod === 2) {
+    return (
+      <div className='login-page'>
+        {showWindowControls && (
+          <div className='app-window-controls'>
+            <WindowControls />
+          </div>
+        )}
+        <div className='login-page__background'>
+          <div className='login-page__background-circle login-page__background-circle--lg' />
+          <div className='login-page__background-circle login-page__background-circle--md' />
+          <div className='login-page__background-circle login-page__background-circle--sm' />
+        </div>
+        <ThirdPartyAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} systemConfig={systemConfig} onBackToModeSelect={handleBackToModeSelect} />
       </div>
     );
   }

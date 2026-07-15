@@ -56,5 +56,17 @@
   "pwdErrorNoLower": "密码必须包含小写字母",
   "pwdErrorNoDigit": "密码必须包含数字",
   "pwdLoginFailed": "登录失败",
-  "pwdRegisterFailed": "注册失败"
+  "pwdRegisterFailed": "注册失败",
+  "thirdPartySubtitle": "通过企业统一认证登录",
+  "thirdPartyProviderLabel": "认证提供商",
+  "thirdPartyProviderFallback": "三方认证",
+  "thirdPartyLoginBtn": "通过 {{provider}} 登录",
+  "thirdPartyWaiting": "等待浏览器认证…",
+  "thirdPartyBrowserHint": "将在浏览器中打开认证页面，完成后自动返回 Sudowork。",
+  "thirdPartyUnavailable": "管理员未配置三方认证登录",
+  "thirdPartyOpenFailed": "无法打开浏览器",
+  "thirdPartyStateInvalid": "认证回调验证失败，请重试",
+  "thirdPartyMissingTicket": "认证回调缺少 ticket",
+  "thirdPartyFailed": "三方认证登录失败",
+  "backToModeSelect": "← 返回模式选择"
 }

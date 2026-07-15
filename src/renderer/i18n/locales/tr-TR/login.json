@@ -52,5 +52,17 @@
   "pwdErrorNoLower": "Şifre küçük harf içermelidir",
   "pwdErrorNoDigit": "Şifre rakam içermelidir",
   "pwdLoginFailed": "Giriş başarısız",
-  "pwdRegisterFailed": "Kayıt başarısız"
+  "pwdRegisterFailed": "Kayıt başarısız",
+  "thirdPartySubtitle": "Kurumsal kimlik sağlayıcınızla giriş yapın",
+  "thirdPartyProviderLabel": "Kimlik Sağlayıcı",
+  "thirdPartyProviderFallback": "Üçüncü taraf kimlik doğrulama",
+  "thirdPartyLoginBtn": "{{provider}} ile giriş yap",
+  "thirdPartyWaiting": "Tarayıcı kimlik doğrulaması bekleniyor...",
+  "thirdPartyBrowserHint": "Kimlik doğrulama sayfası tarayıcıda açılır ve girişten sonra Sudowork'e döner.",
+  "thirdPartyUnavailable": "Üçüncü taraf kimlik doğrulama yapılandırılmamış",
+  "thirdPartyOpenFailed": "Tarayıcı açılamıyor",
+  "thirdPartyStateInvalid": "Kimlik doğrulama geri çağrısı doğrulanamadı, lütfen tekrar deneyin",
+  "thirdPartyMissingTicket": "Kimlik doğrulama geri çağrısında ticket eksik",
+  "thirdPartyFailed": "Üçüncü taraf giriş başarısız",
+  "backToModeSelect": "← Mod seçimine dön"
 }

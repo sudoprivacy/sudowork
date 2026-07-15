@@ -52,5 +52,17 @@
   "pwdErrorNoLower": "Password must contain a lowercase letter",
   "pwdErrorNoDigit": "Password must contain a digit",
   "pwdLoginFailed": "Sign-in failed",
-  "pwdRegisterFailed": "Registration failed"
+  "pwdRegisterFailed": "Registration failed",
+  "thirdPartySubtitle": "Sign in with your enterprise identity provider",
+  "thirdPartyProviderLabel": "Identity Provider",
+  "thirdPartyProviderFallback": "Third-party Auth",
+  "thirdPartyLoginBtn": "Sign in with {{provider}}",
+  "thirdPartyWaiting": "Waiting for browser authentication...",
+  "thirdPartyBrowserHint": "The authentication page opens in your browser and returns to Sudowork after sign-in.",
+  "thirdPartyUnavailable": "Third-party authentication is not configured",
+  "thirdPartyOpenFailed": "Unable to open browser",
+  "thirdPartyStateInvalid": "Authentication callback verification failed, please try again",
+  "thirdPartyMissingTicket": "Authentication callback is missing ticket",
+  "thirdPartyFailed": "Third-party sign-in failed",
+  "backToModeSelect": "← Back to mode selection"
 }

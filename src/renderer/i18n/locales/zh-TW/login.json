@@ -52,5 +52,17 @@
   "pwdErrorNoLower": "密碼必須包含小寫字母",
   "pwdErrorNoDigit": "密碼必須包含數字",
   "pwdLoginFailed": "登入失敗",
-  "pwdRegisterFailed": "註冊失敗"
+  "pwdRegisterFailed": "註冊失敗",
+  "thirdPartySubtitle": "透過企業統一認證登入",
+  "thirdPartyProviderLabel": "認證提供商",
+  "thirdPartyProviderFallback": "第三方認證",
+  "thirdPartyLoginBtn": "透過 {{provider}} 登入",
+  "thirdPartyWaiting": "等待瀏覽器認證...",
+  "thirdPartyBrowserHint": "將在瀏覽器中開啟認證頁面，完成後自動返回 Sudowork。",
+  "thirdPartyUnavailable": "管理員未設定第三方認證登入",
+  "thirdPartyOpenFailed": "無法開啟瀏覽器",
+  "thirdPartyStateInvalid": "認證回調驗證失敗，請重試",
+  "thirdPartyMissingTicket": "認證回調缺少 ticket",
+  "thirdPartyFailed": "第三方認證登入失敗",
+  "backToModeSelect": "← 返回模式選擇"
 }
