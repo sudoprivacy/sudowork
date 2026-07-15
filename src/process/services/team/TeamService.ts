@@ -138,13 +138,21 @@ class TeamService {
     session.crashRecovery.resetWakeTimeout(found.slotId);
     const reason = session.crashRecovery.detectCrash({ type: msg.type, content: (msg.data as { status?: string; error?: string } | null) ?? undefined });
     if (!reason) return;
+    const isLeader = session.members.get(found.slotId)?.member.role === 'lead';
     if (session.crashRecovery.isRateLimited(reason)) {
       // 429 / quota → mark failed, no crash recovery (no testament / no kill).
       teamStore.updateMember(found.slotId, { status: 'failed' });
       ipcBridge.team.onAgentStatusChanged.emit({ team_id: found.teamId, slot_id: found.slotId, status: 'failed', last_message: 'rate limited' });
+      session.teamRun.handleSlotCrash(found.slotId, isLeader);
       return;
     }
     session.crashRecovery.handleCrash(found.slotId, reason);
+    // Clean up TeamRun state (appendix I.1 / 事实 9): a crashed slot's pending wake would otherwise
+    // strand the run active; a leader crash must fail the run. Also stop the dead member's loop so
+    // it does not retry a crashed agent.
+    session.teamRun.handleSlotCrash(found.slotId, isLeader);
+    const rt = session.members.get(found.slotId);
+    if (rt?.eventLoop) void rt.eventLoop.stop();
   }
 
   private findMemberByConversation(conversationId: string): { teamId: string; slotId: string } | null {
@@ -276,6 +284,28 @@ class TeamService {
     // Build an independent AcpAgent (skipCache keeps it out of the shared task list).
     const task = WorkerManage.buildConversation(createResult.conversation, { skipCache: true });
     const agent = (task ?? null) as unknown as AcpAgent | null;
+    if (!agent) {
+      // Attach failed (事实 8): roll back the member, do NOT start an event loop (which would
+      // otherwise retryChildStartLater forever against a null agent), and notify the leader.
+      teamStore.softDeleteMember(slotId);
+      const leaderId = this.leaderSlotOrNull(teamId);
+      if (leaderId) {
+        teamStore.insertMail({
+          id: uuid(),
+          team_id: teamId,
+          to_member_id: leaderId,
+          from_member_id: slotId,
+          type: 'message',
+          content: `Failed to attach agent for '${params.name}' (${backend}). Spawn aborted.`,
+          summary: null,
+          files: null,
+          read: false,
+          created_at: Date.now(),
+        });
+        this.notifyWake(teamId, leaderId);
+      }
+      throw new Error(`Failed to attach agent for ${params.name}`);
+    }
     const runtime: MemberRuntime = { member: { ...member }, agent, eventLoop: null };
     session.members.set(slotId, runtime);
 
@@ -296,6 +326,29 @@ class TeamService {
     eventLoop.start();
 
     teamStore.updateMember(slotId, { status: 'idle', conversation_id: conversationId });
+
+    // Welcome a new teammate (附录 §1.3 / I.2 spawn_welcome): a lifecycle wake so the member runs
+    // an introductory turn. The leader is driven directly by the user, so it needs no welcome.
+    if (role === 'teammate') {
+      const welcomeFrom = this.leaderSlotOrNull(teamId) ?? 'user';
+      const welcomeId = uuid();
+      teamStore.insertMail({
+        id: welcomeId,
+        team_id: teamId,
+        to_member_id: slotId,
+        from_member_id: welcomeFrom,
+        type: 'message',
+        content: `Welcome to team "${team.name}". You are a teammate named '${params.name}'. Wait for the leader to assign work and coordinate only via the team_* tools.`,
+        summary: null,
+        files: null,
+        read: false,
+        created_at: Date.now(),
+      });
+      const { lease } = session.teamRun.acquireWake(slotId, role, 'spawn_welcome');
+      session.teamRun.commitLease(lease.lease_id, { slot_id: slotId, role, source: 'spawn_welcome', message_id: welcomeId });
+      this.notifyWake(teamId, slotId);
+    }
+
     ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(member) });
     return member;
   }
@@ -393,9 +446,21 @@ class TeamService {
     return { active_run: session ? session.teamRun.toActiveRunEvent() : null };
   }
 
-  /** Cancel the active run: clears pending wakes + wake gate, marks reservations Cancelling. Active child turns finish on their own. */
+  /** Cancel the active run (附录 I.1): beginCancel + clear unread mailbox for all members (so RecoveryDrain does not resurrect cancelled work after restart) + cancel each active child turn. */
   cancelRun(teamId: string, reason?: string): void {
-    this.sessions.get(teamId)?.teamRun.beginCancel(reason);
+    const session = this.sessions.get(teamId);
+    if (!session) return;
+    session.teamRun.beginCancel(reason);
+    // Mark every member's unread mailbox read — cancelled work must not be re-delivered on restart.
+    for (const m of teamStore.listMembersByTeam(teamId)) {
+      const unread = teamStore.peekUnread(teamId, m.id);
+      if (unread.length > 0) teamStore.markReadBatch(unread.map((u) => u.id));
+    }
+    // Cancel each in-flight child turn (stop the agent + record cancelled).
+    const activeSlots = [...(session.teamRun.getRecord()?.active_child_turns.keys() ?? [])];
+    for (const slotId of activeSlots) {
+      void this.cancelChildTurn(teamId, slotId);
+    }
   }
 
   /** Cancel a single active child turn (附录 I.1 cancelChildTurn): stop the agent + record the child cancelled. The run is NOT forced terminal. */

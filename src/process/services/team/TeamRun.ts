@@ -286,6 +286,36 @@ export class TeamRunManager {
     run.pending_wakes.set(reservation.slot_id, queue);
   }
 
+  /**
+   * Handle a slot crash (附录 I.1 / 事实 9): clear the crashed slot's pending wakes + starting
+   * reservations, fail its active child (→ run failed), and on a leader crash fail the run
+   * outright. Without this, a crashed slot's retried pending wake strands the run active forever.
+   */
+  handleSlotCrash(slot: string, isLeader: boolean): void {
+    const run = this.record;
+    if (!run) return;
+    run.pending_wakes.delete(slot);
+    for (const [id, res] of run.starting_reservations) {
+      if (res.slot_id === slot) run.starting_reservations.delete(id);
+    }
+    const child = run.active_child_turns.get(slot);
+    if (child) {
+      run.active_child_turns.delete(slot);
+      this.failRun();
+      return;
+    }
+    if (isLeader) this.failRun();
+    else this.maybeComplete();
+  }
+
+  private failRun(): void {
+    const run = this.record;
+    if (!run || !this.isActive(run)) return;
+    run.status = 'failed';
+    run.completed_at = Date.now();
+    this.emitRun('team.runFailed');
+  }
+
   // ---- completion (附录 I.1 maybe_complete_locked) ----
 
   maybeComplete(): void {
