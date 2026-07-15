@@ -102,15 +102,39 @@ export function initTeamBridge(): void {
     }
   });
 
+  ipcBridge.team.cancelChildTurn.provider(async ({ teamId, slotId, turnId }) => {
+    try {
+      await teamService.cancelChildTurn(teamId, slotId, turnId);
+    } catch (err) {
+      mainError('TeamBridge', 'cancelChildTurn failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
+  ipcBridge.team.renewActiveLease.provider(async ({ teamId, leaseId }) => {
+    try {
+      teamService.renewActiveLease(teamId, leaseId);
+    } catch (err) {
+      mainError('TeamBridge', 'renewActiveLease failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
+  ipcBridge.team.setSessionMode.provider(async ({ teamId, sessionMode }) => {
+    try {
+      teamService.setSessionMode(teamId, sessionMode);
+    } catch (err) {
+      mainError('TeamBridge', 'setSessionMode failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
   // Run-lifecycle providers ship in later stages (TeamRun / EventLoop / CrashRecovery).
   ipcBridge.team.updateTeam.provider(async () => errEnvelope(new Error('Not implemented')));
   ipcBridge.team.renameTeam.provider(async () => errEnvelope(new Error('Not implemented')));
   ipcBridge.team.renameMember.provider(async () => errEnvelope(new Error('Not implemented')));
   ipcBridge.team.reorderMembers.provider(async () => errEnvelope(new Error('Not implemented')));
-  ipcBridge.team.cancelChildTurn.provider(async () => errEnvelope(new Error('Not implemented')));
   ipcBridge.team.pauseMember.provider(async () => errEnvelope(new Error('Not implemented')));
   ipcBridge.team.ensureSession.provider(async () => errEnvelope(new Error('Not implemented')));
   ipcBridge.team.stopSession.provider(async () => errEnvelope(new Error('Not implemented')));
-  ipcBridge.team.renewActiveLease.provider(async () => errEnvelope(new Error('Not implemented')));
-  ipcBridge.team.setSessionMode.provider(async () => errEnvelope(new Error('Not implemented')));
 }

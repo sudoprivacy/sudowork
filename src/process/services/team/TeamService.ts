@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { ipcBridge } from '@/common';
-import type { ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
+import type { IResponseMessage, ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
@@ -22,6 +22,7 @@ import { EventLoop } from './EventLoop';
 import { TeamRunManager } from './TeamRun';
 import { RecoveryDrain } from './RecoveryDrain';
 import { TaskBoard } from './TaskBoard';
+import { CrashRecovery } from './CrashRecovery';
 import { mergeTeamAssistants, type DetectedAgentLike, type InstalledAssistantLike } from './assistantMerger';
 import { SlotWakeGate } from './SlotWakeGate';
 import type { WakeSource } from './WakeSource';
@@ -51,6 +52,7 @@ interface TeamSession {
   members: Map<string, MemberRuntime>;
   wakeGate: SlotWakeGate;
   teamRun: TeamRunManager;
+  crashRecovery: CrashRecovery;
   /** Pending shutdown requests: slot_id → reason. Drives the shutdown-protocol interception in team_send_message. */
   pendingShutdowns: Map<string, string | null>;
   httpServer: http.Server | null;
@@ -98,15 +100,22 @@ function toMemberIPC(m: TeamMember): ITeamMember {
 class TeamService {
   private initialized = false;
   private sessions = new Map<string, TeamSession>();
+  private streamUnsubscribe: (() => void) | null = null;
 
   async init(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
+    // Crash detection (附录 §1.6): subscribe to the shared responseStream — AcpAgent owns its
+    // connection callbacks, so TeamService watches the emitted stream for disconnected/error.
+    this.streamUnsubscribe = ipcBridge.acpConversation.responseStream.on((msg) => this.handleResponseStream(msg));
     mainLog('TeamService', 'initialized');
   }
 
   cleanup(): void {
+    this.streamUnsubscribe?.();
+    this.streamUnsubscribe = null;
     for (const [, session] of this.sessions) {
+      session.crashRecovery.dispose();
       for (const [, rt] of session.members) {
         if (rt.eventLoop) void rt.eventLoop.stop();
         if (rt.agent)
@@ -118,6 +127,33 @@ class TeamService {
     }
     this.sessions.clear();
     this.initialized = false;
+  }
+
+  /** Route a responseStream event to the owning member's crash recovery (reset watchdog + detect). */
+  private handleResponseStream(msg: IResponseMessage): void {
+    const found = this.findMemberByConversation(msg.conversation_id);
+    if (!found) return;
+    const session = this.sessions.get(found.teamId);
+    if (!session) return;
+    session.crashRecovery.resetWakeTimeout(found.slotId);
+    const reason = session.crashRecovery.detectCrash({ type: msg.type, content: (msg.data as { status?: string; error?: string } | null) ?? undefined });
+    if (!reason) return;
+    if (session.crashRecovery.isRateLimited(reason)) {
+      // 429 / quota → mark failed, no crash recovery (no testament / no kill).
+      teamStore.updateMember(found.slotId, { status: 'failed' });
+      ipcBridge.team.onAgentStatusChanged.emit({ team_id: found.teamId, slot_id: found.slotId, status: 'failed', last_message: 'rate limited' });
+      return;
+    }
+    session.crashRecovery.handleCrash(found.slotId, reason);
+  }
+
+  private findMemberByConversation(conversationId: string): { teamId: string; slotId: string } | null {
+    for (const [teamId, session] of this.sessions) {
+      for (const [slotId, rt] of session.members) {
+        if (rt.member.conversation_id === conversationId) return { teamId, slotId };
+      }
+    }
+    return null;
   }
 
   async createTeam(userId: string, name: string, workspace: string | null, leaderAssistantId: string, leaderName?: string, leaderModel?: string): Promise<Team> {
@@ -209,6 +245,9 @@ class TeamService {
         isTeamMember: true,
         teamId,
         teamMcpConfig,
+        // Inherit the team's permission mode (new members adopt it; existing members are not retro-changed —
+        // AcpAgent exposes no public mode setter, so live propagation is left to a future AcpAgent API).
+        sessionMode: team.session_mode ?? undefined,
       },
     });
     if (!createResult.success || !createResult.conversation) {
@@ -248,6 +287,7 @@ class TeamService {
       getAgent: () => runtime.agent,
       wakeGate: session.wakeGate,
       teamRun: session.teamRun,
+      crashRecovery: session.crashRecovery,
       leaderSlotId: () => this.leaderSlot(teamId),
       onWakeSlot: (targetSlot) => this.notifyWake(teamId, targetSlot),
       lookupMember: (sid) => this.lookupMember(teamId, sid),
@@ -358,6 +398,36 @@ class TeamService {
     this.sessions.get(teamId)?.teamRun.beginCancel(reason);
   }
 
+  /** Cancel a single active child turn (附录 I.1 cancelChildTurn): stop the agent + record the child cancelled. The run is NOT forced terminal. */
+  async cancelChildTurn(teamId: string, slotId: string, turnId?: string): Promise<void> {
+    const session = this.sessions.get(teamId);
+    if (!session) return;
+    const child = session.teamRun.getRecord()?.active_child_turns.get(slotId);
+    if (!child) return;
+    const targetTurnId = turnId ?? child.turn_id;
+    if (child.turn_id !== targetTurnId) return; // stale — a different turn is now active
+    const rt = session.members.get(slotId);
+    if (rt?.agent) {
+      try {
+        await rt.agent.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    session.teamRun.recordChildCompleted(slotId, { turn_id: targetTurnId, status: 'cancelled' });
+  }
+
+  /** Renew an operation lease timeout (附录 I.1 renewActiveLease). Stage 5: leases have no timeout yet, so this is a forward-compatible no-op. */
+  renewActiveLease(teamId: string, leaseId: string): void {
+    this.sessions.get(teamId)?.teamRun.renewActiveLease(leaseId);
+  }
+
+  /** Set the team-level permission mode: persist + broadcast (new members inherit via spawnMember). */
+  setSessionMode(teamId: string, sessionMode: string): void {
+    teamStore.updateTeam(teamId, { session_mode: sessionMode });
+    ipcBridge.team.onSessionChanged.emit({ teamId });
+  }
+
   // ---- Team-mcp HTTP loopback (plan §1.5 / §A1) ----
 
   /** Idempotently ensure a team session exists with its HTTP loopback listening. */
@@ -366,10 +436,34 @@ class TeamService {
     if (existing) return existing;
     const { server, port, token } = await this.startTeamHttpServer(teamId);
     const wakeGate = new SlotWakeGate();
+    const crashRecovery = new CrashRecovery({
+      teamId,
+      getMember: (slot) => this.lookupMember(teamId, slot),
+      leaderSlotId: () => this.leaderSlotOrNull(teamId),
+      setStatus: (slot, status, lastMessage) => {
+        teamStore.updateMember(slot, { status });
+        ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: slot, status, last_message: lastMessage });
+      },
+      writeMail: (toMemberId, fromMemberId, type, content) =>
+        teamStore.insertMail({
+          id: uuid(),
+          team_id: teamId,
+          to_member_id: toMemberId,
+          from_member_id: fromMemberId,
+          type,
+          content,
+          summary: null,
+          files: null,
+          read: false,
+          created_at: Date.now(),
+        }),
+      notifyWake: (slot) => this.notifyWake(teamId, slot),
+    });
     const session: TeamSession = {
       members: new Map(),
       wakeGate,
       teamRun: new TeamRunManager(teamId, wakeGate),
+      crashRecovery,
       pendingShutdowns: new Map(),
       httpServer: server,
       port,

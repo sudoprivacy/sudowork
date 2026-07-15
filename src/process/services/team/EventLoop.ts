@@ -39,6 +39,8 @@ export interface EventLoopDeps {
   getAgent: () => AcpAgent | null;
   wakeGate: SlotWakeGate;
   teamRun: TeamRunManager;
+  /** Crash recovery (watchdog arm/disarm). Optional so unit tests can omit it. */
+  crashRecovery?: { armWakeTimeout: (slot: string) => void; disarmWakeTimeout: (slot: string) => void } | null;
   leaderSlotId: () => string | null;
   /** Wake another slot in the same team (e.g. leader after a teammate goes idle). */
   onWakeSlot: (slotId: string, source: WakeSource) => void;
@@ -133,6 +135,7 @@ export class EventLoop {
       return null;
     }
     this.busy = true;
+    this.deps.crashRecovery?.armWakeTimeout(this.deps.slotId);
     // I.7: mirror non-user unread into this member's conversation (left bubbles) before the turn.
     mirrorUnreadToConversation(this.deps.member.team_id, this.deps.member, messages, this.deps.lookupMember);
     teamStore.updateMember(this.deps.slotId, { status: 'working' });
@@ -153,6 +156,7 @@ export class EventLoop {
       this.markIdle();
       return null;
     } finally {
+      this.deps.crashRecovery?.disarmWakeTimeout(this.deps.slotId);
       this.busy = false;
     }
   }

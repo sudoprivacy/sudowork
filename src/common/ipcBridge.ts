@@ -1210,6 +1210,12 @@ export const team = {
   onChildTurnCancelled: bridge.buildEmitter<ITeamChildTurnEvent>('team.child-turn-cancelled'),
 };
 
+// Realtime transport events (附录 §1.7). Fired by the WS adapter on reconnect so subscribers
+// (e.g. the team run view) can reconcile state they may have missed while disconnected.
+export const realtime = {
+  reconnected: bridge.buildEmitter<void>('realtime.reconnected'),
+};
+
 // Cron job types for IPC
 export type ICronSchedule = { kind: 'at'; atMs: number; description: string } | { kind: 'every'; everyMs: number; description: string } | { kind: 'cron'; expr: string; tz?: string; description: string };
 
