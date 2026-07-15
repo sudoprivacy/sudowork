@@ -4,6 +4,7 @@ import type { AcpBackendAll, PresetAgentType } from '@/types/acpTypes';
 const MARK_READ_BATCH_CHUNK = 500;
 
 export type TeamMemberRole = 'lead' | 'teammate';
+export type TeamWorkspaceKind = 'custom' | 'temporary';
 export type TeamMailboxType = 'message' | 'idle_notification' | 'shutdown_request';
 export type TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled' | 'deleted';
 
@@ -12,6 +13,7 @@ export interface Team {
   user_id: string;
   name: string;
   workspace: string | null;
+  workspace_kind: TeamWorkspaceKind | null;
   leader_member_id: string | null;
   session_mode: string | null;
   created_at: number;
@@ -67,6 +69,7 @@ interface TeamRow {
   user_id: string;
   name: string;
   workspace: string | null;
+  workspace_kind: TeamWorkspaceKind | null;
   leader_member_id: string | null;
   session_mode: string | null;
   created_at: number;
@@ -204,12 +207,13 @@ class TeamStore {
 
   insertTeam(team: Team): void {
     const result = getDatabase().mutate(
-      `INSERT INTO teams (id, user_id, name, workspace, leader_member_id, session_mode, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO teams (id, user_id, name, workspace, workspace_kind, leader_member_id, session_mode, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       team.id,
       team.user_id,
       team.name,
       team.workspace,
+      team.workspace_kind,
       team.leader_member_id,
       team.session_mode,
       team.created_at,
@@ -223,10 +227,11 @@ class TeamStore {
     if (!existing) throw new Error(`Team not found: ${teamId}`);
     const merged: Team = { ...existing, ...updates, updated_at: Date.now() };
     const result = getDatabase().mutate(
-      `UPDATE teams SET name = ?, workspace = ?, leader_member_id = ?, session_mode = ?, updated_at = ?
+      `UPDATE teams SET name = ?, workspace = ?, workspace_kind = ?, leader_member_id = ?, session_mode = ?, updated_at = ?
        WHERE id = ? AND deleted = 0`,
       merged.name,
       merged.workspace,
+      merged.workspace_kind,
       merged.leader_member_id,
       merged.session_mode,
       merged.updated_at,
@@ -303,6 +308,11 @@ class TeamStore {
 
   softDeleteMember(memberId: string): void {
     const result = getDatabase().mutate(`UPDATE team_members SET deleted = 1 WHERE id = ?`, memberId);
+    if (!result.success) throw new Error(result.error);
+  }
+
+  softDeleteMembersByTeam(teamId: string): void {
+    const result = getDatabase().mutate(`UPDATE team_members SET deleted = 1 WHERE team_id = ?`, teamId);
     if (!result.success) throw new Error(result.error);
   }
 

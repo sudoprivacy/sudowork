@@ -11,7 +11,10 @@
     "leaderLabel": "Leader Assistant",
     "leaderPlaceholder": "Select an assistant to lead the team",
     "workspaceLabel": "Workspace",
-    "workspacePlaceholder": "Workspace path (optional)",
+    "selectFolder": "Select project folder",
+    "clearWorkspace": "Use temporary space",
+    "temporaryWorkspaceHint": "Leave empty to use a shared temporary team workspace.",
+    "selectWorkspaceFailed": "Failed to select folder.",
     "submit": "Create",
     "cancel": "Cancel",
     "noAssistants": "No assistants available. Install one first.",
@@ -20,7 +23,11 @@
   "detail": {
     "memberTab": "Team Members",
     "leaderChat": "Leader",
-    "selectMember": "Select a member"
+    "selectMember": "Select a member",
+    "workspaceTitle": "Workspace",
+    "workspaceCustom": "Custom workspace",
+    "workspaceTemporary": "Temporary team workspace",
+    "workspacePending": "Workspace is not ready"
   },
   "status": {
     "pending": "Pending",
@@ -40,7 +47,14 @@
     "export": "Export"
   },
   "confirm": {
+    "deleteTeamTitle": "Delete team?",
     "deleteTeam": "Delete this team? Members will be removed.",
+    "deleteTeamTemporary": "Delete this team? Members will be removed, and the temporary team workspace will be cleaned up safely.",
+    "deleteWorkspaceOption": "Also delete workspace folder",
+    "confirmDelete": "Delete",
+    "cancelDelete": "Cancel",
+    "deleteSuccess": "Team deleted",
+    "deleteFailed": "Failed to delete team",
     "removeMember": "Remove this member from the team?"
   }
 }

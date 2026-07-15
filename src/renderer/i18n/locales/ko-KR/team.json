@@ -11,6 +11,10 @@
     "leaderLabel": "리더 어시스턴트",
     "leaderPlaceholder": "팀을 이끌 어시스턴트를 선택하세요",
     "workspaceLabel": "워크스페이스",
+    "selectFolder": "프로젝트 폴더 선택",
+    "clearWorkspace": "임시 공간 사용",
+    "temporaryWorkspaceHint": "비워 두면 공유 팀 임시 워크스페이스를 사용합니다.",
+    "selectWorkspaceFailed": "폴더 선택에 실패했습니다.",
     "submit": "생성",
     "cancel": "취소",
     "noAssistants": "사용 가능한 어시스턴트가 없습니다. 먼저 설치하세요.",
@@ -19,7 +23,11 @@
   "detail": {
     "memberTab": "팀 멤버",
     "leaderChat": "리더",
-    "selectMember": "멤버 선택"
+    "selectMember": "멤버 선택",
+    "workspaceTitle": "워크스페이스",
+    "workspaceCustom": "사용자 지정 워크스페이스",
+    "workspaceTemporary": "팀 임시 워크스페이스",
+    "workspacePending": "워크스페이스가 아직 준비되지 않았습니다"
   },
   "status": {
     "pending": "대기 중",
@@ -39,7 +47,14 @@
     "export": "내보내기"
   },
   "confirm": {
+    "deleteTeamTitle": "팀을 삭제하시겠습니까?",
     "deleteTeam": "이 팀을 삭제하시겠습니까? 멤버가 제거됩니다.",
+    "deleteTeamTemporary": "이 팀을 삭제하시겠습니까? 멤버가 제거되고 팀 임시 워크스페이스가 안전 규칙에 따라 정리됩니다.",
+    "deleteWorkspaceOption": "워크스페이스 폴더도 함께 삭제",
+    "confirmDelete": "삭제",
+    "cancelDelete": "취소",
+    "deleteSuccess": "팀이 삭제되었습니다",
+    "deleteFailed": "팀 삭제에 실패했습니다",
     "removeMember": "이 멤버를 팀에서 제거하시겠습니까?"
   }
 }

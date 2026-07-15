@@ -50,9 +50,9 @@ export function initTeamBridge(): void {
     }
   });
 
-  ipcBridge.team.removeTeam.provider(async ({ teamId }) => {
+  ipcBridge.team.removeTeam.provider(async ({ teamId, deleteWorkspace }) => {
     try {
-      await teamService.removeTeam(teamId);
+      await teamService.removeTeam(teamId, deleteWorkspace);
     } catch (err) {
       mainError('TeamBridge', 'removeTeam failed:', err);
       return errEnvelope(err);

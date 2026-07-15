@@ -17,7 +17,8 @@ import type AcpAgent from '@process/task/AcpAgent';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { createConversation } from '../conversationService';
-import { teamStore, type Team, type TeamMail, type TeamMember } from './TeamStore';
+import { reapConversation, resolveWorkspaceDeletion } from '../conversationReaper';
+import { teamStore, type Team, type TeamMail, type TeamMember, type TeamWorkspaceKind } from './TeamStore';
 import { buildGovernancePrompt } from './GovernancePrompt';
 import { EventLoop } from './EventLoop';
 import { TeamRunManager } from './TeamRun';
@@ -184,11 +185,13 @@ class TeamService {
   async createTeam(userId: string, name: string, workspace: string | null, leaderAssistantId: string, leaderName?: string, leaderModel?: string): Promise<Team> {
     const now = Date.now();
     const teamId = uuid();
+    const workspaceKind: TeamWorkspaceKind | null = workspace ? 'custom' : null;
     const team: Team = {
       id: teamId,
       user_id: userId,
       name,
       workspace,
+      workspace_kind: workspaceKind,
       leader_member_id: null,
       session_mode: null,
       created_at: now,
@@ -202,7 +205,15 @@ class TeamService {
       model: leaderModel,
       role: 'lead',
     });
-    teamStore.updateTeam(teamId, { leader_member_id: leader.id });
+    const updates: Partial<Team> = { leader_member_id: leader.id };
+    const leaderConversation = leader.conversation_id ? getDatabase().getConversation(leader.conversation_id).data : null;
+    if (!workspace) {
+      const resolvedWorkspace = leaderConversation?.extra?.workspace;
+      if (!resolvedWorkspace) throw new Error('Leader conversation did not resolve a team workspace');
+      updates.workspace = resolvedWorkspace;
+      updates.workspace_kind = 'temporary';
+    }
+    teamStore.updateTeam(teamId, updates);
 
     // Recovery drain: re-deliver any unread mailbox backlog at session start (no-op for a fresh team).
     const session = this.sessions.get(teamId);
@@ -211,7 +222,7 @@ class TeamService {
     }
 
     ipcBridge.team.onListChanged.emit({ team_id: teamId, action: 'created' });
-    return { ...team, leader_member_id: leader.id, updated_at: Date.now() };
+    return teamStore.getTeam(teamId) ?? { ...team, ...updates, updated_at: Date.now() };
   }
 
   async spawnMember(teamId: string, params: { assistant_id: string; name: string; model?: string; role?: 'lead' | 'teammate' }): Promise<TeamMember> {
@@ -256,13 +267,18 @@ class TeamService {
       ],
     };
 
+    const isResolvingInitialTeamWorkspace = role === 'lead' && !team.workspace && !team.workspace_kind;
+    if (!isResolvingInitialTeamWorkspace && !team.workspace) throw new Error(`Team workspace is not resolved: ${teamId}`);
+    const customWorkspace = team.workspace_kind === 'custom';
+
     const createResult = await createConversation({
       type: 'acp',
       name: params.name,
       extra: {
         backend,
         workspace: team.workspace || undefined,
-        customWorkspace: true,
+        customWorkspace: isResolvingInitialTeamWorkspace ? false : customWorkspace,
+        teamOwnedWorkspace: true,
         presetAssistantId: params.assistant_id,
         presetContext: presetContext || undefined,
         enabledSkills,
@@ -479,10 +495,32 @@ class TeamService {
     };
   }
 
-  async removeTeam(teamId: string): Promise<void> {
+  async removeTeam(teamId: string, deleteWorkspace?: boolean): Promise<void> {
+    const team = teamStore.getTeam(teamId);
+    if (!team) throw new Error(`Team not found: ${teamId}`);
+    const members = teamStore.listMembersByTeam(teamId);
+
     await this.stopSession(teamId);
+    for (const member of members) {
+      if (member.conversation_id) {
+        await reapConversation(member.conversation_id, { reason: 'user-delete', deleteWorkspace: false });
+      }
+    }
+    teamStore.softDeleteMembersByTeam(teamId);
     teamStore.softDeleteTeam(teamId);
+    await this.removeTeamWorkspace(team, deleteWorkspace);
     ipcBridge.team.onListChanged.emit({ team_id: teamId, action: 'removed' });
+  }
+
+  private async removeTeamWorkspace(team: Team, deleteWorkspace?: boolean): Promise<void> {
+    if (!team.workspace) return;
+    if (team.workspace_kind === 'temporary') {
+      if (!resolveWorkspaceDeletion(team.workspace, false, undefined)) return;
+    } else if (!resolveWorkspaceDeletion(team.workspace, true, deleteWorkspace)) {
+      return;
+    }
+
+    await fs.promises.rm(team.workspace, { recursive: true, force: true });
   }
 
   async removeMember(teamId: string, slotId: string): Promise<void> {

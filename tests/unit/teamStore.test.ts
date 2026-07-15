@@ -27,6 +27,7 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
     user_id: 'u1',
     name: 'Team A',
     workspace: '/tmp/ws',
+    workspace_kind: 'custom',
     leader_member_id: null,
     session_mode: null,
     created_at: 1000,
@@ -83,12 +84,13 @@ beforeEach(() => {
   h.runTransaction.mockImplementation(<T>(fn: () => T) => ({ success: true, data: fn() }));
 });
 
-describe('migration_v24', () => {
-  it('CURRENT_DB_VERSION is 24', () => {
-    expect(CURRENT_DB_VERSION).toBe(24);
+describe('team migrations', () => {
+  it('CURRENT_DB_VERSION is 25', () => {
+    expect(CURRENT_DB_VERSION).toBe(25);
   });
-  it('ALL_MIGRATIONS includes v24', () => {
+  it('ALL_MIGRATIONS includes v24 and v25', () => {
     expect(ALL_MIGRATIONS.some((m) => m.version === 24)).toBe(true);
+    expect(ALL_MIGRATIONS.some((m) => m.version === 25)).toBe(true);
   });
   it('migration_v24 has name + up/down functions', () => {
     const m = ALL_MIGRATIONS.find((x) => x.version === 24)!;
@@ -103,7 +105,9 @@ describe('TeamStore - team CRUD + soft delete', () => {
     teamStore.insertTeam(makeTeam());
     expect(h.mutate).toHaveBeenCalledTimes(1);
     expect(h.mutate.mock.calls[0][0]).toContain('INSERT INTO teams');
+    expect(h.mutate.mock.calls[0][0]).toContain('workspace_kind');
     expect(h.mutate.mock.calls[0][1]).toBe('team-1');
+    expect(h.mutate.mock.calls[0][5]).toBe('custom');
   });
   it('insertTeam throws on DB failure', () => {
     h.mutate.mockReturnValue({ success: false, error: 'boom' });
@@ -116,20 +120,22 @@ describe('TeamStore - team CRUD + soft delete', () => {
   it('getTeam queries with deleted = 0 filter and maps row', () => {
     h.queryOne.mockReturnValue({
       success: true,
-      data: { id: 'team-1', user_id: 'u1', name: 'A', workspace: null, leader_member_id: null, session_mode: null, created_at: 1, updated_at: 2 },
+      data: { id: 'team-1', user_id: 'u1', name: 'A', workspace: null, workspace_kind: null, leader_member_id: null, session_mode: null, created_at: 1, updated_at: 2 },
     });
     const t = teamStore.getTeam('team-1');
     expect(h.queryOne.mock.calls[0][0]).toContain('deleted = 0');
     expect(t?.id).toBe('team-1');
     expect(t?.name).toBe('A');
+    expect(t?.workspace_kind).toBeNull();
   });
   it('updateTeam merges and updates', () => {
     h.queryOne.mockReturnValue({
       success: true,
-      data: { id: 'team-1', user_id: 'u1', name: 'Old', workspace: null, leader_member_id: null, session_mode: null, created_at: 1, updated_at: 1 },
+      data: { id: 'team-1', user_id: 'u1', name: 'Old', workspace: null, workspace_kind: null, leader_member_id: null, session_mode: null, created_at: 1, updated_at: 1 },
     });
     teamStore.updateTeam('team-1', { name: 'New' });
     expect(h.mutate.mock.calls[0][0]).toContain('UPDATE teams');
+    expect(h.mutate.mock.calls[0][0]).toContain('workspace_kind');
     expect(h.mutate.mock.calls[0][1]).toBe('New');
   });
   it('updateTeam throws if team not found', () => {

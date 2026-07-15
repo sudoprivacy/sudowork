@@ -11,6 +11,10 @@
     "leaderLabel": "Leader 助手",
     "leaderPlaceholder": "选择一个助手担任团队 Leader",
     "workspaceLabel": "工作空间",
+    "selectFolder": "选择项目文件夹",
+    "clearWorkspace": "使用临时空间",
+    "temporaryWorkspaceHint": "留空将使用团队共享临时工作空间。",
+    "selectWorkspaceFailed": "选择文件夹失败。",
     "submit": "创建",
     "cancel": "取消",
     "noAssistants": "没有可用助手，请先安装一个。",
@@ -19,7 +23,11 @@
   "detail": {
     "memberTab": "团队成员",
     "leaderChat": "Leader",
-    "selectMember": "选择一个成员"
+    "selectMember": "选择一个成员",
+    "workspaceTitle": "工作空间",
+    "workspaceCustom": "自定义工作空间",
+    "workspaceTemporary": "团队临时工作空间",
+    "workspacePending": "工作空间尚未就绪"
   },
   "status": {
     "pending": "等待中",
@@ -39,7 +47,14 @@
     "export": "导出"
   },
   "confirm": {
+    "deleteTeamTitle": "删除团队？",
     "deleteTeam": "删除该团队？成员将被移除。",
+    "deleteTeamTemporary": "删除该团队？成员将被移除，团队临时工作空间将按安全规则清理。",
+    "deleteWorkspaceOption": "同时删除工作区文件夹",
+    "confirmDelete": "删除",
+    "cancelDelete": "取消",
+    "deleteSuccess": "团队已删除",
+    "deleteFailed": "删除团队失败",
     "removeMember": "将该成员移出团队？"
   }
 }

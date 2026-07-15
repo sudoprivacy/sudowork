@@ -298,6 +298,7 @@ export type TChatConversation =
           backend: AcpBackend;
           cliPath?: string;
           customWorkspace?: boolean;
+          teamOwnedWorkspace?: boolean;
           agentName?: string;
           customAgentId?: string; // UUID for identifying specific custom agent
           presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
@@ -371,6 +372,7 @@ export type TChatConversation =
           agentName?: string;
           /** Custom workspace flag */
           customWorkspace?: boolean;
+          teamOwnedWorkspace?: boolean;
           /** Custom agent ID */
           customAgentId?: string;
           /** Preset context/rules */

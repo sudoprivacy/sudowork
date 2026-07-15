@@ -11,6 +11,10 @@
     "leaderLabel": "リーダーアシスタント",
     "leaderPlaceholder": "チームを率いるアシスタントを選択",
     "workspaceLabel": "ワークスペース",
+    "selectFolder": "プロジェクトフォルダーを選択",
+    "clearWorkspace": "一時スペースを使用",
+    "temporaryWorkspaceHint": "空のままにすると、共有のチーム一時ワークスペースを使用します。",
+    "selectWorkspaceFailed": "フォルダーの選択に失敗しました。",
     "submit": "作成",
     "cancel": "キャンセル",
     "noAssistants": "利用可能なアシスタントがありません。先にインストールしてください。",
@@ -19,7 +23,11 @@
   "detail": {
     "memberTab": "チームメンバー",
     "leaderChat": "リーダー",
-    "selectMember": "メンバーを選択"
+    "selectMember": "メンバーを選択",
+    "workspaceTitle": "ワークスペース",
+    "workspaceCustom": "カスタムワークスペース",
+    "workspaceTemporary": "チーム一時ワークスペース",
+    "workspacePending": "ワークスペースはまだ準備できていません"
   },
   "status": {
     "pending": "待機中",
@@ -39,7 +47,14 @@
     "export": "エクスポート"
   },
   "confirm": {
+    "deleteTeamTitle": "チームを削除しますか？",
     "deleteTeam": "このチームを削除しますか？メンバーは削除されます。",
+    "deleteTeamTemporary": "このチームを削除しますか？メンバーは削除され、チーム一時ワークスペースは安全ルールに従ってクリーンアップされます。",
+    "deleteWorkspaceOption": "ワークスペースフォルダーも削除する",
+    "confirmDelete": "削除",
+    "cancelDelete": "キャンセル",
+    "deleteSuccess": "チームを削除しました",
+    "deleteFailed": "チームの削除に失敗しました",
     "removeMember": "このメンバーをチームから削除しますか？"
   }
 }

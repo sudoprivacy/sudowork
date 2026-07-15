@@ -68,6 +68,7 @@ export interface ReapResult {
 type ReapExtra = NonNullable<TChatConversation['extra']> & {
   workspace?: string;
   customWorkspace?: boolean;
+  teamOwnedWorkspace?: boolean;
   cronJobId?: string;
 };
 
@@ -77,7 +78,7 @@ type ReapExtra = NonNullable<TChatConversation['extra']> & {
  * additionally requires the path to structurally match an auto temp workspace
  * (directly under workDir, `<backend>-temp-<ts>` basename).
  */
-function resolveWorkspaceDeletion(workspacePath: string | undefined, customWorkspace: boolean | undefined, deleteWorkspace: boolean | undefined): boolean {
+export function isSafeAutoWorkspacePath(workspacePath: string | undefined): boolean {
   if (!workspacePath) return false;
 
   const resolved = path.resolve(workspacePath);
@@ -86,16 +87,29 @@ function resolveWorkspaceDeletion(workspacePath: string | undefined, customWorks
   // Never remove the workDir root itself or a filesystem root.
   if (resolved === workDir || path.dirname(resolved) === resolved) return false;
 
+  return path.dirname(resolved) === workDir && TEMP_WORKSPACE_REGEX.test(path.basename(resolved));
+}
+
+export function resolveWorkspaceDeletion(workspacePath: string | undefined, customWorkspace: boolean | undefined, deleteWorkspace: boolean | undefined, isTeamOwnedWorkspace: boolean = false): boolean {
+  if (!workspacePath) return false;
+
+  const resolved = path.resolve(workspacePath);
+  const workDir = path.resolve(getSystemDir().workDir);
+
+  // Never remove the workDir root itself or a filesystem root.
+  if (resolved === workDir || path.dirname(resolved) === resolved) return false;
+
+  if (deleteWorkspace === false) return false;
+  if (isTeamOwnedWorkspace) return false;
+
   if (deleteWorkspace === true) {
     // Explicit user request (checkbox). Honor it for both custom folders and auto scratch.
     return true;
   }
-  if (deleteWorkspace === false) return false;
 
   // undefined → auto-resolve. Only disposable auto scratch dirs, and only if the
   // path really is one (defensive guard against a mis-set customWorkspace flag).
-  const isAutoPath = path.dirname(resolved) === workDir && TEMP_WORKSPACE_REGEX.test(path.basename(resolved));
-  return customWorkspace === false && isAutoPath;
+  return customWorkspace === false && isSafeAutoWorkspacePath(workspacePath);
 }
 
 /**
@@ -197,7 +211,7 @@ export async function reapConversation(id: string, opts: ReapOptions): Promise<R
   }
 
   // 9. Workspace removal LAST (process dead + row gone).
-  if (resolveWorkspaceDeletion(workspacePath, extra?.customWorkspace, opts.deleteWorkspace)) {
+  if (resolveWorkspaceDeletion(workspacePath, extra?.customWorkspace, opts.deleteWorkspace, extra?.teamOwnedWorkspace === true)) {
     await runStep('workspace-rm', async () => {
       await fs.rm(workspacePath as string, { recursive: true, force: true });
       result.workspaceDeleted = true;

@@ -62,6 +62,26 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
   }, [visible]);
 
   const selected = useMemo(() => assistants.find((a) => a.assistant_id === selectedId), [assistants, selectedId]);
+  const workspaceName = useMemo(
+    () =>
+      workspace
+        .split(/[\\/]+/)
+        .filter(Boolean)
+        .pop() ?? workspace,
+    [workspace]
+  );
+
+  const onSelectWorkspace = async () => {
+    try {
+      const res = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory', 'createDirectory'] });
+      if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+        setWorkspace(res.data.filePaths[0]);
+      }
+    } catch (e) {
+      console.error('[TeamFormDrawer] select workspace failed:', e);
+      Message.error(t('team.create.selectWorkspaceFailed'));
+    }
+  };
 
   const handleSubmit = async () => {
     if (!name.trim() || !selected) return;
@@ -91,9 +111,6 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
         <Form.Item label={t('team.create.nameLabel')}>
           <Input value={name} onChange={setName} placeholder={t('team.create.namePlaceholder')} />
         </Form.Item>
-        <Form.Item label={t('team.create.workspaceLabel')}>
-          <Input value={workspace} onChange={setWorkspace} placeholder={t('team.create.workspacePlaceholder')} />
-        </Form.Item>
         <Form.Item label={t('team.create.leaderLabel')}>
           {loading ? (
             <Spin />
@@ -108,6 +125,23 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
               ))}
             </Radio.Group>
           )}
+        </Form.Item>
+        <Form.Item label={t('team.create.workspaceLabel')}>
+          <div className='flex flex-col gap-2'>
+            <Button long onClick={onSelectWorkspace} className='!justify-start !text-left'>
+              {workspace ? <span className='truncate'>{workspaceName}</span> : <span className='text-gray-400'>{t('team.create.selectFolder')}</span>}
+            </Button>
+            {workspace ? (
+              <div className='flex items-center gap-2 min-w-0'>
+                <span className='flex-1 truncate text-12px text-gray-400'>{workspace}</span>
+                <Button size='mini' type='text' onClick={() => setWorkspace('')}>
+                  {t('team.create.clearWorkspace')}
+                </Button>
+              </div>
+            ) : (
+              <div className='text-12px text-gray-400'>{t('team.create.temporaryWorkspaceHint')}</div>
+            )}
+          </div>
         </Form.Item>
         <div className='flex gap-8px justify-end mt-12px'>
           <Button onClick={onClose}>{t('team.create.cancel')}</Button>

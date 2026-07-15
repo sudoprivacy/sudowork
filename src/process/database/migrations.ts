@@ -1381,6 +1381,7 @@ const migration_v24: IMigration = {
         user_id TEXT NOT NULL,
         name TEXT NOT NULL,
         workspace TEXT,
+        workspace_kind TEXT CHECK(workspace_kind IN ('custom', 'temporary')),
         leader_member_id TEXT,
         session_mode TEXT,
         deleted INTEGER DEFAULT 0,
@@ -1465,6 +1466,47 @@ const migration_v24: IMigration = {
 };
 
 /**
+ * Migration v24 -> v25: Track team workspace ownership kind.
+ */
+const migration_v25: IMigration = {
+  version: 25,
+  name: 'Add team workspace kind',
+  up: (db) => {
+    const tableInfo = db.prepare('PRAGMA table_info(teams)').all() as Array<{ name: string }>;
+    const hasWorkspaceKind = tableInfo.some((col) => col.name === 'workspace_kind');
+
+    if (!hasWorkspaceKind) {
+      db.exec(`ALTER TABLE teams ADD COLUMN workspace_kind TEXT CHECK(workspace_kind IN ('custom', 'temporary'));`);
+    }
+    db.exec(`UPDATE teams SET workspace_kind = 'custom' WHERE workspace IS NOT NULL AND workspace_kind IS NULL;`);
+    mainLog('Migration v25', 'Added team workspace kind');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE teams_v25_rollback (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        workspace TEXT,
+        leader_member_id TEXT,
+        session_mode TEXT,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      INSERT INTO teams_v25_rollback (id, user_id, name, workspace, leader_member_id, session_mode, deleted, created_at, updated_at)
+      SELECT id, user_id, name, workspace, leader_member_id, session_mode, deleted, created_at, updated_at FROM teams;
+      DROP TABLE teams;
+      ALTER TABLE teams_v25_rollback RENAME TO teams;
+      CREATE INDEX IF NOT EXISTS idx_teams_user_id ON teams(user_id);
+      CREATE INDEX IF NOT EXISTS idx_teams_updated_at ON teams(updated_at);
+    `);
+    mainLog('Migration v25', 'Rolled back: Removed team workspace kind');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1473,6 +1515,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
+  migration_v25,
 ];
 
 /**

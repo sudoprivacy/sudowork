@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const h = vi.hoisted(() => ({
   workDir: '',
@@ -93,6 +93,19 @@ describe('conversationReaper', () => {
     expect(h.stopTelemetry).toHaveBeenCalledWith('conv-1');
     expect(h.deleteConversation).toHaveBeenCalledWith('conv-1');
     expect(h.reapedEmit).toHaveBeenCalledWith({ id: 'conv-1' });
+  });
+
+  it('keeps a team-owned temp workspace when deleting a member conversation', async () => {
+    const ws = path.join(h.workDir, 'scode-temp-1700000000000');
+    fs.mkdirSync(ws, { recursive: true });
+    h.conversation = makeConversation({ workspace: ws, customWorkspace: false, teamOwnedWorkspace: true });
+
+    const { reapConversation } = await importReaper();
+    const res = await reapConversation('conv-1', { reason: 'user-delete' });
+
+    expect(res.workspaceDeleted).toBe(false);
+    expect(fs.existsSync(ws)).toBe(true);
+    expect(res.dbDeleted).toBe(true);
   });
 
   it('keeps a custom workspace folder when no delete flag is given', async () => {

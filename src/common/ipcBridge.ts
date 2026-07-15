@@ -1171,7 +1171,7 @@ export const team = {
   listMembers: bridge.buildProvider<ITeamMember[], { teamId: string }>('team.list-members'),
   createTeam: bridge.buildProvider<ITeam, ICreateTeamParams>('team.create-team'),
   updateTeam: bridge.buildProvider<ITeam, { teamId: string; updates: Partial<ITeam> }>('team.update-team'),
-  removeTeam: bridge.buildProvider<void, { teamId: string }>('team.remove-team'),
+  removeTeam: bridge.buildProvider<void, { teamId: string; deleteWorkspace?: boolean }>('team.remove-team'),
   renameTeam: bridge.buildProvider<ITeam, { teamId: string; name: string }>('team.rename-team'),
   // Member management
   addMember: bridge.buildProvider<ITeamMember, IAddTeamMemberParams>('team.add-member'),
@@ -1268,11 +1268,14 @@ export interface ICreateCronJobParams {
 }
 
 // Team collaboration types for IPC
+export type ITeamWorkspaceKind = 'custom' | 'temporary';
+
 export interface ITeam {
   id: string;
   user_id: string;
   name: string;
   workspace?: string | null;
+  workspace_kind?: ITeamWorkspaceKind | null;
   leader_member_id?: string | null;
   session_mode?: string | null;
   created_at: number;
@@ -1460,6 +1463,7 @@ export interface ICreateConversationParams {
   extra: {
     workspace?: string;
     customWorkspace?: boolean;
+    teamOwnedWorkspace?: boolean;
     defaultFiles?: string[];
     backend?: AcpBackendAll;
     cliPath?: string;

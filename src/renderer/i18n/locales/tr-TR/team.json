@@ -11,6 +11,10 @@
     "leaderLabel": "Lider Asistan",
     "leaderPlaceholder": "Takıma liderlik edecek bir asistan seçin",
     "workspaceLabel": "Çalışma Alanı",
+    "selectFolder": "Proje klasörü seç",
+    "clearWorkspace": "Geçici alanı kullan",
+    "temporaryWorkspaceHint": "Boş bırakırsanız paylaşılan geçici takım çalışma alanı kullanılır.",
+    "selectWorkspaceFailed": "Klasör seçilemedi.",
     "submit": "Oluştur",
     "cancel": "İptal",
     "noAssistants": "Kullanılabilir asistan yok. Önce bir tane yükleyin.",
@@ -19,7 +23,11 @@
   "detail": {
     "memberTab": "Takım Üyeleri",
     "leaderChat": "Lider",
-    "selectMember": "Bir üye seçin"
+    "selectMember": "Bir üye seçin",
+    "workspaceTitle": "Çalışma Alanı",
+    "workspaceCustom": "Özel çalışma alanı",
+    "workspaceTemporary": "Geçici takım çalışma alanı",
+    "workspacePending": "Çalışma alanı hazır değil"
   },
   "status": {
     "pending": "Bekliyor",
@@ -39,7 +47,14 @@
     "export": "Dışa Aktar"
   },
   "confirm": {
+    "deleteTeamTitle": "Takım silinsin mi?",
     "deleteTeam": "Bu takım silinsin mi? Üyeler kaldırılacak.",
+    "deleteTeamTemporary": "Bu takım silinsin mi? Üyeler kaldırılacak ve geçici takım çalışma alanı güvenli kurallara göre temizlenecek.",
+    "deleteWorkspaceOption": "Çalışma alanı klasörünü de sil",
+    "confirmDelete": "Sil",
+    "cancelDelete": "İptal",
+    "deleteSuccess": "Takım silindi",
+    "deleteFailed": "Takım silinemedi",
     "removeMember": "Bu üye takımdan kaldırılsın mı?"
   }
 }

@@ -1,4 +1,4 @@
-import type { ITeamChildTurnEvent, ITeamRunAck, ITeamRunEvent, ITeamRunState, ITeamSlotWork } from '@/common/ipcBridge';
+import type { ITeamChildTurnEvent, ITeamRunAck, ITeamRunEvent, ITeamRunState, ITeamSlotWork, ITeamWorkspaceKind } from '@/common/ipcBridge';
 import type { AcpBackendAll } from '@/types/acpTypes';
 
 /** Frontend team member role (附录 II.11; backend uses 'lead', the mapper translates). */
@@ -25,6 +25,7 @@ export interface TTeam {
   user_id: string;
   name: string;
   workspace: string | null;
+  workspace_kind: ITeamWorkspaceKind | null;
   leader_member_id: string | null;
   assistants: TeamAssistant[];
   session_mode?: string | null;

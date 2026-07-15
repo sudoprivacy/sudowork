@@ -49,6 +49,16 @@ function TeamMemberListTab({ team, statusMap, onRemoveMember }: ITeamMemberListT
   }, [storageKey, activeSlotId]);
 
   const activeMember = useMemo(() => team.assistants.find((a) => a.slot_id === activeSlotId) ?? null, [team.assistants, activeSlotId]);
+  const workspaceName = useMemo(
+    () =>
+      team.workspace
+        ?.split(/[\\/]+/)
+        .filter(Boolean)
+        .pop() ??
+      team.workspace ??
+      '',
+    [team.workspace]
+  );
 
   const teamSendMessage = useMemo(() => {
     if (!activeMember) return undefined;
@@ -84,6 +94,19 @@ function TeamMemberListTab({ team, statusMap, onRemoveMember }: ITeamMemberListT
             </div>
           );
         })}
+        <div className='mt-2 border-t border-[var(--color-border-2)] pt-2'>
+          <div className='text-12px text-gray-400 mb-1'>{t('team.detail.workspaceTitle')}</div>
+          {team.workspace ? (
+            <div className='min-w-0'>
+              <div className='text-13px truncate'>{team.workspace_kind === 'temporary' ? t('team.detail.workspaceTemporary') : t('team.detail.workspaceCustom')}</div>
+              <div className='text-12px text-gray-400 truncate' title={team.workspace}>
+                {team.workspace_kind === 'temporary' ? team.workspace : workspaceName}
+              </div>
+            </div>
+          ) : (
+            <div className='text-12px text-gray-400'>{t('team.detail.workspacePending')}</div>
+          )}
+        </div>
       </div>
       <div className='flex-1 min-h-0 border-t border-[var(--color-border-2)]'>
         {activeMember && activeMember.conversation_id ? (
