@@ -1570,6 +1570,53 @@ const migration_v26: IMigration = {
 };
 
 /**
+ * Migration v26 -> v27: Add team pin state.
+ */
+const migration_v27: IMigration = {
+  version: 27,
+  name: 'Add team pin state',
+  up: (db) => {
+    const tableInfo = db.prepare('PRAGMA table_info(teams)').all() as Array<{ name: string }>;
+    const hasPinned = tableInfo.some((col) => col.name === 'pinned');
+    const hasPinnedAt = tableInfo.some((col) => col.name === 'pinned_at');
+
+    if (!hasPinned) {
+      db.exec(`ALTER TABLE teams ADD COLUMN pinned INTEGER DEFAULT 0;`);
+    }
+    if (!hasPinnedAt) {
+      db.exec(`ALTER TABLE teams ADD COLUMN pinned_at INTEGER;`);
+    }
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_teams_pin_order ON teams(user_id, pinned, pinned_at, updated_at);`);
+    mainLog('Migration v27', 'Added team pin state');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_teams_pin_order;
+      CREATE TABLE teams_v27_rollback (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        workspace TEXT,
+        workspace_kind TEXT CHECK(workspace_kind IN ('custom', 'temporary')),
+        leader_member_id TEXT,
+        session_mode TEXT,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      INSERT INTO teams_v27_rollback (id, user_id, name, workspace, workspace_kind, leader_member_id, session_mode, deleted, created_at, updated_at)
+      SELECT id, user_id, name, workspace, workspace_kind, leader_member_id, session_mode, deleted, created_at, updated_at FROM teams;
+      DROP TABLE teams;
+      ALTER TABLE teams_v27_rollback RENAME TO teams;
+      CREATE INDEX IF NOT EXISTS idx_teams_user_id ON teams(user_id);
+      CREATE INDEX IF NOT EXISTS idx_teams_updated_at ON teams(updated_at);
+    `);
+    mainLog('Migration v27', 'Rolled back: Removed team pin state');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1578,7 +1625,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
-  migration_v25, migration_v26,
+  migration_v25, migration_v26, migration_v27,
 ];
 
 /**

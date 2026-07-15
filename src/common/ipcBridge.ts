@@ -1279,6 +1279,8 @@ export interface ITeam {
   workspace_kind?: ITeamWorkspaceKind | null;
   leader_member_id?: string | null;
   session_mode?: string | null;
+  pinned?: boolean;
+  pinned_at?: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -1428,7 +1430,7 @@ export interface ITeamAgentRenamedEvent {
 
 export interface ITeamListChangedEvent {
   team_id: string;
-  action: 'created' | 'removed' | 'renamed' | 'agent_added' | 'agent_removed';
+  action: 'created' | 'removed' | 'renamed' | 'updated' | 'agent_added' | 'agent_removed';
 }
 
 export interface ITeamTeammateMessageEvent {

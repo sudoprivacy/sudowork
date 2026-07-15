@@ -16,6 +16,8 @@ export interface Team {
   workspace_kind: TeamWorkspaceKind | null;
   leader_member_id: string | null;
   session_mode: string | null;
+  pinned: boolean;
+  pinned_at: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -72,6 +74,8 @@ interface TeamRow {
   workspace_kind: TeamWorkspaceKind | null;
   leader_member_id: string | null;
   session_mode: string | null;
+  pinned?: number | null;
+  pinned_at?: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -143,7 +147,11 @@ function parseRecord(value: string | null | undefined): Record<string, unknown> 
 }
 
 function rowToTeam(row: TeamRow): Team {
-  return { ...row };
+  return {
+    ...row,
+    pinned: row.pinned === 1,
+    pinned_at: row.pinned_at ?? null,
+  };
 }
 
 function rowToMember(row: TeamMemberRow): TeamMember {
@@ -207,8 +215,8 @@ class TeamStore {
 
   insertTeam(team: Team): void {
     const result = getDatabase().mutate(
-      `INSERT INTO teams (id, user_id, name, workspace, workspace_kind, leader_member_id, session_mode, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO teams (id, user_id, name, workspace, workspace_kind, leader_member_id, session_mode, pinned, pinned_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       team.id,
       team.user_id,
       team.name,
@@ -216,6 +224,8 @@ class TeamStore {
       team.workspace_kind,
       team.leader_member_id,
       team.session_mode,
+      team.pinned ? 1 : 0,
+      team.pinned_at,
       team.created_at,
       team.updated_at
     );
@@ -227,13 +237,15 @@ class TeamStore {
     if (!existing) throw new Error(`Team not found: ${teamId}`);
     const merged: Team = { ...existing, ...updates, updated_at: Date.now() };
     const result = getDatabase().mutate(
-      `UPDATE teams SET name = ?, workspace = ?, workspace_kind = ?, leader_member_id = ?, session_mode = ?, updated_at = ?
+      `UPDATE teams SET name = ?, workspace = ?, workspace_kind = ?, leader_member_id = ?, session_mode = ?, pinned = ?, pinned_at = ?, updated_at = ?
        WHERE id = ? AND deleted = 0`,
       merged.name,
       merged.workspace,
       merged.workspace_kind,
       merged.leader_member_id,
       merged.session_mode,
+      merged.pinned ? 1 : 0,
+      merged.pinned_at,
       merged.updated_at,
       teamId
     );
@@ -252,13 +264,13 @@ class TeamStore {
   }
 
   listTeams(): Team[] {
-    const result = getDatabase().query<TeamRow>(`SELECT * FROM teams WHERE deleted = 0 ORDER BY updated_at DESC`);
+    const result = getDatabase().query<TeamRow>(`SELECT * FROM teams WHERE deleted = 0 ORDER BY pinned DESC, pinned_at DESC, updated_at DESC`);
     if (!result.success) throw new Error(result.error);
     return result.data.map(rowToTeam);
   }
 
   listByUser(userId: string): Team[] {
-    const result = getDatabase().query<TeamRow>(`SELECT * FROM teams WHERE user_id = ? AND deleted = 0 ORDER BY updated_at DESC`, userId);
+    const result = getDatabase().query<TeamRow>(`SELECT * FROM teams WHERE user_id = ? AND deleted = 0 ORDER BY pinned DESC, pinned_at DESC, updated_at DESC`, userId);
     if (!result.success) throw new Error(result.error);
     return result.data.map(rowToTeam);
   }

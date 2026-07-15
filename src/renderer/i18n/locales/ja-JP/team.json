@@ -49,10 +49,32 @@
     "teammate": "チームメイト"
   },
   "actions": {
+    "pin": "ピン留め",
+    "unpin": "ピン留め解除",
     "rename": "名前変更",
     "remove": "削除",
     "delete": "削除",
     "export": "エクスポート"
+  },
+  "rename": {
+    "title": "チーム名を変更",
+    "placeholder": "チーム名を入力",
+    "success": "チーム名を変更しました",
+    "failed": "チーム名の変更に失敗しました"
+  },
+  "pin": {
+    "failed": "ピン留め状態の更新に失敗しました"
+  },
+  "export": {
+    "dialogTitle": "チームをエクスポート",
+    "dialogDescription": "チーム情報、リーダーとメンバーの会話記録、チームワークスペースのファイルを ZIP としてエクスポートします。",
+    "targetFolder": "エクスポート先フォルダー",
+    "selectFolder": "エクスポート先フォルダーを選択してください",
+    "hint": "確認するとチームアーカイブのエクスポートを開始します。",
+    "exporting": "エクスポート中...",
+    "success": "チームをエクスポートしました",
+    "failed": "チームのエクスポートに失敗しました",
+    "canceled": "チームのエクスポートをキャンセルしました"
   },
   "confirm": {
     "deleteTeamTitle": "チームを削除しますか？",

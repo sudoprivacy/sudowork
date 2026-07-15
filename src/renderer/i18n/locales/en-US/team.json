@@ -49,10 +49,32 @@
     "teammate": "Teammate"
   },
   "actions": {
+    "pin": "Pin",
+    "unpin": "Unpin",
     "rename": "Rename",
     "remove": "Remove",
     "delete": "Delete",
     "export": "Export"
+  },
+  "rename": {
+    "title": "Rename Team",
+    "placeholder": "Enter a team name",
+    "success": "Team renamed",
+    "failed": "Failed to rename team"
+  },
+  "pin": {
+    "failed": "Failed to update pin state"
+  },
+  "export": {
+    "dialogTitle": "Export Team",
+    "dialogDescription": "Export team information, Leader and member conversation records, and team workspace files as a ZIP archive.",
+    "targetFolder": "Export to folder",
+    "selectFolder": "Select an export folder",
+    "hint": "Confirm to start exporting the team archive.",
+    "exporting": "Exporting...",
+    "success": "Team exported",
+    "failed": "Failed to export team",
+    "canceled": "Team export canceled"
   },
   "confirm": {
     "deleteTeamTitle": "Delete team?",

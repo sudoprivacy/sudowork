@@ -75,7 +75,7 @@ function TeamDetailPage() {
   }
 
   if (!team || !leader || !leader.conversation_id) {
-    void navigate('/app/team');
+    void navigate('/guid');
     return null;
   }
 

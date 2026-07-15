@@ -22,7 +22,6 @@ const ChannelsPage = React.lazy(() => import('./pages/settings/channels'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
 const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
-const TeamListPage = React.lazy(() => import('./pages/team'));
 const TeamDetailPage = React.lazy(() => import('./pages/team/detail'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/extensions'));
 const LoginPage = React.lazy(() => import('./pages/login'));
@@ -70,7 +69,6 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/security', component: SecurityPage },
   { path: '/app/cron', component: CronPage },
   { path: '/app/cron/:jobId', component: CronJobDetailPage },
-  { path: '/app/team', component: TeamListPage },
   { path: '/app/team/:teamId', component: TeamDetailPage },
   { path: '/settings/profile', component: UserProfile },
   { path: '/settings/recharge', component: RechargeCenter },

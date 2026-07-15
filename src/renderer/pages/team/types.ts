@@ -29,6 +29,8 @@ export interface TTeam {
   leader_member_id: string | null;
   assistants: TeamAssistant[];
   session_mode?: string | null;
+  pinned: boolean;
+  pinned_at: number | null;
   created_at: number;
   updated_at: number;
 }

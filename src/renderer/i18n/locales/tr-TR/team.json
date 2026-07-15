@@ -49,10 +49,32 @@
     "teammate": "Takım Arkadaşı"
   },
   "actions": {
+    "pin": "Sabitle",
+    "unpin": "Sabitlemeyi kaldır",
     "rename": "Yeniden Adlandır",
     "remove": "Kaldır",
     "delete": "Sil",
     "export": "Dışa Aktar"
+  },
+  "rename": {
+    "title": "Takımı Yeniden Adlandır",
+    "placeholder": "Bir takım adı girin",
+    "success": "Takım yeniden adlandırıldı",
+    "failed": "Takım yeniden adlandırılamadı"
+  },
+  "pin": {
+    "failed": "Sabitleme durumu güncellenemedi"
+  },
+  "export": {
+    "dialogTitle": "Takımı Dışa Aktar",
+    "dialogDescription": "Takım bilgileri, lider ve üye konuşma kayıtları ve takım çalışma alanı dosyaları ZIP olarak dışa aktarılır.",
+    "targetFolder": "Klasöre dışa aktar",
+    "selectFolder": "Bir dışa aktarma klasörü seçin",
+    "hint": "Takım arşivini dışa aktarmaya başlamak için onaylayın.",
+    "exporting": "Dışa aktarılıyor...",
+    "success": "Takım dışa aktarıldı",
+    "failed": "Takım dışa aktarılamadı",
+    "canceled": "Takım dışa aktarma iptal edildi"
   },
   "confirm": {
     "deleteTeamTitle": "Takım silinsin mi?",

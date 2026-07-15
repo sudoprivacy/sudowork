@@ -71,11 +71,15 @@ export function useTeamSession(teamId: string) {
     const u2 = ipcBridge.team.onMemberRemoved.on(onRemoved);
     const u3 = ipcBridge.team.onMemberRenamed.on(onRenamed);
     const u4 = ipcBridge.team.onAgentStatusChanged.on(onStatus);
+    const u5 = ipcBridge.team.onSessionChanged.on(({ teamId: changedTeamId }) => {
+      if (changedTeamId === teamId) void mutate();
+    });
     return () => {
       u1();
       u2();
       u3();
       u4();
+      u5();
     };
   }, [teamId, mutate]);
 

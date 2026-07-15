@@ -14,6 +14,7 @@ export interface DetectedAgentLike {
 export interface InstalledAssistantLike {
   isBuiltin: boolean;
   isHubInstalled: boolean;
+  enabled?: boolean;
   name: string;
   meta: {
     id?: string;

@@ -59,6 +59,8 @@ export function fromBackendTeam(team: ITeam, members: ITeamMember[]): TTeam {
     leader_member_id: team.leader_member_id,
     assistants,
     session_mode: team.session_mode,
+    pinned: team.pinned ?? false,
+    pinned_at: team.pinned_at ?? null,
     created_at: team.created_at,
     updated_at: team.updated_at,
   };

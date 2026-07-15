@@ -49,10 +49,32 @@
     "teammate": "Teammate"
   },
   "actions": {
+    "pin": "置顶",
+    "unpin": "取消置顶",
     "rename": "重命名",
     "remove": "移除",
     "delete": "删除",
     "export": "导出"
+  },
+  "rename": {
+    "title": "重命名团队",
+    "placeholder": "输入团队名称",
+    "success": "团队已重命名",
+    "failed": "重命名团队失败"
+  },
+  "pin": {
+    "failed": "置顶操作失败"
+  },
+  "export": {
+    "dialogTitle": "导出团队",
+    "dialogDescription": "将导出团队信息、Leader 与成员会话记录，以及团队工作区文件，并打包为 ZIP。",
+    "targetFolder": "导出到文件夹",
+    "selectFolder": "请选择导出文件夹",
+    "hint": "确认后开始导出团队归档。",
+    "exporting": "导出中...",
+    "success": "团队导出成功",
+    "failed": "团队导出失败",
+    "canceled": "已取消导出"
   },
   "confirm": {
     "deleteTeamTitle": "删除团队？",

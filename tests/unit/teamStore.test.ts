@@ -30,6 +30,8 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
     workspace_kind: 'custom',
     leader_member_id: null,
     session_mode: null,
+    pinned: false,
+    pinned_at: null,
     created_at: 1000,
     updated_at: 1000,
     ...overrides,
@@ -85,13 +87,14 @@ beforeEach(() => {
 });
 
 describe('team migrations', () => {
-  it('CURRENT_DB_VERSION is 26', () => {
-    expect(CURRENT_DB_VERSION).toBe(26);
+  it('CURRENT_DB_VERSION is 27', () => {
+    expect(CURRENT_DB_VERSION).toBe(27);
   });
-  it('ALL_MIGRATIONS includes v24, v25, and v26', () => {
+  it('ALL_MIGRATIONS includes v24, v25, v26, and v27', () => {
     expect(ALL_MIGRATIONS.some((m) => m.version === 24)).toBe(true);
     expect(ALL_MIGRATIONS.some((m) => m.version === 25)).toBe(true);
     expect(ALL_MIGRATIONS.some((m) => m.version === 26)).toBe(true);
+    expect(ALL_MIGRATIONS.some((m) => m.version === 27)).toBe(true);
   });
   it('migration_v24 has name + up/down functions', () => {
     const m = ALL_MIGRATIONS.find((x) => x.version === 24)!;
@@ -107,8 +110,10 @@ describe('TeamStore - team CRUD + soft delete', () => {
     expect(h.mutate).toHaveBeenCalledTimes(1);
     expect(h.mutate.mock.calls[0][0]).toContain('INSERT INTO teams');
     expect(h.mutate.mock.calls[0][0]).toContain('workspace_kind');
+    expect(h.mutate.mock.calls[0][0]).toContain('pinned');
     expect(h.mutate.mock.calls[0][1]).toBe('team-1');
     expect(h.mutate.mock.calls[0][5]).toBe('custom');
+    expect(h.mutate.mock.calls[0][8]).toBe(0);
   });
   it('insertTeam throws on DB failure', () => {
     h.mutate.mockReturnValue({ success: false, error: 'boom' });
@@ -121,22 +126,25 @@ describe('TeamStore - team CRUD + soft delete', () => {
   it('getTeam queries with deleted = 0 filter and maps row', () => {
     h.queryOne.mockReturnValue({
       success: true,
-      data: { id: 'team-1', user_id: 'u1', name: 'A', workspace: null, workspace_kind: null, leader_member_id: null, session_mode: null, created_at: 1, updated_at: 2 },
+      data: { id: 'team-1', user_id: 'u1', name: 'A', workspace: null, workspace_kind: null, leader_member_id: null, session_mode: null, pinned: 1, pinned_at: 3, created_at: 1, updated_at: 2 },
     });
     const t = teamStore.getTeam('team-1');
     expect(h.queryOne.mock.calls[0][0]).toContain('deleted = 0');
     expect(t?.id).toBe('team-1');
     expect(t?.name).toBe('A');
     expect(t?.workspace_kind).toBeNull();
+    expect(t?.pinned).toBe(true);
+    expect(t?.pinned_at).toBe(3);
   });
   it('updateTeam merges and updates', () => {
     h.queryOne.mockReturnValue({
       success: true,
-      data: { id: 'team-1', user_id: 'u1', name: 'Old', workspace: null, workspace_kind: null, leader_member_id: null, session_mode: null, created_at: 1, updated_at: 1 },
+      data: { id: 'team-1', user_id: 'u1', name: 'Old', workspace: null, workspace_kind: null, leader_member_id: null, session_mode: null, pinned: 0, pinned_at: null, created_at: 1, updated_at: 1 },
     });
     teamStore.updateTeam('team-1', { name: 'New' });
     expect(h.mutate.mock.calls[0][0]).toContain('UPDATE teams');
     expect(h.mutate.mock.calls[0][0]).toContain('workspace_kind');
+    expect(h.mutate.mock.calls[0][0]).toContain('pinned');
     expect(h.mutate.mock.calls[0][1]).toBe('New');
   });
   it('updateTeam throws if team not found', () => {
@@ -147,13 +155,15 @@ describe('TeamStore - team CRUD + soft delete', () => {
     teamStore.softDeleteTeam('team-1');
     expect(h.mutate.mock.calls[0][0]).toContain('deleted = 1');
   });
-  it('listTeams queries with deleted = 0', () => {
+  it('listTeams queries with deleted = 0 and pinned order', () => {
     teamStore.listTeams();
     expect(h.query.mock.calls[0][0]).toContain('deleted = 0');
+    expect(h.query.mock.calls[0][0]).toContain('ORDER BY pinned DESC, pinned_at DESC, updated_at DESC');
   });
-  it('listByUser filters by user_id', () => {
+  it('listByUser filters by user_id and pinned order', () => {
     teamStore.listByUser('u1');
     expect(h.query.mock.calls[0][0]).toContain('user_id = ?');
+    expect(h.query.mock.calls[0][0]).toContain('ORDER BY pinned DESC, pinned_at DESC, updated_at DESC');
     expect(h.query.mock.calls[0][1]).toBe('u1');
   });
 });

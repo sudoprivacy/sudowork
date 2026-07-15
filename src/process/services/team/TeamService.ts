@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { ipcBridge } from '@/common';
-import type { IResponseMessage, ITeamAssistantCandidate, ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
+import type { IResponseMessage, ITeam, ITeamAssistantCandidate, ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
@@ -194,6 +194,8 @@ class TeamService {
       workspace_kind: workspaceKind,
       leader_member_id: null,
       session_mode: null,
+      pinned: false,
+      pinned_at: null,
       created_at: now,
       updated_at: now,
     };
@@ -539,6 +541,62 @@ class TeamService {
     ipcBridge.team.onListChanged.emit({ team_id: teamId, action: 'removed' });
   }
 
+  updateTeam(teamId: string, updates: Partial<ITeam>): Team {
+    const team = teamStore.getTeam(teamId);
+    if (!team) throw new Error(`Team not found: ${teamId}`);
+
+    const patch: Partial<Team> = {};
+    let isRenamed = false;
+
+    if (updates.name !== undefined) {
+      const name = updates.name.trim();
+      if (!name) throw new Error('Team name is required');
+      patch.name = name;
+      isRenamed = name !== team.name;
+    }
+
+    if (updates.pinned !== undefined) {
+      patch.pinned = updates.pinned;
+      patch.pinned_at = updates.pinned ? (typeof updates.pinned_at === 'number' ? updates.pinned_at : Date.now()) : null;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return team;
+    }
+
+    teamStore.updateTeam(teamId, patch);
+    if (isRenamed && patch.name) {
+      this.syncTeamConversationDisplayName(teamId, patch.name);
+    }
+
+    const updated = teamStore.getTeam(teamId);
+    if (!updated) throw new Error(`Team not found after update: ${teamId}`);
+    ipcBridge.team.onListChanged.emit({ team_id: teamId, action: isRenamed ? 'renamed' : 'updated' });
+    if (isRenamed) {
+      ipcBridge.team.onSessionChanged.emit({ teamId });
+    }
+    return updated;
+  }
+
+  renameTeam(teamId: string, name: string): Team {
+    return this.updateTeam(teamId, { name });
+  }
+
+  private syncTeamConversationDisplayName(teamId: string, name: string): void {
+    for (const member of teamStore.listMembersByTeam(teamId)) {
+      if (!member.conversation_id) continue;
+      const conversation = getDatabase().getConversation(member.conversation_id).data;
+      if (!conversation) continue;
+      const updates: Partial<TChatConversation> = {
+        extra: { ...conversation.extra, workspaceDisplayName: name },
+      };
+      if (member.role === 'lead') {
+        updates.name = name;
+      }
+      getDatabase().updateConversation(member.conversation_id, updates);
+    }
+  }
+
   private async removeTeamWorkspace(team: Team, deleteWorkspace?: boolean): Promise<void> {
     if (!team.workspace) return;
     if (team.workspace_kind === 'temporary') {
@@ -586,7 +644,10 @@ class TeamService {
       mainWarn('TeamService', 'getInstalledAssistants failed:', error);
     }
     const detected = acpDetector.getDetectedAgents() as unknown as DetectedAgentLike[];
-    return mergeTeamAssistants(detected, installed.filter((assistant) => assistant.enabled));
+    return mergeTeamAssistants(
+      detected,
+      installed.filter((assistant) => assistant.enabled)
+    );
   }
 
   /** Current run state for the renderer (null when no active run). */

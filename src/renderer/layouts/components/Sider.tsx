@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles, Users } from 'lucide-react';
+import { AlarmClock, ArrowLeft, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -16,6 +16,7 @@ import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroup
 import { maskPhone } from '@renderer/utils';
 import SidebarNavItem from '@/renderer/layouts/components/SidebarNavItem';
 import SettingsSider from './SettingsSider';
+import TeamSiderSection from './TeamSiderSection';
 
 const Sider: React.FC = () => {
   // 侧栏收起由外层 ArcoLayout.Sider 把宽度动画到 0 整体隐藏，内容始终保持展开态，
@@ -60,7 +61,6 @@ const Sider: React.FC = () => {
     { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'channels' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/app/channels' }] : []),
     ...(isCronVisible ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/app/cron' }] : []),
-    ...(mode === 'c' ? [{ id: 'team' as const, label: t('common.siderMenu.team'), icon: Users, path: '/app/team' }] : []),
   ];
 
   const isSettings = pathname.startsWith('/settings');
@@ -211,6 +211,7 @@ const Sider: React.FC = () => {
                   />
                 );
               })}
+              {mode === 'c' && <TeamSiderSection onSessionClick={onSessionClick} />}
             </div>
 
             {/* Session history tabs + batch mode button */}

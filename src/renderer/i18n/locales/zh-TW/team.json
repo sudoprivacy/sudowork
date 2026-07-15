@@ -49,10 +49,32 @@
     "teammate": "Teammate"
   },
   "actions": {
+    "pin": "置頂",
+    "unpin": "取消置頂",
     "rename": "重新命名",
     "remove": "移除",
     "delete": "刪除",
     "export": "匯出"
+  },
+  "rename": {
+    "title": "重新命名團隊",
+    "placeholder": "輸入團隊名稱",
+    "success": "團隊已重新命名",
+    "failed": "重新命名團隊失敗"
+  },
+  "pin": {
+    "failed": "置頂操作失敗"
+  },
+  "export": {
+    "dialogTitle": "匯出團隊",
+    "dialogDescription": "將匯出團隊資訊、Leader 與成員會話記錄，以及團隊工作區檔案，並打包為 ZIP。",
+    "targetFolder": "匯出到資料夾",
+    "selectFolder": "請選擇匯出資料夾",
+    "hint": "確認後開始匯出團隊封存。",
+    "exporting": "匯出中...",
+    "success": "團隊匯出成功",
+    "failed": "團隊匯出失敗",
+    "canceled": "已取消匯出"
   },
   "confirm": {
     "deleteTeamTitle": "刪除團隊？",

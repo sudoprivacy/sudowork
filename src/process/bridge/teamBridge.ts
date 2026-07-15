@@ -188,8 +188,24 @@ export function initTeamBridge(): void {
     }
   });
 
+  ipcBridge.team.updateTeam.provider(async ({ teamId, updates }) => {
+    try {
+      return teamService.updateTeam(teamId, updates);
+    } catch (err) {
+      mainError('TeamBridge', 'updateTeam failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
+  ipcBridge.team.renameTeam.provider(async ({ teamId, name }) => {
+    try {
+      return teamService.renameTeam(teamId, name);
+    } catch (err) {
+      mainError('TeamBridge', 'renameTeam failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
   // Secondary providers not yet wired (not used by the current UI).
-  ipcBridge.team.updateTeam.provider(async () => errEnvelope(new Error('Not implemented')));
-  ipcBridge.team.renameTeam.provider(async () => errEnvelope(new Error('Not implemented')));
   ipcBridge.team.reorderMembers.provider(async () => errEnvelope(new Error('Not implemented')));
 }

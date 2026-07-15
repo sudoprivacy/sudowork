@@ -1,4 +1,4 @@
-import { Button, Drawer, Form, Input, Message, Radio, Spin } from '@arco-design/web-react';
+import { Button, Form, Input, Message, Modal, Radio, Spin } from '@arco-design/web-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -11,43 +11,37 @@ interface SelectableAssistant {
   avatar?: string | null;
 }
 
-interface ITeamFormDrawerProps {
-  visible: boolean;
-  onClose: () => void;
-  onCreated: (teamId: string) => void;
-}
-
-function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
+export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeamCreateModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [workspace, setWorkspace] = useState('');
   const [selectedId, setSelectedId] = useState<string>('');
   const [assistants, setAssistants] = useState<SelectableAssistant[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!visible) return;
-    let cancelled = false;
-    setLoading(true);
+    if (!isVisible) return;
+    let isCancelled = false;
+    setIsLoading(true);
     setSelectedId('');
     setName('');
     setWorkspace('');
     void (async () => {
       try {
         const list = unwrapTeamResult(await ipcBridge.team.listAssistants.invoke()) ?? [];
-        if (!cancelled) {
+        if (!isCancelled) {
           setAssistants(list);
           setSelectedId(list[0]?.assistant_id ?? '');
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!isCancelled) setIsLoading(false);
       }
     })();
     return () => {
-      cancelled = true;
+      isCancelled = true;
     };
-  }, [visible]);
+  }, [isVisible]);
 
   const selected = useMemo(() => assistants.find((a) => a.assistant_id === selectedId), [assistants, selectedId]);
   const workspaceName = useMemo(
@@ -65,15 +59,15 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
       if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
         setWorkspace(res.data.filePaths[0]);
       }
-    } catch (e) {
-      console.error('[TeamFormDrawer] select workspace failed:', e);
+    } catch (error) {
+      console.error('[TeamCreateModal] select workspace failed:', error);
       Message.error(t('team.create.selectWorkspaceFailed'));
     }
   };
 
-  const handleSubmit = async () => {
+  const onSubmit = async () => {
     if (!name.trim() || !selected) return;
-    setSubmitting(true);
+    setIsSubmitting(true);
     try {
       const team = unwrapTeamResult(
         await ipcBridge.team.createTeam.invoke({
@@ -85,30 +79,30 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
       );
       onCreated(team.id);
       onClose();
-    } catch (e) {
-      console.error('[TeamFormDrawer] createTeam failed:', e);
+    } catch (error) {
+      console.error('[TeamCreateModal] createTeam failed:', error);
       Message.error(t('team.create.createFailed'));
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Drawer title={t('team.create.drawerTitle')} visible={visible} onCancel={onClose} footer={null} width={480}>
+    <Modal title={t('team.create.drawerTitle')} visible={isVisible} onCancel={onClose} footer={null} style={{ width: 480 }} alignCenter getPopupContainer={() => document.body}>
       <Form layout='vertical'>
         <Form.Item label={t('team.create.nameLabel')}>
           <Input value={name} onChange={setName} placeholder={t('team.create.namePlaceholder')} />
         </Form.Item>
         <Form.Item label={t('team.create.leaderLabel')}>
-          {loading ? (
+          {isLoading ? (
             <Spin />
           ) : assistants.length === 0 ? (
             <span className='text-gray-400'>{t('team.create.noAssistants')}</span>
           ) : (
             <Radio.Group value={selectedId} onChange={setSelectedId} direction='vertical'>
-              {assistants.map((a) => (
-                <Radio key={a.assistant_id} value={a.assistant_id}>
-                  {a.name} <span className='text-gray-400 text-12px'>({a.backend})</span>
+              {assistants.map((assistant) => (
+                <Radio key={assistant.assistant_id} value={assistant.assistant_id}>
+                  {assistant.name} <span className='text-gray-400 text-12px'>({assistant.backend})</span>
                 </Radio>
               ))}
             </Radio.Group>
@@ -131,15 +125,19 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
             )}
           </div>
         </Form.Item>
-        <div className='flex gap-8px justify-end mt-12px'>
+        <div className='flex gap-2 justify-end mt-3'>
           <Button onClick={onClose}>{t('team.create.cancel')}</Button>
-          <Button type='primary' loading={submitting} disabled={!name.trim() || !selected} onClick={handleSubmit}>
+          <Button type='primary' loading={isSubmitting} disabled={!name.trim() || !selected} onClick={onSubmit}>
             {t('team.create.submit')}
           </Button>
         </div>
       </Form>
-    </Drawer>
+    </Modal>
   );
 }
 
-export default TeamFormDrawer;
+interface ITeamCreateModalProps {
+  isVisible: boolean;
+  onClose: () => void;
+  onCreated: (teamId: string) => void;
+}
