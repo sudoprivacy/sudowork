@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { ipcBridge } from '@/common';
-import type { ITeamMember, ITeamRunAck } from '@/common/ipcBridge';
+import type { ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
@@ -18,7 +18,10 @@ import { createConversation } from '../conversationService';
 import { teamStore, type Team, type TeamMail, type TeamMember } from './TeamStore';
 import { buildGovernancePrompt } from './GovernancePrompt';
 import { EventLoop } from './EventLoop';
+import { TeamRunManager } from './TeamRun';
+import { RecoveryDrain } from './RecoveryDrain';
 import { SlotWakeGate } from './SlotWakeGate';
+import type { WakeSource } from './WakeSource';
 
 const DEFAULT_LOCALE = 'en-US';
 /** Soft cap on concurrent member processes (each member = one CLI subprocess). */
@@ -44,6 +47,7 @@ interface MemberRuntime {
 interface TeamSession {
   members: Map<string, MemberRuntime>;
   wakeGate: SlotWakeGate;
+  teamRun: TeamRunManager;
   httpServer: http.Server | null;
   port: number;
   token: string;
@@ -133,6 +137,12 @@ class TeamService {
       role: 'lead',
     });
     teamStore.updateTeam(teamId, { leader_member_id: leader.id });
+
+    // Recovery drain: re-deliver any unread mailbox backlog at session start (no-op for a fresh team).
+    const session = this.sessions.get(teamId);
+    if (session) {
+      new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
+    }
 
     ipcBridge.team.onListChanged.emit({ team_id: teamId, action: 'created' });
     return { ...team, leader_member_id: leader.id, updated_at: Date.now() };
@@ -232,6 +242,7 @@ class TeamService {
       member: runtime.member,
       getAgent: () => runtime.agent,
       wakeGate: session.wakeGate,
+      teamRun: session.teamRun,
       leaderSlotId: () => this.leaderSlot(teamId),
       onWakeSlot: (targetSlot) => this.notifyWake(teamId, targetSlot),
       lookupMember: (sid) => this.lookupMember(teamId, sid),
@@ -249,12 +260,14 @@ class TeamService {
     return this.sendMessageToMember(teamId, this.leaderSlot(teamId), input, files, msgId);
   }
 
-  /** User message to a specific member (writes mailbox from=user, then wakes the member's event loop). */
+  /** User message to a specific member (writes mailbox from=user under an operation lease, then wakes the loop). */
   async sendMessageToMember(teamId: string, slotId: string, input: string, files?: string[], msgId?: string): Promise<ITeamRunAck> {
     const team = teamStore.getTeam(teamId);
     if (!team) throw new Error(`Team not found: ${teamId}`);
     const runtime = this.getRuntime(teamId, slotId);
     if (!runtime) throw new Error(`Member not found: ${slotId}`);
+    const session = this.sessions.get(teamId);
+    if (!session) throw new Error(`Team session not active: ${teamId}`);
 
     const mailId = msgId || uuid();
     const mail: TeamMail = {
@@ -269,15 +282,24 @@ class TeamService {
       read: false,
       created_at: Date.now(),
     };
-    teamStore.insertMail(mail);
+
+    // Operation lease (附录 I.1): acquire → write mailbox → commit (lease → pending wake).
+    // The lease prevents the run from completing between writing the mailbox and enqueuing the wake.
+    const { lease } = session.teamRun.acquireWake(slotId, runtime.member.role, 'user_message');
+    try {
+      teamStore.insertMail(mail);
+    } catch (e) {
+      session.teamRun.abortLease(lease.lease_id);
+      throw e;
+    }
+    session.teamRun.commitLease(lease.lease_id, { slot_id: slotId, role: runtime.member.role, source: 'user_message', message_id: mailId });
 
     // Wake the member's event loop — it mirrors unread, drives the agent turn (which
-    // emits the user's right bubble itself), and marks the mailbox read. Stage-1 runTurn
-    // is replaced by the EventLoop.
+    // emits the user's right bubble itself), and marks the mailbox read.
     this.notifyWake(teamId, slotId);
 
     return {
-      team_run_id: uuid(),
+      team_run_id: lease.team_run_id,
       team_id: teamId,
       target_slot_id: slotId,
       target_role: runtime.member.role,
@@ -320,6 +342,17 @@ class TeamService {
     return teamStore.listMembersByTeam(teamId);
   }
 
+  /** Current run state for the renderer (null when no active run). */
+  getRunState(teamId: string): ITeamRunState {
+    const session = this.sessions.get(teamId);
+    return { active_run: session ? session.teamRun.toActiveRunEvent() : null };
+  }
+
+  /** Cancel the active run: clears pending wakes + wake gate, marks reservations Cancelling. Active child turns finish on their own. */
+  cancelRun(teamId: string, reason?: string): void {
+    this.sessions.get(teamId)?.teamRun.beginCancel(reason);
+  }
+
   // ---- Team-mcp HTTP loopback (plan §1.5 / §A1) ----
 
   /** Idempotently ensure a team session exists with its HTTP loopback listening. */
@@ -327,7 +360,8 @@ class TeamService {
     const existing = this.sessions.get(teamId);
     if (existing) return existing;
     const { server, port, token } = await this.startTeamHttpServer(teamId);
-    const session: TeamSession = { members: new Map(), wakeGate: new SlotWakeGate(), httpServer: server, port, token };
+    const wakeGate = new SlotWakeGate();
+    const session: TeamSession = { members: new Map(), wakeGate, teamRun: new TeamRunManager(teamId, wakeGate), httpServer: server, port, token };
     this.sessions.set(teamId, session);
     mainLog('TeamService', `team ${teamId} loopback on 127.0.0.1:${port}`);
     return session;
@@ -460,13 +494,16 @@ class TeamService {
     }
   }
 
-  /** team_send_message: write mailbox (from=caller) and wake recipients. `to="*"` broadcasts to everyone except the caller. */
+  /** team_send_message: write mailbox (from=caller) under an operation lease per recipient, then wake them. `to="*"` broadcasts to everyone except the caller. */
   private toolSendMessage(teamId: string, caller: TeamMember, args: Record<string, unknown>): TeamToolResult {
     const to = args.to;
     const message = args.message;
     if (typeof to !== 'string' || typeof message !== 'string') {
       return { ok: false, error: 'team_send_message requires string "to" and "message"' };
     }
+    const session = this.sessions.get(teamId);
+    if (!session) return { ok: false, error: 'team session not active' };
+    const wakeSource: WakeSource = 'mcp_send_message';
     let targets: string[];
     if (to === '*') {
       targets = teamStore
@@ -480,8 +517,13 @@ class TeamService {
     }
     const now = Date.now();
     for (const targetId of targets) {
+      const recipient = teamStore.getMember(targetId);
+      if (!recipient) continue;
+      // Operation lease keeps the (already-active) run open until the recipient's wake is claimed.
+      const { lease } = session.teamRun.acquireWake(targetId, recipient.role, wakeSource);
+      const mailId = uuid();
       const mail: TeamMail = {
-        id: uuid(),
+        id: mailId,
         team_id: teamId,
         to_member_id: targetId,
         from_member_id: caller.id,
@@ -492,7 +534,13 @@ class TeamService {
         read: false,
         created_at: now,
       };
-      teamStore.insertMail(mail);
+      try {
+        teamStore.insertMail(mail);
+      } catch {
+        session.teamRun.abortLease(lease.lease_id);
+        continue;
+      }
+      session.teamRun.commitLease(lease.lease_id, { slot_id: targetId, role: recipient.role, source: wakeSource, message_id: mailId });
       this.notifyWake(teamId, targetId);
     }
     return { ok: true, data: { status: 'queued', targets } };
