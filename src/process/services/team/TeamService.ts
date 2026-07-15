@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { ipcBridge } from '@/common';
-import type { IResponseMessage, ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
+import type { IResponseMessage, ITeamAssistantCandidate, ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
@@ -199,31 +199,36 @@ class TeamService {
     };
     teamStore.insertTeam(team);
 
-    const leader = await this.spawnMember(teamId, {
-      assistant_id: leaderAssistantId,
-      name: leaderName || name,
-      conversationName: name,
-      model: leaderModel,
-      role: 'lead',
-    });
-    const updates: Partial<Team> = { leader_member_id: leader.id };
-    const leaderConversation = leader.conversation_id ? getDatabase().getConversation(leader.conversation_id).data : null;
-    if (!workspace) {
-      const resolvedWorkspace = leaderConversation?.extra?.workspace;
-      if (!resolvedWorkspace) throw new Error('Leader conversation did not resolve a team workspace');
-      updates.workspace = resolvedWorkspace;
-      updates.workspace_kind = 'temporary';
-    }
-    teamStore.updateTeam(teamId, updates);
+    try {
+      const leader = await this.spawnMember(teamId, {
+        assistant_id: leaderAssistantId,
+        name: leaderName || name,
+        conversationName: name,
+        model: leaderModel,
+        role: 'lead',
+      });
+      const updates: Partial<Team> = { leader_member_id: leader.id };
+      const leaderConversation = leader.conversation_id ? getDatabase().getConversation(leader.conversation_id).data : null;
+      if (!workspace) {
+        const resolvedWorkspace = leaderConversation?.extra?.workspace;
+        if (!resolvedWorkspace) throw new Error('Leader conversation did not resolve a team workspace');
+        updates.workspace = resolvedWorkspace;
+        updates.workspace_kind = 'temporary';
+      }
+      teamStore.updateTeam(teamId, updates);
 
-    // Recovery drain: re-deliver any unread mailbox backlog at session start (no-op for a fresh team).
-    const session = this.sessions.get(teamId);
-    if (session) {
-      new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
-    }
+      // Recovery drain: re-deliver any unread mailbox backlog at session start (no-op for a fresh team).
+      const session = this.sessions.get(teamId);
+      if (session) {
+        new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
+      }
 
-    ipcBridge.team.onListChanged.emit({ team_id: teamId, action: 'created' });
-    return teamStore.getTeam(teamId) ?? { ...team, ...updates, updated_at: Date.now() };
+      ipcBridge.team.onListChanged.emit({ team_id: teamId, action: 'created' });
+      return teamStore.getTeam(teamId) ?? { ...team, ...updates, updated_at: Date.now() };
+    } catch (error) {
+      await this.rollbackInsertedTeam(teamId);
+      throw error;
+    }
   }
 
   async spawnMember(teamId: string, params: { assistant_id: string; name: string; conversationName?: string; model?: string; role?: 'lead' | 'teammate' }): Promise<TeamMember> {
@@ -314,7 +319,12 @@ class TeamService {
       status: 'pending',
       created_at: Date.now(),
     };
-    teamStore.insertMember(member);
+    try {
+      teamStore.insertMember(member);
+    } catch (error) {
+      await reapConversation(conversationId, { reason: 'team-spawn-rollback', deleteWorkspace: false });
+      throw error;
+    }
 
     // Attach the member runtime (build AcpAgent + event loop). Per 事实 8 an attach failure does NOT
     // roll back — the member stays so the leader sees it failed, and is notified via spawn_attach_failure.
@@ -497,6 +507,21 @@ class TeamService {
     };
   }
 
+  private async rollbackInsertedTeam(teamId: string): Promise<void> {
+    try {
+      await this.stopSession(teamId);
+      for (const member of teamStore.listMembersByTeam(teamId)) {
+        if (member.conversation_id) {
+          await reapConversation(member.conversation_id, { reason: 'team-spawn-rollback', deleteWorkspace: false });
+        }
+      }
+      teamStore.softDeleteMembersByTeam(teamId);
+      teamStore.softDeleteTeam(teamId);
+    } catch (error) {
+      mainWarn('TeamService', `Failed to rollback team ${teamId}:`, error);
+    }
+  }
+
   async removeTeam(teamId: string, deleteWorkspace?: boolean): Promise<void> {
     const team = teamStore.getTeam(teamId);
     if (!team) throw new Error(`Team not found: ${teamId}`);
@@ -551,6 +576,17 @@ class TeamService {
 
   listMembers(teamId: string): TeamMember[] {
     return teamStore.listMembersByTeam(teamId);
+  }
+
+  async listAvailableAssistantsForTeam(): Promise<ITeamAssistantCandidate[]> {
+    let installed: InstalledAssistantLike[] = [];
+    try {
+      installed = (await assistantManager.getInstalledAssistants()) as unknown as InstalledAssistantLike[];
+    } catch (error) {
+      mainWarn('TeamService', 'getInstalledAssistants failed:', error);
+    }
+    const detected = acpDetector.getDetectedAgents() as unknown as DetectedAgentLike[];
+    return mergeTeamAssistants(detected, installed.filter((assistant) => assistant.enabled));
   }
 
   /** Current run state for the renderer (null when no active run). */
@@ -932,15 +968,7 @@ class TeamService {
    * remote-agent dropped, priority-sorted). The merge is a pure function in assistantMerger.ts.
    */
   private async toolListAssistants(_args: Record<string, unknown>): Promise<TeamToolResult> {
-    let installed: InstalledAssistantLike[] = [];
-    try {
-      installed = (await assistantManager.getInstalledAssistants()) as unknown as InstalledAssistantLike[];
-    } catch (e) {
-      mainWarn('TeamService', 'getInstalledAssistants failed:', e);
-    }
-    const detected = acpDetector.getDetectedAgents() as unknown as DetectedAgentLike[];
-    const assistants = mergeTeamAssistants(detected, installed);
-    return { ok: true, data: { assistants } };
+    return { ok: true, data: { assistants: await this.listAvailableAssistantsForTeam() } };
   }
 
   /** team_describe_assistant (附录 A2): return the assistant's rules + skills (for spawn presetContext). */

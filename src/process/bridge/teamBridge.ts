@@ -41,6 +41,15 @@ export function initTeamBridge(): void {
     }
   });
 
+  ipcBridge.team.listAssistants.provider(async () => {
+    try {
+      return await teamService.listAvailableAssistantsForTeam();
+    } catch (err) {
+      mainError('TeamBridge', 'listAssistants failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
   ipcBridge.team.createTeam.provider(async (params) => {
     try {
       return await teamService.createTeam(getDatabase().getDefaultUserId(), params.name, params.workspace ?? null, params.leader_assistant_id, params.leader_name, params.leader_model);

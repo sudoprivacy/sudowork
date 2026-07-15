@@ -1,3 +1,4 @@
+import type { ITeamAssistantCandidate } from '@/common/ipcBridge';
 import { getAgentPriority, resolvePresetAgentBackend } from '@/types/acpTypes';
 
 /** Structural input shapes (DetectedAgent is not exported from AcpDetector; IAssistantInfo is). */
@@ -22,14 +23,7 @@ export interface InstalledAssistantLike {
   };
 }
 
-export interface TeamAssistantEntry {
-  assistant_id: string;
-  name: string;
-  backend: string;
-  preset_agent_type: string | null;
-  avatar: string | null;
-  is_preset: boolean;
-}
+export type TeamAssistantEntry = ITeamAssistantCandidate;
 
 /**
  * Merge guide-detected agents ∪ installed assistants (附录 A2).

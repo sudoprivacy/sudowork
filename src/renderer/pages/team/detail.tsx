@@ -20,7 +20,7 @@ function TeamDetailPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { teamId = '' } = useParams<{ teamId: string }>();
-  const { team, statusMap, loading, removeMember } = useTeamSession(teamId);
+  const { team, statusMap, loading } = useTeamSession(teamId);
   const teamRunView = useTeamRunView(teamId);
   const [leaderConv, setLeaderConv] = useState<TChatConversation | undefined>(undefined);
 
@@ -66,10 +66,6 @@ function TeamDetailPage() {
     [leader?.conversation_id]
   );
 
-  const handleRemoveMember = (slotId: string) => {
-    void removeMember(slotId);
-  };
-
   if (loading) {
     return (
       <div className='flex items-center justify-center h-full'>
@@ -83,7 +79,7 @@ function TeamDetailPage() {
     return null;
   }
 
-  const memberTabNode = <TeamMemberListTab team={team} statusMap={statusMap} onRemoveMember={handleRemoveMember} />;
+  const memberTabNode = <TeamMemberListTab team={team} statusMap={statusMap} />;
   const runStatus = teamRunView.activeRun?.status;
 
   return (

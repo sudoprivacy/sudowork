@@ -38,7 +38,7 @@ import { getSystemDir } from '../initStorage';
 import { TEMP_WORKSPACE_REGEX } from '../task/draftsCleanup';
 import { cronService } from './cron/CronService';
 
-export type ReapReason = 'user-delete' | 'assistant-uninstall' | 'orphan-sweep' | 'healthcheck-cleanup';
+export type ReapReason = 'user-delete' | 'assistant-uninstall' | 'orphan-sweep' | 'healthcheck-cleanup' | 'team-spawn-rollback';
 
 export interface ReapOptions {
   reason: ReapReason;

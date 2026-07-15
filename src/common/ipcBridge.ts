@@ -1169,6 +1169,7 @@ export const team = {
   listTeams: bridge.buildProvider<ITeam[], void>('team.list-teams'),
   getTeam: bridge.buildProvider<ITeam | null, { teamId: string }>('team.get-team'),
   listMembers: bridge.buildProvider<ITeamMember[], { teamId: string }>('team.list-members'),
+  listAssistants: bridge.buildProvider<ITeamAssistantCandidate[], void>('team.list-assistants'),
   createTeam: bridge.buildProvider<ITeam, ICreateTeamParams>('team.create-team'),
   updateTeam: bridge.buildProvider<ITeam, { teamId: string; updates: Partial<ITeam> }>('team.update-team'),
   removeTeam: bridge.buildProvider<void, { teamId: string; deleteWorkspace?: boolean }>('team.remove-team'),
@@ -1297,6 +1298,15 @@ export interface ITeamMember {
   conversation_id?: string | null;
   status: string;
   created_at: number;
+}
+
+export interface ITeamAssistantCandidate {
+  assistant_id: string;
+  name: string;
+  backend: string;
+  preset_agent_type: string | null;
+  avatar: string | null;
+  is_preset: boolean;
 }
 
 export interface ITeamMail {
@@ -1465,6 +1475,9 @@ export interface ICreateConversationParams {
     customWorkspace?: boolean;
     workspaceDisplayName?: string;
     teamOwnedWorkspace?: boolean;
+    isTeamMember?: boolean;
+    teamId?: string;
+    teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
     defaultFiles?: string[];
     backend?: AcpBackendAll;
     cliPath?: string;

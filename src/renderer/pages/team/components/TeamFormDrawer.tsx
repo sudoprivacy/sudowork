@@ -2,14 +2,13 @@ import { Button, Drawer, Form, Input, Message, Radio, Spin } from '@arco-design/
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import { getAgentPriority } from '@/types/acpTypes';
 import { unwrapTeamResult } from '../utils';
 
 interface SelectableAssistant {
   assistant_id: string;
   name: string;
   backend: string;
-  avatar?: string;
+  avatar?: string | null;
 }
 
 interface ITeamFormDrawerProps {
@@ -36,18 +35,7 @@ function TeamFormDrawer({ visible, onClose, onCreated }: ITeamFormDrawerProps) {
     setWorkspace('');
     void (async () => {
       try {
-        const res = await ipcBridge.acpConversation.getAvailableAgents.invoke();
-        const agents = res?.success ? (res.data ?? []) : [];
-        const seen = new Set<string>();
-        const list: SelectableAssistant[] = [];
-        for (const a of agents) {
-          if (a.backend === 'remote-agent') continue; // enterprise — not a C-end team member
-          const id = a.customAgentId ?? a.backend;
-          if (seen.has(id)) continue;
-          seen.add(id);
-          list.push({ assistant_id: id, name: a.name, backend: a.backend, avatar: a.avatar });
-        }
-        list.sort((a, b) => getAgentPriority(a.backend) - getAgentPriority(b.backend));
+        const list = unwrapTeamResult(await ipcBridge.team.listAssistants.invoke()) ?? [];
         if (!cancelled) {
           setAssistants(list);
           setSelectedId(list[0]?.assistant_id ?? '');
