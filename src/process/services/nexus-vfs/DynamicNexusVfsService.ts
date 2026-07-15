@@ -27,9 +27,10 @@ const execAsync = promisify(exec);
  * Differences from DynamicNexusService that matter here:
  *  - nexusd-cluster speaks gRPC only; there is NO HTTP /health endpoint, so
  *    readiness is a TCP-connect probe against the bind port.
- *  - Its CLI is --hostname / --bind-addr / --bootstrap-mode / --data-dir /
- *    --no-tls (NOT --host/--port/--profile/--auth-type). bootstrap-mode `static`
- *    with empty peers brings up a healthy single-node 1-voter zone.
+ *  - Its CLI is --hostname / --bind-addr / --data-dir / --no-tls
+ *    (NOT --host/--port/--profile/--auth-type). With no peers it founds a
+ *    healthy single-node 1-voter root zone; the boot action is inferred from
+ *    on-disk state (--bootstrap-mode was removed upstream in Phase G).
  */
 
 const NEXUS_VFS_BIND_HOST = '127.0.0.1';
@@ -426,7 +427,12 @@ class DynamicNexusVfsService {
       throw new Error('nexus-vfs not installed. Please install it first.');
     }
     const pluginDir = this.getPluginDir();
-    const args = ['--hostname', 'localhost', '--bind-addr', `${NEXUS_VFS_BIND_HOST}:${port}`, '--bootstrap-mode', 'static', '--data-dir', this.getDaemonDataDir(), '--no-tls'];
+    // --bootstrap-mode was removed in nexus-vfs (Phase G): the daemon infers
+    // its boot action from on-disk state. Required on v0.4.0, REJECTED on
+    // >=v0.5.0 — so this drop is atomic with the pin bump in runtime-versions.json.
+    // --no-tls stays: a plaintext tokenless daemon on this loopback bind is a
+    // trusted local backend, which v0.5.0's boot invariant permits.
+    const args = ['--hostname', 'localhost', '--bind-addr', `${NEXUS_VFS_BIND_HOST}:${port}`, '--data-dir', this.getDaemonDataDir(), '--no-tls'];
     if (vaultPluginInstaller.isPlatformSupported() && vaultPluginInstaller.checkInstalledSync()) {
       args.push('--plugin-dir', pluginDir);
     }

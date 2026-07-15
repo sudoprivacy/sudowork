@@ -91,7 +91,7 @@ RUST_LOG=info,kernel::kernel::plugins=info nohup "$HOME/.nexus-vfs/bin/nexusd-cl
   --bind-addr 0.0.0.0:2028 \
   --data-dir "$WORK/cluster-data" \
   --no-tls \
-  --bootstrap-mode static \
+  --insecure-no-auth \
   --plugin-dir "$HOME/.nexus-vfs/plugins" \
   > "$WORK/cluster.log" 2>&1 &
 CLUSTER_PID=$!

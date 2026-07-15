@@ -205,7 +205,7 @@ jobs:
               --bind-addr 0.0.0.0:${CLUSTER_PORT} \
               --data-dir /tmp/cluster-data \
               --no-tls \
-              --bootstrap-mode static \
+              --insecure-no-auth \
               --plugin-dir "$PLUGIN_DIR" \
               > "$CLUSTER_LOG" 2>&1 &
           CLUSTER_PID=$!
@@ -281,7 +281,7 @@ jobs:
               --bind-addr 0.0.0.0:${CLUSTER_PORT} \
               --data-dir /tmp/cluster-data \
               --no-tls \
-              --bootstrap-mode static \
+              --insecure-no-auth \
               --plugin-dir "$PLUGIN_DIR" \
               > "$CLUSTER_LOG" 2>&1 &
           CLUSTER_PID=$!
@@ -363,7 +363,7 @@ jobs:
               '--bind-addr', "0.0.0.0:$env:CLUSTER_PORT",
               '--data-dir', $dataDir,
               '--no-tls',
-              '--bootstrap-mode', 'static',
+              '--insecure-no-auth',
               '--plugin-dir', $pluginDir
             ) `
             -RedirectStandardOutput $clusterLog `
