@@ -66,7 +66,7 @@ function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
 
   return (
     <div className='flex h-full min-h-0 flex-col'>
-      <div className='flex flex-col gap-2px overflow-y-auto p-8px max-h-40%'>
+      <div className='flex min-w-0 flex-col gap-2px overflow-y-auto overflow-x-hidden px-20px py-8px max-h-40%'>
         {memberAssistants.length === 0 ? (
           <div className='px-8px py-6px text-gray-400 text-13px'>{t('team.detail.selectMember')}</div>
         ) : (

@@ -24,6 +24,7 @@ const WORKSPACE_HEADER_HEIGHT = 32;
 const MIN_CHAT_PANEL_PX = 360;
 const MIN_PREVIEW_PANEL_PX = 340;
 const MIN_WORKSPACE_PANEL_PX = 300;
+const MIN_RIGHT_SIDER_PANEL_PX = 300;
 
 const isMacEnvironment = () => {
   if (typeof navigator === 'undefined') return false;
@@ -67,6 +68,7 @@ interface ConversationHeaderToggleProps {
 }
 
 interface IRightSiderWidthOverride {
+  widthPx?: number;
   maxWidthPx?: number;
   ratio?: number;
 }
@@ -332,7 +334,10 @@ const ChatLayout: React.FC<{
   const workspaceFlex = effectiveWorkspaceRatio;
   const viewportWidth = containerWidth || (typeof window === 'undefined' ? 0 : window.innerWidth);
   const effectiveWorkspaceMaxWidthPx = rightSiderWidthOverride?.maxWidthPx ?? 500;
-  const workspaceWidthPx = workspaceEnabled ? Math.min(effectiveWorkspaceMaxWidthPx, Math.max(200, (configuredWorkspaceRatio / 100) * (viewportWidth || 0))) : 0;
+  const ratioWorkspaceWidthPx = Math.min(effectiveWorkspaceMaxWidthPx, Math.max(200, (configuredWorkspaceRatio / 100) * (viewportWidth || 0)));
+  const maxWorkspaceWidthByChatPx = Math.max(MIN_RIGHT_SIDER_PANEL_PX, (viewportWidth || 0) - MIN_CHAT_PANEL_PX);
+  const fixedWorkspaceWidthPx = rightSiderWidthOverride?.widthPx ? Math.min(rightSiderWidthOverride.widthPx, maxWorkspaceWidthByChatPx) : null;
+  const workspaceWidthPx = workspaceEnabled ? (fixedWorkspaceWidthPx ?? ratioWorkspaceWidthPx) : 0;
 
   useEffect(() => {
     if (!workspaceEnabled || !isPreviewOpen || !isDesktop || rightSiderCollapsed) {
@@ -396,7 +401,7 @@ const ChatLayout: React.FC<{
   }, [isPreviewOpen, isDesktop, layout, rightSiderCollapsed, workspaceEnabled]);
 
   const showDesktopWorkspaceSidebar = workspaceEnabled && !rightSiderCollapsed;
-  const desktopWorkspaceSidebarWidth = Math.max(300, Math.round(workspaceWidthPx));
+  const desktopWorkspaceSidebarWidth = Math.max(MIN_RIGHT_SIDER_PANEL_PX, Math.round(workspaceWidthPx));
   const showWorkspaceHeader = props.siderTitle != null;
   const showConversationCollapseToggle = workspaceEnabled && !rightSiderCollapsed;
   const toggleConversationCollapsed = () => setConversationCollapsed((prev) => !prev);
@@ -512,7 +517,7 @@ const ChatLayout: React.FC<{
                     flexShrink: 0,
                     flexBasis: rightSiderCollapsed ? '0px' : `${desktopWorkspaceSidebarWidth}px`,
                     width: rightSiderCollapsed ? '0px' : `${desktopWorkspaceSidebarWidth}px`,
-                    minWidth: rightSiderCollapsed ? '0px' : '300px',
+                    minWidth: rightSiderCollapsed ? '0px' : `${MIN_RIGHT_SIDER_PANEL_PX}px`,
                     overflow: 'visible',
                   }}
                 >
@@ -611,7 +616,7 @@ const ChatLayout: React.FC<{
                   flexShrink: 0,
                   flexBasis: rightSiderCollapsed || (!isPreviewOpen && !isRightSiderWidthOverridden) ? (rightSiderCollapsed ? '0px' : 0) : `${Math.round(workspaceWidthPx)}px`,
                   width: rightSiderCollapsed || (!isPreviewOpen && !isRightSiderWidthOverridden) ? (rightSiderCollapsed ? '0px' : undefined) : `${Math.round(workspaceWidthPx)}px`,
-                  minWidth: rightSiderCollapsed ? '0px' : '300px',
+                  minWidth: rightSiderCollapsed ? '0px' : `${MIN_RIGHT_SIDER_PANEL_PX}px`,
                   overflow: 'visible',
                 }}
               >
