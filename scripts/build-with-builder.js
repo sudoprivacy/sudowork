@@ -207,6 +207,56 @@ function formatExecError(error) {
     .trim();
 }
 
+function withDefaultDistributableTargets(args) {
+  const isWindowsBuild = args.includes('--win') || args.includes('--all');
+  const hasWindowsTarget = /\b(nsis|zip|msi|portable|appx)\b/.test(args);
+  if (isWindowsBuild && !hasWindowsTarget) {
+    return `${args} nsis zip`;
+  }
+  return args;
+}
+
+function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
+  const missing = [];
+  const expectFile = (relativePath) => {
+    const fullPath = path.join(outDir, relativePath);
+    if (!fs.existsSync(fullPath)) missing.push(relativePath);
+  };
+
+  if (args.includes('--win') || args.includes('--all')) {
+    expectFile(path.join('win-unpacked', 'Sudowork.exe'));
+    expectFile(`Sudowork-${appVersion}-win-${targetArch}.exe`);
+    expectFile(`Sudowork-${appVersion}-win-${targetArch}.zip`);
+  }
+
+  if (args.includes('--mac') || args.includes('--all')) {
+    const macDir = targetArch === 'arm64' ? 'mac-arm64' : targetArch === 'x64' ? 'mac' : `mac-${targetArch}`;
+    expectFile(path.join(macDir, 'Sudowork.app'));
+    expectFile(`Sudowork-${appVersion}-mac-${targetArch}.dmg`);
+    expectFile(`Sudowork-${appVersion}-mac-${targetArch}.zip`);
+  }
+
+  if (args.includes('--linux') || args.includes('--all')) {
+    expectFile(path.join('linux-unpacked', 'sudowork'));
+    const appImageNames = [
+      `Sudowork-${appVersion}-linux-${targetArch}.AppImage`,
+      `Sudowork-${appVersion}-linux-x86_64.AppImage`,
+    ];
+    const hasAppImage = appImageNames.some((name) => fs.existsSync(path.join(outDir, name)));
+    if (!hasAppImage) missing.push(appImageNames.join(' or '));
+    const snapNames = [
+      `Sudowork-${appVersion}-linux-${targetArch}.snap`,
+      `Sudowork-${appVersion}-linux-amd64.snap`,
+    ];
+    const hasSnap = snapNames.some((name) => fs.existsSync(path.join(outDir, name)));
+    if (!hasSnap) missing.push(snapNames.join(' or '));
+  }
+
+  if (missing.length > 0) {
+    throw new Error(`electron-builder completed but expected artifacts are missing: ${missing.join(', ')}`);
+  }
+}
+
 // Create DMG using electron-builder --prepackaged with .app path
 // This preserves DMG styling from electron-builder.yml (window size, icon positions, background)
 function createDmgWithPrepackaged(appDir, targetArch) {
@@ -568,7 +618,8 @@ try {
     cleanupWindowsPackOutput();
   }
 
-  const builderCommand = `npx electron-builder ${builderArgs} ${archFlag} ${publishArg}`;
+  const effectiveBuilderArgs = withDefaultDistributableTargets(builderArgs);
+  const builderCommand = `npx electron-builder ${effectiveBuilderArgs} ${archFlag} ${publishArg}`;
   try {
     buildWithDmgRetry(builderCommand, targetArch);
   } catch (error) {
@@ -607,6 +658,7 @@ try {
     }
   }
 
+  validateBuildArtifacts(outDir, effectiveBuilderArgs, targetArch, packageJson.version);
   console.log('✅ Build completed!');
 } catch (error) {
   console.error('❌ Build failed:', error.message);
