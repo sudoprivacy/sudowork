@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TTeam } from '../../src/renderer/pages/team/types';
 
@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   answerQuestion: vi.fn(),
   acpChatProps: [] as Array<{
     conversation_id: string;
+    onProcessingChange?: (isProcessing: boolean) => void;
     onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
   }>,
 }));
@@ -38,6 +39,7 @@ vi.mock('@renderer/pages/conversation/acp/AcpChat', async () => {
   return {
     default: (props: {
       conversation_id: string;
+      onProcessingChange?: (isProcessing: boolean) => void;
       onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
     }) => {
       mocks.acpChatProps.push(props);
@@ -89,6 +91,10 @@ const teammate = {
   model: null,
 };
 
+function makeTeammate(status: TTeam['assistants'][number]['status']): TTeam['assistants'][number] {
+  return { ...teammate, status };
+}
+
 describe('TeamMemberListTab', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -131,5 +137,44 @@ describe('TeamMemberListTab', () => {
       toolCallId: 'tool-1',
       answers: [{ id: 'q1', value: 'yes', label: 'Yes' }],
     });
+  });
+
+  it('shows an idle member as active when activeSlotIds contains the member slot', () => {
+    render(<TeamMemberListTab team={makeTeam([leader, teammate])} statusMap={new Map()} activeSlotIds={new Set(['member-slot'])} />);
+
+    expect(screen.getByText('team.status.active')).toBeInTheDocument();
+  });
+
+  it('uses selected chat processing to override an idle member row while processing', async () => {
+    render(<TeamMemberListTab team={makeTeam([leader, teammate])} statusMap={new Map()} />);
+
+    expect(screen.getByText('team.status.idle')).toBeInTheDocument();
+    await screen.findByTestId('acp-chat');
+
+    act(() => {
+      mocks.acpChatProps.at(-1)?.onProcessingChange?.(true);
+    });
+    expect(screen.getByText('team.status.active')).toBeInTheDocument();
+
+    act(() => {
+      mocks.acpChatProps.at(-1)?.onProcessingChange?.(false);
+    });
+    expect(screen.getByText('team.status.idle')).toBeInTheDocument();
+  });
+
+  it('does not override failed or pending member statuses', async () => {
+    const { rerender } = render(<TeamMemberListTab team={makeTeam([leader, makeTeammate('failed')])} statusMap={new Map()} activeSlotIds={new Set(['member-slot'])} />);
+
+    expect(screen.getByText('team.status.failed')).toBeInTheDocument();
+    await screen.findByTestId('acp-chat');
+    act(() => {
+      mocks.acpChatProps.at(-1)?.onProcessingChange?.(true);
+    });
+    expect(screen.getByText('team.status.failed')).toBeInTheDocument();
+
+    mocks.acpChatProps = [];
+    rerender(<TeamMemberListTab team={makeTeam([leader, makeTeammate('pending')])} statusMap={new Map()} activeSlotIds={new Set(['member-slot'])} />);
+
+    expect(screen.getByText('team.status.pending')).toBeInTheDocument();
   });
 });

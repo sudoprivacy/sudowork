@@ -551,9 +551,11 @@ const AcpSendBox: React.FC<{
   /** Team override: when set, sends route through the team API instead of the single-chat ACP API (附录 II.8). */
   teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
-}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, onAiProcessingChange }) => {
+  onProcessingChange?: (isProcessing: boolean) => void;
+}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, onAiProcessingChange, onProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
+  const isProcessing = running || aiProcessing;
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
@@ -566,6 +568,11 @@ const AcpSendBox: React.FC<{
       onAiProcessingChange(aiProcessing);
     }
   }, [aiProcessing, onAiProcessingChange]);
+
+  useEffect(() => {
+    onProcessingChange?.(isProcessing);
+    return () => onProcessingChange?.(false);
+  }, [isProcessing, onProcessingChange]);
 
   // 使用 useRef 来跟踪组件是否已经挂载，避免重复初始化
   const hasInitialized = useRef(false);
@@ -931,15 +938,15 @@ const AcpSendBox: React.FC<{
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
-      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} startTime={processingStartTime} />
+      <ThoughtDisplay thought={thought} running={isProcessing} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox
         value={content}
         onChange={setContent}
         initialSelectedSkills={selectedSkills}
-        loading={running || aiProcessing}
+        loading={isProcessing}
         disabled={false}
-        topAttached={Boolean(thought?.subject) || running || aiProcessing}
+        topAttached={Boolean(thought?.subject) || isProcessing}
         placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
         allowSubmitWhileRunning={allowSubmitWhileRunning}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -13,7 +13,11 @@ const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   answerQuestion: vi.fn(),
   chatSiderProps: [] as Array<{ conversation?: { id?: string } }>,
-  acpChatProps: [] as Array<{ onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown> }>,
+  acpChatProps: [] as Array<{
+    conversation_id: string;
+    onProcessingChange?: (isProcessing: boolean) => void;
+    onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
+  }>,
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -50,7 +54,8 @@ vi.mock('../../src/renderer/pages/team/hooks/useTeamRunView', () => ({
 vi.mock('@renderer/pages/conversation/ChatLayout', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return {
-    default: ({ title, sider, children }: { title?: React.ReactNode; sider?: React.ReactNode; children?: React.ReactNode }) => React.createElement('div', { 'data-testid': 'chat-layout' }, React.createElement('div', { 'data-testid': 'chat-title' }, title), sider, children),
+    default: ({ title, headerExtra, sider, children }: { title?: React.ReactNode; headerExtra?: React.ReactNode; sider?: React.ReactNode; children?: React.ReactNode }) =>
+      React.createElement('div', { 'data-testid': 'chat-layout' }, React.createElement('div', { 'data-testid': 'chat-title' }, title), React.createElement('div', { 'data-testid': 'header-extra' }, headerExtra), sider, children),
   };
 });
 
@@ -67,9 +72,13 @@ vi.mock('@renderer/pages/conversation/ChatSider', async () => {
 vi.mock('@renderer/pages/conversation/acp/AcpChat', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return {
-    default: (props: { onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown> }) => {
+    default: (props: {
+      conversation_id: string;
+      onProcessingChange?: (isProcessing: boolean) => void;
+      onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
+    }) => {
       mocks.acpChatProps.push(props);
-      return React.createElement('div', { 'data-testid': 'acp-chat' });
+      return React.createElement('div', { 'data-testid': 'acp-chat', 'data-conversation-id': props.conversation_id });
     },
   };
 });
@@ -221,5 +230,45 @@ describe('TeamDetailPage route safety', () => {
     rerender(<TeamDetailPage />);
 
     expect(mocks.chatSiderProps.at(-1)?.conversation).toBeUndefined();
+  });
+
+  it('shows the leader header as active for accepted and running runs', () => {
+    const team = makeTeam('team-1', 'leader-conversation');
+    mocks.useTeamSession.mockReturnValue({ team, statusMap: new Map(), loading: false });
+    mocks.getConversation.mockReturnValue(new Promise(() => {}));
+    mocks.useTeamRunView.mockReturnValue({ activeRun: { team_id: 'team-1', team_run_id: 'run-1', target_slot_id: 'team-1-leader', target_role: 'lead', status: 'accepted', active_child_count: 0, pending_wake_count: 1, starting_child_count: 0 }, childTurnsBySlot: {}, reconcile: vi.fn() });
+
+    const { rerender } = render(<TeamDetailPage />);
+
+    expect(screen.getByTestId('header-extra')).toHaveTextContent('team.status.active');
+
+    mocks.useTeamRunView.mockReturnValue({ activeRun: { team_id: 'team-1', team_run_id: 'run-1', target_slot_id: 'team-1-leader', target_role: 'lead', status: 'running', active_child_count: 1, pending_wake_count: 0, starting_child_count: 0 }, childTurnsBySlot: {}, reconcile: vi.fn() });
+    rerender(<TeamDetailPage />);
+
+    expect(screen.getByTestId('header-extra')).toHaveTextContent('team.status.active');
+  });
+
+  it('uses leader chat processing to keep the leader header active and resets on conversation change', async () => {
+    const oldTeam = makeTeam('team-1', 'old-conversation');
+    const newTeam = makeTeam('team-1', 'new-conversation');
+    mocks.useTeamSession.mockReturnValue({ team: oldTeam, statusMap: new Map(), loading: false });
+    mocks.getConversation.mockReturnValue(new Promise(() => {}));
+
+    const { rerender } = render(<TeamDetailPage />);
+
+    await waitFor(() => expect(mocks.acpChatProps.some((props) => props.conversation_id === 'old-conversation')).toBe(true));
+    expect(screen.getByTestId('header-extra')).toBeEmptyDOMElement();
+
+    act(() => {
+      mocks.acpChatProps.at(-1)?.onProcessingChange?.(true);
+    });
+    expect(screen.getByTestId('header-extra')).toHaveTextContent('team.status.active');
+
+    mocks.useTeamSession.mockReturnValue({ team: newTeam, statusMap: new Map(), loading: false });
+    mocks.getConversation.mockReturnValue(new Promise(() => {}));
+    mocks.acpChatProps = [];
+    rerender(<TeamDetailPage />);
+
+    expect(screen.getByTestId('header-extra')).toBeEmptyDOMElement();
   });
 });

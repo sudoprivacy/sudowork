@@ -21,7 +21,8 @@ const AcpChat: React.FC<{
   onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
   /** Team override: when set, sends go through the team API instead of the single-chat ACP API (附录 II.8). */
   teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
-}> = ({ conversation_id, workspace, backend, sessionMode, agentName, emptyState, showEmptyStateWhenNoMessages, onTeamAnswerQuestion, teamSendMessage }) => {
+  onProcessingChange?: (isProcessing: boolean) => void;
+}> = ({ conversation_id, workspace, backend, sessionMode, agentName, emptyState, showEmptyStateWhenNoMessages, onTeamAnswerQuestion, teamSendMessage, onProcessingChange }) => {
   const { loaded: messagesLoaded } = useMessageLstCache(conversation_id);
   const [aiProcessing, setAiProcessing] = useState(false);
 
@@ -48,7 +49,7 @@ const AcpChat: React.FC<{
         </LocalImageView.Provider>
         <SafetyChatConfirm conversation_id={conversation_id}>
           <ConversationChatConfirm conversation_id={conversation_id}>
-            <AcpSendBox conversation_id={conversation_id} backend={backend} sessionMode={sessionMode} agentName={agentName} teamSendMessage={teamSendMessage} onAiProcessingChange={setAiProcessing}></AcpSendBox>
+            <AcpSendBox conversation_id={conversation_id} backend={backend} sessionMode={sessionMode} agentName={agentName} teamSendMessage={teamSendMessage} onAiProcessingChange={setAiProcessing} onProcessingChange={onProcessingChange}></AcpSendBox>
           </ConversationChatConfirm>
         </SafetyChatConfirm>
       </div>

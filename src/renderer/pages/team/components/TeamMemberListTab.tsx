@@ -25,9 +25,10 @@ function resolveMemberIcon(member: TeamAssistant): string | null {
 interface ITeamMemberListTabProps {
   team: TTeam;
   statusMap: Map<string, TeammateStatus>;
+  activeSlotIds?: ReadonlySet<string>;
 }
 
-function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
+function TeamMemberListTab({ team, statusMap, activeSlotIds }: ITeamMemberListTabProps) {
   const { t } = useTranslation();
   const storageKey = `team-active-member-${team.id}`;
   const memberAssistants = useMemo(() => team.assistants.filter((a) => a.role !== 'leader'), [team.assistants]);
@@ -38,6 +39,7 @@ function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
       return '';
     }
   });
+  const [isSelectedChatProcessing, setIsSelectedChatProcessing] = useState(false);
 
   useEffect(() => {
     if (activeSlotId && memberAssistants.some((a) => a.slot_id === activeSlotId)) return;
@@ -57,6 +59,10 @@ function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
   }, [storageKey, activeSlotId]);
 
   const activeMember = useMemo(() => memberAssistants.find((a) => a.slot_id === activeSlotId) ?? null, [memberAssistants, activeSlotId]);
+
+  useEffect(() => {
+    setIsSelectedChatProcessing(false);
+  }, [activeSlotId, activeMember?.conversation_id]);
 
   const teamSendMessage = useMemo(() => {
     if (!activeMember) return undefined;
@@ -89,14 +95,16 @@ function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
     <div className='flex h-full min-h-0 w-full flex-1 flex-col'>
       <div className='flex min-w-0 flex-col gap-2px overflow-y-auto overflow-x-hidden px-20px py-8px max-h-40%'>
         {memberAssistants.map((a) => {
-          const status = statusMap.get(a.slot_id) ?? a.status;
+          const baseStatus = statusMap.get(a.slot_id) ?? a.status;
+          const hasActiveDisplayState = activeSlotIds?.has(a.slot_id) || (a.slot_id === activeSlotId && isSelectedChatProcessing);
+          const status = baseStatus !== 'failed' && baseStatus !== 'pending' && hasActiveDisplayState ? 'active' : baseStatus;
           const isActive = a.slot_id === activeSlotId;
           return <TeamMemberRow key={a.slot_id} member={a} status={status} isActive={isActive} statusLabel={t(`team.status.${status}`)} onSelect={() => setActiveSlotId(a.slot_id)} />;
         })}
       </div>
       <div className='flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border-2)]'>
         {activeMember && activeMember.conversation_id ? (
-          <AcpChat conversation_id={activeMember.conversation_id} backend={activeMember.assistant_backend as AcpBackend} agentName={activeMember.assistant_name} workspace={team.workspace ?? undefined} onTeamAnswerQuestion={onTeamAnswerQuestion} teamSendMessage={teamSendMessage} />
+          <AcpChat conversation_id={activeMember.conversation_id} backend={activeMember.assistant_backend as AcpBackend} agentName={activeMember.assistant_name} workspace={team.workspace ?? undefined} onTeamAnswerQuestion={onTeamAnswerQuestion} teamSendMessage={teamSendMessage} onProcessingChange={setIsSelectedChatProcessing} />
         ) : (
           <div className='flex items-center justify-center h-full text-gray-400 text-13px'>{t('team.detail.selectMember')}</div>
         )}
