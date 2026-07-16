@@ -66,6 +66,11 @@ interface ConversationHeaderToggleProps {
   style?: React.CSSProperties;
 }
 
+interface IRightSiderWidthOverride {
+  maxWidthPx?: number;
+  ratio?: number;
+}
+
 const ConversationHeaderToggle: React.FC<ConversationHeaderToggleProps> = ({ collapsed, title, onToggle, style }) => (
   <div className='pointer-events-none' style={{ width: '34px', height: '44px', ...style }}>
     <div className='absolute left-0 top-0 bottom-0 w-0 bg-[var(--bg-3)] opacity-90' />
@@ -104,6 +109,7 @@ const ChatLayout: React.FC<{
   headerExtra?: React.ReactNode;
   headerLeft?: React.ReactNode;
   workspaceEnabled?: boolean;
+  rightSiderWidthOverride?: IRightSiderWidthOverride | null;
   /** 会话 ID，用于模式切换 / Conversation ID for mode switching */
   conversationId?: string;
 }> = (props) => {
@@ -128,7 +134,7 @@ const ChatLayout: React.FC<{
   const rightSidebarToggleRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(() => (typeof window === 'undefined' ? 0 : window.innerWidth));
   const [conversationTogglePosition, setConversationTogglePosition] = useState<React.CSSProperties | null>(null);
-  const { backend, agentName, agentLogo, agentLogoIsEmoji, workspaceEnabled = true } = props;
+  const { backend, agentName, agentLogo, agentLogoIsEmoji, workspaceEnabled = true, rightSiderWidthOverride } = props;
   const layout = useLayoutContext();
   const isMacRuntime = isMacEnvironment();
   const isWindowsRuntime = isWindowsEnvironment();
@@ -296,7 +302,9 @@ const ChatLayout: React.FC<{
   });
 
   const safeContainerWidth = Math.max(containerWidth || 0, 1);
-  const activeWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? workspaceSplitRatio : 0;
+  const isRightSiderWidthOverridden = Boolean(rightSiderWidthOverride);
+  const configuredWorkspaceRatio = rightSiderWidthOverride?.ratio ?? workspaceSplitRatio;
+  const activeWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? configuredWorkspaceRatio : 0;
   const availableRatioForChatPreview = Math.max(1, 100 - activeWorkspaceRatio);
   const availableWidthForChatPreview = (safeContainerWidth * availableRatioForChatPreview) / 100;
   const minChatRatioByPx = (MIN_CHAT_PANEL_PX / Math.max(availableWidthForChatPreview, 1)) * 100;
@@ -317,13 +325,14 @@ const ChatLayout: React.FC<{
     storageKey: 'chat-preview-split-ratio',
   });
 
-  const effectiveWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? workspaceSplitRatio : 0;
+  const effectiveWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? configuredWorkspaceRatio : 0;
   const availableChatPreviewRatio = Math.max(0, 100 - effectiveWorkspaceRatio);
   const isConversationCollapsed = conversationCollapsed;
   const chatFlex = isConversationCollapsed ? 0 : isPreviewOpen ? (availableChatPreviewRatio * chatSplitRatio) / 100 : 100 - effectiveWorkspaceRatio;
   const workspaceFlex = effectiveWorkspaceRatio;
   const viewportWidth = containerWidth || (typeof window === 'undefined' ? 0 : window.innerWidth);
-  const workspaceWidthPx = workspaceEnabled ? Math.min(500, Math.max(200, (workspaceSplitRatio / 100) * (viewportWidth || 0))) : 0;
+  const effectiveWorkspaceMaxWidthPx = rightSiderWidthOverride?.maxWidthPx ?? 500;
+  const workspaceWidthPx = workspaceEnabled ? Math.min(effectiveWorkspaceMaxWidthPx, Math.max(200, (configuredWorkspaceRatio / 100) * (viewportWidth || 0))) : 0;
 
   useEffect(() => {
     if (!workspaceEnabled || !isPreviewOpen || !isDesktop || rightSiderCollapsed) {
@@ -333,7 +342,7 @@ const ChatLayout: React.FC<{
     const minChatPreviewRatioByPx = ((MIN_CHAT_PANEL_PX + MIN_PREVIEW_PANEL_PX) / safeContainerWidth) * 100;
     const maxWorkspaceByPx = 100 - minChatPreviewRatioByPx;
     const maxWorkspace = Math.max(MIN_WORKSPACE_RATIO, Math.min(40, maxWorkspaceByPx));
-    if (workspaceSplitRatio > maxWorkspace) {
+    if (!isRightSiderWidthOverridden && workspaceSplitRatio > maxWorkspace) {
       setWorkspaceSplitRatio(maxWorkspace);
     }
     // 宽度非常紧张时，优先保证聊天+预览可见，自动收起工作空间
@@ -341,7 +350,7 @@ const ChatLayout: React.FC<{
       setRightSiderCollapsed(true);
     }
     // 故意不将 workspaceSplitRatio 加入依赖，避免拖动工作空间时触发额外的 effect
-  }, [containerWidth, isDesktop, isPreviewOpen, rightSiderCollapsed, setWorkspaceSplitRatio, workspaceEnabled, workspaceSplitRatio]);
+  }, [containerWidth, isDesktop, isPreviewOpen, isRightSiderWidthOverridden, rightSiderCollapsed, setWorkspaceSplitRatio, workspaceEnabled, workspaceSplitRatio]);
 
   useEffect(() => {
     if (!workspaceEnabled || !isPreviewOpen || !isDesktop || isConversationCollapsed) {
@@ -433,7 +442,7 @@ const ChatLayout: React.FC<{
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [showConversationCollapseToggle, rightSiderCollapsed, containerWidth, isPreviewOpen, workspaceSplitRatio]);
+  }, [showConversationCollapseToggle, rightSiderCollapsed, containerWidth, isPreviewOpen, workspaceSplitRatio, workspaceWidthPx]);
 
   const conversationTogglePortal = conversationToggleNode && typeof document !== 'undefined' ? createPortal(conversationToggleNode, document.body) : null;
 
@@ -515,7 +524,7 @@ const ChatLayout: React.FC<{
                       borderLeft: rightSiderCollapsed ? 'none' : '1px solid var(--bg-3)',
                     }}
                   >
-                    {!rightSiderCollapsed && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
+                    {!rightSiderCollapsed && !isRightSiderWidthOverridden && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
                     {showWorkspaceHeader ? (
                       <>
                         <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='right'>
@@ -598,10 +607,10 @@ const ChatLayout: React.FC<{
                 ref={rightSidebarToggleRef}
                 className={classNames('relative chat-layout-right-sider layout-sider')}
                 style={{
-                  flexGrow: isPreviewOpen ? 0 : workspaceFlex,
+                  flexGrow: isPreviewOpen || isRightSiderWidthOverridden ? 0 : workspaceFlex,
                   flexShrink: 0,
-                  flexBasis: rightSiderCollapsed ? '0px' : isPreviewOpen ? `${Math.round(workspaceWidthPx)}px` : 0,
-                  width: rightSiderCollapsed ? '0px' : isPreviewOpen ? `${Math.round(workspaceWidthPx)}px` : undefined,
+                  flexBasis: rightSiderCollapsed || (!isPreviewOpen && !isRightSiderWidthOverridden) ? (rightSiderCollapsed ? '0px' : 0) : `${Math.round(workspaceWidthPx)}px`,
+                  width: rightSiderCollapsed || (!isPreviewOpen && !isRightSiderWidthOverridden) ? (rightSiderCollapsed ? '0px' : undefined) : `${Math.round(workspaceWidthPx)}px`,
                   minWidth: rightSiderCollapsed ? '0px' : '300px',
                   overflow: 'visible',
                 }}
@@ -614,7 +623,7 @@ const ChatLayout: React.FC<{
                     borderLeft: rightSiderCollapsed ? 'none' : '1px solid var(--bg-3)',
                   }}
                 >
-                  {!rightSiderCollapsed && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
+                  {!rightSiderCollapsed && !isRightSiderWidthOverridden && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
                   {showWorkspaceHeader ? (
                     <>
                       <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='right'>

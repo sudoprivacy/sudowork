@@ -22,7 +22,8 @@ export interface ExtraPanelTab {
 const ChatSider: React.FC<{
   conversation?: TChatConversation;
   extraTab?: ExtraPanelTab;
-}> = ({ conversation, extraTab }) => {
+  onActiveTabChange?: (tabId: string) => void;
+}> = ({ conversation, extraTab, onActiveTabChange }) => {
   const { t } = useTranslation();
   const storageKey = React.useMemo(() => (conversation?.id ? `${STORAGE_KEYS.RIGHT_PANEL_ACTIVE_TAB}:${conversation.id}` : null), [conversation?.id]);
   const [activeTab, setActiveTab] = React.useState<RightPanelTab | string>('workspace');
@@ -47,13 +48,14 @@ const ChatSider: React.FC<{
   }, [storageKey]);
 
   React.useEffect(() => {
+    onActiveTabChange?.(activeTab);
     if (!storageKey) return;
     try {
       localStorage.setItem(storageKey, activeTab);
     } catch {
       // ignore
     }
-  }, [activeTab, storageKey]);
+  }, [activeTab, onActiveTabChange, storageKey]);
 
   // When the AI generates an HTML file (or any caller asks to open a URL in
   // the right-panel browser), switch to the browser tab so the result is

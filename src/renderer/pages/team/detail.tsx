@@ -23,6 +23,7 @@ function TeamDetailPage() {
   const { team, statusMap, loading } = useTeamSession(teamId);
   const teamRunView = useTeamRunView(teamId);
   const [leaderConv, setLeaderConv] = useState<TChatConversation | undefined>(undefined);
+  const [activeRightPanelTab, setActiveRightPanelTab] = useState('workspace');
 
   const leader = useMemo(() => team?.assistants.find((a) => a.role === 'leader') ?? null, [team]);
 
@@ -81,6 +82,7 @@ function TeamDetailPage() {
 
   const memberTabNode = <TeamMemberListTab team={team} statusMap={statusMap} />;
   const runStatus = teamRunView.activeRun?.status;
+  const isTeamMemberTabActive = activeRightPanelTab === 'team';
 
   return (
     <ChatLayout
@@ -89,9 +91,10 @@ function TeamDetailPage() {
       agentName={leader.assistant_name}
       conversationId={leader.conversation_id}
       workspaceEnabled
+      rightSiderWidthOverride={isTeamMemberTabActive ? { maxWidthPx: 760, ratio: 70 } : null}
       headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} />}
       headerExtra={runStatus ? <span className={`text-12px px-8px py-2px rounded-full ${runStatus === 'running' ? 'bg-green-500/10 text-green-600' : 'bg-gray-400/10 text-gray-500'}`}>{t(`team.status.${runStatus === 'running' ? 'active' : 'idle'}`)}</span> : null}
-      sider={<ChatSider conversation={leaderConv} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} />}
+      sider={<ChatSider conversation={leaderConv} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} onActiveTabChange={setActiveRightPanelTab} />}
     >
       <AcpChat
         conversation_id={leader.conversation_id}

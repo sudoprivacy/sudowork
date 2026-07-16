@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import { getAgentLogo } from '@/renderer/utils/agentLogo';
+import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AcpBackend } from '@/types/acpTypes';
 import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
 import type { TeamAssistant, TeammateStatus, TTeam } from '../types';
@@ -12,6 +14,12 @@ const STATUS_COLOR: Record<TeammateStatus, string> = {
   completed: 'bg-gray-400',
   failed: 'bg-red-500',
 };
+
+function resolveMemberIcon(member: TeamAssistant): string | null {
+  if (member.icon) return member.icon;
+  const assistantLogo = member.assistant_id ? getAgentLogo(resolveAssistantName(member.assistant_id)) : null;
+  return assistantLogo ?? getAgentLogo(member.assistant_backend);
+}
 
 interface ITeamMemberListTabProps {
   team: TTeam;
@@ -69,7 +77,7 @@ function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
           })
         )}
       </div>
-      <div className='flex-1 min-h-0 border-t border-[var(--color-border-2)]'>
+      <div className='flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border-2)]'>
         {activeMember && activeMember.conversation_id ? (
           <AcpChat conversation_id={activeMember.conversation_id} backend={activeMember.assistant_backend as AcpBackend} agentName={activeMember.assistant_name} workspace={team.workspace ?? undefined} teamSendMessage={teamSendMessage} />
         ) : (
@@ -81,13 +89,15 @@ function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
 }
 
 function TeamMemberRow({ member, status, statusLabel, isActive, onSelect }: ITeamMemberRowProps) {
+  const icon = resolveMemberIcon(member);
+
   return (
-    <div className={`flex items-center gap-8px px-8px py-6px rounded-4px cursor-pointer ${isActive ? 'bg-[var(--color-fill-2)]' : 'hover:bg-[var(--color-fill-1)]'}`} onClick={onSelect}>
+    <div className={`flex w-full min-w-0 items-center gap-8px overflow-hidden rounded-4px px-8px py-6px cursor-pointer ${isActive ? 'bg-[var(--color-fill-2)]' : 'hover:bg-[var(--color-fill-1)]'}`} onClick={onSelect}>
       <span className='inline-flex size-24px shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-fill-3)] text-12px font-medium text-1'>
-        {member.icon ? <img src={member.icon} alt='' className='size-full object-cover' /> : member.assistant_name.slice(0, 1).toUpperCase()}
+        {icon ? <img src={icon} alt='' className='size-full object-cover' /> : <span className='size-10px rounded-full bg-[var(--color-text-4)]' />}
       </span>
       <span className='min-w-0 flex-1 truncate text-13px'>{member.assistant_name}</span>
-      <span className='inline-flex shrink-0 items-center gap-4px text-11px text-gray-400'>
+      <span className='inline-flex shrink-0 items-center gap-4px whitespace-nowrap text-11px text-gray-400'>
         <span className={`inline-block w-8px h-8px rounded-full ${STATUS_COLOR[status]}`} />
         <span>{statusLabel}</span>
       </span>
