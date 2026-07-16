@@ -8,7 +8,7 @@
     "drawerTitle": "Create Team",
     "nameLabel": "Team Name",
     "namePlaceholder": "Enter a team name",
-    "leaderLabel": "Leader Assistant",
+    "leaderLabel": "Leader",
     "leaderPlaceholder": "Select an assistant to lead the team",
     "workspaceLabel": "Workspace",
     "selectFolder": "Select project folder",

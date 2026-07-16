@@ -1309,6 +1309,7 @@ export interface ITeamAssistantCandidate {
   preset_agent_type: string | null;
   avatar: string | null;
   is_preset: boolean;
+  source: 'agent' | 'assistant';
 }
 
 export interface ITeamMail {

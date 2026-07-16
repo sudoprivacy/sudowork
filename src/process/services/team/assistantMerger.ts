@@ -19,12 +19,22 @@ export interface InstalledAssistantLike {
   meta: {
     id?: string;
     display_name?: string;
+    name?: string;
+    nameI18n?: Record<string, string>;
     presetAgentType?: string;
     avatar?: string | null;
   };
 }
 
 export type TeamAssistantEntry = ITeamAssistantCandidate;
+
+function getInstalledAssistantKey(info: InstalledAssistantLike): string {
+  return info.isBuiltin ? `builtin-${info.meta.id || info.name}` : info.meta.id || info.name;
+}
+
+function getInstalledAssistantDisplayName(info: InstalledAssistantLike): string {
+  return info.meta.nameI18n?.['zh-CN'] || info.meta.nameI18n?.['en-US'] || info.meta.display_name || info.meta.name || info.meta.id || info.name;
+}
 
 /**
  * Merge guide-detected agents ∪ installed assistants (附录 A2).
@@ -40,16 +50,18 @@ export function mergeTeamAssistants(detected: DetectedAgentLike[], installed: In
 
   // Installed assistants first (resolved backend preferred over the 'custom' tag in detected).
   for (const info of installed) {
-    const key = info.isBuiltin ? `builtin-${info.meta.id || info.name}` : info.meta.id || info.name;
+    const key = getInstalledAssistantKey(info);
     if (seen.has(key)) continue;
     seen.add(key);
+    const backend = resolvePresetAgentBackend(info.meta.presetAgentType);
     result.push({
       assistant_id: key,
-      name: info.meta.display_name || info.name,
-      backend: resolvePresetAgentBackend(info.meta.presetAgentType),
+      name: getInstalledAssistantDisplayName(info),
+      backend,
       preset_agent_type: info.meta.presetAgentType ?? null,
       avatar: info.meta.avatar ?? null,
       is_preset: info.isBuiltin || info.isHubInstalled,
+      source: 'assistant',
     });
   }
 
@@ -66,9 +78,13 @@ export function mergeTeamAssistants(detected: DetectedAgentLike[], installed: In
       preset_agent_type: d.presetAgentType ?? null,
       avatar: d.avatar ?? null,
       is_preset: d.isPreset ?? false,
+      source: 'agent',
     });
   }
 
-  result.sort((a, b) => getAgentPriority(a.backend) - getAgentPriority(b.backend));
+  result.sort((a, b) => {
+    if (a.source !== b.source) return a.source === 'agent' ? -1 : 1;
+    return getAgentPriority(a.backend) - getAgentPriority(b.backend);
+  });
   return result;
 }
