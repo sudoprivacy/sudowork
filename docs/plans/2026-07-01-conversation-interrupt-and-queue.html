@@ -109,6 +109,16 @@ flowchart LR
   SW["sudowork"] --> ACPM["sudocode：ACP server 模式<br/>(sudowork 的队列)"]
   REPL -. 互斥 · 不同时 .- ACPM
   </pre>
+  <div class="callout blue">
+    <h3>为什么"互斥"是硬保证，而不是靠自觉 <span class="pill g">by design · 已核验</span></h3>
+    <p>这不是运行时判断，是<b>构造上的分离</b>——scode 启动时按 argv 二选一，分派到<b>两个互不引用的顶层函数</b>：<code>scode acp</code> → <code>run_acp_server</code>（作为 sudowork 的引擎），<code>scode</code> → <code>run_repl</code> → <code>run_repl_async_dispatch</code>（交互队列）。同进程内不可能两者并存。</p>
+    <ul>
+      <li><b>队列模块只接在 REPL 分支：</b><code>input_queue</code> / <code>repl_async</code> 仅被 <code>run_repl</code> 一侧引用；ACP 路径对它<b>零引用</b>（grep 核验 0 命中）——一次误改无法把队列泄漏进引擎路径。</li>
+      <li><b>旋钮漏不进 ACP：</b><code>SUDOCODE_INTERRUPT_QUEUE_MODE</code>（默认 <code>off</code> → 同步 REPL 字节一致）只在 <code>run_repl</code> 读取；ACP 模式完全无视它。</li>
+      <li><b>引擎连开关都看不到：</b>sudowork spawn scode 时<b>从不设</b>这个 env（grep 核验空）——作为引擎的 scode 侧根本拿不到这个旋钮。</li>
+    </ul>
+    <p>所以「两个队列不会同时存在于同一实例」是<b>编译期 / 结构性保证</b>，强于任何运行时守卫——不需要额外断言测试来兜底。interrupt 侧同理：ACP 模式走 <code>session/cancel</code> 处理器、REPL 模式走 <code>HookAbortSignal</code>，两条入口各自独立，最终都汇入 scode 既有的轮中止（见 §二）。</p>
+  </div>
   <h3>3.2 共享行为规范（两个产品都实现同一套）</h3>
   <pre class="mermaid">
 flowchart TD
@@ -119,10 +129,11 @@ flowchart TD
   Q2 -->|"OFF"| B["维持现状：回复中不可提交"]
   </pre>
   <table>
-    <tr><th></th><th>队列 OFF</th><th>队列 ON</th></tr>
-    <tr><th>auto-interrupt OFF</th><td>回复中不可提交（当前行为）</td><td>全部暂存，<b>轮结束（自然完成 / 用户 stop）时合并为 1 条 user message 一次发出</b></td></tr>
+    <tr><th></th><th>队列 OFF</th><th>队列 ON <span class="pill g">默认</span></th></tr>
+    <tr><th>auto-interrupt OFF <span class="pill g">默认</span></th><td>回复中不可提交（当前行为）</td><td style="background:var(--green-bg)"><span class="pill g">★ 出厂默认</span> 全部暂存，<b>轮结束（自然完成 / 用户 stop）时合并为 1 条 user message 一次发出</b></td></tr>
     <tr><th>auto-interrupt ON</th><td>发送即打断</td><td>第一条立即打断并单独作为新轮启动；启动后再来的走队列 ON 语义（同左格：结束时合并 1 次发出）</td></tr>
   </table>
+  <p class="muted"><b>默认值（出厂，代码为准）</b>：<code>agent.autoInterrupt = false</code>（OFF）、<code>agent.messageQueue = true</code>（ON）——所以开箱即用落在右上格：<b>回复中可继续发、暂存、轮结束时合并成一条发出</b>。两个默认在进程侧（<code>conversationBridge.ts</code> 读 <code>agent.*</code> 时的 <code>.catch(()=>false)</code> / <code>.catch(()=>true)</code>）与渲染层（<code>AcpSendBox.tsx</code>）一致，单一来源。首次在回复中提交会弹一次性「打断 / 排队」确认；确认后不再问。</p>
   <p class="muted">上键（输入框空、队列非空）→ dequeue 最后一条回编辑框。打断 = 真正的轮中止，留下事务完整的 <code>[interrupted]</code> 轮（由 sudocode 保证，见 §二）。<br/><b>合并语义</b>：flush 时把 N 条排队消息按提交顺序拼成 1 个 user message（每条前加 "> " 前缀分隔或简单换行拼接由实现选定），下游 <code>session/prompt</code> 只发 1 次——tokens 更省，也贴合"我攒着一起说完"的用户心理模型；不是 N 次独立 turn 的串行回放。</p>
   <h3>3.3 sudowork：单一进程侧协调器（SSOT + DRY）</h3>
   <p>把「用户输入 vs 轮边界」的决策收敛到<b>一个进程侧模块</b>，桌面 IPC 与微信渠道都走它。理由：轮状态 SSOT 本就在进程侧任务（<code>AcpAgent</code>）；纯前端队列无法服务微信（无 renderer），会变成两套实现两个 SSOT。今天该决策散在两处（renderer 禁提交；<code>ChannelMessageService.ts:243</code> 直接丢弃第二条微信消息并提示“请稍候”）——统一到协调器是系统性修复，而非逐处打补丁。</p>
@@ -179,13 +190,23 @@ flowchart TD
     <li>打断不变（Ctrl-C 已走 <code>HookAbortSignal</code>）；遵守 sudocode「禁单测 / 禁全屏 TUI」规约，走 PTY/集成门验证。</li>
   </ul>
 
-  <h2>五、测试计划（提升 e2e 深度）</h2>
-  <ul>
-    <li><b>单元</b>（协调器纯逻辑）：idle→send；running+autoInterrupt→cancel-then-send；running+queue→入队；<b>finish→N 条队列合并 1 次 flush（不是 N 次 replay）</b>；<b>用户 stop→同样合并 1 次 flush（复用 finish 分支）</b>；both-on→先打断后入队，其后合并；<b>cancel-after-finish 幂等 no-op</b>；重复打断；dequeue 取对项。</li>
-    <li><b>集成</b>（mock ACP）：send-while-running 产生 <code>cancel</code> 再 <code>sendPrompt</code>（有序）；<b>队列 flush 只产生 1 次 sendPrompt，其 body 含全部排队内容按序拼接</b>。</li>
-    <li><b>渠道</b>：微信第二条消息按设置打断/入队（不再丢弃）；连续多条排队最终合并为 1 次 sendPrompt。</li>
-    <li>sudocode 事务完整性已有自测（<code>conversation.rs:2487</code>），我们依赖它、不重测。</li>
-  </ul>
+  <h2>五、功能覆盖矩阵</h2>
+  <p class="muted">按<b>功能</b>组织，不按测试类型。一个测试可覆盖多个功能（就在它覆盖的每一行都记一笔），一个功能被多层测试覆盖是好事（纵深）。这样能一眼看出<b>有没有 gap</b>（某功能 0 覆盖）。<code>U</code>=单测 · <code>I</code>=mock-ACP 集成 · <code>Live</code>=ai-dev-browser 真机 e2e · <code>CI</code>=CI 内 Electron+ai-dev-browser · <code>PTY</code>=scode 二进制真机 · <code>Doc</code>=doctest。</p>
+  <table>
+    <tr><th>功能（§3.2 行为）</th><th>sudowork 覆盖</th><th>sudocode 覆盖</th></tr>
+    <tr><td><b>默认格</b>：queue ON + auto OFF → 轮结束把 N 条合并成 1 条 user message 一次发出</td><td><code>U</code> 协调器矩阵（finish→N 合并）· <code>Live</code> <code>batched_flush_live_smoke.py</code>（DB 断言合并行 "B\n\nC"）· <code>CI</code> <code>scode-…-batched-flush.yaml</code></td><td><code>Doc</code> <code>matrix_docs</code> · <code>PTY</code> <code>pty_repl_async_batched_flush</code></td></tr>
+    <tr><td>用户 stop → 同样合并 1 次 flush（复用 finish 分支）</td><td><code>U</code> 协调器（stop 合并）</td><td>—</td></tr>
+    <tr><td>queue OFF + auto ON → 发送即打断（solo，单独起新轮）</td><td><code>U</code> 协调器（autoInterrupt→cancel-then-send）· <code>Live</code> <code>auto_interrupt_live_smoke.py</code>（DB cancel marker + B solo 行）</td><td><code>PTY</code> <code>pty_repl_async_interrupt</code></td></tr>
+    <tr><td>queue ON + auto ON → 第一条 solo 打断，其后走队列合并</td><td><code>U</code> 协调器（both-on）· <code>Doc</code> matrix（solo 不合并）</td><td><code>Doc</code> <code>matrix_docs</code></td></tr>
+    <tr><td>queue OFF + auto OFF → 回复中不可提交（现状保持，不产生 no-op 丢消息）</td><td><code>U</code> 键盘 guard（Enter+两开关关→warn 不提交）</td><td>—</td></tr>
+    <tr><td>合并语义：N 按提交序拼成 1 个 user message，下游只 1 次 <code>session/prompt</code>（非 N 次 replay）</td><td><code>U</code> 协调器（N=3 合并断言）· <code>I</code> mock-ACP（1 次 sendPrompt，body 拼接）· <code>Live</code> DB 合并行</td><td><code>PTY</code> <code>pty_repl_async_batched_flush</code>（<code>captured_message_count</code> delta 2-3 非 4）</td></tr>
+    <tr><td>queue-during-turn：回复中可提交并入队（SendBox <code>loading</code>+<code>allowSubmitWhileRunning</code>+<code>queuedInputs</code>）</td><td><code>CI</code> fiber-probe（A 运行中 <code>queuedInputs≥3</code>）· <code>Live</code> fiber-probe</td><td><code>PTY</code> <code>pty_repl_async_queue</code>（单轮 baseline 起）</td></tr>
+    <tr><td><code>↑</code> dequeue（输入框空 + 队列非空 → 末条回填）</td><td><code>U</code> 键盘 guard + 协调器 dequeue</td><td><code>PTY</code> <code>pty_repl_async_up_dequeue</code>（5 步 journey）</td></tr>
+    <tr><td>打断 = 真轮中止 + 事务完整（每个悬空 tool_use 合成 <code>[interrupted]</code>，下轮不被拒）</td><td><code>Live</code> cancel marker「请求已被用户终止」</td><td>既有自测 <code>conversation.rs:2487</code>（依赖，不重测）</td></tr>
+    <tr><td>键盘 guard（弹窗打开归弹窗 / Esc 仅回复中 / ↑ 仅空 buffer，绝不抢占既有键）</td><td><code>U</code> 键盘 guard ×7</td><td><code>PTY</code> up-dequeue（空 buffer guard 就地验证）</td></tr>
+    <tr><td>渠道（微信）第二条消息按设置打断/入队 —— 不再「丢弃 + 请稍候」</td><td><code>U</code> 渠道集成 ×3</td><td>N/A（渠道是 sudowork 层）</td></tr>
+  </table>
+  <p class="muted"><b>无 gap</b>：每条 §3.2 行为至少 1 个测试覆盖；核心的「N→1 合并」被 <b>5 层</b>覆盖（U/I/Live/CI/PTY）。sudowork 侧 18 单测（协调器 8 + 键盘 7 + 渠道 3）+ 2 个 ai-dev-browser live smoke + 1 个 CI e2e case；sudocode 侧 7+2 doctest + 4 个 PTY。带「—」的格是该功能只属于一侧（如 stop-merge 是 sudowork 协调器概念；REPL baseline 是 sudocode 概念），非缺口。</p>
 
   <h2>六、结论</h2>
   <div class="callout green">
