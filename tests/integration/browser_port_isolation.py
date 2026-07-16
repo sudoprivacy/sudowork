@@ -137,8 +137,14 @@ def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
     failures = []
 
     try:
-        # 1. browser_start
-        start = _run("browser_start", timeout=20)
+        # 1. browser_start — the subprocess timeout MUST exceed ai-dev-browser's
+        #    own startup_timeout (30s) for a cold Chrome launch. It used to be 20s,
+        #    tighter than the inner budget: on a slow CI cold-start (20–30s) this
+        #    outer timeout killed a launch that was still legitimately in progress,
+        #    reporting "browser_start failed: timeout" — a pure flake (passed when
+        #    Chrome came up fast, failed when it didn't). 60s gives the inner 30s
+        #    budget room to either succeed or report a real error, not be preempted.
+        start = _run("browser_start", timeout=60)
         if start["exit"] != 0:
             return False, f"browser_start failed: {start['stderr'] or start['stdout']}"
         chrome_port = (start["json"] or {}).get("port")
