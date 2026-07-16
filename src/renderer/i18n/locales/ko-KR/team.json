@@ -24,6 +24,7 @@
     "memberTab": "팀 멤버",
     "leaderChat": "리더",
     "selectMember": "멤버 선택",
+    "noMembers": "아직 팀원이 없습니다",
     "workspaceTitle": "워크스페이스",
     "workspaceCustom": "사용자 지정 워크스페이스",
     "workspaceTemporary": "팀 임시 워크스페이스",

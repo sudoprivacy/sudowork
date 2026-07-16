@@ -2406,6 +2406,7 @@ export type I18nKey =
   | 'team.detail.empty.subtitle'
   | 'team.detail.leaderChat'
   | 'team.detail.memberTab'
+  | 'team.detail.noMembers'
   | 'team.detail.selectMember'
   | 'team.detail.workspaceCustom'
   | 'team.detail.workspacePending'

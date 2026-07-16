@@ -1,3 +1,4 @@
+import { Users } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -71,18 +72,27 @@ function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
     };
   }, [team.id, activeMember]);
 
+  if (memberAssistants.length === 0) {
+    return (
+      <div className='flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center px-24px text-center'>
+        <div className='flex w-150px flex-col items-center gap-10px rounded-20px border border-dashed border-light bg-[var(--color-bg-2)] px-20px py-24px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+          <div className='flex h-48px w-48px items-center justify-center rounded-full bg-fill-1'>
+            <Users size={32} strokeWidth={1.8} className='text-[var(--text-disabled)]' />
+          </div>
+          <div className='text-13px font-semibold text-foreground'>{t('team.detail.noMembers')}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className='flex h-full min-h-0 flex-col'>
+    <div className='flex h-full min-h-0 w-full flex-1 flex-col'>
       <div className='flex min-w-0 flex-col gap-2px overflow-y-auto overflow-x-hidden px-20px py-8px max-h-40%'>
-        {memberAssistants.length === 0 ? (
-          <div className='px-8px py-6px text-gray-400 text-13px'>{t('team.detail.selectMember')}</div>
-        ) : (
-          memberAssistants.map((a) => {
-            const status = statusMap.get(a.slot_id) ?? a.status;
-            const isActive = a.slot_id === activeSlotId;
-            return <TeamMemberRow key={a.slot_id} member={a} status={status} isActive={isActive} statusLabel={t(`team.status.${status}`)} onSelect={() => setActiveSlotId(a.slot_id)} />;
-          })
-        )}
+        {memberAssistants.map((a) => {
+          const status = statusMap.get(a.slot_id) ?? a.status;
+          const isActive = a.slot_id === activeSlotId;
+          return <TeamMemberRow key={a.slot_id} member={a} status={status} isActive={isActive} statusLabel={t(`team.status.${status}`)} onSelect={() => setActiveSlotId(a.slot_id)} />;
+        })}
       </div>
       <div className='flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border-2)]'>
         {activeMember && activeMember.conversation_id ? (

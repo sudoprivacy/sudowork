@@ -24,6 +24,7 @@
     "memberTab": "Team Members",
     "leaderChat": "Leader",
     "selectMember": "Select a member",
+    "noMembers": "No team members yet",
     "workspaceTitle": "Workspace",
     "workspaceCustom": "Custom workspace",
     "workspaceTemporary": "Temporary team workspace",

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
+import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
 import { emitter } from '@/renderer/utils/emitter';
 import type { AcpBackend } from '@/types/acpTypes';
 import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
@@ -48,6 +49,11 @@ function TeamDetailPage() {
     void (async () => {
       try {
         const conv = unwrapTeamResult(await ipcBridge.conversation.get.invoke({ id: leader.conversation_id! }));
+        if (conv && shouldSyncWorkspaceSkills(conv)) {
+          await ipcBridge.conversation.syncWorkspaceSkills.invoke({ conversation_id: conv.id }).catch((error) => {
+            console.warn('Failed to sync team leader workspace skills:', error);
+          });
+        }
         if (!cancelled) setLeaderConv(conv ?? undefined);
       } catch {
         if (!cancelled) setLeaderConv(undefined);

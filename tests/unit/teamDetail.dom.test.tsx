@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   useTeamSession: vi.fn(),
   useTeamRunView: vi.fn(),
   getConversation: vi.fn(),
+  syncWorkspaceSkills: vi.fn(),
   ensureSession: vi.fn(),
   sendMessage: vi.fn(),
   answerQuestion: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('@/common', () => ({
     },
     conversation: {
       get: { invoke: (...args: unknown[]) => mocks.getConversation(...args) },
+      syncWorkspaceSkills: { invoke: (...args: unknown[]) => mocks.syncWorkspaceSkills(...args) },
     },
   },
 }));
@@ -125,6 +127,8 @@ describe('TeamDetailPage route safety', () => {
     mocks.useTeamSession.mockReset();
     mocks.useTeamRunView.mockReset();
     mocks.getConversation.mockReset();
+    mocks.syncWorkspaceSkills.mockReset();
+    mocks.syncWorkspaceSkills.mockResolvedValue({ success: true });
     mocks.ensureSession.mockReset();
     mocks.ensureSession.mockResolvedValue(undefined);
     mocks.sendMessage.mockReset();
@@ -166,6 +170,38 @@ describe('TeamDetailPage route safety', () => {
       toolCallId: 'tool-1',
       answers: [{ id: 'q1', value: 'yes', label: 'Yes' }],
     });
+  });
+
+  it('syncs workspace skills before passing the leader conversation to ChatSider', async () => {
+    const team = makeTeam('team-1', 'leader-conversation');
+    mocks.useTeamSession.mockReturnValue({ team, statusMap: new Map(), loading: false });
+    mocks.getConversation.mockResolvedValueOnce({
+      id: 'leader-conversation',
+      name: 'Leader Conversation',
+      type: 'acp',
+      extra: { backend: 'scode', workspace: 'C:/workspace/team-1' },
+    });
+
+    render(<TeamDetailPage />);
+
+    await waitFor(() => expect(mocks.syncWorkspaceSkills).toHaveBeenCalledWith({ conversation_id: 'leader-conversation' }));
+    await waitFor(() => expect(mocks.chatSiderProps.some((props) => props.conversation?.id === 'leader-conversation')).toBe(true));
+  });
+
+  it('still passes the leader conversation to ChatSider when workspace skill sync fails', async () => {
+    const team = makeTeam('team-1', 'leader-conversation');
+    mocks.useTeamSession.mockReturnValue({ team, statusMap: new Map(), loading: false });
+    mocks.getConversation.mockResolvedValueOnce({
+      id: 'leader-conversation',
+      name: 'Leader Conversation',
+      type: 'acp',
+      extra: { backend: 'scode', workspace: 'C:/workspace/team-1' },
+    });
+    mocks.syncWorkspaceSkills.mockRejectedValueOnce(new Error('sync failed'));
+
+    render(<TeamDetailPage />);
+
+    await waitFor(() => expect(mocks.chatSiderProps.some((props) => props.conversation?.id === 'leader-conversation')).toBe(true));
   });
 
   it('does not pass a stale leader conversation to ChatSider after the leader conversation changes', async () => {
