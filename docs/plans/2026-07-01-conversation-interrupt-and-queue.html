@@ -109,6 +109,16 @@ flowchart LR
   SW["sudowork"] --> ACPM["sudocode：ACP server 模式<br/>(sudowork 的队列)"]
   REPL -. 互斥 · 不同时 .- ACPM
   </pre>
+  <div class="callout blue">
+    <h3>为什么"互斥"是硬保证，而不是靠自觉 <span class="pill g">by design · 已核验</span></h3>
+    <p>这不是运行时判断，是<b>构造上的分离</b>——scode 启动时按 argv 二选一，分派到<b>两个互不引用的顶层函数</b>：<code>scode acp</code> → <code>run_acp_server</code>（作为 sudowork 的引擎），<code>scode</code> → <code>run_repl</code> → <code>run_repl_async_dispatch</code>（交互队列）。同进程内不可能两者并存。</p>
+    <ul>
+      <li><b>队列模块只接在 REPL 分支：</b><code>input_queue</code> / <code>repl_async</code> 仅被 <code>run_repl</code> 一侧引用；ACP 路径对它<b>零引用</b>（grep 核验 0 命中）——一次误改无法把队列泄漏进引擎路径。</li>
+      <li><b>旋钮漏不进 ACP：</b><code>SUDOCODE_INTERRUPT_QUEUE_MODE</code>（默认 <code>off</code> → 同步 REPL 字节一致）只在 <code>run_repl</code> 读取；ACP 模式完全无视它。</li>
+      <li><b>引擎连开关都看不到：</b>sudowork spawn scode 时<b>从不设</b>这个 env（grep 核验空）——作为引擎的 scode 侧根本拿不到这个旋钮。</li>
+    </ul>
+    <p>所以「两个队列不会同时存在于同一实例」是<b>编译期 / 结构性保证</b>，强于任何运行时守卫——不需要额外断言测试来兜底。interrupt 侧同理：ACP 模式走 <code>session/cancel</code> 处理器、REPL 模式走 <code>HookAbortSignal</code>，两条入口各自独立，最终都汇入 scode 既有的轮中止（见 §二）。</p>
+  </div>
   <h3>3.2 共享行为规范（两个产品都实现同一套）</h3>
   <pre class="mermaid">
 flowchart TD
