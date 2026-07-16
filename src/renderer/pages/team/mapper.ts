@@ -37,6 +37,7 @@ export function fromBackendAssistant(m: ITeamMember): TeamAssistant {
     slot_id: m.id,
     conversation_id: m.conversation_id ?? null,
     role: fromBackendRole(m.role),
+    source: m.source ?? null,
     assistant_backend: m.backend,
     icon: m.avatar ?? null,
     assistant_name: m.name,

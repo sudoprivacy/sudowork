@@ -1301,6 +1301,7 @@ export interface ITeamMember {
   role: 'lead' | 'teammate';
   name: string;
   assistant_id?: string | null;
+  source?: 'agent' | 'assistant' | null;
   backend: AcpBackendAll;
   preset_agent_type?: PresetAgentType | null;
   skills: string[];

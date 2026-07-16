@@ -45,6 +45,7 @@ function makeMember(overrides: Partial<TeamMember> = {}): TeamMember {
     role: 'lead',
     name: 'Leader',
     assistant_id: 'asst-1',
+    source: 'assistant',
     backend: 'scode',
     preset_agent_type: 'scode',
     skills: ['s1'],
@@ -87,14 +88,15 @@ beforeEach(() => {
 });
 
 describe('team migrations', () => {
-  it('CURRENT_DB_VERSION is 27', () => {
-    expect(CURRENT_DB_VERSION).toBe(27);
+  it('CURRENT_DB_VERSION is 28', () => {
+    expect(CURRENT_DB_VERSION).toBe(28);
   });
-  it('ALL_MIGRATIONS includes v24, v25, v26, and v27', () => {
+  it('ALL_MIGRATIONS includes v24, v25, v26, v27, and v28', () => {
     expect(ALL_MIGRATIONS.some((m) => m.version === 24)).toBe(true);
     expect(ALL_MIGRATIONS.some((m) => m.version === 25)).toBe(true);
     expect(ALL_MIGRATIONS.some((m) => m.version === 26)).toBe(true);
     expect(ALL_MIGRATIONS.some((m) => m.version === 27)).toBe(true);
+    expect(ALL_MIGRATIONS.some((m) => m.version === 28)).toBe(true);
   });
   it('migration_v24 has name + up/down functions', () => {
     const m = ALL_MIGRATIONS.find((x) => x.version === 24)!;
@@ -173,12 +175,12 @@ describe('TeamStore - member CRUD + soft delete', () => {
     teamStore.insertMember(makeMember({ skills: ['a', 'b'] }));
     const params = h.mutate.mock.calls[0];
     expect(params[0]).toContain('INSERT INTO team_members');
-    expect(params[8]).toBe(JSON.stringify(['a', 'b']));
+    expect(params[9]).toBe(JSON.stringify(['a', 'b']));
   });
   it('getMember parses skills JSON', () => {
     h.queryOne.mockReturnValue({
       success: true,
-      data: { id: 'slot-1', team_id: 'team-1', role: 'lead', name: 'L', assistant_id: null, backend: 'scode', preset_agent_type: 'scode', skills: JSON.stringify(['x']), preset_context: null, model: null, avatar: null, conversation_id: null, status: 'idle', created_at: 1 },
+      data: { id: 'slot-1', team_id: 'team-1', role: 'lead', name: 'L', assistant_id: null, source: 'agent', backend: 'scode', preset_agent_type: 'scode', skills: JSON.stringify(['x']), preset_context: null, model: null, avatar: null, conversation_id: null, status: 'idle', created_at: 1 },
     });
     expect(teamStore.getMember('slot-1')?.skills).toEqual(['x']);
   });

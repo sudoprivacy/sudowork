@@ -72,6 +72,7 @@ beforeEach(() => {
   h.listMembersByTeam.mockReset();
   h.updateTeam.mockReset();
   h.listMembersByTeam.mockReturnValue([]);
+  vi.resetModules();
 });
 
 function setTeamRuntime(teamService: unknown, runtime: unknown): void {

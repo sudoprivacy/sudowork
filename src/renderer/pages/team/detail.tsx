@@ -15,6 +15,7 @@ import { useTeamSession } from './hooks/useTeamSession';
 import { useTeamRunView } from './hooks/useTeamRunView';
 import TeamMemberListTab from './components/TeamMemberListTab';
 import TeamLeaderEmptyState from './components/TeamLeaderEmptyState';
+import { resolveTeamAssistantIcon, toChatLayoutAgentLogo } from './utils/teamAssistantIcon';
 
 function TeamDetailPage() {
   const { t } = useTranslation();
@@ -98,12 +99,16 @@ function TeamDetailPage() {
   const runStatus = teamRunView.activeRun?.status;
   const isTeamMemberTabActive = activeRightPanelTab === 'team';
   const currentLeaderConv = leaderConv?.id === leader.conversation_id ? leaderConv : undefined;
+  const leaderIcon = resolveTeamAssistantIcon({ assistantId: leader.assistant_id, source: leader.source, backend: leader.assistant_backend, avatar: leader.icon, name: leader.assistant_name });
+  const leaderLogoProps = toChatLayoutAgentLogo(leaderIcon);
 
   return (
     <ChatLayout
       title={currentTeam.name}
-      backend={leader.assistant_backend}
+      backend={leader.source === 'assistant' && leaderLogoProps.agentLogo ? undefined : leader.assistant_backend}
       agentName={leader.assistant_name}
+      agentLogo={leaderLogoProps.agentLogo}
+      agentLogoIsEmoji={leaderLogoProps.agentLogoIsEmoji}
       conversationId={leader.conversation_id}
       workspaceEnabled
       rightSiderWidthOverride={isTeamMemberTabActive ? { widthPx: 440 } : null}
@@ -119,7 +124,7 @@ function TeamDetailPage() {
         onTeamAnswerQuestion={onLeaderTeamAnswerQuestion}
         teamSendMessage={leaderTeamSendMessage}
         showEmptyStateWhenNoMessages
-        emptyState={<TeamLeaderEmptyState assistantName={leader.assistant_name} assistantAvatar={leader.icon} assistantBackend={leader.assistant_backend} onPromptClick={onEmptyPromptClick} />}
+        emptyState={<TeamLeaderEmptyState assistantName={leader.assistant_name} assistantAvatar={leader.icon} assistantBackend={leader.assistant_backend} assistantId={leader.assistant_id} source={leader.source} onPromptClick={onEmptyPromptClick} />}
       />
     </ChatLayout>
   );

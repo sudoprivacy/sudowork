@@ -1617,6 +1617,50 @@ const migration_v27: IMigration = {
 };
 
 /**
+ * Migration v27 -> v28: Add team member source.
+ */
+const migration_v28: IMigration = {
+  version: 28,
+  name: 'Add team member source',
+  up: (db) => {
+    const tableInfo = db.prepare('PRAGMA table_info(team_members)').all() as Array<{ name: string }>;
+    const hasSource = tableInfo.some((col) => col.name === 'source');
+    if (!hasSource) {
+      db.exec(`ALTER TABLE team_members ADD COLUMN source TEXT CHECK(source IN ('agent', 'assistant'));`);
+    }
+    mainLog('Migration v28', 'Added team member source');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE team_members_v28_rollback (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('lead', 'teammate')),
+        name TEXT NOT NULL,
+        assistant_id TEXT,
+        backend TEXT NOT NULL,
+        preset_agent_type TEXT,
+        skills TEXT,
+        preset_context TEXT,
+        model TEXT,
+        avatar TEXT,
+        conversation_id TEXT,
+        status TEXT NOT NULL,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+      INSERT INTO team_members_v28_rollback (id, team_id, role, name, assistant_id, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, deleted, created_at)
+      SELECT id, team_id, role, name, assistant_id, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, deleted, created_at FROM team_members;
+      DROP TABLE team_members;
+      ALTER TABLE team_members_v28_rollback RENAME TO team_members;
+      CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
+    `);
+    mainLog('Migration v28', 'Rolled back: Removed team member source');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1625,7 +1669,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
-  migration_v25, migration_v26, migration_v27,
+  migration_v25, migration_v26, migration_v27, migration_v28,
 ];
 
 /**

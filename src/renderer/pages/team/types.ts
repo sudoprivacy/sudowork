@@ -10,6 +10,7 @@ export interface TeamAssistant {
   slot_id: string;
   conversation_id: string | null;
   role: TeammateRole;
+  source?: 'agent' | 'assistant' | null;
   assistant_backend: AcpBackendAll;
   icon?: string | null;
   assistant_name: string;

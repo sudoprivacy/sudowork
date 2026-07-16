@@ -4,6 +4,7 @@ import type { AcpBackendAll, PresetAgentType } from '@/types/acpTypes';
 const MARK_READ_BATCH_CHUNK = 500;
 
 export type TeamMemberRole = 'lead' | 'teammate';
+export type TeamMemberSource = 'agent' | 'assistant';
 export type TeamWorkspaceKind = 'custom' | 'temporary';
 export type TeamMailboxType = 'message' | 'idle_notification' | 'shutdown_request';
 export type TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled' | 'deleted';
@@ -28,6 +29,7 @@ export interface TeamMember {
   role: TeamMemberRole;
   name: string;
   assistant_id: string | null;
+  source: TeamMemberSource | null;
   backend: AcpBackendAll;
   preset_agent_type: PresetAgentType | null;
   skills: string[];
@@ -86,6 +88,7 @@ interface TeamMemberRow {
   role: TeamMemberRole;
   name: string;
   assistant_id: string | null;
+  source: string | null;
   backend: string;
   preset_agent_type: string | null;
   skills: string | null;
@@ -154,6 +157,10 @@ function rowToTeam(row: TeamRow): Team {
   };
 }
 
+function normalizeMemberSource(source: string | null | undefined): TeamMemberSource | null {
+  return source === 'agent' || source === 'assistant' ? source : null;
+}
+
 function rowToMember(row: TeamMemberRow): TeamMember {
   return {
     id: row.id,
@@ -161,6 +168,7 @@ function rowToMember(row: TeamMemberRow): TeamMember {
     role: row.role,
     name: row.name,
     assistant_id: row.assistant_id,
+    source: normalizeMemberSource(row.source),
     backend: row.backend as AcpBackendAll,
     preset_agent_type: row.preset_agent_type as PresetAgentType | null,
     skills: parseStringArray(row.skills),
@@ -279,13 +287,14 @@ class TeamStore {
 
   insertMember(member: TeamMember): void {
     const result = getDatabase().mutate(
-      `INSERT INTO team_members (id, team_id, role, name, assistant_id, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO team_members (id, team_id, role, name, assistant_id, source, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       member.id,
       member.team_id,
       member.role,
       member.name,
       member.assistant_id,
+      member.source,
       member.backend,
       member.preset_agent_type,
       JSON.stringify(member.skills),

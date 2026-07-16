@@ -1,17 +1,9 @@
 import { Button, Form, Input, Message, Modal, Radio, Spin } from '@arco-design/web-react';
-import { Bot } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import coworkSvg from '@/renderer/assets/cowork.svg';
-import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { getTeamAssistantDisplaySource, renderTeamAssistantIcon } from '../utils/teamAssistantIcon';
 import { unwrapTeamResult } from '../utils';
-
-const ASSISTANT_AVATAR_IMAGE_MAP: Record<string, string> = {
-  'cowork.svg': coworkSvg,
-  '🛠️': coworkSvg,
-};
 
 interface SelectableAssistant {
   assistant_id: string;
@@ -30,39 +22,8 @@ function RequiredLabel({ children }: IRequiredLabelProps) {
   );
 }
 
-function resolveAssistantAvatarImage(avatar: string | null | undefined): string | undefined {
-  const value = avatar?.trim();
-  if (!value) return undefined;
-  const mapped = ASSISTANT_AVATAR_IMAGE_MAP[value];
-  if (mapped) return mapped;
-  const resolved = resolveExtensionAssetUrl(value) || value;
-  const isImage = /\.(svg|png|jpe?g|webp|gif)$/i.test(resolved) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(resolved);
-  return isImage ? resolved : undefined;
-}
-
-function isEmojiAvatar(avatar: string | null | undefined): boolean {
-  const value = avatar?.trim();
-  if (!value) return false;
-  const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}️)(?:‍(?:\p{Emoji_Presentation}|\p{Emoji}️))*$/u;
-  return emojiRegex.test(value);
-}
-
-function getLeaderOptionSource(assistant: SelectableAssistant): 'agent' | 'assistant' {
-  return assistant.source === 'agent' || assistant.assistant_id === assistant.backend ? 'agent' : 'assistant';
-}
-
 function renderLeaderOptionIcon(assistant: SelectableAssistant) {
-  if (getLeaderOptionSource(assistant) === 'agent') {
-    const agentLogo = getAgentLogo(assistant.backend);
-    if (agentLogo) return <img src={agentLogo} alt={assistant.name} width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} />;
-    return <Bot size={16} strokeWidth={1.8} />;
-  }
-
-  const avatarValue = assistant.avatar?.trim();
-  const avatarImage = resolveAssistantAvatarImage(avatarValue);
-  if (avatarImage) return <img src={avatarImage} alt={assistant.name} width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} />;
-  if (isEmojiAvatar(avatarValue)) return <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span>;
-  return <Bot size={16} strokeWidth={1.8} />;
+  return renderTeamAssistantIcon({ assistantId: assistant.assistant_id, source: assistant.source, backend: assistant.backend, avatar: assistant.avatar, name: assistant.name });
 }
 
 export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeamCreateModalProps) {
@@ -97,7 +58,7 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
     };
   }, [isVisible]);
 
-  const sortedAssistants = useMemo(() => [...assistants].sort((a, b) => (getLeaderOptionSource(a) === getLeaderOptionSource(b) ? 0 : getLeaderOptionSource(a) === 'agent' ? -1 : 1)), [assistants]);
+  const sortedAssistants = useMemo(() => [...assistants].sort((a, b) => (getTeamAssistantDisplaySource(a) === getTeamAssistantDisplaySource(b) ? 0 : getTeamAssistantDisplaySource(a) === 'agent' ? -1 : 1)), [assistants]);
   const selected = useMemo(() => assistants.find((a) => a.assistant_id === selectedId), [assistants, selectedId]);
   const workspaceName = useMemo(
     () =>

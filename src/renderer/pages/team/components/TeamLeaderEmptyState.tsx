@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getAgentLogo } from '@/renderer/utils/agentLogo';
+import { resolveTeamAssistantIcon } from '../utils/teamAssistantIcon';
 
 const PROMPTS = [
   { key: 'productDevQaOps', icon: '💻' },
@@ -8,15 +8,21 @@ const PROMPTS = [
   { key: 'delivery', icon: '📋' },
 ];
 
-export default function TeamLeaderEmptyState({ assistantName, assistantAvatar, assistantBackend, onPromptClick }: ITeamLeaderEmptyStateProps) {
+export default function TeamLeaderEmptyState({ assistantName, assistantAvatar, assistantBackend, assistantId, source, onPromptClick }: ITeamLeaderEmptyStateProps) {
   const { t } = useTranslation();
-  const avatar = useMemo(() => assistantAvatar || getAgentLogo(assistantBackend), [assistantAvatar, assistantBackend]);
+  const avatar = useMemo(() => resolveTeamAssistantIcon({ assistantId, source, backend: assistantBackend, avatar: assistantAvatar, name: assistantName }), [assistantAvatar, assistantBackend, assistantId, assistantName, source]);
 
   return (
     <div className='w-full flex justify-center'>
       <div className='w-full max-w-640px px-24px text-center animate-fade-in animate-duration-300 animate-ease-out'>
         <div className='mx-auto mb-16px size-60px rd-full bg-fill-2 f-center overflow-hidden border border-[var(--color-border-2)] shadow-sm'>
-          {avatar ? <img src={avatar} alt={assistantName} className='size-full object-cover' /> : <span className='text-24px font-semibold text-1'>{assistantName.slice(0, 1).toUpperCase()}</span>}
+          {avatar.kind === 'image' && avatar.value ? (
+            <img src={avatar.value} alt={assistantName} className='size-full object-cover' />
+          ) : avatar.kind === 'emoji' && avatar.value ? (
+            <span className='text-24px leading-none'>{avatar.value}</span>
+          ) : (
+            <span className='text-24px font-semibold text-1'>{assistantName.slice(0, 1).toUpperCase()}</span>
+          )}
         </div>
         <div className='text-20px font-semibold text-1 mb-6px'>{assistantName}</div>
         <div className='text-14px text-secondary mb-24px'>{t('team.detail.empty.subtitle')}</div>
@@ -40,5 +46,7 @@ interface ITeamLeaderEmptyStateProps {
   assistantName: string;
   assistantAvatar?: string | null;
   assistantBackend?: string | null;
+  assistantId?: string | null;
+  source?: 'agent' | 'assistant' | null;
   onPromptClick: (prompt: string) => void;
 }

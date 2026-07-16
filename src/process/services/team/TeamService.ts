@@ -10,7 +10,8 @@ import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
 import { assistantManager } from '@/process/AssistantManager';
-import { resolvePresetAgentBackend, type PresetAgentType } from '@/types/acpTypes';
+import type { IAssistantMeta } from '@/process/constants/assistantStorage';
+import { ACP_BACKENDS_ALL, resolvePresetAgentBackend, type AcpBackendAll, type PresetAgentType } from '@/types/acpTypes';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import type AcpAgent from '@process/task/AcpAgent';
@@ -18,7 +19,7 @@ import { acpDetector } from '@/agent/acp/AcpDetector';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { createConversation } from '../conversationService';
 import { reapConversation, resolveWorkspaceDeletion } from '../conversationReaper';
-import { teamStore, type Team, type TeamMail, type TeamMember, type TeamWorkspaceKind } from './TeamStore';
+import { teamStore, type Team, type TeamMail, type TeamMember, type TeamMemberSource, type TeamWorkspaceKind } from './TeamStore';
 import { buildGovernancePrompt } from './GovernancePrompt';
 import { EventLoop } from './EventLoop';
 import { TeamRunManager } from './TeamRun';
@@ -38,6 +39,14 @@ const TEAM_MCP_PATH = '/team-mcp';
 const TEAM_MCP_SERVER_NAME = 'team-mcp';
 
 type TeamToolResult = { ok: true; data: unknown } | { ok: false; error: string };
+
+interface TeamAssistantSelection {
+  source: TeamMemberSource;
+  backend: AcpBackendAll;
+  presetAgentType: PresetAgentType | null;
+  avatar: string | null;
+  lookupName: string;
+}
 
 interface MemberRuntime {
   member: TeamMember;
@@ -79,6 +88,7 @@ function toMemberIPC(m: TeamMember): ITeamMember {
     role: m.role,
     name: m.name,
     assistant_id: m.assistant_id,
+    source: m.source,
     backend: m.backend,
     preset_agent_type: m.preset_agent_type,
     skills: m.skills,
@@ -182,6 +192,53 @@ class TeamService {
     return [record.error, record.content, record.status].filter((value): value is string => typeof value === 'string').join(' ');
   }
 
+  private isKnownBackend(backend: string): backend is AcpBackendAll {
+    return backend in ACP_BACKENDS_ALL;
+  }
+
+  private async resolveTeamAssistantSelection(assistantId: string): Promise<TeamAssistantSelection> {
+    const lookupName = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
+    const candidates = await this.listAvailableAssistantsForTeam();
+    const candidate = candidates.find((item) => item.assistant_id === assistantId);
+    if (candidate) {
+      return {
+        source: candidate.source,
+        backend: candidate.backend as AcpBackendAll,
+        presetAgentType: (candidate.preset_agent_type as PresetAgentType | null) ?? null,
+        avatar: candidate.avatar ?? null,
+        lookupName,
+      };
+    }
+
+    const meta = await assistantManager.getAssistantMeta(lookupName);
+    if (meta) {
+      return {
+        source: 'assistant',
+        backend: resolvePresetAgentBackend(meta.presetAgentType),
+        presetAgentType: (meta.presetAgentType as PresetAgentType | undefined) || null,
+        avatar: meta.avatar ?? null,
+        lookupName,
+      };
+    }
+
+    if (this.isKnownBackend(assistantId)) {
+      return {
+        source: 'agent',
+        backend: assistantId,
+        presetAgentType: null,
+        avatar: null,
+        lookupName,
+      };
+    }
+
+    throw new Error(`Unknown team assistant or agent: ${assistantId}`);
+  }
+
+  private async resolveAssistantMeta(selection: TeamAssistantSelection): Promise<IAssistantMeta | null> {
+    if (selection.source !== 'assistant') return null;
+    return await assistantManager.getAssistantMeta(selection.lookupName);
+  }
+
   async createTeam(userId: string, name: string, workspace: string | null, leaderAssistantId: string, leaderName?: string, leaderModel?: string): Promise<Team> {
     const now = Date.now();
     const teamId = uuid();
@@ -242,18 +299,17 @@ class TeamService {
     if (existing.length >= MAX_TEAM_MEMBERS) throw new Error(`Team full (max ${MAX_TEAM_MEMBERS})`);
     if (role === 'lead' && existing.some((m) => m.role === 'lead')) throw new Error('Team already has a leader');
 
-    // assistant_id -> meta -> backend / presetContext / enabledSkills (A2)
-    const lookupName = params.assistant_id.startsWith('builtin-') ? params.assistant_id.slice('builtin-'.length) : params.assistant_id;
-    const meta = await assistantManager.getAssistantMeta(lookupName);
-    const presetAgentType = meta?.presetAgentType;
-    const backend = resolvePresetAgentBackend(presetAgentType);
+    const selection = await this.resolveTeamAssistantSelection(params.assistant_id);
+    const meta = await this.resolveAssistantMeta(selection);
+    const backend = selection.backend;
+    const presetAgentType = selection.presetAgentType;
     const enabledSkills = meta?.enabledSkills ?? [];
     let rulesText: string | null = null;
     if (meta?.ruleFile) {
       try {
-        rulesText = await readAssistantResource('rules', lookupName, DEFAULT_LOCALE, ruleFilePattern);
+        rulesText = await readAssistantResource('rules', selection.lookupName, DEFAULT_LOCALE, ruleFilePattern);
       } catch {
-        mainWarn('TeamService', `Failed to read rules for assistant ${lookupName}`);
+        mainWarn('TeamService', `Failed to read rules for assistant ${selection.lookupName}`);
       }
     }
     // A3: assistant rules + team governance (soft guidance), injected as presetContext.
@@ -311,12 +367,13 @@ class TeamService {
       role,
       name: params.name,
       assistant_id: params.assistant_id,
+      source: selection.source,
       backend,
       preset_agent_type: (presetAgentType as PresetAgentType | undefined) || null,
       skills: enabledSkills,
       preset_context: presetContext,
       model: params.model || null,
-      avatar: meta?.avatar || null,
+      avatar: selection.avatar ?? meta?.avatar ?? null,
       conversation_id: conversationId,
       status: 'pending',
       created_at: Date.now(),
