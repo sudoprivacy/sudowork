@@ -108,7 +108,16 @@ const TOOLS: Tool[] = [
   {
     name: 'team_spawn_agent',
     description:
-      "Spawn a new team member. Lead-only — non-lead callers are rejected by the team service. Returns the spawned member's slot_id and status.",
+      'Create a new teammate agent to join the team. Lead-only — non-lead callers are rejected by the team service.\n\n' +
+      'Use this only when one of the following is true:\n' +
+      '- The user explicitly approved the proposed teammate lineup in a previous message\n' +
+      '- The user explicitly instructed you to create a specific teammate immediately\n\n' +
+      'Before calling this tool in the normal planning flow:\n' +
+      '- Start with one short sentence explaining why additional teammates would help\n' +
+      '- Present the proposal as a table with: teammate name, responsibility, recommended assistant, and recommended model\n' +
+      '- Ask whether to create them as proposed or to change any names, responsibilities, or assistant choices\n' +
+      '- Do NOT call this tool in that same turn; wait for explicit confirmation in a later user message\n\n' +
+      "When calling this tool, always provide assistant_id from team_list_assistants, and model from team_list_models — never guess. Returns the spawned member's slot_id and status.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -191,7 +200,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'team_list_assistants',
-    description: 'List assistants available to spawn as teammates (merged guide agents + installed assistants, deduped and priority-sorted). Each entry has an assistant_id usable with team_spawn_agent.',
+    description:
+      'List assistants available to spawn as teammates (merged guide agents + installed assistants, deduped and priority-sorted). Use this BEFORE team_spawn_agent to get the real assistant_id values — do NOT guess from backend names like claude/codex/gemini. Each entry has an assistant_id usable with team_spawn_agent.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -199,7 +209,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'team_describe_assistant',
-    description: 'Describe a single assistant: its rules, enabled skills, preset agent type, and resolved backend. Use to populate spawn context.',
+    description:
+      'Describe a single assistant: its rules, enabled skills, preset agent type, and resolved backend. Use this before spawning when two or more assistants look relevant, to judge which fits the user’s request and to populate spawn context.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -211,7 +222,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'team_list_models',
-    description: 'List the model configs available for an assistant (by assistant_id).',
+    description:
+      'List the model configs available for an assistant (by assistant_id). Use this BEFORE team_spawn_agent to pick a valid model — pass the exact model ID it returns, or omit model to use the assistant’s default.',
     inputSchema: {
       type: 'object',
       properties: {

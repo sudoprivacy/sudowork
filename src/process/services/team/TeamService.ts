@@ -312,7 +312,10 @@ class TeamService {
         mainWarn('TeamService', `Failed to read rules for assistant ${selection.lookupName}`);
       }
     }
-    // A3: assistant rules + team governance (soft guidance), injected as presetContext.
+    // A3: assistant rules + team governance, injected as presetContext. AcpAgent
+    // preserves the governance block across its per-message rules reload (see
+    // extractGovernanceBlock) so it is not clobbered, and re-injects it on every
+    // turn so the leader keeps its role across multi-turn conversations.
     const governance = buildGovernancePrompt(role, team.name, params.name);
     const presetContext = [rulesText, governance].filter(Boolean).join('\n\n') || null;
 
