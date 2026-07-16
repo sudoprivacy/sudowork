@@ -74,6 +74,10 @@ beforeEach(() => {
   h.listMembersByTeam.mockReturnValue([]);
 });
 
+function setTeamRuntime(teamService: unknown, runtime: unknown): void {
+  (teamService as { sessions: Map<string, unknown> }).sessions = new Map([['team-1', { members: new Map([['slot-1', runtime]]) }]]);
+}
+
 describe('TeamService team history actions', () => {
   it('updates pin state and emits an updated list event', async () => {
     const { teamService } = await import('@process/services/team/TeamService');
@@ -112,5 +116,60 @@ describe('TeamService team history actions', () => {
     expect(h.updateTeam).not.toHaveBeenCalled();
     expect(h.emitListChanged).not.toHaveBeenCalled();
     expect(team).toBe(existing);
+  });
+
+  it('answers a pending question through the team member runtime agent', async () => {
+    const { teamService } = await import('@process/services/team/TeamService');
+    const answerQuestion = vi.fn().mockResolvedValue(undefined);
+    h.getTeam.mockReturnValue(makeTeam());
+    setTeamRuntime(teamService, {
+      member: { id: 'slot-1', team_id: 'team-1', role: 'lead', conversation_id: 'conv-1' },
+      agent: { answerQuestion },
+      eventLoop: null,
+    });
+
+    await teamService.answerQuestion('team-1', 'slot-1', 'conv-1', 'tool-1', [{ id: ' q1 ', value: 'yes', label: 'Yes' }]);
+
+    expect(answerQuestion).toHaveBeenCalledWith('tool-1', [{ id: 'q1', value: 'yes', label: 'Yes' }]);
+  });
+
+  it('rejects question answers for a mismatched team member conversation', async () => {
+    const { teamService } = await import('@process/services/team/TeamService');
+    const answerQuestion = vi.fn();
+    h.getTeam.mockReturnValue(makeTeam());
+    setTeamRuntime(teamService, {
+      member: { id: 'slot-1', team_id: 'team-1', role: 'lead', conversation_id: 'other-conv' },
+      agent: { answerQuestion },
+      eventLoop: null,
+    });
+
+    await expect(teamService.answerQuestion('team-1', 'slot-1', 'conv-1', 'tool-1', [{ id: 'q1', value: 'yes' }])).rejects.toThrow('Conversation does not belong to team member');
+    expect(answerQuestion).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid question answer payloads before calling the agent', async () => {
+    const { teamService } = await import('@process/services/team/TeamService');
+    const answerQuestion = vi.fn();
+    h.getTeam.mockReturnValue(makeTeam());
+    setTeamRuntime(teamService, {
+      member: { id: 'slot-1', team_id: 'team-1', role: 'lead', conversation_id: 'conv-1' },
+      agent: { answerQuestion },
+      eventLoop: null,
+    });
+
+    await expect(teamService.answerQuestion('team-1', 'slot-1', 'conv-1', 'tool-1', [])).rejects.toThrow('answers must be a non-empty array');
+    expect(answerQuestion).not.toHaveBeenCalled();
+  });
+
+  it('rejects question answers when the member runtime agent is unavailable', async () => {
+    const { teamService } = await import('@process/services/team/TeamService');
+    h.getTeam.mockReturnValue(makeTeam());
+    setTeamRuntime(teamService, {
+      member: { id: 'slot-1', team_id: 'team-1', role: 'lead', conversation_id: 'conv-1' },
+      agent: null,
+      eventLoop: null,
+    });
+
+    await expect(teamService.answerQuestion('team-1', 'slot-1', 'conv-1', 'tool-1', [{ id: 'q1', value: 'yes' }])).rejects.toThrow('Member agent not available: slot-1');
   });
 });

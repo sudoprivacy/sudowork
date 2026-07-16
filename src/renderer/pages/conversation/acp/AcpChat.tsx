@@ -18,9 +18,10 @@ const AcpChat: React.FC<{
   agentName?: string;
   emptyState?: React.ReactNode;
   showEmptyStateWhenNoMessages?: boolean;
+  onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
   /** Team override: when set, sends go through the team API instead of the single-chat ACP API (附录 II.8). */
   teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
-}> = ({ conversation_id, workspace, backend, sessionMode, agentName, emptyState, showEmptyStateWhenNoMessages, teamSendMessage }) => {
+}> = ({ conversation_id, workspace, backend, sessionMode, agentName, emptyState, showEmptyStateWhenNoMessages, onTeamAnswerQuestion, teamSendMessage }) => {
   const { loaded: messagesLoaded } = useMessageLstCache(conversation_id);
   const [aiProcessing, setAiProcessing] = useState(false);
 
@@ -35,7 +36,14 @@ const AcpChat: React.FC<{
       <div className='flex-1 flex flex-col px-20px min-h-0'>
         <LocalImageView.Provider value={{ root: workspace || '' }}>
           <FlexFullContainer>
-            <MessageList className='flex-1' aiProcessing={aiProcessing} emptyState={emptyState} isEmptyStateReady={Boolean(showEmptyStateWhenNoMessages && messagesLoaded)}></MessageList>
+            <MessageList
+              className='flex-1'
+              aiProcessing={aiProcessing}
+              emptyState={emptyState}
+              isEmptyStateReady={Boolean(showEmptyStateWhenNoMessages && messagesLoaded)}
+              onTeamAnswerQuestion={onTeamAnswerQuestion}
+              onTeamQuestionFallbackSend={teamSendMessage ? ({ input, msg_id }) => teamSendMessage({ input, msg_id }) : undefined}
+            ></MessageList>
           </FlexFullContainer>
         </LocalImageView.Provider>
         <SafetyChatConfirm conversation_id={conversation_id}>

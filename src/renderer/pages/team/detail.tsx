@@ -65,6 +65,15 @@ function TeamDetailPage() {
     [teamId]
   );
 
+  const onLeaderTeamAnswerQuestion = useMemo(
+    () =>
+      async ({ conversationId, toolCallId, answers }: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => {
+        if (!leader?.slot_id) return { success: false, msg: 'Team leader not found' };
+        return await ipcBridge.team.answerQuestion.invoke({ teamId, memberId: leader.slot_id, conversationId, toolCallId, answers });
+      },
+    [teamId, leader?.slot_id]
+  );
+
   const onEmptyPromptClick = useCallback(
     (prompt: string) => {
       emitter.emit('sendbox.fill', { text: prompt, conversationId: leader?.conversation_id ?? undefined });
@@ -107,6 +116,7 @@ function TeamDetailPage() {
         backend={leader.assistant_backend as AcpBackend}
         agentName={leader.assistant_name}
         workspace={currentTeam.workspace ?? undefined}
+        onTeamAnswerQuestion={onLeaderTeamAnswerQuestion}
         teamSendMessage={leaderTeamSendMessage}
         showEmptyStateWhenNoMessages
         emptyState={<TeamLeaderEmptyState assistantName={leader.assistant_name} assistantAvatar={leader.icon} assistantBackend={leader.assistant_backend} onPromptClick={onEmptyPromptClick} />}

@@ -104,6 +104,16 @@ export function initTeamBridge(): void {
     }
   });
 
+  ipcBridge.team.answerQuestion.provider(async ({ teamId, memberId, conversationId, toolCallId, answers }) => {
+    try {
+      await teamService.answerQuestion(teamId, memberId, conversationId, toolCallId, answers);
+      return { success: true };
+    } catch (err) {
+      mainError('TeamBridge', 'answerQuestion failed:', err);
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
   ipcBridge.team.getRunState.provider(async ({ teamId }) => {
     try {
       return teamService.getRunState(teamId);

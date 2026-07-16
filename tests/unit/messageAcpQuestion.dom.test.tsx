@@ -9,11 +9,15 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 
 const mockSendMessage = vi.fn().mockResolvedValue({ success: true });
+const mockAnswerQuestion = vi.fn().mockResolvedValue({ success: true });
 
 vi.mock('@/common/ipcBridge', () => ({
   acpConversation: {
     sendMessage: {
       invoke: (...args: unknown[]) => mockSendMessage(...args),
+    },
+    answerQuestion: {
+      invoke: (...args: unknown[]) => mockAnswerQuestion(...args),
     },
   },
 }));
@@ -91,8 +95,8 @@ describe('MessageAcpQuestion', () => {
 
     render(<MessageAcpQuestion message={recovered} />);
 
-    expect(screen.getByText((content) => content.includes('Answered') && content.includes('1. Project'))).toBeInTheDocument();
-    expect(screen.getByText(/2\. zh-CN/)).toBeInTheDocument();
+    expect(screen.getByText('✓ Project')).toBeInTheDocument();
+    expect(screen.getByText('✓ zh-CN')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Project' })).not.toBeInTheDocument();
   });
 
@@ -144,9 +148,8 @@ describe('MessageAcpQuestion', () => {
 
     render(<MessageAcpQuestion message={message} />);
 
-    expect(screen.getByText((content) => content.includes('Answered') && content.includes('1. Project'))).toBeInTheDocument();
-    expect(screen.getByText(/1\. Project/)).toBeInTheDocument();
-    expect(screen.getByText(/2\. zh-CN/)).toBeInTheDocument();
+    expect(screen.getByText('✓ Project')).toBeInTheDocument();
+    expect(screen.getByText('✓ zh-CN')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Project' })).not.toBeInTheDocument();
   });
 
@@ -233,6 +236,108 @@ describe('MessageAcpQuestion', () => {
       msg_id: expect.any(String),
       conversation_id: 'conv-1',
     });
+  });
+
+  it('should submit tool call answers through the ACP answerQuestion API in normal chats', () => {
+    mockSendMessage.mockClear();
+    mockAnswerQuestion.mockClear();
+
+    const message: IMessageAcpQuestion = {
+      id: 'msg-tool-call',
+      msg_id: 'msg-tool-call',
+      type: 'acp_question',
+      position: 'left',
+      conversation_id: 'conv-1',
+      createdAt: Date.now(),
+      content: {
+        question: 'Pick one',
+        options: [],
+        conversationId: 'conv-1',
+        toolCallId: 'tool-1',
+        items: [{ id: 'q1', prompt: 'Choose?', options: ['A', 'B'] }],
+      },
+    };
+
+    render(<MessageAcpQuestion message={message} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    expect(mockAnswerQuestion).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+      toolCallId: 'tool-1',
+      answers: [{ id: 'q1', value: 'A', label: 'A' }],
+    });
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('should submit team tool call answers through the injected team handler', () => {
+    mockSendMessage.mockClear();
+    mockAnswerQuestion.mockClear();
+    const onTeamAnswerQuestion = vi.fn().mockResolvedValue({ success: true });
+
+    const message: IMessageAcpQuestion = {
+      id: 'msg-team-tool-call',
+      msg_id: 'msg-team-tool-call',
+      type: 'acp_question',
+      position: 'left',
+      conversation_id: 'conv-1',
+      createdAt: Date.now(),
+      content: {
+        question: 'Pick one',
+        options: [],
+        conversationId: 'conv-1',
+        toolCallId: 'tool-1',
+        items: [{ id: 'q1', prompt: 'Choose?', options: ['A', 'B'] }],
+      },
+    };
+
+    render(<MessageAcpQuestion message={message} onTeamAnswerQuestion={onTeamAnswerQuestion} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    expect(onTeamAnswerQuestion).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+      toolCallId: 'tool-1',
+      answers: [{ id: 'q1', value: 'A', label: 'A' }],
+    });
+    expect(mockAnswerQuestion).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('should submit team fallback answers through the injected team send handler', () => {
+    mockSendMessage.mockClear();
+    mockAnswerQuestion.mockClear();
+    const onTeamQuestionFallbackSend = vi.fn().mockResolvedValue({ success: true });
+
+    const message: IMessageAcpQuestion = {
+      id: 'msg-team-fallback',
+      msg_id: 'msg-team-fallback',
+      type: 'acp_question',
+      position: 'left',
+      conversation_id: 'conv-1',
+      createdAt: Date.now(),
+      content: {
+        question: 'Setup questions',
+        options: [],
+        conversationId: 'conv-1',
+        items: [
+          { id: 'q1', prompt: 'Where to save preferences?', options: ['Project', 'User'], allowCustomInput: false },
+          { id: 'q2', prompt: 'Default language?', options: ['zh-CN', 'en-US'], allowCustomInput: false },
+        ],
+      },
+    };
+
+    render(<MessageAcpQuestion message={message} onTeamQuestionFallbackSend={onTeamQuestionFallbackSend} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project' }));
+    fireEvent.click(screen.getByRole('button', { name: 'zh-CN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    expect(onTeamQuestionFallbackSend).toHaveBeenCalledWith({ input: 'Q1: Project\nQ2: zh-CN', msg_id: expect.any(String) });
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(mockAnswerQuestion).not.toHaveBeenCalled();
   });
 
   it('should show one step at a time and advance after selecting an option', () => {

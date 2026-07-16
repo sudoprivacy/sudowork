@@ -60,9 +60,14 @@ const isUserFacingAcpToolCall = (message: IMessageAcpToolCall): boolean => {
   return title === 'AskUserQuestion' || title === 'SendUserMessage';
 };
 
-const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?: React.ReactNode }> = React.memo(
+interface IMessageQuestionCallbacks {
+  onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
+  onTeamQuestionFallbackSend?: (params: { input: string; msg_id: string }) => Promise<{ success: boolean; msg?: string } | void>;
+}
+
+const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?: React.ReactNode } & IMessageQuestionCallbacks> = React.memo(
   HOC((props) => {
-    const { message } = props as { message: TMessage; footer?: React.ReactNode };
+    const { message } = props as { message: TMessage; footer?: React.ReactNode } & IMessageQuestionCallbacks;
     const isAiMessage = message.position === 'left';
 
     return (
@@ -78,7 +83,7 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?:
         <div className={classNames('min-w-0', isAiMessage ? 'w-full' : 'flex-none w-fit')}>{props.children}</div>
       </div>
     );
-  })(({ message, isStreaming, footer }) => {
+  })(({ message, isStreaming, footer, onTeamAnswerQuestion, onTeamQuestionFallbackSend }) => {
     const { t } = useTranslation();
     switch (message.type) {
       case 'text':
@@ -94,7 +99,7 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?:
       case 'acp_permission':
         return <MessageAcpPermission message={message}></MessageAcpPermission>;
       case 'acp_question':
-        return <MessageAcpQuestion message={message}></MessageAcpQuestion>;
+        return <MessageAcpQuestion message={message} onTeamAnswerQuestion={onTeamAnswerQuestion} onTeamQuestionFallbackSend={onTeamQuestionFallbackSend}></MessageAcpQuestion>;
       case 'acp_tool_call':
         return <MessageAcpToolCall message={message}></MessageAcpToolCall>;
       case 'codex_permission':
@@ -112,17 +117,24 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?:
         return <div>{t('messages.unknownMessageType', { type: (message as any).type })}</div>;
     }
   }),
-  (prev, next) => prev.message.id === next.message.id && prev.message.content === next.message.content && prev.message.position === next.message.position && prev.message.type === next.message.type && prev.isStreaming === next.isStreaming
+  (prev, next) =>
+    prev.message.id === next.message.id &&
+    prev.message.content === next.message.content &&
+    prev.message.position === next.message.position &&
+    prev.message.type === next.message.type &&
+    prev.isStreaming === next.isStreaming &&
+    prev.onTeamAnswerQuestion === next.onTeamAnswerQuestion &&
+    prev.onTeamQuestionFallbackSend === next.onTeamQuestionFallbackSend
 );
 
-interface MessageListProps {
+interface IMessageListProps extends IMessageQuestionCallbacks {
   className?: string;
   aiProcessing?: boolean; // AI processing state
   emptyState?: React.ReactNode;
   isEmptyStateReady?: boolean;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = false, emptyState, isEmptyStateReady = false }) => {
+const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = false, emptyState, isEmptyStateReady = false, onTeamAnswerQuestion, onTeamQuestionFallbackSend }) => {
   const list = useMessageList();
   const conversationContext = useConversationContextSafe();
   const { t } = useTranslation();
@@ -497,7 +509,7 @@ const MessageList: React.FC<MessageListProps> = ({ className, aiProcessing = fal
       return null;
     }
     const message = item as TMessage;
-    return <MessageItem message={message} key={message.id} isStreaming={message.id === lastAiMessageId} footer={turnActionsNode}></MessageItem>;
+    return <MessageItem message={message} key={message.id} isStreaming={message.id === lastAiMessageId} footer={turnActionsNode} onTeamAnswerQuestion={onTeamAnswerQuestion} onTeamQuestionFallbackSend={onTeamQuestionFallbackSend}></MessageItem>;
   };
 
   return (

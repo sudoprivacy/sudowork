@@ -8,8 +8,15 @@ import { acpConversation } from '@/common/ipcBridge';
 const { Text } = Typography;
 const TextArea = Input.TextArea;
 
-interface MessageAcpQuestionProps {
+interface IQuestionSubmitResult {
+  success: boolean;
+  msg?: string;
+}
+
+interface IMessageAcpQuestionProps {
   message: IMessageAcpQuestion;
+  onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<IQuestionSubmitResult | void>;
+  onTeamQuestionFallbackSend?: (params: { input: string; msg_id: string }) => Promise<IQuestionSubmitResult | void>;
 }
 
 interface NormalizedItem extends AcpQuestionItem {
@@ -137,7 +144,7 @@ function parseStructuredAnswer(answer: string, items: NormalizedItem[]): AcpQues
   return [];
 }
 
-const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ message }) => {
+const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ message, onTeamAnswerQuestion, onTeamQuestionFallbackSend }) => {
   const { question, intro } = message.content || {};
   const conversationId = message.content?.conversationId || message.conversation_id;
   const { t } = useTranslation();
@@ -331,23 +338,25 @@ const MessageAcpQuestion: React.FC<MessageAcpQuestionProps> = React.memo(({ mess
     setIsResponding(true);
 
     try {
-      const result = message.content?.toolCallId
-        ? await acpConversation.answerQuestion.invoke({
-            conversationId,
-            toolCallId: message.content.responseToolCallId || message.content.toolCallId,
-            answers: answerPayload.answerItems.map((answer) => ({
-              id: answer.id,
-              value: answer.submissionValue,
-              label: answer.displayValue || undefined,
-            })),
-          })
-        : await acpConversation.sendMessage.invoke({
-            input: answerPayload.submission,
-            msg_id: uuid(),
-            conversation_id: conversationId,
-          });
+      const answers = answerPayload.answerItems.map((answer) => ({
+        id: answer.id,
+        value: answer.submissionValue,
+        label: answer.displayValue || undefined,
+      }));
+      const toolCallId = message.content?.toolCallId ? message.content.responseToolCallId || message.content.toolCallId : undefined;
+      const result = toolCallId
+        ? onTeamAnswerQuestion
+          ? await onTeamAnswerQuestion({ conversationId, toolCallId, answers })
+          : await acpConversation.answerQuestion.invoke({ conversationId, toolCallId, answers })
+        : onTeamQuestionFallbackSend
+          ? await onTeamQuestionFallbackSend({ input: answerPayload.submission, msg_id: uuid() })
+          : await acpConversation.sendMessage.invoke({
+              input: answerPayload.submission,
+              msg_id: uuid(),
+              conversation_id: conversationId,
+            });
 
-      if (result && result.success === true) {
+      if (!result || result.success === true) {
         setHasResponded(true);
         message.content.answered = true;
         message.content.selectedAnswer = answerPayload.display;

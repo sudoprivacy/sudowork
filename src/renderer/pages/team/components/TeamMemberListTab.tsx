@@ -64,6 +64,13 @@ function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
     };
   }, [team.id, activeMember]);
 
+  const onTeamAnswerQuestion = useMemo(() => {
+    if (!activeMember) return undefined;
+    return async ({ conversationId, toolCallId, answers }: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => {
+      return await ipcBridge.team.answerQuestion.invoke({ teamId: team.id, memberId: activeMember.slot_id, conversationId, toolCallId, answers });
+    };
+  }, [team.id, activeMember]);
+
   return (
     <div className='flex h-full min-h-0 flex-col'>
       <div className='flex min-w-0 flex-col gap-2px overflow-y-auto overflow-x-hidden px-20px py-8px max-h-40%'>
@@ -79,7 +86,7 @@ function TeamMemberListTab({ team, statusMap }: ITeamMemberListTabProps) {
       </div>
       <div className='flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border-2)]'>
         {activeMember && activeMember.conversation_id ? (
-          <AcpChat conversation_id={activeMember.conversation_id} backend={activeMember.assistant_backend as AcpBackend} agentName={activeMember.assistant_name} workspace={team.workspace ?? undefined} teamSendMessage={teamSendMessage} />
+          <AcpChat conversation_id={activeMember.conversation_id} backend={activeMember.assistant_backend as AcpBackend} agentName={activeMember.assistant_name} workspace={team.workspace ?? undefined} onTeamAnswerQuestion={onTeamAnswerQuestion} teamSendMessage={teamSendMessage} />
         ) : (
           <div className='flex items-center justify-center h-full text-gray-400 text-13px'>{t('team.detail.selectMember')}</div>
         )}

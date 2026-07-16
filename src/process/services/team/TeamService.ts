@@ -459,6 +459,18 @@ class TeamService {
     return this.sendMessageToMember(teamId, this.leaderSlot(teamId), input, files, msgId);
   }
 
+  async answerQuestion(teamId: string, slotId: string, conversationId: string, toolCallId: string, answers: Array<{ id: string; value: string; label?: string }>): Promise<void> {
+    const team = teamStore.getTeam(teamId);
+    if (!team) throw new Error(`Team not found: ${teamId}`);
+    const runtime = this.getRuntime(teamId, slotId);
+    if (!runtime) throw new Error(`Member not found: ${slotId}`);
+    if (runtime.member.conversation_id !== conversationId) throw new Error('Conversation does not belong to team member');
+    if (!runtime.agent) throw new Error(`Member agent not available: ${slotId}`);
+    if (!toolCallId.trim()) throw new Error('Invalid toolCallId');
+
+    await runtime.agent.answerQuestion(toolCallId, this.sanitizeQuestionAnswers(answers));
+  }
+
   /** User message to a specific member (writes mailbox from=user under an operation lease, then wakes the loop). */
   async sendMessageToMember(teamId: string, slotId: string, input: string, files?: string[], msgId?: string): Promise<ITeamRunAck> {
     const team = teamStore.getTeam(teamId);
@@ -1217,6 +1229,18 @@ class TeamService {
 
   private getRuntime(teamId: string, slotId: string): MemberRuntime | undefined {
     return this.sessions.get(teamId)?.members.get(slotId);
+  }
+
+  private sanitizeQuestionAnswers(answers: Array<{ id: string; value: string; label?: string }>): Array<{ id: string; value: string; label?: string }> {
+    if (!Array.isArray(answers) || answers.length === 0) throw new Error('answers must be a non-empty array');
+    return answers.map((entry) => {
+      if (!entry || typeof entry !== 'object') throw new Error('Invalid answer entry');
+      if (typeof entry.id !== 'string' || !entry.id.trim()) throw new Error('Answer is missing id');
+      if (typeof entry.value !== 'string') throw new Error(`Answer ${entry.id} value must be a string`);
+      const sanitized: { id: string; value: string; label?: string } = { id: entry.id.trim(), value: entry.value };
+      if (typeof entry.label === 'string') sanitized.label = entry.label;
+      return sanitized;
+    });
   }
 
   private leaderSlot(teamId: string): string {

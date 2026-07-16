@@ -13,6 +13,7 @@ const h = vi.hoisted(() => {
     getDefaultUserId: vi.fn(() => 'user-1'),
     updateTeam: vi.fn(),
     renameTeam: vi.fn(),
+    answerQuestion: vi.fn(),
   };
 });
 
@@ -31,6 +32,7 @@ vi.mock('@/common', () => ({
       removeMember: h.makeProvider('removeMember'),
       sendMessage: h.makeProvider('sendMessage'),
       sendMessageToMember: h.makeProvider('sendMessageToMember'),
+      answerQuestion: h.makeProvider('answerQuestion'),
       getRunState: h.makeProvider('getRunState'),
       cancelRun: h.makeProvider('cancelRun'),
       cancelChildTurn: h.makeProvider('cancelChildTurn'),
@@ -59,6 +61,7 @@ vi.mock('@process/services/team/TeamService', () => ({
     removeMember: vi.fn(),
     sendMessage: vi.fn(),
     sendMessageToMember: vi.fn(),
+    answerQuestion: h.answerQuestion,
     getRunState: vi.fn(),
     cancelRun: vi.fn(),
     cancelChildTurn: vi.fn(),
@@ -77,6 +80,7 @@ beforeEach(() => {
   h.providers.clear();
   h.updateTeam.mockReset();
   h.renameTeam.mockReset();
+  h.answerQuestion.mockReset();
 });
 
 describe('teamBridge team history providers', () => {
@@ -98,5 +102,22 @@ describe('teamBridge team history providers', () => {
 
     await expect(h.providers.get('renameTeam')?.({ teamId: 'team-1', name: 'New Team' })).resolves.toBe(result);
     expect(h.renameTeam).toHaveBeenCalledWith('team-1', 'New Team');
+  });
+
+  it('wires answerQuestion provider to TeamService.answerQuestion', async () => {
+    h.answerQuestion.mockResolvedValue(undefined);
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(
+      h.providers.get('answerQuestion')?.({
+        teamId: 'team-1',
+        memberId: 'slot-1',
+        conversationId: 'conv-1',
+        toolCallId: 'tool-1',
+        answers: [{ id: 'q1', value: 'yes', label: 'Yes' }],
+      })
+    ).resolves.toEqual({ success: true });
+    expect(h.answerQuestion).toHaveBeenCalledWith('team-1', 'slot-1', 'conv-1', 'tool-1', [{ id: 'q1', value: 'yes', label: 'Yes' }]);
   });
 });

@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   getConversation: vi.fn(),
   ensureSession: vi.fn(),
   sendMessage: vi.fn(),
+  answerQuestion: vi.fn(),
   chatSiderProps: [] as Array<{ conversation?: { id?: string } }>,
+  acpChatProps: [] as Array<{ onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown> }>,
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -27,6 +29,7 @@ vi.mock('@/common', () => ({
     team: {
       ensureSession: { invoke: (...args: unknown[]) => mocks.ensureSession(...args) },
       sendMessage: { invoke: (...args: unknown[]) => mocks.sendMessage(...args) },
+      answerQuestion: { invoke: (...args: unknown[]) => mocks.answerQuestion(...args) },
     },
     conversation: {
       get: { invoke: (...args: unknown[]) => mocks.getConversation(...args) },
@@ -61,7 +64,12 @@ vi.mock('@renderer/pages/conversation/ChatSider', async () => {
 
 vi.mock('@renderer/pages/conversation/acp/AcpChat', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
-  return { default: () => React.createElement('div', { 'data-testid': 'acp-chat' }) };
+  return {
+    default: (props: { onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown> }) => {
+      mocks.acpChatProps.push(props);
+      return React.createElement('div', { 'data-testid': 'acp-chat' });
+    },
+  };
 });
 
 vi.mock('@renderer/components/AcpModelSelector', async () => {
@@ -121,7 +129,10 @@ describe('TeamDetailPage route safety', () => {
     mocks.ensureSession.mockResolvedValue(undefined);
     mocks.sendMessage.mockReset();
     mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.answerQuestion.mockReset();
+    mocks.answerQuestion.mockResolvedValue({ success: true });
     mocks.chatSiderProps = [];
+    mocks.acpChatProps = [];
     mocks.useTeamRunView.mockReturnValue({ activeRun: null, childTurnsBySlot: {}, reconcile: vi.fn() });
   });
 
@@ -132,6 +143,29 @@ describe('TeamDetailPage route safety', () => {
 
     expect(mocks.navigate).not.toHaveBeenCalledWith('/guid');
     expect(container.querySelector('.arco-spin')).not.toBeNull();
+  });
+
+  it('passes leader question answers through the team answerQuestion API', async () => {
+    const team = makeTeam('team-1', 'leader-conv');
+    mocks.useTeamSession.mockReturnValue({ team, statusMap: new Map(), loading: false });
+    mocks.getConversation.mockResolvedValue({ id: 'leader-conv', name: 'Leader Conversation' });
+
+    render(<TeamDetailPage />);
+
+    await waitFor(() => expect(mocks.acpChatProps.at(-1)?.onTeamAnswerQuestion).toBeTypeOf('function'));
+    await mocks.acpChatProps.at(-1)?.onTeamAnswerQuestion?.({
+      conversationId: 'leader-conv',
+      toolCallId: 'tool-1',
+      answers: [{ id: 'q1', value: 'yes', label: 'Yes' }],
+    });
+
+    expect(mocks.answerQuestion).toHaveBeenCalledWith({
+      teamId: 'team-1',
+      memberId: 'team-1-leader',
+      conversationId: 'leader-conv',
+      toolCallId: 'tool-1',
+      answers: [{ id: 'q1', value: 'yes', label: 'Yes' }],
+    });
   });
 
   it('does not pass a stale leader conversation to ChatSider after the leader conversation changes', async () => {

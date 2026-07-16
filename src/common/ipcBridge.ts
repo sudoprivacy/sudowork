@@ -84,8 +84,8 @@ export const conversation = {
   reaped: bridge.buildEmitter<{ id: string }>('conversation.reaped'),
   update: bridge.buildProvider<boolean, { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }>('update-conversation'), // 更新对话信息
   reset: bridge.buildProvider<void, IResetConversationParams>('reset-conversation'), // 重置对话
-  stop: bridge.buildProvider<IBridgeResponse<Record<string, never>>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
-  sendMessage: bridge.buildProvider<IBridgeResponse<Record<string, never>>, ISendMessageParams>('chat.send.message'), // 发送消息（统一接口）
+  stop: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
+  sendMessage: bridge.buildProvider<IBridgeResponse<void>, ISendMessageParams>('chat.send.message'), // 发送消息（统一接口）
   getSlashCommands: bridge.buildProvider<IBridgeResponse<{ commands: SlashCommandItem[] }>, { conversation_id: string }>('conversation.get-slash-commands'),
   confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('conversation.confirm.message'), // 通用确认消息
   responseStream: bridge.buildEmitter<IResponseMessage>('chat.response.stream'), // 接收消息（统一接口）
@@ -102,7 +102,7 @@ export const conversation = {
   responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
   getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
-  restartAndConnect: bridge.buildProvider<IBridgeResponse<Record<string, never>>, { conversation_id: string }>('conversation.restart-and-connect'),
+  restartAndConnect: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('conversation.restart-and-connect'),
   syncWorkspaceSkills: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('conversation.sync-workspace-skills'),
   // Flush all pending messages to database immediately (used before reading from DB)
   flushPendingMessages: bridge.buildProvider<void, { conversation_id: string }>('conversation.flush-pending-messages'),
@@ -1182,6 +1182,16 @@ export const team = {
   // Messaging
   sendMessage: bridge.buildProvider<ITeamRunAck, { teamId: string; input: string; files?: string[]; msgId?: string }>('team.send-message'),
   sendMessageToMember: bridge.buildProvider<ITeamRunAck, { teamId: string; memberId: string; input: string; files?: string[]; msgId?: string }>('team.send-message-to-member'),
+  answerQuestion: bridge.buildProvider<
+    IBridgeResponse<void>,
+    {
+      teamId: string;
+      memberId: string;
+      conversationId: string;
+      toolCallId: string;
+      answers: Array<{ id: string; value: string; label?: string }>;
+    }
+  >('team.answer-question'),
   // Run lifecycle
   cancelRun: bridge.buildProvider<void, { teamId: string; reason?: string }>('team.cancel-run'),
   cancelChildTurn: bridge.buildProvider<void, { teamId: string; slotId: string; turnId?: string }>('team.cancel-child-turn'),
