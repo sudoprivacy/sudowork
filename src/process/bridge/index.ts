@@ -59,6 +59,7 @@ import { initShareoneCliBridge } from './shareoneCliBridge';
 import { initTerminalBridge } from './terminalBridge';
 import { initBrowserPanelBridge } from './browserPanelBridge';
 import { initDeliverablesBridge } from './deliverablesBridge';
+import { initLocalKnowledgeBaseBridge } from './localKnowledgeBaseBridge';
 // Crash bridge is initialized early in src/process/index.ts before storage
 // to handle renderer errors during startup
 import { initEeclawBridge } from './eeclawBridge';
@@ -123,6 +124,7 @@ export function initAllBridges(): void {
   initTerminalBridge();
   initBrowserPanelBridge();
   initDeliverablesBridge();
+  initLocalKnowledgeBaseBridge();
   // Note: initCrashBridge() is called early in src/process/index.ts before storage
   initEeclawBridge();
   registerScodeBridge();

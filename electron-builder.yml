@@ -199,18 +199,6 @@ extraResources:
   # subprocess after sudowork registers it in ~/.claude.json at first run.
   - from: resources/browser-panel-mcp/index.js
     to: browser-panel-mcp/index.js
-  # Nexus binary - versioned, optional (may not be available for all platforms)
-  # Copy from the resources directory with filters; using a glob in `from`
-  # is not reliable for electron-builder file-set matching.
-  - from: resources
-    to: .
-    filter:
-      - v*-nexusd-cluster-macos-*
-  # Scode binary - versioned, optional
-  - from: resources
-    to: .
-    filter:
-      - v*-scode-macos-*
   # Vault plugin is intentionally NOT bundled on macOS: its dylib carries a
   # detached Nexus signature and must not be Apple-codesigned (afterPack.js
   # excludes it), but Apple notarization rejects unsigned Mach-O inside the
@@ -281,6 +269,45 @@ mac:
     # bdpan installer for macOS (arch-specific binary, bundled at build time)
     - from: resources/bdpan-installer-darwin-${arch}
       to: bdpan-installer-darwin-${arch}
+    # Nexus binary for macOS - versioned
+    - from: resources
+      to: .
+      filter:
+        - v*-nexusd-cluster-macos-*
+    # Scode binary for macOS - versioned
+    - from: resources
+      to: .
+      filter:
+        - v*-scode-macos-*
+
+linux:
+  target:
+    - AppImage
+    - snap
+  category: Utility
+  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  extraResources:
+    # Node.js runtime for Linux (tar.gz format)
+    - from: resources/node-linux-${arch}.tar.gz
+      to: node-linux-${arch}.tar.gz
+    # bdpan installer for Linux (arch-specific binary, bundled at build time)
+    - from: resources/bdpan-installer-linux-${arch}
+      to: bdpan-installer-linux-${arch}
+    # Nexus binary for Linux - versioned
+    - from: resources
+      to: .
+      filter:
+        - v*-nexusd-cluster-linux-*
+    # Scode binary for Linux - versioned
+    - from: resources
+      to: .
+      filter:
+        - v*-scode-linux-*
+    # Vault plugin for Linux - versioned
+    - from: resources
+      to: .
+      filter:
+        - v*-nexus-vault-linux-*
 
 dmg:
   # Use UDZO format which is more reliable on CI

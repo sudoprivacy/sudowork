@@ -26,6 +26,7 @@ import telemetry from './telemetry.json';
 import setup from './setup.json';
 import runtimeError from './runtimeError.json';
 import pwdLogin from './pwdLogin.json';
+import localKb from './localKb.json';
 
 export default {
   common,
@@ -51,4 +52,5 @@ export default {
   setup,
   runtimeError,
   pwdLogin,
+  localKb,
 };

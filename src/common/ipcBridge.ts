@@ -24,6 +24,21 @@ import type { FusePluginStatus } from './nexus/fuse-plugin-status';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
+import type {
+  ILocalKbAddFilesInput,
+  ILocalKbBuildJob,
+  ILocalKbCategory,
+  ILocalKbCreateCategoryInput,
+  ILocalKbCreateSpaceInput,
+  ILocalKbDependencyStatus,
+  ILocalKbDocument,
+  ILocalKbInstallEmbeddingModelInput,
+  ILocalKbInstallProgress,
+  ILocalKbSearchResult,
+  ILocalKbSetDirectoryInput,
+  ILocalKbSpace,
+  ILocalKbUpdateSpaceInput,
+} from './types/localKnowledgeBase';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -706,6 +721,29 @@ export const libreOffice = {
   installProgress: bridge.buildEmitter<{ phase: ILibreOfficeInstallPhase; percent?: number }>('libreoffice.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
+};
+
+export const localKnowledgeBase = {
+  listCategories: bridge.buildProvider<IBridgeResponse<ILocalKbCategory[]>, void>('local-kb.categories.list'),
+  createCategory: bridge.buildProvider<IBridgeResponse<ILocalKbCategory>, ILocalKbCreateCategoryInput>('local-kb.categories.create'),
+  updateCategory: bridge.buildProvider<IBridgeResponse<ILocalKbCategory>, { id: string; updates: Partial<ILocalKbCreateCategoryInput> }>('local-kb.categories.update'),
+  deleteCategory: bridge.buildProvider<IBridgeResponse<void>, { id: string }>('local-kb.categories.delete'),
+  listSpaces: bridge.buildProvider<IBridgeResponse<ILocalKbSpace[]>, { categoryId?: string | null } | undefined>('local-kb.spaces.list'),
+  createSpace: bridge.buildProvider<IBridgeResponse<ILocalKbSpace>, ILocalKbCreateSpaceInput>('local-kb.spaces.create'),
+  updateSpace: bridge.buildProvider<IBridgeResponse<ILocalKbSpace>, { id: string; updates: ILocalKbUpdateSpaceInput }>('local-kb.spaces.update'),
+  deleteSpace: bridge.buildProvider<IBridgeResponse<void>, { id: string }>('local-kb.spaces.delete'),
+  listDocuments: bridge.buildProvider<IBridgeResponse<ILocalKbDocument[]>, { spaceId: string }>('local-kb.documents.list'),
+  addFiles: bridge.buildProvider<IBridgeResponse<ILocalKbDocument[]>, ILocalKbAddFilesInput>('local-kb.documents.add-files'),
+  setDirectory: bridge.buildProvider<IBridgeResponse<ILocalKbDocument[]>, ILocalKbSetDirectoryInput>('local-kb.documents.set-directory'),
+  queueBuild: bridge.buildProvider<IBridgeResponse<ILocalKbBuildJob>, { spaceId: string }>('local-kb.build.queue'),
+  getBuildStatus: bridge.buildProvider<IBridgeResponse<{ space: ILocalKbSpace; latestJob: ILocalKbBuildJob | null }>, { spaceId: string }>('local-kb.build.status'),
+  listBuildJobs: bridge.buildProvider<IBridgeResponse<ILocalKbBuildJob[]>, { spaceId: string; limit?: number }>('local-kb.build.jobs'),
+  search: bridge.buildProvider<IBridgeResponse<ILocalKbSearchResult>, { spaceId: string; query: string }>('local-kb.search'),
+  searchMany: bridge.buildProvider<IBridgeResponse<ILocalKbSearchResult>, { spaceIds: string[]; query: string }>('local-kb.search-many'),
+  getDependencyStatus: bridge.buildProvider<IBridgeResponse<ILocalKbDependencyStatus>, void>('local-kb.dependencies.status'),
+  installEmbeddingModel: bridge.buildProvider<IBridgeResponse<void>, ILocalKbInstallEmbeddingModelInput | undefined>('local-kb.dependencies.embedding.install'),
+  installEmbeddingModelProgress: bridge.buildEmitter<ILocalKbInstallProgress>('local-kb.dependencies.embedding.install-progress'),
+  installEmbeddingModelResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('local-kb.dependencies.embedding.install-result'),
 };
 
 // FUSE-T installer (macOS) / FUSE-T 安装（macOS 专用）

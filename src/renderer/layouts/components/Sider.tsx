@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -57,6 +57,7 @@ const Sider: React.FC = () => {
   const Menus = [
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/app/agent' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/app/skills' },
+    { id: 'local-kb', label: t('common.siderMenu.localKb'), icon: BookOpen, path: '/app/local-kb' },
     { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'channels' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/app/channels' }] : []),
     ...(isCronVisible ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/app/cron' }] : []),

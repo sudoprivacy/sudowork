@@ -1063,6 +1063,14 @@ This identity statement takes priority over the default identity in USER.md.
           }
         }
 
+        // Local KB enhancement: prepend best-effort local knowledge matches.
+        try {
+          const { knowledgeRetrievalService } = await import('@process/services/knowledge/KnowledgeRetrievalService');
+          contentToSend = await knowledgeRetrievalService.augmentWithLocalKnowledge(rawUserQuery, contentToSend);
+        } catch (localKbErr) {
+          mainWarn('[AcpAgent]', 'Local KB augment failed; sending original message:', localKbErr);
+        }
+
         // Dify enhancement: wrap user message with <knowledge_context> block
         // when this conversation has a bound Dify-enhanced assistant. Falls
         // through unchanged for non-enhanced sessions or on any error.

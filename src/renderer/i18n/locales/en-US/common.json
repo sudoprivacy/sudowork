@@ -73,6 +73,7 @@
   "siderMenu": {
     "agent": "Agent",
     "skillStore": "Skill Store",
+    "localKb": "Local KB",
     "security": "Security",
     "webui": "Remote Access",
     "cron": "Scheduled Tasks"

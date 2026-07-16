@@ -15,12 +15,77 @@ import { SecretMigrationCoordinator } from '@common/nexus/secret-migration';
 import type { IChannelPluginConfig, IChannelUser, IChannelSession, IChannelPairingRequest, IChannelUserRow, IChannelSessionRow, IChannelPairingCodeRow, PluginType, PluginStatus } from '@/channels/types';
 import type { ScodeCustomModelProvider } from '@/common/scodeConfig';
 import type { ConversationSource, TProviderWithModel } from '@/common/storage';
+import type { ILocalKbBuildJob, ILocalKbCategory, ILocalKbDocument, ILocalKbSpace, LocalKbBuildJobMode, LocalKbBuildJobStatus, LocalKbBuildStatus, LocalKbDocumentSourceType, LocalKbParseStatus, LocalKbRetrievalMode, LocalKbSourceMode } from '@/common/types/localKnowledgeBase';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
 import { runMigrations as executeMigrations } from './migrations';
 import { isCorruptDatabaseFileError } from './corruptionError';
 import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
 import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
 import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
+
+type LocalKbRow = Record<string, unknown>;
+
+function mapLocalKbCategory(row: LocalKbRow): ILocalKbCategory {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    description: typeof row.description === 'string' ? row.description : null,
+    sortOrder: Number(row.sort_order ?? 0),
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+  };
+}
+
+function mapLocalKbSpace(row: LocalKbRow): ILocalKbSpace {
+  return {
+    id: String(row.id),
+    categoryId: typeof row.category_id === 'string' ? row.category_id : null,
+    name: String(row.name),
+    description: typeof row.description === 'string' ? row.description : null,
+    sourceMode: (['files', 'directory', 'mixed'].includes(String(row.source_mode)) ? String(row.source_mode) : 'files') as LocalKbSourceMode,
+    rootPath: typeof row.root_path === 'string' ? row.root_path : null,
+    buildStatus: (['idle', 'queued', 'running', 'ready', 'failed'].includes(String(row.build_status)) ? String(row.build_status) : 'idle') as LocalKbBuildStatus,
+    retrievalMode: (row.retrieval_mode === 'hybrid' ? 'hybrid' : 'grep-only') as LocalKbRetrievalMode,
+    lastBuiltAt: row.last_built_at == null ? null : Number(row.last_built_at),
+    lastBuildError: typeof row.last_build_error === 'string' ? row.last_build_error : null,
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+  };
+}
+
+function mapLocalKbDocument(row: LocalKbRow): ILocalKbDocument {
+  return {
+    id: String(row.id),
+    spaceId: String(row.space_id),
+    fileName: String(row.file_name),
+    relativePath: typeof row.relative_path === 'string' ? row.relative_path : null,
+    absolutePath: String(row.absolute_path),
+    mimeType: String(row.mime_type),
+    sizeBytes: Number(row.size_bytes ?? 0),
+    contentHash: String(row.content_hash),
+    sourceType: (row.source_type === 'directory' ? 'directory' : 'file') as LocalKbDocumentSourceType,
+    parseStatus: (['pending', 'parsed', 'failed'].includes(String(row.parse_status)) ? String(row.parse_status) : 'pending') as LocalKbParseStatus,
+    parseError: typeof row.parse_error === 'string' ? row.parse_error : null,
+    lastIndexedAt: row.last_indexed_at == null ? null : Number(row.last_indexed_at),
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+  };
+}
+
+function mapLocalKbBuildJob(row: LocalKbRow): ILocalKbBuildJob {
+  return {
+    id: String(row.id),
+    spaceId: String(row.space_id),
+    mode: (row.mode === 'incremental' ? 'incremental' : 'full') as LocalKbBuildJobMode,
+    status: (['queued', 'running', 'success', 'failed', 'cancelled'].includes(String(row.status)) ? String(row.status) : 'queued') as LocalKbBuildJobStatus,
+    progress: Number(row.progress ?? 0),
+    currentStep: typeof row.current_step === 'string' ? row.current_step : null,
+    errorMessage: typeof row.error_message === 'string' ? row.error_message : null,
+    startedAt: row.started_at == null ? null : Number(row.started_at),
+    finishedAt: row.finished_at == null ? null : Number(row.finished_at),
+    createdAt: Number(row.created_at),
+  };
+}
 
 /**
  * Main database class for Sudowork
@@ -59,7 +124,7 @@ export class SudoworkDatabase {
         if (this.db) {
           this.db.close();
         }
-      } catch (e) {
+      } catch {
         // 忽略关闭错误
         // Ignore close errors
       }
@@ -154,6 +219,289 @@ export class SudoworkDatabase {
          VALUES (?, ?, NULL, ?, NULL, ?, ?, NULL, NULL)`
       )
       .run(this.defaultUserId, this.defaultUserId, this.systemPasswordPlaceholder, now, now);
+  }
+
+  listLocalKbCategories(): ILocalKbCategory[] {
+    const rows = this.db.prepare('SELECT * FROM local_kb_categories ORDER BY sort_order ASC, updated_at DESC').all() as LocalKbRow[];
+    return rows.map(mapLocalKbCategory);
+  }
+
+  getLocalKbCategory(id: string): ILocalKbCategory | null {
+    const row = this.db.prepare('SELECT * FROM local_kb_categories WHERE id = ?').get(id) as LocalKbRow | undefined;
+    return row ? mapLocalKbCategory(row) : null;
+  }
+
+  createLocalKbCategory(input: { id: string; name: string; description?: string | null; sortOrder?: number }): ILocalKbCategory {
+    const now = Date.now();
+    this.db
+      .prepare(
+        `INSERT INTO local_kb_categories (id, name, description, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(input.id, input.name, input.description ?? null, input.sortOrder ?? 0, now, now);
+    return this.getLocalKbCategory(input.id)!;
+  }
+
+  updateLocalKbCategory(id: string, updates: { name?: string; description?: string | null; sortOrder?: number }): ILocalKbCategory | null {
+    const existing = this.getLocalKbCategory(id);
+    if (!existing) return null;
+    const now = Date.now();
+    this.db
+      .prepare(
+        `UPDATE local_kb_categories
+         SET name = ?, description = ?, sort_order = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(updates.name ?? existing.name, updates.description === undefined ? existing.description : updates.description, updates.sortOrder ?? existing.sortOrder, now, id);
+    return this.getLocalKbCategory(id);
+  }
+
+  deleteLocalKbCategory(id: string): void {
+    this.db.prepare('DELETE FROM local_kb_categories WHERE id = ?').run(id);
+  }
+
+  listLocalKbSpaces(categoryId?: string | null): ILocalKbSpace[] {
+    const rows = categoryId === undefined ? (this.db.prepare('SELECT * FROM local_kb_spaces ORDER BY updated_at DESC').all() as LocalKbRow[]) : (this.db.prepare('SELECT * FROM local_kb_spaces WHERE category_id IS ? ORDER BY updated_at DESC').all(categoryId) as LocalKbRow[]);
+    return rows.map(mapLocalKbSpace);
+  }
+
+  getLocalKbSpace(id: string): ILocalKbSpace | null {
+    const row = this.db.prepare('SELECT * FROM local_kb_spaces WHERE id = ?').get(id) as LocalKbRow | undefined;
+    return row ? mapLocalKbSpace(row) : null;
+  }
+
+  createLocalKbSpace(input: { id: string; categoryId?: string | null; name: string; description?: string | null; sourceMode?: LocalKbSourceMode; rootPath?: string | null }): ILocalKbSpace {
+    const now = Date.now();
+    this.db
+      .prepare(
+        `INSERT INTO local_kb_spaces (
+          id, category_id, name, description, source_mode, root_path,
+          build_status, retrieval_mode, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'idle', 'grep-only', ?, ?)`
+      )
+      .run(input.id, input.categoryId ?? null, input.name, input.description ?? null, input.sourceMode ?? 'files', input.rootPath ?? null, now, now);
+    return this.getLocalKbSpace(input.id)!;
+  }
+
+  updateLocalKbSpace(
+    id: string,
+    updates: Partial<{
+      categoryId: string | null;
+      name: string;
+      description: string | null;
+      sourceMode: LocalKbSourceMode;
+      rootPath: string | null;
+      buildStatus: LocalKbBuildStatus;
+      retrievalMode: LocalKbRetrievalMode;
+      lastBuiltAt: number | null;
+      lastBuildError: string | null;
+    }>
+  ): ILocalKbSpace | null {
+    const existing = this.getLocalKbSpace(id);
+    if (!existing) return null;
+    const now = Date.now();
+    this.db
+      .prepare(
+        `UPDATE local_kb_spaces
+         SET category_id = ?, name = ?, description = ?, source_mode = ?, root_path = ?,
+             build_status = ?, retrieval_mode = ?, last_built_at = ?, last_build_error = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(
+        updates.categoryId === undefined ? existing.categoryId : updates.categoryId,
+        updates.name ?? existing.name,
+        updates.description === undefined ? existing.description : updates.description,
+        updates.sourceMode ?? existing.sourceMode,
+        updates.rootPath === undefined ? existing.rootPath : updates.rootPath,
+        updates.buildStatus ?? existing.buildStatus,
+        updates.retrievalMode ?? existing.retrievalMode,
+        updates.lastBuiltAt === undefined ? existing.lastBuiltAt : updates.lastBuiltAt,
+        updates.lastBuildError === undefined ? existing.lastBuildError : updates.lastBuildError,
+        now,
+        id
+      );
+    return this.getLocalKbSpace(id);
+  }
+
+  deleteLocalKbSpace(id: string): void {
+    this.db.prepare('DELETE FROM local_kb_spaces WHERE id = ?').run(id);
+  }
+
+  listLocalKbDocuments(spaceId: string): ILocalKbDocument[] {
+    const rows = this.db.prepare('SELECT * FROM local_kb_documents WHERE space_id = ? ORDER BY relative_path ASC, file_name ASC').all(spaceId) as LocalKbRow[];
+    return rows.map(mapLocalKbDocument);
+  }
+
+  getLocalKbDocument(id: string): ILocalKbDocument | null {
+    const row = this.db.prepare('SELECT * FROM local_kb_documents WHERE id = ?').get(id) as LocalKbRow | undefined;
+    return row ? mapLocalKbDocument(row) : null;
+  }
+
+  upsertLocalKbDocument(input: {
+    id: string;
+    spaceId: string;
+    fileName: string;
+    relativePath?: string | null;
+    absolutePath: string;
+    mimeType: string;
+    sizeBytes: number;
+    contentHash: string;
+    sourceType: LocalKbDocumentSourceType;
+    parseStatus?: LocalKbParseStatus;
+    parseError?: string | null;
+  }): ILocalKbDocument {
+    const now = Date.now();
+    this.db
+      .prepare(
+        `INSERT INTO local_kb_documents (
+          id, space_id, file_name, relative_path, absolute_path, mime_type, size_bytes,
+          content_hash, source_type, parse_status, parse_error, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          file_name = excluded.file_name,
+          relative_path = excluded.relative_path,
+          absolute_path = excluded.absolute_path,
+          mime_type = excluded.mime_type,
+          size_bytes = excluded.size_bytes,
+          content_hash = excluded.content_hash,
+          source_type = excluded.source_type,
+          parse_status = excluded.parse_status,
+          parse_error = excluded.parse_error,
+          updated_at = excluded.updated_at`
+      )
+      .run(input.id, input.spaceId, input.fileName, input.relativePath ?? null, input.absolutePath, input.mimeType, input.sizeBytes, input.contentHash, input.sourceType, input.parseStatus ?? 'pending', input.parseError ?? null, now, now);
+    return this.getLocalKbDocument(input.id)!;
+  }
+
+  updateLocalKbDocumentParse(id: string, updates: { parseStatus: LocalKbParseStatus; parseError?: string | null; lastIndexedAt?: number | null }): ILocalKbDocument | null {
+    const existing = this.getLocalKbDocument(id);
+    if (!existing) return null;
+    this.db
+      .prepare(
+        `UPDATE local_kb_documents
+         SET parse_status = ?, parse_error = ?, last_indexed_at = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(updates.parseStatus, updates.parseError ?? null, updates.lastIndexedAt === undefined ? existing.lastIndexedAt : updates.lastIndexedAt, Date.now(), id);
+    return this.getLocalKbDocument(id);
+  }
+
+  markLocalKbDocumentsIndexed(ids: string[], indexedAt = Date.now()): void {
+    if (ids.length === 0) return;
+    const stmt = this.db.prepare('UPDATE local_kb_documents SET last_indexed_at = ?, updated_at = ? WHERE id = ?');
+    const mark = this.db.transaction((docIds: string[]) => {
+      for (const id of docIds) {
+        stmt.run(indexedAt, indexedAt, id);
+      }
+    });
+    mark(ids);
+  }
+
+  deleteLocalKbDocumentsForSpace(spaceId: string, sourceType?: LocalKbDocumentSourceType): void {
+    if (sourceType) {
+      this.db.prepare('DELETE FROM local_kb_documents WHERE space_id = ? AND source_type = ?').run(spaceId, sourceType);
+      return;
+    }
+    this.db.prepare('DELETE FROM local_kb_documents WHERE space_id = ?').run(spaceId);
+  }
+
+  deleteLocalKbDocument(id: string): void {
+    this.db.prepare('DELETE FROM local_kb_documents WHERE id = ?').run(id);
+  }
+
+  createLocalKbBuildJob(input: { id: string; spaceId: string; mode?: LocalKbBuildJobMode }): ILocalKbBuildJob {
+    const now = Date.now();
+    this.db
+      .prepare(
+        `INSERT INTO local_kb_build_jobs (id, space_id, mode, status, progress, created_at)
+         VALUES (?, ?, ?, 'queued', 0, ?)`
+      )
+      .run(input.id, input.spaceId, input.mode ?? 'full', now);
+    return this.getLocalKbBuildJob(input.id)!;
+  }
+
+  getLocalKbBuildJob(id: string): ILocalKbBuildJob | null {
+    const row = this.db.prepare('SELECT * FROM local_kb_build_jobs WHERE id = ?').get(id) as LocalKbRow | undefined;
+    return row ? mapLocalKbBuildJob(row) : null;
+  }
+
+  getLatestLocalKbBuildJob(spaceId: string): ILocalKbBuildJob | null {
+    const row = this.db.prepare('SELECT * FROM local_kb_build_jobs WHERE space_id = ? ORDER BY created_at DESC LIMIT 1').get(spaceId) as LocalKbRow | undefined;
+    return row ? mapLocalKbBuildJob(row) : null;
+  }
+
+  listLocalKbBuildJobs(spaceId: string, limit = 20): ILocalKbBuildJob[] {
+    const rows = this.db.prepare('SELECT * FROM local_kb_build_jobs WHERE space_id = ? ORDER BY created_at DESC LIMIT ?').all(spaceId, limit) as LocalKbRow[];
+    return rows.map(mapLocalKbBuildJob);
+  }
+
+  listQueuedLocalKbBuildJobs(limit = 2): ILocalKbBuildJob[] {
+    const rows = this.db.prepare("SELECT * FROM local_kb_build_jobs WHERE status = 'queued' ORDER BY created_at ASC LIMIT ?").all(limit) as LocalKbRow[];
+    return rows.map(mapLocalKbBuildJob);
+  }
+
+  getActiveLocalKbBuildJob(spaceId: string): ILocalKbBuildJob | null {
+    const row = this.db.prepare("SELECT * FROM local_kb_build_jobs WHERE space_id = ? AND status IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1").get(spaceId) as LocalKbRow | undefined;
+    return row ? mapLocalKbBuildJob(row) : null;
+  }
+
+  markInterruptedLocalKbBuildJobs(): void {
+    const now = Date.now();
+    this.db
+      .prepare(
+        `UPDATE local_kb_build_jobs
+         SET status = 'failed',
+             current_step = '构建已中断',
+             error_message = 'Sudowork exited before this build finished.',
+             finished_at = ?
+         WHERE status = 'running'`
+      )
+      .run(now);
+    this.db
+      .prepare(
+        `UPDATE local_kb_spaces
+         SET build_status = 'failed',
+             last_build_error = 'Sudowork exited before the previous build finished.',
+             updated_at = ?
+         WHERE id IN (
+           SELECT DISTINCT space_id FROM local_kb_build_jobs
+           WHERE status = 'failed'
+             AND finished_at = ?
+             AND error_message = 'Sudowork exited before this build finished.'
+         )`
+      )
+      .run(now, now);
+  }
+
+  updateLocalKbBuildJob(
+    id: string,
+    updates: Partial<{
+      status: LocalKbBuildJobStatus;
+      progress: number;
+      currentStep: string | null;
+      errorMessage: string | null;
+      startedAt: number | null;
+      finishedAt: number | null;
+    }>
+  ): ILocalKbBuildJob | null {
+    const existing = this.getLocalKbBuildJob(id);
+    if (!existing) return null;
+    this.db
+      .prepare(
+        `UPDATE local_kb_build_jobs
+         SET status = ?, progress = ?, current_step = ?, error_message = ?, started_at = ?, finished_at = ?
+         WHERE id = ?`
+      )
+      .run(
+        updates.status ?? existing.status,
+        updates.progress ?? existing.progress,
+        updates.currentStep === undefined ? existing.currentStep : updates.currentStep,
+        updates.errorMessage === undefined ? existing.errorMessage : updates.errorMessage,
+        updates.startedAt === undefined ? existing.startedAt : updates.startedAt,
+        updates.finishedAt === undefined ? existing.finishedAt : updates.finishedAt,
+        id
+      );
+    return this.getLocalKbBuildJob(id);
   }
 
   getSystemUser(): IUser | null {
@@ -1383,8 +1731,6 @@ export class SudoworkDatabase {
       }
 
       const conversationIds = rows.map((r) => r.id);
-      const now = Date.now();
-
       // Delete messages first (foreign key constraint)
       const deleteMessagesStmt = this.db.prepare('DELETE FROM messages WHERE conversation_id = ?');
       // Delete conversations

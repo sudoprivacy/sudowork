@@ -893,7 +893,7 @@ const migration_v15: IMigration = {
 
     mainLog('Migration v15', 'Removed strict constraints for extension channels');
   },
-  down: (db) => {
+  down: (_db) => {
     // Cannot safely rollback if there are custom types/sources in the database.
     // For now, we just log a warning and do nothing, or we could delete them.
     mainWarn('Migration v15', 'Rollback skipped to prevent data loss of extension channels.');
@@ -1367,6 +1367,109 @@ const migration_v23: IMigration = {
   },
 };
 
+const migration_v24: IMigration = {
+  version: 24,
+  name: 'Add local knowledge base tables',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS local_kb_categories (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS local_kb_spaces (
+        id TEXT PRIMARY KEY,
+        category_id TEXT REFERENCES local_kb_categories(id) ON DELETE SET NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        source_mode TEXT NOT NULL DEFAULT 'files',
+        root_path TEXT,
+        build_status TEXT NOT NULL DEFAULT 'idle',
+        retrieval_mode TEXT NOT NULL DEFAULT 'grep-only',
+        last_built_at INTEGER,
+        last_build_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_local_kb_spaces_category_id
+        ON local_kb_spaces(category_id);
+      CREATE INDEX IF NOT EXISTS idx_local_kb_spaces_updated_at
+        ON local_kb_spaces(updated_at DESC);
+
+      CREATE TABLE IF NOT EXISTS local_kb_documents (
+        id TEXT PRIMARY KEY,
+        space_id TEXT NOT NULL REFERENCES local_kb_spaces(id) ON DELETE CASCADE,
+        file_name TEXT NOT NULL,
+        relative_path TEXT,
+        absolute_path TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        content_hash TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        parse_status TEXT NOT NULL DEFAULT 'pending',
+        parse_error TEXT,
+        last_indexed_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_local_kb_documents_space_id
+        ON local_kb_documents(space_id);
+      CREATE INDEX IF NOT EXISTS idx_local_kb_documents_hash
+        ON local_kb_documents(space_id, content_hash);
+
+      CREATE TABLE IF NOT EXISTS local_kb_build_jobs (
+        id TEXT PRIMARY KEY,
+        space_id TEXT NOT NULL REFERENCES local_kb_spaces(id) ON DELETE CASCADE,
+        mode TEXT NOT NULL DEFAULT 'full',
+        status TEXT NOT NULL DEFAULT 'queued',
+        progress INTEGER NOT NULL DEFAULT 0,
+        current_step TEXT,
+        error_message TEXT,
+        started_at INTEGER,
+        finished_at INTEGER,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_local_kb_build_jobs_space_id
+        ON local_kb_build_jobs(space_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_local_kb_build_jobs_status
+        ON local_kb_build_jobs(status, created_at);
+
+      CREATE TABLE IF NOT EXISTS local_kb_query_logs (
+        id TEXT PRIMARY KEY,
+        space_id TEXT,
+        query TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        hit_count INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+    `);
+    mainLog('Migration v24', 'Added local knowledge base tables');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP TABLE IF EXISTS local_kb_query_logs;
+      DROP INDEX IF EXISTS idx_local_kb_build_jobs_status;
+      DROP INDEX IF EXISTS idx_local_kb_build_jobs_space_id;
+      DROP TABLE IF EXISTS local_kb_build_jobs;
+      DROP INDEX IF EXISTS idx_local_kb_documents_hash;
+      DROP INDEX IF EXISTS idx_local_kb_documents_space_id;
+      DROP TABLE IF EXISTS local_kb_documents;
+      DROP INDEX IF EXISTS idx_local_kb_spaces_updated_at;
+      DROP INDEX IF EXISTS idx_local_kb_spaces_category_id;
+      DROP TABLE IF EXISTS local_kb_spaces;
+      DROP TABLE IF EXISTS local_kb_categories;
+    `);
+    mainLog('Migration v24', 'Rolled back: Removed local knowledge base tables');
+  },
+};
+
 /**
  * All migrations in order
  */
@@ -1375,7 +1478,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19, migration_v20, migration_v21, migration_v22, migration_v23,
+  migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
 ];
 
 /**
