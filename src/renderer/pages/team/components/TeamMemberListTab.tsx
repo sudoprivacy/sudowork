@@ -104,7 +104,15 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds }: ITeamMemberListTa
       </div>
       <div className='flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border-2)]'>
         {activeMember && activeMember.conversation_id ? (
-          <AcpChat conversation_id={activeMember.conversation_id} backend={activeMember.assistant_backend as AcpBackend} agentName={activeMember.assistant_name} workspace={team.workspace ?? undefined} onTeamAnswerQuestion={onTeamAnswerQuestion} teamSendMessage={teamSendMessage} onProcessingChange={setIsSelectedChatProcessing} />
+          <AcpChat
+            conversation_id={activeMember.conversation_id}
+            backend={activeMember.assistant_backend as AcpBackend}
+            agentName={activeMember.assistant_name}
+            workspace={team.workspace ?? undefined}
+            onTeamAnswerQuestion={onTeamAnswerQuestion}
+            teamSendMessage={teamSendMessage}
+            onProcessingChange={setIsSelectedChatProcessing}
+          />
         ) : (
           <div className='flex items-center justify-center h-full text-gray-400 text-13px'>{t('team.detail.selectMember')}</div>
         )}

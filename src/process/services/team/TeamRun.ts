@@ -289,6 +289,7 @@ export class TeamRunManager {
       return;
     }
     this.maybeComplete();
+    if (this.isActive(run)) this.emitRun('team.runUpdated');
   }
 
   /** reservation → pending_wakes head (retry on retryable start failure). */

@@ -96,6 +96,34 @@ describe('TeamRun state transitions (附录 I.1)', () => {
     expect(second.run.team_run_id).toBe(first.run.team_run_id);
     expect(emits.accepted).toHaveBeenCalledTimes(1); // only the new run emits
   });
+
+  it('emits runUpdated when one child completes but the run continues', () => {
+    const m = newManager();
+    const first = m.acquireWake('s1', 'teammate', 'user_message');
+    m.commitLease(first.lease.lease_id, { slot_id: 's1', role: 'teammate', source: 'user_message', message_id: null });
+    const r1 = m.claimWakeForTurn('s1', 'user_message')!;
+    m.recordChildStarted(r1, 'turn-1', 'conv-1');
+
+    const second = m.acquireWake('s2', 'teammate', 'mcp_send_message');
+    m.commitLease(second.lease.lease_id, { slot_id: 's2', role: 'teammate', source: 'mcp_send_message', message_id: null });
+    const r2 = m.claimWakeForTurn('s2', 'mcp_send_message')!;
+    m.recordChildStarted(r2, 'turn-2', 'conv-2');
+
+    emits.updated.mockClear();
+    emits.completed.mockClear();
+
+    m.recordChildCompleted('s1', { turn_id: 'turn-1', status: 'completed' });
+
+    expect(m.getRecord()!.status).toBe('running');
+    expect(m.getRecord()!.active_child_turns.has('s1')).toBe(false);
+    expect(m.getRecord()!.active_child_turns.has('s2')).toBe(true);
+    expect(emits.updated).toHaveBeenCalledTimes(1);
+    expect(emits.completed).not.toHaveBeenCalled();
+
+    const event = emits.updated.mock.calls[0][0];
+    expect(event.slot_work?.some((work) => work.slot_id === 's1' && work.active_turn_id === 'turn-1')).toBe(false);
+    expect(event.slot_work?.some((work) => work.slot_id === 's2' && work.active_turn_id === 'turn-2')).toBe(true);
+  });
 });
 
 describe('TeamRun operation lease (附录 I.1)', () => {
