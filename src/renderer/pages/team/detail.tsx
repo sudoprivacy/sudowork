@@ -24,8 +24,9 @@ function TeamDetailPage() {
   const teamRunView = useTeamRunView(teamId);
   const [leaderConv, setLeaderConv] = useState<TChatConversation | undefined>(undefined);
   const [activeRightPanelTab, setActiveRightPanelTab] = useState('workspace');
+  const currentTeam = team?.id === teamId ? team : null;
 
-  const leader = useMemo(() => team?.assistants.find((a) => a.role === 'leader') ?? null, [team]);
+  const leader = useMemo(() => currentTeam?.assistants.find((a) => a.role === 'leader') ?? null, [currentTeam]);
 
   // Rebuild the team runtime on mount (附录 §1.3 / 关键事实 4): after an app restart the in-memory
   // sessions are gone, so ensureSession re-attaches members + drains unread backlog.
@@ -37,8 +38,12 @@ function TeamDetailPage() {
   }, [teamId]);
 
   useEffect(() => {
-    if (!leader?.conversation_id) return;
+    if (!leader?.conversation_id) {
+      setLeaderConv(undefined);
+      return undefined;
+    }
     let cancelled = false;
+    setLeaderConv(undefined);
     void (async () => {
       try {
         const conv = unwrapTeamResult(await ipcBridge.conversation.get.invoke({ id: leader.conversation_id! }));
@@ -67,7 +72,7 @@ function TeamDetailPage() {
     [leader?.conversation_id]
   );
 
-  if (loading) {
+  if (loading && !currentTeam) {
     return (
       <div className='flex items-center justify-center h-full'>
         <Spin />
@@ -75,18 +80,19 @@ function TeamDetailPage() {
     );
   }
 
-  if (!team || !leader || !leader.conversation_id) {
+  if (!currentTeam || !leader || !leader.conversation_id) {
     void navigate('/guid');
     return null;
   }
 
-  const memberTabNode = <TeamMemberListTab team={team} statusMap={statusMap} />;
+  const memberTabNode = <TeamMemberListTab team={currentTeam} statusMap={statusMap} />;
   const runStatus = teamRunView.activeRun?.status;
   const isTeamMemberTabActive = activeRightPanelTab === 'team';
+  const currentLeaderConv = leaderConv?.id === leader.conversation_id ? leaderConv : undefined;
 
   return (
     <ChatLayout
-      title={team.name}
+      title={currentTeam.name}
       backend={leader.assistant_backend}
       agentName={leader.assistant_name}
       conversationId={leader.conversation_id}
@@ -94,13 +100,13 @@ function TeamDetailPage() {
       rightSiderWidthOverride={isTeamMemberTabActive ? { widthPx: 440 } : null}
       headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} />}
       headerExtra={runStatus ? <span className={`text-12px px-8px py-2px rounded-full ${runStatus === 'running' ? 'bg-green-500/10 text-green-600' : 'bg-gray-400/10 text-gray-500'}`}>{t(`team.status.${runStatus === 'running' ? 'active' : 'idle'}`)}</span> : null}
-      sider={<ChatSider conversation={leaderConv} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} onActiveTabChange={setActiveRightPanelTab} />}
+      sider={<ChatSider conversation={currentLeaderConv} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} onActiveTabChange={setActiveRightPanelTab} />}
     >
       <AcpChat
         conversation_id={leader.conversation_id}
         backend={leader.assistant_backend as AcpBackend}
         agentName={leader.assistant_name}
-        workspace={team.workspace ?? undefined}
+        workspace={currentTeam.workspace ?? undefined}
         teamSendMessage={leaderTeamSendMessage}
         showEmptyStateWhenNoMessages
         emptyState={<TeamLeaderEmptyState assistantName={leader.assistant_name} assistantAvatar={leader.icon} assistantBackend={leader.assistant_backend} onPromptClick={onEmptyPromptClick} />}

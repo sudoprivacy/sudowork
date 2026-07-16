@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
 import { fromBackendTeam, normalizeTeamStatus } from '../mapper';
 import type { TeammateStatus, TTeam } from '../types';
@@ -19,33 +19,44 @@ export function useTeamSession(teamId: string) {
   const [team, setTeam] = useState<TTeam | null>(null);
   const [statusMap, setStatusMap] = useState<Map<string, TeammateStatus>>(new Map());
   const [loading, setLoading] = useState(true);
+  const requestSeqRef = useRef(0);
 
-  const mutate = useCallback(async () => {
-    setLoading(true);
-    try {
-      const detail = await fetchTeamDetail(teamId);
-      setTeam(detail);
-      if (detail) {
-        setStatusMap((prev) => {
-          const next = new Map(prev);
-          for (const a of detail.assistants) next.set(a.slot_id, a.status);
-          return next;
-        });
+  const mutate = useCallback(
+    async (options: { showLoading?: boolean } = {}) => {
+      const { showLoading = false } = options;
+      const requestSeq = ++requestSeqRef.current;
+
+      if (showLoading) setLoading(true);
+      try {
+        const detail = await fetchTeamDetail(teamId);
+        if (requestSeq !== requestSeqRef.current) return;
+        setTeam(detail);
+        if (detail) {
+          setStatusMap((prev) => {
+            const next = new Map(prev);
+            for (const a of detail.assistants) next.set(a.slot_id, a.status);
+            return next;
+          });
+        }
+      } catch {
+        if (requestSeq !== requestSeqRef.current) return;
+        setTeam(null);
+      } finally {
+        if (requestSeq === requestSeqRef.current) {
+          setLoading(false);
+        }
       }
-    } catch {
-      setTeam(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [teamId]);
+    },
+    [teamId]
+  );
 
   useEffect(() => {
-    void mutate();
+    void mutate({ showLoading: true });
   }, [mutate]);
 
   useEffect(() => {
     const onSpawned = (e: { team_id: string }) => {
-      if (e.team_id === teamId) void mutate();
+      if (e.team_id === teamId) void mutate({ showLoading: false });
     };
     const onRemoved = (e: { team_id: string; slot_id: string }) => {
       if (e.team_id !== teamId) return;
@@ -54,10 +65,10 @@ export function useTeamSession(teamId: string) {
         next.delete(e.slot_id);
         return next;
       });
-      void mutate();
+      void mutate({ showLoading: false });
     };
     const onRenamed = (e: { team_id: string }) => {
-      if (e.team_id === teamId) void mutate();
+      if (e.team_id === teamId) void mutate({ showLoading: false });
     };
     const onStatus = (e: { team_id: string; slot_id: string; status: string }) => {
       if (e.team_id !== teamId) return;
@@ -72,7 +83,7 @@ export function useTeamSession(teamId: string) {
     const u3 = ipcBridge.team.onMemberRenamed.on(onRenamed);
     const u4 = ipcBridge.team.onAgentStatusChanged.on(onStatus);
     const u5 = ipcBridge.team.onSessionChanged.on(({ teamId: changedTeamId }) => {
-      if (changedTeamId === teamId) void mutate();
+      if (changedTeamId === teamId) void mutate({ showLoading: false });
     });
     return () => {
       u1();
@@ -86,10 +97,14 @@ export function useTeamSession(teamId: string) {
   const removeMember = useCallback(
     async (slotId: string) => {
       await ipcBridge.team.removeMember.invoke({ teamId, memberId: slotId });
-      void mutate();
+      void mutate({ showLoading: false });
     },
     [teamId, mutate]
   );
 
-  return { team, statusMap, loading, mutate, removeMember };
+  const currentTeam = team?.id === teamId ? team : null;
+  const isTeamMismatch = !!team && team.id !== teamId;
+  const currentLoading = loading || isTeamMismatch;
+
+  return { team: currentTeam, statusMap, loading: currentLoading, mutate, removeMember };
 }
