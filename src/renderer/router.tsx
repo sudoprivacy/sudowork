@@ -14,6 +14,7 @@ const DisplaySettings = React.lazy(() => import('./pages/settings/display'));
 const GeminiSettings = React.lazy(() => import('./pages/settings/gemini'));
 const SudocodeModelSettings = React.lazy(() => import('./pages/settings/models'));
 const Skills = React.lazy(() => import('./pages/skills'));
+const LocalKnowledgeBase = React.lazy(() => import('./pages/local-knowledge-base'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
@@ -63,6 +64,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/about', component: About },
   { path: '/settings/tools', component: ToolsSettings },
   { path: '/app/skills', component: Skills },
+  { path: '/app/local-kb', component: LocalKnowledgeBase },
   { path: '/settings/skill', component: Skills },
   { path: '/app/security', component: SecurityPage },
   { path: '/app/channels', component: ChannelsPage },

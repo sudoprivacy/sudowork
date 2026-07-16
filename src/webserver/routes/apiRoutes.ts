@@ -7,12 +7,13 @@
 import fs from 'fs';
 import path from 'path';
 import { type Express, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
-import directoryApi from '../directoryApi';
-import { apiRateLimiter } from '../middleware/security';
 import { TokenMiddleware } from '@/webserver/auth/middleware/TokenMiddleware';
 import { ExtensionRegistry } from '@/extensions';
 import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
+import { localKnowledgeBaseService } from '@/process/services/local-kb/LocalKnowledgeBaseService';
+import { apiRateLimiter } from '../middleware/security';
+import directoryApi from '../directoryApi';
 
 function normalizeMountPath(input: string): string {
   if (!input || input.trim() === '') return '/';
@@ -185,6 +186,155 @@ function registerExtensionWebuiRoutes(app: Express, validateApiAccess: RequestHa
   });
 }
 
+function sendLocalKbError(res: Response, error: unknown): void {
+  res.status(500).json({ success: false, msg: error instanceof Error ? error.message : String(error) });
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function getRouteParam(req: Request, name: string): string {
+  const value = req.params[name];
+  return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+}
+
+function registerLocalKnowledgeBaseRoutes(app: Express, validateApiAccess: RequestHandler): void {
+  app.get('/api/v1/local-kb/categories', apiRateLimiter, validateApiAccess, (_req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: localKnowledgeBaseService.listCategories() });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.post('/api/v1/local-kb/categories', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: localKnowledgeBaseService.createCategory(req.body ?? {}) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.patch('/api/v1/local-kb/categories/:id', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: localKnowledgeBaseService.updateCategory(getRouteParam(req, 'id'), req.body ?? {}) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.delete('/api/v1/local-kb/categories/:id', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      localKnowledgeBaseService.deleteCategory(getRouteParam(req, 'id'));
+      res.json({ success: true });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.get('/api/v1/local-kb/spaces', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      const categoryId = typeof req.query.categoryId === 'string' ? req.query.categoryId : undefined;
+      res.json({ success: true, data: localKnowledgeBaseService.listSpaces(categoryId) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.post('/api/v1/local-kb/spaces', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: localKnowledgeBaseService.createSpace(req.body ?? {}) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.patch('/api/v1/local-kb/spaces/:id', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: localKnowledgeBaseService.updateSpace(getRouteParam(req, 'id'), req.body ?? {}) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.delete('/api/v1/local-kb/spaces/:id', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
+    try {
+      await localKnowledgeBaseService.deleteSpace(getRouteParam(req, 'id'));
+      res.json({ success: true });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.get('/api/v1/local-kb/spaces/:id/documents', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: localKnowledgeBaseService.listDocuments(getRouteParam(req, 'id')) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.post('/api/v1/local-kb/spaces/:id/files', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: await localKnowledgeBaseService.addFiles({ spaceId: getRouteParam(req, 'id'), filePaths: asStringArray(req.body?.filePaths) }) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.post('/api/v1/local-kb/spaces/:id/directory', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
+    try {
+      const directoryPath = typeof req.body?.directoryPath === 'string' ? req.body.directoryPath : '';
+      res.json({ success: true, data: await localKnowledgeBaseService.setDirectory({ spaceId: getRouteParam(req, 'id'), directoryPath }) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.post('/api/v1/local-kb/spaces/:id/build', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: localKnowledgeBaseService.queueBuild(getRouteParam(req, 'id')) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.get('/api/v1/local-kb/spaces/:id/build-status', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: localKnowledgeBaseService.getBuildStatus(getRouteParam(req, 'id')) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.get('/api/v1/local-kb/spaces/:id/build-jobs', apiRateLimiter, validateApiAccess, (req: Request, res: Response) => {
+    try {
+      const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined;
+      res.json({ success: true, data: localKnowledgeBaseService.listBuildJobs(getRouteParam(req, 'id'), Number.isFinite(limit) ? limit : undefined) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.get('/api/v1/local-kb/spaces/:id/search', apiRateLimiter, validateApiAccess, async (req: Request, res: Response) => {
+    try {
+      const query = typeof req.query.q === 'string' ? req.query.q : '';
+      res.json({ success: true, data: await localKnowledgeBaseService.search(getRouteParam(req, 'id'), query) });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+
+  app.get('/api/v1/local-kb/dependencies', apiRateLimiter, validateApiAccess, async (_req: Request, res: Response) => {
+    try {
+      res.json({ success: true, data: await localKnowledgeBaseService.getDependencyStatus() });
+    } catch (error) {
+      sendLocalKbError(res, error);
+    }
+  });
+}
+
 /**
  * 注册 API 路由
  * Register API routes
@@ -199,6 +349,7 @@ export function registerApiRoutes(app: Express): void {
   app.use('/api/directory', apiRateLimiter, validateApiAccess, directoryApi);
 
   registerExtensionWebuiRoutes(app, validateApiAccess);
+  registerLocalKnowledgeBaseRoutes(app, validateApiAccess);
 
   /**
    * 扩展资产 API（WebUI）- Extension asset API (WebUI)

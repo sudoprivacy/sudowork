@@ -72,6 +72,7 @@
   "siderMenu": {
     "agent": "智能体",
     "skillStore": "技能商店",
+    "localKb": "本地知识库",
     "security": "安全防护",
     "webui": "远程连接",
     "cron": "定时任务",
