@@ -71,10 +71,10 @@ function TeamDetailPage() {
   const onLeaderTeamAnswerQuestion = useMemo(
     () =>
       async ({ conversationId, toolCallId, answers }: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => {
-        if (!leader?.slot_id) return { success: false, msg: 'Team leader not found' };
+        if (!leader?.slot_id) return { success: false, msg: t('team.detail.leaderNotFound') };
         return await ipcBridge.team.answerQuestion.invoke({ teamId, memberId: leader.slot_id, conversationId, toolCallId, answers });
       },
-    [teamId, leader?.slot_id]
+    [teamId, leader?.slot_id, t]
   );
 
   const onEmptyPromptClick = useCallback(

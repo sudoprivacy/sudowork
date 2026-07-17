@@ -94,6 +94,15 @@ describe('useTeamWarmup', () => {
     await waitFor(() => expect(ensureSessionInvoke).toHaveBeenCalledWith({ teamId: 'team-1' }));
   });
 
+  it('switches to error when ensureSession returns an error envelope', async () => {
+    ensureSessionInvoke.mockResolvedValueOnce({ __error: 'failed envelope' });
+
+    const { result } = renderHook(() => useTeamWarmup('team-1'));
+
+    await waitFor(() => expect(result.current.phase).toBe('error'));
+    expect(result.current.error).toBe('failed envelope');
+  });
+
   it('switches to error when ensureSession rejects', async () => {
     ensureSessionInvoke.mockRejectedValueOnce(new Error('failed to start'));
 

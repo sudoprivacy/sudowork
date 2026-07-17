@@ -47,7 +47,8 @@
         "growth": "Pazarlama, içerik, tasarım ve reklam ekipleriyle büyüme planı oluşturun",
         "delivery": "Sorumlular, uygulayıcılar, risk kontrolü ve retrospektif ile proje teslimini ilerletin"
       }
-    }
+    },
+    "leaderNotFound": "Takım Leader bulunamadı."
   },
   "status": {
     "pending": "Bekliyor",

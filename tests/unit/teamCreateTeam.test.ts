@@ -339,6 +339,35 @@ describe('TeamService createTeam members', () => {
     expect(record?.pending_wakes.get(leader.id)?.some((wake) => wake.source === 'team_membership_changed')).toBe(true);
   });
 
+  it('rolls back the whole team when the initial leader runtime attach fails', async () => {
+    const service = await importService();
+    h.buildConversation.mockReturnValueOnce(null);
+
+    await expect(service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: 'scode', name: 'Leader', role: 'lead' }])).rejects.toThrow('Failed to attach team leader: Leader');
+
+    expect(h.teams.size).toBe(0);
+    expect(h.members.size).toBe(0);
+    expect(h.softDeletedTeams).toHaveLength(1);
+    expect(h.softDeletedMemberTeams).toHaveLength(1);
+  });
+
+  it('rolls back the whole team when a preselected teammate runtime attach fails', async () => {
+    const service = await importService();
+    h.buildConversation.mockReturnValueOnce({ kill: vi.fn().mockResolvedValue(undefined) }).mockReturnValueOnce(null);
+
+    await expect(
+      service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+      ])
+    ).rejects.toThrow('Failed to attach team member: Worker');
+
+    expect(h.teams.size).toBe(0);
+    expect(h.members.size).toBe(0);
+    expect(h.softDeletedTeams).toHaveLength(1);
+    expect(h.softDeletedMemberTeams).toHaveLength(1);
+  });
+
   it('rolls back the whole team when a teammate fails during initial creation', async () => {
     const service = await importService();
     h.createConversation.mockImplementation(({ extra }: { extra: { workspace?: string } }) => {

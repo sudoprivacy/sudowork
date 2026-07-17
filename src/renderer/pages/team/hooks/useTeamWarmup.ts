@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ipcBridge } from '@/common';
 import { normalizeTeamStatus } from '../mapper';
+import { unwrapTeamResult } from '../utils';
 import type { TeammateStatus } from '../types';
 
 export type TeamWarmupPhase = 'warming' | 'ready' | 'error';
@@ -66,7 +67,8 @@ export function useTeamWarmup(teamId: string) {
     setError(undefined);
     void ipcBridge.team.ensureSession
       .invoke({ teamId })
-      .then(() => {
+      .then((result) => {
+        unwrapTeamResult(result);
         if (!isCancelled) setPhase('ready');
       })
       .catch((err) => {

@@ -303,6 +303,7 @@ class TeamService {
         model: leaderInput.model,
         role: 'lead',
       });
+      if (leader.status === 'failed') throw new Error(`Failed to attach team leader: ${leader.name}`);
       const updates: Partial<Team> = { leader_member_id: leader.id };
       const leaderConversation = leader.conversation_id ? getDatabase().getConversation(leader.conversation_id).data : null;
       if (!workspace) {
@@ -315,16 +316,16 @@ class TeamService {
 
       const teammates: TeamMember[] = [];
       for (const member of normalizedMembers.filter((item) => item.role === 'teammate')) {
-        teammates.push(
-          await this.spawnMember(teamId, {
-            assistant_id: member.assistant_id,
-            name: member.name,
-            model: member.model,
-            role: 'teammate',
-            wakeTeammateOnSpawn: false,
-            notifyLeaderOnSpawn: false,
-          })
-        );
+        const teammate = await this.spawnMember(teamId, {
+          assistant_id: member.assistant_id,
+          name: member.name,
+          model: member.model,
+          role: 'teammate',
+          wakeTeammateOnSpawn: false,
+          notifyLeaderOnSpawn: false,
+        });
+        if (teammate.status === 'failed') throw new Error(`Failed to attach team member: ${teammate.name}`);
+        teammates.push(teammate);
       }
       if (teammates.length > 0) await this.notifyLeaderInitialRoster(teamId);
 

@@ -47,7 +47,8 @@
         "growth": "讓市場、內容、設計、投放協作制定成長方案",
         "delivery": "讓負責人、執行、風控、覆盤協作推進專案交付"
       }
-    }
+    },
+    "leaderNotFound": "未找到團隊 Leader。"
   },
   "status": {
     "pending": "等待中",

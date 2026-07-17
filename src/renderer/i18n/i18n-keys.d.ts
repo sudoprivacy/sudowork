@@ -2416,6 +2416,7 @@ export type I18nKey =
   | 'team.detail.empty.prompt.productDevQaOps'
   | 'team.detail.empty.subtitle'
   | 'team.detail.leaderChat'
+  | 'team.detail.leaderNotFound'
   | 'team.detail.memberTab'
   | 'team.detail.noMembers'
   | 'team.detail.selectMember'

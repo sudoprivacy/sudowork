@@ -47,7 +47,8 @@
         "growth": "Have marketing, content, design, and ads collaborate on a growth plan",
         "delivery": "Have owners, executors, risk control, and retrospectives collaborate to deliver a project"
       }
-    }
+    },
+    "leaderNotFound": "Team Leader not found."
   },
   "status": {
     "pending": "Pending",

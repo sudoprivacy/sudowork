@@ -47,7 +47,8 @@
         "growth": "让市场、内容、设计、投放协作制定增长方案",
         "delivery": "让负责人、执行、风控、复盘协作推进项目交付"
       }
-    }
+    },
+    "leaderNotFound": "未找到团队 Leader。"
   },
   "status": {
     "pending": "等待中",
