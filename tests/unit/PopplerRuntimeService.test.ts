@@ -1,3 +1,5 @@
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -41,5 +43,26 @@ describe('PopplerRuntimeService', () => {
 
     expect(service.getBinDir()).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'Library', 'bin'));
     expect(service.getToolPath('pdftotext')).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'Library', 'bin', 'pdftotext.exe'));
+  });
+
+  it('rewrites symlinks that point at the transient stage directory', async () => {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sudowork-poppler-links-'));
+    try {
+      const stageDir = path.join(tempDir, '.stage', 'poppler-1');
+      const installDir = path.join(tempDir, 'current');
+      await fs.promises.mkdir(path.join(stageDir, 'lib'), { recursive: true });
+      await fs.promises.mkdir(path.join(installDir, 'lib'), { recursive: true });
+      await fs.promises.writeFile(path.join(installDir, 'lib', 'libpoppler.162.0.0.dylib'), 'dylib');
+      await fs.promises.symlink(path.join(stageDir, 'lib', 'libpoppler.162.0.0.dylib'), path.join(installDir, 'lib', 'libpoppler.162.dylib'));
+
+      const service = new PopplerRuntimeService() as unknown as {
+        rewriteStageSymlinks(rootDir: string, stageDir: string, installDir: string): void;
+      };
+      service.rewriteStageSymlinks(installDir, stageDir, installDir);
+
+      expect(await fs.promises.readlink(path.join(installDir, 'lib', 'libpoppler.162.dylib'))).toBe('libpoppler.162.0.0.dylib');
+    } finally {
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    }
   });
 });

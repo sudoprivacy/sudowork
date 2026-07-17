@@ -79,6 +79,7 @@ export class PopplerRuntimeService {
       fs.rmSync(installDir, { recursive: true, force: true });
       fs.mkdirSync(path.dirname(installDir), { recursive: true });
       fs.cpSync(stageDir, installDir, { recursive: true, dereference: true });
+      this.rewriteStageSymlinks(installDir, stageDir, installDir);
       await this.makeExecutablesRunnable(installDir);
       if (!(await this.checkManaged()).installed) {
         throw new Error('Poppler install verification failed');
@@ -86,6 +87,7 @@ export class PopplerRuntimeService {
       onProgress('verifying', 100);
     } catch (err) {
       fs.rmSync(archivePath, { force: true });
+      fs.rmSync(installDir, { recursive: true, force: true });
       throw err;
     } finally {
       onProgress('cleanup');
@@ -140,6 +142,27 @@ export class PopplerRuntimeService {
         }
       })
     );
+  }
+
+  private rewriteStageSymlinks(rootDir: string, stageDir: string, installDir: string): void {
+    const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const filePath = path.join(rootDir, entry.name);
+      if (entry.isSymbolicLink()) {
+        const target = fs.readlinkSync(filePath);
+        const absoluteTarget = path.isAbsolute(target) ? target : path.resolve(path.dirname(filePath), target);
+        const relativeToStage = path.relative(stageDir, absoluteTarget);
+        if (!relativeToStage.startsWith('..') && !path.isAbsolute(relativeToStage)) {
+          const replacement = path.join(installDir, relativeToStage);
+          fs.unlinkSync(filePath);
+          fs.symlinkSync(path.relative(path.dirname(filePath), replacement), filePath);
+        }
+        continue;
+      }
+      if (entry.isDirectory()) {
+        this.rewriteStageSymlinks(filePath, stageDir, installDir);
+      }
+    }
   }
 
   private async checkSystem(): Promise<IPopplerStatus> {
