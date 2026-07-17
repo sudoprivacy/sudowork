@@ -100,6 +100,21 @@ for f in Sudowork-1.0.0-win-x64.exe Sudowork-1.0.0-win-arm64.exe Sudowork-1.0.0-
   fi
 done
 
+# Blockmaps enable differential (incremental) auto-updates. electron-updater
+# fetches "<installer-url>.blockmap" next to each updater package, so every
+# .exe and every mac .zip must ship with a sibling blockmap. dmg needs none:
+# macOS auto-update uses the zip target only.
+for installer in "$OUTPUT_DIR"/*.exe "$OUTPUT_DIR"/*-mac-*.zip; do
+  [ -f "$installer" ] || continue
+  name=$(basename "$installer")
+  if [ ! -f "$installer.blockmap" ]; then
+    echo "FAIL: missing blockmap for $name"
+    ERRORS=$((ERRORS + 1))
+  else
+    echo "PASS: $name.blockmap exists"
+  fi
+done
+
 echo ""
 if [ "$ERRORS" -gt 0 ]; then
   echo "FAILED: $ERRORS errors found"

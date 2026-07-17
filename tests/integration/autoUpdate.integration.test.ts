@@ -6,26 +6,32 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock @office-ai/platform at module level (before any imports)
-vi.mock('@office-ai/platform', () => ({
-  bridge: {
-    buildProvider: vi.fn(() => {
-      const handlerMap = new Map<string, Function>();
-      return {
-        provider: vi.fn((handler: Function) => {
-          handlerMap.set('handler', handler);
-          return vi.fn();
-        }),
-        invoke: vi.fn(),
-        _getHandler: () => handlerMap.get('handler'),
-      };
-    }),
-    buildEmitter: vi.fn(() => ({
-      emit: vi.fn(),
-      on: vi.fn(),
-    })),
-  },
-}));
+// Mock @office-ai/platform at module level (before any imports).
+// Partial mock: keep the real storage implementation, only stub the bridge.
+vi.mock('@office-ai/platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@office-ai/platform')>();
+  return {
+    ...actual,
+    bridge: {
+      buildProvider: vi.fn(() => {
+        type ProviderHandler = (...args: unknown[]) => unknown;
+        const handlerMap = new Map<string, ProviderHandler>();
+        return {
+          provider: vi.fn((handler: ProviderHandler) => {
+            handlerMap.set('handler', handler);
+            return vi.fn();
+          }),
+          invoke: vi.fn(),
+          _getHandler: () => handlerMap.get('handler'),
+        };
+      }),
+      buildEmitter: vi.fn(() => ({
+        emit: vi.fn(),
+        on: vi.fn(),
+      })),
+    },
+  };
+});
 
 // Mock electron modules
 vi.mock('electron', () => ({
@@ -54,6 +60,7 @@ vi.mock('electron-updater', () => ({
     downloadUpdate: vi.fn(),
     quitAndInstall: vi.fn(),
     checkForUpdatesAndNotify: vi.fn(),
+    setFeedURL: vi.fn(),
   },
 }));
 

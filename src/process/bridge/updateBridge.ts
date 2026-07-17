@@ -7,6 +7,7 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { load as loadYaml } from 'js-yaml';
 import semver from 'semver';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { uuid } from '@/common/utils';
@@ -79,29 +80,45 @@ interface COSYmlInfo {
 }
 
 /**
- * Parse COS yml file to extract version info.
+ * Parse electron-builder updater metadata (latest.yml / arm64-mac.yml / …).
  * yml format:
- *   version: 0.1.4
+ *   version: 0.2.12
  *   releaseDate: '2026-03-29T11:39:22.037Z'
- *   path: Sudowork-latest-win-x64.exe
+ *   path: Sudowork-0.2.12-win-x64.exe
+ *   files:
+ *     - url: Sudowork-0.2.12-mac-arm64.zip
+ *       size: 123456
+ *     - url: Sudowork-0.2.12-mac-arm64.dmg
+ *       size: 123456
  */
+export const parseCOSYmlText = (text: string): COSYmlInfo | null => {
+  try {
+    const raw = loadYaml(text) as {
+      version?: unknown;
+      releaseDate?: unknown;
+      path?: unknown;
+      files?: Array<{ url?: unknown; size?: unknown }>;
+    } | null;
+    if (!raw || typeof raw.version !== 'string') return null;
+
+    const files = Array.isArray(raw.files) ? raw.files.filter((f): f is { url: string; size?: number } => typeof f?.url === 'string').map((f) => ({ url: f.url, size: typeof f.size === 'number' ? f.size : undefined })) : undefined;
+
+    return {
+      version: raw.version,
+      releaseDate: typeof raw.releaseDate === 'string' ? raw.releaseDate : undefined,
+      path: typeof raw.path === 'string' ? raw.path : undefined,
+      files,
+    };
+  } catch {
+    return null;
+  }
+};
+
 const parseCOSYml = async (ymlUrl: string): Promise<COSYmlInfo | null> => {
   try {
     const res = await fetch(ymlUrl, { method: 'GET' });
     if (!res.ok) return null;
-
-    const text = await res.text();
-    const versionMatch = text.match(/^version:\s*['"]?([\d.]+)['"]?/m);
-    const releaseDateMatch = text.match(/^releaseDate:\s*['"]([^'"]+)['"]/m);
-    const pathMatch = text.match(/^path:\s*(.+)$/m);
-
-    if (!versionMatch) return null;
-
-    return {
-      version: versionMatch[1],
-      releaseDate: releaseDateMatch?.[1],
-      path: pathMatch?.[1]?.trim(),
-    };
+    return parseCOSYmlText(await res.text());
   } catch {
     return null;
   }
@@ -123,21 +140,37 @@ const getCOSYmlFileName = (): string => {
 
 /**
  * Build UpdateReleaseInfo from COS yml data.
+ *
+ * Assets map the yml `files` entries (versioned filenames, required for blockmap
+ * differential updates on the auto-update path). The recommended asset for manual
+ * download is the platform installer: .dmg on macOS (the zip entry is the
+ * auto-update package), .exe on Windows, .AppImage on Linux.
  */
-const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo): UpdateReleaseInfo => {
-  const platform = process.platform;
-  const arch = process.arch;
+export const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo, runtime: RuntimePlatformInfo = { platform: process.platform, arch: process.arch }): UpdateReleaseInfo => {
+  const { platform, arch } = runtime;
 
-  // Determine file extension based on platform
-  // macOS: always use .dmg (not .zip which may not exist on COS)
-  // Windows: .exe
-  // Linux: .AppImage
   const ext = platform === 'win32' ? '.exe' : platform === 'darwin' ? '.dmg' : '.AppImage';
   const platformName = platform === 'win32' ? 'win' : platform === 'darwin' ? 'mac' : 'linux';
   const archName = arch === 'arm64' ? 'arm64' : 'x64';
 
-  // For macOS, ignore yml path (which may point to .zip) and use .dmg directly
-  const fileName = `Sudowork-latest-${platformName}-${archName}${ext}`;
+  const assets: GitHubReleaseAsset[] = (ymlInfo.files ?? []).map((file) => ({
+    name: path.basename(file.url),
+    url: `${getCosMirrorBase()}/${file.url}`,
+    size: file.size || 0,
+  }));
+
+  let recommendedAsset = assets.find((asset) => asset.name.endsWith(ext));
+  if (!recommendedAsset) {
+    // Fallback for metadata without a usable files list: the renamed
+    // "latest" copy of the installer is always present on COS.
+    const fileName = `Sudowork-latest-${platformName}-${archName}${ext}`;
+    recommendedAsset = {
+      name: fileName,
+      url: `${getCosMirrorBase()}/${fileName}`,
+      size: ymlInfo.files?.[0]?.size || 0,
+    };
+    assets.push(recommendedAsset);
+  }
 
   return {
     tagName: `v${ymlInfo.version}`,
@@ -146,18 +179,8 @@ const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo): UpdateReleaseInfo => {
     publishedAt: ymlInfo.releaseDate,
     prerelease: false,
     draft: false,
-    assets: [
-      {
-        name: fileName,
-        url: `${getCosMirrorBase()}/${fileName}`,
-        size: ymlInfo.files?.[0]?.size || 0,
-      },
-    ],
-    recommendedAsset: {
-      name: fileName,
-      url: `${getCosMirrorBase()}/${fileName}`,
-      size: ymlInfo.files?.[0]?.size || 0,
-    },
+    assets,
+    recommendedAsset,
   };
 };
 
@@ -284,16 +307,13 @@ const resolveRepo = (requestRepo?: string): string => {
   return repo || DEFAULT_REPO;
 };
 
-/**
- * Convert versioned filename to COS latest format.
- * Sudowork-1.2.0-darwin-arm64.dmg -> Sudowork-latest-mac-arm64.dmg
- * Sudowork-1.2.0-win32-x64.exe -> Sudowork-latest-win-x64.exe
- */
-const convertToCOSName = (originalName: string): string => {
-  return originalName
-    .replace(/\d+\.\d+\.\d+/, 'latest')
-    .replace('darwin', 'mac')
-    .replace('win32', 'win');
+const urlExists = async (rawUrl: string): Promise<boolean> => {
+  try {
+    const res = await fetch(rawUrl, { method: 'HEAD' });
+    return res.ok;
+  } catch {
+    return false;
+  }
 };
 
 /**
@@ -301,19 +321,40 @@ const convertToCOSName = (originalName: string): string => {
  *
  * Stable releases → force COS mirror (consistent with checkForUpdates path, avoids the
  * "薛定谔的最新版" scenario where startup notification reads GitHub and the download URL
- * points to a GitHub asset that Chinese users can't reach).
+ * points to a GitHub asset that Chinese users can't reach). GitHub asset names match
+ * the versioned filenames uploaded to COS; releases published before versioned uploads
+ * only have the renamed "latest" copies, hence the probe-and-fallback chain.
  *
- * Nightly builds → keep the original GitHub asset URL. COS has no nightly index and
- * asset names may not match convertToCOSName's stable pattern.
+ * Nightly builds → keep the original GitHub asset URL. COS has no nightly index.
  */
-const selectDownloadSource = async (originalUrl: string, originalName: string): Promise<string> => {
+export const selectDownloadSource = async (originalUrl: string, originalName: string): Promise<string> => {
   if (isNightlyBuild) {
     return originalUrl;
   }
 
-  const cosUrl = `${getCosMirrorBase()}/${convertToCOSName(originalName)}`;
-  mainLog('Update', `Stable release, forcing COS download source: ${cosUrl}`);
-  return cosUrl;
+  // Already a COS URL (asset built from COS yml metadata) — use it directly.
+  try {
+    if (new URL(originalUrl).host === new URL(getCosMirrorBase()).host) {
+      return originalUrl;
+    }
+  } catch {
+    // Fall through to the COS mapping below.
+  }
+
+  const versionedUrl = `${getCosMirrorBase()}/${originalName}`;
+  if (await urlExists(versionedUrl)) {
+    mainLog('Update', `Stable release, forcing COS download source: ${versionedUrl}`);
+    return versionedUrl;
+  }
+
+  const latestUrl = `${getCosMirrorBase()}/${originalName.replace(/\d+\.\d+\.\d+/, 'latest')}`;
+  if (await urlExists(latestUrl)) {
+    mainLog('Update', `COS versioned asset missing, using latest copy: ${latestUrl}`);
+    return latestUrl;
+  }
+
+  mainLog('Update', `COS mirror unavailable for ${originalName}, keeping original URL`);
+  return originalUrl;
 };
 
 const assertAllowedUrl = (rawUrl: string) => {

@@ -6,18 +6,22 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@office-ai/platform', () => ({
-  bridge: {
-    buildProvider: vi.fn(() => ({
-      provider: vi.fn(),
-      invoke: vi.fn(),
-    })),
-    buildEmitter: vi.fn(() => ({
-      emit: vi.fn(),
-      on: vi.fn(),
-    })),
-  },
-}));
+vi.mock('@office-ai/platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@office-ai/platform')>();
+  return {
+    ...actual,
+    bridge: {
+      buildProvider: vi.fn(() => ({
+        provider: vi.fn(),
+        invoke: vi.fn(),
+      })),
+      buildEmitter: vi.fn(() => ({
+        emit: vi.fn(),
+        on: vi.fn(),
+      })),
+    },
+  };
+});
 
 vi.mock('electron', () => ({
   app: {

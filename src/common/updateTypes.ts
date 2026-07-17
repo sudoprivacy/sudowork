@@ -78,4 +78,6 @@ export interface AutoUpdateStatus {
   error?: string;
   /** Path to the downloaded update file (available when status is 'downloaded') */
   downloadedFilePath?: string;
+  /** True while a blockmap differential download is running (progress.total is the diff size, not the full package size) */
+  isDifferential?: boolean;
 }

@@ -9,6 +9,7 @@ import { autoUpdater } from 'electron-updater';
 import type { ProgressInfo, UpdateInfo } from 'electron-updater';
 import log from 'electron-log';
 import { getCosReleaseBase, isVersionUpdateEnabled } from '@/common/systemConfig';
+import type { AutoUpdateStatus } from '@/common/updateTypes';
 
 /** COS mirror base URL for Chinese users (release bucket, server-driven cos_domain) */
 const getCosMirrorBase = (): string => `${getCosReleaseBase()}/sudowork/release/latest`;
@@ -50,21 +51,7 @@ export function getUpdateChannel(): string | undefined {
   return undefined;
 }
 
-export interface AutoUpdateStatus {
-  status: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error' | 'cancelled';
-  version?: string;
-  releaseDate?: string;
-  releaseNotes?: string;
-  progress?: {
-    bytesPerSecond: number;
-    percent: number;
-    transferred: number;
-    total: number;
-  };
-  error?: string;
-  /** Path to the downloaded update file (available when status is 'downloaded') */
-  downloadedFilePath?: string;
-}
+export type { AutoUpdateStatus } from '@/common/updateTypes';
 
 /** Callback type for broadcasting update status */
 export type StatusBroadcastCallback = (status: AutoUpdateStatus) => void;
@@ -83,6 +70,8 @@ class AutoUpdaterService extends EventEmitter {
   private readonly _autoUpdaterHandlers = new Map<string, (...args: unknown[]) => void>();
   /** Current mirror source status */
   private _mirrorStatus: MirrorStatus = { useMirror: false, reason: 'auto' };
+  /** Full package sizes from the latest update-available event, used to detect differential downloads */
+  private _availableFileSizes: number[] = [];
 
   constructor() {
     super();
@@ -223,6 +212,9 @@ class AutoUpdaterService extends EventEmitter {
     autoUpdater.setFeedURL({
       provider: 'generic',
       url: getCosMirrorBase(),
+      // COS does not support multipart/byteranges responses; without this flag the
+      // differential downloader issues multi-range requests and falls back (or errors).
+      useMultipleRangeRequest: false,
     });
 
     this._mirrorStatus = { useMirror: true, reason };
@@ -243,6 +235,7 @@ class AutoUpdaterService extends EventEmitter {
 
     register('update-available', (info: UpdateInfo) => {
       log.info(`Update available: ${info.version}`);
+      this._availableFileSizes = (info.files ?? []).map((file) => file.size).filter((size): size is number => typeof size === 'number');
       this.broadcastStatus({
         status: 'available',
         version: info.version,
@@ -258,8 +251,12 @@ class AutoUpdaterService extends EventEmitter {
 
     register('download-progress', (progress: ProgressInfo) => {
       log.info(`Download progress: ${progress.percent.toFixed(2)}%`);
+      // Differential (blockmap) downloads report the diff size as total, which never
+      // matches any full package size from update-available; full downloads always do.
+      const isDifferential = this._availableFileSizes.length > 0 && !this._availableFileSizes.includes(progress.total);
       this.broadcastStatus({
         status: 'downloading',
+        isDifferential,
         progress: {
           bytesPerSecond: progress.bytesPerSecond,
           percent: progress.percent,

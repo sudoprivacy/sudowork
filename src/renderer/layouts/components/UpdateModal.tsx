@@ -26,6 +26,7 @@ const UpdateModal: React.FC = () => {
   const [useAutoUpdate, setUseAutoUpdate] = useState(true); // 默认使用自动更新
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
   const [autoUpdateDownloadedPath, setAutoUpdateDownloadedPath] = useState<string | null>(null);
+  const [isDifferentialDownload, setIsDifferentialDownload] = useState(false);
 
   const resetState = () => {
     setStatus('checking');
@@ -38,6 +39,7 @@ const UpdateModal: React.FC = () => {
     setReleasePageUrl('');
     setAutoUpdateInfo(null);
     setAutoUpdateDownloadedPath(null);
+    setIsDifferentialDownload(false);
   };
 
   const includePrerelease = localStorage.getItem('update.includePrerelease') === 'true';
@@ -265,6 +267,7 @@ const UpdateModal: React.FC = () => {
               total: evt.progress.total,
               transferred: evt.progress.transferred,
             });
+            setIsDifferentialDownload(!!evt.isDifferential);
           }
           break;
         case 'downloaded':
@@ -438,6 +441,7 @@ const UpdateModal: React.FC = () => {
                 </span>
                 <span className='text-[rgb(var(--primary-6))] font-500'>{progress.speed}</span>
               </div>
+              {isDifferentialDownload && <div className='mt-8px text-center text-12px text-tertiary'>{t('update.differentialDownloadHint')}</div>}
             </div>
           </div>
         );

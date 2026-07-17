@@ -155,6 +155,24 @@ describe('AutoUpdaterService', () => {
       expect(result.updateInfo).toEqual(mockUpdateInfo);
     });
 
+    it('should configure the COS generic feed without multi-range requests', async () => {
+      autoUpdaterService.initialize(mockStatusBroadcast);
+
+      vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce({
+        updateInfo: { version: '2.0.0' },
+      });
+
+      await autoUpdaterService.checkForUpdates();
+
+      expect(autoUpdater.setFeedURL).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'generic',
+          url: expect.stringContaining('/sudowork/release/latest'),
+          useMultipleRangeRequest: false,
+        })
+      );
+    });
+
     it('should handle check for updates error', async () => {
       autoUpdaterService.initialize(mockStatusBroadcast);
 
@@ -234,6 +252,12 @@ describe('AutoUpdaterService', () => {
       await autoUpdaterService.checkForUpdatesAndNotify();
 
       expect(autoUpdater.checkForUpdatesAndNotify).toHaveBeenCalled();
+      expect(autoUpdater.setFeedURL).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'generic',
+          useMultipleRangeRequest: false,
+        })
+      );
     });
 
     it('should handle checkForUpdatesAndNotify error gracefully', async () => {
@@ -320,6 +344,7 @@ describe('AutoUpdaterService', () => {
 
       expect(statusListener).toHaveBeenCalledWith({
         status: 'downloading',
+        isDifferential: false,
         progress: {
           bytesPerSecond: 1024 * 1024,
           percent: 50,
@@ -327,6 +352,46 @@ describe('AutoUpdaterService', () => {
           total: 100 * 1024 * 1024,
         },
       });
+    });
+
+    it('should flag differential download when progress total differs from all package sizes', () => {
+      autoUpdaterService.initialize(mockStatusBroadcast);
+
+      const statusListener = vi.fn();
+      autoUpdaterService.on('update-status', statusListener);
+
+      autoUpdaterService.triggerEventForTest('update-available', {
+        version: '2.0.0',
+        files: [{ size: 100 * 1024 * 1024 }, { size: 110 * 1024 * 1024 }],
+      });
+      autoUpdaterService.triggerEventForTest('download-progress', {
+        bytesPerSecond: 1024 * 1024,
+        percent: 10,
+        transferred: 1024 * 1024,
+        total: 8 * 1024 * 1024,
+      });
+
+      expect(statusListener).toHaveBeenCalledWith(expect.objectContaining({ status: 'downloading', isDifferential: true }));
+    });
+
+    it('should not flag differential download when progress total matches a package size', () => {
+      autoUpdaterService.initialize(mockStatusBroadcast);
+
+      const statusListener = vi.fn();
+      autoUpdaterService.on('update-status', statusListener);
+
+      autoUpdaterService.triggerEventForTest('update-available', {
+        version: '2.0.0',
+        files: [{ size: 100 * 1024 * 1024 }],
+      });
+      autoUpdaterService.triggerEventForTest('download-progress', {
+        bytesPerSecond: 1024 * 1024,
+        percent: 10,
+        transferred: 10 * 1024 * 1024,
+        total: 100 * 1024 * 1024,
+      });
+
+      expect(statusListener).toHaveBeenCalledWith(expect.objectContaining({ status: 'downloading', isDifferential: false }));
     });
 
     it('should emit update-status event when update is downloaded', () => {

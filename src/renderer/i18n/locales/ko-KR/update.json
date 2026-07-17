@@ -7,6 +7,7 @@
   "availableTitle": "업데이트 가능",
   "noReleaseNotes": "릴리스 노트가 없습니다.",
   "downloadingTitle": "업데이트 다운로드 중...",
+  "differentialDownloadHint": "증분 업데이트: 변경된 부분만 다운로드합니다",
   "downloadButton": "다운로드",
   "downloadAndInstall": "다운로드 및 설치",
   "downloadStartFailed": "다운로드를 시작하지 못했습니다",
