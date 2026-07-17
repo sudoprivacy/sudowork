@@ -213,6 +213,9 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
       footer={null}
       className='[&_.arco-modal-header]:!h-auto [&_.arco-modal-header]:!border-b-0 [&_.arco-modal-header]:!px-28px [&_.arco-modal-header]:!pb-0 [&_.arco-modal-header]:!pt-24px [&_.arco-modal-header_.arco-modal-title]:!text-left [&_.arco-modal-header_.arco-modal-title]:!text-22px [&_.arco-modal-header_.arco-modal-title]:!font-700 [&_.arco-modal-header_.arco-modal-title]:!leading-30px'
       style={{ width: 1040, maxWidth: 'calc(100vw - 48px)' }}
+      // 高于会话折叠按钮 (ConversationHeaderToggle, zIndex 9999) 的浮层，避免小尖尖盖住对话框
+      wrapStyle={{ zIndex: 10000 }}
+      maskStyle={{ zIndex: 10000 }}
       alignCenter
       getPopupContainer={() => document.body}
     >
