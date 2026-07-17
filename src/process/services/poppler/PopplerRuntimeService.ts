@@ -53,6 +53,17 @@ export class PopplerRuntimeService {
     return `${this.getBinDir()}${path.delimiter}${process.env.PATH ?? ''}`;
   }
 
+  getToolEnv(): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = { ...process.env, PATH: this.getPathEnv() };
+    const libDir = path.join(this.getInstallDir(), 'lib');
+    if (process.platform === 'darwin') {
+      env.DYLD_LIBRARY_PATH = `${libDir}${path.delimiter}${process.env.DYLD_LIBRARY_PATH ?? ''}`;
+    } else if (process.platform === 'linux') {
+      env.LD_LIBRARY_PATH = `${libDir}${path.delimiter}${process.env.LD_LIBRARY_PATH ?? ''}`;
+    }
+    return env;
+  }
+
   async install(onProgress: PopplerProgressCallback): Promise<void> {
     const archivePath = this.getCachedArchivePath();
     const installDir = this.getInstallDir();
@@ -187,7 +198,7 @@ export class PopplerRuntimeService {
 
   private async readVersion(pdftotextPath: string): Promise<string | undefined> {
     try {
-      const { stdout, stderr } = await execFileAsync(pdftotextPath, ['-v'], { timeout: 5_000, env: { ...process.env, PATH: this.getPathEnv() } });
+      const { stdout, stderr } = await execFileAsync(pdftotextPath, ['-v'], { timeout: 5_000, env: this.getToolEnv() });
       const out = `${stdout}\n${stderr}`;
       return out.match(/pdftotext version\s+([^\s]+)/i)?.[1];
     } catch {
@@ -197,13 +208,21 @@ export class PopplerRuntimeService {
 
   private async readVersionError(pdftotextPath: string): Promise<string | undefined> {
     try {
-      await execFileAsync(pdftotextPath, ['-v'], { timeout: 5_000, env: { ...process.env, PATH: this.getPathEnv() } });
+      await execFileAsync(pdftotextPath, ['-v'], { timeout: 5_000, env: this.getToolEnv() });
       return undefined;
     } catch (err) {
       if (!(err instanceof Error)) return String(err);
-      const execError = err as Error & { stderr?: string; stdout?: string; code?: string | number };
+      const execError = err as Error & { stderr?: string; stdout?: string; code?: string | number; signal?: NodeJS.Signals };
       const output = `${execError.stderr ?? ''}\n${execError.stdout ?? ''}`.trim();
-      return output || execError.message;
+      const diagnostics = [
+        output || execError.message,
+        `exists=${fs.existsSync(pdftotextPath)}`,
+        `bin=${pdftotextPath}`,
+        `lib=${path.join(this.getInstallDir(), 'lib')}`,
+        execError.code != null ? `code=${execError.code}` : undefined,
+        execError.signal ? `signal=${execError.signal}` : undefined,
+      ].filter((item): item is string => Boolean(item));
+      return diagnostics.join('; ');
     }
   }
 

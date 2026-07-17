@@ -118,7 +118,7 @@ async function resolvePdftotextBin(): Promise<{ bin: string; env?: NodeJS.Proces
   if (managed.installed) {
     return {
       bin: popplerRuntimeService.getToolPath('pdftotext'),
-      env: { ...process.env, PATH: popplerRuntimeService.getPathEnv() },
+      env: popplerRuntimeService.getToolEnv(),
     };
   }
   return { bin: 'pdftotext' };
