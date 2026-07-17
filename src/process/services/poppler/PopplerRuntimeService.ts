@@ -93,7 +93,7 @@ export class PopplerRuntimeService {
       fs.renameSync(stageDir, installDir);
       await this.makeExecutablesRunnable(installDir);
       if (!(await this.checkManaged()).installed) {
-        const detail = await this.readVersionError(this.getToolPath('pdftotext'));
+        const detail = await this.readInstallDiagnostics();
         throw new Error(`Poppler install verification failed${detail ? `: ${detail}` : ''}`);
       }
       onProgress('verifying', 100);
@@ -224,6 +224,20 @@ export class PopplerRuntimeService {
       ].filter((item): item is string => Boolean(item));
       return diagnostics.join('; ');
     }
+  }
+
+  private async readInstallDiagnostics(): Promise<string> {
+    const installDir = this.getInstallDir();
+    const binDir = this.getBinDir();
+    const toolStates = REQUIRED_TOOLS.map((tool) => {
+      const toolPath = this.getToolPath(tool);
+      return `${tool}=${fs.existsSync(toolPath) ? 'exists' : 'missing'}`;
+    });
+    const version = await this.readVersion(this.getToolPath('pdftotext'));
+    const versionError = version ? undefined : await this.readVersionError(this.getToolPath('pdftotext'));
+    const binEntries = fs.existsSync(binDir) ? fs.readdirSync(binDir).slice(0, 20).join(',') : 'missing';
+    const diagnostics = [...toolStates, version ? `version=${version}` : undefined, versionError ? `versionError=${versionError}` : undefined, `install=${installDir}`, `binEntries=${binEntries}`].filter((item): item is string => Boolean(item));
+    return diagnostics.join('; ');
   }
 
   private async downloadWithFallback(urls: string[], destPath: string, onProgress: (percent: number) => void): Promise<void> {
