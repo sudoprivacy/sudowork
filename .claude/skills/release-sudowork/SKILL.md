@@ -12,7 +12,7 @@ description: Use when releasing a new version of Sudowork. Generates internal (s
 
 ## 前置条件
 
-- 在 `main` 分支上，工作区干净，已 `git pull --rebase origin main`
+- 在 `dev` 分支上，工作区干净，已 `git pull --rebase origin dev`
 - `gh auth status` 正常（需要能编辑 sudoprivacy/sudowork 的 release）
 
 任一不满足则停止并提示用户。
@@ -76,17 +76,12 @@ git log --oneline v{last}..HEAD --no-merges
 > 📋 详细更新内容：{shareone URL}
 ```
 
-### 6. Bump 版本并跑质量门禁
+### 6. Bump 版本
 
 1. 更新 `package.json` 的 `version` 为 `{ver}`
 2. `bun install`，然后 `git diff bun.lock` 确认无变化（有变化则询问用户）
-3. 依次运行，任一失败即停止：
 
-```bash
-bun run lint
-bunx tsc --noEmit
-bunx vitest run
-```
+> 不跑格式 / 类型 / 测试门禁 —— 发布流程只做版本 bump。
 
 ### 7. 创建 release PR
 
@@ -95,7 +90,7 @@ git checkout -b release/v{ver}
 git add package.json docs/release-notes/v{ver}.md docs/release-notes/v{ver}-public.md
 git commit -m "chore(release): bump version to {ver}"
 git push -u origin release/v{ver}
-gh pr create --base main --title "chore(release): bump version to {ver}" --body "Release v{ver}"
+gh pr create --base dev --title "chore(release): bump version to {ver}" --body "Release v{ver}"
 ```
 
 **绝不添加任何 AI 署名**（Co-Authored-By、Generated with 等）到 commit 或 PR。
@@ -107,8 +102,8 @@ gh pr create --base main --title "chore(release): bump version to {ver}" --body 
 PR 合并后：
 
 ```bash
-git checkout main
-git pull --rebase origin main
+git checkout dev
+git pull --rebase origin dev
 git branch -d release/v{ver}
 git tag v{ver}
 git push origin v{ver}
