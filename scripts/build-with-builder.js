@@ -228,7 +228,8 @@ function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
   };
 
   if (args.includes('--win') || args.includes('--all')) {
-    expectFile(path.join('win-unpacked', 'Sudowork.exe'));
+    const winUnpackedDirs = targetArch === 'x64' ? ['win-unpacked', 'win-x64-unpacked'] : [`win-${targetArch}-unpacked`, 'win-unpacked'];
+    expectOneFile(winUnpackedDirs.map((dir) => path.join(dir, 'Sudowork.exe')));
     expectFile(`Sudowork-${appVersion}-win-${targetArch}.exe`);
     expectFile(`Sudowork-${appVersion}-win-${targetArch}.zip`);
   }
