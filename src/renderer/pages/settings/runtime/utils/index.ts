@@ -11,6 +11,7 @@ export const badgeColors: Record<string, string> = {
   python: 'bg-[#fef3c7] color-[#d97706] border border-[#fcd34d]',
   sudocode: 'bg-purple-1 color-purple-6 border border-purple-3',
   shareone: 'bg-blue-1 color-blue-6 border border-blue-3',
+  embedding: 'bg-teal-1 color-teal-6 border border-teal-3',
   nexus: 'text-[#f6c65b] border border-[#6f5520] bg-[#2b2212]',
 };
 

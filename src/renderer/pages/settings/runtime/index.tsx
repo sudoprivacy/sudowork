@@ -3,8 +3,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
+import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli, localKnowledgeBase as localKnowledgeBaseIpc } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import RuntimeToolRow from './components/RuntimeToolRow';
 import type { LoadState, ToolRow } from './types';
@@ -46,6 +47,11 @@ export default function RuntimeSettings() {
 
   const [shareoneStatus, setShareoneStatus] = useState<ICliStatus | null>(null);
   const [shareoneLoad, setShareoneLoad] = useState<LoadState>('idle');
+
+  const [embeddingStatus, setEmbeddingStatus] = useState<ICliStatus | null>(null);
+  const [embeddingLoad, setEmbeddingLoad] = useState<LoadState>('idle');
+  const [embeddingPhase, setEmbeddingPhase] = useState<LocalKbInstallPhase | undefined>(undefined);
+  const [embeddingPercent, setEmbeddingPercent] = useState<number | undefined>(undefined);
 
   const [nexusVersion, setNexusVersion] = useState<string | undefined>(undefined);
 
@@ -330,6 +336,53 @@ export default function RuntimeSettings() {
     }
   }, [refreshShareone, t]);
 
+  const refreshEmbedding = useCallback(async (options?: RefreshOptions) => {
+    if (!options?.silent) {
+      setEmbeddingLoad('loading');
+    }
+    try {
+      const res = await localKnowledgeBaseIpc.getDependencyStatus.invoke();
+      if (res?.success && res.data) {
+        setEmbeddingStatus({
+          installed: res.data.embeddingModel.installed,
+          path: res.data.embeddingModel.path,
+          version: res.data.embeddingModel.modelId,
+          source: res.data.embeddingModel.installed ? 'managed' : 'none',
+        });
+      } else {
+        setEmbeddingStatus({ installed: false, source: 'none' });
+      }
+    } catch {
+      setEmbeddingStatus({ installed: false, source: 'none' });
+    } finally {
+      if (!options?.silent) {
+        setEmbeddingLoad('idle');
+      }
+    }
+  }, []);
+
+  const installEmbedding = useCallback(async () => {
+    const embeddingModelName = t('settings.runtimeSettings.embeddingModelName');
+    setEmbeddingLoad('installing');
+    setEmbeddingPhase(undefined);
+    setEmbeddingPercent(undefined);
+    try {
+      const res = await localKnowledgeBaseIpc.installEmbeddingModel.invoke(undefined);
+      if (res?.success) {
+        await refreshEmbedding();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: embeddingModelName }));
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: embeddingModelName }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: embeddingModelName }));
+    } finally {
+      setEmbeddingLoad('idle');
+      setEmbeddingPhase(undefined);
+      setEmbeddingPercent(undefined);
+    }
+  }, [refreshEmbedding, t]);
+
   const refreshNexus = useCallback(async () => {
     try {
       const res = await nexusIpc.getStatus.invoke();
@@ -407,9 +460,9 @@ export default function RuntimeSettings() {
 
   const refreshRuntimePage = useCallback(
     async (options?: RefreshOptions) => {
-      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshNexus(), refreshLibreOffice(options), refreshPython(options)]);
+      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshEmbedding(options), refreshNexus(), refreshLibreOffice(options), refreshPython(options)]);
     },
-    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshPython, refreshScode, refreshShareone]
+    [refreshClaude, refreshEmbedding, refreshLibreOffice, refreshNexus, refreshNode, refreshPython, refreshScode, refreshShareone]
   );
 
   // Load all on mount; also restore install state if an install is already in progress
@@ -464,6 +517,20 @@ export default function RuntimeSettings() {
       setShareoneLoad('idle');
       void refreshShareone();
     });
+    const unsubEmbeddingProgress = localKnowledgeBaseIpc.installEmbeddingModelProgress.on(({ phase, percent }) => {
+      setEmbeddingLoad('installing');
+      setEmbeddingPhase(phase);
+      if (percent != null) setEmbeddingPercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
+    });
+    const unsubEmbeddingResult = localKnowledgeBaseIpc.installEmbeddingModelResult.on((result) => {
+      setEmbeddingLoad('idle');
+      setEmbeddingPhase(undefined);
+      setEmbeddingPercent(undefined);
+      if (!result.success && result.msg) {
+        Message.error(result.msg);
+      }
+      void refreshEmbedding();
+    });
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
       if (percent != null) setNexusPercent(percent);
@@ -486,6 +553,8 @@ export default function RuntimeSettings() {
       unsubScodeProgress();
       unsubScodeResult();
       unsubShareoneResult();
+      unsubEmbeddingProgress();
+      unsubEmbeddingResult();
       unsubNexusProgress();
       unsubNexusResult();
       unsubLoProgress();
@@ -493,7 +562,7 @@ export default function RuntimeSettings() {
       unsubPyProgress();
       unsubPyResult();
     };
-  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshLibreOffice, refreshPython]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshEmbedding, refreshLibreOffice, refreshPython]);
 
   const tableData: ToolRow[] = [
     {
@@ -564,6 +633,18 @@ export default function RuntimeSettings() {
       loadState: shareoneLoad,
       onRefresh: refreshShareone,
       onInstall: shareoneStatus?.installed ? undefined : installShareone,
+    },
+    {
+      key: 'embedding',
+      displayName: t('settings.runtimeSettings.embeddingModelName', { defaultValue: 'Local KB Embedding Model' }),
+      command: 'Xenova/multilingual-e5-small',
+      badge: 'EM',
+      status: embeddingStatus,
+      loadState: embeddingLoad,
+      installPhase: embeddingPhase,
+      installPercent: embeddingPercent,
+      onRefresh: refreshEmbedding,
+      onInstall: embeddingStatus?.installed ? undefined : installEmbedding,
     },
     {
       key: 'nexus',
