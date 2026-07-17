@@ -44,6 +44,7 @@ import { initDifyBridge } from './difyBridge';
 import { initSystemConfigBridge } from './systemConfigBridge';
 import { initNodeRuntimeBridge } from './nodeRuntimeBridge';
 import { initPythonRuntimeBridge } from './pythonRuntimeBridge';
+import { initPopplerRuntimeBridge } from './popplerRuntimeBridge';
 import { initFuseTBridge } from './fuseTBridge';
 // Safety hook IPC is temporarily disabled; keep safetyBridge.ts for restoration.
 // import { initSafetyBridge } from './safetyBridge';
@@ -107,6 +108,7 @@ export function initAllBridges(): void {
   initSudoclawBridge();
   initNodeRuntimeBridge();
   initPythonRuntimeBridge();
+  initPopplerRuntimeBridge();
   initFuseTBridge();
   initSudoworkServerBridge();
   initDifyBridge();

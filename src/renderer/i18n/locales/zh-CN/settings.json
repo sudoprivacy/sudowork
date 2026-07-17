@@ -140,6 +140,7 @@
       "mounting": "挂载中…",
       "copying": "安装中…",
       "extracting": "解压中…",
+      "verifying": "校验中…",
       "installing": "安装中…",
       "unpacking": "解包中…",
       "starting": "启动中…",
