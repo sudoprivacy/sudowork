@@ -1,4 +1,5 @@
 import type { ICliStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 
 export type LoadState = 'idle' | 'loading' | 'installing';
 
@@ -13,7 +14,7 @@ export interface ToolRow {
   nexusRunning?: boolean;
   nexusInstalled?: boolean;
   loadState: LoadState;
-  installPhase?: ILibreOfficeInstallPhase | NexusInstallPhase | string;
+  installPhase?: ILibreOfficeInstallPhase | NexusInstallPhase | LocalKbInstallPhase | string;
   installPercent?: number;
   onRefresh: () => Promise<void>;
   onInstall?: () => Promise<void>;
