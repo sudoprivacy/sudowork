@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
-import { fromBackendTeam, normalizeTeamStatus } from '../mapper';
-import type { TeammateStatus, TTeam } from '../types';
+import type { ITeamMember } from '@/common/ipcBridge';
+import { fromBackendAssistant, fromBackendTeam, normalizeTeamStatus } from '../mapper';
+import type { TeamAssistant, TeammateStatus, TTeam } from '../types';
 import { unwrapTeamResult } from '../utils';
 
 async function fetchTeamDetail(teamId: string): Promise<TTeam | null> {
@@ -9,6 +10,13 @@ async function fetchTeamDetail(teamId: string): Promise<TTeam | null> {
   if (!team) return null;
   const members = unwrapTeamResult(await ipcBridge.team.listMembers.invoke({ teamId })) ?? [];
   return fromBackendTeam(team, members);
+}
+
+function upsertAssistant(assistants: TeamAssistant[], assistant: TeamAssistant): TeamAssistant[] {
+  const next = assistants.filter((item) => item.slot_id !== assistant.slot_id);
+  next.push(assistant);
+  next.sort((a, b) => (a.role === 'leader' ? -1 : b.role === 'leader' ? 1 : 0));
+  return next;
 }
 
 /**
@@ -55,8 +63,16 @@ export function useTeamSession(teamId: string) {
   }, [mutate]);
 
   useEffect(() => {
-    const onSpawned = (e: { team_id: string }) => {
-      if (e.team_id === teamId) void mutate({ showLoading: false });
+    const onSpawned = (e: { team_id: string; member: ITeamMember }) => {
+      if (e.team_id !== teamId) return;
+      const assistant = fromBackendAssistant(e.member);
+      setTeam((prev) => (prev && prev.id === teamId ? { ...prev, assistants: upsertAssistant(prev.assistants, assistant) } : prev));
+      setStatusMap((prev) => {
+        const next = new Map(prev);
+        next.set(assistant.slot_id, assistant.status);
+        return next;
+      });
+      void mutate({ showLoading: false });
     };
     const onRemoved = (e: { team_id: string; slot_id: string }) => {
       if (e.team_id !== teamId) return;

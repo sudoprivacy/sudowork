@@ -21,13 +21,13 @@ const getTeamInvoke = vi.fn();
 const listMembersInvoke = vi.fn();
 const removeMemberInvoke = vi.fn();
 
-let memberSpawnedCallback: ((event: { team_id: string }) => void) | null = null;
+let memberSpawnedCallback: ((event: { team_id: string; member: TestMember }) => void) | null = null;
 let _memberRemovedCallback: ((event: { team_id: string; slot_id: string }) => void) | null = null;
 let _memberRenamedCallback: ((event: { team_id: string }) => void) | null = null;
 let _agentStatusChangedCallback: ((event: { team_id: string; slot_id: string; status: string }) => void) | null = null;
 let _sessionChangedCallback: ((event: { teamId: string }) => void) | null = null;
 
-const onMemberSpawned = vi.fn((cb: (event: { team_id: string }) => void) => {
+const onMemberSpawned = vi.fn((cb: (event: { team_id: string; member: TestMember }) => void) => {
   memberSpawnedCallback = cb;
   return () => {
     memberSpawnedCallback = null;
@@ -97,12 +97,12 @@ function makeTeam(id: string, name: string) {
   };
 }
 
-function makeMember(teamId: string, role: 'lead' | 'teammate' = 'lead') {
+function makeMember(teamId: string, role: 'lead' | 'teammate' = 'lead', overrides: Partial<{ id: string; name: string; status: string }> = {}) {
   return {
-    id: `${teamId}-${role}`,
+    id: overrides.id ?? `${teamId}-${role}`,
     team_id: teamId,
     role,
-    name: role === 'lead' ? 'Leader' : 'Member',
+    name: overrides.name ?? (role === 'lead' ? 'Leader' : 'Member'),
     assistant_id: 'scode',
     backend: 'scode',
     preset_agent_type: null,
@@ -111,7 +111,7 @@ function makeMember(teamId: string, role: 'lead' | 'teammate' = 'lead') {
     model: null,
     avatar: null,
     conversation_id: `${teamId}-conversation`,
-    status: 'idle',
+    status: overrides.status ?? 'idle',
     created_at: 1,
   };
 }
@@ -193,13 +193,54 @@ describe('useTeamSession', () => {
 
     const refreshResponse = mockDeferredTeam('team-1', 'Team 1');
     act(() => {
-      memberSpawnedCallback?.({ team_id: 'team-1' });
+      memberSpawnedCallback?.({ team_id: 'team-1', member: makeMember('team-1', 'teammate', { status: 'pending' }) });
     });
 
     expect(result.current.loading).toBe(false);
 
     await resolveDeferredTeam(refreshResponse);
     await waitFor(() => expect(result.current.team?.id).toBe('team-1'));
+  });
+
+  it('inserts a pending spawned member before the background refetch resolves', async () => {
+    mockResolvedTeam('team-1', 'Team 1');
+
+    const { result } = renderHook(() => useTeamSession('team-1'));
+
+    await waitFor(() => expect(result.current.team?.id).toBe('team-1'));
+
+    const refreshResponse = mockDeferredTeam('team-1', 'Team 1');
+    act(() => {
+      memberSpawnedCallback?.({ team_id: 'team-1', member: makeMember('team-1', 'teammate', { id: 'slot-new', name: 'New Member', status: 'pending' }) });
+    });
+
+    expect(result.current.team?.assistants.some((assistant) => assistant.slot_id === 'slot-new' && assistant.status === 'pending')).toBe(true);
+    expect(result.current.statusMap.get('slot-new')).toBe('pending');
+
+    await resolveDeferredTeam(refreshResponse);
+    await waitFor(() => expect(result.current.team?.assistants.some((assistant) => assistant.slot_id === 'slot-new')).toBe(false));
+  });
+
+  it('replaces an existing spawned member instead of duplicating it', async () => {
+    mockResolvedTeam('team-1', 'Team 1');
+
+    const { result } = renderHook(() => useTeamSession('team-1'));
+
+    await waitFor(() => expect(result.current.team?.id).toBe('team-1'));
+
+    const refreshResponse = mockDeferredTeam('team-1', 'Team 1');
+    act(() => {
+      memberSpawnedCallback?.({ team_id: 'team-1', member: makeMember('team-1', 'teammate', { id: 'slot-new', name: 'Pending Member', status: 'pending' }) });
+    });
+    act(() => {
+      memberSpawnedCallback?.({ team_id: 'team-1', member: makeMember('team-1', 'teammate', { id: 'slot-new', name: 'Updated Member', status: 'pending' }) });
+    });
+
+    const matches = result.current.team?.assistants.filter((assistant) => assistant.slot_id === 'slot-new') ?? [];
+    expect(matches).toHaveLength(1);
+    expect(matches[0].assistant_name).toBe('Updated Member');
+
+    await resolveDeferredTeam(refreshResponse);
   });
 
   it('ignores stale team detail responses after a newer team request starts', async () => {
@@ -228,7 +269,7 @@ describe('useTeamSession', () => {
 
     const backgroundResponse = mockDeferredTeam('team-1', 'Team 1');
     act(() => {
-      memberSpawnedCallback?.({ team_id: 'team-1' });
+      memberSpawnedCallback?.({ team_id: 'team-1', member: makeMember('team-1', 'teammate', { status: 'pending' }) });
     });
 
     await resolveDeferredTeam(backgroundResponse);

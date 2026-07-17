@@ -471,6 +471,7 @@ class TeamService {
         // AcpAgent exposes no public mode setter, so live propagation is left to a future AcpAgent API).
         sessionMode: team.session_mode ?? undefined,
       },
+      skipWorkerRegistration: true,
     });
     if (!createResult.success || !createResult.conversation) {
       throw new Error(createResult.error || 'Failed to create member conversation');
@@ -501,52 +502,93 @@ class TeamService {
       throw error;
     }
 
-    // Attach the member runtime (build AcpAgent + event loop). Per 事实 8 an attach failure does NOT
-    // roll back — the member stays so the leader sees it failed, and is notified via spawn_attach_failure.
-    const attached = await this.attachRuntime(teamId, member, createResult.conversation, session, 'dynamic');
-    if (!attached) {
-      const failed = teamStore.getMember(slotId) ?? member;
-      ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(failed) });
-      return failed;
+    ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(member) });
+    setTimeout(() => {
+      void this.completeSpawnedMemberRuntime(teamId, member, createResult.conversation, session, {
+        wakeTeammateOnSpawn: params.wakeTeammateOnSpawn !== false,
+        notifyLeaderOnSpawn: params.notifyLeaderOnSpawn !== false,
+      }).catch((error) => this.handleSpawnedMemberRuntimeError(teamId, member.id, session, error));
+    }, 0);
+
+    return member;
+  }
+
+  private isSpawnedMemberRuntimeCurrent(teamId: string, slotId: string, session: TeamSession): boolean {
+    const team = teamStore.getTeam(teamId);
+    if (!team) return false;
+    const member = teamStore.getMember(slotId);
+    return Boolean(member && member.team_id === teamId && this.sessions.get(teamId) === session);
+  }
+
+  private async completeSpawnedMemberRuntime(teamId: string, member: TeamMember, conversation: TChatConversation, session: TeamSession, options: { wakeTeammateOnSpawn: boolean; notifyLeaderOnSpawn: boolean }): Promise<void> {
+    if (!this.isSpawnedMemberRuntimeCurrent(teamId, member.id, session)) return;
+
+    const attached = await this.attachRuntime(teamId, member, conversation, session, 'dynamic');
+    if (!attached) return;
+    if (!this.isSpawnedMemberRuntimeCurrent(teamId, member.id, session)) return;
+
+    teamStore.updateMember(member.id, { status: 'idle', conversation_id: member.conversation_id });
+    const runtime = session.members.get(member.id);
+    if (runtime) {
+      runtime.member.status = 'idle';
+      runtime.member.conversation_id = member.conversation_id;
+    }
+    ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: member.id, status: 'idle' });
+
+    if (member.role === 'teammate' && options.wakeTeammateOnSpawn) {
+      if (!this.isSpawnedMemberRuntimeCurrent(teamId, member.id, session)) return;
+      await this.welcomeSpawnedTeammate(teamId, member, session);
     }
 
-    teamStore.updateMember(slotId, { status: 'idle', conversation_id: conversationId });
-
-    // Welcome a new teammate (附录 §1.3 / I.2 spawn_welcome): a lifecycle wake for an introductory
-    // turn. Per 事实 8 a welcome-write failure fully rolls back the slot. The leader needs no welcome.
-    if (role === 'teammate' && params.wakeTeammateOnSpawn !== false) {
-      const welcomeFrom = this.leaderSlotOrNull(teamId) ?? 'user';
-      const welcomeId = uuid();
+    if (member.role === 'teammate' && options.notifyLeaderOnSpawn) {
+      if (!this.isSpawnedMemberRuntimeCurrent(teamId, member.id, session)) return;
       try {
-        teamStore.insertMail({
-          id: welcomeId,
-          team_id: teamId,
-          to_member_id: slotId,
-          from_member_id: welcomeFrom,
-          type: 'message',
-          content: `Welcome to team "${team.name}". You are a teammate named '${params.name}'. Wait for the leader to assign work and coordinate only via the team_* tools.`,
-          summary: null,
-          files: null,
-          read: false,
-          created_at: Date.now(),
-        });
-      } catch (e) {
-        // welcome write failed → full rollback (事实 8)
-        await this.removeMember(teamId, slotId);
-        throw e;
+        const storedMember = teamStore.getMember(member.id) ?? member;
+        await this.notifyLeaderMemberAdded(teamId, storedMember);
+      } catch (error) {
+        mainWarn('TeamService', `Failed to notify leader after spawning member ${member.id}:`, error);
       }
-      const { lease } = session.teamRun.acquireWake(slotId, role, 'spawn_welcome');
-      session.teamRun.commitLease(lease.lease_id, { slot_id: slotId, role, source: 'spawn_welcome', message_id: welcomeId });
-      this.notifyWake(teamId, slotId);
     }
+  }
 
-    const storedMember = teamStore.getMember(slotId) ?? member;
-    if (role === 'teammate' && params.notifyLeaderOnSpawn !== false) {
-      await this.notifyLeaderMemberAdded(teamId, storedMember);
+  private async welcomeSpawnedTeammate(teamId: string, member: TeamMember, session: TeamSession): Promise<void> {
+    const team = teamStore.getTeam(teamId);
+    if (!team) return;
+    const welcomeFrom = this.leaderSlotOrNull(teamId) ?? 'user';
+    const welcomeId = uuid();
+    try {
+      teamStore.insertMail({
+        id: welcomeId,
+        team_id: teamId,
+        to_member_id: member.id,
+        from_member_id: welcomeFrom,
+        type: 'message',
+        content: `Welcome to team "${team.name}". You are a teammate named '${member.name}'. Wait for the leader to assign work and coordinate only via the team_* tools.`,
+        summary: null,
+        files: null,
+        read: false,
+        created_at: Date.now(),
+      });
+    } catch (error) {
+      await this.removeMember(teamId, member.id);
+      throw error;
     }
+    const { lease } = session.teamRun.acquireWake(member.id, member.role, 'spawn_welcome');
+    session.teamRun.commitLease(lease.lease_id, { slot_id: member.id, role: member.role, source: 'spawn_welcome', message_id: welcomeId });
+    this.notifyWake(teamId, member.id);
+  }
 
-    ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(storedMember) });
-    return storedMember;
+  private handleSpawnedMemberRuntimeError(teamId: string, slotId: string, session: TeamSession, error: unknown): void {
+    try {
+      if (!this.isSpawnedMemberRuntimeCurrent(teamId, slotId, session)) return;
+      teamStore.updateMember(slotId, { status: 'failed' });
+      const runtime = session.members.get(slotId);
+      if (runtime) runtime.member.status = 'failed';
+      ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: slotId, status: 'failed', last_message: error instanceof Error ? error.message : String(error) });
+      mainError('TeamService', `spawn member runtime failed for ${slotId}:`, error);
+    } catch (compensationError) {
+      mainError('TeamService', `failed to mark spawned member ${slotId} as failed:`, compensationError);
+    }
   }
 
   /** Build a member's AcpAgent + event loop and register it. Returns true when attached. */
