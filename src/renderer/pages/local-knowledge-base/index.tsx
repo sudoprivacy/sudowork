@@ -486,34 +486,7 @@ export default function LocalKnowledgeBasePage() {
                       </span>
                     }
                   >
-                    <Space className='mb-3 w-full' wrap>
-                      <Input className='min-w-[160px] flex-1' value={query} onChange={setQuery} placeholder={t('localKb.searchPlaceholder')} onPressEnter={() => void onSearch()} />
-                      <Button type='primary' loading={isSearching} disabled={!query.trim()} onClick={() => void onSearch()}>
-                        {t('localKb.runSearch')}
-                      </Button>
-                    </Space>
-                    {hits.length === 0 ? (
-                      <Empty description={t('localKb.emptyHits')} />
-                    ) : (
-                      <List
-                        className='min-h-0 flex-1 overflow-auto overscroll-contain'
-                        size='small'
-                        dataSource={hits}
-                        render={(hit) => (
-                          <List.Item>
-                            <div className='min-w-0'>
-                              <Typography.Text className='block' bold ellipsis>
-                                {hit.title}
-                              </Typography.Text>
-                              <Typography.Text className='block break-all' type='secondary'>
-                                {hit.file}:{hit.lineNo}
-                              </Typography.Text>
-                              <Typography.Paragraph className='mb-0! break-words'>{hit.text}</Typography.Paragraph>
-                            </div>
-                          </List.Item>
-                        )}
-                      />
-                    )}
+                    <SearchPanel query={query} hits={hits} isSearching={isSearching} onQueryChange={setQuery} onSearch={() => void onSearch()} />
                   </Card>
                 </div>
               </>
@@ -607,6 +580,46 @@ function DocumentPanel({ documents, visibleDocuments, pagedDocuments, documentQu
         </div>
       </div>
     </Card>
+  );
+}
+
+function SearchPanel({ query, hits, isSearching, onQueryChange, onSearch }: ISearchPanelProps) {
+  const { t } = useTranslation();
+  return (
+    <div className='flex h-full min-h-0 flex-col'>
+      <div className='flex h-[40px] flex-shrink-0 items-center'>
+        <Input allowClear className='w-full' value={query} onChange={onQueryChange} prefix={<Search size={14} />} placeholder={t('localKb.searchPlaceholder')} onPressEnter={onSearch} />
+      </div>
+
+      <div className='mt-3 min-h-0 flex-1 overflow-auto overscroll-contain rounded border border-color-border-2'>
+        {hits.length === 0 ? (
+          <div className='flex h-full items-center justify-center'>
+            <Empty description={t('localKb.emptyHits')} />
+          </div>
+        ) : (
+          <div className='divide-y divide-color-border-2'>
+            {hits.map((hit, index) => (
+              <div key={`${hit.spaceId}-${hit.file}-${hit.lineNo}-${index}`} className='min-w-0 px-3 py-3'>
+                <div className='mb-1 flex min-w-0 flex-wrap items-center gap-2'>
+                  <Typography.Text className='min-w-0 max-w-full flex-1' bold ellipsis>
+                    {hit.title || hit.file}
+                  </Typography.Text>
+                  <Tag size='small'>{hit.source}</Tag>
+                </div>
+                <Typography.Text className='mb-2 block break-all text-xs' type='secondary'>
+                  {hit.file}
+                  {hit.lineNo > 0 ? `:${hit.lineNo}` : ''}
+                </Typography.Text>
+                <Typography.Paragraph className='mb-0! whitespace-pre-wrap break-words text-sm leading-5'>{hit.text}</Typography.Paragraph>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <Typography.Text className='mt-2 h-[20px] flex-shrink-0 text-right' type='secondary'>
+        {isSearching ? t('localKb.searching') : hits.length > 0 ? t('localKb.hitCount', { count: hits.length }) : ' '}
+      </Typography.Text>
+    </div>
   );
 }
 
@@ -780,6 +793,14 @@ interface IDocumentPanelProps {
   onDocumentQueryChange: (value: string) => void;
   onDocumentPageChange: React.Dispatch<React.SetStateAction<number>>;
   onDeleteDocument: (doc: ILocalKbDocument) => void;
+}
+
+interface ISearchPanelProps {
+  query: string;
+  hits: ILocalKbSearchHit[];
+  isSearching: boolean;
+  onQueryChange: (value: string) => void;
+  onSearch: () => void;
 }
 
 interface IBuildProgressPanelProps {
