@@ -32,7 +32,7 @@ export class PopplerRuntimeService {
     const pdftotext = this.getToolPath('pdftotext');
     if (!this.hasRequiredTools()) return { installed: false };
     const version = await this.readVersion(pdftotext);
-    if (!version) return { installed: false };
+    if (!version && (await this.readVersionError(pdftotext))) return { installed: false };
     return {
       installed: true,
       path: pdftotext,
