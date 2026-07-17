@@ -105,7 +105,7 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
   };
 
   return (
-    <Modal title={t('team.create.drawerTitle')} visible={isVisible} onCancel={onClose} footer={null} style={{ width: 480 }} alignCenter getPopupContainer={() => document.body}>
+    <Modal title={t('team.create.drawerTitle')} visible={isVisible} onCancel={onClose} footer={null} style={{ width: 480 }} wrapStyle={{ zIndex: 10001 }} maskStyle={{ zIndex: 10000 }} alignCenter getPopupContainer={() => document.body}>
       <Form layout='vertical'>
         <Form.Item label={<RequiredLabel>{t('team.create.nameLabel')}</RequiredLabel>}>
           <Input value={name} onChange={setName} placeholder={t('team.create.namePlaceholder')} />
