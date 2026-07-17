@@ -37,6 +37,13 @@ describe('PopplerRuntimeService', () => {
     expect(service.getToolPath('pdftotext')).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'bin', 'pdftotext'));
   });
 
+  it('includes managed library directory in macOS tool environment', () => {
+    setProcessTarget('darwin', 'arm64');
+    const service = new PopplerRuntimeService();
+
+    expect(service.getToolEnv().DYLD_LIBRARY_PATH?.split(path.delimiter)[0]).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'lib'));
+  });
+
   it('resolves managed Windows tools from Library/bin with exe suffix', () => {
     setProcessTarget('win32', 'x64');
     const service = new PopplerRuntimeService();
