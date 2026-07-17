@@ -31,6 +31,10 @@ export function shouldInjectLanguageReminder(backend: string | undefined): boole
   return backend ? LANGUAGE_REMINDER_BACKENDS.has(backend) : false;
 }
 
+export function applyHiddenPromptPrefix(content: string, hiddenPromptPrefix?: string): string {
+  return hiddenPromptPrefix ? `${hiddenPromptPrefix}\n\n${content}` : content;
+}
+
 export function shouldRunCurrentTurnPostCleanup(pendingCurrentTurnPostCleanup: boolean): boolean {
   return pendingCurrentTurnPostCleanup;
 }

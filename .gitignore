@@ -220,6 +220,8 @@ resources/bdpan-installer-*
 resources/mcporter.tgz
 # browser-panel MCP server — esbuild output (built from src/ via scripts/build-browser-mcp.js)
 resources/browser-panel-mcp/index.js
+# team-mcp server — esbuild output (built from src/ via scripts/build-team-mcp.js)
+resources/team-mcp/index.js
 resources/.dev-runtime-versions.json
 resources/openclaw.manifest.json
 resources/v*-sudoclaw-*.manifest.json

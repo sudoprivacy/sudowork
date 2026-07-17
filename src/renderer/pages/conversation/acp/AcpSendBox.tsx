@@ -62,6 +62,9 @@ const useAcpMessage = (conversation_id: string) => {
   const aiProcessingRef = useRef(aiProcessing);
   const stopPendingRef = useRef(false);
   const activeTurnStartTimeRef = useRef<number | undefined>(undefined);
+  // Per-instance finish timeout (was a window global singleton that collided when multiple AcpSendBox
+  // instances mounted — e.g. a team detail page with Leader + a teammate chat). 附录 A4 / 风险 10.
+  const finishTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Track whether current turn has content output
   // Only reset aiProcessing when finish arrives after content (not after tool calls)
@@ -147,10 +150,10 @@ const useAcpMessage = (conversation_id: string) => {
 
       // Cancel pending finish timeout if new message arrives
       // 如果真正的会话活动在 finish 后继续到达，取消待处理的 finish timeout
-      const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+      const pendingTimeout = finishTimeoutRef.current;
       if (pendingTimeout && shouldCancelAcpFinishTimeout(message.type)) {
         clearTimeout(pendingTimeout);
-        (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+        finishTimeoutRef.current = undefined;
       }
 
       // Handle clear_incomplete_tools before transformMessage (it's not a standard message type)
@@ -229,9 +232,9 @@ const useAcpMessage = (conversation_id: string) => {
                 setThought({ subject: '', description: '' });
                 setProcessingStartTime(undefined);
               }
-              (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+              finishTimeoutRef.current = undefined;
             }, 1000);
-            (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = timeoutId;
+            finishTimeoutRef.current = timeoutId;
             hasContentInTurnRef.current = false;
             // Log request completion
             if (requestTraceRef.current) {
@@ -386,10 +389,10 @@ const useAcpMessage = (conversation_id: string) => {
   // Reset state when conversation changes and restore actual running status
   useEffect(() => {
     // Clear pending finish timeout when conversation changes
-    const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+    const pendingTimeout = finishTimeoutRef.current;
     if (pendingTimeout) {
       clearTimeout(pendingTimeout);
-      (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+      finishTimeoutRef.current = undefined;
     }
 
     setThought({ subject: '', description: '' });
@@ -444,10 +447,10 @@ const useAcpMessage = (conversation_id: string) => {
 
   const clearRuntimeState = useCallback(() => {
     // Clear pending finish timeout
-    const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+    const pendingTimeout = finishTimeoutRef.current;
     if (pendingTimeout) {
       clearTimeout(pendingTimeout);
-      (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+      finishTimeoutRef.current = undefined;
     }
 
     setRunning(false);
@@ -484,7 +487,7 @@ const useAcpMessage = (conversation_id: string) => {
     aiProcessingRef.current = true;
   }, []);
 
-  return { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing };
+  return { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef };
 };
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
@@ -545,10 +548,14 @@ const AcpSendBox: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
   agentName?: string;
+  /** Team override: when set, sends route through the team API instead of the single-chat ACP API (附录 II.8). */
+  teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
-}> = ({ conversation_id, backend, sessionMode, agentName, onAiProcessingChange }) => {
-  const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing } = useAcpMessage(conversation_id);
+  onProcessingChange?: (isProcessing: boolean) => void;
+}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, onAiProcessingChange, onProcessingChange }) => {
+  const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
+  const isProcessing = running || aiProcessing;
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
@@ -562,6 +569,11 @@ const AcpSendBox: React.FC<{
     }
   }, [aiProcessing, onAiProcessingChange]);
 
+  useEffect(() => {
+    onProcessingChange?.(isProcessing);
+    return () => onProcessingChange?.(false);
+  }, [isProcessing, onProcessingChange]);
+
   // 使用 useRef 来跟踪组件是否已经挂载，避免重复初始化
   const hasInitialized = useRef(false);
 
@@ -571,10 +583,10 @@ const AcpSendBox: React.FC<{
       hasInitialized.current = true;
 
       // 清除任何残留的定时器
-      const pendingTimeout = (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout;
+      const pendingTimeout = finishTimeoutRef.current;
       if (pendingTimeout) {
         clearTimeout(pendingTimeout);
-        (window as unknown as { __acpFinishTimeout?: ReturnType<typeof setTimeout> }).__acpFinishTimeout = undefined;
+        finishTimeoutRef.current = undefined;
       }
     }
 
@@ -615,10 +627,15 @@ const AcpSendBox: React.FC<{
   // Listen for sendbox.fill event to populate input from external sources
   useAddEventListener(
     'sendbox.fill',
-    (text: string) => {
-      setContentRef.current(text);
+    (payload: string | { text: string; conversationId?: string }) => {
+      if (typeof payload === 'string') {
+        setContentRef.current(payload);
+        return;
+      }
+      if (payload.conversationId && payload.conversationId !== conversation_id) return;
+      setContentRef.current(payload.text);
     },
-    []
+    [conversation_id]
   );
 
   // Check for and send initial message from guid page
@@ -654,6 +671,10 @@ const AcpSendBox: React.FC<{
         beginProcessing();
 
         // Send the message
+        if (teamSendMessage) {
+          await teamSendMessage({ input, files, msg_id });
+          return;
+        }
         const result = await ipcBridge.acpConversation.sendMessage.invoke({
           input,
           msg_id,
@@ -741,6 +762,10 @@ const AcpSendBox: React.FC<{
 
     // Send message via ACP
     try {
+      if (teamSendMessage) {
+        await teamSendMessage({ input: message, files: allFiles, msg_id });
+        return;
+      }
       await ipcBridge.acpConversation.sendMessage.invoke({
         input: message,
         msg_id,
@@ -913,15 +938,15 @@ const AcpSendBox: React.FC<{
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
-      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} startTime={processingStartTime} />
+      <ThoughtDisplay thought={thought} running={isProcessing} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox
         value={content}
         onChange={setContent}
         initialSelectedSkills={selectedSkills}
-        loading={running || aiProcessing}
+        loading={isProcessing}
         disabled={false}
-        topAttached={Boolean(thought?.subject) || running || aiProcessing}
+        topAttached={Boolean(thought?.subject) || isProcessing}
         placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
         allowSubmitWhileRunning={allowSubmitWhileRunning}

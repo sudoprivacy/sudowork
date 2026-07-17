@@ -22,6 +22,7 @@ const ChannelsPage = React.lazy(() => import('./pages/settings/channels'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
 const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
+const TeamDetailPage = React.lazy(() => import('./pages/team/detail'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/extensions'));
 const LoginPage = React.lazy(() => import('./pages/login'));
 const RegisterPage = React.lazy(() => import('./pages/register'));
@@ -68,6 +69,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/security', component: SecurityPage },
   { path: '/app/cron', component: CronPage },
   { path: '/app/cron/:jobId', component: CronJobDetailPage },
+  { path: '/app/team/:teamId', component: TeamDetailPage },
   { path: '/settings/profile', component: UserProfile },
   { path: '/settings/recharge', component: RechargeCenter },
   { path: '/settings/members', component: MemberManagement },
@@ -80,7 +82,7 @@ export const REGISTERED_ROUTE_PATHS = ['/login', '/register', '/', ...PROTECTED_
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
-  const { isEnterprise } = useAppMode();
+  const { isEnterprise, mode } = useAppMode();
   const { isCronVisible } = useCronAccess();
   const location = useLocation();
 
@@ -106,6 +108,11 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   // owner/co-owner of any job): the cron pages are not reachable.
   if (!isCronVisible && location.pathname.startsWith('/app/cron')) {
     return <Navigate to='/settings/agent' replace />;
+  }
+
+  // Team collaboration is consumer-only (附录 II.1).
+  if (mode !== 'c' && location.pathname.startsWith('/app/team')) {
+    return <Navigate to='/guid' replace />;
   }
 
   return React.cloneElement(layout);

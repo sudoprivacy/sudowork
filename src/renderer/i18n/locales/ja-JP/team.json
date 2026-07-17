@@ -1,0 +1,114 @@
+{
+  "list": {
+    "title": "チーム",
+    "empty": "チームがありません。作成して協業を始めましょう。",
+    "createButton": "新規チーム"
+  },
+  "create": {
+    "drawerTitle": "チーム作成",
+    "nameLabel": "チーム名",
+    "namePlaceholder": "チーム名を入力",
+    "leaderLabel": "リーダー",
+    "leaderPlaceholder": "チームを率いるアシスタントを選択",
+    "workspaceLabel": "ワークスペース",
+    "selectFolder": "プロジェクトフォルダーを選択",
+    "clearWorkspace": "一時スペースを使用",
+    "temporaryWorkspaceHint": "空のままにすると、共有のチーム一時ワークスペースを使用します。",
+    "selectWorkspaceFailed": "フォルダーの選択に失敗しました。",
+    "submit": "作成",
+    "cancel": "キャンセル",
+    "noAssistants": "利用可能なアシスタントがありません。先にインストールしてください。",
+    "createFailed": "チームの作成に失敗しました。入力内容を確認してから再試行してください。",
+    "subtitle": "チームに参加するエージェントを1つ以上選び、そのうち1つを Leader に指定します。",
+    "searchPlaceholder": "エージェント名または説明で検索",
+    "allAssistantsCount": "すべてのエージェント（{{count}}）",
+    "selectedMembersCount": "選択済みメンバー（{{count}}）",
+    "leaderHint": "Leader をクリックして担当者を変更",
+    "leaderButton": "Leader",
+    "emptyMembersTitle": "左側からエージェントを追加",
+    "emptyMembersSubtitle": "最初に追加したメンバーが既定の Leader になります。後からいつでも変更できます。",
+    "agentDescriptionFallback": "チーム協業に適したエージェントです。",
+    "addMember": "メンバーを追加",
+    "removeMember": "メンバーを削除"
+  },
+  "detail": {
+    "memberTab": "チームメンバー",
+    "leaderChat": "リーダー",
+    "selectMember": "メンバーを選択",
+    "noMembers": "チームメンバーはまだいません",
+    "workspaceTitle": "ワークスペース",
+    "workspaceCustom": "カスタムワークスペース",
+    "workspaceTemporary": "チーム一時ワークスペース",
+    "workspacePending": "ワークスペースはまだ準備できていません",
+    "empty": {
+      "subtitle": "目標を説明してください。チームを調整して完了まで進めます。",
+      "prompt": {
+        "productDevQaOps": "プロダクト、開発、テスト、運用で協力して機能をリリースする",
+        "growth": "マーケティング、コンテンツ、デザイン、広告運用で成長施策を立てる",
+        "delivery": "責任者、実行担当、リスク管理、振り返りでプロジェクトを推進する"
+      }
+    },
+    "leaderNotFound": "チーム Leader が見つかりません。"
+  },
+  "status": {
+    "pending": "待機中",
+    "idle": "アイドル",
+    "active": "作業中",
+    "completed": "完了",
+    "failed": "失敗"
+  },
+  "role": {
+    "leader": "リーダー",
+    "teammate": "チームメイト"
+  },
+  "actions": {
+    "pin": "ピン留め",
+    "unpin": "ピン留め解除",
+    "rename": "名前変更",
+    "remove": "削除",
+    "delete": "削除",
+    "export": "エクスポート"
+  },
+  "rename": {
+    "title": "チーム名を変更",
+    "placeholder": "チーム名を入力",
+    "success": "チーム名を変更しました",
+    "failed": "チーム名の変更に失敗しました"
+  },
+  "pin": {
+    "failed": "ピン留め状態の更新に失敗しました"
+  },
+  "export": {
+    "dialogTitle": "チームをエクスポート",
+    "dialogDescription": "チーム情報、リーダーとメンバーの会話記録、チームワークスペースのファイルを ZIP としてエクスポートします。",
+    "targetFolder": "エクスポート先フォルダー",
+    "selectFolder": "エクスポート先フォルダーを選択してください",
+    "hint": "確認するとチームアーカイブのエクスポートを開始します。",
+    "exporting": "エクスポート中...",
+    "success": "チームをエクスポートしました",
+    "failed": "チームのエクスポートに失敗しました",
+    "canceled": "チームのエクスポートをキャンセルしました"
+  },
+  "confirm": {
+    "deleteTeamTitle": "チームを削除しますか？",
+    "deleteTeam": "このチームを削除しますか？メンバーは削除されます。",
+    "deleteTeamTemporary": "このチームを削除しますか？メンバーは削除され、チーム一時ワークスペースは安全ルールに従ってクリーンアップされます。",
+    "deleteWorkspaceOption": "ワークスペースフォルダーも削除する",
+    "confirmDelete": "削除",
+    "cancelDelete": "キャンセル",
+    "deleteSuccess": "チームを削除しました",
+    "deleteFailed": "チームの削除に失敗しました",
+    "removeMember": "このメンバーをチームから削除しますか？"
+  },
+  "warmup": {
+    "title": "チームを起動中",
+    "subtitle": "チームメンバーを起動しています。しばらくお待ちください。",
+    "failedTitle": "チームの起動に失敗しました",
+    "failedHint": "一部のメンバーを起動できませんでした。再試行してください。",
+    "retry": "再試行"
+  },
+  "membership": {
+    "initialRosterNotice": "ユーザーはチーム作成時にこれらのチームメイトを事前選択しました。これらのメンバーはすでに存在するため、追加メンバーを作成する前に優先して検討してください。作業を委任する前に team_members を呼び出して最新の roster を取得してください。",
+    "memberAddedNotice": "チームメイトがチームに追加されました。作業を委任する前に team_members を呼び出して最新の roster を取得してください。"
+  }
+}

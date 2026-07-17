@@ -156,6 +156,10 @@ export class SudoworkDatabase {
       .run(this.defaultUserId, this.defaultUserId, this.systemPasswordPlaceholder, now, now);
   }
 
+  getDefaultUserId(): string {
+    return this.defaultUserId;
+  }
+
   getSystemUser(): IUser | null {
     const user = this.db.prepare('SELECT * FROM users WHERE id = ?').get(this.defaultUserId) as IUser | undefined;
     return user ?? null;
@@ -451,6 +455,56 @@ export class SudoworkDatabase {
     }
   }
 
+  /**
+   * Generic typed query accessor — returns all matching rows.
+   * Caller asserts the row type T. Use for SELECT queries.
+   */
+  query<T>(sql: string, ...params: unknown[]): IQueryResult<T[]> {
+    try {
+      const rows = this.db.prepare(sql).all(...(params as never[])) as T[];
+      return { success: true, data: rows };
+    } catch (error: unknown) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
+   * Generic typed query accessor — returns a single row (or null).
+   */
+  queryOne<T>(sql: string, ...params: unknown[]): IQueryResult<T | null> {
+    try {
+      const row = this.db.prepare(sql).get(...(params as never[])) as T | undefined;
+      return { success: true, data: row ?? null };
+    } catch (error: unknown) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
+   * Generic typed mutate accessor — runs INSERT/UPDATE/DELETE, returns rows affected.
+   */
+  mutate(sql: string, ...params: unknown[]): IQueryResult<number> {
+    try {
+      const result = this.db.prepare(sql).run(...(params as never[]));
+      return { success: true, data: result.changes };
+    } catch (error: unknown) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
+   * Generic typed transaction accessor — runs fn inside a DB transaction.
+   */
+  runTransaction<T>(fn: () => T): IQueryResult<T> {
+    try {
+      const tx = this.db.transaction(fn);
+      const data = tx();
+      return { success: true, data };
+    } catch (error: unknown) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   getConversation(conversationId: string): IQueryResult<TChatConversation> {
     try {
       const row = this.db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as IConversationRow | undefined;
@@ -547,7 +601,7 @@ export class SudoworkDatabase {
     try {
       const finalUserId = userId || this.defaultUserId;
 
-      const countResult = this.db.prepare('SELECT COUNT(*) as count FROM conversations WHERE user_id = ?').get(finalUserId) as {
+      const countResult = this.db.prepare("SELECT COUNT(*) as count FROM conversations WHERE user_id = ? AND json_extract(extra, '$.isTeamMember') IS NULL").get(finalUserId) as {
         count: number;
       };
 
@@ -556,7 +610,7 @@ export class SudoworkDatabase {
           `
             SELECT *
             FROM conversations
-            WHERE user_id = ?
+            WHERE user_id = ? AND json_extract(extra, '$.isTeamMember') IS NULL
             ORDER BY updated_at DESC LIMIT ?
             OFFSET ?
           `

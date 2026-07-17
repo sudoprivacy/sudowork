@@ -73,6 +73,28 @@ export function resolvePresetAgentBackend(type: string | undefined): AcpBackendA
   return (normalizePresetAgentType(type) || DEFAULT_PRESET_AGENT_TYPE) as AcpBackendAll;
 }
 
+/**
+ * Display priority for an agent backend (migrated from AgentPillBar so the backend
+ * team_list_assistants merge and the renderer share one ordering). Lower = first.
+ * remote-agent (enterprise) ranks highest; consumer CLI presets follow; custom/extension last.
+ */
+export function getAgentPriority(backend: string): number {
+  switch (backend) {
+    case 'remote-agent':
+      return -1;
+    case 'scode':
+      return 0;
+    case 'claude':
+      return 2;
+    case 'gemini':
+      return 3;
+    case 'custom':
+      return 4;
+    default:
+      return 5;
+  }
+}
+
 // 全部后端类型定义 - 包括暂时不支持的 / All backend types - including temporarily unsupported ones
 export type AcpBackendAll =
   | 'claude' // Claude ACP

@@ -39,7 +39,7 @@ interface EventTypes {
     },
   ];
   // 填充输入框事件 / Fill sendbox input event
-  'sendbox.fill': [string]; // prompt text to fill
+  'sendbox.fill': [string | { text: string; conversationId?: string }]; // prompt text to fill
   'agent.connection.status': [string, string]; // [conversationId, status]
   'staroffice.install.request': [{ conversationId: string; text: string; detectedUrl?: string | null }];
   'staroffice.install.finished': [{ conversationId: string }];
@@ -61,6 +61,9 @@ interface EventTypes {
   'right-panel.browser.open': [{ url: string; switchTab?: boolean }];
   // Cron job list refresh (e.g. after delete from detail page)
   'cron.jobs.refresh': void;
+  // Team collaboration events (附录 II)
+  'team.list.refresh': void;
+  'team.members.changed': [string]; // teamId
 }
 
 export const emitter = new EventEmitter<EventTypes>();

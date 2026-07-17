@@ -74,7 +74,8 @@
     "skillStore": "技能商店",
     "security": "安全防护",
     "webui": "远程连接",
-    "cron": "定时任务"
+    "cron": "定时任务",
+    "team": "团队"
   },
   "notSet": "未设置",
   "ariaLabel": {

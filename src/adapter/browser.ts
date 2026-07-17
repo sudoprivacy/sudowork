@@ -5,6 +5,7 @@
  */
 
 import { bridge, logger } from '@office-ai/platform';
+import { ipcBridge } from '@/common';
 import type { ElectronBridgeAPI } from '@/types/electron';
 
 interface CustomWindow extends Window {
@@ -98,6 +99,10 @@ if (win.electronAPI) {
     socket.addEventListener('open', () => {
       reconnectDelay = 500;
       flushQueue();
+      // Notify subscribers that the realtime transport reconnected so they can reconcile
+      // (e.g. the team run view re-fetches getRunState). Only meaningful after a drop, but
+      // the initial open is harmless — handlers are idempotent on a fresh state.
+      ipcBridge.realtime.reconnected.emit();
     });
 
     socket.addEventListener('message', (event: MessageEvent) => {

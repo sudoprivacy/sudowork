@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
-import fs from 'fs/promises';
-import fsSync from 'fs';
-import path from 'path';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getSystemDir } from './initStorage';
 import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
@@ -60,6 +60,11 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
     extra: {
       workspace: workspace,
       customWorkspace,
+      workspaceDisplayName: extra.workspaceDisplayName,
+      teamOwnedWorkspace: extra.teamOwnedWorkspace,
+      isTeamMember: extra.isTeamMember,
+      teamId: extra.teamId,
+      teamMcpConfig: extra.teamMcpConfig,
       backend: extra.backend,
       cliPath: extra.cliPath,
       agentName: extra.agentName,
@@ -117,6 +122,7 @@ export const createRemoteAgent = async (options: ICreateConversationParams): Pro
     extra: {
       workspace: workspace,
       customWorkspace,
+      teamOwnedWorkspace: extra.teamOwnedWorkspace,
       // Moss Server specific fields
       mossServerUrl: extra.mossServerUrl,
       // Persist only stable credentials (API keys). Session JWTs outlive

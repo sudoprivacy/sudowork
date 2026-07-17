@@ -298,6 +298,7 @@ export type TChatConversation =
           backend: AcpBackend;
           cliPath?: string;
           customWorkspace?: boolean;
+          teamOwnedWorkspace?: boolean;
           agentName?: string;
           customAgentId?: string; // UUID for identifying specific custom agent
           presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
@@ -344,6 +345,12 @@ export type TChatConversation =
           cronJobBoundName?: string;
           /** Moss remote container workspace path (enterprise mode) - stored separately from local workspace */
           mossWorkDir?: string;
+          /** Marks this as a team member conversation (excluded from normal list; single-chat API guarded, see A6/A7) */
+          isTeamMember?: boolean;
+          /** Team ID this member conversation belongs to */
+          teamId?: string;
+          /** Per-member team MCP server config (K2 wire for session/new.mcp_servers, see A1); undefined for non-team conversations */
+          teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
         }
       >,
       'model'
@@ -365,6 +372,7 @@ export type TChatConversation =
           agentName?: string;
           /** Custom workspace flag */
           customWorkspace?: boolean;
+          teamOwnedWorkspace?: boolean;
           /** Custom agent ID */
           customAgentId?: string;
           /** Preset context/rules */

@@ -1368,6 +1368,299 @@ const migration_v23: IMigration = {
 };
 
 /**
+ * Migration v23 -> v24: Add team collaboration tables
+ * teams / team_members / team_mailbox / team_tasks for multi-agent team collaboration.
+ */
+const migration_v24: IMigration = {
+  version: 24,
+  name: 'Add team collaboration tables',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS teams (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        workspace TEXT,
+        workspace_kind TEXT CHECK(workspace_kind IN ('custom', 'temporary')),
+        leader_member_id TEXT,
+        session_mode TEXT,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_teams_user_id ON teams(user_id);
+      CREATE INDEX IF NOT EXISTS idx_teams_updated_at ON teams(updated_at);
+
+      CREATE TABLE IF NOT EXISTS team_members (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('lead', 'teammate')),
+        name TEXT NOT NULL,
+        assistant_id TEXT,
+        backend TEXT NOT NULL,
+        preset_agent_type TEXT,
+        skills TEXT,
+        preset_context TEXT,
+        model TEXT,
+        avatar TEXT,
+        conversation_id TEXT,
+        status TEXT NOT NULL,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
+
+      CREATE TABLE IF NOT EXISTS team_mailbox (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        to_member_id TEXT NOT NULL,
+        from_member_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('message', 'idle_notification', 'shutdown_request')),
+        content TEXT NOT NULL,
+        summary TEXT,
+        files TEXT,
+        read INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_mailbox_team_to_read ON team_mailbox(team_id, to_member_id, read);
+
+      CREATE TABLE IF NOT EXISTS team_tasks (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'in_progress', 'completed', 'failed', 'cancelled', 'deleted')),
+        owner TEXT,
+        blocked_by TEXT,
+        blocks TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_tasks_team_id ON team_tasks(team_id);
+    `);
+    mainLog('Migration v24', 'Added team collaboration tables');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_team_tasks_team_id;
+      DROP TABLE IF EXISTS team_tasks;
+      DROP INDEX IF EXISTS idx_team_mailbox_team_to_read;
+      DROP TABLE IF EXISTS team_mailbox;
+      DROP INDEX IF EXISTS idx_team_members_team_id;
+      DROP TABLE IF EXISTS team_members;
+      DROP INDEX IF EXISTS idx_teams_updated_at;
+      DROP INDEX IF EXISTS idx_teams_user_id;
+      DROP TABLE IF EXISTS teams;
+    `);
+    mainLog('Migration v24', 'Rolled back: Removed team collaboration tables');
+  },
+};
+
+/**
+ * Migration v24 -> v25: Track team workspace ownership kind.
+ */
+const migration_v25: IMigration = {
+  version: 25,
+  name: 'Add team workspace kind',
+  up: (db) => {
+    const tableInfo = db.prepare('PRAGMA table_info(teams)').all() as Array<{ name: string }>;
+    const hasWorkspaceKind = tableInfo.some((col) => col.name === 'workspace_kind');
+
+    if (!hasWorkspaceKind) {
+      db.exec(`ALTER TABLE teams ADD COLUMN workspace_kind TEXT CHECK(workspace_kind IN ('custom', 'temporary'));`);
+    }
+    db.exec(`UPDATE teams SET workspace_kind = 'custom' WHERE workspace IS NOT NULL AND workspace_kind IS NULL;`);
+    mainLog('Migration v25', 'Added team workspace kind');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE teams_v25_rollback (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        workspace TEXT,
+        leader_member_id TEXT,
+        session_mode TEXT,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      INSERT INTO teams_v25_rollback (id, user_id, name, workspace, leader_member_id, session_mode, deleted, created_at, updated_at)
+      SELECT id, user_id, name, workspace, leader_member_id, session_mode, deleted, created_at, updated_at FROM teams;
+      DROP TABLE teams;
+      ALTER TABLE teams_v25_rollback RENAME TO teams;
+      CREATE INDEX IF NOT EXISTS idx_teams_user_id ON teams(user_id);
+      CREATE INDEX IF NOT EXISTS idx_teams_updated_at ON teams(updated_at);
+    `);
+    mainLog('Migration v25', 'Rolled back: Removed team workspace kind');
+  },
+};
+
+/**
+ * Migration v25 -> v26: Backfill team conversation display names.
+ */
+const migration_v26: IMigration = {
+  version: 26,
+  name: 'Backfill team conversation display names',
+  up: (db) => {
+    const now = Date.now();
+    db.exec(`
+      UPDATE conversations
+      SET extra = json_set(COALESCE(extra, '{}'), '$.workspaceDisplayName', (
+            SELECT teams.name
+            FROM team_members
+            JOIN teams ON teams.id = team_members.team_id
+            WHERE team_members.conversation_id = conversations.id
+              AND team_members.deleted = 0
+              AND teams.deleted = 0
+          )),
+          updated_at = ${now}
+      WHERE id IN (
+        SELECT team_members.conversation_id
+        FROM team_members
+        JOIN teams ON teams.id = team_members.team_id
+        WHERE team_members.conversation_id IS NOT NULL
+          AND team_members.deleted = 0
+          AND teams.deleted = 0
+      );
+
+      UPDATE conversations
+      SET name = (
+            SELECT teams.name
+            FROM team_members
+            JOIN teams ON teams.id = team_members.team_id
+            WHERE team_members.conversation_id = conversations.id
+              AND teams.leader_member_id = team_members.id
+              AND team_members.deleted = 0
+              AND teams.deleted = 0
+          ),
+          updated_at = ${now}
+      WHERE id IN (
+        SELECT team_members.conversation_id
+        FROM team_members
+        JOIN teams ON teams.id = team_members.team_id
+        WHERE team_members.conversation_id IS NOT NULL
+          AND teams.leader_member_id = team_members.id
+          AND team_members.deleted = 0
+          AND teams.deleted = 0
+      );
+    `);
+    mainLog('Migration v26', 'Backfilled team conversation display names');
+  },
+  down: (db) => {
+    db.exec(`
+      UPDATE conversations
+      SET extra = json_remove(extra, '$.workspaceDisplayName')
+      WHERE id IN (
+        SELECT conversation_id FROM team_members WHERE conversation_id IS NOT NULL
+      );
+    `);
+    mainLog('Migration v26', 'Rolled back: Removed team conversation display names');
+  },
+};
+
+/**
+ * Migration v26 -> v27: Add team pin state.
+ */
+const migration_v27: IMigration = {
+  version: 27,
+  name: 'Add team pin state',
+  up: (db) => {
+    const tableInfo = db.prepare('PRAGMA table_info(teams)').all() as Array<{ name: string }>;
+    const hasPinned = tableInfo.some((col) => col.name === 'pinned');
+    const hasPinnedAt = tableInfo.some((col) => col.name === 'pinned_at');
+
+    if (!hasPinned) {
+      db.exec(`ALTER TABLE teams ADD COLUMN pinned INTEGER DEFAULT 0;`);
+    }
+    if (!hasPinnedAt) {
+      db.exec(`ALTER TABLE teams ADD COLUMN pinned_at INTEGER;`);
+    }
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_teams_pin_order ON teams(user_id, pinned, pinned_at, updated_at);`);
+    mainLog('Migration v27', 'Added team pin state');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_teams_pin_order;
+      CREATE TABLE teams_v27_rollback (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        workspace TEXT,
+        workspace_kind TEXT CHECK(workspace_kind IN ('custom', 'temporary')),
+        leader_member_id TEXT,
+        session_mode TEXT,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      INSERT INTO teams_v27_rollback (id, user_id, name, workspace, workspace_kind, leader_member_id, session_mode, deleted, created_at, updated_at)
+      SELECT id, user_id, name, workspace, workspace_kind, leader_member_id, session_mode, deleted, created_at, updated_at FROM teams;
+      DROP TABLE teams;
+      ALTER TABLE teams_v27_rollback RENAME TO teams;
+      CREATE INDEX IF NOT EXISTS idx_teams_user_id ON teams(user_id);
+      CREATE INDEX IF NOT EXISTS idx_teams_updated_at ON teams(updated_at);
+    `);
+    mainLog('Migration v27', 'Rolled back: Removed team pin state');
+  },
+};
+
+/**
+ * Migration v27 -> v28: Add team member source.
+ */
+const migration_v28: IMigration = {
+  version: 28,
+  name: 'Add team member source',
+  up: (db) => {
+    const tableInfo = db.prepare('PRAGMA table_info(team_members)').all() as Array<{ name: string }>;
+    const hasSource = tableInfo.some((col) => col.name === 'source');
+    if (!hasSource) {
+      db.exec(`ALTER TABLE team_members ADD COLUMN source TEXT CHECK(source IN ('agent', 'assistant'));`);
+    }
+    mainLog('Migration v28', 'Added team member source');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE team_members_v28_rollback (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('lead', 'teammate')),
+        name TEXT NOT NULL,
+        assistant_id TEXT,
+        backend TEXT NOT NULL,
+        preset_agent_type TEXT,
+        skills TEXT,
+        preset_context TEXT,
+        model TEXT,
+        avatar TEXT,
+        conversation_id TEXT,
+        status TEXT NOT NULL,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+      INSERT INTO team_members_v28_rollback (id, team_id, role, name, assistant_id, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, deleted, created_at)
+      SELECT id, team_id, role, name, assistant_id, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, deleted, created_at FROM team_members;
+      DROP TABLE team_members;
+      ALTER TABLE team_members_v28_rollback RENAME TO team_members;
+      CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
+    `);
+    mainLog('Migration v28', 'Rolled back: Removed team member source');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1375,7 +1668,8 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19, migration_v20, migration_v21, migration_v22, migration_v23,
+  migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
+  migration_v25, migration_v26, migration_v27, migration_v28,
 ];
 
 /**

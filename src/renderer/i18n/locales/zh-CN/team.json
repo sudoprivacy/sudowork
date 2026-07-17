@@ -1,0 +1,114 @@
+{
+  "list": {
+    "title": "团队",
+    "empty": "还没有团队。创建一个开始协作。",
+    "createButton": "新建团队"
+  },
+  "create": {
+    "drawerTitle": "创建团队",
+    "nameLabel": "团队名称",
+    "namePlaceholder": "输入团队名称",
+    "leaderLabel": "Leader",
+    "leaderPlaceholder": "选择一个助手担任团队 Leader",
+    "workspaceLabel": "工作空间",
+    "selectFolder": "选择项目文件夹",
+    "clearWorkspace": "使用临时空间",
+    "temporaryWorkspaceHint": "留空将使用团队共享临时工作空间。",
+    "selectWorkspaceFailed": "选择文件夹失败。",
+    "submit": "创建",
+    "cancel": "取消",
+    "noAssistants": "没有可用助手，请先安装一个。",
+    "createFailed": "创建团队失败，请检查后重试。",
+    "subtitle": "选择一个或多个智能体组成团队，并指定其中一个作为 Leader。",
+    "searchPlaceholder": "搜索智能体名称或描述",
+    "allAssistantsCount": "所有智能体（{{count}}）",
+    "selectedMembersCount": "已选成员（{{count}}）",
+    "leaderHint": "点击 Leader 可重新指定负责人",
+    "leaderButton": "Leader",
+    "emptyMembersTitle": "从左侧添加智能体",
+    "emptyMembersSubtitle": "第一个添加的成员会默认成为 Leader，之后也可以随时重新指定。",
+    "agentDescriptionFallback": "适合参与团队协作的智能体。",
+    "addMember": "添加成员",
+    "removeMember": "删除成员"
+  },
+  "detail": {
+    "memberTab": "成员",
+    "leaderChat": "Leader",
+    "selectMember": "选择一个成员",
+    "noMembers": "暂无团队成员",
+    "workspaceTitle": "工作空间",
+    "workspaceCustom": "自定义工作空间",
+    "workspaceTemporary": "团队临时工作空间",
+    "workspacePending": "工作空间尚未就绪",
+    "empty": {
+      "subtitle": "描述你的目标，我来协调团队搞定它",
+      "prompt": {
+        "productDevQaOps": "让产品、研发、测试、运维协作落地一个功能",
+        "growth": "让市场、内容、设计、投放协作制定增长方案",
+        "delivery": "让负责人、执行、风控、复盘协作推进项目交付"
+      }
+    },
+    "leaderNotFound": "未找到团队 Leader。"
+  },
+  "status": {
+    "pending": "等待中",
+    "idle": "空闲",
+    "active": "工作中",
+    "completed": "已完成",
+    "failed": "失败"
+  },
+  "role": {
+    "leader": "Leader",
+    "teammate": "Teammate"
+  },
+  "actions": {
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "rename": "重命名",
+    "remove": "移除",
+    "delete": "删除",
+    "export": "导出"
+  },
+  "rename": {
+    "title": "重命名团队",
+    "placeholder": "输入团队名称",
+    "success": "团队已重命名",
+    "failed": "重命名团队失败"
+  },
+  "pin": {
+    "failed": "置顶操作失败"
+  },
+  "export": {
+    "dialogTitle": "导出团队",
+    "dialogDescription": "将导出团队信息、Leader 与成员会话记录，以及团队工作区文件，并打包为 ZIP。",
+    "targetFolder": "导出到文件夹",
+    "selectFolder": "请选择导出文件夹",
+    "hint": "确认后开始导出团队归档。",
+    "exporting": "导出中...",
+    "success": "团队导出成功",
+    "failed": "团队导出失败",
+    "canceled": "已取消导出"
+  },
+  "confirm": {
+    "deleteTeamTitle": "删除团队？",
+    "deleteTeam": "删除该团队？成员将被移除。",
+    "deleteTeamTemporary": "删除该团队？成员将被移除，团队临时工作空间将按安全规则清理。",
+    "deleteWorkspaceOption": "同时删除工作区文件夹",
+    "confirmDelete": "删除",
+    "cancelDelete": "取消",
+    "deleteSuccess": "团队已删除",
+    "deleteFailed": "删除团队失败",
+    "removeMember": "将该成员移出团队？"
+  },
+  "warmup": {
+    "title": "正在唤醒团队",
+    "subtitle": "正在启动团队成员，请稍候。",
+    "failedTitle": "团队唤醒失败",
+    "failedHint": "部分成员启动失败，请重试。",
+    "retry": "重试"
+  },
+  "membership": {
+    "initialRosterNotice": "用户在创建团队时预先选择了这些团队成员。这些成员已经存在，创建更多成员前应先考虑使用他们。分派任务前请调用 team_members 获取最新 roster。",
+    "memberAddedNotice": "一个 teammate 已加入团队。分派任务前请调用 team_members 获取最新 roster。"
+  }
+}

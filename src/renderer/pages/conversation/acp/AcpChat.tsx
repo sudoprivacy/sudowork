@@ -16,8 +16,14 @@ const AcpChat: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
   agentName?: string;
-}> = ({ conversation_id, workspace, backend, sessionMode, agentName }) => {
-  useMessageLstCache(conversation_id);
+  emptyState?: React.ReactNode;
+  showEmptyStateWhenNoMessages?: boolean;
+  onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
+  /** Team override: when set, sends go through the team API instead of the single-chat ACP API (附录 II.8). */
+  teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+  onProcessingChange?: (isProcessing: boolean) => void;
+}> = ({ conversation_id, workspace, backend, sessionMode, agentName, emptyState, showEmptyStateWhenNoMessages, onTeamAnswerQuestion, teamSendMessage, onProcessingChange }) => {
+  const { loaded: messagesLoaded } = useMessageLstCache(conversation_id);
   const [aiProcessing, setAiProcessing] = useState(false);
 
   // Reset aiProcessing when conversation changes
@@ -31,12 +37,19 @@ const AcpChat: React.FC<{
       <div className='flex-1 flex flex-col px-20px min-h-0'>
         <LocalImageView.Provider value={{ root: workspace || '' }}>
           <FlexFullContainer>
-            <MessageList className='flex-1' aiProcessing={aiProcessing}></MessageList>
+            <MessageList
+              className='flex-1'
+              aiProcessing={aiProcessing}
+              emptyState={emptyState}
+              isEmptyStateReady={Boolean(showEmptyStateWhenNoMessages && messagesLoaded)}
+              onTeamAnswerQuestion={onTeamAnswerQuestion}
+              onTeamQuestionFallbackSend={teamSendMessage ? ({ input, msg_id }) => teamSendMessage({ input, msg_id }) : undefined}
+            ></MessageList>
           </FlexFullContainer>
         </LocalImageView.Provider>
         <SafetyChatConfirm conversation_id={conversation_id}>
           <ConversationChatConfirm conversation_id={conversation_id}>
-            <AcpSendBox conversation_id={conversation_id} backend={backend} sessionMode={sessionMode} agentName={agentName} onAiProcessingChange={setAiProcessing}></AcpSendBox>
+            <AcpSendBox conversation_id={conversation_id} backend={backend} sessionMode={sessionMode} agentName={agentName} teamSendMessage={teamSendMessage} onAiProcessingChange={setAiProcessing} onProcessingChange={onProcessingChange}></AcpSendBox>
           </ConversationChatConfirm>
         </SafetyChatConfirm>
       </div>

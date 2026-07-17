@@ -1,0 +1,87 @@
+import { ipcBridge } from '@/common';
+import type { TMessage } from '@/common/chatLib';
+import { addMessage } from '@process/message';
+import { getDatabase } from '@process/database';
+import { uuid } from '@/common/utils';
+import type { TeamMail, TeamMember } from './TeamStore';
+
+function dedupeKey(teamId: string, mailboxMsgId: string, conversationId: string): string {
+  return `team:${teamId}:mailbox:${mailboxMsgId}:conversation:${conversationId}`;
+}
+
+function messageExistsByMsgId(msgId: string): boolean {
+  const result = getDatabase().queryOne<{ id: string }>('SELECT id FROM messages WHERE msg_id = ? LIMIT 1', msgId);
+  return result.success ? Boolean(result.data) : false;
+}
+
+function stripSystemNotes(text: string): string {
+  // Stage 2: pass-through (system-note stripping is a later refinement).
+  return text;
+}
+
+interface TeammateMessageContent {
+  content: string;
+  teammateMessage: true;
+  senderName: string | null;
+  senderBackend: string | null;
+  senderConversationId: string | null;
+}
+
+/**
+ * Project a mailbox message into a conversation as a chat bubble (附录 I.7).
+ * - user message -> right bubble (content stripped of system notes)
+ * - teammate message -> left bubble (carries sender metadata for TeammateMessageAvatar)
+ * - idle_notification / shutdown_request -> not projected
+ * Teammate bubbles dedupe by msg_id to avoid double-mirroring.
+ */
+export function projectMessage(teamId: string, mail: TeamMail, targetConversationId: string, sender?: TeamMember | null): void {
+  if (mail.type !== 'message') return;
+  const isFromUser = mail.from_member_id === 'user';
+  const key = dedupeKey(teamId, mail.id, targetConversationId);
+  if (!isFromUser && messageExistsByMsgId(key)) return;
+
+  const position = isFromUser ? 'right' : 'left';
+  const content: { content: string } | TeammateMessageContent = isFromUser
+    ? { content: stripSystemNotes(mail.content) }
+    : {
+        content: mail.content,
+        teammateMessage: true,
+        senderName: sender?.name ?? null,
+        senderBackend: sender?.backend ?? null,
+        senderConversationId: sender?.conversation_id ?? null,
+      };
+
+  const message = {
+    id: uuid(),
+    msg_id: key,
+    conversation_id: targetConversationId,
+    type: 'text' as const,
+    content,
+    position,
+    status: 'finish' as const,
+    createdAt: mail.created_at,
+  };
+  addMessage(targetConversationId, message as TMessage);
+
+  if (!isFromUser) {
+    ipcBridge.team.onTeammateMessage.emit({
+      conversation_id: targetConversationId,
+      content: mail.content,
+      from_slot_id: mail.from_member_id,
+      from_name: sender?.name,
+    });
+  }
+}
+
+/**
+ * Mirror a member's unread non-user mailbox into its own conversation as left bubbles
+ * (附录 I.7 mirrorUnreadToConversation, used inside EventLoop.executeTurn).
+ */
+export function mirrorUnreadToConversation(teamId: string, member: TeamMember, messages: TeamMail[], senderLookup: (slotId: string) => TeamMember | null): void {
+  for (const mail of messages) {
+    if (mail.from_member_id === 'user') continue;
+    if (mail.type === 'idle_notification') continue;
+    if (!member.conversation_id) continue;
+    projectMessage(teamId, mail, member.conversation_id, senderLookup(mail.from_member_id));
+  }
+}

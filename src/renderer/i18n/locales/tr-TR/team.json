@@ -1,0 +1,114 @@
+{
+  "list": {
+    "title": "Takımlar",
+    "empty": "Henüz takım yok. İşbirliği için bir tane oluşturun.",
+    "createButton": "Yeni Takım"
+  },
+  "create": {
+    "drawerTitle": "Takım Oluştur",
+    "nameLabel": "Takım Adı",
+    "namePlaceholder": "Bir takım adı girin",
+    "leaderLabel": "Lider",
+    "leaderPlaceholder": "Takıma liderlik edecek bir asistan seçin",
+    "workspaceLabel": "Çalışma Alanı",
+    "selectFolder": "Proje klasörü seç",
+    "clearWorkspace": "Geçici alanı kullan",
+    "temporaryWorkspaceHint": "Boş bırakırsanız paylaşılan geçici takım çalışma alanı kullanılır.",
+    "selectWorkspaceFailed": "Klasör seçilemedi.",
+    "submit": "Oluştur",
+    "cancel": "İptal",
+    "noAssistants": "Kullanılabilir asistan yok. Önce bir tane yükleyin.",
+    "createFailed": "Ekip oluşturulamadı. Bilgileri kontrol edip tekrar deneyin.",
+    "subtitle": "Takım için bir veya daha fazla ajan seçin ve birini Leader olarak belirleyin.",
+    "searchPlaceholder": "Ajan adı veya açıklamasına göre ara",
+    "allAssistantsCount": "Tüm ajanlar ({{count}})",
+    "selectedMembersCount": "Seçili üyeler ({{count}})",
+    "leaderHint": "Sorumluyu değiştirmek için Leader’a tıklayın",
+    "leaderButton": "Leader",
+    "emptyMembersTitle": "Soldan ajan ekleyin",
+    "emptyMembersSubtitle": "İlk eklenen üye varsayılan Leader olur. Daha sonra istediğiniz zaman değiştirebilirsiniz.",
+    "agentDescriptionFallback": "Takım işbirliği için uygun bir ajan.",
+    "addMember": "Üye ekle",
+    "removeMember": "Üyeyi kaldır"
+  },
+  "detail": {
+    "memberTab": "Takım Üyeleri",
+    "leaderChat": "Lider",
+    "selectMember": "Bir üye seçin",
+    "noMembers": "Henüz ekip üyesi yok",
+    "workspaceTitle": "Çalışma Alanı",
+    "workspaceCustom": "Özel çalışma alanı",
+    "workspaceTemporary": "Geçici takım çalışma alanı",
+    "workspacePending": "Çalışma alanı hazır değil",
+    "empty": {
+      "subtitle": "Hedefinizi açıklayın, ekibi koordine edip tamamlanmasını sağlayayım.",
+      "prompt": {
+        "productDevQaOps": "Ürün, geliştirme, test ve operasyon ekipleriyle bir özelliği yayına alın",
+        "growth": "Pazarlama, içerik, tasarım ve reklam ekipleriyle büyüme planı oluşturun",
+        "delivery": "Sorumlular, uygulayıcılar, risk kontrolü ve retrospektif ile proje teslimini ilerletin"
+      }
+    },
+    "leaderNotFound": "Takım Leader bulunamadı."
+  },
+  "status": {
+    "pending": "Bekliyor",
+    "idle": "Boşta",
+    "active": "Çalışıyor",
+    "completed": "Tamamlandı",
+    "failed": "Başarısız"
+  },
+  "role": {
+    "leader": "Lider",
+    "teammate": "Takım Arkadaşı"
+  },
+  "actions": {
+    "pin": "Sabitle",
+    "unpin": "Sabitlemeyi kaldır",
+    "rename": "Yeniden Adlandır",
+    "remove": "Kaldır",
+    "delete": "Sil",
+    "export": "Dışa Aktar"
+  },
+  "rename": {
+    "title": "Takımı Yeniden Adlandır",
+    "placeholder": "Bir takım adı girin",
+    "success": "Takım yeniden adlandırıldı",
+    "failed": "Takım yeniden adlandırılamadı"
+  },
+  "pin": {
+    "failed": "Sabitleme durumu güncellenemedi"
+  },
+  "export": {
+    "dialogTitle": "Takımı Dışa Aktar",
+    "dialogDescription": "Takım bilgileri, lider ve üye konuşma kayıtları ve takım çalışma alanı dosyaları ZIP olarak dışa aktarılır.",
+    "targetFolder": "Klasöre dışa aktar",
+    "selectFolder": "Bir dışa aktarma klasörü seçin",
+    "hint": "Takım arşivini dışa aktarmaya başlamak için onaylayın.",
+    "exporting": "Dışa aktarılıyor...",
+    "success": "Takım dışa aktarıldı",
+    "failed": "Takım dışa aktarılamadı",
+    "canceled": "Takım dışa aktarma iptal edildi"
+  },
+  "confirm": {
+    "deleteTeamTitle": "Takım silinsin mi?",
+    "deleteTeam": "Bu takım silinsin mi? Üyeler kaldırılacak.",
+    "deleteTeamTemporary": "Bu takım silinsin mi? Üyeler kaldırılacak ve geçici takım çalışma alanı güvenli kurallara göre temizlenecek.",
+    "deleteWorkspaceOption": "Çalışma alanı klasörünü de sil",
+    "confirmDelete": "Sil",
+    "cancelDelete": "İptal",
+    "deleteSuccess": "Takım silindi",
+    "deleteFailed": "Takım silinemedi",
+    "removeMember": "Bu üye takımdan kaldırılsın mı?"
+  },
+  "warmup": {
+    "title": "Takım uyandırılıyor",
+    "subtitle": "Takım üyeleri başlatılıyor. Lütfen bekleyin.",
+    "failedTitle": "Takım uyandırılamadı",
+    "failedHint": "Bazı üyeler başlatılamadı. Lütfen tekrar deneyin.",
+    "retry": "Tekrar dene"
+  },
+  "membership": {
+    "initialRosterNotice": "Kullanıcı takımı oluştururken bu takım arkadaşlarını önceden seçti. Bu üyeler zaten var; daha fazla üye oluşturmadan önce onları kullanmayı değerlendirin. İş delege etmeden önce en güncel roster için team_members çağırın.",
+    "memberAddedNotice": "Takıma bir teammate eklendi. İş delege etmeden önce en güncel roster için team_members çağırın."
+  }
+}

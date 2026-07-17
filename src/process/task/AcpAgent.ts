@@ -53,6 +53,7 @@ import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { classifyLlmError } from '@process/utils/llmErrorClassification';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
+import { extractGovernanceBlock } from '@process/services/team/GovernancePrompt';
 import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
@@ -85,7 +86,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
 import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
-import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
+import { applyHiddenPromptPrefix, buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import { buildGeneratedFileEntries as buildGeneratedFileEntriesFromTracked, resolveFinalFileDisplayPath as resolveFinalFileDisplayPathPure } from './generatedFileEntries';
 import BaseAgent from './BaseAgent';
@@ -174,6 +175,8 @@ export interface AcpAgentData {
   sessionMode?: string;
   currentModelId?: string;
   presetAssistantId?: string;
+  /** Per-member team MCP server config (K2 wire, injected via session/new.mcp_servers, see A1); undefined for non-team conversations */
+  teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
 }
 
 class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
@@ -600,6 +603,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   private async createOrResumeSession(): Promise<void> {
     const resumeSessionId = this.extra.acpSessionId;
+    // A1: inject per-member team MCP server (K2 wire) when this is a team member conversation.
+    const memberMcpServers = this.options.teamMcpConfig ? [this.options.teamMcpConfig] : undefined;
 
     if (resumeSessionId) {
       try {
@@ -608,7 +613,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         // history from disk by id via the ACP-standard `session/load`. 'meta-resume' (claude/codebuddy)
         // resumes through `session/new` + `_meta.claudeCode.options.resume`.
         const strategy = getAcpResumeStrategy(this.extra.backend);
-        const response: { sessionId?: string } = strategy === 'meta-resume' ? await this.connection.newSession(this.extra.workspace, { resumeSessionId, forkSession: false }) : await this.connection.loadSession(resumeSessionId, this.extra.workspace);
+        const response: { sessionId?: string } = strategy === 'meta-resume' ? await this.connection.newSession(this.extra.workspace, { resumeSessionId, forkSession: false }, memberMcpServers) : await this.connection.loadSession(resumeSessionId, this.extra.workspace, memberMcpServers);
 
         // Only adopt a server-minted id when the mechanism legitimately issues a new one (meta-resume
         // bridges may). `session/load` keeps the id we sent, so it never orphans the stored handle —
@@ -623,7 +628,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
     }
 
-    const response = await this.connection.newSession(this.extra.workspace);
+    const response = await this.connection.newSession(this.extra.workspace, undefined, memberMcpServers);
     if (response.sessionId) {
       this.extra.acpSessionId = response.sessionId;
       saveAcpSessionId(this.conversation_id, response.sessionId);
@@ -709,7 +714,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // ========== Public API (BaseAgent contract) ==========
 
-  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[] }): Promise<{
+  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string }): Promise<{
     success: boolean;
     msg?: string;
     message?: string;
@@ -888,8 +893,12 @@ This identity statement takes priority over the default identity in USER.md.
             loadedRules = identityBlock + (loadedRules || '');
           }
 
-          // Update presetContext with the fresh rules (for subsequent use)
-          this.options.presetContext = loadedRules;
+          // Update presetContext with the fresh rules (for subsequent use).
+          // Preserve team governance (generated by TeamService, not the rules
+          // file) across this reload — otherwise team members lose their role
+          // instructions on every turn.
+          const governanceBlock = extractGovernanceBlock(this.options.presetContext);
+          this.options.presetContext = governanceBlock ? `${loadedRules}\n\n${governanceBlock}` : loadedRules;
 
           // Re-append the preset runtime context appendix (auto-discovered
           // scripts/ absolute paths + ops entry point). This block reloads the
@@ -1048,18 +1057,22 @@ This identity statement takes priority over the default identity in USER.md.
             }
           }
         } else if (this.options.presetAssistantId && this.options.presetContext) {
-          // For subsequent messages, inject identity override to ensure latest assistant name
-          // 后续消息时，注入身份声明以确保使用最新的助手名称
-          // Only inject if the presetContext contains Identity Override block
+          // For subsequent messages, re-inject identity override (latest assistant
+          // name) and team governance so the member keeps its role across turns.
+          // Both prepend to the user request; neither enters displayContent (which
+          // is derived from the raw user input above), so they stay invisible to the user.
+          const blocks: string[] = [];
           if (this.options.presetContext.includes('[Identity Override')) {
-            // Extract the Identity Override block and prepend it
-            // Match from [Identity Override to the end of that block (before next [ or end)
             const identityStart = this.options.presetContext.indexOf('[Identity Override');
             const identityEnd = this.options.presetContext.indexOf('\n\n', identityStart);
             if (identityStart >= 0 && identityEnd > identityStart) {
-              const identityBlock = this.options.presetContext.slice(identityStart, identityEnd);
-              contentToSend = identityBlock + '\n\n[User Request]\n' + contentToSend;
+              blocks.push(this.options.presetContext.slice(identityStart, identityEnd));
             }
+          }
+          const governanceBlock = extractGovernanceBlock(this.options.presetContext);
+          if (governanceBlock) blocks.push(governanceBlock);
+          if (blocks.length > 0) {
+            contentToSend = `${blocks.join('\n\n')}\n\n[User Request]\n${contentToSend}`;
           }
         }
 
@@ -1081,6 +1094,8 @@ This identity statement takes priority over the default identity in USER.md.
         } catch (augErr) {
           mainWarn('[AcpAgent]', 'Dify augment failed; sending original message:', augErr);
         }
+
+        contentToSend = applyHiddenPromptPrefix(contentToSend, data.hiddenPromptPrefix);
 
         const agentSendStart = Date.now();
         const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages, true);

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IConversationProvider, IProviderConfig } from './types';
 import type { TChatConversation } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
 import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@/common/ipcBridge';
@@ -14,6 +13,7 @@ import WorkerManage from '@process/WorkerManage';
 import { ProcessChat } from '@process/initStorage';
 import { migrateConversationToDatabase } from '@process/bridge/migrationUtils';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import type { IConversationProvider, IProviderConfig } from './types';
 
 /**
  * Local Conversation Provider
@@ -137,7 +137,7 @@ export class LocalConversationProvider implements IConversationProvider {
       // 过滤掉企业模式会话（remote-agent）
       // Local mode should only show acp types
       // 本地模式只显示 acp 类型
-      const localDbConversations = dbConversations.filter((c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent');
+      const localDbConversations = dbConversations.filter((c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as Record<string, unknown> | undefined)?.isTeamMember);
 
       // Lazy migration from file storage / 从文件存储延迟迁移
       let fileConversations: TChatConversation[] = [];
@@ -148,7 +148,7 @@ export class LocalConversationProvider implements IConversationProvider {
       }
 
       // Filter file conversations too / 同时过滤文件存储的会话
-      const localFileConversations = fileConversations.filter((c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent');
+      const localFileConversations = fileConversations.filter((c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as Record<string, unknown> | undefined)?.isTeamMember);
 
       // Merge: database is primary, add missing from file / 合并：数据库为主，补充文件中缺失的
       const dbIds = new Set(localDbConversations.map((c) => c.id));

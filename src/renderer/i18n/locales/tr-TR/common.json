@@ -68,7 +68,8 @@
     "skillStore": "Beceri Mağazası",
     "security": "Güvenlik",
     "webui": "Uzak Erişim",
-    "cron": "Zamanlanmış Görevler"
+    "cron": "Zamanlanmış Görevler",
+    "team": "Takımlar"
   },
   "enabled": "Etkin",
   "uninstall": "Kaldır",
