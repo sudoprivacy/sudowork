@@ -167,7 +167,8 @@
     "startSuccess": "{{name}} started",
     "startFailed": "{{name}} start failed",
     "stopSuccess": "{{name}} stopped",
-    "stopFailed": "{{name}} stop failed"
+    "stopFailed": "{{name}} stop failed",
+    "embeddingModelName": "Local KB Embedding Model"
   },
   "system": "System",
   "about": "About",

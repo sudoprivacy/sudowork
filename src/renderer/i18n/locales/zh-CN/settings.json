@@ -167,7 +167,8 @@
     "startSuccess": "{{name}} 已启动",
     "startFailed": "{{name}} 启动失败",
     "stopSuccess": "{{name}} 已停止",
-    "stopFailed": "{{name}} 停止失败"
+    "stopFailed": "{{name}} 停止失败",
+    "embeddingModelName": "本地知识库 Embedding 模型"
   },
   "system": "系统",
   "about": "关于",
