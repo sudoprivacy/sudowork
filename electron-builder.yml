@@ -249,6 +249,7 @@ win:
 
 nsis:
   oneClick: false
+  differentialPackage: true
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true

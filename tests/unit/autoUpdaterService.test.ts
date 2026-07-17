@@ -6,7 +6,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { autoUpdater } from 'electron-updater';
-import { getUpdateChannel } from '@/process/services/autoUpdaterService';
 
 // Mock electron modules
 vi.mock('electron', () => ({
@@ -22,6 +21,7 @@ vi.mock('electron-updater', () => ({
     logger: null,
     autoDownload: true,
     autoInstallOnAppQuit: true,
+    disableDifferentialDownload: true,
     allowPrerelease: false,
     allowDowngrade: false,
     channel: null,
@@ -111,6 +111,23 @@ describe('AutoUpdaterService', () => {
 
       // Event handlers should not be registered again
       expect(vi.mocked(autoUpdater.on).mock.calls.length).toBe(firstCallCount);
+    });
+  });
+
+  describe('differential updates', () => {
+    it('should keep differential downloads enabled', () => {
+      expect(autoUpdater.disableDifferentialDownload).toBe(false);
+    });
+
+    it('should configure the COS feed for single range requests', async () => {
+      await autoUpdaterService.switchToMirror('fallback');
+
+      expect(autoUpdater.setFeedURL).toHaveBeenCalledWith({
+        provider: 'generic',
+        url: expect.stringContaining('/sudowork/release/latest'),
+        useMultipleRangeRequest: false,
+      });
+      expect(autoUpdaterService.getMirrorStatus()).toEqual({ useMirror: true, reason: 'fallback' });
     });
   });
 

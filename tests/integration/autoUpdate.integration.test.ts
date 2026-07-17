@@ -8,11 +8,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock @office-ai/platform at module level (before any imports)
 vi.mock('@office-ai/platform', () => ({
+  storage: {
+    buildStorage: vi.fn(() => ({})),
+  },
   bridge: {
     buildProvider: vi.fn(() => {
-      const handlerMap = new Map<string, Function>();
+      const handlerMap = new Map<string, (...args: never[]) => unknown>();
       return {
-        provider: vi.fn((handler: Function) => {
+        provider: vi.fn((handler: (...args: never[]) => unknown) => {
           handlerMap.set('handler', handler);
           return vi.fn();
         }),
@@ -45,6 +48,7 @@ vi.mock('electron-updater', () => ({
     logger: null,
     autoDownload: true,
     autoInstallOnAppQuit: true,
+    disableDifferentialDownload: true,
     allowPrerelease: false,
     allowDowngrade: false,
     on: vi.fn(),
@@ -54,6 +58,7 @@ vi.mock('electron-updater', () => ({
     downloadUpdate: vi.fn(),
     quitAndInstall: vi.fn(),
     checkForUpdatesAndNotify: vi.fn(),
+    setFeedURL: vi.fn(),
   },
 }));
 
@@ -185,6 +190,21 @@ describe('Auto-Update IPC Bridge Integration', () => {
   });
 
   describe('Service Integration', () => {
+    it('should configure COS for differential downloads with single ranges', async () => {
+      const { autoUpdaterService } = await import('@/process/services/autoUpdaterService');
+      const { autoUpdater } = await import('electron-updater');
+
+      await autoUpdaterService.switchToMirror('fallback');
+
+      expect(autoUpdater.disableDifferentialDownload).toBe(false);
+      expect(autoUpdater.setFeedURL).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'generic',
+          useMultipleRangeRequest: false,
+        })
+      );
+    });
+
     it('should work end-to-end with status broadcast', async () => {
       const { autoUpdaterService } = await import('@/process/services/autoUpdaterService');
 

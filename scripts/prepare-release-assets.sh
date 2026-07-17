@@ -111,8 +111,8 @@ fi
 
 # ---------------------------------------------------------------------------
 # 5) Validate updater metadata
-#    - Tag release: only mac-arm64 + windows-x64 (arm64-mac.yml + latest.yml)
-#    - Dev release: all platforms (latest-mac.yml + latest.yml + arch-specific)
+#    Stable releases require Windows x64 and both macOS architectures.
+#    Manual development builds may additionally contain Windows arm64 and Linux.
 # ---------------------------------------------------------------------------
 echo "==> Validating updater metadata ..."
 

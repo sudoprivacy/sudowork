@@ -93,6 +93,7 @@ class AutoUpdaterService extends EventEmitter {
     // Disable auto-download for manual control
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.disableDifferentialDownload = false;
 
     // Set the correct update channel based on platform and architecture before
     // any update checks are performed
@@ -223,6 +224,9 @@ class AutoUpdaterService extends EventEmitter {
     autoUpdater.setFeedURL({
       provider: 'generic',
       url: getCosMirrorBase(),
+      // Tencent COS supports single byte ranges but does not return the
+      // multipart/byteranges response expected by electron-updater.
+      useMultipleRangeRequest: false,
     });
 
     this._mirrorStatus = { useMirror: true, reason };
