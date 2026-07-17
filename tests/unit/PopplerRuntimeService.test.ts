@@ -52,6 +52,16 @@ describe('PopplerRuntimeService', () => {
     expect(service.getToolPath('pdftotext')).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'Library', 'bin', 'pdftotext.exe'));
   });
 
+  it('includes managed Windows bin directory in PATH without Unix library variables', () => {
+    setProcessTarget('win32', 'x64');
+    const service = new PopplerRuntimeService();
+    const env = service.getToolEnv();
+
+    expect(env.PATH?.split(path.delimiter)[0]).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'Library', 'bin'));
+    expect(env.DYLD_LIBRARY_PATH).toBeUndefined();
+    expect(env.LD_LIBRARY_PATH).toBeUndefined();
+  });
+
   it('rewrites symlinks that point at the transient stage directory', async () => {
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sudowork-poppler-links-'));
     try {
