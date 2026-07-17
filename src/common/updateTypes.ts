@@ -8,6 +8,7 @@ export interface GitHubReleaseAsset {
   name: string;
   url: string;
   size: number;
+  sha512?: string;
   contentType?: string;
 }
 
@@ -39,6 +40,7 @@ export interface UpdateCheckRequest {
 export interface UpdateDownloadRequest {
   url: string;
   fileName?: string;
+  sha512?: string;
 }
 
 export interface UpdateDownloadResult {

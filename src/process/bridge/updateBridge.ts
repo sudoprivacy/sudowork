@@ -5,9 +5,12 @@
  */
 
 import { app } from 'electron';
+import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import semver from 'semver';
+import { parse as parseYaml } from 'yaml';
+import { z } from 'zod';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { uuid } from '@/common/utils';
 import type { UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, UpdateReleaseInfo, GitHubReleaseAsset } from '@/common/updateTypes';
@@ -56,6 +59,7 @@ const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
   'sudowork-download-1309794936.cos.accelerate.myqcloud.com',
 ]);
 const MAX_REDIRECTS = 8;
+const SHA512_BASE64_PATTERN = /^[A-Za-z0-9+/]{86}==$/;
 
 /** COS mirror base URL (release bucket; server-driven cos_domain). */
 const getCosMirrorBase = (): string => `${getCosReleaseBase()}/sudowork/release/latest`;
@@ -70,38 +74,45 @@ const isAllowedDownloadHost = (hostname: string): boolean => {
   }
 };
 
-/** COS yml file structure */
-interface COSYmlInfo {
-  version: string;
-  releaseDate?: string;
-  path?: string;
-  files?: Array<{ url: string; size?: number }>;
-}
+const cosYmlFileSchema = z.object({
+  url: z.string().min(1),
+  sha512: z.string().regex(SHA512_BASE64_PATTERN),
+  size: z.number().int().positive(),
+});
+
+const cosYmlInfoSchema = z.object({
+  version: z.string().refine((version) => semver.valid(version) !== null),
+  releaseDate: z.string().optional(),
+  path: z.string().min(1).optional(),
+  sha512: z.string().regex(SHA512_BASE64_PATTERN).optional(),
+  files: z.array(cosYmlFileSchema).min(1),
+});
+
+type COSYmlInfo = z.infer<typeof cosYmlInfoSchema>;
+
+type RuntimePlatformInfo = {
+  platform: NodeJS.Platform;
+  arch: string;
+};
+
+export const parseCOSYmlText = (text: string): COSYmlInfo | null => {
+  try {
+    const result = cosYmlInfoSchema.safeParse(parseYaml(text) as unknown);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+};
 
 /**
- * Parse COS yml file to extract version info.
- * yml format:
- *   version: 0.1.4
- *   releaseDate: '2026-03-29T11:39:22.037Z'
- *   path: Sudowork-latest-win-x64.exe
+ * Parse and validate electron-updater metadata from COS.
  */
 const parseCOSYml = async (ymlUrl: string): Promise<COSYmlInfo | null> => {
   try {
     const res = await fetch(ymlUrl, { method: 'GET' });
     if (!res.ok) return null;
 
-    const text = await res.text();
-    const versionMatch = text.match(/^version:\s*['"]?([\d.]+)['"]?/m);
-    const releaseDateMatch = text.match(/^releaseDate:\s*['"]([^'"]+)['"]/m);
-    const pathMatch = text.match(/^path:\s*(.+)$/m);
-
-    if (!versionMatch) return null;
-
-    return {
-      version: versionMatch[1],
-      releaseDate: releaseDateMatch?.[1],
-      path: pathMatch?.[1]?.trim(),
-    };
+    return parseCOSYmlText(await res.text());
   } catch {
     return null;
   }
@@ -110,8 +121,8 @@ const parseCOSYml = async (ymlUrl: string): Promise<COSYmlInfo | null> => {
 /**
  * Get yml filename for current platform.
  */
-const getCOSYmlFileName = (): string => {
-  const { platform, arch } = process;
+export const getCOSYmlFileName = (runtime: RuntimePlatformInfo = { platform: process.platform, arch: process.arch }): string => {
+  const { platform, arch } = runtime;
   if (platform === 'win32') {
     return arch === 'arm64' ? 'win-arm64.yml' : 'latest.yml';
   } else if (platform === 'darwin') {
@@ -124,20 +135,33 @@ const getCOSYmlFileName = (): string => {
 /**
  * Build UpdateReleaseInfo from COS yml data.
  */
-const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo): UpdateReleaseInfo => {
-  const platform = process.platform;
-  const arch = process.arch;
+export const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo, runtime: RuntimePlatformInfo = { platform: process.platform, arch: process.arch }, mirrorBase = getCosMirrorBase()): UpdateReleaseInfo | null => {
+  const baseUrl = new URL(`${mirrorBase.replace(/\/+$/, '')}/`);
+  const basePath = baseUrl.pathname;
+  const assets = ymlInfo.files.flatMap((file): GitHubReleaseAsset[] => {
+    try {
+      const assetUrl = new URL(file.url, baseUrl);
+      const isSameOrigin = assetUrl.origin === baseUrl.origin;
+      const isWithinFeed = assetUrl.pathname.startsWith(basePath);
+      if (!isSameOrigin || !isWithinFeed || !isAllowedAssetName(assetUrl.pathname)) {
+        return [];
+      }
 
-  // Determine file extension based on platform
-  // macOS: always use .dmg (not .zip which may not exist on COS)
-  // Windows: .exe
-  // Linux: .AppImage
-  const ext = platform === 'win32' ? '.exe' : platform === 'darwin' ? '.dmg' : '.AppImage';
-  const platformName = platform === 'win32' ? 'win' : platform === 'darwin' ? 'mac' : 'linux';
-  const archName = arch === 'arm64' ? 'arm64' : 'x64';
+      return [
+        {
+          name: path.basename(assetUrl.pathname),
+          url: assetUrl.toString(),
+          size: file.size,
+          sha512: file.sha512,
+        },
+      ];
+    } catch {
+      return [];
+    }
+  });
 
-  // For macOS, ignore yml path (which may point to .zip) and use .dmg directly
-  const fileName = `Sudowork-latest-${platformName}-${archName}${ext}`;
+  const recommendedAsset = pickRecommendedAsset(assets, runtime);
+  if (!recommendedAsset) return null;
 
   return {
     tagName: `v${ymlInfo.version}`,
@@ -146,18 +170,8 @@ const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo): UpdateReleaseInfo => {
     publishedAt: ymlInfo.releaseDate,
     prerelease: false,
     draft: false,
-    assets: [
-      {
-        name: fileName,
-        url: `${getCosMirrorBase()}/${fileName}`,
-        size: ymlInfo.files?.[0]?.size || 0,
-      },
-    ],
-    recommendedAsset: {
-      name: fileName,
-      url: `${getCosMirrorBase()}/${fileName}`,
-      size: ymlInfo.files?.[0]?.size || 0,
-    },
+    assets,
+    recommendedAsset,
   };
 };
 
@@ -191,11 +205,6 @@ const mapAsset = (asset: GitHubReleaseApiAsset): GitHubReleaseAsset => ({
   size: asset.size,
   contentType: asset.content_type,
 });
-
-type RuntimePlatformInfo = {
-  platform: NodeJS.Platform;
-  arch: string;
-};
 
 type CanonicalArch = 'x64' | 'arm64' | 'ia32';
 
@@ -285,33 +294,28 @@ const resolveRepo = (requestRepo?: string): string => {
 };
 
 /**
- * Convert versioned filename to COS latest format.
- * Sudowork-1.2.0-darwin-arm64.dmg -> Sudowork-latest-mac-arm64.dmg
- * Sudowork-1.2.0-win32-x64.exe -> Sudowork-latest-win-x64.exe
- */
-const convertToCOSName = (originalName: string): string => {
-  return originalName
-    .replace(/\d+\.\d+\.\d+/, 'latest')
-    .replace('darwin', 'mac')
-    .replace('win32', 'win');
-};
-
-/**
  * Select best download source based on build channel.
  *
  * Stable releases → force COS mirror (consistent with checkForUpdates path, avoids the
  * "薛定谔的最新版" scenario where startup notification reads GitHub and the download URL
  * points to a GitHub asset that Chinese users can't reach).
  *
- * Nightly builds → keep the original GitHub asset URL. COS has no nightly index and
- * asset names may not match convertToCOSName's stable pattern.
+ * Nightly builds → keep the original GitHub asset URL. COS has no nightly index.
  */
 const selectDownloadSource = async (originalUrl: string, originalName: string): Promise<string> => {
   if (isNightlyBuild) {
     return originalUrl;
   }
 
-  const cosUrl = `${getCosMirrorBase()}/${convertToCOSName(originalName)}`;
+  const mirrorBase = `${getCosMirrorBase().replace(/\/+$/, '')}/`;
+  const sourceUrl = new URL(originalUrl);
+  const mirrorUrl = new URL(mirrorBase);
+  const isVersionedCosAsset = sourceUrl.origin === mirrorUrl.origin && sourceUrl.pathname.startsWith(mirrorUrl.pathname);
+  if (isVersionedCosAsset) {
+    return sourceUrl.toString();
+  }
+
+  const cosUrl = new URL(path.basename(originalName), mirrorUrl).toString();
   mainLog('Update', `Stable release, forcing COS download source: ${cosUrl}`);
   return cosUrl;
 };
@@ -499,6 +503,22 @@ type DownloadState = {
 
 const downloads = new Map<string, DownloadState>();
 
+export const verifyFileSha512 = async (filePath: string, expectedSha512: string): Promise<boolean> => {
+  if (!SHA512_BASE64_PATTERN.test(expectedSha512)) return false;
+
+  const hash = createHash('sha512');
+  await new Promise<void>((resolve, reject) => {
+    const input = fs.createReadStream(filePath);
+    input.on('data', (chunk) => {
+      hash.update(chunk);
+    });
+    input.on('error', reject);
+    input.on('end', resolve);
+  });
+
+  return hash.digest('base64') === expectedSha512;
+};
+
 const sanitizeFileName = (name: string): string => {
   // Keep only base name and trim weird whitespace.
   const base = path.basename(name).trim();
@@ -522,7 +542,7 @@ const emitProgress = (evt: UpdateDownloadProgressEvent) => {
   ipcBridge.update.downloadProgress.emit(evt);
 };
 
-const startDownloadInBackground = async (downloadId: string, url: string, filePath: string, abortController: AbortController) => {
+const startDownloadInBackground = async (downloadId: string, url: string, filePath: string, abortController: AbortController, expectedSha512?: string) => {
   let receivedBytes = 0;
   let totalBytes: number | undefined;
 
@@ -553,6 +573,7 @@ const startDownloadInBackground = async (downloadId: string, url: string, filePa
   emitThrottled('starting');
 
   let stream: fs.WriteStream | null = null;
+  const hash = expectedSha512 ? createHash('sha512') : null;
   try {
     const res = await fetchWithAllowlistedRedirects(url, abortController.signal);
 
@@ -586,6 +607,7 @@ const startDownloadInBackground = async (downloadId: string, url: string, filePa
       receivedBytes += value.byteLength;
 
       const buf = Buffer.from(value);
+      hash?.update(buf);
       if (!stream.write(buf)) {
         await new Promise<void>((resolve) => stream?.once('drain', () => resolve()));
       }
@@ -602,10 +624,18 @@ const startDownloadInBackground = async (downloadId: string, url: string, filePa
       stream.on('error', reject);
     });
 
+    if (hash && hash.digest('base64') !== expectedSha512) {
+      throw new Error('Downloaded update failed SHA-512 verification');
+    }
+
     emitThrottled('completed');
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     const isAbort = abortController.signal.aborted || message.toLowerCase().includes('aborted');
+    const isIntegrityFailure = message.includes('SHA-512 verification');
+    if (isIntegrityFailure) {
+      mainError('Update', message);
+    }
 
     try {
       stream?.close();
@@ -627,7 +657,7 @@ const startDownloadInBackground = async (downloadId: string, url: string, filePa
       status: isAbort ? 'cancelled' : 'error',
       receivedBytes,
       totalBytes,
-      error: message,
+      error: isIntegrityFailure ? undefined : message,
     });
   } finally {
     downloads.delete(downloadId);
@@ -687,10 +717,13 @@ export function initUpdateBridge(): void {
     }
   });
 
-  ipcBridge.update.download.provider((params: UpdateDownloadRequest): Promise<{ success: boolean; data?: UpdateDownloadResult; msg?: string }> => {
+  ipcBridge.update.download.provider(async (params: UpdateDownloadRequest): Promise<{ success: boolean; data?: UpdateDownloadResult; msg?: string }> => {
     try {
       if (!params?.url) {
-        return Promise.resolve({ success: false, msg: 'missing url' });
+        return { success: false, msg: 'missing url' };
+      }
+      if (params.sha512 && !SHA512_BASE64_PATTERN.test(params.sha512)) {
+        return { success: false, msg: 'invalid sha512' };
       }
 
       // Defense-in-depth: do not allow arbitrary downloads from renderer.
@@ -708,8 +741,12 @@ export function initUpdateBridge(): void {
       if (fs.existsSync(targetPath)) {
         const stats = fs.statSync(targetPath);
         if (stats.size > 0) {
-          mainLog('Update', `File already exists: ${targetPath}`);
-          return Promise.resolve({ success: true, data: { downloadId: 'cached', filePath: targetPath } });
+          const isChecksumValid = params.sha512 ? await verifyFileSha512(targetPath, params.sha512) : true;
+          if (isChecksumValid) {
+            mainLog('Update', `File already exists: ${targetPath}`);
+            return { success: true, data: { downloadId: 'cached', filePath: targetPath } };
+          }
+          mainLog('Update', `Ignoring cached update with mismatched SHA-512: ${targetPath}`);
         }
       }
 
@@ -724,7 +761,7 @@ export function initUpdateBridge(): void {
           // Validate the selected URL (COS mirror URLs should pass since we added it to ALLOWED_DOWNLOAD_HOSTS)
           assertAllowedUrl(downloadUrl);
           // Start background download
-          void startDownloadInBackground(downloadId, downloadUrl, uniquePath, abortController);
+          void startDownloadInBackground(downloadId, downloadUrl, uniquePath, abortController, params.sha512);
         })
         .catch((err) => {
           mainError('Update', 'Failed to select download source:', err);
@@ -738,9 +775,9 @@ export function initUpdateBridge(): void {
           downloads.delete(downloadId);
         });
 
-      return Promise.resolve({ success: true, data: { downloadId, filePath: uniquePath } });
+      return { success: true, data: { downloadId, filePath: uniquePath } };
     } catch (err: unknown) {
-      return Promise.resolve({ success: false, msg: err instanceof Error ? err.message : String(err) });
+      return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });
 

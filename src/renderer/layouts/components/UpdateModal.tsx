@@ -173,6 +173,7 @@ const UpdateModal: React.FC = () => {
       const res = await ipcBridge.update.download.invoke({
         url: asset.url,
         fileName: asset.name,
+        sha512: asset.sha512,
       });
       if (!res?.success || !res.data) {
         throw new Error(res?.msg || t('update.downloadStartFailed'));
