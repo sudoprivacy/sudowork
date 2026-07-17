@@ -17,6 +17,9 @@ jobs:
   build-windows-x64:
     name: Build Windows x64
     runs-on: windows-2022
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
 
     steps:
       - name: Checkout code
@@ -89,12 +92,7 @@ jobs:
             electron-cache-windows-x64-
 
       - name: Install dependencies
-        uses: nick-fields/retry@v4
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: bun install --no-frozen-lockfile
+        run: bun install --no-frozen-lockfile
 
       - name: Run postinstall
         run: bun run postinstall || true
