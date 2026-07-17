@@ -21,7 +21,7 @@
     "createFailed": "创建团队失败，请检查后重试。"
   },
   "detail": {
-    "memberTab": "团队成员",
+    "memberTab": "成员",
     "leaderChat": "Leader",
     "selectMember": "选择一个成员",
     "noMembers": "暂无团队成员",

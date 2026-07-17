@@ -69,6 +69,31 @@
   -ms-overflow-style: none;
 }
 
+.right-panel-tabs--overflow {
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.right-panel-tabs__scroller {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.right-panel-tabs__actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
 .browser-tabs {
   display: flex;
   align-items: flex-end;
@@ -121,6 +146,7 @@
   display: none;
 }
 
+.right-panel-tabs__scroller::-webkit-scrollbar,
 .browser-tabs__scroller::-webkit-scrollbar {
   display: none;
 }
@@ -190,12 +216,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
 }
 
 .right-panel-tabs__more-dot {
-  width: 3px;
-  height: 3px;
+  width: 2px;
+  height: 2px;
   border-radius: 999px;
   background: currentColor;
 }

@@ -144,18 +144,20 @@ const ChatSider: React.FC<{
   return (
     <>
       <div className='flex h-full min-h-0 flex-col bg-[var(--color-bg-1)]'>
-        <div className='right-panel-tabs'>
+        <div className={`right-panel-tabs ${isOverflowMode ? 'right-panel-tabs--overflow' : ''}`}>
           {isOverflowMode ? (
             <>
-              {(['workspace', 'deliverables'] as RightPanelTab[]).map(renderBuiltInTab)}
-              {extraTab ? (
-                <button type='button' role='tab' aria-selected={activeTab === extraTab.id} className={`right-panel-tabs__item ${activeTab === extraTab.id ? 'right-panel-tabs__item--active' : ''}`} onClick={() => setActiveTab(extraTab.id)}>
-                  <span className='relative z-10'>{extraTab.label}</span>
-                  <span aria-hidden='true' className='right-panel-tabs__indicator' />
-                </button>
-              ) : null}
-              {promotedOverflowTab ? renderBuiltInTab(promotedOverflowTab) : null}
-              {renderOverflowTrigger()}
+              <div className='right-panel-tabs__scroller'>
+                {(['workspace', 'deliverables'] as RightPanelTab[]).map(renderBuiltInTab)}
+                {extraTab ? (
+                  <button type='button' role='tab' aria-selected={activeTab === extraTab.id} className={`right-panel-tabs__item ${activeTab === extraTab.id ? 'right-panel-tabs__item--active' : ''}`} onClick={() => setActiveTab(extraTab.id)}>
+                    <span className='relative z-10'>{extraTab.label}</span>
+                    <span aria-hidden='true' className='right-panel-tabs__indicator' />
+                  </button>
+                ) : null}
+                {promotedOverflowTab ? renderBuiltInTab(promotedOverflowTab) : null}
+              </div>
+              <div className='right-panel-tabs__actions'>{renderOverflowTrigger()}</div>
             </>
           ) : (
             <>
