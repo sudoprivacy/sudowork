@@ -146,3 +146,8 @@ export interface ILocalKbSetDirectoryInput {
   spaceId: string;
   directoryPath: string;
 }
+
+export interface ILocalKbDeleteDocumentInput {
+  spaceId: string;
+  documentId: string;
+}

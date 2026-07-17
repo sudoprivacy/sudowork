@@ -1,5 +1,6 @@
 import { ipcBridge } from '@/common';
 import { localKnowledgeBaseService } from '@process/services/local-kb/LocalKnowledgeBaseService';
+import { localKnowledgeBaseSkillServer } from '@process/services/local-kb/LocalKnowledgeBaseSkillServer';
 import { mainError } from '@process/utils/mainLogger';
 
 function ok<T>(data: T) {
@@ -12,6 +13,8 @@ function fail(err: unknown) {
 }
 
 export function initLocalKnowledgeBaseBridge(): void {
+  localKnowledgeBaseSkillServer.start().catch((err) => mainError('LocalKbBridge', 'failed to start skill server:', err));
+
   ipcBridge.localKnowledgeBase.listCategories.provider(async () => {
     try {
       return ok(localKnowledgeBaseService.listCategories());
@@ -98,6 +101,15 @@ export function initLocalKnowledgeBaseBridge(): void {
   ipcBridge.localKnowledgeBase.setDirectory.provider(async (input) => {
     try {
       return ok(await localKnowledgeBaseService.setDirectory(input));
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcBridge.localKnowledgeBase.deleteDocument.provider(async (input) => {
+    try {
+      await localKnowledgeBaseService.deleteDocument(input);
+      return ok(undefined);
     } catch (err) {
       return fail(err);
     }

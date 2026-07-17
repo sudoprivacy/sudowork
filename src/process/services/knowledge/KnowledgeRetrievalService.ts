@@ -42,7 +42,8 @@ export function formatLocalKnowledgeContext(hits: ILocalKbSearchHit[]): string {
   const body = hits
     .map((hit, index) => {
       const text = escapeKnowledgeContextText(hit.text.replace(/\s+/g, ' ').trim().slice(0, MAX_HIT_TEXT_LENGTH));
-      return [`[${index + 1}] ${escapeKnowledgeContextText(hit.title)}`, `source: local-kb://${encodeURIComponent(hit.spaceId)}/${encodeURIComponent(hit.file)}:${hit.lineNo}`, `match: ${hit.source}`, text].join('\n');
+      const source = hit.docId ? `local-kb://${encodeURIComponent(hit.spaceId)}/doc/${encodeURIComponent(hit.docId)}:${hit.lineNo}` : `local-kb://${encodeURIComponent(hit.spaceId)}/${encodeURIComponent(hit.file)}:${hit.lineNo}`;
+      return [`[${index + 1}] ${escapeKnowledgeContextText(hit.title)}`, `source: ${source}`, `match: ${hit.source}`, text].join('\n');
     })
     .join('\n\n');
   return `<knowledge_context source="local_knowledge_base">\n${body}\n</knowledge_context>`;

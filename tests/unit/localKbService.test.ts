@@ -147,6 +147,75 @@ describe('LocalKnowledgeBaseService build queue state', () => {
     await fs.rm(sourceDir, { recursive: true, force: true });
     await fs.rm(dataPath, { recursive: true, force: true });
   });
+
+  it('falls back to parsed document grep when wiki output is not built', async () => {
+    const dataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-local-kb-data-'));
+    const doc = createDoc('parsed-doc', { fileName: '考勤制度.pdf' });
+    const extractedDir = path.join(dataPath, 'sudowork', 'local-kb', 'docs', doc.id, 'extracted');
+    await fs.mkdir(extractedDir, { recursive: true });
+    await fs.writeFile(path.join(extractedDir, `${doc.id}.md`), '# 考勤制度\n\n员工需要按时完成考勤打卡。\n', 'utf8');
+    const db = createDbMock({ docs: [doc] });
+    const tickOnce = vi.fn();
+    const { LocalKnowledgeBaseService } = await importServiceWithMocks(db, tickOnce, dataPath);
+    const service = new LocalKnowledgeBaseService();
+
+    const result = await service.search('space-1', '考勤');
+
+    expect(result.mode).toBe('grep-only');
+    expect(result.hits.map((hit) => `${hit.file}:${hit.lineNo}`)).toEqual(['考勤制度.pdf:1', '考勤制度.pdf:3']);
+    expect(result.hits[0]?.docId).toBe('parsed-doc');
+    await fs.rm(dataPath, { recursive: true, force: true });
+  });
+
+  it('deletes a document and marks the space idle for rebuild', async () => {
+    const dataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-local-kb-data-'));
+    const doc = createDoc('doc-to-delete', { sourceType: 'file' });
+    const docDir = path.join(dataPath, 'sudowork', 'local-kb', 'docs', doc.id);
+    await fs.mkdir(docDir, { recursive: true });
+    await fs.writeFile(path.join(docDir, 'marker.txt'), 'marker', 'utf8');
+    const db = createDbMock({ docs: [doc], space: { ...createSpace('space-1'), buildStatus: 'ready', lastBuiltAt: 10 } });
+    const tickOnce = vi.fn();
+    const { LocalKnowledgeBaseService } = await importServiceWithMocks(db, tickOnce, dataPath);
+    const service = new LocalKnowledgeBaseService();
+
+    await service.deleteDocument({ spaceId: 'space-1', documentId: doc.id });
+
+    expect(db.deleteLocalKbDocument).toHaveBeenCalledWith(doc.id);
+    expect(db.updateLocalKbSpace).toHaveBeenCalledWith('space-1', expect.objectContaining({ sourceMode: 'files', rootPath: null, buildStatus: 'idle' }));
+    await expect(fs.stat(docDir)).rejects.toThrow();
+    await fs.rm(dataPath, { recursive: true, force: true });
+  });
+
+  it('keeps searchMany results when one space fails', async () => {
+    const db = createDbMock();
+    const tickOnce = vi.fn();
+    const { LocalKnowledgeBaseService } = await importServiceWithMocks(db, tickOnce);
+    const service = new LocalKnowledgeBaseService();
+    vi.spyOn(service, 'search').mockImplementation(async (spaceId: string) => {
+      if (spaceId === 'bad-space') throw new Error('space missing');
+      return {
+        mode: 'grep-only',
+        hits: [
+          {
+            spaceId,
+            file: 'SPACE.md',
+            title: 'Space',
+            lineNo: 1,
+            text: '考勤',
+            score: 1,
+            source: 'grep',
+          },
+        ],
+        tookMs: 1,
+        spaceIds: [spaceId],
+      };
+    });
+
+    const result = await service.searchMany(['good-space', 'bad-space'], '考勤');
+
+    expect(result.hits.map((hit) => hit.spaceId)).toEqual(['good-space']);
+    expect(result.spaceIds).toEqual(['good-space', 'bad-space']);
+  });
 });
 
 async function importServiceWithMocks(db: ReturnType<typeof createDbMock>, tickOnce: ReturnType<typeof vi.fn>, dataPath = '/tmp/sudowork-local-kb-test') {
@@ -154,6 +223,9 @@ async function importServiceWithMocks(db: ReturnType<typeof createDbMock>, tickO
   vi.doMock('@process/utils', () => ({
     ensureDirectory: vi.fn(),
     getDataPath: () => dataPath,
+  }));
+  vi.doMock('@process/utils/mainLogger', () => ({
+    mainWarn: vi.fn(),
   }));
   vi.doMock('fs', async () => {
     const actual = await vi.importActual<typeof import('fs')>('fs');

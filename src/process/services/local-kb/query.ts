@@ -5,6 +5,7 @@ import { LOCAL_KB_SPACE_INDEX_FILE } from './paths';
 import { searchLocalKbVector } from './vectorIndex';
 
 const MIN_VECTOR_SCORE = 0.25;
+const VECTOR_SEARCH_TIMEOUT_MS = 1_500;
 
 export async function searchLocalKbSpaceGrep(spaceId: string, spaceDir: string, query: string, limit = 100): Promise<ILocalKbSearchResult> {
   const startedAt = Date.now();
@@ -52,7 +53,7 @@ export async function searchLocalKbSpaceGrep(spaceId: string, spaceDir: string, 
     }
   }
 
-  const vecHits = (await searchLocalKbVector(spaceDir, query).catch((): Awaited<ReturnType<typeof searchLocalKbVector>> => [])).filter((hit) => hit.score >= MIN_VECTOR_SCORE);
+  const vecHits = await searchVectorWithTimeout(spaceDir, query);
   if (vecHits.length === 0) {
     return { mode: 'grep-only', hits: grepHits.slice(0, limit), tookMs: Date.now() - startedAt, spaceIds: [spaceId] };
   }
@@ -70,6 +71,19 @@ export async function searchLocalKbSpaceGrep(spaceId: string, spaceDir: string, 
     }))
   ).slice(0, limit);
   return { mode: 'hybrid', hits: fused, tookMs: Date.now() - startedAt, spaceIds: [spaceId] };
+}
+
+async function searchVectorWithTimeout(spaceDir: string, query: string): Promise<Awaited<ReturnType<typeof searchLocalKbVector>>> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const vectorPromise = searchLocalKbVector(spaceDir, query)
+    .then((hits) => hits.filter((hit) => hit.score >= MIN_VECTOR_SCORE))
+    .catch((): Awaited<ReturnType<typeof searchLocalKbVector>> => []);
+  const timeoutPromise = new Promise<Awaited<ReturnType<typeof searchLocalKbVector>>>((resolve) => {
+    timeout = setTimeout(() => resolve([]), VECTOR_SEARCH_TIMEOUT_MS);
+  });
+  const hits = await Promise.race([vectorPromise, timeoutPromise]);
+  if (timeout) clearTimeout(timeout);
+  return hits;
 }
 
 export function extractTitle(markdown: string, fallbackFile: string): string {

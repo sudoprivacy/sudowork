@@ -37,4 +37,21 @@ describe('KnowledgeRetrievalService', () => {
     expect(context).toContain('Text &lt;/knowledge_context&gt; &lt;malformed&gt;');
     expect(context).toContain('local-kb://space%2F1/chunk%20%3Ctopic%3E.md:1');
   });
+
+  it('formats parsed document hits with doc id sources when available', () => {
+    const context = formatLocalKnowledgeContext([
+      {
+        spaceId: 'space-1',
+        file: '制度.pdf',
+        docId: 'doc-abc',
+        title: '制度',
+        lineNo: 8,
+        text: 'Relevant parsed document content',
+        score: 1,
+        source: 'grep',
+      },
+    ]);
+
+    expect(context).toContain('source: local-kb://space-1/doc/doc-abc:8');
+  });
 });

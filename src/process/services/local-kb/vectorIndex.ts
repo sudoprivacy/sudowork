@@ -20,6 +20,7 @@ interface IEmbedder {
 }
 
 const DEFAULT_MODEL_ID = 'Xenova/multilingual-e5-small';
+const embedderPromises = new Map<string, Promise<IEmbedder | null>>();
 
 export async function buildLocalKbVectorIndex(spaceDir: string, modelId = DEFAULT_MODEL_ID): Promise<{ ok: true; count: number } | { ok: false; reason: string }> {
   const embedder = await ensureOptionalEmbedder(modelId);
@@ -139,6 +140,18 @@ async function ensureOptionalEmbedder(modelId: string): Promise<IEmbedder | null
   const onnx = path.join(modelDir, 'onnx', 'model_quantized.onnx');
   if (!fsSync.existsSync(onnx)) return null;
 
+  const cacheKey = `${cacheDir}:${modelId}`;
+  const cached = embedderPromises.get(cacheKey);
+  if (cached) return cached;
+
+  const promise = createOptionalEmbedder(cacheDir, modelId);
+  embedderPromises.set(cacheKey, promise);
+  const embedder = await promise;
+  if (!embedder) embedderPromises.delete(cacheKey);
+  return embedder;
+}
+
+async function createOptionalEmbedder(cacheDir: string, modelId: string): Promise<IEmbedder | null> {
   try {
     const dynamicImport = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<any>;
     const mod = await dynamicImport('@xenova/transformers');
