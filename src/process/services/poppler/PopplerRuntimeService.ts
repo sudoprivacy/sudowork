@@ -92,7 +92,7 @@ export class PopplerRuntimeService {
       fs.mkdirSync(path.dirname(installDir), { recursive: true });
       fs.renameSync(stageDir, installDir);
       await this.makeExecutablesRunnable(installDir);
-      if (!(await this.checkManaged()).installed) {
+      if (!(await this.waitForManaged()).installed) {
         const detail = await this.readInstallDiagnostics();
         throw new Error(`Poppler install verification failed${detail ? `: ${detail}` : ''}`);
       }
@@ -194,6 +194,18 @@ export class PopplerRuntimeService {
     } catch {
       return { installed: false };
     }
+  }
+
+  private async waitForManaged(): Promise<IPopplerStatus> {
+    let status: IPopplerStatus = { installed: false };
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      status = await this.checkManaged();
+      if (status.installed) return status;
+      await new Promise((resolve) => {
+        setTimeout(resolve, 150);
+      });
+    }
+    return status;
   }
 
   private async readVersion(pdftotextPath: string): Promise<string | undefined> {
