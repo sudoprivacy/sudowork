@@ -173,49 +173,51 @@ const Sider: React.FC = () => {
             <SettingsSider />
           </Suspense>
         ) : (
-          <div className='size-full flex flex-col py-2 overflow-hidden box-border'>
-            {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
-            <div
-              className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-3 cursor-pointer transition-all border bg-subtle hover:bg-hover active:bg-fill-2'
-              onClick={() => {
-                cleanupSiderTooltips();
-                setIsBatchMode(false);
-                // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
-                void ConfigStorage.set('guid.lastSelectedAgent', '');
-                // 触发 Guide 页面重置所有用户输入状态
-                emitter.emit('guid.reset');
-                void navigate('/guid');
-                onSessionClick();
-              }}
-            >
-              <Plus size={18} strokeWidth={1.8} className='text-foreground shrink-0' />
-              <span className='text-15px font-medium text-foreground truncate'>{t('conversation.welcome.newConversation')}</span>
-            </div>
+          <div className='h-full min-h-0 flex flex-col overflow-hidden py-2 box-border'>
+            <div className='min-h-0 shrink overflow-y-auto scrollbar-hide'>
+              {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
+              <div
+                className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-3 cursor-pointer transition-all border bg-subtle hover:bg-hover active:bg-fill-2'
+                onClick={() => {
+                  cleanupSiderTooltips();
+                  setIsBatchMode(false);
+                  // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
+                  void ConfigStorage.set('guid.lastSelectedAgent', '');
+                  // 触发 Guide 页面重置所有用户输入状态
+                  emitter.emit('guid.reset');
+                  void navigate('/guid');
+                  onSessionClick();
+                }}
+              >
+                <Plus size={18} strokeWidth={1.8} className='text-foreground shrink-0' />
+                <span className='text-15px font-medium text-foreground truncate'>{t('conversation.welcome.newConversation')}</span>
+              </div>
 
-            {/* 功能菜单区域 / Function menu area */}
-            <div className='mb-4 flex flex-col gap-0.5'>
-              {Menus.map((menu) => {
-                const isSelected = pathname === menu.path || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
-                const MenuIcon = menu.icon;
-                return (
-                  <SidebarNavItem
-                    key={menu.id}
-                    icon={<MenuIcon size={20} strokeWidth={1.8} className='block leading-none' />}
-                    label={menu.label}
-                    selected={isSelected}
-                    onClick={() => {
-                      cleanupSiderTooltips();
-                      onMenuClick(menu.id);
-                      onSessionClick();
-                    }}
-                  />
-                );
-              })}
-              {mode === 'c' && <TeamSiderSection onSessionClick={onSessionClick} />}
+              {/* 功能菜单区域 / Function menu area */}
+              <div className='mb-4 flex flex-col gap-0.5'>
+                {Menus.map((menu) => {
+                  const isSelected = pathname === menu.path || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
+                  const MenuIcon = menu.icon;
+                  return (
+                    <SidebarNavItem
+                      key={menu.id}
+                      icon={<MenuIcon size={20} strokeWidth={1.8} className='block leading-none' />}
+                      label={menu.label}
+                      selected={isSelected}
+                      onClick={() => {
+                        cleanupSiderTooltips();
+                        onMenuClick(menu.id);
+                        onSessionClick();
+                      }}
+                    />
+                  );
+                })}
+                {mode === 'c' && <TeamSiderSection onSessionClick={onSessionClick} />}
+              </div>
             </div>
 
             {/* Session history tabs + batch mode button */}
-            <div className={classNames('mb-2 px-2 flex items-center justify-between')}>
+            <div className={classNames('shrink-0 mb-2 px-2 flex items-center justify-between')}>
               {isCronVisible && (
                 <Tabs
                   className='sidebar-tabs flex-1 shrink-0'
@@ -266,9 +268,11 @@ const Sider: React.FC = () => {
               </Popover>
             </div>
 
-            <Suspense fallback={<div className='flex-1 min-h-0' />}>
-              <WorkspaceGroupedHistory {...workspaceHistoryProps} collapsed={false} />
-            </Suspense>
+            <div className='flex min-h-24 flex-1 flex-col'>
+              <Suspense fallback={<div className='size-full' />}>
+                <WorkspaceGroupedHistory {...workspaceHistoryProps} collapsed={false} />
+              </Suspense>
+            </div>
           </div>
         )}
       </div>
