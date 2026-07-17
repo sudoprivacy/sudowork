@@ -101,14 +101,6 @@ jobs:
           echo "short=$SHORT" >> $GITHUB_OUTPUT
           echo "Commit: $SHORT"
 
-      - name: Initialize ai-dev-browser submodule
-        shell: bash
-        run: |
-          git submodule sync --recursive vendor/ai-dev-browser
-          git submodule update --init --force --depth=1 --recursive vendor/ai-dev-browser
-          git submodule status --recursive vendor/ai-dev-browser
-          find vendor/ai-dev-browser/ai_dev_browser -name '*.py' | head -20
-
       # Guard against shipping a dead browser skill. The ai-dev-browser package
       # is a git submodule; if checkout forgets `submodules: recursive`, the
       # electron-builder `files:` glob silently matches nothing and the release
