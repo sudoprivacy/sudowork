@@ -1210,7 +1210,7 @@ export const team = {
   onMcpStatus: bridge.buildEmitter<ITeamMcpStatusEvent>('team.mcp-status'),
   onTaskChanged: bridge.buildEmitter<{ teamId: string; task: ITeamTask }>('team.task-changed'),
   onListChanged: bridge.buildEmitter<ITeamListChangedEvent>('team.list-changed'),
-  onSessionChanged: bridge.buildEmitter<{ teamId: string }>('team.session-changed'),
+  onSessionChanged: bridge.buildEmitter<ITeamSessionChangedEvent>('team.session-changed'),
   onRunAccepted: bridge.buildEmitter<ITeamRunEvent>('team.run-accepted'),
   onRunStarted: bridge.buildEmitter<ITeamRunEvent>('team.run-started'),
   onRunUpdated: bridge.buildEmitter<ITeamRunEvent>('team.run-updated'),
@@ -1321,6 +1321,7 @@ export interface ITeamAssistantCandidate {
   avatar: string | null;
   is_preset: boolean;
   source: 'agent' | 'assistant';
+  description?: string | null;
 }
 
 export interface ITeamMail {
@@ -1350,12 +1351,17 @@ export interface ITeamTask {
   updated_at: number;
 }
 
+export interface ICreateTeamMemberParams {
+  assistant_id: string;
+  name: string;
+  model?: string;
+  role: 'lead' | 'teammate';
+}
+
 export interface ICreateTeamParams {
   name: string;
   workspace?: string;
-  leader_assistant_id: string;
-  leader_name?: string;
-  leader_model?: string;
+  members: ICreateTeamMemberParams[];
 }
 
 export interface IAddTeamMemberParams {
@@ -1422,6 +1428,12 @@ export interface ITeamAgentStatusEvent {
   slot_id: string;
   status: string;
   last_message?: string;
+}
+
+export interface ITeamSessionChangedEvent {
+  teamId: string;
+  status?: 'starting' | 'ready' | 'failed';
+  error?: string;
 }
 
 export interface ITeamAgentSpawnedEvent {

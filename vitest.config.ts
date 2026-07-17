@@ -79,6 +79,8 @@ export default defineConfig({
         'src/process/bridge/pwdLoginBridge.ts',
         'src/process/utils/enabledSkillFilter.ts',
         // Team collaboration
+        'src/process/bridge/teamBridge.ts',
+        'src/process/services/team/TeamService.ts',
         'src/process/services/team/TeamStore.ts',
         'src/process/services/team/WakeSource.ts',
         'src/process/services/team/SlotWakeGate.ts',
@@ -90,6 +92,8 @@ export default defineConfig({
         'src/process/services/team/EventLoop.ts',
         'src/process/services/team/MessageProjection.ts',
         'src/process/services/team/GovernancePrompt.ts',
+        'src/renderer/pages/team/hooks/useTeamWarmup.ts',
+        'src/renderer/pages/team/components/TeamWarmupOverlay.tsx',
         'src/utils/configureChromium.ts',
         // ACP
         'src/agent/acp/AcpAdapter.ts',

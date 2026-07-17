@@ -21,6 +21,7 @@ export interface InstalledAssistantLike {
     display_name?: string;
     name?: string;
     nameI18n?: Record<string, string>;
+    descriptionI18n?: Record<string, string>;
     presetAgentType?: string;
     avatar?: string | null;
   };
@@ -34,6 +35,16 @@ function getInstalledAssistantKey(info: InstalledAssistantLike): string {
 
 function getInstalledAssistantDisplayName(info: InstalledAssistantLike): string {
   return info.meta.nameI18n?.['zh-CN'] || info.meta.nameI18n?.['en-US'] || info.meta.display_name || info.meta.name || info.meta.id || info.name;
+}
+
+function getInstalledAssistantDescription(info: InstalledAssistantLike): string | null {
+  return info.meta.descriptionI18n?.['zh-CN'] || info.meta.descriptionI18n?.['en-US'] || null;
+}
+
+function getDetectedAgentDescription(agent: DetectedAgentLike): string | null {
+  if (agent.backend === 'scode') return 'Sudo Code CLI 智能体，适合软件开发、代码修改、工程任务执行与结果验证。';
+  if (agent.backend === 'claude') return 'Claude Code CLI 智能体，适合代码理解、任务拆解、实现与验证。';
+  return null;
 }
 
 /**
@@ -62,6 +73,7 @@ export function mergeTeamAssistants(detected: DetectedAgentLike[], installed: In
       avatar: info.meta.avatar ?? null,
       is_preset: info.isBuiltin || info.isHubInstalled,
       source: 'assistant',
+      description: getInstalledAssistantDescription(info),
     });
   }
 
@@ -79,6 +91,7 @@ export function mergeTeamAssistants(detected: DetectedAgentLike[], installed: In
       avatar: d.avatar ?? null,
       is_preset: d.isPreset ?? false,
       source: 'agent',
+      description: getDetectedAgentDescription(d),
     });
   }
 

@@ -18,7 +18,18 @@
     "submit": "建立",
     "cancel": "取消",
     "noAssistants": "沒有可用助手，請先安裝一個。",
-    "createFailed": "建立團隊失敗，請檢查後重試。"
+    "createFailed": "建立團隊失敗，請檢查後重試。",
+    "subtitle": "選擇一個或多個智能體組成團隊，並指定其中一個作為 Leader。",
+    "searchPlaceholder": "搜尋智能體名稱或描述",
+    "allAssistantsCount": "所有智能體（{{count}}）",
+    "selectedMembersCount": "已選成員（{{count}}）",
+    "leaderHint": "點擊 Leader 可重新指定負責人",
+    "leaderButton": "Leader",
+    "emptyMembersTitle": "從左側新增智能體",
+    "emptyMembersSubtitle": "第一個新增的成員會預設成為 Leader，之後也可以隨時重新指定。",
+    "agentDescriptionFallback": "適合參與團隊協作的智能體。",
+    "addMember": "新增成員",
+    "removeMember": "刪除成員"
   },
   "detail": {
     "memberTab": "團隊成員",
@@ -87,5 +98,16 @@
     "deleteSuccess": "團隊已刪除",
     "deleteFailed": "刪除團隊失敗",
     "removeMember": "將該成員移出團隊？"
+  },
+  "warmup": {
+    "title": "正在喚醒團隊",
+    "subtitle": "正在啟動團隊成員，請稍候。",
+    "failedTitle": "團隊喚醒失敗",
+    "failedHint": "部分成員啟動失敗，請重試。",
+    "retry": "重試"
+  },
+  "membership": {
+    "initialRosterNotice": "使用者在建立團隊時預先選擇了這些團隊成員。這些成員已經存在，建立更多成員前應先考慮使用他們。分派任務前請呼叫 team_members 取得最新 roster。",
+    "memberAddedNotice": "一個 teammate 已加入團隊。分派任務前請呼叫 team_members 取得最新 roster。"
   }
 }

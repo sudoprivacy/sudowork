@@ -1,12 +1,25 @@
 /**
  * WakeSource taxonomy for team member event loops (附录 I.2).
  *
- * 12 wake sources across 4 classes. Pause-gating derives entirely from this
+ * Wake sources across 4 classes. Pause-gating derives entirely from this
  * table: Foreground/Lifecycle bypass pause; Foreground additionally resumes a
  * paused slot; Background/SystemRecovery are suppressed while paused.
  */
 
-export type WakeSource = 'user_message' | 'user_intervention' | 'mcp_send_message' | 'idle_notification' | 'interrupted_notification' | 'spawn_welcome' | 'mcp_shutdown_request' | 'crash_notification' | 'inactivity_timeout' | 'spawn_attach_failure' | 'shutdown_rejected' | 'recovery_drain';
+export type WakeSource =
+  | 'user_message'
+  | 'user_intervention'
+  | 'mcp_send_message'
+  | 'idle_notification'
+  | 'interrupted_notification'
+  | 'spawn_welcome'
+  | 'team_membership_changed'
+  | 'mcp_shutdown_request'
+  | 'crash_notification'
+  | 'inactivity_timeout'
+  | 'spawn_attach_failure'
+  | 'shutdown_rejected'
+  | 'recovery_drain';
 
 export type WakeClass = 'Foreground' | 'Background' | 'SystemRecovery' | 'Lifecycle';
 
@@ -23,6 +36,7 @@ export const WAKE_META: Record<WakeSource, WakeMeta> = {
   idle_notification: { class: 'Background', resumes_paused: false, bypasses_pause: false },
   interrupted_notification: { class: 'Background', resumes_paused: false, bypasses_pause: false },
   spawn_welcome: { class: 'Lifecycle', resumes_paused: false, bypasses_pause: true },
+  team_membership_changed: { class: 'Background', resumes_paused: false, bypasses_pause: false },
   mcp_shutdown_request: { class: 'Lifecycle', resumes_paused: false, bypasses_pause: true },
   crash_notification: { class: 'SystemRecovery', resumes_paused: false, bypasses_pause: false },
   inactivity_timeout: { class: 'SystemRecovery', resumes_paused: false, bypasses_pause: false },

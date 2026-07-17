@@ -11,6 +11,7 @@ const h = vi.hoisted(() => {
     providers,
     makeProvider,
     getDefaultUserId: vi.fn(() => 'user-1'),
+    createTeam: vi.fn(),
     updateTeam: vi.fn(),
     renameTeam: vi.fn(),
     answerQuestion: vi.fn(),
@@ -55,7 +56,7 @@ vi.mock('@process/services/team/TeamService', () => ({
     getTeam: vi.fn(),
     listMembers: vi.fn(),
     listAvailableAssistantsForTeam: vi.fn(),
-    createTeam: vi.fn(),
+    createTeam: h.createTeam,
     removeTeam: vi.fn(),
     spawnMember: vi.fn(),
     removeMember: vi.fn(),
@@ -78,12 +79,27 @@ vi.mock('@process/utils/mainLogger', () => ({ mainError: vi.fn() }));
 
 beforeEach(() => {
   h.providers.clear();
+  h.createTeam.mockReset();
   h.updateTeam.mockReset();
   h.renameTeam.mockReset();
   h.answerQuestion.mockReset();
 });
 
 describe('teamBridge team history providers', () => {
+  it('wires createTeam provider to TeamService.createTeam with members', async () => {
+    const result = { id: 'team-1', name: 'Team' };
+    const members = [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate', model: 'model-1' },
+    ];
+    h.createTeam.mockResolvedValue(result);
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(h.providers.get('createTeam')?.({ name: 'Team', workspace: '/workspace', members })).resolves.toBe(result);
+    expect(h.createTeam).toHaveBeenCalledWith('user-1', 'Team', '/workspace', members);
+  });
+
   it('wires updateTeam provider to TeamService.updateTeam', async () => {
     const result = { id: 'team-1', name: 'Team' };
     h.updateTeam.mockReturnValue(result);

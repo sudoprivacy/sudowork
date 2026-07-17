@@ -18,7 +18,18 @@
     "submit": "Oluştur",
     "cancel": "İptal",
     "noAssistants": "Kullanılabilir asistan yok. Önce bir tane yükleyin.",
-    "createFailed": "Ekip oluşturulamadı. Bilgileri kontrol edip tekrar deneyin."
+    "createFailed": "Ekip oluşturulamadı. Bilgileri kontrol edip tekrar deneyin.",
+    "subtitle": "Takım için bir veya daha fazla ajan seçin ve birini Leader olarak belirleyin.",
+    "searchPlaceholder": "Ajan adı veya açıklamasına göre ara",
+    "allAssistantsCount": "Tüm ajanlar ({{count}})",
+    "selectedMembersCount": "Seçili üyeler ({{count}})",
+    "leaderHint": "Sorumluyu değiştirmek için Leader’a tıklayın",
+    "leaderButton": "Leader",
+    "emptyMembersTitle": "Soldan ajan ekleyin",
+    "emptyMembersSubtitle": "İlk eklenen üye varsayılan Leader olur. Daha sonra istediğiniz zaman değiştirebilirsiniz.",
+    "agentDescriptionFallback": "Takım işbirliği için uygun bir ajan.",
+    "addMember": "Üye ekle",
+    "removeMember": "Üyeyi kaldır"
   },
   "detail": {
     "memberTab": "Takım Üyeleri",
@@ -87,5 +98,16 @@
     "deleteSuccess": "Takım silindi",
     "deleteFailed": "Takım silinemedi",
     "removeMember": "Bu üye takımdan kaldırılsın mı?"
+  },
+  "warmup": {
+    "title": "Takım uyandırılıyor",
+    "subtitle": "Takım üyeleri başlatılıyor. Lütfen bekleyin.",
+    "failedTitle": "Takım uyandırılamadı",
+    "failedHint": "Bazı üyeler başlatılamadı. Lütfen tekrar deneyin.",
+    "retry": "Tekrar dene"
+  },
+  "membership": {
+    "initialRosterNotice": "Kullanıcı takımı oluştururken bu takım arkadaşlarını önceden seçti. Bu üyeler zaten var; daha fazla üye oluşturmadan önce onları kullanmayı değerlendirin. İş delege etmeden önce en güncel roster için team_members çağırın.",
+    "memberAddedNotice": "Takıma bir teammate eklendi. İş delege etmeden önce en güncel roster için team_members çağırın."
   }
 }

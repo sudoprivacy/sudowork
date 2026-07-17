@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { ipcBridge } from '@/common';
-import type { IResponseMessage, ITeam, ITeamAssistantCandidate, ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
+import type { ICreateTeamMemberParams, IResponseMessage, ITeam, ITeamAssistantCandidate, ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
@@ -13,6 +13,7 @@ import { assistantManager } from '@/process/AssistantManager';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import { ACP_BACKENDS_ALL, resolvePresetAgentBackend, type AcpBackendAll, type PresetAgentType } from '@/types/acpTypes';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
+import i18n, { i18nReady } from '@process/i18n';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import type AcpAgent from '@process/task/AcpAgent';
 import { acpDetector } from '@/agent/acp/AcpDetector';
@@ -31,8 +32,6 @@ import { SlotWakeGate } from './SlotWakeGate';
 import type { WakeSource } from './WakeSource';
 
 const DEFAULT_LOCALE = 'en-US';
-/** Soft cap on concurrent member processes (each member = one CLI subprocess). */
-const MAX_TEAM_MEMBERS = 8;
 /** Per-frame body cap for the team-mcp HTTP loopback (plan §I.6). */
 const MAX_TEAM_MCP_BODY_BYTES = 64 * 1024 * 1024;
 const TEAM_MCP_PATH = '/team-mcp';
@@ -52,6 +51,16 @@ interface MemberRuntime {
   member: TeamMember;
   agent: AcpAgent | null;
   eventLoop: EventLoop | null;
+}
+
+interface SpawnMemberParams {
+  assistant_id: string;
+  name: string;
+  conversationName?: string;
+  model?: string;
+  role?: 'lead' | 'teammate';
+  wakeTeammateOnSpawn?: boolean;
+  notifyLeaderOnSpawn?: boolean;
 }
 
 /**
@@ -112,6 +121,8 @@ function toMemberIPC(m: TeamMember): ITeamMember {
 class TeamService {
   private initialized = false;
   private sessions = new Map<string, TeamSession>();
+  private pendingSessionCreates = new Map<string, Promise<TeamSession>>();
+  private pendingRebuilds = new Map<string, Promise<void>>();
   private streamUnsubscribe: (() => void) | null = null;
 
   async init(): Promise<void> {
@@ -138,6 +149,8 @@ class TeamService {
       session.httpServer?.close();
     }
     this.sessions.clear();
+    this.pendingSessionCreates.clear();
+    this.pendingRebuilds.clear();
     this.initialized = false;
   }
 
@@ -239,7 +252,31 @@ class TeamService {
     return await assistantManager.getAssistantMeta(selection.lookupName);
   }
 
-  async createTeam(userId: string, name: string, workspace: string | null, leaderAssistantId: string, leaderName?: string, leaderModel?: string): Promise<Team> {
+  private normalizeCreateTeamMembers(members: ICreateTeamMemberParams[], teamName: string): ICreateTeamMemberParams[] {
+    if (!Array.isArray(members) || members.length === 0) throw new Error('At least one team member is required');
+    const normalized: ICreateTeamMemberParams[] = members.map((member) => {
+      const role = (member as { role?: unknown }).role;
+      if (role !== 'lead' && role !== 'teammate') throw new Error('Team member role must be lead or teammate');
+      return {
+        ...member,
+        role,
+        assistant_id: typeof member.assistant_id === 'string' ? member.assistant_id.trim() : '',
+        name: typeof member.name === 'string' ? member.name.trim() || (role === 'lead' ? teamName : '') : role === 'lead' ? teamName : '',
+      };
+    });
+    for (const member of normalized) {
+      if (!member.assistant_id) throw new Error('Team member assistant_id is required');
+      if (!member.name) throw new Error('Team member name is required');
+    }
+    if (normalized.filter((member) => member.role === 'lead').length !== 1) throw new Error('Exactly one team member must be Leader');
+    return normalized;
+  }
+
+  async createTeam(userId: string, name: string, workspace: string | null, members: ICreateTeamMemberParams[]): Promise<Team> {
+    const normalizedMembers = this.normalizeCreateTeamMembers(members, name);
+    const leaderInput = normalizedMembers.find((member) => member.role === 'lead');
+    if (!leaderInput) throw new Error('Exactly one team member must be Leader');
+
     const now = Date.now();
     const teamId = uuid();
     const workspaceKind: TeamWorkspaceKind | null = workspace ? 'custom' : null;
@@ -260,10 +297,10 @@ class TeamService {
 
     try {
       const leader = await this.spawnMember(teamId, {
-        assistant_id: leaderAssistantId,
-        name: leaderName || name,
+        assistant_id: leaderInput.assistant_id,
+        name: leaderInput.name,
         conversationName: name,
-        model: leaderModel,
+        model: leaderInput.model,
         role: 'lead',
       });
       const updates: Partial<Team> = { leader_member_id: leader.id };
@@ -275,6 +312,21 @@ class TeamService {
         updates.workspace_kind = 'temporary';
       }
       teamStore.updateTeam(teamId, updates);
+
+      const teammates: TeamMember[] = [];
+      for (const member of normalizedMembers.filter((item) => item.role === 'teammate')) {
+        teammates.push(
+          await this.spawnMember(teamId, {
+            assistant_id: member.assistant_id,
+            name: member.name,
+            model: member.model,
+            role: 'teammate',
+            wakeTeammateOnSpawn: false,
+            notifyLeaderOnSpawn: false,
+          })
+        );
+      }
+      if (teammates.length > 0) await this.notifyLeaderInitialRoster(teamId);
 
       // Recovery drain: re-deliver any unread mailbox backlog at session start (no-op for a fresh team).
       const session = this.sessions.get(teamId);
@@ -290,13 +342,12 @@ class TeamService {
     }
   }
 
-  async spawnMember(teamId: string, params: { assistant_id: string; name: string; conversationName?: string; model?: string; role?: 'lead' | 'teammate' }): Promise<TeamMember> {
+  async spawnMember(teamId: string, params: SpawnMemberParams): Promise<TeamMember> {
     const team = teamStore.getTeam(teamId);
     if (!team) throw new Error(`Team not found: ${teamId}`);
     const role = params.role || 'teammate';
 
     const existing = teamStore.listMembersByTeam(teamId);
-    if (existing.length >= MAX_TEAM_MEMBERS) throw new Error(`Team full (max ${MAX_TEAM_MEMBERS})`);
     if (role === 'lead' && existing.some((m) => m.role === 'lead')) throw new Error('Team already has a leader');
 
     const selection = await this.resolveTeamAssistantSelection(params.assistant_id);
@@ -401,7 +452,7 @@ class TeamService {
 
     // Welcome a new teammate (附录 §1.3 / I.2 spawn_welcome): a lifecycle wake for an introductory
     // turn. Per 事实 8 a welcome-write failure fully rolls back the slot. The leader needs no welcome.
-    if (role === 'teammate') {
+    if (role === 'teammate' && params.wakeTeammateOnSpawn !== false) {
       const welcomeFrom = this.leaderSlotOrNull(teamId) ?? 'user';
       const welcomeId = uuid();
       try {
@@ -427,8 +478,13 @@ class TeamService {
       this.notifyWake(teamId, slotId);
     }
 
-    ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(member) });
-    return member;
+    const storedMember = teamStore.getMember(slotId) ?? member;
+    if (role === 'teammate' && params.notifyLeaderOnSpawn !== false) {
+      await this.notifyLeaderMemberAdded(teamId, storedMember);
+    }
+
+    ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(storedMember) });
+    return storedMember;
   }
 
   /**
@@ -496,17 +552,40 @@ class TeamService {
   async rebuildTeam(teamId: string): Promise<void> {
     const team = teamStore.getTeam(teamId);
     if (!team) return;
-    if (this.sessions.has(teamId)) return; // already active
-    const session = await this.ensureSession(teamId);
-    const members = teamStore.listMembersByTeam(teamId);
-    for (const m of members) {
-      if (!m.conversation_id) continue;
-      const convResult = getDatabase().getConversation(m.conversation_id);
-      if (!convResult.success || !convResult.data) continue;
-      await this.attachRuntime(teamId, m, convResult.data, session);
+    const pending = this.pendingRebuilds.get(teamId);
+    if (pending) return await pending;
+    if (this.sessions.has(teamId)) {
+      ipcBridge.team.onSessionChanged.emit({ teamId, status: 'ready' });
+      return;
     }
-    new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
-    mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
+
+    const rebuildPromise = this.rebuildTeamRuntime(teamId);
+    this.pendingRebuilds.set(teamId, rebuildPromise);
+    try {
+      await rebuildPromise;
+    } finally {
+      this.pendingRebuilds.delete(teamId);
+    }
+  }
+
+  private async rebuildTeamRuntime(teamId: string): Promise<void> {
+    ipcBridge.team.onSessionChanged.emit({ teamId, status: 'starting' });
+    try {
+      const session = await this.ensureSession(teamId);
+      const members = teamStore.listMembersByTeam(teamId);
+      for (const m of members) {
+        if (!m.conversation_id) continue;
+        const convResult = getDatabase().getConversation(m.conversation_id);
+        if (!convResult.success || !convResult.data) continue;
+        await this.attachRuntime(teamId, m, convResult.data, session);
+      }
+      new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
+      mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
+      ipcBridge.team.onSessionChanged.emit({ teamId, status: 'ready' });
+    } catch (error) {
+      ipcBridge.team.onSessionChanged.emit({ teamId, status: 'failed', error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
   }
 
   /** Stop a team's runtime (附录 §1.3 TeamSession.stop): tear down members + HTTP loopback. */
@@ -579,6 +658,51 @@ class TeamService {
       status: 'accepted',
       message_id: mailId,
     };
+  }
+
+  private formatRosterLine(member: TeamMember): string {
+    return `- ${member.name}: slot_id=${member.id}, role=${member.role}, status=${member.status}, backend=${member.backend}, model=${member.model ?? 'default'}`;
+  }
+
+  private writeLeaderMembershipNotice(teamId: string, content: string, fromMemberId: string): void {
+    const leaderId = this.leaderSlotOrNull(teamId);
+    if (!leaderId) throw new Error('Team has no leader');
+    const session = this.sessions.get(teamId);
+    if (!session) throw new Error(`Team session not active: ${teamId}`);
+    const mailId = uuid();
+    const { lease } = session.teamRun.acquireWake(leaderId, 'lead', 'team_membership_changed');
+    try {
+      teamStore.insertMail({
+        id: mailId,
+        team_id: teamId,
+        to_member_id: leaderId,
+        from_member_id: fromMemberId,
+        type: 'message',
+        content,
+        summary: null,
+        files: null,
+        read: false,
+        created_at: Date.now(),
+      });
+    } catch (error) {
+      session.teamRun.abortLease(lease.lease_id);
+      throw error;
+    }
+    session.teamRun.commitLease(lease.lease_id, { slot_id: leaderId, role: 'lead', source: 'team_membership_changed', message_id: mailId });
+    this.notifyWake(teamId, leaderId);
+  }
+
+  private async notifyLeaderInitialRoster(teamId: string): Promise<void> {
+    const members = teamStore.listMembersByTeam(teamId);
+    const teammates = members.filter((member) => member.role === 'teammate');
+    if (teammates.length === 0) return;
+    await i18nReady;
+    this.writeLeaderMembershipNotice(teamId, `${i18n.t('team.membership.initialRosterNotice')}\n\n${members.map((member) => this.formatRosterLine(member)).join('\n')}`, 'team_system');
+  }
+
+  private async notifyLeaderMemberAdded(teamId: string, member: TeamMember): Promise<void> {
+    await i18nReady;
+    this.writeLeaderMembershipNotice(teamId, `${i18n.t('team.membership.memberAddedNotice')}\n\n${this.formatRosterLine(member)}\n- assistant_id=${member.assistant_id ?? ''}`, member.id);
   }
 
   private async rollbackInsertedTeam(teamId: string): Promise<void> {
@@ -799,6 +923,19 @@ class TeamService {
   private async ensureSession(teamId: string): Promise<TeamSession> {
     const existing = this.sessions.get(teamId);
     if (existing) return existing;
+    const pending = this.pendingSessionCreates.get(teamId);
+    if (pending) return await pending;
+
+    const createPromise = this.createSession(teamId);
+    this.pendingSessionCreates.set(teamId, createPromise);
+    try {
+      return await createPromise;
+    } finally {
+      this.pendingSessionCreates.delete(teamId);
+    }
+  }
+
+  private async createSession(teamId: string): Promise<TeamSession> {
     const { server, port, token } = await this.startTeamHttpServer(teamId);
     const wakeGate = new SlotWakeGate();
     const crashRecovery = new CrashRecovery({

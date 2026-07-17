@@ -18,7 +18,18 @@
     "submit": "作成",
     "cancel": "キャンセル",
     "noAssistants": "利用可能なアシスタントがありません。先にインストールしてください。",
-    "createFailed": "チームの作成に失敗しました。入力内容を確認してから再試行してください。"
+    "createFailed": "チームの作成に失敗しました。入力内容を確認してから再試行してください。",
+    "subtitle": "チームに参加するエージェントを1つ以上選び、そのうち1つを Leader に指定します。",
+    "searchPlaceholder": "エージェント名または説明で検索",
+    "allAssistantsCount": "すべてのエージェント（{{count}}）",
+    "selectedMembersCount": "選択済みメンバー（{{count}}）",
+    "leaderHint": "Leader をクリックして担当者を変更",
+    "leaderButton": "Leader",
+    "emptyMembersTitle": "左側からエージェントを追加",
+    "emptyMembersSubtitle": "最初に追加したメンバーが既定の Leader になります。後からいつでも変更できます。",
+    "agentDescriptionFallback": "チーム協業に適したエージェントです。",
+    "addMember": "メンバーを追加",
+    "removeMember": "メンバーを削除"
   },
   "detail": {
     "memberTab": "チームメンバー",
@@ -87,5 +98,16 @@
     "deleteSuccess": "チームを削除しました",
     "deleteFailed": "チームの削除に失敗しました",
     "removeMember": "このメンバーをチームから削除しますか？"
+  },
+  "warmup": {
+    "title": "チームを起動中",
+    "subtitle": "チームメンバーを起動しています。しばらくお待ちください。",
+    "failedTitle": "チームの起動に失敗しました",
+    "failedHint": "一部のメンバーを起動できませんでした。再試行してください。",
+    "retry": "再試行"
+  },
+  "membership": {
+    "initialRosterNotice": "ユーザーはチーム作成時にこれらのチームメイトを事前選択しました。これらのメンバーはすでに存在するため、追加メンバーを作成する前に優先して検討してください。作業を委任する前に team_members を呼び出して最新の roster を取得してください。",
+    "memberAddedNotice": "チームメイトがチームに追加されました。作業を委任する前に team_members を呼び出して最新の roster を取得してください。"
   }
 }

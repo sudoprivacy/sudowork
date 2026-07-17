@@ -52,7 +52,7 @@ export function initTeamBridge(): void {
 
   ipcBridge.team.createTeam.provider(async (params) => {
     try {
-      return await teamService.createTeam(getDatabase().getDefaultUserId(), params.name, params.workspace ?? null, params.leader_assistant_id, params.leader_name, params.leader_model);
+      return await teamService.createTeam(getDatabase().getDefaultUserId(), params.name, params.workspace ?? null, params.members);
     } catch (err) {
       mainError('TeamBridge', 'createTeam failed:', err);
       return errEnvelope(err);

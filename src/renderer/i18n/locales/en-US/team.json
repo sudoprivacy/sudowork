@@ -18,7 +18,18 @@
     "submit": "Create",
     "cancel": "Cancel",
     "noAssistants": "No assistants available. Install one first.",
-    "createFailed": "Failed to create team. Check the information and try again."
+    "createFailed": "Failed to create team. Check the information and try again.",
+    "subtitle": "Select one or more agents for the team and choose one as Leader.",
+    "searchPlaceholder": "Search agents by name or description",
+    "allAssistantsCount": "All agents ({{count}})",
+    "selectedMembersCount": "Selected members ({{count}})",
+    "leaderHint": "Click Leader to choose the owner",
+    "leaderButton": "Leader",
+    "emptyMembersTitle": "Add agents from the left",
+    "emptyMembersSubtitle": "The first added member becomes Leader by default. You can change it anytime.",
+    "agentDescriptionFallback": "An agent suitable for team collaboration.",
+    "addMember": "Add member",
+    "removeMember": "Remove member"
   },
   "detail": {
     "memberTab": "Team Members",
@@ -87,5 +98,16 @@
     "deleteSuccess": "Team deleted",
     "deleteFailed": "Failed to delete team",
     "removeMember": "Remove this member from the team?"
+  },
+  "warmup": {
+    "title": "Waking up team",
+    "subtitle": "Starting team members. Please wait.",
+    "failedTitle": "Team wakeup failed",
+    "failedHint": "Some members failed to start. Please retry.",
+    "retry": "Retry"
+  },
+  "membership": {
+    "initialRosterNotice": "The user pre-selected these teammates when creating the team. They already exist and should be considered before creating more teammates. Call team_members to get the latest roster before delegating work.",
+    "memberAddedNotice": "A teammate was added to the team. Call team_members to get the latest roster before delegating work."
   }
 }
