@@ -78,6 +78,7 @@ export default defineConfig({
         'src/process/services/local-kb/buildExecutor.ts',
         'src/process/services/local-kb/embeddingModelService.ts',
         'src/process/services/local-kb/LocalKnowledgeBaseService.ts',
+        'src/process/services/poppler/PopplerRuntimeService.ts',
         'src/process/services/nexus-vfs/FusePluginClient.ts',
         'src/process/telemetry/SudoLogTelemetryReporter.ts',
         'src/process/bridge/updateBridge.ts',
