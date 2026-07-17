@@ -222,6 +222,10 @@ function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
     const fullPath = path.join(outDir, relativePath);
     if (!fs.existsSync(fullPath)) missing.push(relativePath);
   };
+  const expectOneFile = (relativePaths) => {
+    const hasAny = relativePaths.some((relativePath) => fs.existsSync(path.join(outDir, relativePath)));
+    if (!hasAny) missing.push(relativePaths.join(' or '));
+  };
 
   if (args.includes('--win') || args.includes('--all')) {
     expectFile(path.join('win-unpacked', 'Sudowork.exe'));
@@ -237,7 +241,7 @@ function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
   }
 
   if (args.includes('--linux') || args.includes('--all')) {
-    expectFile(path.join('linux-unpacked', 'sudowork'));
+    expectOneFile([path.join('linux-unpacked', 'Sudowork'), path.join('linux-unpacked', 'sudowork')]);
     const appImageNames = [
       `Sudowork-${appVersion}-linux-${targetArch}.AppImage`,
       `Sudowork-${appVersion}-linux-x86_64.AppImage`,
