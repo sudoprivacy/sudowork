@@ -29,6 +29,7 @@ import { TaskBoard } from './TaskBoard';
 import { CrashRecovery } from './CrashRecovery';
 import { mergeTeamAssistants, type DetectedAgentLike, type InstalledAssistantLike } from './assistantMerger';
 import { SlotWakeGate } from './SlotWakeGate';
+import { detectTeamUserLanguage, type TeamUserLanguage } from './TeamLanguage';
 import type { WakeSource } from './WakeSource';
 
 const DEFAULT_LOCALE = 'en-US';
@@ -86,6 +87,7 @@ interface TeamSession {
   crashRecovery: CrashRecovery;
   /** Pending shutdown requests: slot_id → reason. Drives the shutdown-protocol interception in team_send_message. */
   pendingShutdowns: Map<string, string | null>;
+  latestUserLanguage: TeamUserLanguage | null;
   httpServer: http.Server | null;
   port: number;
   token: string;
@@ -652,6 +654,7 @@ class TeamService {
       leaderSlotId: () => this.leaderSlot(teamId),
       onWakeSlot: (targetSlot, source, messageId) => this.recordSystemWake(teamId, targetSlot, source, messageId),
       lookupMember: (sid) => this.lookupMember(teamId, sid),
+      getLatestUserLanguage: () => session.latestUserLanguage,
     });
     runtime.eventLoop = eventLoop;
     eventLoop.start();
@@ -762,6 +765,7 @@ class TeamService {
     const { lease } = session.teamRun.acquireWake(slotId, runtime.member.role, 'user_message');
     try {
       teamStore.insertMail(mail);
+      session.latestUserLanguage = detectTeamUserLanguage(input);
     } catch (e) {
       session.teamRun.abortLease(lease.lease_id);
       throw e;
@@ -1088,12 +1092,14 @@ class TeamService {
       },
       notifyWake: (slot, source, messageId) => this.recordSystemWake(teamId, slot, source, messageId),
     });
+    const latestUserMail = teamStore.getLatestUserMail(teamId);
     const session: TeamSession = {
       members: new Map(),
       wakeGate,
       teamRun: new TeamRunManager(teamId, wakeGate),
       crashRecovery,
       pendingShutdowns: new Map(),
+      latestUserLanguage: latestUserMail ? detectTeamUserLanguage(latestUserMail.content) : null,
       httpServer: server,
       port,
       token,

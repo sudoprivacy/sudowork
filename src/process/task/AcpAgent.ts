@@ -86,7 +86,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
 import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
-import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
+import { applyHiddenPromptPrefix, buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import { buildGeneratedFileEntries as buildGeneratedFileEntriesFromTracked, resolveFinalFileDisplayPath as resolveFinalFileDisplayPathPure } from './generatedFileEntries';
 import BaseAgent from './BaseAgent';
@@ -714,7 +714,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // ========== Public API (BaseAgent contract) ==========
 
-  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[] }): Promise<{
+  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string }): Promise<{
     success: boolean;
     msg?: string;
     message?: string;
@@ -1094,6 +1094,8 @@ This identity statement takes priority over the default identity in USER.md.
         } catch (augErr) {
           mainWarn('[AcpAgent]', 'Dify augment failed; sending original message:', augErr);
         }
+
+        contentToSend = applyHiddenPromptPrefix(contentToSend, data.hiddenPromptPrefix);
 
         const agentSendStart = Date.now();
         const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages, true);

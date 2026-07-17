@@ -369,6 +369,12 @@ class TeamStore {
     if (!result.success) throw new Error(result.error);
   }
 
+  getLatestUserMail(teamId: string): TeamMail | null {
+    const result = getDatabase().queryOne<TeamMailboxRow>(`SELECT * FROM team_mailbox WHERE team_id = ? AND from_member_id = 'user' AND type = 'message' ORDER BY created_at DESC LIMIT 1`, teamId);
+    if (!result.success) throw new Error(result.error);
+    return result.data ? rowToMail(result.data) : null;
+  }
+
   /** Peek unread messages WITHOUT marking them read (peek-then-mark). */
   peekUnread(teamId: string, toMemberId: string): TeamMail[] {
     const result = getDatabase().query<TeamMailboxRow>(`SELECT * FROM team_mailbox WHERE team_id = ? AND to_member_id = ? AND read = 0 ORDER BY created_at ASC`, teamId, toMemberId);

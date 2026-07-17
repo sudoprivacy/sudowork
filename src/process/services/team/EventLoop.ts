@@ -6,6 +6,7 @@ import { teamStore, type TeamMail, type TeamMember } from './TeamStore';
 import { mirrorUnreadToConversation } from './MessageProjection';
 import type { TeamRunManager, TeamRunTurnStatus } from './TeamRun';
 import type { SlotWakeGate } from './SlotWakeGate';
+import { buildTeamUserLanguageContract, type TeamUserLanguage } from './TeamLanguage';
 import type { WakeSource } from './WakeSource';
 
 const EVENT_LOOP_STOP_TIMEOUT_MS = 3000;
@@ -48,6 +49,7 @@ export interface EventLoopDeps {
   onWakeSlot: (slotId: string, source: WakeSource, messageId?: string | null) => void;
   /** Resolve a slot_id to its member (sender lookup for message projection). */
   lookupMember: (slotId: string) => TeamMember | null;
+  getLatestUserLanguage?: () => TeamUserLanguage | null;
 }
 
 interface WakeInput {
@@ -161,7 +163,9 @@ export class EventLoop {
     const turnId = uuid();
     try {
       const text = messages.map((m) => m.content).join('\n\n');
-      await agent.sendMessage({ content: text, msg_id: turnId });
+      const latestUserLanguage = this.deps.getLatestUserLanguage?.() ?? null;
+      const hiddenPromptPrefix = latestUserLanguage ? buildTeamUserLanguageContract(latestUserLanguage) : undefined;
+      await agent.sendMessage({ content: text, msg_id: turnId, hiddenPromptPrefix });
       if (!this.alive) return null;
       // Stage 2 → 3: starting_reservations → active_child_turns (turn has run).
       this.deps.teamRun.recordChildStarted(reservation, turnId, this.deps.member.conversation_id ?? '');
