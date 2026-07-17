@@ -7,6 +7,10 @@ vi.mock('electron', () => ({
   },
 }));
 
+vi.mock('@/process/utils', () => ({
+  getDataPath: vi.fn(() => '/tmp/sudowork-poppler-test-nexus'),
+}));
+
 import { PopplerRuntimeService } from '@/process/services/poppler/PopplerRuntimeService';
 
 const originalPlatform = process.platform;
@@ -27,15 +31,15 @@ describe('PopplerRuntimeService', () => {
     setProcessTarget('darwin', 'arm64');
     const service = new PopplerRuntimeService();
 
-    expect(service.getBinDir()).toBe(path.join('/tmp/sudowork-poppler-test-user-data', 'poppler-runtime', 'current', 'bin'));
-    expect(service.getToolPath('pdftotext')).toBe(path.join('/tmp/sudowork-poppler-test-user-data', 'poppler-runtime', 'current', 'bin', 'pdftotext'));
+    expect(service.getBinDir()).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'bin'));
+    expect(service.getToolPath('pdftotext')).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'bin', 'pdftotext'));
   });
 
   it('resolves managed Windows tools from Library/bin with exe suffix', () => {
     setProcessTarget('win32', 'x64');
     const service = new PopplerRuntimeService();
 
-    expect(service.getBinDir()).toBe(path.join('/tmp/sudowork-poppler-test-user-data', 'poppler-runtime', 'current', 'Library', 'bin'));
-    expect(service.getToolPath('pdftotext')).toBe(path.join('/tmp/sudowork-poppler-test-user-data', 'poppler-runtime', 'current', 'Library', 'bin', 'pdftotext.exe'));
+    expect(service.getBinDir()).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'Library', 'bin'));
+    expect(service.getToolPath('pdftotext')).toBe(path.join('/tmp/sudowork-poppler-test-nexus', 'sudowork', 'poppler-runtime', 'current', 'Library', 'bin', 'pdftotext.exe'));
   });
 });

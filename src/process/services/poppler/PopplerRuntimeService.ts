@@ -4,9 +4,9 @@ import http from 'http';
 import https from 'https';
 import path from 'path';
 import { promisify } from 'util';
-import { app } from 'electron';
 import { COS_RUNTIME_BASE } from '@/shared/cos';
 import { extractTarGzWithProgress } from '@process/services/archiveProgress';
+import { getDataPath } from '@process/utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -31,10 +31,12 @@ export class PopplerRuntimeService {
   async checkManaged(): Promise<IPopplerStatus> {
     const pdftotext = this.getToolPath('pdftotext');
     if (!this.hasRequiredTools()) return { installed: false };
+    const version = await this.readVersion(pdftotext);
+    if (!version) return { installed: false };
     return {
       installed: true,
       path: pdftotext,
-      version: await this.readVersion(pdftotext),
+      version,
     };
   }
 
@@ -76,9 +78,9 @@ export class PopplerRuntimeService {
 
       fs.rmSync(installDir, { recursive: true, force: true });
       fs.mkdirSync(path.dirname(installDir), { recursive: true });
-      fs.cpSync(stageDir, installDir, { recursive: true });
+      fs.cpSync(stageDir, installDir, { recursive: true, dereference: true });
       await this.makeExecutablesRunnable(installDir);
-      if (!this.hasRequiredTools()) {
+      if (!(await this.checkManaged()).installed) {
         throw new Error('Poppler install verification failed');
       }
       onProgress('verifying', 100);
@@ -97,7 +99,7 @@ export class PopplerRuntimeService {
   }
 
   private getRootDir(): string {
-    return path.join(app.getPath('userData'), 'poppler-runtime');
+    return path.join(getDataPath(), 'sudowork', 'poppler-runtime');
   }
 
   private getInstallDir(): string {
