@@ -222,12 +222,23 @@ export class LocalKnowledgeBuildExecutor {
       connection.onPromptUsage = debugRecorder.onPromptUsage;
       connection.onEndTurn = debugRecorder.onEndTurn;
       db.updateLocalKbBuildJob(jobId, { progress: 25, currentStep: `已发送 Wiki 构建提示词（${prompt.length} 字符），等待 scode 输出文件；调试日志：${LOCAL_KB_DEBUG_EVENTS_FILE}` });
+      const waitAbortController = new AbortController();
       const promptPromise = connection.sendPrompt(prompt).catch(async (err) => {
         if ((await inspectWikiOutput(stageDir)).isComplete) return;
         await debugRecorder.recordError(err);
         throw err;
       });
-      await Promise.race([promptPromise, waitForScodeWikiOutput(stageDir, jobId, startedAt), new Promise((_, reject) => setTimeout(() => reject(new Error('scode wiki build timed out')), BUILD_TIMEOUT_MS))]);
+      let timeout: ReturnType<typeof setTimeout> | null = null;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('scode wiki build timed out')), BUILD_TIMEOUT_MS);
+        timeout.unref();
+      });
+      try {
+        await Promise.race([promptPromise, waitForScodeWikiOutput(stageDir, jobId, startedAt, waitAbortController.signal), timeoutPromise]);
+      } finally {
+        waitAbortController.abort();
+        if (timeout) clearTimeout(timeout);
+      }
       return hasValidWikiOutput(stageDir);
     } finally {
       await connection.disconnect().catch((): undefined => undefined);
@@ -381,11 +392,12 @@ async function hasValidWikiOutput(stageDir: string): Promise<boolean> {
   return true;
 }
 
-async function waitForScodeWikiOutput(stageDir: string, jobId: string, startedAt = Date.now()): Promise<void> {
+async function waitForScodeWikiOutput(stageDir: string, jobId: string, startedAt = Date.now(), signal?: AbortSignal): Promise<void> {
   const db = getDatabase();
   let lastProgress = 25;
   let lastIdleUpdateAt = 0;
   while (Date.now() - startedAt < BUILD_TIMEOUT_MS) {
+    if (signal?.aborted) return;
     const status = await inspectWikiOutput(stageDir);
     if (status.hasIndex || status.existingChunkCount > 0) {
       const progress = Math.max(lastProgress, Math.min(75, 25 + Math.round(status.completionRatio * 50)));
@@ -405,6 +417,7 @@ async function waitForScodeWikiOutput(stageDir: string, jobId: string, startedAt
 
     if (status.isComplete) {
       await delay(SCODE_OUTPUT_SETTLE_MS);
+      if (signal?.aborted) return;
       const settledStatus = await inspectWikiOutput(stageDir);
       if (settledStatus.isComplete) return;
     }

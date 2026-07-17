@@ -23,6 +23,8 @@ describe('local KB query', () => {
 
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
+    vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
   it('extracts titles from frontmatter before markdown headings', () => {
@@ -81,5 +83,17 @@ describe('local KB query', () => {
 
     expect(result.mode).toBe('grep-only');
     expect(result.hits).toEqual([]);
+  });
+
+  it('returns grep hits when vector search is not ready', async () => {
+    vi.mocked(searchLocalKbVector).mockImplementationOnce(() => new Promise(() => undefined));
+    await fs.writeFile(path.join(tempDir, 'SPACE.md'), '# Space\n\nalpha overview\n', 'utf8');
+
+    const startedAt = Date.now();
+    const result = await searchLocalKbSpaceGrep('space-1', tempDir, 'alpha');
+
+    expect(result.mode).toBe('grep-only');
+    expect(result.hits.map((hit) => `${hit.file}:${hit.lineNo}`)).toEqual(['SPACE.md:3']);
+    expect(Date.now() - startedAt).toBeLessThan(3_000);
   });
 });

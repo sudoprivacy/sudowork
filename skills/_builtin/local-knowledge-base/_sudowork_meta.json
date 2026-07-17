@@ -1,0 +1,17 @@
+{
+  "id": "local-knowledge-base",
+  "name": "local-knowledge-base",
+  "display_name": "本地知识库",
+  "description": "检索和读取 Sudowork 客户端本地知识库，供聊天框中的 agent 使用。",
+  "icon": "",
+  "emoji": "📚",
+  "category": "",
+  "categories": ["知识库"],
+  "applicable_scenarios": "[\"本地知识库问答：从客户端已构建的知识库中检索答案\",\"文档引用：读取本地 Wiki chunk 并引用来源\",\"个人知识空间：查询用户导入的本地目录和文档\"]",
+  "core_features": "[{\"title\":\"本地检索\",\"desc\":\"通过 Sudowork 客户端检索本地知识库\"},{\"title\":\"Wiki 读取\",\"desc\":\"读取 SPACE.md 和 chunk 文件\"},{\"title\":\"来源引用\",\"desc\":\"返回 local-kb 来源定位\"}]",
+  "homepage": null,
+  "author_id": "sudowork",
+  "is_builtin": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-07-17T00:00:00.000Z"
+}

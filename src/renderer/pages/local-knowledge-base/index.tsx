@@ -1,46 +1,69 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Divider, Empty, Form, Input, List, Message, Modal, Progress, Space, Spin, Tag, Typography } from '@arco-design/web-react';
-import { BookOpen, Edit3, FileText, Folder, FolderPlus, Play, Plus, RefreshCw, Search, Settings, Trash2 } from 'lucide-react';
+import { Button, Card, Empty, Form, Input, List, Message, Modal, Progress, Space, Spin, Tag, Typography } from '@arco-design/web-react';
+import { BookOpen, Edit3, FileText, Folder, Play, Plus, RefreshCw, Search, Settings, Trash2 } from 'lucide-react';
 import { ipcBridge } from '@/common';
-import type { ILocalKbBuildJob, ILocalKbCategory, ILocalKbDependencyStatus, ILocalKbDocument, ILocalKbInstallProgress, ILocalKbSearchHit, ILocalKbSpace } from '@/common/types/localKnowledgeBase';
+import type { ILocalKbBuildJob, ILocalKbDependencyStatus, ILocalKbDocument, ILocalKbInstallProgress, ILocalKbSearchHit, ILocalKbSpace } from '@/common/types/localKnowledgeBase';
+
+const DOCUMENT_PAGE_SIZE = 6;
+const LOCAL_KB_PANEL_CARD_CLASS = 'flex h-[420px] min-h-0 min-w-0 flex-col overflow-hidden [&_.arco-card-body]:h-0 [&_.arco-card-body]:flex-1';
+const FLEX_CARD_BODY_STYLE: React.CSSProperties = {
+  display: 'flex',
+  flex: '1 1 auto',
+  flexDirection: 'column',
+  minHeight: 0,
+  overflow: 'hidden',
+};
 
 export default function LocalKnowledgeBasePage() {
   const { t } = useTranslation();
-  const [categories, setCategories] = useState<ILocalKbCategory[]>([]);
   const [spaces, setSpaces] = useState<ILocalKbSpace[]>([]);
   const [documents, setDocuments] = useState<ILocalKbDocument[]>([]);
   const [jobs, setJobs] = useState<ILocalKbBuildJob[]>([]);
   const [dependencies, setDependencies] = useState<ILocalKbDependencyStatus | null>(null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [isQueueingBuild, setIsQueueingBuild] = useState(false);
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
   const [isSpaceModalOpen, setIsSpaceModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<ILocalKbCategory | null>(null);
   const [editingSpace, setEditingSpace] = useState<ILocalKbSpace | null>(null);
   const [nameValue, setNameValue] = useState('');
   const [descriptionValue, setDescriptionValue] = useState('');
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<ILocalKbSearchHit[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [spaceQuery, setSpaceQuery] = useState('');
+  const [documentQuery, setDocumentQuery] = useState('');
+  const [documentPage, setDocumentPage] = useState(1);
   const [isInstallingEmbedding, setIsInstallingEmbedding] = useState(false);
   const [embeddingInstallProgress, setEmbeddingInstallProgress] = useState<ILocalKbInstallProgress | null>(null);
 
   const selectedSpace = useMemo(() => spaces.find((space) => space.id === selectedSpaceId) ?? null, [selectedSpaceId, spaces]);
-  const visibleSpaces = useMemo(() => (selectedCategoryId ? spaces.filter((space) => space.categoryId === selectedCategoryId) : spaces), [selectedCategoryId, spaces]);
+  const visibleSpaces = useMemo(() => {
+    const q = spaceQuery.trim().toLowerCase();
+    if (!q) return spaces;
+    return spaces.filter((space) => `${space.name}\n${space.description ?? ''}`.toLowerCase().includes(q));
+  }, [spaceQuery, spaces]);
+  const visibleDocuments = useMemo(() => {
+    const q = documentQuery.trim().toLowerCase();
+    if (!q) return documents;
+    return documents.filter((doc) => `${doc.relativePath ?? doc.fileName}\n${doc.fileName}\n${doc.parseStatus}`.toLowerCase().includes(q));
+  }, [documentQuery, documents]);
+  const pagedDocuments = useMemo(() => visibleDocuments.slice((documentPage - 1) * DOCUMENT_PAGE_SIZE, documentPage * DOCUMENT_PAGE_SIZE), [documentPage, visibleDocuments]);
+  const documentPageCount = useMemo(() => Math.max(1, Math.ceil(visibleDocuments.length / DOCUMENT_PAGE_SIZE)), [visibleDocuments.length]);
   const activeJob = useMemo(() => jobs.find((job) => job.status === 'running' || job.status === 'queued') ?? null, [jobs]);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [categoryRes, spaceRes, depRes] = await Promise.all([ipcBridge.localKnowledgeBase.listCategories.invoke(), ipcBridge.localKnowledgeBase.listSpaces.invoke(undefined), ipcBridge.localKnowledgeBase.getDependencyStatus.invoke()]);
-      if (!categoryRes.success || !spaceRes.success || !depRes.success) {
-        throw new Error(categoryRes.msg || spaceRes.msg || depRes.msg);
+      const [spaceRes, depRes] = await Promise.all([ipcBridge.localKnowledgeBase.listSpaces.invoke(undefined), ipcBridge.localKnowledgeBase.getDependencyStatus.invoke()]);
+      if (!spaceRes.success || !depRes.success) {
+        throw new Error(spaceRes.msg || depRes.msg);
       }
-      setCategories(categoryRes.data ?? []);
-      setSpaces(spaceRes.data ?? []);
+      const nextSpaces = spaceRes.data ?? [];
+      setSpaces(nextSpaces);
+      setSelectedSpaceId((current) => (current && nextSpaces.some((space) => space.id === current) ? current : (nextSpaces[0]?.id ?? null)));
       setDependencies(depRes.data ?? null);
     } catch (err) {
       showError(t, err);
@@ -100,6 +123,8 @@ export default function LocalKnowledgeBasePage() {
     void refreshSpaceDetail();
     setHits([]);
     setQuery('');
+    setDocumentQuery('');
+    setDocumentPage(1);
     if (!selectedSpaceId) return;
     const timer = window.setInterval(() => {
       void refreshSpaceDetail();
@@ -107,33 +132,13 @@ export default function LocalKnowledgeBasePage() {
     return () => window.clearInterval(timer);
   }, [refreshSpaceDetail, selectedSpaceId]);
 
-  const onSubmitCategory = async () => {
-    const name = nameValue.trim();
-    if (!name) {
-      Message.error(t('localKb.nameRequired'));
-      return;
-    }
-    const input = { name, description: descriptionValue.trim() || null };
-    const res = editingCategory ? await ipcBridge.localKnowledgeBase.updateCategory.invoke({ id: editingCategory.id, updates: input }) : await ipcBridge.localKnowledgeBase.createCategory.invoke(input);
-    if (!res.success) {
-      Message.error(t('localKb.operationFailed', { message: res.msg }));
-      return;
-    }
-    Message.success(t(editingCategory ? 'localKb.updateCategorySuccess' : 'localKb.createCategorySuccess'));
-    setIsCategoryModalOpen(false);
-    setEditingCategory(null);
-    setNameValue('');
-    setDescriptionValue('');
-    await refresh();
-  };
-
   const onSubmitSpace = async () => {
     const name = nameValue.trim();
     if (!name) {
       Message.error(t('localKb.nameRequired'));
       return;
     }
-    const input = { categoryId: editingSpace ? editingSpace.categoryId : selectedCategoryId, name, description: descriptionValue.trim() || null };
+    const input = { categoryId: null as string | null, name, description: descriptionValue.trim() || null };
     const res = editingSpace ? await ipcBridge.localKnowledgeBase.updateSpace.invoke({ id: editingSpace.id, updates: input }) : await ipcBridge.localKnowledgeBase.createSpace.invoke({ ...input, sourceMode: 'files' });
     if (!res.success) {
       Message.error(t('localKb.operationFailed', { message: res.msg }));
@@ -146,32 +151,6 @@ export default function LocalKnowledgeBasePage() {
     setNameValue('');
     setDescriptionValue('');
     await refresh();
-  };
-
-  const onEditCategory = (category: ILocalKbCategory) => {
-    setEditingCategory(category);
-    setNameValue(category.name);
-    setDescriptionValue(category.description ?? '');
-    setIsCategoryModalOpen(true);
-  };
-
-  const onDeleteCategory = (category: ILocalKbCategory) => {
-    Modal.confirm({
-      title: t('localKb.deleteCategoryTitle'),
-      content: t('localKb.deleteCategoryContent', { name: category.name }),
-      okText: t('localKb.delete'),
-      cancelText: t('localKb.cancel'),
-      onOk: async () => {
-        const res = await ipcBridge.localKnowledgeBase.deleteCategory.invoke({ id: category.id });
-        if (!res.success) {
-          Message.error(t('localKb.operationFailed', { message: res.msg }));
-          return;
-        }
-        Message.success(t('localKb.deleteCategorySuccess'));
-        if (selectedCategoryId === category.id) setSelectedCategoryId(null);
-        await refresh();
-      },
-    });
   };
 
   const onEditSpace = (space: ILocalKbSpace) => {
@@ -196,6 +175,31 @@ export default function LocalKnowledgeBasePage() {
         Message.success(t('localKb.deleteSpaceSuccess'));
         if (selectedSpaceId === space.id) setSelectedSpaceId(null);
         await refresh();
+      },
+    });
+  };
+
+  const onDeleteDocument = (doc: ILocalKbDocument) => {
+    if (!selectedSpaceId) return;
+    Modal.confirm({
+      title: t('localKb.deleteDocumentTitle'),
+      content: t('localKb.deleteDocumentContent', { name: doc.relativePath || doc.fileName }),
+      okText: t('localKb.delete'),
+      cancelText: t('localKb.cancel'),
+      onOk: async () => {
+        setDeletingDocumentId(doc.id);
+        try {
+          const res = await ipcBridge.localKnowledgeBase.deleteDocument.invoke({ spaceId: selectedSpaceId, documentId: doc.id });
+          if (!res.success) {
+            Message.error(t('localKb.operationFailed', { message: res.msg }));
+            return;
+          }
+          Message.success(t('localKb.deleteDocumentSuccess'));
+          await refresh();
+          await refreshSpaceDetail();
+        } finally {
+          setDeletingDocumentId(null);
+        }
       },
     });
   };
@@ -261,13 +265,22 @@ export default function LocalKnowledgeBasePage() {
 
   const onSearch = async () => {
     if (!selectedSpaceId || !query.trim()) return;
-    const res = await ipcBridge.localKnowledgeBase.search.invoke({ spaceId: selectedSpaceId, query });
-    if (!res.success) {
-      Message.error(t('localKb.operationFailed', { message: res.msg }));
-      return;
+    setIsSearching(true);
+    try {
+      const res = await ipcBridge.localKnowledgeBase.search.invoke({ spaceId: selectedSpaceId, query: query.trim() });
+      if (!res.success) {
+        Message.error(t('localKb.operationFailed', { message: res.msg }));
+        return;
+      }
+      setHits(res.data?.hits ?? []);
+    } finally {
+      setIsSearching(false);
     }
-    setHits(res.data?.hits ?? []);
   };
+
+  useEffect(() => {
+    if (documentPage > documentPageCount) setDocumentPage(documentPageCount);
+  }, [documentPage, documentPageCount]);
 
   const onInstallEmbeddingModel = async () => {
     setIsInstallingEmbedding(true);
@@ -280,82 +293,50 @@ export default function LocalKnowledgeBasePage() {
   };
 
   return (
-    <div className='h-full overflow-auto bg-color-bg-1 p-4'>
-      <div className='mb-4 flex items-center justify-between gap-3'>
-        <div>
+    <div className='flex h-full min-h-0 flex-col overflow-hidden bg-color-bg-1 p-4'>
+      <div className='mb-4 flex flex-shrink-0 flex-wrap items-center justify-between gap-3'>
+        <div className='min-w-0'>
           <Typography.Title heading={4} className='mb-1! flex items-center gap-2'>
             <BookOpen size={20} />
             {t('localKb.title')}
           </Typography.Title>
-          <Typography.Text type='secondary'>{t('localKb.description')}</Typography.Text>
+          <Typography.Text className='block max-w-[760px]' type='secondary'>
+            {t('localKb.description')}
+          </Typography.Text>
         </div>
-        <Button icon={<RefreshCw size={16} />} onClick={() => void refresh()}>
+        <Button className='flex-shrink-0' icon={<RefreshCw size={16} />} onClick={() => void refresh()}>
           {t('localKb.refresh')}
         </Button>
       </div>
 
-      <Spin loading={isLoading} className='w-full'>
-        <div className='grid grid-cols-[320px_1fr] gap-4'>
-          <Card className='h-[calc(100vh-150px)] overflow-auto' bordered>
-            <div className='mb-3 flex items-center justify-between'>
-              <Typography.Text bold>{t('localKb.categories')}</Typography.Text>
-              <Button size='mini' icon={<FolderPlus size={14} />} onClick={() => openCreateCategoryModal(setIsCategoryModalOpen, setEditingCategory, setNameValue, setDescriptionValue)}>
-                {t('localKb.newCategory')}
-              </Button>
-            </div>
-            <Button className='mb-2 w-full justify-start' type={selectedCategoryId === null ? 'primary' : 'secondary'} onClick={() => setSelectedCategoryId(null)}>
-              {t('localKb.allSpaces')}
-            </Button>
-            {categories.length === 0 ? (
-              <Empty description={t('localKb.emptyCategory')} />
-            ) : (
-              <List
-                size='small'
-                dataSource={categories}
-                render={(category) => (
-                  <List.Item key={category.id} className='cursor-pointer' onClick={() => setSelectedCategoryId(category.id)}>
-                    <div className='flex w-full items-center justify-between gap-2'>
-                      <Space className='min-w-0'>
-                        <Folder size={16} />
-                        <Typography.Text bold={selectedCategoryId === category.id} ellipsis>
-                          {category.name}
-                        </Typography.Text>
-                      </Space>
-                      <div className='flex items-center gap-1' onClick={(event) => event.stopPropagation()}>
-                        <Button size='mini' type='text' icon={<Edit3 size={13} />} onClick={() => onEditCategory(category)} />
-                        <Button size='mini' type='text' status='danger' icon={<Trash2 size={13} />} onClick={() => onDeleteCategory(category)} />
-                      </div>
-                    </div>
-                  </List.Item>
-                )}
-              />
-            )}
-
-            <Divider />
-
-            <div className='mb-3 flex items-center justify-between'>
+      <Spin loading={isLoading} className='min-h-0 flex-1 [&_.arco-spin-children]:h-full'>
+        <div className='grid h-full min-h-0 grid-cols-[300px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-4 max-lg:grid-cols-1 max-lg:grid-rows-[260px_minmax(0,1fr)]'>
+          <Card className='min-h-0 overflow-hidden' bordered bodyStyle={FLEX_CARD_BODY_STYLE}>
+            <div className='mb-3 flex flex-shrink-0 items-center justify-between gap-2'>
               <Typography.Text bold>{t('localKb.spaces')}</Typography.Text>
               <Button size='mini' icon={<Plus size={14} />} onClick={() => openCreateSpaceModal(setIsSpaceModalOpen, setEditingSpace, setNameValue, setDescriptionValue)}>
                 {t('localKb.newSpace')}
               </Button>
             </div>
+            <Input allowClear className='mb-3 flex-shrink-0' value={spaceQuery} onChange={setSpaceQuery} prefix={<Search size={14} />} placeholder={t('localKb.spaceSearchPlaceholder')} />
             {visibleSpaces.length === 0 ? (
-              <Empty description={t('localKb.emptySpace')} />
+              <Empty description={spaces.length === 0 ? t('localKb.emptySpace') : t('localKb.emptySpaceMatches')} />
             ) : (
               <List
+                className='min-h-0 flex-1 overflow-auto'
                 size='small'
                 dataSource={visibleSpaces}
                 render={(space) => (
                   <List.Item key={space.id} className='cursor-pointer' onClick={() => setSelectedSpaceId(space.id)}>
-                    <div className='flex w-full items-start justify-between gap-2'>
-                      <div className='min-w-0'>
+                    <div className='flex w-full min-w-0 items-start justify-between gap-2'>
+                      <div className='min-w-0 flex-1'>
                         <Space className='min-w-0'>
-                          <BookOpen size={16} />
+                          <BookOpen className='flex-shrink-0' size={16} />
                           <Typography.Text bold={selectedSpaceId === space.id} ellipsis>
                             {space.name}
                           </Typography.Text>
                         </Space>
-                        <div className='mt-1 flex gap-1'>
+                        <div className='mt-1 flex flex-wrap gap-1'>
                           <StatusTag value={space.buildStatus} />
                           <Tag size='small'>{space.retrievalMode === 'hybrid' ? t('localKb.hybrid') : t('localKb.grepOnly')}</Tag>
                         </div>
@@ -371,7 +352,7 @@ export default function LocalKnowledgeBasePage() {
             )}
           </Card>
 
-          <div className='min-w-0 space-y-4'>
+          <div className='min-h-0 min-w-0 space-y-4 overflow-auto overscroll-contain pr-1'>
             {!selectedSpace ? (
               <Card>
                 <Empty description={t('localKb.emptySpace')} />
@@ -379,22 +360,23 @@ export default function LocalKnowledgeBasePage() {
             ) : (
               <>
                 <Card>
-                  <div className='flex items-start justify-between gap-4'>
-                    <div className='min-w-0'>
-                      <Typography.Title heading={5} className='mb-1!'>
+                  <div className='flex flex-wrap items-start justify-between gap-4'>
+                    <div className='min-w-0 flex-1 basis-[280px]'>
+                      <Typography.Title heading={5} className='mb-1! break-words'>
                         {selectedSpace.name}
                       </Typography.Title>
-                      <Typography.Text type='secondary'>{selectedSpace.description || t('localKb.description')}</Typography.Text>
+                      {selectedSpace.description && (
+                        <Typography.Text className='block break-words' type='secondary'>
+                          {selectedSpace.description}
+                        </Typography.Text>
+                      )}
                       <div className='mt-3 flex flex-wrap gap-2'>
                         <StatusTag value={selectedSpace.buildStatus} />
-                        <Tag>{selectedSpace.retrievalMode === 'hybrid' ? t('localKb.hybrid') : t('localKb.grepOnly')}</Tag>
-                        <Tag>{selectedSpace.lastBuiltAt ? new Date(selectedSpace.lastBuiltAt).toLocaleString() : t('localKb.neverBuilt')}</Tag>
+                        <Tag size='small'>{selectedSpace.retrievalMode === 'hybrid' ? t('localKb.hybrid') : t('localKb.grepOnly')}</Tag>
+                        {selectedSpace.lastBuiltAt && <Tag size='small'>{new Date(selectedSpace.lastBuiltAt).toLocaleString()}</Tag>}
                       </div>
                     </div>
-                    <Space>
-                      <Button icon={<Edit3 size={16} />} disabled={selectedSpace.buildStatus === 'queued' || selectedSpace.buildStatus === 'running'} onClick={() => onEditSpace(selectedSpace)}>
-                        {t('localKb.edit')}
-                      </Button>
+                    <Space className='max-sm:w-full max-sm:[&_.arco-btn]:w-full max-sm:[&_.arco-space-item]:w-full' wrap>
                       <Button icon={<FileText size={16} />} loading={isImporting} disabled={selectedSpace.buildStatus === 'running'} onClick={() => void onSelectFiles()}>
                         {t('localKb.selectFiles')}
                       </Button>
@@ -406,48 +388,52 @@ export default function LocalKnowledgeBasePage() {
                       </Button>
                     </Space>
                   </div>
-                  {selectedSpace.lastBuildError && <Typography.Text type='error'>{selectedSpace.lastBuildError}</Typography.Text>}
+                  {selectedSpace.lastBuildError && (
+                    <Typography.Text className='mt-3 block break-words' type='error'>
+                      {selectedSpace.lastBuildError}
+                    </Typography.Text>
+                  )}
                   {activeJob && <BuildProgressPanel job={activeJob} documentCount={documents.filter((doc) => doc.parseStatus === 'parsed').length} />}
                 </Card>
 
-                <div className='grid grid-cols-2 gap-4'>
-                  <Card title={t('localKb.documents')}>
-                    {documents.length === 0 ? (
-                      <Empty description={t('localKb.emptyDocuments')} />
-                    ) : (
-                      <List
-                        size='small'
-                        dataSource={documents}
-                        render={(doc) => (
-                          <List.Item key={doc.id}>
-                            <div className='min-w-0 flex-1'>
-                              <Typography.Text ellipsis>{doc.relativePath || doc.fileName}</Typography.Text>
-                              <div className='mt-1 flex gap-2'>
-                                <Tag size='small'>{formatSize(doc.sizeBytes)}</Tag>
-                                <ParseTag value={doc.parseStatus} />
-                              </div>
-                            </div>
-                          </List.Item>
-                        )}
-                      />
-                    )}
-                  </Card>
+                <div className='grid grid-cols-2 gap-4 max-xl:grid-cols-1'>
+                  <DocumentPanel
+                    documents={documents}
+                    visibleDocuments={visibleDocuments}
+                    pagedDocuments={pagedDocuments}
+                    documentQuery={documentQuery}
+                    documentPage={documentPage}
+                    documentPageCount={documentPageCount}
+                    deletingDocumentId={deletingDocumentId}
+                    isBuildLocked={selectedSpace.buildStatus === 'queued' || selectedSpace.buildStatus === 'running'}
+                    onDocumentQueryChange={(value) => {
+                      setDocumentQuery(value);
+                      setDocumentPage(1);
+                    }}
+                    onDocumentPageChange={setDocumentPage}
+                    onDeleteDocument={onDeleteDocument}
+                  />
 
-                  <Card title={t('localKb.jobs')}>
+                  <Card className={LOCAL_KB_PANEL_CARD_CLASS} bodyStyle={FLEX_CARD_BODY_STYLE} title={t('localKb.jobs')}>
                     {jobs.length === 0 ? (
                       <Empty description={t('localKb.emptyJobs')} />
                     ) : (
                       <List
+                        className='min-h-0 flex-1 overflow-auto overscroll-contain'
                         size='small'
                         dataSource={jobs}
                         render={(job) => (
                           <List.Item key={job.id}>
                             <div className='w-full'>
-                              <div className='flex items-center justify-between'>
+                              <div className='flex flex-wrap items-center justify-between gap-2'>
                                 <StatusTag value={job.status} />
-                                <Typography.Text type='secondary'>{new Date(job.createdAt).toLocaleString()}</Typography.Text>
+                                <Typography.Text className='whitespace-nowrap' type='secondary'>
+                                  {new Date(job.createdAt).toLocaleString()}
+                                </Typography.Text>
                               </div>
-                              <Typography.Text type='secondary'>{job.currentStep || `${job.progress}%`}</Typography.Text>
+                              <Typography.Text className='block break-words' type='secondary'>
+                                {job.currentStep || `${job.progress}%`}
+                              </Typography.Text>
                               <Progress className='mt-2' percent={Math.max(0, Math.min(100, job.progress))} size='small' status={job.status === 'failed' ? 'error' : job.status === 'success' ? 'success' : undefined} />
                               <div className='mt-1 flex flex-wrap gap-2'>
                                 <Typography.Text type='secondary'>
@@ -464,17 +450,21 @@ export default function LocalKnowledgeBasePage() {
                                   </Typography.Text>
                                 )}
                               </div>
-                              {job.errorMessage && <Typography.Text type='error'>{job.errorMessage}</Typography.Text>}
+                              {job.errorMessage && (
+                                <Typography.Text className='block break-words' type='error'>
+                                  {job.errorMessage}
+                                </Typography.Text>
+                              )}
                             </div>
                           </List.Item>
                         )}
                       />
                     )}
                   </Card>
-                </div>
 
-                <div className='grid grid-cols-2 gap-4'>
                   <Card
+                    className={LOCAL_KB_PANEL_CARD_CLASS}
+                    bodyStyle={FLEX_CARD_BODY_STYLE}
                     title={
                       <span className='flex items-center gap-2'>
                         <Settings size={16} />
@@ -482,9 +472,13 @@ export default function LocalKnowledgeBasePage() {
                       </span>
                     }
                   >
-                    {dependencies && <DependencyList dependencies={dependencies} isInstallingEmbedding={isInstallingEmbedding} embeddingInstallProgress={embeddingInstallProgress} onInstallEmbeddingModel={() => void onInstallEmbeddingModel()} />}
+                    <div className='min-h-0 flex-1 overflow-auto overscroll-contain'>
+                      {dependencies && <DependencyList dependencies={dependencies} isInstallingEmbedding={isInstallingEmbedding} embeddingInstallProgress={embeddingInstallProgress} onInstallEmbeddingModel={() => void onInstallEmbeddingModel()} />}
+                    </div>
                   </Card>
                   <Card
+                    className={LOCAL_KB_PANEL_CARD_CLASS}
+                    bodyStyle={FLEX_CARD_BODY_STYLE}
                     title={
                       <span className='flex items-center gap-2'>
                         <Search size={16} />
@@ -492,9 +486,9 @@ export default function LocalKnowledgeBasePage() {
                       </span>
                     }
                   >
-                    <Space className='mb-3 w-full'>
-                      <Input value={query} onChange={setQuery} placeholder={t('localKb.searchPlaceholder')} onPressEnter={() => void onSearch()} />
-                      <Button type='primary' onClick={() => void onSearch()}>
+                    <Space className='mb-3 w-full' wrap>
+                      <Input className='min-w-[160px] flex-1' value={query} onChange={setQuery} placeholder={t('localKb.searchPlaceholder')} onPressEnter={() => void onSearch()} />
+                      <Button type='primary' loading={isSearching} disabled={!query.trim()} onClick={() => void onSearch()}>
                         {t('localKb.runSearch')}
                       </Button>
                     </Space>
@@ -502,17 +496,19 @@ export default function LocalKnowledgeBasePage() {
                       <Empty description={t('localKb.emptyHits')} />
                     ) : (
                       <List
+                        className='min-h-0 flex-1 overflow-auto overscroll-contain'
                         size='small'
                         dataSource={hits}
                         render={(hit) => (
                           <List.Item>
-                            <div>
-                              <Typography.Text bold>{hit.title}</Typography.Text>
-                              <Typography.Text type='secondary'>
-                                {' '}
+                            <div className='min-w-0'>
+                              <Typography.Text className='block' bold ellipsis>
+                                {hit.title}
+                              </Typography.Text>
+                              <Typography.Text className='block break-all' type='secondary'>
                                 {hit.file}:{hit.lineNo}
                               </Typography.Text>
-                              <Typography.Paragraph className='mb-0!'>{hit.text}</Typography.Paragraph>
+                              <Typography.Paragraph className='mb-0! break-words'>{hit.text}</Typography.Paragraph>
                             </div>
                           </List.Item>
                         )}
@@ -527,18 +523,6 @@ export default function LocalKnowledgeBasePage() {
       </Spin>
 
       <EntityModal
-        isOpen={isCategoryModalOpen}
-        title={editingCategory ? t('localKb.editCategory') : t('localKb.newCategory')}
-        nameLabel={t('localKb.categoryName')}
-        nameValue={nameValue}
-        descriptionValue={descriptionValue}
-        onNameChange={setNameValue}
-        onDescriptionChange={setDescriptionValue}
-        onCancel={() => closeEntityModal(setIsCategoryModalOpen, setEditingCategory)}
-        onSubmit={() => void onSubmitCategory()}
-        submitText={editingCategory ? t('localKb.save') : t('localKb.create')}
-      />
-      <EntityModal
         isOpen={isSpaceModalOpen}
         title={editingSpace ? t('localKb.editSpace') : t('localKb.newSpace')}
         nameLabel={t('localKb.spaceName')}
@@ -551,6 +535,78 @@ export default function LocalKnowledgeBasePage() {
         submitText={editingSpace ? t('localKb.save') : t('localKb.create')}
       />
     </div>
+  );
+}
+
+function DocumentPanel({ documents, visibleDocuments, pagedDocuments, documentQuery, documentPage, documentPageCount, deletingDocumentId, isBuildLocked, onDocumentQueryChange, onDocumentPageChange, onDeleteDocument }: IDocumentPanelProps) {
+  const { t } = useTranslation();
+  const hasDocuments = documents.length > 0;
+  const hasMatches = visibleDocuments.length > 0;
+  const canTurnPage = documentPageCount > 1;
+
+  return (
+    <Card
+      className={LOCAL_KB_PANEL_CARD_CLASS}
+      bodyStyle={FLEX_CARD_BODY_STYLE}
+      title={
+        <div className='flex items-center gap-2'>
+          <span>{t('localKb.documents')}</span>
+          <Tag size='small'>{documents.length}</Tag>
+        </div>
+      }
+    >
+      <div className='flex h-full min-h-0 flex-col'>
+        <div className='flex h-[40px] flex-shrink-0 items-center gap-2'>
+          <Input allowClear className='min-w-[160px] flex-1' value={documentQuery} onChange={onDocumentQueryChange} prefix={<Search size={14} />} placeholder={t('localKb.documentSearchPlaceholder')} />
+          <Typography.Text className='whitespace-nowrap' type='secondary'>
+            {t('localKb.documentCount', { shown: visibleDocuments.length, total: documents.length })}
+          </Typography.Text>
+        </div>
+
+        <div className='mt-3 min-h-0 flex-1 overflow-auto overscroll-contain rounded border border-color-border-2'>
+          {!hasDocuments ? (
+            <div className='flex h-full items-center justify-center'>
+              <Empty description={t('localKb.emptyDocuments')} />
+            </div>
+          ) : !hasMatches ? (
+            <div className='flex h-full items-center justify-center'>
+              <Empty description={t('localKb.emptyDocumentMatches')} />
+            </div>
+          ) : (
+            <div className='divide-y divide-color-border-2'>
+              {pagedDocuments.map((doc) => (
+                <div key={doc.id} className='grid min-h-[58px] w-full min-w-0 grid-cols-[minmax(0,1fr)_28px] items-start gap-2 px-3 py-2'>
+                  <div className='min-w-0 overflow-hidden'>
+                    <Typography.Text className='block' ellipsis>
+                      {doc.relativePath || doc.fileName}
+                    </Typography.Text>
+                    <div className='mt-1 flex flex-wrap gap-2'>
+                      <Tag size='small'>{formatSize(doc.sizeBytes)}</Tag>
+                      <ParseTag value={doc.parseStatus} />
+                    </div>
+                  </div>
+                  <Button className='h-[24px]! w-[24px]!' size='mini' type='text' status='danger' icon={<Trash2 size={13} />} loading={deletingDocumentId === doc.id} disabled={isBuildLocked} onClick={() => onDeleteDocument(doc)} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className='mt-3 flex h-[32px] flex-shrink-0 items-center justify-between gap-2 border-t border-color-border-2 pt-3'>
+          <Typography.Text className='whitespace-nowrap' type='secondary'>
+            {hasMatches ? t('localKb.documentPage', { current: documentPage, total: documentPageCount }) : t('localKb.documentPage', { current: 0, total: 0 })}
+          </Typography.Text>
+          <Space size='mini'>
+            <Button size='mini' disabled={!canTurnPage || documentPage <= 1} onClick={() => onDocumentPageChange((page) => Math.max(1, page - 1))}>
+              {t('localKb.previousPage')}
+            </Button>
+            <Button size='mini' disabled={!canTurnPage || documentPage >= documentPageCount} onClick={() => onDocumentPageChange((page) => Math.min(documentPageCount, page + 1))}>
+              {t('localKb.nextPage')}
+            </Button>
+          </Space>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -624,52 +680,46 @@ function BuildProgressPanel({ job, documentCount }: IBuildProgressPanelProps) {
 
 function DependencyList({ dependencies, isInstallingEmbedding, embeddingInstallProgress, onInstallEmbeddingModel }: IDependencyListProps) {
   const { t } = useTranslation();
+  const isScodeLlmReady = dependencies.scode.installed && dependencies.localLlm.available;
+  const isVectorRuntimeReady = dependencies.vectorRuntime.available;
+  const isVectorModelReady = dependencies.embeddingModel.installed;
   const rows = [
-    [t('localKb.dependencyScode'), dependencies.scode.installed],
-    [t('localKb.dependencyLocalLlm'), dependencies.localLlm.available],
+    [t('localKb.dependencyScodeLlm'), isScodeLlmReady],
     [t('localKb.dependencyLibreOffice'), dependencies.libreOffice.installed],
-    [t('localKb.dependencyVector'), dependencies.vectorRuntime.available],
     [t('localKb.dependencyPoppler'), dependencies.poppler.pdftotext && dependencies.poppler.pdfimages],
   ] as const;
+  const vectorModelStatusText = embeddingInstallProgress
+    ? t('localKb.installingEmbeddingProgress', {
+        phase: t(`localKb.installPhase.${embeddingInstallProgress.phase}`),
+        percent: embeddingInstallProgress.percent ?? 0,
+      })
+    : isVectorModelReady
+      ? t('localKb.installed')
+      : isVectorRuntimeReady
+        ? t('localKb.embeddingModelMissing')
+        : t('localKb.runtimeError');
+  const vectorModelStatusColor = isVectorModelReady ? 'green' : isInstallingEmbedding ? 'arcoblue' : 'orange';
+  const shouldShowInstallEmbedding = !isVectorModelReady && !isInstallingEmbedding;
   return (
-    <div className='space-y-2'>
-      <div className='grid grid-cols-2 gap-2'>
-        {rows.map(([label, isReady]) => (
-          <div key={label} className='flex items-center justify-between rounded border border-color-border-2 px-3 py-2'>
-            <Typography.Text>{label}</Typography.Text>
-            <Tag color={isReady ? 'green' : 'orange'}>{isReady ? t('localKb.installed') : t('localKb.missing')}</Tag>
-          </div>
-        ))}
-      </div>
-      <div className='flex items-center justify-between gap-3 rounded border border-color-border-2 px-3 py-2'>
-        <div className='min-w-0'>
-          <Typography.Text>{t('localKb.dependencyEmbedding')}</Typography.Text>
-          <Typography.Text className='block' type='secondary' ellipsis>
-            {embeddingInstallProgress
-              ? t('localKb.installingEmbeddingProgress', {
-                  phase: t(`localKb.installPhase.${embeddingInstallProgress.phase}`),
-                  percent: embeddingInstallProgress.percent ?? 0,
-                })
-              : dependencies.embeddingModel.path}
-          </Typography.Text>
+    <div className='grid grid-cols-2 gap-2 max-sm:grid-cols-1'>
+      {rows.map(([label, isReady]) => (
+        <div key={label} className='flex min-h-[38px] items-center justify-between gap-3 rounded border border-color-border-2 px-3 py-2'>
+          <Typography.Text>{label}</Typography.Text>
+          <Tag color={isReady ? 'green' : 'orange'}>{isReady ? t('localKb.installed') : t('localKb.missing')}</Tag>
         </div>
-        {dependencies.embeddingModel.installed ? (
-          <Tag color='green'>{t('localKb.installed')}</Tag>
-        ) : (
-          <Button size='small' loading={isInstallingEmbedding} onClick={onInstallEmbeddingModel}>
+      ))}
+      <div className='flex min-h-[38px] items-center justify-between gap-3 rounded border border-color-border-2 px-3 py-2'>
+        <Typography.Text>{t('localKb.dependencyVectorModel')}</Typography.Text>
+        {shouldShowInstallEmbedding ? (
+          <Button size='mini' onClick={onInstallEmbeddingModel}>
             {t('localKb.installEmbedding')}
           </Button>
+        ) : (
+          <Tag color={vectorModelStatusColor}>{vectorModelStatusText}</Tag>
         )}
       </div>
     </div>
   );
-}
-
-function openCreateCategoryModal(setOpen: (open: boolean) => void, setEditing: (value: ILocalKbCategory | null) => void, setName: (value: string) => void, setDescription: (value: string) => void) {
-  setEditing(null);
-  setName('');
-  setDescription('');
-  setOpen(true);
 }
 
 function openCreateSpaceModal(setOpen: (open: boolean) => void, setEditing: (value: ILocalKbSpace | null) => void, setName: (value: string) => void, setDescription: (value: string) => void) {
@@ -716,6 +766,20 @@ interface IEntityModalProps {
   onCancel: () => void;
   onSubmit: () => void;
   submitText: string;
+}
+
+interface IDocumentPanelProps {
+  documents: ILocalKbDocument[];
+  visibleDocuments: ILocalKbDocument[];
+  pagedDocuments: ILocalKbDocument[];
+  documentQuery: string;
+  documentPage: number;
+  documentPageCount: number;
+  deletingDocumentId: string | null;
+  isBuildLocked: boolean;
+  onDocumentQueryChange: (value: string) => void;
+  onDocumentPageChange: React.Dispatch<React.SetStateAction<number>>;
+  onDeleteDocument: (doc: ILocalKbDocument) => void;
 }
 
 interface IBuildProgressPanelProps {

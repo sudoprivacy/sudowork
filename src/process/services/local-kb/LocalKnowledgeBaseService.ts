@@ -14,18 +14,21 @@ import type {
   ILocalKbCategory,
   ILocalKbCreateCategoryInput,
   ILocalKbCreateSpaceInput,
+  ILocalKbDeleteDocumentInput,
   ILocalKbDependencyStatus,
   ILocalKbDocument,
   ILocalKbInstallEmbeddingModelInput,
+  ILocalKbSearchHit,
   LocalKbInstallPhase,
   ILocalKbSearchResult,
   ILocalKbSetDirectoryInput,
   ILocalKbSpace,
   ILocalKbUpdateSpaceInput,
 } from '@/common/types/localKnowledgeBase';
+import { mainWarn } from '@process/utils/mainLogger';
 import { ensureLocalKbDirectories, getLocalKbDocDir, getLocalKbDocExtractedDir, getLocalKbDocExtractedPath, getLocalKbDocOriginalDir, getLocalKbSpaceDir, sanitizeLocalKbFileName } from './paths';
 import { inferMimeType, parseLocalKbDocument, sha256File } from './documentParser';
-import { searchLocalKbSpaceGrep } from './query';
+import { searchLocalKbSpaceGrep, extractTitle } from './query';
 import { localKnowledgeBuildExecutor } from './buildExecutor';
 import { localKbEmbeddingModelService } from './embeddingModelService';
 
@@ -105,6 +108,25 @@ export class LocalKnowledgeBaseService {
 
   listDocuments(spaceId: string): ILocalKbDocument[] {
     return getDatabase().listLocalKbDocuments(spaceId);
+  }
+
+  async deleteDocument(input: ILocalKbDeleteDocumentInput): Promise<void> {
+    this.getSpace(input.spaceId);
+    this.assertNoActiveBuild(input.spaceId);
+    const db = getDatabase();
+    const doc = db.getLocalKbDocument(input.documentId);
+    if (!doc || doc.spaceId !== input.spaceId) throw new Error('document not found');
+
+    db.deleteLocalKbDocument(doc.id);
+    await fs.rm(getLocalKbDocDir(doc.id), { recursive: true, force: true }).catch((): undefined => undefined);
+    const remainingDocs = db.listLocalKbDocuments(input.spaceId);
+    const hasFileDocs = remainingDocs.some((item) => item.sourceType === 'file');
+    const hasDirectoryDocs = remainingDocs.some((item) => item.sourceType === 'directory');
+    db.updateLocalKbSpace(input.spaceId, {
+      sourceMode: hasFileDocs && hasDirectoryDocs ? 'mixed' : hasDirectoryDocs ? 'directory' : 'files',
+      rootPath: hasDirectoryDocs ? undefined : null,
+      buildStatus: 'idle',
+    });
   }
 
   async addFiles(input: ILocalKbAddFilesInput): Promise<ILocalKbDocument[]> {
@@ -188,12 +210,26 @@ export class LocalKnowledgeBaseService {
 
   async search(spaceId: string, query: string): Promise<ILocalKbSearchResult> {
     this.getSpace(spaceId);
-    return searchLocalKbSpaceGrep(spaceId, getLocalKbSpaceDir(spaceId), query);
+    const wikiResult = await searchLocalKbSpaceGrep(spaceId, getLocalKbSpaceDir(spaceId), query);
+    if (wikiResult.hits.length > 0) return wikiResult;
+
+    const parsedDocs = getDatabase()
+      .listLocalKbDocuments(spaceId)
+      .filter((doc) => doc.parseStatus === 'parsed');
+    const docResult = await searchParsedDocumentsGrep(spaceId, parsedDocs, query);
+    return docResult.hits.length > 0 ? docResult : wikiResult;
   }
 
   async searchMany(spaceIds: string[], query: string): Promise<ILocalKbSearchResult> {
     const startedAt = Date.now();
-    const results = await Promise.all(spaceIds.map((spaceId) => this.search(spaceId, query)));
+    const results = await Promise.all(
+      spaceIds.map((spaceId) =>
+        this.search(spaceId, query).catch((err): ILocalKbSearchResult => {
+          mainWarn('LocalKnowledgeBaseService', `search failed for local KB space ${spaceId}:`, err);
+          return { mode: 'grep-only', hits: [], tookMs: 0, spaceIds: [spaceId] };
+        })
+      )
+    );
     return {
       mode: results.some((result) => result.mode === 'hybrid') ? 'hybrid' : 'grep-only',
       hits: results.flatMap((result) => result.hits).sort((a, b) => b.score - a.score),
@@ -306,6 +342,40 @@ async function collectSupportedFiles(root: string): Promise<string[]> {
   };
   await walk(root);
   return out;
+}
+
+async function searchParsedDocumentsGrep(spaceId: string, docs: ILocalKbDocument[], query: string, limit = 100): Promise<ILocalKbSearchResult> {
+  const startedAt = Date.now();
+  const hits: ILocalKbSearchHit[] = [];
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    return { mode: 'grep-only', hits: [], tookMs: Date.now() - startedAt, spaceIds: [spaceId] };
+  }
+
+  for (const doc of docs) {
+    const content = await fs.readFile(getLocalKbDocExtractedPath(doc.id), 'utf8').catch((): string => '');
+    if (!content) continue;
+    const title = extractTitle(content, doc.fileName);
+    const lines = content.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i] ?? '';
+      if (!line.toLowerCase().includes(q)) continue;
+      hits.push({
+        spaceId,
+        file: doc.fileName,
+        docId: doc.id,
+        title,
+        lineNo: i + 1,
+        text: line.trim(),
+        score: 1 / (hits.length + 1),
+        source: 'grep',
+      });
+      if (hits.length >= limit) break;
+    }
+    if (hits.length >= limit) break;
+  }
+
+  return { mode: 'grep-only', hits, tookMs: Date.now() - startedAt, spaceIds: [spaceId] };
 }
 
 function isSupportedDocument(fileName: string): boolean {

@@ -73,13 +73,14 @@ function mapLocalKbDocument(row: LocalKbRow): ILocalKbDocument {
 }
 
 function mapLocalKbBuildJob(row: LocalKbRow): ILocalKbBuildJob {
+  const status = (['queued', 'running', 'success', 'failed', 'cancelled'].includes(String(row.status)) ? String(row.status) : 'queued') as LocalKbBuildJobStatus;
   return {
     id: String(row.id),
     spaceId: String(row.space_id),
     mode: (row.mode === 'incremental' ? 'incremental' : 'full') as LocalKbBuildJobMode,
-    status: (['queued', 'running', 'success', 'failed', 'cancelled'].includes(String(row.status)) ? String(row.status) : 'queued') as LocalKbBuildJobStatus,
-    progress: Number(row.progress ?? 0),
-    currentStep: typeof row.current_step === 'string' ? row.current_step : null,
+    status,
+    progress: status === 'success' ? 100 : Number(row.progress ?? 0),
+    currentStep: status === 'success' && Number(row.progress ?? 0) < 100 ? '构建完成' : typeof row.current_step === 'string' ? row.current_step : null,
     errorMessage: typeof row.error_message === 'string' ? row.error_message : null,
     startedAt: row.started_at == null ? null : Number(row.started_at),
     finishedAt: row.finished_at == null ? null : Number(row.finished_at),
@@ -490,6 +491,10 @@ export class SudoworkDatabase {
   ): ILocalKbBuildJob | null {
     const existing = this.getLocalKbBuildJob(id);
     if (!existing) return null;
+    const isTerminal = ['success', 'failed', 'cancelled'].includes(existing.status);
+    if (isTerminal && updates.status === undefined) {
+      return existing;
+    }
     this.db
       .prepare(
         `UPDATE local_kb_build_jobs
