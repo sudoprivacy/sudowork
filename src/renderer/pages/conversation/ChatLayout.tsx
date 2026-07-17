@@ -304,7 +304,8 @@ const ChatLayout: React.FC<{
   });
 
   const safeContainerWidth = Math.max(containerWidth || 0, 1);
-  const isRightSiderWidthOverridden = Boolean(rightSiderWidthOverride);
+  const isConversationCollapsed = conversationCollapsed;
+  const isRightSiderWidthOverridden = Boolean(rightSiderWidthOverride) && !isConversationCollapsed;
   const configuredWorkspaceRatio = rightSiderWidthOverride?.ratio ?? workspaceSplitRatio;
   const activeWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? configuredWorkspaceRatio : 0;
   const availableRatioForChatPreview = Math.max(1, 100 - activeWorkspaceRatio);
@@ -329,7 +330,6 @@ const ChatLayout: React.FC<{
 
   const effectiveWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? configuredWorkspaceRatio : 0;
   const availableChatPreviewRatio = Math.max(0, 100 - effectiveWorkspaceRatio);
-  const isConversationCollapsed = conversationCollapsed;
   const chatFlex = isConversationCollapsed ? 0 : isPreviewOpen ? (availableChatPreviewRatio * chatSplitRatio) / 100 : 100 - effectiveWorkspaceRatio;
   const workspaceFlex = effectiveWorkspaceRatio;
   const viewportWidth = containerWidth || (typeof window === 'undefined' ? 0 : window.innerWidth);
@@ -447,7 +447,7 @@ const ChatLayout: React.FC<{
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [showConversationCollapseToggle, rightSiderCollapsed, containerWidth, isPreviewOpen, workspaceSplitRatio, workspaceWidthPx]);
+  }, [showConversationCollapseToggle, rightSiderCollapsed, containerWidth, isPreviewOpen, workspaceSplitRatio, workspaceWidthPx, isConversationCollapsed]);
 
   const conversationTogglePortal = conversationToggleNode && typeof document !== 'undefined' ? createPortal(conversationToggleNode, document.body) : null;
 
