@@ -288,6 +288,54 @@ describe('EventLoop orphan guard + busy serialization', () => {
     expect(h.agentSend).not.toHaveBeenCalled();
   });
 
+  it('stop resolves after timeout when sendMessage never settles', async () => {
+    vi.useFakeTimers();
+    try {
+      const agent: AgentLike = { sendMessage: h.agentSend };
+      const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+      h.agentSend.mockReturnValue(new Promise(() => undefined));
+      seedWake(teamRun, 's1', 'teammate');
+      queue.push(row({ id: 'm-never', from_member_id: 'user', content: 'hang' }));
+
+      loop.start();
+      loop.notifyWake();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(h.agentSend).toHaveBeenCalledTimes(1);
+
+      const stopPromise = loop.stop();
+      await vi.advanceTimersByTimeAsync(3000);
+      await expect(stopPromise).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not mutate mailbox or run state when sendMessage resolves after stop', async () => {
+    let resolveSend!: () => void;
+    const sendPromise = new Promise<void>((resolve) => {
+      resolveSend = resolve;
+    });
+    const agent: AgentLike = { sendMessage: h.agentSend };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+    h.agentSend.mockReturnValue(sendPromise);
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ id: 'm-stale', from_member_id: 'user', content: 'late' }));
+
+    loop.start();
+    loop.notifyWake();
+    await flush();
+    expect(h.agentSend).toHaveBeenCalledTimes(1);
+
+    const stopPromise = loop.stop();
+    resolveSend();
+    await stopPromise;
+    await flush();
+
+    expect(markReadCalls()).toHaveLength(0);
+    expect(insertMailWithType('idle_notification')).toHaveLength(0);
+    expect(teamRun.getRecord()?.active_child_turns.size ?? 0).toBe(0);
+  });
+
   it('does not start a second concurrent turn while one is in flight', async () => {
     let resolveFirst!: () => void;
     const firstTurn = new Promise<void>((r) => {

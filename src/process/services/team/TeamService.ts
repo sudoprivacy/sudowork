@@ -36,6 +36,7 @@ const DEFAULT_LOCALE = 'en-US';
 const MAX_TEAM_MCP_BODY_BYTES = 64 * 1024 * 1024;
 const TEAM_MCP_PATH = '/team-mcp';
 const TEAM_MCP_SERVER_NAME = 'team-mcp';
+const TEAM_SESSION_CLOSE_TIMEOUT_MS = 3000;
 
 type TeamToolResult = { ok: true; data: unknown } | { ok: false; error: string };
 
@@ -62,6 +63,16 @@ interface SpawnMemberParams {
   wakeTeammateOnSpawn?: boolean;
   notifyLeaderOnSpawn?: boolean;
 }
+
+interface ProvisionInitialMemberParams {
+  assistant_id: string;
+  name: string;
+  conversationName?: string;
+  model?: string;
+  role: 'lead' | 'teammate';
+}
+
+type AttachRuntimeFailureMode = 'bootstrap' | 'dynamic';
 
 /**
  * Per-team runtime state. The HTTP loopback server (port + bearer token) is
@@ -296,14 +307,13 @@ class TeamService {
     teamStore.insertTeam(team);
 
     try {
-      const leader = await this.spawnMember(teamId, {
+      const leader = await this.provisionInitialMember(team, {
         assistant_id: leaderInput.assistant_id,
         name: leaderInput.name,
         conversationName: name,
         model: leaderInput.model,
         role: 'lead',
       });
-      if (leader.status === 'failed') throw new Error(`Failed to attach team leader: ${leader.name}`);
       const updates: Partial<Team> = { leader_member_id: leader.id };
       const leaderConversation = leader.conversation_id ? getDatabase().getConversation(leader.conversation_id).data : null;
       if (!workspace) {
@@ -313,32 +323,92 @@ class TeamService {
         updates.workspace_kind = 'temporary';
       }
       teamStore.updateTeam(teamId, updates);
+      team.leader_member_id = leader.id;
+      if (updates.workspace !== undefined) team.workspace = updates.workspace;
+      if (updates.workspace_kind !== undefined) team.workspace_kind = updates.workspace_kind;
 
-      const teammates: TeamMember[] = [];
       for (const member of normalizedMembers.filter((item) => item.role === 'teammate')) {
-        const teammate = await this.spawnMember(teamId, {
+        await this.provisionInitialMember(team, {
           assistant_id: member.assistant_id,
           name: member.name,
           model: member.model,
           role: 'teammate',
-          wakeTeammateOnSpawn: false,
-          notifyLeaderOnSpawn: false,
         });
-        if (teammate.status === 'failed') throw new Error(`Failed to attach team member: ${teammate.name}`);
-        teammates.push(teammate);
-      }
-      if (teammates.length > 0) await this.notifyLeaderInitialRoster(teamId);
-
-      // Recovery drain: re-deliver any unread mailbox backlog at session start (no-op for a fresh team).
-      const session = this.sessions.get(teamId);
-      if (session) {
-        new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
       }
 
       ipcBridge.team.onListChanged.emit({ team_id: teamId, action: 'created' });
-      return teamStore.getTeam(teamId) ?? { ...team, ...updates, updated_at: Date.now() };
+      return teamStore.getTeam(teamId) ?? { ...team, updated_at: Date.now() };
     } catch (error) {
       await this.rollbackInsertedTeam(teamId);
+      throw error;
+    }
+  }
+
+  private async provisionInitialMember(team: Team, params: ProvisionInitialMemberParams): Promise<TeamMember> {
+    const selection = await this.resolveTeamAssistantSelection(params.assistant_id);
+    const meta = await this.resolveAssistantMeta(selection);
+    const backend = selection.backend;
+    const presetAgentType = selection.presetAgentType;
+    const enabledSkills = meta?.enabledSkills ?? [];
+    let rulesText: string | null = null;
+    if (meta?.ruleFile) {
+      try {
+        rulesText = await readAssistantResource('rules', selection.lookupName, DEFAULT_LOCALE, ruleFilePattern);
+      } catch {
+        mainWarn('TeamService', `Failed to read rules for assistant ${selection.lookupName}`);
+      }
+    }
+    const presetContext = [rulesText, buildGovernancePrompt(params.role, team.name, params.name)].filter(Boolean).join('\n\n') || null;
+
+    const isResolvingInitialTeamWorkspace = params.role === 'lead' && !team.workspace && !team.workspace_kind;
+    if (!isResolvingInitialTeamWorkspace && !team.workspace) throw new Error(`Team workspace is not resolved: ${team.id}`);
+    const customWorkspace = team.workspace_kind === 'custom';
+
+    const createResult = await createConversation({
+      type: 'acp',
+      name: params.conversationName || params.name,
+      extra: {
+        backend,
+        workspace: team.workspace || undefined,
+        customWorkspace: isResolvingInitialTeamWorkspace ? false : customWorkspace,
+        workspaceDisplayName: team.name,
+        teamOwnedWorkspace: true,
+        presetAssistantId: params.assistant_id,
+        presetContext: presetContext || undefined,
+        enabledSkills,
+        agentName: params.name,
+        isTeamMember: true,
+        teamId: team.id,
+        sessionMode: team.session_mode ?? undefined,
+      },
+      skipWorkerRegistration: true,
+    });
+    if (!createResult.success || !createResult.conversation) {
+      throw new Error(createResult.error || 'Failed to create member conversation');
+    }
+    const conversationId = createResult.conversation.id;
+    const member: TeamMember = {
+      id: uuid(),
+      team_id: team.id,
+      role: params.role,
+      name: params.name,
+      assistant_id: params.assistant_id,
+      source: selection.source,
+      backend,
+      preset_agent_type: (presetAgentType as PresetAgentType | undefined) || null,
+      skills: enabledSkills,
+      preset_context: presetContext,
+      model: params.model || null,
+      avatar: selection.avatar ?? meta?.avatar ?? null,
+      conversation_id: conversationId,
+      status: 'pending',
+      created_at: Date.now(),
+    };
+    try {
+      teamStore.insertMember(member);
+      return member;
+    } catch (error) {
+      await reapConversation(conversationId, { reason: 'team-spawn-rollback', deleteWorkspace: false });
       throw error;
     }
   }
@@ -375,16 +445,7 @@ class TeamService {
 
     // Ensure the per-team HTTP loopback is up so we can hand the member its identity triple.
     const session = await this.ensureSession(teamId);
-    const teamMcpConfig = {
-      name: TEAM_MCP_SERVER_NAME,
-      command: getNodeBinaryPath(),
-      args: [getTeamMcpScriptPath()],
-      env: [
-        { name: 'TEAM_MCP_PORT', value: String(session.port) },
-        { name: 'TEAM_MCP_TOKEN', value: session.token },
-        { name: 'TEAM_MCP_SLOT_ID', value: slotId },
-      ],
-    };
+    const teamMcpConfig = this.buildTeamMcpConfig(session, slotId);
 
     const isResolvingInitialTeamWorkspace = role === 'lead' && !team.workspace && !team.workspace_kind;
     if (!isResolvingInitialTeamWorkspace && !team.workspace) throw new Error(`Team workspace is not resolved: ${teamId}`);
@@ -442,7 +503,7 @@ class TeamService {
 
     // Attach the member runtime (build AcpAgent + event loop). Per 事实 8 an attach failure does NOT
     // roll back — the member stays so the leader sees it failed, and is notified via spawn_attach_failure.
-    const attached = await this.attachRuntime(teamId, member, createResult.conversation, session);
+    const attached = await this.attachRuntime(teamId, member, createResult.conversation, session, 'dynamic');
     if (!attached) {
       const failed = teamStore.getMember(slotId) ?? member;
       ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(failed) });
@@ -488,41 +549,51 @@ class TeamService {
     return storedMember;
   }
 
-  /**
-   * Build a member's AcpAgent + event loop and register it (shared by spawn + rebuild). Per 事实 8,
-   * an attach failure (buildConversation returns null) does NOT roll back: the member is marked
-   * failed, the leader is notified via a spawn_attach_failure wake, and no event loop is started
-   * (so it never retries a null agent). Returns true when attached.
-   */
-  private async attachRuntime(teamId: string, member: TeamMember, conversation: TChatConversation, session: TeamSession): Promise<boolean> {
+  /** Build a member's AcpAgent + event loop and register it. Returns true when attached. */
+  private buildTeamMcpConfig(session: TeamSession, slotId: string): { name: string; command: string; args: string[]; env: Array<{ name: string; value: string }> } {
+    return {
+      name: TEAM_MCP_SERVER_NAME,
+      command: getNodeBinaryPath(),
+      args: [getTeamMcpScriptPath()],
+      env: [
+        { name: 'TEAM_MCP_PORT', value: String(session.port) },
+        { name: 'TEAM_MCP_TOKEN', value: session.token },
+        { name: 'TEAM_MCP_SLOT_ID', value: slotId },
+      ],
+    };
+  }
+
+  private async attachRuntime(teamId: string, member: TeamMember, conversation: TChatConversation, session: TeamSession, failureMode: AttachRuntimeFailureMode): Promise<boolean> {
     const task = WorkerManage.buildConversation(conversation, { skipCache: true });
     const agent = (task ?? null) as unknown as AcpAgent | null;
     if (!agent) {
       teamStore.updateMember(member.id, { status: 'failed' });
       ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: member.id, status: 'failed', last_message: 'attach failed' });
-      const leaderId = this.leaderSlotOrNull(teamId);
-      if (leaderId) {
-        const mailId = uuid();
-        const { lease } = session.teamRun.acquireWake(leaderId, 'lead', 'spawn_attach_failure');
-        try {
-          teamStore.insertMail({
-            id: mailId,
-            team_id: teamId,
-            to_member_id: leaderId,
-            from_member_id: member.id,
-            type: 'message',
-            content: `Failed to attach agent for '${member.name}'. Spawn aborted.`,
-            summary: null,
-            files: null,
-            read: false,
-            created_at: Date.now(),
-          });
-        } catch {
-          session.teamRun.abortLease(lease.lease_id);
-          return false;
+      if (failureMode === 'dynamic') {
+        const leaderId = this.leaderSlotOrNull(teamId);
+        if (leaderId) {
+          const mailId = uuid();
+          const { lease } = session.teamRun.acquireWake(leaderId, 'lead', 'spawn_attach_failure');
+          try {
+            teamStore.insertMail({
+              id: mailId,
+              team_id: teamId,
+              to_member_id: leaderId,
+              from_member_id: member.id,
+              type: 'message',
+              content: `Failed to attach agent for '${member.name}'. Spawn aborted.`,
+              summary: null,
+              files: null,
+              read: false,
+              created_at: Date.now(),
+            });
+          } catch {
+            session.teamRun.abortLease(lease.lease_id);
+            return false;
+          }
+          session.teamRun.commitLease(lease.lease_id, { slot_id: leaderId, role: 'lead', source: 'spawn_attach_failure', message_id: mailId });
+          this.notifyWake(teamId, leaderId);
         }
-        session.teamRun.commitLease(lease.lease_id, { slot_id: leaderId, role: 'lead', source: 'spawn_attach_failure', message_id: mailId });
-        this.notifyWake(teamId, leaderId);
       }
       return false;
     }
@@ -577,14 +648,24 @@ class TeamService {
       for (const m of members) {
         if (!m.conversation_id) continue;
         const convResult = getDatabase().getConversation(m.conversation_id);
-        if (!convResult.success || !convResult.data) continue;
-        await this.attachRuntime(teamId, m, convResult.data, session);
+        if (!convResult.success || !convResult.data) throw new Error(`Failed to load team member conversation: ${m.name}`);
+        const teamMcpConfig = this.buildTeamMcpConfig(session, m.id);
+        const nextExtra = Object.assign({}, convResult.data.extra, { teamMcpConfig });
+        const updateResult = getDatabase().updateConversation(m.conversation_id, { extra: nextExtra } as Partial<TChatConversation>);
+        if (!updateResult.success) throw new Error(updateResult.error || `Failed to update team MCP config for ${m.name}`);
+        const updatedResult = getDatabase().getConversation(m.conversation_id);
+        if (!updatedResult.success || !updatedResult.data) throw new Error(`Failed to reload team member conversation: ${m.name}`);
+        const attached = await this.attachRuntime(teamId, m, updatedResult.data, session, 'bootstrap');
+        if (!attached) throw new Error(`Failed to attach team member: ${m.name}`);
+        teamStore.updateMember(m.id, { status: 'idle', conversation_id: m.conversation_id });
+        ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: m.id, status: 'idle' });
       }
       new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
       mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
       ipcBridge.team.onSessionChanged.emit({ teamId, status: 'ready' });
     } catch (error) {
       ipcBridge.team.onSessionChanged.emit({ teamId, status: 'failed', error: error instanceof Error ? error.message : String(error) });
+      await this.stopSession(teamId);
       throw error;
     }
   }
@@ -983,16 +1064,32 @@ class TeamService {
   private async stopSession(teamId: string): Promise<void> {
     const session = this.sessions.get(teamId);
     if (!session) return;
+    const killPromises = [...session.members.values()].map((rt) =>
+      rt.agent
+        ? rt.agent.kill().catch(() => {
+            /* ignore */
+          })
+        : Promise.resolve()
+    );
     for (const [, rt] of session.members) {
       if (rt.eventLoop) await rt.eventLoop.stop();
-      if (rt.agent)
-        rt.agent.kill().catch(() => {
-          /* ignore */
-        });
     }
+    await Promise.all(killPromises);
     if (session.httpServer) {
       await new Promise<void>((resolve) => {
-        session.httpServer!.close(() => resolve());
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          mainWarn('TeamService', `HTTP server close timed out for team ${teamId}`);
+          resolve();
+        }, TEAM_SESSION_CLOSE_TIMEOUT_MS);
+        session.httpServer!.close(() => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve();
+        });
       });
     }
     this.sessions.delete(teamId);

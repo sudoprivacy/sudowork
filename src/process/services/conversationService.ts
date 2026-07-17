@@ -5,11 +5,11 @@
  */
 
 import type { ICreateConversationParams } from '@/common/ipcBridge';
-import type { ConversationSource, TChatConversation, TProviderWithModel } from '@/common/storage';
+import type { ConversationSource, TChatConversation } from '@/common/storage';
 import { getDatabase } from '@process/database';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 import { createAcpAgent } from '../initAgent';
 import WorkerManage from '../WorkerManage';
-import { mainLog, mainError } from '@process/utils/mainLogger';
 
 /**
  * 创建会话的通用参数（基于 IPC 参数扩展）
@@ -20,6 +20,8 @@ export interface ICreateConversationOptions extends ICreateConversationParams {
   source?: ConversationSource;
   /** Channel chat isolation ID (e.g. user:xxx, group:xxx) */
   channelChatId?: string;
+  /** Internal-only option for create-only provisioning paths. */
+  skipWorkerRegistration?: boolean;
 }
 
 /**
@@ -45,7 +47,7 @@ export class ConversationService {
    * Create conversation (common method, supports all types)
    */
   static async createConversation(params: ICreateConversationOptions): Promise<ICreateConversationResult> {
-    const { type, extra, name, model, id, source } = params;
+    const { type, extra, name, id, source } = params;
 
     try {
       let conversation: TChatConversation;
@@ -96,7 +98,9 @@ export class ConversationService {
 
       // Register with WorkerManage after DB save so early emitted messages can be persisted reliably.
       // Note: Don't call initAgent() here - let it be lazy initialized when sendMessage() is called.
-      WorkerManage.buildConversation(conversation);
+      if (!params.skipWorkerRegistration) {
+        WorkerManage.buildConversation(conversation);
+      }
 
       mainLog('ConversationService', `Created ${type} conversation ${conversation.id} with source=${source || 'sudowork'}`);
       return { success: true, conversation };

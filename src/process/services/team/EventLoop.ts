@@ -8,6 +8,8 @@ import type { TeamRunManager, TeamRunTurnStatus } from './TeamRun';
 import type { SlotWakeGate } from './SlotWakeGate';
 import type { WakeSource } from './WakeSource';
 
+const EVENT_LOOP_STOP_TIMEOUT_MS = 3000;
+
 /** Promise-based signal gate (附录 I.5 Notify) — non-polling wake. */
 export class Notify {
   private pending = 0;
@@ -78,7 +80,22 @@ export class EventLoop {
   async stop(): Promise<void> {
     this.alive = false;
     this.notify.notifyOne();
-    if (this.loopPromise) await this.loopPromise;
+    if (this.loopPromise) {
+      let timedOut = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      await Promise.race([
+        this.loopPromise,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(() => {
+            timedOut = true;
+            resolve();
+          }, EVENT_LOOP_STOP_TIMEOUT_MS);
+        }),
+      ]).finally(() => {
+        if (timer) clearTimeout(timer);
+      });
+      if (timedOut) mainWarn('EventLoop', `stop timed out for ${this.deps.slotId}`);
+    }
     this.loopPromise = null;
   }
 
@@ -94,6 +111,7 @@ export class EventLoop {
         if (!input || !input.should_send) break;
         const turn = await this.executeTurn(input.source, input.messages);
         if (!turn) break;
+        if (!this.alive) break;
         await this.finalizeTurn(turn);
       }
     }
@@ -144,12 +162,14 @@ export class EventLoop {
     try {
       const text = messages.map((m) => m.content).join('\n\n');
       await agent.sendMessage({ content: text, msg_id: turnId });
+      if (!this.alive) return null;
       // Stage 2 → 3: starting_reservations → active_child_turns (turn has run).
       this.deps.teamRun.recordChildStarted(reservation, turnId, this.deps.member.conversation_id ?? '');
       // Peek-then-mark: Ok + graceful-Failed both mark (agent resolved); Err (thrown) stays unread.
       teamStore.markReadBatch(messages.map((m) => m.id));
       return { turn_id: turnId, status: 'completed' };
     } catch (e) {
+      if (!this.alive) return null;
       mainWarn('EventLoop', `turn failed for ${this.deps.slotId}:`, e);
       // Err → don't mark read; return the reservation to the pending queue head for the next wake.
       this.deps.teamRun.retryChildStartLater(reservation);
