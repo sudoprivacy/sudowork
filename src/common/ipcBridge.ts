@@ -824,6 +824,18 @@ export const pythonRuntime = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('python-runtime.install-result'),
 };
 
+// Poppler runtime installer / Poppler PDF 工具安装
+export type IPopplerInstallPhase = 'downloading' | 'extracting' | 'verifying' | 'cleanup';
+
+export const popplerRuntime = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('poppler-runtime.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('poppler-runtime.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('poppler-runtime.uninstall'),
+  getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: IPopplerInstallPhase; percent?: number }>, void>('poppler-runtime.get-install-state'),
+  installProgress: bridge.buildEmitter<{ phase: IPopplerInstallPhase; percent?: number }>('poppler-runtime.install-progress'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('poppler-runtime.install-result'),
+};
+
 // Sudoclaw config (~/.nexus/sudoclaw) / Sudoclaw 配置
 // Matches sudoclaw.json schema: models.providers, agents.defaults, etc.
 export type SudoclawProviderModel = { id: string; name?: string; input?: string[] };

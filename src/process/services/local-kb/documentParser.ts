@@ -8,6 +8,7 @@ import mammoth from 'mammoth';
 import TurndownService from 'turndown';
 import { parseOfficeAsync } from 'officeparser';
 import { mainWarn } from '@process/utils/mainLogger';
+import { popplerRuntimeService } from '@process/services/poppler/PopplerRuntimeService';
 
 const execFileAsync = promisify(execFile);
 
@@ -101,7 +102,8 @@ async function parseWithOfficeParser(filePath: string, fileName: string): Promis
 async function parsePdfWithPdftotext(filePath: string): Promise<ILocalKbParseResult | null> {
   const tmpFile = path.join(os.tmpdir(), `sudowork-local-kb-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`);
   try {
-    await execFileAsync('pdftotext', [filePath, tmpFile], { timeout: 30_000 });
+    const pdftotext = await resolvePdftotextBin();
+    await execFileAsync(pdftotext.bin, [filePath, tmpFile], { timeout: 30_000, env: pdftotext.env });
     const text = (await fs.readFile(tmpFile, 'utf8')).trim();
     return text ? { markdown: text, via: 'pdftotext' } : null;
   } catch {
@@ -109,6 +111,17 @@ async function parsePdfWithPdftotext(filePath: string): Promise<ILocalKbParseRes
   } finally {
     await fs.unlink(tmpFile).catch((): undefined => undefined);
   }
+}
+
+async function resolvePdftotextBin(): Promise<{ bin: string; env?: NodeJS.ProcessEnv }> {
+  const managed = await popplerRuntimeService.checkManaged().catch(() => ({ installed: false as const }));
+  if (managed.installed) {
+    return {
+      bin: popplerRuntimeService.getToolPath('pdftotext'),
+      env: { ...process.env, PATH: popplerRuntimeService.getPathEnv() },
+    };
+  }
+  return { bin: 'pdftotext' };
 }
 
 async function resolveLibreOfficeBin(): Promise<string | null> {

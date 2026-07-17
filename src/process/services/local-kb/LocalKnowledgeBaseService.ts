@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { getDatabase } from '@process/database';
 import { getScodePath } from '@process/services/scode/ScodeInstallService';
 import { libreOfficeService } from '@process/services/libreoffice/LibreOfficeService';
+import { popplerRuntimeService } from '@process/services/poppler/PopplerRuntimeService';
 import type {
   ILocalKbAddFilesInput,
   ILocalKbBuildJob,
@@ -205,7 +206,8 @@ export class LocalKnowledgeBaseService {
     const scodePath = getScodePath() ?? undefined;
     const libreOffice = await libreOfficeService.checkInstalled().catch(() => ({ installed: false as const }));
     const modelPath = localKbEmbeddingModelService.getModelDir();
-    const [pdftotext, pdfimages] = await Promise.all([commandAvailable('pdftotext'), commandAvailable('pdfimages')]);
+    const managedPoppler = await popplerRuntimeService.checkManaged().catch(() => ({ installed: false }));
+    const [pdftotext, pdfimages] = managedPoppler.installed ? [true, true] : await Promise.all([commandAvailable('pdftotext'), commandAvailable('pdfimages')]);
     return {
       scode: { installed: Boolean(scodePath), path: scodePath },
       localLlm: {

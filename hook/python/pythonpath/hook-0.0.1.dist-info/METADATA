@@ -1,6 +1,0 @@
-Metadata-Version: 2.3
-Name: hook
-Version: 0.0.1
-Summary: Security hook in Python
-Requires-Dist: urllib3>=2.2.3
-Requires-Python: >=3.8

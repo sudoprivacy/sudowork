@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-# sudowork `browser` dispatcher — thin shim to browser_helper.py.
-# Handles --list / --help / tool dispatch, and POSTs stdout to the
-# sudowork sidechannel so the UI + LLM see full output.
-
-set -euo pipefail
-exec python3 "$(dirname "$0")/browser_helper.py" "$@"
