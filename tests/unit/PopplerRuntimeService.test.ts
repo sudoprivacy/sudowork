@@ -51,14 +51,14 @@ describe('PopplerRuntimeService', () => {
       const stageDir = path.join(tempDir, '.stage', 'poppler-1');
       const installDir = path.join(tempDir, 'current');
       await fs.promises.mkdir(path.join(stageDir, 'lib'), { recursive: true });
-      await fs.promises.mkdir(path.join(installDir, 'lib'), { recursive: true });
-      await fs.promises.writeFile(path.join(installDir, 'lib', 'libpoppler.162.0.0.dylib'), 'dylib');
-      await fs.promises.symlink(path.join(stageDir, 'lib', 'libpoppler.162.0.0.dylib'), path.join(installDir, 'lib', 'libpoppler.162.dylib'));
+      await fs.promises.writeFile(path.join(stageDir, 'lib', 'libpoppler.162.0.0.dylib'), 'dylib');
+      await fs.promises.symlink(path.join(stageDir, 'lib', 'libpoppler.162.0.0.dylib'), path.join(stageDir, 'lib', 'libpoppler.162.dylib'));
 
       const service = new PopplerRuntimeService() as unknown as {
         rewriteStageSymlinks(rootDir: string, stageDir: string, installDir: string): void;
       };
-      service.rewriteStageSymlinks(installDir, stageDir, installDir);
+      service.rewriteStageSymlinks(stageDir, stageDir, installDir);
+      await fs.promises.rename(stageDir, installDir);
 
       expect(await fs.promises.readlink(path.join(installDir, 'lib', 'libpoppler.162.dylib'))).toBe('libpoppler.162.0.0.dylib');
     } finally {

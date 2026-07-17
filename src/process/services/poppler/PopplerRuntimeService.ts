@@ -76,13 +76,14 @@ export class PopplerRuntimeService {
         throw new Error('Poppler archive missing required tools: pdftotext, pdfimages');
       }
 
+      this.rewriteStageSymlinks(stageDir, stageDir, installDir);
       fs.rmSync(installDir, { recursive: true, force: true });
       fs.mkdirSync(path.dirname(installDir), { recursive: true });
-      fs.cpSync(stageDir, installDir, { recursive: true, dereference: true });
-      this.rewriteStageSymlinks(installDir, stageDir, installDir);
+      fs.renameSync(stageDir, installDir);
       await this.makeExecutablesRunnable(installDir);
       if (!(await this.checkManaged()).installed) {
-        throw new Error('Poppler install verification failed');
+        const detail = await this.readVersionError(this.getToolPath('pdftotext'));
+        throw new Error(`Poppler install verification failed${detail ? `: ${detail}` : ''}`);
       }
       onProgress('verifying', 100);
     } catch (err) {
@@ -144,23 +145,25 @@ export class PopplerRuntimeService {
     );
   }
 
-  private rewriteStageSymlinks(rootDir: string, stageDir: string, installDir: string): void {
+  private rewriteStageSymlinks(rootDir: string, stageDir: string, installDir: string, sourceRoot = rootDir, realStageDir = fs.realpathSync.native(stageDir)): void {
     const entries = fs.readdirSync(rootDir, { withFileTypes: true });
     for (const entry of entries) {
       const filePath = path.join(rootDir, entry.name);
       if (entry.isSymbolicLink()) {
         const target = fs.readlinkSync(filePath);
         const absoluteTarget = path.isAbsolute(target) ? target : path.resolve(path.dirname(filePath), target);
-        const relativeToStage = path.relative(stageDir, absoluteTarget);
+        const relativeToStage = path.relative(realStageDir, fs.realpathSync.native(absoluteTarget));
         if (!relativeToStage.startsWith('..') && !path.isAbsolute(relativeToStage)) {
           const replacement = path.join(installDir, relativeToStage);
+          const relativeFilePath = path.relative(sourceRoot, filePath);
+          const futureFilePath = path.join(installDir, relativeFilePath);
           fs.unlinkSync(filePath);
-          fs.symlinkSync(path.relative(path.dirname(filePath), replacement), filePath);
+          fs.symlinkSync(path.relative(path.dirname(futureFilePath), replacement), filePath);
         }
         continue;
       }
       if (entry.isDirectory()) {
-        this.rewriteStageSymlinks(filePath, stageDir, installDir);
+        this.rewriteStageSymlinks(filePath, stageDir, installDir, sourceRoot, realStageDir);
       }
     }
   }
@@ -189,6 +192,18 @@ export class PopplerRuntimeService {
       return out.match(/pdftotext version\s+([^\s]+)/i)?.[1];
     } catch {
       return undefined;
+    }
+  }
+
+  private async readVersionError(pdftotextPath: string): Promise<string | undefined> {
+    try {
+      await execFileAsync(pdftotextPath, ['-v'], { timeout: 5_000, env: { ...process.env, PATH: this.getPathEnv() } });
+      return undefined;
+    } catch (err) {
+      if (!(err instanceof Error)) return String(err);
+      const execError = err as Error & { stderr?: string; stdout?: string; code?: string | number };
+      const output = `${execError.stderr ?? ''}\n${execError.stdout ?? ''}`.trim();
+      return output || execError.message;
     }
   }
 
