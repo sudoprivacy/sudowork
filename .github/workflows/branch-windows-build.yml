@@ -12,7 +12,7 @@ on:
 jobs:
   build-pipeline:
     name: Build Windows x64
-    uses: ./.github/workflows/_build-reusable.yml
+    uses: sudoprivacy/sudowork/.github/workflows/_build-reusable.yml@ci/local-kb-windows-build
     with:
       matrix: '{"include":[{"platform":"windows-x64","os":"windows-2022","command":"node scripts/build-with-builder.js x64 --win --x64","artifact-name":"windows-build-x64","arch":"x64"}]}'
       ref: ci/local-kb-windows-build
