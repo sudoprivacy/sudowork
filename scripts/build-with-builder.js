@@ -410,12 +410,42 @@ function buildSafetyHook() {
   }
 }
 
+// Build the team-mcp MCP server bundle. Unlike the safety hook, this is
+// mandatory: a missing bundle breaks team creation entirely, so failures must
+// abort packaging rather than silently ship a broken installer (root cause of
+// the "team-mcp 当前不可用" symptom in packaged builds).
+function buildTeamMcp() {
+  const repoRoot = path.resolve(__dirname, '..');
+  const outPath = path.join(repoRoot, 'resources', 'team-mcp', 'index.js');
+
+  console.log('🔨 Building team-mcp MCP server...');
+
+  try {
+    execSync('node scripts/build-team-mcp.js', {
+      cwd: repoRoot,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
+  } catch (error) {
+    throw new Error(`team-mcp build failed: ${error.message}`);
+  }
+
+  if (!fs.existsSync(outPath)) {
+    throw new Error(`team-mcp bundle missing at ${outPath} — aborting packaging to avoid a broken installer.`);
+  }
+
+  console.log('✅ team-mcp MCP server built successfully');
+}
+
 try {
   // 0. Build safety hook first (required for Sudoclaw gateway interception)
   const hookBuilt = buildSafetyHook();
   if (!hookBuilt) {
     console.log('⚠️  Continuing without safety hook. Sudoclaw interception will not work.');
   }
+
+  // 0b. Build team-mcp MCP server (mandatory — missing bundle breaks team creation).
+  buildTeamMcp();
 
   // 1. Ensure package.json main entry is correct for electron-vite
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
