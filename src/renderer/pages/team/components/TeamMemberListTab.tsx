@@ -48,7 +48,7 @@ function TeamMemberNameInput({ initialValue, onCommit, onCancel }: ITeamMemberNa
     }
   };
 
-  return <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onBlur={commit} onKeyDown={handleKeyDown} className='min-w-0 flex-1 rounded-4px border border-[var(--color-border-1)] bg-[var(--color-bg-1)] px-6px py-1px text-13px outline-none' />;
+  return <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onBlur={commit} onKeyDown={handleKeyDown} className='min-w-0 flex-1 box-border rounded-4px border border-[var(--color-border-1)] bg-[var(--color-bg-1)] px-6px h-28px text-13px outline-none' />;
 }
 
 function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRenameMember, onRemoveMember }: ITeamMemberListTabProps) {
@@ -168,7 +168,7 @@ function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRena
   };
 
   return (
-    <div className={`group/team-member flex w-full min-w-0 items-center gap-8px overflow-hidden rounded-4px px-8px py-6px cursor-pointer ${isActive ? 'bg-[var(--color-fill-2)]' : 'hover:bg-[var(--color-fill-1)]'}`} onClick={isEditing ? undefined : onSelect}>
+    <div className={`group/team-member flex w-full min-w-0 h-28px items-center gap-8px overflow-hidden rounded-4px px-8px py-4px cursor-pointer ${isActive ? 'bg-[var(--color-fill-2)]' : 'hover:bg-[var(--color-fill-1)]'}`} onClick={isEditing ? undefined : onSelect}>
       <span className='inline-flex size-24px shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-fill-3)] text-12px font-medium text-1'>
         {icon ? <img src={icon} alt='' className='size-full object-cover' /> : <span className='size-10px rounded-full bg-[var(--color-text-4)]' />}
       </span>
