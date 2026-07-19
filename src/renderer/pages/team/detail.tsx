@@ -24,7 +24,7 @@ function TeamDetailPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { teamId = '' } = useParams<{ teamId: string }>();
-  const { team, statusMap, loading } = useTeamSession(teamId);
+  const { team, statusMap, loading, addMember, renameMember, removeMember } = useTeamSession(teamId);
   const teamRunView = useTeamRunView(teamId);
   const teamWarmup = useTeamWarmup(teamId);
   const [leaderConv, setLeaderConv] = useState<TChatConversation | undefined>(undefined);
@@ -106,7 +106,7 @@ function TeamDetailPage() {
     return null;
   }
 
-  const memberTabNode = <TeamMemberListTab team={currentTeam} statusMap={statusMap} activeSlotIds={activeSlotIds} />;
+  const memberTabNode = <TeamMemberListTab team={currentTeam} statusMap={statusMap} activeSlotIds={activeSlotIds} onAddMember={addMember} onRenameMember={renameMember} onRemoveMember={removeMember} />;
   const runStatus = teamRunView.activeRun?.status;
   const isRunActive = runStatus === 'accepted' || runStatus === 'running';
   const isHeaderActive = isRunActive || isLeaderChatProcessing;

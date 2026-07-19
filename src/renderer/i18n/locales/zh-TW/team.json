@@ -48,7 +48,8 @@
         "delivery": "讓負責人、執行、風控、覆盤協作推進專案交付"
       }
     },
-    "leaderNotFound": "未找到團隊 Leader。"
+    "leaderNotFound": "未找到團隊 Leader。",
+    "addMemberFailed": "新增成員失敗，請重試。"
   },
   "status": {
     "pending": "等待中",
@@ -98,7 +99,7 @@
     "cancelDelete": "取消",
     "deleteSuccess": "團隊已刪除",
     "deleteFailed": "刪除團隊失敗",
-    "removeMember": "將該成員移出團隊？"
+    "removeMember": "確定將 {{name}} 成員移除團隊嗎？"
   },
   "warmup": {
     "title": "正在喚醒團隊",

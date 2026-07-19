@@ -944,6 +944,10 @@ class TeamService {
     session?.teamRun.clearSlot(slotId);
     session?.members.delete(slotId);
     session?.wakeGate.clear(slotId);
+    const member = teamStore.getMember(slotId);
+    if (member?.conversation_id) {
+      await reapConversation(member.conversation_id, { reason: 'user-delete', deleteWorkspace: false });
+    }
     teamStore.softDeleteMember(slotId);
     ipcBridge.team.onMemberRemoved.emit({ team_id: teamId, slot_id: slotId });
   }
