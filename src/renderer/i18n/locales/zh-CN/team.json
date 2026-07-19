@@ -48,7 +48,8 @@
         "delivery": "让负责人、执行、风控、复盘协作推进项目交付"
       }
     },
-    "leaderNotFound": "未找到团队 Leader。"
+    "leaderNotFound": "未找到团队 Leader。",
+    "addMemberFailed": "添加成员失败，请重试。"
   },
   "status": {
     "pending": "等待中",
@@ -98,7 +99,7 @@
     "cancelDelete": "取消",
     "deleteSuccess": "团队已删除",
     "deleteFailed": "删除团队失败",
-    "removeMember": "将该成员移出团队？"
+    "removeMember": "确定将 {{name}} 成员移除团队吗？"
   },
   "warmup": {
     "title": "正在唤醒团队",

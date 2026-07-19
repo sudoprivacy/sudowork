@@ -48,7 +48,8 @@
         "delivery": "Sorumlular, uygulayıcılar, risk kontrolü ve retrospektif ile proje teslimini ilerletin"
       }
     },
-    "leaderNotFound": "Takım Leader bulunamadı."
+    "leaderNotFound": "Takım Leader bulunamadı.",
+    "addMemberFailed": "Üye eklenemedi. Lütfen tekrar deneyin."
   },
   "status": {
     "pending": "Bekliyor",
@@ -98,7 +99,7 @@
     "cancelDelete": "İptal",
     "deleteSuccess": "Takım silindi",
     "deleteFailed": "Takım silinemedi",
-    "removeMember": "Bu üye takımdan kaldırılsın mı?"
+    "removeMember": "{{name}} üyesi takımdan kaldırılsın mı?"
   },
   "warmup": {
     "title": "Takım uyandırılıyor",

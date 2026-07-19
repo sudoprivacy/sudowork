@@ -48,7 +48,8 @@
         "delivery": "責任者、実行担当、リスク管理、振り返りでプロジェクトを推進する"
       }
     },
-    "leaderNotFound": "チーム Leader が見つかりません。"
+    "leaderNotFound": "チーム Leader が見つかりません。",
+    "addMemberFailed": "メンバーの追加に失敗しました。再試行してください。"
   },
   "status": {
     "pending": "待機中",
@@ -98,7 +99,7 @@
     "cancelDelete": "キャンセル",
     "deleteSuccess": "チームを削除しました",
     "deleteFailed": "チームの削除に失敗しました",
-    "removeMember": "このメンバーをチームから削除しますか？"
+    "removeMember": "メンバー {{name}} をチームから削除しますか？"
   },
   "warmup": {
     "title": "チームを起動中",

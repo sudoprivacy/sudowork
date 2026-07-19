@@ -51,6 +51,10 @@ vi.mock('../../src/renderer/pages/team/hooks/useTeamRunView', () => ({
   useTeamRunView: (...args: unknown[]) => mocks.useTeamRunView(...args),
 }));
 
+vi.mock('../../src/renderer/pages/team/hooks/useTeamWarmup', () => ({
+  useTeamWarmup: () => ({ phase: 'ready', runtimeStatus: new Map(), error: undefined, onRetry: () => undefined }),
+}));
+
 vi.mock('@renderer/pages/conversation/ChatLayout', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return {

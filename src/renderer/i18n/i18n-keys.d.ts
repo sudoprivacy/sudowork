@@ -2411,6 +2411,7 @@ export type I18nKey =
   | 'team.create.subtitle'
   | 'team.create.temporaryWorkspaceHint'
   | 'team.create.workspaceLabel'
+  | 'team.detail.addMemberFailed'
   | 'team.detail.empty.prompt.delivery'
   | 'team.detail.empty.prompt.growth'
   | 'team.detail.empty.prompt.productDevQaOps'

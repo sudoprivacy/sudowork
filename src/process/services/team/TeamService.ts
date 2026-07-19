@@ -608,7 +608,9 @@ class TeamService {
   }
 
   private async attachRuntime(teamId: string, member: TeamMember, conversation: TChatConversation, session: TeamSession, failureMode: AttachRuntimeFailureMode): Promise<boolean> {
-    const task = WorkerManage.buildConversation(conversation, { skipCache: true });
+    // Team members run unattended (no interactive permission UI), so force yoloMode
+    // to auto-approve tools — otherwise MCP tools like team_send_message get blocked.
+    const task = WorkerManage.buildConversation(conversation, { skipCache: true, yoloMode: true });
     const agent = (task ?? null) as unknown as AcpAgent | null;
     if (!agent) {
       teamStore.updateMember(member.id, { status: 'failed' });
@@ -944,6 +946,10 @@ class TeamService {
     session?.teamRun.clearSlot(slotId);
     session?.members.delete(slotId);
     session?.wakeGate.clear(slotId);
+    const member = teamStore.getMember(slotId);
+    if (member?.conversation_id) {
+      await reapConversation(member.conversation_id, { reason: 'user-delete', deleteWorkspace: false });
+    }
     teamStore.softDeleteMember(slotId);
     ipcBridge.team.onMemberRemoved.emit({ team_id: teamId, slot_id: slotId });
   }

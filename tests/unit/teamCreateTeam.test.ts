@@ -138,6 +138,7 @@ vi.mock('@process/services/team/TeamStore', () => ({
     getMember: (memberId: string) => h.members.get(memberId) ?? null,
     insertMail: (mail: TeamMail) => h.insertMail(mail),
     hasUnread: (teamId: string, toMemberId: string) => h.mails.some((mail) => mail.team_id === teamId && mail.to_member_id === toMemberId && !mail.read),
+    getLatestUserMail: () => null,
     softDeleteMember: (memberId: string) => h.members.delete(memberId),
     softDeleteMembersByTeam: (teamId: string) => {
       h.softDeletedMemberTeams.push(teamId);

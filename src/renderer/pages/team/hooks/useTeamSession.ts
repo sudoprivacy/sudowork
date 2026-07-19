@@ -118,9 +118,25 @@ export function useTeamSession(teamId: string) {
     [teamId, mutate]
   );
 
+  const addMember = useCallback(
+    async (params: { assistant_id: string; name: string; model?: string; role?: 'lead' | 'teammate' }) => {
+      await ipcBridge.team.addMember.invoke({ team_id: teamId, ...params });
+      void mutate({ showLoading: false });
+    },
+    [teamId, mutate]
+  );
+
+  const renameMember = useCallback(
+    async (slotId: string, name: string) => {
+      await ipcBridge.team.renameMember.invoke({ memberId: slotId, name });
+      void mutate({ showLoading: false });
+    },
+    [mutate]
+  );
+
   const currentTeam = team?.id === teamId ? team : null;
   const isTeamMismatch = !!team && team.id !== teamId;
   const currentLoading = loading || isTeamMismatch;
 
-  return { team: currentTeam, statusMap, loading: currentLoading, mutate, removeMember };
+  return { team: currentTeam, statusMap, loading: currentLoading, mutate, removeMember, addMember, renameMember };
 }

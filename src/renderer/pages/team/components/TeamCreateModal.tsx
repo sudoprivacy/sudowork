@@ -3,21 +3,13 @@ import { Search } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import { renderTeamAssistantIcon } from '../utils/teamAssistantIcon';
+import type { ITeamAssistantCandidate } from '@/common/ipcBridge';
 import { unwrapTeamResult } from '../utils';
-
-interface SelectableAssistant {
-  assistant_id: string;
-  name: string;
-  backend: string;
-  avatar?: string | null;
-  source: 'agent' | 'assistant';
-  description?: string | null;
-}
+import TeamAssistantCandidateCard, { getCandidateDescription, renderCandidateIcon, useFilteredCandidates } from './TeamAssistantCandidateCard';
 
 interface SelectedMemberDraft {
   selectionId: string;
-  assistant: SelectableAssistant;
+  assistant: ITeamAssistantCandidate;
 }
 
 function RequiredLabel({ children }: IRequiredLabelProps) {
@@ -29,24 +21,16 @@ function RequiredLabel({ children }: IRequiredLabelProps) {
   );
 }
 
-function renderAssistantIcon(assistant: SelectableAssistant, size = 24) {
-  return renderTeamAssistantIcon({ assistantId: assistant.assistant_id, source: assistant.source, backend: assistant.backend, avatar: assistant.avatar, name: assistant.name }, { size });
-}
-
-function getAssistantDescription(assistant: SelectableAssistant, t: ReturnType<typeof useTranslation>['t']): string {
-  return assistant.description || t('team.create.agentDescriptionFallback');
-}
-
 export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeamCreateModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [workspace, setWorkspace] = useState('');
-  const [search, setSearch] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<SelectedMemberDraft[]>([]);
   const [leaderSelectionId, setLeaderSelectionId] = useState<string | null>(null);
-  const [assistants, setAssistants] = useState<SelectableAssistant[]>([]);
+  const [assistants, setAssistants] = useState<ITeamAssistantCandidate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { search, setSearch, filtered: filteredAssistants } = useFilteredCandidates(assistants, t);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -68,17 +52,8 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
     return () => {
       isCancelled = true;
     };
-  }, [isVisible]);
+  }, [isVisible, setSearch]);
 
-  const sortedAssistants = useMemo(() => [...assistants].sort((a, b) => (a.source === b.source ? 0 : a.source === 'agent' ? -1 : 1)), [assistants]);
-  const filteredAssistants = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return sortedAssistants;
-    return sortedAssistants.filter((assistant) => {
-      const description = getAssistantDescription(assistant, t);
-      return assistant.name.toLowerCase().includes(query) || description.toLowerCase().includes(query);
-    });
-  }, [search, sortedAssistants, t]);
   const workspaceName = useMemo(
     () =>
       workspace
@@ -102,7 +77,7 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
     }
   };
 
-  const onAddAssistant = (assistant: SelectableAssistant) => {
+  const onAddAssistant = (assistant: ITeamAssistantCandidate) => {
     const draft: SelectedMemberDraft = {
       selectionId: `${assistant.assistant_id}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       assistant,
@@ -158,16 +133,11 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
     return (
       <div className='flex min-h-0 flex-col gap-10px overflow-y-auto pr-1'>
         {filteredAssistants.map((assistant) => (
-          <div key={assistant.assistant_id} className='flex items-center gap-3 rounded-14px border border-[var(--color-border-2)] bg-fill-1 p-3 hover:bg-1'>
-            <span className='inline-flex size-42px shrink-0 items-center justify-center overflow-hidden rounded-12px bg-fill-2'>{renderAssistantIcon(assistant, 24)}</span>
-            <div className='min-w-0 flex-1'>
-              <div className='truncate text-15px font-650 text-1'>{assistant.name}</div>
-              <div className='mt-1 line-clamp-1 text-13px leading-18px text-gray-400'>{getAssistantDescription(assistant, t)}</div>
-            </div>
+          <TeamAssistantCandidateCard key={assistant.assistant_id} candidate={assistant}>
             <Button type='text' shape='circle' title={t('team.create.addMember')} className='!size-36px !bg-green-500/10 !text-green-600 hover:!bg-green-500/18' onClick={() => onAddAssistant(assistant)}>
               +
             </Button>
-          </div>
+          </TeamAssistantCandidateCard>
         ))}
       </div>
     );
@@ -187,10 +157,10 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
       const isLeader = member.selectionId === leaderSelectionId;
       return (
         <div key={member.selectionId} className='flex min-h-66px items-center gap-3 rounded-14px border border-[var(--color-border-2)] bg-fill-1 p-10px hover:bg-1'>
-          <span className='inline-flex size-42px shrink-0 items-center justify-center overflow-hidden rounded-12px bg-fill-2'>{renderAssistantIcon(member.assistant, 24)}</span>
+          <span className='inline-flex size-42px shrink-0 items-center justify-center overflow-hidden rounded-12px bg-fill-2'>{renderCandidateIcon(member.assistant, 24)}</span>
           <div className='min-w-0 flex-1'>
             <div className='truncate text-15px font-650 text-1'>{member.assistant.name}</div>
-            <div className='mt-1 line-clamp-1 text-13px leading-18px text-gray-400'>{getAssistantDescription(member.assistant, t)}</div>
+            <div className='mt-1 line-clamp-1 text-13px leading-18px text-gray-400'>{getCandidateDescription(member.assistant, t)}</div>
           </div>
           <div className='flex items-center gap-6px'>
             <Button type='text' size='mini' className={`!h-28px !rounded-8px !px-10px !text-12px !font-650 ${isLeader ? '!bg-green-500/10 !text-green-600' : '!bg-fill-2 !text-gray-500 hover:!bg-blue-500/10 hover:!text-blue-600'}`} onClick={() => setLeaderSelectionId(member.selectionId)}>

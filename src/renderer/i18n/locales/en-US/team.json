@@ -48,7 +48,8 @@
         "delivery": "Have owners, executors, risk control, and retrospectives collaborate to deliver a project"
       }
     },
-    "leaderNotFound": "Team Leader not found."
+    "leaderNotFound": "Team Leader not found.",
+    "addMemberFailed": "Failed to add member. Please try again."
   },
   "status": {
     "pending": "Pending",
@@ -98,7 +99,7 @@
     "cancelDelete": "Cancel",
     "deleteSuccess": "Team deleted",
     "deleteFailed": "Failed to delete team",
-    "removeMember": "Remove this member from the team?"
+    "removeMember": "Remove member {{name}} from the team?"
   },
   "warmup": {
     "title": "Waking up team",
