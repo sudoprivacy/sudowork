@@ -27,10 +27,11 @@ const execAsync = promisify(exec);
  * Differences from DynamicNexusService that matter here:
  *  - nexusd-cluster speaks gRPC only; there is NO HTTP /health endpoint, so
  *    readiness is a TCP-connect probe against the bind port.
- *  - Its CLI is --hostname / --bind-addr / --data-dir / --no-tls
- *    (NOT --host/--port/--profile/--auth-type). With no peers it founds a
- *    healthy single-node 1-voter root zone; the boot action is inferred from
- *    on-disk state (--bootstrap-mode was removed upstream in Phase G).
+ *  - It is launched via the `serve-local --port <p>` subcommand (nexus-vfs
+ *    >=v0.6.0), the shorthand for `--bind-addr 127.0.0.1:<p> --no-tls` — the
+ *    trusted-local-backend posture. With no peers it founds a healthy
+ *    single-node 1-voter root zone; the boot action is inferred from on-disk
+ *    state (--bootstrap-mode was removed upstream in Phase G).
  */
 
 const NEXUS_VFS_BIND_HOST = '127.0.0.1';
@@ -427,12 +428,15 @@ class DynamicNexusVfsService {
       throw new Error('nexus-vfs not installed. Please install it first.');
     }
     const pluginDir = this.getPluginDir();
-    // --bootstrap-mode was removed in nexus-vfs (Phase G): the daemon infers
-    // its boot action from on-disk state. Required on v0.4.0, REJECTED on
-    // >=v0.5.0 — so this drop is atomic with the pin bump in runtime-versions.json.
-    // --no-tls stays: a plaintext tokenless daemon on this loopback bind is a
-    // trusted local backend, which v0.5.0's boot invariant permits.
-    const args = ['--hostname', 'localhost', '--bind-addr', `${NEXUS_VFS_BIND_HOST}:${port}`, '--data-dir', this.getDaemonDataDir(), '--no-tls'];
+    // `serve-local` (nexus-vfs >=v0.6.0) is the shorthand for
+    // `--bind-addr 127.0.0.1:<port> --no-tls`: it binds loopback + plaintext,
+    // the trusted-local-backend posture the daemon's boot auth gate permits
+    // without `--insecure-no-auth`. It replaces the hand-written triplet so
+    // the invariant lives in the binary, not here (atomic with the v0.6.0 pin
+    // bump in runtime-versions.json, which is where the subcommand landed).
+    // --hostname is a cosmetic display label; --data-dir + --plugin-dir are
+    // global flags that apply under the subcommand.
+    const args = ['serve-local', '--port', String(port), '--hostname', 'localhost', '--data-dir', this.getDaemonDataDir()];
     if (vaultPluginInstaller.isPlatformSupported() && vaultPluginInstaller.checkInstalledSync()) {
       args.push('--plugin-dir', pluginDir);
     }
