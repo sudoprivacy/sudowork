@@ -106,7 +106,7 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
     <div className='flex h-full min-w-0 w-full flex-1 flex-col'>
       <div className='flex items-center justify-between px-20px py-8px'>
         <span className='text-13px font-600 text-gray-600'>{t('team.detail.memberTab')}</span>
-        <button type='button' className='inline-flex items-center gap-4px rounded-6px px-8px py-4px text-12px text-gray-600 transition-colors hover:bg-[var(--color-fill-2)] hover:text-foreground' onClick={() => setIsAddMemberVisible(true)}>
+        <button type='button' className='inline-flex cursor-pointer items-center gap-4px rounded-6px px-8px py-4px text-12px text-gray-600 transition-colors hover:bg-[var(--color-fill-2)] hover:text-foreground' onClick={() => setIsAddMemberVisible(true)}>
           <UserPlus size={14} />
           {t('team.create.addMember')}
         </button>
@@ -184,20 +184,20 @@ function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRena
       ) : (
         <span className='min-w-0 flex-1 truncate text-13px'>{member.assistant_name}</span>
       )}
-      <span className='inline-flex shrink-0 items-center gap-4px whitespace-nowrap text-11px text-gray-400'>
-        <span className={`inline-block w-8px h-8px rounded-full ${STATUS_COLOR[status]}`} />
-        <span className={`group-hover/team-member:hidden ${isEditing ? 'hidden' : ''}`}>{statusLabel}</span>
-      </span>
       {!isEditing && (
-        <div className='hidden shrink-0 items-center gap-2px group-hover/team-member:flex' onClick={(e) => e.stopPropagation()}>
-          <button type='button' title={t('team.actions.rename')} className='inline-flex size-20px items-center justify-center rounded-4px text-gray-400 hover:bg-[var(--color-fill-2)] hover:text-foreground' onClick={() => setIsEditing(true)}>
-            <Pencil size={13} />
+        <div className='hidden shrink-0 items-center gap-4px group-hover/team-member:flex' onClick={(e) => e.stopPropagation()}>
+          <button type='button' title={t('team.actions.rename')} className='inline-flex size-24px cursor-pointer items-center justify-center rounded-4px text-gray-400 hover:bg-[var(--color-fill-2)] hover:text-foreground' onClick={() => setIsEditing(true)}>
+            <Pencil size={16} />
           </button>
-          <button type='button' title={t('team.actions.remove')} className='inline-flex size-20px items-center justify-center rounded-4px text-gray-400 hover:bg-red-500/10 hover:text-red-500' onClick={handleRemove}>
-            <X size={14} />
+          <button type='button' title={t('team.actions.remove')} className='inline-flex size-24px cursor-pointer items-center justify-center rounded-4px text-gray-400 hover:bg-red-500/10 hover:text-red-500' onClick={handleRemove}>
+            <X size={16} />
           </button>
         </div>
       )}
+      <span className='inline-flex shrink-0 items-center gap-4px whitespace-nowrap text-11px text-gray-400'>
+        <span className={`inline-block w-8px h-8px rounded-full ${STATUS_COLOR[status]}`} />
+        <span className={isEditing ? 'hidden' : ''}>{statusLabel}</span>
+      </span>
     </div>
   );
 }
