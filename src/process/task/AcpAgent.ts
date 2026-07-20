@@ -714,7 +714,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // ========== Public API (BaseAgent contract) ==========
 
-  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string }): Promise<{
+  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string; suppressUserBubble?: boolean }): Promise<{
     success: boolean;
     msg?: string;
     message?: string;
@@ -772,42 +772,44 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Emit/persist user message immediately
       if (data.msg_id && data.content) {
-        const displayContent = appendNexusFilesMarker(data.content, data.files || [], this.workspace);
-        const userMessage: TMessage = {
-          id: data.msg_id,
-          msg_id: data.msg_id,
-          type: 'text',
-          position: 'right',
-          conversation_id: this.conversation_id,
-          content: {
-            content: displayContent,
-            ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
-            ...(data.cronMeta && { cronMeta: data.cronMeta }),
-          },
-          createdAt: Date.now(),
-        };
-        addMessage(this.conversation_id, userMessage);
         try {
           getDatabase().updateConversation(this.conversation_id, {});
         } catch {
           // Conversation might not exist in DB yet
         }
-        let responseData: any = displayContent;
-        if (data.cronMeta || (data.skills && data.skills.length > 0)) {
-          responseData = {
-            content: displayContent,
-            ...(data.cronMeta && { cronMeta: data.cronMeta }),
-            ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
+        if (!data.suppressUserBubble) {
+          const displayContent = appendNexusFilesMarker(data.content, data.files || [], this.workspace);
+          const userMessage: TMessage = {
+            id: data.msg_id,
+            msg_id: data.msg_id,
+            type: 'text',
+            position: 'right',
+            conversation_id: this.conversation_id,
+            content: {
+              content: displayContent,
+              ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
+              ...(data.cronMeta && { cronMeta: data.cronMeta }),
+            },
+            createdAt: Date.now(),
           };
-        }
+          addMessage(this.conversation_id, userMessage);
+          let responseData: any = displayContent;
+          if (data.cronMeta || (data.skills && data.skills.length > 0)) {
+            responseData = {
+              content: displayContent,
+              ...(data.cronMeta && { cronMeta: data.cronMeta }),
+              ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
+            };
+          }
 
-        const userResponseMessage: IResponseMessage = {
-          type: 'user_content',
-          conversation_id: this.conversation_id,
-          msg_id: data.msg_id,
-          data: responseData,
-        };
-        ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
+          const userResponseMessage: IResponseMessage = {
+            type: 'user_content',
+            conversation_id: this.conversation_id,
+            msg_id: data.msg_id,
+            data: responseData,
+          };
+          ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
+        }
       }
 
       // Emit start event before async initAgent so frontend loading state

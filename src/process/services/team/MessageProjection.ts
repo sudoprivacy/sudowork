@@ -38,7 +38,7 @@ export function projectMessage(teamId: string, mail: TeamMail, targetConversatio
   if (mail.type !== 'message') return;
   const isFromUser = mail.from_member_id === 'user';
   const key = dedupeKey(teamId, mail.id, targetConversationId);
-  if (!isFromUser && messageExistsByMsgId(key)) return;
+  if (messageExistsByMsgId(key)) return;
 
   const position = isFromUser ? 'right' : 'left';
   const content: { content: string } | TeammateMessageContent = isFromUser
@@ -63,7 +63,14 @@ export function projectMessage(teamId: string, mail: TeamMail, targetConversatio
   };
   addMessage(targetConversationId, message as TMessage);
 
-  if (!isFromUser) {
+  if (isFromUser) {
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'user_content',
+      conversation_id: targetConversationId,
+      msg_id: key,
+      data: stripSystemNotes(mail.content),
+    });
+  } else {
     ipcBridge.team.onTeammateMessage.emit({
       conversation_id: targetConversationId,
       content: mail.content,
@@ -79,7 +86,6 @@ export function projectMessage(teamId: string, mail: TeamMail, targetConversatio
  */
 export function mirrorUnreadToConversation(teamId: string, member: TeamMember, messages: TeamMail[], senderLookup: (slotId: string) => TeamMember | null): void {
   for (const mail of messages) {
-    if (mail.from_member_id === 'user') continue;
     if (mail.type === 'idle_notification') continue;
     if (!member.conversation_id) continue;
     projectMessage(teamId, mail, member.conversation_id, senderLookup(mail.from_member_id));

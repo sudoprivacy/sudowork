@@ -165,7 +165,7 @@ export class EventLoop {
       const text = messages.map((m) => m.content).join('\n\n');
       const latestUserLanguage = this.deps.getLatestUserLanguage?.() ?? null;
       const hiddenPromptPrefix = latestUserLanguage ? buildTeamUserLanguageContract(latestUserLanguage) : undefined;
-      await agent.sendMessage({ content: text, msg_id: turnId, hiddenPromptPrefix });
+      await agent.sendMessage({ content: text, msg_id: turnId, hiddenPromptPrefix, suppressUserBubble: true });
       if (!this.alive) return null;
       // Stage 2 → 3: starting_reservations → active_child_turns (turn has run).
       this.deps.teamRun.recordChildStarted(reservation, turnId, this.deps.member.conversation_id ?? '');
