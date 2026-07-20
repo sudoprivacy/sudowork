@@ -1742,6 +1742,48 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   /**
+   * Interrupt a team member's turn that attempted Sleep (busy-wait).
+   *
+   * Deliberately does NOT call this.stop() / handleSignalEvent(finish):
+   *  - stop()->performStop() sets userCancelled=true, after which
+   *    handleStreamEvent / handleSignalEvent ignore the leader's subsequent
+   *    teammate replies (see :3273 / :3372).
+   *  - handleSignalEvent(finish) resets turnActive / cronBusyGuard and archives
+   *    turn files (:3403 / :3404 / :3414); because this method is
+   *    fire-and-forget and the pending sendPrompt resolves sendToConnection's
+   *    await (registered earlier) BEFORE this method's await, the EventLoop
+   *    starts the next turn (sendMessage re-asserts turnActive / cronBusyGuard
+   *    at :726 / :723) BEFORE handleSignalEvent(finish) runs — finish would
+   *    wrongly clobber the new turn's state. (stop() avoids this only because
+   *    user-stop has no following turn.)
+   *
+   * So: only the race-free low-level primitives. turnActive / cronBusyGuard
+   * are intentionally left untouched — the next turn's sendMessage re-asserts
+   * them; if no next turn (leader idle), they stay set until the next message,
+   * which is harmless (the only turnActive reader — the stop() guard at :1634
+   * — treats true as "can stop"; cronBusyGuard only gates cron tasks for this
+   * conversation, never team coordination).
+   */
+  private async cancelTeamSleepTurn(): Promise<void> {
+    let result: 'cancelled' | 'abandoned' | 'disconnected';
+    try {
+      result = await this.connection.cancel(5000);
+    } catch {
+      result = 'disconnected';
+    }
+    if (result !== 'cancelled') {
+      await this.connection.disconnect();
+    }
+    this.emitClearIncompleteTools();
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'finish',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      data: null,
+    });
+  }
+
+  /**
    * Clean up current-turn draft files on cancel. Final files are preserved.
    * 取消时只清理当前 Turn 的草稿文件，保留最终交付文件。
    */
@@ -2523,6 +2565,13 @@ This identity statement takes priority over the default identity in USER.md.
         const toolName = toolCallUpdate.update?.title || '';
         const toolCallId = toolCallUpdate.update?.toolCallId;
         console.log(`[AcpAgent] tool_call event: toolName=${toolName}, toolCallId=${toolCallId}`);
+
+        // Team 场景禁止 Sleep：leader/member 用 Sleep 会在 turn 内 busy-wait，
+        // 导致 EventLoop 串行阻塞、member 回复堆积（根因）。检测到即中断 turn 释放阻塞。
+        if (this.options.teamMcpConfig && toolName === 'Sleep') {
+          mainLog('[AcpAgent]', `[TEAM] Sleep blocked in team session (conv=${this.conversation_id}), interrupting turn`);
+          void this.cancelTeamSleepTurn().catch((err) => mainWarn('[AcpAgent]', `[TEAM] cancelTeamSleepTurn failed:`, err));
+        }
 
         // Breadcrumb: MCP/tool call started
         mcpBreadcrumbs.toolCall(toolName, 'acp', this.conversation_id);
