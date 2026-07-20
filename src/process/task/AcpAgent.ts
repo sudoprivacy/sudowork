@@ -1914,7 +1914,9 @@ This identity statement takes priority over the default identity in USER.md.
 
   private emitFallbackCompletionMessage(finalFiles: Array<{ path: string; reason: string }>): void {
     const hasVisibleContentAfterLastTool = this.turnHadVisibleAssistantContent && this.lastVisibleAssistantContentSequence > this.lastToolCompletionSequence;
-    if (this.userCancelled || hasVisibleContentAfterLastTool) {
+    // Team 场景豁免：leader/member 的正常 turn 以工具调用结尾（GovernancePrompt 要求工具协调后 END turn），
+    // 工具之后无可见总结文本是常态，不应误报为"模型没有返回总结"。
+    if (this.userCancelled || hasVisibleContentAfterLastTool || this.options.teamMcpConfig) {
       return;
     }
 
