@@ -21,6 +21,7 @@ import { runMigrations as executeMigrations } from './migrations';
 import { isCorruptDatabaseFileError } from './corruptionError';
 import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
 import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
+import { readWorkspacePathsForUser } from './workspaceQueries';
 import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
 
 type LocalKbRow = Record<string, unknown>;
@@ -1091,6 +1092,15 @@ export class SudoworkDatabase {
     } catch (error: any) {
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Workspace paths of every default-user conversation, INCLUDING team-member
+   * conversations (no isTeamMember filter). Used by the orphan workspace sweeper
+   * to build its live-workspace set.
+   */
+  getAllConversationWorkspaces(): string[] {
+    return readWorkspacePathsForUser(this.db, this.defaultUserId);
   }
 
   deleteConversation(conversationId: string): IQueryResult<boolean> {

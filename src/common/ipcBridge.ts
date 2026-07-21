@@ -641,10 +641,11 @@ export const deliverables = {
         createdAt: number;
       }>
     >,
-    { conversationId: string }
+    { conversationId?: string; teamId?: string }
   >('deliverables.list'),
   changed: bridge.buildEmitter<{
     conversationId: string;
+    teamId?: string;
     files: Array<{
       path: string;
       relativePath?: string;

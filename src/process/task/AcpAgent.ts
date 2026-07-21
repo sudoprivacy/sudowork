@@ -177,6 +177,8 @@ export interface AcpAgentData {
   presetAssistantId?: string;
   /** Per-member team MCP server config (K2 wire, injected via session/new.mcp_servers, see A1); undefined for non-team conversations */
   teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
+  /** Team id this conversation belongs to (mirrors extra.teamId); undefined for non-team conversations. Routes team deliverables aggregation. */
+  teamId?: string;
 }
 
 class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
@@ -1974,7 +1976,7 @@ This identity statement takes priority over the default identity in USER.md.
     // Live-push the deliverables list to the renderer's right-panel
     // "交付物" tab so it can append without refetching from DB.
     try {
-      ipcBridge.deliverables.changed.emit({ conversationId: this.conversation_id, files: entries });
+      ipcBridge.deliverables.changed.emit({ conversationId: this.conversation_id, teamId: this.options.teamId, files: entries });
     } catch (err) {
       mainLog('[AcpAgent]', `[TRACK] deliverables.changed emit failed: ${String(err)}`);
     }

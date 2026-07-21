@@ -9,6 +9,7 @@ import nodePath from 'node:path';
 import { parseGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 import { getDatabase } from '@process/database';
 import { mainError } from '@process/utils/mainLogger';
+import { teamStore } from '@process/services/team/TeamStore';
 
 /**
  * Aggregates AI-generated file deliverables across the lifetime of a
@@ -34,9 +35,43 @@ class DeliverablesService {
   listForConversation(conversationId: string): GeneratedFileEntry[] {
     if (!conversationId) return [];
     const db = getDatabase();
+    const collected = this.scanConversationMarkers(conversationId);
+    const workspace = resolveConversationWorkspace(db, conversationId);
+    const reconciled = collected.map((entry) => reconcileEntryPath(entry, workspace));
+    return dedupeAndSort(reconciled);
+  }
+
+  /**
+   * Aggregate deliverables across every member (leader + teammates) of a team.
+   * Each member's markers live in its own conversation; scan them all and dedupe
+   * globally. All members share the team workspace, so reconciliation uses
+   * `team.workspace` once (null/missing → safe no-op).
+   */
+  listForTeam(teamId: string): GeneratedFileEntry[] {
+    if (!teamId) return [];
+    const team = teamStore.getTeam(teamId);
+    const workspace = team?.workspace ?? undefined;
+    const members = teamStore.listMembersByTeam(teamId);
+    const collected: GeneratedFileEntry[] = [];
+    for (const member of members) {
+      if (!member.conversation_id) continue;
+      collected.push(...this.scanConversationMarkers(member.conversation_id));
+    }
+    const reconciled = collected.map((entry) => reconcileEntryPath(entry, workspace));
+    return dedupeAndSort(reconciled);
+  }
+
+  /**
+   * Scan a single conversation's persisted assistant text messages for
+   * `[[NEXUS_GENERATED_FILES]]` markers. Returns raw collected entries (no
+   * reconciliation/dedup) so callers can merge across conversations
+   * (`listForTeam`) or reconcile per-conversation (`listForConversation`).
+   * Returns [] on error so one failing conversation can't break aggregation.
+   */
+  private scanConversationMarkers(conversationId: string): GeneratedFileEntry[] {
+    const db = getDatabase();
     const pageSize = 200;
     const collected: GeneratedFileEntry[] = [];
-
     try {
       let page = 0;
       // Defensive cap so a runaway conversation can't loop forever.
@@ -59,10 +94,7 @@ class DeliverablesService {
       mainError('DeliverablesService', `Failed to scan conversation ${conversationId}: ${String(error)}`);
       return [];
     }
-
-    const workspace = resolveConversationWorkspace(db, conversationId);
-    const reconciled = collected.map((entry) => reconcileEntryPath(entry, workspace));
-    return dedupeAndSort(reconciled);
+    return collected;
   }
 }
 

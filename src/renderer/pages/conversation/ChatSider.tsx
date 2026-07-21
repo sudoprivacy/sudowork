@@ -29,7 +29,8 @@ const ChatSider: React.FC<{
   extraTab?: ExtraPanelTab;
   isOverflowTabsEnabled?: boolean;
   onActiveTabChange?: (tabId: string) => void;
-}> = ({ conversation, extraTab, isOverflowTabsEnabled = false, onActiveTabChange }) => {
+  teamId?: string;
+}> = ({ conversation, extraTab, isOverflowTabsEnabled = false, onActiveTabChange, teamId }) => {
   const { t } = useTranslation();
   const storageKey = React.useMemo(() => (conversation?.id ? `${STORAGE_KEYS.RIGHT_PANEL_ACTIVE_TAB}:${conversation.id}` : null), [conversation?.id]);
   const isOverflowMode = isOverflowTabsEnabled && Boolean(extraTab);
@@ -180,7 +181,7 @@ const ChatSider: React.FC<{
             <TerminalPanel cwd={workspace} active={activeTab === 'terminal'} conversationId={conversation?.id} />
           </div>
           <div className={`right-panel-stack__pane ${activeTab === 'deliverables' ? 'right-panel-stack__pane--active' : ''}`}>
-            <DeliverablesPanel conversationId={conversation?.id} active={activeTab === 'deliverables'} />
+            <DeliverablesPanel conversationId={conversation?.id} teamId={teamId} active={activeTab === 'deliverables'} />
           </div>
           {extraTab ? <div className={`right-panel-stack__pane ${activeTab === extraTab.id ? 'right-panel-stack__pane--active' : ''}`}>{extraTab.node}</div> : null}
         </div>

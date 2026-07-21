@@ -6,6 +6,8 @@ import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/ge
 
 const getConversationMessagesMock = vi.fn();
 const getConversationMock = vi.fn();
+const listMembersByTeamMock = vi.fn();
+const getTeamMock = vi.fn();
 
 vi.mock('@process/database', () => ({
   getDatabase: () => ({ getConversationMessages: getConversationMessagesMock, getConversation: getConversationMock }),
@@ -13,6 +15,10 @@ vi.mock('@process/database', () => ({
 
 vi.mock('@process/utils/mainLogger', () => ({
   mainError: vi.fn(),
+}));
+
+vi.mock('@process/services/team/TeamStore', () => ({
+  teamStore: { listMembersByTeam: listMembersByTeamMock, getTeam: getTeamMock },
 }));
 
 const { deliverablesService } = await import('@/process/services/deliverables/DeliverablesService');
@@ -58,7 +64,7 @@ describe('DeliverablesService.listForConversation', () => {
       paginated([
         { type: 'text', position: 'left', content: { content: 'plain prose' } },
         { type: 'text', position: 'right', content: { content: 'user message' } },
-      ]),
+      ])
     );
     expect(deliverablesService.listForConversation('c1')).toEqual([]);
   });
@@ -71,12 +77,7 @@ describe('DeliverablesService.listForConversation', () => {
   });
 
   it('latest occurrence wins when the same path appears in multiple turns', () => {
-    getConversationMessagesMock.mockReturnValue(
-      paginated([
-        markerMessage([entry({ path: '/w/report.pptx', createdAt: 100, size: 1024 })]),
-        markerMessage([entry({ path: '/w/report.pptx', createdAt: 500, size: 4096 })]),
-      ]),
-    );
+    getConversationMessagesMock.mockReturnValue(paginated([markerMessage([entry({ path: '/w/report.pptx', createdAt: 100, size: 1024 })]), markerMessage([entry({ path: '/w/report.pptx', createdAt: 500, size: 4096 })])]));
     const result = deliverablesService.listForConversation('c1');
     expect(result).toHaveLength(1);
     expect(result[0].size).toBe(4096);
@@ -107,9 +108,7 @@ describe('DeliverablesService.listForConversation', () => {
     fs.writeFileSync(realFile, '<html></html>');
     try {
       getConversationMock.mockReturnValue({ success: true, data: { extra: { workspace } } });
-      getConversationMessagesMock.mockReturnValue(
-        paginated([markerMessage([entry({ path: '/old/gone/report.html', relativePath: 'report.html', createdAt: 100 })])]),
-      );
+      getConversationMessagesMock.mockReturnValue(paginated([markerMessage([entry({ path: '/old/gone/report.html', relativePath: 'report.html', createdAt: 100 })])]));
       const result = deliverablesService.listForConversation('c1');
       expect(result).toHaveLength(1);
       expect(result[0].path).toBe(nodePath.resolve(realFile));
@@ -120,9 +119,7 @@ describe('DeliverablesService.listForConversation', () => {
 
   it('leaves the path untouched when the stale path resolves nowhere', () => {
     getConversationMock.mockReturnValue({ success: true, data: { extra: { workspace: '/nonexistent-workspace' } } });
-    getConversationMessagesMock.mockReturnValue(
-      paginated([markerMessage([entry({ path: '/old/gone/report.html', relativePath: 'report.html', createdAt: 100 })])]),
-    );
+    getConversationMessagesMock.mockReturnValue(paginated([markerMessage([entry({ path: '/old/gone/report.html', relativePath: 'report.html', createdAt: 100 })])]));
     const result = deliverablesService.listForConversation('c1');
     expect(result).toHaveLength(1);
     expect(result[0].path).toBe('/old/gone/report.html');
@@ -135,9 +132,7 @@ describe('DeliverablesService.listForConversation', () => {
     fs.writeFileSync(outsideFile, '<html></html>');
     try {
       getConversationMock.mockReturnValue({ success: true, data: { extra: { workspace } } });
-      getConversationMessagesMock.mockReturnValue(
-        paginated([markerMessage([entry({ path: '/old/gone/secret.html', relativePath: nodePath.relative(workspace, outsideFile), createdAt: 100 })])]),
-      );
+      getConversationMessagesMock.mockReturnValue(paginated([markerMessage([entry({ path: '/old/gone/secret.html', relativePath: nodePath.relative(workspace, outsideFile), createdAt: 100 })])]));
       const result = deliverablesService.listForConversation('c1');
       expect(result).toHaveLength(1);
       expect(result[0].path).toBe('/old/gone/secret.html');
@@ -145,5 +140,49 @@ describe('DeliverablesService.listForConversation', () => {
       fs.rmSync(workspace, { recursive: true, force: true });
       fs.rmSync(outsideDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('DeliverablesService.listForTeam', () => {
+  beforeEach(() => {
+    getConversationMessagesMock.mockReset();
+    getConversationMock.mockReset();
+    getConversationMock.mockReturnValue({ success: false });
+    listMembersByTeamMock.mockReset();
+    getTeamMock.mockReset();
+    getTeamMock.mockReturnValue(null);
+  });
+
+  it('returns [] for an empty team id', () => {
+    expect(deliverablesService.listForTeam('')).toEqual([]);
+    expect(listMembersByTeamMock).not.toHaveBeenCalled();
+  });
+
+  it('aggregates markers across all team members', () => {
+    listMembersByTeamMock.mockReturnValue([{ conversation_id: 'c1' }, { conversation_id: 'c2' }]);
+    getConversationMessagesMock.mockImplementation((conversationId: string) =>
+      conversationId === 'c1' ? paginated([markerMessage([entry({ path: '/w/a.html', relativePath: 'a.html', createdAt: 100 })])]) : paginated([markerMessage([entry({ path: '/w/b.md', relativePath: 'b.md', ext: 'md', createdAt: 200 })])])
+    );
+    const result = deliverablesService.listForTeam('team1');
+    expect(result.map((f) => f.relativePath).sort()).toEqual(['a.html', 'b.md']);
+  });
+
+  it('latest wins when members produce the same relativePath', () => {
+    listMembersByTeamMock.mockReturnValue([{ conversation_id: 'c1' }, { conversation_id: 'c2' }]);
+    getConversationMessagesMock.mockImplementation((conversationId: string) =>
+      conversationId === 'c1' ? paginated([markerMessage([entry({ path: '/w/report.html', relativePath: 'report.html', createdAt: 100, size: 1024 })])]) : paginated([markerMessage([entry({ path: '/w/report.html', relativePath: 'report.html', createdAt: 500, size: 4096 })])])
+    );
+    const result = deliverablesService.listForTeam('team1');
+    expect(result).toHaveLength(1);
+    expect(result[0].createdAt).toBe(500);
+    expect(result[0].size).toBe(4096);
+  });
+
+  it('skips members whose conversation_id is null', () => {
+    listMembersByTeamMock.mockReturnValue([{ conversation_id: null }, { conversation_id: 'c2' }]);
+    getConversationMessagesMock.mockReturnValue(paginated([markerMessage([entry({ path: '/w/b.md', relativePath: 'b.md', ext: 'md', createdAt: 200 })])]));
+    const result = deliverablesService.listForTeam('team1');
+    expect(result.map((f) => f.relativePath)).toEqual(['b.md']);
+    expect(getConversationMessagesMock).toHaveBeenCalledTimes(1);
   });
 });
