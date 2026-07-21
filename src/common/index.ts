@@ -5,4 +5,4 @@
  */
 
 export * as ipcBridge from './ipcBridge';
-export { conversation, skillHub, assistantHub } from './ipcBridge';
+export { conversation, skillHub, assistantHub, digitalEmployee } from './ipcBridge';

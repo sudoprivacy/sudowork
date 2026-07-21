@@ -37,6 +37,7 @@ import { initClaudeCliBridge } from './claudeCliBridge';
 import { initLibreOfficeBridge } from './libreofficeBridge';
 import { initSkillHubBridge } from './skillHubBridge';
 import { initAssistantHubBridge } from './assistantHubBridge';
+import { initDigitalEmployeeBridge } from './digitalEmployeeBridge';
 import { initSudoclawBridge } from './sudoclawBridge';
 import { initInitBridge } from './initBridge';
 import { initSudoworkServerBridge } from './sudoworkServerBridge';
@@ -103,6 +104,7 @@ export function initAllBridges(): void {
   initLibreOfficeBridge();
   initSkillHubBridge();
   initAssistantHubBridge();
+  initDigitalEmployeeBridge();
   initSudoclawBridge();
   initNodeRuntimeBridge();
   initPythonRuntimeBridge();

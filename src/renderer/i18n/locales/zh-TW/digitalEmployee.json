@@ -1,0 +1,91 @@
+{
+  "title": "數位員工",
+  "subtitle": "StaffDeck 員工庫已遷移到 Sudowork",
+  "searchPlaceholder": "搜尋員工、職位或職責",
+  "empty": "暫無數位員工",
+  "actions": {
+    "create": "新增員工",
+    "launch": "啟動",
+    "selectWorkspace": "選擇工作區"
+  },
+  "fields": {
+    "name": "員工名稱",
+    "roleName": "職位",
+    "description": "職責描述",
+    "personaPrompt": "身份規則",
+    "backend": "執行後端",
+    "defaultMode": "預設模式",
+    "status": "狀態"
+  },
+  "backend": {
+    "scode": "Sudo Code",
+    "claude": "Claude",
+    "qwen": "Qwen",
+    "codex": "Codex",
+    "gemini": "Gemini"
+  },
+  "status": {
+    "active": "啟用",
+    "disabled": "停用"
+  },
+  "source": {
+    "staffdeck_seed": "StaffDeck",
+    "custom": "自訂",
+    "hub": "商店",
+    "tenant": "企業"
+  },
+  "messages": {
+    "loadFailed": "數位員工載入失敗",
+    "requiredFields": "請填寫員工名稱和職位",
+    "saveFailed": "數位員工儲存失敗",
+    "createSuccess": "數位員工已建立",
+    "updateSuccess": "數位員工已更新",
+    "actionFailed": "操作失敗",
+    "deleteSuccess": "數位員工已刪除",
+    "duplicateSuccess": "數位員工已複製",
+    "launchMessageRequired": "請輸入初始任務",
+    "resourceRequired": "請選擇或輸入資源 ID",
+    "resourceAdded": "資源已綁定",
+    "resourceRemoved": "資源已移除"
+  },
+  "delete": {
+    "title": "刪除數位員工",
+    "content": "確認刪除 {{name}}？"
+  },
+  "launch": {
+    "title": "啟動數位員工",
+    "defaultMessage": "請以 {{name}}（{{role}}）身份開始處理目前任務。",
+    "message": "初始任務",
+    "workspace": "工作區"
+  },
+  "editor": {
+    "createTitle": "新增數位員工",
+    "editTitle": "編輯數位員工"
+  },
+  "resources": {
+    "title": "能力資源",
+    "empty": "暫無綁定資源",
+    "selectPlaceholder": "選擇已安裝資源",
+    "idPlaceholder": "資源 ID",
+    "namePlaceholder": "資源名稱",
+    "summaryPlaceholder": "能力摘要",
+    "enabled": "啟用資源",
+    "add": "綁定資源",
+    "remove": "移除資源"
+  },
+  "resourceTypes": {
+    "assistant": "助手",
+    "skill": "技能",
+    "general_skill": "通用技能",
+    "sop": "SOP",
+    "tool": "工具",
+    "knowledge": "知識",
+    "mcp": "MCP"
+  },
+  "card": {
+    "resources": "能力",
+    "workRecords": "工作",
+    "status": "狀態",
+    "lastWorkedAt": "最近工作：{{time}}"
+  }
+}

@@ -66,6 +66,7 @@
   "tray.quit": "終了",
   "siderMenu": {
     "agent": "デジタルアシスタント",
+    "digitalEmployees": "デジタル従業員",
     "skillStore": "スキルストア",
     "security": "セキュリティ",
     "webui": "リモート接続",

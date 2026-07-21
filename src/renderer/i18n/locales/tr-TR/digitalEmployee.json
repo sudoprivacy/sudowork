@@ -1,0 +1,91 @@
+{
+  "title": "Dijital Çalışanlar",
+  "subtitle": "StaffDeck çalışan kütüphanesi Sudowork içinde kullanılabilir",
+  "searchPlaceholder": "Çalışan, rol veya sorumluluk ara",
+  "empty": "Dijital çalışan yok",
+  "actions": {
+    "create": "Yeni Çalışan",
+    "launch": "Başlat",
+    "selectWorkspace": "Çalışma alanı seç"
+  },
+  "fields": {
+    "name": "Ad",
+    "roleName": "Rol",
+    "description": "Sorumluluklar",
+    "personaPrompt": "Kimlik Kuralları",
+    "backend": "Arka uç",
+    "defaultMode": "Varsayılan Mod",
+    "status": "Durum"
+  },
+  "backend": {
+    "scode": "Sudo Code",
+    "claude": "Claude",
+    "qwen": "Qwen",
+    "codex": "Codex",
+    "gemini": "Gemini"
+  },
+  "status": {
+    "active": "Etkin",
+    "disabled": "Devre dışı"
+  },
+  "source": {
+    "staffdeck_seed": "StaffDeck",
+    "custom": "Özel",
+    "hub": "Mağaza",
+    "tenant": "Kurumsal"
+  },
+  "messages": {
+    "loadFailed": "Dijital çalışanlar yüklenemedi",
+    "requiredFields": "Ad ve rol gereklidir",
+    "saveFailed": "Dijital çalışan kaydedilemedi",
+    "createSuccess": "Dijital çalışan oluşturuldu",
+    "updateSuccess": "Dijital çalışan güncellendi",
+    "actionFailed": "İşlem başarısız",
+    "deleteSuccess": "Dijital çalışan silindi",
+    "duplicateSuccess": "Dijital çalışan kopyalandı",
+    "launchMessageRequired": "Başlangıç görevi girin",
+    "resourceRequired": "Bir kaynak ID seçin veya girin",
+    "resourceAdded": "Kaynak bağlandı",
+    "resourceRemoved": "Kaynak kaldırıldı"
+  },
+  "delete": {
+    "title": "Dijital Çalışanı Sil",
+    "content": "{{name}} silinsin mi?"
+  },
+  "launch": {
+    "title": "Dijital Çalışanı Başlat",
+    "defaultMessage": "{{name}} ({{role}}) olarak mevcut göreve başlayın.",
+    "message": "Başlangıç Görevi",
+    "workspace": "Çalışma Alanı"
+  },
+  "editor": {
+    "createTitle": "Yeni Dijital Çalışan",
+    "editTitle": "Dijital Çalışanı Düzenle"
+  },
+  "resources": {
+    "title": "Yetenek Kaynakları",
+    "empty": "Bağlı kaynak yok",
+    "selectPlaceholder": "Yüklü kaynak seç",
+    "idPlaceholder": "Kaynak ID",
+    "namePlaceholder": "Kaynak Adı",
+    "summaryPlaceholder": "Yetenek özeti",
+    "enabled": "Kaynağı etkinleştir",
+    "add": "Kaynak Bağla",
+    "remove": "Kaynağı kaldır"
+  },
+  "resourceTypes": {
+    "assistant": "Asistan",
+    "skill": "Beceri",
+    "general_skill": "Genel Beceri",
+    "sop": "SOP",
+    "tool": "Araç",
+    "knowledge": "Bilgi",
+    "mcp": "MCP"
+  },
+  "card": {
+    "resources": "Kaynaklar",
+    "workRecords": "İş",
+    "status": "Durum",
+    "lastWorkedAt": "Son iş: {{time}}"
+  }
+}

@@ -81,6 +81,9 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       currentModelId,
       // Explicit marker for temporary health-check conversations
       isHealthCheck: extra.isHealthCheck,
+      digitalEmployeeId: extra.digitalEmployeeId,
+      digitalEmployeeRole: extra.digitalEmployeeRole,
+      digitalEmployeeSourceType: extra.digitalEmployeeSourceType,
       // Cron job metadata (set when conversation is created by a cron execution)
       cronJobId: extra.cronJobId,
       cronJobName: extra.cronJobName,

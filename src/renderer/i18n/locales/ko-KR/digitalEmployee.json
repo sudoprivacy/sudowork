@@ -1,0 +1,91 @@
+{
+  "title": "디지털 직원",
+  "subtitle": "StaffDeck 직원 라이브러리를 Sudowork에서 사용할 수 있습니다",
+  "searchPlaceholder": "직원, 역할 또는 책임 검색",
+  "empty": "디지털 직원이 없습니다",
+  "actions": {
+    "create": "새 직원",
+    "launch": "시작",
+    "selectWorkspace": "작업 공간 선택"
+  },
+  "fields": {
+    "name": "이름",
+    "roleName": "역할",
+    "description": "책임",
+    "personaPrompt": "정체성 규칙",
+    "backend": "백엔드",
+    "defaultMode": "기본 모드",
+    "status": "상태"
+  },
+  "backend": {
+    "scode": "Sudo Code",
+    "claude": "Claude",
+    "qwen": "Qwen",
+    "codex": "Codex",
+    "gemini": "Gemini"
+  },
+  "status": {
+    "active": "활성",
+    "disabled": "비활성"
+  },
+  "source": {
+    "staffdeck_seed": "StaffDeck",
+    "custom": "사용자 지정",
+    "hub": "스토어",
+    "tenant": "엔터프라이즈"
+  },
+  "messages": {
+    "loadFailed": "디지털 직원을 불러오지 못했습니다",
+    "requiredFields": "이름과 역할을 입력하세요",
+    "saveFailed": "디지털 직원을 저장하지 못했습니다",
+    "createSuccess": "디지털 직원이 생성되었습니다",
+    "updateSuccess": "디지털 직원이 업데이트되었습니다",
+    "actionFailed": "작업 실패",
+    "deleteSuccess": "디지털 직원이 삭제되었습니다",
+    "duplicateSuccess": "디지털 직원이 복사되었습니다",
+    "launchMessageRequired": "초기 작업을 입력하세요",
+    "resourceRequired": "리소스 ID를 선택하거나 입력하세요",
+    "resourceAdded": "리소스가 연결되었습니다",
+    "resourceRemoved": "리소스가 제거되었습니다"
+  },
+  "delete": {
+    "title": "디지털 직원 삭제",
+    "content": "{{name}}을 삭제하시겠습니까?"
+  },
+  "launch": {
+    "title": "디지털 직원 시작",
+    "defaultMessage": "{{name}}({{role}}) 역할로 현재 작업을 시작하세요.",
+    "message": "초기 작업",
+    "workspace": "작업 공간"
+  },
+  "editor": {
+    "createTitle": "새 디지털 직원",
+    "editTitle": "디지털 직원 편집"
+  },
+  "resources": {
+    "title": "역량 리소스",
+    "empty": "연결된 리소스가 없습니다",
+    "selectPlaceholder": "설치된 리소스 선택",
+    "idPlaceholder": "리소스 ID",
+    "namePlaceholder": "리소스 이름",
+    "summaryPlaceholder": "역량 요약",
+    "enabled": "리소스 활성화",
+    "add": "리소스 연결",
+    "remove": "리소스 제거"
+  },
+  "resourceTypes": {
+    "assistant": "어시스턴트",
+    "skill": "스킬",
+    "general_skill": "일반 스킬",
+    "sop": "SOP",
+    "tool": "도구",
+    "knowledge": "지식",
+    "mcp": "MCP"
+  },
+  "card": {
+    "resources": "역량",
+    "workRecords": "작업",
+    "status": "상태",
+    "lastWorkedAt": "최근 작업: {{time}}"
+  }
+}

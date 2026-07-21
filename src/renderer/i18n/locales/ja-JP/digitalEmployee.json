@@ -1,0 +1,91 @@
+{
+  "title": "デジタル従業員",
+  "subtitle": "StaffDeck の従業員ライブラリを Sudowork で利用できます",
+  "searchPlaceholder": "従業員、役割、責務を検索",
+  "empty": "デジタル従業員はありません",
+  "actions": {
+    "create": "新規従業員",
+    "launch": "起動",
+    "selectWorkspace": "ワークスペースを選択"
+  },
+  "fields": {
+    "name": "名前",
+    "roleName": "役割",
+    "description": "責務",
+    "personaPrompt": "アイデンティティルール",
+    "backend": "バックエンド",
+    "defaultMode": "デフォルトモード",
+    "status": "ステータス"
+  },
+  "backend": {
+    "scode": "Sudo Code",
+    "claude": "Claude",
+    "qwen": "Qwen",
+    "codex": "Codex",
+    "gemini": "Gemini"
+  },
+  "status": {
+    "active": "有効",
+    "disabled": "無効"
+  },
+  "source": {
+    "staffdeck_seed": "StaffDeck",
+    "custom": "カスタム",
+    "hub": "ストア",
+    "tenant": "エンタープライズ"
+  },
+  "messages": {
+    "loadFailed": "デジタル従業員の読み込みに失敗しました",
+    "requiredFields": "名前と役割を入力してください",
+    "saveFailed": "デジタル従業員の保存に失敗しました",
+    "createSuccess": "デジタル従業員を作成しました",
+    "updateSuccess": "デジタル従業員を更新しました",
+    "actionFailed": "操作に失敗しました",
+    "deleteSuccess": "デジタル従業員を削除しました",
+    "duplicateSuccess": "デジタル従業員をコピーしました",
+    "launchMessageRequired": "初期タスクを入力してください",
+    "resourceRequired": "リソース ID を選択または入力してください",
+    "resourceAdded": "リソースを紐付けました",
+    "resourceRemoved": "リソースを削除しました"
+  },
+  "delete": {
+    "title": "デジタル従業員を削除",
+    "content": "{{name}} を削除しますか？"
+  },
+  "launch": {
+    "title": "デジタル従業員を起動",
+    "defaultMessage": "{{name}}（{{role}}）として現在のタスクを開始してください。",
+    "message": "初期タスク",
+    "workspace": "ワークスペース"
+  },
+  "editor": {
+    "createTitle": "新規デジタル従業員",
+    "editTitle": "デジタル従業員を編集"
+  },
+  "resources": {
+    "title": "能力リソース",
+    "empty": "紐付け済みリソースはありません",
+    "selectPlaceholder": "インストール済みリソースを選択",
+    "idPlaceholder": "リソース ID",
+    "namePlaceholder": "リソース名",
+    "summaryPlaceholder": "能力概要",
+    "enabled": "リソースを有効化",
+    "add": "リソースを紐付け",
+    "remove": "リソースを削除"
+  },
+  "resourceTypes": {
+    "assistant": "アシスタント",
+    "skill": "スキル",
+    "general_skill": "汎用スキル",
+    "sop": "SOP",
+    "tool": "ツール",
+    "knowledge": "ナレッジ",
+    "mcp": "MCP"
+  },
+  "card": {
+    "resources": "能力",
+    "workRecords": "作業",
+    "status": "ステータス",
+    "lastWorkedAt": "最終作業：{{time}}"
+  }
+}

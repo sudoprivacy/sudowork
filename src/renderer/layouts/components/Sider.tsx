@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlarmClock, ArrowLeft, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles, UsersRound } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -57,6 +57,7 @@ const Sider: React.FC = () => {
   // 功能菜单项定义 / Function menu items definition
   const Menus = [
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/app/agent' },
+    { id: 'digital-employees', label: t('common.siderMenu.digitalEmployees'), icon: UsersRound, path: '/app/digital-employees' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/app/skills' },
     { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'channels' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/app/channels' }] : []),

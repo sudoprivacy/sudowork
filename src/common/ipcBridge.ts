@@ -24,6 +24,7 @@ import type { FusePluginStatus } from './nexus/fuse-plugin-status';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
+import type { IDigitalEmployee, IDigitalEmployeeCreateInput, IDigitalEmployeeLaunchInput, IDigitalEmployeeLaunchResult, IDigitalEmployeeResource, IDigitalEmployeeResourceInput, IDigitalEmployeeUpdateInput, IDigitalEmployeeWorkRecord } from './digitalEmployee';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -1530,6 +1531,10 @@ export interface ICreateConversationParams {
     sessionModeParam?: 'remote' | 'local';
     /** Pre-selected ACP model from Guid page (cached model list) */
     currentModelId?: string;
+    /** Digital employee metadata for StaffDeck-style employee conversations */
+    digitalEmployeeId?: string;
+    digitalEmployeeRole?: string;
+    digitalEmployeeSourceType?: string;
     /** Runtime validation snapshot used for post-switch strong checks */
     runtimeValidation?: {
       expectedWorkspace?: string;
@@ -1988,6 +1993,31 @@ export const assistantHub = {
   ),
   /** Upload custom assistant to Hub (create zip and POST to /api/assistants) */
   uploadAssistantToHub: bridge.buildProvider<IBridgeResponse<{ success: boolean; message?: string }>, { name: string; displayName: string; profession: string; description?: string; categories?: string[]; skills?: string[]; tenantId: string }>('assistant-hub.upload-assistant-to-hub'),
+};
+
+// ==================== Digital Employee API ====================
+
+export const digitalEmployee = {
+  /** List local digital employees and their bound resources */
+  list: bridge.buildProvider<IBridgeResponse<IDigitalEmployee[]>, void>('digital-employee.list'),
+  /** Get one digital employee by ID */
+  get: bridge.buildProvider<IBridgeResponse<IDigitalEmployee | null>, { employeeId: string }>('digital-employee.get'),
+  /** Create a custom digital employee */
+  create: bridge.buildProvider<IBridgeResponse<IDigitalEmployee>, IDigitalEmployeeCreateInput>('digital-employee.create'),
+  /** Update a custom or seeded digital employee */
+  update: bridge.buildProvider<IBridgeResponse<IDigitalEmployee>, { employeeId: string; updates: IDigitalEmployeeUpdateInput }>('digital-employee.update'),
+  /** Remove a digital employee */
+  remove: bridge.buildProvider<IBridgeResponse<void>, { employeeId: string }>('digital-employee.remove'),
+  /** Copy an employee into a custom editable employee */
+  duplicate: bridge.buildProvider<IBridgeResponse<IDigitalEmployee>, { employeeId: string }>('digital-employee.duplicate'),
+  /** Bind or update a resource on an employee */
+  bindResource: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeResource>, { employeeId: string; resource: IDigitalEmployeeResourceInput }>('digital-employee.bind-resource'),
+  /** Unbind a resource from an employee */
+  unbindResource: bridge.buildProvider<IBridgeResponse<void>, { resourceId: string }>('digital-employee.unbind-resource'),
+  /** List launch/work records for an employee */
+  listWorkRecords: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeWorkRecord[]>, { employeeId: string }>('digital-employee.list-work-records'),
+  /** Create a Sudowork conversation with the employee identity and resources injected */
+  launchConversation: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeLaunchResult>, IDigitalEmployeeLaunchInput>('digital-employee.launch-conversation'),
 };
 
 // ==================== Channel API ====================

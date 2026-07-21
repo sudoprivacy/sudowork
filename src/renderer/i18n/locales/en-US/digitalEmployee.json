@@ -1,0 +1,91 @@
+{
+  "title": "Digital Employees",
+  "subtitle": "StaffDeck employee library is available in Sudowork",
+  "searchPlaceholder": "Search employees, roles, or responsibilities",
+  "empty": "No digital employees",
+  "actions": {
+    "create": "New Employee",
+    "launch": "Launch",
+    "selectWorkspace": "Select workspace"
+  },
+  "fields": {
+    "name": "Name",
+    "roleName": "Role",
+    "description": "Responsibilities",
+    "personaPrompt": "Identity Rules",
+    "backend": "Backend",
+    "defaultMode": "Default Mode",
+    "status": "Status"
+  },
+  "backend": {
+    "scode": "Sudo Code",
+    "claude": "Claude",
+    "qwen": "Qwen",
+    "codex": "Codex",
+    "gemini": "Gemini"
+  },
+  "status": {
+    "active": "Active",
+    "disabled": "Disabled"
+  },
+  "source": {
+    "staffdeck_seed": "StaffDeck",
+    "custom": "Custom",
+    "hub": "Store",
+    "tenant": "Enterprise"
+  },
+  "messages": {
+    "loadFailed": "Failed to load digital employees",
+    "requiredFields": "Name and role are required",
+    "saveFailed": "Failed to save digital employee",
+    "createSuccess": "Digital employee created",
+    "updateSuccess": "Digital employee updated",
+    "actionFailed": "Operation failed",
+    "deleteSuccess": "Digital employee deleted",
+    "duplicateSuccess": "Digital employee copied",
+    "launchMessageRequired": "Enter an initial task",
+    "resourceRequired": "Select or enter a resource ID",
+    "resourceAdded": "Resource bound",
+    "resourceRemoved": "Resource removed"
+  },
+  "delete": {
+    "title": "Delete Digital Employee",
+    "content": "Delete {{name}}?"
+  },
+  "launch": {
+    "title": "Launch Digital Employee",
+    "defaultMessage": "Start working as {{name}} ({{role}}).",
+    "message": "Initial Task",
+    "workspace": "Workspace"
+  },
+  "editor": {
+    "createTitle": "New Digital Employee",
+    "editTitle": "Edit Digital Employee"
+  },
+  "resources": {
+    "title": "Capability Resources",
+    "empty": "No bound resources",
+    "selectPlaceholder": "Select installed resource",
+    "idPlaceholder": "Resource ID",
+    "namePlaceholder": "Resource Name",
+    "summaryPlaceholder": "Capability summary",
+    "enabled": "Enable resource",
+    "add": "Bind Resource",
+    "remove": "Remove resource"
+  },
+  "resourceTypes": {
+    "assistant": "Assistant",
+    "skill": "Skill",
+    "general_skill": "General Skill",
+    "sop": "SOP",
+    "tool": "Tool",
+    "knowledge": "Knowledge",
+    "mcp": "MCP"
+  },
+  "card": {
+    "resources": "Resources",
+    "workRecords": "Work",
+    "status": "Status",
+    "lastWorkedAt": "Last work: {{time}}"
+  }
+}

@@ -18,6 +18,7 @@ import team from './team.json';
 import starOffice from './starOffice.json';
 import guid from './guid.json';
 import agent from './agent.json';
+import digitalEmployee from './digitalEmployee.json';
 import agentStatus from './agentStatus.json';
 import setup from './setup.json';
 import runtimeError from './runtimeError.json';
@@ -43,6 +44,7 @@ export default {
   starOffice,
   guid,
   agent,
+  digitalEmployee,
   agentStatus,
   setup,
   runtimeError,

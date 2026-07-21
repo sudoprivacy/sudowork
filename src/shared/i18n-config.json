@@ -2,5 +2,5 @@
   "referenceLanguage": "zh-CN",
   "fallbackLanguage": "zh-CN",
   "supportedLanguages": ["zh-CN", "en-US", "ja-JP", "zh-TW", "ko-KR", "tr-TR"],
-  "modules": ["common", "agentMode", "update", "login", "fileSelection", "preview", "conversation", "settings", "messages", "mcp", "acp", "codex", "tools", "gemini", "cron", "team", "starOffice", "guid", "agent", "setup"]
+  "modules": ["common", "agentMode", "update", "login", "fileSelection", "preview", "conversation", "settings", "messages", "mcp", "acp", "codex", "tools", "gemini", "cron", "team", "starOffice", "guid", "agent", "digitalEmployee", "setup"]
 }

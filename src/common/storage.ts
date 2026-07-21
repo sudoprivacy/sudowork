@@ -329,6 +329,10 @@ export type TChatConversation =
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
           currentModelId?: string;
+          /** Digital employee metadata for StaffDeck-style employee conversations */
+          digitalEmployeeId?: string;
+          digitalEmployeeRole?: string;
+          digitalEmployeeSourceType?: string;
           /** Explicit marker for temporary health-check conversations */
           isHealthCheck?: boolean;
           /** Display name override for workspace (rename without physical path change) / 工作空间显示名（重命名时只改显示名，不改物理路径） */
@@ -399,6 +403,10 @@ export type TChatConversation =
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
           currentModelId?: string;
+          /** Digital employee metadata for StaffDeck-style employee conversations */
+          digitalEmployeeId?: string;
+          digitalEmployeeRole?: string;
+          digitalEmployeeSourceType?: string;
           /** 是否置顶会话 / Whether this conversation is pinned */
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */

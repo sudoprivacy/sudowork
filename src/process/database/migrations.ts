@@ -1661,6 +1661,87 @@ const migration_v28: IMigration = {
 };
 
 /**
+ * Migration v28 -> v29: Add digital employee tables.
+ */
+const migration_v29: IMigration = {
+  version: 29,
+  name: 'Add digital employee tables',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS digital_employees (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role_name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        persona_prompt TEXT NOT NULL DEFAULT '',
+        avatar TEXT,
+        source_type TEXT NOT NULL DEFAULT 'custom' CHECK(source_type IN ('staffdeck_seed', 'custom', 'hub', 'tenant')),
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'disabled')),
+        backend TEXT,
+        default_mode TEXT,
+        model_config TEXT NOT NULL DEFAULT '{}',
+        metadata TEXT NOT NULL DEFAULT '{}',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS digital_employee_resources (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        resource_type TEXT NOT NULL CHECK(resource_type IN ('assistant', 'skill', 'general_skill', 'mcp', 'knowledge', 'sop', 'tool')),
+        resource_id TEXT NOT NULL,
+        resource_name TEXT,
+        config TEXT NOT NULL DEFAULT '{}',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (employee_id) REFERENCES digital_employees(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS digital_employee_work_records (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        conversation_id TEXT,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'created' CHECK(status IN ('created', 'running', 'completed', 'failed')),
+        summary TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (employee_id) REFERENCES digital_employees(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_digital_employees_user_id ON digital_employees(user_id);
+      CREATE INDEX IF NOT EXISTS idx_digital_employees_source_type ON digital_employees(source_type);
+      CREATE INDEX IF NOT EXISTS idx_digital_employee_resources_employee_id ON digital_employee_resources(employee_id);
+      CREATE INDEX IF NOT EXISTS idx_digital_employee_resources_type ON digital_employee_resources(resource_type);
+      CREATE INDEX IF NOT EXISTS idx_digital_employee_work_records_employee_id ON digital_employee_work_records(employee_id);
+      CREATE INDEX IF NOT EXISTS idx_digital_employee_work_records_conversation_id ON digital_employee_work_records(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_digital_employee_work_records_updated_at ON digital_employee_work_records(updated_at);
+    `);
+    mainLog('Migration v29', 'Added digital employee tables');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_digital_employee_work_records_updated_at;
+      DROP INDEX IF EXISTS idx_digital_employee_work_records_conversation_id;
+      DROP INDEX IF EXISTS idx_digital_employee_work_records_employee_id;
+      DROP INDEX IF EXISTS idx_digital_employee_resources_type;
+      DROP INDEX IF EXISTS idx_digital_employee_resources_employee_id;
+      DROP INDEX IF EXISTS idx_digital_employees_source_type;
+      DROP INDEX IF EXISTS idx_digital_employees_user_id;
+      DROP TABLE IF EXISTS digital_employee_work_records;
+      DROP TABLE IF EXISTS digital_employee_resources;
+      DROP TABLE IF EXISTS digital_employees;
+    `);
+    mainLog('Migration v29', 'Rolled back: Removed digital employee tables');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1669,7 +1750,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
-  migration_v25, migration_v26, migration_v27, migration_v28,
+  migration_v25, migration_v26, migration_v27, migration_v28, migration_v29,
 ];
 
 /**
