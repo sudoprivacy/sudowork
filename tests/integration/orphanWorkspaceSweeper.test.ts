@@ -4,20 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const h = vi.hoisted(() => ({
   workDir: '',
-  pages: [] as Array<{ data: Array<{ extra?: { workspace?: string } }>; hasMore: boolean }>,
+  workspaces: [] as string[],
 }));
 
 vi.mock('@process/database', () => ({
-  getDatabase: () => ({
-    getUserConversations: (_userId: unknown, page: number) => h.pages[page] ?? { data: [], hasMore: false },
-  }),
+  getDatabase: () => ({ getAllConversationWorkspaces: () => h.workspaces }),
 }));
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn() }));
 vi.mock('@process/initStorage', () => ({ getSystemDir: () => ({ workDir: h.workDir }) }));
@@ -37,7 +35,7 @@ function makeAgedDir(dir: string) {
 describe('orphanWorkspaceSweeper', () => {
   beforeEach(() => {
     h.workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sweep-'));
-    h.pages = [{ data: [], hasMore: false }];
+    h.workspaces = [];
   });
 
   afterEach(() => {
@@ -62,7 +60,7 @@ describe('orphanWorkspaceSweeper', () => {
   it('keeps a temp dir that is still referenced by a live conversation', async () => {
     const referenced = path.join(h.workDir, 'scode-temp-1700000000001');
     makeAgedDir(referenced);
-    h.pages = [{ data: [{ extra: { workspace: referenced } }], hasMore: false }];
+    h.workspaces = [referenced];
 
     const { sweepOrphanWorkspaces } = await importSweeper();
     const res = await sweepOrphanWorkspaces();

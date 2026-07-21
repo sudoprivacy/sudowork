@@ -59,6 +59,7 @@ export default defineConfig({
       include: [
         // Process / bridge
         'src/process/database/corruptionError.ts',
+        'src/process/database/workspaceQueries.ts',
         'src/process/startupNotice.ts',
         'src/process/services/autoUpdaterService.ts',
         'src/process/services/conversationReaper.ts',
