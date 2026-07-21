@@ -41,6 +41,7 @@ export function buildGovernancePrompt(role: TeamRole, teamName: string, memberNa
       `10. For dependent work, do not tell one teammate to wait for another. Assign the prerequisite first; when it reports back, assign the dependent task.\n` +
       `11. For rename or shutdown requests, use team_rename_agent or team_shutdown_agent.\n` +
       `12. When teammates report back, review results, avoid duplicating work already assigned, decide next steps, and synthesize a final answer for the user.\n\n` +
+      `Turn discipline: After assigning work via team_send_message, END your turn. Teammate replies arrive automatically as new turns (via idle_notification) — do NOT use Sleep or repeatedly poll team_members to wait. Sleep is blocked in team sessions and will be interrupted.\n\n` +
       `Coordinate only through the team_* tools.`
     );
   }
@@ -50,6 +51,7 @@ export function buildGovernancePrompt(role: TeamRole, teamName: string, memberNa
     `${PRIORITY_BLOCK}\n\n` +
     `- Execute the task the leader assigned to you.\n` +
     `- When you finish, get blocked, or have nothing to do, notify the leader via team_send_message (an idle notification).\n` +
+    `- Do NOT use Sleep to wait — Sleep is blocked in team sessions and will be interrupted.\n` +
     `- Coordinate only through the team_* tools.`
   );
 }

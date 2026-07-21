@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   addMessage: vi.fn(),
   emitStatus: vi.fn(),
   emitTeammate: vi.fn(),
+  emitUserContent: vi.fn(),
   agentSend: vi.fn(),
   onWakeSlot: vi.fn(),
 }));
@@ -36,6 +37,9 @@ vi.mock('@/common', () => ({
       onChildTurnStarted: { emit: vi.fn() },
       onChildTurnCompleted: { emit: vi.fn() },
       onChildTurnCancelled: { emit: vi.fn() },
+    },
+    acpConversation: {
+      responseStream: { emit: h.emitUserContent },
     },
   },
 }));
@@ -159,6 +163,7 @@ beforeEach(() => {
   h.addMessage.mockReset();
   h.emitStatus.mockReset();
   h.emitTeammate.mockReset();
+  h.emitUserContent.mockReset();
   h.agentSend.mockReset();
   h.onWakeSlot.mockReset();
 
@@ -228,7 +233,7 @@ describe('EventLoop turn driving (附录 I.5)', () => {
     expect(h.agentSend).not.toHaveBeenCalled();
   });
 
-  it('teammate mirrors incoming teammate messages as left bubbles (deduped) and skips user/idle', async () => {
+  it('teammate mirrors incoming teammate messages as left bubbles (deduped) and skips idle', async () => {
     const agent: AgentLike = { sendMessage: h.agentSend };
     const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
     seedWake(teamRun, 's1', 'teammate', 'mcp_send_message');
@@ -243,6 +248,24 @@ describe('EventLoop turn driving (附录 I.5)', () => {
     expect(projected.position).toBe('left');
     expect(projected.content.teammateMessage).toBe(true);
     expect(projected.content.content).toBe('please review');
+  });
+
+  it('mirrors user messages as right bubbles with real-time emit', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+    seedWake(teamRun, 's1', 'teammate', 'mcp_send_message');
+    queue.push(row({ id: 'm-user', from_member_id: 'user', content: 'hello team' }));
+
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    expect(h.addMessage).toHaveBeenCalledTimes(1);
+    const [, projected] = h.addMessage.mock.calls[0] as [string, { position: string; msg_id: string; content: { content: string } }];
+    expect(projected.position).toBe('right');
+    expect(projected.msg_id).toBe('team:t1:mailbox:m-user:conversation:c1');
+    expect(projected.content.content).toBe('hello team');
+    expect(h.emitUserContent).toHaveBeenCalledWith(expect.objectContaining({ type: 'user_content', conversation_id: 'c1', msg_id: 'team:t1:mailbox:m-user:conversation:c1' }));
   });
 
   it('teammate writes an idle_notification to the leader and wakes it after a turn', async () => {
