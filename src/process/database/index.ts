@@ -509,7 +509,7 @@ export class SudoworkDatabase {
         updates.startedAt === undefined ? existing.startedAt : updates.startedAt,
         updates.finishedAt === undefined ? existing.finishedAt : updates.finishedAt,
         id
-    );
+      );
     return this.getLocalKbBuildJob(id);
   }
 
