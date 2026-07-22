@@ -41,7 +41,7 @@ describe('scodeConfig', () => {
       {
         sudorouterKey: 'router-key',
         modelServiceUrl: 'https://hk.sudorouter.ai/v1',
-        models: ['gemini-3-flash-preview'],
+        models: ['gemini-3-flash-preview', SCODE_AUTO_ROUTER_MODEL_ID],
       },
       existing
     );
@@ -66,7 +66,7 @@ describe('scodeConfig', () => {
     const sudorouterModelAliases = Object.entries(next.models || {})
       .filter(([, model]) => model.providers?.proxy?.provider === 'sudorouter')
       .map(([alias]) => alias);
-    expect(sudorouterModelAliases).toEqual([SCODE_AUTO_MODEL_ALIAS, 'gemini-3-flash-preview']);
+    expect(sudorouterModelAliases).toEqual([SCODE_AUTO_MODEL_ALIAS, 'gemini-3-flash-preview', SCODE_AUTO_ROUTER_MODEL_ID]);
     expect(next.models?.['custom-openai/gpt-4o']?.providers?.['api-key']).toEqual({
       provider: 'custom-openai',
       model: 'gpt-4o',
@@ -145,7 +145,7 @@ describe('scodeConfig', () => {
     const next = buildScodeConfigFromLoginPayload({
       sudorouterKey: 'router-key',
       modelServiceUrl: 'https://hk.sudorouter.ai/v1',
-      models: ['gemini-3-flash-preview'],
+      models: ['gemini-3-flash-preview', SCODE_AUTO_ROUTER_MODEL_ID],
     });
 
     expect(next.default_model).toBe(SCODE_AUTO_MODEL_ALIAS);

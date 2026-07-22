@@ -28,7 +28,7 @@ const SUDOROUTER_PROVIDER_ID = 'sudorouter';
 const OPENAI_COMPAT_API = 'openai-completions';
 const OPENAI_RESPONSES_API = 'openai-responses';
 export const SCODE_AUTO_MODEL_ALIAS = 'auto';
-export const SCODE_AUTO_ROUTER_MODEL_ID = 'claude-opus-4-8';
+export const SCODE_AUTO_ROUTER_MODEL_ID = 'gpt-5.5';
 
 export type SpecificPricingItem = {
   model_id: string;
