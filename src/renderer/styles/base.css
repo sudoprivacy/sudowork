@@ -585,10 +585,6 @@ body,
   }
 }
 
-::placeholder {
-  color: #a1a2aa !important;
-}
-
 /* 发送框工具按钮：禁用 hover transform，防止主题 hover 变换导致布局抖动 (#1075) */
 .sendbox-tools .arco-btn,
 .sendbox-tools .arco-btn:hover,
@@ -638,10 +634,6 @@ body,
   background-color: transparent !important;
   color: var(--color-text-1) !important;
   font-size: 13px !important;
-}
-
-.chat-workspace .workspace-search-input .arco-input::placeholder {
-  color: var(--color-text-3) !important;
 }
 
 .chat-workspace .workspace-search-input .arco-input-prefix,
