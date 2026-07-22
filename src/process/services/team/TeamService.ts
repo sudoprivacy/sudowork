@@ -11,7 +11,7 @@ import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
 import { assistantManager } from '@/process/AssistantManager';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
-import { ACP_BACKENDS_ALL, resolvePresetAgentBackend, type AcpBackendAll, type PresetAgentType } from '@/types/acpTypes';
+import { ACP_BACKENDS_ALL, resolvePresetAgentBackend, type AcpBackendAll, type AcpModelInfo, type PresetAgentType } from '@/types/acpTypes';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import i18n, { i18nReady } from '@process/i18n';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -737,6 +737,23 @@ class TeamService {
     if (!toolCallId.trim()) throw new Error('Invalid toolCallId');
 
     await runtime.agent.answerQuestion(toolCallId, this.sanitizeQuestionAnswers(answers));
+  }
+
+  /** Model info for a team member's live agent, routed by conversation_id. */
+  getMemberModelInfo(conversationId: string): AcpModelInfo | null {
+    const found = this.findMemberByConversation(conversationId);
+    if (!found) return null;
+    const agent = this.getRuntime(found.teamId, found.slotId)?.agent;
+    return agent ? agent.getModelInfo() : null;
+  }
+
+  /** Switch model for a team member's live agent, routed by conversation_id. */
+  async setMemberModel(conversationId: string, modelId: string): Promise<AcpModelInfo | null> {
+    const found = this.findMemberByConversation(conversationId);
+    if (!found) throw new Error('Team member not found for conversation');
+    const agent = this.getRuntime(found.teamId, found.slotId)?.agent;
+    if (!agent) throw new Error('Team member agent not available');
+    return agent.setModel(modelId);
   }
 
   /** User message to a specific member (writes mailbox from=user under an operation lease, then wakes the loop). */

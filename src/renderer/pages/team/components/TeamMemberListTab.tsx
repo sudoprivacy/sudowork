@@ -7,6 +7,7 @@ import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AcpBackend } from '@/types/acpTypes';
 import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
+import AcpModelSelector from '@renderer/components/AcpModelSelector';
 import type { TeamAssistant, TeammateStatus, TTeam } from '../types';
 import TeamAddMemberModal from './TeamAddMemberModal';
 
@@ -129,15 +130,22 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
       {memberAssistants.length > 0 && (
         <div className='flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border-2)]'>
           {activeMember && activeMember.conversation_id ? (
-            <AcpChat
-              conversation_id={activeMember.conversation_id}
-              backend={activeMember.assistant_backend as AcpBackend}
-              agentName={activeMember.assistant_name}
-              workspace={team.workspace ?? undefined}
-              onTeamAnswerQuestion={onTeamAnswerQuestion}
-              teamSendMessage={teamSendMessage}
-              onProcessingChange={setIsSelectedChatProcessing}
-            />
+            <>
+              <div className='flex h-36px shrink-0 items-center px-20px border-b border-[var(--color-border-2)]'>
+                <div className='min-w-0'>
+                  <AcpModelSelector conversationId={activeMember.conversation_id} backend={activeMember.assistant_backend} />
+                </div>
+              </div>
+              <AcpChat
+                conversation_id={activeMember.conversation_id}
+                backend={activeMember.assistant_backend as AcpBackend}
+                agentName={activeMember.assistant_name}
+                workspace={team.workspace ?? undefined}
+                onTeamAnswerQuestion={onTeamAnswerQuestion}
+                teamSendMessage={teamSendMessage}
+                onProcessingChange={setIsSelectedChatProcessing}
+              />
+            </>
           ) : (
             <div className='flex items-center justify-center h-full text-gray-400 text-13px'>{t('team.detail.selectMember')}</div>
           )}
