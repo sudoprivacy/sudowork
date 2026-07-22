@@ -130,22 +130,15 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
       {memberAssistants.length > 0 && (
         <div className='flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border-2)]'>
           {activeMember && activeMember.conversation_id ? (
-            <>
-              <div className='flex h-36px shrink-0 items-center px-20px border-b border-[var(--color-border-2)]'>
-                <div className='min-w-0'>
-                  <AcpModelSelector conversationId={activeMember.conversation_id} backend={activeMember.assistant_backend} />
-                </div>
-              </div>
-              <AcpChat
-                conversation_id={activeMember.conversation_id}
-                backend={activeMember.assistant_backend as AcpBackend}
-                agentName={activeMember.assistant_name}
-                workspace={team.workspace ?? undefined}
-                onTeamAnswerQuestion={onTeamAnswerQuestion}
-                teamSendMessage={teamSendMessage}
-                onProcessingChange={setIsSelectedChatProcessing}
-              />
-            </>
+            <AcpChat
+              conversation_id={activeMember.conversation_id}
+              backend={activeMember.assistant_backend as AcpBackend}
+              agentName={activeMember.assistant_name}
+              workspace={team.workspace ?? undefined}
+              onTeamAnswerQuestion={onTeamAnswerQuestion}
+              teamSendMessage={teamSendMessage}
+              onProcessingChange={setIsSelectedChatProcessing}
+            />
           ) : (
             <div className='flex items-center justify-center h-full text-gray-400 text-13px'>{t('team.detail.selectMember')}</div>
           )}
@@ -190,7 +183,14 @@ function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRena
           onCancel={() => setIsEditing(false)}
         />
       ) : (
-        <span className='min-w-0 flex-1 truncate text-13px'>{member.assistant_name}</span>
+        <div className='flex min-w-0 flex-1 items-center gap-6px'>
+          <span className='min-w-0 truncate text-13px'>{member.assistant_name}</span>
+          {member.conversation_id && (
+            <span className='inline-flex shrink-0 items-center' onClick={(e) => e.stopPropagation()}>
+              <AcpModelSelector conversationId={member.conversation_id} backend={member.assistant_backend} isCompact />
+            </span>
+          )}
+        </div>
       )}
       {!isEditing && (
         <div className='hidden shrink-0 items-center gap-4px group-hover/team-member:flex' onClick={(e) => e.stopPropagation()}>
