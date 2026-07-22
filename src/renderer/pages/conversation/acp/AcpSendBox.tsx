@@ -32,6 +32,7 @@ import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
 import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
+import { useThemeContext } from '@/renderer/context/ThemeContext';
 import { shouldCancelAcpFinishTimeout } from './acpFinishTimeout';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
@@ -555,6 +556,7 @@ const AcpSendBox: React.FC<{
 }> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, onAiProcessingChange, onProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
+  const { theme } = useThemeContext();
   const isProcessing = running || aiProcessing;
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -937,7 +939,11 @@ const AcpSendBox: React.FC<{
   }, [conversation_id, setContent]);
 
   return (
-    <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
+    <div
+      className={`max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px ${
+        isProcessing || thought?.subject ? `rounded-20px shadow-[0_0_0_1px_var(--border-default)] ${theme === 'dark' ? 'focus-within:shadow-[0_0_0_1px_#4d4b87,0_2px_20px_rgba(77,75,135,0.45)]' : 'focus-within:shadow-[0_0_0_1px_#e1e0ff,0_2px_20px_rgba(225,224,255,0.6)]'}` : ''
+      }`}
+    >
       <ThoughtDisplay thought={thought} running={isProcessing} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox

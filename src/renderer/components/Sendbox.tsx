@@ -547,8 +547,8 @@ const SendBox: React.FC<{
             : {
                 borderWidth: '1px',
                 borderTopWidth: topAttached ? 0 : '1px',
-                borderColor: isInputActive ? activeBorderColor : inactiveBorderColor,
-                boxShadow: isInputActive ? activeShadow : 'none',
+                borderColor: topAttached ? 'transparent' : isInputActive ? activeBorderColor : inactiveBorderColor,
+                boxShadow: topAttached || !isInputActive ? 'none' : activeShadow,
               }),
         }}
         {...dragHandlers}
