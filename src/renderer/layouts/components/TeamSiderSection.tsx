@@ -41,11 +41,6 @@ export default function TeamSiderSection({ onSessionClick }: ITeamSiderSectionPr
     setIsExpanded((value) => !value);
   }, []);
 
-  const onOpenCreate = useCallback((event: React.MouseEvent) => {
-    event.stopPropagation();
-    setIsCreateVisible(true);
-  }, []);
-
   const onCloseCreate = useCallback(() => {
     setIsCreateVisible(false);
   }, []);
@@ -97,22 +92,22 @@ export default function TeamSiderSection({ onSessionClick }: ITeamSiderSectionPr
         <span className='translate-y-px inline-flex h-5 w-5 shrink-0 items-center justify-center'>
           <Users size={20} strokeWidth={1.8} className='block leading-none' />
         </span>
-        <span className='min-w-0 inline-flex items-center gap-1.5 text-14px leading-22px font-500'>
-          <span className='truncate'>{t('common.siderMenu.team')}</span>
-          <span className='flex w-3 shrink-0 items-center justify-center opacity-0 group-hover/team:opacity-100 transition-opacity text-secondary'>
-            <Right theme='outline' size={12} className={classNames('transition-transform duration-150', { 'rotate-90': isExpanded })} />
-          </span>
+        <span className='min-w-0 truncate flex-1 text-14px leading-22px font-500'>{t('common.siderMenu.team')}</span>
+        <span className='flex w-3 shrink-0 items-center justify-center text-secondary'>
+          <Right theme='outline' size={12} className={classNames('transition-transform duration-150', { 'rotate-90': isExpanded })} />
         </span>
-        <span className='flex-1' />
-        <Tooltip content={t('team.list.createButton')} position='top'>
-          <span className='size-8 shrink-0 f-center rd-8px hover:bg-fill-2 text-secondary hover:text-foreground transition-colors' onClick={onOpenCreate}>
-            <Plus size={16} strokeWidth={1.8} />
-          </span>
-        </Tooltip>
       </div>
 
       {isExpanded && (
         <div className='ml-3 flex flex-col gap-0.5'>
+          {teams.length === 0 && (
+            <div className='flex flex-col items-center gap-3 px-3 py-6 text-center'>
+              <span className='text-12px text-secondary'>{t('team.list.empty')}</span>
+              <Button size='small' type='outline' icon={<Plus size={14} strokeWidth={1.8} />} onClick={() => setIsCreateVisible(true)}>
+                {t('team.list.createButton')}
+              </Button>
+            </div>
+          )}
           {teams.map((team) => {
             const isSelected = pathname.startsWith(`/app/team/${team.id}`);
             const isMenuVisible = dropdownVisibleId === team.id;
