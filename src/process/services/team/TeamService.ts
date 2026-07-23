@@ -553,7 +553,8 @@ class TeamService {
     }
   }
 
-  private async welcomeSpawnedTeammate(teamId: string, member: TeamMember, session: TeamSession): Promise<void> {
+  private async welcomeSpawnedTeammate(teamId: string, member: TeamMember, session: TeamSession, options?: { removeOnFailure?: boolean }): Promise<void> {
+    const { removeOnFailure = true } = options ?? {};
     const team = teamStore.getTeam(teamId);
     if (!team) return;
     const welcomeFrom = this.leaderSlotOrNull(teamId) ?? 'user';
@@ -572,7 +573,7 @@ class TeamService {
         created_at: Date.now(),
       });
     } catch (error) {
-      await this.removeMember(teamId, member.id);
+      if (removeOnFailure) await this.removeMember(teamId, member.id);
       throw error;
     }
     const { lease } = session.teamRun.acquireWake(member.id, member.role, 'spawn_welcome');
@@ -694,6 +695,7 @@ class TeamService {
       const members = teamStore.listMembersByTeam(teamId);
       for (const m of members) {
         if (!m.conversation_id) continue;
+        const wasPending = m.status === 'pending';
         const convResult = getDatabase().getConversation(m.conversation_id);
         if (!convResult.success || !convResult.data) throw new Error(`Failed to load team member conversation: ${m.name}`);
         const teamMcpConfig = this.buildTeamMcpConfig(session, m.id);
@@ -706,6 +708,13 @@ class TeamService {
         if (!attached) throw new Error(`Failed to attach team member: ${m.name}`);
         teamStore.updateMember(m.id, { status: 'idle', conversation_id: m.conversation_id });
         ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: m.id, status: 'idle' });
+        if (m.role === 'teammate' && wasPending) {
+          try {
+            await this.welcomeSpawnedTeammate(teamId, m, session, { removeOnFailure: false });
+          } catch (error) {
+            mainWarn('TeamService', `Failed to welcome rebuilt teammate ${m.id}:`, error);
+          }
+        }
       }
       new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
       mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
