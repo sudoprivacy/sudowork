@@ -23,6 +23,7 @@ export interface AuthUser {
   sudorouter_key?: string;
   model_service_url?: string;
   models?: string[];
+  scode_auto_model?: string;
   phone?: string;
   localAuth?: boolean;
   localModeAvailable?: boolean;

@@ -13,6 +13,7 @@ describe('sudoworkAuthLogin', () => {
           sudorouter_key: 'router-key',
           model_service_url: 'https://hk.sudorouter.ai/v1',
           models: ['gemini-3-flash-preview', 'claude-sonnet-4'],
+          scode_auto_model: 'gpt-5.6',
         },
       })
     ).toEqual({
@@ -21,6 +22,7 @@ describe('sudoworkAuthLogin', () => {
       sudorouter_key: 'router-key',
       model_service_url: 'https://hk.sudorouter.ai/v1',
       models: ['gemini-3-flash-preview', 'claude-sonnet-4'],
+      scode_auto_model: 'gpt-5.6',
     });
   });
 
@@ -40,6 +42,27 @@ describe('sudoworkAuthLogin', () => {
       sudorouterKey: 'user-key',
       modelServiceUrl: 'https://user.example.com/v1',
       models: ['gemini-3-flash-preview'],
+    });
+  });
+
+  it('extracts the server-configured scode auto model from login response data', () => {
+    expect(
+      extractLoginSudoclawPayload({
+        data: {
+          user: {
+            id: 'u1',
+            sudorouter_key: 'user-key',
+            model_service_url: 'https://user.example.com/v1',
+            models: ['gemini-3-flash-preview'],
+            scode_auto_model: 'gpt-5.6',
+          },
+        },
+      })
+    ).toEqual({
+      sudorouterKey: 'user-key',
+      modelServiceUrl: 'https://user.example.com/v1',
+      models: ['gemini-3-flash-preview'],
+      scodeAutoModel: 'gpt-5.6',
     });
   });
 
