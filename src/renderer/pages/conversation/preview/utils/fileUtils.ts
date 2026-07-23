@@ -10,7 +10,7 @@ export const FILE_EXTENSION_MAP: Record<PreviewContentType, readonly string[]> =
   pdf: ['pdf'],
   word: ['doc', 'docx', 'odt'],
   ppt: ['ppt', 'pptx', 'odp'],
-  excel: ['xls', 'xlsx', 'ods'],
+  excel: ['xls', 'xlsx', 'ods', 'csv'],
   image: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tif', 'tiff', 'avif'],
   video: ['mp4', 'webm', 'mov', 'm4v', 'ogv', 'avi', 'mkv', 'wmv', 'flv'],
   audio: ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'oga', 'opus', 'amr', 'wma'],
