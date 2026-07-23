@@ -152,6 +152,30 @@ describe('scodeConfig', () => {
     expect(next.models?.[SCODE_AUTO_MODEL_ALIAS]?.providers?.proxy?.model).toBe(SCODE_AUTO_ROUTER_MODEL_ID);
   });
 
+  it('uses the server-configured auto model from the login payload', () => {
+    const next = buildScodeConfigFromLoginPayload({
+      sudorouterKey: 'router-key',
+      modelServiceUrl: 'https://hk.sudorouter.ai/v1',
+      models: ['gemini-3-flash-preview', SCODE_AUTO_ROUTER_MODEL_ID, 'gpt-5.6'],
+      scodeAutoModel: 'gpt-5.6',
+    });
+
+    expect(next.default_model).toBe(SCODE_AUTO_MODEL_ALIAS);
+    expect(next.models?.[SCODE_AUTO_MODEL_ALIAS]?.providers?.proxy?.model).toBe('gpt-5.6');
+  });
+
+  it('allows the server-configured auto model to target a model outside the advertised list', () => {
+    const next = buildScodeConfigFromLoginPayload({
+      sudorouterKey: 'router-key',
+      modelServiceUrl: 'https://hk.sudorouter.ai/v1',
+      models: ['gemini-3-flash-preview'],
+      scodeAutoModel: 'gpt-5.6',
+    });
+
+    expect(next.models?.[SCODE_AUTO_MODEL_ALIAS]?.providers?.proxy?.model).toBe('gpt-5.6');
+    expect(next.models?.['gpt-5.6']).toBeUndefined();
+  });
+
   it('resets existing user-selected sudorouter model to auto on login refresh', () => {
     const next = buildScodeConfigFromLoginPayload(
       {

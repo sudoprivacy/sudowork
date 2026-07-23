@@ -20,11 +20,12 @@ import { getDatabase } from '@process/database';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService';
 import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerationModelSync';
+import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
 import { addScodeAutoModel, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
-import { getSudorouterBaseUrl } from '@/common/systemConfig';
+import { fetchSystemConfig, getConfiguredScodeAutoModelId, getSudorouterBaseUrl } from '@/common/systemConfig';
 
 const TAG = 'ScodeBridge';
 const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
@@ -126,6 +127,13 @@ export async function fetchSpecificPricingItems(): Promise<SpecificPricingItem[]
   return json.data.filter((it): it is SpecificPricingItem => typeof it?.model_id === 'string' && it.model_id.trim().length > 0);
 }
 
+async function refreshSystemConfigForScodeModelSync(): Promise<void> {
+  const data = await fetchSystemConfig(getSudoworkServerBaseUrlSync());
+  if (!data) {
+    mainWarn(TAG, 'system-config refresh failed before scode model sync, using cached auto model config');
+  }
+}
+
 /**
  * Fetch the live model list from sudorouter's specific_pricing endpoint and
  * rewrite ONLY the `models` dict of sudocode.json. Preserves auth_modes /
@@ -136,6 +144,7 @@ export async function fetchSpecificPricingItems(): Promise<SpecificPricingItem[]
  * degrades to the last-known list instead of going empty.
  */
 export async function syncScodeModelsFromPricing(): Promise<void> {
+  await refreshSystemConfigForScodeModelSync();
   const pricingItems = await fetchSpecificPricingItems();
 
   const modelIds = pricingItems.map((m) => m.model_id.trim()).filter(Boolean);
@@ -155,7 +164,7 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
     }
   }
 
-  addScodeAutoModel(models, modelIds, pricingItems);
+  addScodeAutoModel(models, modelIds, pricingItems, getConfiguredScodeAutoModelId());
   for (const modelId of modelIds) {
     models[modelId] = {
       alias: modelId,
