@@ -34,6 +34,7 @@ const MOSS_SKILL_META_FILE = '_moss_meta.json';
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 const MISSING_ROOT_SKILL_MD_MESSAGE = 'The selected directory must contain a root-level SKILL.md file (case-insensitive)';
 const SKILL_HUB_UPLOAD_EXCLUDED_FILE_NAMES = new Set([SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE, '_sudowork_audit.json', '_sudowork_audit.md']);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
 type SkillHubUploadStatus = 'pending' | 'approved';
 
@@ -620,11 +621,50 @@ async function createSkillHubUploadZip(skillDir: string): Promise<Buffer> {
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
-function appendOptionalFormValue(formData: FormData, name: string, value: string | null | undefined): void {
-  const normalized = value?.trim();
+function normalizeUploadFormValue(value: unknown): string {
+  if (value == null) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return JSON.stringify(value);
+}
+
+function appendOptionalFormValue(formData: FormData, name: string, value: unknown): void {
+  const normalized = normalizeUploadFormValue(value);
   if (normalized) {
     formData.append(name, normalized);
   }
+}
+
+function appendOptionalFormList(formData: FormData, name: string, values: string[]): void {
+  for (const value of values) {
+    const normalized = value.trim();
+    if (normalized) {
+      formData.append(name, normalized);
+    }
+  }
+}
+
+function normalizeUploadAuthorId(authorId: string | null | undefined): string {
+  const normalized = authorId?.trim() || '';
+  if (!normalized) {
+    return '';
+  }
+
+  if (UUID_PATTERN.test(normalized)) {
+    return normalized;
+  }
+
+  mainWarn('SkillHub', `Skip non-UUID author_id when uploading custom skill: ${normalized}`);
+  return '';
 }
 
 function resolveUploadCategories(meta: SkillHubMeta | null, manifest: Awaited<ReturnType<typeof readSkillManifestFromDirectory>>): string[] {
@@ -1195,6 +1235,7 @@ export function initSkillHubBridge(): void {
       const displayName = importedMeta?.display_name?.trim() || manifest.displayName || buildSkillDisplayName(uploadSkillName);
       const version = normalizeInstalledSkillVersion(importedMeta?.installed_version) || manifest.version || (await readInstalledVersionFromDirectory(skillDir)) || '1.0.0';
       const categories = resolveUploadCategories(importedMeta, manifest);
+      const uploadAuthorId = normalizeUploadAuthorId(importedMeta?.author_id);
 
       const zipBuffer = await createSkillHubUploadZip(skillDir);
       const formData = new FormData();
@@ -1205,14 +1246,14 @@ export function initSkillHubBridge(): void {
       formData.append('status', '0');
       appendOptionalFormValue(formData, 'category', importedMeta?.category || manifest.category);
       if (categories.length > 0) {
-        formData.append('categories', JSON.stringify(categories));
+        appendOptionalFormList(formData, 'categories', categories);
       }
       appendOptionalFormValue(formData, 'description', importedMeta?.description || manifest.description);
       appendOptionalFormValue(formData, 'core_features', importedMeta?.core_features);
       appendOptionalFormValue(formData, 'applicable_scenarios', importedMeta?.applicable_scenarios);
       appendOptionalFormValue(formData, 'emoji', importedMeta?.emoji || manifest.emoji);
       appendOptionalFormValue(formData, 'homepage', importedMeta?.homepage || manifest.homepage);
-      appendOptionalFormValue(formData, 'author_id', importedMeta?.author_id);
+      appendOptionalFormValue(formData, 'author_id', uploadAuthorId);
 
       const skillBlob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
       formData.append('skill_file', skillBlob, `${uploadSkillName}.zip`);
@@ -1225,6 +1266,23 @@ export function initSkillHubBridge(): void {
 
       const uploadUrl = `${getSkillHubBaseUrl()}/api/skills`;
       mainLog('SkillHub', `Uploading custom skill "${uploadSkillName}" to SkillHub tenant ${normalizedTenantId}`);
+      mainLog(
+        'SkillHub',
+        `Custom skill upload payload: ${JSON.stringify({
+          name: uploadSkillName,
+          display_name: displayName,
+          version,
+          tenant_id: normalizedTenantId,
+          status: 0,
+          category: importedMeta?.category || manifest.category || null,
+          categories,
+          has_description: Boolean(importedMeta?.description || manifest.description),
+          has_core_features: Boolean(importedMeta?.core_features),
+          has_applicable_scenarios: Boolean(importedMeta?.applicable_scenarios),
+          has_author_id: Boolean(uploadAuthorId),
+          has_icon_file: Boolean(iconFile),
+        })}`
+      );
       const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: { Authorization: token },
@@ -1253,7 +1311,7 @@ export function initSkillHubBridge(): void {
         applicable_scenarios: importedMeta?.applicable_scenarios ?? null,
         core_features: importedMeta?.core_features ?? null,
         homepage: importedMeta?.homepage?.trim() || manifest.homepage || null,
-        author_id: importedMeta?.author_id?.trim() || '',
+        author_id: uploadAuthorId,
         source_type: 'upload',
         is_builtin: false,
         enabled: importedMeta?.enabled !== false,
