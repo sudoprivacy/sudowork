@@ -264,6 +264,31 @@ describe('useWorkspaceFileOps', () => {
     );
   });
 
+  it('opens remote text csv as an excel preview using a local read-only preview file', async () => {
+    const content = 'name,score\nAda,99\nLinus,95\n';
+    mockRemoteTextFile('scores.csv', content, { mime: 'text/csv' });
+    const openPreview = vi.fn();
+    const { result } = renderHook(() => useWorkspaceFileOps(createOptions(openPreview)));
+
+    await result.current.handlePreviewFile(createFile('scores.csv'));
+
+    expect(mocks.createTempFile).toHaveBeenCalledWith({ fileName: 'scores.csv' });
+    expect(mocks.writeFile).toHaveBeenCalledWith({
+      path: '/tmp/sudowork/scores.csv',
+      data: content,
+    });
+    expect(openPreview).toHaveBeenCalledWith(
+      content,
+      'excel',
+      expect.objectContaining({
+        fileName: 'scores.csv',
+        remote: true,
+        editable: false,
+        localPreviewFilePath: '/tmp/sudowork/scores.csv',
+      })
+    );
+  });
+
   it('opens remote text HTML with a local read-only preview file', async () => {
     const content = '<!doctype html><html><body><main>hello</main></body></html>';
     mockRemoteTextFile('index.html', content, { mime: 'text/html' });
