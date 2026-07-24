@@ -888,6 +888,7 @@ export type I18nKey =
   | 'messages.skills.searchFiles'
   | 'messages.skills.searchSkills'
   | 'messages.skills.tabToSwitch'
+  | 'messages.waitingForUserInput'
   | 'messages.skills.triggerLabel'
   | 'messages.unknownMessageType'
   | 'messages.yes'

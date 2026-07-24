@@ -64,8 +64,8 @@ describe('getContentTypeFromExt', () => {
   });
 
   // 特殊类型
-  it('maps csv → code (not excel)', () => {
-    expect(getContentTypeFromExt('csv')).toBe('code');
+  it('maps csv → excel for table preview', () => {
+    expect(getContentTypeFromExt('csv')).toBe('excel');
   });
 
   it('maps html → html, htm → html', () => {

@@ -12,6 +12,7 @@ interface ThoughtDisplayProps {
   thought: ThoughtData;
   style?: 'default' | 'compact';
   running?: boolean;
+  state?: 'processing' | 'waiting';
   onStop?: () => void;
   /** 处理开始时间戳（毫秒），用于恢复计时器 / Processing start timestamp in milliseconds for timer restoration */
   startTime?: number;
@@ -31,7 +32,7 @@ const formatElapsedTime = (seconds: number): string => {
   return `${minutes}m ${remainingSeconds}s`;
 };
 
-const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'default', running = false, onStop: _onStop, startTime }) => {
+const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'default', running = false, state = 'processing', onStop: _onStop, startTime }) => {
   const { theme } = useThemeContext();
   const { t } = useTranslation();
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -81,8 +82,19 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
   }, [theme, style]);
 
   // 如果没有 thought 且不在运行中，不显示
-  if (!thought?.subject && !running) {
+  if (state !== 'waiting' && !thought?.subject && !running) {
     return null;
+  }
+
+  if (state === 'waiting') {
+    return (
+      <div className='p-2.5 rd-t-20px text-14px pb-6 lh-20px text-foreground flex items-center gap-2' style={containerStyle}>
+        <Tag color='arcoblue' size='small'>
+          {t('messages.waitingForUserInput')}
+        </Tag>
+        <span className='text-secondary'>{t('messages.enterAnswer')}</span>
+      </div>
+    );
   }
 
   // 运行中但没有 thought 时显示默认处理状态

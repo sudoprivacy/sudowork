@@ -136,6 +136,7 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
               agentName={activeMember.assistant_name}
               workspace={team.workspace ?? undefined}
               onTeamAnswerQuestion={onTeamAnswerQuestion}
+              teamAnswerQuestion={onTeamAnswerQuestion}
               teamSendMessage={teamSendMessage}
               onProcessingChange={setIsSelectedChatProcessing}
             />

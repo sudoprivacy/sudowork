@@ -23,7 +23,7 @@ import { conversionService } from '../services/conversionService';
 
 // 支持的文件扩展名集合 / Supported file extension sets
 const WORD_EXTENSIONS = new Set(['.doc', '.docx']); // Word 文档扩展名 / Word document extensions
-const EXCEL_EXTENSIONS = new Set(['.xls', '.xlsx']); // Excel 工作簿扩展名 / Excel workbook extensions
+const EXCEL_EXTENSIONS = new Set(['.xls', '.xlsx', '.csv']); // Excel/CSV 表格扩展名 / Excel/CSV table extensions
 const PPT_EXTENSIONS = new Set(['.ppt', '.pptx']); // PowerPoint 演示文稿扩展名 / PowerPoint presentation extensions
 const LIBREOFFICE_EXTENSIONS = new Set(['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods']); // LibreOffice 支持的扩展名 / LibreOffice supported extensions
 
