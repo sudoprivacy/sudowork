@@ -289,13 +289,13 @@ jobs:
           COS_BUCKET: sudowork-release-1309794936
           COS_REGION: ap-beijing
           COS_PATH: sudowork/release/latest
-          COS_PUBLIC_BASE_URL: https://sudowork-release-1309794936.cos.ap-beijing.myqcloud.com/sudowork/release/latest
+          COS_PUBLIC_BASE_URL: https://sudowork-release-1309794936.cos.accelerate.myqcloud.com/sudowork/release/latest
         run: |
           echo "📦 Installing coscmd..."
           pip install coscmd
 
           echo "🔐 Configuring coscmd..."
-          coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" -b "$COS_BUCKET" -r "$COS_REGION"
+          coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" -b "$COS_BUCKET" -e cos.accelerate.myqcloud.com
 
           bash scripts/publish-release-to-cos.sh release-assets
 
