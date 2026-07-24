@@ -137,6 +137,7 @@ function TeamDetailPage() {
           agentName={leader.assistant_name}
           workspace={currentTeam.workspace ?? undefined}
           onTeamAnswerQuestion={onLeaderTeamAnswerQuestion}
+          teamAnswerQuestion={onLeaderTeamAnswerQuestion}
           teamSendMessage={leaderTeamSendMessage}
           showEmptyStateWhenNoMessages
           emptyState={<TeamLeaderEmptyState assistantName={leader.assistant_name} assistantAvatar={leader.icon} assistantBackend={leader.assistant_backend} assistantId={leader.assistant_id} source={leader.source} onPromptClick={onEmptyPromptClick} />}

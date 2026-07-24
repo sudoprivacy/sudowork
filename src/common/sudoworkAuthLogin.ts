@@ -10,6 +10,7 @@ type LoginResponseData = {
   models?: unknown;
   available_models?: unknown;
   model_list?: unknown;
+  scode_auto_model?: unknown;
   access_token?: unknown;
 };
 
@@ -36,12 +37,14 @@ export function mergeLoginUserData(payload: unknown): Record<string, unknown> {
   const availableModels = asStringArray(loginData.available_models);
   const fallbackModels = asStringArray(loginData.model_list);
   const models = directModels.length ? directModels : availableModels.length ? availableModels : fallbackModels;
+  const scodeAutoModel = asNonEmptyString(loginData.scode_auto_model);
 
   return {
     ...loginUser,
     ...(sudorouterKey ? { sudorouter_key: sudorouterKey } : {}),
     ...(modelServiceUrl ? { model_service_url: modelServiceUrl } : {}),
     ...(models.length ? { models } : {}),
+    ...(scodeAutoModel ? { scode_auto_model: scodeAutoModel } : {}),
   };
 }
 
@@ -50,6 +53,7 @@ export function extractLoginSudoclawPayload(payload: unknown): LoginSudoclawPayl
   const sudorouterKey = asNonEmptyString(mergedUser.sudorouter_key);
   const modelServiceUrl = asNonEmptyString(mergedUser.model_service_url);
   const models = asStringArray(mergedUser.models);
+  const scodeAutoModel = asNonEmptyString(mergedUser.scode_auto_model);
 
   if (!sudorouterKey || !modelServiceUrl || models.length === 0) {
     return null;
@@ -59,6 +63,7 @@ export function extractLoginSudoclawPayload(payload: unknown): LoginSudoclawPayl
     sudorouterKey,
     modelServiceUrl,
     models,
+    ...(scodeAutoModel ? { scodeAutoModel } : {}),
   };
 }
 

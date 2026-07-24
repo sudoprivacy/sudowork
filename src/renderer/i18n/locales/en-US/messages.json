@@ -47,6 +47,7 @@
   "failedToSendQuestionAnswer": "Failed to send question answer",
   "recommended": "Recommended",
   "questionCancelled": "Question cancelled",
+  "waitingForUserInput": "Waiting for your input",
   "processing": "Processing...",
   "responseSentSuccessfully": "Response sent successfully",
   "questionAnswered": "Answered",

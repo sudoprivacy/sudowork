@@ -2729,6 +2729,7 @@ export const eeclaw = {
       sudorouter_key?: string;
       model_service_url?: string;
       models?: string[];
+      scode_auto_model?: string;
     }>,
     { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string; params?: Record<string, string> }; deviceId: string }
   >('eeclaw.login'),

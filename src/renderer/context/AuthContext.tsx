@@ -23,6 +23,7 @@ export interface AuthUser {
   sudorouter_key?: string;
   model_service_url?: string;
   models?: string[];
+  scode_auto_model?: string;
   phone?: string;
   localAuth?: boolean;
   localModeAvailable?: boolean;
@@ -876,9 +877,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setUser({ ...authStorage.user, token: authStorage.access_token });
         setStatus('authenticated');
         setReady(true);
-        // §6.4 restart-restore path: also cache credentials so reporters/skillhub work after
-        // a restart without requiring a manual re-login (fire-and-forget, don't block restore).
-        void fetchAndCacheCredentials();
         await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
 
         const restoredUserId = resolveConsumerUserId(authStorage.user);
@@ -919,6 +917,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         if (authStorage.expires_at && Date.now() > authStorage.expires_at - 5 * 60 * 1000) {
           await refreshTokens();
         }
+        // §6.4 凭据注入必须在 token 刷新之后:冷启动时 access_token 可能已过期,
+        // 若在刷新前注入,/system-config/credentials 会用过期 JWT 返回 401,凭据无法注入。
+        void fetchAndCacheCredentials();
         return;
       } catch {
         localStorage.removeItem(AUTH_STORAGE_KEY);

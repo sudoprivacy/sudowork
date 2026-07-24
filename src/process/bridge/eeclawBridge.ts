@@ -375,6 +375,7 @@ export function initEeclawBridge(): void {
           sudorouter_key: data.sudorouter_key,
           model_service_url: data.model_service_url,
           models: Array.isArray(data.models) ? data.models : undefined,
+          scode_auto_model: typeof data.scode_auto_model === 'string' ? data.scode_auto_model : undefined,
         },
       };
     } catch (error) {
