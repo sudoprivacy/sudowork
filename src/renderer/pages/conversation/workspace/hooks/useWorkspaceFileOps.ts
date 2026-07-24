@@ -415,7 +415,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         // Office 文件扩展名 / Office file extensions
         const pptExtensions = ['ppt', 'pptx', 'odp'];
         const wordExtensions = ['doc', 'docx', 'odt'];
-        const excelExtensions = ['xls', 'xlsx', 'ods'];
+        const excelExtensions = ['xls', 'xlsx', 'ods', 'csv'];
         const officeExtensions = [...pptExtensions, ...wordExtensions, ...excelExtensions];
 
         let contentType: PreviewContentType = 'code';
@@ -436,9 +436,6 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           contentType = 'word';
         } else if (excelExtensions.includes(ext)) {
           contentType = 'excel';
-        } else if (ext === 'csv') {
-          // CSV files are text files, read as text (don't use excel viewer)
-          contentType = 'code';
         } else if (['html', 'htm'].includes(ext)) {
           contentType = 'html';
         } else if (imageExtensions.includes(ext)) {
@@ -500,7 +497,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
 
         // Warm LibreOffice availability cache for Office viewers.
         // 为 Office 预览组件预热 LibreOffice 可用性缓存。
-        if (officeExtensions.includes(ext)) {
+        if (officeExtensions.includes(ext) && ext !== 'csv') {
           await checkLibreOfficeAvailable();
         }
 
@@ -525,6 +522,9 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
             if (contentType === 'word') {
               contentType = getWordTextPreviewType(remotePreview.mime, remotePreview.content) || 'code';
               content = remotePreview.content;
+            } else if (contentType === 'excel' && ext === 'csv') {
+              content = remotePreview.content;
+              localPreviewFilePath = await createRemoteTextPreviewFile(nodeData.name, content);
             } else {
               content = contentType === 'image' ? textToDataUrl(remotePreview.mime, remotePreview.content) : remotePreview.content;
             }
