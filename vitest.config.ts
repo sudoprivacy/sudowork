@@ -130,6 +130,7 @@ export default defineConfig({
         'src/renderer/messages/RuntimeErrorBanner.tsx',
         'src/renderer/messages/useAutoScroll.ts',
         'src/renderer/utils/emitter.ts',
+        'src/renderer/pages/guid/utils/modelBackendKey.ts',
         // Preview components
         'src/renderer/pages/conversation/preview/components/viewers/WordViewer.tsx',
         'src/renderer/pages/conversation/preview/components/viewers/PPTViewer.tsx',

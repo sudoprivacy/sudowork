@@ -13,6 +13,7 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { emitter } from '@/renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@/renderer/context/AuthContext';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
+import { resolveGuidModelBackendKey } from '../utils/modelBackendKey';
 
 // Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
 // 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取
@@ -169,6 +170,7 @@ export type GuidAgentSelectionResult = {
   selectedAcpModel: string | null;
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
   currentAcpCachedModelInfo: AcpModelInfo | null;
+  modelBackendKey: string;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
   getAgentKey: (agent: { backend: AcpBackend; customAgentId?: string }) => string;
   findAgentByKey: (key: string) => AvailableAgent | undefined;
@@ -217,6 +219,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   const [selectedMode, _setSelectedMode] = useState<string>('default');
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
+  const modelBackendKeyRef = useRef<string>(isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE);
   const probedModelBackendsRef = useRef(new Set<string>());
   // Track whether we've auto-selected first agent (enterprise mode case) to prevent infinite loops
   const hasAutoSelectedAgentRef = useRef(false);
@@ -256,15 +259,15 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   const setSelectedAcpModel = useCallback((modelId: React.SetStateAction<string | null>) => {
     _setSelectedAcpModel((prev) => {
       const newModelId = typeof modelId === 'function' ? modelId(prev) : modelId;
-      const agentKey = selectedAgentRef.current;
-      if (agentKey && agentKey !== 'gemini' && agentKey !== 'custom' && newModelId) {
+      const modelBackendKey = modelBackendKeyRef.current;
+      if (modelBackendKey && modelBackendKey !== 'gemini' && newModelId) {
         // For remote-agent, save to Moss Server via IPC
-        if (agentKey === 'remote-agent') {
+        if (modelBackendKey === 'remote-agent') {
           ipcBridge.moss.setUserModel.invoke({ modelId: newModelId }).catch((error) => {
             console.warn('[Guid][remote-agent] Failed to save model preference:', error);
           });
         } else {
-          void savePreferredModelId(agentKey, newModelId);
+          void savePreferredModelId(modelBackendKey, newModelId);
         }
       }
       return newModelId;
@@ -401,6 +404,18 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   const selectedAgent = selectedAgentKey.startsWith('custom:') ? ('custom' as const) : (selectedAgentKey as AcpBackend);
   const selectedAgentInfo = useMemo(() => findAgentByKey(selectedAgentKey), [selectedAgentKey, findAgentByKey]);
   const isPresetAgent = Boolean(selectedAgentInfo?.isPreset);
+  const modelBackendKey = useMemo(
+    () =>
+      resolveGuidModelBackendKey({
+        isEnterprise,
+        sessionMode,
+        selectedAgentKey,
+        selectedAgentInfo,
+        customAgents,
+      }),
+    [customAgents, isEnterprise, selectedAgentInfo, selectedAgentKey, sessionMode]
+  );
+  modelBackendKeyRef.current = modelBackendKey;
 
   const customAgentAvatarMap = useMemo(() => {
     return new Map(customAgents.map((agent) => [agent.id, agent.avatar]));
@@ -640,7 +655,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   // Probe account/config-scoped model info on first selection so the Guid page
   // can show switchable models before the first conversation starts.
   useEffect(() => {
-    const backendToProbe: AcpBackend | null = selectedAgentKey === 'codex' || selectedAgentKey === 'scode' ? selectedAgentKey : null;
+    const backendToProbe: AcpBackend | null = modelBackendKey === 'codex' || modelBackendKey === 'scode' ? modelBackendKey : null;
     if (!backendToProbe) return;
     if (probedModelBackendsRef.current.has(backendToProbe)) return;
 
@@ -684,13 +699,13 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
     return () => {
       cancelled = true;
     };
-  }, [selectedAgentKey]);
+  }, [modelBackendKey]);
 
   // Probe Moss Server model info for remote-agent in enterprise mode
   // 企业模式下为 remote-agent 获取 Moss Server 模型列表
   useEffect(() => {
     if (!isEnterprise) return;
-    if (selectedAgentKey !== 'remote-agent') return;
+    if (modelBackendKey !== 'remote-agent') return;
     if (sessionMode !== 'remote') return;
     if (probedModelBackendsRef.current.has('remote-agent')) return;
 
@@ -752,13 +767,21 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
     return () => {
       cancelled = true;
     };
-  }, [isEnterprise, selectedAgentKey, sessionMode]);
+  }, [isEnterprise, modelBackendKey, sessionMode]);
 
   // Reset selected ACP model when agent changes: prefer saved preference, fallback to cached default
   useEffect(() => {
-    const backend = selectedAgentKey.startsWith('custom:') ? 'custom' : selectedAgentKey;
+    const backend = modelBackendKey;
 
     let cancelled = false;
+    if (backend === 'remote-agent') {
+      const cachedInfo = acpCachedModels[backend];
+      _setSelectedAcpModel(cachedInfo?.currentModelId ?? null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     // Read preferred model from acp.config[backend], fallback to cached model list default
     void ConfigStorage.get('acp.config')
       .then((config) => {
@@ -787,7 +810,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
     return () => {
       cancelled = true;
     };
-  }, [selectedAgentKey, acpCachedModels]);
+  }, [modelBackendKey, acpCachedModels]);
 
   // Read preferred mode or fallback to legacy yoloMode config
   useEffect(() => {
@@ -1004,7 +1027,7 @@ This identity statement takes priority over the default identity in USER.md.
   }, [isPresetAgent, selectedAgent, selectedAgentInfo, getEffectiveAgentType, isMainAgentAvailable]);
 
   const currentAcpCachedModelInfo = useMemo(() => {
-    const backend = selectedAgentKey.startsWith('custom:') ? 'custom' : selectedAgentKey;
+    const backend = modelBackendKey;
     const cached = acpCachedModels[backend];
     if (cached) return cached;
 
@@ -1021,7 +1044,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     return null;
-  }, [selectedAgentKey, acpCachedModels]);
+  }, [modelBackendKey, acpCachedModels]);
 
   // Auto-switch only for Gemini agent
   useEffect(() => {
@@ -1169,6 +1192,7 @@ This identity statement takes priority over the default identity in USER.md.
     selectedAcpModel,
     setSelectedAcpModel,
     currentAcpCachedModelInfo,
+    modelBackendKey,
     currentEffectiveAgentInfo,
     getAgentKey,
     findAgentByKey,
