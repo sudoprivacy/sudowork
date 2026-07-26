@@ -242,12 +242,18 @@ export class ChannelMessageService {
    * Extracted from handleAgentMessage for reuse in draining phase flush
    */
   private processMessageEvent(event: IAgentMessageEvent, stream: IStreamState): void {
+    // 思考过程只在桌面/WebUI 会话中展示，不转发到 IM 渠道
+    // Reasoning content is desktop/WebUI-only; never forward it to IM channels
+    if (event.type === 'thought') {
+      return;
+    }
+
     // 转换消息
     // Transform message
     const message = transformMessage(event);
     if (!message) {
-      // transformMessage 返回 undefined 表示不需要处理的消息类型（如 thought, start）
-      // transformMessage returns undefined for message types that don't need processing (like thought, start)
+      // transformMessage 返回 undefined 表示不需要处理的消息类型（如 start, finish）
+      // transformMessage returns undefined for message types that don't need processing (like start, finish)
       return;
     }
 

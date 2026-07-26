@@ -54,7 +54,7 @@ export const joinPath = (basePath: string, relativePath: string): string => {
  * @description 跟对话相关的消息类型申明 及相关处理
  */
 
-type TMessageType = 'text' | 'tips' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_question' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands' | 'file_send';
+type TMessageType = 'text' | 'tips' | 'thought' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_question' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands' | 'file_send';
 
 interface IMessage<T extends TMessageType, Content extends Record<string, any>> {
   /**
@@ -127,6 +127,18 @@ export type IMessageTips = IMessage<
     errorClass?: string;
     /** Bytes of the offending payload, for size-driven error classes. */
     errorBytes?: number;
+  }
+>;
+
+/**
+ * Model reasoning (thinking) content. Each emission carries the FULL accumulated
+ * text for one reasoning block, so merging replaces content instead of appending.
+ */
+export type IMessageThought = IMessage<
+  'thought',
+  {
+    subject: string;
+    description: string;
   }
 >;
 
@@ -394,7 +406,21 @@ export interface IFileSendData {
 export type IMessageFileSend = IMessage<'file_send', IFileSendData>;
 
 // eslint-disable-next-line max-len
-export type TMessage = IMessageText | IMessageTips | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpQuestion | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands | IMessageFileSend;
+export type TMessage =
+  | IMessageText
+  | IMessageTips
+  | IMessageThought
+  | IMessageToolCall
+  | IMessageToolGroup
+  | IMessageAgentStatus
+  | IMessageAcpPermission
+  | IMessageAcpQuestion
+  | IMessageAcpToolCall
+  | IMessageCodexPermission
+  | IMessageCodexToolCall
+  | IMessagePlan
+  | IMessageAvailableCommands
+  | IMessageFileSend;
 
 // 统一所有需要用户交互的用户类型
 export interface IConfirmation<Option = any> {
@@ -571,12 +597,26 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         },
       };
     }
+    case 'thought': {
+      const data = message.data as { subject?: string; description?: string } | null;
+      if (!data?.description?.trim()) break;
+      return {
+        id: uuid(),
+        type: 'thought',
+        msg_id: message.msg_id,
+        position: 'left',
+        conversation_id: message.conversation_id,
+        content: {
+          subject: data.subject || '',
+          description: data.description,
+        },
+      };
+    }
     // Disabled: available_commands messages are too noisy and distracting in the chat UI
     case 'available_commands':
       break;
     case 'start':
     case 'finish':
-    case 'thought':
     case 'system': // Cron system responses, ignored
     case 'acp_model_info': // Model info updates, handled by AcpModelSelector
     case 'codex_model_info': // Codex model info updates, handled by AcpModelSelector
@@ -675,6 +715,18 @@ export const composeMessage = (message: TMessage | undefined, list: TMessage[] |
       const msg = list[i];
       if (msg.type === 'tips' && msg.msg_id === message.msg_id) {
         return updateMessage(i, { ...msg, ...message, content: { ...msg.content, ...message.content } });
+      }
+    }
+    return pushMessage(message);
+  }
+
+  // Thought emissions carry the full accumulated reasoning text for a block,
+  // so merge by msg_id replacing content in place (not appending)
+  if (message.type === 'thought' && message.msg_id) {
+    for (let i = 0, len = list.length; i < len; i++) {
+      const msg = list[i];
+      if (msg.type === 'thought' && msg.msg_id === message.msg_id) {
+        return updateMessage(i, { ...msg, ...message, content: message.content });
       }
     }
     return pushMessage(message);

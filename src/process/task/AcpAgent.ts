@@ -3398,7 +3398,7 @@ This identity statement takes priority over the default identity in USER.md.
       this.lastVisibleAssistantContentSequence = ++this.turnEventSequence;
     }
 
-    if (filteredMessage.type !== 'thought' && filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {
+    if (filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {
       const tMessage = transformMessage(filteredMessage as IResponseMessage);
 
       if (tMessage) {

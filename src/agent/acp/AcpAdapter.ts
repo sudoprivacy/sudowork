@@ -16,6 +16,10 @@ export class AcpAdapter {
   private backend: AcpBackend;
   private activeToolCalls: Map<string, IMessageAcpToolCall> = new Map();
   private currentMessageId: string | null = uuid(); // Track current message for streaming chunks
+  // Accumulate streamed thought chunks into one reasoning block with a stable msg_id,
+  // so downstream merging (composeMessage) can update a single message in place
+  private currentThoughtMsgId: string | null = null;
+  private currentThoughtText: string = '';
 
   constructor(conversationId: string, backend: AcpBackend) {
     this.conversationId = conversationId;
@@ -28,6 +32,14 @@ export class AcpAdapter {
    */
   resetMessageTracking() {
     this.currentMessageId = uuid();
+  }
+
+  /**
+   * End the current reasoning block; the next thought chunk starts a new one
+   */
+  private resetThoughtTracking() {
+    this.currentThoughtMsgId = null;
+    this.currentThoughtText = '';
   }
 
   /**
@@ -56,6 +68,7 @@ export class AcpAdapter {
             messages.push(message);
           }
         }
+        this.resetThoughtTracking();
         break;
       }
 
@@ -78,6 +91,7 @@ export class AcpAdapter {
         }
         // Reset message tracking so next agent_message_chunk gets new msg_id
         this.resetMessageTracking();
+        this.resetThoughtTracking();
         break;
       }
 
@@ -88,6 +102,7 @@ export class AcpAdapter {
         }
         // Reset message tracking so next agent_message_chunk gets new msg_id
         this.resetMessageTracking();
+        this.resetThoughtTracking();
         break;
       }
 
@@ -98,6 +113,7 @@ export class AcpAdapter {
         }
         // Reset message tracking so next agent_message_chunk gets new msg_id
         this.resetMessageTracking();
+        this.resetThoughtTracking();
         break;
       }
 
@@ -157,19 +173,21 @@ export class AcpAdapter {
    * Convert ACP thought chunk to Sudowork message
    */
   private convertThoughtChunk(update: AgentThoughtChunkUpdate['update']): TMessage | null {
-    const baseMessage = {
-      id: uuid(),
-      conversation_id: this.conversationId,
-      createdAt: Date.now(),
-      position: 'center' as const,
-    };
-
     if (update.content && update.content.text) {
+      if (!this.currentThoughtMsgId) {
+        this.currentThoughtMsgId = uuid();
+        this.currentThoughtText = '';
+      }
+      this.currentThoughtText += update.content.text;
       return {
-        ...baseMessage,
+        id: uuid(),
+        msg_id: this.currentThoughtMsgId,
+        conversation_id: this.conversationId,
+        createdAt: Date.now(),
+        position: 'center' as const,
         type: 'tips',
         content: {
-          content: update.content.text,
+          content: this.currentThoughtText,
           type: 'warning',
         },
       };

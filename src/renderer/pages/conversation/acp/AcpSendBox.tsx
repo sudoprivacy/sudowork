@@ -200,6 +200,11 @@ const useAcpMessage = (conversation_id: string) => {
             aiProcessingRef.current = true;
           }
           throttledSetThought(message.data as ThoughtData);
+          // Also stream the reasoning block into the message list (collapsed display)
+          // 同时把思考内容写入消息列表（折叠展示）
+          if (transformedMessage) {
+            addOrUpdateMessage(transformedMessage);
+          }
           break;
         case 'start':
           stopPendingRef.current = false;

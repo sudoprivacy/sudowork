@@ -32,6 +32,9 @@ export class CodexMessageProcessor {
   }
 
   processReasonSectionBreak() {
+    // Each reasoning section becomes its own persisted thought block,
+    // so start a new msg_id instead of overwriting the previous section
+    this.reasoningMsgId = uuid();
     this.currentReason = '';
   }
 
@@ -65,18 +68,15 @@ export class CodexMessageProcessor {
     }
     // AGENT_REASONING_SECTION_BREAK 不添加内容，只是重置当前reasoning
     this.currentReason = this.currentReason + deltaText;
-    this.messageEmitter.emitAndPersistMessage(
-      {
-        type: 'thought',
-        msg_id: this.reasoningMsgId, // 使用固定的msg_id确保消息合并
-        conversation_id: this.conversation_id,
-        data: {
-          description: this.currentReason,
-          subject: 'Thinking',
-        },
+    this.messageEmitter.emitAndPersistMessage({
+      type: 'thought',
+      msg_id: this.reasoningMsgId, // 使用固定的msg_id确保消息合并
+      conversation_id: this.conversation_id,
+      data: {
+        description: this.currentReason,
+        subject: 'Thinking',
       },
-      false
-    );
+    });
   }
 
   processMessageDelta(msg: Extract<CodexEventMsg, { type: 'agent_message_delta' }>) {

@@ -27,6 +27,7 @@ import MessageFileChanges, { parseDiff } from './codex/MessageFileChanges';
 import MessageFileSend from './MessageFileSend';
 import { useMessageList } from './hooks';
 import MessagePlan from './MessagePlan';
+import MessageThought from './MessageThought';
 import MessageTips from './MessageTips';
 import MessageToolCall from './MessageToolCall';
 import MessageToolGroup from './MessageToolGroup';
@@ -90,6 +91,8 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?:
         return <MessageText message={message} isStreaming={isStreaming} footer={footer}></MessageText>;
       case 'tips':
         return <MessageTips message={message}></MessageTips>;
+      case 'thought':
+        return <MessageThought message={message}></MessageThought>;
       case 'tool_call':
         return <MessageToolCall message={message}></MessageToolCall>;
       case 'tool_group':
