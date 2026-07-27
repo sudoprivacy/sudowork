@@ -161,6 +161,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             enabledSkills: isEnterprise && isPreset ? enabledSkills : undefined,
             sessionMode: selectedMode,
             dangerouslySkipPermissions: selectedMode === 'yolo',
+            currentModelId: selectedAcpModel || undefined,
             sessionModeParam: 'remote',
           },
         });

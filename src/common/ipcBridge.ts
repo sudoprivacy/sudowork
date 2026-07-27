@@ -1827,6 +1827,12 @@ export interface ISkillDownloadResult {
   filePath: string;
 }
 
+export interface ISkillUploadResult {
+  id: string;
+  name: string;
+  status: 'pending' | 'approved';
+}
+
 export interface ISkillHubDetail {
   skill: ISkillHubSkill;
   versions: ISkillHubVersion[];
@@ -1906,6 +1912,8 @@ export const skillHub = {
   downloadSkillZip: bridge.buildProvider<IBridgeResponse<ISkillDownloadResult>, { skillName: string; version: string; sourceUrl: string; checksum?: string }>('skill-hub.download-skill-zip'),
   /** Import a local skill zip package or directory and synthesize metadata from SKILL.md */
   importLocalSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { sourcePath: string }>('skill-hub.import-local-skill'),
+  /** Upload a personal-mode custom skill to SkillHub as a tenant-exclusive skill pending approval */
+  uploadSkillToHub: bridge.buildProvider<IBridgeResponse<ISkillUploadResult>, { skillName: string; tenantId: string }>('skill-hub.upload-skill-to-hub'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
   /** Enable or disable a custom installed skill. Optionally specify category to disambiguate skills with same name in different directories. */
