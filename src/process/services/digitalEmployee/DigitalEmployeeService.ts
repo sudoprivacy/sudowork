@@ -5,7 +5,26 @@
  */
 
 import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
-import type { IDigitalEmployee, IDigitalEmployeeCreateInput, IDigitalEmployeeLaunchInput, IDigitalEmployeeLaunchResult, IDigitalEmployeeResource, IDigitalEmployeeResourceInput, DigitalEmployeeResourceType, IDigitalEmployeeUpdateInput, IDigitalEmployeeWorkRecord } from '@/common/digitalEmployee';
+import type {
+  DigitalEmployeeResourceType,
+  DigitalEmployeeSopStatus,
+  IDigitalEmployee,
+  IDigitalEmployeeCreateInput,
+  IDigitalEmployeeLaunchInput,
+  IDigitalEmployeeLaunchResult,
+  IDigitalEmployeeResource,
+  IDigitalEmployeeResourceInput,
+  IDigitalEmployeeSop,
+  IDigitalEmployeeSopContent,
+  IDigitalEmployeeSopCreateInput,
+  IDigitalEmployeeSopDistillInput,
+  IDigitalEmployeeSopDistillResult,
+  IDigitalEmployeeSopEdge,
+  IDigitalEmployeeSopNode,
+  IDigitalEmployeeSopUpdateInput,
+  IDigitalEmployeeUpdateInput,
+  IDigitalEmployeeWorkRecord,
+} from '@/common/digitalEmployee';
 import type { TProviderWithModel } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import type { AcpBackendAll } from '@/types/acpTypes';
@@ -45,6 +64,21 @@ interface IDigitalEmployeeResourceRow {
   updated_at: number;
 }
 
+interface IDigitalEmployeeSopRow {
+  id: string;
+  employee_id: string;
+  sop_key: string;
+  name: string;
+  business_domain?: string | null;
+  description: string;
+  status: DigitalEmployeeSopStatus;
+  version: string;
+  content: string;
+  metadata: string;
+  created_at: number;
+  updated_at: number;
+}
+
 interface IDigitalEmployeeWorkRecordRow {
   id: string;
   employee_id: string;
@@ -73,7 +107,7 @@ interface ISeedEmployee {
 }
 
 const DEFAULT_BACKEND: AcpBackendAll = 'scode';
-const STAFFDECK_SEED_VERSION = 2;
+const STAFFDECK_SEED_VERSION = 3;
 
 const RESOURCE_TYPE_LABELS: Record<DigitalEmployeeResourceType, string> = {
   assistant: '助手',
@@ -585,6 +619,262 @@ function getStringArrayConfig(config: Record<string, unknown>, key: string): str
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim());
 }
 
+function normalizeStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim());
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/[\n,，;；]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeStringRecord(value: unknown, fallback: Record<string, string> = {}): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, string>>((record, [key, item]) => {
+    if (typeof item === 'string') {
+      record[key] = item;
+    }
+    return record;
+  }, {});
+}
+
+function normalizeRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function normalizeSopStatus(value: DigitalEmployeeSopStatus | undefined): DigitalEmployeeSopStatus {
+  if (value === 'draft' || value === 'published' || value === 'archived') return value;
+  return 'published';
+}
+
+function normalizeVersion(value: unknown): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : '1.0.0';
+}
+
+function sanitizeSopKey(value: string | undefined, fallbackName: string): string {
+  const source = normalizeText(value, fallbackName);
+  const normalized = source
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^\w.-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
+  return normalized || `sop_${uuid(12)}`;
+}
+
+function getPartialString(content: Partial<IDigitalEmployeeSopContent> | Record<string, unknown>, camelKey: keyof IDigitalEmployeeSopContent, snakeKey?: string): string | undefined {
+  const camelValue = content[camelKey];
+  if (typeof camelValue === 'string' && camelValue.trim()) return camelValue.trim();
+  const snakeValue = snakeKey ? (content as Record<string, unknown>)[snakeKey] : undefined;
+  return typeof snakeValue === 'string' && snakeValue.trim() ? snakeValue.trim() : undefined;
+}
+
+function getPartialList(content: Partial<IDigitalEmployeeSopContent> | Record<string, unknown>, camelKey: keyof IDigitalEmployeeSopContent, snakeKey?: string): string[] {
+  const camelValue = content[camelKey];
+  const camelList = normalizeStringArray(camelValue);
+  if (camelList.length) return camelList;
+  return normalizeStringArray(snakeKey ? (content as Record<string, unknown>)[snakeKey] : undefined);
+}
+
+function buildSopNodeFromText(index: number, value: string): IDigitalEmployeeSopNode {
+  const text = normalizeText(value, `Step ${index + 1}`);
+  return {
+    nodeId: `node_${index + 1}`,
+    type: 'task',
+    name: text.length > 30 ? `${text.slice(0, 30)}...` : text,
+    instruction: text,
+    optional: false,
+    expectedUserInfo: [],
+    allowedActions: [],
+    knowledgeScope: {},
+    retryPolicy: {
+      maxRetries: 1,
+      retryInstruction: '缺少必要信息时向用户追问一次。',
+    },
+    metadata: {},
+  };
+}
+
+function normalizeSopNode(value: unknown, index: number): IDigitalEmployeeSopNode {
+  if (typeof value === 'string') {
+    return buildSopNodeFromText(index, value);
+  }
+
+  const record = normalizeRecord(value);
+  const nodeId = normalizeText(record.nodeId as string | undefined, normalizeText(record.node_id as string | undefined, `node_${index + 1}`));
+  const name = normalizeText(record.name as string | undefined, `Step ${index + 1}`);
+  const instruction = normalizeText(record.instruction as string | undefined, name);
+
+  return {
+    nodeId,
+    type: normalizeText(record.type as string | undefined, 'task'),
+    name,
+    instruction,
+    optional: record.optional === true,
+    condition: normalizeText(record.condition as string | undefined) || undefined,
+    expectedUserInfo: normalizeStringArray(record.expectedUserInfo ?? record.expected_user_info),
+    allowedActions: normalizeStringArray(record.allowedActions ?? record.allowed_actions),
+    knowledgeScope: normalizeRecord(record.knowledgeScope ?? record.knowledge_scope),
+    retryPolicy: normalizeRecord(record.retryPolicy ?? record.retry_policy),
+    metadata: normalizeRecord(record.metadata),
+  };
+}
+
+function buildSequentialEdges(nodes: IDigitalEmployeeSopNode[]): IDigitalEmployeeSopEdge[] {
+  return nodes.slice(0, -1).map((node, index) => ({
+    sourceNodeId: node.nodeId,
+    nextNodeId: nodes[index + 1].nodeId,
+    priority: 0,
+    label: 'next',
+  }));
+}
+
+function normalizeSopEdge(value: unknown): IDigitalEmployeeSopEdge | null {
+  const record = normalizeRecord(value);
+  const sourceNodeId = normalizeText(record.sourceNodeId as string | undefined, normalizeText(record.source_node_id as string | undefined));
+  const nextNodeId = normalizeText(record.nextNodeId as string | undefined, normalizeText(record.next_node_id as string | undefined));
+  if (!sourceNodeId || !nextNodeId) return null;
+  return {
+    sourceNodeId,
+    nextNodeId,
+    condition: normalizeText(record.condition as string | undefined) || undefined,
+    priority: typeof record.priority === 'number' ? record.priority : 0,
+    label: normalizeText(record.label as string | undefined) || undefined,
+  };
+}
+
+function buildSopContent(input: { sopKey: string; name: string; businessDomain?: string; description?: string; version?: string; content?: Partial<IDigitalEmployeeSopContent> | Record<string, unknown>; fallbackNodes?: IDigitalEmployeeSopNode[] }): IDigitalEmployeeSopContent {
+  const content = input.content || {};
+  const rawNodes = Array.isArray((content as Record<string, unknown>).nodes) ? ((content as Record<string, unknown>).nodes as unknown[]) : [];
+  const nodes = rawNodes.map(normalizeSopNode).filter((node) => node.name && node.instruction);
+  const normalizedNodes = nodes.length ? nodes : input.fallbackNodes?.length ? input.fallbackNodes : [buildSopNodeFromText(0, input.description || input.name)];
+  const rawEdges = Array.isArray((content as Record<string, unknown>).edges) ? ((content as Record<string, unknown>).edges as unknown[]) : [];
+  const edges = rawEdges.map(normalizeSopEdge).filter((edge): edge is IDigitalEmployeeSopEdge => Boolean(edge));
+  const defaultTerminalNodeId = normalizedNodes[normalizedNodes.length - 1]?.nodeId || normalizedNodes[0]?.nodeId || 'node_1';
+  const businessDomain = input.businessDomain !== undefined ? normalizeText(input.businessDomain) : getPartialString(content, 'businessDomain', 'business_domain');
+  const description = input.description !== undefined ? normalizeText(input.description) : getPartialString(content, 'description') || '';
+
+  return {
+    sopKey: input.sopKey,
+    name: input.name,
+    version: normalizeVersion(input.version || getPartialString(content, 'version')),
+    businessDomain: businessDomain || undefined,
+    description,
+    triggerIntents: getPartialList(content, 'triggerIntents', 'trigger_intents').length ? getPartialList(content, 'triggerIntents', 'trigger_intents') : [input.name],
+    userUtteranceExamples: getPartialList(content, 'userUtteranceExamples', 'user_utterance_examples'),
+    goals: getPartialList(content, 'goals').length ? getPartialList(content, 'goals') : [input.name],
+    requiredInfo: getPartialList(content, 'requiredInfo', 'required_info'),
+    slotFillingPolicy: normalizeRecord((content as Record<string, unknown>).slotFillingPolicy ?? (content as Record<string, unknown>).slot_filling_policy),
+    responseRules: getPartialList(content, 'responseRules', 'response_rules').length ? getPartialList(content, 'responseRules', 'response_rules') : ['先确认关键信息，再按流程推进；无法自动完成时输出交接说明。'],
+    nodes: normalizedNodes,
+    edges: edges.length ? edges : buildSequentialEdges(normalizedNodes),
+    startNodeId: getPartialString(content, 'startNodeId', 'start_node_id') || normalizedNodes[0]?.nodeId || 'node_1',
+    terminalNodeIds: getPartialList(content, 'terminalNodeIds', 'terminal_node_ids').length ? getPartialList(content, 'terminalNodeIds', 'terminal_node_ids') : [defaultTerminalNodeId],
+    interruptionPolicy: normalizeStringRecord((content as Record<string, unknown>).interruptionPolicy ?? (content as Record<string, unknown>).interruption_policy, {
+      missing_information: '向用户追问缺失字段后继续。',
+      out_of_scope: '说明能力边界并建议转人工确认。',
+    }),
+  };
+}
+
+function rowToSop(row: IDigitalEmployeeSopRow): IDigitalEmployeeSop {
+  const parsedContent = parseJsonObject(row.content);
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    sopKey: row.sop_key,
+    name: row.name,
+    businessDomain: row.business_domain || undefined,
+    description: row.description,
+    status: row.status,
+    version: row.version,
+    content: buildSopContent({
+      sopKey: row.sop_key,
+      name: row.name,
+      businessDomain: row.business_domain || undefined,
+      description: row.description,
+      version: row.version,
+      content: parsedContent,
+    }),
+    metadata: parseJsonObject(row.metadata),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function buildSopResourceConfig(sop: Pick<IDigitalEmployeeSop, 'id' | 'sopKey' | 'name' | 'businessDomain' | 'description' | 'status' | 'version' | 'content' | 'metadata'>): Record<string, unknown> {
+  return {
+    ...sop.metadata,
+    summary: sop.description,
+    sopId: sop.id,
+    sopKey: sop.sopKey,
+    status: sop.status,
+    version: sop.version,
+    businessDomain: sop.businessDomain,
+    goals: sop.content.goals,
+    nodes: sop.content.nodes.map((node) => node.name),
+    skillCard: sop.content,
+  };
+}
+
+function getConfigStringArray(config: Record<string, unknown>, key: string): string[] {
+  const directValues = getStringArrayConfig(config, key);
+  if (directValues.length) return directValues;
+  return normalizeStringArray(normalizeRecord(config.skillCard)[key]);
+}
+
+function getConfigNodeNames(config: Record<string, unknown>): string[] {
+  const directValues = getStringArrayConfig(config, 'nodes');
+  if (directValues.length) return directValues;
+  const nodes = normalizeRecord(config.skillCard).nodes;
+  if (!Array.isArray(nodes)) return [];
+  return nodes.map((node) => (typeof node === 'string' ? node : normalizeText(normalizeRecord(node).name as string | undefined))).filter(Boolean);
+}
+
+function getSeedSopId(resource: Pick<IDigitalEmployeeResourceInput, 'resourceId'> & { id: string }): string {
+  return resource.id.startsWith('der_') ? resource.id.replace(/^der_/, 'desop_') : `desop_${resource.resourceId}`;
+}
+
+function buildSeedSopContent(resource: Omit<IDigitalEmployeeResourceInput, 'sortOrder'> & { id: string }): IDigitalEmployeeSopContent {
+  const config = mergeStaffDeckResourceDetails(resource);
+  const name = normalizeText(resource.resourceName, resource.resourceId);
+  const sopKey = normalizeText(getStringConfig(config, 'staffdeckSkillId'), resource.resourceId);
+  const nodes = getStringArrayConfig(config, 'nodes').map((node, index) => buildSopNodeFromText(index, node));
+  const summary = getStringConfig(config, 'summary') || name;
+  return buildSopContent({
+    sopKey,
+    name,
+    businessDomain: getStringConfig(config, 'businessDomain'),
+    description: summary,
+    version: '1.0.0',
+    content: {
+      triggerIntents: [name, resource.resourceId],
+      userUtteranceExamples: [`我要办理${name}`, `帮我处理${name}`],
+      goals: getStringArrayConfig(config, 'goals'),
+      responseRules: ['严格按 SOP 节点推进，缺少字段时先追问。', '涉及审批、合规或异常失败时，输出可交接的人工处理摘要。'],
+    },
+    fallbackNodes: nodes,
+  });
+}
+
+function extractSopSteps(rawContent: string): string[] {
+  const normalized = rawContent
+    .replace(/→|➡️/g, '\n')
+    .split(/\n+/)
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)、]|[（(]\d+[）)])\s*/, '').trim())
+    .filter(Boolean);
+  if (normalized.length > 1) return normalized.slice(0, 12);
+  return rawContent
+    .split(/[。.!！？?；;]/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
 function formatContextList(label: string, values: string[]): string | undefined {
   return values.length ? `${label}: ${values.join(', ')}` : undefined;
 }
@@ -669,8 +959,8 @@ function buildResourceContext(resources: IDigitalEmployeeResource[]): string {
         getStringConfig(config, 'summary'),
         getStringConfig(config, 'displayName') ? `显示名: ${getStringConfig(config, 'displayName')}` : undefined,
         businessDomain ? `领域: ${businessDomain}` : undefined,
-        formatContextList('目标', getStringArrayConfig(config, 'goals')),
-        formatContextList('流程', getStringArrayConfig(config, 'nodes')),
+        formatContextList('目标', getConfigStringArray(config, 'goals')),
+        formatContextList('流程', getConfigNodeNames(config)),
         method || url ? `调用: ${[method, url].filter(Boolean).join(' ')}` : undefined,
         formatContextList('必填字段', getStringArrayConfig(config, 'requiredFields')),
         formatContextList('输入字段', getStringArrayConfig(config, 'inputFields')),
@@ -741,6 +1031,50 @@ export class DigitalEmployeeService {
     return getDatabase().getDefaultUserId();
   }
 
+  private syncSopResource(sop: IDigitalEmployeeSop, sortOrder: number): void {
+    const db = getDatabase();
+    const now = getNow();
+    const existing = requireQueryResult(db.queryOne<IDigitalEmployeeResourceRow>('SELECT * FROM digital_employee_resources WHERE employee_id = ? AND resource_type = ? AND resource_id = ?', sop.employeeId, 'sop', sop.sopKey), 'get digital employee SOP resource');
+    const config = buildSopResourceConfig(sop);
+    const enabled = sop.status === 'published' ? 1 : 0;
+
+    if (existing) {
+      requireQueryResult(
+        db.mutate(
+          `UPDATE digital_employee_resources
+           SET resource_name = ?, config = ?, enabled = ?, sort_order = ?, updated_at = ?
+           WHERE id = ?`,
+          sop.name,
+          stringifyJsonObject(config),
+          enabled,
+          existing.sort_order,
+          now,
+          existing.id
+        ),
+        'update digital employee SOP resource'
+      );
+      return;
+    }
+
+    requireQueryResult(
+      db.mutate(
+        `INSERT INTO digital_employee_resources
+          (id, employee_id, resource_type, resource_id, resource_name, config, enabled, sort_order, created_at, updated_at)
+         VALUES (?, ?, 'sop', ?, ?, ?, ?, ?, ?, ?)`,
+        `der_${uuid(16)}`,
+        sop.employeeId,
+        sop.sopKey,
+        sop.name,
+        stringifyJsonObject(config),
+        enabled,
+        sortOrder,
+        now,
+        now
+      ),
+      'insert digital employee SOP resource'
+    );
+  }
+
   private ensureSeedEmployees(): void {
     if (this.isSeedChecked) return;
     const db = getDatabase();
@@ -791,6 +1125,19 @@ export class DigitalEmployeeService {
         );
 
         employee.resources.forEach((resource, index) => {
+          const seedSopContent = resource.resourceType === 'sop' ? buildSeedSopContent(resource) : undefined;
+          const seedSopId = seedSopContent ? getSeedSopId(resource) : undefined;
+          const resourceConfig = seedSopContent
+            ? {
+                ...mergeStaffDeckResourceDetails(resource),
+                sopId: seedSopId,
+                sopKey: seedSopContent.sopKey,
+                status: 'published',
+                version: seedSopContent.version,
+                skillCard: seedSopContent,
+              }
+            : mergeStaffDeckResourceDetails(resource);
+
           requireQueryResult(
             db.mutate(
               `INSERT INTO digital_employee_resources
@@ -809,13 +1156,51 @@ export class DigitalEmployeeService {
               resource.resourceType,
               resource.resourceId,
               resource.resourceName || null,
-              stringifyJsonObject(mergeStaffDeckResourceDetails(resource)),
+              stringifyJsonObject(resourceConfig),
               index,
               now,
               now
             ),
             'insert digital employee resource seed'
           );
+
+          if (seedSopContent && seedSopId) {
+            requireQueryResult(
+              db.mutate(
+                `INSERT INTO digital_employee_sops
+                  (id, employee_id, sop_key, name, business_domain, description, status, version, content, metadata, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET
+                   employee_id = excluded.employee_id,
+                   sop_key = excluded.sop_key,
+                   name = excluded.name,
+                   business_domain = excluded.business_domain,
+                   description = excluded.description,
+                   status = excluded.status,
+                   version = excluded.version,
+                   content = excluded.content,
+                   metadata = excluded.metadata,
+                   updated_at = excluded.updated_at`,
+                seedSopId,
+                employee.id,
+                seedSopContent.sopKey,
+                seedSopContent.name,
+                seedSopContent.businessDomain || null,
+                seedSopContent.description,
+                seedSopContent.version,
+                JSON.stringify(seedSopContent),
+                stringifyJsonObject({
+                  importedFrom: 'StaffDeck',
+                  seedVersion: STAFFDECK_SEED_VERSION,
+                  staffdeckSkillId: getStringConfig(resourceConfig, 'staffdeckSkillId'),
+                  businessSkillId: getStringConfig(resourceConfig, 'businessSkillId'),
+                }),
+                now,
+                now
+              ),
+              'insert digital employee SOP seed'
+            );
+          }
         });
       }
     });
@@ -974,6 +1359,8 @@ export class DigitalEmployeeService {
     const source = this.getEmployee(employeeId);
     if (!source) throw new Error('Digital employee not found');
 
+    const sourceSops = this.listSops(source.id);
+    const copiedSopsByKey = new Map<string, IDigitalEmployeeSop>();
     const now = getNow();
     const employeeIdCopy = `de_${uuid(16)}`;
     const result = getDatabase().runTransaction(() => {
@@ -1000,7 +1387,45 @@ export class DigitalEmployeeService {
         'duplicate digital employee'
       );
 
+      for (const sop of sourceSops) {
+        const copiedSop: IDigitalEmployeeSop = {
+          ...sop,
+          id: `desop_${uuid(16)}`,
+          employeeId: employeeIdCopy,
+          metadata: {
+            ...sop.metadata,
+            duplicatedFromSop: sop.id,
+          },
+          createdAt: now,
+          updatedAt: now,
+        };
+        copiedSopsByKey.set(copiedSop.sopKey, copiedSop);
+        requireQueryResult(
+          getDatabase().mutate(
+            `INSERT INTO digital_employee_sops
+              (id, employee_id, sop_key, name, business_domain, description, status, version, content, metadata, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            copiedSop.id,
+            copiedSop.employeeId,
+            copiedSop.sopKey,
+            copiedSop.name,
+            copiedSop.businessDomain || null,
+            copiedSop.description,
+            copiedSop.status,
+            copiedSop.version,
+            JSON.stringify(copiedSop.content),
+            stringifyJsonObject(copiedSop.metadata),
+            now,
+            now
+          ),
+          'duplicate digital employee SOP'
+        );
+      }
+
       source.resources.forEach((resource, index) => {
+        const configuredSopKey = typeof resource.config.sopKey === 'string' ? resource.config.sopKey : undefined;
+        const copiedSop = resource.resourceType === 'sop' ? copiedSopsByKey.get(resource.resourceId) || (configuredSopKey ? copiedSopsByKey.get(configuredSopKey) : undefined) : undefined;
+        const resourceConfig = copiedSop ? buildSopResourceConfig(copiedSop) : resource.config;
         requireQueryResult(
           getDatabase().mutate(
             `INSERT INTO digital_employee_resources
@@ -1009,9 +1434,9 @@ export class DigitalEmployeeService {
             `der_${uuid(16)}`,
             employeeIdCopy,
             resource.resourceType,
-            resource.resourceId,
-            resource.resourceName || null,
-            stringifyJsonObject(resource.config),
+            copiedSop?.sopKey || resource.resourceId,
+            copiedSop?.name || resource.resourceName || null,
+            stringifyJsonObject(resourceConfig),
             resource.enabled ? 1 : 0,
             index,
             now,
@@ -1095,6 +1520,216 @@ export class DigitalEmployeeService {
       ),
       'unbind digital employee resource'
     );
+  }
+
+  listSops(employeeId: string): IDigitalEmployeeSop[] {
+    const employee = this.getEmployee(employeeId);
+    if (!employee) throw new Error('Digital employee not found');
+    const rows = requireQueryResult(
+      getDatabase().query<IDigitalEmployeeSopRow>(
+        `SELECT * FROM digital_employee_sops
+         WHERE employee_id = ?
+         ORDER BY CASE status WHEN 'published' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END, updated_at DESC, created_at DESC`,
+        employeeId
+      ),
+      'list digital employee SOPs'
+    );
+    return rows.map(rowToSop);
+  }
+
+  getSop(sopId: string): IDigitalEmployeeSop | null {
+    this.ensureSeedEmployees();
+    const row = requireQueryResult(
+      getDatabase().queryOne<IDigitalEmployeeSopRow>(
+        `SELECT s.*
+         FROM digital_employee_sops s
+         INNER JOIN digital_employees e ON e.id = s.employee_id
+         WHERE s.id = ? AND e.user_id = ?`,
+        sopId,
+        this.getUserId()
+      ),
+      'get digital employee SOP'
+    );
+    return row ? rowToSop(row) : null;
+  }
+
+  distillSop(input: IDigitalEmployeeSopDistillInput): IDigitalEmployeeSopDistillResult {
+    const employee = this.getEmployee(input.employeeId);
+    if (!employee) throw new Error('Digital employee not found');
+
+    const rawContent = normalizeText(input.rawContent);
+    const title = normalizeText(input.title, rawContent.split(/\n+/)[0]?.slice(0, 32) || '新建 SOP');
+    const steps = extractSopSteps(rawContent);
+    const fallbackSteps = steps.length ? steps : ['收集用户需求与必要信息', '按业务规则执行处理流程', '反馈处理结果并说明后续动作'];
+    const nodes = fallbackSteps.map((step, index) => buildSopNodeFromText(index, step));
+    const description = rawContent || title;
+
+    return {
+      draft: buildSopContent({
+        sopKey: sanitizeSopKey(undefined, title),
+        name: title,
+        businessDomain: normalizeText(input.businessDomain) || employee.roleName,
+        description,
+        content: {
+          triggerIntents: [title],
+          userUtteranceExamples: [`我要${title}`, `帮我处理${title}`],
+          goals: [title],
+          responseRules: ['先确认关键信息，再按 SOP 节点推进。', '遇到缺失字段、审批或异常失败时，生成可交接给人工的摘要。'],
+        },
+        fallbackNodes: nodes,
+      }),
+      warnings: steps.length ? [] : ['未识别到明确步骤，已生成默认三步 SOP 草稿。'],
+    };
+  }
+
+  createSop(employeeId: string, input: IDigitalEmployeeSopCreateInput): IDigitalEmployeeSop {
+    const employee = this.getEmployee(employeeId);
+    if (!employee) throw new Error('Digital employee not found');
+
+    const name = normalizeText(input.name);
+    if (!name) throw new Error('SOP name is required');
+
+    const sopKey = sanitizeSopKey(input.sopKey, name);
+    const existing = requireQueryResult(getDatabase().queryOne<IDigitalEmployeeSopRow>('SELECT * FROM digital_employee_sops WHERE employee_id = ? AND sop_key = ?', employeeId, sopKey), 'get digital employee SOP by key');
+    if (existing) {
+      throw new Error('SOP id already exists on this digital employee');
+    }
+
+    const now = getNow();
+    const sopId = `desop_${uuid(16)}`;
+    const content = buildSopContent({
+      sopKey,
+      name,
+      businessDomain: normalizeText(input.businessDomain) || undefined,
+      description: normalizeText(input.description),
+      version: input.content?.version,
+      content: input.content,
+    });
+    const status = normalizeSopStatus(input.status);
+    const sop: IDigitalEmployeeSop = {
+      id: sopId,
+      employeeId,
+      sopKey,
+      name,
+      businessDomain: content.businessDomain,
+      description: content.description,
+      status,
+      version: content.version,
+      content,
+      metadata: input.metadata || {},
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const result = getDatabase().runTransaction(() => {
+      requireQueryResult(
+        getDatabase().mutate(
+          `INSERT INTO digital_employee_sops
+            (id, employee_id, sop_key, name, business_domain, description, status, version, content, metadata, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sop.id,
+          sop.employeeId,
+          sop.sopKey,
+          sop.name,
+          sop.businessDomain || null,
+          sop.description,
+          sop.status,
+          sop.version,
+          JSON.stringify(sop.content),
+          stringifyJsonObject(sop.metadata),
+          now,
+          now
+        ),
+        'create digital employee SOP'
+      );
+      this.syncSopResource(sop, employee.resources.length);
+    });
+    requireQueryResult(result, 'create digital employee SOP');
+
+    const created = this.getSop(sopId);
+    if (!created) throw new Error('Created SOP was not found');
+    return created;
+  }
+
+  updateSop(sopId: string, updates: IDigitalEmployeeSopUpdateInput): IDigitalEmployeeSop {
+    const current = this.getSop(sopId);
+    if (!current) throw new Error('SOP not found');
+
+    const name = updates.name !== undefined ? normalizeText(updates.name) : current.name;
+    if (!name) throw new Error('SOP name is required');
+
+    const mergedContent: Partial<IDigitalEmployeeSopContent> = {
+      ...current.content,
+      ...(updates.content || {}),
+    };
+    const content = buildSopContent({
+      sopKey: current.sopKey,
+      name,
+      businessDomain: updates.businessDomain !== undefined ? normalizeText(updates.businessDomain) : current.businessDomain,
+      description: updates.description !== undefined ? normalizeText(updates.description) : current.description,
+      version: updates.content?.version || current.version,
+      content: mergedContent,
+    });
+    const now = getNow();
+    const sop: IDigitalEmployeeSop = {
+      ...current,
+      name,
+      businessDomain: content.businessDomain,
+      description: content.description,
+      status: updates.status !== undefined ? normalizeSopStatus(updates.status) : current.status,
+      version: content.version,
+      content,
+      metadata: {
+        ...current.metadata,
+        ...(updates.metadata || {}),
+      },
+      updatedAt: now,
+    };
+
+    const result = getDatabase().runTransaction(() => {
+      requireQueryResult(
+        getDatabase().mutate(
+          `UPDATE digital_employee_sops
+           SET name = ?, business_domain = ?, description = ?, status = ?, version = ?, content = ?, metadata = ?, updated_at = ?
+           WHERE id = ?`,
+          sop.name,
+          sop.businessDomain || null,
+          sop.description,
+          sop.status,
+          sop.version,
+          JSON.stringify(sop.content),
+          stringifyJsonObject(sop.metadata),
+          now,
+          sop.id
+        ),
+        'update digital employee SOP'
+      );
+      this.syncSopResource(sop, Number.MAX_SAFE_INTEGER);
+    });
+    requireQueryResult(result, 'update digital employee SOP');
+
+    const updated = this.getSop(sopId);
+    if (!updated) throw new Error('Updated SOP was not found');
+    return updated;
+  }
+
+  removeSop(sopId: string): void {
+    const current = this.getSop(sopId);
+    if (!current) throw new Error('SOP not found');
+
+    const result = getDatabase().runTransaction(() => {
+      requireQueryResult(
+        getDatabase().mutate(
+          `DELETE FROM digital_employee_resources
+           WHERE employee_id = ? AND resource_type = 'sop' AND resource_id = ?`,
+          current.employeeId,
+          current.sopKey
+        ),
+        'remove digital employee SOP resource'
+      );
+      requireQueryResult(getDatabase().mutate('DELETE FROM digital_employee_sops WHERE id = ?', sopId), 'remove digital employee SOP');
+    });
+    requireQueryResult(result, 'remove digital employee SOP');
   }
 
   listWorkRecords(employeeId: string): IDigitalEmployeeWorkRecord[] {

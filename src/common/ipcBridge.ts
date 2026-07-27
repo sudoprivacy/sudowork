@@ -24,7 +24,21 @@ import type { FusePluginStatus } from './nexus/fuse-plugin-status';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
-import type { IDigitalEmployee, IDigitalEmployeeCreateInput, IDigitalEmployeeLaunchInput, IDigitalEmployeeLaunchResult, IDigitalEmployeeResource, IDigitalEmployeeResourceInput, IDigitalEmployeeUpdateInput, IDigitalEmployeeWorkRecord } from './digitalEmployee';
+import type {
+  IDigitalEmployee,
+  IDigitalEmployeeCreateInput,
+  IDigitalEmployeeLaunchInput,
+  IDigitalEmployeeLaunchResult,
+  IDigitalEmployeeResource,
+  IDigitalEmployeeResourceInput,
+  IDigitalEmployeeSop,
+  IDigitalEmployeeSopCreateInput,
+  IDigitalEmployeeSopDistillInput,
+  IDigitalEmployeeSopDistillResult,
+  IDigitalEmployeeSopUpdateInput,
+  IDigitalEmployeeUpdateInput,
+  IDigitalEmployeeWorkRecord,
+} from './digitalEmployee';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -2014,6 +2028,18 @@ export const digitalEmployee = {
   bindResource: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeResource>, { employeeId: string; resource: IDigitalEmployeeResourceInput }>('digital-employee.bind-resource'),
   /** Unbind a resource from an employee */
   unbindResource: bridge.buildProvider<IBridgeResponse<void>, { resourceId: string }>('digital-employee.unbind-resource'),
+  /** List SOPs owned by a digital employee */
+  listSops: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeSop[]>, { employeeId: string }>('digital-employee.sop.list'),
+  /** Get one SOP */
+  getSop: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeSop | null>, { sopId: string }>('digital-employee.sop.get'),
+  /** Build a structured SOP draft from process text */
+  distillSop: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeSopDistillResult>, IDigitalEmployeeSopDistillInput>('digital-employee.sop.distill'),
+  /** Create a SOP and bind it as an employee resource */
+  createSop: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeSop>, { employeeId: string; sop: IDigitalEmployeeSopCreateInput }>('digital-employee.sop.create'),
+  /** Update a SOP and its bound resource */
+  updateSop: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeSop>, { sopId: string; updates: IDigitalEmployeeSopUpdateInput }>('digital-employee.sop.update'),
+  /** Delete a SOP and its bound resource */
+  removeSop: bridge.buildProvider<IBridgeResponse<void>, { sopId: string }>('digital-employee.sop.remove'),
   /** List launch/work records for an employee */
   listWorkRecords: bridge.buildProvider<IBridgeResponse<IDigitalEmployeeWorkRecord[]>, { employeeId: string }>('digital-employee.list-work-records'),
   /** Create a Sudowork conversation with the employee identity and resources injected */

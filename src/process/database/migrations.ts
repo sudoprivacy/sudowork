@@ -1742,6 +1742,48 @@ const migration_v29: IMigration = {
 };
 
 /**
+ * Migration v29 -> v30: Add local digital employee SOP table.
+ */
+const migration_v30: IMigration = {
+  version: 30,
+  name: 'Add digital employee SOP table',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS digital_employee_sops (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        sop_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        business_domain TEXT,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'published', 'archived')),
+        version TEXT NOT NULL DEFAULT '1.0.0',
+        content TEXT NOT NULL DEFAULT '{}',
+        metadata TEXT NOT NULL DEFAULT '{}',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(employee_id, sop_key),
+        FOREIGN KEY (employee_id) REFERENCES digital_employees(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_digital_employee_sops_employee_id ON digital_employee_sops(employee_id);
+      CREATE INDEX IF NOT EXISTS idx_digital_employee_sops_status ON digital_employee_sops(status);
+      CREATE INDEX IF NOT EXISTS idx_digital_employee_sops_updated_at ON digital_employee_sops(updated_at);
+    `);
+    mainLog('Migration v30', 'Added digital employee SOP table');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_digital_employee_sops_updated_at;
+      DROP INDEX IF EXISTS idx_digital_employee_sops_status;
+      DROP INDEX IF EXISTS idx_digital_employee_sops_employee_id;
+      DROP TABLE IF EXISTS digital_employee_sops;
+    `);
+    mainLog('Migration v30', 'Rolled back: Removed digital employee SOP table');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1750,7 +1792,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
-  migration_v25, migration_v26, migration_v27, migration_v28, migration_v29,
+  migration_v25, migration_v26, migration_v27, migration_v28, migration_v29, migration_v30,
 ];
 
 /**

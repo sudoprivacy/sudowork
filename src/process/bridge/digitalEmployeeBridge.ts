@@ -75,6 +75,55 @@ export function initDigitalEmployeeBridge(): void {
     }
   });
 
+  ipcBridge.digitalEmployee.listSops.provider(async ({ employeeId }) => {
+    try {
+      return { success: true, data: digitalEmployeeService.listSops(employeeId) };
+    } catch (error) {
+      return { success: false, msg: parseError(error) };
+    }
+  });
+
+  ipcBridge.digitalEmployee.getSop.provider(async ({ sopId }) => {
+    try {
+      return { success: true, data: digitalEmployeeService.getSop(sopId) };
+    } catch (error) {
+      return { success: false, msg: parseError(error) };
+    }
+  });
+
+  ipcBridge.digitalEmployee.distillSop.provider(async (input) => {
+    try {
+      return { success: true, data: digitalEmployeeService.distillSop(input) };
+    } catch (error) {
+      return { success: false, msg: parseError(error) };
+    }
+  });
+
+  ipcBridge.digitalEmployee.createSop.provider(async ({ employeeId, sop }) => {
+    try {
+      return { success: true, data: digitalEmployeeService.createSop(employeeId, sop) };
+    } catch (error) {
+      return { success: false, msg: parseError(error) };
+    }
+  });
+
+  ipcBridge.digitalEmployee.updateSop.provider(async ({ sopId, updates }) => {
+    try {
+      return { success: true, data: digitalEmployeeService.updateSop(sopId, updates) };
+    } catch (error) {
+      return { success: false, msg: parseError(error) };
+    }
+  });
+
+  ipcBridge.digitalEmployee.removeSop.provider(async ({ sopId }) => {
+    try {
+      digitalEmployeeService.removeSop(sopId);
+      return { success: true, data: undefined };
+    } catch (error) {
+      return { success: false, msg: parseError(error) };
+    }
+  });
+
   ipcBridge.digitalEmployee.listWorkRecords.provider(async ({ employeeId }) => {
     try {
       return { success: true, data: digitalEmployeeService.listWorkRecords(employeeId) };

@@ -1,10 +1,10 @@
 import { Button, Card, Drawer, Empty, Input, Message, Modal, Select, Space, Spin, Switch, Tag, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
-import { BriefcaseBusiness, Copy, FolderOpen, Link2, Pencil, Play, Plus, RefreshCcw, Search, Trash2, X } from 'lucide-react';
+import { BriefcaseBusiness, Copy, FileText, FolderOpen, Link2, ListTree, Pencil, Play, Plus, RefreshCcw, Search, Trash2, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { DigitalEmployeeResourceType, DigitalEmployeeStatus, IDigitalEmployee, IDigitalEmployeeResource, IDigitalEmployeeResourceInput } from '@/common/digitalEmployee';
+import type { DigitalEmployeeResourceType, DigitalEmployeeSopStatus, DigitalEmployeeStatus, IDigitalEmployee, IDigitalEmployeeResource, IDigitalEmployeeResourceInput, IDigitalEmployeeSop, IDigitalEmployeeSopContent, IDigitalEmployeeSopNode } from '@/common/digitalEmployee';
 import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import { emitter } from '@/renderer/utils/emitter';
@@ -36,6 +36,27 @@ interface IResourceOption {
   description?: string;
 }
 
+interface ISopNodeDraft {
+  nodeId: string;
+  name: string;
+  instruction: string;
+  optional: boolean;
+}
+
+interface ISopDraft {
+  sopKey: string;
+  name: string;
+  businessDomain: string;
+  description: string;
+  status: DigitalEmployeeSopStatus;
+  rawContent: string;
+  triggerIntents: string;
+  goals: string;
+  requiredInfo: string;
+  responseRules: string;
+  nodes: ISopNodeDraft[];
+}
+
 const RESOURCE_TYPES: DigitalEmployeeResourceType[] = ['assistant', 'skill', 'general_skill', 'sop', 'tool', 'knowledge', 'mcp'];
 const BACKEND_OPTIONS: AcpBackendAll[] = ['scode', 'claude', 'qwen', 'codex', 'gemini'];
 
@@ -61,6 +82,38 @@ function getEmptyResourceDraft(): IResourceDraft {
   };
 }
 
+function getEmptySopNode(index: number): ISopNodeDraft {
+  return {
+    nodeId: `node_${index + 1}`,
+    name: '',
+    instruction: '',
+    optional: false,
+  };
+}
+
+function getNewSopNode(nodes: ISopNodeDraft[]): ISopNodeDraft {
+  return {
+    ...getEmptySopNode(nodes.length),
+    nodeId: `node_${Date.now()}_${nodes.length + 1}`,
+  };
+}
+
+function getEmptySopDraft(businessDomain = ''): ISopDraft {
+  return {
+    sopKey: '',
+    name: '',
+    businessDomain,
+    description: '',
+    status: 'published',
+    rawContent: '',
+    triggerIntents: '',
+    goals: '',
+    requiredInfo: '',
+    responseRules: '',
+    nodes: [getEmptySopNode(0)],
+  };
+}
+
 function getEmployeeInitials(employee: IDigitalEmployee): string {
   return (employee.name || employee.roleName || '?').slice(0, 2).toUpperCase();
 }
@@ -68,6 +121,107 @@ function getEmployeeInitials(employee: IDigitalEmployee): string {
 function getDateTimeLabel(value: number | undefined): string {
   if (!value) return '';
   return new Date(value).toLocaleString();
+}
+
+function listToText(values: string[] | undefined): string {
+  return values?.join('\n') || '';
+}
+
+function textToList(value: string): string[] {
+  return value
+    .split(/\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function sopContentToDraft(content: IDigitalEmployeeSopContent, status: DigitalEmployeeSopStatus, rawContent = ''): ISopDraft {
+  return {
+    sopKey: content.sopKey,
+    name: content.name,
+    businessDomain: content.businessDomain || '',
+    description: content.description,
+    status,
+    rawContent,
+    triggerIntents: listToText(content.triggerIntents),
+    goals: listToText(content.goals),
+    requiredInfo: listToText(content.requiredInfo),
+    responseRules: listToText(content.responseRules),
+    nodes: content.nodes.length
+      ? content.nodes.map((node, index) => ({
+          nodeId: node.nodeId || `node_${index + 1}`,
+          name: node.name,
+          instruction: node.instruction,
+          optional: node.optional,
+        }))
+      : [getEmptySopNode(0)],
+  };
+}
+
+function sopToDraft(sop: IDigitalEmployeeSop): ISopDraft {
+  const rawContent = typeof sop.metadata.rawContent === 'string' ? sop.metadata.rawContent : sop.description;
+  return sopContentToDraft(sop.content, sop.status, rawContent);
+}
+
+function buildSopContentFromDraft(draft: ISopDraft): IDigitalEmployeeSopContent {
+  const nodes: IDigitalEmployeeSopNode[] = draft.nodes
+    .filter((node) => node.name.trim() || node.instruction.trim())
+    .map((node, index) => ({
+      nodeId: node.nodeId || `node_${index + 1}`,
+      type: 'task',
+      name: node.name.trim() || `Step ${index + 1}`,
+      instruction: node.instruction.trim() || node.name.trim() || `Step ${index + 1}`,
+      optional: node.optional,
+      expectedUserInfo: [] as string[],
+      allowedActions: [] as string[],
+      knowledgeScope: {},
+      retryPolicy: {
+        maxRetries: 1,
+      },
+      metadata: {},
+    }));
+  const finalNodes = nodes.length
+    ? nodes
+    : [
+        {
+          nodeId: 'node_1',
+          type: 'task',
+          name: draft.name.trim() || 'SOP',
+          instruction: draft.description.trim() || draft.name.trim() || 'SOP',
+          optional: false,
+          expectedUserInfo: [] as string[],
+          allowedActions: [] as string[],
+          knowledgeScope: {},
+          retryPolicy: { maxRetries: 1 },
+          metadata: {},
+        },
+      ];
+
+  return {
+    sopKey: draft.sopKey.trim(),
+    name: draft.name.trim(),
+    version: '1.0.0',
+    businessDomain: draft.businessDomain.trim() || undefined,
+    description: draft.description.trim(),
+    triggerIntents: textToList(draft.triggerIntents),
+    userUtteranceExamples: [],
+    goals: textToList(draft.goals),
+    requiredInfo: textToList(draft.requiredInfo),
+    slotFillingPolicy: {},
+    responseRules: textToList(draft.responseRules),
+    nodes: finalNodes,
+    edges: finalNodes.slice(0, -1).map((node, index) => ({
+      sourceNodeId: node.nodeId,
+      nextNodeId: finalNodes[index + 1].nodeId,
+      priority: 0,
+      label: 'next',
+    })),
+    startNodeId: finalNodes[0].nodeId,
+    terminalNodeIds: [finalNodes[finalNodes.length - 1].nodeId],
+    interruptionPolicy: {
+      missing_information: '向用户追问缺失字段后继续。',
+      out_of_scope: '说明能力边界并建议转人工确认。',
+    },
+  };
 }
 
 export default function DigitalEmployeesPage() {
@@ -85,6 +239,12 @@ export default function DigitalEmployeesPage() {
   const [launchEmployee, setLaunchEmployee] = useState<IDigitalEmployee | null>(null);
   const [editorState, setEditorState] = useState<IEditorState>(getEmptyEditorState);
   const [resourceDraft, setResourceDraft] = useState<IResourceDraft>(getEmptyResourceDraft);
+  const [editorSops, setEditorSops] = useState<IDigitalEmployeeSop[]>([]);
+  const [isSopEditorOpen, setIsSopEditorOpen] = useState(false);
+  const [sopEditor, setSopEditor] = useState<IDigitalEmployeeSop | null>(null);
+  const [sopDraft, setSopDraft] = useState<ISopDraft>(getEmptySopDraft);
+  const [isSopSaving, setIsSopSaving] = useState(false);
+  const [isSopDistilling, setIsSopDistilling] = useState(false);
   const [launchMessage, setLaunchMessage] = useState('');
   const [launchWorkspace, setLaunchWorkspace] = useState('');
   const [skillOptions, setSkillOptions] = useState<IResourceOption[]>([]);
@@ -149,12 +309,28 @@ export default function DigitalEmployeesPage() {
     }
   }, []);
 
-  const refreshEditorEmployee = useCallback(async (employeeId: string) => {
-    const response = await ipcBridge.digitalEmployee.get.invoke({ employeeId });
-    if (!response.success || !response.data) return;
-    setEditorEmployee(response.data);
-    setEmployees((currentEmployees) => currentEmployees.map((employee) => (employee.id === response.data?.id ? response.data : employee)));
-  }, []);
+  const loadEditorSops = useCallback(
+    async (employeeId: string) => {
+      const response = await ipcBridge.digitalEmployee.listSops.invoke({ employeeId });
+      if (response.success && response.data) {
+        setEditorSops(response.data);
+      } else {
+        Message.error(response.msg || t('digitalEmployee.messages.actionFailed'));
+      }
+    },
+    [t]
+  );
+
+  const refreshEditorEmployee = useCallback(
+    async (employeeId: string) => {
+      const response = await ipcBridge.digitalEmployee.get.invoke({ employeeId });
+      if (!response.success || !response.data) return;
+      setEditorEmployee(response.data);
+      setEmployees((currentEmployees) => currentEmployees.map((employee) => (employee.id === response.data?.id ? response.data : employee)));
+      await loadEditorSops(employeeId);
+    },
+    [loadEditorSops]
+  );
 
   useEffect(() => {
     void loadEmployees();
@@ -165,23 +341,29 @@ export default function DigitalEmployeesPage() {
     setEditorEmployee(null);
     setEditorState(getEmptyEditorState());
     setResourceDraft(getEmptyResourceDraft());
+    setEditorSops([]);
     setIsEditorOpen(true);
   }, []);
 
-  const onOpenEdit = useCallback((employee: IDigitalEmployee) => {
-    setEditorEmployee(employee);
-    setEditorState({
-      name: employee.name,
-      roleName: employee.roleName,
-      description: employee.description,
-      personaPrompt: employee.personaPrompt,
-      backend: employee.backend || 'scode',
-      defaultMode: employee.defaultMode || 'default',
-      status: employee.status,
-    });
-    setResourceDraft(getEmptyResourceDraft());
-    setIsEditorOpen(true);
-  }, []);
+  const onOpenEdit = useCallback(
+    (employee: IDigitalEmployee) => {
+      setEditorEmployee(employee);
+      setEditorState({
+        name: employee.name,
+        roleName: employee.roleName,
+        description: employee.description,
+        personaPrompt: employee.personaPrompt,
+        backend: employee.backend || 'scode',
+        defaultMode: employee.defaultMode || 'default',
+        status: employee.status,
+      });
+      setResourceDraft(getEmptyResourceDraft());
+      setEditorSops([]);
+      setIsEditorOpen(true);
+      void loadEditorSops(employee.id);
+    },
+    [loadEditorSops]
+  );
 
   const onSaveEmployee = useCallback(async () => {
     const name = editorState.name.trim();
@@ -375,6 +557,120 @@ export default function DigitalEmployeesPage() {
     [resourceOptions]
   );
 
+  const onOpenCreateSop = useCallback(() => {
+    if (!editorEmployee) return;
+    setSopEditor(null);
+    setSopDraft(getEmptySopDraft(editorEmployee.roleName));
+    setIsSopEditorOpen(true);
+  }, [editorEmployee]);
+
+  const onOpenEditSop = useCallback((sop: IDigitalEmployeeSop) => {
+    setSopEditor(sop);
+    setSopDraft(sopToDraft(sop));
+    setIsSopEditorOpen(true);
+  }, []);
+
+  const onDistillSopDraft = useCallback(async () => {
+    if (!editorEmployee) return;
+    const rawContent = sopDraft.rawContent.trim();
+    if (!rawContent) {
+      Message.warning(t('digitalEmployee.sop.distillWarning'));
+      return;
+    }
+
+    setIsSopDistilling(true);
+    try {
+      const response = await ipcBridge.digitalEmployee.distillSop.invoke({
+        employeeId: editorEmployee.id,
+        title: sopDraft.name.trim() || t('digitalEmployee.sop.defaultName'),
+        rawContent,
+        businessDomain: sopDraft.businessDomain.trim() || editorEmployee.roleName,
+      });
+      if (!response.success || !response.data) {
+        Message.error(response.msg || t('digitalEmployee.messages.actionFailed'));
+        return;
+      }
+      setSopDraft((current) => ({
+        ...sopContentToDraft(response.data!.draft, current.status, rawContent),
+        sopKey: sopEditor ? current.sopKey : current.sopKey || response.data!.draft.sopKey,
+        status: current.status,
+      }));
+      Message.success(t('digitalEmployee.sop.distillSuccess'));
+    } catch (error) {
+      console.error('Failed to distill SOP:', error);
+      Message.error(t('digitalEmployee.messages.actionFailed'));
+    } finally {
+      setIsSopDistilling(false);
+    }
+  }, [editorEmployee, sopDraft.businessDomain, sopDraft.name, sopDraft.rawContent, sopEditor, t]);
+
+  const onSaveSop = useCallback(async () => {
+    if (!editorEmployee) return;
+    const name = sopDraft.name.trim();
+    if (!name) {
+      Message.warning(t('digitalEmployee.sop.nameRequired'));
+      return;
+    }
+
+    setIsSopSaving(true);
+    try {
+      const content = buildSopContentFromDraft({
+        ...sopDraft,
+        name,
+        sopKey: sopDraft.sopKey.trim() || name,
+      });
+      const payload = {
+        name,
+        sopKey: sopDraft.sopKey.trim() || undefined,
+        businessDomain: sopDraft.businessDomain.trim(),
+        description: sopDraft.description.trim(),
+        status: sopDraft.status,
+        content,
+        metadata: {
+          rawContent: sopDraft.rawContent.trim(),
+        },
+      };
+      const response = sopEditor ? await ipcBridge.digitalEmployee.updateSop.invoke({ sopId: sopEditor.id, updates: payload }) : await ipcBridge.digitalEmployee.createSop.invoke({ employeeId: editorEmployee.id, sop: payload });
+
+      if (!response.success || !response.data) {
+        Message.error(response.msg || t('digitalEmployee.messages.actionFailed'));
+        return;
+      }
+
+      Message.success(t('digitalEmployee.sop.saveSuccess'));
+      setIsSopEditorOpen(false);
+      await refreshEditorEmployee(editorEmployee.id);
+    } catch (error) {
+      console.error('Failed to save SOP:', error);
+      Message.error(t('digitalEmployee.messages.actionFailed'));
+    } finally {
+      setIsSopSaving(false);
+    }
+  }, [editorEmployee, refreshEditorEmployee, sopDraft, sopEditor, t]);
+
+  const onDeleteSop = useCallback(
+    (sop: IDigitalEmployeeSop) => {
+      Modal.confirm({
+        title: t('digitalEmployee.sop.deleteTitle'),
+        content: t('digitalEmployee.sop.deleteContent', { name: sop.name }),
+        okText: t('common.delete'),
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          const response = await ipcBridge.digitalEmployee.removeSop.invoke({ sopId: sop.id });
+          if (!response.success) {
+            Message.error(response.msg || t('digitalEmployee.messages.actionFailed'));
+            return;
+          }
+          Message.success(t('digitalEmployee.sop.deleteSuccess'));
+          if (editorEmployee) {
+            await refreshEditorEmployee(editorEmployee.id);
+          }
+        },
+      });
+    },
+    [editorEmployee, refreshEditorEmployee, t]
+  );
+
   return (
     <PageWrapper
       title={t('digitalEmployee.title')}
@@ -426,9 +722,23 @@ export default function DigitalEmployeesPage() {
       >
         <div className='flex flex-col gap-5'>
           <EditorFields state={editorState} onChange={setEditorState} />
+          {editorEmployee && <SopEditor sops={editorSops} onCreate={onOpenCreateSop} onEdit={onOpenEditSop} onDelete={onDeleteSop} />}
           {editorEmployee && <ResourceEditor employee={editorEmployee} draft={resourceDraft} resourceOptions={resourceOptions} onDraftChange={setResourceDraft} onResourcePresetChange={onResourcePresetChange} onAddResource={onAddResource} onRemoveResource={onRemoveResource} />}
         </div>
       </Drawer>
+
+      <Modal
+        visible={isSopEditorOpen}
+        title={sopEditor ? t('digitalEmployee.sop.edit') : t('digitalEmployee.sop.create')}
+        style={{ width: 760 }}
+        confirmLoading={isSopSaving}
+        okText={t('digitalEmployee.sop.save')}
+        cancelText={t('common.cancel')}
+        onOk={() => void onSaveSop()}
+        onCancel={() => setIsSopEditorOpen(false)}
+      >
+        <SopDraftEditor draft={sopDraft} isEditing={Boolean(sopEditor)} isDistilling={isSopDistilling} onChange={setSopDraft} onDistill={onDistillSopDraft} />
+      </Modal>
 
       <Modal visible={isLaunchOpen} title={t('digitalEmployee.launch.title')} confirmLoading={isLaunching} okText={t('digitalEmployee.actions.launch')} cancelText={t('common.cancel')} onOk={() => void onLaunchConversation()} onCancel={() => setIsLaunchOpen(false)}>
         <div className='flex flex-col gap-4'>
@@ -496,6 +806,154 @@ function EditorFields({ state, onChange }: IEditorFieldsProps) {
             <Select.Option value='disabled'>{t('digitalEmployee.status.disabled')}</Select.Option>
           </Select>
         </Field>
+      </div>
+    </div>
+  );
+}
+
+function getSopStatusColor(status: DigitalEmployeeSopStatus): string {
+  if (status === 'published') return 'green';
+  if (status === 'archived') return 'gray';
+  return 'orange';
+}
+
+function SopEditor({ sops, onCreate, onEdit, onDelete }: ISopEditorProps) {
+  const { t } = useTranslation();
+
+  return (
+    <div className='flex flex-col gap-3 pt-4 border-t border-border'>
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-2 text-14px font-600 text-foreground'>
+          <FileText size={16} />
+          <span>{t('digitalEmployee.sop.title')}</span>
+          <Tag size='small'>{sops.length}</Tag>
+        </div>
+        <Button size='small' type='primary' icon={<Plus size={14} />} onClick={onCreate}>
+          {t('digitalEmployee.sop.create')}
+        </Button>
+      </div>
+
+      <div className='flex flex-col gap-2'>{sops.length === 0 ? <div className='h-22 f-center border border-dashed border-border rd-2 text-secondary text-13px'>{t('digitalEmployee.sop.empty')}</div> : sops.map((sop) => <SopRow key={sop.id} sop={sop} onEdit={onEdit} onDelete={onDelete} />)}</div>
+    </div>
+  );
+}
+
+function SopRow({ sop, onEdit, onDelete }: ISopRowProps) {
+  const { t } = useTranslation();
+  return (
+    <div className='flex items-center gap-2 border border-border rd-2 px-2.5 py-2'>
+      <Tag size='small' color={getSopStatusColor(sop.status)}>
+        {t(`digitalEmployee.sop.status.${sop.status}`)}
+      </Tag>
+      <div className='min-w-0 flex-1'>
+        <div className='text-13px text-foreground truncate'>{sop.name}</div>
+        <div className='text-11px text-secondary truncate'>{[sop.businessDomain, sop.sopKey, t('digitalEmployee.sop.nodeCount', { count: sop.content.nodes.length })].filter(Boolean).join(' / ')}</div>
+      </div>
+      <Tooltip content={t('common.edit')}>
+        <Button size='mini' type='text' icon={<Pencil size={14} />} onClick={() => onEdit(sop)} />
+      </Tooltip>
+      <Tooltip content={t('common.delete')}>
+        <Button size='mini' type='text' status='danger' icon={<Trash2 size={14} />} onClick={() => onDelete(sop)} />
+      </Tooltip>
+    </div>
+  );
+}
+
+function SopDraftEditor({ draft, isEditing, isDistilling, onChange, onDistill }: ISopDraftEditorProps) {
+  const { t } = useTranslation();
+
+  const updateNode = (index: number, updates: Partial<ISopNodeDraft>) => {
+    onChange({
+      ...draft,
+      nodes: draft.nodes.map((node, nodeIndex) => (nodeIndex === index ? { ...node, ...updates } : node)),
+    });
+  };
+
+  const removeNode = (index: number) => {
+    onChange({
+      ...draft,
+      nodes: draft.nodes.filter((_, nodeIndex) => nodeIndex !== index),
+    });
+  };
+
+  return (
+    <div className='flex flex-col gap-4'>
+      <div className='grid grid-cols-2 gap-3'>
+        <Field label={t('digitalEmployee.sop.name')}>
+          <Input value={draft.name} onChange={(value) => onChange({ ...draft, name: value })} />
+        </Field>
+        <Field label={t('digitalEmployee.sop.sopKey')}>
+          <Input value={draft.sopKey} disabled={isEditing} onChange={(value) => onChange({ ...draft, sopKey: value })} />
+        </Field>
+      </div>
+
+      <div className='grid grid-cols-2 gap-3'>
+        <Field label={t('digitalEmployee.sop.businessDomain')}>
+          <Input value={draft.businessDomain} onChange={(value) => onChange({ ...draft, businessDomain: value })} />
+        </Field>
+        <Field label={t('digitalEmployee.sop.statusLabel')}>
+          <Select value={draft.status} onChange={(value) => onChange({ ...draft, status: value as DigitalEmployeeSopStatus })}>
+            <Select.Option value='published'>{t('digitalEmployee.sop.status.published')}</Select.Option>
+            <Select.Option value='draft'>{t('digitalEmployee.sop.status.draft')}</Select.Option>
+            <Select.Option value='archived'>{t('digitalEmployee.sop.status.archived')}</Select.Option>
+          </Select>
+        </Field>
+      </div>
+
+      <Field label={t('digitalEmployee.sop.description')}>
+        <TextArea value={draft.description} onChange={(value) => onChange({ ...draft, description: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+      </Field>
+
+      <Field label={t('digitalEmployee.sop.rawContent')}>
+        <TextArea value={draft.rawContent} placeholder={t('digitalEmployee.sop.rawPlaceholder')} onChange={(value) => onChange({ ...draft, rawContent: value })} autoSize={{ minRows: 5, maxRows: 10 }} />
+      </Field>
+
+      <div className='flex justify-end'>
+        <Button icon={<ListTree size={14} />} loading={isDistilling} onClick={() => void onDistill()}>
+          {t('digitalEmployee.sop.distill')}
+        </Button>
+      </div>
+
+      <div className='grid grid-cols-2 gap-3'>
+        <Field label={t('digitalEmployee.sop.triggerIntents')}>
+          <TextArea value={draft.triggerIntents} onChange={(value) => onChange({ ...draft, triggerIntents: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+        </Field>
+        <Field label={t('digitalEmployee.sop.goals')}>
+          <TextArea value={draft.goals} onChange={(value) => onChange({ ...draft, goals: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+        </Field>
+      </div>
+
+      <div className='grid grid-cols-2 gap-3'>
+        <Field label={t('digitalEmployee.sop.requiredInfo')}>
+          <TextArea value={draft.requiredInfo} onChange={(value) => onChange({ ...draft, requiredInfo: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+        </Field>
+        <Field label={t('digitalEmployee.sop.responseRules')}>
+          <TextArea value={draft.responseRules} onChange={(value) => onChange({ ...draft, responseRules: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+        </Field>
+      </div>
+
+      <div className='flex flex-col gap-2'>
+        <div className='flex items-center justify-between'>
+          <div className='text-13px font-600 text-foreground'>{t('digitalEmployee.sop.nodes')}</div>
+          <Button size='small' icon={<Plus size={14} />} onClick={() => onChange({ ...draft, nodes: [...draft.nodes, getNewSopNode(draft.nodes)] })}>
+            {t('digitalEmployee.sop.addNode')}
+          </Button>
+        </div>
+        {draft.nodes.map((node, index) => (
+          <div key={`${node.nodeId}-${index}`} className='border border-border rd-2 p-2.5 flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+              <Tag size='small'>{index + 1}</Tag>
+              <Input value={node.name} placeholder={t('digitalEmployee.sop.nodeName')} onChange={(value) => updateNode(index, { name: value })} />
+              <Tooltip content={t('digitalEmployee.sop.optional')}>
+                <Switch size='small' checked={node.optional} onChange={(checked) => updateNode(index, { optional: checked })} />
+              </Tooltip>
+              <Tooltip content={t('digitalEmployee.sop.removeNode')}>
+                <Button size='mini' type='text' status='danger' disabled={draft.nodes.length <= 1} icon={<X size={14} />} onClick={() => removeNode(index)} />
+              </Tooltip>
+            </div>
+            <TextArea value={node.instruction} placeholder={t('digitalEmployee.sop.nodeInstruction')} onChange={(value) => updateNode(index, { instruction: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -667,6 +1125,27 @@ interface IResourceEditorProps {
   onResourcePresetChange: (value: string) => void;
   onAddResource: () => Promise<void>;
   onRemoveResource: (resource: IDigitalEmployeeResource) => Promise<void>;
+}
+
+interface ISopEditorProps {
+  sops: IDigitalEmployeeSop[];
+  onCreate: () => void;
+  onEdit: (sop: IDigitalEmployeeSop) => void;
+  onDelete: (sop: IDigitalEmployeeSop) => void;
+}
+
+interface ISopRowProps {
+  sop: IDigitalEmployeeSop;
+  onEdit: (sop: IDigitalEmployeeSop) => void;
+  onDelete: (sop: IDigitalEmployeeSop) => void;
+}
+
+interface ISopDraftEditorProps {
+  draft: ISopDraft;
+  isEditing: boolean;
+  isDistilling: boolean;
+  onChange: (draft: ISopDraft) => void;
+  onDistill: () => Promise<void>;
 }
 
 interface IResourceRowProps {
