@@ -7,6 +7,7 @@ import { SCODE_HOME } from '@process/services/scode/scodePaths';
 import { mainWarn } from '@process/utils/mainLogger';
 import { getDatabase } from '@process/database';
 import type { AcpPromptResponseUsage, AcpSessionUpdate } from '@/types/acpTypes';
+import { SCODE_REASONING_ACP_ARGS } from '@/types/acpTypes';
 import type { ILocalKbBuildJob, ILocalKbDocument, ILocalKbSpace } from '@/common/types/localKnowledgeBase';
 import { LOCAL_KB_META_FILE, LOCAL_KB_SPACE_INDEX_FILE, getLocalKbDocExtractedPath, getLocalKbSpaceDir, getLocalKbSpaceStagePath, pathExists, sanitizeLocalKbFileName } from './paths';
 import { extractTitle } from './query';
@@ -210,7 +211,7 @@ export class LocalKnowledgeBuildExecutor {
     const startedAt = Date.now();
     try {
       db.updateLocalKbBuildJob(jobId, { progress: 25, currentStep: `启动本地 scode ACP（stage: ${path.basename(stageDir)}）` });
-      await connection.connect('scode', scodePath, stageDir, ['acp'], {
+      await connection.connect('scode', scodePath, stageDir, SCODE_REASONING_ACP_ARGS, {
         SUDO_CODE_CONFIG_HOME: SCODE_HOME,
       });
       db.updateLocalKbBuildJob(jobId, { progress: 25, currentStep: `本地 scode ACP 已连接（${formatElapsed(startedAt)}），创建构建会话` });
