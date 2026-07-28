@@ -43,7 +43,9 @@ const AcpModelSelector: React.FC<{
   backend?: string;
   /** Pre-selected model ID from Guid page */
   initialModelId?: string;
-}> = ({ conversationId, backend, initialModelId }) => {
+  /** Compact mode: force truncate the model label (e.g. team member row). */
+  isCompact?: boolean;
+}> = ({ conversationId, backend, initialModelId, isCompact = false }) => {
   const { t } = useTranslation();
   const { isOpen: isPreviewOpen } = usePreviewContext();
   const fallbackModelId = resolvePreferredAcpModelId({
@@ -388,7 +390,7 @@ const AcpModelSelector: React.FC<{
     defaultModelLabel,
     fallbackLabel: t('conversation.welcome.useCliModel'),
   });
-  const compact = isPreviewOpen;
+  const compact = isPreviewOpen || isCompact;
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useSWR<IProvider[]>('model.config', () => ipcBridge.mode.getModelConfig.invoke());
