@@ -2036,7 +2036,7 @@ export const assistantHub = {
 
   // === Hub API methods (parallel to skillHub) ===
   /** Fetch assistants list from Assistant Hub API with cursor-based pagination */
-  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string; sourceType?: 'hub' | 'tenant' }>('assistant-hub.fetch-assistants'),
+  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string; sourceType?: 'hub' | 'tenant'; accessToken?: string }>('assistant-hub.fetch-assistants'),
   /** Fetch assistant categories from Assistant Hub API (type=1 for assistants) */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('assistant-hub.fetch-categories'),
   /** Fetch assistant detail from Assistant Hub API */

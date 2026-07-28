@@ -64,7 +64,7 @@ const AgentSettings: React.FC = () => {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
 
   // Hub state (for store/exclusive tabs)
-  const { user } = useAuth();
+  const { user, ensureValidToken } = useAuth();
   const enterpriseCode = user?.enterprise_code?.trim();
   const navigate = useNavigate();
   const [hubAssistantList, setHubAssistantList] = useState<IAssistantHubSkill[]>([]);
@@ -355,7 +355,16 @@ const AgentSettings: React.FC = () => {
         const tenantId = isEnterprise ? undefined : currentAssistantTenantIdRef.current;
 
         if (isElectronDesktop()) {
-          const res = await assistantHub.fetchAssistants.invoke({ cursor, limit: 40, query, category, tenantId, sourceType });
+          const accessToken = !isEnterprise && tenantId ? await ensureValidToken().catch((): null => null) : null;
+          const res = await assistantHub.fetchAssistants.invoke({
+            cursor,
+            limit: 40,
+            query,
+            category,
+            tenantId,
+            sourceType,
+            accessToken: accessToken || undefined,
+          });
           if (res.success && res.data) {
             // Successful fetch — clear any prior typed error so the
             // empty-state UI falls back to the generic "暂无智能体"
@@ -407,7 +416,7 @@ const AgentSettings: React.FC = () => {
         setHubLoadingMore(false);
       }
     },
-    [fetchLatestAssistantVersions, isEnterprise, t]
+    [ensureValidToken, fetchLatestAssistantVersions, isEnterprise, t]
   );
 
   // Load more Hub assistants (infinite scroll)
@@ -1250,6 +1259,14 @@ const AgentSettings: React.FC = () => {
     [getAssistantLookupKeys, hubInstalledAssistants]
   );
 
+  const getResolvedAssistantLatestVersion = useCallback(
+    (assistant: IAssistantHubSkill | null | undefined): AssistantLatestVersion | undefined => {
+      if (isEnterprise || !assistant) return undefined;
+      return latestAssistantVersions.get(assistant.id) || resolveAssistantVersionLike(assistant, assistant.latestVersion) || undefined;
+    },
+    [isEnterprise, latestAssistantVersions]
+  );
+
   const installedAssistantToHubAssistant = useCallback(
     (assistant: AssistantListItem): IAssistantHubSkill => ({
       ...(assistant._hubMeta || {}),
@@ -1503,7 +1520,8 @@ const AgentSettings: React.FC = () => {
     <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => {
         const hubId = !isEnterprise ? assistant._hubId : undefined;
-        const latestVersion = hubId ? latestAssistantVersions.get(hubId) : undefined;
+        const hubAssistantForUpdate = !isEnterprise && assistant._isHubInstalled && hubId ? installedAssistantToHubAssistant(assistant) : undefined;
+        const latestVersion = hubAssistantForUpdate ? getResolvedAssistantLatestVersion(hubAssistantForUpdate) : undefined;
         const installedVersion = !isEnterprise ? normalizeAssistantVersion(assistant._installedVersion) : '';
         const hasUpdate = Boolean(!isEnterprise && assistant._isHubInstalled && hubId && latestVersion && (!installedVersion || latestVersion.version !== installedVersion));
 
@@ -1710,7 +1728,7 @@ const AgentSettings: React.FC = () => {
                     const isInstalled = isEnterprise ? hubInstalledAssistants.has(assistant.name) : isHubAssistantInstalled(assistant);
                     const isInstalling = installingAssistantId === assistant.id;
                     const isUpdating = !isEnterprise && updatingAssistantId === assistant.id;
-                    const latestVersion = !isEnterprise ? latestAssistantVersions.get(assistant.id) : undefined;
+                    const latestVersion = getResolvedAssistantLatestVersion(assistant);
                     const installedVersion = !isEnterprise ? getHubAssistantInstalledVersion(assistant) : '';
                     const hasUpdate = !isEnterprise && isInstalled && !!latestVersion && (!installedVersion || latestVersion.version !== installedVersion);
                     return (
@@ -1900,7 +1918,7 @@ const AgentSettings: React.FC = () => {
               void handleInstallHubAssistant(hubDetailAssistant.id, selectedSkillIds);
             }
           }}
-          latestVersionInfo={!isEnterprise && hubDetailAssistant ? latestAssistantVersions.get(hubDetailAssistant.id) : undefined}
+          latestVersionInfo={!isEnterprise && hubDetailAssistant ? getResolvedAssistantLatestVersion(hubDetailAssistant) : undefined}
           installedVersion={!isEnterprise && hubDetailAssistant ? getHubAssistantInstalledVersion(hubDetailAssistant) : undefined}
           onUpdate={
             !isEnterprise
