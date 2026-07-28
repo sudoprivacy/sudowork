@@ -121,6 +121,7 @@ const GuidPage: React.FC = () => {
     // Agent state
     selectedAgent: agentSelection.selectedAgent,
     selectedAgentKey: agentSelection.selectedAgentKey,
+    modelBackendKey: agentSelection.modelBackendKey,
     selectedAgentInfo: agentSelection.selectedAgentInfo,
     isPresetAgent: agentSelection.isPresetAgent,
     selectedMode: agentSelection.selectedMode,

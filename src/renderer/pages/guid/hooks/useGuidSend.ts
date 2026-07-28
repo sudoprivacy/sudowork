@@ -27,6 +27,8 @@ export type GuidSendDeps = {
   // Agent state
   selectedAgent: AcpBackend | 'custom';
   selectedAgentKey: string;
+  /** Resolved backend key (builtin/preset) for the selected agent; used to skip the guest model guard for claude. */
+  modelBackendKey: AcpBackend;
   selectedAgentInfo: AvailableAgent | undefined;
   isPresetAgent: boolean;
   selectedMode: string;
@@ -86,6 +88,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedSkills,
     selectedAgent,
     selectedAgentKey,
+    modelBackendKey,
     selectedAgentInfo,
     isPresetAgent,
     selectedMode,
@@ -117,7 +120,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
   const handleSend = useCallback(async () => {
     // Guest pre-send check: prompt if no usable model. Login users (isGuest=false) always skip.
-    if (isGuest && ready) {
+    // claude code carries its own config (~/.claude/settings.json) and does not consume
+    // model.config; skip this guard for claude to avoid a false "no model configured".
+    if (isGuest && ready && modelBackendKey !== 'claude') {
       let isScodeAvailable = false;
       try {
         const scodeRes = await ipcBridge.acpConversation.probeModelInfo.invoke({ backend: 'scode' });
@@ -332,6 +337,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     dir,
     selectedAgent,
     selectedAgentKey,
+    modelBackendKey,
     selectedAgentInfo,
     isPresetAgent,
     selectedMode,
