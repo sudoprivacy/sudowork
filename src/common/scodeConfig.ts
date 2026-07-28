@@ -84,7 +84,7 @@ function shouldUseOpenAIResponsesApi(modelId: string): boolean {
   return /^gpt-5\.(4|5)(?:$|-)/i.test(modelId.trim());
 }
 
-function getCustomApiType(modelId: string, api?: string): string {
+export function getScodeModelApiType(modelId: string, api?: string): string {
   const modelApi = api?.trim();
   if (shouldUseOpenAIResponsesApi(modelId)) {
     return OPENAI_RESPONSES_API;
@@ -108,13 +108,13 @@ function isCustomApiKeyModelEntry(entry: ScodeModelEntry | undefined, providerId
   return entry?.providers?.['api-key']?.provider === providerId;
 }
 
-function buildSudorouterModelEntry(modelId: string, alias = modelId): ScodeModelEntry {
+export function buildSudorouterModelEntry(modelId: string, alias = modelId): ScodeModelEntry {
   return {
     alias,
     name: alias,
     input: modelInputForModelId(modelId),
     providers: {
-      proxy: { provider: SUDOROUTER_PROVIDER_ID, model: modelId, api: OPENAI_COMPAT_API },
+      proxy: { provider: SUDOROUTER_PROVIDER_ID, model: modelId, api: getScodeModelApiType(modelId) },
     },
   };
 }
@@ -138,7 +138,7 @@ function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModel
       output: model.outputContext,
     },
     providers: {
-      'api-key': { provider: providerId, model: modelId, api: getCustomApiType(modelId, model.api) },
+      'api-key': { provider: providerId, model: modelId, api: getScodeModelApiType(modelId, model.api) },
     },
   };
 }
@@ -216,7 +216,7 @@ export function normalizeCustomApiKeyModelsInScodeConfig(config: ScodeConfig | n
           ...apiKeyProvider,
           provider: providerId,
           model: providerModelId,
-          api: getCustomApiType(providerModelId, apiKeyProvider.api),
+          api: getScodeModelApiType(providerModelId, apiKeyProvider.api),
         },
       },
     };
@@ -235,6 +235,32 @@ export function normalizeCustomApiKeyModelsInScodeConfig(config: ScodeConfig | n
     delete nextConfig.default_model;
   }
 
+  return nextConfig;
+}
+
+export function normalizeScodeModelApiTypesInScodeConfig(config: ScodeConfig | null | undefined): ScodeConfig {
+  const nextConfig: ScodeConfig = { ...(config || {}) };
+  const nextModels: Record<string, ScodeModelEntry> = {};
+
+  for (const [alias, entry] of Object.entries(config?.models || {})) {
+    const nextEntry: ScodeModelEntry = { ...entry };
+    const nextProviders: ScodeModelEntry['providers'] = { ...(entry.providers || {}) };
+
+    for (const mode of ['proxy', 'api-key'] as const) {
+      const provider = nextProviders[mode];
+      const modelId = provider?.model?.trim();
+      if (!provider || !modelId) continue;
+      nextProviders[mode] = {
+        ...provider,
+        api: getScodeModelApiType(modelId, provider.api),
+      };
+    }
+
+    nextEntry.providers = nextProviders;
+    nextModels[alias] = nextEntry;
+  }
+
+  nextConfig.models = nextModels;
   return nextConfig;
 }
 

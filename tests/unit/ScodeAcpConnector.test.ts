@@ -7,7 +7,7 @@
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ACP_BACKENDS_ALL, POTENTIAL_ACP_CLIS } from '../../src/types/acpTypes';
+import { ACP_BACKENDS_ALL, POTENTIAL_ACP_CLIS, SCODE_REASONING_ACP_ARGS } from '../../src/types/acpTypes';
 import type { AcpBackendAll } from '../../src/types/acpTypes';
 
 describe('Scode ACP integration', () => {
@@ -22,7 +22,7 @@ describe('Scode ACP integration', () => {
       expect(config.id).toBe('scode');
       expect(config.name).toBe('Sudo Code');
       expect(config.cliCommand).toBe('scode');
-      expect(config.acpArgs).toEqual(['acp']);
+      expect(config.acpArgs).toEqual(SCODE_REASONING_ACP_ARGS);
       expect(config.enabled).toBe(true);
       expect(config.authRequired).toBe(false);
       expect(config.supportsStreaming).toBe(false);
@@ -34,7 +34,7 @@ describe('Scode ACP integration', () => {
       const scodeCli = Array.from(POTENTIAL_ACP_CLIS).find((cli) => cli.backendId === 'scode');
       expect(scodeCli).toBeDefined();
       expect(scodeCli!.cmd).toBe('scode');
-      expect(scodeCli!.args).toEqual(['acp']);
+      expect(scodeCli!.args).toEqual(SCODE_REASONING_ACP_ARGS);
       expect(scodeCli!.name).toBe('Sudo Code');
     });
   });
@@ -43,7 +43,7 @@ describe('Scode ACP integration', () => {
     it('should produce correct spawn args for scode acp subcommand', () => {
       // Replicate the logic from createGenericSpawnConfig for scode
       const cliPath = 'scode';
-      const acpArgs = ['acp'];
+      const acpArgs = SCODE_REASONING_ACP_ARGS;
 
       // On Unix: simple command split
       const parts = cliPath.split(/\s+/);
@@ -51,19 +51,19 @@ describe('Scode ACP integration', () => {
       const args = [...parts.slice(1), ...acpArgs];
 
       expect(command).toBe('scode');
-      expect(args).toEqual(['acp']);
+      expect(args).toEqual(SCODE_REASONING_ACP_ARGS);
     });
 
     it('should handle full path to scode binary', () => {
       const cliPath = '/home/user/.nexus/sudocode/scode';
-      const acpArgs = ['acp'];
+      const acpArgs = SCODE_REASONING_ACP_ARGS;
 
       const parts = cliPath.split(/\s+/);
       const command = parts[0];
       const args = [...parts.slice(1), ...acpArgs];
 
       expect(command).toBe('/home/user/.nexus/sudocode/scode');
-      expect(args).toEqual(['acp']);
+      expect(args).toEqual(SCODE_REASONING_ACP_ARGS);
     });
 
     it('should default to --experimental-acp when acpArgs is undefined', () => {
