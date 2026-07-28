@@ -5,6 +5,7 @@ import {
   mergeCustomProviderIntoScodeConfig,
   mergeCustomProvidersIntoScodeConfig,
   normalizeCustomApiKeyModelsInScodeConfig,
+  normalizeScodeModelApiTypesInScodeConfig,
   removeCustomProviderFromScodeConfig,
   SCODE_AUTO_MODEL_ALIAS,
   SCODE_AUTO_ROUTER_MODEL_ID,
@@ -60,7 +61,7 @@ describe('scodeConfig', () => {
       alias: SCODE_AUTO_MODEL_ALIAS,
       name: SCODE_AUTO_MODEL_ALIAS,
       providers: {
-        proxy: { provider: 'sudorouter', model: SCODE_AUTO_ROUTER_MODEL_ID, api: 'openai-completions' },
+        proxy: { provider: 'sudorouter', model: SCODE_AUTO_ROUTER_MODEL_ID, api: 'openai-responses' },
       },
     });
     const sudorouterModelAliases = Object.entries(next.models || {})
@@ -285,7 +286,7 @@ describe('scodeConfig', () => {
     expect(config.models?.['custom-openai/gpt-4o']?.providers?.['api-key']?.model).toBe('gpt-4o');
   });
 
-  it('uses OpenAI Responses API for custom gpt-5.4 models', () => {
+  it('uses OpenAI Responses API for gpt-5.4 models', () => {
     const config = mergeCustomProviderIntoScodeConfig(
       buildScodeConfigFromLoginPayload({
         sudorouterKey: 'router-key',
@@ -300,11 +301,35 @@ describe('scodeConfig', () => {
       }
     );
 
-    expect(config.models?.['gpt-5.4']?.providers?.proxy?.api).toBe('openai-completions');
+    expect(config.models?.['gpt-5.4']?.providers?.proxy?.api).toBe('openai-responses');
     expect(config.models?.['custom-openai/gpt-5.4']?.providers?.['api-key']).toEqual({
       provider: 'custom-openai',
       model: 'gpt-5.4',
       api: 'openai-responses',
     });
+  });
+
+  it('normalizes existing sudorouter gpt-5.5 models to OpenAI Responses API', () => {
+    const config = normalizeScodeModelApiTypesInScodeConfig({
+      models: {
+        auto: {
+          alias: 'auto',
+          name: 'auto',
+          providers: {
+            proxy: { provider: 'sudorouter', model: 'gpt-5.5', api: 'openai-completions' },
+          },
+        },
+        'gpt-5.5': {
+          alias: 'gpt-5.5',
+          name: 'gpt-5.5',
+          providers: {
+            proxy: { provider: 'sudorouter', model: 'gpt-5.5', api: 'openai-completions' },
+          },
+        },
+      },
+    });
+
+    expect(config.models?.auto?.providers?.proxy?.api).toBe('openai-responses');
+    expect(config.models?.['gpt-5.5']?.providers?.proxy?.api).toBe('openai-responses');
   });
 });
