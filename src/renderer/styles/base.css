@@ -224,7 +224,7 @@ body,
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 260px;
+  left: var(--layout-sider-width, 260px);
   width: 1px;
   background: var(--border-light);
   z-index: 20;
@@ -237,7 +237,7 @@ body,
   flex-direction: column;
   height: 100%;
   /* 锁定内容宽度=展开宽度，收起时由外层 overflow 裁切而非压窄重排，避免文字换行 */
-  min-width: 260px;
+  min-width: var(--layout-sider-width, 260px);
   /* Arco 默认给这层 overflow:auto，header+内容若有亚像素溢出整条侧栏就会可滚；内部列表自带滚动，这层直接裁掉 */
   overflow: hidden;
 }
