@@ -69,5 +69,5 @@
   "thirdPartyMissingTicket": "认证回调缺少 ticket",
   "thirdPartyFailed": "三方认证登录失败",
   "backToModeSelect": "← 返回模式选择",
-  "skip": "跳过"
+  "skip": "跳过 →"
 }

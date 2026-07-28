@@ -154,8 +154,8 @@ const PasswordAuthPanel: React.FC<PasswordAuthPanelProps> = ({ appName, logo, de
             </span>
             <span
               className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors'
-              onClick={() => {
-                enterGuest();
+              onClick={async () => {
+                await enterGuest();
                 void navigate('/guid');
               }}
             >

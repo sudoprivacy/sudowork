@@ -113,10 +113,19 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const { hasModel, ready } = useHasAvailableModel();
 
   const handleSend = useCallback(async () => {
-    // 游客态发送前校验：无可用模型则提示（仅游客；已登录 isGuest=false 完全不拦截）
-    if (isGuest && ready && !hasModel) {
-      Message.error(t('guid.modelNotConfigured', { defaultValue: '未配置可用模型，请在设置页添加模型' }));
-      return;
+    // Guest pre-send check: prompt if no usable model. Login users (isGuest=false) always skip.
+    if (isGuest && ready) {
+      let isScodeAvailable = false;
+      try {
+        const scodeRes = await ipcBridge.acpConversation.probeModelInfo.invoke({ backend: 'scode' });
+        isScodeAvailable = (scodeRes?.data?.modelInfo?.availableModels?.length ?? 0) > 0;
+      } catch {
+        // Treat probe failure as "no scode model available"
+      }
+      if (!hasModel && !isScodeAvailable) {
+        Message.error(t('guid.modelNotConfigured', { defaultValue: '未配置可用模型，请在设置页添加模型' }));
+        return;
+      }
     }
 
     const isCustomWorkspace = !!dir;

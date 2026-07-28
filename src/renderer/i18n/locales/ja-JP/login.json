@@ -65,5 +65,5 @@
   "thirdPartyMissingTicket": "認証コールバックに ticket がありません",
   "thirdPartyFailed": "外部認証ログインに失敗しました",
   "backToModeSelect": "← モード選択に戻る",
-  "skip": "スキップ"
+  "skip": "スキップ →"
 }

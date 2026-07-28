@@ -213,7 +213,7 @@ interface AuthContextValue {
   loginWithThirdPartyAuth: (params: ThirdPartyAuthLoginParams) => Promise<PasswordAuthResult>;
   exchangeThirdPartyAuthCode: (params: ThirdPartyAuthExchangeParams) => Promise<PasswordAuthResult>;
   changePassword: (params: ChangePasswordParams) => Promise<PasswordAuthResult>;
-  enterGuest: () => void;
+  enterGuest: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -222,7 +222,19 @@ const AUTH_USER_ENDPOINT = '/api/auth/user';
 const AUTH_STORAGE_KEY = 'sudowork_auth_v2';
 export const EECLAW_AUTH_STORAGE_KEY = 'eeclaw_auth_v1';
 export const GUEST_FLAG_KEY = 'sudowork_guest';
+// Virtual SQLite user_id for guest custom model providers (scode_custom_model_providers.user_id has no FK constraint)
+export const GUEST_USER_ID = 'sudowork_guest';
 const DEVICE_ID_KEY = 'sudowork_device_id';
+
+// Restore guest custom models from SQLite into sudocode.json with an empty base,
+// which drops sudorouter and other non-custom entries (clears residue).
+async function restoreGuestScodeModels(): Promise<void> {
+  try {
+    await ipcBridge.scode.restoreCustomModelProviders.invoke({ userId: GUEST_USER_ID, baseConfig: {} });
+  } catch (err) {
+    console.warn('[Auth] Guest scode restore failed:', err);
+  }
+}
 
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
@@ -611,8 +623,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const lastRefreshAtRef = useRef<number>(0);
   const REFRESH_COOLDOWN_MS = 30_000;
 
-  // 进入游客态（未登录使用）：写标志 + setStatus('guest')，调用方负责 navigate('/guid')
-  const enterGuest = useCallback(() => {
+  // Enter guest mode (unauthenticated use): restore guest custom models, set flag + status.
+  // Caller is responsible for navigate('/guid').
+  const enterGuest = useCallback(async () => {
+    await restoreGuestScodeModels();
     localStorage.setItem(GUEST_FLAG_KEY, '1');
     setStatus('guest');
   }, []);
@@ -993,6 +1007,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     // 游客态恢复（桌面端、无任何登录态、有 guest 标志）—— 须在 unauthenticated 之前，保证有登录态时优先登录态
     if (isDesktopRuntime && localStorage.getItem(GUEST_FLAG_KEY)) {
+      await restoreGuestScodeModels();
       setStatus('guest');
       setUser(null);
       setReady(true);

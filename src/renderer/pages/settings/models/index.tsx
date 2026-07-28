@@ -6,7 +6,7 @@ import { ipcBridge } from '@/common';
 import type { ScodeConfig } from '@/common/ipcBridge';
 import { extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { useAuth } from '@/renderer/context/AuthContext';
+import { GUEST_USER_ID, useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import type { EditingModelTarget, ProviderRow } from './types';
 import { buildProviderRows, contextLabel, findModelEntry, getConfiguredModelIds, maskSecret, normalizeDefaultModel } from './utils';
@@ -53,12 +53,11 @@ const SudocodeModelSettings: React.FC = () => {
           Message.error(res?.msg || t('settings.sudocodeModel.saveConfigFailed', '保存模型配置失败'));
           return;
         }
-        if (user?.id) {
-          const persistRes = await ipcBridge.scode.saveCustomModelProviders.invoke({ userId: user.id, providers: extractCustomProvidersFromScodeConfig(nextConfig) });
-          if (!persistRes?.success) {
-            Message.error(persistRes?.msg || t('settings.sudocodeModel.saveCustomProvidersFailed', '保存第三方模型配置失败'));
-            return;
-          }
+        const userId = user?.id ?? GUEST_USER_ID;
+        const persistRes = await ipcBridge.scode.saveCustomModelProviders.invoke({ userId, providers: extractCustomProvidersFromScodeConfig(nextConfig) });
+        if (!persistRes?.success) {
+          Message.error(persistRes?.msg || t('settings.sudocodeModel.saveCustomProvidersFailed', '保存第三方模型配置失败'));
+          return;
         }
         setConfig(nextConfig);
         Message.success(t('settings.sudocodeModel.saveConfigSuccess', '模型配置已保存'));

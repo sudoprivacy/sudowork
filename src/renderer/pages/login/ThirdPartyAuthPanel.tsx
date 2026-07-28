@@ -161,8 +161,8 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
             </span>
             <span
               className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors'
-              onClick={() => {
-                enterGuest();
+              onClick={async () => {
+                await enterGuest();
                 void navigate('/guid');
               }}
             >
