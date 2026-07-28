@@ -1178,6 +1178,8 @@
   "hubEmpty.tokenMissing": "Skill Hub not configured — check your sudowork-server login",
   "hubEmpty.fetchFailed": "Fetch failed, please retry",
   "hubEmpty.retry": "Retry",
+  "hubEmpty.loginToView": "Sign in to view the full list",
+  "hubEmpty.login": "Sign in",
   "sudocodeModel": {
     "editModelTitle": "Edit Model",
     "openAIOnlyHint": "Only supports OpenAI-compatible API",

@@ -1033,6 +1033,8 @@
   "hubEmpty.tokenMissing": "未配置 Skill Hub — 請檢查 sudowork-server 登入狀態",
   "hubEmpty.fetchFailed": "拉取失敗，請重試",
   "hubEmpty.retry": "重試",
+  "hubEmpty.loginToView": "登入後查看完整列表",
+  "hubEmpty.login": "登入",
   "fetchModelList": "取得模型清單",
   "fetchModelListSuccess": "已取得 {{count}} 個模型",
   "fetchModelListUnsupported": "該提供商不支援取得模型清單，請手動輸入模型名稱",

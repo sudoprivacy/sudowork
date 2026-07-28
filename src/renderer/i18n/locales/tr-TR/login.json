@@ -64,5 +64,6 @@
   "thirdPartyStateInvalid": "Kimlik doğrulama geri çağrısı doğrulanamadı, lütfen tekrar deneyin",
   "thirdPartyMissingTicket": "Kimlik doğrulama geri çağrısında ticket eksik",
   "thirdPartyFailed": "Üçüncü taraf giriş başarısız",
-  "backToModeSelect": "← Mod seçimine dön"
+  "backToModeSelect": "← Mod seçimine dön",
+  "skip": "Atla"
 }

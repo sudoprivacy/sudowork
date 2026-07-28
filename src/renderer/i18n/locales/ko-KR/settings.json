@@ -1033,6 +1033,8 @@
   "hubEmpty.tokenMissing": "Skill Hub가 구성되지 않았습니다 — sudowork-server 로그인 상태를 확인하세요",
   "hubEmpty.fetchFailed": "가져오기 실패. 다시 시도하세요",
   "hubEmpty.retry": "다시 시도",
+  "hubEmpty.loginToView": "로그인 후 전체 목록 보기",
+  "hubEmpty.login": "로그인",
   "fetchModelList": "모델 목록 가져오기",
   "fetchModelListSuccess": "{{count}} 개의 모델을 가져왔습니다",
   "fetchModelListUnsupported": "이 제공자는 모델 목록 가져오기를 지원하지 않습니다. 모델 이름을 직접 입력하세요.",

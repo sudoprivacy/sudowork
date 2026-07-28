@@ -45,7 +45,8 @@ const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '
 // Mode-aware default settings route
 const SettingsDefaultRoute: React.FC = () => {
   const { isEnterprise } = useAppMode();
-  return <Navigate to={isEnterprise ? '/settings/enterprise' : '/settings/profile'} replace />;
+  const { isGuest } = useAuth();
+  return <Navigate to={isGuest ? '/settings/model' : isEnterprise ? '/settings/enterprise' : '/settings/profile'} replace />;
 };
 
 const PROTECTED_ROUTE_CONFIGS = [
@@ -92,8 +93,13 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <AppLoader />;
   }
 
-  if (status !== 'authenticated') {
+  if (status !== 'authenticated' && status !== 'guest') {
     return <Navigate to='/login' replace />;
+  }
+
+  // 游客态隐藏「用户中心」「充值中心」（需求 4）：直达这两个 URL 重定向到 /settings/model
+  if (status === 'guest' && (location.pathname === '/settings/profile' || location.pathname === '/settings/recharge')) {
+    return <Navigate to='/settings/model' replace />;
   }
 
   // Wait for useAppMode async initialization to prevent route guard bypass on page refresh

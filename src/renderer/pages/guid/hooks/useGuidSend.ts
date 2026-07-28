@@ -9,6 +9,8 @@ import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
 import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { useHasAvailableModel } from '@/renderer/hooks/useHasAvailableModel';
+import { useAuth } from '@/renderer/context/AuthContext';
 import type { AcpBackend, AvailableAgent, EffectiveAgentInfo } from '../types';
 
 export type GuidSendDeps = {
@@ -107,8 +109,16 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   } = deps;
 
   const { isEnterprise } = useAppMode();
+  const { isGuest } = useAuth();
+  const { hasModel, ready } = useHasAvailableModel();
 
   const handleSend = useCallback(async () => {
+    // 游客态发送前校验：无可用模型则提示（仅游客；已登录 isGuest=false 完全不拦截）
+    if (isGuest && ready && !hasModel) {
+      Message.error(t('guid.modelNotConfigured', { defaultValue: '未配置可用模型，请在设置页添加模型' }));
+      return;
+    }
+
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
 
@@ -322,6 +332,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     closeAllTabs,
     openTab,
     t,
+    isGuest,
+    hasModel,
+    ready,
   ]);
 
   const sendMessageHandler = useCallback(() => {

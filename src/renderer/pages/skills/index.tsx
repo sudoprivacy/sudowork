@@ -30,7 +30,7 @@ import type { IBridgeResponse, SkillLatestVersion, SkillDetailResponse, SkillSto
 
 const SkillSettings: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const navigate = useNavigate();
 
   // Tab state
@@ -1245,16 +1245,22 @@ const SkillSettings: React.FC = () => {
                   </div>
                 )
               ) : activeTab === 'exclusive' && !enterpriseCode ? (
-                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                  <Shield size={32} className='text-tertiary' />
-                  <span className='text-13px'>{t('settings.skill.noEnterpriseCode', '当前账号没有企业编码，无法加载专属技能。')}</span>
-                </div>
+                isGuest ? (
+                  <HubEmptyState onLogin={() => navigate('/login')} />
+                ) : (
+                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                    <Shield size={32} className='text-tertiary' />
+                    <span className='text-13px'>{t('settings.skill.noEnterpriseCode', '当前账号没有企业编码，无法加载专属技能。')}</span>
+                  </div>
+                )
               ) : loading || !installedSkillsReady ? (
                 <div className='flex justify-center items-center py-12'>
                   <Spin size={28} />
                 </div>
               ) : skills.length === 0 ? (
-                hubError ? (
+                isGuest ? (
+                  <HubEmptyState onLogin={() => navigate('/login')} />
+                ) : hubError ? (
                   <HubEmptyState error={hubError} onRetry={() => void fetchSkills()} />
                 ) : (
                   <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>

@@ -64,5 +64,6 @@
   "thirdPartyStateInvalid": "認證回調驗證失敗，請重試",
   "thirdPartyMissingTicket": "認證回調缺少 ticket",
   "thirdPartyFailed": "第三方認證登入失敗",
-  "backToModeSelect": "← 返回模式選擇"
+  "backToModeSelect": "← 返回模式選擇",
+  "skip": "跳過"
 }

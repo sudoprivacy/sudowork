@@ -64,5 +64,6 @@
   "thirdPartyStateInvalid": "認証コールバックの検証に失敗しました。再試行してください",
   "thirdPartyMissingTicket": "認証コールバックに ticket がありません",
   "thirdPartyFailed": "外部認証ログインに失敗しました",
-  "backToModeSelect": "← モード選択に戻る"
+  "backToModeSelect": "← モード選択に戻る",
+  "skip": "スキップ"
 }

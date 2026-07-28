@@ -1033,6 +1033,8 @@
   "hubEmpty.tokenMissing": "Skill Hub が未構成です — sudowork-server へのログイン状態を確認してください",
   "hubEmpty.fetchFailed": "取得に失敗しました。再試行してください",
   "hubEmpty.retry": "再試行",
+  "hubEmpty.loginToView": "ログインして完全なリストを表示",
+  "hubEmpty.login": "ログイン",
   "fetchModelList": "モデルリストを取得",
   "fetchModelListSuccess": "{{count}} 個のモデルを取得しました",
   "fetchModelListUnsupported": "このプロバイダーはモデルリストの取得をサポートしていません。モデル名を手動で入力してください。",

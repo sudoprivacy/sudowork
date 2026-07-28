@@ -11,7 +11,7 @@ import { fetchSystemConfig } from '@/common/systemConfig';
 import { buildCasLogoutServiceUrl, buildCasLogoutUrl, resolveThirdPartyAuthConfig } from '@/common/thirdPartyAuthConfig';
 import type { AcpModelInfo } from '@/types/acpTypes';
 
-type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated';
+type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated' | 'guest';
 
 export interface AuthUser {
   id: string;
@@ -198,6 +198,7 @@ interface AuthContextValue {
   ready: boolean;
   user: AuthUser | null;
   status: AuthStatus;
+  isGuest: boolean;
   syncMessage: string | null;
   login: (params: LoginParams) => Promise<LoginResult>;
   register: (params: RegisterParams) => Promise<RegisterResult>;
@@ -212,6 +213,7 @@ interface AuthContextValue {
   loginWithThirdPartyAuth: (params: ThirdPartyAuthLoginParams) => Promise<PasswordAuthResult>;
   exchangeThirdPartyAuthCode: (params: ThirdPartyAuthExchangeParams) => Promise<PasswordAuthResult>;
   changePassword: (params: ChangePasswordParams) => Promise<PasswordAuthResult>;
+  enterGuest: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -219,6 +221,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 const AUTH_USER_ENDPOINT = '/api/auth/user';
 const AUTH_STORAGE_KEY = 'sudowork_auth_v2';
 export const EECLAW_AUTH_STORAGE_KEY = 'eeclaw_auth_v1';
+export const GUEST_FLAG_KEY = 'sudowork_guest';
 const DEVICE_ID_KEY = 'sudowork_device_id';
 
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
@@ -566,6 +569,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   setUser(authData);
   setStatus('authenticated');
   setReady(true);
+  localStorage.removeItem(GUEST_FLAG_KEY);
 
   if (isDesktopRuntime) {
     // §6.4 active-login path: cache server-driven credentials BEFORE restarting the gateway
@@ -606,6 +610,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   // Cooldown to prevent rapid repeated refresh
   const lastRefreshAtRef = useRef<number>(0);
   const REFRESH_COOLDOWN_MS = 30_000;
+
+  // 进入游客态（未登录使用）：写标志 + setStatus('guest')，调用方负责 navigate('/guid')
+  const enterGuest = useCallback(() => {
+    localStorage.setItem(GUEST_FLAG_KEY, '1');
+    setStatus('guest');
+  }, []);
 
   // Token 刷新函数 — supports both C-side and enterprise mode
   const refreshTokens = useCallback(async (): Promise<boolean> => {
@@ -979,6 +989,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       } catch {
         localStorage.removeItem('sudowork_auth_v1');
       }
+    }
+
+    // 游客态恢复（桌面端、无任何登录态、有 guest 标志）—— 须在 unauthenticated 之前，保证有登录态时优先登录态
+    if (isDesktopRuntime && localStorage.getItem(GUEST_FLAG_KEY)) {
+      setStatus('guest');
+      setUser(null);
+      setReady(true);
+      return;
     }
 
     if (isDesktopRuntime) {
@@ -1572,6 +1590,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       ready,
       user,
       status,
+      isGuest: status === 'guest',
       syncMessage,
       login,
       register,
@@ -1586,8 +1605,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       loginWithThirdPartyAuth,
       exchangeThirdPartyAuthCode,
       changePassword,
+      enterGuest,
     }),
-    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, loginWithThirdPartyAuth, exchangeThirdPartyAuthCode, changePassword]
+    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, loginWithThirdPartyAuth, exchangeThirdPartyAuthCode, changePassword, enterGuest]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
