@@ -13,7 +13,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { ipcBridge } from '@/common';
 import type { IAssistantHubSkill, IAssistantHubDetail, ISkillHubSkill, IAssistantHubVersionLike } from '@/common/ipcBridge';
 import { assistantManager } from '@/process/AssistantManager';
-import { getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir } from '@/process/initStorage';
+import { getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir, getSudoworkServerBaseUrlSync } from '@/process/initStorage';
 import { skillManager } from '@/process/SkillManager';
 import { getDatabase } from '@/process/database';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
@@ -60,6 +60,101 @@ async function writeAssistantMetaFile(assistantDir: string, meta: AssistantHubMe
   const fileName = isEnterprise ? MOSS_ASSISTANT_META_FILE : ASSISTANT_META_FILE;
   const filePath = path.join(assistantDir, fileName);
   await fs.writeFile(filePath, JSON.stringify(meta, null, 2), 'utf-8');
+}
+
+interface VisibleAssistantOverlay extends Record<string, unknown> {
+  assistant_id?: string;
+  id?: string;
+}
+
+interface VisibleAssistantsResponse {
+  success?: boolean;
+  data?: VisibleAssistantOverlay[];
+  msg?: string;
+}
+
+function bearerHeader(token: string): string {
+  const trimmed = token.trim();
+  return /^Bearer\s+/i.test(trimmed) ? trimmed : `Bearer ${trimmed}`;
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string') return value;
+  }
+  return undefined;
+}
+
+function firstNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return undefined;
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+async function fetchVisibleAssistantOverlayMap(accessToken?: string): Promise<Map<string, VisibleAssistantOverlay> | null> {
+  if (!accessToken?.trim()) return null;
+
+  try {
+    const response = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/agents/visible`, {
+      headers: { Authorization: bearerHeader(accessToken) },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = (await response.json()) as VisibleAssistantsResponse;
+    if (!body.success || !Array.isArray(body.data)) return null;
+
+    const map = new Map<string, VisibleAssistantOverlay>();
+    for (const item of body.data) {
+      const id = firstNonEmptyString(item.assistant_id, item.id);
+      if (id) map.set(id, item);
+    }
+    return map;
+  } catch (error) {
+    mainWarn('AssistantHub', 'Failed to fetch visible assistant overlays:', error);
+    return null;
+  }
+}
+
+function applyVisibleAssistantOverlay(raw: Record<string, unknown>, overlay?: VisibleAssistantOverlay): Record<string, unknown> {
+  if (!overlay) return raw;
+
+  const merged: Record<string, unknown> = { ...raw };
+  const displayName = firstNonEmptyString(overlay.display_name, overlay.profession, overlay.name);
+  if (displayName) merged.display_name = displayName;
+
+  const profession = firstString(overlay.profession, overlay.display_name, overlay.name);
+  if (profession !== undefined) merged.profession = profession;
+
+  const description = firstString(overlay.description);
+  if (description !== undefined) merged.description = description;
+
+  const avatar = firstString(overlay.avatar);
+  if (avatar !== undefined) merged.avatar = avatar;
+
+  const categories = stringArray(overlay.categories);
+  if (categories) merged.categories = categories;
+
+  const skills = stringArray(overlay.skills);
+  if (skills) merged.skills = skills;
+
+  const defaultInitPrompt = firstString(overlay.defaultInitPrompt, overlay.default_init_prompt);
+  if (defaultInitPrompt !== undefined) {
+    merged.defaultInitPrompt = defaultInitPrompt;
+    merged.default_init_prompt = defaultInitPrompt;
+  }
+
+  const updatedAt = firstString(overlay.updatedAt, overlay.updated_at);
+  if (updatedAt !== undefined) {
+    merged.updatedAt = updatedAt;
+    merged.updated_at = updatedAt;
+  }
+
+  return merged;
 }
 
 // ==================== Helper Functions ====================
@@ -351,7 +446,7 @@ export function initAssistantHubBridge(): void {
   // === Hub API operations ===
 
   // Fetch assistants list from Hub API with cursor-based pagination
-  ipcBridge.assistantHub.fetchAssistants.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId, sourceType }) => {
+  ipcBridge.assistantHub.fetchAssistants.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId, sourceType, accessToken }) => {
     try {
       mainLog('AssistantHub', `fetchAssistants called with tenantId: ${tenantId}, sourceType: ${sourceType}, isEnterpriseMode: ${isEnterpriseMode()}`);
 
@@ -464,8 +559,14 @@ export function initAssistantHubBridge(): void {
       // Map API response to our type structure
       // API returns: { data: { assistants: [{ id, name, profession, description, avatar, categories, sourceUrl, ... }] } }
       const rawAssistants = result.data?.assistants || [];
+      const visibleOverlayMap = typeof tenantId === 'string' && tenantId.trim() ? await fetchVisibleAssistantOverlayMap(accessToken) : null;
+      const visibleAssistants = visibleOverlayMap
+        ? rawAssistants.filter((a: Record<string, unknown>) => typeof a.id === 'string' && visibleOverlayMap.has(a.id))
+        : rawAssistants;
 
-      const mappedAssistants = rawAssistants.map((a: Record<string, unknown>): IAssistantHubSkill => {
+      const mappedAssistants = visibleAssistants.map((raw: Record<string, unknown>): IAssistantHubSkill => {
+        const overlay = typeof raw.id === 'string' ? visibleOverlayMap?.get(raw.id) : undefined;
+        const a = applyVisibleAssistantOverlay(raw, overlay);
         const versions = a.versions as IAssistantHubVersionLike[] | undefined;
         const latestVersion = (a.latestVersion as IAssistantHubVersionLike | undefined) || versions?.[0] || null;
         const version = [a.version, a.latest_version, latestVersion?.version, versions?.[0]?.version].find((value): value is string => typeof value === 'string' && value.length > 0);
