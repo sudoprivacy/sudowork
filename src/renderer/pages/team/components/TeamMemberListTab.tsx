@@ -7,6 +7,7 @@ import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AcpBackend } from '@/types/acpTypes';
 import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
+import AcpModelSelector from '@renderer/components/AcpModelSelector';
 import type { TeamAssistant, TeammateStatus, TTeam } from '../types';
 import TeamAddMemberModal from './TeamAddMemberModal';
 
@@ -183,7 +184,14 @@ function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRena
           onCancel={() => setIsEditing(false)}
         />
       ) : (
-        <span className='min-w-0 flex-1 truncate text-13px'>{member.assistant_name}</span>
+        <div className='flex min-w-0 flex-1 items-center gap-6px'>
+          <span className='min-w-0 truncate text-13px'>{member.assistant_name}</span>
+          {member.conversation_id && (
+            <span className='inline-flex shrink-0 items-center' onClick={(e) => e.stopPropagation()}>
+              <AcpModelSelector conversationId={member.conversation_id} backend={member.assistant_backend} isCompact />
+            </span>
+          )}
+        </div>
       )}
       {!isEditing && (
         <div className='hidden shrink-0 items-center gap-4px group-hover/team-member:flex' onClick={(e) => e.stopPropagation()}>

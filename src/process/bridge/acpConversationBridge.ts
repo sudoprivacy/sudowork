@@ -11,6 +11,7 @@ import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo'
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
 import { getDatabase } from '@process/database';
 import { getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
+import { teamService } from '@process/services/team/TeamService';
 import WorkerManage from '@/process/WorkerManage';
 import AcpAgent from '@/process/task/AcpAgent';
 import RemoteAgent from '@/process/task/RemoteAgent';
@@ -259,6 +260,11 @@ export function initAcpConversationBridge(): void {
   // Use getTaskById (cache-only) to avoid spawning a worker process on read-only queries
   ipcBridge.acpConversation.getModelInfo.provider(async ({ conversationId }) => {
     mainLog('AcpConversationBridge', `getModelInfo called for conversation ${conversationId}`);
+    const memberConv = getDatabase().getConversation(conversationId);
+    const memberData = memberConv.success ? memberConv.data : undefined;
+    if (memberData && memberData.type === 'acp' && memberData.extra?.isTeamMember) {
+      return { success: true, data: { modelInfo: teamService.getMemberModelInfo(conversationId) } };
+    }
     const task = WorkerManage.getTaskById(conversationId);
     if (!task) {
       mainLog('AcpConversationBridge', `No task found for ${conversationId}, checking provider cache`);
@@ -341,6 +347,15 @@ export function initAcpConversationBridge(): void {
   // 设置 ACP 代理的模型
   ipcBridge.acpConversation.setModel.provider(async ({ conversationId, modelId }) => {
     mainLog('AcpConversationBridge', `setModel called: conversationId=${conversationId}, modelId=${modelId}`);
+    const memberConv = getDatabase().getConversation(conversationId);
+    const memberData = memberConv.success ? memberConv.data : undefined;
+    if (memberData && memberData.type === 'acp' && memberData.extra?.isTeamMember) {
+      try {
+        return { success: true, data: { modelInfo: await teamService.setMemberModel(conversationId, modelId) } };
+      } catch (error) {
+        return { success: false, msg: error instanceof Error ? error.message : String(error) };
+      }
+    }
     try {
       const task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
       if (!task) {
