@@ -10,8 +10,8 @@ vi.mock('@process/message', () => ({
   addOrUpdateMessage: vi.fn(),
 }));
 
-import { normalizeWindowsImagePaths, preprocessContentMessage } from '@process/task/acp/AcpMessagePipeline';
 import { defaultUrlTransform } from 'react-markdown';
+import { normalizeWindowsImagePaths, preprocessContentMessage } from '@process/task/acp/AcpMessagePipeline';
 
 describe('normalizeWindowsImagePaths', () => {
   it('should normalize Windows backslash paths in markdown image syntax', () => {
@@ -154,7 +154,7 @@ describe('preprocessContentMessage', () => {
     expect(result).toBe(message);
   });
 
-  it('should handle both think tags and Windows paths', () => {
+  it('preserves think tags (filtering moved to StreamingThinkFilter) and normalizes Windows paths', () => {
     const message = {
       type: 'content' as const,
       conversation_id: 'test-conv',
@@ -162,7 +162,9 @@ describe('preprocessContentMessage', () => {
       data: '<think>thinking...</think>![](C:\\Users\\test\\image.png)',
     };
     const result = preprocessContentMessage(message);
-    expect(result.data).toBe('![](C:/Users/test/image.png)');
+    // think tags are intentionally preserved here; streaming think filtering is
+    // handled by StreamingThinkFilter at the AcpAgent stream level.
+    expect(result.data).toBe('<think>thinking...</think>![](C:/Users/test/image.png)');
   });
 
   it('should return same message if no changes needed', () => {

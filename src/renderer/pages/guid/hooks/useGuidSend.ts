@@ -6,7 +6,7 @@ import { ipcBridge } from '@/common';
 import type { TProviderWithModel } from '@/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
 import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
-import { isAcpRoutedPresetType, type PresetAgentType } from '@/types/acpTypes';
+import { isAcpRoutedPresetType, type AcpModelInfo, type PresetAgentType } from '@/types/acpTypes';
 import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useHasAvailableModel } from '@/renderer/hooks/useHasAvailableModel';
@@ -32,6 +32,8 @@ export type GuidSendDeps = {
   selectedMode: string;
   selectedAcpModel: string | null;
   currentModel: TProviderWithModel | undefined;
+  /** Probe-resolved model info for the current backend; validates selectedAcpModel and provides a fallback when it is stale/ghost. */
+  currentAcpCachedModelInfo: AcpModelInfo | null;
 
   /** Current session mode (remote/local) for enterprise mode */
   sessionMode: 'remote' | 'local';
@@ -89,6 +91,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedMode,
     selectedAcpModel,
     currentModel,
+    currentAcpCachedModelInfo,
     sessionMode,
     findAgentByKey,
     getEffectiveAgentType,
@@ -257,6 +260,10 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         // For presets with a non-gemini backend (e.g. claude), don't pass the
         // UI's Gemini model — let the backend resolve the model itself.
         const isGeminiBackend = acpBackend === 'gemini';
+        // Reject stale/ghost selectedAcpModel (not in available list); fall back to probe's current model.
+        const acpAvailableModels = currentAcpCachedModelInfo?.availableModels;
+        const selectedAcpModelInList = acpAvailableModels && selectedAcpModel ? acpAvailableModels.some((m) => m.id === selectedAcpModel) : false;
+        const effectiveAcpModelId = (selectedAcpModelInList ? selectedAcpModel : currentAcpCachedModelInfo?.currentModelId) ?? selectedAcpModel ?? undefined;
         const conversation = await ipcBridge.conversation.create.invoke({
           type: 'acp',
           name: input,
@@ -273,7 +280,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             enabledSkills: isPreset ? enabledSkills : undefined,
             presetAssistantId: isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined,
             sessionMode: isPreset ? resolveSessionMode(getPresetByAgentId(agentInfo?.customAgentId)?.defaultMode, acpBackend, selectedMode) : selectedMode,
-            currentModelId: selectedAcpModel || undefined,
+            currentModelId: effectiveAcpModelId,
             sessionModeParam: 'local',
           },
         });
@@ -330,6 +337,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedMode,
     selectedAcpModel,
     currentModel,
+    currentAcpCachedModelInfo,
     sessionMode,
     findAgentByKey,
     getEffectiveAgentType,

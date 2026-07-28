@@ -126,6 +126,7 @@ const GuidPage: React.FC = () => {
     selectedMode: agentSelection.selectedMode,
     selectedAcpModel: agentSelection.selectedAcpModel,
     currentModel: modelSelection.currentModel,
+    currentAcpCachedModelInfo: agentSelection.currentAcpCachedModelInfo,
     sessionMode: agentSelection.sessionMode,
 
     // Agent helpers
