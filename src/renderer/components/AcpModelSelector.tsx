@@ -10,6 +10,7 @@ import type { IResponseMessage } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import type { IProvider } from '@/common/storage';
 import type { AcpModelInfo } from '@/types/acpTypes';
+import { useAuth } from '@/renderer/context/AuthContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
 import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
@@ -48,6 +49,7 @@ const AcpModelSelector: React.FC<{
 }> = ({ conversationId, backend, initialModelId, isCompact = false }) => {
   const { t } = useTranslation();
   const { isOpen: isPreviewOpen } = usePreviewContext();
+  const { isGuest } = useAuth();
   const fallbackModelId = resolvePreferredAcpModelId({
     backend,
     explicitModelId: initialModelId,
@@ -89,6 +91,10 @@ const AcpModelSelector: React.FC<{
     };
 
     async function fetchScodeLiveModelInfo() {
+      if (isGuest) {
+        runStandardModelInfoFetch();
+        return;
+      }
       try {
         const result = await ipcBridge.scode.refreshModels.invoke();
         if (cancelled) return;
@@ -235,7 +241,7 @@ const AcpModelSelector: React.FC<{
         }
       }
     }
-  }, [conversationId, backend, fallbackModelId, initialModelId]);
+  }, [conversationId, backend, fallbackModelId, initialModelId, isGuest]);
 
   // Track pending model switch for showing success message
   const pendingModelSwitchRef = useRef<string | null>(null);
@@ -447,7 +453,7 @@ const AcpModelSelector: React.FC<{
             <div key={group.key} className='flex flex-col gap-0.5'>
               <div className='flex items-center justify-between gap-2 pl-2.5 pr-0.5 pt-1 pb-0.5 min-h-6'>
                 <span className='text-12px leading-18px text-secondary truncate'>{group.name || t('common.other', { defaultValue: 'Other' })}</span>
-                {backend === 'scode' && groupIndex === 0 && (
+                {backend === 'scode' && !isGuest && groupIndex === 0 && (
                   <span onClick={(e) => e.stopPropagation()}>
                     <Tooltip content={t('common.refresh')} position='top'>
                       <Button size='mini' shape='circle' type='text' icon={<IconRefresh spin={refreshingModels} />} loading={refreshingModels} onClick={handleRefreshModels} />

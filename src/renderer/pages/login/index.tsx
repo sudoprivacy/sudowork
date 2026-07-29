@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
@@ -11,7 +12,7 @@ import { useSystemLoginMethod } from '@/renderer/hooks/useSystemLoginMethod';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import WindowControls from '../../components/WindowControls';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, GUEST_FLAG_KEY } from '../../context/AuthContext';
 import AppLoader from '../../components/AppLoader';
 import PasswordAuthPanel from './PasswordAuthPanel';
 import ThirdPartyAuthPanel from './ThirdPartyAuthPanel';
@@ -56,7 +57,8 @@ function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { status, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
+  const { t } = useTranslation();
+  const { status, enterGuest, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
   const { isEnterprise } = useAppMode();
   const { loginMethod, systemConfig } = useSystemLoginMethod();
 
@@ -478,6 +480,7 @@ const LoginPage: React.FC = () => {
       // Clear C-side auth to avoid falling into authenticated state
       localStorage.removeItem('sudowork_auth_v2');
       localStorage.removeItem('sudowork_auth_v1');
+      localStorage.removeItem(GUEST_FLAG_KEY);
       // Reload page instead of restarting app
       window.location.reload();
     } catch (error) {
@@ -685,9 +688,18 @@ const LoginPage: React.FC = () => {
             {mode === 'login' ? '登录' : '注册'}
           </Button>
 
-          <div className='text-center mt-12px'>
+          <div className='flex items-center justify-center gap-16px mt-12px'>
             <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={handleBackToModeSelect}>
               ← 返回模式选择
+            </span>
+            <span
+              className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors'
+              onClick={async () => {
+                await enterGuest();
+                void navigate('/guid');
+              }}
+            >
+              {t('login.skip')}
             </span>
           </div>
         </div>

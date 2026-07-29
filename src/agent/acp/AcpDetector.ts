@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { AcpBackendAll, PresetAgentType } from '@/types/acpTypes';
-import { POTENTIAL_ACP_CLIS } from '@/types/acpTypes';
+import { POTENTIAL_ACP_CLIS, SCODE_REASONING_ACP_ARGS } from '@/types/acpTypes';
 import { ProcessConfig } from '@/process/initStorage';
 import { assistantManager } from '@/process/AssistantManager';
 import { ExtensionRegistry } from '@/extensions';
@@ -276,7 +276,7 @@ class AcpDetector {
         backend: 'scode',
         name: 'Sudo Code',
         cliPath: getScodePath() ?? undefined,
-        acpArgs: ['acp'],
+        acpArgs: SCODE_REASONING_ACP_ARGS,
         presetAgentType: 'scode',
       });
     }

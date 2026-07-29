@@ -141,6 +141,9 @@ export interface PotentialAcpCli {
 /** 默认的 ACP 启动参数 / Default ACP launch arguments */
 const DEFAULT_ACP_ARGS = ['--experimental-acp'];
 
+/** Sudo Code ACP launch arguments with reasoning enabled. */
+export const SCODE_REASONING_ACP_ARGS = ['--reasoning-effort', 'high', 'acp'];
+
 /**
  * 从 ACP_BACKENDS_ALL 生成可检测的 CLI 列表
  * 仅包含有 cliCommand 且已启用的后端（排除 gemini 和 custom）
@@ -489,7 +492,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     authRequired: false,
     enabled: true, // ✅ Sudo Code CLI，使用 `scode acp` 启动
     supportsStreaming: false,
-    acpArgs: ['acp'], // scode 使用 acp 子命令
+    acpArgs: SCODE_REASONING_ACP_ARGS, // scode 使用 acp 子命令，并启用 reasoning
   },
   droid: {
     id: 'droid',

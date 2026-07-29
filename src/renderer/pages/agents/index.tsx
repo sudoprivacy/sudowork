@@ -64,7 +64,7 @@ const AgentSettings: React.FC = () => {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
 
   // Hub state (for store/exclusive tabs)
-  const { user, ensureValidToken } = useAuth();
+  const { user, ensureValidToken, isGuest } = useAuth();
   const enterpriseCode = user?.enterprise_code?.trim();
   const navigate = useNavigate();
   const [hubAssistantList, setHubAssistantList] = useState<IAssistantHubSkill[]>([]);
@@ -1746,19 +1746,27 @@ const AgentSettings: React.FC = () => {
                   </div>
                 )
               ) : activeTab === 'exclusive' && !enterpriseCode ? (
-                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                  <Shield size={32} className='text-tertiary' />
-                  <span className='text-13px'>{t('settings.assistant.noEnterpriseCode', '当前账号没有企业编码，无法加载专属智能体。')}</span>
-                </div>
+                isGuest ? (
+                  <HubEmptyState onLogin={() => navigate('/login')} />
+                ) : (
+                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                    <Shield size={32} className='text-tertiary' />
+                    <span className='text-13px'>{t('settings.assistant.noEnterpriseCode', '当前账号没有企业编码，无法加载专属智能体。')}</span>
+                  </div>
+                )
               ) : hubLoading || !hubInstalledSkillsReady ? (
                 <div className='flex justify-center items-center py-12'>
                   <Spin size={28} />
                 </div>
               ) : hubAssistantList.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                  <Bot size={32} className='text-tertiary' />
-                  <span className='text-13px'>{t('settings.assistant.noResults', '暂无智能体')}</span>
-                </div>
+                isGuest ? (
+                  <HubEmptyState onLogin={() => navigate('/login')} />
+                ) : (
+                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                    <Bot size={32} className='text-tertiary' />
+                    <span className='text-13px'>{t('settings.assistant.noResults', '暂无智能体')}</span>
+                  </div>
+                )
               ) : (
                 <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {hubAssistantList.map((assistant) => {

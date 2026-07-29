@@ -24,7 +24,7 @@ import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import type { ScodeModelEntry } from '@/common/ipcBridge';
-import { addScodeAutoModel, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
+import { addScodeAutoModel, buildSudorouterModelEntry, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, normalizeScodeModelApiTypesInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
 import { fetchSystemConfig, getConfiguredScodeAutoModelId, getSudorouterBaseUrl } from '@/common/systemConfig';
 
 const TAG = 'ScodeBridge';
@@ -166,14 +166,7 @@ export async function syncScodeModelsFromPricing(): Promise<void> {
 
   addScodeAutoModel(models, modelIds, pricingItems, getConfiguredScodeAutoModelId());
   for (const modelId of modelIds) {
-    models[modelId] = {
-      alias: modelId,
-      name: modelId,
-      input: modelInputForModelId(modelId),
-      providers: {
-        proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
-      },
-    };
+    models[modelId] = buildSudorouterModelEntry(modelId);
   }
 
   normalizedExisting.models = models; // only replace `models`; other keys preserved
@@ -301,23 +294,23 @@ async function migrateVisionInputOnStartup(): Promise<void> {
   }
 }
 
-async function migrateCustomApiKeyModelsOnStartup(): Promise<void> {
+async function normalizeScodeModelEntriesOnStartup(): Promise<void> {
   try {
     const config = readExistingConfig();
-    const normalizedConfig = normalizeCustomApiKeyModelsInScodeConfig(config) as unknown as Record<string, unknown>;
+    const normalizedConfig = normalizeScodeModelApiTypesInScodeConfig(normalizeCustomApiKeyModelsInScodeConfig(config)) as unknown as Record<string, unknown>;
     if (JSON.stringify(config) !== JSON.stringify(normalizedConfig)) {
       writeConfig(normalizedConfig);
-      mainLog(TAG, 'Normalized custom api-key models in sudocode.json');
+      mainLog(TAG, 'Normalized model entries in sudocode.json');
     }
   } catch (err) {
-    mainWarn(TAG, `Failed to normalize custom api-key models: ${err instanceof Error ? err.message : String(err)}`);
+    mainWarn(TAG, `Failed to normalize scode model entries: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
 export function registerScodeBridge(): void {
   void syncImageModelOnStartup();
   void ensureSettingsModelOnStartup();
-  void migrateCustomApiKeyModelsOnStartup();
+  void normalizeScodeModelEntriesOnStartup();
   void migrateVisionInputOnStartup();
   ipcBridge.scode.getConfig.provider(async () => {
     try {
@@ -340,7 +333,7 @@ export function registerScodeBridge(): void {
           incoming.web_search = existing.web_search;
         }
       }
-      writeConfig(normalizeCustomApiKeyModelsInScodeConfig(incoming) as unknown as Record<string, unknown>);
+      writeConfig(normalizeScodeModelApiTypesInScodeConfig(normalizeCustomApiKeyModelsInScodeConfig(incoming)) as unknown as Record<string, unknown>);
       mainLog(TAG, 'Saved sudocode.json config');
       return { success: true };
     } catch (err) {

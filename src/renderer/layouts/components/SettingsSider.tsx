@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
+import { useAuth } from '@/renderer/context/AuthContext';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -32,6 +33,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const { pathname } = useLocation();
   const isDesktop = isElectronDesktop();
   const { isEnterprise } = useAppMode();
+  const { isGuest } = useAuth();
 
   const [extensionTabs, setExtensionTabs] = useState<IExtensionSettingsTab[]>([]);
   const { resolveExtTabName } = useExtI18n();
@@ -120,7 +122,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
 
     // Start with ordered builtin IDs (enterprise mode uses restricted set)
     const activeBuiltinTabIds = isEnterprise ? ENTERPRISE_BUILTIN_TAB_IDS : BUILTIN_TAB_IDS;
-    const result: SiderItem[] = activeBuiltinTabIds.map((id) => builtinMap[id]).filter((item) => !item.hidden);
+    const result: SiderItem[] = activeBuiltinTabIds.map((id) => builtinMap[id]).filter((item) => !item.hidden && !(isGuest && (item.id === 'profile' || item.id === 'recharge')));
 
     // Extension tabs with position anchoring
     const beforeMap = new Map<string, IExtensionSettingsTab[]>();
@@ -195,7 +197,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     }
 
     return result;
-  }, [t, isDesktop, extensionTabs, resolveExtTabName, isEnterprise]);
+  }, [t, isDesktop, extensionTabs, resolveExtTabName, isEnterprise, isGuest]);
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   return (

@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import useSWR from 'swr';
-import { ipcBridge } from '@/common';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
-import { uuid } from '@/common/utils';
 import { useGeminiGoogleAuthModels } from '@/renderer/hooks/useGeminiGoogleAuthModels';
-import { hasAvailableModels } from '../utils/modelUtils';
+import { useAvailableModels } from '@/renderer/hooks/useAvailableModels';
 
 /**
  * Build a unique key for a provider/model pair.
@@ -41,34 +38,7 @@ export type GuidModelSelectionResult = {
  */
 export const useGuidModelSelection = (): GuidModelSelectionResult => {
   const { geminiModeOptions, isGoogleAuth } = useGeminiGoogleAuthModels();
-  const { data: modelConfig } = useSWR('model.config.welcome', () => {
-    return ipcBridge.mode.getModelConfig.invoke().then((data) => {
-      return (data || []).filter((platform) => !!platform.model.length);
-    });
-  });
-
-  const geminiModelValues = useMemo(() => geminiModeOptions.map((option) => option.value), [geminiModeOptions]);
-
-  const modelList = useMemo(() => {
-    let allProviders: IProvider[] = [];
-
-    if (isGoogleAuth) {
-      const geminiProvider: IProvider = {
-        id: uuid(),
-        name: 'Gemini Google Auth',
-        platform: 'gemini-with-google-auth',
-        baseUrl: '',
-        apiKey: '',
-        model: geminiModelValues,
-        capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }],
-      };
-      allProviders = [geminiProvider, ...(modelConfig || [])];
-    } else {
-      allProviders = modelConfig || [];
-    }
-
-    return allProviders.filter(hasAvailableModels);
-  }, [geminiModelValues, isGoogleAuth, modelConfig]);
+  const { modelList } = useAvailableModels();
 
   const geminiModeLookup = useMemo(() => {
     const lookup = new Map<string, (typeof geminiModeOptions)[number]>();

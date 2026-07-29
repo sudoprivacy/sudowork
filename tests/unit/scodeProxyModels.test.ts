@@ -81,4 +81,25 @@ describe('scodeProxyModels', () => {
       { id: 'custom-openai/gpt-4o', label: 'gpt-4o', provider: 'custom-openai', providerLabel: 'custom-openai' },
     ]);
   });
+
+  it('falls back to availableModels[0] when currentModelId is a stale/ghost id not in the list', () => {
+    // Fixture intentionally has no default_model (so defaultInList=false) to prove
+    // that a ghost explicit id falls back to availableModels[0], not to default.
+    const configPath = writeConfig({
+      models: {
+        'custom-openai/MiniMax-M3': {
+          alias: 'custom-openai/MiniMax-M3',
+          name: 'MiniMax-M3',
+          providers: {
+            'api-key': { provider: 'custom-openai', model: 'MiniMax-M3', api: 'openai-completions' },
+          },
+        },
+      },
+    });
+
+    const info = getScodeProxyModelInfoSync('sudorouter/gpt-5.5', configPath);
+
+    expect(info?.currentModelId).toBe('custom-openai/MiniMax-M3');
+    expect(info?.currentModelLabel).toBe('MiniMax-M3');
+  });
 });

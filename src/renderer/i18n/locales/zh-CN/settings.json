@@ -1181,6 +1181,8 @@
   "hubEmpty.tokenMissing": "未配置 Skill Hub — 请检查 sudowork-server 登录状态",
   "hubEmpty.fetchFailed": "拉取失败，请重试",
   "hubEmpty.retry": "重试",
+  "hubEmpty.loginToView": "登录后查看完整列表",
+  "hubEmpty.login": "去登录",
   "sudocodeModel": {
     "editModelTitle": "编辑模型",
     "openAIOnlyHint": "仅支持 OpenAI 兼容协议 API",

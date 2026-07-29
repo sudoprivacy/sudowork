@@ -32,17 +32,35 @@ import { IconExclamationCircle, IconLock, IconRefresh } from '@arco-design/web-r
 import type { HubError } from '@common/nexus/hubErrors';
 
 interface IHubEmptyStateProps {
-  /** Typed error from the most recent hub fetch. When null, render
+  /** Typed error from the most recent hub fetch. When null (and no onLogin), render
    *  nothing (the caller decides what "actually empty" looks like). */
-  error: HubError | null;
+  error?: HubError | null;
   /** Invoked when the user clicks the retry button. Only shown for
    *  retriable error classes (i.e. FETCH_FAILED). */
   onRetry?: () => void;
+  /** 游客态登录引导回调。传入时优先渲染「登录后查看 + 去登录」，忽略 error。 */
+  onLogin?: () => void;
 }
 
-export default function HubEmptyState({ error, onRetry }: IHubEmptyStateProps) {
+export default function HubEmptyState({ error, onRetry, onLogin }: IHubEmptyStateProps) {
   const { t } = useTranslation();
 
+  if (!error && !onLogin) return null;
+
+  // 游客态登录引导：传入 onLogin 时优先渲染（须在下方 error.code 访问之前 early-return，避免 error=null 时崩溃）
+  if (onLogin) {
+    return (
+      <div className='flex flex-col items-center justify-center py-8 text-center' data-testid='hub-empty-state-login'>
+        <IconLock className='text-32px text-secondary mb-3' />
+        <div className='text-13px text-secondary mb-3'>{t('settings.hubEmpty.loginToView', { defaultValue: '登录后查看完整列表' })}</div>
+        <Button size='mini' onClick={onLogin}>
+          {t('settings.hubEmpty.login', { defaultValue: '去登录' })}
+        </Button>
+      </div>
+    );
+  }
+
+  // 到此处 onLogin 必假；结合上方守卫 error 必真，收窄类型供下方 error.code/message/retriable 安全访问
   if (!error) return null;
 
   const isTokenMissing = error.code === 'TOKEN_MISSING';

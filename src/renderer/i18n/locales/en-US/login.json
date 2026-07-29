@@ -64,5 +64,6 @@
   "thirdPartyStateInvalid": "Authentication callback verification failed, please try again",
   "thirdPartyMissingTicket": "Authentication callback is missing ticket",
   "thirdPartyFailed": "Third-party sign-in failed",
-  "backToModeSelect": "← Back to mode selection"
+  "backToModeSelect": "← Back to mode selection",
+  "skip": "Skip for now →"
 }

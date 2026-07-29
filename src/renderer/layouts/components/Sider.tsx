@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -31,7 +31,7 @@ const Sider: React.FC = () => {
 
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { logout, user: currentUser } = useAuth();
+  const { logout, user: currentUser, isGuest } = useAuth();
   const { isEnterprise, mode } = useAppMode();
   const { isCronVisible } = useCronAccess();
   const [isBatchMode, setIsBatchMode] = useState(false);
@@ -147,7 +147,7 @@ const Sider: React.FC = () => {
       const target = lastNonSettingsPathRef.current || '/guid';
       void navigate(target);
     } else {
-      void navigate('/settings/profile');
+      void navigate(isGuest ? '/settings/model' : '/settings/profile');
     }
     onSessionClick();
   };
@@ -157,6 +157,9 @@ const Sider: React.FC = () => {
       handleSettingsClick();
       setUserMenuOpen(false);
       return;
+    } else if (key === 'login') {
+      setUserMenuOpen(false);
+      void navigate('/login', { replace: true });
     } else if (key === 'logout') {
       setUserMenuOpen(false);
       await logout();
@@ -290,12 +293,21 @@ const Sider: React.FC = () => {
                     <span>{t('common.settings')}</span>
                   </div>
                 </Menu.Item>
-                <Menu.Item key='logout'>
-                  <div className='flex items-center gap-2.5 text-danger'>
-                    <LogOut size={17} strokeWidth={1.8} className='text-danger' />
-                    <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
-                  </div>
-                </Menu.Item>
+                {isGuest ? (
+                  <Menu.Item key='login'>
+                    <div className='flex items-center gap-2.5'>
+                      <LogIn size={17} strokeWidth={1.8} className='text-secondary' />
+                      <span>{t('login.submit')}</span>
+                    </div>
+                  </Menu.Item>
+                ) : (
+                  <Menu.Item key='logout'>
+                    <div className='flex items-center gap-2.5 text-danger'>
+                      <LogOut size={17} strokeWidth={1.8} className='text-danger' />
+                      <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
+                    </div>
+                  </Menu.Item>
+                )}
               </Menu>
             }
             trigger='click'
@@ -308,10 +320,12 @@ const Sider: React.FC = () => {
           >
             <div className='flex flex-col gap-0.5'>
               <div ref={userTriggerRef} className='flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors rd-3 border hover:bg-hover active:bg-fill-2 ml-0.5'>
-                <div className='size-8 rd-50% bg-fill-3 f-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
+                <div className='size-8 rd-50% bg-fill-3 f-center text-foreground text-14px font-bold shrink-0'>
+                  {isGuest ? <LogIn size={16} strokeWidth={1.8} /> : userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}
+                </div>
                 <div className='flex-1 min-w-0'>
-                  <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>
-                  <div className='text-12px text-secondary truncate'>{userInfo.email}</div>
+                  <div className='text-14px font-medium text-foreground truncate'>{isGuest ? t('login.submit') : userInfo.name}</div>
+                  {!isGuest && <div className='text-12px text-secondary truncate'>{userInfo.email}</div>}
                 </div>
                 <ChevronDown size={16} strokeWidth={1.8} className='shrink-0 text-secondary' />
               </div>
