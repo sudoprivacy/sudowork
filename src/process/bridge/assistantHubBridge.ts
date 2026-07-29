@@ -28,6 +28,7 @@ const { existsSync } = fsSync;
 
 const ASSISTANT_META_FILE = '_sudowork_meta.json';
 const MOSS_ASSISTANT_META_FILE = '_moss_meta.json';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type AssistantHubMeta = import('@/process/constants/assistantStorage').IAssistantMeta;
 type AssistantHubPublishStatus = 'pending' | 'approved' | 'rejected';
@@ -85,6 +86,91 @@ async function writeAssistantMetaFile(assistantDir: string, meta: AssistantHubMe
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeStringList(values: string[] | undefined): string[] {
+  const normalized = (values || []).map((value) => value.trim()).filter(Boolean);
+  return Array.from(new Set(normalized));
+}
+
+function addAssistantUploadSkillAlias(aliasMap: Map<string, string | null>, alias: string | undefined, skillId: string): void {
+  const normalizedAlias = alias?.trim();
+  if (!normalizedAlias) return;
+
+  const existing = aliasMap.get(normalizedAlias);
+  if (existing && existing !== skillId) {
+    aliasMap.set(normalizedAlias, null);
+    return;
+  }
+
+  if (existing === undefined) {
+    aliasMap.set(normalizedAlias, skillId);
+  }
+
+  const lowerAlias = normalizedAlias.toLowerCase();
+  const lowerExisting = aliasMap.get(lowerAlias);
+  if (lowerExisting && lowerExisting !== skillId) {
+    aliasMap.set(lowerAlias, null);
+    return;
+  }
+
+  if (lowerExisting === undefined) {
+    aliasMap.set(lowerAlias, skillId);
+  }
+}
+
+function resolveAssistantUploadSkillRefs(skillRefs: string[] | undefined, assistantMeta: AssistantHubMeta | null): string[] {
+  if (skillRefs && skillRefs.length > 0) {
+    return normalizeStringList(skillRefs);
+  }
+  if (assistantMeta?.enabledSkills && assistantMeta.enabledSkills.length > 0) {
+    return normalizeStringList(assistantMeta.enabledSkills);
+  }
+  if (assistantMeta?.skills && assistantMeta.skills.length > 0) {
+    return normalizeStringList(assistantMeta.skills);
+  }
+  return normalizeStringList(assistantMeta?.defaultEnabledSkills);
+}
+
+async function resolveAssistantUploadSkillIds(skillRefs: string[] | undefined, assistantMeta: AssistantHubMeta | null): Promise<string[]> {
+  const uploadSkillRefs = resolveAssistantUploadSkillRefs(skillRefs, assistantMeta);
+  if (uploadSkillRefs.length === 0) {
+    return [];
+  }
+
+  const skillIdByAlias = new Map<string, string | null>();
+  const installedSkills = await skillManager.getInstalledSkills();
+  for (const skill of installedSkills) {
+    const meta = skill.meta;
+    const skillId = meta?.id?.trim();
+    const canReferenceInHub = Boolean(skillId && (skill.isHubInstalled || meta?.source_type === 'hub' || meta?.uploaded === true || meta?.source_type === 'tenant'));
+    if (!skillId || !canReferenceInHub) continue;
+
+    addAssistantUploadSkillAlias(skillIdByAlias, skill.name, skillId);
+    addAssistantUploadSkillAlias(skillIdByAlias, meta?.name, skillId);
+    addAssistantUploadSkillAlias(skillIdByAlias, meta?.display_name, skillId);
+    addAssistantUploadSkillAlias(skillIdByAlias, skillId, skillId);
+  }
+
+  const resolvedSkillIds: string[] = [];
+  const skippedSkillRefs: string[] = [];
+  for (const skillRef of uploadSkillRefs) {
+    const matchedSkillId = skillIdByAlias.get(skillRef) ?? skillIdByAlias.get(skillRef.toLowerCase());
+    const resolvedSkillId = matchedSkillId || (UUID_PATTERN.test(skillRef) ? skillRef : null);
+    if (!resolvedSkillId || !UUID_PATTERN.test(resolvedSkillId)) {
+      skippedSkillRefs.push(skillRef);
+      continue;
+    }
+    if (!resolvedSkillIds.includes(resolvedSkillId)) {
+      resolvedSkillIds.push(resolvedSkillId);
+    }
+  }
+
+  if (skippedSkillRefs.length > 0) {
+    mainWarn('AssistantHub', `Skip ${skippedSkillRefs.length} local-only skill reference(s) when uploading assistant: ${skippedSkillRefs.join(', ')}`);
+  }
+
+  return resolvedSkillIds;
 }
 
 async function parseAssistantHubUploadResponse(response: Response): Promise<AssistantHubUploadApiBody | null> {
@@ -1202,6 +1288,7 @@ export function initAssistantHubBridge(): void {
 export function registerUploadAssistantToHubBridge() {
   ipcBridge.assistantHub.uploadAssistantToHub.provider(async (params) => {
     const { name, displayName, profession, description, categories, skills, tenantId } = params;
+    const isEnterprise = isEnterpriseMode();
 
     // Validate tenantId - required for upload
     if (!tenantId || !tenantId.trim()) {
@@ -1294,10 +1381,17 @@ export function registerUploadAssistantToHubBridge() {
       }
 
       // Skills
-      if (skills && skills.length > 0) {
-        formData.append('skills', JSON.stringify(skills));
-      } else if (assistantMeta?.enabledSkills && assistantMeta.enabledSkills.length > 0) {
-        formData.append('skills', JSON.stringify(assistantMeta.enabledSkills));
+      if (isEnterprise) {
+        if (skills && skills.length > 0) {
+          formData.append('skills', JSON.stringify(skills));
+        } else if (assistantMeta?.enabledSkills && assistantMeta.enabledSkills.length > 0) {
+          formData.append('skills', JSON.stringify(assistantMeta.enabledSkills));
+        }
+      } else {
+        const uploadSkillIds = await resolveAssistantUploadSkillIds(skills, assistantMeta);
+        if (uploadSkillIds.length > 0) {
+          formData.append('skills', JSON.stringify(uploadSkillIds));
+        }
       }
 
       // TenantId (required)
@@ -1335,7 +1429,7 @@ export function registerUploadAssistantToHubBridge() {
         body: formData,
       });
 
-      if (isEnterpriseMode()) {
+      if (isEnterprise) {
         if (!response.ok) {
           const errorText = await response.text();
           mainError('AssistantHub', `Upload failed: ${response.status} - ${errorText}`);

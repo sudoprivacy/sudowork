@@ -28,7 +28,7 @@ import DuplicateConfirmModal from './components/DuplicateConfirmModal';
 import UploadConfirmModal from './components/UploadConfirmModal';
 import AssistantOperateDrawer from './components/AssistantOperateDrawer';
 import type { AssistantListItem, AssistantLatestVersion } from './types';
-import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, resolveAvatarImageSrc } from './utils';
+import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, resolveAvatarImageSrc, isAssistantVersionNewer } from './utils';
 
 // ==================== Types ====================
 
@@ -227,6 +227,7 @@ const AgentSettings: React.FC = () => {
         const map = new Map<string, string>();
         for (const assistant of res.data) {
           const isHubInstalled = assistant.isHubInstalled || assistant.meta?.source_type === 'hub';
+          if (!isEnterprise && !isHubInstalled) continue;
           const installedVersion = isHubInstalled ? normalizeAssistantVersion(assistant.meta?.installed_version) : '';
           const keys = isEnterprise ? [assistant.name] : [assistant.name, assistant.meta?.name, assistant.meta?.id, assistant.meta?.nameI18n?.[localeKey], assistant.meta?.nameI18n?.['zh-CN'], assistant.meta?.nameI18n?.['en-US']];
           keys.forEach((key) => {
@@ -1547,7 +1548,7 @@ const AgentSettings: React.FC = () => {
         const hubAssistantForUpdate = !isEnterprise && assistant._isHubInstalled && hubId ? installedAssistantToHubAssistant(assistant) : undefined;
         const latestVersion = hubAssistantForUpdate ? getResolvedAssistantLatestVersion(hubAssistantForUpdate) : undefined;
         const installedVersion = !isEnterprise ? normalizeAssistantVersion(assistant._installedVersion) : '';
-        const hasUpdate = Boolean(!isEnterprise && assistant._isHubInstalled && hubId && latestVersion && (!installedVersion || latestVersion.version !== installedVersion));
+        const hasUpdate = Boolean(!isEnterprise && assistant._isHubInstalled && hubId && latestVersion && isAssistantVersionNewer(latestVersion.version, installedVersion));
         const uploadPublishStatus = !isEnterprise && !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) ? getAssistantUploadPublishStatus(assistant) : undefined;
         const uploadStatus =
           uploadPublishStatus === 'pending' ? (
@@ -1765,8 +1766,9 @@ const AgentSettings: React.FC = () => {
                     const isInstalling = installingAssistantId === assistant.id;
                     const isUpdating = !isEnterprise && updatingAssistantId === assistant.id;
                     const latestVersion = getResolvedAssistantLatestVersion(assistant);
+                    const latestVersionValue = latestVersion?.version || normalizeAssistantVersion(assistant.version);
                     const installedVersion = !isEnterprise ? getHubAssistantInstalledVersion(assistant) : '';
-                    const hasUpdate = !isEnterprise && isInstalled && !!latestVersion && (!installedVersion || latestVersion.version !== installedVersion);
+                    const hasUpdate = !isEnterprise && isInstalled && isAssistantVersionNewer(latestVersionValue, installedVersion);
                     return (
                       <HubAssistantCard
                         key={assistant.id}
@@ -1794,7 +1796,7 @@ const AgentSettings: React.FC = () => {
                           e.stopPropagation();
                           handleOpenDuplicateModal(assistant);
                         }}
-                        latestVersion={!isEnterprise ? latestVersion?.version || normalizeAssistantVersion(assistant.version) : undefined}
+                        latestVersion={!isEnterprise ? latestVersionValue : undefined}
                         onClick={() => {
                           setHubDetailAssistant(assistant);
                           setHubDetailVisible(true);
