@@ -28,7 +28,7 @@ export type GuidSendDeps = {
   selectedAgent: AcpBackend | 'custom';
   selectedAgentKey: string;
   /** Resolved backend key (builtin/preset) for the selected agent; used to skip the guest model guard for claude. */
-  modelBackendKey: AcpBackend;
+  modelBackendKey: string;
   selectedAgentInfo: AvailableAgent | undefined;
   isPresetAgent: boolean;
   selectedMode: string;
