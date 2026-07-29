@@ -65,5 +65,5 @@
   "thirdPartyMissingTicket": "인증 콜백에 ticket이 없습니다",
   "thirdPartyFailed": "타사 인증 로그인 실패",
   "backToModeSelect": "← 모드 선택으로 돌아가기",
-  "skip": "건너뛰기 →"
+  "skip": "지금은 건너뛰기 →"
 }

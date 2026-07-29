@@ -65,5 +65,5 @@
   "thirdPartyMissingTicket": "Authentication callback is missing ticket",
   "thirdPartyFailed": "Third-party sign-in failed",
   "backToModeSelect": "← Back to mode selection",
-  "skip": "Skip →"
+  "skip": "Skip for now →"
 }

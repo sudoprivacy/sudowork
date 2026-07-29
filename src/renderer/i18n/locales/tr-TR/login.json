@@ -65,5 +65,5 @@
   "thirdPartyMissingTicket": "Kimlik doğrulama geri çağrısında ticket eksik",
   "thirdPartyFailed": "Üçüncü taraf giriş başarısız",
   "backToModeSelect": "← Mod seçimine dön",
-  "skip": "Atla →"
+  "skip": "Şimdilik atla →"
 }
