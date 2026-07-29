@@ -1378,6 +1378,8 @@
   "assistant.upload": "上传",
   "assistant.uploadFailed": "上传失败: {{msg}}",
   "assistant.uploadNoTenantId": "用户无租户ID，无法上传助手",
+  "assistant.uploadPending": "上传审批中",
+  "assistant.uploadApproved": "已通过审批",
   "assistant.uploadSuccess": "助手「{{name}}」已上传成功",
   "assistant.view": "查看",
   "assistantReadonly": "Hub 安装的助手和内置助手不可修改，可复制到自定义列表后编辑",

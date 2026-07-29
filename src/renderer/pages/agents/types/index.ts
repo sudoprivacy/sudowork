@@ -11,6 +11,8 @@ export type AssistantListItem = AcpBackendConfig & {
   _hubId?: string;
   _installedVersion?: string;
   _hubMeta?: IAssistantHubSkill;
+  _uploaded?: boolean;
+  _publishStatus?: 'pending' | 'approved' | 'rejected';
 };
 
 export type AssistantLatestVersion = {

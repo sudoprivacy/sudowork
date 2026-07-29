@@ -28,7 +28,7 @@ import DuplicateConfirmModal from './components/DuplicateConfirmModal';
 import UploadConfirmModal from './components/UploadConfirmModal';
 import AssistantOperateDrawer from './components/AssistantOperateDrawer';
 import type { AssistantListItem, AssistantLatestVersion } from './types';
-import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, resolveAvatarImageSrc } from './utils';
+import { normalizeAssistantVersion, normalizeAssistantLookupKey, resolveAssistantVersionLike, getSelectableAssistantSkills, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, resolveAvatarImageSrc, isAssistantVersionNewer } from './utils';
 
 // ==================== Types ====================
 
@@ -227,6 +227,7 @@ const AgentSettings: React.FC = () => {
         const map = new Map<string, string>();
         for (const assistant of res.data) {
           const isHubInstalled = assistant.isHubInstalled || assistant.meta?.source_type === 'hub';
+          if (!isEnterprise && !isHubInstalled) continue;
           const installedVersion = isHubInstalled ? normalizeAssistantVersion(assistant.meta?.installed_version) : '';
           const keys = isEnterprise ? [assistant.name] : [assistant.name, assistant.meta?.name, assistant.meta?.id, assistant.meta?.nameI18n?.[localeKey], assistant.meta?.nameI18n?.['zh-CN'], assistant.meta?.nameI18n?.['en-US']];
           keys.forEach((key) => {
@@ -634,6 +635,8 @@ const AgentSettings: React.FC = () => {
           _hubId: isPersonalHubAssistant ? info.meta?.id : undefined,
           _installedVersion: isPersonalHubAssistant ? normalizeAssistantVersion(info.meta?.installed_version) : undefined,
           _hubMeta: isPersonalHubAssistant ? assistantInfoToHubSkill(info) : undefined,
+          _uploaded: !isEnterprise && info.meta?.uploaded === true,
+          _publishStatus: !isEnterprise ? info.meta?.publish_status : undefined,
         };
       });
 
@@ -666,6 +669,24 @@ const AgentSettings: React.FC = () => {
   useEffect(() => {
     void loadAssistants();
   }, [loadAssistants]);
+
+  const refreshUploadedAssistantStatuses = useCallback(async () => {
+    if (!isElectronDesktop() || isEnterprise) return;
+    try {
+      await ipcBridge.assistantHub.refreshUploadedAssistantStatuses.invoke();
+    } catch (statusError) {
+      console.error('Failed to refresh uploaded assistant statuses:', statusError);
+    }
+  }, [isEnterprise]);
+
+  useEffect(() => {
+    if (activeTab === 'installed') {
+      void (async () => {
+        await refreshUploadedAssistantStatuses();
+        await loadAssistants();
+      })();
+    }
+  }, [activeTab, loadAssistants, refreshUploadedAssistantStatuses]);
 
   // Listen for sync completed event (enterprise mode)
   useEffect(() => {
@@ -941,6 +962,7 @@ const AgentSettings: React.FC = () => {
         Message.success(t('settings.assistant.uploadSuccess', { name: displayName, defaultValue: `助手 "${displayName}" 已上传成功` }));
         setUploadConfirmVisible(false);
         setUploadAssistant(null);
+        await loadAssistants();
       } else {
         Message.error(t('settings.assistant.uploadFailed', { msg: result.msg || 'Unknown error', defaultValue: `上传失败: ${result.msg || 'Unknown error'}` }));
       }
@@ -950,7 +972,7 @@ const AgentSettings: React.FC = () => {
     } finally {
       setUploading(false);
     }
-  }, [uploadAssistant, localeKey, enterpriseCode, t]);
+  }, [uploadAssistant, localeKey, enterpriseCode, loadAssistants, t]);
 
   // ---- Enterprise mode: Upload custom assistant to Moss Server ----
   const handleUploadCustomAssistant = useCallback(
@@ -1509,9 +1531,12 @@ const AgentSettings: React.FC = () => {
 
   const editAvatarImage = resolveAvatarImageSrc(editAvatar);
 
+  const getAssistantUploadPublishStatus = (assistant: AssistantListItem) => assistant._publishStatus || (assistant._uploaded ? 'pending' : undefined);
+
   const canUploadAssistant = (assistant: AssistantListItem) => {
     if (!isEnterprise) {
-      return !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant);
+      const publishStatus = getAssistantUploadPublishStatus(assistant);
+      return !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) && publishStatus !== 'pending' && publishStatus !== 'approved';
     }
     return assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant));
   };
@@ -1523,7 +1548,18 @@ const AgentSettings: React.FC = () => {
         const hubAssistantForUpdate = !isEnterprise && assistant._isHubInstalled && hubId ? installedAssistantToHubAssistant(assistant) : undefined;
         const latestVersion = hubAssistantForUpdate ? getResolvedAssistantLatestVersion(hubAssistantForUpdate) : undefined;
         const installedVersion = !isEnterprise ? normalizeAssistantVersion(assistant._installedVersion) : '';
-        const hasUpdate = Boolean(!isEnterprise && assistant._isHubInstalled && hubId && latestVersion && (!installedVersion || latestVersion.version !== installedVersion));
+        const hasUpdate = Boolean(!isEnterprise && assistant._isHubInstalled && hubId && latestVersion && isAssistantVersionNewer(latestVersion.version, installedVersion));
+        const uploadPublishStatus = !isEnterprise && !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) ? getAssistantUploadPublishStatus(assistant) : undefined;
+        const uploadStatus =
+          uploadPublishStatus === 'pending' ? (
+            <Tooltip content={t('settings.assistant.uploadPending', '上传审批中')}>
+              <span className='store-action-badge'>{t('settings.assistant.publishPendingShort', '审核中')}</span>
+            </Tooltip>
+          ) : uploadPublishStatus === 'approved' ? (
+            <Tooltip content={t('settings.assistant.uploadApproved', '已通过审批')}>
+              <span className='store-action-badge text-success'>{t('settings.assistant.publishedShort', '已发布')}</span>
+            </Tooltip>
+          ) : undefined;
 
         return (
           <InstalledAssistantCard
@@ -1538,6 +1574,7 @@ const AgentSettings: React.FC = () => {
             hasUpdate={!isEnterprise && hasUpdate}
             updating={!isEnterprise && hubId ? updatingAssistantId === hubId : false}
             onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
+            uploadStatus={uploadStatus}
             onClick={() => void handleEdit(assistant)}
             hideDelete={hideDelete}
             allowToggle={allowToggle}
@@ -1737,8 +1774,9 @@ const AgentSettings: React.FC = () => {
                     const isInstalling = installingAssistantId === assistant.id;
                     const isUpdating = !isEnterprise && updatingAssistantId === assistant.id;
                     const latestVersion = getResolvedAssistantLatestVersion(assistant);
+                    const latestVersionValue = latestVersion?.version || normalizeAssistantVersion(assistant.version);
                     const installedVersion = !isEnterprise ? getHubAssistantInstalledVersion(assistant) : '';
-                    const hasUpdate = !isEnterprise && isInstalled && !!latestVersion && (!installedVersion || latestVersion.version !== installedVersion);
+                    const hasUpdate = !isEnterprise && isInstalled && isAssistantVersionNewer(latestVersionValue, installedVersion);
                     return (
                       <HubAssistantCard
                         key={assistant.id}
@@ -1766,7 +1804,7 @@ const AgentSettings: React.FC = () => {
                           e.stopPropagation();
                           handleOpenDuplicateModal(assistant);
                         }}
-                        latestVersion={!isEnterprise ? latestVersion?.version || normalizeAssistantVersion(assistant.version) : undefined}
+                        latestVersion={!isEnterprise ? latestVersionValue : undefined}
                         onClick={() => {
                           setHubDetailAssistant(assistant);
                           setHubDetailVisible(true);

@@ -12,7 +12,7 @@ import JSZip from 'jszip';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { ipcBridge } from '@/common';
 import type { IAssistantHubSkill, IAssistantHubDetail, ISkillHubSkill, IAssistantHubVersionLike } from '@/common/ipcBridge';
-import { assistantManager } from '@/process/AssistantManager';
+import { assistantManager, type IAssistantInfo } from '@/process/AssistantManager';
 import { getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir, getSudoworkServerBaseUrlSync } from '@/process/initStorage';
 import { skillManager } from '@/process/SkillManager';
 import { getDatabase } from '@/process/database';
@@ -28,8 +28,30 @@ const { existsSync } = fsSync;
 
 const ASSISTANT_META_FILE = '_sudowork_meta.json';
 const MOSS_ASSISTANT_META_FILE = '_moss_meta.json';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type AssistantHubMeta = import('@/process/constants/assistantStorage').IAssistantMeta;
+type AssistantHubPublishStatus = 'pending' | 'approved' | 'rejected';
+
+interface AssistantHubUploadApiBody {
+  status?: string;
+  message?: string;
+  msg?: string;
+  id?: string;
+  data?: {
+    id?: string;
+    assistant?: {
+      id?: string;
+      name?: string;
+      status?: number | string;
+    };
+    agent?: {
+      id?: string;
+      name?: string;
+      status?: number | string;
+    };
+  };
+}
 
 /**
  * Read assistant metadata file, trying both Moss and Sudowork meta file names
@@ -60,6 +82,226 @@ async function writeAssistantMetaFile(assistantDir: string, meta: AssistantHubMe
   const fileName = isEnterprise ? MOSS_ASSISTANT_META_FILE : ASSISTANT_META_FILE;
   const filePath = path.join(assistantDir, fileName);
   await fs.writeFile(filePath, JSON.stringify(meta, null, 2), 'utf-8');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeStringList(values: string[] | undefined): string[] {
+  const normalized = (values || []).map((value) => value.trim()).filter(Boolean);
+  return Array.from(new Set(normalized));
+}
+
+function addAssistantUploadSkillAlias(aliasMap: Map<string, string | null>, alias: string | undefined, skillId: string): void {
+  const normalizedAlias = alias?.trim();
+  if (!normalizedAlias) return;
+
+  const existing = aliasMap.get(normalizedAlias);
+  if (existing && existing !== skillId) {
+    aliasMap.set(normalizedAlias, null);
+    return;
+  }
+
+  if (existing === undefined) {
+    aliasMap.set(normalizedAlias, skillId);
+  }
+
+  const lowerAlias = normalizedAlias.toLowerCase();
+  const lowerExisting = aliasMap.get(lowerAlias);
+  if (lowerExisting && lowerExisting !== skillId) {
+    aliasMap.set(lowerAlias, null);
+    return;
+  }
+
+  if (lowerExisting === undefined) {
+    aliasMap.set(lowerAlias, skillId);
+  }
+}
+
+function resolveAssistantUploadSkillRefs(skillRefs: string[] | undefined, assistantMeta: AssistantHubMeta | null): string[] {
+  if (skillRefs && skillRefs.length > 0) {
+    return normalizeStringList(skillRefs);
+  }
+  if (assistantMeta?.enabledSkills && assistantMeta.enabledSkills.length > 0) {
+    return normalizeStringList(assistantMeta.enabledSkills);
+  }
+  if (assistantMeta?.skills && assistantMeta.skills.length > 0) {
+    return normalizeStringList(assistantMeta.skills);
+  }
+  return normalizeStringList(assistantMeta?.defaultEnabledSkills);
+}
+
+async function resolveAssistantUploadSkillIds(skillRefs: string[] | undefined, assistantMeta: AssistantHubMeta | null): Promise<string[]> {
+  const uploadSkillRefs = resolveAssistantUploadSkillRefs(skillRefs, assistantMeta);
+  if (uploadSkillRefs.length === 0) {
+    return [];
+  }
+
+  const skillIdByAlias = new Map<string, string | null>();
+  const installedSkills = await skillManager.getInstalledSkills();
+  for (const skill of installedSkills) {
+    const meta = skill.meta;
+    const skillId = meta?.id?.trim();
+    const canReferenceInHub = Boolean(skillId && (skill.isHubInstalled || meta?.source_type === 'hub' || meta?.uploaded === true || meta?.source_type === 'tenant'));
+    if (!skillId || !canReferenceInHub) continue;
+
+    addAssistantUploadSkillAlias(skillIdByAlias, skill.name, skillId);
+    addAssistantUploadSkillAlias(skillIdByAlias, meta?.name, skillId);
+    addAssistantUploadSkillAlias(skillIdByAlias, meta?.display_name, skillId);
+    addAssistantUploadSkillAlias(skillIdByAlias, skillId, skillId);
+  }
+
+  const resolvedSkillIds: string[] = [];
+  const skippedSkillRefs: string[] = [];
+  for (const skillRef of uploadSkillRefs) {
+    const matchedSkillId = skillIdByAlias.get(skillRef) ?? skillIdByAlias.get(skillRef.toLowerCase());
+    const resolvedSkillId = matchedSkillId || (UUID_PATTERN.test(skillRef) ? skillRef : null);
+    if (!resolvedSkillId || !UUID_PATTERN.test(resolvedSkillId)) {
+      skippedSkillRefs.push(skillRef);
+      continue;
+    }
+    if (!resolvedSkillIds.includes(resolvedSkillId)) {
+      resolvedSkillIds.push(resolvedSkillId);
+    }
+  }
+
+  if (skippedSkillRefs.length > 0) {
+    mainWarn('AssistantHub', `Skip ${skippedSkillRefs.length} local-only skill reference(s) when uploading assistant: ${skippedSkillRefs.join(', ')}`);
+  }
+
+  return resolvedSkillIds;
+}
+
+async function parseAssistantHubUploadResponse(response: Response): Promise<AssistantHubUploadApiBody | null> {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as AssistantHubUploadApiBody;
+  } catch {
+    return { message: text };
+  }
+}
+
+function normalizeAssistantHubPublishStatus(status: unknown): AssistantHubPublishStatus | null {
+  if (typeof status === 'number') {
+    if (status === 1) return 'approved';
+    if (status === 2) return 'rejected';
+    if (status === 0) return 'pending';
+    return null;
+  }
+
+  if (typeof status !== 'string') {
+    return null;
+  }
+
+  const normalized = status.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (['1', 'approved', 'approve', 'published', 'online', 'active'].includes(normalized)) {
+    return 'approved';
+  }
+
+  if (['2', 'rejected', 'reject'].includes(normalized)) {
+    return 'rejected';
+  }
+
+  if (['0', 'pending', 'reviewing', 'submitted', 'inactive'].includes(normalized)) {
+    return 'pending';
+  }
+
+  return null;
+}
+
+function resolveAssistantHubUploadId(body: AssistantHubUploadApiBody | null, fallbackId: string): string {
+  return body?.data?.assistant?.id || body?.data?.agent?.id || body?.data?.id || body?.id || fallbackId;
+}
+
+function resolveAssistantHubUploadStatus(body: AssistantHubUploadApiBody | null): AssistantHubPublishStatus {
+  return normalizeAssistantHubPublishStatus(body?.data?.assistant?.status ?? body?.data?.agent?.status ?? body?.status) || 'pending';
+}
+
+function resolveAssistantHubDetailPublishStatus(body: unknown): AssistantHubPublishStatus | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const data = isRecord(body.data) ? body.data : body;
+  const assistant = isRecord(data.assistant) ? data.assistant : isRecord(data.agent) ? data.agent : data;
+
+  return normalizeAssistantHubPublishStatus(assistant.status ?? data.status ?? body.status);
+}
+
+async function fetchUploadedAssistantPublishStatus(assistantId: string, token: string): Promise<AssistantHubPublishStatus | null> {
+  const response = await fetch(`${getSkillHubBaseUrl()}/api/assistants/${encodeURIComponent(assistantId)}`, {
+    headers: { Authorization: token },
+  });
+
+  if (!response.ok) {
+    mainLog('AssistantHub', `Skip uploaded assistant status refresh for ${assistantId}: HTTP ${response.status}`);
+    return null;
+  }
+
+  const body = await response.json();
+  return resolveAssistantHubDetailPublishStatus(body);
+}
+
+function isUploadedCustomAssistantStatusRefreshCandidate(assistant: IAssistantInfo): boolean {
+  const meta = assistant.meta;
+  if (assistant.category !== 'custom' || !meta?.id || meta.source_type !== 'custom') {
+    return false;
+  }
+
+  const isUploadedToHub = meta.uploaded === true || Boolean(meta.publish_status);
+  const isAwaitingFinalStatus = meta.publish_status !== 'approved' && meta.publish_status !== 'rejected';
+  return isUploadedToHub && isAwaitingFinalStatus;
+}
+
+async function refreshUploadedAssistantStatusesFromHub(token: string): Promise<{ checked: number; updated: number }> {
+  const assistants = await assistantManager.getInstalledAssistants();
+  const candidates = assistants.filter(isUploadedCustomAssistantStatusRefreshCandidate);
+  let updated = 0;
+
+  for (const assistant of candidates) {
+    try {
+      const assistantId = assistant.meta?.id;
+      if (!assistantId) continue;
+
+      const remoteStatus = await fetchUploadedAssistantPublishStatus(assistantId, token);
+      if (!remoteStatus) continue;
+
+      const assistantDir = assistantManager.findAssistantDirByCategory(assistant.name, 'custom')?.dir;
+      if (!assistantDir) continue;
+
+      const metaResult = await readAssistantMetaFileWithFallback(assistantDir);
+      if (!metaResult) continue;
+
+      const currentMeta = JSON.parse(metaResult.content) as AssistantHubMeta;
+      const currentStatus = currentMeta.publish_status || (currentMeta.uploaded ? 'pending' : undefined);
+      if (currentStatus === remoteStatus) continue;
+
+      const nextMeta: AssistantHubMeta = {
+        ...currentMeta,
+        publish_status: remoteStatus,
+      };
+      if (remoteStatus === 'approved') {
+        nextMeta.published_at = currentMeta.published_at || new Date().toISOString();
+      }
+
+      await writeAssistantMetaFile(assistantDir, nextMeta);
+      updated += 1;
+      mainLog('AssistantHub', `Updated uploaded assistant "${assistant.name}" publish status: ${currentStatus || 'unknown'} -> ${remoteStatus}`);
+    } catch (error) {
+      mainWarn('AssistantHub', `Failed to refresh uploaded assistant status for "${assistant.name}":`, error);
+    }
+  }
+
+  return { checked: candidates.length, updated };
 }
 
 interface VisibleAssistantOverlay extends Record<string, unknown> {
@@ -349,6 +591,26 @@ export function initAssistantHubBridge(): void {
     }
   });
 
+  ipcBridge.assistantHub.refreshUploadedAssistantStatuses.provider(async () => {
+    if (isEnterpriseMode()) {
+      return { success: true, data: { checked: 0, updated: 0 } };
+    }
+
+    try {
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('AssistantHub', 'skillhub token not provisioned, skip refreshUploadedAssistantStatuses');
+        return tokenMissingResponse('assistantHub');
+      }
+
+      const result = await refreshUploadedAssistantStatusesFromHub(token);
+      return { success: true, data: result };
+    } catch (error) {
+      mainError('AssistantHub', 'Failed to refresh uploaded assistant statuses:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   ipcBridge.assistantHub.getInstalledAssistantsWithVisibility.provider(async ({ accessToken }) => {
     try {
       const assistants = await assistantManager.getInstalledAssistantsWithVisibility(accessToken || '');
@@ -560,9 +822,7 @@ export function initAssistantHubBridge(): void {
       // API returns: { data: { assistants: [{ id, name, profession, description, avatar, categories, sourceUrl, ... }] } }
       const rawAssistants = result.data?.assistants || [];
       const visibleOverlayMap = typeof tenantId === 'string' && tenantId.trim() ? await fetchVisibleAssistantOverlayMap(accessToken) : null;
-      const visibleAssistants = visibleOverlayMap
-        ? rawAssistants.filter((a: Record<string, unknown>) => typeof a.id === 'string' && visibleOverlayMap.has(a.id))
-        : rawAssistants;
+      const visibleAssistants = visibleOverlayMap ? rawAssistants.filter((a: Record<string, unknown>) => typeof a.id === 'string' && visibleOverlayMap.has(a.id)) : rawAssistants;
 
       const mappedAssistants = visibleAssistants.map((raw: Record<string, unknown>): IAssistantHubSkill => {
         const overlay = typeof raw.id === 'string' ? visibleOverlayMap?.get(raw.id) : undefined;
@@ -1028,6 +1288,7 @@ export function initAssistantHubBridge(): void {
 export function registerUploadAssistantToHubBridge() {
   ipcBridge.assistantHub.uploadAssistantToHub.provider(async (params) => {
     const { name, displayName, profession, description, categories, skills, tenantId } = params;
+    const isEnterprise = isEnterpriseMode();
 
     // Validate tenantId - required for upload
     if (!tenantId || !tenantId.trim()) {
@@ -1120,10 +1381,17 @@ export function registerUploadAssistantToHubBridge() {
       }
 
       // Skills
-      if (skills && skills.length > 0) {
-        formData.append('skills', JSON.stringify(skills));
-      } else if (assistantMeta?.enabledSkills && assistantMeta.enabledSkills.length > 0) {
-        formData.append('skills', JSON.stringify(assistantMeta.enabledSkills));
+      if (isEnterprise) {
+        if (skills && skills.length > 0) {
+          formData.append('skills', JSON.stringify(skills));
+        } else if (assistantMeta?.enabledSkills && assistantMeta.enabledSkills.length > 0) {
+          formData.append('skills', JSON.stringify(assistantMeta.enabledSkills));
+        }
+      } else {
+        const uploadSkillIds = await resolveAssistantUploadSkillIds(skills, assistantMeta);
+        if (uploadSkillIds.length > 0) {
+          formData.append('skills', JSON.stringify(uploadSkillIds));
+        }
       }
 
       // TenantId (required)
@@ -1161,8 +1429,29 @@ export function registerUploadAssistantToHubBridge() {
         body: formData,
       });
 
+      if (isEnterprise) {
+        if (!response.ok) {
+          const errorText = await response.text();
+          mainError('AssistantHub', `Upload failed: ${response.status} - ${errorText}`);
+          return {
+            success: false,
+            msg: `上传失败: ${response.status} - ${errorText}`,
+          };
+        }
+
+        return {
+          success: true,
+          data: {
+            success: true,
+            message: `助手 "${displayName}" 上传成功`,
+          },
+        };
+      }
+
+      const responseBody = await parseAssistantHubUploadResponse(response);
+
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorText = responseBody?.message || responseBody?.msg || JSON.stringify(responseBody);
         mainError('AssistantHub', `Upload failed: ${response.status} - ${errorText}`);
         return {
           success: false,
@@ -1170,7 +1459,21 @@ export function registerUploadAssistantToHubBridge() {
         };
       }
 
-      // const result = await response.json();
+      const uploadedId = resolveAssistantHubUploadId(responseBody, assistantMeta?.id || name);
+      const publishStatus = resolveAssistantHubUploadStatus(responseBody);
+      const now = new Date().toISOString();
+      const nextMeta: AssistantHubMeta = {
+        ...(assistantMeta || {}),
+        id: uploadedId,
+        source_type: 'custom',
+        tag: assistantMeta?.tag || 'custom',
+        is_builtin: false,
+        enabled: assistantMeta?.enabled !== false,
+        uploaded: true,
+        uploaded_at: now,
+        publish_status: publishStatus,
+      };
+      await writeAssistantMetaFile(assistantDir, nextMeta);
 
       return {
         success: true,

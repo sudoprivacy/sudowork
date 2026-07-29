@@ -7,10 +7,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import { existsSync, mkdirSync, existsSync as fsExistsSync } from 'fs';
 import { app } from 'electron';
-import { getSkillsDir, getSystemSkillsDir, getHubSkillsDir, getCustomSkillsDir } from './initStorage';
 import { toAssetUrl } from '@/extensions/assetProtocol';
-import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { getSkillsDir, getSystemSkillsDir, getHubSkillsDir, getCustomSkillsDir } from './initStorage';
+import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import { MOSS_SKILL_META_FILE } from './constants/skillStorage';
 import { getEnterpriseTenantSkillsDir } from './constants/enterpriseStorage';
 
@@ -41,11 +41,15 @@ export interface ISkillMeta {
   core_features?: string | null;
   homepage?: string | null;
   author_id?: string;
-  source_type?: 'hub' | 'upload' | 'custom';
+  source_type?: 'hub' | 'upload' | 'custom' | 'tenant';
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version?: string;
   installed_at?: string;
+  uploaded?: boolean;
+  uploaded_at?: string;
+  publish_status?: 'pending' | 'approved' | 'rejected';
+  published_at?: string;
 }
 
 // Skill 信息（用于列表展示）

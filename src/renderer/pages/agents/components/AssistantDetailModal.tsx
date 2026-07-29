@@ -11,6 +11,7 @@ import { COS_HUB_BASE } from '@/shared/cos';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { AssistantLatestVersion } from '../types';
+import { isAssistantVersionNewer } from '../utils';
 
 const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, latestVersionInfo, installedVersion, onUpdate, updating = false, onGoUse, installedSkills }) => {
   const { t } = useTranslation();
@@ -145,7 +146,8 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
   const resolvedAvatar = assistant.avatar?.trim();
   const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
   const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
-  const hasUpdate = isInstalled && latestVersionInfo && (!installedVersion || latestVersionInfo.version !== installedVersion);
+  const latestVersionValue = latestVersionInfo?.version || assistant.version;
+  const hasUpdate = Boolean(isInstalled && isAssistantVersionNewer(latestVersionValue, installedVersion));
   const associatedSkillIds = !isEnterprise && assistant.skills?.length > 0 ? assistant.skills : relatedSkillDetails.map((s) => s.id);
 
   return (
@@ -264,7 +266,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
           <div className='flex gap-2 items-center'>
             {isInstalled && hasUpdate ? (
               <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconDownload />} onClick={() => onUpdate?.(associatedSkillIds)}>
-                {t('settings.assistant.updateTo', { version: latestVersionInfo.version, defaultValue: `更新至 v${latestVersionInfo.version}` })}
+                {t('settings.assistant.updateTo', { version: latestVersionValue, defaultValue: `更新至 v${latestVersionValue}` })}
               </Button>
             ) : isInstalled ? (
               <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
