@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { StreamingThinkFilter } from '@/process/task/acp/StreamingThinkFilter';
 
 function feedAll(filter: StreamingThinkFilter, chunks: string[]): string {
-  return chunks.map((c) => filter.feed(c)).join('');
+  return chunks.map((c) => filter.feed(c).content).join('');
 }
 
 describe('StreamingThinkFilter', () => {
-  describe('think blocks', () => {
+  describe('think blocks (content stripping)', () => {
     it('strips a complete <think>...</think> block within one chunk', () => {
       const f = new StreamingThinkFilter();
       expect(feedAll(f, ['<think>secret</think>visible'])).toBe('visible');
@@ -27,10 +27,59 @@ describe('StreamingThinkFilter', () => {
       expect(feedAll(f, ['<think>secret</thi', 'nk>visible'])).toBe('visible');
     });
 
-    it('drops an unclosed <think> at flush (still inside think)', () => {
+    it('keeps content empty for an unclosed <think> and does not leak at flush', () => {
       const f = new StreamingThinkFilter();
-      expect(f.feed('<think>secret')).toBe('');
+      expect(f.feed('<think>secret').content).toBe('');
       expect(f.flush()).toBe('');
+    });
+  });
+
+  describe('think extraction (thinkText)', () => {
+    it('returns the think content as thinkText (full accumulated value)', () => {
+      const f = new StreamingThinkFilter();
+      const r = f.feed('<think>secret</think>visible');
+      expect(r.content).toBe('visible');
+      expect(r.thinkText).toBe('secret');
+    });
+
+    it('accumulates think across chunks and returns the full value each time', () => {
+      const f = new StreamingThinkFilter();
+      const r1 = f.feed('<think>hel');
+      expect(r1.content).toBe('');
+      expect(r1.thinkText).toBe('hel');
+      const r2 = f.feed('lo');
+      expect(r2.content).toBe('');
+      expect(r2.thinkText).toBe('hello');
+      const r3 = f.feed('</think>world');
+      expect(r3.content).toBe('world');
+      expect(r3.thinkText).toBeNull();
+    });
+
+    it('returns thinkText=null when no new think text arrived (close-only chunk)', () => {
+      const f = new StreamingThinkFilter();
+      f.feed('<think>secret');
+      const r = f.feed('</think>visible');
+      expect(r.content).toBe('visible');
+      expect(r.thinkText).toBeNull();
+    });
+
+    it('merges multiple think blocks in one filter into one thinkText', () => {
+      const f = new StreamingThinkFilter();
+      f.feed('<think>a</think>');
+      const r = f.feed('x<think>b</think>y');
+      expect(r.content).toBe('xy');
+      expect(r.thinkText).toBe('ab');
+    });
+
+    it('emits think incrementally even when unclosed at flush', () => {
+      const f = new StreamingThinkFilter();
+      expect(f.feed('<think>secret').thinkText).toBe('secret');
+      expect(f.flush()).toBe('');
+    });
+
+    it('does not report thinkText for normal text', () => {
+      const f = new StreamingThinkFilter();
+      expect(f.feed('hello world').thinkText).toBeNull();
     });
   });
 
@@ -71,13 +120,13 @@ describe('StreamingThinkFilter', () => {
   describe('flush (no trailing char loss)', () => {
     it('flush releases a trailing "<" as normal text', () => {
       const f = new StreamingThinkFilter();
-      expect(f.feed('a <')).toBe('a ');
+      expect(f.feed('a <').content).toBe('a ');
       expect(f.flush()).toBe('<');
     });
 
     it('flush releases a trailing "<thi" prefix as normal text', () => {
       const f = new StreamingThinkFilter();
-      expect(f.feed('x<thi')).toBe('x');
+      expect(f.feed('x<thi').content).toBe('x');
       expect(f.flush()).toBe('<thi');
     });
   });

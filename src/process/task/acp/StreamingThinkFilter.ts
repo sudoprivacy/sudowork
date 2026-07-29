@@ -9,6 +9,9 @@
  *
  * Filters `<think>...</think>` / `<thinking>...</thinking>` blocks out of a
  * stream of text chunks where the tags may be split across chunk boundaries.
+ * The text inside the tags is accumulated and surfaced as `thinkText` (the FULL
+ * accumulated text so far, for replace-style merging) instead of being dropped,
+ * so callers can route it to the dedicated reasoning surface (MessageThought).
  *
  * Design constraints (must not affect models that never emit think tags, e.g.
  * sudorouter):
@@ -20,7 +23,8 @@
  *   spaces, so this is sufficient and avoids swallowing literal `< think>` text
  *   in normal prose / code.
  * - Any exception resets the machine to a known normal state and returns the
- *   original chunk unchanged — a filter anomaly must never break the stream.
+ *   original chunk unchanged (thinkText=null) — a filter anomaly must never
+ *   break the stream.
  */
 
 const OPEN_TAGS = ['<think>', '<thinking>'];
@@ -60,22 +64,44 @@ function trailingPrefixLen(buffer: string, tags: string[]): number {
 export class StreamingThinkFilter {
   private isInThink = false;
   private pendingTail = '';
+  // Accumulated text inside <think>/<thinking> blocks for this filter (one
+  // filter per content msg_id). Persists across feed() calls so multi-chunk and
+  // multi-block think content merges into one reasoning block; reset on flush().
+  // Emitted incrementally via thinkText (replace semantics).
+  private accumulatedThink = '';
 
-  /** Feed one chunk; returns the non-think text that should be displayed now (may be ''). */
-  feed(chunk: string): string {
+  /**
+   * Feed one chunk. Returns `{ content, thinkText }`:
+   * - `content`: the non-think text to display now (may be '').
+   * - `thinkText`: when new think text accumulated this call, the FULL
+   *   accumulated think text so far (for replace-style merge); otherwise null.
+   */
+  feed(chunk: string): { content: string; thinkText: string | null } {
     try {
       let buffer = this.pendingTail + chunk;
       this.pendingTail = '';
       let output = '';
+      let hadNewThink = false;
       let guard = 0;
       while (buffer.length > 0 && guard++ < 1000) {
         if (this.isInThink) {
           const found = findEarliestTag(buffer, CLOSE_TAGS);
           if (found) {
+            // Text before the close tag is think content; accumulate it.
+            if (found.idx > 0) {
+              this.accumulatedThink += buffer.slice(0, found.idx);
+              hadNewThink = true;
+            }
             buffer = buffer.slice(found.idx + found.tag.length);
             this.isInThink = false;
           } else {
             const prefixLen = trailingPrefixLen(buffer, CLOSE_TAGS);
+            // Everything except a possible split close-tag suffix is think content.
+            const thinkPart = buffer.slice(0, buffer.length - prefixLen);
+            if (thinkPart) {
+              this.accumulatedThink += thinkPart;
+              hadNewThink = true;
+            }
             this.pendingTail = buffer.slice(buffer.length - prefixLen);
             buffer = '';
           }
@@ -93,13 +119,13 @@ export class StreamingThinkFilter {
           }
         }
       }
-      return output;
+      return { content: output, thinkText: hadNewThink ? this.accumulatedThink : null };
     } catch {
       // Defensive: never let a filter anomaly break the stream. Reset to a
       // known normal state and pass the original chunk through verbatim.
       this.isInThink = false;
       this.pendingTail = '';
-      return chunk;
+      return { content: chunk, thinkText: null };
     }
   }
 
@@ -107,11 +133,14 @@ export class StreamingThinkFilter {
    * Flush at stream end. Returns any pending tail that should be displayed:
    * - normal state: the tail is ordinary text (e.g. a trailing `<`), return it.
    * - think state (unclosed `<think>`): the tail is inside think, drop it and reset.
+   * Think content accumulated so far was already emitted incrementally via
+   * feed() thinkText, so flush only resets accumulatedThink without re-emitting.
    */
   flush(): string {
     try {
       const tail = this.pendingTail;
       this.pendingTail = '';
+      this.accumulatedThink = '';
       if (this.isInThink) {
         this.isInThink = false;
         return '';
@@ -120,6 +149,7 @@ export class StreamingThinkFilter {
     } catch {
       this.isInThink = false;
       this.pendingTail = '';
+      this.accumulatedThink = '';
       return '';
     }
   }

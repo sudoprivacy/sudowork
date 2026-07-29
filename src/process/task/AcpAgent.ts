@@ -3400,7 +3400,14 @@ This identity statement takes priority over the default identity in USER.md.
     // of queue() (DB) and responseStream.emit() (IPC display) so both paths stay clean.
     if (filteredMessage.type === 'content' && typeof filteredMessage.data === 'string' && filteredMessage.msg_id) {
       const filter = this.getOrCreateThinkFilter(filteredMessage.msg_id);
-      filteredMessage = { ...filteredMessage, data: filter.feed(filteredMessage.data) };
+      const { content, thinkText } = filter.feed(filteredMessage.data);
+      filteredMessage = { ...filteredMessage, data: content };
+      // Emit extracted think content as a thought message BEFORE the content
+      // empty check below: a pure-think chunk (e.g. "<think>The") has empty
+      // content and would otherwise return early, dropping the thought.
+      if (thinkText) {
+        this.emitThoughtMessage(`${filteredMessage.msg_id}-think`, thinkText);
+      }
     }
 
     if (message.type === 'content' && filteredMessage.type === 'content' && filteredMessage.data === '') {
@@ -3479,6 +3486,30 @@ This identity statement takes priority over the default identity in USER.md.
       this.thinkFilters.set(msgId, filter);
     }
     return filter;
+  }
+
+  /**
+   * Emit think content (extracted by StreamingThinkFilter from inline `<think>`
+   * tags) as a `thought` message so it renders in the "思考过程" area
+   * (MessageThought). Bypasses handleStreamEvent because that path triggers
+   * flushThinkFilters() for non text/content messages, which would clear the
+   * filter mid-stream and lose accumulated think state. Reuses the same
+   * transformMessage → addOrUpdateMessage → emit path the thought case uses.
+   */
+  private emitThoughtMessage(thoughtMsgId: string, description: string): void {
+    if (!description.trim()) return;
+    const thoughtMessage = {
+      type: 'thought',
+      msg_id: thoughtMsgId,
+      conversation_id: this.conversation_id,
+      data: { subject: this.extractThoughtSubject(description), description },
+    } as IResponseMessage;
+    const tMessage = transformMessage(thoughtMessage);
+    if (tMessage) {
+      addOrUpdateMessage(this.conversation_id, tMessage);
+    }
+    ipcBridge.acpConversation.responseStream.emit(thoughtMessage);
+    channelEventBus.emitAgentMessage(this.conversation_id, { ...thoughtMessage, conversation_id: this.conversation_id });
   }
 
   private async handleSignalEvent(v: IResponseMessage): Promise<void> {
