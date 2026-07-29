@@ -68,5 +68,6 @@
   "thirdPartyStateInvalid": "认证回调验证失败，请重试",
   "thirdPartyMissingTicket": "认证回调缺少 ticket",
   "thirdPartyFailed": "三方认证登录失败",
-  "backToModeSelect": "← 返回模式选择"
+  "backToModeSelect": "← 返回模式选择",
+  "skip": "暂时跳过 →"
 }

@@ -95,6 +95,7 @@ import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryC
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, preprocessContentMessage } from './acp/AcpMessagePipeline';
+import { StreamingThinkFilter } from './acp/StreamingThinkFilter';
 import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
 
@@ -230,6 +231,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Message pipeline
   private readonly streamTextBuffer = new StreamTextBuffer();
+  // Per-msg_id streaming think-tag filters (see getOrCreateThinkFilter / flushThinkFilters).
+  private readonly thinkFilters = new Map<string, StreamingThinkFilter>();
   private readonly cronAccumulator = new CronTextAccumulator();
 
   // Workspace file tracking for channel file_send messages
@@ -1140,6 +1143,7 @@ This identity statement takes priority over the default identity in USER.md.
       }
       return result;
     } catch (e) {
+      this.flushThinkFilters();
       this.streamTextBuffer.flushAll();
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
@@ -1510,6 +1514,7 @@ This identity statement takes priority over the default identity in USER.md.
 
   private patchAssistantTokenUsage(msgId: string, tokenUsage: TurnTokenUsage, options: { flush?: boolean } = {}): void {
     if (options.flush) {
+      this.flushThinkFilters();
       this.streamTextBuffer.flushAll();
     }
 
@@ -1667,6 +1672,7 @@ This identity statement takes priority over the default identity in USER.md.
     this.userCancelled = true;
 
     // 1. Flush buffered streaming text
+    this.flushThinkFilters();
     this.streamTextBuffer.flushAll();
 
     // 2. Respond to pending permission requests with Cancelled
@@ -2248,6 +2254,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   kill(): Promise<void> {
+    this.flushThinkFilters();
     this.streamTextBuffer.flushAll();
     this.toolCallMeta.clear();
     this.workspaceFileSnapshot.clear();
@@ -3387,7 +3394,14 @@ This identity statement takes priority over the default identity in USER.md.
       saveContextUsage(this.conversation_id, usageData);
     }
 
-    const filteredMessage = preprocessContentMessage(message as IResponseMessage);
+    let filteredMessage = preprocessContentMessage(message as IResponseMessage);
+
+    // Streaming think-tag filter (per-msg_id state machine). Applied on the common upstream
+    // of queue() (DB) and responseStream.emit() (IPC display) so both paths stay clean.
+    if (filteredMessage.type === 'content' && typeof filteredMessage.data === 'string' && filteredMessage.msg_id) {
+      const filter = this.getOrCreateThinkFilter(filteredMessage.msg_id);
+      filteredMessage = { ...filteredMessage, data: filter.feed(filteredMessage.data) };
+    }
 
     if (message.type === 'content' && filteredMessage.type === 'content' && filteredMessage.data === '') {
       return;
@@ -3406,6 +3420,7 @@ This identity statement takes priority over the default identity in USER.md.
         if (isStreamTextChunk) {
           this.streamTextBuffer.queue(tMessage, this.options.backend);
         } else {
+          this.flushThinkFilters();
           this.streamTextBuffer.flushAll();
           addOrUpdateMessage(message.conversation_id, tMessage);
         }
@@ -3430,6 +3445,42 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
+  /**
+   * Flush all streaming think filters: release any pending tail as ordinary
+   * content (so a trailing char like '<' is not lost) via the same emit + queue
+   * path as a normal chunk, then clear all filters. MUST be called before
+   * streamTextBuffer.flushAll() so the queued tail is flushed to DB immediately
+   * rather than relying on the 120ms timer.
+   */
+  private flushThinkFilters(): void {
+    for (const [msgId, filter] of this.thinkFilters) {
+      const tail = filter.flush();
+      if (!tail) continue;
+      const flushedMessage = {
+        type: 'content',
+        msg_id: msgId,
+        conversation_id: this.conversation_id,
+        data: tail,
+      } as IResponseMessage;
+      const tMessage = transformMessage(flushedMessage);
+      if (tMessage && tMessage.type === 'text') {
+        this.streamTextBuffer.queue(tMessage, this.options.backend);
+      }
+      ipcBridge.acpConversation.responseStream.emit(flushedMessage);
+      channelEventBus.emitAgentMessage(this.conversation_id, { ...flushedMessage, conversation_id: this.conversation_id });
+    }
+    this.thinkFilters.clear();
+  }
+
+  private getOrCreateThinkFilter(msgId: string): StreamingThinkFilter {
+    let filter = this.thinkFilters.get(msgId);
+    if (!filter) {
+      filter = new StreamingThinkFilter();
+      this.thinkFilters.set(msgId, filter);
+    }
+    return filter;
+  }
+
   private async handleSignalEvent(v: IResponseMessage): Promise<void> {
     // Ignore messages if user has cancelled
     if (this.userCancelled && v.type !== 'finish') {
@@ -3437,6 +3488,7 @@ This identity statement takes priority over the default identity in USER.md.
       return;
     }
 
+    this.flushThinkFilters();
     this.streamTextBuffer.flushAll();
 
     if (v.type === 'acp_permission') {

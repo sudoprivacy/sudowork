@@ -147,7 +147,8 @@ export function isRawToolCallText(content: string): boolean {
 }
 
 /**
- * Apply all content message preprocessing: think tag filtering + Windows path normalization.
+ * Apply content message preprocessing: Windows image path normalization.
+ * (Think-tag filtering is handled by StreamingThinkFilter at the AcpAgent stream level.)
  * This is the main entry point for message preprocessing before emission to the frontend.
  */
 export function preprocessContentMessage(message: IResponseMessage): IResponseMessage {
@@ -161,12 +162,8 @@ export function preprocessContentMessage(message: IResponseMessage): IResponseMe
     return { ...message, data: '' };
   }
 
-  // 1. Filter think tags
-  if (/<\s*\/?\s*think(?:ing)?\s*>/i.test(data)) {
-    data = stripThinkTags(data);
-  }
-
-  // 2. Normalize Windows image paths
+  // Normalize Windows image paths. Think-tag filtering is handled by StreamingThinkFilter
+  // at the AcpAgent stream level (so tags can reach the renderer as a fallback).
   data = normalizeWindowsImagePaths(data);
 
   if (data === message.data) {

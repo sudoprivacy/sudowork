@@ -1,4 +1,4 @@
-import { Spin } from '@arco-design/web-react';
+import { Message, Spin } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -6,6 +6,8 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
 import { emitter } from '@/renderer/utils/emitter';
+import { useAuth } from '@/renderer/context/AuthContext';
+import { useHasAvailableModel } from '@/renderer/hooks/useHasAvailableModel';
 import type { AcpBackend } from '@/types/acpTypes';
 import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
 import ChatLayout from '@renderer/pages/conversation/ChatLayout';
@@ -60,12 +62,20 @@ function TeamDetailPage() {
     };
   }, [leader?.conversation_id]);
 
+  const { isGuest } = useAuth();
+  const { hasModel, ready } = useHasAvailableModel();
   const leaderTeamSendMessage = useMemo(
     () =>
       async ({ input, files, msg_id }: { input: string; files?: string[]; msg_id?: string }) => {
+        // claude/scode leaders carry their own config and must not be blocked by model.config.
+        // Probing on every team message is too costly, so skip the guard for these two backends only.
+        if (isGuest && ready && !hasModel && leader.assistant_backend !== 'claude' && leader.assistant_backend !== 'scode') {
+          Message.error(t('guid.modelNotConfigured', { defaultValue: '未配置可用模型，请在设置页添加模型' }));
+          return;
+        }
         await ipcBridge.team.sendMessage.invoke({ teamId, input, files, msgId: msg_id });
       },
-    [teamId]
+    [teamId, t, isGuest, hasModel, ready, leader?.assistant_backend]
   );
 
   const onLeaderTeamAnswerQuestion = useMemo(

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs';
 import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import { isVisionModel } from '@/common/imageUtils';
 import type { AcpModelInfo } from '@/types/acpTypes';
-import fs from 'fs';
 import { SCODE_CONFIG_PATH } from './scodePaths';
 
 const SUDOCODE_CONFIG_PATH = SCODE_CONFIG_PATH;
@@ -113,8 +113,11 @@ export function getScodeProxyModelInfoSync(currentModelId?: string | null, confi
   const explicitModelId = typeof currentModelId === 'string' && currentModelId.trim() ? currentModelId.trim() : null;
   // Prefer default_model from sudocode.json (persisted user choice), fallback to hardcoded default
   const defaultModelId = readScodeDefaultModelFromConfig(configPath) ?? getDefaultAcpModelId('scode');
+  const explicitInList = explicitModelId ? availableModels.some((model) => model.id === explicitModelId) : false;
   const defaultInList = defaultModelId ? availableModels.some((model) => model.id === defaultModelId) : false;
-  const effectiveCurrentModelId = explicitModelId || (defaultInList ? defaultModelId : availableModels[0].id);
+  // Only honor explicitModelId when it is actually in the available list; otherwise it is a stale/ghost id
+  // (e.g. a deleted model still referenced by a conversation) and we fall back to default / first available.
+  const effectiveCurrentModelId = (explicitInList ? explicitModelId : null) || (defaultInList ? defaultModelId : availableModels[0].id);
   const effectiveCurrentModelLabel = availableModels.find((model) => model.id === effectiveCurrentModelId)?.label || effectiveCurrentModelId;
 
   return {
@@ -201,7 +204,10 @@ export function mergeScodeProxyModelInfo(modelInfo: AcpModelInfo | null, current
     return modelInfo;
   }
 
-  const effectiveCurrentModelId = modelInfo?.currentModelId || proxyModelInfo.currentModelId;
+  // candidate = live modelInfo value (if any) else the proxy-resolved value; reject stale/ghost ids not in the list
+  const candidateCurrentModelId = modelInfo?.currentModelId || proxyModelInfo.currentModelId;
+  const candidateInList = candidateCurrentModelId ? proxyModelInfo.availableModels.some((model) => model.id === candidateCurrentModelId) : false;
+  const effectiveCurrentModelId = candidateInList ? candidateCurrentModelId : proxyModelInfo.currentModelId;
   const effectiveCurrentModelLabel = proxyModelInfo.availableModels.find((model) => model.id === effectiveCurrentModelId)?.label || modelInfo?.currentModelLabel || effectiveCurrentModelId;
 
   return {
