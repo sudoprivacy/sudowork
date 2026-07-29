@@ -152,12 +152,15 @@ const SkillSettings: React.FC = () => {
   }, []);
 
   // ---- Fetch installed list (for installed tab) ----
-  const fetchInstalledList = useCallback(async () => {
+  const fetchInstalledList = useCallback(async (options?: { isSilent?: boolean }) => {
     if (!isElectronDesktop()) {
       setInstalledSkillsReady(true);
       return;
     }
-    setInstalledLoading(true);
+    const isSilent = options?.isSilent === true;
+    if (!isSilent) {
+      setInstalledLoading(true);
+    }
     try {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
@@ -167,10 +170,21 @@ const SkillSettings: React.FC = () => {
     } catch (err) {
       console.error('Failed to fetch installed list:', err);
     } finally {
-      setInstalledLoading(false);
+      if (!isSilent) {
+        setInstalledLoading(false);
+      }
       setInstalledSkillsReady(true);
     }
   }, []);
+
+  const refreshUploadedSkillStatuses = useCallback(async () => {
+    if (!isElectronDesktop() || isEnterprise) return;
+    try {
+      await skillHub.refreshUploadedSkillStatuses.invoke();
+    } catch (statusError) {
+      console.error('Failed to refresh uploaded skill statuses:', statusError);
+    }
+  }, [isEnterprise]);
 
   // ---- Enterprise mode: Upload custom skill to Moss Server ----
   const handleUploadCustomSkill = useCallback(
@@ -714,9 +728,12 @@ const SkillSettings: React.FC = () => {
   // Load installed list when switching to installed tab
   useEffect(() => {
     if (activeTab === 'installed') {
-      void fetchInstalledList();
+      void (async () => {
+        await refreshUploadedSkillStatuses();
+        await fetchInstalledList({ isSilent: true });
+      })();
     }
-  }, [activeTab, fetchInstalledList]);
+  }, [activeTab, fetchInstalledList, refreshUploadedSkillStatuses]);
 
   // Fetch latest hub versions for installed hub skills so we can detect updates
   // Only in personal mode (not enterprise) - enterprise mode doesn't interact with SkillHub

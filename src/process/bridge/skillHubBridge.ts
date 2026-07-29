@@ -16,7 +16,7 @@ import JSZip from 'jszip';
 import { serviceManager } from '@process/services/serviceManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS } from '@/process/initStorage';
-import { skillManager } from '@/process/SkillManager';
+import { skillManager, type ISkillInfo } from '@/process/SkillManager';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 import { ipcBridge } from '@/common';
 import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
@@ -36,7 +36,8 @@ const MISSING_ROOT_SKILL_MD_MESSAGE = 'The selected directory must contain a roo
 const SKILL_HUB_UPLOAD_EXCLUDED_FILE_NAMES = new Set([SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE, '_sudowork_audit.json', '_sudowork_audit.md']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
-type SkillHubUploadStatus = 'pending' | 'approved';
+type SkillHubPublishStatus = 'pending' | 'approved' | 'rejected';
+type SkillHubUploadStatus = Extract<SkillHubPublishStatus, 'pending' | 'approved'>;
 
 interface SkillHubUploadApiBody {
   status?: string;
@@ -725,11 +726,124 @@ async function parseSkillHubUploadResponse(response: Response): Promise<SkillHub
 }
 
 function resolveSkillHubUploadStatus(body: SkillHubUploadApiBody | null): SkillHubUploadStatus {
-  return body?.data?.skill?.status === 1 ? 'approved' : 'pending';
+  return normalizeSkillHubPublishStatus(body?.data?.skill?.status) === 'approved' ? 'approved' : 'pending';
 }
 
 function resolveSkillHubUploadId(body: SkillHubUploadApiBody | null, fallbackId: string): string {
   return body?.data?.skill?.id || body?.data?.id || body?.id || fallbackId;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeSkillHubPublishStatus(status: unknown): SkillHubPublishStatus | null {
+  if (typeof status === 'number') {
+    if (status === 1) return 'approved';
+    if (status === 2) return 'rejected';
+    if (status === 0) return 'pending';
+    return null;
+  }
+
+  if (typeof status !== 'string') {
+    return null;
+  }
+
+  const normalized = status.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (['1', 'approved', 'approve', 'published', 'online', 'active'].includes(normalized)) {
+    return 'approved';
+  }
+
+  if (['2', 'rejected', 'reject'].includes(normalized)) {
+    return 'rejected';
+  }
+
+  if (['0', 'pending', 'reviewing', 'submitted', 'inactive'].includes(normalized)) {
+    return 'pending';
+  }
+
+  return null;
+}
+
+function resolveSkillHubDetailPublishStatus(body: unknown): SkillHubPublishStatus | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const data = isRecord(body.data) ? body.data : body;
+  const skill = isRecord(data.skill) ? data.skill : data;
+
+  return normalizeSkillHubPublishStatus(skill.status ?? data.status ?? body.status);
+}
+
+async function fetchUploadedSkillPublishStatus(skillId: string, token: string): Promise<SkillHubPublishStatus | null> {
+  const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/${encodeURIComponent(skillId)}`, {
+    headers: { Authorization: token },
+  });
+
+  if (!response.ok) {
+    mainLog('SkillHub', `Skip uploaded skill status refresh for ${skillId}: HTTP ${response.status}`);
+    return null;
+  }
+
+  const body = await response.json();
+  return resolveSkillHubDetailPublishStatus(body);
+}
+
+function isUploadedCustomSkillStatusRefreshCandidate(skill: ISkillInfo): boolean {
+  const meta = skill.meta;
+  if (skill.category !== 'custom' || !meta?.id || meta.source_type !== 'upload') {
+    return false;
+  }
+
+  const isUploadedToSkillHub = meta.uploaded === true || Boolean(meta.publish_status);
+  const isAwaitingFinalStatus = meta.publish_status !== 'approved' && meta.publish_status !== 'rejected';
+  return isUploadedToSkillHub && isAwaitingFinalStatus;
+}
+
+async function refreshUploadedSkillStatusesFromSkillHub(token: string): Promise<{ checked: number; updated: number }> {
+  const skills = await skillManager.getInstalledSkills();
+  const candidates = skills.filter(isUploadedCustomSkillStatusRefreshCandidate);
+  let updated = 0;
+
+  for (const skill of candidates) {
+    try {
+      const skillId = skill.meta?.id;
+      if (!skillId) continue;
+
+      const remoteStatus = await fetchUploadedSkillPublishStatus(skillId, token);
+      if (!remoteStatus) continue;
+
+      const skillDir = await resolveCustomSkillDirForUpload(skill.name);
+      if (!skillDir) continue;
+
+      const currentMeta = await readSkillHubMetaFromDirectory(skillDir);
+      if (!currentMeta) continue;
+
+      const currentStatus = currentMeta.publish_status || (currentMeta.uploaded ? 'pending' : undefined);
+      if (currentStatus === remoteStatus) continue;
+
+      const nextMeta: SkillHubMeta = {
+        ...currentMeta,
+        publish_status: remoteStatus,
+      };
+      if (remoteStatus === 'approved') {
+        nextMeta.published_at = currentMeta.published_at || new Date().toISOString();
+      }
+
+      await writeSkillMetaFile(skillDir, nextMeta);
+      updated += 1;
+      mainLog('SkillHub', `Updated uploaded skill "${skill.name}" publish status: ${currentStatus || 'unknown'} -> ${remoteStatus}`);
+    } catch (error) {
+      mainWarn('SkillHub', `Failed to refresh uploaded skill status for "${skill.name}":`, error);
+    }
+  }
+
+  return { checked: candidates.length, updated };
 }
 
 /**
@@ -1334,6 +1448,26 @@ export function initSkillHubBridge(): void {
       };
     } catch (error) {
       mainError('SkillHub', 'Failed to upload skill to SkillHub:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.skillHub.refreshUploadedSkillStatuses.provider(async () => {
+    if (isEnterpriseMode()) {
+      return { success: true, data: { checked: 0, updated: 0 } };
+    }
+
+    try {
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('SkillHub', 'skillhub token not provisioned, skip refreshUploadedSkillStatuses');
+        return tokenMissingResponse('skillHub');
+      }
+
+      const result = await refreshUploadedSkillStatusesFromSkillHub(token);
+      return { success: true, data: result };
+    } catch (error) {
+      mainError('SkillHub', 'Failed to refresh uploaded skill statuses:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });

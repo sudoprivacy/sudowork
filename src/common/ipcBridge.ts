@@ -1914,6 +1914,8 @@ export const skillHub = {
   importLocalSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { sourcePath: string }>('skill-hub.import-local-skill'),
   /** Upload a personal-mode custom skill to SkillHub as a tenant-exclusive skill pending approval */
   uploadSkillToHub: bridge.buildProvider<IBridgeResponse<ISkillUploadResult>, { skillName: string; tenantId: string }>('skill-hub.upload-skill-to-hub'),
+  /** Refresh local approval status for custom skills uploaded to SkillHub */
+  refreshUploadedSkillStatuses: bridge.buildProvider<IBridgeResponse<{ checked: number; updated: number }>, void>('skill-hub.refresh-uploaded-skill-statuses'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
   /** Enable or disable a custom installed skill. Optionally specify category to disambiguate skills with same name in different directories. */
@@ -2014,6 +2016,8 @@ export interface IAssistantInstallResult {
 export const assistantHub = {
   /** Get all installed assistants (enabled + disabled) with full metadata */
   getInstalledAssistants: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, void>('assistant-hub.get-installed-assistants'),
+  /** Refresh local approval status for custom assistants uploaded to Assistant Hub */
+  refreshUploadedAssistantStatuses: bridge.buildProvider<IBridgeResponse<{ checked: number; updated: number }>, void>('assistant-hub.refresh-uploaded-assistant-statuses'),
   /**
    * Same as `getInstalledAssistants` but reconciles with sudowork-server's
    * `/agents/visible` to filter out hub/tenant assistants the current user is

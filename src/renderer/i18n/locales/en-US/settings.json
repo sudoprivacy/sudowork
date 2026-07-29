@@ -1374,6 +1374,8 @@
   "assistant.upload": "Upload",
   "assistant.uploadFailed": "Upload failed: {{msg}}",
   "assistant.uploadNoTenantId": "User has no tenant ID, cannot upload assistant",
+  "assistant.uploadPending": "Upload approval pending",
+  "assistant.uploadApproved": "Approved",
   "assistant.uploadSuccess": "Assistant \"{{name}}\" uploaded successfully",
   "assistant.view": "View",
   "assistantReadonly": "Hub-installed and built-in assistants are read-only. Duplicate to custom list to edit.",
