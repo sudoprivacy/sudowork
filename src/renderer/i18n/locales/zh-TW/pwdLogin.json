@@ -2,7 +2,7 @@
   "section.captcha": "驗證碼",
   "section.configured": "已設定",
   "section.custom": "自訂",
-  "section.desc": "為網站儲存登入憑據，Sudowork 會自動填表並識別驗證碼登入。密碼僅存於本地 Nexus 金鑰庫，絕不進入 AI 上下文。",
+  "section.desc": "為網站儲存登入憑據，{{appName}} 會自動填表並識別驗證碼登入。密碼僅存於本地 Nexus 金鑰庫，絕不進入 AI 上下文。",
   "section.hasCred": "已儲存憑據",
   "section.loginFailed": "自動登入失敗：{{e}}",
   "section.loginNow": "立即登入",

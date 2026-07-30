@@ -8,15 +8,13 @@ import { Button, Typography } from '@arco-design/web-react';
 import { IconLink, IconSettings } from '@arco-design/web-react/icon';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import brand from '@brand';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@common/buildInfo';
 import sudoIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import { openExternalUrl } from '@renderer/utils/platform';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import OpsModal from './components/OpsModal';
-
-const OFFICIAL_WEBSITE_URL = 'https://sudowork.sudoprivacy.com';
-const PRIVACY_POLICY_URL = 'https://sudowork.sudoprivacy.com/privacy.html';
 
 const About: React.FC = () => {
   const { t } = useTranslation();
@@ -38,12 +36,12 @@ const About: React.FC = () => {
 
         {/* 链接 / Links */}
         <div className='f-center gap-3 mt-4'>
-          <button type='button' className='group inline-flex items-center gap-1 bg-transparent border-none p-0 text-12px text-secondary cursor-pointer transition-colors hover:text-[var(--ui-accent-orange)]' onClick={() => void openExternalUrl(OFFICIAL_WEBSITE_URL).catch(console.error)}>
+          <button type='button' className='group inline-flex items-center gap-1 bg-transparent border-none p-0 text-12px text-secondary cursor-pointer transition-colors hover:text-[var(--ui-accent-orange)]' onClick={() => void openExternalUrl(brand.websiteUrl).catch(console.error)}>
             <span>{t('settings.officialWebsite', '官网')}</span>
             <IconLink className='text-12px opacity-60 transition-opacity group-hover:opacity-100' />
           </button>
           <span className='text-12px text-tertiary'>·</span>
-          <button type='button' className='group inline-flex items-center gap-1 bg-transparent border-none p-0 text-12px text-secondary cursor-pointer transition-colors hover:text-[var(--ui-accent-orange)]' onClick={() => void openExternalUrl(PRIVACY_POLICY_URL).catch(console.error)}>
+          <button type='button' className='group inline-flex items-center gap-1 bg-transparent border-none p-0 text-12px text-secondary cursor-pointer transition-colors hover:text-[var(--ui-accent-orange)]' onClick={() => void openExternalUrl(brand.privacyPolicyUrl).catch(console.error)}>
             <span>{t('settings.privacyPolicy', '隐私声明')}</span>
             <IconLink className='text-12px opacity-60 transition-opacity group-hover:opacity-100' />
           </button>

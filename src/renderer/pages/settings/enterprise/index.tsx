@@ -9,7 +9,7 @@ import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { Building2, CheckCircle, XCircle } from 'lucide-react';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
-import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
+import { createTenantConfigCache, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import { useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
@@ -66,7 +66,7 @@ const EnterpriseSettings: React.FC = () => {
       // Step 2: Update ConfigStorage
       await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
       await ConfigStorage.set('eeclaw.tenantName', tenantConfig.app_company_name);
-      localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(tenantConfig));
+      localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(createTenantConfigCache(tenantConfig)));
       setServerUrl(normalizedUrl);
       setTenantName(tenantConfig.app_company_name);
       setEditingServerUrl(normalizedUrl);

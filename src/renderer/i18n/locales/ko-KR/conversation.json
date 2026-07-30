@@ -22,7 +22,7 @@
     "skill": "스킬",
     "openFolder": "폴더 열기",
     "none": "없음",
-    "quickActionsTitle": "Sudowork로 무엇을 할 수 있나요?",
+    "quickActionsTitle": "{{appName}}로 무엇을 할 수 있나요?",
     "quickActionFeedback": "피드백이나 제안이 있으신가요?",
     "quickActionStar": "마음에 드시나요? 별을 주세요!"
   },

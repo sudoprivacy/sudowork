@@ -198,7 +198,7 @@ const UserProfile: React.FC = () => {
               <ConsumerAvatar />
               <div className='flex-1'>
                 <div className='flex items-center gap-2'>
-                  <div className='text-18px font-600 text-foreground'>{profile?.nickname || currentUser?.nickname || t('settings.userProfile.defaultNickname', 'Sudowork 用户')}</div>
+                  <div className='text-18px font-600 text-foreground'>{profile?.nickname || currentUser?.nickname || t('settings.userProfile.defaultNickname', '{{appName}} 用户')}</div>
                   <Button type='outline' size='mini' icon={<IconEdit />} onClick={handleEditNickname}>
                     {t('settings.userProfile.edit', '编辑')}
                   </Button>

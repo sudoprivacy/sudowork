@@ -1,7 +1,7 @@
 {
   "database_open_failed": {
     "title": "Couldn't open the database",
-    "body": "Your data is safe — the database files on disk were not modified or deleted. Sudowork couldn't open its local database this launch, so your history may not appear. Please restart the app; if this keeps happening, reinstall or repair Sudowork. Avoid creating new chats until it's resolved, to keep your data consistent."
+    "body": "Your data is safe — the database files on disk were not modified or deleted. {{appName}} couldn't open its local database this launch, so your history may not appear. Please restart the app; if this keeps happening, reinstall or repair {{appName}}. Avoid creating new chats until it's resolved, to keep your data consistent."
   },
   "context_window_exceeded": {
     "title": "Conversation history exceeded model context",

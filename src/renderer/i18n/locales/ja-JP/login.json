@@ -1,6 +1,6 @@
 {
-  "pageTitle": "Sudowork - ログイン",
-  "brand": "Sudowork",
+  "pageTitle": "{{appName}} - ログイン",
+  "brand": "{{appName}}",
   "subtitle": "おかえりなさい。アカウントにサインインしてください",
   "username": "ユーザー名",
   "usernamePlaceholder": "ユーザー名を入力してください",
@@ -58,7 +58,7 @@
   "thirdPartyProviderFallback": "外部認証",
   "thirdPartyLoginBtn": "{{provider}} でログイン",
   "thirdPartyWaiting": "ブラウザー認証を待っています...",
-  "thirdPartyBrowserHint": "認証ページをブラウザーで開き、完了後に Sudowork に戻ります。",
+  "thirdPartyBrowserHint": "認証ページをブラウザーで開き、完了後に {{appName}} に戻ります。",
   "thirdPartyUnavailable": "外部認証ログインが設定されていません",
   "thirdPartyOpenFailed": "ブラウザーを開けません",
   "thirdPartyStateInvalid": "認証コールバックの検証に失敗しました。再試行してください",

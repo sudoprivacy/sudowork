@@ -22,7 +22,7 @@
     "skill": "Yetenek",
     "openFolder": "Klasör Aç",
     "none": "Hiçbiri",
-    "quickActionsTitle": "Sudowork neler yapabilir?",
+    "quickActionsTitle": "{{appName}} neler yapabilir?",
     "quickActionFeedback": "Geri bildirim veya öneriniz mi var?",
     "quickActionStar": "Bizi beğendiniz mi? Yıldız verin!"
   },

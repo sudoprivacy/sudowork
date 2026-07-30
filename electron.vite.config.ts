@@ -5,6 +5,19 @@ import react from '@vitejs/plugin-react';
 import UnoCSS from 'unocss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import unoConfig from './uno.config.ts';
+import brand from './brand.config.json';
+
+function brandHtmlPlugin() {
+  const displayName = brand.displayName.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return entities[character];
+  });
+
+  return {
+    name: 'brand-html',
+    transformIndexHtml: (html: string) => html.replaceAll('__BRAND_DISPLAY_NAME__', displayName),
+  };
+}
 
 // Icon Park transform plugin (replaces webpack icon-park-loader)
 function iconParkPlugin() {
@@ -30,6 +43,7 @@ function iconParkPlugin() {
 
 // Common path aliases for main process and workers
 const mainAliases = {
+  '@brand': resolve('brand.config.json'),
   '@': resolve('src'),
   '@common': resolve('src/common'),
   '@renderer': resolve('src/renderer'),
@@ -131,7 +145,7 @@ export default defineConfig(({ mode }) => {
     preload: {
       plugins: [externalizeDepsPlugin()],
       resolve: {
-        alias: { '@': resolve('src'), '@common': resolve('src/common') },
+        alias: { '@brand': resolve('brand.config.json'), '@': resolve('src'), '@common': resolve('src/common') },
         extensions: ['.ts', '.tsx', '.js', '.json'],
       },
       build: {
@@ -162,6 +176,7 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
+          '@brand': resolve('brand.config.json'),
           '@': resolve('src'),
           '@common': resolve('src/common'),
           '@renderer': resolve('src/renderer'),
@@ -173,7 +188,7 @@ export default defineConfig(({ mode }) => {
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.css'],
         dedupe: ['react', 'react-dom', 'react-router-dom', '@codemirror/state', '@codemirror/view', '@codemirror/language'],
       },
-      plugins: [react(), UnoCSS(unoConfig), iconParkPlugin()],
+      plugins: [react(), UnoCSS(unoConfig), iconParkPlugin(), brandHtmlPlugin()],
       build: {
         target: 'es2022',
         sourcemap: isDevelopment,
@@ -210,7 +225,28 @@ export default defineConfig(({ mode }) => {
       },
       optimizeDeps: {
         exclude: ['electron'],
-        include: ['react', 'react-dom', 'react-router-dom', 'react-i18next', 'i18next', '@arco-design/web-react', '@icon-park/react', 'react-markdown', 'react-syntax-highlighter', 'react-virtuoso', 'classnames', 'swr', 'eventemitter3', 'katex', 'diff2html', 'remark-gfm', 'remark-math', 'remark-breaks', 'rehype-raw', 'rehype-katex'],
+        include: [
+          'react',
+          'react-dom',
+          'react-router-dom',
+          'react-i18next',
+          'i18next',
+          '@arco-design/web-react',
+          '@icon-park/react',
+          'react-markdown',
+          'react-syntax-highlighter',
+          'react-virtuoso',
+          'classnames',
+          'swr',
+          'eventemitter3',
+          'katex',
+          'diff2html',
+          'remark-gfm',
+          'remark-math',
+          'remark-breaks',
+          'rehype-raw',
+          'rehype-katex',
+        ],
       },
     },
   };

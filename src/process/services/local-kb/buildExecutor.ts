@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import type { Dirent } from 'fs';
 import path from 'path';
+import brand from '@brand';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { getScodePath } from '@process/services/scode/ScodeInstallService';
 import { SCODE_HOME } from '@process/services/scode/scodePaths';
@@ -259,7 +260,7 @@ export class LocalKnowledgeBuildExecutor {
       await fs.writeFile(path.join(stageDir, file), chunk, 'utf8');
     }
 
-    const index = ['---', `title: ${escapeYamlString(space.name)}`, 'type: index', '---', '', `# ${space.name}`, '', space.description || '本地知识库由 Sudowork 从本地文档构建。', '', '## 文件清单', '', ...chunks.map((chunk) => `- [${chunk.title}](./${chunk.file})`), ''].join('\n');
+    const index = ['---', `title: ${escapeYamlString(space.name)}`, 'type: index', '---', '', `# ${space.name}`, '', space.description || `本地知识库由 ${brand.displayName} 从本地文档构建。`, '', '## 文件清单', '', ...chunks.map((chunk) => `- [${chunk.title}](./${chunk.file})`), ''].join('\n');
     await fs.writeFile(path.join(stageDir, LOCAL_KB_SPACE_INDEX_FILE), index, 'utf8');
   }
 
@@ -484,7 +485,7 @@ function formatElapsed(startedAt: number): string {
 }
 
 async function writeScodeDebugPrompt(stageDir: string, prompt: string, scodePath: string): Promise<void> {
-  const body = [`# Sudowork Local KB Wiki Build Prompt`, ``, `scode: ${scodePath}`, `stage: ${stageDir}`, `createdAt: ${new Date().toISOString()}`, ``, `## Prompt`, ``, '```text', prompt, '```', ''].join('\n');
+  const body = [`# ${brand.displayName} Local KB Wiki Build Prompt`, ``, `scode: ${scodePath}`, `stage: ${stageDir}`, `createdAt: ${new Date().toISOString()}`, ``, `## Prompt`, ``, '```text', prompt, '```', ''].join('\n');
   await fs.writeFile(path.join(stageDir, LOCAL_KB_DEBUG_PROMPT_FILE), body, 'utf8').catch((): undefined => undefined);
 }
 
@@ -591,7 +592,7 @@ interface IScodeDebugRecorder {
 function buildWikiBuilderPrompt(space: ILocalKbSpace, mode: 'full' | 'incremental'): string {
   const modeInstruction =
     mode === 'incremental' ? `本次是增量构建：input/ 里只包含新增文档。只需要为这些新增文档生成临时 ${LOCAL_KB_SPACE_INDEX_FILE} 和 chunk 文件；不要关心旧知识库内容，外层程序会负责合并。` : `本次是全量构建：input/ 里包含该知识库全部文档。请生成完整 ${LOCAL_KB_SPACE_INDEX_FILE} 和全部 chunk 文件。`;
-  return `你是 Sudowork 本地知识库构建助手。请读取当前工作目录 input/ 下的所有 markdown 文档，生成结构化本地知识库。
+  return `你是 ${brand.displayName} 本地知识库构建助手。请读取当前工作目录 input/ 下的所有 markdown 文档，生成结构化本地知识库。
 
 ${modeInstruction}
 

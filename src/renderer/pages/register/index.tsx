@@ -8,11 +8,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { User, Protect } from '@icon-park/react';
+import brand from '@brand';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { useAuth } from '../../context/AuthContext';
 import '../login/LoginPage.css';
 
-const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='Sudowork' className='w-64px h-64px object-contain' />;
+const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt={brand.displayName} className='w-64px h-64px object-contain' />;
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -110,7 +111,7 @@ const RegisterPage: React.FC = () => {
           <div className='login-page__logo'>
             <AionLogoMark />
           </div>
-          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>SudoWork</h1>
+          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{brand.displayName}</h1>
           <p className='text-13px text-secondary'>完成注册，开始使用</p>
         </div>
 

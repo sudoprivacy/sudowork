@@ -2,7 +2,7 @@
   "section.captcha": "認証コード",
   "section.configured": "設定済み",
   "section.custom": "カスタム",
-  "section.desc": "Webサイトのログイン認証情報を保存します。Sudoworkがフォームを自動入力し、認証コードログインを処理します。パスワードはローカルのNexus保管庫にのみ保存され、AIコンテキストには入りません。",
+  "section.desc": "Webサイトのログイン認証情報を保存します。{{appName}}がフォームを自動入力し、認証コードログインを処理します。パスワードはローカルのNexus保管庫にのみ保存され、AIコンテキストには入りません。",
   "section.hasCred": "認証情報を保存済み",
   "section.loginFailed": "自動ログインに失敗しました: {{e}}",
   "section.loginNow": "今すぐログイン",

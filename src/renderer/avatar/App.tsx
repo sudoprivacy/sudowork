@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import brand from '@brand';
 import staticLogo from '../assets/sudowork-icon-dark.svg';
 import thinkingGif from '../assets/sudoclaw_transparent_large.gif';
 
@@ -111,7 +112,7 @@ const App: React.FC = () => {
         )}
 
         {/* 主 logo */}
-        <img src={isThinking ? thinkingGif : staticLogo} alt='avatar' className={`avatar-img${isThinking ? ' avatar-img--thinking' : ' avatar-img--static'}`} draggable={false} />
+        <img src={isThinking ? thinkingGif : staticLogo} alt={`${brand.displayName} avatar`} className={`avatar-img${isThinking ? ' avatar-img--thinking' : ' avatar-img--static'}`} draggable={false} />
       </div>
     </div>
   );

@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import brand from '@brand';
+
 export function renderShareTemplate(opts: { title: string; contentHtml: string; timestamp: string }): string {
-  return TEMPLATE.replaceAll('{{TITLE}}', escapeHtml(opts.title)).replaceAll('{{CONTENT_HTML}}', opts.contentHtml).replaceAll('{{TIMESTAMP}}', escapeHtml(opts.timestamp));
+  return TEMPLATE.replaceAll('{{TITLE}}', escapeHtml(opts.title)).replaceAll('{{CONTENT_HTML}}', opts.contentHtml).replaceAll('{{TIMESTAMP}}', escapeHtml(opts.timestamp)).replaceAll('{{APP_NAME}}', escapeHtml(brand.displayName));
 }
 
 function escapeHtml(s: string): string {
@@ -97,7 +99,7 @@ const TEMPLATE = `<!doctype html>
 <body>
   <div class="container">
     <header>
-      <div class="meta">Shared from SudoWork · {{TIMESTAMP}}</div>
+      <div class="meta">Shared from {{APP_NAME}} · {{TIMESTAMP}}</div>
       <h1>{{TITLE}}</h1>
     </header>
     <main>{{CONTENT_HTML}}</main>

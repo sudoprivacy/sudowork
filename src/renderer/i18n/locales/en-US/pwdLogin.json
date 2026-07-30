@@ -2,7 +2,7 @@
   "section.captcha": "Captcha",
   "section.configured": "Configured",
   "section.custom": "Custom",
-  "section.desc": "Save login credentials for websites. Sudowork autofills forms and handles captcha login. Passwords stay in the local Nexus vault and never enter AI context.",
+  "section.desc": "Save login credentials for websites. {{appName}} autofills forms and handles captcha login. Passwords stay in the local Nexus vault and never enter AI context.",
   "section.hasCred": "Credentials saved",
   "section.loginFailed": "Auto login failed: {{e}}",
   "section.loginNow": "Log in now",

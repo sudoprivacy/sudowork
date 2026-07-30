@@ -1,16 +1,17 @@
 import { app, BrowserWindow, dialog, Notification } from 'electron';
-import { ipcBridge } from '@/common';
-import type { ICliStatus } from '@/common/ipcBridge';
 import { execFile, exec } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
+import brand from '@brand';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@process/utils';
-import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
+import type { ICliStatus } from '@/common/ipcBridge';
+import { ipcBridge } from '@/common';
 import { extractTarGzWithProgress } from '../archiveProgress';
+import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -296,7 +297,7 @@ export class CliInstallService {
     const needsNode = this.needsNodeRuntime(entryFile);
 
     // Build wrapper script
-    const lines = ['#!/bin/sh', `# ${this.cfg.name} wrapper — managed by Sudowork`, `CLI="${this.toHomeRelative(entryFile)}"`];
+    const lines = ['#!/bin/sh', `# ${this.cfg.name} wrapper — managed by ${brand.displayName}`, `CLI="${this.toHomeRelative(entryFile)}"`];
 
     if (!needsNode) {
       // Native executable (e.g. compiled binary) — run directly without Node.js
@@ -307,7 +308,7 @@ export class CliInstallService {
       lines.push('fi');
       lines.push('');
       lines.push('echo "Error: CLI executable not found at $CLI" >&2');
-      lines.push('echo "  Please reinstall via Sudowork." >&2');
+      lines.push('echo "  Please reinstall via the desktop app." >&2');
       lines.push('exit 1');
       fs.writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
       return;
@@ -331,7 +332,7 @@ export class CliInstallService {
     lines.push('  exec env ELECTRON_RUN_AS_NODE=1 "$1" "$CLI" "$@"');
     lines.push('}');
     lines.push('');
-    lines.push('# 2. Path stored by Sudowork (refreshed on every app launch)');
+    lines.push(`# 2. Path stored by ${brand.displayName} (refreshed on every app launch)`);
     lines.push('if [ -f "$ELECTRON_PATH_FILE" ]; then');
     lines.push('  ELECTRON=$(cat "$ELECTRON_PATH_FILE")');
     lines.push('  if [ -x "$ELECTRON" ]; then run_electron "$ELECTRON" "$@"; fi');
@@ -357,8 +358,8 @@ export class CliInstallService {
     lines.push('  if [ -x "$NODE" ]; then exec "$NODE" "$CLI" "$@"; fi');
     lines.push('done');
     lines.push('');
-    lines.push('echo "Error: Sudowork not found and Node.js is not installed." >&2');
-    lines.push('echo "  Reopen Sudowork once to refresh the path, or install Node.js from https://nodejs.org" >&2');
+    lines.push('echo "Error: Desktop app not found and Node.js is not installed." >&2');
+    lines.push('echo "  Reopen the desktop app once to refresh the path, or install Node.js from https://nodejs.org" >&2');
     lines.push('exit 1');
 
     fs.writeFileSync(wrapperPath, lines.join('\n') + '\n', { mode: 0o755 });
@@ -380,7 +381,7 @@ export class CliInstallService {
       lines.push(')');
       lines.push('');
       lines.push('echo Error: CLI executable not found at %CLI%');
-      lines.push('echo   Please reinstall via Sudowork.');
+      lines.push('echo   Please reinstall via the desktop app.');
       lines.push('exit /b 1');
       fs.writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
       return;
@@ -402,7 +403,7 @@ export class CliInstallService {
     lines.push('set "ELECTRON_PATH_FILE=%USERPROFILE%\\.nexus\\electron-path"');
     lines.push('set "ELECTRON="');
     lines.push('');
-    lines.push(':: 2. Path stored by Sudowork (refreshed on every app launch)');
+    lines.push(`:: 2. Path stored by ${brand.displayName} (refreshed on every app launch)`);
     lines.push('if exist "%ELECTRON_PATH_FILE%" (');
     lines.push('  set /p ELECTRON=<"%ELECTRON_PATH_FILE%"');
     lines.push(')');
@@ -421,8 +422,8 @@ export class CliInstallService {
     lines.push('  exit /b !ERRORLEVEL!');
     lines.push(')');
     lines.push('');
-    lines.push('echo Error: Sudowork not found and Node.js is not installed.');
-    lines.push('echo   Reopen Sudowork once to refresh the path, or install Node.js from https://nodejs.org');
+    lines.push('echo Error: Desktop app not found and Node.js is not installed.');
+    lines.push('echo   Reopen the desktop app once to refresh the path, or install Node.js from https://nodejs.org');
     lines.push('exit /b 1');
 
     fs.writeFileSync(wrapperPath, lines.join('\r\n') + '\r\n');
@@ -458,7 +459,7 @@ export class CliInstallService {
       return;
     }
 
-    const exportLine = `\n# added by Sudowork\nexport PATH="$HOME/.nexus/bin:$PATH"\n`;
+    const exportLine = `\n# added by ${brand.displayName}\nexport PATH="$HOME/.nexus/bin:$PATH"\n`;
     const binDir = getBinDir();
     for (const rc of [path.join(os.homedir(), '.zshrc'), path.join(os.homedir(), '.bashrc')]) {
       try {

@@ -9,7 +9,7 @@ import { ipcBridge } from '@/common';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage } from '@/common/storage';
 import type { TenantConfig, TenantConfigResponse } from '@/common/types/tenantConfig';
-import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
+import { createTenantConfigCache, DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveCachedTenantConfig, resolveTenantConfig } from '@/common/types/tenantConfig';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useAuth } from './AuthContext';
 
@@ -52,7 +52,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
       const cached = localStorage.getItem(TENANT_CONFIG_STORAGE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        return resolveTenantConfig(parsed);
+        return resolveCachedTenantConfig(parsed) ?? DEFAULT_TENANT_CONFIG;
       }
     } catch {
       // ignore parse error
@@ -101,7 +101,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
           const mergedConfig = resolveTenantConfig(data.data);
           setConfig(mergedConfig);
           setConfirmed(true);
-          localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(mergedConfig));
+          localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(createTenantConfigCache(mergedConfig)));
           await ConfigStorage.set('eeclaw.tenantName', mergedConfig.app_company_name);
           console.log('[TenantConfig] Enterprise config updated:', mergedConfig);
         } else {
@@ -141,7 +141,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
         const mergedConfig = resolveTenantConfig(data.data);
         setConfig(mergedConfig);
         // 缓存到 localStorage
-        localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(mergedConfig));
+        localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(createTenantConfigCache(mergedConfig)));
         console.log('[TenantConfig] Config updated:', mergedConfig);
       } else {
         console.warn('[TenantConfig] API returned unsuccessful:', data.msg);

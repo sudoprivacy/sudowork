@@ -1,6 +1,6 @@
 {
-  "pageTitle": "Sudowork - Giriş Yap",
-  "brand": "Sudowork",
+  "pageTitle": "{{appName}} - Giriş Yap",
+  "brand": "{{appName}}",
   "subtitle": "Tekrar hoş geldiniz, lütfen hesabınıza giriş yapın",
   "username": "Kullanıcı Adı",
   "usernamePlaceholder": "Kullanıcı adınızı girin",
@@ -58,7 +58,7 @@
   "thirdPartyProviderFallback": "Üçüncü taraf kimlik doğrulama",
   "thirdPartyLoginBtn": "{{provider}} ile giriş yap",
   "thirdPartyWaiting": "Tarayıcı kimlik doğrulaması bekleniyor...",
-  "thirdPartyBrowserHint": "Kimlik doğrulama sayfası tarayıcıda açılır ve girişten sonra Sudowork'e döner.",
+  "thirdPartyBrowserHint": "Kimlik doğrulama sayfası tarayıcıda açılır ve girişten sonra {{appName}}'e döner.",
   "thirdPartyUnavailable": "Üçüncü taraf kimlik doğrulama yapılandırılmamış",
   "thirdPartyOpenFailed": "Tarayıcı açılamıyor",
   "thirdPartyStateInvalid": "Kimlik doğrulama geri çağrısı doğrulanamadı, lütfen tekrar deneyin",

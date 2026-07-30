@@ -595,7 +595,7 @@ const ChannelPanel: React.FC = () => {
     const telegramChannel: ChannelConfig = {
       id: 'telegram',
       title: t('settings.channels.telegramTitle', 'Telegram'),
-      description: t('settings.channels.telegramDesc', 'Chat with Sudowork assistant via Telegram'),
+      description: t('settings.channels.telegramDesc', 'Chat with {{appName}} assistant via Telegram'),
       status: 'active',
       enabled: pluginStatus?.enabled || false,
       disabled: enableLoading,
@@ -617,7 +617,7 @@ const ChannelPanel: React.FC = () => {
     const larkChannel: ChannelConfig = {
       id: 'lark',
       title: t('settings.channels.larkTitle', 'Lark / Feishu'),
-      description: t('settings.channels.larkDesc', 'Chat with Sudowork assistant via Lark or Feishu'),
+      description: t('settings.channels.larkDesc', 'Chat with {{appName}} assistant via Lark or Feishu'),
       status: 'active',
       enabled: larkPluginStatus?.enabled || false,
       disabled: larkEnableLoading,
@@ -638,7 +638,7 @@ const ChannelPanel: React.FC = () => {
     const dingtalkChannel: ChannelConfig = {
       id: 'dingtalk',
       title: t('settings.channels.dingtalkTitle', 'DingTalk'),
-      description: t('settings.channels.dingtalkDesc', 'Chat with Sudowork assistant via DingTalk'),
+      description: t('settings.channels.dingtalkDesc', 'Chat with {{appName}} assistant via DingTalk'),
       status: 'active',
       enabled: dingtalkPluginStatus?.enabled || false,
       disabled: dingtalkEnableLoading,
@@ -670,7 +670,7 @@ const ChannelPanel: React.FC = () => {
     const wecomChannel: ChannelConfig = {
       id: 'wecom',
       title: t('settings.channels.wecomTitle', 'WeCom'),
-      description: t('settings.channels.wecomDesc', 'Chat with Sudowork assistant via WeCom (WeChat Work)'),
+      description: t('settings.channels.wecomDesc', 'Chat with {{appName}} assistant via WeCom (WeChat Work)'),
       status: 'active',
       enabled: wecomPluginStatus?.enabled || false,
       disabled: wecomEnableLoading,
@@ -741,7 +741,7 @@ const ChannelPanel: React.FC = () => {
     return undefined;
   };
   const channelGuideText = t('settings.webui.featureChannelsDesc', {
-    defaultValue: 'Connect Telegram, Lark, DingTalk, and WeChat to interact with Sudowork from IM apps.',
+    defaultValue: 'Connect Telegram, Lark, DingTalk, and WeChat to interact with {{appName}} from IM apps.',
   });
   const channelSetupSteps = [t('settings.channels.selectFirst', { defaultValue: 'Select a channel and configure credentials.' }), t('settings.channels.enableAfterConfig', { defaultValue: 'Enable it and start chatting with your AI agent.' })];
 

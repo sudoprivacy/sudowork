@@ -68,7 +68,7 @@
   "skip": "Skip",
   "setupContinuesInBackground": "Enter the app now. Runtime setup will continue in the background.",
   "refresh": "Refresh",
-  "tray.showWindow": "Show Sudowork",
+  "tray.showWindow": "Show {{appName}}",
   "tray.quit": "Quit",
   "siderMenu": {
     "agent": "Agent",

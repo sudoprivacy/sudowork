@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
+
+const loadModule = createRequire(import.meta.url);
+const brand = loadModule('../brand.config.json');
+const executableName = brand.displayName;
 
 function parseArgs(argv) {
   const flags = new Set(argv.filter((x) => x.startsWith('--')));
@@ -30,7 +35,7 @@ function resolvePackagedApp(projectRoot) {
 
   if (process.platform === 'win32') {
     for (const dir of ['win-unpacked', 'win-x64-unpacked', 'win-arm64-unpacked']) {
-      const exe = path.join(outDir, dir, 'Sudowork.exe');
+      const exe = path.join(outDir, dir, `${executableName}.exe`);
       if (fs.existsSync(exe)) return { executablePath: exe, cwd: path.join(outDir, dir) };
     }
   } else if (process.platform === 'darwin') {
@@ -39,17 +44,15 @@ function resolvePackagedApp(projectRoot) {
       if (!fs.existsSync(macDir)) continue;
       const appBundle = fs.readdirSync(macDir).find((f) => f.endsWith('.app'));
       if (!appBundle) continue;
-      const exe = path.join(macDir, appBundle, 'Contents', 'MacOS', 'Sudowork');
+      const exe = path.join(macDir, appBundle, 'Contents', 'MacOS', executableName);
       if (fs.existsSync(exe)) return { executablePath: exe, cwd: macDir };
     }
   } else {
     for (const dir of ['linux-unpacked', 'linux-x64-unpacked', 'linux-arm64-unpacked']) {
       const dirPath = path.join(outDir, dir);
       if (!fs.existsSync(dirPath)) continue;
-      for (const name of ['sudowork', 'Sudowork']) {
-        const exe = path.join(dirPath, name);
-        if (fs.existsSync(exe)) return { executablePath: exe, cwd: dirPath };
-      }
+      const exe = path.join(dirPath, executableName);
+      if (fs.existsSync(exe)) return { executablePath: exe, cwd: dirPath };
     }
   }
 
@@ -70,8 +73,8 @@ async function main() {
   }
 
   if (shouldClean) {
-    await killProcessByName('Sudowork.exe');
-    await killProcessByName('Sudowork');
+    await killProcessByName(`${executableName}.exe`);
+    await killProcessByName(executableName);
     await killProcessByName('electron.exe');
     await killProcessByName('electron');
   }

@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import brand from '@brand';
 import { cachePut } from '@common/nexus/secret-cache';
 import { getSudorouterBaseUrl } from '@/common/systemConfig';
 import type { SudoclawConfig } from '@/common/ipcBridge';
@@ -282,7 +283,7 @@ export function initSudoclawBridge(): void {
 
       const nodePath = getNodeBinaryPath();
       if (!fs.existsSync(nodePath)) {
-        const msg = 'Bundled Node.js not found. Please restart Sudowork to install it.';
+        const msg = `Bundled Node.js not found. Please restart ${brand.displayName} to install it.`;
         ipcBridge.sudoclaw.wechatInstallProgress.emit({ phase: 'error', message: msg });
         resolve({ success: false, msg });
         return;

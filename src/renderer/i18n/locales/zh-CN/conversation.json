@@ -22,7 +22,7 @@
     "skill": "技能",
     "openFolder": "打开文件夹",
     "none": "无",
-    "quickActionsTitle": "Sudowork 能做什么？",
+    "quickActionsTitle": "{{appName}} 能做什么？",
     "quickActionFeedback": "想吐槽或提建议?",
     "quickActionStar": "喜欢我们？点个星吧"
   },

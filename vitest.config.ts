@@ -2,6 +2,7 @@ import path from 'path';
 import { defineConfig } from 'vitest/config';
 
 const aliases = {
+  '@brand': path.resolve(__dirname, './brand.config.json'),
   '@/': path.resolve(__dirname, './src') + '/',
   '@common/': path.resolve(__dirname, './src/common') + '/',
   '@process/': path.resolve(__dirname, './src/process') + '/',

@@ -46,14 +46,14 @@
 !define MUI_BGCOLOR "161C2D"
 
 ; Branded footer text shown in the bottom-left of every page
-!define MUI_BRANDINGTEXT "Sudowork — 新一代企业 AI 应用平台"
+!define MUI_BRANDINGTEXT "${PRODUCT_NAME} — 新一代企业 AI 应用平台"
 
 ; Colour of text on Welcome / Finish pages (white on dark background)
 !define MUI_TEXTCOLOR "FFFFFF"
 
 ; Use the abort warning to confirm cancellation
 !define MUI_ABORTWARNING
-!define MUI_ABORTWARNING_TEXT "确定要取消安装 Sudowork 吗？"
+!define MUI_ABORTWARNING_TEXT "确定要取消安装 ${PRODUCT_NAME} 吗？"
 
 ; ========================================
 ; Global variable declarations (file scope)
@@ -219,7 +219,7 @@ FunctionEnd
     ${NSD_SetText} $tosPage.TextBox \
       "【服务条款】$\r$\n\
 $\r$\n\
-欢迎使用 Sudowork（以下简称「本软件」）。在安装和使用本软件前，请仔细阅读以下条款。安装或使用本软件即表示您同意接受以下条款的约束。$\r$\n\
+欢迎使用 ${PRODUCT_NAME}（以下简称「本软件」）。在安装和使用本软件前，请仔细阅读以下条款。安装或使用本软件即表示您同意接受以下条款的约束。$\r$\n\
 $\r$\n\
 一、服务内容$\r$\n\
 本软件是由北京数牍科技有限公司（以下简称「我们」）开发和运营的企业 AI 应用平台，为用户提供智能办公、数据处理等相关服务。我们有权根据业务需要对服务内容进行调整，并将通过适当方式通知用户。$\r$\n\
@@ -410,7 +410,7 @@ $\r$\n\
 ; Install: Record installed files into a manifest
 ; ========================================
 !macro customInstall
-  DetailPrint "Runtime components will be installed by Sudowork on first launch."
+  DetailPrint "Runtime components will be installed by ${PRODUCT_NAME} on first launch."
 
   ; --- Remove shortcuts if user opted out ---
   ; electron-builder creates shortcuts by default (createDesktopShortcut: true,

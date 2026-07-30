@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import brand from '@brand';
+
 /**
  * Tenant configuration types
  * 租户配置类型定义
@@ -63,6 +65,7 @@ export interface TenantConfigResponse {
 export type TenantConfigInput = Partial<TenantConfig>;
 
 export const TENANT_CONFIG_STORAGE_KEY = 'sudowork_tenant_config';
+const TENANT_CONFIG_BRAND_KEY = '__brand';
 
 /**
  * 默认租户配置
@@ -74,15 +77,27 @@ export const DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
 
 export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
   logo: undefined,
-  app_name: 'SudoWork',
-  top_name: 'SudoWork',
-  login_desp: 'AgentOps | 办公专家',
-  about_name: 'SudoWork',
-  app_company_name: '北京数牍科技有限公司',
+  app_name: brand.displayName,
+  top_name: brand.displayName,
+  login_desp: brand.tagline,
+  about_name: brand.displayName,
+  app_company_name: brand.companyName,
   client_cron_enabled: true,
   client_show_tool_calls: true,
   workspace_upload_limit_bytes: DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES,
 };
+
+export function createTenantConfigCache(config: Required<TenantConfig>): Required<TenantConfig> & { [TENANT_CONFIG_BRAND_KEY]: string } {
+  return { ...config, [TENANT_CONFIG_BRAND_KEY]: brand.displayName };
+}
+
+export function resolveCachedTenantConfig(config?: (TenantConfigInput & { [TENANT_CONFIG_BRAND_KEY]?: string }) | null): Required<TenantConfig> | null {
+  if (!config) return null;
+  const cachedBrand = config[TENANT_CONFIG_BRAND_KEY];
+  if (cachedBrand === brand.displayName) return resolveTenantConfig(config);
+  if (!cachedBrand && config.app_name && !['Sudowork', 'SudoWork'].includes(config.app_name)) return resolveTenantConfig(config);
+  return null;
+}
 
 export function resolveTenantConfig(config?: TenantConfigInput | null): Required<TenantConfig> {
   return {

@@ -1,6 +1,6 @@
 {
-  "pageTitle": "Sudowork - 로그인",
-  "brand": "Sudowork",
+  "pageTitle": "{{appName}} - 로그인",
+  "brand": "{{appName}}",
   "subtitle": "다시 오신 것을 환영합니다. 계정에 로그인하세요",
   "username": "사용자 이름",
   "usernamePlaceholder": "사용자 이름을 입력하세요",
@@ -58,7 +58,7 @@
   "thirdPartyProviderFallback": "타사 인증",
   "thirdPartyLoginBtn": "{{provider}}로 로그인",
   "thirdPartyWaiting": "브라우저 인증 대기 중...",
-  "thirdPartyBrowserHint": "브라우저에서 인증 페이지가 열리고 로그인 후 Sudowork로 돌아옵니다.",
+  "thirdPartyBrowserHint": "브라우저에서 인증 페이지가 열리고 로그인 후 {{appName}}로 돌아옵니다.",
   "thirdPartyUnavailable": "타사 인증 로그인이 구성되지 않았습니다",
   "thirdPartyOpenFailed": "브라우저를 열 수 없습니다",
   "thirdPartyStateInvalid": "인증 콜백 검증에 실패했습니다. 다시 시도하세요",

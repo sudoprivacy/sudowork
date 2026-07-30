@@ -22,7 +22,7 @@
     "skill": "Skill",
     "openFolder": "Open Folder",
     "none": "None",
-    "quickActionsTitle": "What can Sudowork do?",
+    "quickActionsTitle": "What can {{appName}} do?",
     "quickActionFeedback": "Got feedback or suggestions?",
     "quickActionStar": "Like us? Give us a star!"
   },
@@ -144,7 +144,7 @@
     "empty": "It's empty",
     "emptyDescription": "Files will appear here after uploading files or opening a folder",
     "remotePendingTitle": "Temporary space appears after the session starts",
-    "remotePendingDescription": "After the first message creates the session, Sudowork loads the temporary space and Drafts from Moss Server.",
+    "remotePendingDescription": "After the first message creates the session, {{appName}} loads the temporary space and Drafts from Moss Server.",
     "remoteSkillsPendingDesc": "Available backend skills appear after the session starts",
     "remotePreviewBinaryUnsupported": "Built-in preview is not available for this remote file yet. View the original file in the session workspace.",
     "searchPlaceholder": "Search files...",

@@ -10,6 +10,7 @@ import { spawn } from 'child_process';
 import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 import { app } from 'electron';
+import brand from '@brand';
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
@@ -3561,7 +3562,7 @@ This identity statement takes priority over the default identity in USER.md.
         type: 'error',
         conversation_id: this.conversation_id,
         msg_id: v.msg_id,
-        data: 'Permission required. Please open Sudowork and confirm the pending request in the conversation panel.',
+        data: `Permission required. Please open ${brand.displayName} and confirm the pending request in the conversation panel.`,
       });
       return;
     }

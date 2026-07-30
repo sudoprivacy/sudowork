@@ -7,11 +7,12 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message } from '@arco-design/web-react';
+import brand from '@brand';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 import { setAppMode } from '@/common/eeclawMode';
 import { normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
-import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
+import { createTenantConfigCache, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '@/renderer/components/WindowControls';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
@@ -142,7 +143,7 @@ const ModeSetup: React.FC = () => {
         await setAppMode('e');
         await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
         await ConfigStorage.set('eeclaw.tenantName', tenantConfig.app_company_name);
-        localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(tenantConfig));
+        localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(createTenantConfigCache(tenantConfig)));
 
         // Notify main process to start local services, then reload renderer
         await ipcBridge.application.startConsumerServices.invoke();
@@ -178,8 +179,8 @@ const ModeSetup: React.FC = () => {
       <div className='mode-setup__container'>
         {/* Logo & Title */}
         <div className='mode-setup__header'>
-          <img src={SudoworkIcon} alt='Sudowork' className='mode-setup__logo' />
-          <h1 className='text-28px font-700 tracking-tighter bg-linear-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>欢迎使用 SudoWork</h1>
+          <img src={SudoworkIcon} alt={brand.displayName} className='mode-setup__logo' />
+          <h1 className='text-28px font-700 mb-2'>欢迎使用{brand.displayName}</h1>
           <p className='text-14px text-secondary'>请选择您的使用模式</p>
         </div>
 

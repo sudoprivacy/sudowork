@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import brand from '@brand';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { database as databaseBridge } from '@/common/ipcBridge';
 import type { TProviderWithModel } from '@/common/storage';
@@ -292,9 +293,9 @@ export const handleHelpShow: ActionHandler = async (context) => {
   return createSuccessResponse({
     type: 'text',
     text: [
-      '❓ <b>Sudowork Assistant</b>',
+      `❓ <b>${brand.displayName} Assistant</b>`,
       '',
-      'A remote assistant to interact with Sudowork via Telegram.',
+      `A remote assistant to interact with ${brand.displayName} via Telegram.`,
       '',
       '<b>Common Actions:</b>',
       '• 🆕 New Chat - Start a new session',
@@ -377,12 +378,12 @@ export const handleHelpPairing: ActionHandler = async (context) => {
       '<b>First-time Setup:</b>',
       '1. Send any message to the bot',
       '2. Bot displays pairing code',
-      '3. Approve pairing in Sudowork settings',
+      `3. Approve pairing in ${brand.displayName} settings`,
       '4. Ready to use after pairing',
       '',
       '<b>Notes:</b>',
       '• Pairing code valid for 10 minutes',
-      '• Sudowork app must be running',
+      `• ${brand.displayName} app must be running`,
       '• One Telegram account can only pair once',
     ].join('\n'),
     parseMode: 'HTML',
@@ -448,7 +449,7 @@ export const handleSettingsShow: ActionHandler = async (context) => {
   }
   return createSuccessResponse({
     type: 'text',
-    text: ['⚙️ <b>Settings</b>', '', 'Channel settings need to be configured in the Sudowork app.', '', 'Open Sudowork → WebUI → Channels'].join('\n'),
+    text: ['⚙️ <b>Settings</b>', '', `Channel settings need to be configured in the ${brand.displayName} app.`, '', `Open ${brand.displayName} → WebUI → Channels`].join('\n'),
     parseMode: 'HTML',
     replyMarkup: createMainMenuKeyboard(),
   });

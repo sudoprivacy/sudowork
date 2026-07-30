@@ -22,7 +22,7 @@
     "skill": "スキル",
     "openFolder": "Open Folder",
     "none": "None",
-    "quickActionsTitle": "Sudowork で何ができる？",
+    "quickActionsTitle": "{{appName}} で何ができる？",
     "quickActionFeedback": "フィードバックや提案は？",
     "quickActionStar": "気に入った？スターをください！"
   },

@@ -1,6 +1,6 @@
 {
-  "pageTitle": "Sudowork - Sign In",
-  "brand": "Sudowork",
+  "pageTitle": "{{appName}} - Sign In",
+  "brand": "{{appName}}",
   "subtitle": "Welcome back, please sign in to your account",
   "username": "Username",
   "usernamePlaceholder": "Enter your username",
@@ -58,7 +58,7 @@
   "thirdPartyProviderFallback": "Third-party Auth",
   "thirdPartyLoginBtn": "Sign in with {{provider}}",
   "thirdPartyWaiting": "Waiting for browser authentication...",
-  "thirdPartyBrowserHint": "The authentication page opens in your browser and returns to Sudowork after sign-in.",
+  "thirdPartyBrowserHint": "The authentication page opens in your browser and returns to {{appName}} after sign-in.",
   "thirdPartyUnavailable": "Third-party authentication is not configured",
   "thirdPartyOpenFailed": "Unable to open browser",
   "thirdPartyStateInvalid": "Authentication callback verification failed, please try again",

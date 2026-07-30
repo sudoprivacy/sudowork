@@ -42,6 +42,7 @@ import i18n from '@process/i18n';
 import { mainLog, mainError } from './process/utils/mainLogger';
 import { ensureMainSystemConfig } from './process/services/systemConfigBootstrap';
 import { isNightlyBuild } from './common/buildInfo';
+import brand from '@brand';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
 
@@ -50,14 +51,16 @@ import electronSquirrelStartup from 'electron-squirrel-startup';
 import { markAppStart, markFirstWindowShow, initializeTelemetry, shutdownTelemetry, initCrashReporter, captureRendererCrash, captureException, systemBreadcrumbs, windowBreadcrumbs } from './process/telemetry';
 markAppStart();
 
+const APP_LOG_PREFIX = `[${brand.displayName}]`;
+
+// Set this before Electron derives native names and user-data paths.
+app.setName(brand.displayName);
+
 // 记录应用启动
-mainLog('App', `Sudowork starting, version: ${app.getVersion()}`);
+mainLog('App', `${brand.displayName} starting, version: ${app.getVersion()}`);
 mainLog('App', `Platform: ${process.platform}, Arch: ${process.arch}`);
 mainLog('App', `Electron: ${process.versions.electron}, Node: ${process.versions.node}`);
 mainLog('App', `Packaged: ${app.isPackaged}, Dev: ${!app.isPackaged}`);
-
-// Set the app name early to ensure proper tray tooltip on macOS
-app.setName('Sudowork');
 
 // Hide Dock icon when running as Node.js CLI (ELECTRON_RUN_AS_NODE)
 // This prevents the Dock bounce when using the claude CLI wrapper
@@ -145,7 +148,7 @@ const deepLinkFromArgv = process.argv.find(isDeepLinkArg);
 const gotTheLock = isE2ETestMode ? true : app.requestSingleInstanceLock({ deepLinkUrl: deepLinkFromArgv });
 
 if (!gotTheLock) {
-  console.warn('[Sudowork] Another instance is already running; current process will exit.');
+  console.warn(`${APP_LOG_PREFIX} Another instance is already running; current process will exit.`);
   app.quit();
 } else {
   app.on('second-instance', (_event, argv, _workingDirectory, additionalData) => {
@@ -257,7 +260,7 @@ process.on('unhandledRejection', (reason, _promise) => {
 // bypassing before-quit and leaving child processes orphaned.
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, () => {
-    console.log(`[Sudowork] Received ${sig}, triggering app.quit()`);
+    console.log(`${APP_LOG_PREFIX} Received ${sig}, triggering app.quit()`);
     app.quit();
   });
 }
@@ -520,7 +523,7 @@ const createOrUpdateTray = (): void => {
       tray.setImage(icon);
     }
 
-    tray.setToolTip('Sudowork');
+    tray.setToolTip(brand.displayName);
 
     // 确保 i18n 已初始化后再设置菜单
     // Ensure i18n is initialized before setting menu
@@ -543,7 +546,7 @@ const createOrUpdateTray = (): void => {
 const refreshTrayMenu = (): void => {
   if (tray) {
     tray.setContextMenu(buildTrayContextMenu());
-    tray.setToolTip('Sudowork');
+    tray.setToolTip(brand.displayName);
   }
 };
 
@@ -558,7 +561,7 @@ const destroyTray = (): void => {
 };
 
 const createWindow = (): void => {
-  console.log('[Sudowork] Creating main window...');
+  console.log(`[${brand.displayName}] Creating main window...`);
   // Get primary display size
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
@@ -610,7 +613,7 @@ const createWindow = (): void => {
       sandbox: false,
     },
   });
-  console.log(`[Sudowork] Main window created (id=${mainWindow.id})`);
+  console.log(`[${brand.displayName}] Main window created (id=${mainWindow.id})`);
 
   // Show window after content is ready to prevent FOUC (Flash of Unstyled Content)
   // Use 'ready-to-show' which fires when renderer has painted first frame,
@@ -723,12 +726,12 @@ const createWindow = (): void => {
     const tryLoadURL = (attempt: number) => {
       mainWindow.loadURL(rendererUrl).catch((error) => {
         if (attempt < 5 && !mainWindow.isDestroyed()) {
-          console.warn(`[Sudowork] loadURL attempt ${attempt + 1} failed, retrying in 1s...`, error.message || error);
+          console.warn(`${APP_LOG_PREFIX} loadURL attempt ${attempt + 1} failed, retrying in 1s...`, error.message || error);
           setTimeout(() => tryLoadURL(attempt + 1), 1000);
         } else {
-          console.error('[Sudowork] loadURL failed after retries, falling back to file:', error.message || error);
+          console.error(`${APP_LOG_PREFIX} loadURL failed after retries, falling back to file:`, error.message || error);
           mainWindow.loadFile(fallbackFile).catch((e2) => {
-            console.error('[Sudowork] loadFile fallback also failed:', e2.message || e2);
+            console.error(`${APP_LOG_PREFIX} loadFile fallback also failed:`, e2.message || e2);
           });
         }
       });
@@ -736,16 +739,16 @@ const createWindow = (): void => {
     tryLoadURL(0);
   } else {
     mainWindow.loadFile(fallbackFile).catch((error) => {
-      console.error('[Sudowork] loadFile failed:', error.message || error);
+      console.error(`${APP_LOG_PREFIX} loadFile failed:`, error.message || error);
     });
   }
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    console.error('[Sudowork] did-fail-load:', { errorCode, errorDescription, validatedURL, isMainFrame });
+    console.error(`${APP_LOG_PREFIX} did-fail-load:`, { errorCode, errorDescription, validatedURL, isMainFrame });
   });
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('[Sudowork] render-process-gone:', details);
+    console.error(`${APP_LOG_PREFIX} render-process-gone:`, details);
     // CrashReporter: capture renderer crash
     if (details.reason !== 'clean-exit' && details.reason !== 'killed') {
       captureRendererCrash(details);
@@ -753,11 +756,11 @@ const createWindow = (): void => {
   });
 
   mainWindow.webContents.on('unresponsive', () => {
-    console.warn('[Sudowork] Renderer became unresponsive');
+    console.warn(`${APP_LOG_PREFIX} Renderer became unresponsive`);
   });
 
   mainWindow.on('closed', () => {
-    console.log('[Sudowork] Main window closed');
+    console.log(`${APP_LOG_PREFIX} Main window closed`);
 
     // Breadcrumb: window closed
     windowBreadcrumbs.close('main');
@@ -1132,12 +1135,12 @@ app.on('before-quit', (event) => {
   }
 
   quitCleanupInProgress = true;
-  console.log('[Sudowork] before-quit');
+  console.log(`${APP_LOG_PREFIX} before-quit`);
   isQuitting = true;
   isExplicitQuit = true;
   destroyTray();
   quitCleanupTimeout = setTimeout(() => {
-    console.error(`[Sudowork] Quit cleanup timed out after ${QUIT_CLEANUP_TIMEOUT_MS}ms, forcing exit`);
+    console.error(`${APP_LOG_PREFIX} Quit cleanup timed out after ${QUIT_CLEANUP_TIMEOUT_MS}ms, forcing exit`);
     finishAppQuit(true);
   }, QUIT_CLEANUP_TIMEOUT_MS);
 

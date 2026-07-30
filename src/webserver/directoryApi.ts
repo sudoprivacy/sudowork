@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { Router } from 'express';
+import brand from '@brand';
 import { fileOperationLimiter } from './middleware/security';
 
 // Allow browsing within the running workspace, current user's home directory,
@@ -395,7 +396,7 @@ router.get('/shortcuts', fileOperationLimiter, (_req, res) => {
   try {
     const shortcuts = [
       {
-        name: 'Sudowork Directory',
+        name: `${brand.displayName} Directory`,
         path: process.cwd(),
         icon: '🤖',
       },

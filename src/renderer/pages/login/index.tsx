@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
-import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
+import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveCachedTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
@@ -53,7 +53,7 @@ function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
     const cached = localStorage.getItem(TENANT_CONFIG_STORAGE_KEY);
     if (cached) {
       const parsed = JSON.parse(cached);
-      return resolveTenantConfig(parsed);
+      return resolveCachedTenantConfig(parsed) ?? DEFAULT_TENANT_CONFIG;
     }
   } catch {
     // ignore
@@ -515,7 +515,7 @@ const LoginPage: React.FC = () => {
             <div className='login-page__logo'>
               <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
             </div>
-            <h1 className='text-28px font-800 tracking-tighter bg-linear-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
+            <h1 className='text-28px font-800 mb-8px'>{tenantConfig.app_name}</h1>
             <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
           </div>
 
@@ -646,7 +646,7 @@ const LoginPage: React.FC = () => {
           <div className='login-page__logo'>
             <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
           </div>
-          <h1 className='text-28px font-800 tracking-tighter bg-linear-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
+          <h1 className='text-28px font-800 mb-2'>{tenantConfig.app_name}</h1>
           <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
         </div>
 

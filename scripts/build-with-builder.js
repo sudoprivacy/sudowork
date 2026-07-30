@@ -14,6 +14,11 @@ const { execSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const brand = require('../brand.config.json');
+
+const BUILDER_CONFIG_FILE = 'electron-builder.brand.js';
+const PRODUCT_NAME = brand.displayName;
+const EXECUTABLE_NAME = brand.displayName;
 
 // DMG retry logic for macOS: detects DMG creation failures by checking artifacts
 // (.app exists but .dmg missing) and retries only the DMG step using
@@ -51,6 +56,8 @@ function computeSourceHash() {
     'tsconfig.json',
     'electron.vite.config.ts',
     'electron-builder.yml',
+    BUILDER_CONFIG_FILE,
+    'brand.config.json',
     'justfile',
   ];
 
@@ -183,8 +190,8 @@ function tryRemoveDir(targetDir) {
 function isProcessRunningWindows(imageName) {
   if (process.platform !== 'win32') return false;
   try {
-    const result = execSync(`tasklist /FI "IMAGENAME eq ${imageName}"`, { stdio: ['ignore', 'pipe', 'ignore'] });
-    return result.toString().toLowerCase().includes(imageName.toLowerCase());
+    const result = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${imageName}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return result.status === 0 && result.stdout.toLowerCase().includes(imageName.toLowerCase());
   } catch {
     return false;
   }
@@ -194,7 +201,7 @@ function killWindowsProcesses(imageNames) {
   if (process.platform !== 'win32') return;
   for (const name of imageNames) {
     try {
-      execSync(`taskkill /F /IM ${name}`, { stdio: 'ignore' });
+      spawnSync('taskkill', ['/F', '/IM', name], { stdio: 'ignore' });
     } catch {
     }
   }
@@ -229,29 +236,29 @@ function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
 
   if (args.includes('--win') || args.includes('--all')) {
     const winUnpackedDirs = targetArch === 'x64' ? ['win-unpacked', 'win-x64-unpacked'] : [`win-${targetArch}-unpacked`, 'win-unpacked'];
-    expectOneFile(winUnpackedDirs.map((dir) => path.join(dir, 'Sudowork.exe')));
-    expectFile(`Sudowork-${appVersion}-win-${targetArch}.exe`);
-    expectFile(`Sudowork-${appVersion}-win-${targetArch}.zip`);
+    expectOneFile(winUnpackedDirs.map((dir) => path.join(dir, `${EXECUTABLE_NAME}.exe`)));
+    expectFile(`${PRODUCT_NAME}-${appVersion}-win-${targetArch}.exe`);
+    expectFile(`${PRODUCT_NAME}-${appVersion}-win-${targetArch}.zip`);
   }
 
   if (args.includes('--mac') || args.includes('--all')) {
     const macDir = targetArch === 'arm64' ? 'mac-arm64' : targetArch === 'x64' ? 'mac' : `mac-${targetArch}`;
-    expectFile(path.join(macDir, 'Sudowork.app'));
-    expectFile(`Sudowork-${appVersion}-mac-${targetArch}.dmg`);
-    expectFile(`Sudowork-${appVersion}-mac-${targetArch}.zip`);
+    expectFile(path.join(macDir, `${PRODUCT_NAME}.app`));
+    expectFile(`${PRODUCT_NAME}-${appVersion}-mac-${targetArch}.dmg`);
+    expectFile(`${PRODUCT_NAME}-${appVersion}-mac-${targetArch}.zip`);
   }
 
   if (args.includes('--linux') || args.includes('--all')) {
-    expectOneFile([path.join('linux-unpacked', 'Sudowork'), path.join('linux-unpacked', 'sudowork')]);
+    expectFile(path.join('linux-unpacked', EXECUTABLE_NAME));
     const appImageNames = [
-      `Sudowork-${appVersion}-linux-${targetArch}.AppImage`,
-      `Sudowork-${appVersion}-linux-x86_64.AppImage`,
+      `${PRODUCT_NAME}-${appVersion}-linux-${targetArch}.AppImage`,
+      `${PRODUCT_NAME}-${appVersion}-linux-x86_64.AppImage`,
     ];
     const hasAppImage = appImageNames.some((name) => fs.existsSync(path.join(outDir, name)));
     if (!hasAppImage) missing.push(appImageNames.join(' or '));
     const snapNames = [
-      `Sudowork-${appVersion}-linux-${targetArch}.snap`,
-      `Sudowork-${appVersion}-linux-amd64.snap`,
+      `${PRODUCT_NAME}-${appVersion}-linux-${targetArch}.snap`,
+      `${PRODUCT_NAME}-${appVersion}-linux-amd64.snap`,
     ];
     const hasSnap = snapNames.some((name) => fs.existsSync(path.join(outDir, name)));
     if (!hasSnap) missing.push(snapNames.join(' or '));
@@ -270,7 +277,7 @@ function createDmgWithPrepackaged(appDir, targetArch) {
   const appPath = path.join(appDir, appName);
 
   execSync(
-    `npx electron-builder --mac dmg --${targetArch} --prepackaged "${appPath}" --publish=never`,
+    `npx electron-builder --config ${BUILDER_CONFIG_FILE} --mac dmg --${targetArch} --prepackaged "${appPath}" --publish=never`,
     { stdio: 'inherit', shell: process.platform === 'win32' }
   );
 }
@@ -605,14 +612,14 @@ try {
     const winUnpackedDir = path.join(outDir, 'win-unpacked');
     let cleaned = tryRemoveDir(winUnpackedDir);
     if (!cleaned) {
-      const aionRunning = isProcessRunningWindows('Sudowork.exe');
+      const appRunning = isProcessRunningWindows(`${EXECUTABLE_NAME}.exe`);
       const electronRunning = isProcessRunningWindows('electron.exe');
-      if (aionRunning || electronRunning) {
-        console.log('⚠️  Detected running Sudowork/Electron process. Attempting to close...');
-        killWindowsProcesses(['Sudowork.exe', 'electron.exe']);
+      if (appRunning || electronRunning) {
+        console.log(`⚠️  Detected running ${PRODUCT_NAME}/Electron process. Attempting to close...`);
+        killWindowsProcesses([`${EXECUTABLE_NAME}.exe`, 'electron.exe']);
         cleaned = tryRemoveDir(winUnpackedDir);
         if (!cleaned) {
-          console.log('⚠️  Directory still locked. Please close any running Sudowork/Electron processes and retry.');
+          console.log(`⚠️  Directory still locked. Please close any running ${PRODUCT_NAME}/Electron processes and retry.`);
         }
       }
     }
@@ -624,11 +631,11 @@ try {
   }
 
   const effectiveBuilderArgs = withDefaultDistributableTargets(builderArgs);
-  const builderCommand = `npx electron-builder ${effectiveBuilderArgs} ${archFlag} ${publishArg}`;
+  const builderCommand = `npx electron-builder --config ${BUILDER_CONFIG_FILE} ${effectiveBuilderArgs} ${archFlag} ${publishArg}`;
   try {
     buildWithDmgRetry(builderCommand, targetArch);
   } catch (error) {
-    const winExePath = path.join(outDir, 'win-unpacked', 'Sudowork.exe');
+    const winExePath = path.join(outDir, 'win-unpacked', `${EXECUTABLE_NAME}.exe`);
     const firstError = formatExecError(error);
     const canRetryWithoutExecutableEdit = process.platform === 'win32'
       && isWindowsBuild
@@ -639,14 +646,14 @@ try {
       throw error;
     }
 
-    console.log('⚠️  Windows local build failed after Sudowork.exe was produced.');
+    console.log(`⚠️  Windows local build failed after ${EXECUTABLE_NAME}.exe was produced.`);
     if (firstError) {
       console.log('   First failure summary:');
       console.log(firstError.split(/\r?\n/).slice(0, 6).map((line) => `   ${line}`).join('\n'));
     }
     console.log('   Retrying local build with win.signAndEditExecutable=false...');
     console.log('   This fallback is intended for transient rcedit / file-lock failures on developer machines.');
-    killWindowsProcesses(['Sudowork.exe', 'electron.exe']);
+    killWindowsProcesses([`${EXECUTABLE_NAME}.exe`, 'electron.exe']);
     cleanupWindowsPackOutput();
 
     try {

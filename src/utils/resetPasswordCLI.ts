@@ -8,11 +8,12 @@
  */
 
 import crypto from 'crypto';
+import path from 'path';
 import type Database from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
+import brand from '@brand';
 import { getDataPath, ensureDirectory } from '@process/utils';
-import path from 'path';
 
 // 颜色输出 / Color output
 const colors = {
@@ -90,7 +91,7 @@ export async function resetPasswordCLI(username: string): Promise<void> {
     if (!tableExists) {
       log.error('Database is not initialized yet');
       log.info('');
-      log.info('Please run Sudowork at least once to initialize the database:');
+      log.info(`Please run ${brand.displayName} at least once to initialize the database:`);
       log.info('  sudowork --webui');
       log.info('');
       log.info('Then you can reset the password using:');

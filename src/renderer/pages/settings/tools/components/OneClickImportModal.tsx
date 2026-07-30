@@ -247,7 +247,7 @@ const OneClickImportModal: React.FC<OneClickImportModalProps> = ({ visible, onCa
   return (
     <Modal visible={visible} onCancel={onCancel} footer={renderFooter()} title={t('settings.mcpOneKeyImport', '一键导入')} style={{ width: 600 }}>
       <div className='flex flex-col h-[275px] mt-5'>
-        <div className='mb-6 text-secondary text-sm'>{t('settings.mcpImportDescription', 'Sudowork会自动获取的您在CLI Agent中已安装的MCP，并一键导入')}</div>
+        <div className='mb-6 text-secondary text-sm'>{t('settings.mcpImportDescription', '{{appName}}会自动获取的您在CLI Agent中已安装的MCP，并一键导入')}</div>
 
         <div className='mb-6'>
           <Steps current={currentStep} size='small'>

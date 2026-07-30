@@ -1,6 +1,6 @@
 {
-  "pageTitle": "Sudowork - 登入",
-  "brand": "Sudowork",
+  "pageTitle": "{{appName}} - 登入",
+  "brand": "{{appName}}",
   "subtitle": "歡迎回來，請登入您的帳號",
   "username": "使用者名稱",
   "usernamePlaceholder": "請輸入使用者名稱",
@@ -58,7 +58,7 @@
   "thirdPartyProviderFallback": "第三方認證",
   "thirdPartyLoginBtn": "透過 {{provider}} 登入",
   "thirdPartyWaiting": "等待瀏覽器認證...",
-  "thirdPartyBrowserHint": "將在瀏覽器中開啟認證頁面，完成後自動返回 Sudowork。",
+  "thirdPartyBrowserHint": "將在瀏覽器中開啟認證頁面，完成後自動返回 {{appName}}。",
   "thirdPartyUnavailable": "管理員未設定第三方認證登入",
   "thirdPartyOpenFailed": "無法開啟瀏覽器",
   "thirdPartyStateInvalid": "認證回調驗證失敗，請重試",

@@ -2,7 +2,7 @@
   "section.captcha": "Doğrulama kodu",
   "section.configured": "Yapılandırıldı",
   "section.custom": "Özel",
-  "section.desc": "Web siteleri için giriş bilgilerini kaydedin. Sudowork formları otomatik doldurur ve doğrulama kodu girişini işler. Parolalar yalnızca yerel Nexus kasasında tutulur ve AI bağlamına asla girmez.",
+  "section.desc": "Web siteleri için giriş bilgilerini kaydedin. {{appName}} formları otomatik doldurur ve doğrulama kodu girişini işler. Parolalar yalnızca yerel Nexus kasasında tutulur ve AI bağlamına asla girmez.",
   "section.hasCred": "Kimlik bilgileri kaydedildi",
   "section.loginFailed": "Otomatik giriş başarısız: {{e}}",
   "section.loginNow": "Şimdi giriş yap",

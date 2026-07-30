@@ -8,6 +8,7 @@ import { Alert, Message, Tooltip } from '@arco-design/web-react';
 import { Copy, FileWord, ShareOne } from '@icon-park/react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import brand from '@brand';
 import type { TurnTokenUsage } from '@/common/chatLib';
 import { costToUsagePoints, formatUsagePoints, resolveUsagePoints } from '@/common/tokenUsage';
 import { copyText } from '@/renderer/utils/clipboard';
@@ -88,7 +89,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
     try {
       const markdown = turnTextsRaw.join('\n\n');
       const firstUserText = turnTextsRaw[0] || '';
-      const title = firstUserText.slice(0, 50) || 'SudoWork Share';
+      const title = firstUserText.slice(0, 50) || `${brand.displayName} Share`;
       const res = await ipcBridge.shareoneCli.publishTurn.invoke({ markdown, title });
       if (res?.success && res.data) {
         updateShareSuccess(notifyId, res.data.url);

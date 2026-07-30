@@ -4,20 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import express from 'express';
 import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
 import { execSync } from 'child_process';
 import { networkInterfaces } from 'os';
+import express from 'express';
+import { WebSocketServer } from 'ws';
+import brand from '@brand';
 import { AuthService } from '@/webserver/auth/service/AuthService';
 import { UserRepository } from '@/webserver/auth/repository/UserRepository';
+import { generateQRLoginUrlDirect } from '@/process/bridge/webuiBridge';
 import { AUTH_CONFIG, SERVER_CONFIG } from './config/constants';
 import { initWebAdapter } from './adapter';
 import { setupBasicMiddleware, setupCors, setupErrorHandler } from './setup';
 import { registerAuthRoutes } from './routes/authRoutes';
 import { registerApiRoutes } from './routes/apiRoutes';
 import { registerStaticRoutes } from './routes/staticRoutes';
-import { generateQRLoginUrlDirect } from '@/process/bridge/webuiBridge';
 
 // Express Request 类型扩展定义在 src/webserver/types/express.d.ts
 // Express Request type extension is defined in src/webserver/types/express.d.ts
@@ -194,7 +195,7 @@ function displayInitialCredentials(credentials: { username: string; password: st
   const { qrUrl } = generateQRLoginUrlDirect(port, allowRemote);
 
   console.log('\n' + '='.repeat(70));
-  console.log('🎉 Sudowork Web Server Started Successfully! / Sudowork Web 服务器启动成功！');
+  console.log(`🎉 ${brand.displayName} Web Server Started Successfully! / ${brand.displayName} Web 服务器启动成功！`);
   console.log('='.repeat(70));
   console.log(`\n📍 Local URL / 本地地址:    ${localUrl}`);
 

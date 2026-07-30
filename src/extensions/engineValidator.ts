@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { LoadedExtension } from './types';
 import fs from 'fs';
 import path from 'path';
+import brand from '@brand';
+import type { LoadedExtension } from './types';
 
 /**
  * Current Nexus extension API version.
@@ -111,7 +112,7 @@ export function validateEngineCompatibility(extension: LoadedExtension): EngineV
   if (engine?.sudowork) {
     if (!satisfiesVersion(NEXUS_VERSION, engine.sudowork)) {
       result.valid = false;
-      result.issues.push(`Extension "${extension.manifest.name}" requires Sudowork ${engine.sudowork} but current version is ${NEXUS_VERSION}`);
+      result.issues.push(`Extension "${extension.manifest.name}" requires ${brand.displayName} ${engine.sudowork} but current version is ${NEXUS_VERSION}`);
     }
   }
 

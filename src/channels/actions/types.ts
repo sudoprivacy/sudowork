@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import brand from '@brand';
 import type { ActionCategory, IChannelUser, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
 
 /**
@@ -102,6 +103,19 @@ export const PlatformActionNames = {
   PAIRING_HELP: 'pairing.help',
 } as const;
 
+export function applyChannelBrand<T>(value: T): T {
+  if (typeof value === 'string') {
+    return value.replaceAll('Sudowork', brand.displayName).replaceAll('SudoWork', brand.displayName) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map(applyChannelBrand) as T;
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, applyChannelBrand(entry)])) as T;
+  }
+  return value;
+}
+
 /**
  * Helper function to create a text response
  */
@@ -114,9 +128,9 @@ export function createTextResponse(
 ): IUnifiedOutgoingMessage {
   return {
     type: 'text',
-    text,
+    text: applyChannelBrand(text),
     parseMode: options?.parseMode || 'HTML',
-    replyMarkup: options?.replyMarkup,
+    replyMarkup: applyChannelBrand(options?.replyMarkup),
   };
 }
 
@@ -124,12 +138,13 @@ export function createTextResponse(
  * Helper function to create an error response
  */
 export function createErrorResponse(error: string): IActionResult {
+  const brandedError = applyChannelBrand(error);
   return {
     success: false,
-    error,
+    error: brandedError,
     message: {
       type: 'text',
-      text: `❌ ${error}`,
+      text: `❌ ${brandedError}`,
       parseMode: 'HTML',
     },
   };
@@ -141,6 +156,6 @@ export function createErrorResponse(error: string): IActionResult {
 export function createSuccessResponse(message?: IUnifiedOutgoingMessage): IActionResult {
   return {
     success: true,
-    message,
+    message: applyChannelBrand(message),
   };
 }

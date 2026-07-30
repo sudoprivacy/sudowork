@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import brand from '@brand';
 import { getPairingService } from '../pairing/PairingService';
 import { createPairingCodeKeyboard, createPairingStatusKeyboard, createMainMenuKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { createPairingCard, createPairingStatusCard, createMainMenuCard, createPairingHelpCard } from '../plugins/lark/LarkCards';
@@ -101,14 +102,14 @@ export const handlePairingShow: ActionHandler = async (context) => {
       text: [
         '🔗 <b>Device Pairing</b>',
         '',
-        'Please approve this pairing request in the Sudowork app:',
+        `Please approve this pairing request in the ${brand.displayName} app:`,
         '',
         `<code>${code}</code>`,
         '',
         `⏱ Valid for: ${expiresInMinutes} minutes`,
         '',
         '<b>Steps:</b>',
-        '1. Open Sudowork app',
+        `1. Open ${brand.displayName} app`,
         '2. Go to WebUI → Channels',
         '3. Click "Approve" in pending pairing requests',
       ].join('\n'),
@@ -145,7 +146,7 @@ export const handlePairingRefresh: ActionHandler = async (context) => {
 
     return createSuccessResponse({
       type: 'text',
-      text: ['🔄 <b>New Pairing Code</b>', '', `<code>${code}</code>`, '', `⏱ Valid for: ${expiresInMinutes} minutes`, '', 'Please approve this pairing request in Sudowork settings.'].join('\n'),
+      text: ['🔄 <b>New Pairing Code</b>', '', `<code>${code}</code>`, '', `⏱ Valid for: ${expiresInMinutes} minutes`, '', `Please approve this pairing request in ${brand.displayName} settings.`].join('\n'),
       parseMode: 'HTML',
       replyMarkup: getPairingCodeMarkup(platform, code),
     });
@@ -179,7 +180,7 @@ export const handlePairingCheck: ActionHandler = async (context) => {
 
     return createSuccessResponse({
       type: 'text',
-      text: ['⏳ <b>Waiting for Approval</b>', '', `Pairing code: <code>${pendingRequest.code}</code>`, `Time remaining: ${expiresInMinutes} minutes`, '', 'Please approve the pairing request in Sudowork settings.'].join('\n'),
+      text: ['⏳ <b>Waiting for Approval</b>', '', `Pairing code: <code>${pendingRequest.code}</code>`, `Time remaining: ${expiresInMinutes} minutes`, '', `Please approve the pairing request in ${brand.displayName} settings.`].join('\n'),
       parseMode: 'HTML',
       replyMarkup: getPairingStatusMarkup(platform, pendingRequest.code),
     });
@@ -202,18 +203,18 @@ export const handlePairingHelp: ActionHandler = async (context) => {
       '❓ <b>Pairing Help</b>',
       '',
       '<b>What is pairing?</b>',
-      `Pairing links your ${platformName} account with the local Sudowork application.`,
+      `Pairing links your ${platformName} account with the local ${brand.displayName} application.`,
       'You need to pair before using the AI assistant.',
       '',
       '<b>Pairing steps:</b>',
       '1. Get pairing code (send any message)',
-      '2. Open Sudowork app',
+      `2. Open ${brand.displayName} app`,
       '3. Go to WebUI → Channels',
       '4. Click "Approve" in pending requests',
       '',
       '<b>FAQ:</b>',
       '• Pairing code valid for 10 minutes, refresh if expired',
-      '• Sudowork app must be running',
+      `• ${brand.displayName} app must be running`,
       '• Ensure network connection is stable',
     ].join('\n'),
     parseMode: 'HTML',

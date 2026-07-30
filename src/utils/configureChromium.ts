@@ -9,6 +9,7 @@ import http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import os from 'os';
+import brand from '@brand';
 
 // Configure Chromium command-line flags for WebUI and CLI modes
 // 为 WebUI 和 CLI 模式配置 Chromium 命令行参数
@@ -140,7 +141,7 @@ function findAvailablePort(preferredPort: number): number {
     return preferredPort;
   }
 
-  console.log(`[CDP] Port ${preferredPort} is occupied by another Sudowork instance, scanning range ${CDP_PORT_RANGE_START}-${CDP_PORT_RANGE_END}`);
+  console.log(`[CDP] Port ${preferredPort} is occupied by another ${brand.displayName} instance, scanning range ${CDP_PORT_RANGE_START}-${CDP_PORT_RANGE_END}`);
 
   for (let p = CDP_PORT_RANGE_START; p <= CDP_PORT_RANGE_END; p++) {
     if (!usedPorts.has(p)) {
@@ -149,7 +150,7 @@ function findAvailablePort(preferredPort: number): number {
     }
   }
 
-  console.warn(`[CDP] All ports in range ${CDP_PORT_RANGE_START}-${CDP_PORT_RANGE_END} are used by active Sudowork instances, trying ${preferredPort}`);
+  console.warn(`[CDP] All ports in range ${CDP_PORT_RANGE_START}-${CDP_PORT_RANGE_END} are used by active ${brand.displayName} instances, trying ${preferredPort}`);
   return preferredPort;
 }
 

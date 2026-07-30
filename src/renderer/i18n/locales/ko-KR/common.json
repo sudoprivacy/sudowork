@@ -62,7 +62,7 @@
   "skip": "건너뛰기",
   "setupContinuesInBackground": "먼저 앱으로 들어가고, 런타임 설치는 백그라운드에서 계속됩니다.",
   "refresh": "새로고침",
-  "tray.showWindow": "Sudowork 표시",
+  "tray.showWindow": "{{appName}} 표시",
   "tray.quit": "종료",
   "siderMenu": {
     "agent": "디지털 어시스턴트",

@@ -11,6 +11,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app } from 'electron';
+import brand from '@brand';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -261,7 +262,7 @@ export class OpenClawGatewayManager extends EventEmitter {
       // Use bundled Node.js directly (no Electron, no system Node)
       const bundledNode = getNodeBinaryPath();
       if (!fs.existsSync(bundledNode)) {
-        reject(new Error(`Bundled Node.js not found at ${bundledNode}. Please restart Sudowork to install it.`));
+        reject(new Error(`Bundled Node.js not found at ${bundledNode}. Please restart ${brand.displayName} to install it.`));
         return;
       }
 

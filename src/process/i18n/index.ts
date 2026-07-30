@@ -5,6 +5,7 @@
  */
 
 import i18n from 'i18next';
+import brand from '@brand';
 import { ConfigStorage } from '@/common/storage';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { DEFAULT_LANGUAGE, normalizeLanguageCode, mergeWithFallback, ensureAndSwitch, type LocaleData } from '@/common/i18n';
@@ -61,7 +62,7 @@ const initPromise = (async (): Promise<void> => {
     },
     fallbackLng: DEFAULT_LANGUAGE,
     debug: false,
-    interpolation: { escapeValue: false },
+    interpolation: { escapeValue: false, defaultVariables: { appName: brand.displayName } },
   });
 
   // Priority: user config > detected system language > default

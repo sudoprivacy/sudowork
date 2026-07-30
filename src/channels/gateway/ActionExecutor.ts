@@ -22,6 +22,7 @@ import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
 import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
 import type { IActionContext, IRegisteredAction } from '../actions/types';
+import { applyChannelBrand } from '../actions/types';
 import { getChannelMessageService, type PendingAnswerResult } from '../agent/ChannelMessageService';
 import type { SessionManager } from '../core/SessionManager';
 import type { PairingService } from '../pairing/PairingService';
@@ -84,10 +85,10 @@ function isValidFilePath(filePath: string): boolean {
  */
 function getMainMenuMarkup(platform: PluginType) {
   if (platform === 'lark') {
-    return createMainMenuCard();
+    return applyChannelBrand(createMainMenuCard());
   }
   if (platform === 'dingtalk') {
-    return createDingTalkMainMenuCard();
+    return applyChannelBrand(createDingTalkMainMenuCard());
   }
   return createMainMenuKeyboard();
 }

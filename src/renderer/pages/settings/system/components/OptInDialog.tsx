@@ -41,7 +41,7 @@ export default function OptInDialog({ isOpen, onClose }: IOptInDialogProps) {
         {/* 隐私保障 */}
         <div className='flex items-start gap-2.5 p-3 rd-10px bg-control'>
           <ShieldCheck size={18} className='flex-shrink-0 mt-px text-success' />
-          <div className='text-13px text-secondary leading-relaxed'>{t('settings.productImprovement.privacy', '开启后将匿名收集 SudoWork 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。')}</div>
+          <div className='text-13px text-secondary leading-relaxed'>{t('settings.productImprovement.privacy', '开启后将匿名收集 {{appName}} 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。')}</div>
         </div>
       </div>
     </Modal>

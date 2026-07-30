@@ -1,6 +1,6 @@
 {
-  "pageTitle": "Sudowork - 登录",
-  "brand": "Sudowork",
+  "pageTitle": "{{appName}} - 登录",
+  "brand": "{{appName}}",
   "subtitle": "欢迎回来，请登录您的账户",
   "username": "手机号",
   "usernamePlaceholder": "请输入 11 位手机号",
@@ -62,7 +62,7 @@
   "thirdPartyProviderFallback": "三方认证",
   "thirdPartyLoginBtn": "通过 {{provider}} 登录",
   "thirdPartyWaiting": "等待浏览器认证…",
-  "thirdPartyBrowserHint": "将在浏览器中打开认证页面，完成后自动返回 Sudowork。",
+  "thirdPartyBrowserHint": "将在浏览器中打开认证页面，完成后自动返回 {{appName}}。",
   "thirdPartyUnavailable": "管理员未配置三方认证登录",
   "thirdPartyOpenFailed": "无法打开浏览器",
   "thirdPartyStateInvalid": "认证回调验证失败，请重试",

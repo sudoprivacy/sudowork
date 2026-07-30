@@ -13,6 +13,7 @@ import { CRON_RESTRICTED_INSTRUCTION, isCronSkillAllowed } from '@process/servic
 import type { PresetAgentType } from '@/types/acpTypes';
 import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
 import { AcpSkillManager, buildSkillsIndexText, type SkillIndex } from './AcpSkillManager';
+import brand from '@brand';
 
 /** mcporter CLI 路径（解压后的 JS 文件，跨平台相同） */
 const MCPORTER_CLI_PATH = path.join(os.homedir(), '.nexus', 'mcporter', 'package', 'node_modules', 'mcporter', 'dist', 'cli.js');
@@ -262,9 +263,9 @@ EXCEPT the workspace root:
   - Preferred: system temp directory (Python tempfile.mkdtemp(),
     shell mktemp -d, Node os.tmpdir()) — these are auto-cleaned by the OS.
   - Acceptable: a subdirectory under ${workspace}/ (e.g. ppt_outputs/,
-    _tmp/, build/). Sudowork hides these subdirectories from the user.
+    _tmp/, build/). ${brand.displayName} hides these subdirectories from the user.
 
-Sudowork handles intermediate-file lifecycle for you. Do NOT delete them
+${brand.displayName} handles intermediate-file lifecycle for you. Do NOT delete them
 yourself between turns — multi-turn workflows (e.g. generating slide images
 across several turns before composing the .pptx) need them to remain
 accessible.

@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import brand from '@brand';
 import { ipcBridge } from '@/common';
 import type { MenuItemConstructorOptions } from 'electron';
-import { Menu, app } from 'electron';
+import { Menu } from 'electron';
 
 export function setupApplicationMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -15,7 +16,7 @@ export function setupApplicationMenu(): void {
 
   if (isMac) {
     template.push({
-      label: app.name,
+      label: brand.displayName,
       submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }],
     });
   }
