@@ -249,4 +249,5 @@ __pycache__/
 nexus-data/
 
 # Pix Agent
+.pi/
 .pi-lens/
