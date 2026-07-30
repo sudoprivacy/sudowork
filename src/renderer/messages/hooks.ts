@@ -24,7 +24,7 @@ const indexCache = new WeakMap<TMessage[], MessageIndex>();
 
 // 构建消息索引
 // Build message index
-function buildMessageIndex(list: TMessage[]): MessageIndex {
+export function buildMessageIndex(list: TMessage[]): MessageIndex {
   const msgIdIndex = new Map<string, number>();
   const callIdIndex = new Map<string, number>();
   const toolCallIdIndex = new Map<string, number>();
@@ -59,7 +59,7 @@ function getOrBuildIndex(list: TMessage[]): MessageIndex {
 
 // 使用索引优化的消息合并函数
 // Index-optimized message compose function
-function composeMessageWithIndex(message: TMessage, list: TMessage[], index: MessageIndex): TMessage[] {
+export function composeMessageWithIndex(message: TMessage, list: TMessage[], index: MessageIndex): TMessage[] {
   if (!message) return list || [];
   if (!list?.length) {
     // Update index when adding first message
@@ -202,6 +202,27 @@ function composeMessageWithIndex(message: TMessage, list: TMessage[], index: Mes
     const newIdx = list.length;
     index.msgIdIndex.set(message.msg_id, newIdx);
     return list.concat(message);
+  }
+
+  // thought: streaming think deltas arrive incrementally — append description,
+  // subject follows the latest full-text first line from the emitter.
+  if (message.type === 'thought' && message.msg_id) {
+    const existingIdx = index.msgIdIndex.get(message.msg_id);
+    if (existingIdx !== undefined && existingIdx < list.length) {
+      const existingMsg = list[existingIdx];
+      if (existingMsg.type === 'thought') {
+        const newList = list.slice();
+        newList[existingIdx] = {
+          ...existingMsg,
+          content: {
+            subject: message.content.subject,
+            description: (existingMsg.content.description || '') + (message.content.description || ''),
+          },
+        } as TMessage;
+        return newList;
+      }
+    }
+    // Not found / type mismatch: fall through to the generic insert below.
   }
 
   // agent_status / tips / plan and other msg_id-based messages:

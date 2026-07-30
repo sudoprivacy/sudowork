@@ -34,52 +34,63 @@ describe('StreamingThinkFilter', () => {
     });
   });
 
-  describe('think extraction (thinkText)', () => {
-    it('returns the think content as thinkText (full accumulated value)', () => {
+  describe('think extraction (thinkDelta / thinkFull)', () => {
+    it('returns the think content as thinkDelta (increment) and thinkFull (complete)', () => {
       const f = new StreamingThinkFilter();
       const r = f.feed('<think>secret</think>visible');
       expect(r.content).toBe('visible');
-      expect(r.thinkText).toBe('secret');
+      expect(r.thinkDelta).toBe('secret');
+      expect(r.thinkFull).toBe('secret');
     });
 
-    it('accumulates think across chunks and returns the full value each time', () => {
+    it('accumulates think across chunks: delta is the increment, full is complete', () => {
       const f = new StreamingThinkFilter();
       const r1 = f.feed('<think>hel');
       expect(r1.content).toBe('');
-      expect(r1.thinkText).toBe('hel');
+      expect(r1.thinkDelta).toBe('hel');
+      expect(r1.thinkFull).toBe('hel');
       const r2 = f.feed('lo');
       expect(r2.content).toBe('');
-      expect(r2.thinkText).toBe('hello');
+      expect(r2.thinkDelta).toBe('lo');
+      expect(r2.thinkFull).toBe('hello');
       const r3 = f.feed('</think>world');
       expect(r3.content).toBe('world');
-      expect(r3.thinkText).toBeNull();
+      expect(r3.thinkDelta).toBeNull();
+      expect(r3.thinkFull).toBeNull();
     });
 
-    it('returns thinkText=null when no new think text arrived (close-only chunk)', () => {
+    it('returns thinkDelta/thinkFull=null when no new think text arrived (close-only chunk)', () => {
       const f = new StreamingThinkFilter();
       f.feed('<think>secret');
       const r = f.feed('</think>visible');
       expect(r.content).toBe('visible');
-      expect(r.thinkText).toBeNull();
+      expect(r.thinkDelta).toBeNull();
+      expect(r.thinkFull).toBeNull();
     });
 
-    it('merges multiple think blocks in one filter into one thinkText', () => {
+    it('merges multiple think blocks with a \\n\\n separator (delta carries it with content)', () => {
       const f = new StreamingThinkFilter();
-      f.feed('<think>a</think>');
+      const first = f.feed('<think>a</think>');
+      expect(first.thinkDelta).toBe('a');
+      expect(first.thinkFull).toBe('a');
       const r = f.feed('x<think>b</think>y');
       expect(r.content).toBe('xy');
-      expect(r.thinkText).toBe('ab');
+      expect(r.thinkDelta).toBe('\n\nb');
+      expect(r.thinkFull).toBe('a\n\nb');
     });
 
     it('emits think incrementally even when unclosed at flush', () => {
       const f = new StreamingThinkFilter();
-      expect(f.feed('<think>secret').thinkText).toBe('secret');
+      const r = f.feed('<think>secret');
+      expect(r.thinkDelta).toBe('secret');
+      expect(r.thinkFull).toBe('secret');
       expect(f.flush()).toBe('');
     });
 
-    it('does not report thinkText for normal text', () => {
+    it('does not report think for normal text', () => {
       const f = new StreamingThinkFilter();
-      expect(f.feed('hello world').thinkText).toBeNull();
+      expect(f.feed('hello world').thinkDelta).toBeNull();
+      expect(f.feed('hello world').thinkFull).toBeNull();
     });
   });
 
