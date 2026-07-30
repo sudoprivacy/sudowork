@@ -966,7 +966,7 @@ export const scode = {
   restoreCustomModelProviders: bridge.buildProvider<IBridgeResponse<ScodeConfig>, { userId: string; baseConfig?: ScodeConfig }>('scode.restore-custom-model-providers'),
   /** Update only the default_model field in sudocode.json */
   setDefaultModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string }>('scode.set-default-model'),
-  /** Fetch live model list from sudorouter specific_pricing, rewrite sudocode.json models, return resolved model info */
+  /** Read the pre-connection model list from sudocode.json (fallback before ACP is connected) */
   refreshModels: bridge.buildProvider<IBridgeResponse<AcpModelInfo>, void>('scode.refresh-models'),
   /** Read-only fetch of sudorouter specific_pricing items (no write to sudocode.json) */
   fetchSpecificPricing: bridge.buildProvider<IBridgeResponse<SpecificPricingItem[]>, void>('scode.fetch-specific-pricing'),
