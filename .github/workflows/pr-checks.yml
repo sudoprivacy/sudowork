@@ -137,7 +137,7 @@ jobs:
     name: Build Test (${{ matrix.platform }})
     if: github.event.action != 'edited'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
       matrix:
@@ -148,24 +148,28 @@ jobs:
             target: '--mac'
             build_args: '--mac --arm64'
             unpacked_dir: 'mac-arm64'
+            timeout: 30
           - platform: 'macos-x64'
             os: 'macos-14'
             arch: 'x64'
             target: '--mac'
             build_args: '--mac --x64'
             unpacked_dir: 'mac'
+            timeout: 30
           - platform: 'windows-x64'
             os: 'windows-2022'
             arch: 'x64'
             target: '--win'
             build_args: '--win --x64'
             unpacked_dir: 'win-unpacked'
+            timeout: 75
           - platform: 'windows-arm64'
             os: 'windows-2022'
             arch: 'arm64'
             target: '--win'
             build_args: '--win --arm64'
             unpacked_dir: 'win-arm64-unpacked'
+            timeout: 75
           # Linux build disabled — no .deb target configured, snap requires snapcraft login
           # - platform: 'linux'
           #   os: 'ubuntu-latest'
