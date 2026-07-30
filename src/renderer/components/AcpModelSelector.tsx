@@ -75,48 +75,15 @@ const AcpModelSelector: React.FC<{
     }
 
     // For scode, pull the live model list from sudorouter specific_pricing
-    // (rewrites sudocode.json models). Falls back to the standard path on
-    // failure so the dropdown still works offline.
-    if (backend === 'scode') {
-      void fetchScodeLiveModelInfo();
-      return () => {
-        cancelled = true;
-      };
-    }
-
+    // Model discovery for scode is now handled by the capabilities SSOT
+    // inside scode itself (refreshed from sudorouter /v1/models every 24h).
+    // ACP get_model_info() returns config aliases + capabilities models.
+    // The standard fetch path works for all backends including scode.
     runStandardModelInfoFetch();
 
     return () => {
       cancelled = true;
     };
-
-    async function fetchScodeLiveModelInfo() {
-      if (isGuest) {
-        runStandardModelInfoFetch();
-        return;
-      }
-      try {
-        const result = await ipcBridge.scode.refreshModels.invoke();
-        if (cancelled) return;
-        if (result.success && result.data && (result.data.availableModels?.length ?? 0) > 0) {
-          const info = result.data;
-          // Honor a Guid-page pre-selected model on first load.
-          if (!hasUserChangedModel.current && initialModelId) {
-            const match = info.availableModels.find((m) => m.id === initialModelId);
-            if (match) {
-              setModelInfo({ ...info, currentModelId: match.id, currentModelLabel: match.label });
-              return;
-            }
-          }
-          setModelInfo(info);
-          return;
-        }
-      } catch (error) {
-        console.error('[AcpModelSelector][scode] refreshModels failed:', error);
-      }
-      if (cancelled) return;
-      runStandardModelInfoFetch();
-    }
 
     function runStandardModelInfoFetch() {
       ipcBridge.acpConversation.getModelInfo
@@ -241,7 +208,7 @@ const AcpModelSelector: React.FC<{
         }
       }
     }
-  }, [conversationId, backend, fallbackModelId, initialModelId, isGuest]);
+  }, [conversationId, backend, fallbackModelId, initialModelId]);
 
   // Track pending model switch for showing success message
   const pendingModelSwitchRef = useRef<string | null>(null);
