@@ -19,7 +19,7 @@ export default function TeamSiderSection({ onSessionClick }: ITeamSiderSectionPr
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { teams, mutate } = useTeams();
+  const { teams, mutate, isLoading } = useTeams();
   const [isExpanded, setIsExpanded] = useState<boolean>(() => localStorage.getItem(TEAM_SECTION_EXPANDED_KEY) === 'true');
   const [isCreateVisible, setIsCreateVisible] = useState(false);
   const [dropdownVisibleId, setDropdownVisibleId] = useState<string | null>(null);
@@ -113,6 +113,11 @@ export default function TeamSiderSection({ onSessionClick }: ITeamSiderSectionPr
 
       {isExpanded && (
         <div className='ml-3 flex flex-col gap-0.5'>
+          {!isLoading && teams.length === 0 && (
+            <div className='select-none px-3 py-2 text-center text-13px leading-24px whitespace-pre-wrap' style={{ color: 'rgb(var(--gray-5))' }}>
+              {t('team.list.empty')}
+            </div>
+          )}
           {teams.map((team) => {
             const isSelected = pathname.startsWith(`/app/team/${team.id}`);
             const isMenuVisible = dropdownVisibleId === team.id;

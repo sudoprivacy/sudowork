@@ -1,7 +1,7 @@
 {
   "list": {
     "title": "Takımlar",
-    "empty": "Henüz takım yok. İşbirliği için bir tane oluşturun.",
+    "empty": "Henüz takım oturumu geçmişi yok\nYeni takım oluşturmak için yukarıdaki + simgesine tıklayın",
     "createButton": "Yeni Takım"
   },
   "create": {
