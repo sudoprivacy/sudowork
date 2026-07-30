@@ -141,4 +141,32 @@ describe('StreamingThinkFilter', () => {
       expect(f.flush()).toBe('<thi');
     });
   });
+
+  describe('defensive error recovery (feed catch resets state)', () => {
+    it('resets accumulated think state when feed() catches an internal anomaly', () => {
+      const f = new StreamingThinkFilter();
+      // Precondition: a prior think block leaves accumulatedThink non-empty
+      // and hadAnyThink=true.
+      f.feed('<think>old</think>');
+
+      // Drive feed() into its defensive catch. A Symbol cannot be implicitly
+      // coerced to string, so `pendingTail + chunk` (StreamingThinkFilter.ts:94)
+      // throws TypeError inside the try block. This couples only to feed()'s
+      // public input contract (it concatenates the chunk) — no private-method
+      // name, no vi.spyOn / mock.
+      const sym = Symbol('boom');
+      const r = f.feed(sym as unknown as string);
+      expect(r.content).toBe(sym);
+      expect(r.thinkDelta).toBeNull();
+      expect(r.thinkFull).toBeNull();
+
+      // After the catch the filter must be clean: a subsequent think block must
+      // NOT merge with pre-anomaly 'old' nor prepend a stray '\n\n'.
+      // (Pre-fix: thinkFull would be 'old\n\nfresh', thinkDelta '\n\nfresh'.)
+      const after = f.feed('<think>fresh</think>');
+      expect(after.content).toBe('');
+      expect(after.thinkDelta).toBe('fresh');
+      expect(after.thinkFull).toBe('fresh');
+    });
+  });
 });

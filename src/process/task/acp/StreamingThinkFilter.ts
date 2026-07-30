@@ -147,6 +147,9 @@ export class StreamingThinkFilter {
       // known normal state and pass the original chunk through verbatim.
       this.isInThink = false;
       this.pendingTail = '';
+      this.accumulatedThink = '';
+      this.hadAnyThink = false;
+      this.pendingThinkSeparator = false;
       return { content: chunk, thinkDelta: null, thinkFull: null };
     }
   }
