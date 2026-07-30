@@ -8,6 +8,7 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { ZentaoChannelItem } from './ZentaoConfigForm';
 import { EnterpriseSecretSection } from './EnterpriseSecretSection';
 import PwdLoginSection from './PwdLoginSection';
+import ZzapiSecretSection from './ZzapiSecretSection';
 import TenantConfigSection from './TenantConfigSection';
 
 /**
@@ -54,6 +55,9 @@ const SecretPanel: React.FC = () => {
 
             {/* 禅道（仅C端） */}
             {!isEnterprise && <ZentaoChannelItem />}
+
+            {/* 中资（仅C端；B端凭据走租户配置下发） */}
+            {!isEnterprise && <ZzapiSecretSection />}
 
             {/* 网站自动登录 (pwd_login) */}
             <PwdLoginSection />

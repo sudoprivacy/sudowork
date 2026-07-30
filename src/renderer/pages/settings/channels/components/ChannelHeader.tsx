@@ -7,6 +7,7 @@ import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
 import ChannelWeChatLogo from '@/renderer/assets/channel-logos/wechat.svg';
 import ChannelWeComLogo from '@/renderer/assets/channel-logos/wecom.svg';
 import ChannelZentaoLogo from '@/renderer/assets/channel-logos/zentao.svg';
+import ChannelZhongziLogo from '@/renderer/assets/channel-logos/zhongzi.png';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { ChannelConfig } from '../types';
 
@@ -25,6 +26,7 @@ const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled 
     wechat: { src: ChannelWeChatLogo, alt: 'WeChat' },
     wecom: { src: ChannelWeComLogo, alt: 'WeCom' },
     zentao: { src: ChannelZentaoLogo, alt: 'Zentao' },
+    zhongzi: { src: ChannelZhongziLogo, alt: '中资' },
   };
   const builtinLogo = channelLogoMap[channel.id];
   // Extension channels may provide a custom icon via ChannelConfig

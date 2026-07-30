@@ -21,6 +21,7 @@ import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
 import { getDataPath } from '@process/utils';
+import { getZzapiCredentialEnv } from '@process/services/zzapi/zzapiCredentials';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const PERF_LOG = process.env.ACP_PERF === '1';
@@ -311,6 +312,13 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     // When customEnv.PATH exists, merge it with the already merged path (fix: don't override)
     PATH: customEnv?.PATH ? mergePaths(mergedPath, customEnv.PATH) : mergedPath,
   } as Record<string, string>;
+
+  // ZZAPI credentials from the secret store (cached; see zzapiCredentials.ts).
+  // Only filled in when absent, matching how the other injected credentials
+  // behave (acpConnectors.ts) — a value the user exported themselves wins.
+  for (const [key, value] of Object.entries(getZzapiCredentialEnv())) {
+    if (!enhancedEnv[key]) enhancedEnv[key] = value;
+  }
 
   if (!app.isPackaged) {
     enhancedEnv.NPM_CONFIG_REGISTRY = DEV_NPM_REGISTRY;

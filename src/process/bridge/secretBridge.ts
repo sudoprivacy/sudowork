@@ -7,6 +7,7 @@
 import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
 import { cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { getZzapiNamespace, refreshZzapiCredentials } from '@process/services/zzapi/zzapiCredentials';
 import { ipcBridge } from '../../common';
 
 export function initSecretBridge(): void {
@@ -27,6 +28,12 @@ export function initSecretBridge(): void {
       client.putSecret(namespace, key, value, description);
       cachePut(namespace, key, value);
       mainLog('SecretBridge', `Secret saved [${namespace}/${key}]`);
+      // ZZAPI credentials are cached in memory and read synchronously when
+      // spawning children; re-read so a change takes effect on the next agent
+      // without an app restart.
+      if (namespace === getZzapiNamespace()) {
+        void refreshZzapiCredentials();
+      }
       return { success: true };
     } catch (err) {
       mainError('SecretBridge', `Failed to put secret [${namespace}/${key}]:`, err);

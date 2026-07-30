@@ -237,6 +237,10 @@ export interface IConfigStorageRefer {
   'telemetry.previousVersion'?: string; // 之前的版本 (用于判断安装类型) / Previous version for install type detection
   // App mode: 'c' for consumer, 'e' for enterprise, undefined = not set (new user)
   'system.appMode'?: 'c' | 'e';
+  // 中资 (zzapi): whether stored credentials are injected into agent processes.
+  // Off keeps them in the vault but withholds them, so the agent can't call the
+  // platform. Defaults to enabled once credentials are saved.
+  'zzapi.enabled'?: boolean;
   // Enterprise server URL / 企业服务器地址
   'eeclaw.serverUrl'?: string;
   // Enterprise tenant name / 企业租户名称
