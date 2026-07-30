@@ -12,6 +12,7 @@ export const badgeColors: Record<string, string> = {
   poppler: 'bg-lime-1 color-lime-7 border border-lime-3',
   sudocode: 'bg-purple-1 color-purple-6 border border-purple-3',
   shareone: 'bg-blue-1 color-blue-6 border border-blue-3',
+  zzapi: 'bg-red-1 color-red-6 border border-red-3',
   embedding: 'bg-teal-1 color-teal-6 border border-teal-3',
   nexus: 'text-[#f6c65b] border border-[#6f5520] bg-[#2b2212]',
 };

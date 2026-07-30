@@ -707,6 +707,15 @@ export const shareoneCli = {
   publishFile: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { filePath: string }>('shareone.publish-file'),
 };
 
+// ZZAPI CLI installer / 中资寻源询价命令行工具
+export const zzapiCli = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('zzapi.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('zzapi.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('zzapi.uninstall'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('zzapi.install-result'),
+  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('zzapi.install-progress'),
+};
+
 // LibreOffice installer / LibreOffice 在线安装
 export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
 export type ISudoclawInstallPhase = 'extracting' | 'installing' | 'configuring';

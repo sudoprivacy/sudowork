@@ -12,6 +12,7 @@ import {
   nodeRuntime as nodeRuntimeIpc,
   acpConversation,
   shareoneCli,
+  zzapiCli,
   localKnowledgeBase as localKnowledgeBaseIpc,
   popplerRuntime as popplerRuntimeIpc,
 } from '@/common/ipcBridge';
@@ -63,6 +64,9 @@ export default function RuntimeSettings() {
 
   const [shareoneStatus, setShareoneStatus] = useState<ICliStatus | null>(null);
   const [shareoneLoad, setShareoneLoad] = useState<LoadState>('idle');
+
+  const [zzapiStatus, setZzapiStatus] = useState<ICliStatus | null>(null);
+  const [zzapiLoad, setZzapiLoad] = useState<LoadState>('idle');
 
   const [embeddingStatus, setEmbeddingStatus] = useState<ICliStatus | null>(null);
   const [embeddingLoad, setEmbeddingLoad] = useState<LoadState>('idle');
@@ -410,6 +414,53 @@ export default function RuntimeSettings() {
     }
   }, [refreshShareone, t]);
 
+  const refreshZzapi = useCallback(async () => {
+    try {
+      const res = await zzapiCli.checkInstalled.invoke();
+      if (res?.success && res.data) {
+        setZzapiStatus(res.data);
+      } else {
+        setZzapiStatus({ installed: false, source: 'none' });
+      }
+    } catch {
+      setZzapiStatus({ installed: false, source: 'none' });
+    }
+  }, []);
+
+  const installZzapi = useCallback(async () => {
+    setZzapiLoad('installing');
+    try {
+      const res = await zzapiCli.install.invoke();
+      if (res?.success) {
+        await refreshZzapi();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'ZZAPI' }));
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'ZZAPI' }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'ZZAPI' }));
+    } finally {
+      setZzapiLoad('idle');
+    }
+  }, [refreshZzapi, t]);
+
+  const uninstallZzapi = useCallback(async () => {
+    setZzapiLoad('loading');
+    try {
+      const res = await zzapiCli.uninstall.invoke();
+      if (res?.success) {
+        Message.success(t('settings.runtimeSettings.uninstallSuccess', { name: 'ZZAPI' }));
+        await refreshZzapi();
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.uninstallFailed', { name: 'ZZAPI' }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.uninstallFailed', { name: 'ZZAPI' }));
+    } finally {
+      setZzapiLoad('idle');
+    }
+  }, [refreshZzapi, t]);
+
   const refreshEmbedding = useCallback(async (options?: RefreshOptions) => {
     if (!options?.silent) {
       setEmbeddingLoad('loading');
@@ -534,9 +585,9 @@ export default function RuntimeSettings() {
 
   const refreshRuntimePage = useCallback(
     async (options?: RefreshOptions) => {
-      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshEmbedding(options), refreshNexus(), refreshLibreOffice(options), refreshPython(options), refreshPoppler(options)]);
+      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshZzapi(), refreshEmbedding(options), refreshNexus(), refreshLibreOffice(options), refreshPython(options), refreshPoppler(options)]);
     },
-    [refreshClaude, refreshEmbedding, refreshLibreOffice, refreshNexus, refreshNode, refreshPoppler, refreshPython, refreshScode, refreshShareone]
+    [refreshClaude, refreshEmbedding, refreshLibreOffice, refreshNexus, refreshNode, refreshPoppler, refreshPython, refreshScode, refreshShareone, refreshZzapi]
   );
 
   // Load all on mount; also restore install state if an install is already in progress
@@ -598,6 +649,13 @@ export default function RuntimeSettings() {
       setShareoneLoad('idle');
       void refreshShareone();
     });
+    const unsubZzapiProgress = zzapiCli.installProgress.on(() => {
+      setZzapiLoad('installing');
+    });
+    const unsubZzapiResult = zzapiCli.installResult.on(() => {
+      setZzapiLoad('idle');
+      void refreshZzapi();
+    });
     const unsubEmbeddingProgress = localKnowledgeBaseIpc.installEmbeddingModelProgress.on(({ phase, percent }) => {
       setEmbeddingLoad('installing');
       setEmbeddingPhase(phase);
@@ -645,6 +703,8 @@ export default function RuntimeSettings() {
       unsubScodeProgress();
       unsubScodeResult();
       unsubShareoneResult();
+      unsubZzapiProgress();
+      unsubZzapiResult();
       unsubEmbeddingProgress();
       unsubEmbeddingResult();
       unsubNexusProgress();
@@ -656,7 +716,7 @@ export default function RuntimeSettings() {
       unsubPopplerProgress();
       unsubPopplerResult();
     };
-  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshEmbedding, refreshLibreOffice, refreshPython, refreshPoppler]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshZzapi, refreshEmbedding, refreshLibreOffice, refreshPython, refreshPoppler]);
 
   const tableData: ToolRow[] = [
     {
@@ -740,6 +800,17 @@ export default function RuntimeSettings() {
       loadState: shareoneLoad,
       onRefresh: refreshShareone,
       onInstall: shareoneStatus?.installed ? undefined : installShareone,
+    },
+    {
+      key: 'zzapi',
+      displayName: 'ZZAPI',
+      command: 'zzapi',
+      badge: 'ZZ',
+      status: zzapiStatus,
+      loadState: zzapiLoad,
+      onRefresh: refreshZzapi,
+      onInstall: installZzapi,
+      onUninstall: uninstallZzapi,
     },
     {
       key: 'embedding',

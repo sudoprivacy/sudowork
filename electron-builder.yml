@@ -195,6 +195,8 @@ extraResources:
     to: shareone.tgz
   - from: resources/mcporter.tgz
     to: mcporter.tgz
+  - from: resources/zzapi.tgz
+    to: zzapi.tgz
   # browser-panel MCP server bundle (esbuild output from
   # scripts/build-browser-mcp.js). Claude Code launches this as a stdio MCP
   # subprocess after sudowork registers it in ~/.claude.json at first run.
