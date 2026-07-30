@@ -3400,7 +3400,14 @@ This identity statement takes priority over the default identity in USER.md.
     // of queue() (DB) and responseStream.emit() (IPC display) so both paths stay clean.
     if (filteredMessage.type === 'content' && typeof filteredMessage.data === 'string' && filteredMessage.msg_id) {
       const filter = this.getOrCreateThinkFilter(filteredMessage.msg_id);
-      filteredMessage = { ...filteredMessage, data: filter.feed(filteredMessage.data) };
+      const { content, thinkDelta, thinkFull } = filter.feed(filteredMessage.data);
+      filteredMessage = { ...filteredMessage, data: content };
+      // Emit extracted think content as a thought message BEFORE the content
+      // empty check below: a pure-think chunk (e.g. "<think>The") has empty
+      // content and would otherwise return early, dropping the thought.
+      if (thinkDelta && thinkFull) {
+        this.emitThoughtMessage(`${filteredMessage.msg_id}-think`, thinkDelta, thinkFull);
+      }
     }
 
     if (message.type === 'content' && filteredMessage.type === 'content' && filteredMessage.data === '') {
@@ -3479,6 +3486,45 @@ This identity statement takes priority over the default identity in USER.md.
       this.thinkFilters.set(msgId, filter);
     }
     return filter;
+  }
+
+  /**
+   * Emit think content (extracted by StreamingThinkFilter from inline `<think>`
+   * tags) as a `thought` message so it renders in the "思考过程" area
+   * (MessageThought). Bypasses handleStreamEvent because that path triggers
+   * flushThinkFilters() for non text/content messages, which would clear the
+   * filter mid-stream and lose accumulated think state.
+   *
+   * DB receives the FULL accumulated text (replace-merge via composeMessage,
+   * unchanged — shared with RemoteAgent). IPC receives only the per-call DELTA
+   * (append-merge in the renderer) so long reasoning is O(n) over IPC instead
+   * of re-sending the full text every chunk. subject is derived from `full` and
+   * shared by both paths. Also marks the turn as having visible assistant output
+   * so a pure-think reply no longer trips the "no summary" fallback.
+   */
+  private emitThoughtMessage(thoughtMsgId: string, delta: string, full: string): void {
+    if (!delta.trim()) return;
+    this.turnHadVisibleAssistantContent = true;
+    this.lastVisibleAssistantContentSequence = ++this.turnEventSequence;
+    const subject = this.extractThoughtSubject(full);
+    const dbMessage = {
+      type: 'thought',
+      msg_id: thoughtMsgId,
+      conversation_id: this.conversation_id,
+      data: { subject, description: full },
+    } as IResponseMessage;
+    const tMessage = transformMessage(dbMessage);
+    if (tMessage) {
+      addOrUpdateMessage(this.conversation_id, tMessage);
+    }
+    const ipcMessage = {
+      type: 'thought',
+      msg_id: thoughtMsgId,
+      conversation_id: this.conversation_id,
+      data: { subject, description: delta },
+    } as IResponseMessage;
+    ipcBridge.acpConversation.responseStream.emit(ipcMessage);
+    channelEventBus.emitAgentMessage(this.conversation_id, { ...ipcMessage, conversation_id: this.conversation_id });
   }
 
   private async handleSignalEvent(v: IResponseMessage): Promise<void> {

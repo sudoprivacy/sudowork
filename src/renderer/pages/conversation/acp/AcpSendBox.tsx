@@ -79,7 +79,9 @@ const useAcpMessage = (conversation_id: string) => {
   } | null>(null);
 
   // Think 消息节流：限制更新频率，减少渲染次数
-  // Throttle thought updates to reduce render frequency
+  // Throttle thought updates to reduce render frequency. Think deltas arrive
+  // incrementally, so pending accumulates description (subject follows the
+  // latest delta) and each flush appends to the current thought state.
   const thoughtThrottleRef = useRef<{
     lastUpdate: number;
     pending: ThoughtData | null;
@@ -88,32 +90,27 @@ const useAcpMessage = (conversation_id: string) => {
 
   const throttledSetThought = useMemo(() => {
     const THROTTLE_MS = 50;
+    const flush = () => {
+      const ref = thoughtThrottleRef.current;
+      const pending = ref.pending;
+      ref.pending = null;
+      ref.lastUpdate = Date.now();
+      if (pending) {
+        setThought((prev) => ({ subject: pending.subject, description: (prev.description || '') + pending.description }));
+      }
+    };
     return (data: ThoughtData) => {
       const now = Date.now();
       const ref = thoughtThrottleRef.current;
+      ref.pending = ref.pending ? { subject: data.subject, description: ref.pending.description + data.description } : { subject: data.subject, description: data.description };
       if (now - ref.lastUpdate >= THROTTLE_MS) {
-        ref.lastUpdate = now;
-        ref.pending = null;
         if (ref.timer) {
           clearTimeout(ref.timer);
           ref.timer = null;
         }
-        setThought(data);
-      } else {
-        ref.pending = data;
-        if (!ref.timer) {
-          ref.timer = setTimeout(
-            () => {
-              ref.lastUpdate = Date.now();
-              ref.timer = null;
-              if (ref.pending) {
-                setThought(ref.pending);
-                ref.pending = null;
-              }
-            },
-            THROTTLE_MS - (now - ref.lastUpdate)
-          );
-        }
+        flush();
+      } else if (!ref.timer) {
+        ref.timer = setTimeout(flush, THROTTLE_MS - (now - ref.lastUpdate));
       }
     };
   }, []);

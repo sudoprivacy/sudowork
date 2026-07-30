@@ -61,7 +61,15 @@ export class ConversationManageWithDB {
               this.stack.push(updateMessage);
             }
           } else {
-            messageList = composeMessage(updateMessage[1], messageList, (type, message) => {
+            const msg = updateMessage[1];
+            // thought 按 msg_id 合并，但 messageList 只含最近 50 条；若已被挤出
+            // 窗口，composeMessage 会当新消息 insert 导致重载历史时出现重复思考块。
+            // 先把 DB 里的既有记录拉进 list，使 composeMessage 走 update 复用既有 id。
+            if (msg.type === 'thought' && msg.msg_id && !messageList.some((m) => m.type === 'thought' && m.msg_id === msg.msg_id)) {
+              const existing = this.db.getMessageByMsgId(this.conversation_id, msg.msg_id, 'thought');
+              if (existing.success && existing.data) messageList.push(existing.data);
+            }
+            messageList = composeMessage(msg, messageList, (type, message) => {
               if (type === 'insert') this.db.insertMessage(message);
               if (type === 'update') {
                 this.db.updateMessage(message.id, message);
