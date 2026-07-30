@@ -1,7 +1,7 @@
 {
   "list": {
     "title": "Teams",
-    "empty": "No teams yet. Create one to start collaborating.",
+    "empty": "No team session history yet\nClick the + above to create a team",
     "createButton": "New Team"
   },
   "create": {
