@@ -1,0 +1,35 @@
+name: "scode model discovery shows capabilities SSOT models"
+description: >
+  Verify that the model selector dropdown for scode shows models from the
+  capabilities SSOT (not just config aliases). After sudocode#344, ACP
+  get_model_info() returns config aliases + capabilities models (~30+).
+  The dropdown should include non-config models like deepseek or grok.
+tags: [scode, model-discovery]
+
+steps:
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # Navigate to Sudo Code agent
+  - op: click
+    x: 530
+    y: 27
+  - op: pause
+    duration: 3000
+  - op: mouse_click
+    text: "Sudo Code"
+  - op: pause
+    duration: 3000
+
+  # Type /model and send to show model list
+  - op: type_text
+    text: "/model"
+  - op: press_key
+    key: "Enter"
+    wait: 5
+
+  # Screenshot and verify the model list includes capabilities SSOT models
+  - op: screenshot
+    path: "screenshots/scode-model-discovery-ssot.png"
+  - op: judge
+    expect: "model list with multiple models including claude"
