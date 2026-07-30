@@ -515,7 +515,7 @@ const LoginPage: React.FC = () => {
             <div className='login-page__logo'>
               <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
             </div>
-            <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
+            <h1 className='text-28px font-800 tracking-tighter bg-linear-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
             <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
           </div>
 
@@ -646,7 +646,7 @@ const LoginPage: React.FC = () => {
           <div className='login-page__logo'>
             <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
           </div>
-          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
+          <h1 className='text-28px font-800 tracking-tighter bg-linear-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
           <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
         </div>
 

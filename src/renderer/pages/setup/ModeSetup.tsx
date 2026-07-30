@@ -179,7 +179,7 @@ const ModeSetup: React.FC = () => {
         {/* Logo & Title */}
         <div className='mode-setup__header'>
           <img src={SudoworkIcon} alt='Sudowork' className='mode-setup__logo' />
-          <h1 className='text-28px font-700 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>欢迎使用 SudoWork</h1>
+          <h1 className='text-28px font-700 tracking-tighter bg-linear-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>欢迎使用 SudoWork</h1>
           <p className='text-14px text-secondary'>请选择您的使用模式</p>
         </div>
 
