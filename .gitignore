@@ -247,3 +247,6 @@ __pycache__/
 
 # Local nexusd-cluster runtime data (created when cwd=repo)
 nexus-data/
+
+# Pix Agent
+.pi-lens/
