@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // hooks/useTheme.ts
 import { useCallback, useEffect, useState } from 'react';
 import { ConfigStorage } from '@/common/storage';

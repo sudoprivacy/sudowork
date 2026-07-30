@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { AssistantCategory } from '@/process/AssistantManager';
 import type { IAssistantHubSkill } from '@/common/ipcBridge';
 import type { AcpBackendConfig } from '@/types/acpTypes';

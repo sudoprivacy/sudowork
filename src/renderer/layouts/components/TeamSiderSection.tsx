@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Dropdown, Input, Menu, Modal, Tooltip } from '@arco-design/web-react';
 import { DeleteOne, EditOne, Export, Pushpin, Right } from '@icon-park/react';
 import classNames from 'classnames';

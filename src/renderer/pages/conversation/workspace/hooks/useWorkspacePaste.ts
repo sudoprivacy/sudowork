@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useCallback, useState } from 'react';
 import { Message } from '@arco-design/web-react';
 import { ipcBridge } from '@/common';

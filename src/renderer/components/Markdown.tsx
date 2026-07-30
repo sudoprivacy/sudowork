@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 
 import SyntaxHighlighter from 'react-syntax-highlighter';

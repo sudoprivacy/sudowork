@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { type ReactNode } from 'react';
 
 export default function PreferenceRow({ label, children, hint }: IPreferenceRowProps) {

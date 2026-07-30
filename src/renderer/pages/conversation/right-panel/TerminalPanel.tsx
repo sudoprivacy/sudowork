@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { FitAddon } from '@xterm/addon-fit';
 import { Tooltip } from '@arco-design/web-react';
 import { Add, Close } from '@icon-park/react';

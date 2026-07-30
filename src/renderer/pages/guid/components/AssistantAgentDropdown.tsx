@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Dropdown for switching the main agent (backend) of the selected assistant.
  * Shown on the right side of the assistant header in the GUID page.
  */

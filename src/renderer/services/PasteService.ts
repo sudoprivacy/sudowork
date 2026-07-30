@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { ipcBridge } from '@/common';
 import type { FileMetadata } from './FileService';
 import { getFileExtension } from './FileService';

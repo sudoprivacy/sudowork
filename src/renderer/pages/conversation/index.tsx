@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Spin } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';

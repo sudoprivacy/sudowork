@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 export const isDefaultModel = (value?: string | null, label?: string | null): boolean => {
   const text = `${value || ''} ${label || ''}`.toLowerCase();
   return text.includes('default') || text.includes('recommended') || text.includes('默认');

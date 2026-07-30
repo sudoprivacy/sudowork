@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Attention, CheckOne } from '@icon-park/react';
 import { theme } from '@office-ai/platform';
 import classNames from 'classnames';

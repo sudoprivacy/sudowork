@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { AvailableAgent } from './types';
 
 export const AVAILABLE_AGENTS_SWR_KEY = 'acp.agents.available';

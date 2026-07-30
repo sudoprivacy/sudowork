@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 export type FileOrFolderItem = {
   path: string; // 绝对路径 / Absolute path
   name: string; // 文件名（可能被清理过用于显示）/ File name (may be cleaned for display)

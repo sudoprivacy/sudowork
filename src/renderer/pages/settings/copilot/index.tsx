@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Alert, Button, Space, Spin, Tag } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import { Bot, Folder, User } from 'lucide-react';

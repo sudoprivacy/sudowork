@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 

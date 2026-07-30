@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import type { IMessageCodexToolCall, CodexToolCallUpdate } from '@/common/chatLib';
 import ExecCommandDisplay from './ToolCallComponent/ExecCommandDisplay';

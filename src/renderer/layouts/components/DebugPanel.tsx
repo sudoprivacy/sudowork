@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /// <reference types="vite/client" />
 import { Button, Descriptions, Popover, Select } from '@arco-design/web-react';
 import { IconMoon, IconSun } from '@arco-design/web-react/icon';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Typography } from '@arco-design/web-react';
 import { IconLink, IconSettings } from '@arco-design/web-react/icon';
 import React, { useState } from 'react';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Tabs } from '@arco-design/web-react';
 import { MessagesSquare } from 'lucide-react';
 import React, { useCallback, useState } from 'react';

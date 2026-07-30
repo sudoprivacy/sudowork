@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Layout as ArcoLayout, Tooltip } from '@arco-design/web-react';
 import { ExpandLeft, ExpandRight, Right } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';

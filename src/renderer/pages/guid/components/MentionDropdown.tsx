@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Menu } from '@arco-design/web-react';
 import { Robot } from '@icon-park/react';
 import React from 'react';

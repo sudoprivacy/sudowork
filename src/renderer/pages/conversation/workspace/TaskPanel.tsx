@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * TaskPanel — Copilot DAG Task Panel
  *
  * 右侧面板：紧凑 mini tracker（card 样式）

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Shield, Lock, Scan, CircleCheck, LayoutGrid } from 'lucide-react';
 import { IconPlus, IconEdit, IconDelete } from '@arco-design/web-react/icon';
 import { Card, Tag, Switch, Button, Modal, Table, Space, Popconfirm, Message, Tooltip } from '@arco-design/web-react';

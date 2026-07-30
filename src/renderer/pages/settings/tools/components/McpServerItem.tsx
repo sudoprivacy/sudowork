@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Collapse } from '@arco-design/web-react';
 import React from 'react';
 import type { IMcpServer } from '@/common/storage';

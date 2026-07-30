@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Checkbox, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
 import { DeleteOne, EditOne, Export, Loading, MessageOne, Pushpin } from '@icon-park/react';
 import classNames from 'classnames';

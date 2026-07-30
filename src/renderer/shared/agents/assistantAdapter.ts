@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Adapter: IAssistantInfo (filesystem SSOT) → AcpBackendConfig (renderer compat).
  *
  * Renderer code still uses AcpBackendConfig for state/props.
