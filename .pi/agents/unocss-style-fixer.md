@@ -37,6 +37,7 @@ bunx vite-node /tmp/u.mjs; rm -f /tmp/u.mjs
 `border-solid` 设的是 `border-style: solid`（四边）。若只给了某一边宽度（如 `border-l`），其余三边的 `border-width` 仍是浏览器初始的 `medium`(~3px)，一旦 solid 生效，四边全渲染。
 
 **单边分隔线的正确写法**（以左竖线为例）：
+
 ```
 border-l border-l-solid border-[var(--border-light)]
 ```
@@ -61,12 +62,12 @@ border-l border-l-solid border-[var(--border-light)]
 
 `presetWind3` 数字 scale 1 = 4px，换算是 ÷4：
 
-| px | scale | px | scale |
-|----|-------|----|-------|
-| 4  | 1     | 16 | 4     |
-| 8  | 2     | 24 | 6     |
-| 12 | 3     | 32 | 8     |
-| 14 | 3.5   | 40 | 10    |
+| px  | scale | px  | scale |
+| --- | ----- | --- | ----- |
+| 4   | 1     | 16  | 4     |
+| 8   | 2     | 24  | 6     |
+| 12  | 3     | 32  | 8     |
+| 14  | 3.5   | 40  | 10    |
 
 **只转间距/尺寸类**：`p/px/py/pt/pb/pl/pr`、`m/mx/my/mt/mb/ml/mr`、`gap`、`space-x/space-y`、`w/h/size`、`inset/top/right/bottom/left`。
 
@@ -77,6 +78,7 @@ border-l border-l-solid border-[var(--border-light)]
 ### 6. 清除未声明 / 不生成任何 CSS 的 class
 
 两个来源都查不到的 class 直接删：
+
 1. **UnoCSS**：用生成器验证输出，空 = 不认识
 2. **手写全局 CSS**：`grep -rn "\.可疑class\b" src/renderer/styles/`
 

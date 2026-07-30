@@ -25,14 +25,14 @@ bunx eslint <目标文件> 2>&1 | grep -E "no-unused-vars|is defined but never u
 
 按以下六类分组：
 
-| 类别 | 典型 ESLint 信息 | 处理策略 |
-|------|----------------|----------|
-| **A. 未用参数** | `'x' is defined but never used`（函数形参） | 加 `_` 前缀，如 `x` → `_x` |
-| **B. 未读 state** | `'foo' is assigned a value but never used`（useState 解构左值） | 删声明 + 所有 setter 调用 + 仅服务于它的副作用 |
-| **C. 未用函数** | `'handleXxx' is defined but never used` | 删整个函数（含注释） |
-| **D. 未用组件** | `'XxxCard' is defined but never used` | 删整个组件定义（含 section 注释） |
-| **E. 未用 import** | `'IXxx' is defined but never used` | 从 import 语句中移除该标识符或整行 |
-| **F. 未用变量** | `'xxx' is assigned a value but never used`（普通变量/useMemo/SWR data） | 删声明；若是 SWR 只删解构，保留 hook 调用本身 |
+| 类别               | 典型 ESLint 信息                                                        | 处理策略                                       |
+| ------------------ | ----------------------------------------------------------------------- | ---------------------------------------------- |
+| **A. 未用参数**    | `'x' is defined but never used`（函数形参）                             | 加 `_` 前缀，如 `x` → `_x`                     |
+| **B. 未读 state**  | `'foo' is assigned a value but never used`（useState 解构左值）         | 删声明 + 所有 setter 调用 + 仅服务于它的副作用 |
+| **C. 未用函数**    | `'handleXxx' is defined but never used`                                 | 删整个函数（含注释）                           |
+| **D. 未用组件**    | `'XxxCard' is defined but never used`                                   | 删整个组件定义（含 section 注释）              |
+| **E. 未用 import** | `'IXxx' is defined but never used`                                      | 从 import 语句中移除该标识符或整行             |
+| **F. 未用变量**    | `'xxx' is assigned a value but never used`（普通变量/useMemo/SWR data） | 删声明；若是 SWR 只删解构，保留 hook 调用本身  |
 
 ---
 
