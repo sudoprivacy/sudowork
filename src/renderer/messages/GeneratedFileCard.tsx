@@ -105,9 +105,14 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
   return (
     <Tooltip content={missing ? t('messages.generatedFile.missingHint') : entry.path} position='top' mini>
       <div
-        className={classNames('group min-w-0 items-center gap-12px overflow-hidden rounded-16px border border-light bg-2 px-12px py-12px text-left transition-all', fullWidth ? 'flex w-full' : 'inline-flex max-w-full', 'hover:bg-3 hover:border-bold active:scale-[0.98]', {
-          'opacity-50 cursor-not-allowed': missing || loading,
-        })}
+        className={classNames(
+          'group min-w-0 items-center gap-12px overflow-hidden rounded-16px border border-light bg-[var(--color-bg-2)] px-12px py-12px text-left transition-all',
+          fullWidth ? 'flex w-full' : 'inline-flex max-w-full',
+          'hover:bg-[var(--color-bg-3)] hover:border-bold active:scale-[0.98]',
+          {
+            'opacity-50 cursor-not-allowed': missing || loading,
+          }
+        )}
         onClick={handleClick}
         role='button'
         tabIndex={0}
@@ -143,12 +148,12 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
           // the card's primary in-app preview click.
           <div className='ml-auto flex shrink-0 items-center gap-2px opacity-0 transition-opacity group-hover:opacity-100'>
             <Tooltip content={t(isHtml ? 'messages.generatedFile.openInSystemBrowser' : 'messages.generatedFile.openWithDefaultApp')} position='top' mini>
-              <button type='button' onClick={handleOpenExternal} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-1' style={{ lineHeight: 0 }}>
+              <button type='button' onClick={handleOpenExternal} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-[var(--color-bg-1)]' style={{ lineHeight: 0 }}>
                 <ShareOne size='14' fill={'var(--text-secondary)'} />
               </button>
             </Tooltip>
             <Tooltip content={t('messages.generatedFile.showInFolder')} position='top' mini>
-              <button type='button' onClick={handleShowInFolder} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-1' style={{ lineHeight: 0 }}>
+              <button type='button' onClick={handleShowInFolder} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-[var(--color-bg-1)]' style={{ lineHeight: 0 }}>
                 <FolderOpen size='14' fill={'var(--text-secondary)'} />
               </button>
             </Tooltip>

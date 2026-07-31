@@ -50,7 +50,7 @@ function TeamMemberNameInput({ initialValue, onCommit, onCancel }: ITeamMemberNa
   };
 
   // border-[var(--color-border-1)] 保留内联：未桥接的 Arco 默认，无零改样等价类
-  return <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onBlur={commit} onKeyDown={handleKeyDown} className='min-w-0 flex-1 box-border rounded-4px border border-[var(--color-border-1)] bg-1 px-6px h-28px text-13px outline-none' />;
+  return <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onBlur={commit} onKeyDown={handleKeyDown} className='min-w-0 flex-1 box-border rounded-4px border border-[var(--color-border-1)] bg-[var(--color-bg-1)] px-6px h-28px text-13px outline-none' />;
 }
 
 function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRenameMember, onRemoveMember }: ITeamMemberListTabProps) {

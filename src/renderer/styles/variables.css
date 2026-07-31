@@ -130,7 +130,6 @@
   --border-default: #e0dbd0;
   --border-light: #e3ded2;
   --border-tiny: #f2f0ec;
-  --border-bold: var(--color-border-3); /* 桥接 Arco 深边框为项目 token；区别于 --ui-border-strong */
 
   /* Semantic - 实色(文字/图标/圆点) + soft(浅底) + line(描边) */
   --success: #2e7d32; /* 成功实色：文字、图标、状态点 */
