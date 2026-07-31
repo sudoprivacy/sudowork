@@ -23,7 +23,7 @@ export default function Tabs({ items, value, onChange, onMouseDown, className, i
             title={item.title}
             className={classNames(
               'inline-flex items-center gap-1.5 font-inherit transition-all disabled:cursor-not-allowed disabled:opacity-55',
-              variant === 'pill' && ['h-7 border rd-full px-3 text-xs active:scale-96', isActive ? 'border-primary bg-primary font-semibold text-white hover:bg-primary hover:text-white hover:brightness-112' : 'bg-fill-2 text-foreground hover:bg-fill-3'],
+              variant === 'pill' && ['h-7 border rd-full px-3 text-xs active:scale-96', isActive ? 'border-primary bg-primary font-semibold text-primary-foreground hover:bg-primary hover:text-primary-foreground hover:brightness-112' : 'bg-fill-2 text-foreground hover:bg-fill-3'],
               variant === 'line' && ['relative h-9 px-0 text-sm bg-transparent border-none', isActive ? 'text-primary font-medium' : 'text-secondary hover:text-foreground'],
               item.isDisabled ? 'cursor-not-allowed' : 'cursor-pointer',
               itemClassName
