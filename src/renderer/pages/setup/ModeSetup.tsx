@@ -13,7 +13,7 @@ import WindowControls from '@/renderer/components/WindowControls';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 
 const isWindowControlsVisible = isElectronDesktop() && !isMacOS();
-const MODE_CARD_CLASS_NAME = 'relative flex min-h-150px flex-col items-start rounded-16px border-2 p-5 text-left transition-colors [-webkit-app-region:no-drag]';
+const MODE_CARD_CLASS_NAME = 'relative flex min-h-116px cursor-pointer items-center gap-4 rounded-16px border-2 p-5 pr-12 text-left transition-colors [-webkit-app-region:no-drag]';
 const INPUT_CLASS_NAME = 'h-46px rounded-10px! border-[var(--input)]! bg-background! px-3! text-14px! text-foreground! focus:border-[var(--ring)]! focus:shadow-focus!';
 
 type ModeType = 'consumer' | 'enterprise' | null;
@@ -141,12 +141,14 @@ export default function ModeSetup() {
           </header>
 
           <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-            <button type='button' aria-pressed={isConsumerSelected} className={`${MODE_CARD_CLASS_NAME} ${isConsumerSelected ? 'border-primary bg-secondary' : 'border-border bg-card hover:border-input hover:bg-muted'}`} onClick={() => onSelectMode('consumer')}>
-              <span className={`mb-4 flex h-44px w-44px items-center justify-center rounded-12px ${isConsumerSelected ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}>
+            <button type='button' aria-pressed={isConsumerSelected} className={`${MODE_CARD_CLASS_NAME} ${isConsumerSelected ? 'border-border bg-secondary' : 'border-border bg-card hover:border-input hover:bg-muted'}`} onClick={() => onSelectMode('consumer')}>
+              <span className={`flex h-44px w-44px shrink-0 items-center justify-center rounded-12px ${isConsumerSelected ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}>
                 <UserRound size={22} strokeWidth={1.8} />
               </span>
-              <span className='text-15px font-650 text-foreground'>{t('setup.mode.consumer.title')}</span>
-              <span className='mt-1 text-12px leading-19px text-foreground-secondary'>{t('setup.mode.consumer.description')}</span>
+              <span className='min-w-0'>
+                <span className='block text-15px font-650 text-foreground'>{t('setup.mode.consumer.title')}</span>
+                <span className='mt-1 block text-12px leading-19px text-foreground-secondary'>{t('setup.mode.consumer.description')}</span>
+              </span>
               {isConsumerSelected && (
                 <span className='absolute right-4 top-4 flex h-22px w-22px items-center justify-center rounded-full bg-primary text-primary-foreground'>
                   <Check size={14} strokeWidth={2.5} />
@@ -154,12 +156,14 @@ export default function ModeSetup() {
               )}
             </button>
 
-            <button type='button' aria-pressed={isEnterpriseSelected} className={`${MODE_CARD_CLASS_NAME} ${isEnterpriseSelected ? 'border-primary bg-secondary' : 'border-border bg-card hover:border-input hover:bg-muted'}`} onClick={() => onSelectMode('enterprise')}>
-              <span className={`mb-4 flex h-44px w-44px items-center justify-center rounded-12px ${isEnterpriseSelected ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}>
+            <button type='button' aria-pressed={isEnterpriseSelected} className={`${MODE_CARD_CLASS_NAME} ${isEnterpriseSelected ? 'border-border bg-secondary' : 'border-border bg-card hover:border-input hover:bg-muted'}`} onClick={() => onSelectMode('enterprise')}>
+              <span className={`flex h-44px w-44px shrink-0 items-center justify-center rounded-12px ${isEnterpriseSelected ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}>
                 <Building2 size={22} strokeWidth={1.8} />
               </span>
-              <span className='text-15px font-650 text-foreground'>{t('setup.mode.enterprise.title')}</span>
-              <span className='mt-1 text-12px leading-19px text-foreground-secondary'>{t('setup.mode.enterprise.description')}</span>
+              <span className='min-w-0'>
+                <span className='block text-15px font-650 text-foreground'>{t('setup.mode.enterprise.title')}</span>
+                <span className='mt-1 block text-12px leading-19px text-foreground-secondary'>{t('setup.mode.enterprise.description')}</span>
+              </span>
               {isEnterpriseSelected && (
                 <span className='absolute right-4 top-4 flex h-22px w-22px items-center justify-center rounded-full bg-primary text-primary-foreground'>
                   <Check size={14} strokeWidth={2.5} />

@@ -57,26 +57,26 @@ body[arco-theme='dark'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
 
-// 第三方 Arco 桥接：Primary 按钮前景色跟随对应语义 Token
-.arco-btn-primary {
-  color: var(--primary-foreground) !important;
+  // 第三方 Arco 桥接：Primary 按钮前景色跟随对应语义 Token
+  &-primary {
+    color: var(--primary-foreground) !important;
 
-  &.arco-btn-status-warning {
-    color: var(--warning-foreground) !important;
-  }
+    &.arco-btn-status-warning {
+      color: var(--warning-foreground) !important;
+    }
 
-  &.arco-btn-status-danger {
-    color: var(--destructive-foreground) !important;
-  }
+    &.arco-btn-status-danger {
+      color: var(--destructive-foreground) !important;
+    }
 
-  &.arco-btn-status-success {
-    color: var(--success-foreground) !important;
-  }
+    &.arco-btn-status-success {
+      color: var(--success-foreground) !important;
+    }
 
-  &.arco-btn-disabled {
-    color: color-mix(in srgb, var(--primary-foreground) 45%, transparent) !important;
+    &.arco-btn-disabled {
+      color: color-mix(in srgb, var(--primary-foreground) 45%, transparent) !important;
+    }
   }
 }
 
