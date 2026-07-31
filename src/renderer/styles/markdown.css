@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* Markdown 主题规则
  * 同时通过两种方式投递：
  *   1. 在 index.css 静态打包，命中 light-DOM 的 .message-content / .markdown-body

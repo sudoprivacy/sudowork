@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Avatar, Button, Collapse, Drawer, Input, Select, Typography } from '@arco-design/web-react';
 import { Bot } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';

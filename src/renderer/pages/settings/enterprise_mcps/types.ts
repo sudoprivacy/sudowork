@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Enterprise MCP DTO types — independent from C-side McpServer in src/common/storage.ts
  * Field names follow the server's snake_case responses (16-field server whitelist /
  * 14-field template whitelist). Do not rename to camelCase here; do conversion at

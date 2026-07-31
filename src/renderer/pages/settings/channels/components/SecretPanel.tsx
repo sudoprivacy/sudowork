@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import classNames from 'classnames';
 import { Check } from 'lucide-react';
 import React, { useCallback, useState } from 'react';

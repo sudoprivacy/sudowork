@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Form, Tooltip } from '@arco-design/web-react';
 import { FolderOpen } from 'lucide-react';
 import React from 'react';

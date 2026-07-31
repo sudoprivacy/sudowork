@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Empty-state display for AssistantHub / SkillHub catalog views.
  *
  * Differentiates between three "I see nothing here" causes so users

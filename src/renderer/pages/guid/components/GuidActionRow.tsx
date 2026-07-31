@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Dropdown } from '@arco-design/web-react';
 import { ArrowUp, FolderOpen, Plus, Shield, Upload } from 'lucide-react';
 import React, { useState } from 'react';

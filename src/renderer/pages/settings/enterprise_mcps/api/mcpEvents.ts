@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { EnterpriseMcpClient } from './client';
 
 export type EnterpriseMcpEventName = 'mcp.changed' | 'mcp.policy.changed';

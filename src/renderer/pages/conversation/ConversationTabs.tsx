@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Dropdown, Menu, Message } from '@arco-design/web-react';
 import { Close, Plus, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';

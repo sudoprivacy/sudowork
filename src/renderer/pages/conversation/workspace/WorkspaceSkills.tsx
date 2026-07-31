@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * WorkspaceSkills — renders the "可用技能" tab inside the right-side workspace
  * card. Visual layout mirrors `components/skill-grid.tsx` from the ui.zip
  * reference: a 2-column grid of `rounded-lg` cards, each with a 32×32 rounded

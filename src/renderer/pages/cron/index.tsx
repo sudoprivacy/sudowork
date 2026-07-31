@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Switch } from '@arco-design/web-react';
 import { IconPlus } from '@arco-design/web-react/icon';
 import { AlarmClock, Info, Sun } from 'lucide-react';

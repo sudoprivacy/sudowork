@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Bot, Building2, Cable, Cloud, CreditCard, Globe, HardDrive, Info, MessageSquare, Monitor, Puzzle, Settings, ShieldCheck, Sparkles, User, Users, Wrench } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

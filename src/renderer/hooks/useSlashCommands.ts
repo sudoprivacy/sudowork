@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import { isSlashCommandListEnabled } from '@/common/slash/availability';
 import type { SlashCommandItem } from '@/common/slash/types';

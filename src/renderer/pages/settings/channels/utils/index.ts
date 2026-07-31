@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { BUILD_SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
 import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';

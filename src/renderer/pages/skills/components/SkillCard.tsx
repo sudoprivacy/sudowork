@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { Button, Progress, Tooltip } from '@arco-design/web-react';
 import { Download } from 'lucide-react';

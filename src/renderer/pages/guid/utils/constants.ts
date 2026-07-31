@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import coworkSvg from '@/renderer/assets/cowork.svg';
 import type { PromptCategory } from '../types';
 

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 
 export const useInputFocusRing = () => {

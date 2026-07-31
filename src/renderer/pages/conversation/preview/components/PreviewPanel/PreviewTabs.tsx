@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Close } from '@icon-park/react';
 import { IconShrink } from '@arco-design/web-react/icon';
 import React from 'react';

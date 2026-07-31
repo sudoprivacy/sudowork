@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * useAutoScroll - Auto-scroll hook with user scroll detection and a dynamic
  * bottom spacer that pins the latest user prompt to the top of the viewport.
  *

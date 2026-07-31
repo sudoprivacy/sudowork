@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Form, Input, Message, Modal, Spin } from '@arco-design/web-react';
 import { Search } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';

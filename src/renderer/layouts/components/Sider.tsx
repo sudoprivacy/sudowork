@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import classNames from 'classnames';
 import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';

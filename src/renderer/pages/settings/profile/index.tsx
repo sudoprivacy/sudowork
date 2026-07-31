@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
 import { IconEdit, IconLock, IconMobile, IconUser } from '@arco-design/web-react/icon';

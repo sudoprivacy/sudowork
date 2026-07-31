@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useState, useCallback, useEffect } from 'react';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
 

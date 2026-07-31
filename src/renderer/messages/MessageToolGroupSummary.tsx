@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { IconDown } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { useMemo, useRef, useCallback, useEffect } from 'react';

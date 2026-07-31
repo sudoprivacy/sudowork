@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Tool confirmation outcome enum
  * This is a local copy to avoid importing the entire tools module from aioncli-core
  * which contains Node.js dependencies (node:crypto) that cannot be bundled in the renderer process.

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@/common/constants';

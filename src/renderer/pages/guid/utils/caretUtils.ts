@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Measure the vertical coordinate of a given position in a textarea.
  * @param textarea - Target textarea element
  * @param position - Text position (character index)

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useMemo, useState } from 'react';
 import { Input, Message, Modal } from '@arco-design/web-react';
 import type { EnterpriseMcpTemplateDto } from '../types';

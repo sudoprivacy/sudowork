@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Renderer Crash Handler - 渲染进程 Crash/异常处理
  *
  * 功能:

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useEffect, useState } from 'react';
 import staticLogo from '../assets/sudowork-icon-dark.svg';
 import thinkingGif from '../assets/sudoclaw_transparent_large.gif';

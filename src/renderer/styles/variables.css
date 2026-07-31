@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* Design Tokens - 全 app CSS 变量的唯一来源（single source of truth）
  * 静态打包，亮色写在 :root，暗色写在 [data-theme='dark']。
  * 由原 base.css(:root 尺寸/阴影) + color-schemes/default.css(中性结构) +

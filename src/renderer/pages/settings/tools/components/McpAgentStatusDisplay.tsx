@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Tag, Tooltip } from '@arco-design/web-react';
 import { Loader2 } from 'lucide-react';
 import React from 'react';

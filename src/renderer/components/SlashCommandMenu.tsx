@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import classNames from 'classnames';
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';

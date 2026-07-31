@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * 密码强度校验，规则与后端 `src/utils/password.ts` 完全一致（见第三方接口文档 §3/§4）。
  * 返回 i18n key（错误文案）或 null（校验通过）。注册与修改密码共用。
  */

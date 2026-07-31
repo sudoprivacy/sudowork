@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import coworkSvg from '@/renderer/assets/cowork.svg';

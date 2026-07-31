@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import useSWR from 'swr';
 import type { ListTemplatesParams } from '../api/mcpTemplates';
 import type { EnterpriseMcpTemplateListResponse } from '../types';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-design/web-react';
 import { IconDelete } from '@arco-design/web-react/icon';

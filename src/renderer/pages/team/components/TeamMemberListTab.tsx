@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Modal } from '@arco-design/web-react';
 import { Pencil, UserPlus, X } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';

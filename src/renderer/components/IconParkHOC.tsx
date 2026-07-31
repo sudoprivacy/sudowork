@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { IconProvider, DEFAULT_ICON_CONFIGS } from '@icon-park/react/es/runtime';
 import { theme } from '@office-ai/platform';

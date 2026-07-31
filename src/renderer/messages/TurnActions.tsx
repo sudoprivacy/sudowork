@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Alert, Message, Tooltip } from '@arco-design/web-react';
 import { Copy, FileWord, ShareOne } from '@icon-park/react';
 import React, { useState, useCallback, useEffect } from 'react';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 const WORKSPACE_UPDATE_TIME_KEY = 'sudowork_workspace_update_time';
 
 /**

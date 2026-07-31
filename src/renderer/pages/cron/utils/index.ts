@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import dayjs from 'dayjs';
 import type { TFunction } from 'i18next';
 import type { ICronJob, ICronSchedule } from '@/common/ipcBridge';

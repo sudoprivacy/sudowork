@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { Button, Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Trash2, Shield, Zap, Download, Upload } from 'lucide-react';

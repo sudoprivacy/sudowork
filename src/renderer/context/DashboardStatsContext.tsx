@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
 import { useAuth } from './AuthContext';
