@@ -128,9 +128,9 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
   };
 
   return (
-    <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+    <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
       <header className='mb-7 text-center'>
-        <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-[var(--radius-xl)] bg-secondary shadow-[var(--shadow-sm)]'>
+        <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-xl bg-secondary shadow-sm'>
           <img src={logo || defaultLogo} alt={appName} className='h-14 w-14 object-contain' />
         </div>
         <h1 className='text-2xl font-700 tracking-tight text-foreground'>{appName}</h1>
@@ -144,7 +144,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
 
         <div className='flex flex-col gap-2'>
           <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.thirdPartyProviderLabel')}</div>
-          <Select value={selectedProvider?.id} onChange={(value) => setSelectedProviderId(String(value))} disabled={!resolvedConfig?.enabled || isWaiting} className='h-12 !rounded-[var(--radius-lg)]' size='large'>
+          <Select value={selectedProvider?.id} onChange={(value) => setSelectedProviderId(String(value))} disabled={!resolvedConfig?.enabled || isWaiting} className='h-12 rounded-lg!' size='large'>
             {(resolvedConfig?.providers || []).map((provider: ThirdPartyAuthProvider) => (
               <Select.Option key={provider.id} value={provider.id}>
                 {provider.name}
@@ -153,7 +153,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
           </Select>
         </div>
 
-        <Button type='primary' size='large' loading={isWaiting} disabled={!selectedProvider} onClick={() => void onLogin()} icon={<Link />} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
+        <Button type='primary' size='large' loading={isWaiting} disabled={!selectedProvider} onClick={() => void onLogin()} icon={<Link />} className='mt-1 h-12 rounded-lg! text-base font-600'>
           {isWaiting ? t('login.thirdPartyWaiting') : t('login.thirdPartyLoginBtn', { provider: selectedProvider?.name || t('login.thirdPartyProviderFallback') })}
         </Button>
 
@@ -161,14 +161,14 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
 
         {onBackToModeSelect && (
           <div className='flex items-center justify-center gap-2'>
-            <Button type='text' size='small' className='!text-foreground-tertiary hover:!text-foreground-secondary' onClick={onBackToModeSelect}>
+            <Button type='text' size='small' className='text-foreground-tertiary! hover:text-foreground-secondary!' onClick={onBackToModeSelect}>
               {t('login.backToModeSelect')}
             </Button>
             <span className='text-foreground-quaternary'>·</span>
             <Button
               type='text'
               size='small'
-              className='!text-foreground-tertiary hover:!text-foreground-secondary'
+              className='text-foreground-tertiary! hover:text-foreground-secondary!'
               onClick={async () => {
                 await enterGuest();
                 void navigate('/guid');

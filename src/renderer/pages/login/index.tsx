@@ -54,7 +54,7 @@ function LoginShell({ children }: ILoginShellProps) {
 function LoginHeader({ appName, description, logo }: ILoginHeaderProps) {
   return (
     <header className='mb-7 text-center'>
-      <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-[var(--radius-xl)] bg-secondary shadow-[var(--shadow-sm)]'>
+      <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-xl bg-secondary shadow-sm'>
         <img src={logo || SudoworkIcon} alt={appName} className='h-14 w-14 object-contain' />
       </div>
       <h1 className='text-2xl font-700 tracking-tight text-foreground'>{appName}</h1>
@@ -64,7 +64,7 @@ function LoginHeader({ appName, description, logo }: ILoginHeaderProps) {
 }
 
 function getTabClass(isActive: boolean): string {
-  return `h-9 rounded-[var(--radius-md)] px-3 text-sm font-600 transition-colors ${isActive ? 'bg-card text-foreground shadow-[var(--shadow-sm)]' : 'text-foreground-tertiary hover:bg-accent hover:text-accent-foreground'}`;
+  return `h-9 rounded-md px-3 text-sm font-600 transition-colors ${isActive ? 'bg-card text-foreground shadow-sm' : 'text-foreground-tertiary hover:bg-accent hover:text-accent-foreground'}`;
 }
 
 // Validate phone number format (same as server-side)
@@ -467,7 +467,7 @@ const LoginPage: React.FC = () => {
     const isRejected = statusMsg.type === 'rejected';
     return (
       <LoginShell>
-        <section className='relative z-1 flex w-full max-w-md flex-col items-center gap-6 rounded-[var(--radius-xl)] border border-border bg-card p-8 text-center text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+        <section className='relative z-1 flex w-full max-w-md flex-col items-center gap-6 rounded-xl border border-border bg-card p-8 text-center text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
           <div className={`flex h-16 w-16 items-center justify-center rounded-full bg-secondary ${isRejected ? 'text-destructive' : 'text-warning'}`}>
             <Protect theme='filled' size={32} />
           </div>
@@ -479,7 +479,7 @@ const LoginPage: React.FC = () => {
             <Button
               type='primary'
               long
-              className='mt-1 h-12 !rounded-[var(--radius-lg)]'
+              className='mt-1 h-12 rounded-lg!'
               onClick={() => {
                 setStatusMsg(null);
                 // 自动重新提交申请
@@ -495,7 +495,7 @@ const LoginPage: React.FC = () => {
               重新申请
             </Button>
           ) : (
-            <Button long className='mt-1 h-12 !rounded-[var(--radius-lg)]' onClick={() => setStatusMsg(null)}>
+            <Button long className='mt-1 h-12 rounded-lg!' onClick={() => setStatusMsg(null)}>
               返回登录
             </Button>
           )}
@@ -531,10 +531,10 @@ const LoginPage: React.FC = () => {
   if (isEnterprise) {
     return (
       <LoginShell>
-        <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+        <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
           <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantConfig.logo} />
 
-          <div className='grid grid-cols-3 gap-1 rounded-[var(--radius-lg)] bg-secondary p-1' role='tablist'>
+          <div className='grid grid-cols-3 gap-1 rounded-lg bg-secondary p-1' role='tablist'>
             <button type='button' role='tab' className={getTabClass(loginTab === 'password')} aria-selected={loginTab === 'password'} onClick={() => setLoginTab('password')}>
               密码登录
             </button>
@@ -551,33 +551,33 @@ const LoginPage: React.FC = () => {
               <>
                 <div className='flex flex-col gap-2'>
                   <div className='ml-1 text-sm font-600 text-foreground-secondary'>用户名</div>
-                  <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='h-12 !rounded-[var(--radius-lg)]' />
+                  <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='h-12 rounded-lg!' />
                 </div>
                 <div className='flex flex-col gap-2'>
                   <div className='ml-1 text-sm font-600 text-foreground-secondary'>密码</div>
-                  <Input.Password size='large' prefix={<Lock className='text-muted-foreground' />} placeholder='请输入密码' value={password} onChange={setPassword} className='h-12 !rounded-[var(--radius-lg)]' />
+                  <Input.Password size='large' prefix={<Lock className='text-muted-foreground' />} placeholder='请输入密码' value={password} onChange={setPassword} className='h-12 rounded-lg!' />
                 </div>
               </>
             ) : loginTab === 'key' ? (
               <div className='flex flex-col gap-2'>
                 <div className='ml-1 text-sm font-600 text-foreground-secondary'>API Key</div>
-                <Input size='large' prefix={<Key className='text-muted-foreground' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='h-12 !rounded-[var(--radius-lg)]' />
+                <Input size='large' prefix={<Key className='text-muted-foreground' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='h-12 rounded-lg!' />
               </div>
             ) : (
-              <div className='rounded-[var(--radius-lg)] bg-muted px-4 py-5 text-center text-sm leading-6 text-muted-foreground'>{oauth2Loading ? '正在检查 OAuth2 配置…' : oauth2Config?.enabled ? '点击下方按钮，将在浏览器中完成身份认证。' : '管理员未启用 OAuth2 登录'}</div>
+              <div className='rounded-lg bg-muted px-4 py-5 text-center text-sm leading-6 text-muted-foreground'>{oauth2Loading ? '正在检查 OAuth2 配置…' : oauth2Config?.enabled ? '点击下方按钮，将在浏览器中完成身份认证。' : '管理员未启用 OAuth2 登录'}</div>
             )}
 
             {loginTab === 'oauth2' ? (
-              <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
+              <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='mt-1 h-12 rounded-lg! text-base font-600'>
                 {oauth2Waiting ? '等待浏览器授权…' : '通过浏览器登录'}
               </Button>
             ) : (
-              <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
+              <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 rounded-lg! text-base font-600'>
                 登录
               </Button>
             )}
 
-            <Button type='text' size='small' className='mx-auto !text-foreground-tertiary hover:!text-foreground-secondary' onClick={handleBackToModeSelect}>
+            <Button type='text' size='small' className='mx-auto text-foreground-tertiary! hover:text-foreground-secondary!' onClick={handleBackToModeSelect}>
               ← 返回模式选择
             </Button>
           </div>
@@ -611,10 +611,10 @@ const LoginPage: React.FC = () => {
 
   return (
     <LoginShell>
-      <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+      <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
         <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantConfig.logo} />
 
-        <div className='grid grid-cols-2 gap-1 rounded-[var(--radius-lg)] bg-secondary p-1' role='tablist'>
+        <div className='grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1' role='tablist'>
           <button type='button' role='tab' className={getTabClass(mode === 'login')} aria-selected={mode === 'login'} onClick={() => setMode('login')}>
             登录
           </button>
@@ -626,14 +626,14 @@ const LoginPage: React.FC = () => {
         <div className='mt-6 flex flex-col gap-5'>
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-muted-foreground' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='h-12 !rounded-[var(--radius-lg)]' />
+            <Input size='large' prefix={<Phone className='text-muted-foreground' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='h-12 rounded-lg!' />
           </div>
 
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>身份验证</div>
             <div className='flex gap-2'>
-              <Input size='large' prefix={<Key className='text-muted-foreground' />} placeholder='6 位验证码' value={code} onChange={setCode} className='h-12 min-w-0 flex-1 !rounded-[var(--radius-lg)]' />
-              <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='h-12 min-w-28 !rounded-[var(--radius-lg)] font-600'>
+              <Input size='large' prefix={<Key className='text-muted-foreground' />} placeholder='6 位验证码' value={code} onChange={setCode} className='h-12 min-w-0 flex-1 rounded-lg!' />
+              <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='h-12 min-w-28 rounded-lg! font-600'>
                 {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
               </Button>
             </div>
@@ -643,29 +643,29 @@ const LoginPage: React.FC = () => {
             <>
               <div className='flex flex-col gap-2'>
                 <div className='ml-1 text-sm font-600 text-foreground-secondary'>昵称</div>
-                <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 !rounded-[var(--radius-lg)]' maxLength={20} />
+                <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 rounded-lg!' maxLength={20} />
               </div>
 
               <div className='flex flex-col gap-2'>
                 <div className='ml-1 text-sm font-600 text-foreground-secondary'>邀请码</div>
-                <Input size='large' prefix={<Protect className='text-muted-foreground' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 !rounded-[var(--radius-lg)]' maxLength={6} />
+                <Input size='large' prefix={<Protect className='text-muted-foreground' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 rounded-lg!' maxLength={6} />
               </div>
             </>
           )}
 
-          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
+          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 rounded-lg! text-base font-600'>
             {mode === 'login' ? '登录' : '注册'}
           </Button>
 
           <div className='flex items-center justify-center gap-2'>
-            <Button type='text' size='small' className='!text-foreground-tertiary hover:!text-foreground-secondary' onClick={handleBackToModeSelect}>
+            <Button type='text' size='small' className='text-foreground-tertiary! hover:text-foreground-secondary!' onClick={handleBackToModeSelect}>
               ← 返回模式选择
             </Button>
             <span className='text-foreground-quaternary'>·</span>
             <Button
               type='text'
               size='small'
-              className='!text-foreground-tertiary hover:!text-foreground-secondary'
+              className='text-foreground-tertiary! hover:text-foreground-secondary!'
               onClick={async () => {
                 await enterGuest();
                 void navigate('/guid');

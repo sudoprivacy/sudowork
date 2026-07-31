@@ -80,7 +80,7 @@ const RegisterPage: React.FC = () => {
   if (!registerToken) {
     return (
       <main className='relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12 text-foreground'>
-        <section className='relative z-1 flex w-full max-w-md flex-col items-center gap-6 rounded-[var(--radius-xl)] border border-border bg-card p-8 text-center text-card-foreground shadow-[var(--shadow-xl)] max-sm:p-6'>
+        <section className='relative z-1 flex w-full max-w-md flex-col items-center gap-6 rounded-xl border border-border bg-card p-8 text-center text-card-foreground shadow-xl max-sm:p-6'>
           <div className='flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-destructive'>
             <Protect theme='filled' size={32} />
           </div>
@@ -88,7 +88,7 @@ const RegisterPage: React.FC = () => {
             <h2 className='text-xl font-700 text-foreground'>注册链接无效</h2>
             <p className='mt-2 px-5 text-sm text-foreground-tertiary'>请重新获取验证码登录</p>
           </div>
-          <Button type='primary' long className='mt-1 h-12 !rounded-[var(--radius-lg)]' onClick={() => navigate('/login', { replace: true })}>
+          <Button type='primary' long className='mt-1 h-12 rounded-lg!' onClick={() => navigate('/login', { replace: true })}>
             返回登录
           </Button>
         </section>
@@ -103,9 +103,9 @@ const RegisterPage: React.FC = () => {
         <div className='absolute -bottom-40 -right-32 h-96 w-96 rounded-full bg-accent opacity-70 blur-3xl' />
       </div>
 
-      <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] max-sm:p-6'>
+      <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl max-sm:p-6'>
         <header className='mb-7 text-center'>
-          <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-[var(--radius-xl)] bg-secondary shadow-[var(--shadow-sm)]'>
+          <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-xl bg-secondary shadow-sm'>
             <AionLogoMark />
           </div>
           <h1 className='text-2xl font-700 tracking-tight text-foreground'>{brand.displayName}</h1>
@@ -115,24 +115,24 @@ const RegisterPage: React.FC = () => {
         <div className='flex flex-col gap-5'>
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>手机号码</div>
-            <Input size='large' prefix={<User className='text-muted-foreground' />} value={phoneFromUrl} disabled className='h-12 !rounded-[var(--radius-lg)]' />
+            <Input size='large' prefix={<User className='text-muted-foreground' />} value={phoneFromUrl} disabled className='h-12 rounded-lg!' />
           </div>
 
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>昵称</div>
-            <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 !rounded-[var(--radius-lg)]' maxLength={20} />
+            <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 rounded-lg!' maxLength={20} />
           </div>
 
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>邀请码</div>
-            <Input size='large' prefix={<Protect className='text-muted-foreground' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 !rounded-[var(--radius-lg)]' maxLength={6} />
+            <Input size='large' prefix={<Protect className='text-muted-foreground' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 rounded-lg!' maxLength={6} />
           </div>
 
-          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
+          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 rounded-lg! text-base font-600'>
             完成注册
           </Button>
 
-          <Button size='large' onClick={() => navigate('/login', { replace: true })} className='h-12 !rounded-[var(--radius-lg)]'>
+          <Button size='large' onClick={() => navigate('/login', { replace: true })} className='h-12 rounded-lg!'>
             返回登录
           </Button>
         </div>

@@ -94,16 +94,16 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
   };
 
   return (
-    <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+    <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
       <header className='mb-7 text-center'>
-        <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-[var(--radius-xl)] bg-secondary shadow-[var(--shadow-sm)]'>
+        <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-xl bg-secondary shadow-sm'>
           <img src={logo || defaultLogo} alt={appName} className='h-14 w-14 object-contain' />
         </div>
         <h1 className='text-2xl font-700 tracking-tight text-foreground'>{appName}</h1>
         <p className='mt-2 text-sm leading-6 text-foreground-tertiary'>{t('login.pwdSubtitle')}</p>
       </header>
 
-      <div className='grid grid-cols-2 gap-1 rounded-[var(--radius-lg)] bg-secondary p-1' role='tablist'>
+      <div className='grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1' role='tablist'>
         <button type='button' role='tab' className={getTabClass(mode === 'login')} aria-selected={mode === 'login'} onClick={() => setMode('login')}>
           {t('login.pwdLoginTab')}
         </button>
@@ -115,20 +115,12 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
       <div className='mt-6 flex flex-col gap-5'>
         <div className='flex flex-col gap-2'>
           <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.pwdAccountLabel')}</div>
-          <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder={t('login.pwdAccountPlaceholder')} value={account} onChange={setAccount} maxLength={50} className='h-12 !rounded-[var(--radius-lg)]' />
+          <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder={t('login.pwdAccountPlaceholder')} value={account} onChange={setAccount} maxLength={50} className='h-12 rounded-lg!' />
         </div>
 
         <div className='flex flex-col gap-2'>
           <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.pwdPasswordLabel')}</div>
-          <Input.Password
-            size='large'
-            prefix={<Lock className='text-muted-foreground' />}
-            placeholder={mode === 'login' ? t('login.pwdPasswordPlaceholder') : t('login.pwdRegisterPasswordPlaceholder')}
-            value={password}
-            onChange={setPassword}
-            maxLength={20}
-            className='h-12 !rounded-[var(--radius-lg)]'
-          />
+          <Input.Password size='large' prefix={<Lock className='text-muted-foreground' />} placeholder={mode === 'login' ? t('login.pwdPasswordPlaceholder') : t('login.pwdRegisterPasswordPlaceholder')} value={password} onChange={setPassword} maxLength={20} className='h-12 rounded-lg!' />
           {mode === 'register' && <div className='ml-1 text-xs leading-5 text-muted-foreground'>{t('login.pwdRuleHint')}</div>}
         </div>
 
@@ -138,16 +130,16 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
               <div className='ml-1 text-sm font-600 text-foreground-secondary'>
                 {t('login.pwdNicknameLabel')} <span className='text-xs font-500 text-muted-foreground'>{t('login.pwdNicknameOptional')}</span>
               </div>
-              <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder={t('login.pwdNicknamePlaceholder')} value={nickname} onChange={setNickname} maxLength={50} className='h-12 !rounded-[var(--radius-lg)]' />
+              <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder={t('login.pwdNicknamePlaceholder')} value={nickname} onChange={setNickname} maxLength={50} className='h-12 rounded-lg!' />
             </div>
             <div className='flex flex-col gap-2'>
               <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.pwdInvitationCodeLabel')}</div>
-              <Input size='large' prefix={<Ticket className='text-muted-foreground' />} placeholder={t('login.pwdInvitationCodePlaceholder')} value={invitationCode} onChange={setInvitationCode} maxLength={50} className='h-12 !rounded-[var(--radius-lg)]' />
+              <Input size='large' prefix={<Ticket className='text-muted-foreground' />} placeholder={t('login.pwdInvitationCodePlaceholder')} value={invitationCode} onChange={setInvitationCode} maxLength={50} className='h-12 rounded-lg!' />
             </div>
           </>
         )}
 
-        <Button type='primary' size='large' loading={loading} onClick={handleSubmit} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
+        <Button type='primary' size='large' loading={loading} onClick={handleSubmit} className='mt-1 h-12 rounded-lg! text-base font-600'>
           {mode === 'login' ? t('login.pwdLoginBtn') : t('login.pwdRegisterBtn')}
         </Button>
 
@@ -155,14 +147,14 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
 
         {onBackToModeSelect && (
           <div className='flex items-center justify-center gap-2'>
-            <Button type='text' size='small' className='!text-foreground-tertiary hover:!text-foreground-secondary' onClick={onBackToModeSelect}>
+            <Button type='text' size='small' className='text-foreground-tertiary! hover:text-foreground-secondary!' onClick={onBackToModeSelect}>
               ← 返回模式选择
             </Button>
             <span className='text-foreground-quaternary'>·</span>
             <Button
               type='text'
               size='small'
-              className='!text-foreground-tertiary hover:!text-foreground-secondary'
+              className='text-foreground-tertiary! hover:text-foreground-secondary!'
               onClick={async () => {
                 await enterGuest();
                 void navigate('/guid');
@@ -178,7 +170,7 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
 }
 
 function getTabClass(isActive: boolean): string {
-  return `h-9 rounded-[var(--radius-md)] px-3 text-sm font-600 transition-colors ${isActive ? 'bg-card text-foreground shadow-[var(--shadow-sm)]' : 'text-foreground-tertiary hover:bg-accent hover:text-accent-foreground'}`;
+  return `h-9 rounded-md px-3 text-sm font-600 transition-colors ${isActive ? 'bg-card text-foreground shadow-sm' : 'text-foreground-tertiary hover:bg-accent hover:text-accent-foreground'}`;
 }
 
 interface IPasswordAuthPanelProps {
