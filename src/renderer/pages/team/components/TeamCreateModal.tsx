@@ -134,7 +134,7 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
       <div className='flex min-h-0 flex-col gap-10px overflow-y-auto pr-1'>
         {filteredAssistants.map((assistant) => (
           <TeamAssistantCandidateCard key={assistant.assistant_id} candidate={assistant}>
-            <Button type='text' shape='circle' title={t('team.create.addMember')} className='!size-36px !bg-green-500/10 !text-green-600 hover:!bg-green-500/18' onClick={() => onAddAssistant(assistant)}>
+            <Button type='text' shape='circle' title={t('team.create.addMember')} className='size-36px! bg-green-500/10! text-green-600! hover:bg-green-500/18!' onClick={() => onAddAssistant(assistant)}>
               +
             </Button>
           </TeamAssistantCandidateCard>
@@ -156,17 +156,17 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
     return selectedMembers.map((member) => {
       const isLeader = member.selectionId === leaderSelectionId;
       return (
-        <div key={member.selectionId} className='flex min-h-66px items-center gap-3 rounded-14px border border-[var(--color-border-2)] bg-fill-1 p-10px hover:bg-1'>
+        <div key={member.selectionId} className='flex min-h-66px items-center gap-3 rounded-14px border border-light bg-fill-1 p-10px hover:bg-1'>
           <span className='inline-flex size-42px shrink-0 items-center justify-center overflow-hidden rounded-12px bg-fill-2'>{renderCandidateIcon(member.assistant, 24)}</span>
           <div className='min-w-0 flex-1'>
             <div className='truncate text-15px font-650 text-1'>{member.assistant.name}</div>
             <div className='mt-1 line-clamp-1 text-13px leading-18px text-gray-400'>{getCandidateDescription(member.assistant, t)}</div>
           </div>
           <div className='flex items-center gap-6px'>
-            <Button type='text' size='mini' className={`!h-28px !rounded-8px !px-10px !text-12px !font-650 ${isLeader ? '!bg-green-500/10 !text-green-600' : '!bg-fill-2 !text-gray-500 hover:!bg-blue-500/10 hover:!text-blue-600'}`} onClick={() => setLeaderSelectionId(member.selectionId)}>
+            <Button type='text' size='mini' className={`h-28px! rounded-8px! px-10px! text-12px! font-650! ${isLeader ? 'bg-green-500/10! text-green-600!' : 'bg-fill-2! text-gray-500! hover:bg-blue-500/10! hover:text-blue-600!'}`} onClick={() => setLeaderSelectionId(member.selectionId)}>
               {t('team.create.leaderButton')}
             </Button>
-            <Button type='text' size='mini' title={t('team.create.removeMember')} className='!size-28px !rounded-8px !p-0 !text-18px !text-gray-400 hover:!bg-red-500/10 hover:!text-red-500' onClick={() => onRemoveMember(member.selectionId)}>
+            <Button type='text' size='mini' title={t('team.create.removeMember')} className='size-28px! rounded-8px! p-0! text-18px! text-gray-400! hover:bg-red-500/10! hover:text-red-500!' onClick={() => onRemoveMember(member.selectionId)}>
               ×
             </Button>
           </div>
@@ -181,7 +181,7 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
       visible={isVisible}
       onCancel={onClose}
       footer={null}
-      className='[&_.arco-modal-header]:!h-auto [&_.arco-modal-header]:!border-b-0 [&_.arco-modal-header]:!px-28px [&_.arco-modal-header]:!pb-0 [&_.arco-modal-header]:!pt-24px [&_.arco-modal-header_.arco-modal-title]:!text-left [&_.arco-modal-header_.arco-modal-title]:!text-22px [&_.arco-modal-header_.arco-modal-title]:!font-700 [&_.arco-modal-header_.arco-modal-title]:!leading-30px'
+      className='[&_.arco-modal-header]:h-auto! [&_.arco-modal-header]:border-b-0! [&_.arco-modal-header]:px-28px! [&_.arco-modal-header]:pb-0! [&_.arco-modal-header]:pt-24px! [&_.arco-modal-header_.arco-modal-title]:text-left! [&_.arco-modal-header_.arco-modal-title]:text-22px! [&_.arco-modal-header_.arco-modal-title]:font-700! [&_.arco-modal-header_.arco-modal-title]:leading-30px!'
       style={{ width: 1040, maxWidth: 'calc(100vw - 48px)' }}
       // 高于会话折叠按钮 (ConversationHeaderToggle, zIndex 9999) 的浮层，避免小尖尖盖住对话框
       wrapStyle={{ zIndex: 10000 }}
@@ -191,11 +191,11 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
     >
       <div className='-mx-20px -mt-4px flex h-[min(620px,calc(100vh-180px))] min-h-460px flex-col overflow-hidden'>
         <div className='px-28px pb-20px text-14px leading-22px text-gray-500'>{t('team.create.subtitle')}</div>
-        <div className='grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-y border-[var(--color-border-2)]'>
-          <section className='flex min-h-0 flex-col border-r border-[var(--color-border-2)] p-20px'>
+        <div className='grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-y border-light'>
+          <section className='flex min-h-0 flex-col border-r border-light p-20px'>
             <div className='relative'>
               <Search size={16} className='absolute left-14px top-1/2 -translate-y-1/2 text-gray-400' />
-              <Input value={search} onChange={setSearch} placeholder={t('team.create.searchPlaceholder')} className='!h-44px !rounded-10px !bg-fill-1 !pl-38px' />
+              <Input value={search} onChange={setSearch} placeholder={t('team.create.searchPlaceholder')} className='h-44px! rounded-10px! bg-fill-1! pl-38px!' />
             </div>
             <div className='my-12px text-13px font-600 text-gray-600'>{t('team.create.allAssistantsCount', { count: filteredAssistants.length })}</div>
             {renderAssistantList()}
@@ -205,16 +205,16 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
               <div className='text-15px font-700 text-1'>{t('team.create.selectedMembersCount', { count: selectedMembers.length })}</div>
               <div className='text-12px text-gray-400'>{t('team.create.leaderHint')}</div>
             </div>
-            <div className='flex min-h-220px flex-1 flex-col gap-2 overflow-y-auto rounded-14px border border-[var(--color-border-2)] bg-fill-1 p-10px'>{renderSelectedMembers()}</div>
-            <Form layout='vertical' className='mt-18px border-t border-[var(--color-border-2)] pt-18px'>
+            <div className='flex min-h-220px flex-1 flex-col gap-2 overflow-y-auto rounded-14px border border-light bg-fill-1 p-10px'>{renderSelectedMembers()}</div>
+            <Form layout='vertical' className='mt-18px border-t border-light pt-18px'>
               <div className='grid grid-cols-[88px_minmax(0,1fr)] items-center gap-x-3 gap-y-3'>
                 <div className='text-14px font-600 text-gray-600'>
                   <RequiredLabel>{t('team.create.nameLabel')}</RequiredLabel>
                 </div>
-                <Input value={name} onChange={setName} placeholder={t('team.create.namePlaceholder')} className='!h-38px !rounded-10px' />
+                <Input value={name} onChange={setName} placeholder={t('team.create.namePlaceholder')} className='h-38px! rounded-10px!' />
                 <div className='text-14px font-600 text-gray-600'>{t('team.create.workspaceLabel')}</div>
                 <div className='min-w-0'>
-                  <Button long onClick={onSelectWorkspace} className='!h-38px !justify-start !rounded-10px !text-left'>
+                  <Button long onClick={onSelectWorkspace} className='h-38px! justify-start! rounded-10px! text-left!'>
                     {workspace ? <span className='truncate'>{workspaceName}</span> : <span className='text-gray-400'>{t('team.create.selectFolder')}</span>}
                   </Button>
                   {workspace ? (
@@ -231,10 +231,10 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
           </section>
         </div>
         <div className='flex justify-end gap-3 px-22px pt-18px'>
-          <Button onClick={onClose} className='!h-40px !min-w-96px !rounded-10px'>
+          <Button onClick={onClose} className='h-40px! min-w-96px! rounded-10px!'>
             {t('team.create.cancel')}
           </Button>
-          <Button type='primary' loading={isSubmitting} disabled={isCreateDisabled} className='!h-40px !min-w-96px !rounded-10px' onClick={onSubmit}>
+          <Button type='primary' loading={isSubmitting} disabled={isCreateDisabled} className='h-40px! min-w-96px! rounded-10px!' onClick={onSubmit}>
             {t('team.create.submit')}
           </Button>
         </div>

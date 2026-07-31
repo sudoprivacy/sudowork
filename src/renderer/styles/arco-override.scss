@@ -19,6 +19,9 @@ body {
   // 故在此覆盖为项目语义 token。值引用 --border-light，自动随主题切换。
   --color-border-2: var(--border-light);
 
+  // 深边框 token：放 body 因 --color-border-3 仅 Arco 在 body 定义，:root 不可见会失效。
+  --border-bold: var(--color-border-3);
+
   --arcoblue-1: 255, 243, 230;
   --arcoblue-2: 253, 200, 150;
   --arcoblue-3: 248, 156, 78;

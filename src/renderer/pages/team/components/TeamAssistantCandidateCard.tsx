@@ -39,7 +39,7 @@ function TeamAssistantCandidateCard({ candidate, size = 24, onClick, children }:
   const { t } = useTranslation();
 
   return (
-    <div className={`flex items-center gap-3 rounded-14px border border-[var(--color-border-2)] bg-fill-1 p-3 hover:bg-1 ${onClick ? 'cursor-pointer' : ''}`} onClick={onClick}>
+    <div className={`flex items-center gap-3 rounded-14px border border-light bg-fill-1 p-3 hover:bg-1 ${onClick ? 'cursor-pointer' : ''}`} onClick={onClick}>
       <span className='inline-flex size-42px shrink-0 items-center justify-center overflow-hidden rounded-12px bg-fill-2'>{renderCandidateIcon(candidate, size)}</span>
       <div className='min-w-0 flex-1'>
         <div className='truncate text-15px font-650 text-1'>{candidate.name}</div>
