@@ -263,7 +263,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
             <div className='text-base mb-2 text-foreground'>{t('conversation.history.exportTargetFolder')}</div>
             <button
               type='button'
-              className={classNames('w-full flex items-center justify-between px-3 py-2.5 rounded-md border border-border bg-background text-left transition-colors', exportModalLoading ? 'cursor-not-allowed opacity-55' : 'cursor-pointer hover:border-border-deep')}
+              className={classNames('w-full flex items-center justify-between px-3 py-2.5 rounded-md border border-border bg-background text-left transition-colors', exportModalLoading ? 'cursor-not-allowed opacity-55' : 'cursor-pointer hover:border-deep')}
               onClick={() => {
                 void handleSelectExportFolder();
               }}

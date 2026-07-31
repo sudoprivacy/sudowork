@@ -143,7 +143,7 @@
   /* 新规范 Token：前景文字 */
   --foreground: rgb(250 250 250);
   --foreground-secondary: rgb(212 212 212);
-  --foreground-tertiary: rgb(82 82 82);
+  --foreground-tertiary: rgb(163 163 163);
   --foreground-quaternary: rgb(64 64 64);
   --secondary-foreground: rgb(212 212 212);
   --muted-foreground: rgb(82 82 82);

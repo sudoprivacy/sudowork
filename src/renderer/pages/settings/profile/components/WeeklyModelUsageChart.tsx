@@ -314,7 +314,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
           <Spin />
         </div>
       ) : !data.length ? (
-        <div className='py-15 text-center text-14px text-foreground-secondary'>{t('settings.modelUsage.noData', '暂无模型用量数据')}</div>
+        <div className='py-15 text-center text-14px text-foreground-tertiary'>{t('settings.modelUsage.noData', '暂无模型用量数据')}</div>
       ) : (
         <div className='flex flex-col gap-5'>
           <div>
