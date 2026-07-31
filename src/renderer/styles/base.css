@@ -394,7 +394,7 @@ body,
   --row-fade: var(--secondary);
 }
 .conversation-item:hover {
-  --row-fade: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+  --row-fade: var(--fill-medium);
 }
 .conversation-item.conversation-item--selected,
 .conversation-item.conversation-item--selected:hover {

@@ -61,6 +61,7 @@ export default defineConfig({
     ['bg-fill', { 'background-color': 'var(--fill)' }],
     ['bg-fill-default', { 'background-color': 'var(--fill-default)' }],
     ['bg-fill-shallow', { 'background-color': 'var(--fill-shallow)' }],
+    ['bg-fill-medium', { 'background-color': 'var(--fill-medium)' }],
     ['bg-fill-deep', { 'background-color': 'var(--fill-deep)' }],
     ['bg-mask', { 'background-color': 'var(--mask)' }],
     ['bg-spotlight', { 'background-color': 'var(--spotlight)' }],

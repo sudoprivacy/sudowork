@@ -103,6 +103,7 @@
   --fill: rgb(255 255 255);
   --fill-default: rgb(0 0 0 / 4%);
   --fill-shallow: rgb(245 245 245);
+  --fill-medium: rgb(231 231 231);
   --fill-deep: rgb(0 0 0 / 10%);
   --mask: rgb(0 0 0 / 60%);
   --spotlight: rgb(0 0 0 / 80%);
@@ -180,6 +181,7 @@
   --ring: rgb(82 82 82);
   --fill: rgb(23 23 23);
   --fill-shallow: rgb(38 38 38);
+  --fill-medium: rgb(51 51 51);
 
   /* 新规范 Token：辅助基础色 */
   --black: rgb(255 255 255);

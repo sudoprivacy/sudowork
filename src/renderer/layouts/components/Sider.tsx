@@ -67,7 +67,7 @@ const Sider: React.FC = () => {
             <Button
               type='text'
               long
-              className={classNames('h-9 shrink-0 justify-start! gap-2.5 px-2.5! rounded-lg! text-foreground! hover:bg-fill-default! active:bg-fill-deep!', isNewConversationSelected && 'bg-fill-default!')}
+              className={classNames('h-9 shrink-0 justify-start! gap-2.5 px-2.5! rounded-lg! text-foreground! hover:bg-fill-default! active:bg-fill-deep!', isNewConversationSelected && 'bg-fill-medium!')}
               aria-current={isNewConversationSelected ? 'page' : undefined}
               onClick={() => {
                 cleanupSiderTooltips();
