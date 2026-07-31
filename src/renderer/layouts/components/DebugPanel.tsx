@@ -63,7 +63,7 @@ function DebuggerThemeSwitch() {
               size='mini'
               type={isActive ? 'primary' : 'text'}
               icon={option.icon}
-              className='!h-7 !rounded-full'
+              className='h-7! rounded-full!'
               onClick={() => {
                 if (!isActive) void setTheme(option.value);
               }}
@@ -124,7 +124,7 @@ function DebugPanelTrigger({ offset, visible, onVisibleChange, content }: IDebug
       {...attributes}
       {...listeners}
     >
-      <Popover trigger='click' position='tr' popupVisible={visible} onVisibleChange={onVisibleChange} className='!w-[420px] !max-w-[420px]' triggerProps={{ autoFitPosition: false }} content={content}>
+      <Popover trigger='click' position='tr' popupVisible={visible} onVisibleChange={onVisibleChange} className='w-[420px]! max-w-[420px]!' triggerProps={{ autoFitPosition: false }} content={content}>
         <Button size='small' type='primary'>
           调试
         </Button>
