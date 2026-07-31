@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Input, Message } from '@arco-design/web-react';
+import { Button, Input, Message, Radio } from '@arco-design/web-react';
 import { KeyRound, Lock, ShieldCheck, Smartphone, User } from 'lucide-react';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveCachedTenantConfig } from '@/common/types/tenantConfig';
@@ -61,10 +61,6 @@ function LoginHeader({ appName, description, logo }: ILoginHeaderProps) {
       <p className='mt-2 text-sm leading-6 text-foreground-tertiary'>{description}</p>
     </header>
   );
-}
-
-function getTabClass(isActive: boolean): string {
-  return `h-9 rounded-md px-3 text-sm font-600 transition-colors ${isActive ? 'bg-card text-foreground shadow-sm' : 'text-foreground-tertiary hover:bg-accent hover:text-accent-foreground'}`;
 }
 
 // Validate phone number format (same as server-side)
@@ -534,17 +530,20 @@ const LoginPage: React.FC = () => {
         <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
           <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantConfig.logo} />
 
-          <div className='grid grid-cols-3 gap-1 rounded-lg bg-secondary p-1' role='tablist'>
-            <button type='button' role='tab' className={getTabClass(loginTab === 'password')} aria-selected={loginTab === 'password'} onClick={() => setLoginTab('password')}>
-              密码登录
-            </button>
-            <button type='button' role='tab' className={getTabClass(loginTab === 'key')} aria-selected={loginTab === 'key'} onClick={() => setLoginTab('key')}>
-              密钥登录
-            </button>
-            <button type='button' role='tab' className={getTabClass(loginTab === 'oauth2')} aria-selected={loginTab === 'oauth2'} onClick={() => setLoginTab('oauth2')}>
-              OAuth2 登录
-            </button>
-          </div>
+          <Radio.Group
+            type='button'
+            mode='fill'
+            size='large'
+            name='enterprise-login-method'
+            className='flex! w-full text-center [&_.arco-radio-button]:flex-1'
+            value={loginTab}
+            onChange={(value) => setLoginTab(value as typeof loginTab)}
+            options={[
+              { value: 'password', label: '密码登录' },
+              { value: 'key', label: '密钥登录' },
+              { value: 'oauth2', label: 'OAuth2 登录' },
+            ]}
+          />
 
           <div className='mt-6 flex flex-col gap-5'>
             {loginTab === 'password' ? (
@@ -614,14 +613,19 @@ const LoginPage: React.FC = () => {
       <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
         <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantConfig.logo} />
 
-        <div className='grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1' role='tablist'>
-          <button type='button' role='tab' className={getTabClass(mode === 'login')} aria-selected={mode === 'login'} onClick={() => setMode('login')}>
-            登录
-          </button>
-          <button type='button' role='tab' className={getTabClass(mode === 'register')} aria-selected={mode === 'register'} onClick={() => setMode('register')}>
-            注册
-          </button>
-        </div>
+        <Radio.Group
+          type='button'
+          mode='fill'
+          size='large'
+          name='consumer-auth-mode'
+          className='flex! w-full text-center [&_.arco-radio-button]:flex-1'
+          value={mode}
+          onChange={(value) => setMode(value as typeof mode)}
+          options={[
+            { value: 'login', label: '登录' },
+            { value: 'register', label: '注册' },
+          ]}
+        />
 
         <div className='mt-6 flex flex-col gap-5'>
           <div className='flex flex-col gap-2'>

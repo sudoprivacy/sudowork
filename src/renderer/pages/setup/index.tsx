@@ -14,7 +14,6 @@ import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 
 const isWindowControlsVisible = isElectronDesktop() && !isMacOS();
 const MODE_CARD_CLASS_NAME = 'relative flex min-h-116px cursor-pointer items-center gap-4 rounded-16px border-2 p-5 pr-12 text-left transition-colors [-webkit-app-region:no-drag]';
-const INPUT_CLASS_NAME = 'h-46px rounded-10px! border-[var(--input)]! bg-background! px-3! text-14px! text-foreground! focus:border-[var(--ring)]! focus:shadow-focus!';
 
 type ModeType = 'consumer' | 'enterprise';
 
@@ -186,10 +185,8 @@ export default function ModeSetup() {
 
               {isConsumerServerFormVisible && (
                 <div className='mt-4 border-t border-border pt-4'>
-                  <label className='mb-2 block text-12px font-600 text-foreground' htmlFor='consumer-server-url'>
-                    {t('setup.serverUrl.toggle')}
-                  </label>
-                  <Input id='consumer-server-url' size='large' placeholder={t('setup.serverUrl.placeholder')} value={consumerServerUrl} onChange={setConsumerServerUrl} className={INPUT_CLASS_NAME} />
+                  <label className='mb-2 block text-12px font-600 text-foreground'>{t('setup.serverUrl.toggle')}</label>
+                  <Input id='consumer-server-url' size='large' placeholder={t('setup.serverUrl.placeholder')} value={consumerServerUrl} onChange={setConsumerServerUrl} className='border border-input bg-card' />
                   <p className={`mb-0 mt-2 text-12px ${isConsumerUrlInvalid ? 'text-destructive' : 'text-foreground-tertiary'}`}>{isConsumerUrlInvalid ? t('setup.serverUrl.invalidUrl') : t('setup.serverUrl.hint')}</p>
                 </div>
               )}
@@ -198,19 +195,17 @@ export default function ModeSetup() {
 
           {isEnterpriseSelected && (
             <div className='mt-5 rounded-16px border border-border bg-muted p-4'>
-              <label className='mb-2 block text-13px font-600 text-foreground' htmlFor='enterprise-server-url'>
-                {t('setup.mode.enterprise.serverLabel')}
-              </label>
+              <label className='mb-2 block text-13px font-600 text-foreground'>{t('setup.mode.enterprise.serverLabel')}</label>
               <Input
                 id='enterprise-server-url'
                 size='large'
                 placeholder={t('setup.mode.enterprise.serverPlaceholder')}
                 value={serverUrl}
+                className='border border-input bg-card'
                 onChange={(value) => {
                   setServerUrl(value);
                   setVerifyError(null);
                 }}
-                className={INPUT_CLASS_NAME}
               />
               <p className={`mb-0 mt-2 text-12px ${isEnterpriseUrlInvalid ? 'text-destructive' : serverUrl.trim().startsWith('http://') ? 'text-warning' : 'text-foreground-tertiary'}`}>
                 {isEnterpriseUrlInvalid ? t('setup.serverUrl.invalidUrl') : serverUrl.trim().startsWith('http://') ? t('setup.mode.enterprise.httpsHint') : t('setup.mode.enterprise.serverHint')}

@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Input, Message } from '@arco-design/web-react';
+import { Button, Input, Message, Radio } from '@arco-design/web-react';
 import { Lock, Ticket, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { validatePassword } from '@/renderer/utils/passwordValidation';
@@ -103,14 +103,19 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
         <p className='mt-2 text-sm leading-6 text-foreground-tertiary'>{t('login.pwdSubtitle')}</p>
       </header>
 
-      <div className='grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1' role='tablist'>
-        <button type='button' role='tab' className={getTabClass(mode === 'login')} aria-selected={mode === 'login'} onClick={() => setMode('login')}>
-          {t('login.pwdLoginTab')}
-        </button>
-        <button type='button' role='tab' className={getTabClass(mode === 'register')} aria-selected={mode === 'register'} onClick={() => setMode('register')}>
-          {t('login.pwdRegisterTab')}
-        </button>
-      </div>
+      <Radio.Group
+        type='button'
+        mode='fill'
+        size='large'
+        name='password-auth-mode'
+        className='flex! w-full text-center [&_.arco-radio-button]:flex-1'
+        value={mode}
+        onChange={(value) => setMode(value as typeof mode)}
+        options={[
+          { value: 'login', label: t('login.pwdLoginTab') },
+          { value: 'register', label: t('login.pwdRegisterTab') },
+        ]}
+      />
 
       <div className='mt-6 flex flex-col gap-5'>
         <div className='flex flex-col gap-2'>
@@ -167,10 +172,6 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
       </div>
     </section>
   );
-}
-
-function getTabClass(isActive: boolean): string {
-  return `h-9 rounded-md px-3 text-sm font-600 transition-colors ${isActive ? 'bg-card text-foreground shadow-sm' : 'text-foreground-tertiary hover:bg-accent hover:text-accent-foreground'}`;
 }
 
 interface IPasswordAuthPanelProps {
