@@ -156,7 +156,11 @@
       "openFailed": "開けませんでした",
       "revealFailed": "フォルダーを開けませんでした",
       "uploadToBdpan": "百度ネットディスクにアップロード",
-      "newFolder": "新しいフォルダー"
+      "newFolder": "新しいフォルダー",
+      "download": "ダウンロード",
+      "downloadSuccess": "ダウンロードしました",
+      "downloadFailed": "ダウンロードに失敗しました",
+      "downloadTooLarge": "ファイルがサーバーのダウンロード上限を超えています（テキスト 2MB / その他 20MB）"
     },
     "newFolder": {
       "title": "新しいフォルダー",

@@ -211,7 +211,11 @@
       "openFailed": "Failed to open",
       "revealFailed": "Failed to open containing folder",
       "uploadToBdpan": "Upload to Baidu Netdisk",
-      "newFolder": "New Folder"
+      "newFolder": "New Folder",
+      "download": "Download",
+      "downloadSuccess": "Downloaded",
+      "downloadFailed": "Download failed",
+      "downloadTooLarge": "File exceeds the server download limit (2MB for text, 20MB otherwise)"
     },
     "newFolder": {
       "title": "New Folder",

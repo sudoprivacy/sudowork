@@ -1435,7 +1435,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       {modalsHook.contextMenu.visible &&
         contextMenuNode &&
         contextMenuStyle &&
-        (!readonly || (isContextMenuNodeFile && isPreviewSupported)) &&
+        (!readonly || isContextMenuNodeFile) &&
         typeof document !== 'undefined' &&
         createPortal(
           <div
@@ -1449,15 +1449,28 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           >
             <div className='flex flex-col gap-4px'>
               {readonly ? (
-                <button
-                  type='button'
-                  className={menuButtonBase}
-                  onClick={() => {
-                    void fileOpsHook.handlePreviewFile(contextMenuNode);
-                  }}
-                >
-                  {t('conversation.workspace.contextMenu.preview')}
-                </button>
+                <>
+                  {isPreviewSupported && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        void fileOpsHook.handlePreviewFile(contextMenuNode);
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.preview')}
+                    </button>
+                  )}
+                  <button
+                    type='button'
+                    className={menuButtonBase}
+                    onClick={() => {
+                      void fileOpsHook.handleDownloadNode(contextMenuNode);
+                    }}
+                  >
+                    {t('conversation.workspace.contextMenu.download')}
+                  </button>
+                </>
               ) : isContextMenuNodeRoot ? (
                 <>
                   <button
@@ -1543,6 +1556,17 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       }}
                     >
                       {t('conversation.workspace.contextMenu.openLocation')}
+                    </button>
+                  )}
+                  {isContextMenuNodeFile && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        void fileOpsHook.handleDownloadNode(contextMenuNode);
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.download')}
                     </button>
                   )}
                   {isContextMenuNodeFile && isPreviewSupported && (
