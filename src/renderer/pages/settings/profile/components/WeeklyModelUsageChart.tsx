@@ -117,6 +117,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       type: 'bar',
       stack: 'total',
       color: chartColors[index % chartColors.length],
+      emphasis: { disabled: true },
       data: dates.map((date, dateIndex) => {
         const modelData = dateMap.get(date);
         const value = modelData?.get(model) || 0;
@@ -151,6 +152,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       type: 'bar',
       stack: 'points',
       color: chartColors[index % chartColors.length],
+      emphasis: { disabled: true },
       data: dates.map((date) => pointDateMap.get(date)?.get(model) || 0),
       barMaxWidth: 36,
     }));
@@ -174,9 +176,10 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       backgroundColor: 'transparent',
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'shadow' },
+        axisPointer: { type: 'shadow', shadowStyle: { color: 'transparent' } },
         backgroundColor: getCSSVar('--popover'),
         borderColor: getCSSVar('--border'),
+        borderRadius: 12,
         textStyle: { color: getCSSVar('--popover-foreground'), fontFamily: CHART_FONT_FAMILY },
         formatter: (params: IEChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
@@ -237,9 +240,10 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       backgroundColor: 'transparent',
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'shadow' },
+        axisPointer: { type: 'shadow', shadowStyle: { color: 'transparent' } },
         backgroundColor: getCSSVar('--popover'),
         borderColor: getCSSVar('--border'),
+        borderRadius: 12,
         textStyle: { color: getCSSVar('--popover-foreground'), fontFamily: CHART_FONT_FAMILY },
         formatter: (params: IEChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
