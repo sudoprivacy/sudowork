@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input, Message } from '@arco-design/web-react';
-import { User, Protect } from '@icon-park/react';
+import { ShieldCheck, User } from 'lucide-react';
 import brand from '@brand';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { useAuth } from '../../context/AuthContext';
@@ -82,7 +82,7 @@ const RegisterPage: React.FC = () => {
       <main className='relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12 text-foreground'>
         <section className='relative z-1 flex w-full max-w-md flex-col items-center gap-6 rounded-xl border border-border bg-card p-8 text-center text-card-foreground shadow-xl max-sm:p-6'>
           <div className='flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-destructive'>
-            <Protect theme='filled' size={32} />
+            <ShieldCheck size={32} />
           </div>
           <div>
             <h2 className='text-xl font-700 text-foreground'>注册链接无效</h2>
@@ -115,17 +115,17 @@ const RegisterPage: React.FC = () => {
         <div className='flex flex-col gap-5'>
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>手机号码</div>
-            <Input size='large' prefix={<User className='text-muted-foreground' />} value={phoneFromUrl} disabled className='h-12 rounded-lg!' />
+            <Input size='large' prefix={<User size={18} />} value={phoneFromUrl} disabled className='h-12 rounded-lg!' />
           </div>
 
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>昵称</div>
-            <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 rounded-lg!' maxLength={20} />
+            <Input size='large' prefix={<User size={18} />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 rounded-lg!' maxLength={20} />
           </div>
 
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>邀请码</div>
-            <Input size='large' prefix={<Protect className='text-muted-foreground' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 rounded-lg!' maxLength={6} />
+            <Input size='large' prefix={<ShieldCheck size={18} />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 rounded-lg!' maxLength={6} />
           </div>
 
           <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 rounded-lg! text-base font-600'>

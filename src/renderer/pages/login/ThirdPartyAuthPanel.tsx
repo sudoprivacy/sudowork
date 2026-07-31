@@ -6,7 +6,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Message, Select } from '@arco-design/web-react';
-import { PeopleSafe, Link } from '@icon-park/react';
+import { ExternalLink, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -139,7 +139,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
 
       <div className='flex flex-col gap-5'>
         <div className='mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-secondary-foreground'>
-          <PeopleSafe theme='outline' size={30} />
+          <ShieldCheck size={30} />
         </div>
 
         <div className='flex flex-col gap-2'>
@@ -153,7 +153,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
           </Select>
         </div>
 
-        <Button type='primary' size='large' loading={isWaiting} disabled={!selectedProvider} onClick={() => void onLogin()} icon={<Link />} className='mt-1 h-12 rounded-lg! text-base font-600'>
+        <Button type='primary' size='large' loading={isWaiting} disabled={!selectedProvider} onClick={() => void onLogin()} icon={<ExternalLink size={16} />} className='mt-1 h-12 rounded-lg! text-base font-600'>
           {isWaiting ? t('login.thirdPartyWaiting') : t('login.thirdPartyLoginBtn', { provider: selectedProvider?.name || t('login.thirdPartyProviderFallback') })}
         </Button>
 

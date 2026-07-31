@@ -8,7 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message } from '@arco-design/web-react';
-import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
+import { KeyRound, Lock, ShieldCheck, Smartphone, User } from 'lucide-react';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveCachedTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
@@ -469,7 +469,7 @@ const LoginPage: React.FC = () => {
       <LoginShell>
         <section className='relative z-1 flex w-full max-w-md flex-col items-center gap-6 rounded-xl border border-border bg-card p-8 text-center text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
           <div className={`flex h-16 w-16 items-center justify-center rounded-full bg-secondary ${isRejected ? 'text-destructive' : 'text-warning'}`}>
-            <Protect theme='filled' size={32} />
+            <ShieldCheck size={32} />
           </div>
           <div>
             <h2 className='text-xl font-700 text-foreground'>{statusMsg.text}</h2>
@@ -551,17 +551,17 @@ const LoginPage: React.FC = () => {
               <>
                 <div className='flex flex-col gap-2'>
                   <div className='ml-1 text-sm font-600 text-foreground-secondary'>用户名</div>
-                  <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='h-12 rounded-lg!' />
+                  <Input size='large' prefix={<User size={18} />} placeholder='请输入用户名' value={username} onChange={setUsername} className='h-12 rounded-lg!' />
                 </div>
                 <div className='flex flex-col gap-2'>
                   <div className='ml-1 text-sm font-600 text-foreground-secondary'>密码</div>
-                  <Input.Password size='large' prefix={<Lock className='text-muted-foreground' />} placeholder='请输入密码' value={password} onChange={setPassword} className='h-12 rounded-lg!' />
+                  <Input.Password size='large' prefix={<Lock size={18} />} placeholder='请输入密码' value={password} onChange={setPassword} className='h-12 rounded-lg!' />
                 </div>
               </>
             ) : loginTab === 'key' ? (
               <div className='flex flex-col gap-2'>
                 <div className='ml-1 text-sm font-600 text-foreground-secondary'>API Key</div>
-                <Input size='large' prefix={<Key className='text-muted-foreground' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='h-12 rounded-lg!' />
+                <Input size='large' prefix={<KeyRound size={18} />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='h-12 rounded-lg!' />
               </div>
             ) : (
               <div className='rounded-lg bg-muted px-4 py-5 text-center text-sm leading-6 text-muted-foreground'>{oauth2Loading ? '正在检查 OAuth2 配置…' : oauth2Config?.enabled ? '点击下方按钮，将在浏览器中完成身份认证。' : '管理员未启用 OAuth2 登录'}</div>
@@ -626,13 +626,13 @@ const LoginPage: React.FC = () => {
         <div className='mt-6 flex flex-col gap-5'>
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-muted-foreground' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='h-12 rounded-lg!' />
+            <Input size='large' prefix={<Smartphone size={18} />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='h-12 rounded-lg!' />
           </div>
 
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>身份验证</div>
             <div className='flex gap-2'>
-              <Input size='large' prefix={<Key className='text-muted-foreground' />} placeholder='6 位验证码' value={code} onChange={setCode} className='h-12 min-w-0 flex-1 rounded-lg!' />
+              <Input size='large' prefix={<KeyRound size={18} />} placeholder='6 位验证码' value={code} onChange={setCode} className='h-12 min-w-0 flex-1 rounded-lg!' />
               <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='h-12 min-w-28 rounded-lg! font-600'>
                 {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
               </Button>
@@ -643,12 +643,12 @@ const LoginPage: React.FC = () => {
             <>
               <div className='flex flex-col gap-2'>
                 <div className='ml-1 text-sm font-600 text-foreground-secondary'>昵称</div>
-                <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 rounded-lg!' maxLength={20} />
+                <Input size='large' prefix={<User size={18} />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 rounded-lg!' maxLength={20} />
               </div>
 
               <div className='flex flex-col gap-2'>
                 <div className='ml-1 text-sm font-600 text-foreground-secondary'>邀请码</div>
-                <Input size='large' prefix={<Protect className='text-muted-foreground' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 rounded-lg!' maxLength={6} />
+                <Input size='large' prefix={<ShieldCheck size={18} />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 rounded-lg!' maxLength={6} />
               </div>
             </>
           )}
