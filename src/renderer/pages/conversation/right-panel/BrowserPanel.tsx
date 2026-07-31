@@ -5,7 +5,7 @@
  */
 
 import { Message, Modal, Tooltip } from '@arco-design/web-react';
-import { Add, Close, Delete } from '@icon-park/react';
+import { Plus as Add, Trash2 as Delete, X as Close } from 'lucide-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';

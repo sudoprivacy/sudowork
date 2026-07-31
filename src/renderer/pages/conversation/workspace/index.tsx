@@ -6,7 +6,7 @@
 
 import { Checkbox, Input, Message, Modal, Tooltip, Tree } from '@arco-design/web-react';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { Cloudy, DownSmall, FileText, FolderOpen, Magic, Refresh, Search } from '@icon-park/react';
+import { ChevronDown as DownSmall, Cloud as Cloudy, FileText, FolderOpen, RefreshCw as Refresh, Search, WandSparkles as Magic } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -473,9 +473,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
         return {
           ...node,
-          icon: <FolderOpen theme='outline' size='16' fill={WORKSPACE_FOLDER_ICON_COLOR} />,
+          icon: <FolderOpen size={16} color={WORKSPACE_FOLDER_ICON_COLOR} />,
           icons: {
-            switcherIcon: <DownSmall theme='outline' size='14' fill='var(--color-text-3)' />,
+            switcherIcon: <DownSmall size={14} color='var(--color-text-3)' />,
           },
           children: node.children ? decorateNodes(node.children) : node.children,
         };
@@ -907,7 +907,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               {/* Title area */}
               <div className='flex items-center gap-12px mb-20px'>
                 <div className='flex items-center justify-center w-48px h-48px rounded-full' style={{ backgroundColor: 'rgb(var(--primary-1))' }}>
-                  <FileText theme='outline' size='24' fill='rgb(var(--primary-6))' />
+                  <FileText size={24} color='rgb(var(--primary-6))' />
                 </div>
                 <div>
                   <div className='text-16px font-semibold mb-4px'>{t('conversation.workspace.pasteConfirm_title')}</div>
@@ -920,7 +920,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               {/* Content area */}
               <div className='mb-20px px-12px py-16px rounded-8px' style={{ backgroundColor: 'var(--color-fill-2)' }}>
                 <div className='flex items-start gap-12px mb-12px'>
-                  <FileText theme='outline' size='18' fill='var(--color-text-2)' style={{ marginTop: '2px' }} />
+                  <FileText size={18} color='var(--color-text-2)' style={{ marginTop: '2px' }} />
                   <div className='flex-1'>
                     <div className='text-13px mb-4px' style={{ color: 'var(--color-text-3)' }}>
                       {t('conversation.workspace.pasteConfirm_fileName')}
@@ -931,7 +931,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   </div>
                 </div>
                 <div className='flex items-start gap-12px'>
-                  <FolderOpen theme='outline' size='18' fill='var(--color-text-2)' style={{ marginTop: '2px' }} />
+                  <FolderOpen size={18} color='var(--color-text-2)' style={{ marginTop: '2px' }} />
                   <div className='flex-1'>
                     <div className='text-13px mb-4px' style={{ color: 'var(--color-text-3)' }}>
                       {t('conversation.workspace.pasteConfirm_targetFolder')}
@@ -1099,7 +1099,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   <span className='text-14px' style={{ color: selectedTargetPath ? 'var(--color-text-1)' : 'var(--color-text-3)' }}>
                     {selectedTargetPath || t('conversation.workspace.migration.selectFolder')}
                   </span>
-                  <FolderOpen theme='outline' size='18' fill='var(--color-text-3)' />
+                  <FolderOpen size={18} color='var(--color-text-3)' />
                 </div>
               </div>
 
@@ -1183,12 +1183,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           }}
         >
           <button type='button' role='tab' aria-selected={activeTab === 'files'} className={`workspace-card__tab ${activeTab === 'files' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('files')} title={workspace}>
-            <Cloudy theme='outline' size='14' fill={activeTab === 'files' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'} />
+            <Cloudy size={14} color={activeTab === 'files' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'} />
             <span className='workspace-card__tab-label'>{t('conversation.workspace.tabFiles', { defaultValue: '临时空间' })}</span>
             {/* File count badge intentionally omitted per product feedback (#294): 后面的数量不要了吧，不要去统计. */}
           </button>
           <button type='button' role='tab' aria-selected={activeTab === 'skills'} className={`workspace-card__tab ${activeTab === 'skills' ? 'workspace-card__tab--active' : ''}`} onClick={() => setActiveTab('skills')}>
-            <Magic theme='outline' size='14' fill={activeTab === 'skills' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'} />
+            <Magic size={14} color={activeTab === 'skills' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'} />
             <span className='workspace-card__tab-label'>{t('conversation.workspace.tabSkills', { defaultValue: '可用技能' })}</span>
             {skillCount > 0 && (
               <span className={`workspace-card__count ${activeTab === 'skills' ? 'workspace-card__count--active' : ''}`} aria-hidden='true'>
@@ -1212,7 +1212,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               }
             }}
             allowClear
-            prefix={<Search theme='outline' size='14' fill={'var(--text-secondary)'} />}
+            prefix={<Search size={14} color='var(--text-secondary)' />}
           />
           <Tooltip content={t('conversation.workspace.refresh')}>
             <button
@@ -1228,7 +1228,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                 }
               }}
             >
-              <Refresh theme='outline' size='14' fill={'var(--text-secondary)'} />
+              <Refresh size={14} color='var(--text-secondary)' />
             </button>
           </Tooltip>
         </div>
@@ -1261,7 +1261,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
             {/* Empty state or Tree */}
             {!hasOriginalFiles ? (
               <EmptyState
-                icon={<FolderOpen theme='outline' size='48' fill='var(--color-text-3)' />}
+                icon={<FolderOpen size={48} color='var(--color-text-3)' />}
                 title={searchText ? t('conversation.workspace.search.empty') : readonly ? t('conversation.workspace.remotePendingTitle', { defaultValue: '会话开始后显示临时空间' }) : t('conversation.workspace.empty')}
                 description={!searchText ? (readonly ? t('conversation.workspace.remotePendingDescription', { defaultValue: '首次消息创建会话后，将从 Moss Server 加载临时空间和草稿箱。' }) : t('conversation.workspace.emptyDescription')) : undefined}
                 actions={

@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Radio, Message, Dropdown, Menu, List, Spin, Empty, Typography, Input } from '@arco-design/web-react';
-import { Magic, FolderOpen, Lightning } from '@icon-park/react';
+import { FolderOpen, WandSparkles as Magic, Zap as Lightning } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
@@ -112,7 +112,7 @@ Please acknowledge receiving this rule/skill and confirm you will apply it.
             render={(file, index) => (
               <List.Item key={index} actionLayout='vertical' style={{ cursor: 'pointer', padding: '12px 0' }} onClick={() => handleSelectFile(file)} className='hover:bg-fill-2 px-2 rounded transition-colors'>
                 <div className='flex items-center gap-3'>
-                  <div className='bg-primary-light-1 p-2 rounded'>{file.name.endsWith('.py') ? <Lightning size={18} fill='var(--color-primary-6)' /> : <FolderOpen size={18} fill='var(--color-primary-6)' />}</div>
+                  <div className='bg-primary-light-1 p-2 rounded'>{file.name.endsWith('.py') ? <Lightning size={18} color='var(--color-primary-6)' /> : <FolderOpen size={18} color='var(--color-primary-6)' />}</div>
                   <div className='flex-1'>
                     <Typography.Text bold>{file.name}</Typography.Text>
                     <div className='text-3 text-xs truncate'>{file.relativePath || file.name}</div>

@@ -5,7 +5,7 @@
  */
 
 import { Dropdown, Menu, Message } from '@arco-design/web-react';
-import { Close, Plus, Robot } from '@icon-park/react';
+import { Bot as Robot, Plus, X as Close } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -47,10 +47,8 @@ const ConversationTabView: React.FC<ConversationTabViewProps> = ({ tabId, tabNam
         <span className='text-15px whitespace-nowrap overflow-hidden text-ellipsis select-none flex-1'>{tabName}</span>
         {timeLabel && <span className='text-11px text-4 whitespace-nowrap shrink-0'>{timeLabel}</span>}
         <Close
-          theme='outline'
-          size='14'
-          fill={'var(--text-secondary)'}
-          className='shrink-0 transition-all duration-200 hover:fill-danger'
+          size={14}
+          className='shrink-0 text-[var(--text-secondary)] transition-all duration-200 hover:text-danger'
           onClick={(event) => {
             event.stopPropagation();
             onClose(tabId);
@@ -71,7 +69,7 @@ const CreateConversationTrigger: React.FC<CreateConversationTriggerProps> = ({ d
   <Dropdown droplist={menu} trigger='click' position='bl' disabled={disabled}>
     {/* hover:bg-[var(--fill-2)]: --fill-2 未定义（悬空 var，既有 bug）；换 bg-fill-2 会改样，需单独确认意图 */}
     <div className={`flex items-center justify-center w-40px h-40px shrink-0 transition-colors duration-200 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-[var(--fill-2)]'}`} style={{ borderLeft: '1px solid var(--border-default)' }} title={title}>
-      <Plus theme='outline' size='16' fill={'var(--foreground)'} strokeWidth={3} />
+      <Plus size={16} color='var(--foreground)' strokeWidth={3} />
     </div>
   </Dropdown>
 );

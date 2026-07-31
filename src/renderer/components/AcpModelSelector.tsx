@@ -391,7 +391,7 @@ const AcpModelSelector: React.FC<{
   if (!modelInfo) {
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
+        <Button className={classNames('sendbox-model-btn header-model-btn', compact && 'max-w-[120px]!')} shape='round' size='small' style={{ cursor: 'default' }}>
           <span className='flex items-center gap-1.5 min-w-0'>
             <span className={compact ? 'block truncate' : undefined}>{t('conversation.welcome.useCliModel')}</span>
           </span>
@@ -404,7 +404,7 @@ const AcpModelSelector: React.FC<{
   if (!modelInfo.canSwitch) {
     return (
       <Tooltip content={displayLabel} position='top'>
-        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
+        <Button className={classNames('sendbox-model-btn header-model-btn', compact && 'max-w-[120px]!')} shape='round' size='small' style={{ cursor: 'default' }}>
           <span className='flex items-center gap-1.5 min-w-0'>
             {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rounded-full shrink-0 ${currentModelHealth.color}`} />}
             <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
@@ -460,7 +460,7 @@ const AcpModelSelector: React.FC<{
         </div>
       }
     >
-      <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small'>
+      <Button className={classNames('sendbox-model-btn header-model-btn', compact && 'max-w-[120px]!')} shape='round' size='small'>
         <span className='flex items-center gap-1.5 min-w-0'>
           {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rounded-full shrink-0 ${currentModelHealth.color}`} />}
           <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>

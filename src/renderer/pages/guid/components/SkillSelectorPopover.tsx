@@ -241,7 +241,7 @@ export default function SkillSelectorPopover({ popupVisible, onVisibleChange, on
   }, [popupVisible, onAfterClose]);
 
   return (
-    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} popupVisible={popupVisible} />} className='[&_.arco-popover-content]:!py-1 [&_.arco-popover-content]:!px-3'>
+    <Popover popupVisible={popupVisible} trigger={[]} position='top' onVisibleChange={onVisibleChange} content={<SkillSelectorMenuContent {...contentProps} popupVisible={popupVisible} />} className='[&_.arco-popover-content]:py-1! [&_.arco-popover-content]:px-3!'>
       {children}
     </Popover>
   );

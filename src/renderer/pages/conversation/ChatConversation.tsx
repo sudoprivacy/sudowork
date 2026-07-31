@@ -5,7 +5,7 @@
  */
 
 import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
-import { History } from '@icon-park/react';
+import { History } from 'lucide-react';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -52,7 +52,7 @@ const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conver
       }
       trigger={['click']}
     >
-      <Button size='mini' icon={<History theme='filled' size='14' fill={'var(--foreground)'} strokeWidth={2} strokeLinejoin='miter' strokeLinecap='square' />}></Button>
+      <Button size='mini' icon={<History size={14} color='var(--foreground)' strokeWidth={2} strokeLinejoin='miter' strokeLinecap='square' />}></Button>
     </Dropdown>
   );
 };

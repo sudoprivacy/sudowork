@@ -6,7 +6,7 @@
 
 import { FitAddon } from '@xterm/addon-fit';
 import { Tooltip } from '@arco-design/web-react';
-import { Add, Close } from '@icon-park/react';
+import { Plus as Add, X as Close } from 'lucide-react';
 import React, { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Terminal } from 'xterm';

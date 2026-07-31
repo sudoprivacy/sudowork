@@ -7,7 +7,7 @@
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Button, Empty, Input, Modal } from '@arco-design/web-react';
-import { Down, FolderOpen } from '@icon-park/react';
+import { ChevronDown as Down, FolderOpen } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -270,7 +270,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               disabled={exportModalLoading}
             >
               <span className={classNames('text-base overflow-hidden text-ellipsis whitespace-nowrap', exportTargetPath ? 'text-foreground' : 'text-foreground-tertiary')}>{exportTargetPath || t('conversation.history.exportSelectFolder')}</span>
-              <FolderOpen theme='outline' size='18' fill='currentColor' className='text-foreground-tertiary' />
+              <FolderOpen size={18} className='text-foreground-tertiary' />
             </button>
           </div>
 

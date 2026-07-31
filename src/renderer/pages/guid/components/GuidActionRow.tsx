@@ -139,7 +139,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             }
           >
             <span className='relative'>
-              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={16} className='text-foreground-secondary' />} />
+              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={18} className='text-foreground-secondary' />} />
               {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-primary-foreground font-600 pointer-events-none'>{files.length}</span>}
             </span>
           </Dropdown>

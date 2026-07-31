@@ -5,7 +5,7 @@
  */
 
 import { Button, Dropdown, Message, Modal, Tag } from '@arco-design/web-react';
-import { Plus, Shield, UploadOne } from '@icon-park/react';
+import { Plus, Shield, Upload } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -1054,7 +1054,7 @@ const AcpSendBox: React.FC<{
                       openFileSelector();
                     }}
                   >
-                    <UploadOne theme='outline' size='16' fill='var(--foreground-secondary)' style={{ lineHeight: 0 }} />
+                    <Upload size={16} color='var(--foreground-secondary)' style={{ lineHeight: 0 }} />
                     <span>{t('conversation.welcome.downloadLocalFile')}</span>
                   </div>
                   <div
@@ -1071,19 +1071,11 @@ const AcpSendBox: React.FC<{
               }
             >
               <span className='relative'>
-                <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus theme='outline' strokeWidth={4} fill='var(--foreground-secondary)' />} />
+                <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={18} className='text-foreground-secondary' />} />
                 {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-primary-foreground font-600 pointer-events-none'>{selectedFileCount}</span>}
               </span>
             </Dropdown>
-            <AgentModeSelector
-              backend={backend}
-              conversationId={conversation_id}
-              compact
-              initialMode={sessionMode}
-              compactLeadingIcon={<Shield theme='outline' fill='currentColor' />}
-              modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })}
-              compactLabelPrefix={t('agentMode.permission')}
-            />
+            <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
           </div>
         }

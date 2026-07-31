@@ -5,9 +5,8 @@
  */
 
 import { Checkbox, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { Loading } from '@icon-park/react';
 import classNames from 'classnames';
-import { MessageCircleMore, Pencil, Pin, Trash2, Upload } from 'lucide-react';
+import { LoaderCircle, MessageCircleMore, Pencil, Pin, Trash2, Upload } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TChatConversation } from '@/common/storage';
@@ -79,7 +78,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
         {ptyActiveCount > 0 && (
           <Tooltip mini content={t('conversation.history.terminalRunning', { count: ptyActiveCount, defaultValue: '{{count}} terminal still running' })}>
             <span className='f-center ml-1.5 collapsed-hidden text-brand'>
-              <Loading theme='outline' size='12' className='animate-spin' />
+              <LoaderCircle size={12} className='animate-spin' />
             </span>
           </Tooltip>
         )}

@@ -35,7 +35,8 @@
  */
 
 import { Tooltip } from '@arco-design/web-react';
-import { Book, Branch, Browser, Bug, Calendar, Code, FileText, FolderOpen, Picture, SettingConfig, Star, Tool } from '@icon-park/react';
+import { BookOpen as Book, Bug, Calendar, Code, FileText, FolderOpen, GitBranch as Branch, Globe as Browser, Image as Picture, Settings as SettingConfig, Star, Wrench as Tool } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -43,7 +44,7 @@ import { resolveSkillIcon, handleSkillIconError } from '@/renderer/utils/skillDi
 import { emitter } from '@/renderer/utils/emitter';
 import { resolveWorkspaceSkillRoot } from './skillRoots';
 
-type IconComponent = React.ComponentType<{ theme?: 'outline' | 'filled' | 'two-tone' | 'multi-color'; size?: string | number; fill?: string | string[] }>;
+type IconComponent = LucideIcon;
 
 export interface WorkspaceSkillsProps {
   workspace: string;
@@ -214,8 +215,7 @@ const withAlpha = (rgb: string, alpha: number): string => {
 };
 
 // ——— Icon resolution ———
-// Map the ui.zip reference icon names (lucide-react) to the icon-park
-// equivalents we already have in the bundle. Case-insensitive.
+// Map the ui.zip reference icon names to lucide-react icons. Case-insensitive.
 const ICON_BY_NAME: Record<string, IconComponent> = {
   // ui.zip / lucide names
   globe: Browser,
@@ -347,7 +347,7 @@ const SkillIconGraphic: React.FC<{
     return <span className='workspace-skill-card__emoji'>{emoji}</span>;
   }
 
-  return <Icon theme='outline' size='16' fill={fillColor} />;
+  return <Icon size={16} color={fillColor} />;
 };
 
 const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsProps>(({ workspace, eventPrefix, backend, conversationId, dataSource = 'workspace', searchQuery, onLoadingChange, onSynced, onCountChange, watchIdRef }, ref) => {
@@ -547,7 +547,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
       <div className='workspace-skills'>
         <div className='workspace-card__empty'>
           <div className='workspace-card__empty-icon'>
-            <Code theme='outline' size='20' fill='currentColor' />
+            <Code size={20} />
           </div>
           <div className='workspace-card__empty-title'>
             {initialLoading

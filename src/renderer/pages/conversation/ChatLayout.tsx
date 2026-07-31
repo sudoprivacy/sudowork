@@ -5,7 +5,7 @@
  */
 
 import { Layout as ArcoLayout, Tooltip } from '@arco-design/web-react';
-import { ExpandLeft, ExpandRight, Right } from '@icon-park/react';
+import { ChevronLeft as ExpandLeft, ChevronRight as ExpandRight, ChevronRight as Right } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
@@ -96,7 +96,7 @@ const ConversationHeaderToggle: React.FC<ConversationHeaderToggleProps> = ({ col
         aria-pressed={collapsed}
         onClick={onToggle}
       >
-        <Right theme='outline' size={18} fill='currentColor' className='transition-transform duration-200' style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)' }} />
+        <Right size={18} className='transition-transform duration-200' style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)' }} />
       </button>
     </Tooltip>
   </div>

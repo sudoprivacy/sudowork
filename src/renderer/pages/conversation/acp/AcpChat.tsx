@@ -14,7 +14,7 @@ import HOC from '@renderer/utils/HOC';
 import LocalImageView from '@renderer/components/LocalImageView';
 import type { IMessageAcpQuestion, TMessage } from '@/common/chatLib';
 import ConversationChatConfirm from '../components/ConversationChatConfirm';
-import SafetyChatConfirm from '../SafetyChatConfirm';
+import { SafetyChatConfirm } from '../SafetyChatConfirm';
 import AcpSendBox from './AcpSendBox';
 
 function buildLegacyQuestionItems(message: IMessageAcpQuestion) {

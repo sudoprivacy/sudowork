@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Close } from '@icon-park/react';
+import { X as Close } from 'lucide-react';
 import { IconShrink } from '@arco-design/web-react/icon';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -115,10 +115,8 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
                   {tab.isDirty && <span className='w-6px h-6px rd-full bg-primary' title={t('preview.unsavedChangesTitle')} />}
                 </span>
                 <Close
-                  theme='outline'
-                  size='14'
-                  fill={'var(--text-secondary)'}
-                  className='hover:fill-primary'
+                  size={14}
+                  className='text-[var(--text-secondary)] hover:text-primary'
                   onClick={(e) => {
                     e.stopPropagation();
                     onCloseTab(tab.id);

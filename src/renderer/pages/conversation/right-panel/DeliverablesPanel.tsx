@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FileCabinet } from '@icon-park/react';
+import { Archive } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -102,7 +102,7 @@ const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
     <div className='flex-1 flex flex-col items-center justify-center text-center px-24px'>
       <div className='flex flex-col items-center gap-10px rounded-20px border border-dashed border-light bg-[var(--color-bg-2)] px-20px py-24px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
         <div className='flex h-48px w-48px items-center justify-center rounded-full bg-fill-1'>
-          <FileCabinet size={36} fill={'var(--text-disabled)'} />
+          <Archive size={36} color='var(--text-disabled)' />
         </div>
         <div className='text-13px font-semibold text-foreground'>{t('conversation.rightPanel.deliverables.emptyTitle')}</div>
         <div className='max-w-220px text-12px leading-18px text-secondary opacity-80'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>

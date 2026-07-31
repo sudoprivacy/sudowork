@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { VideoFile } from '@icon-park/react';
+import { FileVideo as VideoFile } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { resolveLocalFileUrl } from '@/renderer/utils/platform';
@@ -32,7 +32,7 @@ const VideoViewer: React.FC<VideoViewerProps> = ({ filePath, content, fileName }
       left: (
         <div className='flex items-center gap-8px'>
           <span className='flex items-center gap-4px text-13px text-secondary'>
-            <VideoFile theme='filled' size='14' fill='currentColor' />
+            <VideoFile size={14} />
             {t('preview.video.title', { defaultValue: 'Video' })}
           </span>
           <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>

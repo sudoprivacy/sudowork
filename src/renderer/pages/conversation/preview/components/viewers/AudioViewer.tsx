@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AudioFile } from '@icon-park/react';
+import { FileAudio as AudioFile } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { resolveLocalFileUrl } from '@/renderer/utils/platform';
@@ -32,7 +32,7 @@ const AudioViewer: React.FC<AudioViewerProps> = ({ filePath, content, fileName }
       left: (
         <div className='flex items-center gap-8px'>
           <span className='flex items-center gap-4px text-13px text-secondary'>
-            <AudioFile theme='filled' size='14' fill='currentColor' />
+            <AudioFile size={14} />
             {t('preview.audio.title', { defaultValue: 'Audio' })}
           </span>
           <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -65,7 +65,7 @@ const AudioViewer: React.FC<AudioViewerProps> = ({ filePath, content, fileName }
   return (
     <div className='flex-1 f-center p-24px overflow-hidden'>
       <div className='w-full max-w-560px flex flex-col items-center gap-16px'>
-        <AudioFile theme='filled' size='48' fill='var(--color-text-3)' />
+        <AudioFile size={48} color='var(--color-text-3)' />
         <div className='max-w-full truncate text-14px text-secondary'>{fileName || filePath || t('preview.audio.title', { defaultValue: 'Audio' })}</div>
         <audio
           key={audioSrc}
