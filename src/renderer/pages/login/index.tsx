@@ -475,7 +475,7 @@ const LoginPage: React.FC = () => {
             <Button
               type='primary'
               long
-              className='mt-1 h-12 rounded-lg!'
+              className='mt-1 h-12 rounded-lg'
               onClick={() => {
                 setStatusMsg(null);
                 // 自动重新提交申请
@@ -491,7 +491,7 @@ const LoginPage: React.FC = () => {
               重新申请
             </Button>
           ) : (
-            <Button long className='mt-1 h-12 rounded-lg!' onClick={() => setStatusMsg(null)}>
+            <Button long className='mt-1 h-12 rounded-lg' onClick={() => setStatusMsg(null)}>
               返回登录
             </Button>
           )}
@@ -567,11 +567,11 @@ const LoginPage: React.FC = () => {
             )}
 
             {loginTab === 'oauth2' ? (
-              <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='mt-1 h-12 rounded-lg! text-base font-600'>
+              <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='mt-1 h-12 rounded-lg text-base font-600'>
                 {oauth2Waiting ? '等待浏览器授权…' : '通过浏览器登录'}
               </Button>
             ) : (
-              <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 rounded-lg! text-base font-600'>
+              <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 rounded-lg text-base font-600'>
                 登录
               </Button>
             )}
@@ -657,7 +657,7 @@ const LoginPage: React.FC = () => {
             </>
           )}
 
-          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 rounded-lg! text-base font-600'>
+          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 rounded-lg text-base font-600'>
             {mode === 'login' ? '登录' : '注册'}
           </Button>
 

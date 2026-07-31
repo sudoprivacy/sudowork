@@ -144,7 +144,7 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
           </>
         )}
 
-        <Button type='primary' size='large' loading={loading} onClick={handleSubmit} className='mt-1 h-12 rounded-lg! text-base font-600'>
+        <Button type='primary' size='large' loading={loading} onClick={handleSubmit} className='mt-1 h-12 rounded-lg text-base font-600'>
           {mode === 'login' ? t('login.pwdLoginBtn') : t('login.pwdRegisterBtn')}
         </Button>
 

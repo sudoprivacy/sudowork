@@ -153,7 +153,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
           </Select>
         </div>
 
-        <Button type='primary' size='large' loading={isWaiting} disabled={!selectedProvider} onClick={() => void onLogin()} icon={<ExternalLink size={16} />} className='mt-1 h-12 rounded-lg! text-base font-600'>
+        <Button type='primary' size='large' loading={isWaiting} disabled={!selectedProvider} onClick={() => void onLogin()} icon={<ExternalLink size={16} />} className='mt-1 h-12 rounded-lg text-base font-600'>
           {isWaiting ? t('login.thirdPartyWaiting') : t('login.thirdPartyLoginBtn', { provider: selectedProvider?.name || t('login.thirdPartyProviderFallback') })}
         </Button>
 
