@@ -15,7 +15,7 @@ const PreferenceRow: React.FC<{
   label: string;
   children: React.ReactNode;
 }> = ({ label, children }) => (
-  <div className='flex flex-col items-stretch gap-2.5 py-3 md:flex-row md:items-center md:justify-between md:gap-6'>
+  <div className='flex flex-col items-stretch gap-2.5 border-b border-border py-3 last:border-b-0 md:flex-row md:items-center md:justify-between md:gap-6'>
     <div className='text-14px text-foreground leading-22px'>{label}</div>
     <div className='w-full flex md:flex-1 md:justify-end'>{children}</div>
   </div>
@@ -36,7 +36,7 @@ const DisplaySettings: React.FC = () => {
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
             <div className='space-y-3'>
-              <div className='w-full flex flex-col divide-y divide-light'>
+              <div className='flex w-full flex-col border border-border bg-card px-6 rd-16px'>
                 {displayItems.map((item) => (
                   <PreferenceRow key={item.key} label={item.label}>
                     {item.component}

@@ -93,7 +93,7 @@
   --violet-foreground: rgb(255 255 255);
 
   /* 新规范 Token：边框、填充与覆盖层 */
-  --border: rgb(230 230 230);
+  --border: rgb(242 242 242);
   --border-shallow: rgb(247 247 247);
   --border-deep: rgb(217 217 217);
   --input: rgb(229 229 229);
@@ -170,7 +170,7 @@
   --violet-foreground: rgb(0 0 0);
 
   /* 新规范 Token：边框、填充与覆盖层 */
-  --border: rgb(51 51 51);
+  --border: rgb(38 38 38);
   --border-shallow: rgb(26 26 26);
   --border-deep: rgb(64 64 64);
   --input: rgb(64 64 64);
