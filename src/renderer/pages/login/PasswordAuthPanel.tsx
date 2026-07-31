@@ -120,12 +120,12 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
       <div className='mt-6 flex flex-col gap-5'>
         <div className='flex flex-col gap-2'>
           <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.pwdAccountLabel')}</div>
-          <Input size='large' prefix={<User size={18} />} placeholder={t('login.pwdAccountPlaceholder')} value={account} onChange={setAccount} maxLength={50} className='h-12 rounded-lg!' />
+          <Input size='large' prefix={<User size={18} />} placeholder={t('login.pwdAccountPlaceholder')} value={account} onChange={setAccount} maxLength={50} />
         </div>
 
         <div className='flex flex-col gap-2'>
           <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.pwdPasswordLabel')}</div>
-          <Input.Password size='large' prefix={<Lock size={18} />} placeholder={mode === 'login' ? t('login.pwdPasswordPlaceholder') : t('login.pwdRegisterPasswordPlaceholder')} value={password} onChange={setPassword} maxLength={20} className='h-12 rounded-lg!' />
+          <Input.Password size='large' prefix={<Lock size={18} />} placeholder={mode === 'login' ? t('login.pwdPasswordPlaceholder') : t('login.pwdRegisterPasswordPlaceholder')} value={password} onChange={setPassword} maxLength={20} />
           {mode === 'register' && <div className='ml-1 text-xs leading-5 text-muted-foreground'>{t('login.pwdRuleHint')}</div>}
         </div>
 
@@ -135,11 +135,11 @@ export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackTo
               <div className='ml-1 text-sm font-600 text-foreground-secondary'>
                 {t('login.pwdNicknameLabel')} <span className='text-xs font-500 text-muted-foreground'>{t('login.pwdNicknameOptional')}</span>
               </div>
-              <Input size='large' prefix={<User size={18} />} placeholder={t('login.pwdNicknamePlaceholder')} value={nickname} onChange={setNickname} maxLength={50} className='h-12 rounded-lg!' />
+              <Input size='large' prefix={<User size={18} />} placeholder={t('login.pwdNicknamePlaceholder')} value={nickname} onChange={setNickname} maxLength={50} />
             </div>
             <div className='flex flex-col gap-2'>
               <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.pwdInvitationCodeLabel')}</div>
-              <Input size='large' prefix={<Ticket size={18} />} placeholder={t('login.pwdInvitationCodePlaceholder')} value={invitationCode} onChange={setInvitationCode} maxLength={50} className='h-12 rounded-lg!' />
+              <Input size='large' prefix={<Ticket size={18} />} placeholder={t('login.pwdInvitationCodePlaceholder')} value={invitationCode} onChange={setInvitationCode} maxLength={50} />
             </div>
           </>
         )}

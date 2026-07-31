@@ -550,17 +550,17 @@ const LoginPage: React.FC = () => {
               <>
                 <div className='flex flex-col gap-2'>
                   <div className='ml-1 text-sm font-600 text-foreground-secondary'>用户名</div>
-                  <Input size='large' prefix={<User size={18} />} placeholder='请输入用户名' value={username} onChange={setUsername} className='h-12 rounded-lg!' />
+                  <Input size='large' prefix={<User size={18} />} placeholder='请输入用户名' value={username} onChange={setUsername} />
                 </div>
                 <div className='flex flex-col gap-2'>
                   <div className='ml-1 text-sm font-600 text-foreground-secondary'>密码</div>
-                  <Input.Password size='large' prefix={<Lock size={18} />} placeholder='请输入密码' value={password} onChange={setPassword} className='h-12 rounded-lg!' />
+                  <Input.Password size='large' prefix={<Lock size={18} />} placeholder='请输入密码' value={password} onChange={setPassword} />
                 </div>
               </>
             ) : loginTab === 'key' ? (
               <div className='flex flex-col gap-2'>
                 <div className='ml-1 text-sm font-600 text-foreground-secondary'>API Key</div>
-                <Input size='large' prefix={<KeyRound size={18} />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='h-12 rounded-lg!' />
+                <Input size='large' prefix={<KeyRound size={18} />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} />
               </div>
             ) : (
               <div className='rounded-lg bg-muted px-4 py-5 text-center text-sm leading-6 text-muted-foreground'>{oauth2Loading ? '正在检查 OAuth2 配置…' : oauth2Config?.enabled ? '点击下方按钮，将在浏览器中完成身份认证。' : '管理员未启用 OAuth2 登录'}</div>
@@ -630,14 +630,14 @@ const LoginPage: React.FC = () => {
         <div className='mt-6 flex flex-col gap-5'>
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>手机号码</div>
-            <Input size='large' prefix={<Smartphone size={18} />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='h-12 rounded-lg!' />
+            <Input size='large' prefix={<Smartphone size={18} />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} />
           </div>
 
           <div className='flex flex-col gap-2'>
             <div className='ml-1 text-sm font-600 text-foreground-secondary'>身份验证</div>
             <div className='flex gap-2'>
-              <Input size='large' prefix={<KeyRound size={18} />} placeholder='6 位验证码' value={code} onChange={setCode} className='h-12 min-w-0 flex-1 rounded-lg!' />
-              <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='h-12 min-w-28 rounded-lg! font-600'>
+              <Input size='large' prefix={<KeyRound size={18} />} placeholder='6 位验证码' value={code} onChange={setCode} />
+              <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='min-w-28 font-600 rounded-lg!'>
                 {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
               </Button>
             </div>
@@ -647,12 +647,12 @@ const LoginPage: React.FC = () => {
             <>
               <div className='flex flex-col gap-2'>
                 <div className='ml-1 text-sm font-600 text-foreground-secondary'>昵称</div>
-                <Input size='large' prefix={<User size={18} />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 rounded-lg!' maxLength={20} />
+                <Input size='large' prefix={<User size={18} />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} maxLength={20} />
               </div>
 
               <div className='flex flex-col gap-2'>
                 <div className='ml-1 text-sm font-600 text-foreground-secondary'>邀请码</div>
-                <Input size='large' prefix={<ShieldCheck size={18} />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 rounded-lg!' maxLength={6} />
+                <Input size='large' prefix={<ShieldCheck size={18} />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} maxLength={6} />
               </div>
             </>
           )}
