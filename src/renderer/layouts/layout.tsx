@@ -7,7 +7,6 @@
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutContext } from '@renderer/context/LayoutContext';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
@@ -16,7 +15,6 @@ import { useDirectorySelection } from '@renderer/hooks/useDirectorySelection';
 import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
-import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import UpdateModal from '@renderer/layouts/components/UpdateModal';
 import DebugPanel from '@renderer/layouts/components/DebugPanel';
 import Sider from '@/renderer/layouts/components/Sider';
@@ -57,13 +55,12 @@ const useDebug = () => {
 const DEFAULT_SIDER_WIDTH = 260;
 
 const Layout: React.FC = () => {
-  const { t } = useTranslation();
   const { config } = useTenantConfig(); // 获取租户配置
   const [collapsed, setCollapsed] = useState(false);
   const { onClick } = useDebug();
   const navigate = useNavigate();
-  // 点击侧栏顶部 logo / 应用名时回到新会话页，行为与「新会话」按钮一致
-  // Clicking the sidebar-top logo / app name returns to the new conversation page, matching the "New Chat" button
+  // 点击侧栏顶部应用名时回到新会话页，行为与「新会话」按钮一致
+  // Clicking the sidebar app name returns to the new conversation page, matching the "New Chat" button
   const goToNewConversation = useCallback(() => {
     cleanupSiderTooltips();
     // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
@@ -103,32 +100,29 @@ const Layout: React.FC = () => {
 
   return (
     <LayoutContext.Provider value={layoutContextValue}>
-      <div className={classNames('app-shell relative flex flex-col size-full min-h-0', { 'app-shell--sider-divider': !collapsed })} style={{ '--layout-sider-width': `${DEFAULT_SIDER_WIDTH}px` } as React.CSSProperties}>
+      <div className={classNames('app-shell relative flex flex-col size-full min-h-0', { 'app-shell--sider-collapsed': collapsed })} style={{ '--layout-sider-width': `${DEFAULT_SIDER_WIDTH}px` } as React.CSSProperties}>
         <Titlebar workspaceAvailable={workspaceAvailable} />
 
         <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
           <ArcoLayout.Sider collapsedWidth={0} collapsed={collapsed} width={DEFAULT_SIDER_WIDTH} className='layout-sider'>
-            <ArcoLayout.Header className='flex items-center justify-start py-2 px-4 pl-4.5 gap-2.5 layout-sider-header'>
-              <div
-                className='shrink-0 size-8.5 relative rd-0.5rem f-center cursor-pointer'
+            <ArcoLayout.Header className='flex items-center justify-start h-12 px-4 layout-sider-header'>
+              <button
+                type='button'
+                className='flex-1 min-w-0 text-left truncate text-lg text-foreground font-600 cursor-pointer border-none bg-transparent'
                 onClick={() => {
                   onClick();
                   goToNewConversation();
                 }}
-                aria-label={t('common.ariaLabel.newConversation', '新会话')}
               >
-                <img src={config.logo || SudoworkIcon} alt={config.app_name} className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130' style={{ objectFit: 'contain' }} />
-              </div>
-              <div className='flex-1 text-20px text-1 font-800 cursor-pointer' onClick={goToNewConversation}>
                 {config.app_name}
-              </div>
+              </button>
             </ArcoLayout.Header>
-            <ArcoLayout.Content className='p-2.5 layout-sider-content'>
+            <ArcoLayout.Content className='px-3 pb-3 layout-sider-content'>
               <Sider />
             </ArcoLayout.Content>
           </ArcoLayout.Sider>
 
-          <ArcoLayout.Content className='bg-2 layout-content flex flex-col min-h-0 overflow-y-hidden'>
+          <ArcoLayout.Content className='bg-background layout-content flex flex-col min-h-0 overflow-y-hidden'>
             <Outlet />
             {directorySelectionContextHolder}
             <UpdateModal />

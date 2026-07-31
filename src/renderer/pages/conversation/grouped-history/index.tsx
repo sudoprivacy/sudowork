@@ -6,7 +6,7 @@
 
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Empty, Input, Message, Modal } from '@arco-design/web-react';
+import { Button, Empty, Input, Message, Modal } from '@arco-design/web-react';
 import { Down, FolderOpen } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -323,72 +323,38 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
       <Modal visible={exportModalVisible} title={t('conversation.history.exportDialogTitle')} onCancel={closeExportModal} footer={null} style={{ borderRadius: '12px' }} className='conversation-export-modal' alignCenter getPopupContainer={() => document.body}>
         <div className='py-8px'>
-          <div className='text-14px mb-16px text-secondary'>{exportTask?.mode === 'batch' ? t('conversation.history.exportDialogBatchDescription', { count: exportTask.conversationIds.length }) : t('conversation.history.exportDialogSingleDescription')}</div>
+          <div className='text-base mb-4 text-foreground-secondary'>{exportTask?.mode === 'batch' ? t('conversation.history.exportDialogBatchDescription', { count: exportTask.conversationIds.length }) : t('conversation.history.exportDialogSingleDescription')}</div>
 
-          <div className='mb-16px p-16px rounded-12px bg-fill-1'>
-            <div className='text-14px mb-8px text-foreground'>{t('conversation.history.exportTargetFolder')}</div>
-            <div
-              className='flex items-center justify-between px-12px py-10px rounded-8px transition-colors'
-              style={{
-                backgroundColor: 'var(--color-bg-1)',
-                border: '1px solid var(--color-border-2)',
-                cursor: exportModalLoading ? 'not-allowed' : 'pointer',
-                opacity: exportModalLoading ? 0.55 : 1,
-              }}
+          <div className='mb-4 p-4 rounded-lg bg-fill-default'>
+            <div className='text-base mb-2 text-foreground'>{t('conversation.history.exportTargetFolder')}</div>
+            <button
+              type='button'
+              className={classNames('w-full flex items-center justify-between px-3 py-2.5 rounded-md border border-border bg-background text-left transition-colors', exportModalLoading ? 'cursor-not-allowed opacity-55' : 'cursor-pointer hover:border-border-deep')}
               onClick={() => {
                 void handleSelectExportFolder();
               }}
+              disabled={exportModalLoading}
             >
-              <span className='text-14px overflow-hidden text-ellipsis whitespace-nowrap' style={{ color: exportTargetPath ? 'var(--color-text-1)' : 'var(--color-text-3)' }}>
-                {exportTargetPath || t('conversation.history.exportSelectFolder')}
-              </span>
-              <FolderOpen theme='outline' size='18' fill='var(--color-text-3)' />
-            </div>
+              <span className={classNames('text-base overflow-hidden text-ellipsis whitespace-nowrap', exportTargetPath ? 'text-foreground' : 'text-foreground-tertiary')}>{exportTargetPath || t('conversation.history.exportSelectFolder')}</span>
+              <FolderOpen theme='outline' size='18' fill='currentColor' className='text-foreground-tertiary' />
+            </button>
           </div>
 
-          <div className='flex items-center gap-8px mb-20px text-14px text-secondary'>
+          <div className='flex items-center gap-2 mb-5 text-base text-foreground-secondary'>
             <span>💡</span>
             <span>{t('conversation.history.exportDialogHint')}</span>
           </div>
 
-          <div className='flex gap-12px justify-end'>
+          <div className='flex gap-3 justify-end'>
             {!exportFinished && (
-              <button
-                className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
-                style={{
-                  border: '1px solid var(--color-border-2)',
-                  backgroundColor: 'var(--color-fill-2)',
-                  color: 'var(--color-text-1)',
-                }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.backgroundColor = 'var(--color-fill-3)';
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.backgroundColor = 'var(--color-fill-2)';
-                }}
-                onClick={closeExportModal}
-              >
+              <Button shape='round' onClick={closeExportModal}>
                 {t('common.cancel')}
-              </button>
+              </Button>
             )}
-            <button
-              className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
-              style={{
-                border: 'none',
-                backgroundColor: exportModalLoading ? 'var(--color-fill-3)' : 'var(--color-text-1)',
-                color: 'var(--color-bg-1)',
-                cursor: exportModalLoading ? 'not-allowed' : 'pointer',
-              }}
-              onMouseEnter={(event) => {
-                if (!exportModalLoading) {
-                  event.currentTarget.style.opacity = '0.85';
-                }
-              }}
-              onMouseLeave={(event) => {
-                if (!exportModalLoading) {
-                  event.currentTarget.style.opacity = '1';
-                }
-              }}
+            <Button
+              type='primary'
+              shape='round'
+              loading={exportModalLoading}
               onClick={() => {
                 if (exportFinished) {
                   closeExportModal();
@@ -396,10 +362,9 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                   void handleConfirmExport();
                 }
               }}
-              disabled={exportModalLoading}
             >
               {exportModalLoading ? t('conversation.history.exporting') : exportFinished ? t('common.close') : t('common.confirm')}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -420,7 +385,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
         alignCenter
         getPopupContainer={() => document.body}
       >
-        <div className='text-13px text-secondary mb-8px'>{t('conversation.workspace.renameWorkspace.hint')}</div>
+        <div className='text-sm text-foreground-secondary mb-2'>{t('conversation.workspace.renameWorkspace.hint')}</div>
         <Input autoFocus value={wsRenameModal.name} onChange={(v) => setWsRenameModal((prev) => ({ ...prev, name: v }))} onPressEnter={handleWorkspaceRenameConfirm} placeholder={t('conversation.workspace.renameWorkspace.placeholder')} />
       </Modal>
 
@@ -429,7 +394,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
           {pinnedConversations.length > 0 && (
             <div className='mb-8px min-w-0'>
-              {!collapsed && <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold'>{t('conversation.history.pinnedSection')}</div>}
+              {!collapsed && <div className='chat-history__section h-9 px-2.5 flex items-center text-xs text-foreground-tertiary font-500'>{t('conversation.history.pinnedSection')}</div>}
               <SortableContext items={pinnedIds} strategy={verticalListSortingStrategy}>
                 <div className='min-w-0'>
                   {pinnedConversations.map((conversation) => {
@@ -448,7 +413,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
         {activeTab === 'scheduled' && filteredScheduledGroups.length > 0 && (
           <div className='mb-8px min-w-0'>
             {!collapsed && (
-              <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={handleToggleScheduledSection}>
+              <div className='chat-history__section h-9 px-2.5 text-xs text-foreground-tertiary font-500 flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors select-none' onClick={handleToggleScheduledSection}>
                 <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', scheduledSectionExpanded ? 'rotate-0' : '-rotate-90')} />
                 <span>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</span>
               </div>
@@ -482,7 +447,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
             return (
               <div key={section.timeline} className='mb-8px min-w-0'>
                 {!collapsed && (
-                  <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
+                  <div className='chat-history__section h-9 px-2.5 text-xs text-foreground-tertiary font-500 flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
                     <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
                     <span>{section.timeline}</span>
                   </div>
@@ -503,7 +468,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                                 <span className='font-medium truncate flex-1 text-foreground min-w-0'>{group.displayName}</span>
                                 <button
                                   type='button'
-                                  className='opacity-0 group-hover:opacity-100 hover:text-foreground text-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
+                                  className='opacity-0 group-hover:opacity-100 hover:text-foreground text-foreground-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
                                   title={t('conversation.workspace.renameWorkspace.title')}
                                   onClick={(e) => {
                                     e.stopPropagation();

@@ -1,4 +1,4 @@
-name: "sidebar nav by visible text"
+name: 'sidebar nav by visible text'
 description: >
   Guards sidebar navigation, and in doing so exercises the `mouse_click` op
   against exactly the DOM shape that used to defeat it.
@@ -22,7 +22,7 @@ steps:
 
   # ── Skill Store ──
   - op: mouse_click
-    text: "Skill Store"
+    text: 'Skill Store'
   - op: pause
     duration: 1500
   - op: js_eval
@@ -37,7 +37,7 @@ steps:
 
   # ── Security ──
   - op: mouse_click
-    text: "Security"
+    text: 'Security'
   - op: pause
     duration: 1500
   - op: js_eval
@@ -50,9 +50,54 @@ steps:
         return h;
       })()
 
+  # ── Leave Settings ──
+  - op: mouse_click
+    text: 'Back to Chat'
+  - op: pause
+    duration: 1500
+  - op: js_eval
+    code: |
+      (() => {
+        const h = window.location.hash;
+        if (h.includes('/settings/')) {
+          throw new Error(`clicking "Back to Chat" did not leave settings; hash=${h}`);
+        }
+        return h;
+      })()
+
+  # ── Persistent Settings entry ──
+  - op: mouse_click
+    text: 'Settings'
+  - op: pause
+    duration: 1500
+  - op: js_eval
+    code: |
+      (() => {
+        const h = window.location.hash;
+        if (!h.includes('/settings/')) {
+          throw new Error(`clicking the persistent "Settings" entry did not route to settings; hash=${h}`);
+        }
+        return h;
+      })()
+
+  # ── Return from Settings ──
+  - op: mouse_click
+    text: 'Back to Chat'
+  - op: pause
+    duration: 1500
+  - op: js_eval
+    code: |
+      (() => {
+        const h = window.location.hash;
+        if (h.includes('/settings/')) {
+          throw new Error(`clicking "Back to Chat" did not restore the previous non-settings route; hash=${h}`);
+        }
+        return h;
+      })()
+
   # ── Back to a new conversation ──
   - op: mouse_click
-    text: "New Chat"
+    text: 'New Chat'
   - op: pause
     duration: 1500
   - op: js_eval
@@ -62,8 +107,12 @@ steps:
         if (!ta || ta.offsetHeight === 0) {
           throw new Error(`clicking "New Chat" did not return to a conversation view with a send-box (hash=${window.location.hash})`);
         }
-        return {hash: window.location.hash, sendbox: true};
+        const newChat = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'New Chat');
+        if (newChat?.getAttribute('aria-current') !== 'page') {
+          throw new Error('New Chat is not marked as the selected sidebar entry');
+        }
+        return {hash: window.location.hash, sendbox: true, selected: true};
       })()
 
   - op: screenshot
-    path: "screenshots/sidebar-nav-by-text.png"
+    path: 'screenshots/sidebar-nav-by-text.png'

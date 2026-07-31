@@ -5,20 +5,18 @@
  */
 
 import { Checkbox, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { DeleteOne, EditOne, Export, Loading, MessageOne, Pushpin } from '@icon-park/react';
+import { DeleteOne, EditOne, Export, Loading, Pushpin } from '@icon-park/react';
 import classNames from 'classnames';
+import { MessageCircleMore } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TChatConversation } from '@/common/storage';
-import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
-import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { useTerminalActiveCount } from '@/renderer/hooks/useTerminalActiveCount';
 import CronStatusIcon from '@/renderer/pages/cron/components/CronStatusIcon';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
 import { CronJobStatusEnums } from '@/renderer/utils/enum';
 import { isConversationPinned } from './utils/groupingHelpers';
-import { getBackendKeyFromConversation } from './utils/exportHelpers';
 import type { ConversationRowProps } from './types';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
@@ -29,8 +27,6 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   // Check if this is a Moss session
   const isMossSession = 'isMossSession' in conversation && conversation.isMossSession === true;
 
-  // Only use preset assistant info for local conversations
-  const { info: assistantInfo } = usePresetAssistantInfo(isMossSession ? null : (conversation as TChatConversation));
   // For Moss sessions, use isPinned property; for local conversations, use isConversationPinned
   const isPinned = isMossSession ? ((conversation as { isPinned?: boolean }).isPinned ?? false) : isConversationPinned(conversation as TChatConversation);
   const cronStatus = getJobStatus(conversation.id);
@@ -42,31 +38,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
 
   const renderLeadingIcon = () => {
     if (cronStatus != CronJobStatusEnums.None) {
-      return <CronStatusIcon status={cronStatus} size={20} className='flex-shrink-0' />;
+      return <CronStatusIcon status={cronStatus} size={16} className='flex-shrink-0' />;
     }
 
-    if (assistantInfo) {
-      if (assistantInfo.isEmoji) {
-        return <span className='text-18px leading-none flex-shrink-0'>{assistantInfo.logo}</span>;
-      }
-      return <img src={assistantInfo.logo} alt={assistantInfo.name} className='w-5 h-5 rounded-50% flex-shrink-0' />;
-    }
-
-    // For Moss sessions, use remote-agent logo
-    if (isMossSession) {
-      const mossLogo = getAgentLogo('remote-agent');
-      if (mossLogo) {
-        return <img src={mossLogo} alt='Moss Server' className='w-5 h-5 rounded-50% flex-shrink-0' />;
-      }
-    }
-
-    const backendKey = getBackendKeyFromConversation(conversation as TChatConversation);
-    const logo = getAgentLogo(backendKey);
-    if (logo) {
-      return <img src={logo} alt={`${backendKey || 'agent'} logo`} className='w-5 h-5 rounded-50% flex-shrink-0' />;
-    }
-
-    return <MessageOne theme='outline' size='20' className='line-height-0 flex-shrink-0' />;
+    return <MessageCircleMore size={16} strokeWidth={2} className='flex-shrink-0 text-foreground-secondary' />;
   };
 
   const handleRowClick = () => {
@@ -82,10 +57,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     <Tooltip key={conversation.id} {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
       <div
         id={'c-' + conversation.id}
-        className={classNames('chat-history__item px-3 py-2 rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-0.5 min-w-0 transition-colors', {
-          'hover:bg-hover': !batchMode,
-          '!bg-active conversation-item--selected': selected,
-          'bg-[rgba(var(--primary-6),0.08)]': batchMode && checked,
+        className={classNames('chat-history__item h-9 px-2.5 rounded-lg flex justify-start items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item min-w-0 transition-colors', {
+          'hover:bg-fill-default': !batchMode,
+          'conversation-item--selected': selected,
+          'bg-fill-default': batchMode && checked,
         })}
         onClick={handleRowClick}
       >
@@ -103,14 +78,14 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
         {renderLeadingIcon()}
         {ptyActiveCount > 0 && (
           <Tooltip mini content={t('conversation.history.terminalRunning', { count: ptyActiveCount, defaultValue: '{{count}} terminal still running' })}>
-            <span className='f-center ml-1.5 collapsed-hidden text-[rgb(var(--ui-accent-orange))]'>
+            <span className='f-center ml-1.5 collapsed-hidden text-brand'>
               <Loading theme='outline' size='12' className='animate-spin' />
             </span>
           </Tooltip>
         )}
-        <FlexFullContainer className={classNames('h-6 min-w-0 flex-1 collapsed-hidden ml-2.5', actionReserveClass)}>
+        <FlexFullContainer className={classNames('h-5 min-w-0 flex-1 collapsed-hidden ml-2.5', actionReserveClass)}>
           <Tooltip content={conversation.name} disabled={!inlineNameTooltipEnabled} trigger='hover' popupVisible={inlineNameTooltipEnabled ? undefined : false} unmountOnExit popupHoverStay={false} position='top'>
-            <div className={classNames('chat-history__item-name overflow-hidden text-ellipsis block w-full text-14px lh-24px whitespace-nowrap min-w-0 group-hover:text-1', selected && !batchMode ? 'text-1 font-medium' : 'text-2')}>{conversation.name}</div>
+            <div className={classNames('chat-history__item-name overflow-hidden text-ellipsis block w-full text-sm leading-5 whitespace-nowrap min-w-0 group-hover:text-foreground', selected && !batchMode ? 'text-foreground font-500' : 'text-foreground-secondary')}>{conversation.name}</div>
           </Tooltip>
         </FlexFullContainer>
         {!batchMode && (
@@ -127,7 +102,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             }}
           >
             {isPinned && !menuVisible && (
-              <span className='f-center text-secondary group-hover:hidden pr-1'>
+              <span className='f-center text-foreground-secondary group-hover:hidden pr-1'>
                 <Pushpin theme='outline' size='16' />
               </span>
             )}
@@ -191,7 +166,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
               unmountOnExit={false}
             >
               <span
-                className={classNames('f-center cursor-pointer hover:bg-fill-2 rd-4px p-1 transition-colors relative text-foreground', {
+                className={classNames('f-center cursor-pointer hover:bg-fill-deep rounded-md p-1 transition-colors relative text-foreground', {
                   flex: menuVisible,
                   'hidden group-hover:flex': !menuVisible,
                 })}
