@@ -10,7 +10,7 @@ import https from 'node:https';
 import http from 'node:http';
 import { app } from 'electron';
 import JSZip from 'jszip';
-import { NEXUS_TIMESTAMP_SEPARATOR } from '@/common/constants';
+import { NEXUS_TIMESTAMP_SEPARATOR, stripNexusTimestampSuffixes } from '@/common/constants';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
@@ -436,7 +436,10 @@ export function initFsBridge(): void {
       if (fileExists) {
         const timestamp = Date.now();
         const ext = path.extname(safeFileName);
-        const name = path.basename(safeFileName, ext);
+        // 先去掉已有的时间戳后缀，否则重复冲突会累积成
+        // a_nexus_<t1>_nexus_<t2>.xlsx / Strip existing suffixes first,
+        // otherwise repeated collisions accumulate them.
+        const name = stripNexusTimestampSuffixes(path.basename(safeFileName, ext));
         const tempFileName = `${name}${NEXUS_TIMESTAMP_SEPARATOR}${timestamp}${ext}`;
         tempFilePath = path.join(tempDir, tempFileName);
       }
@@ -781,7 +784,10 @@ export function initFsBridge(): void {
             // 如果文件已存在，添加时间戳后缀 / Append timestamp when target file already exists
             const timestamp = Date.now();
             const ext = path.extname(targetPath);
-            const name = path.basename(targetPath, ext);
+            // 先去掉已有的时间戳后缀，否则重复冲突会累积成
+            // a_nexus_<t1>_nexus_<t2>.xlsx / Strip existing suffixes first,
+            // otherwise repeated collisions accumulate them.
+            const name = stripNexusTimestampSuffixes(path.basename(targetPath, ext));
             // Construct new path in the same directory / 在同一目录下构建新路径
             const dir = path.dirname(targetPath);
             const newFileName = `${name}${NEXUS_TIMESTAMP_SEPARATOR}${timestamp}${ext}`;

@@ -9,6 +9,32 @@ export const NEXUS_TIMESTAMP_SEPARATOR = '_nexus_';
 
 /** 用于匹配和清理时间戳后缀的正则表达式 */
 export const NEXUS_TIMESTAMP_REGEX = /_nexus_\d{13}(\.\w+)?$/;
+
+/**
+ * 去掉文件名（不含扩展名）末尾所有的 `_nexus_<13位时间戳>` 后缀。
+ * Strip every trailing `_nexus_<13-digit timestamp>` suffix from a file's
+ * base name (extension already removed).
+ *
+ * 追加时间戳前必须先调用本函数，否则同名文件反复冲突时后缀会不断累积，
+ * 变成 `a_nexus_<t1>_nexus_<t2>.xlsx`。循环去除是因为历史文件可能已经
+ * 带有多个后缀 —— NEXUS_TIMESTAMP_REGEX 以 `$` 锚定，单次只能去掉一个。
+ *
+ * Must be called before appending a new timestamp, otherwise repeated
+ * collisions accumulate suffixes. Loops because existing files may already
+ * carry several: NEXUS_TIMESTAMP_REGEX is `$`-anchored and strips only one
+ * per pass.
+ */
+export function stripNexusTimestampSuffixes(baseName: string): string {
+  let out = baseName;
+  // 有界循环，避免正则意外不收敛时死循环 / Bounded so a non-converging
+  // replace can never spin forever.
+  for (let i = 0; i < 16; i++) {
+    const next = out.replace(NEXUS_TIMESTAMP_REGEX, '$1');
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
 export const NEXUS_FILES_MARKER = '[[NEXUS_FILES]]';
 
 // ===== 媒体类型相关常量 =====
