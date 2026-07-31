@@ -62,7 +62,7 @@ export interface TenantConfigResponse {
   msg?: string;
 }
 
-export type TenantConfigInput = Partial<TenantConfig>;
+export type TenantConfigInput = { [K in keyof TenantConfig]?: TenantConfig[K] | null };
 
 export const TENANT_CONFIG_STORAGE_KEY = 'sudowork_tenant_config';
 const TENANT_CONFIG_BRAND_KEY = '__brand';
