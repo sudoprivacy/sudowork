@@ -148,7 +148,11 @@
       "openFailed": "Açılamadı",
       "revealFailed": "İçeren klasör açılamadı",
       "uploadToBdpan": "Baidu Netdisk'e Yükle",
-      "newFolder": "Yeni Klasör"
+      "newFolder": "Yeni Klasör",
+      "download": "İndir",
+      "downloadSuccess": "İndirildi",
+      "downloadFailed": "İndirme başarısız",
+      "downloadTooLarge": "Dosya sunucu indirme sınırını aşıyor (metin için 2MB, diğerleri için 20MB)"
     },
     "newFolder": {
       "title": "Yeni Klasör",

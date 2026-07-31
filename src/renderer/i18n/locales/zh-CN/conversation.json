@@ -211,7 +211,11 @@
       "openFailed": "打开失败",
       "revealFailed": "无法打开所在目录",
       "uploadToBdpan": "上传至百度网盘",
-      "newFolder": "新建文件夹"
+      "newFolder": "新建文件夹",
+      "download": "下载",
+      "downloadSuccess": "下载成功",
+      "downloadFailed": "下载失败",
+      "downloadTooLarge": "文件超过服务端下载上限（文本 2MB / 其他 20MB）"
     },
     "newFolder": {
       "title": "新建文件夹",

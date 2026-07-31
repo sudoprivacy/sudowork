@@ -156,7 +156,11 @@
       "openFailed": "열기 실패",
       "revealFailed": "포함 폴더 열기 실패",
       "uploadToBdpan": "바이두 넷디스크에 업로드",
-      "newFolder": "새 폴더"
+      "newFolder": "새 폴더",
+      "download": "다운로드",
+      "downloadSuccess": "다운로드 완료",
+      "downloadFailed": "다운로드 실패",
+      "downloadTooLarge": "파일이 서버 다운로드 한도를 초과했습니다(텍스트 2MB / 기타 20MB)"
     },
     "newFolder": {
       "title": "새 폴더",

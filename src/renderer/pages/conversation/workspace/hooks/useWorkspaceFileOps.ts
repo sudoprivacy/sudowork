@@ -615,6 +615,60 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
   );
 
   /**
+   * 下载文件（本地会话直接读盘，远程会话走 Moss 接口）
+   * Download a file (local sessions read from disk, remote sessions go through the Moss API)
+   */
+  const handleDownloadNode = useCallback(
+    async (nodeData: IDirOrFile | null) => {
+      if (!nodeData || !nodeData.fullPath || !nodeData.isFile) return;
+
+      ensureNodeSelected(nodeData);
+      closeContextMenu();
+
+      try {
+        let bytes: Uint8Array;
+
+        if (dataSource === 'moss-session') {
+          if (!conversation_id) {
+            throw new Error('conversation_id is required for remote download');
+          }
+          const res = await ipcBridge.conversation.previewRemoteWorkspaceFile.invoke({
+            conversation_id,
+            path: nodeData.relativePath || nodeData.fullPath,
+          });
+          if (!res?.success || !res.data) {
+            // 服务端对超过预览上限的文件返回 413 / The server returns 413 for files over the preview limit
+            if (res?.msg?.includes('413') || /exceeds preview limit/i.test(res?.msg || '')) {
+              Message.error(t('conversation.workspace.contextMenu.downloadTooLarge'));
+              return;
+            }
+            throw new Error(res?.msg || 'Failed to download remote workspace file');
+          }
+          bytes = res.data.kind === 'base64' ? base64ToBytes(res.data.contentBase64) : new TextEncoder().encode(res.data.content);
+        } else {
+          bytes = base64ToBytes(await ipcBridge.fs.readFileBase64.invoke({ path: nodeData.fullPath }));
+        }
+
+        const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nodeData.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        Message.success(t('conversation.workspace.contextMenu.downloadSuccess'));
+      } catch (error) {
+        console.error('[useWorkspaceFileOps] Failed to download:', error);
+        Message.error(t('conversation.workspace.contextMenu.downloadFailed'));
+      }
+    },
+    [closeContextMenu, conversation_id, dataSource, ensureNodeSelected, t]
+  );
+
+  /**
    * 打开重命名弹窗
    * Open rename modal
    */
@@ -636,6 +690,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
     handleRenameConfirm,
     handleAddToChat,
     handlePreviewFile,
+    handleDownloadNode,
     openRenameModal,
   };
 }
