@@ -155,6 +155,7 @@ export default defineConfig({
     'border-light': 'border-[var(--border-light)]', // 浅边框 / lighter border（搭配 border / border-b）
     'border-default': 'border-[var(--border-default)]', // 默认边框 default border
     'border-tiny': 'border-[var(--border-tiny)]', // 极浅边框，适用于白色/浅色面板 / very subtle border for white panels
+    'border-bold': 'border-[var(--border-bold)]', // 较深边框 / bold border（桥接 Arco --color-border-3，搭配 border / hover:border）
     'divide-light': 'divide-[var(--border-light)]', // 浅分割线 / lighter divider color（搭配 divide-y / divide-x）
     'divide-tiny': 'divide-[var(--border-tiny)]', // 极浅分割线 / very subtle divider
     'bg-guid-agent-bar': 'bg-[var(--color-guid-agent-bar,var(--aou-2))]', // guid agent 条背景 / guid agent bar background（项目 token）

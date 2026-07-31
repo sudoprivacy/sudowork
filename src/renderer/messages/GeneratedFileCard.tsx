@@ -105,15 +105,9 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
   return (
     <Tooltip content={missing ? t('messages.generatedFile.missingHint') : entry.path} position='top' mini>
       <div
-        className={classNames(
-          'group min-w-0 items-center gap-12px overflow-hidden rounded-16px border border-light bg-2 px-12px py-12px text-left transition-all',
-          fullWidth ? 'flex w-full' : 'inline-flex max-w-full',
-          // hover:border-[var(--color-border-3)] 保留：未桥接 Arco 默认，无零改样等价类
-          'hover:bg-3 hover:border-[var(--color-border-3)] active:scale-[0.98]',
-          {
-            'opacity-50 cursor-not-allowed': missing || loading,
-          }
-        )}
+        className={classNames('group min-w-0 items-center gap-12px overflow-hidden rounded-16px border border-light bg-2 px-12px py-12px text-left transition-all', fullWidth ? 'flex w-full' : 'inline-flex max-w-full', 'hover:bg-3 hover:border-bold active:scale-[0.98]', {
+          'opacity-50 cursor-not-allowed': missing || loading,
+        })}
         onClick={handleClick}
         role='button'
         tabIndex={0}
@@ -125,13 +119,13 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
           }
         }}
       >
-        <div className='flex h-48px w-48px flex-shrink-0 items-center justify-center rounded-16px border border-light bg-fill-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]' style={{ color: 'var(--foreground)', lineHeight: 0 }}>
+        <div className='flex h-48px w-48px shrink-0 items-center justify-center rounded-16px border border-light bg-fill-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]' style={{ color: 'var(--foreground)', lineHeight: 0 }}>
           {resolveFileIcon(fileName, { size: 26 })}
         </div>
         <div className='min-w-0 flex flex-col gap-4px leading-tight'>
           <div className='flex items-center gap-8px'>
             <span className='max-w-full truncate text-15px font-semibold text-foreground'>{fileName}</span>
-            <span className={classNames('flex-shrink-0 rounded-full px-6px py-1px text-[10px] font-medium', missing ? 'bg-danger-soft text-danger' : 'bg-success-soft text-success')}>{missing ? t('messages.generatedFile.statusMissing') : kindLabel}</span>
+            <span className={classNames('shrink-0 rounded-full px-6px py-1px text-[10px] font-medium', missing ? 'bg-danger-soft text-danger' : 'bg-success-soft text-success')}>{missing ? t('messages.generatedFile.statusMissing') : kindLabel}</span>
           </div>
           <div className='max-w-full truncate text-12px text-secondary'>
             {directory ? <span className='opacity-75'>{directory}</span> : null}
@@ -147,7 +141,7 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
           // Hidden by default to keep the card visually quiet; revealed on
           // group-hover. stopPropagation in handlers so they don't trigger
           // the card's primary in-app preview click.
-          <div className='ml-auto flex flex-shrink-0 items-center gap-2px opacity-0 transition-opacity group-hover:opacity-100'>
+          <div className='ml-auto flex shrink-0 items-center gap-2px opacity-0 transition-opacity group-hover:opacity-100'>
             <Tooltip content={t(isHtml ? 'messages.generatedFile.openInSystemBrowser' : 'messages.generatedFile.openWithDefaultApp')} position='top' mini>
               <button type='button' onClick={handleOpenExternal} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-1' style={{ lineHeight: 0 }}>
                 <ShareOne size='14' fill={'var(--text-secondary)'} />
