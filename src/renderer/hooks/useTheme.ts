@@ -6,6 +6,7 @@
 
 // hooks/useTheme.ts
 import { useCallback, useEffect, useState } from 'react';
+import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/storage';
 
 export type Theme = 'light' | 'dark';
@@ -123,6 +124,13 @@ const useTheme = (): [Theme, ThemePreference, (preference: ThemePreference) => P
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, [preference]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    return ipcBridge.application.toggleTheme.on(() => {
+      void setPreference(theme === 'light' ? 'dark' : 'light');
+    });
+  }, [setPreference, theme]);
 
   return [theme, preference, setPreference];
 };

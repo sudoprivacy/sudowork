@@ -68,6 +68,7 @@
   "setupContinuesInBackground": "先进入应用，运行环境会继续在后台安装。",
   "refresh": "刷新",
   "tray.showWindow": "显示 {{appName}}",
+  "tray.toggleTheme": "切换主题色",
   "tray.quit": "退出",
   "siderMenu": {
     "agent": "智能体",

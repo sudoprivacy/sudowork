@@ -14,7 +14,7 @@ import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 
 const isWindowControlsVisible = isElectronDesktop() && !isMacOS();
 const MODE_CARD_CLASS_NAME = 'relative flex min-h-150px flex-col items-start rounded-16px border-2 p-5 text-left transition-colors [-webkit-app-region:no-drag]';
-const INPUT_CLASS_NAME = 'h-46px !rounded-10px !border-[var(--input)] !bg-background !px-3 !text-14px !text-foreground focus:!border-[var(--ring)] focus:!shadow-[var(--shadow-focus)]';
+const INPUT_CLASS_NAME = 'h-46px rounded-10px! border-[var(--input)]! bg-background! px-3! text-14px! text-foreground! focus:border-[var(--ring)]! focus:shadow-focus!';
 
 type ModeType = 'consumer' | 'enterprise' | null;
 
@@ -120,7 +120,7 @@ export default function ModeSetup() {
   return (
     <div className='relative min-h-screen w-full overflow-x-hidden overflow-y-auto bg-background text-foreground [-webkit-app-region:drag]'>
       <div className='pointer-events-none fixed inset-0 overflow-hidden' aria-hidden='true'>
-        <div className='absolute -right-32px -top-48px h-360px w-360px rounded-full bg-secondary-brand opacity-80 blur-64px' />
+        <div className='absolute -right-80px -top-120px h-320px w-320px rounded-full bg-accent opacity-70 blur-64px' />
         <div className='absolute -bottom-120px -left-80px h-320px w-320px rounded-full bg-accent opacity-70 blur-64px' />
       </div>
 
@@ -131,12 +131,11 @@ export default function ModeSetup() {
       )}
 
       <main className='relative z-1 mx-auto flex min-h-screen w-full max-w-820px items-center px-5 py-12 sm:px-8'>
-        <section className='w-full rounded-24px border border-border bg-card p-6 shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] sm:p-9'>
+        <section className='w-full rounded-24px border border-border bg-card p-6 shadow-xl [-webkit-app-region:no-drag] sm:p-9'>
           <header className='mb-8 flex flex-col items-center text-center'>
-            <div className='mb-5 flex h-64px w-64px items-center justify-center rounded-18px border border-border bg-muted shadow-[var(--shadow-sm)]'>
+            <div className='mb-5 flex h-64px w-64px items-center justify-center rounded-18px border border-border bg-muted shadow-sm'>
               <img src={SudoworkIcon} alt={brand.displayName} className='h-44px w-44px' />
             </div>
-            <p className='mb-2 text-12px font-600 uppercase tracking-[0.16em] text-brand'>{t('setup.mode.eyebrow')}</p>
             <h1 className='m-0 text-26px font-700 leading-34px text-foreground'>{t('setup.mode.title', { name: brand.displayName })}</h1>
             <p className='mb-0 mt-2 max-w-520px text-14px leading-22px text-foreground-secondary'>{t('setup.mode.subtitle')}</p>
           </header>
@@ -219,11 +218,11 @@ export default function ModeSetup() {
           {selectedMode && (
             <div className='mt-6'>
               {isConsumerSelected ? (
-                <Button type='primary' size='large' long onClick={onConsumerNext} disabled={isConsumerUrlInvalid} className='!h-48px !rounded-12px !text-14px !font-650'>
+                <Button type='primary' size='large' long onClick={onConsumerNext} disabled={isConsumerUrlInvalid} className='h-48px! rounded-12px! text-14px! font-650!'>
                   {t('setup.mode.consumer.action')}
                 </Button>
               ) : (
-                <Button type='primary' size='large' long loading={isVerifying} onClick={() => void onVerifyServer()} disabled={!serverUrl.trim() || isEnterpriseUrlInvalid || isVerifying} className='!h-48px !rounded-12px !text-14px !font-650'>
+                <Button type='primary' size='large' long loading={isVerifying} onClick={() => void onVerifyServer()} disabled={!serverUrl.trim() || isEnterpriseUrlInvalid || isVerifying} className='h-48px! rounded-12px! text-14px! font-650!'>
                   {isVerifying ? t('setup.mode.enterprise.verifying') : t('setup.mode.enterprise.action')}
                 </Button>
               )}

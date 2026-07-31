@@ -482,6 +482,7 @@ const buildTrayContextMenu = (): Electron.Menu => {
   // Ensure i18n is initialized before building menu
   // 确保 i18n 在构建菜单前已初始化
   const showWindowLabel = i18n.t('common.tray.showWindow');
+  const toggleThemeLabel = i18n.t('common.tray.toggleTheme');
   const quitLabel = i18n.t('common.tray.quit');
 
   return Menu.buildFromTemplate([
@@ -494,6 +495,14 @@ const buildTrayContextMenu = (): Electron.Menu => {
         }
       },
     },
+    ...(!app.isPackaged
+      ? [
+          {
+            label: toggleThemeLabel,
+            click: () => ipcBridge.application.toggleTheme.emit(),
+          },
+        ]
+      : []),
     { type: 'separator' },
     {
       label: quitLabel,

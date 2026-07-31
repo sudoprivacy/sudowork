@@ -6,7 +6,6 @@
     "invalidUrl": "Lütfen geçerli bir HTTP/HTTPS adresi girin"
   },
   "mode": {
-    "eyebrow": "İlk kurulum",
     "title": "{{name}} uygulamasına hoş geldiniz",
     "subtitle": "Çalışma şeklinizi seçin. Bağlantı bilgilerini daha sonra Ayarlar'dan değiştirebilirsiniz.",
     "saveFailed": "Kurulum başarısız oldu. Lütfen tekrar deneyin.",

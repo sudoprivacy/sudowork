@@ -62,6 +62,7 @@
   "setupContinuesInBackground": "Uygulamaya şimdi girin. Çalışma zamanı kurulumu arka planda devam edecek.",
   "refresh": "Yenile",
   "tray.showWindow": "{{appName}}'ü Göster",
+  "tray.toggleTheme": "Temayı Değiştir",
   "tray.quit": "Çıkış",
   "siderMenu": {
     "agent": "Dijital Asistanlar",

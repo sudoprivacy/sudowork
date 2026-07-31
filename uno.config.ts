@@ -87,7 +87,12 @@ export default defineConfig({
   shortcuts: {
     'f-center': 'flex items-center justify-center',
     'scrollbar-hide': '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-    card: 'bg-card rd-3 p-4 cursor-pointer shadow-[var(--shadow-sm)] transition-all duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-md)]',
+    'shadow-sm': '[box-shadow:var(--shadow-sm)]',
+    'shadow-md': '[box-shadow:var(--shadow-md)]',
+    'shadow-lg': '[box-shadow:var(--shadow-lg)]',
+    'shadow-xl': '[box-shadow:var(--shadow-xl)]',
+    'shadow-focus': '[box-shadow:var(--shadow-focus)]',
+    card: 'bg-card rd-3 p-4 cursor-pointer shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md',
     'category-chip': 'flex-shrink-0 inline-flex items-center justify-center h-28px px-12px rd-16px border border-transparent text-12px leading-18px whitespace-nowrap cursor-pointer transition-colors',
     'category-chip-idle': 'text-foreground-secondary hover:bg-accent hover:text-foreground',
     'category-chip-active': 'bg-secondary-brand text-brand font-medium',

@@ -187,6 +187,8 @@ export const application = {
   logStream: bridge.buildEmitter<{ level: 'log' | 'warn' | 'error'; tag: string; message: string; data?: unknown }>('app.log-stream'),
   // DevTools state change notification
   devToolsStateChanged: bridge.buildEmitter<{ isOpen: boolean }>('app.devtools-state-changed'),
+  // Development menu action for toggling between light and dark themes
+  toggleTheme: bridge.buildEmitter<void>('app.toggle-theme'),
   // Execute shell command
   execCommand: bridge.buildProvider<IBridgeResponse<{ stdout?: string; stderr?: string }>, { command: string; cwd?: string }>('app.exec-command'),
 };

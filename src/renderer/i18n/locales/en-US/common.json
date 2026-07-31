@@ -69,6 +69,7 @@
   "setupContinuesInBackground": "Enter the app now. Runtime setup will continue in the background.",
   "refresh": "Refresh",
   "tray.showWindow": "Show {{appName}}",
+  "tray.toggleTheme": "Toggle Theme",
   "tray.quit": "Quit",
   "siderMenu": {
     "agent": "Agent",

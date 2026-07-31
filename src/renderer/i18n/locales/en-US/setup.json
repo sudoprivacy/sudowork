@@ -6,7 +6,6 @@
     "invalidUrl": "Please enter a valid HTTP/HTTPS address"
   },
   "mode": {
-    "eyebrow": "First-time setup",
     "title": "Welcome to {{name}}",
     "subtitle": "Choose how you want to work. Connection details can still be changed later in Settings.",
     "saveFailed": "Setup failed. Please try again.",

@@ -6,7 +6,6 @@
     "invalidUrl": "請輸入有效的 HTTP/HTTPS 位址"
   },
   "mode": {
-    "eyebrow": "首次設定",
     "title": "歡迎使用 {{name}}",
     "subtitle": "選擇適合你的工作方式。完成後仍可在設定中調整連線資訊。",
     "saveFailed": "設定失敗，請重試",
