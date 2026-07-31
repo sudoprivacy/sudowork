@@ -414,7 +414,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
           <div className='mb-8px min-w-0'>
             {!collapsed && (
               <div className='chat-history__section h-9 px-2.5 text-xs text-foreground-tertiary font-500 flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors select-none' onClick={handleToggleScheduledSection}>
-                <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', scheduledSectionExpanded ? 'rotate-0' : '-rotate-90')} />
+                <Down size={12} className={classNames('line-height-0 transition-transform duration-200 shrink-0', scheduledSectionExpanded ? 'rotate-0' : '-rotate-90')} />
                 <span>{t('cron.sidebar.scheduled', { defaultValue: 'Scheduled' })}</span>
               </div>
             )}
@@ -448,7 +448,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               <div key={section.timeline} className='mb-8px min-w-0'>
                 {!collapsed && (
                   <div className='chat-history__section h-9 px-2.5 text-xs text-foreground-tertiary font-500 flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
-                    <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
+                    <Down size={12} className={classNames('line-height-0 transition-transform duration-200 shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
                     <span>{section.timeline}</span>
                   </div>
                 )}
@@ -468,7 +468,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                                 <span className='font-medium truncate flex-1 text-foreground min-w-0'>{group.displayName}</span>
                                 <button
                                   type='button'
-                                  className='opacity-0 group-hover:opacity-100 hover:text-foreground text-foreground-secondary flex-shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
+                                  className='opacity-0 group-hover:opacity-100 hover:text-foreground text-foreground-secondary shrink-0 border-none bg-transparent p-0 cursor-pointer transition-opacity'
                                   title={t('conversation.workspace.renameWorkspace.title')}
                                   onClick={(e) => {
                                     e.stopPropagation();

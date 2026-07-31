@@ -5,9 +5,9 @@
  */
 
 import { Checkbox, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { DeleteOne, EditOne, Export, Loading, Pushpin } from '@icon-park/react';
+import { Loading } from '@icon-park/react';
 import classNames from 'classnames';
-import { MessageCircleMore } from 'lucide-react';
+import { MessageCircleMore, Pencil, Pin, Trash2, Upload } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TChatConversation } from '@/common/storage';
@@ -103,7 +103,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
           >
             {isPinned && !menuVisible && (
               <span className='f-center text-foreground-secondary group-hover:hidden pr-1'>
-                <Pushpin theme='outline' size='16' />
+                <Pin size={16} strokeWidth={2} />
               </span>
             )}
             <Dropdown
@@ -130,14 +130,14 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   {/* Pin menu - available for both local and Moss sessions */}
                   <Menu.Item key='pin'>
                     <div className='flex items-center gap-2'>
-                      <Pushpin theme='outline' size='14' />
+                      <Pin size={16} strokeWidth={2} className='shrink-0 text-foreground-secondary' />
                       <span>{isPinned ? t('conversation.history.unpin') : t('conversation.history.pin')}</span>
                     </div>
                   </Menu.Item>
                   {/* Rename menu - available for all sessions (including Moss sessions saved locally) */}
                   <Menu.Item key='rename'>
                     <div className='flex items-center gap-2'>
-                      <EditOne theme='outline' size='14' />
+                      <Pencil size={16} strokeWidth={2} className='shrink-0 text-foreground-secondary' />
                       <span>{t('conversation.history.rename')}</span>
                     </div>
                   </Menu.Item>
@@ -145,14 +145,14 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   {!isMossSession && (
                     <Menu.Item key='export'>
                       <div className='flex items-center gap-2'>
-                        <Export theme='outline' size='14' />
+                        <Upload size={16} strokeWidth={2} className='shrink-0 text-foreground-secondary' />
                         <span>{t('conversation.history.export')}</span>
                       </div>
                     </Menu.Item>
                   )}
                   <Menu.Item key='delete'>
-                    <div className='flex items-center gap-2 text-warning'>
-                      <DeleteOne theme='outline' size='14' />
+                    <div className='flex items-center gap-2 text-destructive'>
+                      <Trash2 size={16} strokeWidth={2} className='shrink-0' />
                       <span>{t('conversation.history.deleteTitle')}</span>
                     </div>
                   </Menu.Item>
