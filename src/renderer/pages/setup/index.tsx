@@ -16,7 +16,7 @@ const isWindowControlsVisible = isElectronDesktop() && !isMacOS();
 const MODE_CARD_CLASS_NAME = 'relative flex min-h-116px cursor-pointer items-center gap-4 rounded-16px border-2 p-5 pr-12 text-left transition-colors [-webkit-app-region:no-drag]';
 const INPUT_CLASS_NAME = 'h-46px rounded-10px! border-[var(--input)]! bg-background! px-3! text-14px! text-foreground! focus:border-[var(--ring)]! focus:shadow-focus!';
 
-type ModeType = 'consumer' | 'enterprise' | null;
+type ModeType = 'consumer' | 'enterprise';
 
 function isValidServerUrl(url: string): boolean {
   if (typeof window !== 'undefined' && (window as unknown as Record<string, boolean>).__E2E_TEST__) {
@@ -33,7 +33,7 @@ function isValidServerUrl(url: string): boolean {
 
 export default function ModeSetup() {
   const { t } = useTranslation();
-  const [selectedMode, setSelectedMode] = useState<ModeType>(null);
+  const [selectedMode, setSelectedMode] = useState<ModeType>('consumer');
   const [serverUrl, setServerUrl] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export default function ModeSetup() {
     })();
   }, []);
 
-  const onSelectMode = (mode: Exclude<ModeType, null>) => {
+  const onSelectMode = (mode: ModeType) => {
     setSelectedMode(mode);
     if (mode !== 'enterprise') {
       setServerUrl('');
@@ -219,20 +219,18 @@ export default function ModeSetup() {
             </div>
           )}
 
-          {selectedMode && (
-            <div className='mt-6'>
-              {isConsumerSelected ? (
-                <Button type='primary' size='large' long onClick={onConsumerNext} disabled={isConsumerUrlInvalid} className='h-48px! rounded-12px! text-14px! font-650!'>
-                  {t('setup.mode.consumer.action')}
-                </Button>
-              ) : (
-                <Button type='primary' size='large' long loading={isVerifying} onClick={() => void onVerifyServer()} disabled={!serverUrl.trim() || isEnterpriseUrlInvalid || isVerifying} className='h-48px! rounded-12px! text-14px! font-650!'>
-                  {isVerifying ? t('setup.mode.enterprise.verifying') : t('setup.mode.enterprise.action')}
-                </Button>
-              )}
-              <p className='mb-0 mt-3 text-center text-11px leading-18px text-foreground-tertiary'>{t('setup.mode.footerHint')}</p>
-            </div>
-          )}
+          <div className='mt-6'>
+            {isConsumerSelected ? (
+              <Button type='primary' size='large' long onClick={onConsumerNext} disabled={isConsumerUrlInvalid} className='h-48px! rounded-12px! text-14px! font-650!'>
+                {t('setup.mode.consumer.action')}
+              </Button>
+            ) : (
+              <Button type='primary' size='large' long loading={isVerifying} onClick={() => void onVerifyServer()} disabled={!serverUrl.trim() || isEnterpriseUrlInvalid || isVerifying} className='h-48px! rounded-12px! text-14px! font-650!'>
+                {isVerifying ? t('setup.mode.enterprise.verifying') : t('setup.mode.enterprise.action')}
+              </Button>
+            )}
+            <p className='mb-0 mt-3 text-center text-11px leading-18px text-foreground-tertiary'>{t('setup.mode.footerHint')}</p>
+          </div>
         </section>
       </main>
     </div>

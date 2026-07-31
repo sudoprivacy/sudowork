@@ -37,7 +37,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-import ModeSetup from '@/renderer/pages/setup/ModeSetup';
+import ModeSetup from '@/renderer/pages/setup';
 
 describe('ModeSetup', () => {
   beforeEach(() => {
@@ -45,14 +45,11 @@ describe('ModeSetup', () => {
     configStorageGet.mockResolvedValue(undefined);
   });
 
-  it('在选择个人模式后显示默认连接配置和主操作', () => {
+  it('默认选中个人模式并显示对应配置和主操作', () => {
     render(<ModeSetup />);
 
-    expect(screen.getByRole('button', { name: /个人模式/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /企业模式/ })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /个人模式/ }));
-
+    expect(screen.getByRole('button', { name: /^个人模式/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^企业模式/ })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByText('使用默认服务连接')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '进入个人模式' })).toBeEnabled();
   });
@@ -61,15 +58,13 @@ describe('ModeSetup', () => {
     configStorageGet.mockResolvedValue('https://custom.example.com');
     render(<ModeSetup />);
 
-    fireEvent.click(screen.getByRole('button', { name: /个人模式/ }));
-
     expect(await screen.findByDisplayValue('https://custom.example.com')).toBeInTheDocument();
   });
 
   it('在企业模式下校验服务器地址后才允许继续', () => {
     render(<ModeSetup />);
 
-    fireEvent.click(screen.getByRole('button', { name: /企业模式/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^企业模式/ }));
 
     const action = screen.getByRole('button', { name: '验证并进入企业模式' });
     const input = screen.getByPlaceholderText('https://your-company-server.com');

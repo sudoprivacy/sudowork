@@ -8,7 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AppLoader from '@renderer/components/AppLoader';
 import InitLoading from '@renderer/components/InitLoading';
 import OptInDialog from '@/renderer/pages/settings/system/components/OptInDialog';
-import ModeSetup from '@renderer/pages/setup/ModeSetup';
+import ModeSetup from '@/renderer/pages/setup';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useInit } from '@renderer/context/InitContext';
 import { useAppMode, isModeResolved } from '@renderer/hooks/useAppMode';
