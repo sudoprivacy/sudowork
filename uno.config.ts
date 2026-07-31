@@ -66,6 +66,7 @@ export default defineConfig({
     ['bg-spotlight', { 'background-color': 'var(--spotlight)' }],
     ['border-border', { 'border-color': 'var(--border)' }],
     ['border-border-shallow', { 'border-color': 'var(--border-shallow)' }],
+    ['border-border-medium', { 'border-color': 'var(--border-medium)' }],
     ['border-border-deep', { 'border-color': 'var(--border-deep)' }],
     ['border-input', { 'border-color': 'var(--input)' }],
     ['ring-ring', { '--un-ring-color': 'var(--ring)' }],

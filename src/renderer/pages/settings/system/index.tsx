@@ -340,7 +340,7 @@ const SystemSettings: React.FC = () => {
     {
       key: 'closeToTray',
       label: t('settings.closeToTray'),
-      component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' style={closeToTray ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+      component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' />,
     },
     ...(isEnterprise
       ? []
@@ -349,36 +349,32 @@ const SystemSettings: React.FC = () => {
             key: 'showTokenUsageBadges',
             label: t('settings.showTokenUsageBadges'),
             hint: t('settings.showTokenUsageBadgesDesc'),
-            component: showTokenUsageBadgesLoading ? (
-              <div style={{ width: 44, height: 22 }} />
-            ) : (
-              <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' style={showTokenUsageBadges ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
-            ),
+            component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' />,
           },
         ]),
     {
       key: 'showToolCalls',
       label: t('settings.showToolCalls'),
       hint: t('settings.showToolCallsDesc'),
-      component: <Switch checked={showToolCallsChecked} onChange={handleShowToolCallsChange} className='settings-accent-switch' style={showToolCallsChecked ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+      component: <Switch checked={showToolCallsChecked} onChange={handleShowToolCallsChange} className='settings-accent-switch' />,
     },
     {
       key: 'autoInterrupt',
       label: t('settings.autoInterrupt'),
       hint: t('settings.autoInterruptDesc'),
-      component: <Switch checked={autoInterrupt} onChange={handleAutoInterruptChange} className='settings-accent-switch' style={autoInterrupt ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+      component: <Switch checked={autoInterrupt} onChange={handleAutoInterruptChange} className='settings-accent-switch' />,
     },
     {
       key: 'messageQueue',
       label: t('settings.messageQueue'),
       hint: t('settings.messageQueueDesc'),
-      component: <Switch checked={messageQueue} onChange={handleMessageQueueChange} className='settings-accent-switch' style={messageQueue ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+      component: <Switch checked={messageQueue} onChange={handleMessageQueueChange} className='settings-accent-switch' />,
     },
     {
       key: 'avatarEnabled',
       label: t('settings.avatarEnabled'),
       hint: t('settings.avatarEnabledDesc'),
-      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' style={avatarEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' />,
     },
     ...(isEnterprise || !isProductImprovementEnabled()
       ? []
@@ -387,18 +383,14 @@ const SystemSettings: React.FC = () => {
             key: 'productImprovement',
             label: t('settings.productImprovement.title'),
             hint: t('settings.productImprovement.hint'),
-            component: productImprovementLoading ? (
-              <div style={{ width: 44, height: 22 }} />
-            ) : (
-              <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} className='settings-accent-switch' style={productImprovementEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
-            ),
+            component: productImprovementLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} className='settings-accent-switch' />,
           },
         ]),
     {
       key: 'imageEconomyMode',
       label: t('settings.imageEconomyMode'),
       hint: t('settings.imageEconomyModeDesc'),
-      component: imageEconomyModeLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={imageEconomyMode} onChange={handleImageEconomyModeChange} className='settings-accent-switch' style={imageEconomyMode ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
+      component: imageEconomyModeLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={imageEconomyMode} onChange={handleImageEconomyModeChange} className='settings-accent-switch' />,
     },
     {
       key: 'promptTimeout',
@@ -489,15 +481,15 @@ const SystemSettings: React.FC = () => {
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
             {/* 偏好设置与高级设置合并展示 / Combined preferences and advanced settings */}
-            <div className='pb-4 rd-16px space-y-3'>
-              <div className='w-full flex flex-col divide-y divide-light'>
+            <div className='space-y-3 pb-4'>
+              <div className='flex w-full flex-col border border-border bg-card px-6 rd-16px'>
                 {preferenceItems.map((item) => (
                   <PreferenceRow key={item.key} label={item.label} hint={item.hint}>
                     {item.component}
                   </PreferenceRow>
                 ))}
               </div>
-              <Form form={form} layout='vertical' className='space-y-4' onValuesChange={handleValuesChange}>
+              <Form form={form} layout='vertical' className='border border-border bg-card p-6 rd-16px' onValuesChange={handleValuesChange}>
                 <DirInputItem label={t('settings.workDir')} field='workDir' />
                 {error && <Alert className='mt-4' type='error' content={typeof error === 'string' ? error : JSON.stringify(error)} />}
               </Form>

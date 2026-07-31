@@ -39,13 +39,13 @@ export default function DirInputItem({ label, field }: IDirInputItemProps) {
         };
 
         return (
-          <div className='h-8 flex items-center rd-8px border border-transparent pl-3.5 bg-control'>
+          <div className='h-8 flex items-center rd-8px border border-border bg-secondary pl-3.5'>
             <Tooltip content={currentValue || t('settings.dirNotConfigured')} position='top'>
               <div className='flex-1 min-w-0 text-13px text-foreground truncate '>{currentValue || t('settings.dirNotConfigured')}</div>
             </Tooltip>
             <Button
               type='text'
-              style={{ borderLeft: '1px solid var(--color-border-2)', borderRadius: '0 8px 8px 0' }}
+              style={{ borderLeft: '1px solid var(--border)', borderRadius: '0 8px 8px 0' }}
               icon={<FolderOpen size={14} className='text-foreground' />}
               onClick={(e) => {
                 e.stopPropagation();

@@ -8,10 +8,10 @@ import React, { type ReactNode } from 'react';
 
 export default function PreferenceRow({ label, children, hint }: IPreferenceRowProps) {
   return (
-    <div className='flex items-center justify-between gap-6 py-3'>
+    <div className='flex items-center justify-between gap-6 border-b border-border py-3 last:border-b-0'>
       <div className='flex flex-col'>
-        <div className='text-14px text-2'>{label}</div>
-        {hint && <div className='text-12px text-secondary opacity-60'>{hint}</div>}
+        <div className='text-14px text-foreground'>{label}</div>
+        {hint && <div className='text-12px text-foreground-tertiary'>{hint}</div>}
       </div>
       <div className='flex-1 flex justify-end'>{children}</div>
     </div>

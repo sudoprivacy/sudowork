@@ -36,12 +36,12 @@ export default function OptInDialog({ isOpen, onClose }: IOptInDialogProps) {
     <Modal title={t('settings.productImprovement.dialogTitle', '产品体验改进计划')} visible={isOpen} onCancel={handleCancel} footer={footer} style={{ width: 420 }}>
       <div className='flex flex-col gap-4'>
         {/* 说明内容 */}
-        <div className='text-14px text-secondary leading-relaxed'>{t('settings.productImprovement.description', '帮助我们持续优化产品体验，为您带来更好的服务。')}</div>
+        <div className='text-14px text-foreground-secondary leading-relaxed'>{t('settings.productImprovement.description', '帮助我们持续优化产品体验，为您带来更好的服务。')}</div>
 
         {/* 隐私保障 */}
-        <div className='flex items-start gap-2.5 p-3 rd-10px bg-control'>
+        <div className='flex items-start gap-2.5 bg-secondary p-3 rd-10px'>
           <ShieldCheck size={18} className='shrink-0 mt-px text-success' />
-          <div className='text-13px text-secondary leading-relaxed'>{t('settings.productImprovement.privacy', '开启后将匿名收集 {{appName}} 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。')}</div>
+          <div className='text-13px text-foreground-secondary leading-relaxed'>{t('settings.productImprovement.privacy', '开启后将匿名收集 {{appName}} 性能指标，仅用于产品改进，不会收集您的对话内容或个人信息。您可以随时关闭此功能。')}</div>
         </div>
       </div>
     </Modal>

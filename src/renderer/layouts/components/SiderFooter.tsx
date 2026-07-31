@@ -36,7 +36,7 @@ export default function SiderFooter({ isSettings, onBackToMain }: ISiderFooterPr
 
   if (isSettings) {
     return (
-      <div className='shrink-0 mt-auto pt-2 border-t border-border'>
+      <div className='shrink-0 mt-auto pt-2 border-t border-border-medium'>
         <Button type='text' long className='min-h-11 h-auto justify-start! gap-2.5 px-2.5! py-2! rounded-lg! text-foreground! hover:bg-fill-default! active:bg-fill-deep!' onClick={onBackToMain}>
           <span className='size-7 rounded-full bg-fill-shallow f-center shrink-0'>
             <ArrowLeft size={16} strokeWidth={2} />
@@ -48,7 +48,7 @@ export default function SiderFooter({ isSettings, onBackToMain }: ISiderFooterPr
   }
 
   return (
-    <div className='shrink-0 mt-auto pt-2 border-t border-border'>
+    <div className='shrink-0 mt-auto pt-2 border-t border-border-medium'>
       <Dropdown
         droplist={
           <Menu style={{ width: userMenuWidth, minWidth: 200 }} onClickMenuItem={onMenuClick}>

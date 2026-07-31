@@ -95,6 +95,7 @@
   /* 新规范 Token：边框、填充与覆盖层 */
   --border: rgb(242 242 242);
   --border-shallow: rgb(247 247 247);
+  --border-medium: rgb(236 236 236);
   --border-deep: rgb(217 217 217);
   --input: rgb(229 229 229);
   --input-hover: rgb(13 13 13 / 75%);
@@ -172,6 +173,7 @@
   /* 新规范 Token：边框、填充与覆盖层 */
   --border: rgb(38 38 38);
   --border-shallow: rgb(26 26 26);
+  --border-medium: rgb(45 45 45);
   --border-deep: rgb(64 64 64);
   --input: rgb(64 64 64);
   --input-hover: rgb(250 250 250 / 75%);
