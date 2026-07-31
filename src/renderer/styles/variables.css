@@ -83,6 +83,7 @@
   --link-foreground: rgb(255 255 255);
   --warning: rgb(217 119 6);
   --warning-foreground: rgb(255 255 255);
+  --warning-surface: color-mix(in srgb, var(--warning) 12%, var(--card));
   --success: rgb(22 163 74);
   --success-foreground: rgb(255 255 255);
   --blue: rgb(44 85 251);

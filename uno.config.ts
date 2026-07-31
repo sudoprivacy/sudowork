@@ -102,6 +102,7 @@ export default defineConfig({
     'category-chip-idle': 'text-foreground-secondary hover:bg-accent hover:text-foreground',
     'category-chip-active': 'bg-secondary-brand text-brand font-medium',
     'bg-brand-surface': '[background-color:var(--brand-surface)]',
+    'bg-warning-surface': '[background-color:var(--warning-surface)]',
   },
   theme: { colors },
 });

@@ -59,14 +59,14 @@ const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ tokenUsag
 
   // 根据状态获取颜色
   const getStrokeColor = () => {
-    if (isDanger) return 'var(--danger)';
+    if (isDanger) return 'var(--destructive)';
     if (isWarning) return 'var(--warning)';
-    return 'rgb(var(--primary-6))';
+    return 'var(--primary)';
   };
 
   // 背景圆环颜色 - 适配深浅主题
   const getTrackColor = () => {
-    return 'var(--color-fill-3)';
+    return 'var(--fill-medium)';
   };
 
   return (

@@ -25,10 +25,10 @@ const ActionChip = forwardRef<HTMLButtonElement, ActionChipProps>(({ icon, label
       title={title}
       disabled={disabled}
       className={classNames(
-        'inline-flex h-7 min-w-0 items-center gap-2 rd-full border px-3 text-13px font-500 transition-colors',
-        'bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground',
+        'inline-flex h-7 min-w-0 items-center gap-2 rd-full border border-transparent px-3 text-13px font-500 transition-colors',
+        'bg-secondary text-foreground hover:bg-accent',
         'disabled:cursor-not-allowed disabled:opacity-55',
-        active && 'border-[rgba(var(--ui-accent-orange-rgb),0.44)] bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)] hover:bg-[rgba(var(--ui-accent-orange-rgb),0.16)]',
+        active && 'border-brand bg-brand-surface text-brand hover:bg-brand-surface',
         onClick ? 'cursor-pointer' : 'cursor-default',
         className
       )}

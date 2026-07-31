@@ -10,7 +10,7 @@ import { Skeleton } from '@arco-design/web-react';
 export const AgentPillBarSkeleton: React.FC = () => {
   return (
     <div className='w-full flex justify-center'>
-      <div className='inline-flex items-center bg-faint px-2 py-1 mb-4 gap-3 rd-full'>
+      <div className='mb-4 inline-flex items-center gap-3 bg-muted px-2 py-1 rd-full'>
         {/* First pill is wider to mimic the selected state */}
         <Skeleton animation text={false} image={{ style: { width: 48, height: 28, borderRadius: 20, marginRight: 0 } }} />
         {[28, 28, 28, 28].map((size, i) => (

@@ -527,7 +527,7 @@ const SendBox: React.FC<{
       shape='circle'
       type='primary'
       disabled={isButtonDisabled}
-      icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />}
+      icon={<ArrowUp theme='filled' fill='var(--primary-foreground)' strokeWidth={4} />}
       onClick={() => {
         sendMessageHandler();
       }}
@@ -539,14 +539,14 @@ const SendBox: React.FC<{
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       <div
         ref={containerRef}
-        className={`relative p-16px b bg-fill-1 b-solid flex flex-col ${slashController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'b-dashed' : ''}`}
+        className={`relative p-16px border border-border bg-fill flex flex-col ${slashController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'border-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           borderRadius: topAttached ? '0 0 20px 20px' : '20px',
           ...(isFileDragging
             ? {
-                backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.08)',
-                borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.42)',
+                backgroundColor: 'var(--brand-surface)',
+                borderColor: 'color-mix(in srgb, var(--brand) 42%, transparent)',
                 borderWidth: '1px',
                 borderTopWidth: topAttached ? 0 : '1px',
               }
@@ -584,7 +584,7 @@ const SendBox: React.FC<{
           {domSnippets.length > 0 && (
             <div className='flex flex-wrap gap-6px mb-8px'>
               {domSnippets.map((snippet) => (
-                <Tag key={snippet.id} closable closeIcon={<CloseSmall theme='outline' size='12' />} onClose={() => removeDomSnippet(snippet.id)} className='text-12px bg-fill-2 b-1 b-solid b-border-2 rd-4px'>
+                <Tag key={snippet.id} closable closeIcon={<CloseSmall theme='outline' size='12' />} onClose={() => removeDomSnippet(snippet.id)} className='text-12px bg-fill-shallow border border-medium rd-4px'>
                   {snippet.tag}
                 </Tag>
               ))}
@@ -593,8 +593,8 @@ const SendBox: React.FC<{
           {/* Skill tags - displayed above input */}
           {selectedSkills.length > 0 && (
             <div className='flex flex-col gap-6px mb-8px'>
-              <div className='flex items-center gap-4px text-11px text-secondary'>
-                <Lightning size='12' className='text-[var(--ui-accent-orange)]' />
+              <div className='flex items-center gap-4px text-11px text-foreground-secondary'>
+                <Lightning size='12' className='text-brand' />
                 <span>{t('messages.skills.activeSkills', { defaultValue: '当前使用技能' })}</span>
               </div>
               <div className='flex flex-wrap gap-6px'>
@@ -607,7 +607,7 @@ const SendBox: React.FC<{
                       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(' ');
                   return (
-                    <Tag key={skillName} closable onClose={() => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))} className='text-12px rd-full' icon={<Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />}>
+                    <Tag key={skillName} closable onClose={() => setSelectedSkills(selectedSkills.filter((s) => s !== skillName))} className='text-12px rd-full' icon={<Lightning size='12' className='mr-4px text-brand' />}>
                       {displayName}
                     </Tag>
                   );
@@ -626,7 +626,7 @@ const SendBox: React.FC<{
           {(queuedInputs ?? []).length > 0 && (
             <div className='flex flex-wrap gap-6px mb-6px'>
               {(queuedInputs ?? []).map((q) => (
-                <span key={q.id} data-testid='queued-input-chip' title={q.preview} className='inline-flex items-center max-w-220px px-8px py-2px rd-10px bg-2 text-12px text-t-secondary truncate'>
+                <span key={q.id} data-testid='queued-input-chip' title={q.preview} className='inline-flex items-center max-w-220px px-8px py-2px rd-10px bg-secondary text-12px text-foreground-secondary truncate'>
                   {q.preview}
                 </span>
               ))}
@@ -700,7 +700,7 @@ const SendBox: React.FC<{
           {isSingleLine && (
             <div className='flex items-center gap-3'>
               {sendButtonPrefix}
-              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
+              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-foreground'></div>} onClick={stopHandler}></Button> : sendButton}
             </div>
           )}
         </div>
@@ -712,7 +712,7 @@ const SendBox: React.FC<{
             </div>
             <div className='flex items-center gap-3'>
               {sendButtonPrefix}
-              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
+              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-foreground'></div>} onClick={stopHandler}></Button> : sendButton}
             </div>
           </div>
         )}

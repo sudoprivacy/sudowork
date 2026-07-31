@@ -130,20 +130,20 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
         <div
           className='absolute left-0 top-0 h-full flex items-center cursor-pointer'
           style={{
-            background: 'linear-gradient(to left, transparent, var(--color-fill-3) 30%)', // 左侧渐变遮罩
+            background: 'linear-gradient(to left, transparent, var(--fill) 30%)', // 左侧渐变遮罩
             width: '60px',
             pointerEvents: 'none', // 遮罩层不响应点击
           }}
         >
           <button
             onClick={handleScrollLeft}
-            className='ml-0 size-7 rd-50% bg-1 f-center hover:bg-2 transition-colors border border-default'
+            className='ml-0 size-7 rd-50% bg-card f-center hover:bg-accent transition-colors border border-border'
             style={{
               pointerEvents: 'auto', // 按钮响应点击
               boxShadow: 'var(--shadow-md)',
             }}
           >
-            <IconLeft style={{ fontSize: '14px', color: 'var(--text-foreground)' }} />
+            <IconLeft style={{ fontSize: '14px', color: 'var(--foreground-secondary)' }} />
           </button>
         </div>
       )}
@@ -152,20 +152,20 @@ const HorizontalFileList: React.FC<HorizontalFileListProps> = ({ children }) => 
         <div
           className='absolute right-0 top-0 h-full flex items-center cursor-pointer'
           style={{
-            background: 'linear-gradient(to right, transparent, var(--color-fill-3) 30%)', // 右侧渐变遮罩
+            background: 'linear-gradient(to right, transparent, var(--fill) 30%)', // 右侧渐变遮罩
             width: '60px',
             pointerEvents: 'none', // 遮罩层不响应点击
           }}
         >
           <button
             onClick={handleScrollRight}
-            className='ml-auto mr-0 size-7 rd-50% bg-1 f-center hover:bg-2 transition-colors border border-default'
+            className='ml-auto mr-0 size-7 rd-50% bg-card f-center hover:bg-accent transition-colors border border-border'
             style={{
               pointerEvents: 'auto', // 按钮响应点击
               boxShadow: 'var(--shadow-md)',
             }}
           >
-            <IconRight style={{ fontSize: '14px', color: 'var(--text-foreground)' }} />
+            <IconRight style={{ fontSize: '14px', color: 'var(--foreground-secondary)' }} />
           </button>
         </div>
       )}

@@ -100,26 +100,24 @@ const AssistantAgentDropdown: React.FC<AssistantAgentDropdownProps> = ({ availab
             return (
               <div
                 key={opt.value}
-                className='flex items-center gap-8px px-12px py-8px cursor-pointer hover:bg-fill-2 rd-6px mx-4px transition-colors'
+                className='mx-4px flex cursor-pointer items-center gap-8px px-12px py-8px transition-colors hover:bg-accent rd-6px'
                 onClick={() => {
                   onSelectAgent(opt.value);
                   setVisible(false);
                 }}
               >
                 {itemLogo ? <img src={itemLogo} alt='' width={20} height={20} style={{ objectFit: 'contain', flexShrink: 0 }} /> : <Robot theme='outline' size={20} style={{ flexShrink: 0 }} />}
-                <span className='flex-1 text-14px' style={{ color: 'var(--color-text-1)' }}>
-                  {opt.label}
-                </span>
-                {isSelected && <Check theme='outline' size={16} style={{ color: 'var(--ui-accent-orange)', flexShrink: 0 }} />}
+                <span className='flex-1 text-14px text-foreground'>{opt.label}</span>
+                {isSelected && <Check theme='outline' size={16} className='shrink-0 text-brand' />}
               </div>
             );
           })}
         </div>
       }
     >
-      <div className='flex items-center gap-4px cursor-pointer select-none px-8px py-4px rd-8px hover:bg-fill-2 transition-colors'>
+      <div className='flex cursor-pointer select-none items-center gap-4px px-8px py-4px transition-colors hover:bg-accent rd-8px'>
         {displayLogo ? <img src={displayLogo} alt='' width={24} height={24} style={{ objectFit: 'contain' }} /> : <Robot theme='outline' size={24} />}
-        <Down theme='outline' size={14} style={{ color: 'var(--color-text-2)' }} />
+        <Down theme='outline' size={14} className='text-foreground-secondary' />
       </div>
     </Popover>
   );

@@ -626,8 +626,8 @@ const GuidPage: React.FC = () => {
             <div className='flex items-center justify-between w-full mb-3 animate-fade-in animate-duration-400 animate-ease-out'>
               <div className='flex items-center gap-12px flex-1 min-w-0'>
                 {/* Back button */}
-                <div className='flex items-center justify-center w-32px h-32px rd-full cursor-pointer hover:bg-fill-2 transition-colors shrink-0' onClick={handleBackFromAssistant}>
-                  <ArrowLeft size={18} color='var(--color-text-2)' />
+                <div className='flex h-32px w-32px shrink-0 cursor-pointer items-center justify-center transition-colors hover:bg-accent rd-full' onClick={handleBackFromAssistant}>
+                  <ArrowLeft size={18} className='text-foreground-secondary' />
                 </div>
 
                 {/* Avatar */}
@@ -645,7 +645,7 @@ const GuidPage: React.FC = () => {
                 <span className='text-xl font-semibold text-foreground truncate'>{selectedAssistantConfig.nameI18n?.[localeKey] || selectedAssistantConfig.name}</span>
 
                 {/* Edit button */}
-                <Button shape='circle' type='text' iconOnly icon={<SquarePen size={16} className='text-secondary' />} onClick={() => setEditDrawerVisible(true)} />
+                <Button shape='circle' type='text' iconOnly icon={<SquarePen size={16} className='text-foreground-secondary' />} onClick={() => setEditDrawerVisible(true)} />
               </div>
 
               {/* Agent dropdown - disabled for preset assistants (builtin or hub-installed) */}
@@ -655,7 +655,7 @@ const GuidPage: React.FC = () => {
             </div>
             {/* Agent Fallback Notice */}
             {agentSelection.currentEffectiveAgentInfo.isFallback && (
-              <div className='w-full mb-3 px-3 py-2 rd-2 text-xs flex items-center gap-2 bg-warning-soft b border-warning-line text-warning box-border'>
+              <div className='mb-3 flex w-full box-border items-center gap-2 border border-warning bg-warning-surface px-3 py-2 text-xs text-warning rd-2'>
                 <span>
                   {t('guid.agentFallbackNotice', {
                     original: agentSelection.currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() + agentSelection.currentEffectiveAgentInfo.originalType.slice(1),
@@ -673,7 +673,7 @@ const GuidPage: React.FC = () => {
         ) : (
           /* ========== Normal Mode ========== */
           <>
-            <p className='text-2xl font-semibold mb-6 text-0 text-center' onClick={handleBackToChat}>
+            <p className='mb-6 text-center text-2xl font-semibold text-foreground' onClick={handleBackToChat}>
               {t('conversation.welcome.title')}
             </p>
             {agentSelection.availableAgents === undefined ? (
@@ -742,19 +742,12 @@ const GuidPage: React.FC = () => {
           /* Suggestion prompts for selected assistant */
           assistantPrompts.length > 0 && (
             <div className='mt-16px w-full animate-fade-in animate-duration-400 animate-ease-out'>
-              <div className='text-13px mb-8px' style={{ color: 'var(--color-text-3)' }}>
-                {t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}
-              </div>
+              <div className='mb-8px text-13px text-foreground-tertiary'>{t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}</div>
               <div className='flex flex-wrap gap-8px'>
                 {assistantPrompts.map((prompt: string, index: number) => (
                   <div
                     key={index}
-                    className='px-12px py-6px text-13px rd-16px cursor-pointer transition-colors shadow-sm'
-                    style={{
-                      background: 'var(--bg-2)',
-                      color: 'var(--foreground)',
-                      border: '1px solid var(--bg-3)',
-                    }}
+                    className='cursor-pointer border border-border bg-card px-12px py-6px text-13px text-foreground shadow-sm transition-colors hover:bg-accent rd-16px'
                     onClick={() => {
                       guidInput.setInput(prompt);
                       guidInput.handleTextareaFocus();

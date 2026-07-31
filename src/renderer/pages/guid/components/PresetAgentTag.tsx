@@ -28,17 +28,17 @@ const PresetAgentTag: React.FC<PresetAgentTagProps> = ({ agentInfo, customAgents
   const name = agent?.nameI18n?.[localeKey] || agent?.name || agentInfo.name;
 
   return (
-    <div className='flex items-center gap-1.5 bg-fill-2 py-1 pr-1.5 pl-2.5 rd-4 cursor-pointer select-none transition-colors max-w-full min-w-0 hover:bg-fill-3' onClick={() => {}}>
+    <div className='flex max-w-full min-w-0 cursor-pointer select-none items-center gap-1.5 bg-secondary py-1 pr-1.5 pl-2.5 transition-colors hover:bg-accent rd-4' onClick={() => {}}>
       {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', flexShrink: 0 }} /> : avatarValue ? <span style={{ fontSize: 14, lineHeight: '16px', flexShrink: 0 }}>{avatarValue}</span> : <Robot theme='outline' size={16} style={{ flexShrink: 0 }} />}
-      <span className='max-w-200px text-14px text-1 whitespace-nowrap overflow-hidden text-ellipsis'>{name}</span>
+      <span className='max-w-200px overflow-hidden text-ellipsis whitespace-nowrap text-14px text-foreground'>{name}</span>
       <div
-        className='f-center size-4 rd-full ml-0.5 transition-colors shrink-0 hover:bg-fill-4'
+        className='f-center ml-0.5 size-4 shrink-0 transition-colors hover:bg-fill-deep rd-full'
         onClick={(e) => {
           e.stopPropagation();
           onClose();
         }}
       >
-        <IconClose style={{ fontSize: 12, color: 'var(--color-text-3)' }} />
+        <IconClose className='text-foreground-tertiary' style={{ fontSize: 12 }} />
       </div>
     </div>
   );

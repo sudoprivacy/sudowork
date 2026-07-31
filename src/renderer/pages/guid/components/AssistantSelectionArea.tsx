@@ -67,16 +67,11 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
             const avatarImage = mappedAvatar || resolvedAvatar;
             const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
             return (
-              <div
-                key={assistant.id}
-                className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
-                style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }}
-                onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
-              >
+              <div key={assistant.id} className='group flex h-28px cursor-pointer select-none items-center gap-8px border border-border bg-card px-16px transition-all hover:bg-accent rd-100px' onClick={() => onSelectAssistant(`custom:${assistant.id}`)}>
                 <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
                   {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Bot size={16} />}
                 </span>
-                <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
+                <span className='text-14px text-foreground-secondary hover:text-foreground'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
               </div>
             );
           })}
@@ -118,22 +113,17 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({ customA
             const avatarImage = mappedAvatar || resolvedAvatar;
             const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
             return (
-              <div
-                key={assistant.id}
-                className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
-                style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }}
-                onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
-              >
+              <div key={assistant.id} className='group flex h-28px cursor-pointer select-none items-center gap-8px border border-border bg-card px-16px transition-all hover:bg-accent rd-100px' onClick={() => onSelectAssistant(`custom:${assistant.id}`)}>
                 <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
                   {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', display: 'block' }} /> : avatarValue ? <span style={{ fontSize: 16, lineHeight: 1 }}>{avatarValue}</span> : <Bot size={16} />}
                 </span>
-                <span className='text-14px text-2 hover:text-1'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
+                <span className='text-14px text-foreground-secondary hover:text-foreground'>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
               </div>
             );
           })}
-        <div className='group f-center h-28px min-w-28px px-8px gap-4px rd-100px bg-fill-0 cursor-pointer whitespace-nowrap b-1 b-dashed select-none transition-colors duration-300 hover:bg-fill-2' style={{ borderWidth: '1px', borderColor: 'var(--bg-3)' }} onClick={() => navigate('/settings/agent')}>
-          <Plus size={14} className='flex-shrink-0 line-height-0 text-3 group-hover:text-2 transition-colors duration-300' />
-          <span className='text-14px text-2 group-hover:text-1 transition-colors duration-300'>{t('settings.createAssistant', { defaultValue: '创建智能体' })}</span>
+        <div className='group f-center h-28px min-w-28px cursor-pointer select-none gap-4px whitespace-nowrap border border-dashed border-border bg-card px-8px transition-colors duration-300 hover:bg-accent rd-100px' onClick={() => navigate('/settings/agent')}>
+          <Plus size={14} className='line-height-0 shrink-0 text-foreground-tertiary transition-colors duration-300 group-hover:text-foreground-secondary' />
+          <span className='text-14px text-foreground-secondary transition-colors duration-300 group-hover:text-foreground'>{t('settings.createAssistant', { defaultValue: '创建智能体' })}</span>
         </div>
       </div>
     </div>

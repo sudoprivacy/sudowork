@@ -210,12 +210,12 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
 
   // Dropdown menu (shared between compact and full mode)
   const dropdownMenu = (
-    <div className='flex flex-col gap-0.5 p-1.5 rd-12px border bg-popup' style={{ minWidth: 180, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
-      <div className='px-2.5 py-2 text-12px leading-18px text-secondary'>{t('agentMode.switchMode', { defaultValue: 'Switch Mode' })}</div>
+    <div className='flex flex-col gap-0.5 p-1.5 rd-12px border border-border bg-popover text-popover-foreground shadow-lg' style={{ minWidth: 180 }}>
+      <div className='px-2.5 py-2 text-12px leading-18px text-foreground-secondary'>{t('agentMode.switchMode', { defaultValue: 'Switch Mode' })}</div>
       {modes.map((mode: AgentModeOption) => {
         const active = currentMode === mode.value;
         return (
-          <div key={mode.value} className={classNames('flex items-center gap-2 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active', active && 'bg-2')} onClick={() => void handleModeChange(mode.value)}>
+          <div key={mode.value} className={classNames('flex items-center gap-2 px-2.5 h-9.5 rd-8px cursor-pointer text-14px transition-colors hover:bg-accent active:bg-fill-deep', active && 'bg-secondary')} onClick={() => void handleModeChange(mode.value)}>
             <span className='w-4 shrink-0 inline-flex items-center justify-center text-primary'>{active ? '✓' : ''}</span>
             <span className='truncate'>{getDisplayModeLabel(mode)}</span>
           </div>
@@ -242,7 +242,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
         label={
           <span className='inline-flex min-w-0 items-center gap-1.5'>
             <span className='block truncate leading-none'>{compactLabel}</span>
-            {canInteract && <Down size={12} className='text-tertiary shrink-0' />}
+            {canInteract && <Down size={12} className='text-foreground-tertiary shrink-0' />}
           </span>
         }
         disabled={isLoading}
@@ -409,15 +409,15 @@ const AgentModePill = forwardRef<HTMLDivElement, AgentModePillProps>(function Ag
   }, [displayName, modeSuffix, canSwitchMode]);
 
   return (
-    <div ref={setContainerRef} className={`relative inline-flex items-center gap-2 bg-2 rounded-full px-[8px] py-[2px] ${canSwitchMode ? 'cursor-pointer hover:bg-3' : ''}`} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+    <div ref={setContainerRef} className={`relative inline-flex items-center gap-2 bg-secondary rounded-full px-[8px] py-[2px] ${canSwitchMode ? 'cursor-pointer hover:bg-accent' : ''}`} style={{ opacity: isLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
       <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
       {!hideText && (
         <>
           <span className='text-sm whitespace-nowrap'>{displayName}</span>
-          {canSwitchMode && modeSuffix && <span className='text-xs text-tertiary whitespace-nowrap'>({modeSuffix})</span>}
+          {canSwitchMode && modeSuffix && <span className='text-xs text-foreground-tertiary whitespace-nowrap'>({modeSuffix})</span>}
         </>
       )}
-      {canSwitchMode && <Down size={12} className='text-tertiary shrink-0' />}
+      {canSwitchMode && <Down size={12} className='text-foreground-tertiary shrink-0' />}
 
       {/* Hidden probe: always renders the full content at natural width.
           Used by the layout effect above to decide whether to hide text. */}

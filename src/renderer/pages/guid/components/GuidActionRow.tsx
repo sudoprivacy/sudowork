@@ -86,9 +86,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             popupVisible={fileMenuOpen}
             onVisibleChange={setFileMenuOpen}
             droplist={
-              <div className='flex flex-col gap-2px p-6px rd-12px border bg-popup' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
+              <div className='flex min-w-50 flex-col gap-2px border border-border bg-popover p-6px shadow-lg rd-12px'>
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
+                  className='flex h-38px cursor-pointer items-center gap-10px px-10px text-14px text-foreground transition-colors hover:bg-accent active:bg-fill-deep rd-8px'
                   onClick={() => {
                     setFileMenuOpen(false);
                     ipcBridge.dialog.showOpen
@@ -103,11 +103,11 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                       });
                   }}
                 >
-                  <Upload size={16} color='var(--text-secondary)' />
+                  <Upload size={16} className='text-foreground-secondary' />
                   <span>{t('conversation.welcome.downloadLocalFile')}</span>
                 </div>
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
+                  className='flex h-38px cursor-pointer items-center gap-10px px-10px text-14px text-foreground transition-colors hover:bg-accent active:bg-fill-deep rd-8px'
                   onClick={() => {
                     setFileMenuOpen(false);
                     setBdpanSelectorVisible(true);
@@ -117,7 +117,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                   <span>{t('conversation.welcome.downloadBdpanFile')}</span>
                 </div>
                 <div
-                  className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
+                  className='flex h-38px cursor-pointer items-center gap-10px px-10px text-14px text-foreground transition-colors hover:bg-accent active:bg-fill-deep rd-8px'
                   onClick={() => {
                     setFileMenuOpen(false);
                     ipcBridge.dialog.showOpen
@@ -132,15 +132,15 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                       });
                   }}
                 >
-                  <FolderOpen size={16} color='var(--text-secondary)' />
+                  <FolderOpen size={16} className='text-foreground-secondary' />
                   <span>{t('conversation.welcome.specifyWorkspace')}</span>
                 </div>
               </div>
             }
           >
             <span className='relative'>
-              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={16} color='var(--text-secondary)' />} />
-              {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-white font-600 pointer-events-none'>{files.length}</span>}
+              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={16} className='text-foreground-secondary' />} />
+              {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-primary-foreground font-600 pointer-events-none'>{files.length}</span>}
             </span>
           </Dropdown>
 
@@ -152,7 +152,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
           {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
         </div>
-        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} color='white' />} onClick={onSend} />
+        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} className='text-primary-foreground' />} onClick={onSend} />
       </div>
 
       <BdpanImportFilePicker

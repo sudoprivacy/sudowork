@@ -141,24 +141,24 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
   if (isImage) {
     return (
       <div className='relative inline-block'>
-        <div className='size-15 rd-xl overflow-hidden border f-center'>{imageUrl ? <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' preview /> : null}</div>
-        {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-subtle! border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
+        <div className='size-15 rd-xl overflow-hidden border border-border f-center'>{imageUrl ? <Image src={imageUrl} alt={fileName} width={60} height={60} className='object-cover cursor-pointer' preview /> : null}</div>
+        {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-card! border! border-border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
       </div>
     );
   }
 
   return (
     <div className='relative inline-block'>
-      <div className={readonly && !fileError ? 'h-15 flex items-center gap-3 px-3 rd-xl border cursor-pointer' : 'h-15 flex items-center gap-3 px-3 rd-xl border'} onClick={handlePreviewClick}>
+      <div className={readonly && !fileError ? 'h-15 flex items-center gap-3 px-3 rd-xl border border-border cursor-pointer' : 'h-15 flex items-center gap-3 px-3 rd-xl border border-border'} onClick={handlePreviewClick}>
         <div className='size-10 rd-xl f-center flex-shrink-0'>{resolveFileIcon(fileName, { size: 28, theme: 'filled' })}</div>
         <div className='flex flex-col gap-0.5 min-w-0'>
           <span className='text-14px text-foreground max-w-150px truncate'>{fileName}</span>
-          <span className='text-12px text-secondary'>
+          <span className='text-12px text-foreground-secondary'>
             {fileExt}: {fileSize || '...'}
           </span>
         </div>
       </div>
-      {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-subtle! border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
+      {!readonly && <Button shape='circle' size='mini' className='absolute -top-2 -right-2 z-10 bg-card! border! border-border! size-6!' icon={<IconClose className='text-13px text-foreground' />} onClick={handleRemove} />}
     </div>
   );
 };

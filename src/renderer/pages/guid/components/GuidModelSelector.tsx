@@ -40,14 +40,13 @@ type GuidModelSelectorProps = {
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
-const PANEL_CLASS = 'flex flex-col gap-2px p-6px rd-12px border bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide';
-const PANEL_STYLE: React.CSSProperties = { minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' };
-const GROUP_TITLE_CLASS = 'px-10px pt-4px pb-2px text-12px leading-18px text-secondary';
-const ROW_CLASS = 'flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active';
+const PANEL_CLASS = 'flex min-w-50 max-h-[min(60vh,420px)] flex-col gap-2px overflow-y-auto border border-border bg-popover p-6px shadow-lg scrollbar-hide rd-12px';
+const GROUP_TITLE_CLASS = 'px-10px pt-4px pb-2px text-12px leading-18px text-foreground-secondary';
+const ROW_CLASS = 'flex h-38px cursor-pointer items-center gap-8px px-10px text-14px text-foreground transition-colors hover:bg-accent active:bg-fill-deep rd-8px';
 
 const HealthDot: React.FC<{ status: string }> = ({ status }) => {
   if (status === 'unknown') return null;
-  const color = status === 'healthy' ? 'bg-green-500' : status === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+  const color = status === 'healthy' ? 'bg-success' : status === 'unhealthy' ? 'bg-destructive' : 'bg-foreground-tertiary';
   return <div className={`w-6px h-6px rounded-full shrink-0 ${color}`} />;
 };
 
@@ -66,9 +65,9 @@ const GeminiSubMenu: React.FC<{
       popupVisible={open}
       onVisibleChange={setOpen}
       droplist={
-        <div className={PANEL_CLASS} style={PANEL_STYLE}>
+        <div className={PANEL_CLASS}>
           {subModels.map((subModel) => (
-            <div key={subModel.value} className={classNames(ROW_CLASS, isSelected(subModel.value) && 'bg-2')} onClick={() => onSelect(subModel.value)}>
+            <div key={subModel.value} className={classNames(ROW_CLASS, isSelected(subModel.value) && 'bg-accent')} onClick={() => onSelect(subModel.value)}>
               <span className='truncate'>{subModel.label}</span>
             </div>
           ))}
@@ -78,7 +77,7 @@ const GeminiSubMenu: React.FC<{
       <div className={ROW_CLASS}>
         <HealthDot status={healthStatus} />
         <span className='flex-1 truncate'>{label}</span>
-        <Right theme='outline' size='14' className='shrink-0 text-tertiary' />
+        <Right theme='outline' size='14' className='shrink-0 text-foreground-tertiary' />
       </div>
     </Dropdown>
   );
@@ -146,11 +145,11 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
         popupVisible={geminiOpen}
         onVisibleChange={setGeminiOpen}
         droplist={
-          <div className={PANEL_CLASS} style={PANEL_STYLE}>
+          <div className={PANEL_CLASS}>
             {!enabledModelList || enabledModelList.length === 0 ? (
               <>
-                <div className='px-10px py-12px text-secondary text-14px text-center'>{t('settings.noAvailableModels')}</div>
-                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-secondary')} onClick={() => navigate('/settings/model')}>
+                <div className='px-10px py-12px text-center text-14px text-foreground-secondary'>{t('settings.noAvailableModels')}</div>
+                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-foreground-secondary')} onClick={() => navigate('/settings/model')}>
                   <Plus theme='outline' size='12' />
                   <span>{t('settings.addModel')}</span>
                 </div>
@@ -194,15 +193,15 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                           </div>
                         );
                         return (
-                          <div key={provider.id + modelName} className={classNames(ROW_CLASS, selected && 'bg-2')} onClick={() => handleSelectModel(provider, modelName)}>
+                          <div key={provider.id + modelName} className={classNames(ROW_CLASS, selected && 'bg-accent')} onClick={() => handleSelectModel(provider, modelName)}>
                             {option ? (
                               <Tooltip
                                 position='right'
                                 trigger='hover'
                                 content={
                                   <div className='max-w-240px space-y-6px'>
-                                    <div className='text-12px text-secondary leading-5'>{option.description}</div>
-                                    {option.modelHint && <div className='text-11px text-tertiary'>{option.modelHint}</div>}
+                                    <div className='text-12px text-foreground-secondary leading-5'>{option.description}</div>
+                                    {option.modelHint && <div className='text-11px text-foreground-tertiary'>{option.modelHint}</div>}
                                   </div>
                                 }
                               >
@@ -217,7 +216,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                     </div>
                   );
                 })}
-                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-secondary')} onClick={() => navigate('/settings/model')}>
+                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-foreground-secondary')} onClick={() => navigate('/settings/model')}>
                   <Plus theme='outline' size='12' />
                   <span>{t('settings.addModel')}</span>
                 </div>
@@ -240,7 +239,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           popupVisible={acpOpen}
           onVisibleChange={setAcpOpen}
           droplist={
-            <div className={PANEL_CLASS} style={PANEL_STYLE}>
+            <div className={PANEL_CLASS}>
               {acpProviderModelGroups.map((group) => (
                 <div key={group.key} className='flex flex-col gap-2px'>
                   <div className={GROUP_TITLE_CLASS}>{group.name || t('common.other', { defaultValue: 'Other' })}</div>
@@ -254,7 +253,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                     return (
                       <div
                         key={model.id}
-                        className={classNames(ROW_CLASS, selected && 'bg-2')}
+                        className={classNames(ROW_CLASS, selected && 'bg-accent')}
                         onClick={() => {
                           setSelectedAcpModel(model.id);
                           setAcpOpen(false);

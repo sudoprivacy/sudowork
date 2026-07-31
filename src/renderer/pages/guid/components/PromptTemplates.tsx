@@ -33,7 +33,7 @@ const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectProm
     <div className='w-full mb-4 animate-fade-in animate-duration-400 animate-ease-out'>
       {/* Title */}
       <div className='flex items-center gap-6px mb-10px'>
-        <span className='text-13px text-secondary'>💡 {t('guid.promptTemplates.title', { defaultValue: '常用提示词' })}</span>
+        <span className='text-13px text-foreground-secondary'>💡 {t('guid.promptTemplates.title', { defaultValue: '常用提示词' })}</span>
       </div>
 
       {/* Category tags */}
@@ -52,7 +52,7 @@ const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectProm
       {activeCategory && currentCategory && (
         <div className='flex flex-wrap gap-2 mt-2 animate-fade-in animate-duration-400 animate-ease-out'>
           {currentCategory.prompts.map((prompt) => (
-            <Button key={prompt.labelKey} size='small' shape='square' className='!border !border-default' onClick={() => onSelectPrompt(t(prompt.contentKey))}>
+            <Button key={prompt.labelKey} size='small' shape='square' className='!border !border-border' onClick={() => onSelectPrompt(t(prompt.contentKey))}>
               {t(prompt.labelKey)}
             </Button>
           ))}

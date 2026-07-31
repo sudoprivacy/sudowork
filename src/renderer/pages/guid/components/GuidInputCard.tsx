@@ -130,14 +130,13 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 
   return (
     <div
-      className={`w-full box-border relative p-16px ${dir ? 'pb-8px' : ''} b bg-fill-1 b-solid rd-20px flex flex-col ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}
+      className={`relative box-border flex w-full flex-col border bg-card p-16px rd-20px ${dir ? 'pb-8px' : ''} ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed bg-brand-surface' : ''}`}
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
         ...(isFileDragging
           ? {
-              backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.08)',
-              borderColor: 'rgba(var(--ui-accent-orange-rgb), 0.42)',
+              borderColor: 'var(--brand)',
               borderWidth: '1px',
             }
           : {
@@ -152,7 +151,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       {/* 已选技能标签 */}
       {selectedSkills && selectedSkills.length > 0 && (
         <div className='flex flex-col gap-6px mb-8px'>
-          <div className='flex items-center gap-4px text-11px text-secondary'>
+          <div className='flex items-center gap-4px text-11px text-foreground-secondary'>
             <Lightning size='12' />
             <span>当前使用技能</span>
           </div>
@@ -161,7 +160,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
               const skillInfo = getSkillDisplayName?.(skillName);
               const displayName = skillInfo?.displayName || skillName;
               return (
-                <Tag key={skillName} closable onClose={() => onRemoveSkill?.(skillName)} className='text-12px rd-full' icon={<Lightning size='12' className='mr-4px text-[var(--ui-accent-orange)]' />}>
+                <Tag key={skillName} closable onClose={() => onRemoveSkill?.(skillName)} className='text-12px rd-full' icon={<Lightning size='12' className='mr-4px text-brand' />}>
                   {displayName}
                 </Tag>
               );
@@ -198,9 +197,9 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       )}
       {actionRow}
       {dir && (
-        <div className='flex items-start justify-between gap-10px mt-8px px-10px py-6px text-13px text-secondary' style={{ borderTop: '1px solid var(--border-default)' }}>
+        <div className='mt-8px flex items-start justify-between gap-10px border-t border-border px-10px py-6px text-13px text-foreground-secondary'>
           <div className='flex items-start min-w-0 flex-1 gap-8px'>
-            <FolderOpen className='mt-1px flex-shrink-0' theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
+            <FolderOpen className='mt-1px shrink-0 text-foreground-secondary' theme='outline' size='16' style={{ lineHeight: 0 }} />
             <Tooltip content={dir} position='top'>
               <span className='block min-w-0 whitespace-normal break-all leading-18px'>
                 {t('conversation.welcome.currentWorkspace')}: {dir}
@@ -208,13 +207,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
             </Tooltip>
           </div>
           <Tooltip content={t('conversation.welcome.clearWorkspace')} position='top'>
-            <button
-              type='button'
-              className='mt-1px h-28px w-28px rd-full f-center flex-shrink-0 text-tertiary hover:text-danger hover:bg-danger-soft active:bg-danger-soft transition-colors'
-              onClick={onClearDir}
-              aria-label={t('conversation.welcome.clearWorkspace')}
-              style={{ border: '1px solid var(--border-default)' }}
-            >
+            <button type='button' className='mt-1px h-28px w-28px rd-full f-center shrink-0 border border-border text-foreground-tertiary transition-colors hover:bg-accent hover:text-destructive active:bg-fill-deep' onClick={onClearDir} aria-label={t('conversation.welcome.clearWorkspace')}>
               <IconClose strokeWidth={3} style={{ fontSize: 15 }} />
             </button>
           </Tooltip>

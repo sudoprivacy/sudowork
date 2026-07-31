@@ -5,9 +5,8 @@
  */
 
 import { Tag, Spin } from '@arco-design/web-react';
-import React, { useMemo, useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useThemeContext } from '@/renderer/context/ThemeContext';
 
 export interface ThoughtData {
   subject: string;
@@ -24,9 +23,7 @@ interface ThoughtDisplayProps {
   startTime?: number;
 }
 
-// 背景渐变常量 Background gradient constants
-const GRADIENT_DARK = 'linear-gradient(135deg, #464767 0%, #323232 100%)';
-const GRADIENT_LIGHT = 'linear-gradient(90deg, #F0F3FF 0%, #F2F2F2 100%)';
+const BACKGROUND_GRADIENT = 'linear-gradient(90deg, var(--secondary) 0%, var(--muted) 100%)';
 
 // 格式化时间 Format elapsed time
 const formatElapsedTime = (seconds: number): string => {
@@ -39,7 +36,6 @@ const formatElapsedTime = (seconds: number): string => {
 };
 
 const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'default', running = false, state = 'processing', onStop: _onStop, startTime }) => {
-  const { theme } = useThemeContext();
   const { t } = useTranslation();
   const [elapsedTime, setElapsedTime] = useState(0);
   const startTimeRef = useRef<number>(0);
@@ -67,25 +63,19 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
     return () => clearInterval(timer);
   }, [running, thought?.subject, startTime]);
 
-  // 根据主题和样式计算最终样式 Calculate final style based on theme and style prop
-  const containerStyle = useMemo(() => {
-    const background = theme === 'dark' ? GRADIENT_DARK : GRADIENT_LIGHT;
-
-    if (style === 'compact') {
-      return {
-        background,
-        marginBottom: '8px',
-        maxHeight: '100px',
-        overflow: 'scroll' as const,
-      };
-    }
-
-    return {
-      background,
-      marginBottom: '-14px',
-      zIndex: 1,
-    };
-  }, [theme, style]);
+  const containerStyle =
+    style === 'compact'
+      ? {
+          background: BACKGROUND_GRADIENT,
+          marginBottom: '8px',
+          maxHeight: '100px',
+          overflow: 'scroll' as const,
+        }
+      : {
+          background: BACKGROUND_GRADIENT,
+          marginBottom: '-14px',
+          zIndex: 1,
+        };
 
   // 如果没有 thought 且不在运行中，不显示
   if (state !== 'waiting' && !thought?.subject && !running) {
@@ -98,7 +88,7 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
         <Tag color='arcoblue' size='small'>
           {t('messages.waitingForUserInput')}
         </Tag>
-        <span className='text-secondary'>{t('messages.enterAnswer')}</span>
+        <span className='text-foreground-secondary'>{t('messages.enterAnswer')}</span>
       </div>
     );
   }
@@ -108,7 +98,7 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
     return (
       <div className='p-2.5 rd-t-20px text-14px pb-6 lh-20px text-foreground flex items-center gap-2' style={containerStyle}>
         <Spin size={14} />
-        <span className='text-secondary'>
+        <span className='text-foreground-secondary'>
           {t('conversation.chat.processing')}
           <span className='ml-2 opacity-60'>({formatElapsedTime(elapsedTime)})</span>
         </span>
@@ -127,7 +117,7 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
           {thought.subject}
         </Tag>
         {showDescription && <span className='flex-1 truncate'>{thought.description}</span>}
-        {running && <span className='text-tertiary text-12px whitespace-nowrap'>({formatElapsedTime(elapsedTime)})</span>}
+        {running && <span className='text-foreground-tertiary text-12px whitespace-nowrap'>({formatElapsedTime(elapsedTime)})</span>}
       </div>
     </div>
   );

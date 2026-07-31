@@ -134,7 +134,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
         ) : (
           <div className='text-13px font-semibold text-foreground'>{t('messages.skills.title', 'Skills')}</div>
         )}
-        {showTabs && <div className='text-11px text-secondary truncate'>{t('messages.skills.tabToSwitch', 'Tab 切换')}</div>}
+        {showTabs && <div className='truncate text-11px text-foreground-secondary'>{t('messages.skills.tabToSwitch', 'Tab 切换')}</div>}
       </div>
 
       {/* Search box */}
@@ -155,8 +155,8 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
         {activeTab === 'skills' && (
           <>
             {loading && filteredSkills.length === 0 && <SkillSelectorSkeleton count={4} />}
-            {loading && filteredSkills.length > 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{t('common.loadingSkills')}</div>}
-            {!loading && filteredSkills.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.empty', 'No skills found')}</div>}
+            {loading && filteredSkills.length > 0 && <div className='px-2.5 py-3 text-13px text-foreground-secondary'>{t('common.loadingSkills')}</div>}
+            {!loading && filteredSkills.length === 0 && <div className='px-2.5 py-3 text-13px text-foreground-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.empty', 'No skills found')}</div>}
             {!loading &&
               filteredSkills.map((skill, index) => {
                 const isSelected = selectedKeys.includes(skill.name);
@@ -170,20 +170,20 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
                       itemRefs.current[index] = node;
                     }}
                     className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer', {
-                      'bg-fill-2': index === activeIndex,
+                      'bg-accent': index === activeIndex,
                     })}
                     onMouseDown={(e) => e.preventDefault()}
                     onMouseMove={() => setActiveIndex(index)}
                     onClick={() => onSelectItem(skill)}
                   >
                     <div className='flex items-center gap-2'>
-                      <div className='size-8 flex-shrink-0 rd-6px f-center text-16px'>{skill.icon ? <img src={skill.icon} alt={skill.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{skill.emoji || '⚡'}</span>}</div>
+                      <div className='size-8 shrink-0 rd-6px f-center text-16px'>{skill.icon ? <img src={skill.icon} alt={skill.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{skill.emoji || '⚡'}</span>}</div>
                       <div className='min-w-0 flex-1 space-y-1'>
                         <div className='flex items-center gap-1.5 min-w-0'>
                           <span className={classNames('text-14px truncate text-foreground font-medium')}>{skill.displayName}</span>
-                          {isSelected && <span className='bg-primary text-white text-10px px-2 font-medium py-1 rd-full'>{t('messages.skills.added', '已添加')}</span>}
+                          {isSelected && <span className='bg-primary px-2 py-1 text-10px font-medium text-primary-foreground rd-full'>{t('messages.skills.added', '已添加')}</span>}
                         </div>
-                        {skill.description && <div className='text-11px text-secondary truncate mt-px'>{skill.description}</div>}
+                        {skill.description && <div className='mt-px truncate text-11px text-foreground-secondary'>{skill.description}</div>}
                       </div>
                     </div>
                   </button>
@@ -195,7 +195,7 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
         {/* Files tab */}
         {activeTab === 'files' && (
           <>
-            {filteredFiles.length === 0 && <div className='px-2.5 py-3 text-13px text-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.filesEmpty', 'No files in workspace')}</div>}
+            {filteredFiles.length === 0 && <div className='px-2.5 py-3 text-13px text-foreground-secondary'>{searchQuery ? t('messages.skills.noSearchResults', '未找到匹配结果') : t('messages.skills.filesEmpty', 'No files in workspace')}</div>}
             {filteredFiles.map((file, index) => (
               <button
                 key={file.relativePath}
@@ -205,24 +205,20 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
                   itemRefs.current[index] = node;
                 }}
                 className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer', {
-                  'bg-fill-2': index === activeIndex,
+                  'bg-accent': index === activeIndex,
                 })}
                 onMouseDown={(e) => e.preventDefault()}
                 onMouseMove={() => setActiveIndex(index)}
                 onClick={() => onSelectFile?.(file)}
               >
                 <div className='flex items-center gap-2'>
-                  <div className='size-6 flex-shrink-0 rd-4px bg-fill-2 f-center overflow-hidden'>{resolveFileIcon(file.name, { size: 16, theme: 'filled' })}</div>
+                  <div className='size-6 shrink-0 rd-4px bg-secondary f-center overflow-hidden'>{resolveFileIcon(file.name, { size: 16, theme: 'filled' })}</div>
                   <div className='min-w-0 flex-1'>
                     <div className='flex items-center gap-1.5 min-w-0'>
                       <span className={classNames('text-13px truncate text-foreground font-medium')}>{file.name}</span>
-                      {file.isDraft && (
-                        <span className='px-1 py-0 text-9px rd-3px whitespace-nowrap flex-shrink-0 leading-14px' style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
-                          {t('conversation.workspace.drafts.badge', { defaultValue: '草稿' })}
-                        </span>
-                      )}
+                      {file.isDraft && <span className='shrink-0 whitespace-nowrap bg-warning-surface px-1 py-0 text-9px leading-14px text-warning rd-3px'>{t('conversation.workspace.drafts.badge', { defaultValue: '草稿' })}</span>}
                     </div>
-                    <div className='text-11px text-secondary truncate mt-px'>{file.relativePath}</div>
+                    <div className='mt-px truncate text-11px text-foreground-secondary'>{file.relativePath}</div>
                   </div>
                 </div>
               </button>
