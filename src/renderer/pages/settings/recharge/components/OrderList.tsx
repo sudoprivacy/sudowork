@@ -56,7 +56,7 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
       case OrderStatusEnum.PENDING:
         return 'orange';
       case OrderStatusEnum.PAYING:
-        return 'arcoblue';
+        return 'blue';
       case OrderStatusEnum.SUCCESS:
         return 'green';
       case OrderStatusEnum.FAILED:
@@ -74,14 +74,14 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
   const getPaymentMethodStyle = (method: 'ALIPAY' | 'WECHAT') => {
     if (method === 'ALIPAY') {
       return {
-        bgColor: 'bg-success-soft',
-        textColor: 'text-info',
+        bgColor: 'bg-secondary',
+        textColor: 'text-blue',
         icon: <CreditCard size={14} />,
         label: t('settings.recharge.alipay', '支付宝'),
       };
     }
     return {
-      bgColor: 'bg-success-soft',
+      bgColor: 'bg-secondary',
       textColor: 'text-success',
       icon: <MessageCircle size={14} />,
       label: t('settings.recharge.wechat', '微信'),
@@ -97,16 +97,16 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
   }
 
   if (orders.length === 0) {
-    return <div className='py-6 text-center text-tertiary text-14px'>{t('settings.orders.noOrders', '暂无订单记录')}</div>;
+    return <div className='py-6 text-center text-14px text-foreground-tertiary'>{t('settings.orders.noOrders', '暂无订单记录')}</div>;
   }
 
   return (
-    <div className='bg-muted rd-16px overflow-hidden border border-light'>
-      <div className='px-5 py-4  flex items-center justify-between border-b border-light'>
+    <div className='overflow-hidden border border-border bg-card rd-16px'>
+      <div className='flex items-center justify-between border-b border-border px-5 py-4'>
         <div className='font-600 text-14px text-foreground'>{t('settings.orders.title', '订单记录')}</div>
         <div className='flex items-center gap-3'>
-          <Button type='text' size='mini' iconOnly icon={<IconRefresh className='text-secondary text-16px' />} onClick={() => void fetchOrders()} title={t('settings.orders.refresh', '刷新')} />
-          <div className='text-12px text-secondary'>{t('settings.orders.total', { count: orders.length, defaultValue: '共 {{count}} 条' })}</div>
+          <Button type='text' size='mini' iconOnly icon={<IconRefresh className='text-16px text-foreground-secondary' />} onClick={() => void fetchOrders()} title={t('settings.orders.refresh', '刷新')} />
+          <div className='text-12px text-foreground-secondary'>{t('settings.orders.total', { count: orders.length, defaultValue: '共 {{count}} 条' })}</div>
         </div>
       </div>
 
@@ -116,28 +116,28 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
           // 将 PAYING 状态显示为"待支付"
           const displayStatusText = order.status === OrderStatusEnum.PAYING ? t('settings.orders.pendingPayment', '待支付') : order.status_text;
           return (
-            <div key={order.order_no} className='p-4 border-b last:border-b-0 flex items-center gap-3 border-light'>
+            <div key={order.order_no} className='flex items-center gap-3 border-b border-border p-4 last:border-b-0'>
               {/* 订单号 */}
-              <div className='flex-1 min-w-0 text-13px text-secondary truncate'>{order.order_no}</div>
+              <div className='min-w-0 flex-1 truncate text-13px text-foreground-secondary'>{order.order_no}</div>
               {/* 充值金额 */}
-              <div className='w-20 flex-shrink-0 text-15px font-500 text-foreground'>{formatAmount(order.amount_cny)}</div>
+              <div className='w-20 shrink-0 text-15px font-500 text-foreground'>{formatAmount(order.amount_cny)}</div>
               {/* 积分 */}
-              <div className='w-22.5 flex-shrink-0 text-14px text-primary font-500'>{order.points.toLocaleString()} PTS</div>
+              <div className='w-22.5 shrink-0 text-14px font-500 text-brand'>{order.points.toLocaleString()} PTS</div>
               {/* 支付方式 */}
-              <div className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rd-full ${paymentStyle.bgColor} ${paymentStyle.textColor}`}>
+              <div className={`shrink-0 flex items-center gap-1 px-2 py-1 rd-full ${paymentStyle.bgColor} ${paymentStyle.textColor}`}>
                 {paymentStyle.icon}
-                <span className={`text-12px font-500 ${paymentStyle.textColor}`}>{paymentStyle.label}</span>
+                <span className='text-12px font-500'>{paymentStyle.label}</span>
               </div>
               {/* 状态 */}
-              <div className='flex-shrink-0'>
+              <div className='shrink-0'>
                 <Tag color={getStatusColor(order.status)} className={'rd-full'}>
                   {displayStatusText}
                 </Tag>
               </div>
               {/* 创建时间 */}
-              <div className='w-25 flex-shrink-0 text-12px text-tertiary'>{formatDateTime(order.created_at)}</div>
+              <div className='w-25 shrink-0 text-12px text-foreground-secondary'>{formatDateTime(order.created_at)}</div>
               {/* 操作 */}
-              <div className='w-20 flex-shrink-0'>
+              <div className='w-20 shrink-0'>
                 {order.status === OrderStatusEnum.PAYING && (
                   <Button type='primary' size='small' onClick={() => onContinuePay(order.order_no)}>
                     {t('settings.orders.continuePay', '继续支付')}

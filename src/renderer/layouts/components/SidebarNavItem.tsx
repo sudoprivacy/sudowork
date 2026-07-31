@@ -24,7 +24,7 @@ const SidebarNavItem: React.FC<SidebarNavItemProps> = ({ icon, label, selected =
       className={classNames(
         'rd-[10px] group relative flex h-10 w-full cursor-pointer items-center border-0 text-left outline-none transition-colors',
         collapsed ? 'justify-center px-0' : 'gap-3 px-3',
-        selected ? 'bg-fill-default text-foreground-secondary' : 'bg-transparent text-foreground-secondary hover:bg-fill-default hover:text-foreground',
+        selected ? 'bg-accent text-foreground' : 'bg-transparent text-foreground-secondary hover:bg-fill-default hover:text-foreground',
         className
       )}
       onClick={onClick}

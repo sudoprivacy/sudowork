@@ -72,6 +72,7 @@
   --primary-foreground: rgb(255 255 255);
   --brand: rgb(201 100 66);
   --brand-foreground: rgb(255 255 255);
+  --brand-surface: color-mix(in srgb, var(--brand) 14%, var(--card));
   --secondary-brand: rgb(250 240 236);
   --secondary-brand-foreground: rgb(13 13 13);
 

@@ -23,7 +23,7 @@ const QRCodeSVGLazy = React.lazy(async () => {
   return { default: mod.QRCodeSVG };
 });
 
-const PANEL_CLASS = 'p-6 bg-muted rd-16px border border-light';
+const PANEL_CLASS = 'border border-border bg-card p-6 rd-16px';
 
 const RechargeCenter: React.FC = () => {
   const { t } = useTranslation();
@@ -355,13 +355,13 @@ const RechargeCenter: React.FC = () => {
 
   // Payment method options
   const paymentOptions = [
-    { method: 'ALIPAY' as const, Icon: CreditCard, iconClassName: 'text-info', label: t('settings.recharge.alipay', '支付宝') },
+    { method: 'ALIPAY' as const, Icon: CreditCard, iconClassName: 'text-blue', label: t('settings.recharge.alipay', '支付宝') },
     { method: 'WECHAT' as const, Icon: MessageCircle, iconClassName: 'text-success', label: t('settings.recharge.wechat', '微信支付') },
   ];
 
   // Render package selection
   const renderPackageSelection = () => (
-    <div className='p-6 bg-muted rd-16px border border-light'>
+    <div className={PANEL_CLASS}>
       <div className='text-14px font-600 text-foreground mb-4'>{t('settings.recharge.selectPackageRecharge', '选择套餐充值')}</div>
 
       {loading && packages.length === 0 ? (
@@ -376,14 +376,14 @@ const RechargeCenter: React.FC = () => {
               onClick={() => setSelectedPackage(pkg)}
               className={`
                 relative p-4 rd-12px border transition-all cursor-pointer text-left
-                ${selectedPackage?.amount === pkg.amount ? 'bg-emphasis border-primary' : 'bg-muted border-light hover:bg-emphasis'}
+                ${selectedPackage?.amount === pkg.amount ? 'border-brand bg-brand-surface' : 'border-border bg-muted hover:bg-accent'}
               `}
             >
               <div className='text-22px font-700 text-foreground'>{formatCurrency(pkg.amount_cny, 'CNY')}</div>
               <div className='text-15px font-600 text-brand mt-3'>{(pkg.points + pkg.bonus).toLocaleString()} PTS</div>
-              {pkg.description && <div className='text-12px text-secondary mt-1.5 truncate'>{pkg.description}</div>}
+              {pkg.description && <div className='mt-1.5 truncate text-12px text-foreground-secondary'>{pkg.description}</div>}
               {selectedPackage?.amount === pkg.amount && (
-                <div className='absolute top-2 right-2 size-4 rd-full bg-primary f-center text-white'>
+                <div className='absolute top-2 right-2 size-4 rd-full bg-brand f-center text-brand-foreground'>
                   <Check size={10} />
                 </div>
               )}
@@ -396,11 +396,11 @@ const RechargeCenter: React.FC = () => {
         <div className='text-14px font-500 text-foreground mb-3'>{t('settings.recharge.selectPayment', '支付方式')}</div>
         <div className='flex items-center gap-6'>
           {paymentOptions.map(({ method, Icon, iconClassName, label }) => (
-            <button key={method} onClick={() => setPaymentMethod(method)} className={`relative flex items-center gap-2 px-4 py-2 rd-12px border transition-all cursor-pointer ${paymentMethod === method ? 'bg-emphasis border-primary' : 'bg-muted border-light hover:bg-emphasis'}`}>
+            <button key={method} onClick={() => setPaymentMethod(method)} className={`relative flex items-center gap-2 px-4 py-2 rd-12px border transition-all cursor-pointer ${paymentMethod === method ? 'border-brand bg-brand-surface' : 'border-border bg-muted hover:bg-accent'}`}>
               <Icon size={18} className={iconClassName} />
               <span className='text-14px text-foreground'>{label}</span>
               {paymentMethod === method && (
-                <div className='absolute -top-1 -right-1 w-3.5 h-3.5 rd-full bg-primary f-center text-white'>
+                <div className='absolute -top-1 -right-1 w-3.5 h-3.5 rd-full bg-brand f-center text-brand-foreground'>
                   <Check size={9} />
                 </div>
               )}
@@ -409,7 +409,7 @@ const RechargeCenter: React.FC = () => {
         </div>
       </div>
 
-      {error && <div className='text-14px text-danger pt-4'>{error}</div>}
+      {error && <div className='pt-4 text-14px text-destructive'>{error}</div>}
 
       <div className='flex justify-end gap-3 pt-4'>
         <Button type='primary' loading={loading} disabled={!selectedPackage} onClick={handleCreateOrder}>
@@ -423,10 +423,10 @@ const RechargeCenter: React.FC = () => {
   const renderPaying = () => (
     <div className={PANEL_CLASS}>
       <div className='text-center'>
-        <div className='text-14px text-secondary mb-2'>{t('settings.recharge.scanToPay', { method: paymentMethod === 'ALIPAY' ? t('settings.recharge.alipay', '支付宝') : t('settings.recharge.wechatShort', '微信'), defaultValue: '请使用{{method}}扫码支付' })}</div>
+        <div className='mb-2 text-14px text-foreground-secondary'>{t('settings.recharge.scanToPay', { method: paymentMethod === 'ALIPAY' ? t('settings.recharge.alipay', '支付宝') : t('settings.recharge.wechatShort', '微信'), defaultValue: '请使用{{method}}扫码支付' })}</div>
 
         {/* QR Code */}
-        <div className='inline-block p-4 bg-white rd-12px border border-light'>
+        <div className='inline-block border border-border bg-[var(--foreground-white)] p-4 rd-12px'>
           <Suspense
             fallback={
               <div className='w-50 h-50 f-center'>
@@ -441,25 +441,25 @@ const RechargeCenter: React.FC = () => {
         {/* Order Info */}
         <div className='mt-4 space-y-2'>
           <div className='text-16px font-600 text-foreground'>{selectedPackage && formatCurrency(selectedPackage.amount_cny, 'CNY')}</div>
-          <div className='text-14px text-secondary'>
-            {t('settings.recharge.pointsToGet', '获得积分')}: <span className='text-primary font-500'>{(selectedPackage?.points || 0) + (selectedPackage?.bonus || 0)} PTS</span>
+          <div className='text-14px text-foreground-secondary'>
+            {t('settings.recharge.pointsToGet', '获得积分')}: <span className='font-500 text-brand'>{(selectedPackage?.points || 0) + (selectedPackage?.bonus || 0)} PTS</span>
           </div>
           {expiredAt && (
-            <div className='text-12px text-tertiary'>
+            <div className='text-12px text-foreground-tertiary'>
               {t('settings.recharge.expireAt', '过期时间')}: {expiredAt.toLocaleTimeString()}
             </div>
           )}
         </div>
 
         {/* Status */}
-        <div className='f-center gap-2 mt-4 text-14px text-secondary'>
+        <div className='f-center gap-2 mt-4 text-14px text-foreground-secondary'>
           <RefreshCw size={16} className='animate-spin' />
           <span>{t('settings.recharge.waitingPayment', '等待支付...')}</span>
         </div>
 
         {/* Cancel Button */}
         <div className='mt-4'>
-          <Button type='text' onClick={handleCancelOrder}>
+          <Button type='outline' onClick={handleCancelOrder}>
             {t('settings.recharge.cancelOrder', '取消订单')}
           </Button>
         </div>
@@ -472,7 +472,7 @@ const RechargeCenter: React.FC = () => {
     <div className={`${PANEL_CLASS} flex flex-col items-center py-10 space-y-4`}>
       <CircleCheck size={64} className='text-success' />
       <div className='text-20px font-600 text-foreground'>{t('settings.recharge.success', '充值成功')}</div>
-      <div className='text-14px text-secondary'>{t('settings.recharge.successDesc', '积分已到账，请查收')}</div>
+      <div className='text-14px text-foreground-secondary'>{t('settings.recharge.successDesc', '积分已到账，请查收')}</div>
       <Button type='primary' onClick={resetState}>
         {t('settings.recharge.continueRecharge', '继续充值')}
       </Button>
@@ -482,9 +482,9 @@ const RechargeCenter: React.FC = () => {
   // Render failed state
   const renderFailed = () => (
     <div className={`${PANEL_CLASS} flex flex-col items-center py-10 space-y-4`}>
-      <CircleX size={64} className='text-danger' />
+      <CircleX size={64} className='text-destructive' />
       <div className='text-20px font-600 text-foreground'>{t('settings.recharge.failed', '充值失败')}</div>
-      <div className='text-14px text-secondary'>{error}</div>
+      <div className='text-14px text-foreground-secondary'>{error}</div>
       <div className='flex gap-3'>
         <Button onClick={resetState}>{t('common.close', '关闭')}</Button>
         <Button type='primary' onClick={resetState}>

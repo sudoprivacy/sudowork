@@ -99,6 +99,7 @@ export default defineConfig({
     'category-chip': 'flex-shrink-0 inline-flex items-center justify-center h-28px px-12px rd-16px border border-transparent text-12px leading-18px whitespace-nowrap cursor-pointer transition-colors',
     'category-chip-idle': 'text-foreground-secondary hover:bg-accent hover:text-foreground',
     'category-chip-active': 'bg-secondary-brand text-brand font-medium',
+    'bg-brand-surface': '[background-color:var(--brand-surface)]',
   },
   theme: { colors },
 });
