@@ -42,9 +42,9 @@ function LoginShell({ children }: ILoginShellProps) {
           <WindowControls />
         </div>
       )}
-      <div aria-hidden='true' className='pointer-events-none absolute inset-0 overflow-hidden'>
-        <div className='absolute -left-32 -top-40 h-96 w-96 rounded-full bg-secondary opacity-80 blur-3xl' />
-        <div className='absolute -bottom-40 -right-32 h-96 w-96 rounded-full bg-accent opacity-70 blur-3xl' />
+      <div aria-hidden='true' className='pointer-events-none fixed inset-0 overflow-hidden'>
+        <div className='absolute -right-80px -top-120px h-320px w-320px rounded-full bg-accent opacity-70 blur-64px' />
+        <div className='absolute -bottom-120px -left-80px h-320px w-320px rounded-full bg-accent opacity-70 blur-64px' />
       </div>
       {children}
     </main>
