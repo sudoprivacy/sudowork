@@ -50,7 +50,7 @@ const About: React.FC = () => {
         {/* 版本信息 / Version info */}
         <div className='flex items-center gap-1.5 mt-6'>
           <span className='px-2.5 py-[3px] rd-20px text-12px bg-fill-2 text-secondary font-mono font-500'>{buildVersion}</span>
-          {isNightlyBuild && <span className='px-2 py-0.5 rd-10px text-11px bg-orange-1 text-orange-6 font-500 dark:bg-orange-9/20'>{t('update.nightlyBadge', 'Nightly 预览版')}</span>}
+          {isNightlyBuild && <span className='px-2 py-0.5 rd-10px text-11px bg-secondary-brand text-brand font-500'>{t('update.nightlyBadge', 'Nightly 预览版')}</span>}
         </div>
         {isNightlyBuild && buildDate !== 'unknown' && (
           <div className='mt-1.5 text-11px text-tertiary font-mono'>

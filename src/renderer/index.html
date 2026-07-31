@@ -1,13 +1,22 @@
 <!doctype html>
-<html data-theme="light">
+<html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="../../resources/sudowork-icon-dark.svg" />
     <title>__BRAND_DISPLAY_NAME__</title>
     <script>
-      // 强制亮色：主题切换已移除，固定 data-theme=light / Force light: theme switching removed
-      document.documentElement.setAttribute('data-theme', 'light');
+      // 首屏同步应用缓存主题，避免 Renderer 初始化前闪烁。
+      (() => {
+        let cachedTheme;
+        try {
+          cachedTheme = localStorage.getItem('__sudowork_theme');
+        } catch {
+          // 无法访问缓存时直接使用系统主题。
+        }
+        const theme = cachedTheme === 'light' || cachedTheme === 'dark' ? cachedTheme : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
     </script>
     <style>
       html,
@@ -23,8 +32,8 @@
   </head>
   <body>
     <script>
-      // 强制亮色：固定 arco-theme=light / Force light: pin arco-theme=light
-      document.body.setAttribute('arco-theme', 'light');
+      // Arco 的主题属性必须落在 body，并与项目主题保持一致。
+      document.body.setAttribute('arco-theme', document.documentElement.getAttribute('data-theme') || 'light');
     </script>
     <div id="root"></div>
     <script type="module" src="./index.ts"></script>

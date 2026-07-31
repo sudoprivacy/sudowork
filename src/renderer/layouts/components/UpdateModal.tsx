@@ -412,7 +412,7 @@ const UpdateModal: React.FC = () => {
             )}
 
             {/* Nightly build notice */}
-            {isNightlyBuild && <div className='mx-6 mt-3 px-3 py-2.5 text-12px rounded-8px bg-orange-1 text-orange-6 dark:bg-orange-9/20'>{t('update.nightlyUpdateNotice', { defaultValue: 'This is a nightly build. Only manual download is supported for nightly updates.' })}</div>}
+            {isNightlyBuild && <div className='mx-6 mt-3 px-3 py-2.5 text-12px rounded-8px bg-secondary-brand text-brand'>{t('update.nightlyUpdateNotice', { defaultValue: 'This is a nightly build. Only manual download is supported for nightly updates.' })}</div>}
 
             {!hasCompatibleManualAsset && <div className='mx-6 mt-3 px-3 py-2.5 text-12px rounded-8px bg-warning-soft text-warning'>{t('update.noCompatibleAssetManual')}</div>}
 

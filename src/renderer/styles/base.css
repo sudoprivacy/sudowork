@@ -10,6 +10,7 @@
 html,
 body {
   color: var(--foreground);
+  background-color: var(--background);
   font-family:
     system-ui,
     -apple-system,
@@ -45,7 +46,7 @@ body,
   position: relative;
   z-index: 10;
   /* 背景写在规则里（与 .layout-sider 一致），避免空 bar 透出窗口白底 */
-  background-color: var(--bg-2);
+  background-color: var(--secondary);
 }
 
 .app-titlebar--desktop {
@@ -84,11 +85,11 @@ body,
 }
 
 .app-titlebar__button:hover {
-  background-color: var(--bg-hover);
+  background-color: var(--accent);
 }
 
 .app-titlebar__button:active {
-  background-color: var(--bg-active);
+  background-color: var(--fill-deep);
 }
 
 .app-window-controls__button {
@@ -137,26 +138,26 @@ body,
 }
 
 .workspace-header__toggle:hover {
-  background-color: var(--bg-hover);
+  background-color: var(--accent);
 }
 
 .workspace-header__toggle:active {
-  background-color: var(--bg-active);
+  background-color: var(--fill-deep);
 }
 
 .conversation-toggle-floating {
   border: none;
-  background: var(--bg-1);
+  background: var(--card);
   color: var(--foreground);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
 .conversation-toggle-floating:hover {
-  background: var(--bg-hover);
+  background: var(--accent);
 }
 
 .conversation-toggle-floating:active {
-  background: var(--bg-active);
+  background: var(--fill-deep);
 }
 
 .loading {
@@ -167,30 +168,24 @@ body,
   animation: bg-animate 1s alternate infinite;
 }
 
-.cron-keep-awake-switch.arco-switch-checked {
-  background-color: var(--ui-accent-orange) !important;
-}
-
-.cron-keep-awake-switch.arco-switch-checked .arco-switch-handle {
-  background-color: #fff !important;
-}
-
+.cron-keep-awake-switch.arco-switch-checked,
 .settings-accent-switch.arco-switch-checked {
-  background-color: var(--ui-accent-orange) !important;
+  background-color: var(--primary) !important;
 }
 
+.cron-keep-awake-switch.arco-switch-checked .arco-switch-handle,
 .settings-accent-switch.arco-switch-checked .arco-switch-handle {
-  background-color: #fff !important;
+  background-color: var(--primary-foreground) !important;
 }
 
 /* Category chips 移至 uno.config.ts 的 shortcut（category-chip / -idle / -active） */
 
 @keyframes bg-animate {
   0% {
-    background-color: var(--bg-2);
+    background-color: var(--secondary);
   }
   100% {
-    background-color: var(--bg-3);
+    background-color: var(--accent);
   }
 }
 
@@ -216,7 +211,7 @@ body,
   overflow-x: hidden;
   box-shadow: none !important;
   border-right: none;
-  background-color: var(--bg-2);
+  background-color: var(--secondary);
   /* 不要给 background-color 加 transition：切主题时侧栏背景会慢于标题栏/内容区，造成不同步闪烁 */
   transition:
     width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
@@ -232,7 +227,7 @@ body,
   bottom: 0;
   left: var(--layout-sider-width, 260px);
   width: 1px;
-  background: var(--border-light);
+  background: var(--border);
   z-index: 20;
   pointer-events: none;
 }
@@ -267,10 +262,10 @@ body,
 }
 .sidebar-tabs.arco-tabs .arco-tabs-header-title-active,
 .sidebar-tabs.arco-tabs .arco-tabs-header-title-active:hover {
-  color: var(--ui-accent-orange);
+  color: var(--brand);
 }
 .sidebar-tabs.arco-tabs .arco-tabs-header-ink {
-  background-color: var(--ui-accent-orange);
+  background-color: var(--brand);
 }
 /* Arco 用标题文字的 ::before 画圆角 hover 高亮，并向两侧各撑出 8px。headerPadding 关闭后首个标题无左边距，
    -8px 溢出会戳出 overflow:hidden 的 .arco-tabs 容器、左角被裁。此切换器只需橙字+下划线，直接去掉高亮。 */
@@ -289,8 +284,8 @@ body,
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: var(--color-fill-2);
-  color: var(--text-secondary);
+  background: var(--fill-shallow);
+  color: var(--foreground-secondary);
   line-height: 0;
   display: inline-flex;
   align-items: center;
@@ -303,7 +298,7 @@ body,
 }
 
 .store-action-icon:hover {
-  background: var(--color-fill-3);
+  background: var(--fill-deep);
   color: var(--foreground);
 }
 
@@ -312,15 +307,15 @@ body,
 }
 
 .store-action-icon--danger:hover {
-  color: var(--danger);
+  color: var(--destructive);
 }
 
 .store-action-badge {
   height: 24px;
   padding: 0 8px;
   border-radius: 999px;
-  background: var(--color-fill-2);
-  color: var(--text-secondary);
+  background: var(--fill-shallow);
+  color: var(--foreground-secondary);
   font-size: 11px;
   font-weight: 500;
   display: inline-flex;
@@ -389,14 +384,14 @@ body,
 
 /* 行尾渐隐遮罩颜色需跟随行背景态，否则尾部会露出与悬浮/选中底色不一致的冷色块 */
 .conversation-item {
-  --row-fade: var(--aou-1);
+  --row-fade: var(--secondary);
 }
 .conversation-item:hover {
-  --row-fade: var(--bg-hover);
+  --row-fade: var(--accent);
 }
 .conversation-item.conversation-item--selected,
 .conversation-item.conversation-item--selected:hover {
-  --row-fade: var(--bg-active);
+  --row-fade: var(--secondary-brand);
 }
 
 .chat-history__item-name {
@@ -480,12 +475,12 @@ body,
 /* Diff2Html 深色主题 */
 .d2h-dark-color-scheme {
   & .d2h-file-wrapper {
-    border-color: var(--bg-3);
+    border-color: var(--border);
   }
 
   & .d2h-file-header {
-    background-color: var(--bg-2) !important;
-    border-color: var(--bg-3);
+    background-color: var(--card) !important;
+    border-color: var(--border);
   }
 
   & .d2h-file-name {
@@ -493,36 +488,33 @@ body,
   }
 
   & .d2h-file-stats {
-    color: var(--text-secondary);
+    color: var(--foreground-secondary);
   }
 
-  & .d2h-diff-table {
-    background-color: var(--bg-1);
-  }
-
+  & .d2h-diff-table,
   & .d2h-diff-tbody {
-    background-color: var(--bg-1);
+    background-color: var(--background);
   }
 
   & .d2h-code-linenumber {
-    background-color: var(--bg-2);
-    color: var(--text-secondary);
-    border-color: var(--bg-3);
+    background-color: var(--card);
+    color: var(--foreground-secondary);
+    border-color: var(--border);
   }
 
   & .d2h-code-line {
     color: var(--foreground);
-    background-color: var(--bg-1);
+    background-color: var(--background);
   }
 
   & .d2h-info {
-    background-color: var(--bg-2);
-    color: var(--text-secondary);
+    background-color: var(--card);
+    color: var(--foreground-secondary);
   }
 
   & .d2h-emptyplaceholder {
-    background-color: var(--bg-2);
-    border-color: var(--bg-3);
+    background-color: var(--card);
+    border-color: var(--border);
   }
 
   & .d2h-ins {
@@ -572,21 +564,22 @@ body,
   }
 
   & .d2h-code-side-linenumber {
-    background-color: var(--bg-2);
-    color: var(--text-secondary);
-    border-color: var(--bg-3);
+    background-color: var(--card);
+    color: var(--foreground-secondary);
+    border-color: var(--border);
   }
 
   & .d2h-code-side-line {
-    background-color: var(--bg-1);
+    background-color: var(--background);
     color: var(--foreground);
   }
 
   & .d2h-cntx {
-    background-color: var(--bg-1);
+    background-color: var(--background);
+
     & .d2h-code-line,
     & .d2h-code-side-line {
-      background-color: var(--bg-1);
+      background-color: var(--background);
     }
   }
 }
@@ -611,7 +604,7 @@ body,
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  color: var(--text-secondary) !important;
+  color: var(--foreground-secondary) !important;
 }
 
 .sendbox-tools .sendbox-model-btn:hover,
@@ -622,8 +615,8 @@ body,
 }
 
 .chat-workspace .workspace-search-input .arco-input-inner-wrapper {
-  background-color: var(--color-bg-2) !important;
-  border: 1px solid var(--color-bg-3) !important;
+  background-color: var(--card) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 8px !important;
   box-shadow: none !important;
   transition:
@@ -632,49 +625,88 @@ body,
 }
 
 .chat-workspace .workspace-search-input .arco-input-inner-wrapper:hover {
-  border-color: var(--border-default) !important;
+  border-color: var(--input-hover) !important;
 }
 
 .chat-workspace .workspace-search-input .arco-input-inner-wrapper:focus-within {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent) !important;
+  border-color: var(--ring) !important;
+  box-shadow: var(--shadow-focus) !important;
 }
 
 .chat-workspace .workspace-search-input .arco-input {
   background-color: transparent !important;
-  color: var(--color-text-1) !important;
+  color: var(--foreground) !important;
   font-size: 13px !important;
 }
 
-.chat-workspace .workspace-search-input .arco-input::placeholder {
-  color: var(--color-text-3) !important;
-}
-
+.chat-workspace .workspace-search-input .arco-input::placeholder,
 .chat-workspace .workspace-search-input .arco-input-prefix,
 .chat-workspace .workspace-search-input .arco-input-suffix {
-  color: var(--color-text-3) !important;
+  color: var(--foreground-tertiary) !important;
 }
 
-/* 统一错误/成功/警告/信息样式，适配明暗模式 */
-
-.error-message-container {
+/* 项目基础样式：错误、成功、警告和信息提示 */
+.error-message-container,
+.success-message-container,
+.warning-message-container,
+.info-message-container {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
-  background-color: rgba(245, 63, 63, 0.08);
-  border: 1px solid rgba(245, 63, 63, 0.15);
 }
 
-.error-message-icon {
+.error-message-container {
+  background-color: color-mix(in srgb, var(--destructive) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--destructive) 20%, transparent);
+}
+
+.success-message-container {
+  background-color: color-mix(in srgb, var(--success) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+.warning-message-container {
+  background-color: color-mix(in srgb, var(--warning) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 20%, transparent);
+}
+
+.info-message-container {
+  background-color: color-mix(in srgb, var(--blue) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--blue) 20%, transparent);
+}
+
+.error-message-icon,
+.success-message-icon,
+.warning-message-icon,
+.info-message-icon {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  color: var(--danger, #f53f3f);
 }
 
-.error-message-text {
+.error-message-icon,
+.form-field-error {
+  color: var(--destructive);
+}
+
+.success-message-icon {
+  color: var(--success);
+}
+
+.warning-message-icon {
+  color: var(--warning);
+}
+
+.info-message-icon {
+  color: var(--blue);
+}
+
+.error-message-text,
+.success-message-text,
+.warning-message-text,
+.info-message-text {
   font-size: var(--text-sm);
   color: var(--foreground);
   line-height: 1.5;
@@ -687,7 +719,6 @@ body,
   gap: var(--space-2);
   margin-top: var(--space-2);
   font-size: var(--text-sm);
-  color: var(--danger, #f53f3f);
   transition: opacity 0.2s ease;
 }
 
@@ -700,158 +731,18 @@ body,
   padding: var(--space-6) var(--space-4);
   text-align: center;
   border-radius: var(--radius-xl);
-  border: 1px dashed var(--danger, #f53f3f);
-  background-color: rgba(245, 63, 63, 0.04);
+  border: 1px dashed var(--destructive);
+  background-color: color-mix(in srgb, var(--destructive) 4%, transparent);
 }
 
-.success-message-container {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  background-color: rgba(0, 180, 42, 0.08);
-  border: 1px solid rgba(0, 180, 42, 0.15);
-}
-
-.success-message-icon {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  color: var(--success, #00b42a);
-}
-
-.success-message-text {
-  font-size: var(--text-sm);
-  color: var(--foreground);
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-.warning-message-container {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  background-color: rgba(255, 125, 0, 0.08);
-  border: 1px solid rgba(255, 125, 0, 0.15);
-}
-
-.warning-message-icon {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  color: var(--warning, #ff7d00);
-}
-
-.warning-message-text {
-  font-size: var(--text-sm);
-  color: var(--foreground);
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-.info-message-container {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  background-color: rgba(22, 93, 255, 0.08);
-  border: 1px solid rgba(22, 93, 255, 0.15);
-}
-
-.info-message-icon {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  color: var(--primary, #165dff);
-}
-
-.info-message-text {
-  font-size: var(--text-sm);
-  color: var(--foreground);
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-/* 深色模式：更深背景透明度 + 更亮颜色，提升对比 */
-[data-theme='dark'] .error-message-container {
-  background-color: rgba(247, 101, 96, 0.15);
-  border-color: rgba(247, 101, 96, 0.35);
-}
-
-[data-theme='dark'] .error-message-text {
-  color: var(--text-white);
-}
-
-[data-theme='dark'] .success-message-container {
-  background-color: rgba(35, 195, 67, 0.15);
-  border-color: rgba(35, 195, 67, 0.35);
-}
-
-[data-theme='dark'] .success-message-text {
-  color: var(--text-white);
-}
-
-[data-theme='dark'] .warning-message-container {
-  background-color: rgba(255, 154, 46, 0.15);
-  border-color: rgba(255, 154, 46, 0.35);
-}
-
-[data-theme='dark'] .warning-message-text {
-  color: var(--text-white);
-}
-
-[data-theme='dark'] .info-message-container {
-  background-color: rgba(77, 159, 255, 0.15);
-  border-color: rgba(77, 159, 255, 0.35);
-}
-
-[data-theme='dark'] .info-message-text {
-  color: var(--text-white);
-}
-
-[data-theme='dark'] .form-field-error {
-  color: var(--danger);
-}
-
-[data-theme='dark'] .error-boundary-fallback {
-  background-color: rgba(247, 101, 96, 0.08);
-}
-
-/* 间隙露出与标题栏/侧栏一致的框体底色 */
+/* 间隙露出与标题栏、侧栏一致的框体底色 */
 .layout {
-  background-color: var(--bg-2);
-}
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-1);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--bg-4);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--bg-4);
+  background-color: var(--secondary);
 }
 
 .message-item.user .message-bubble {
-  background: var(--message-user-bg) !important;
-  border: 1px solid #cbc0da !important;
-}
-
-[data-theme='dark'] .message-item.user .message-bubble {
-  background: var(--message-user-bg) !important;
-  border-color: color-mix(in srgb, var(--aou-5) 46%, var(--border-default)) !important;
+  background: var(--secondary-brand) !important;
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--border)) !important;
 }
 
 ::selection {
@@ -860,59 +751,6 @@ body,
 
 [data-theme='dark'] ::selection {
   background: color-mix(in srgb, var(--brand) 30%, transparent);
-}
-
-/* ===== Aurora Inputs ===== */
-/* .guidContainer .guidInputCard,
-[class*='guidContainer'] [class*='guidInputCard'],
-.relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) {
-  position: relative;
-}
-
-.guidContainer .guidInputCard:focus-within,
-[class*='guidContainer'] [class*='guidInputCard']:focus-within,
-.relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools):focus-within {
-  overflow: visible !important;
-}
-
-.guidContainer .guidInputCard textarea::placeholder,
-[class*='guidContainer'] [class*='guidInputCard'] textarea::placeholder,
-.relative.p-16px.border-3.b.bg-fill-3.b-solid.rd-20px.flex.flex-col:has(.sendbox-tools) textarea::placeholder {
-  color: var(--retroma-aurora-placeholder) !important;
-  opacity: 1 !important;
-} */
-
-@keyframes elegantFlow {
-  0% {
-    background-position:
-      center center,
-      0% 50%;
-  }
-  100% {
-    background-position:
-      center center,
-      220% 50%;
-  }
-}
-
-@keyframes softGlow {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 1px var(--retroma-aurora-input-ring),
-      0 0 16px rgba(255, 106, 1, 0.1),
-      0 0 18px rgba(138, 43, 226, 0.1),
-      0 0 20px rgba(0, 191, 255, 0.12),
-      var(--retroma-aurora-input-shadow);
-  }
-  50% {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, #f8c91c 30%, transparent),
-      0 0 18px rgba(255, 106, 1, 0.14),
-      0 0 22px rgba(138, 43, 226, 0.14),
-      0 0 24px rgba(0, 191, 255, 0.18),
-      var(--retroma-aurora-input-shadow-strong);
-  }
 }
 
 @keyframes animationPop {

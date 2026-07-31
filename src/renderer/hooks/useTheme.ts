@@ -26,6 +26,11 @@ const resolveTheme = (preference: ThemePreference): Theme => {
   return preference;
 };
 
+const getAppliedTheme = (): Theme => {
+  const theme = document.documentElement.getAttribute('data-theme');
+  return theme === 'light' || theme === 'dark' ? theme : getSystemTheme();
+};
+
 // Apply theme to document
 const applyTheme = (theme: Theme) => {
   document.documentElement.setAttribute('data-theme', theme);
@@ -44,9 +49,11 @@ const isThemePreference = (value: unknown): value is ThemePreference => value ==
 const initTheme = async (): Promise<ThemePreference> => {
   // 先用缓存的已解析主题同步应用，消除首屏闪烁。
   // Apply the cached resolved theme synchronously first to avoid a first-paint flash.
-  const cached = localStorage.getItem(THEME_CACHE_KEY);
-  if (cached === 'light' || cached === 'dark') {
-    applyTheme(cached);
+  try {
+    const cached = localStorage.getItem(THEME_CACHE_KEY);
+    if (cached === 'light' || cached === 'dark') applyTheme(cached);
+  } catch {
+    /* noop */
   }
   let preference: ThemePreference = DEFAULT_PREFERENCE;
   try {
@@ -67,7 +74,7 @@ if (typeof window !== 'undefined') {
 
 const useTheme = (): [Theme, ThemePreference, (preference: ThemePreference) => Promise<void>] => {
   const [preference, setPreferenceState] = useState<ThemePreference>(DEFAULT_PREFERENCE);
-  const [theme, setThemeState] = useState<Theme>(resolveTheme(DEFAULT_PREFERENCE));
+  const [theme, setThemeState] = useState<Theme>(getAppliedTheme);
 
   // Set theme preference with persistence
   const setPreference = useCallback(
