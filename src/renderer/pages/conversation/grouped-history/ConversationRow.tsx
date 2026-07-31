@@ -58,7 +58,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       <div
         id={'c-' + conversation.id}
         className={classNames('chat-history__item h-9 px-2.5 rounded-lg flex justify-start items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item min-w-0 transition-colors', {
-          'hover:bg-fill-default': !batchMode,
+          'hover:bg-[color-mix(in_srgb,var(--foreground)_6%,var(--secondary))]': !batchMode,
           'conversation-item--selected': selected,
           'bg-fill-default': batchMode && checked,
         })}

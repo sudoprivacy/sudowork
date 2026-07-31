@@ -25,23 +25,23 @@ const About: React.FC = () => {
     <PageWrapper contentClassName='max-w-120'>
       <div className='f-center flex-col w-full min-h-[62vh] py-8 text-center'>
         {/* Logo 磁贴 / Logo tile */}
-        <div className='f-center w-19 h-19 rd-18px border shadow-sm'>
+        <div className='f-center h-19 w-19 border border-border bg-card shadow-sm rd-18px'>
           <img src={config.logo || sudoIcon} alt={config.about_name} className='w-11.5 h-11.5' />
         </div>
 
         <Typography.Title heading={4} className='text-20px font-700 text-foreground mb-1.5 mt-0 lh-28px'>
           {config.about_name}
         </Typography.Title>
-        <div className='text-13px text-tertiary'>{config.app_company_name}</div>
+        <div className='text-13px text-foreground-tertiary'>{config.app_company_name}</div>
 
         {/* 链接 / Links */}
         <div className='f-center gap-3 mt-4'>
-          <button type='button' className='group inline-flex items-center gap-1 bg-transparent border-none p-0 text-12px text-secondary cursor-pointer transition-colors hover:text-[var(--ui-accent-orange)]' onClick={() => void openExternalUrl(brand.websiteUrl).catch(console.error)}>
+          <button type='button' className='group inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-12px text-foreground-secondary transition-colors hover:text-brand' onClick={() => void openExternalUrl(brand.websiteUrl).catch(console.error)}>
             <span>{t('settings.officialWebsite', '官网')}</span>
             <IconLink className='text-12px opacity-60 transition-opacity group-hover:opacity-100' />
           </button>
-          <span className='text-12px text-tertiary'>·</span>
-          <button type='button' className='group inline-flex items-center gap-1 bg-transparent border-none p-0 text-12px text-secondary cursor-pointer transition-colors hover:text-[var(--ui-accent-orange)]' onClick={() => void openExternalUrl(brand.privacyPolicyUrl).catch(console.error)}>
+          <span className='text-12px text-foreground-tertiary'>·</span>
+          <button type='button' className='group inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-12px text-foreground-secondary transition-colors hover:text-brand' onClick={() => void openExternalUrl(brand.privacyPolicyUrl).catch(console.error)}>
             <span>{t('settings.privacyPolicy', '隐私声明')}</span>
             <IconLink className='text-12px opacity-60 transition-opacity group-hover:opacity-100' />
           </button>
@@ -49,11 +49,11 @@ const About: React.FC = () => {
 
         {/* 版本信息 / Version info */}
         <div className='flex items-center gap-1.5 mt-6'>
-          <span className='px-2.5 py-[3px] rd-20px text-12px bg-fill-2 text-secondary font-mono font-500'>{buildVersion}</span>
-          {isNightlyBuild && <span className='px-2 py-0.5 rd-10px text-11px bg-secondary-brand text-brand font-500'>{t('update.nightlyBadge', 'Nightly 预览版')}</span>}
+          <span className='bg-secondary px-2.5 py-[3px] rd-20px text-12px text-secondary-foreground font-mono font-500'>{buildVersion}</span>
+          {isNightlyBuild && <span className='bg-brand-surface px-2 py-0.5 rd-10px text-11px text-brand font-500'>{t('update.nightlyBadge', 'Nightly 预览版')}</span>}
         </div>
         {isNightlyBuild && buildDate !== 'unknown' && (
-          <div className='mt-1.5 text-11px text-tertiary font-mono'>
+          <div className='mt-1.5 text-11px text-foreground-tertiary font-mono'>
             {t('update.buildDate', '构建日期')}: {buildDate} · {buildCommit}
           </div>
         )}

@@ -95,11 +95,11 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
     <>
       <Modal title={t('settings.ops.title', '运维中心')} visible={visible} onCancel={onClose} footer={null} style={{ width: 500 }}>
         <div className='flex flex-col gap-4'>
-          <div className='flex items-center justify-between p-3 border-light rd-8px'>
+          <div className='flex items-center justify-between border border-border bg-secondary p-3 rd-8px'>
             <div className='flex-1'>
               <div className='text-14px text-foreground font-500'>{t('settings.ops.configFile', 'Sudo Code 配置文件')}</div>
               <Tooltip content='~/.nexus/sudowork/sudocode/sudocode.json'>
-                <div className='text-12px text-secondary mt-0.5'>{t('settings.ops.editConfigFile', '直接编辑配置文件')}</div>
+                <div className='mt-0.5 text-12px text-foreground-secondary'>{t('settings.ops.editConfigFile', '直接编辑配置文件')}</div>
               </Tooltip>
             </div>
             <Button size='small' icon={<IconEdit />} onClick={openConfigEditor} loading={configLoading}>
@@ -107,7 +107,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
             </Button>
           </div>
 
-          <div className='text-12px text-secondary text-center'>{t('settings.ops.staffOnly', '此区域仅供运维人员使用')}</div>
+          <div className='text-center text-12px text-foreground-tertiary'>{t('settings.ops.staffOnly', '此区域仅供运维人员使用')}</div>
         </div>
       </Modal>
 
@@ -115,7 +115,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
       <Modal title={t('settings.ops.editConfigTitle', '编辑 Sudo Code 配置')} visible={editVisible} onOk={handleSaveRawConfig} onCancel={() => setEditVisible(false)} style={{ width: 700 }} confirmLoading={configLoading}>
         <div className='flex flex-col gap-2'>
           <Tooltip content={configPath}>
-            <Text type='secondary' className='text-12px'>
+            <Text className='text-12px text-foreground-secondary'>
               {t('settings.ops.pathLabel', '路径：')}
               {configPath}
             </Text>

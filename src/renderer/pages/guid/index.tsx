@@ -626,12 +626,12 @@ const GuidPage: React.FC = () => {
             <div className='flex items-center justify-between w-full mb-3 animate-fade-in animate-duration-400 animate-ease-out'>
               <div className='flex items-center gap-12px flex-1 min-w-0'>
                 {/* Back button */}
-                <div className='flex items-center justify-center w-32px h-32px rd-full cursor-pointer hover:bg-fill-2 transition-colors flex-shrink-0' onClick={handleBackFromAssistant}>
+                <div className='flex items-center justify-center w-32px h-32px rd-full cursor-pointer hover:bg-fill-2 transition-colors shrink-0' onClick={handleBackFromAssistant}>
                   <ArrowLeft size={18} color='var(--color-text-2)' />
                 </div>
 
                 {/* Avatar */}
-                <div className='flex-shrink-0'>
+                <div className='shrink-0'>
                   {selectedAssistantAvatar?.isImageAvatar && selectedAssistantAvatar.avatarImage ? (
                     <img src={selectedAssistantAvatar.avatarImage} alt='' width={28} height={28} style={{ objectFit: 'contain' }} />
                   ) : selectedAssistantAvatar?.avatarValue ? (

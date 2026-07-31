@@ -303,7 +303,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
       <div className='flex flex-col h-full overflow-hidden'>
         <div className='flex flex-col flex-1 gap-4 pr-2 overflow-y-auto'>
           {/* Name & Avatar */}
-          <div className='flex-shrink-0'>
+          <div className='shrink-0'>
             <Typography.Text bold>
               <span className='text-red-500'>*</span> {t('settings.assistantNameAvatar', '名称及头像')}
             </Typography.Text>
@@ -326,13 +326,13 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           </div>
 
           {/* Description */}
-          <div className='flex-shrink-0'>
+          <div className='shrink-0'>
             <Typography.Text bold>{t('settings.assistantDescription', '智能体描述')}</Typography.Text>
             <Input className='mt-2.5' value={editDescription} onChange={(value) => setEditDescription(value)} disabled={isBuiltin || isReadonly} placeholder={t('settings.assistantDescriptionPlaceholder', '帮你解决什么问题')} />
           </div>
 
           {/* Main Agent - locked to Sudo Code */}
-          <div className='flex-shrink-0'>
+          <div className='shrink-0'>
             <Typography.Text bold>{t('settings.assistantMainAgent', '主智能体')}</Typography.Text>
             <Select className='mt-2.5 w-full' value={DEFAULT_PRESET_AGENT_TYPE} disabled>
               <Select.Option key='scode' value='scode'>
@@ -345,13 +345,13 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           </div>
 
           {/* Rules */}
-          <div className='flex-shrink-0'>
-            <Typography.Text bold className='flex-shrink-0'>
+          <div className='shrink-0'>
+            <Typography.Text bold className='shrink-0'>
               {t('settings.assistantRules', '规则')}
             </Typography.Text>
             <div className='mt-2.5 border overflow-hidden rounded-4px' style={{ height: '300px' }}>
               {!isBuiltin && !isReadonly && (
-                <div className='flex items-center h-9 bg-fill-2 border-b flex-shrink-0'>
+                <div className='flex items-center h-9 bg-fill-2 border-b shrink-0'>
                   <div className={`flex items-center h-full px-4 cursor-pointer transition-all text-13px font-medium ${promptViewMode === 'edit' ? 'text-primary border-b-2px border-primary' : 'text-secondary hover:text-foreground'}`} onClick={() => setPromptViewMode('edit')}>
                     {t('settings.promptEdit', 'Edit')}
                   </div>
@@ -389,7 +389,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
           </div>
 
           {/* Skills */}
-          <div className='flex-shrink-0 mt-4'>
+          <div className='shrink-0 mt-4'>
             <div className='flex items-center justify-between mb-3'>
               <Typography.Text bold>{t('settings.assistantSkills', '技能')}</Typography.Text>
             </div>
@@ -417,7 +417,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                             disabled={isReadonly}
                             className={`mt-0.5 ${isReadonly ? '' : 'cursor-pointer'}`}
                           />
-                          <div className='size-12 flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
+                          <div className='size-12 shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (
                               <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
@@ -431,8 +431,8 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                           <div className='flex-1 min-w-0'>
                             <div className='flex items-center gap-1.5'>
                               <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
-                              {!skill.isBuiltin && displayVersion && <span className='px-5px py-0 bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
-                              {skill.isBuiltin && <Shield size={14} className='text-primary flex-shrink-0' />}
+                              {!skill.isBuiltin && displayVersion && <span className='px-5px py-0 bg-fill-3 text-secondary text-10px rd-3px whitespace-nowrap shrink-0 leading-18px'>v{displayVersion}</span>}
+                              {skill.isBuiltin && <Shield size={14} className='text-primary shrink-0' />}
                             </div>
                             {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
                           </div>
@@ -470,7 +470,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                             disabled={isReadonly}
                             className={`mt-0.5 ${isReadonly ? '' : 'cursor-pointer'}`}
                           />
-                          <div className='size-12 flex-shrink-0 rd-8px overflow-hidden bg-fill-2'>
+                          <div className='size-12 shrink-0 rd-8px overflow-hidden bg-fill-2'>
                             {icon ? (
                               <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
                             ) : emoji ? (
@@ -484,7 +484,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({ visible, assi
                           <div className='flex-1 min-w-0'>
                             <div className='flex items-center gap-1.5'>
                               <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
-                              {skill.isBuiltin && <Shield size={14} className='text-primary flex-shrink-0' />}
+                              {skill.isBuiltin && <Shield size={14} className='text-primary shrink-0' />}
                             </div>
                             {description && <div className='text-11px text-secondary mt-3px line-clamp-2 leading-relaxed'>{description}</div>}
                           </div>
