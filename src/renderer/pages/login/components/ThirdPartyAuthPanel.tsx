@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { SystemConfig, ThirdPartyAuthProvider } from '@/common/systemConfig';
 import { buildCasLoginUrl, buildCasServiceUrl, parseCasCallbackAction, resolveThirdPartyAuthConfig } from '@/common/thirdPartyAuthConfig';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../../context/AuthContext';
 
 export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, systemConfig, onBackToModeSelect }: IThirdPartyAuthPanelProps) {
   const { t } = useTranslation();

@@ -10,7 +10,7 @@ import { Button, Input, Message, Radio } from '@arco-design/web-react';
 import { Lock, Ticket, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { validatePassword } from '@/renderer/utils/passwordValidation';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../../context/AuthContext';
 
 /**
  * 用户名密码 登录/注册面板（system login_method=1 时由 LoginPage 渲染）。

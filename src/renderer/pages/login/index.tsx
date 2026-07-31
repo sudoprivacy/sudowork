@@ -12,55 +12,22 @@ import { KeyRound, Lock, ShieldCheck, Smartphone, User } from 'lucide-react';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveCachedTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
-import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useSystemLoginMethod } from '@/renderer/hooks/useSystemLoginMethod';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
-import WindowControls from '../../components/WindowControls';
 import { useAuth, GUEST_FLAG_KEY } from '../../context/AuthContext';
 import AppLoader from '../../components/AppLoader';
-import PasswordAuthPanel from './PasswordAuthPanel';
-import ThirdPartyAuthPanel from './ThirdPartyAuthPanel';
+import LoginHeader from './components/LoginHeader';
+import LoginShell from './components/LoginShell';
+import PasswordAuthPanel from './components/PasswordAuthPanel';
+import ThirdPartyAuthPanel from './components/ThirdPartyAuthPanel';
 
 // Generate a random state token to bind the OAuth2 authorize request to its callback.
 function generateOAuth2State(): string {
   const bytes = new Uint8Array(16);
   (globalThis.crypto || window.crypto).getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-// Windows/Linux 显示自定义窗口按钮；macOS 由系统原生信号灯负责，避免重复
-// Windows/Linux render custom window controls; macOS relies on native traffic lights, so skip them to avoid duplicates
-const showWindowControls = isElectronDesktop() && !isMacOS();
-
-function LoginShell({ children }: ILoginShellProps) {
-  return (
-    <main className='relative box-border flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-auto bg-background px-4 py-12 text-foreground [-webkit-app-region:drag]'>
-      {showWindowControls && (
-        <div className='fixed right-0 top-0 z-50 h-8 [-webkit-app-region:no-drag]'>
-          <WindowControls />
-        </div>
-      )}
-      <div aria-hidden='true' className='pointer-events-none fixed inset-0 overflow-hidden'>
-        <div className='absolute -right-80px -top-120px h-320px w-320px rounded-full bg-accent opacity-70 blur-64px' />
-        <div className='absolute -bottom-120px -left-80px h-320px w-320px rounded-full bg-accent opacity-70 blur-64px' />
-      </div>
-      {children}
-    </main>
-  );
-}
-
-function LoginHeader({ appName, description, logo }: ILoginHeaderProps) {
-  return (
-    <header className='mb-7 text-center'>
-      <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-xl bg-secondary shadow-sm'>
-        <img src={logo || SudoworkIcon} alt={appName} className='h-14 w-14 object-contain' />
-      </div>
-      <h1 className='text-2xl font-700 tracking-tight text-foreground'>{appName}</h1>
-      <p className='mt-2 text-sm leading-6 text-foreground-tertiary'>{description}</p>
-    </header>
-  );
 }
 
 // Validate phone number format (same as server-side)
@@ -683,15 +650,5 @@ const LoginPage: React.FC = () => {
     </LoginShell>
   );
 };
-
-interface ILoginShellProps {
-  children: React.ReactNode;
-}
-
-interface ILoginHeaderProps {
-  appName: string;
-  description: string;
-  logo?: string;
-}
 
 export default LoginPage;
