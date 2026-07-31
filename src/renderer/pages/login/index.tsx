@@ -36,7 +36,7 @@ const showWindowControls = isElectronDesktop() && !isMacOS();
 
 function LoginShell({ children }: ILoginShellProps) {
   return (
-    <main className='relative flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-auto bg-background px-4 py-12 text-foreground [-webkit-app-region:drag]'>
+    <main className='relative box-border flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-auto bg-background px-4 py-12 text-foreground [-webkit-app-region:drag]'>
       {showWindowControls && (
         <div className='fixed right-0 top-0 z-50 h-8 [-webkit-app-region:no-drag]'>
           <WindowControls />
