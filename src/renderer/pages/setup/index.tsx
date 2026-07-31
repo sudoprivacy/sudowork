@@ -186,7 +186,7 @@ export default function ModeSetup() {
               {isConsumerServerFormVisible && (
                 <div className='mt-4 border-t border-border pt-4'>
                   <label className='mb-2 block text-12px font-600 text-foreground'>{t('setup.serverUrl.toggle')}</label>
-                  <Input id='consumer-server-url' size='large' placeholder={t('setup.serverUrl.placeholder')} value={consumerServerUrl} onChange={setConsumerServerUrl} className='border border-input bg-card' />
+                  <Input id='consumer-server-url' size='large' placeholder={t('setup.serverUrl.placeholder')} value={consumerServerUrl} onChange={setConsumerServerUrl} className='input-on-muted' />
                   <p className={`mb-0 mt-2 text-12px ${isConsumerUrlInvalid ? 'text-destructive' : 'text-foreground-tertiary'}`}>{isConsumerUrlInvalid ? t('setup.serverUrl.invalidUrl') : t('setup.serverUrl.hint')}</p>
                 </div>
               )}
@@ -201,7 +201,7 @@ export default function ModeSetup() {
                 size='large'
                 placeholder={t('setup.mode.enterprise.serverPlaceholder')}
                 value={serverUrl}
-                className='border border-input bg-card'
+                className='input-on-muted'
                 onChange={(value) => {
                   setServerUrl(value);
                   setVerifyError(null);
@@ -216,11 +216,11 @@ export default function ModeSetup() {
 
           <div className='mt-6'>
             {isConsumerSelected ? (
-              <Button type='primary' size='large' long onClick={onConsumerNext} disabled={isConsumerUrlInvalid} className='h-48px! rounded-12px! text-14px! font-650!'>
+              <Button type='primary' size='large' long onClick={onConsumerNext} disabled={isConsumerUrlInvalid} className='h-12 rounded-lg text-14px! font-650!'>
                 {t('setup.mode.consumer.action')}
               </Button>
             ) : (
-              <Button type='primary' size='large' long loading={isVerifying} onClick={() => void onVerifyServer()} disabled={!serverUrl.trim() || isEnterpriseUrlInvalid || isVerifying} className='h-48px! rounded-12px! text-14px! font-650!'>
+              <Button type='primary' size='large' long loading={isVerifying} onClick={() => void onVerifyServer()} disabled={!serverUrl.trim() || isEnterpriseUrlInvalid || isVerifying} className='h-12 rounded-lg text-14px! font-650!'>
                 {isVerifying ? t('setup.mode.enterprise.verifying') : t('setup.mode.enterprise.action')}
               </Button>
             )}

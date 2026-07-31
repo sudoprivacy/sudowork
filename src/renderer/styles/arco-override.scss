@@ -53,6 +53,23 @@ body[arco-theme='dark'] {
   --arcoblue-10: 250, 250, 250;
 }
 
+.arco-input.input-on-muted {
+  background-color: var(--card);
+  border-color: var(--input);
+
+  &:hover {
+    background-color: var(--card);
+    border-color: var(--input-hover);
+  }
+
+  &:focus,
+  &.arco-input-focus {
+    background-color: var(--card);
+    border-color: var(--ring);
+    box-shadow: var(--shadow-focus);
+  }
+}
+
 .arco-btn {
   display: inline-flex;
   align-items: center;
