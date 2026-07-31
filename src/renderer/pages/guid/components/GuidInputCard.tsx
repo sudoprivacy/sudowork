@@ -7,7 +7,7 @@
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { IconClose, IconPaste } from '@arco-design/web-react/icon';
-import { FolderOpen, Lightning } from '@icon-park/react';
+import { FolderOpen, Zap } from 'lucide-react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCompositionInput } from '@/renderer/hooks/useCompositionInput';
@@ -152,7 +152,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       {selectedSkills && selectedSkills.length > 0 && (
         <div className='flex flex-col gap-6px mb-8px'>
           <div className='flex items-center gap-4px text-11px text-foreground-secondary'>
-            <Lightning size='12' />
+            <Zap size={12} />
             <span>当前使用技能</span>
           </div>
           <div className='flex flex-wrap gap-6px'>
@@ -160,7 +160,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
               const skillInfo = getSkillDisplayName?.(skillName);
               const displayName = skillInfo?.displayName || skillName;
               return (
-                <Tag key={skillName} closable onClose={() => onRemoveSkill?.(skillName)} className='text-12px rd-full' icon={<Lightning size='12' className='mr-4px text-brand' />}>
+                <Tag key={skillName} closable onClose={() => onRemoveSkill?.(skillName)} className='text-12px rd-full' icon={<Zap size={12} className='mr-4px text-brand' />}>
                   {displayName}
                 </Tag>
               );
@@ -199,7 +199,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       {dir && (
         <div className='mt-8px flex items-start justify-between gap-10px border-t border-border px-10px py-6px text-13px text-foreground-secondary'>
           <div className='flex items-start min-w-0 flex-1 gap-8px'>
-            <FolderOpen className='mt-1px shrink-0 text-foreground-secondary' theme='outline' size='16' style={{ lineHeight: 0 }} />
+            <FolderOpen className='mt-1px shrink-0 text-foreground-secondary' size={16} style={{ lineHeight: 0 }} />
             <Tooltip content={dir} position='top'>
               <span className='block min-w-0 whitespace-normal break-all leading-18px'>
                 {t('conversation.welcome.currentWorkspace')}: {dir}

@@ -5,7 +5,7 @@
  */
 
 import { IconClose } from '@arco-design/web-react/icon';
-import { Robot } from '@icon-park/react';
+import { Bot } from 'lucide-react';
 import React from 'react';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AcpBackendConfig, AvailableAgent } from '../types';
@@ -29,7 +29,7 @@ const PresetAgentTag: React.FC<PresetAgentTagProps> = ({ agentInfo, customAgents
 
   return (
     <div className='flex max-w-full min-w-0 cursor-pointer select-none items-center gap-1.5 bg-secondary py-1 pr-1.5 pl-2.5 transition-colors hover:bg-accent rd-4' onClick={() => {}}>
-      {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', flexShrink: 0 }} /> : avatarValue ? <span style={{ fontSize: 14, lineHeight: '16px', flexShrink: 0 }}>{avatarValue}</span> : <Robot theme='outline' size={16} style={{ flexShrink: 0 }} />}
+      {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain', flexShrink: 0 }} /> : avatarValue ? <span style={{ fontSize: 14, lineHeight: '16px', flexShrink: 0 }}>{avatarValue}</span> : <Bot size={16} style={{ flexShrink: 0 }} />}
       <span className='max-w-200px overflow-hidden text-ellipsis whitespace-nowrap text-14px text-foreground'>{name}</span>
       <div
         className='f-center ml-0.5 size-4 shrink-0 transition-colors hover:bg-fill-deep rd-full'

@@ -5,8 +5,8 @@
  */
 
 import { Dropdown, Tooltip } from '@arco-design/web-react';
-import { Brain, Plus, Right } from '@icon-park/react';
 import classNames from 'classnames';
+import { Brain, ChevronRight, Plus } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -77,7 +77,7 @@ const GeminiSubMenu: React.FC<{
       <div className={ROW_CLASS}>
         <HealthDot status={healthStatus} />
         <span className='flex-1 truncate'>{label}</span>
-        <Right theme='outline' size='14' className='shrink-0 text-foreground-tertiary' />
+        <ChevronRight size={14} className='shrink-0 text-foreground-tertiary' />
       </div>
     </Dropdown>
   );
@@ -150,7 +150,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
               <>
                 <div className='px-10px py-12px text-center text-14px text-foreground-secondary'>{t('settings.noAvailableModels')}</div>
                 <div className={classNames(ROW_CLASS, '!h-32px text-12px text-foreground-secondary')} onClick={() => navigate('/settings/model')}>
-                  <Plus theme='outline' size='12' />
+                  <Plus size={12} />
                   <span>{t('settings.addModel')}</span>
                 </div>
               </>
@@ -217,7 +217,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                   );
                 })}
                 <div className={classNames(ROW_CLASS, '!h-32px text-12px text-foreground-secondary')} onClick={() => navigate('/settings/model')}>
-                  <Plus theme='outline' size='12' />
+                  <Plus size={12} />
                   <span>{t('settings.addModel')}</span>
                 </div>
               </>
@@ -225,7 +225,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           </div>
         }
       >
-        <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={geminiButtonLabel} />
+        <ActionChip icon={<Brain size={14} />} label={geminiButtonLabel} />
       </Dropdown>
     );
   }
@@ -269,14 +269,14 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
             </div>
           }
         >
-          <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={acpButtonLabel} />
+          <ActionChip icon={<Brain size={14} />} label={acpButtonLabel} />
         </Dropdown>
       );
     }
 
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-        <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={acpButtonLabel} />
+        <ActionChip icon={<Brain size={14} />} label={acpButtonLabel} />
       </Tooltip>
     );
   }
@@ -284,7 +284,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
   // Fallback: no model switching
   return (
     <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-      <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={acpButtonLabel} />
+      <ActionChip icon={<Brain size={14} />} label={acpButtonLabel} />
     </Tooltip>
   );
 };

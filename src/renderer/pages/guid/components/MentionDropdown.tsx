@@ -5,7 +5,7 @@
  */
 
 import { Menu } from '@arco-design/web-react';
-import { Robot } from '@icon-park/react';
+import { Bot } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -35,7 +35,7 @@ const MentionDropdown: React.FC<MentionDropdownProps> = ({ menuRef, options, sel
                 ) : option.logo ? (
                   <img src={option.logo} alt={option.label} width={16} height={16} style={{ objectFit: 'contain' }} />
                 ) : (
-                  <Robot theme='outline' size={16} />
+                  <Bot size={16} />
                 )}
                 <span>{option.label}</span>
               </div>
