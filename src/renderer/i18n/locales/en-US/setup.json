@@ -5,6 +5,34 @@
     "hint": "Leave empty to use the default server",
     "invalidUrl": "Please enter a valid HTTP/HTTPS address"
   },
+  "mode": {
+    "eyebrow": "First-time setup",
+    "title": "Welcome to {{name}}",
+    "subtitle": "Choose how you want to work. Connection details can still be changed later in Settings.",
+    "saveFailed": "Setup failed. Please try again.",
+    "configure": "Configure",
+    "collapse": "Collapse",
+    "footerHint": "This choice only affects this device and can be changed later in Settings.",
+    "consumer": {
+      "title": "Personal mode",
+      "description": "Use the default cloud service for personal work and a quick start.",
+      "connectionTitle": "Use the default service",
+      "connectionDescription": "No setup is required. You can override it here if you have a dedicated address.",
+      "action": "Enter personal mode"
+    },
+    "enterprise": {
+      "title": "Enterprise mode",
+      "description": "Connect to your organization's service and load its configuration and branding.",
+      "serverLabel": "Enterprise server address",
+      "serverPlaceholder": "https://your-company-server.com",
+      "serverHint": "Enter the enterprise server address provided by your administrator.",
+      "httpsHint": "HTTPS is recommended to keep the connection secure.",
+      "invalidResponse": "The server returned an invalid response. Contact your administrator.",
+      "connectionFailed": "Unable to connect. Check that the server address is correct.",
+      "action": "Verify and enter enterprise mode",
+      "verifying": "Verifying connection..."
+    }
+  },
   "init": {
     "headerTitle": "Preparing Runtime Environment",
     "startupTitle": "Starting Core Services",

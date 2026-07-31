@@ -11,20 +11,12 @@ import { User, Lock, Ticket } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { validatePassword } from '@/renderer/utils/passwordValidation';
 import { useAuth } from '../../context/AuthContext';
-import './LoginPage.css';
-
-interface PasswordAuthPanelProps {
-  appName: string;
-  logo?: string;
-  defaultLogo: string;
-  onBackToModeSelect?: () => void;
-}
 
 /**
  * 用户名密码 登录/注册面板（system login_method=1 时由 LoginPage 渲染）。
  * 自包含，不与手机验证码逻辑交织；登录/注册成功复用 AuthContext 的 handleLoginSuccess。
  */
-const PasswordAuthPanel: React.FC<PasswordAuthPanelProps> = ({ appName, logo, defaultLogo, onBackToModeSelect }) => {
+export default function PasswordAuthPanel({ appName, logo, defaultLogo, onBackToModeSelect }: IPasswordAuthPanelProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { enterGuest, loginByPassword, registerByPassword } = useAuth();
@@ -102,76 +94,96 @@ const PasswordAuthPanel: React.FC<PasswordAuthPanelProps> = ({ appName, logo, de
   };
 
   return (
-    <div className='login-page__card'>
-      <div className='login-page__header'>
-        <div className='login-page__logo'>
-          <img src={logo || defaultLogo} alt={appName} className='w-64px h-64px object-contain' />
+    <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+      <header className='mb-7 text-center'>
+        <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-[var(--radius-xl)] bg-secondary shadow-[var(--shadow-sm)]'>
+          <img src={logo || defaultLogo} alt={appName} className='h-14 w-14 object-contain' />
         </div>
-        <h1 className='text-28px font-800 mb-2'>{appName}</h1>
-        <p className='text-13px text-secondary'>{t('login.pwdSubtitle')}</p>
-      </div>
+        <h1 className='text-2xl font-700 tracking-tight text-foreground'>{appName}</h1>
+        <p className='mt-2 text-sm leading-6 text-foreground-tertiary'>{t('login.pwdSubtitle')}</p>
+      </header>
 
-      <div className='login-tabs'>
-        <button type='button' className={`login-tab ${mode === 'login' ? 'login-tab--active' : ''}`} onClick={() => setMode('login')}>
+      <div className='grid grid-cols-2 gap-1 rounded-[var(--radius-lg)] bg-secondary p-1' role='tablist'>
+        <button type='button' role='tab' className={getTabClass(mode === 'login')} aria-selected={mode === 'login'} onClick={() => setMode('login')}>
           {t('login.pwdLoginTab')}
         </button>
-        <button type='button' className={`login-tab ${mode === 'register' ? 'login-tab--active' : ''}`} onClick={() => setMode('register')}>
+        <button type='button' role='tab' className={getTabClass(mode === 'register')} aria-selected={mode === 'register'} onClick={() => setMode('register')}>
           {t('login.pwdRegisterTab')}
         </button>
       </div>
 
-      <div className='flex flex-col gap-20px mt-24px'>
-        <div className='flex flex-col gap-8px'>
-          <div className='text-12px font-600 text-secondary ml-4px'>{t('login.pwdAccountLabel')}</div>
-          <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdAccountPlaceholder')} value={account} onChange={setAccount} maxLength={50} className='login-input !rd-12px h-48px' />
+      <div className='mt-6 flex flex-col gap-5'>
+        <div className='flex flex-col gap-2'>
+          <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.pwdAccountLabel')}</div>
+          <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder={t('login.pwdAccountPlaceholder')} value={account} onChange={setAccount} maxLength={50} className='h-12 !rounded-[var(--radius-lg)]' />
         </div>
 
-        <div className='flex flex-col gap-8px'>
-          <div className='text-12px font-600 text-secondary ml-4px'>{t('login.pwdPasswordLabel')}</div>
-          <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={mode === 'login' ? t('login.pwdPasswordPlaceholder') : t('login.pwdRegisterPasswordPlaceholder')} value={password} onChange={setPassword} maxLength={20} className='login-input !rd-12px h-48px' />
-          {mode === 'register' && <div className='text-12px text-tertiary ml-4px'>{t('login.pwdRuleHint')}</div>}
+        <div className='flex flex-col gap-2'>
+          <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.pwdPasswordLabel')}</div>
+          <Input.Password
+            size='large'
+            prefix={<Lock className='text-muted-foreground' />}
+            placeholder={mode === 'login' ? t('login.pwdPasswordPlaceholder') : t('login.pwdRegisterPasswordPlaceholder')}
+            value={password}
+            onChange={setPassword}
+            maxLength={20}
+            className='h-12 !rounded-[var(--radius-lg)]'
+          />
+          {mode === 'register' && <div className='ml-1 text-xs leading-5 text-muted-foreground'>{t('login.pwdRuleHint')}</div>}
         </div>
 
         {mode === 'register' && (
           <>
-            <div className='flex flex-col gap-8px'>
-              <div className='text-12px font-600 text-secondary ml-4px'>
-                {t('login.pwdNicknameLabel')} <span className='text-tertiary text-11px font-500'>{t('login.pwdNicknameOptional')}</span>
+            <div className='flex flex-col gap-2'>
+              <div className='ml-1 text-sm font-600 text-foreground-secondary'>
+                {t('login.pwdNicknameLabel')} <span className='text-xs font-500 text-muted-foreground'>{t('login.pwdNicknameOptional')}</span>
               </div>
-              <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdNicknamePlaceholder')} value={nickname} onChange={setNickname} maxLength={50} className='login-input !rd-12px h-48px' />
+              <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder={t('login.pwdNicknamePlaceholder')} value={nickname} onChange={setNickname} maxLength={50} className='h-12 !rounded-[var(--radius-lg)]' />
             </div>
-            <div className='flex flex-col gap-8px'>
-              <div className='text-12px font-600 text-secondary ml-4px'>{t('login.pwdInvitationCodeLabel')}</div>
-              <Input size='large' prefix={<Ticket className='text-tertiary' />} placeholder={t('login.pwdInvitationCodePlaceholder')} value={invitationCode} onChange={setInvitationCode} maxLength={50} className='login-input !rd-12px h-48px' />
+            <div className='flex flex-col gap-2'>
+              <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.pwdInvitationCodeLabel')}</div>
+              <Input size='large' prefix={<Ticket className='text-muted-foreground' />} placeholder={t('login.pwdInvitationCodePlaceholder')} value={invitationCode} onChange={setInvitationCode} maxLength={50} className='h-12 !rounded-[var(--radius-lg)]' />
             </div>
           </>
         )}
 
-        <Button type='primary' size='large' loading={loading} onClick={handleSubmit} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+        <Button type='primary' size='large' loading={loading} onClick={handleSubmit} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
           {mode === 'login' ? t('login.pwdLoginBtn') : t('login.pwdRegisterBtn')}
         </Button>
 
-        {mode === 'login' && <div className='text-center text-12px text-tertiary mt-12px'>{t('login.pwdFootNote')}</div>}
+        {mode === 'login' && <div className='text-center text-xs leading-5 text-muted-foreground'>{t('login.pwdFootNote')}</div>}
 
         {onBackToModeSelect && (
-          <div className='flex items-center justify-center gap-16px mt-12px'>
-            <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={onBackToModeSelect}>
+          <div className='flex items-center justify-center gap-2'>
+            <Button type='text' size='small' className='!text-foreground-tertiary hover:!text-foreground-secondary' onClick={onBackToModeSelect}>
               ← 返回模式选择
-            </span>
-            <span
-              className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors'
+            </Button>
+            <span className='text-foreground-quaternary'>·</span>
+            <Button
+              type='text'
+              size='small'
+              className='!text-foreground-tertiary hover:!text-foreground-secondary'
               onClick={async () => {
                 await enterGuest();
                 void navigate('/guid');
               }}
             >
               {t('login.skip')}
-            </span>
+            </Button>
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
-};
+}
 
-export default PasswordAuthPanel;
+function getTabClass(isActive: boolean): string {
+  return `h-9 rounded-[var(--radius-md)] px-3 text-sm font-600 transition-colors ${isActive ? 'bg-card text-foreground shadow-[var(--shadow-sm)]' : 'text-foreground-tertiary hover:bg-accent hover:text-accent-foreground'}`;
+}
+
+interface IPasswordAuthPanelProps {
+  appName: string;
+  logo?: string;
+  defaultLogo: string;
+  onBackToModeSelect?: () => void;
+}

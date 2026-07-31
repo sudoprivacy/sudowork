@@ -1,272 +1,237 @@
-/**
- * @license
- * Copyright 2026 SudoPrivacy
- * SPDX-License-Identifier: Apache-2.0
- */
-
+import { Button, Input, Message } from '@arco-design/web-react';
+import { Building2, Check, Settings2, UserRound } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Input, Message } from '@arco-design/web-react';
 import brand from '@brand';
 import { ipcBridge } from '@/common';
-import { ConfigStorage } from '@/common/storage';
 import { setAppMode } from '@/common/eeclawMode';
+import { ConfigStorage } from '@/common/storage';
 import { normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
 import { createTenantConfigCache, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '@/renderer/components/WindowControls';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
-import './ModeSetup.css';
 
-// Windows/Linux 显示自定义窗口按钮；macOS 由系统原生信号灯负责，避免重复
-// Windows/Linux render custom window controls; macOS relies on native traffic lights, so skip them to avoid duplicates
-const showWindowControls = isElectronDesktop() && !isMacOS();
+const isWindowControlsVisible = isElectronDesktop() && !isMacOS();
+const MODE_CARD_CLASS_NAME = 'relative flex min-h-150px flex-col items-start rounded-16px border-2 p-5 text-left transition-colors [-webkit-app-region:no-drag]';
+const INPUT_CLASS_NAME = 'h-46px !rounded-10px !border-[var(--input)] !bg-background !px-3 !text-14px !text-foreground focus:!border-[var(--ring)] focus:!shadow-[var(--shadow-focus)]';
 
-type CardType = 'consumer' | 'enterprise' | null;
-type WebkitAppRegionStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
-
-function getModeActionStyle(visible: boolean): WebkitAppRegionStyle {
-  return { display: visible ? 'block' : 'none', width: '100%', WebkitAppRegion: 'no-drag' };
-}
+type ModeType = 'consumer' | 'enterprise' | null;
 
 function isValidServerUrl(url: string): boolean {
-  // E2E test bypass
   if (typeof window !== 'undefined' && (window as unknown as Record<string, boolean>).__E2E_TEST__) {
     return url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1');
   }
 
   try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-    // const hostname = parsed.hostname.toLowerCase();
-    // if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
-    return true;
+    const { protocol } = new URL(url);
+    return protocol === 'http:' || protocol === 'https:';
   } catch {
     return false;
   }
 }
 
-const ModeSetup: React.FC = () => {
+export default function ModeSetup() {
   const { t } = useTranslation();
-  const [selectedCard, setSelectedCard] = useState<CardType>(null);
+  const [selectedMode, setSelectedMode] = useState<ModeType>(null);
   const [serverUrl, setServerUrl] = useState('');
-  const [verifying, setVerifying] = useState(false);
-  const [verifyResult, setVerifyResult] = useState<{ success: boolean; tenantName?: string; message?: string } | null>(null);
-  const [showConsumerServerForm, setShowConsumerServerForm] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [isConsumerServerFormVisible, setIsConsumerServerFormVisible] = useState(false);
   const [consumerServerUrl, setConsumerServerUrl] = useState('');
 
-  // Backfill any previously-saved custom sudowork-server URL so the existing
-  // override is preserved (not wiped) when the user returns here without
-  // re-entering an address. Submission logic is unchanged: a non-empty value
-  // is kept on submit; an emptied field falls back to the default server.
   useEffect(() => {
     void (async () => {
       const raw = await ConfigStorage.get('system.sudoworkServerUrl').catch((): string | undefined => undefined);
       const normalized = normalizeSudoworkServerUrl(raw);
       if (normalized) {
         setConsumerServerUrl(normalized);
+        setIsConsumerServerFormVisible(true);
       }
     })();
   }, []);
 
-  const handleCardSelect = (card: CardType) => {
-    setSelectedCard(card);
-    // Switching away from enterprise clears verification state
-    if (card !== 'enterprise') {
+  const onSelectMode = (mode: Exclude<ModeType, null>) => {
+    setSelectedMode(mode);
+    if (mode !== 'enterprise') {
       setServerUrl('');
-      setVerifyResult(null);
+      setVerifyError(null);
     }
-    // Switching away from consumer collapses the custom-server form (state preserved if user toggles back)
-    if (card !== 'consumer') {
-      setShowConsumerServerForm(false);
-    }
+    if (mode !== 'consumer') setIsConsumerServerFormVisible(false);
   };
 
-  const handleConsumerNext = async () => {
+  const onConsumerNext = async () => {
     try {
-      // Persist user-supplied sudowork-server baseUrl (if any) BEFORE setAppMode/reload,
-      // so the very first API call after reload picks it up via current-read helpers.
       const normalized = normalizeSudoworkServerUrl(consumerServerUrl);
-      if (normalized) {
-        if (!isValidServerUrl(normalized)) {
-          Message.error(t('setup.serverUrl.invalidUrl'));
-          return;
-        }
-        await ConfigStorage.set('system.sudoworkServerUrl', normalized);
-      } else {
-        // Empty input → clear any previously-saved override, fall back to build-define / literal.
-        await ConfigStorage.set('system.sudoworkServerUrl', undefined);
+      if (normalized && !isValidServerUrl(normalized)) {
+        Message.error(t('setup.serverUrl.invalidUrl'));
+        return;
       }
+
+      await ConfigStorage.set('system.sudoworkServerUrl', normalized || undefined);
       await setAppMode('c');
-      // Notify main process to start consumer services, then reload renderer
-      // (avoids full app relaunch — same approach as enterprise mode)
       await ipcBridge.application.startConsumerServices.invoke();
       window.location.reload();
     } catch (error) {
       console.error('[ModeSetup] Failed to set consumer mode:', error);
-      Message.error('设置失败，请重试');
+      Message.error(t('setup.mode.saveFailed'));
     }
   };
 
-  const handleVerifyServer = async () => {
+  const onVerifyServer = async () => {
     const url = serverUrl.trim();
-    if (!url) return;
-
-    // Validate URL format
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        Message.error('服务器地址必须以 http:// 或 https:// 开头');
-        return;
-      }
-      // const hostname = parsed.hostname.toLowerCase();
-      // if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      //   Message.error('不支持使用 localhost 或 127.0.0.1 作为服务器地址');
-      //   return;
-      // }
-    } catch {
-      Message.error('请输入有效的服务器地址（以 http:// 或 https:// 开头）');
+    if (!url || !isValidServerUrl(url)) {
+      Message.error(t('setup.serverUrl.invalidUrl'));
       return;
     }
 
-    setVerifying(true);
-    setVerifyResult(null);
+    setIsVerifying(true);
+    setVerifyError(null);
 
     try {
-      const normalizedUrl = serverUrl.trim().replace(/\/+$/, '');
+      const normalizedUrl = url.replace(/\/+$/, '');
       const result = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl: normalizedUrl });
 
-      if (result.success && result.data) {
-        const tenantConfig = resolveTenantConfig(result.data);
-
-        // Save mode + serverUrl + tenantName first, then reload
-        await setAppMode('e');
-        await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
-        await ConfigStorage.set('eeclaw.tenantName', tenantConfig.app_company_name);
-        localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(createTenantConfigCache(tenantConfig)));
-
-        // Notify main process to start local services, then reload renderer
-        await ipcBridge.application.startConsumerServices.invoke();
-
-        // Reload page — setAppMode triggers re-render that unmounts this component
-        // before any navigation can execute, so use reload instead
-        window.location.reload();
-      } else {
-        setVerifyResult({ success: false, message: '服务器响应异常' });
+      if (!result.success || !result.data) {
+        setVerifyError(t('setup.mode.enterprise.invalidResponse'));
+        return;
       }
+
+      const tenantConfig = resolveTenantConfig(result.data);
+      await setAppMode('e');
+      await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
+      await ConfigStorage.set('eeclaw.tenantName', tenantConfig.app_company_name);
+      localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(createTenantConfigCache(tenantConfig)));
+      await ipcBridge.application.startConsumerServices.invoke();
+      window.location.reload();
     } catch (error) {
       console.error('[ModeSetup] Server verification failed:', error);
-      setVerifyResult({ success: false, message: '无法连接到服务器，请检查地址是否正确' });
+      setVerifyError(t('setup.mode.enterprise.connectionFailed'));
     } finally {
-      setVerifying(false);
+      setIsVerifying(false);
     }
   };
 
-  const handleEnterpriseNext = () => {
-    void handleVerifyServer();
-  };
+  const isConsumerSelected = selectedMode === 'consumer';
+  const isEnterpriseSelected = selectedMode === 'enterprise';
+  const isConsumerUrlInvalid = consumerServerUrl.trim().length > 0 && !isValidServerUrl(consumerServerUrl.trim());
+  const isEnterpriseUrlInvalid = serverUrl.trim().length > 0 && !isValidServerUrl(serverUrl.trim());
 
   return (
-    <div className='mode-setup'>
-      {showWindowControls && <WindowControls />}
-
-      {/* Background decoration */}
-      <div className='mode-setup__background'>
-        <div className='mode-setup__background-circle mode-setup__background-circle--lg' />
-        <div className='mode-setup__background-circle mode-setup__background-circle--sm' />
+    <div className='relative min-h-screen w-full overflow-x-hidden overflow-y-auto bg-background text-foreground [-webkit-app-region:drag]'>
+      <div className='pointer-events-none fixed inset-0 overflow-hidden' aria-hidden='true'>
+        <div className='absolute -right-32px -top-48px h-360px w-360px rounded-full bg-secondary-brand opacity-80 blur-64px' />
+        <div className='absolute -bottom-120px -left-80px h-320px w-320px rounded-full bg-accent opacity-70 blur-64px' />
       </div>
 
-      <div className='mode-setup__container'>
-        {/* Logo & Title */}
-        <div className='mode-setup__header'>
-          <img src={SudoworkIcon} alt={brand.displayName} className='mode-setup__logo' />
-          <h1 className='text-28px font-700 mb-2'>欢迎使用{brand.displayName}</h1>
-          <p className='text-14px text-secondary'>请选择您的使用模式</p>
+      {isWindowControlsVisible && (
+        <div className='fixed right-0 top-0 z-50 h-36px [-webkit-app-region:no-drag]'>
+          <WindowControls />
         </div>
+      )}
 
-        {/* Cards */}
-        <div className='mode-setup__cards'>
-          {/* Consumer Card */}
-          <div className={`mode-setup__card ${selectedCard === 'consumer' ? 'mode-setup__card--selected' : ''}`} onClick={() => handleCardSelect('consumer')}>
-            <div className='mode-setup__card__icon'>
-              <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-                <path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' />
-                <circle cx='12' cy='7' r='4' />
-              </svg>
+      <main className='relative z-1 mx-auto flex min-h-screen w-full max-w-820px items-center px-5 py-12 sm:px-8'>
+        <section className='w-full rounded-24px border border-border bg-card p-6 shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] sm:p-9'>
+          <header className='mb-8 flex flex-col items-center text-center'>
+            <div className='mb-5 flex h-64px w-64px items-center justify-center rounded-18px border border-border bg-muted shadow-[var(--shadow-sm)]'>
+              <img src={SudoworkIcon} alt={brand.displayName} className='h-44px w-44px' />
             </div>
-            <h3 className='text-16px font-600 text-foreground'>普通用户</h3>
-            <div className='mode-setup__card__check'>
-              <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round'>
-                <polyline points='20 6 9 17 4 12' />
-              </svg>
-            </div>
+            <p className='mb-2 text-12px font-600 uppercase tracking-[0.16em] text-brand'>{t('setup.mode.eyebrow')}</p>
+            <h1 className='m-0 text-26px font-700 leading-34px text-foreground'>{t('setup.mode.title', { name: brand.displayName })}</h1>
+            <p className='mb-0 mt-2 max-w-520px text-14px leading-22px text-foreground-secondary'>{t('setup.mode.subtitle')}</p>
+          </header>
+
+          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+            <button type='button' aria-pressed={isConsumerSelected} className={`${MODE_CARD_CLASS_NAME} ${isConsumerSelected ? 'border-primary bg-secondary' : 'border-border bg-card hover:border-input hover:bg-muted'}`} onClick={() => onSelectMode('consumer')}>
+              <span className={`mb-4 flex h-44px w-44px items-center justify-center rounded-12px ${isConsumerSelected ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}>
+                <UserRound size={22} strokeWidth={1.8} />
+              </span>
+              <span className='text-15px font-650 text-foreground'>{t('setup.mode.consumer.title')}</span>
+              <span className='mt-1 text-12px leading-19px text-foreground-secondary'>{t('setup.mode.consumer.description')}</span>
+              {isConsumerSelected && (
+                <span className='absolute right-4 top-4 flex h-22px w-22px items-center justify-center rounded-full bg-primary text-primary-foreground'>
+                  <Check size={14} strokeWidth={2.5} />
+                </span>
+              )}
+            </button>
+
+            <button type='button' aria-pressed={isEnterpriseSelected} className={`${MODE_CARD_CLASS_NAME} ${isEnterpriseSelected ? 'border-primary bg-secondary' : 'border-border bg-card hover:border-input hover:bg-muted'}`} onClick={() => onSelectMode('enterprise')}>
+              <span className={`mb-4 flex h-44px w-44px items-center justify-center rounded-12px ${isEnterpriseSelected ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'}`}>
+                <Building2 size={22} strokeWidth={1.8} />
+              </span>
+              <span className='text-15px font-650 text-foreground'>{t('setup.mode.enterprise.title')}</span>
+              <span className='mt-1 text-12px leading-19px text-foreground-secondary'>{t('setup.mode.enterprise.description')}</span>
+              {isEnterpriseSelected && (
+                <span className='absolute right-4 top-4 flex h-22px w-22px items-center justify-center rounded-full bg-primary text-primary-foreground'>
+                  <Check size={14} strokeWidth={2.5} />
+                </span>
+              )}
+            </button>
           </div>
 
-          {/* Enterprise Card */}
-          <div className={`mode-setup__card ${selectedCard === 'enterprise' ? 'mode-setup__card--selected' : ''}`} onClick={() => handleCardSelect('enterprise')}>
-            <div className='mode-setup__card__icon'>
-              <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-                <path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' />
-                <polyline points='9 22 9 12 15 12 15 22' />
-              </svg>
-            </div>
-            <h3 className='text-16px font-600 text-foreground'>企业用户</h3>
-            <div className='mode-setup__card__check'>
-              <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round'>
-                <polyline points='20 6 9 17 4 12' />
-              </svg>
-            </div>
-          </div>
-        </div>
+          {isConsumerSelected && (
+            <div className='mt-5 rounded-16px border border-border bg-muted p-4'>
+              <div className='flex items-start justify-between gap-4'>
+                <div>
+                  <div className='text-13px font-600 text-foreground'>{t('setup.mode.consumer.connectionTitle')}</div>
+                  <div className='mt-1 text-12px leading-18px text-foreground-secondary'>{t('setup.mode.consumer.connectionDescription')}</div>
+                </div>
+                <Button type='text' size='small' icon={<Settings2 size={15} />} onClick={() => setIsConsumerServerFormVisible((isVisible) => !isVisible)}>
+                  {isConsumerServerFormVisible ? t('setup.mode.collapse') : t('setup.mode.configure')}
+                </Button>
+              </div>
 
-        {/* Enterprise form (expandable) */}
-        <div className={`mode-setup__form ${selectedCard === 'enterprise' ? 'mode-setup__form--visible' : ''}`}>
-          <div className='flex flex-col gap-12px w-full'>
-            <div className='flex flex-col gap-8px'>
-              <div className='text-13px font-600 text-foreground'>企业服务器地址</div>
-              <Input size='large' placeholder='https://your-company-server.com' value={serverUrl} onChange={setServerUrl} className='mode-setup__input' />
-              {serverUrl && !isValidServerUrl(serverUrl) ? (
-                <p className='text-12px text-danger ml-4px'>请输入有效的 HTTP/HTTPS 地址</p>
-              ) : serverUrl.startsWith('http://') ? (
-                <p className='text-12px text-warning ml-4px'>建议使用 HTTPS 协议以确保安全</p>
-              ) : (
-                <p className='text-12px text-tertiary ml-4px'>请输入管理员提供的企业服务器地址</p>
+              {isConsumerServerFormVisible && (
+                <div className='mt-4 border-t border-border pt-4'>
+                  <label className='mb-2 block text-12px font-600 text-foreground' htmlFor='consumer-server-url'>
+                    {t('setup.serverUrl.toggle')}
+                  </label>
+                  <Input id='consumer-server-url' size='large' placeholder={t('setup.serverUrl.placeholder')} value={consumerServerUrl} onChange={setConsumerServerUrl} className={INPUT_CLASS_NAME} />
+                  <p className={`mb-0 mt-2 text-12px ${isConsumerUrlInvalid ? 'text-destructive' : 'text-foreground-tertiary'}`}>{isConsumerUrlInvalid ? t('setup.serverUrl.invalidUrl') : t('setup.serverUrl.hint')}</p>
+                </div>
               )}
             </div>
+          )}
 
-            {verifyResult && <div className={`mode-setup__verify-result ${verifyResult.success ? 'mode-setup__verify-result--success' : 'mode-setup__verify-result--error'}`}>{verifyResult.success ? <span>{verifyResult.tenantName} — 连接成功</span> : <span>{verifyResult.message}</span>}</div>}
-          </div>
-        </div>
+          {isEnterpriseSelected && (
+            <div className='mt-5 rounded-16px border border-border bg-muted p-4'>
+              <label className='mb-2 block text-13px font-600 text-foreground' htmlFor='enterprise-server-url'>
+                {t('setup.mode.enterprise.serverLabel')}
+              </label>
+              <Input
+                id='enterprise-server-url'
+                size='large'
+                placeholder={t('setup.mode.enterprise.serverPlaceholder')}
+                value={serverUrl}
+                onChange={(value) => {
+                  setServerUrl(value);
+                  setVerifyError(null);
+                }}
+                className={INPUT_CLASS_NAME}
+              />
+              <p className={`mb-0 mt-2 text-12px ${isEnterpriseUrlInvalid ? 'text-destructive' : serverUrl.trim().startsWith('http://') ? 'text-warning' : 'text-foreground-tertiary'}`}>
+                {isEnterpriseUrlInvalid ? t('setup.serverUrl.invalidUrl') : serverUrl.trim().startsWith('http://') ? t('setup.mode.enterprise.httpsHint') : t('setup.mode.enterprise.serverHint')}
+              </p>
+              {verifyError && <div className='mt-4 rounded-10px border border-destructive bg-[color-mix(in_srgb,var(--destructive)_8%,transparent)] px-3 py-2 text-12px text-destructive'>{verifyError}</div>}
+            </div>
+          )}
 
-        {/* Consumer: custom sudowork-server URL (collapsed toggle below the cards) */}
-        {selectedCard === 'consumer' && (
-          <button type='button' className='mt-12px text-12px text-tertiary underline cursor-pointer bg-transparent border-none' style={{ WebkitAppRegion: 'no-drag' } as WebkitAppRegionStyle} onClick={() => setShowConsumerServerForm((v) => !v)}>
-            {t('setup.serverUrl.toggle')}
-          </button>
-        )}
-        <div className={`mode-setup__form ${selectedCard === 'consumer' && showConsumerServerForm ? 'mode-setup__form--visible' : ''}`}>
-          <div className='flex flex-col gap-8px w-full'>
-            <Input size='large' placeholder={t('setup.serverUrl.placeholder')} value={consumerServerUrl} onChange={setConsumerServerUrl} className='mode-setup__input' />
-            {consumerServerUrl && !isValidServerUrl(consumerServerUrl) ? <p className='text-12px text-danger ml-4px'>{t('setup.serverUrl.invalidUrl')}</p> : <p className='text-12px text-tertiary ml-4px'>{t('setup.serverUrl.hint')}</p>}
-          </div>
-        </div>
-
-        {/* Consumer button */}
-        <div style={getModeActionStyle(selectedCard === 'consumer')}>
-          <Button type='primary' size='large' onClick={handleConsumerNext} className='mode-setup__btn mode-setup__btn--consumer' disabled={consumerServerUrl.trim().length > 0 && !isValidServerUrl(consumerServerUrl)}>
-            开始使用
-          </Button>
-        </div>
-
-        {/* Enterprise button */}
-        <div style={getModeActionStyle(selectedCard === 'enterprise')}>
-          <Button type='primary' size='large' loading={verifying} onClick={handleEnterpriseNext} className='mode-setup__btn' disabled={!serverUrl.trim() || verifying}>
-            {verifying ? '验证中...' : '下一步'}
-          </Button>
-        </div>
-      </div>
+          {selectedMode && (
+            <div className='mt-6'>
+              {isConsumerSelected ? (
+                <Button type='primary' size='large' long onClick={onConsumerNext} disabled={isConsumerUrlInvalid} className='!h-48px !rounded-12px !text-14px !font-650'>
+                  {t('setup.mode.consumer.action')}
+                </Button>
+              ) : (
+                <Button type='primary' size='large' long loading={isVerifying} onClick={() => void onVerifyServer()} disabled={!serverUrl.trim() || isEnterpriseUrlInvalid || isVerifying} className='!h-48px !rounded-12px !text-14px !font-650'>
+                  {isVerifying ? t('setup.mode.enterprise.verifying') : t('setup.mode.enterprise.action')}
+                </Button>
+              )}
+              <p className='mb-0 mt-3 text-center text-11px leading-18px text-foreground-tertiary'>{t('setup.mode.footerHint')}</p>
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   );
-};
-
-export default ModeSetup;
+}

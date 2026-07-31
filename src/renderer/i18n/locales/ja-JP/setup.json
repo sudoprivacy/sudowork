@@ -5,6 +5,34 @@
     "hint": "空欄の場合はデフォルトのサーバーを使用します",
     "invalidUrl": "有効な HTTP/HTTPS アドレスを入力してください"
   },
+  "mode": {
+    "eyebrow": "初回設定",
+    "title": "{{name}} へようこそ",
+    "subtitle": "利用方法を選択してください。接続情報は後から設定で変更できます。",
+    "saveFailed": "設定に失敗しました。もう一度お試しください。",
+    "configure": "設定",
+    "collapse": "閉じる",
+    "footerHint": "この選択は現在の端末にのみ適用され、後から設定で変更できます。",
+    "consumer": {
+      "title": "個人モード",
+      "description": "デフォルトのクラウドサービスを使用し、個人利用をすぐに開始します。",
+      "connectionTitle": "デフォルトサービスを使用",
+      "connectionDescription": "追加設定は不要です。専用アドレスがある場合はここで変更できます。",
+      "action": "個人モードを開始"
+    },
+    "enterprise": {
+      "title": "エンタープライズモード",
+      "description": "組織の企業サービスに接続し、専用設定とブランド情報を読み込みます。",
+      "serverLabel": "企業サーバーアドレス",
+      "serverPlaceholder": "https://your-company-server.com",
+      "serverHint": "管理者から提供された企業サーバーアドレスを入力してください。",
+      "httpsHint": "安全な接続のため HTTPS の使用を推奨します。",
+      "invalidResponse": "サーバーの応答が不正です。管理者にお問い合わせください。",
+      "connectionFailed": "サーバーに接続できません。アドレスを確認してください。",
+      "action": "検証して企業モードを開始",
+      "verifying": "接続を検証中..."
+    }
+  },
   "init": {
     "headerTitle": "実行環境を準備中",
     "startupTitle": "コアサービスを起動中",

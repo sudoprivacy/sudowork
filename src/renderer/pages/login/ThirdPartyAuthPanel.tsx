@@ -13,7 +13,6 @@ import { ipcBridge } from '@/common';
 import type { SystemConfig, ThirdPartyAuthProvider } from '@/common/systemConfig';
 import { buildCasLoginUrl, buildCasServiceUrl, parseCasCallbackAction, resolveThirdPartyAuthConfig } from '@/common/thirdPartyAuthConfig';
 import { useAuth } from '../../context/AuthContext';
-import './LoginPage.css';
 
 export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, systemConfig, onBackToModeSelect }: IThirdPartyAuthPanelProps) {
   const { t } = useTranslation();
@@ -129,23 +128,23 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
   };
 
   return (
-    <div className='login-page__card'>
-      <div className='login-page__header'>
-        <div className='login-page__logo'>
-          <img src={logo || defaultLogo} alt={appName} className='w-64px h-64px object-contain' />
+    <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+      <header className='mb-7 text-center'>
+        <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-[var(--radius-xl)] bg-secondary shadow-[var(--shadow-sm)]'>
+          <img src={logo || defaultLogo} alt={appName} className='h-14 w-14 object-contain' />
         </div>
-        <h1 className='text-28px font-800 mb-2'>{appName}</h1>
-        <p className='text-13px text-secondary'>{t('login.thirdPartySubtitle')}</p>
-      </div>
+        <h1 className='text-2xl font-700 tracking-tight text-foreground'>{appName}</h1>
+        <p className='mt-2 text-sm leading-6 text-foreground-tertiary'>{t('login.thirdPartySubtitle')}</p>
+      </header>
 
-      <div className='flex flex-col gap-20px mt-24px'>
-        <div className='login-third-party__icon'>
-          <PeopleSafe theme='outline' size={32} />
+      <div className='flex flex-col gap-5'>
+        <div className='mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-secondary-foreground'>
+          <PeopleSafe theme='outline' size={30} />
         </div>
 
-        <div className='flex flex-col gap-8px'>
-          <div className='text-12px font-600 text-secondary ml-4px'>{t('login.thirdPartyProviderLabel')}</div>
-          <Select value={selectedProvider?.id} onChange={(value) => setSelectedProviderId(String(value))} disabled={!resolvedConfig?.enabled || isWaiting} className='login-third-party__select' size='large'>
+        <div className='flex flex-col gap-2'>
+          <div className='ml-1 text-sm font-600 text-foreground-secondary'>{t('login.thirdPartyProviderLabel')}</div>
+          <Select value={selectedProvider?.id} onChange={(value) => setSelectedProviderId(String(value))} disabled={!resolvedConfig?.enabled || isWaiting} className='h-12 !rounded-[var(--radius-lg)]' size='large'>
             {(resolvedConfig?.providers || []).map((provider: ThirdPartyAuthProvider) => (
               <Select.Option key={provider.id} value={provider.id}>
                 {provider.name}
@@ -154,30 +153,33 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
           </Select>
         </div>
 
-        <Button type='primary' size='large' loading={isWaiting} disabled={!selectedProvider} onClick={() => void onLogin()} icon={<Link />} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+        <Button type='primary' size='large' loading={isWaiting} disabled={!selectedProvider} onClick={() => void onLogin()} icon={<Link />} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
           {isWaiting ? t('login.thirdPartyWaiting') : t('login.thirdPartyLoginBtn', { provider: selectedProvider?.name || t('login.thirdPartyProviderFallback') })}
         </Button>
 
-        <div className='text-center text-12px text-tertiary mt-2px'>{t('login.thirdPartyBrowserHint')}</div>
+        <div className='text-center text-xs leading-5 text-muted-foreground'>{t('login.thirdPartyBrowserHint')}</div>
 
         {onBackToModeSelect && (
-          <div className='flex items-center justify-center gap-16px mt-12px'>
-            <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={onBackToModeSelect}>
+          <div className='flex items-center justify-center gap-2'>
+            <Button type='text' size='small' className='!text-foreground-tertiary hover:!text-foreground-secondary' onClick={onBackToModeSelect}>
               {t('login.backToModeSelect')}
-            </span>
-            <span
-              className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors'
+            </Button>
+            <span className='text-foreground-quaternary'>·</span>
+            <Button
+              type='text'
+              size='small'
+              className='!text-foreground-tertiary hover:!text-foreground-secondary'
               onClick={async () => {
                 await enterGuest();
                 void navigate('/guid');
               }}
             >
               {t('login.skip')}
-            </span>
+            </Button>
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

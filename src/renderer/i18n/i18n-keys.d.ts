@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2026 SudoPrivacy
- * SPDX-License-Identifier: Apache-2.0
- */
-
 /* eslint-disable */
 /**
  * AUTO-GENERATED FILE - DO NOT EDIT
@@ -446,6 +440,10 @@ export type I18nKey =
   | 'conversation.workspace.contextMenu.deleteFailed'
   | 'conversation.workspace.contextMenu.deleteSuccess'
   | 'conversation.workspace.contextMenu.deleteTitle'
+  | 'conversation.workspace.contextMenu.download'
+  | 'conversation.workspace.contextMenu.downloadFailed'
+  | 'conversation.workspace.contextMenu.downloadSuccess'
+  | 'conversation.workspace.contextMenu.downloadTooLarge'
   | 'conversation.workspace.contextMenu.newFolder'
   | 'conversation.workspace.contextMenu.open'
   | 'conversation.workspace.contextMenu.openFailed'
@@ -648,6 +646,7 @@ export type I18nKey =
   | 'guid.agentTabAutoSwitch'
   | 'guid.autoSwitchToAgent'
   | 'guid.autoSwitchedAgent'
+  | 'guid.modelNotConfigured'
   | 'guid.noAgentAvailable'
   | 'guid.noAgentAvailableShort'
   | 'guid.noSkills'
@@ -751,6 +750,7 @@ export type I18nKey =
   | 'login.rememberMe'
   | 'login.sendCode'
   | 'login.showPassword'
+  | 'login.skip'
   | 'login.submit'
   | 'login.submitting'
   | 'login.subtitle'
@@ -1161,8 +1161,10 @@ export type I18nKey =
   | 'settings.assistant.updateSuccess'
   | 'settings.assistant.updateTo'
   | 'settings.assistant.upload'
+  | 'settings.assistant.uploadApproved'
   | 'settings.assistant.uploadFailed'
   | 'settings.assistant.uploadNoTenantId'
+  | 'settings.assistant.uploadPending'
   | 'settings.assistant.uploadSuccess'
   | 'settings.assistant.userRevoked'
   | 'settings.assistant.view'
@@ -1473,6 +1475,8 @@ export type I18nKey =
   | 'settings.helpDocumentation'
   | 'settings.hubAssistants'
   | 'settings.hubEmpty.fetchFailed'
+  | 'settings.hubEmpty.login'
+  | 'settings.hubEmpty.loginToView'
   | 'settings.hubEmpty.retry'
   | 'settings.hubEmpty.tokenMissing'
   | 'settings.hubSkills'
@@ -2351,6 +2355,28 @@ export type I18nKey =
   | 'setup.init.step.scode.label'
   | 'setup.init.validatingComponents'
   | 'setup.init.waitingForLogs'
+  | 'setup.mode.collapse'
+  | 'setup.mode.configure'
+  | 'setup.mode.consumer.action'
+  | 'setup.mode.consumer.connectionDescription'
+  | 'setup.mode.consumer.connectionTitle'
+  | 'setup.mode.consumer.description'
+  | 'setup.mode.consumer.title'
+  | 'setup.mode.enterprise.action'
+  | 'setup.mode.enterprise.connectionFailed'
+  | 'setup.mode.enterprise.description'
+  | 'setup.mode.enterprise.httpsHint'
+  | 'setup.mode.enterprise.invalidResponse'
+  | 'setup.mode.enterprise.serverHint'
+  | 'setup.mode.enterprise.serverLabel'
+  | 'setup.mode.enterprise.serverPlaceholder'
+  | 'setup.mode.enterprise.title'
+  | 'setup.mode.enterprise.verifying'
+  | 'setup.mode.eyebrow'
+  | 'setup.mode.footerHint'
+  | 'setup.mode.saveFailed'
+  | 'setup.mode.subtitle'
+  | 'setup.mode.title'
   | 'setup.serverUrl.hint'
   | 'setup.serverUrl.invalidUrl'
   | 'setup.serverUrl.placeholder'
@@ -2548,4 +2574,24 @@ export type I18nKey =
   | 'update.showInFolder'
   | 'update.upToDateTitle';
 
-export type I18nModule = 'common' | 'agentMode' | 'update' | 'login' | 'fileSelection' | 'preview' | 'conversation' | 'settings' | 'messages' | 'mcp' | 'acp' | 'codex' | 'tools' | 'gemini' | 'cron' | 'team' | 'starOffice' | 'guid' | 'agent' | 'setup';
+export type I18nModule =
+  | 'common'
+  | 'agentMode'
+  | 'update'
+  | 'login'
+  | 'fileSelection'
+  | 'preview'
+  | 'conversation'
+  | 'settings'
+  | 'messages'
+  | 'mcp'
+  | 'acp'
+  | 'codex'
+  | 'tools'
+  | 'gemini'
+  | 'cron'
+  | 'team'
+  | 'starOffice'
+  | 'guid'
+  | 'agent'
+  | 'setup';

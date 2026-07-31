@@ -11,9 +11,8 @@ import { User, Protect } from '@icon-park/react';
 import brand from '@brand';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { useAuth } from '../../context/AuthContext';
-import '../login/LoginPage.css';
 
-const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt={brand.displayName} className='w-64px h-64px object-contain' />;
+const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt={brand.displayName} className='h-14 w-14 object-contain' />;
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -80,70 +79,65 @@ const RegisterPage: React.FC = () => {
   // 如果没有 register_token，跳转到登录页
   if (!registerToken) {
     return (
-      <div className='login-page'>
-        <div className='login-page__card text-center flex flex-col items-center gap-24px py-48px'>
-          <div className='w-64px h-64px rd-full f-center bg-danger/10 text-danger'>
+      <main className='relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12 text-foreground'>
+        <section className='relative z-1 flex w-full max-w-md flex-col items-center gap-6 rounded-[var(--radius-xl)] border border-border bg-card p-8 text-center text-card-foreground shadow-[var(--shadow-xl)] max-sm:p-6'>
+          <div className='flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-destructive'>
             <Protect theme='filled' size={32} />
           </div>
           <div>
-            <h2 className='text-20px font-700 text-foreground'>注册链接无效</h2>
-            <p className='text-14px text-secondary mt-8px px-20px'>请重新获取验证码登录</p>
+            <h2 className='text-xl font-700 text-foreground'>注册链接无效</h2>
+            <p className='mt-2 px-5 text-sm text-foreground-tertiary'>请重新获取验证码登录</p>
           </div>
-          <Button type='primary' long className='!rd-12px h-48px mt-12px' onClick={() => navigate('/login', { replace: true })}>
+          <Button type='primary' long className='mt-1 h-12 !rounded-[var(--radius-lg)]' onClick={() => navigate('/login', { replace: true })}>
             返回登录
           </Button>
-        </div>
-      </div>
+        </section>
+      </main>
     );
   }
 
   return (
-    <div className='login-page'>
-      {/* 装饰性背景 */}
-      <div className='login-page__background'>
-        <div className='login-page__background-circle login-page__background-circle--lg' />
-        <div className='login-page__background-circle login-page__background-circle--md' />
-        <div className='login-page__background-circle login-page__background-circle--sm' />
+    <main className='relative flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-auto bg-background px-4 py-12 text-foreground'>
+      <div aria-hidden='true' className='pointer-events-none absolute inset-0 overflow-hidden'>
+        <div className='absolute -left-32 -top-40 h-96 w-96 rounded-full bg-secondary opacity-80 blur-3xl' />
+        <div className='absolute -bottom-40 -right-32 h-96 w-96 rounded-full bg-accent opacity-70 blur-3xl' />
       </div>
 
-      <div className='login-page__card'>
-        <div className='login-page__header'>
-          <div className='login-page__logo'>
+      <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] max-sm:p-6'>
+        <header className='mb-7 text-center'>
+          <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-[var(--radius-xl)] bg-secondary shadow-[var(--shadow-sm)]'>
             <AionLogoMark />
           </div>
-          <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{brand.displayName}</h1>
-          <p className='text-13px text-secondary'>完成注册，开始使用</p>
-        </div>
+          <h1 className='text-2xl font-700 tracking-tight text-foreground'>{brand.displayName}</h1>
+          <p className='mt-2 text-sm text-foreground-tertiary'>完成注册，开始使用</p>
+        </header>
 
-        <div className='flex flex-col gap-20px mt-32px'>
-          {/* 显示手机号（只读） */}
-          <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<User className='text-tertiary' />} value={phoneFromUrl} disabled className='login-input !rd-12px h-48px' />
+        <div className='flex flex-col gap-5'>
+          <div className='flex flex-col gap-2'>
+            <div className='ml-1 text-sm font-600 text-foreground-secondary'>手机号码</div>
+            <Input size='large' prefix={<User className='text-muted-foreground' />} value={phoneFromUrl} disabled className='h-12 !rounded-[var(--radius-lg)]' />
           </div>
 
-          {/* 昵称输入 */}
-          <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-secondary ml-4px'>昵称</div>
-            <Input size='large' prefix={<User className='text-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
+          <div className='flex flex-col gap-2'>
+            <div className='ml-1 text-sm font-600 text-foreground-secondary'>昵称</div>
+            <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 !rounded-[var(--radius-lg)]' maxLength={20} />
           </div>
 
-          {/* 邀请码输入 */}
-          <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-secondary ml-4px'>邀请码</div>
-            <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
+          <div className='flex flex-col gap-2'>
+            <div className='ml-1 text-sm font-600 text-foreground-secondary'>邀请码</div>
+            <Input size='large' prefix={<Protect className='text-muted-foreground' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 !rounded-[var(--radius-lg)]' maxLength={6} />
           </div>
 
-          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
             完成注册
           </Button>
 
-          <Button size='large' onClick={() => navigate('/login', { replace: true })} className='login-btn-secondary !rd-12px h-48px'>
+          <Button size='large' onClick={() => navigate('/login', { replace: true })} className='h-12 !rounded-[var(--radius-lg)]'>
             返回登录
           </Button>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 };
 

@@ -5,6 +5,34 @@
     "hint": "留空则使用默认服务器",
     "invalidUrl": "请输入有效的 HTTP/HTTPS 地址"
   },
+  "mode": {
+    "eyebrow": "首次设置",
+    "title": "欢迎使用 {{name}}",
+    "subtitle": "选择适合你的工作方式。完成后仍可在设置中调整连接信息。",
+    "saveFailed": "设置失败，请重试",
+    "configure": "配置",
+    "collapse": "收起",
+    "footerHint": "你的选择仅影响当前设备，可稍后在设置中修改。",
+    "consumer": {
+      "title": "个人模式",
+      "description": "使用默认云服务，适合个人使用和快速开始。",
+      "connectionTitle": "使用默认服务连接",
+      "connectionDescription": "无需额外配置；如有专属地址，也可以在这里覆盖。",
+      "action": "进入个人模式"
+    },
+    "enterprise": {
+      "title": "企业模式",
+      "description": "连接组织提供的企业服务，加载专属配置与品牌信息。",
+      "serverLabel": "企业服务器地址",
+      "serverPlaceholder": "https://your-company-server.com",
+      "serverHint": "请输入管理员提供的企业服务器地址。",
+      "httpsHint": "建议使用 HTTPS 协议以保护连接安全。",
+      "invalidResponse": "服务器响应异常，请联系管理员。",
+      "connectionFailed": "无法连接到服务器，请检查地址是否正确。",
+      "action": "验证并进入企业模式",
+      "verifying": "正在验证连接..."
+    }
+  },
   "init": {
     "headerTitle": "正在准备运行环境",
     "startupTitle": "正在启动核心服务",

@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Input, Message, Space } from '@arco-design/web-react';
+import { Button, Input, Message } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveCachedTenantConfig } from '@/common/types/tenantConfig';
@@ -22,7 +22,6 @@ import { useAuth, GUEST_FLAG_KEY } from '../../context/AuthContext';
 import AppLoader from '../../components/AppLoader';
 import PasswordAuthPanel from './PasswordAuthPanel';
 import ThirdPartyAuthPanel from './ThirdPartyAuthPanel';
-import './LoginPage.css';
 
 // Generate a random state token to bind the OAuth2 authorize request to its callback.
 function generateOAuth2State(): string {
@@ -34,6 +33,39 @@ function generateOAuth2State(): string {
 // Windows/Linux 显示自定义窗口按钮；macOS 由系统原生信号灯负责，避免重复
 // Windows/Linux render custom window controls; macOS relies on native traffic lights, so skip them to avoid duplicates
 const showWindowControls = isElectronDesktop() && !isMacOS();
+
+function LoginShell({ children }: ILoginShellProps) {
+  return (
+    <main className='relative flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-auto bg-background px-4 py-12 text-foreground [-webkit-app-region:drag]'>
+      {showWindowControls && (
+        <div className='fixed right-0 top-0 z-50 h-8 [-webkit-app-region:no-drag]'>
+          <WindowControls />
+        </div>
+      )}
+      <div aria-hidden='true' className='pointer-events-none absolute inset-0 overflow-hidden'>
+        <div className='absolute -left-32 -top-40 h-96 w-96 rounded-full bg-secondary opacity-80 blur-3xl' />
+        <div className='absolute -bottom-40 -right-32 h-96 w-96 rounded-full bg-accent opacity-70 blur-3xl' />
+      </div>
+      {children}
+    </main>
+  );
+}
+
+function LoginHeader({ appName, description, logo }: ILoginHeaderProps) {
+  return (
+    <header className='mb-7 text-center'>
+      <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-[var(--radius-xl)] bg-secondary shadow-[var(--shadow-sm)]'>
+        <img src={logo || SudoworkIcon} alt={appName} className='h-14 w-14 object-contain' />
+      </div>
+      <h1 className='text-2xl font-700 tracking-tight text-foreground'>{appName}</h1>
+      <p className='mt-2 text-sm leading-6 text-foreground-tertiary'>{description}</p>
+    </header>
+  );
+}
+
+function getTabClass(isActive: boolean): string {
+  return `h-9 rounded-[var(--radius-md)] px-3 text-sm font-600 transition-colors ${isActive ? 'bg-card text-foreground shadow-[var(--shadow-sm)]' : 'text-foreground-tertiary hover:bg-accent hover:text-accent-foreground'}`;
+}
 
 // Validate phone number format (same as server-side)
 function isValidPhone(phone: string): boolean {
@@ -432,21 +464,22 @@ const LoginPage: React.FC = () => {
   }
 
   if (statusMsg) {
+    const isRejected = statusMsg.type === 'rejected';
     return (
-      <div className='login-page'>
-        <div className='login-page__card text-center flex flex-col items-center gap-24px py-48px'>
-          <div className={`w-64px h-64px rd-full f-center ${statusMsg.type === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
+      <LoginShell>
+        <section className='relative z-1 flex w-full max-w-md flex-col items-center gap-6 rounded-[var(--radius-xl)] border border-border bg-card p-8 text-center text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+          <div className={`flex h-16 w-16 items-center justify-center rounded-full bg-secondary ${isRejected ? 'text-destructive' : 'text-warning'}`}>
             <Protect theme='filled' size={32} />
           </div>
           <div>
-            <h2 className='text-20px font-700 text-foreground'>{statusMsg.text}</h2>
-            <p className='text-14px text-secondary mt-8px px-20px'>{statusMsg.sub}</p>
+            <h2 className='text-xl font-700 text-foreground'>{statusMsg.text}</h2>
+            <p className='mt-2 px-5 text-sm leading-6 text-foreground-tertiary'>{statusMsg.sub}</p>
           </div>
-          {statusMsg.type === 'rejected' ? (
+          {isRejected ? (
             <Button
               type='primary'
               long
-              className='!rd-12px h-48px mt-12px'
+              className='mt-1 h-12 !rounded-[var(--radius-lg)]'
               onClick={() => {
                 setStatusMsg(null);
                 // 自动重新提交申请
@@ -462,12 +495,12 @@ const LoginPage: React.FC = () => {
               重新申请
             </Button>
           ) : (
-            <Button long className='!rd-12px h-48px mt-12px' onClick={() => setStatusMsg(null)}>
+            <Button long className='mt-1 h-12 !rounded-[var(--radius-lg)]' onClick={() => setStatusMsg(null)}>
               返回登录
             </Button>
           )}
-        </div>
-      </div>
+        </section>
+      </LoginShell>
     );
   }
 
@@ -497,88 +530,59 @@ const LoginPage: React.FC = () => {
   // Enterprise login UI
   if (isEnterprise) {
     return (
-      <div className='login-page'>
-        {showWindowControls && (
-          <div className='app-window-controls'>
-            <WindowControls />
-          </div>
-        )}
+      <LoginShell>
+        <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+          <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantConfig.logo} />
 
-        <div className='login-page__background'>
-          <div className='login-page__background-circle login-page__background-circle--lg' />
-          <div className='login-page__background-circle login-page__background-circle--md' />
-          <div className='login-page__background-circle login-page__background-circle--sm' />
-        </div>
-
-        <div className='login-page__card'>
-          <div className='login-page__header'>
-            <div className='login-page__logo'>
-              <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
-            </div>
-            <h1 className='text-28px font-800 mb-8px'>{tenantConfig.app_name}</h1>
-            <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
-          </div>
-
-          {/* Enterprise login tabs: password / key / oauth2 */}
-          <div className='login-tabs'>
-            <button type='button' className={`login-tab ${loginTab === 'password' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('password')}>
+          <div className='grid grid-cols-3 gap-1 rounded-[var(--radius-lg)] bg-secondary p-1' role='tablist'>
+            <button type='button' role='tab' className={getTabClass(loginTab === 'password')} aria-selected={loginTab === 'password'} onClick={() => setLoginTab('password')}>
               密码登录
             </button>
-            <button type='button' className={`login-tab ${loginTab === 'key' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('key')}>
+            <button type='button' role='tab' className={getTabClass(loginTab === 'key')} aria-selected={loginTab === 'key'} onClick={() => setLoginTab('key')}>
               密钥登录
             </button>
-            <button type='button' className={`login-tab ${loginTab === 'oauth2' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('oauth2')}>
+            <button type='button' role='tab' className={getTabClass(loginTab === 'oauth2')} aria-selected={loginTab === 'oauth2'} onClick={() => setLoginTab('oauth2')}>
               OAuth2 登录
             </button>
           </div>
 
-          <div className='flex flex-col gap-20px mt-24px'>
+          <div className='mt-6 flex flex-col gap-5'>
             {loginTab === 'password' ? (
               <>
-                <div className='flex flex-col gap-8px'>
-                  <div className='text-12px font-600 text-secondary ml-4px'>用户名</div>
-                  <Input size='large' prefix={<User className='text-tertiary' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
+                <div className='flex flex-col gap-2'>
+                  <div className='ml-1 text-sm font-600 text-foreground-secondary'>用户名</div>
+                  <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='h-12 !rounded-[var(--radius-lg)]' />
                 </div>
-                <div className='flex flex-col gap-8px'>
-                  <div className='text-12px font-600 text-secondary ml-4px'>密码</div>
-                  <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder='请输入密码' value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
+                <div className='flex flex-col gap-2'>
+                  <div className='ml-1 text-sm font-600 text-foreground-secondary'>密码</div>
+                  <Input.Password size='large' prefix={<Lock className='text-muted-foreground' />} placeholder='请输入密码' value={password} onChange={setPassword} className='h-12 !rounded-[var(--radius-lg)]' />
                 </div>
               </>
             ) : loginTab === 'key' ? (
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>API Key</div>
-                <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
+              <div className='flex flex-col gap-2'>
+                <div className='ml-1 text-sm font-600 text-foreground-secondary'>API Key</div>
+                <Input size='large' prefix={<Key className='text-muted-foreground' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='h-12 !rounded-[var(--radius-lg)]' />
               </div>
             ) : (
-              <div className='flex flex-col gap-8px text-center'>
-                {oauth2Loading ? (
-                  <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div>
-                ) : oauth2Config?.enabled ? (
-                  <div className='text-13px text-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div>
-                ) : (
-                  <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>
-                )}
-              </div>
+              <div className='rounded-[var(--radius-lg)] bg-muted px-4 py-5 text-center text-sm leading-6 text-muted-foreground'>{oauth2Loading ? '正在检查 OAuth2 配置…' : oauth2Config?.enabled ? '点击下方按钮，将在浏览器中完成身份认证。' : '管理员未启用 OAuth2 登录'}</div>
             )}
 
             {loginTab === 'oauth2' ? (
-              <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+              <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
                 {oauth2Waiting ? '等待浏览器授权…' : '通过浏览器登录'}
               </Button>
             ) : (
-              <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+              <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
                 登录
               </Button>
             )}
 
-            <div className='text-center mt-12px'>
-              <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={handleBackToModeSelect}>
-                ← 返回模式选择
-              </span>
-            </div>
+            <Button type='text' size='small' className='mx-auto !text-foreground-tertiary hover:!text-foreground-secondary' onClick={handleBackToModeSelect}>
+              ← 返回模式选择
+            </Button>
           </div>
-        </div>
-      </div>
+        </section>
+      </LoginShell>
     );
   }
 
@@ -590,128 +594,100 @@ const LoginPage: React.FC = () => {
   // C 端：用户名密码登录方式（login_method=1）
   if (loginMethod === 1) {
     return (
-      <div className='login-page'>
-        {showWindowControls && (
-          <div className='app-window-controls'>
-            <WindowControls />
-          </div>
-        )}
-        <div className='login-page__background'>
-          <div className='login-page__background-circle login-page__background-circle--lg' />
-          <div className='login-page__background-circle login-page__background-circle--md' />
-          <div className='login-page__background-circle login-page__background-circle--sm' />
-        </div>
+      <LoginShell>
         <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
-      </div>
+      </LoginShell>
     );
   }
 
   // C 端：三方认证登录方式（login_method=2）
   if (loginMethod === 2) {
     return (
-      <div className='login-page'>
-        {showWindowControls && (
-          <div className='app-window-controls'>
-            <WindowControls />
-          </div>
-        )}
-        <div className='login-page__background'>
-          <div className='login-page__background-circle login-page__background-circle--lg' />
-          <div className='login-page__background-circle login-page__background-circle--md' />
-          <div className='login-page__background-circle login-page__background-circle--sm' />
-        </div>
+      <LoginShell>
         <ThirdPartyAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} systemConfig={systemConfig} onBackToModeSelect={handleBackToModeSelect} />
-      </div>
+      </LoginShell>
     );
   }
 
   return (
-    <div className='login-page'>
-      {/* 桌面端窗口控制按钮 / Window controls for desktop */}
-      {showWindowControls && (
-        <div className='app-window-controls'>
-          <WindowControls />
-        </div>
-      )}
+    <LoginShell>
+      <section className='relative z-1 my-auto w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-card p-8 text-card-foreground shadow-[var(--shadow-xl)] [-webkit-app-region:no-drag] max-sm:p-6'>
+        <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantConfig.logo} />
 
-      {/* 装饰性背景 */}
-      <div className='login-page__background'>
-        <div className='login-page__background-circle login-page__background-circle--lg' />
-        <div className='login-page__background-circle login-page__background-circle--md' />
-        <div className='login-page__background-circle login-page__background-circle--sm' />
-      </div>
-
-      <div className='login-page__card'>
-        <div className='login-page__header'>
-          <div className='login-page__logo'>
-            <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
-          </div>
-          <h1 className='text-28px font-800 mb-2'>{tenantConfig.app_name}</h1>
-          <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
-        </div>
-
-        {/* Tab switcher */}
-        <div className='login-tabs'>
-          <button type='button' className={`login-tab ${mode === 'login' ? 'login-tab--active' : ''}`} onClick={() => setMode('login')}>
+        <div className='grid grid-cols-2 gap-1 rounded-[var(--radius-lg)] bg-secondary p-1' role='tablist'>
+          <button type='button' role='tab' className={getTabClass(mode === 'login')} aria-selected={mode === 'login'} onClick={() => setMode('login')}>
             登录
           </button>
-          <button type='button' className={`login-tab ${mode === 'register' ? 'login-tab--active' : ''}`} onClick={() => setMode('register')}>
+          <button type='button' role='tab' className={getTabClass(mode === 'register')} aria-selected={mode === 'register'} onClick={() => setMode('register')}>
             注册
           </button>
         </div>
 
-        <div className='flex flex-col gap-20px mt-24px'>
-          <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
+        <div className='mt-6 flex flex-col gap-5'>
+          <div className='flex flex-col gap-2'>
+            <div className='ml-1 text-sm font-600 text-foreground-secondary'>手机号码</div>
+            <Input size='large' prefix={<Phone className='text-muted-foreground' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='h-12 !rounded-[var(--radius-lg)]' />
           </div>
 
-          <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-secondary ml-4px'>身份验证</div>
-            <Space size='small' className='w-full'>
-              <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='6 位验证码' value={code} onChange={setCode} className='login-input !rd-12px h-48px flex-1' />
-              <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
+          <div className='flex flex-col gap-2'>
+            <div className='ml-1 text-sm font-600 text-foreground-secondary'>身份验证</div>
+            <div className='flex gap-2'>
+              <Input size='large' prefix={<Key className='text-muted-foreground' />} placeholder='6 位验证码' value={code} onChange={setCode} className='h-12 min-w-0 flex-1 !rounded-[var(--radius-lg)]' />
+              <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='h-12 min-w-28 !rounded-[var(--radius-lg)] font-600'>
                 {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
               </Button>
-            </Space>
+            </div>
           </div>
 
           {mode === 'register' && (
             <>
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>昵称</div>
-                <Input size='large' prefix={<User className='text-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
+              <div className='flex flex-col gap-2'>
+                <div className='ml-1 text-sm font-600 text-foreground-secondary'>昵称</div>
+                <Input size='large' prefix={<User className='text-muted-foreground' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='h-12 !rounded-[var(--radius-lg)]' maxLength={20} />
               </div>
 
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>邀请码</div>
-                <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
+              <div className='flex flex-col gap-2'>
+                <div className='ml-1 text-sm font-600 text-foreground-secondary'>邀请码</div>
+                <Input size='large' prefix={<Protect className='text-muted-foreground' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='h-12 !rounded-[var(--radius-lg)]' maxLength={6} />
               </div>
             </>
           )}
 
-          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
+          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='mt-1 h-12 !rounded-[var(--radius-lg)] text-base font-600'>
             {mode === 'login' ? '登录' : '注册'}
           </Button>
 
-          <div className='flex items-center justify-center gap-16px mt-12px'>
-            <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={handleBackToModeSelect}>
+          <div className='flex items-center justify-center gap-2'>
+            <Button type='text' size='small' className='!text-foreground-tertiary hover:!text-foreground-secondary' onClick={handleBackToModeSelect}>
               ← 返回模式选择
-            </span>
-            <span
-              className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors'
+            </Button>
+            <span className='text-foreground-quaternary'>·</span>
+            <Button
+              type='text'
+              size='small'
+              className='!text-foreground-tertiary hover:!text-foreground-secondary'
               onClick={async () => {
                 await enterGuest();
                 void navigate('/guid');
               }}
             >
               {t('login.skip')}
-            </span>
+            </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </LoginShell>
   );
 };
+
+interface ILoginShellProps {
+  children: React.ReactNode;
+}
+
+interface ILoginHeaderProps {
+  appName: string;
+  description: string;
+  logo?: string;
+}
 
 export default LoginPage;

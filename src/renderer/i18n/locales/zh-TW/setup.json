@@ -5,6 +5,34 @@
     "hint": "留空則使用預設伺服器",
     "invalidUrl": "請輸入有效的 HTTP/HTTPS 位址"
   },
+  "mode": {
+    "eyebrow": "首次設定",
+    "title": "歡迎使用 {{name}}",
+    "subtitle": "選擇適合你的工作方式。完成後仍可在設定中調整連線資訊。",
+    "saveFailed": "設定失敗，請重試",
+    "configure": "設定",
+    "collapse": "收起",
+    "footerHint": "你的選擇僅影響目前裝置，稍後可在設定中修改。",
+    "consumer": {
+      "title": "個人模式",
+      "description": "使用預設雲端服務，適合個人使用與快速開始。",
+      "connectionTitle": "使用預設服務連線",
+      "connectionDescription": "無需額外設定；如有專屬位址，也可在這裡覆蓋。",
+      "action": "進入個人模式"
+    },
+    "enterprise": {
+      "title": "企業模式",
+      "description": "連接組織提供的企業服務，載入專屬設定與品牌資訊。",
+      "serverLabel": "企業伺服器位址",
+      "serverPlaceholder": "https://your-company-server.com",
+      "serverHint": "請輸入管理員提供的企業伺服器位址。",
+      "httpsHint": "建議使用 HTTPS 協定以保護連線安全。",
+      "invalidResponse": "伺服器回應異常，請聯絡管理員。",
+      "connectionFailed": "無法連接伺服器，請檢查位址是否正確。",
+      "action": "驗證並進入企業模式",
+      "verifying": "正在驗證連線..."
+    }
+  },
   "init": {
     "headerTitle": "正在準備執行環境",
     "startupTitle": "正在啟動核心服務",

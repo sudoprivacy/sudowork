@@ -5,6 +5,34 @@
     "hint": "Boş bırakırsanız varsayılan sunucu kullanılır",
     "invalidUrl": "Lütfen geçerli bir HTTP/HTTPS adresi girin"
   },
+  "mode": {
+    "eyebrow": "İlk kurulum",
+    "title": "{{name}} uygulamasına hoş geldiniz",
+    "subtitle": "Çalışma şeklinizi seçin. Bağlantı bilgilerini daha sonra Ayarlar'dan değiştirebilirsiniz.",
+    "saveFailed": "Kurulum başarısız oldu. Lütfen tekrar deneyin.",
+    "configure": "Yapılandır",
+    "collapse": "Daralt",
+    "footerHint": "Bu seçim yalnızca bu cihazı etkiler ve daha sonra Ayarlar'dan değiştirilebilir.",
+    "consumer": {
+      "title": "Kişisel mod",
+      "description": "Kişisel kullanım ve hızlı başlangıç için varsayılan bulut servisini kullanın.",
+      "connectionTitle": "Varsayılan servisi kullan",
+      "connectionDescription": "Ek kurulum gerekmez. Özel bir adresiniz varsa burada değiştirebilirsiniz.",
+      "action": "Kişisel moda gir"
+    },
+    "enterprise": {
+      "title": "Kurumsal mod",
+      "description": "Kuruluşunuzun servisine bağlanın ve özel yapılandırma ile marka bilgilerini yükleyin.",
+      "serverLabel": "Kurumsal sunucu adresi",
+      "serverPlaceholder": "https://your-company-server.com",
+      "serverHint": "Yöneticiniz tarafından sağlanan kurumsal sunucu adresini girin.",
+      "httpsHint": "Güvenli bağlantı için HTTPS kullanılması önerilir.",
+      "invalidResponse": "Sunucu geçersiz bir yanıt verdi. Yöneticinizle iletişime geçin.",
+      "connectionFailed": "Sunucuya bağlanılamadı. Adresin doğru olduğunu kontrol edin.",
+      "action": "Doğrula ve kurumsal moda gir",
+      "verifying": "Bağlantı doğrulanıyor..."
+    }
+  },
   "init": {
     "headerTitle": "Çalışma Ortamı Hazırlanıyor",
     "startupTitle": "Temel Servisler Başlatılıyor",
