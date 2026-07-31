@@ -52,7 +52,7 @@ steps:
 
   # ── Leave Settings ──
   - op: mouse_click
-    text: 'Back to Chat'
+    text: 'Back to Main'
   - op: pause
     duration: 1500
   - op: js_eval
@@ -60,12 +60,14 @@ steps:
       (() => {
         const h = window.location.hash;
         if (h.includes('/settings/')) {
-          throw new Error(`clicking "Back to Chat" did not leave settings; hash=${h}`);
+          throw new Error(`clicking "Back to Main" did not leave settings; hash=${h}`);
         }
         return h;
       })()
 
-  # ── Persistent Settings entry ──
+  # ── Settings in account menu ──
+  - op: mouse_click
+    text: 'Account menu'
   - op: mouse_click
     text: 'Settings'
   - op: pause
@@ -75,14 +77,14 @@ steps:
       (() => {
         const h = window.location.hash;
         if (!h.includes('/settings/')) {
-          throw new Error(`clicking the persistent "Settings" entry did not route to settings; hash=${h}`);
+          throw new Error(`clicking "Settings" in the account menu did not route to settings; hash=${h}`);
         }
         return h;
       })()
 
   # ── Return from Settings ──
   - op: mouse_click
-    text: 'Back to Chat'
+    text: 'Back to Main'
   - op: pause
     duration: 1500
   - op: js_eval
@@ -90,7 +92,7 @@ steps:
       (() => {
         const h = window.location.hash;
         if (h.includes('/settings/')) {
-          throw new Error(`clicking "Back to Chat" did not restore the previous non-settings route; hash=${h}`);
+          throw new Error(`clicking "Back to Main" did not restore the previous non-settings route; hash=${h}`);
         }
         return h;
       })()

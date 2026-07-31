@@ -127,6 +127,7 @@ export default defineConfig({
         'src/common/types/conversion.ts',
         // Renderer utils
         'src/renderer/components/HubEmptyState.tsx',
+        'src/renderer/layouts/components/SiderFooter.tsx',
         'src/renderer/hooks/useAvailableModels.ts',
         'src/renderer/hooks/useHasAvailableModel.ts',
         'src/renderer/components/sendboxKeyGuards.ts',

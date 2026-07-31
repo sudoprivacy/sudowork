@@ -131,8 +131,8 @@ export default function TeamSiderSection({ onSessionClick }: ITeamSiderSectionPr
               <div
                 key={team.id}
                 className={classNames('group/team-item chat-history__item px-3 py-2 rd-8px flex justify-start items-center cursor-pointer relative overflow-hidden min-w-0 transition-colors', {
-                  'hover:bg-hover': !isSelected,
-                  '!bg-active conversation-item--selected': isSelected,
+                  'hover:bg-fill-default': !isSelected,
+                  'bg-fill-default': isSelected,
                 })}
                 onClick={() => onTeamClick(team)}
               >

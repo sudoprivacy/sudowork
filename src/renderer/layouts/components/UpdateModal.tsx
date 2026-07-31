@@ -383,18 +383,18 @@ const UpdateModal: React.FC = () => {
               </div>
               <div className='flex items-center gap-2'>
                 {!hasCompatibleManualAsset && releasePageUrl ? (
-                  <Button type='primary' size='small' onClick={openReleasePage} className='!px-4'>
+                  <Button type='primary' size='small' onClick={openReleasePage} className='px-4!'>
                     {t('update.goToRelease')}
                   </Button>
                 ) : (
                   <>
                     {/* Manual download button - always show when asset is available */}
-                    <Button size='small' onClick={startManualDownload} icon={<IconDownload style={{ fontSize: 14 }} />} className='!px-3'>
+                    <Button size='small' onClick={startManualDownload} icon={<IconDownload style={{ fontSize: 14 }} />} className='px-3!'>
                       {t('update.downloadButton')}
                     </Button>
                     {/* Auto-update button */}
                     {useAutoUpdate && (
-                      <Button type='primary' size='small' onClick={startAutoDownload} icon={<HardDriveDownload size={14} />} className='!px-3'>
+                      <Button type='primary' size='small' onClick={startAutoDownload} icon={<HardDriveDownload size={14} />} className='px-3!'>
                         {t('update.downloadAndInstall')}
                       </Button>
                     )}
@@ -438,7 +438,7 @@ const UpdateModal: React.FC = () => {
             </div>
             <div className='text-16px text-foreground font-600 mb-5'>{t('update.downloadingTitle')}</div>
             <div className='w-full max-w-80'>
-              <Progress percent={progress.percent} status='normal' showText={false} strokeWidth={6} className='!mb-3' />
+              <Progress percent={progress.percent} status='normal' showText={false} strokeWidth={6} className='mb-3!' />
               <div className='flex justify-between text-12px text-tertiary'>
                 <span>
                   {formatSize(progress.transferred)} / {formatSize(progress.total)}
@@ -458,10 +458,10 @@ const UpdateModal: React.FC = () => {
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.readyToInstall')}</div>
             <div className='text-13px text-tertiary mb-6 text-center max-w-90'>{t('update.readyToInstallDesc')}</div>
             <div className='flex gap-3'>
-              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
+              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='px-4!'>
                 {t('update.showInFolder')}
               </Button>
-              <Button type='primary' size='small' onClick={quitAndInstall} icon={<HardDriveDownload size={14} />} className='!px-4'>
+              <Button type='primary' size='small' onClick={quitAndInstall} icon={<HardDriveDownload size={14} />} className='px-4!'>
                 {t('update.installNow')}
               </Button>
             </div>
@@ -477,10 +477,10 @@ const UpdateModal: React.FC = () => {
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.downloadCompleteTitle')}</div>
             <div className='text-12px text-tertiary mb-6 text-center max-w-90 break-all line-clamp-2'>{downloadPath}</div>
             <div className='flex gap-3'>
-              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
+              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='px-4!'>
                 {t('update.showInFolder')}
               </Button>
-              <Button type='primary' size='small' onClick={openFile} className='!px-4'>
+              <Button type='primary' size='small' onClick={openFile} className='px-4!'>
                 {t('update.openFile')}
               </Button>
             </div>
@@ -496,11 +496,11 @@ const UpdateModal: React.FC = () => {
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.errorTitle')}</div>
             <div className='text-13px text-tertiary mb-6 text-center max-w-90'>{errorMsg}</div>
             <div className='flex gap-3'>
-              <Button size='small' onClick={checkForUpdates} icon={<IconRefresh style={{ fontSize: 14 }} />} className='!px-4'>
+              <Button size='small' onClick={checkForUpdates} icon={<IconRefresh style={{ fontSize: 14 }} />} className='px-4!'>
                 {t('common.retry')}
               </Button>
               {releasePageUrl && (
-                <Button type='primary' size='small' onClick={openReleasePage} className='!px-4'>
+                <Button type='primary' size='small' onClick={openReleasePage} className='px-4!'>
                   {t('update.goToRelease')}
                 </Button>
               )}
