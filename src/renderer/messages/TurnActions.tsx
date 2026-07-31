@@ -134,25 +134,28 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
 
   return (
     <>
-      <div className='flex items-center min-h-28px gap-4px flex-wrap'>
+      <div className='flex min-h-7 flex-wrap items-center gap-1'>
         <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
-          <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={handleCopy} style={{ lineHeight: 0 }}>
-            <Copy theme='outline' size='16' fill={'var(--text-secondary)'} />
+          <div className='f-center size-6 cursor-pointer rounded-md text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground' onClick={handleCopy}>
+            <Copy theme='outline' size={16} fill='currentColor' />
           </div>
         </Tooltip>
         <Tooltip content={t('messages.convertToWord', { defaultValue: 'Convert to Word' })}>
-          <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={handleConvertToWord} style={{ lineHeight: 0 }}>
-            <FileWord theme='outline' size='16' fill={converting ? 'var(--text-disabled)' : 'var(--text-secondary)'} />
+          <div className={`f-center size-6 rounded-md transition-colors ${converting ? 'cursor-default text-foreground-quaternary' : 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground'}`} onClick={handleConvertToWord}>
+            <FileWord theme='outline' size={16} fill='currentColor' />
           </div>
         </Tooltip>
         <Tooltip content={shareoneInstalled ? t('messages.shareone') : t('messages.shareCliNotInstalled')}>
-          <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={shareoneInstalled && !sharing ? handleShare : undefined} style={{ lineHeight: 0, opacity: shareoneInstalled ? 1 : 0.4 }}>
-            <ShareOne theme='outline' size='16' fill={sharing ? 'var(--text-disabled)' : 'var(--text-secondary)'} />
+          <div
+            className={`f-center size-6 rounded-md transition-colors ${shareoneInstalled && !sharing ? 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground' : 'cursor-default text-foreground-quaternary'}`}
+            onClick={shareoneInstalled && !sharing ? handleShare : undefined}
+          >
+            <ShareOne theme='outline' size={16} fill='currentColor' />
           </div>
         </Tooltip>
         {showTokenUsageBadge && totalTokens && (
           <Tooltip content={usageTooltip}>
-            <div className='ml-4px max-w-full truncate text-11px leading-18px px-6px py-1px rd-4px border border-light text-secondary bg-fill-1'>
+            <div className='ml-1 max-w-full truncate rounded-md border border-border bg-fill-shallow px-1.5 py-0.5 text-11px leading-18px text-foreground-secondary'>
               {t('messages.tokenUsageSummary', { defaultValue: '{{total}} tokens', total: totalTokens })}
               {points ? ` · ${t('messages.tokenUsagePointsShort', { defaultValue: '{{value}} points', value: points })}` : ''}
               {inputTokens && outputTokens ? ` · ${t('messages.tokenUsageInOut', { defaultValue: 'in {{input}} / out {{output}}', input: inputTokens, output: outputTokens })}` : ''}
@@ -163,7 +166,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
           </Tooltip>
         )}
       </div>
-      {showCopyAlert && <Alert type='success' content={t('messages.copySuccess')} showIcon className='fixed top-20px left-50% transform -translate-x-50% z-9999 w-max max-w-[80%]' style={{ boxShadow: 'var(--shadow-md)' }} closable={false} />}
+      {showCopyAlert && <Alert type='success' content={t('messages.copySuccess')} showIcon className='fixed left-50% top-5 z-9999 w-max max-w-[80%] -translate-x-50% shadow-md' closable={false} />}
     </>
   );
 };

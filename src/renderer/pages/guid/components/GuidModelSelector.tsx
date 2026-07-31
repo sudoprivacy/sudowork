@@ -149,7 +149,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
             {!enabledModelList || enabledModelList.length === 0 ? (
               <>
                 <div className='px-10px py-12px text-center text-14px text-foreground-secondary'>{t('settings.noAvailableModels')}</div>
-                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-foreground-secondary')} onClick={() => navigate('/settings/model')}>
+                <div className={classNames(ROW_CLASS, 'h-32px! text-12px text-foreground-secondary')} onClick={() => navigate('/settings/model')}>
                   <Plus size={12} />
                   <span>{t('settings.addModel')}</span>
                 </div>
@@ -216,7 +216,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
                     </div>
                   );
                 })}
-                <div className={classNames(ROW_CLASS, '!h-32px text-12px text-foreground-secondary')} onClick={() => navigate('/settings/model')}>
+                <div className={classNames(ROW_CLASS, 'h-32px! text-12px text-foreground-secondary')} onClick={() => navigate('/settings/model')}>
                   <Plus size={12} />
                   <span>{t('settings.addModel')}</span>
                 </div>
