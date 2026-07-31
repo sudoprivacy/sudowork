@@ -5,7 +5,7 @@
  */
 
 import { Dropdown, Message, Tooltip } from '@arco-design/web-react';
-import { Down, Robot } from '@icon-park/react';
+import { Bot, ChevronDown } from 'lucide-react';
 import classNames from 'classnames';
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -196,7 +196,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
       if (logo) {
         return <img src={logo} alt={`${backend} logo`} className='block size-4 object-contain' />;
       }
-      return <Robot theme='outline' size={16} fill={'var(--foreground)'} />;
+      return <Bot size={16} className='text-foreground' />;
     })();
 
     return <span className='inline-flex size-4 items-center justify-center shrink-0 leading-none'>{logoContent}</span>;
@@ -242,7 +242,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
         label={
           <span className='inline-flex min-w-0 items-center gap-1.5'>
             <span className='block truncate leading-none'>{compactLabel}</span>
-            {canInteract && <Down size={12} className='text-foreground-tertiary shrink-0' />}
+            {canInteract && <ChevronDown size={12} className='text-foreground-tertiary shrink-0' />}
           </span>
         }
         disabled={isLoading}
@@ -417,7 +417,7 @@ const AgentModePill = forwardRef<HTMLDivElement, AgentModePillProps>(function Ag
           {canSwitchMode && modeSuffix && <span className='text-xs text-foreground-tertiary whitespace-nowrap'>({modeSuffix})</span>}
         </>
       )}
-      {canSwitchMode && <Down size={12} className='text-foreground-tertiary shrink-0' />}
+      {canSwitchMode && <ChevronDown size={12} className='text-foreground-tertiary shrink-0' />}
 
       {/* Hidden probe: always renders the full content at natural width.
           Used by the layout effect above to decide whether to hide text. */}
@@ -441,7 +441,7 @@ const AgentModePill = forwardRef<HTMLDivElement, AgentModePillProps>(function Ag
         <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>
         <span className='text-sm whitespace-nowrap'>{displayName}</span>
         {canSwitchMode && modeSuffix && <span className='text-xs whitespace-nowrap'>({modeSuffix})</span>}
-        {canSwitchMode && <Down size={12} className='shrink-0' />}
+        {canSwitchMode && <ChevronDown size={12} className='shrink-0' />}
       </span>
     </div>
   );
