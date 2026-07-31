@@ -10,22 +10,21 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
+import { useThemeContext } from '@/renderer/context/ThemeContext';
+import type { Theme } from '@/renderer/hooks/useTheme';
 import { useModelUsageStats } from '@/renderer/hooks/useModelUsageStats';
 import { costToUsagePoints, formatUsagePoints } from '@/common/tokenUsage';
 import type { IModelUsageChartData, IEChartsTooltipParam } from '../types';
 
 const { RangePicker } = DatePicker;
 
-const CHART_COLORS = [
-  '#7583b2', // aou-6 (品牌色)
-  '#165dff', // primary
-  '#00b42a', // success
-  '#ff7d00', // warning
-  '#596590', // aou-7
-  '#3f4868', // aou-8
-  '#f53f3f', // danger
-  '#b5bcd6', // aou-4
-];
+const CHART_COLOR_TOKENS = ['--brand', '--blue', '--success', '--warning', '--violet', '--orange', '--link', '--destructive'] as const;
+const CHART_FONT_FAMILY = 'PingFang SC, Microsoft YaHei, sans-serif';
+
+function getCSSVar(name: string, theme: Theme): string {
+  const root = document.querySelector<HTMLElement>(`[data-theme='${theme}']`) ?? document.documentElement;
+  return getComputedStyle(root).getPropertyValue(name).trim();
+}
 
 interface WeeklyModelUsageChartProps {
   className?: string;
@@ -33,7 +32,16 @@ interface WeeklyModelUsageChartProps {
 
 const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className }) => {
   const { t } = useTranslation();
+  const { theme } = useThemeContext();
   const { data, loading, error, fetchStats } = useModelUsageStats();
+  const chartTheme = useMemo(
+    () => ({
+      colors: CHART_COLOR_TOKENS.map((token) => getCSSVar(token, theme)),
+      getCSSVar: (name: string) => getCSSVar(name, theme),
+    }),
+    [theme]
+  );
+  const chartColors = chartTheme.colors;
 
   const [dateRange, setDateRange] = useState<[Date, Date]>(() => {
     const today = new Date();
@@ -108,7 +116,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       name: model,
       type: 'bar',
       stack: 'total',
-      color: CHART_COLORS[index % CHART_COLORS.length],
+      color: chartColors[index % chartColors.length],
       data: dates.map((date, dateIndex) => {
         const modelData = dateMap.get(date);
         const value = modelData?.get(model) || 0;
@@ -142,20 +150,16 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       name: model,
       type: 'bar',
       stack: 'points',
-      color: CHART_COLORS[index % CHART_COLORS.length],
+      color: chartColors[index % chartColors.length],
       data: dates.map((date) => pointDateMap.get(date)?.get(model) || 0),
       barMaxWidth: 36,
     }));
 
     return { dates, models: sortedModels, series, pointSeries, totals, pointTotals, dateMap, pointDateMap };
-  }, [data]);
+  }, [data, chartColors]);
 
   const modelChartOption = useMemo(() => {
-    const getCSSVar = (name: string) => {
-      const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-      return value || '#1d2129';
-    };
-
+    const { getCSSVar } = chartTheme;
     // 使用 dateMap 获取原始数值，用于 tooltip
     const rawData = chartData.dates.map((date, dateIndex) => {
       const dayModelData = chartData.dateMap.get(date);
@@ -171,9 +175,9 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
-        backgroundColor: getCSSVar('--color-fill-0') || '#ffffff',
-        borderColor: getCSSVar('--border-light') || '#e5e6eb',
-        textStyle: { color: getCSSVar('--foreground') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
+        backgroundColor: getCSSVar('--popover'),
+        borderColor: getCSSVar('--border'),
+        textStyle: { color: getCSSVar('--popover-foreground'), fontFamily: CHART_FONT_FAMILY },
         formatter: (params: IEChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
           const dataIndex = params[0].dataIndex;
@@ -188,13 +192,13 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
               return `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.seriesName}</span><span style="font-weight:600">${percent}% (${rawValue.toLocaleString()})</span></div>`;
             })
             .join('');
-          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-light);padding-top:8px"><span>${t('settings.modelUsage.total', '总计')}</span><span style="font-weight:600">${total.toLocaleString()}</span></div>`;
+          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border);padding-top:8px"><span>${t('settings.modelUsage.total', '总计')}</span><span style="font-weight:600">${total.toLocaleString()}</span></div>`;
         },
       },
       legend: {
         show: chartData.models.length > 1,
         top: 0,
-        textStyle: { color: getCSSVar('--text-secondary') || '#86909c', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
+        textStyle: { color: getCSSVar('--foreground-secondary'), fontFamily: CHART_FONT_FAMILY },
       },
       grid: {
         left: '3%',
@@ -206,41 +210,37 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       xAxis: {
         type: 'category',
         data: chartData.dates.map((d) => dayjs(d).format('MM-DD')),
-        axisLabel: { color: getCSSVar('--text-secondary') || '#86909c', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
-        axisLine: { lineStyle: { color: getCSSVar('--border-light') || '#e5e6eb' } },
+        axisLabel: { color: getCSSVar('--foreground-secondary'), fontFamily: CHART_FONT_FAMILY },
+        axisLine: { lineStyle: { color: getCSSVar('--border') } },
       },
       yAxis: {
         type: 'value',
         axisLabel: {
-          color: getCSSVar('--text-secondary') || '#86909c',
-          fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif',
+          color: getCSSVar('--foreground-secondary'),
+          fontFamily: CHART_FONT_FAMILY,
           formatter: (value: number) => {
             if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
             if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
             return value.toString();
           },
         },
-        axisLine: { lineStyle: { color: getCSSVar('--border-light') || '#e5e6eb' } },
-        splitLine: { lineStyle: { color: getCSSVar('--border-light') || '#e5e6eb', type: 'dashed' } },
+        axisLine: { lineStyle: { color: getCSSVar('--border') } },
+        splitLine: { lineStyle: { color: getCSSVar('--border'), type: 'dashed' } },
       },
       series: chartData.series,
     };
-  }, [chartData, t]);
+  }, [chartData, t, chartTheme]);
 
   const pointsChartOption = useMemo(() => {
-    const getCSSVar = (name: string) => {
-      const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-      return value || '#1d2129';
-    };
-
+    const { getCSSVar } = chartTheme;
     return {
       backgroundColor: 'transparent',
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
-        backgroundColor: getCSSVar('--color-fill-0') || '#ffffff',
-        borderColor: getCSSVar('--border-light') || '#e5e6eb',
-        textStyle: { color: getCSSVar('--foreground') || '#1d2129', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
+        backgroundColor: getCSSVar('--popover'),
+        borderColor: getCSSVar('--border'),
+        textStyle: { color: getCSSVar('--popover-foreground'), fontFamily: CHART_FONT_FAMILY },
         formatter: (params: IEChartsTooltipParam[]) => {
           if (!params || !params.length) return '';
           const dataIndex = params[0].dataIndex;
@@ -250,13 +250,13 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
             .filter((p) => p.value > 0)
             .map((p) => `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.seriesName}</span><span style="font-weight:600">${formatUsagePoints(p.value) || '0'}</span></div>`)
             .join('');
-          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border-light);padding-top:8px"><span>${t('settings.modelUsage.total', '总计')}</span><span style="font-weight:600">${formatUsagePoints(totalPoints) || '0'}</span></div>`;
+          return `<div style="font-weight:600;margin-bottom:8px">${date}</div>${items}<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px;border-top:1px solid var(--border);padding-top:8px"><span>${t('settings.modelUsage.total', '总计')}</span><span style="font-weight:600">${formatUsagePoints(totalPoints) || '0'}</span></div>`;
         },
       },
       legend: {
         show: chartData.models.length > 1,
         top: 0,
-        textStyle: { color: getCSSVar('--text-secondary') || '#86909c', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
+        textStyle: { color: getCSSVar('--foreground-secondary'), fontFamily: CHART_FONT_FAMILY },
       },
       grid: {
         left: '3%',
@@ -268,22 +268,22 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
       xAxis: {
         type: 'category',
         data: chartData.dates.map((d) => dayjs(d).format('MM-DD')),
-        axisLabel: { color: getCSSVar('--text-secondary') || '#86909c', fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif' },
-        axisLine: { lineStyle: { color: getCSSVar('--border-light') || '#e5e6eb' } },
+        axisLabel: { color: getCSSVar('--foreground-secondary'), fontFamily: CHART_FONT_FAMILY },
+        axisLine: { lineStyle: { color: getCSSVar('--border') } },
       },
       yAxis: {
         type: 'value',
         axisLabel: {
-          color: getCSSVar('--text-secondary') || '#86909c',
-          fontFamily: 'PingFang SC, Microsoft YaHei, sans-serif',
+          color: getCSSVar('--foreground-secondary'),
+          fontFamily: CHART_FONT_FAMILY,
           formatter: (value: number) => formatUsagePoints(value) || '0',
         },
-        axisLine: { lineStyle: { color: getCSSVar('--border-light') || '#e5e6eb' } },
-        splitLine: { lineStyle: { color: getCSSVar('--border-light') || '#e5e6eb', type: 'dashed' } },
+        axisLine: { lineStyle: { color: getCSSVar('--border') } },
+        splitLine: { lineStyle: { color: getCSSVar('--border'), type: 'dashed' } },
       },
       series: chartData.pointSeries,
     };
-  }, [chartData, t]);
+  }, [chartData, t, chartTheme]);
 
   const handleDateChange = (dateString: string[], date: Dayjs[]) => {
     if (date && date.length === 2) {
@@ -298,7 +298,7 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
   };
 
   return (
-    <div className={`p-6 rd-16px border border-light ${className || ''}`}>
+    <div className={`border border-border bg-card p-6 rd-16px ${className || ''}`}>
       <div className='text-14px font-600 text-foreground mb-4'>{t('settings.modelUsage.title', '模型用量')}</div>
 
       <div className='mb-4'>
@@ -310,16 +310,16 @@ const WeeklyModelUsageChart: React.FC<WeeklyModelUsageChartProps> = ({ className
           <Spin />
         </div>
       ) : !data.length ? (
-        <div className='py-15 text-center text-tertiary text-14px'>{t('settings.modelUsage.noData', '暂无模型用量数据')}</div>
+        <div className='py-15 text-center text-14px text-foreground-secondary'>{t('settings.modelUsage.noData', '暂无模型用量数据')}</div>
       ) : (
         <div className='flex flex-col gap-5'>
           <div>
-            <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.pointsTitle', '积分用量')}</div>
+            <div className='mb-2 text-13px font-600 text-foreground-secondary'>{t('settings.modelUsage.pointsTitle', '积分用量')}</div>
             <ReactECharts option={pointsChartOption} style={{ height: '220px' }} opts={{ renderer: 'canvas' }} />
           </div>
-          <div className='border-t border-light' />
+          <div className='border-t border-border' />
           <div>
-            <div className='text-13px font-600 text-secondary mb-2'>{t('settings.modelUsage.tokensTitle', 'Token 用量')}</div>
+            <div className='mb-2 text-13px font-600 text-foreground-secondary'>{t('settings.modelUsage.tokensTitle', 'Token 用量')}</div>
             <ReactECharts option={modelChartOption} style={{ height: '300px' }} opts={{ renderer: 'canvas' }} />
           </div>
         </div>

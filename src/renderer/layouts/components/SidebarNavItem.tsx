@@ -24,15 +24,14 @@ const SidebarNavItem: React.FC<SidebarNavItemProps> = ({ icon, label, selected =
       className={classNames(
         'rd-[10px] group relative flex h-10 w-full cursor-pointer items-center border-0 text-left outline-none transition-colors',
         collapsed ? 'justify-center px-0' : 'gap-3 px-3',
-        selected ? 'bg-fill-default' : 'bg-transparent text-foreground-secondary hover:bg-fill-default hover:text-foreground',
+        selected ? 'bg-fill-default text-foreground-secondary' : 'bg-transparent text-foreground-secondary hover:bg-fill-default hover:text-foreground',
         className
       )}
       onClick={onClick}
       {...dataAttributes}
     >
-      <span className={classNames('absolute left-0 top-[9px] h-[22px] w-0.5 rd-r-2px transition-colors', selected ? 'bg-brand' : 'bg-transparent')} />
-      <span className={classNames('translate-y-px inline-flex h-5 w-5 shrink-0 items-center justify-center', selected && 'text-brand')}>{icon}</span>
-      {!collapsed && <span className={classNames('min-w-0 flex-1 truncate text-14px leading-22px', selected ? 'font-600 text-brand' : 'font-500')}>{label}</span>}
+      <span className='translate-y-px inline-flex h-5 w-5 shrink-0 items-center justify-center'>{icon}</span>
+      {!collapsed && <span className={classNames('min-w-0 flex-1 truncate text-14px leading-22px', selected ? 'font-600' : 'font-500')}>{label}</span>}
     </button>
   );
 };

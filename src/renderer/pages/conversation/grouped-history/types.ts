@@ -16,12 +16,6 @@ import type { CronJobStatusEnums } from '@/renderer/utils/enum';
  */
 export type ConversationItem = TChatConversation;
 
-export type WorkspaceGroup = {
-  workspace: string;
-  displayName: string;
-  conversations: ConversationItem[];
-};
-
 export type ScheduledGroup = {
   jobId: string;
   jobName: string;
@@ -29,24 +23,12 @@ export type ScheduledGroup = {
   latestConversationTime: number;
 };
 
-export type TimelineItem = {
-  type: 'workspace' | 'conversation';
-  time: number;
-  workspaceGroup?: WorkspaceGroup;
-  conversation?: ConversationItem;
-};
-
-export type TimelineSection = {
-  timeline: string;
-  items: TimelineItem[];
-};
-
 export type SidebarTabKey = 'timeline' | 'scheduled';
 
 export type GroupedHistoryResult = {
   pinnedTimeline: ConversationItem[];
   pinnedScheduled: ConversationItem[];
-  timelineSections: TimelineSection[];
+  timelineConversations: ConversationItem[];
   scheduledGroups: ScheduledGroup[];
 };
 
@@ -99,15 +81,4 @@ export type WorkspaceGroupedHistoryProps = {
   activeTab?: SidebarTabKey;
   /** Publishes the current batch-action API (or null when batch mode is off). */
   onBatchApiChange?: (api: BatchHistoryApi | null) => void;
-};
-
-export type DragItemType = 'conversation' | 'workspace';
-
-export type DragItem = {
-  type: DragItemType;
-  id: string;
-  conversation?: TChatConversation;
-  workspaceGroup?: WorkspaceGroup;
-  sourceSection: 'pinned' | string;
-  sourceWorkspace?: string;
 };

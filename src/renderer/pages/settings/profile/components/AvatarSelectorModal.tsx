@@ -116,7 +116,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
         <div>
           <div className='mb-3 flex items-center gap-1.5 text-13px font-600 text-foreground'>
             {t('settings.avatarSelector.aiGenerateTitle', 'AI 生成头像')}
-            <span className='text-11px font-400 text-secondary'>{t('settings.avatarSelector.aiGenerateHint', '选择风格或直接描述，由 AI 为你生成')}</span>
+            <span className='text-11px font-400 text-foreground-secondary'>{t('settings.avatarSelector.aiGenerateHint', '选择风格或直接描述，由 AI 为你生成')}</span>
           </div>
 
           <Tabs value={selectedStyleKey} onChange={handleStyleChange} items={STYLE_CHIPS.map(({ key, fallback }) => ({ value: key, label: t(`settings.avatarSelector.style.${key}`, fallback) }))} />
@@ -129,9 +129,9 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
           </div>
 
           {/* 结果区：四状态 */}
-          <div className={`mt-4 min-h-33 f-center border border-dashed border-default bg-control rd-12px p-5 text-center ${genState === 'result' || genState === 'generating' ? 'flex-row gap-7' : 'flex-col gap-3'}`}>
+          <div className={`mt-4 min-h-33 f-center border border-dashed border-border bg-muted rd-12px p-5 text-center ${genState === 'result' || genState === 'generating' ? 'flex-row gap-7' : 'flex-col gap-3'}`}>
             {genState === 'idle' && (
-              <div className='text-12px text-secondary leading-[1.6]'>
+              <div className='text-12px text-foreground-secondary leading-[1.6]'>
                 {t('settings.avatarSelector.idleLine1', '输入描述后点击「生成」')}
                 <br />
                 {t('settings.avatarSelector.idleLine2', 'AI 生成的头像将显示在这里')}
@@ -141,13 +141,13 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
             {genState === 'generating' && (
               <>
                 <img className='h-8 w-8 animate-spin' src={avatarLoadingSvg} alt='' />
-                <div className='text-13px text-secondary'>{t('settings.avatarSelector.generating', '正在生成头像…')}</div>
+                <div className='text-13px text-foreground-secondary'>{t('settings.avatarSelector.generating', '正在生成头像…')}</div>
               </>
             )}
 
             {genState === 'result' && result && (
               <>
-                <img className='h-16 w-16 rd-full object-cover shadow-[0_2px_8px_rgba(0,0,0,0.12)]' src={result.dataUrl} alt={t('settings.avatarSelector.generatedAvatarAlt', '生成的头像')} />
+                <img className='h-16 w-16 rd-full object-cover shadow-sm' src={result.dataUrl} alt={t('settings.avatarSelector.generatedAvatarAlt', '生成的头像')} />
                 <Button type='primary' icon={<IconCheck />} onClick={handleUseGenerated}>
                   {t('settings.avatarSelector.useThisAvatar', '使用此头像')}
                 </Button>
@@ -156,8 +156,8 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
 
             {genState === 'error' && (
               <>
-                <div className='text-13px text-danger'>{errorMsg}</div>
-                <div className='text-12px text-secondary'>{t('settings.avatarSelector.retryHint', '描述已保留，可调整后直接再次点击「生成」重试')}</div>
+                <div className='text-13px text-destructive'>{errorMsg}</div>
+                <div className='text-12px text-foreground-secondary'>{t('settings.avatarSelector.retryHint', '描述已保留，可调整后直接再次点击「生成」重试')}</div>
               </>
             )}
           </div>
@@ -165,7 +165,7 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
 
         {/* ========== 分隔 ========== */}
         <Divider
-          className='mt-6 mb-5 text-12px text-secondary'
+          className='mt-6 mb-5 text-12px text-foreground-secondary'
           style={{
             borderBottomStyle: 'dashed',
           }}
@@ -179,11 +179,11 @@ const AvatarSelectorModal: React.FC<AvatarSelectorModalProps> = ({ visible, onCl
             {PRESETS.map((preset) => {
               const presetName = t(`settings.avatarSelector.preset.${preset.nameKey}`, preset.nameFallback);
               return (
-                <div key={preset.value} className='flex items-center gap-3 border border-transparent rd-12px bg-control p-3 cursor-pointer transition-[background,border-color,transform] duration-150 hover:bg-fill-2 hover:border-light active:scale-98' onClick={() => handleUsePreset(preset.value)}>
-                  <img className='h-10 w-10 flex-shrink-0 rd-full object-cover' src={preset.src} alt={presetName} />
+                <div key={preset.value} className='flex items-center gap-3 border border-transparent rd-12px bg-secondary p-3 cursor-pointer transition-[background,border-color,transform] duration-150 hover:bg-accent hover:border-border active:scale-98' onClick={() => handleUsePreset(preset.value)}>
+                  <img className='h-10 w-10 shrink-0 rd-full object-cover' src={preset.src} alt={presetName} />
                   <div>
                     <div className='text-14px font-600 text-foreground'>{presetName}</div>
-                    <div className='mt-0.5 text-11px text-secondary'>{t(`settings.avatarSelector.preset.${preset.descKey}`, preset.descFallback)}</div>
+                    <div className='mt-0.5 text-11px text-foreground-secondary'>{t(`settings.avatarSelector.preset.${preset.descKey}`, preset.descFallback)}</div>
                   </div>
                 </div>
               );

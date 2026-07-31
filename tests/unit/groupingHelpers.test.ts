@@ -4,41 +4,43 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { TChatConversation } from '@/common/storage';
-import { groupConversationsByTimelineAndWorkspace } from '@/renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { buildGroupedHistory } from '@/renderer/pages/conversation/grouped-history/utils/groupingHelpers';
 
-vi.stubGlobal('localStorage', {
-  getItem: () => null,
-  setItem: () => undefined,
-  removeItem: () => undefined,
-  clear: () => undefined,
-});
-
-const t = (key: string) => key;
-
-function makeConversation(overrides: Partial<TChatConversation> = {}): TChatConversation {
+function makeConversation(id: string, overrides: Partial<TChatConversation> = {}): TChatConversation {
   return {
-    id: 'conv-1',
+    id,
     type: 'acp',
-    name: 'Leader',
-    createTime: Date.now(),
-    modifyTime: Date.now(),
-    extra: {
-      backend: 'scode',
-      workspace: 'C:/tmp/scode-temp-1720000000000',
-      customWorkspace: true,
-      workspaceDisplayName: 'Team Alpha',
-    },
+    name: id,
+    createTime: 100,
+    modifyTime: 100,
     ...overrides,
   } as TChatConversation;
 }
 
-describe('groupConversationsByTimelineAndWorkspace', () => {
-  it('uses workspaceDisplayName before temporary workspace fallback', () => {
-    const sections = groupConversationsByTimelineAndWorkspace([makeConversation()], t);
-    const workspaceItem = sections.flatMap((section) => section.items).find((item) => item.type === 'workspace');
+describe('buildGroupedHistory', () => {
+  it('sorts all unpinned conversations by latest activity without grouping', () => {
+    const result = buildGroupedHistory([
+      makeConversation('workspace-old', {
+        modifyTime: 100,
+        extra: { workspace: '/workspace/a', customWorkspace: true },
+      }),
+      makeConversation('standalone-new', { modifyTime: 300 }),
+      makeConversation('workspace-middle', {
+        createTime: 200,
+        modifyTime: 0,
+        extra: { workspace: '/workspace/b', customWorkspace: true },
+      }),
+    ]);
 
-    expect(workspaceItem?.workspaceGroup?.displayName).toBe('Team Alpha');
+    expect(result.timelineConversations.map(({ id }) => id)).toEqual(['standalone-new', 'workspace-middle', 'workspace-old']);
+  });
+
+  it('keeps pinned and cron-run conversations out of the timeline', () => {
+    const result = buildGroupedHistory([makeConversation('normal'), makeConversation('pinned', { extra: { pinned: true, pinnedAt: 200 } }), makeConversation('cron-run', { extra: { cronJobId: 'job-1' } })]);
+
+    expect(result.pinnedTimeline.map(({ id }) => id)).toEqual(['pinned']);
+    expect(result.timelineConversations.map(({ id }) => id)).toEqual(['normal']);
   });
 });

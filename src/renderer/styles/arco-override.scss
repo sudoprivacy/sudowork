@@ -137,6 +137,8 @@ body[arco-theme='dark'] {
 
 .arco-modal {
   border-radius: 16px;
+  background-color: var(--card);
+  border: 1px solid var(--border);
 
   &-header {
     border-bottom-color: var(--border-shallow);
