@@ -144,7 +144,7 @@ const ChatSider: React.FC<{
 
   return (
     <>
-      <div className='flex h-full min-h-0 flex-col bg-[var(--color-bg-1)]'>
+      <div className='flex h-full min-h-0 flex-col bg-1'>
         <div className={`right-panel-tabs ${isOverflowMode ? 'right-panel-tabs--overflow' : ''}`}>
           {isOverflowMode ? (
             <>

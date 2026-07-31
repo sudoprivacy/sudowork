@@ -14,7 +14,7 @@ export default function TeamLeaderEmptyState({ assistantName, assistantAvatar, a
 
   return (
     <div className='w-full flex justify-center'>
-      <div className='w-full max-w-560px rd-24px border border-light bg-[var(--color-bg-2)] px-28px py-30px text-center shadow-[0_12px_32px_rgba(15,23,42,0.05)] animate-fade-in animate-duration-300 animate-ease-out'>
+      <div className='w-full max-w-560px rd-24px border border-light bg-2 px-28px py-30px text-center shadow-[0_12px_32px_rgba(15,23,42,0.05)] animate-fade-in animate-duration-300 animate-ease-out'>
         <div className='mx-auto mb-18px size-64px rd-full bg-fill-2 f-center overflow-hidden border border-light shadow-[0_8px_24px_rgba(0,0,0,0.06)]'>
           {avatar.kind === 'image' && avatar.value ? (
             <img src={avatar.value} alt={assistantName} className='size-full object-cover' />

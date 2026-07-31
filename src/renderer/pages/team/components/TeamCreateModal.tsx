@@ -156,7 +156,7 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
     return selectedMembers.map((member) => {
       const isLeader = member.selectionId === leaderSelectionId;
       return (
-        <div key={member.selectionId} className='flex min-h-66px items-center gap-3 rounded-14px border border-[var(--color-border-2)] bg-fill-1 p-10px hover:bg-1'>
+        <div key={member.selectionId} className='flex min-h-66px items-center gap-3 rounded-14px border border-light bg-fill-1 p-10px hover:bg-1'>
           <span className='inline-flex size-42px shrink-0 items-center justify-center overflow-hidden rounded-12px bg-fill-2'>{renderCandidateIcon(member.assistant, 24)}</span>
           <div className='min-w-0 flex-1'>
             <div className='truncate text-15px font-650 text-1'>{member.assistant.name}</div>
@@ -191,8 +191,8 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
     >
       <div className='-mx-20px -mt-4px flex h-[min(620px,calc(100vh-180px))] min-h-460px flex-col overflow-hidden'>
         <div className='px-28px pb-20px text-14px leading-22px text-gray-500'>{t('team.create.subtitle')}</div>
-        <div className='grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-y border-[var(--color-border-2)]'>
-          <section className='flex min-h-0 flex-col border-r border-[var(--color-border-2)] p-20px'>
+        <div className='grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-y border-light'>
+          <section className='flex min-h-0 flex-col border-r border-light p-20px'>
             <div className='relative'>
               <Search size={16} className='absolute left-14px top-1/2 -translate-y-1/2 text-gray-400' />
               <Input value={search} onChange={setSearch} placeholder={t('team.create.searchPlaceholder')} className='!h-44px !rounded-10px !bg-fill-1 !pl-38px' />
@@ -205,8 +205,8 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
               <div className='text-15px font-700 text-1'>{t('team.create.selectedMembersCount', { count: selectedMembers.length })}</div>
               <div className='text-12px text-gray-400'>{t('team.create.leaderHint')}</div>
             </div>
-            <div className='flex min-h-220px flex-1 flex-col gap-2 overflow-y-auto rounded-14px border border-[var(--color-border-2)] bg-fill-1 p-10px'>{renderSelectedMembers()}</div>
-            <Form layout='vertical' className='mt-18px border-t border-[var(--color-border-2)] pt-18px'>
+            <div className='flex min-h-220px flex-1 flex-col gap-2 overflow-y-auto rounded-14px border border-light bg-fill-1 p-10px'>{renderSelectedMembers()}</div>
+            <Form layout='vertical' className='mt-18px border-t border-light pt-18px'>
               <div className='grid grid-cols-[88px_minmax(0,1fr)] items-center gap-x-3 gap-y-3'>
                 <div className='text-14px font-600 text-gray-600'>
                   <RequiredLabel>{t('team.create.nameLabel')}</RequiredLabel>

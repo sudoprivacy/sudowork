@@ -278,7 +278,7 @@ const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }
 
     return (
       <div className='flex flex-col h-100'>
-        {/* Breadcrumb nav bar */}
+        {/* Breadcrumb nav bar. 注：border-[var(--bg-3)]（本组件多处）= bg 当边框的既有误用（uno.config:38 警示），零改样重构不处理 */}
         <div className='flex items-center gap-1 px-4 py-2.5 border-b border-[var(--bg-3)] flex-shrink-0 flex-wrap'>
           <div className='flex items-center gap-1 flex-1 flex-wrap'>
             {crumbs.map((crumb, i) => {
@@ -318,7 +318,7 @@ const BdpanImportFilePicker: React.FC<Props> = ({ visible, onCancel, onConfirm }
             <div className='flex items-center justify-center h-full text-secondary text-14px'>{t('conversation.bdpan.emptyDir')}</div>
           ) : (
             files.map((file, index) => (
-              <div key={file.path} className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors select-none ${selected.has(file.path) ? 'bg-[rgba(var(--primary-6),0.14)]' : 'hover:bg-[var(--bg-2)]'}`} onClick={(e) => handleFileClick(file, index, e)}>
+              <div key={file.path} className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors select-none ${selected.has(file.path) ? 'bg-[rgba(var(--primary-6),0.14)]' : 'hover:bg-2'}`} onClick={(e) => handleFileClick(file, index, e)}>
                 {file.isdir ? <FolderOpen size={18} fill='var(--color-text-3)' /> : <FileDisplayOne size={18} fill='var(--color-text-3)' />}
                 <span className='flex-1 text-foreground text-14px truncate'>{file.filename}</span>
                 {file.isdir && <span className='text-secondary text-12px'>›</span>}

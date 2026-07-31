@@ -108,6 +108,11 @@ export default defineConfig({
     // Arco Design official text colors: text-1, text-2, text-3, text-4
     [/^text-([1-4])$/, ([, d]: RegExpExecArray) => ({ color: `var(--color-text-${d})` })],
 
+    // 文字色 token 作背景（与 text-N 同源，仅属性为 background-color）
+    // 仅限状态指示点/圆点等既存用法，勿用于普通容器背景（语义可疑，待整改）
+    // Text-color token as background (mirrors text-N); status dots only, not normal containers
+    [/^bg-text-([1-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-text-${d})` })],
+
     // Arco Design 官方填充色 fill-1 到 fill-4，fill-0 为项目扩展
     // Arco Design official fill colors: bg-fill-1..4; bg-fill-0 is project-specific
     [/^bg-fill-([0-4])$/, ([, d]: RegExpExecArray) => ({ 'background-color': `var(--color-fill-${d})` })],
@@ -152,6 +157,7 @@ export default defineConfig({
     'border-tiny': 'border-[var(--border-tiny)]', // 极浅边框，适用于白色/浅色面板 / very subtle border for white panels
     'divide-light': 'divide-[var(--border-light)]', // 浅分割线 / lighter divider color（搭配 divide-y / divide-x）
     'divide-tiny': 'divide-[var(--border-tiny)]', // 极浅分割线 / very subtle divider
+    'bg-guid-agent-bar': 'bg-[var(--color-guid-agent-bar,var(--aou-2))]', // guid agent 条背景 / guid agent bar background（项目 token）
     'scrollbar-hide': '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
     card: 'bg-base rd-3 p-4 cursor-pointer shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]',
     // 分类筛选 chip：结构 + 两种互斥状态（idle / active），避免 hover 与选中态冲突

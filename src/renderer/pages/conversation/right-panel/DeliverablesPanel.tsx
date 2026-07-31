@@ -73,7 +73,7 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, t
       ) : (
         <div className='flex flex-col gap-12px'>
           {grouped.map((group) => (
-            <section key={group.label} className='w-[90%] min-w-0 overflow-hidden rounded-16px border border-light bg-[var(--color-bg-2)] p-12px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+            <section key={group.label} className='w-[90%] min-w-0 overflow-hidden rounded-16px border border-light bg-2 p-12px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
               <div className='mb-10px flex items-center justify-between gap-8px'>
                 <div className='text-11px font-semibold uppercase tracking-[0.16em] text-secondary'>{group.label}</div>
                 <div className='rounded-full bg-fill-1 px-8px py-1px text-[10px] font-medium leading-4 text-secondary'>{group.entries.length}</div>
@@ -94,7 +94,7 @@ const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
   }
   return (
     <div className='flex-1 flex flex-col items-center justify-center text-center px-24px'>
-      <div className='flex flex-col items-center gap-10px rounded-20px border border-dashed border-light bg-[var(--color-bg-2)] px-20px py-24px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+      <div className='flex flex-col items-center gap-10px rounded-20px border border-dashed border-light bg-2 px-20px py-24px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
         <div className='flex h-48px w-48px items-center justify-center rounded-full bg-fill-1'>
           <FileCabinet size={36} fill={'var(--text-disabled)'} />
         </div>

@@ -86,7 +86,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ title, hint, items,
                   <div className={classNames('text-14px whitespace-nowrap', index === activeIndex ? 'text-foreground font-semibold' : 'text-foreground font-medium')}>{item.label}</div>
                   {item.description && <div className='text-12px text-secondary truncate'>{item.description}</div>}
                 </div>
-                {item.badge && <span className={classNames('text-10px rounded-999px px-1.5 py-px shrink-0', index === activeIndex ? 'text-foreground bg-[var(--color-bg-1)]' : 'text-secondary bg-[var(--color-bg-1)]')}>{item.badge}</span>}
+                {item.badge && <span className={classNames('text-10px rounded-999px px-1.5 py-px shrink-0', index === activeIndex ? 'text-foreground bg-1' : 'text-secondary bg-1')}>{item.badge}</span>}
               </div>
             </button>
           ))}

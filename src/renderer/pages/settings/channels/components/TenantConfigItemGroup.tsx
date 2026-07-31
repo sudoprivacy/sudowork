@@ -148,7 +148,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
               </div>
               <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
                 <span className={enabled ? 'whitespace-nowrap text-13px font-500 leading-none text-success' : 'whitespace-nowrap text-13px leading-none text-secondary'}>
-                  <span className={enabled ? 'mr-1.5 inline-block size-[5px] rd-full bg-success align-middle' : 'mr-1.5 inline-block size-[5px] rd-full bg-[var(--color-text-3)] align-middle'} />
+                  <span className={enabled ? 'mr-1.5 inline-block size-[5px] rd-full bg-success align-middle' : 'mr-1.5 inline-block size-[5px] rd-full bg-text-3 align-middle'} />
                   {statusText}
                 </span>
                 <Switch size='small' checked={enabled} onChange={handleToggle} className='settings-accent-switch' style={enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />

@@ -28,10 +28,10 @@ const GeminiModelSelector: React.FC<{
   // 获取当前模型的健康状态 (must be called before any early return to keep hooks count stable)
   const currentModel = selection?.currentModel;
   const currentModelHealth = React.useMemo(() => {
-    if (!currentModel || !modelConfig) return { status: 'unknown', color: 'bg-[var(--color-text-3)]' };
+    if (!currentModel || !modelConfig) return { status: 'unknown', color: 'bg-text-3' };
     const matchedProvider = modelConfig.find((p) => p.id === currentModel.id);
     const healthStatus = matchedProvider?.modelHealth?.[currentModel.useModel]?.status || 'unknown';
-    const healthColor = healthStatus === 'healthy' ? 'bg-success' : healthStatus === 'unhealthy' ? 'bg-danger' : 'bg-[var(--color-text-3)]';
+    const healthColor = healthStatus === 'healthy' ? 'bg-success' : healthStatus === 'unhealthy' ? 'bg-danger' : 'bg-text-3';
     return { status: healthStatus, color: healthColor };
   }, [currentModel, modelConfig]);
 
@@ -128,7 +128,7 @@ const GeminiModelSelector: React.FC<{
                         // 获取模型健康状态
                         const matchedProvider = modelConfig?.find((p) => p.id === provider.id);
                         const healthStatus = matchedProvider?.modelHealth?.[modelName]?.status || 'unknown';
-                        const healthColor = healthStatus === 'healthy' ? 'bg-success' : healthStatus === 'unhealthy' ? 'bg-danger' : 'bg-[var(--color-text-3)]';
+                        const healthColor = healthStatus === 'healthy' ? 'bg-success' : healthStatus === 'unhealthy' ? 'bg-danger' : 'bg-text-3';
 
                         if (!option) {
                           return (
