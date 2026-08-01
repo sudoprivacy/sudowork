@@ -1653,7 +1653,7 @@ const AgentSettings: React.FC = () => {
           {/* Tab switcher */}
           <Tabs
             variant='line'
-            className='flex-shrink-0'
+            className='shrink-0'
             value={activeTab}
             onChange={(value) => setActiveTab(value as AssistantStoreTab)}
             items={[
@@ -1673,13 +1673,13 @@ const AgentSettings: React.FC = () => {
 
           {/* Sync status indicator for enterprise mode - compact inline style */}
           {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px flex-shrink-0'>
+            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px shrink-0'>
               <Spin size={12} />
               <span className='text-11px text-primary'>{t('settings.assistant.syncing', '同步中...')}</span>
             </div>
           )}
           {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.assistants.installed.length > 0 || syncStatus.assistants.skipped.length > 0 || syncStatus.assistants.failed.length > 0) && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-soft rd-6px flex-shrink-0'>
+            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-soft rd-6px shrink-0'>
               <Check size={12} className='text-success' />
               <span className='text-11px text-success'>{t('settings.assistant.syncCompleted', '已同步')}</span>
             </div>
@@ -1691,7 +1691,7 @@ const AgentSettings: React.FC = () => {
           {/* Create button — only on installed tab */}
           {activeTab === 'installed' && (
             <Tooltip content={t('settings.customAssistants', '自定义智能体')}>
-              <Button icon={<Plus size={13} />} onClick={() => void handleCreate()} className='rd-full flex-shrink-0'>
+              <Button icon={<Plus size={13} />} onClick={() => void handleCreate()} className='rd-full shrink-0'>
                 {t('settings.createAssistant', '创建')}
               </Button>
             </Tooltip>
@@ -1702,7 +1702,7 @@ const AgentSettings: React.FC = () => {
         {(activeTab === 'store' || activeTab === 'exclusive') && (
           <>
             {/* Category filter */}
-            <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
+            <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 shrink-0 scrollbar-hide'>
               {[{ key: 'all', label: t('settings.assistant.allCategories', '全部分类') }, ...hubCategories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
                 <span key={key} className={classNames('category-chip', selectedHubCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedHubCategory(key)}>
                   {label}
@@ -1826,7 +1826,7 @@ const AgentSettings: React.FC = () => {
                 <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-3 flex items-start gap-3 animate-pulse'>
-                      <div className='size-12 flex-shrink-0 rd-8px bg-fill-3' />
+                      <div className='size-12 shrink-0 rd-8px bg-fill-3' />
                       <div className='flex-1 min-w-0 flex flex-col gap-1.5 pt-0.5'>
                         <div className='h-14px w-3/5 rd-4px bg-fill-3' />
                         <div className='h-10px w-full rd-4px bg-fill-3' />

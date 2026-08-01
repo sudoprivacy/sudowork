@@ -10,7 +10,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Group, Panel, type PanelSize } from 'react-resizable-panels';
 
 import { STORAGE_KEYS } from '@/common/storageKeys';
-import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import ResizableSeparator from '@/renderer/components/ResizableSeparator';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { useStoredPanelLayout } from '@/renderer/hooks/useStoredPanelLayout';
@@ -228,11 +227,9 @@ const ChatLayout: React.FC<{
   const headerBlock = (
     <>
       <ConversationTabs />
-      <ArcoLayout.Header className='h-9 flex items-center justify-between p-4 gap-4 bg-background! chat-layout-header overflow-hidden'>
+      <ArcoLayout.Header className='h-12 flex items-center justify-between p-4 gap-4 bg-background! chat-layout-header overflow-hidden'>
         <div className='shrink-0'>{props.headerLeft}</div>
-        <FlexFullContainer className='h-full min-w-0' containerClassName='flex items-center gap-4'>
-          <span className='max-w-full truncate text-16px font-bold text-foreground'>{props.title}</span>
-        </FlexFullContainer>
+        <span className='min-w-0 flex-1 truncate text-16px font-bold text-foreground'>{props.title}</span>
         <div className='flex items-center gap-3 shrink-0'>
           {props.headerExtra}
           {/* {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} compact={false} showLogoInCompact={false} compactLabelType='mode' />} */}
