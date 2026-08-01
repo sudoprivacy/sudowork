@@ -5,7 +5,7 @@
  */
 
 import { Alert, Button, Image, Message, Radio, Tag, Tooltip } from '@arco-design/web-react';
-import { Copy, Download, LoadingOne } from '@icon-park/react';
+import { Copy, Download, LoaderCircle as LoadingOne } from 'lucide-react';
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IMessageToolGroup } from '@/common/chatLib';
@@ -315,7 +315,7 @@ const ImageDisplay: React.FC<{
   if (loading) {
     return (
       <div className='flex items-center gap-8px my-8px'>
-        <LoadingOne className='loading' theme='outline' size='14' fill={'var(--foreground)'} />
+        <LoadingOne className='loading' size={14} color='var(--foreground)' />
         <span className='text-secondary text-sm'>{t('common.loading', { defaultValue: 'Loading...' })}</span>
       </div>
     );
@@ -353,10 +353,10 @@ const ImageDisplay: React.FC<{
         {/* 操作按钮 Action buttons */}
         <div className='flex gap-8px'>
           <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
-            <Button type='secondary' size='small' shape='circle' icon={<Copy theme='outline' size='14' fill={'var(--foreground)'} />} onClick={handleCopy} />
+            <Button type='secondary' size='small' shape='circle' icon={<Copy size={14} color='var(--foreground)' />} onClick={handleCopy} />
           </Tooltip>
           <Tooltip content={t('common.download', { defaultValue: 'Download' })}>
-            <Button type='secondary' size='small' shape='circle' icon={<Download theme='outline' size='14' fill={'var(--foreground)'} />} onClick={handleDownload} />
+            <Button type='secondary' size='small' shape='circle' icon={<Download size={14} color='var(--foreground)' />} onClick={handleDownload} />
           </Tooltip>
         </div>
       </div>
@@ -489,7 +489,7 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
             <Alert
               className={ALERT_CLASSES}
               type={status === 'Error' ? 'error' : status === 'Success' ? 'success' : status === 'Canceled' ? 'warning' : 'info'}
-              icon={isLoading && <LoadingOne theme='outline' size='12' fill={'var(--foreground)'} className='loading lh-[1] flex' />}
+              icon={isLoading && <LoadingOne size={12} color='var(--foreground)' className='loading lh-[1] flex' />}
               content={
                 <div>
                   <Tag className={'mr-4px'}>

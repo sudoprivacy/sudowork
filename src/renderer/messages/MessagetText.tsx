@@ -5,7 +5,7 @@
  */
 
 import { Alert, Message, Tag, Tooltip } from '@arco-design/web-react';
-import { Copy, Lightning } from '@icon-park/react';
+import { Copy, Zap as Lightning } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -146,7 +146,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
   const copyButton = (
     <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
       <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={handleCopy} style={{ lineHeight: 0 }}>
-        <Copy theme='outline' size='16' fill={'var(--text-secondary)'} />
+        <Copy size={16} color='var(--text-secondary)' />
       </div>
     </Tooltip>
   );
@@ -211,7 +211,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
         {skills.length > 0 && isUserMessage && (
           <div className={classNames('mt-6px mb-6px', { 'self-end': isUserMessage })}>
             <div className='flex items-center gap-4px text-10px text-secondary mb-4px'>
-              <Lightning size='10' className='text-primary' />
+              <Lightning size={10} className='text-primary' />
               <span>当前使用技能</span>
             </div>
             <div className='flex flex-wrap gap-6px'>

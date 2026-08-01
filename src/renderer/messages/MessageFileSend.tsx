@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Picture } from '@icon-park/react';
+import { Image as Picture } from 'lucide-react';
 import React, { useCallback } from 'react';
 import type { IMessageFileSend } from '@/common/chatLib';
 import type { PreviewContentType } from '@/common/types/preview';
@@ -104,7 +104,7 @@ const MessageFileSend: React.FC<{ message: IMessageFileSend }> = ({ message }) =
     return (
       <div className='w-full'>
         <div className='bg-message-tips rd-8px p-x-12px p-y-8px flex items-center gap-8px' {...clickableProps}>
-          <Picture theme='filled' size='18' className='flex-shrink-0 text-secondary' />
+          <Picture size={18} className='flex-shrink-0 text-secondary' />
           <span className='text-secondary text-13px'>{fileName}</span>
         </div>
       </div>

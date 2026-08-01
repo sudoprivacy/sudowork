@@ -5,7 +5,7 @@
  */
 
 import { Image, Message } from '@arco-design/web-react';
-import { Down } from '@icon-park/react';
+import { ChevronDown as Down } from 'lucide-react';
 import classNames from 'classnames';
 import React, { createContext, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -569,7 +569,7 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
           {/* Scroll button */}
           <div className='absolute bottom-20px left-50% transform -translate-x-50% z-100'>
             <div className='flex items-center justify-center w-40px h-40px rd-full bg-base shadow-lg cursor-pointer hover:bg-1 transition-all hover:scale-110 border' onClick={handleScrollButtonClick} title={t('messages.scrollToBottom')} style={{ lineHeight: 0 }}>
-              <Down theme='filled' size='20' fill={'var(--text-secondary)'} style={{ display: 'block' }} />
+              <Down size={20} color='var(--text-secondary)' style={{ display: 'block' }} />
             </div>
           </div>
         </>

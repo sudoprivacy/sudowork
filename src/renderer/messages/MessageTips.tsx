@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Attention, CheckOne } from '@icon-park/react';
+import { CircleCheck as CheckOne, TriangleAlert as Attention } from 'lucide-react';
 import { theme } from '@office-ai/platform';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
@@ -14,9 +14,9 @@ import CollapsibleContent from '../components/CollapsibleContent';
 import RuntimeErrorBanner from './RuntimeErrorBanner';
 
 const icon = {
-  success: <CheckOne theme='filled' size='16' fill={theme.Color.FunctionalColor.success} className='m-t-2px' />,
-  warning: <Attention theme='filled' size='16' strokeLinejoin='bevel' className='m-t-2px' fill={theme.Color.FunctionalColor.warn} />,
-  error: <Attention theme='filled' size='16' strokeLinejoin='bevel' className='m-t-2px' fill={theme.Color.FunctionalColor.error} />,
+  success: <CheckOne size={16} color={theme.Color.FunctionalColor.success} className='m-t-2px' />,
+  warning: <Attention size={16} strokeLinejoin='bevel' className='m-t-2px' color={theme.Color.FunctionalColor.warn} />,
+  error: <Attention size={16} strokeLinejoin='bevel' className='m-t-2px' color={theme.Color.FunctionalColor.error} />,
 };
 
 const useFormatContent = (content: string) => {

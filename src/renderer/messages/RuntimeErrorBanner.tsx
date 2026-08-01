@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Attention } from '@icon-park/react';
+import { TriangleAlert as Attention } from 'lucide-react';
 import { theme } from '@office-ai/platform';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -30,7 +30,7 @@ export default function RuntimeErrorBanner({ errorClass, errorBytes, fallbackCon
   return (
     <div className='w-full' data-testid={`runtime-error-${cls}`}>
       <div className='bg-message-tips rd-8px p-x-12px p-y-10px flex items-start gap-8px'>
-        <Attention theme='filled' size='18' strokeLinejoin='bevel' className='m-t-2px flex-shrink-0' fill={theme.Color.FunctionalColor.error} />
+        <Attention size={18} strokeLinejoin='bevel' className='m-t-2px flex-shrink-0' color={theme.Color.FunctionalColor.error} />
         <div className='flex-1 min-w-0'>
           {title ? <div className='text-foreground font-medium m-b-4px [word-break:break-word]'>{title}</div> : null}
           <div className='whitespace-break-spaces text-foreground/85 [word-break:break-word] text-13px'>{body}</div>
@@ -49,7 +49,7 @@ function LegacyErrorRow({ content }: { content: string }) {
   return (
     <div className='w-full' data-testid='runtime-error-fallback'>
       <div className='bg-message-tips rd-8px p-x-12px p-y-8px flex items-start gap-4px'>
-        <Attention theme='filled' size='16' strokeLinejoin='bevel' className='m-t-2px' fill={theme.Color.FunctionalColor.error} />
+        <Attention size={16} strokeLinejoin='bevel' className='m-t-2px' color={theme.Color.FunctionalColor.error} />
         <span className='whitespace-break-spaces text-foreground [word-break:break-word]'>{content}</span>
       </div>
     </div>

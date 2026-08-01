@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FolderOpen, ShareOne } from '@icon-park/react';
 import { Message, Tooltip } from '@arco-design/web-react';
+import { ExternalLink as ShareOne, FolderOpen } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -155,12 +155,12 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
           <div className='ml-auto flex shrink-0 items-center gap-2px opacity-0 transition-opacity group-hover:opacity-100'>
             <Tooltip content={t(isHtml ? 'messages.generatedFile.openInSystemBrowser' : 'messages.generatedFile.openWithDefaultApp')} position='top' mini>
               <button type='button' onClick={handleOpenExternal} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-[var(--color-bg-1)]' style={{ lineHeight: 0 }}>
-                <ShareOne size='14' fill={'var(--text-secondary)'} />
+                <ShareOne size={14} color='var(--text-secondary)' />
               </button>
             </Tooltip>
             <Tooltip content={t('messages.generatedFile.showInFolder')} position='top' mini>
               <button type='button' onClick={handleShowInFolder} className='flex items-center justify-center rounded-4px border-0 bg-transparent p-4px cursor-pointer hover:bg-[var(--color-bg-1)]' style={{ lineHeight: 0 }}>
-                <FolderOpen size='14' fill={'var(--text-secondary)'} />
+                <FolderOpen size={14} color='var(--text-secondary)' />
               </button>
             </Tooltip>
           </div>

@@ -5,7 +5,7 @@
  */
 
 import { Alert, Message, Tooltip } from '@arco-design/web-react';
-import { Copy, FileWord, ShareOne } from '@icon-park/react';
+import { Copy, FileText as FileWord, Share2 as ShareOne } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import brand from '@brand';
@@ -137,12 +137,12 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
       <div className='flex min-h-7 flex-wrap items-center gap-1'>
         <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
           <div className='f-center size-6 cursor-pointer rounded-md text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground' onClick={handleCopy}>
-            <Copy theme='outline' size={16} fill='currentColor' />
+            <Copy size={16} />
           </div>
         </Tooltip>
         <Tooltip content={t('messages.convertToWord', { defaultValue: 'Convert to Word' })}>
           <div className={`f-center size-6 rounded-md transition-colors ${converting ? 'cursor-default text-foreground-quaternary' : 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground'}`} onClick={handleConvertToWord}>
-            <FileWord theme='outline' size={16} fill='currentColor' />
+            <FileWord size={16} />
           </div>
         </Tooltip>
         <Tooltip content={shareoneInstalled ? t('messages.shareone') : t('messages.shareCliNotInstalled')}>
@@ -150,7 +150,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
             className={`f-center size-6 rounded-md transition-colors ${shareoneInstalled && !sharing ? 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground' : 'cursor-default text-foreground-quaternary'}`}
             onClick={shareoneInstalled && !sharing ? handleShare : undefined}
           >
-            <ShareOne theme='outline' size={16} fill='currentColor' />
+            <ShareOne size={16} />
           </div>
         </Tooltip>
         {showTokenUsageBadge && totalTokens && (
