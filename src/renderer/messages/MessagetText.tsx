@@ -180,9 +180,9 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
               'w-fit max-w-full': isUserMessage || !hasCodeLikeContent,
               'w-full max-w-full': !isUserMessage && hasCodeLikeContent,
               // 用户消息使用 OpenClaw 风格的粉色调
-              'border-border bg-secondary-brand text-secondary-brand-foreground hover:bg-brand-surface': isUserMessage,
+              'border-border bg-secondary-brand text-secondary-brand-foreground': isUserMessage,
               // 助手消息使用卡片语义色
-              'border-border bg-card text-card-foreground hover:bg-muted': !isUserMessage,
+              'border-border bg-card text-card-foreground': !isUserMessage,
               // 流式输出时添加红色闪烁边框
               'streaming-message': isStreaming && !isUserMessage,
             })}

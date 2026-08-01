@@ -150,6 +150,7 @@
   /* 新规范 Token：品牌色 */
   --primary: rgb(229 229 229);
   --primary-foreground: rgb(13 13 13);
+  --secondary-brand: color-mix(in srgb, var(--brand) 22%, var(--card));
   --secondary-brand-foreground: rgb(255 255 255);
 
   /* 新规范 Token：功能色 */
