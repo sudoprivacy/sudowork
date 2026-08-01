@@ -5,11 +5,9 @@
  */
 
 import { FileText, MessageCirclePlus } from 'lucide-react';
-import React, { Suspense, useCallback, useEffect, useRef } from 'react';
+import React, { Suspense, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
-
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
 import SettingsSider from './SettingsSider';
 import SidebarNavItem from './SidebarNavItem';
@@ -19,12 +17,6 @@ export default function Sider({ onNewConversation }: ISiderProps) {
   // 侧栏收起由外层 ArcoLayout.Sider 把宽度动画到 0 整体隐藏，内容始终保持展开态，
   // 因此这里不再处理收起态的布局分支。
   const { pathname, search, hash } = useLocation();
-
-  // 选中会话 / 触发导航后清理 tooltip 残留
-  // Clean up tooltip remnants after selecting a session / navigating
-  const onSessionClick = useCallback(() => {
-    cleanupSiderTooltips();
-  }, []);
 
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -49,7 +41,6 @@ export default function Sider({ onNewConversation }: ISiderProps) {
   const workspaceHistoryProps = {
     collapsed: false,
     tooltipEnabled: false,
-    onSessionClick,
     activeTab: 'timeline' as const,
   };
 
@@ -60,9 +51,7 @@ export default function Sider({ onNewConversation }: ISiderProps) {
   }, [pathname, search, hash]);
 
   const onBackToMain = () => {
-    cleanupSiderTooltips();
     void navigate(lastNonSettingsPathRef.current || '/guid');
-    onSessionClick();
   };
 
   return (

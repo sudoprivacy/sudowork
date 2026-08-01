@@ -28,7 +28,7 @@ import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
 
-const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
+const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();
   const { t } = useTranslation();
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
@@ -134,7 +134,6 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     useConversationActions({
       batchMode,
       activeTab,
-      onSessionClick,
       onBatchModeChange,
       selectedConversationIds,
       setSelectedConversationIds,

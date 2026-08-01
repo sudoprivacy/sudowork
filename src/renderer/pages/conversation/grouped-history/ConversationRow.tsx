@@ -44,7 +44,9 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   };
 
   const handleRowClick = () => {
-    cleanupSiderTooltips();
+    if (batchMode || selected) {
+      cleanupSiderTooltips();
+    }
     if (batchMode) {
       onToggleChecked(conversation as TChatConversation);
       return;

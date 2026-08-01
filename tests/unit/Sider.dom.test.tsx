@@ -24,7 +24,6 @@ vi.mock('react-i18next', () => ({
 vi.mock('@renderer/pages/conversation/WorkspaceGroupedHistory', () => ({ default: () => <div>History</div> }));
 vi.mock('@renderer/layouts/components/SettingsSider', () => ({ default: () => <div>Settings</div> }));
 vi.mock('@renderer/layouts/components/SiderFooter', () => ({ default: () => <div>Footer</div> }));
-vi.mock('@renderer/utils/siderTooltip', () => ({ cleanupSiderTooltips: vi.fn() }));
 
 describe('Sider main menu', () => {
   beforeEach(() => {

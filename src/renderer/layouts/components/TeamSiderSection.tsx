@@ -12,7 +12,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
-import { cleanupSiderTooltips } from '@/renderer/utils/siderTooltip';
 import TeamCreateModal from '@/renderer/pages/team/components/TeamCreateModal';
 import { useTeamExport } from '@/renderer/pages/team/hooks/useTeamExport';
 import { useTeamHistoryActions } from '@/renderer/pages/team/hooks/useTeamHistoryActions';
@@ -21,7 +20,7 @@ import type { TTeam } from '@/renderer/pages/team/types';
 
 const TEAM_SECTION_EXPANDED_KEY = 'sudowork_team_section_expanded';
 
-export default function TeamSiderSection({ onSessionClick }: ITeamSiderSectionProps) {
+export default function TeamSiderSection() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -60,19 +59,16 @@ export default function TeamSiderSection({ onSessionClick }: ITeamSiderSectionPr
     (teamId: string) => {
       void mutate();
       void navigate(`/app/team/${teamId}`);
-      onSessionClick?.();
     },
-    [mutate, navigate, onSessionClick]
+    [mutate, navigate]
   );
 
   const onTeamClick = useCallback(
     (team: TTeam) => {
-      cleanupSiderTooltips();
       setDropdownVisibleId(null);
       void navigate(`/app/team/${team.id}`);
-      onSessionClick?.();
     },
-    [navigate, onSessionClick]
+    [navigate]
   );
 
   const onMenuAction = useCallback(
@@ -251,8 +247,4 @@ export default function TeamSiderSection({ onSessionClick }: ITeamSiderSectionPr
       <DirectorySelectionModal visible={isDirectorySelectorVisible} onConfirm={onSelectExportDirectoryFromModal} onCancel={() => setIsDirectorySelectorVisible(false)} />
     </div>
   );
-}
-
-interface ITeamSiderSectionProps {
-  onSessionClick?: () => void;
 }

@@ -141,7 +141,6 @@ const ConversationTabs: React.FC = () => {
   // 切换 tab 并导航
   const handleSwitchTab = useCallback(
     (tabId: string) => {
-      cleanupSiderTooltips();
       switchTab(tabId);
       void navigate(`/conversation/${tabId}`);
     },

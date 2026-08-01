@@ -17,7 +17,6 @@ vi.mock('@renderer/context/AuthContext', () => ({
     user: { nickname: 'Tester', phone: '13800138000' },
   }),
 }));
-vi.mock('@renderer/utils/siderTooltip', () => ({ cleanupSiderTooltips: vi.fn() }));
 vi.mock('@renderer/utils', () => ({ maskPhone: () => '138****8000' }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

@@ -73,7 +73,6 @@ export type BatchHistoryApi = {
 };
 
 export type WorkspaceGroupedHistoryProps = {
-  onSessionClick?: () => void;
   collapsed?: boolean;
   tooltipEnabled?: boolean;
   batchMode?: boolean;

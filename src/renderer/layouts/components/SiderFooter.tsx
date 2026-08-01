@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
 import { useAuth } from '@renderer/context/AuthContext';
-import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { maskPhone } from '@renderer/utils';
 
 export default function SiderFooter({ isSettings, onBackToMain }: ISiderFooterProps) {
@@ -22,7 +21,6 @@ export default function SiderFooter({ isSettings, onBackToMain }: ISiderFooterPr
 
   const onMenuClick = async (key: string) => {
     setIsUserMenuOpen(false);
-    cleanupSiderTooltips();
     if (key === 'settings') {
       void navigate(isGuest ? '/settings/model' : '/settings/profile');
     } else if (key === 'login') {

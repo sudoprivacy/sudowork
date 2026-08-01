@@ -18,7 +18,6 @@ import { isConversationPinned } from '../utils/groupingHelpers';
 
 type UseConversationActionsParams = {
   batchMode: boolean;
-  onSessionClick?: () => void;
   onBatchModeChange?: (value: boolean) => void;
   selectedConversationIds: Set<string>;
   setSelectedConversationIds: React.Dispatch<React.SetStateAction<Set<string>>>;
@@ -37,7 +36,7 @@ type UseConversationActionsParams = {
  * Enterprise mode (remote-agent) conversations are cached locally,
  * so all UI operations work the same way.
  */
-export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeChange, selectedConversationIds, setSelectedConversationIds, toggleSelectedConversation, markAsRead, activeTab }: UseConversationActionsParams) => {
+export const useConversationActions = ({ batchMode, onBatchModeChange, selectedConversationIds, setSelectedConversationIds, toggleSelectedConversation, markAsRead, activeTab }: UseConversationActionsParams) => {
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [renameModalName, setRenameModalName] = useState<string>('');
   const [renameModalId, setRenameModalId] = useState<string | null>(null);
@@ -71,9 +70,6 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
       if (!customWorkspace) {
         closeAllTabs();
         void navigate(`/conversation/${conversation.id}`);
-        if (onSessionClick) {
-          onSessionClick();
-        }
         return;
       }
 
@@ -84,11 +80,8 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
 
       openTab(conversation);
       void navigate(`/conversation/${conversation.id}`);
-      if (onSessionClick) {
-        onSessionClick();
-      }
     },
-    [batchMode, toggleSelectedConversation, markAsRead, closeAllTabs, navigate, onSessionClick, conversationTab, openTab]
+    [batchMode, toggleSelectedConversation, markAsRead, closeAllTabs, navigate, conversationTab, openTab]
   );
 
   /**
