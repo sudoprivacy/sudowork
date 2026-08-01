@@ -57,13 +57,13 @@ export default function Sider({ onNewConversation }: ISiderProps) {
   return (
     <div className='size-full flex flex-col'>
       {/* Main content area */}
-      <div className='flex-1 min-h-0 overflow-y-auto scrollbar-hide'>
+      <div className='min-h-0 flex-1 overflow-y-auto pt-1 box-border scrollbar-hide'>
         {isSettings ? (
           <Suspense fallback={<div className='size-full' />}>
             <SettingsSider />
           </Suspense>
         ) : (
-          <div className='h-full min-h-0 flex flex-col overflow-hidden pt-1 box-border'>
+          <div className='h-full min-h-0 flex flex-col overflow-hidden'>
             <div className='flex shrink-0 flex-col gap-0.5'>
               {mainMenuItems.map((item) => (
                 <SidebarNavItem

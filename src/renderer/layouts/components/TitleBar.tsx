@@ -85,8 +85,9 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
   }, [isMacRuntime]);
 
   return (
-    <div className={classNames('app-titlebar relative z-10 flex items-center justify-between gap-2 pl-2 select-none bg-background h-9 min-h-9 leading-9', isMacRuntime ? 'pr-3' : 'pr-2', isDesktopRuntime && '[-webkit-app-region:drag]')}>
-      <div className={classNames('relative z-1 flex items-center gap-2 [-webkit-app-region:no-drag]', isMacRuntime && 'translate-y-3px')} style={siderToggleStyle}>
+    <div className={classNames('app-titlebar pointer-events-none absolute inset-x-0 top-0 z-10 flex h-9 min-h-9 items-center justify-between gap-2 pl-2 leading-9 select-none', isMacRuntime ? 'pr-3' : 'pr-2')}>
+      {isDesktopRuntime && <div aria-hidden='true' className='pointer-events-auto absolute inset-x-0 top-0 h-2 [-webkit-app-region:drag]' />}
+      <div className={classNames('pointer-events-auto relative z-1 flex items-center gap-2 [-webkit-app-region:no-drag]', isMacRuntime && 'translate-y-3px')} style={siderToggleStyle}>
         {showSiderToggle && (
           <button
             type='button'
@@ -108,7 +109,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
           </button>
         )}
       </div>
-      <div className='relative z-1 flex items-center gap-1 ml-auto [-webkit-app-region:no-drag] min-h-9' style={toolbarStyle}>
+      <div className='pointer-events-auto relative z-1 ml-auto flex min-h-9 items-center gap-1 [-webkit-app-region:no-drag]' style={toolbarStyle}>
         {showWorkspaceButton && (
           <button
             type='button'

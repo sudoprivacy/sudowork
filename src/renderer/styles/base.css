@@ -34,19 +34,8 @@ body,
   min-width: 360px; /* prevent layout collapse on very small screens */
 }
 
-/* 左侧标题栏表面与侧栏同步收起，避免折叠动画期间出现背景跳变。 */
-.app-titlebar::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--layout-sider-width, 260px);
-  background: var(--secondary);
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-}
-
-.app-shell--sider-collapsed .app-titlebar::before {
-  width: 0;
+.app-titlebar button {
+  pointer-events: auto;
 }
 
 .conversation-toggle-floating {
@@ -221,7 +210,6 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-titlebar::before,
   .preview-panel {
     transition: none !important;
     animation: none !important;
