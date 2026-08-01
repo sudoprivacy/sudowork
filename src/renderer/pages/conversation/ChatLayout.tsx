@@ -20,7 +20,6 @@ const MIN_CHAT_RATIO = 25;
 const MIN_WORKSPACE_RATIO = 12;
 const MAX_WORKSPACE_RATIO = 50;
 const MIN_PREVIEW_RATIO = 20;
-const WORKSPACE_HEADER_HEIGHT = 32;
 const MIN_CHAT_PANEL_PX = 360;
 const MIN_PREVIEW_PANEL_PX = 340;
 const MIN_RIGHT_SIDER_PANEL_PX = 300;
@@ -36,30 +35,6 @@ const isWindowsEnvironment = () => {
   return /win/i.test(navigator.userAgent);
 };
 
-interface WorkspaceHeaderProps {
-  children?: React.ReactNode;
-  showToggle?: boolean;
-  collapsed: boolean;
-  onToggle: () => void;
-  togglePlacement?: 'left' | 'right';
-}
-
-const WorkspacePanelHeader: React.FC<WorkspaceHeaderProps> = ({ children, showToggle = false, collapsed, onToggle, togglePlacement = 'right' }) => (
-  <div className='flex items-center justify-start px-3 py-1 gap-3 border-b border-border' style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}>
-    {showToggle && togglePlacement === 'left' && (
-      <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} mr-1 border-none bg-transparent`} aria-label='Toggle workspace' onClick={onToggle}>
-        {collapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
-      </button>
-    )}
-    <div className='flex-1 truncate'>{children}</div>
-    {showToggle && togglePlacement === 'right' && (
-      <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} border-none bg-transparent`} aria-label='Toggle workspace' onClick={onToggle}>
-        {collapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
-      </button>
-    )}
-  </div>
-);
-
 interface IRightSiderWidthOverride {
   widthPx?: number;
   maxWidthPx?: number;
@@ -72,7 +47,6 @@ const ChatLayout: React.FC<{
   children: React.ReactNode;
   title?: React.ReactNode;
   sider: React.ReactNode;
-  siderTitle?: React.ReactNode;
   backend?: string;
   agentName?: string;
   /** 自定义 agent logo（可以是 SVG 路径或 emoji 字符串）/ Custom agent logo (can be SVG path or emoji string) */
@@ -222,7 +196,6 @@ const ChatLayout: React.FC<{
     previousPreviewOpenRef.current = isPreviewOpen;
   }, [isPreviewOpen, layout]);
 
-  const showWorkspaceHeader = props.siderTitle != null;
   const headerBlock = (
     <ArcoLayout.Header
       className='h-10.5 flex items-center justify-between px-4 gap-4 bg-background! chat-layout-header overflow-hidden'
@@ -285,16 +258,7 @@ const ChatLayout: React.FC<{
               <ResizableSeparator isDisabled={isRightSiderWidthOverridden} />
               <Panel id='workspace' defaultSize={`${restoredWorkspaceRatio}%`} minSize={`${workspaceMinSizePx}px`} maxSize={`${workspaceMaxSizePx}px`} groupResizeBehavior='preserve-pixel-size' onResize={onWorkspaceResize} className='h-full'>
                 <div className='bg-background! h-full overflow-hidden border-l border-border'>
-                  {showWorkspaceHeader ? (
-                    <>
-                      <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='right'>
-                        {props.siderTitle}
-                      </WorkspacePanelHeader>
-                      <ArcoLayout.Content style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>{props.sider}</ArcoLayout.Content>
-                    </>
-                  ) : (
-                    <ArcoLayout.Content style={{ height: '100%' }}>{props.sider}</ArcoLayout.Content>
-                  )}
+                  <ArcoLayout.Content className='h-full'>{props.sider}</ArcoLayout.Content>
                 </div>
               </Panel>
             </>
