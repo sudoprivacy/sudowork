@@ -82,7 +82,7 @@ export default function Sider({ onNewConversation }: ISiderProps) {
               ))}
             </div>
 
-            <div className='flex min-h-24 flex-1 flex-col mt-2'>
+            <div className='flex min-h-24 flex-1 flex-col mt-2 border-t border-medium pt-2'>
               <Suspense fallback={<div className='size-full' />}>
                 <WorkspaceGroupedHistory {...workspaceHistoryProps} collapsed={false} />
               </Suspense>

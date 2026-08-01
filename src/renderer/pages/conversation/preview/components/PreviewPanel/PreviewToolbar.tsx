@@ -237,20 +237,20 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
   const isDiff = contentType === 'diff';
   const preferActionButtonsInFront = Boolean(leftExtra);
 
-  const toolbarBtn = 'flex items-center gap-2px px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 text-12px font-medium text-secondary hover:text-foreground';
-  const toolbarBtnActive = '!text-white bg-brand hover:!text-white hover:bg-brand-hover';
+  const toolbarBtn = 'f-center gap-0.5 px-2 py-1 rounded-sm cursor-pointer transition-colors duration-150 text-xs font-medium text-foreground-secondary hover:bg-accent hover:text-accent-foreground';
+  const toolbarBtnActive = '!text-brand-foreground bg-brand hover:!text-brand-foreground hover:bg-brand hover:brightness-95';
   const toolbarIconSize = 12;
 
   return (
-    <div className='flex items-center justify-between h-32px px-10px flex-shrink-0 border-b overflow-x-auto'>
-      <div className='flex items-center justify-between gap-8px w-full' style={{ minWidth: 'max-content' }}>
+    <div className='flex h-8 flex-shrink-0 items-center justify-between overflow-x-auto border-b border-border bg-card px-2.5 scrollbar-hide'>
+      <div className='flex w-full items-center justify-between gap-2' style={{ minWidth: 'max-content' }}>
         {/* 左侧：Tabs（Markdown/HTML）+ 文件名 / Left: Tabs (Markdown/HTML) + Filename */}
-        <div className='flex items-center h-full gap-8px'>
+        <div className='flex h-full items-center gap-2'>
           {(isMarkdown || isHTML || isDiff) && sourceViewEnabled && (
             <>
               <div className='flex items-center h-full gap-0'>
                 <div
-                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'source' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground'}`}
+                  className={`flex h-full cursor-pointer items-center border-b-2 border-transparent px-2.5 text-xs font-medium transition-colors duration-150 ${viewMode === 'source' ? 'border-brand bg-brand-surface text-brand' : 'text-foreground-secondary hover:bg-accent hover:text-foreground'}`}
                   onClick={() => {
                     try {
                       onViewModeChange('source');
@@ -262,7 +262,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
                   {isHTML ? t('preview.code') : t('preview.source')}
                 </div>
                 <div
-                  className={`flex items-center h-full px-10px cursor-pointer transition-all duration-150 text-12px font-medium ${viewMode === 'preview' ? 'text-brand bg-aou-2 border-b-4 border-brand' : 'text-secondary hover:text-foreground'}`}
+                  className={`flex h-full cursor-pointer items-center border-b-2 border-transparent px-2.5 text-xs font-medium transition-colors duration-150 ${viewMode === 'preview' ? 'border-brand bg-brand-surface text-brand' : 'text-foreground-secondary hover:bg-accent hover:text-foreground'}`}
                   onClick={() => {
                     try {
                       onViewModeChange('preview');
@@ -278,8 +278,8 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
                 <>
                   {/* 保存按钮：Markdown/HTML 在 source 或分屏模式下有变更时显示 / Save button: shown for Markdown/HTML in source or split mode with changes */}
                   {(isMarkdown || isHTML) && (viewMode === 'source' || isSplitScreenEnabled) && isDirty && onSave && (
-                    <div className={`${toolbarBtn} !text-white bg-green-600 hover:!text-white hover:bg-green-700`} onClick={() => void onSave()} title={t('common.save')}>
-                      <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-white'>
+                    <div className={`${toolbarBtn} !text-success-foreground bg-success hover:!text-success-foreground hover:bg-success hover:brightness-95`} onClick={() => void onSave()} title={t('common.save')}>
+                      <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                         <path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z' />
                         <polyline points='17 21 17 13 7 13 7 21' />
                         <polyline points='7 3 7 8 15 8' />
@@ -288,7 +288,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
                     </div>
                   )}
                   <div
-                    className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary'}`}
+                    className={`${toolbarBtn} ${isSplitScreenEnabled ? toolbarBtnActive : ''}`}
                     onClick={() => {
                       try {
                         onSplitScreenToggle();
@@ -310,13 +310,13 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
 
           {(isMarkdown || isHTML || isDiff) && !sourceViewEnabled && (
             <div className='flex items-center h-full gap-0'>
-              <div className='flex items-center h-full px-10px text-12px font-medium text-brand bg-aou-2 border-b-4 border-brand'>{t('preview.preview')}</div>
+              <div className='flex h-full items-center border-b-2 border-brand bg-brand-surface px-2.5 text-xs font-medium text-brand'>{t('preview.preview')}</div>
             </div>
           )}
 
           {contentType === 'code' && isEditable && sourceViewEnabled && (
             <div className={`${toolbarBtn} ${isEditMode ? toolbarBtnActive : ''}`} onClick={() => (isEditMode ? onExitEdit() : onEditClick())} title={isEditMode ? t('preview.exitEdit') : t('preview.edit')}>
-              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8' className={isEditMode ? 'text-white' : 'text-secondary'}>
+              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8'>
                 <path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' />
                 <path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' />
               </svg>
@@ -326,8 +326,8 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
 
           {/* 保存按钮：编辑模式下且有修改时显示 / Save button: shown in edit mode with unsaved changes */}
           {isEditable && isEditMode && isDirty && onSave && (
-            <div className={`${toolbarBtn} !text-white bg-green-600 hover:!text-white hover:bg-green-700`} onClick={() => void onSave()} title={t('common.save')}>
-              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-white'>
+            <div className={`${toolbarBtn} !text-success-foreground bg-success hover:!text-success-foreground hover:bg-success hover:brightness-95`} onClick={() => void onSave()} title={t('common.save')}>
+              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                 <path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z' />
                 <polyline points='17 21 17 13 7 13 7 21' />
                 <polyline points='7 3 7 8 15 8' />
@@ -338,7 +338,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
 
           {isEditable && isEditMode && (
             <div
-              className={`flex items-center px-8px py-3px rd-4px cursor-pointer transition-colors duration-150 ${isSplitScreenEnabled ? toolbarBtnActive : 'text-secondary'}`}
+              className={`${toolbarBtn} ${isSplitScreenEnabled ? toolbarBtnActive : ''}`}
               onClick={() => {
                 try {
                   onSplitScreenToggle();
@@ -357,7 +357,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
 
           {preferActionButtonsInFront && showOpenInSystemButton && (
             <div className={toolbarBtn} onClick={onOpenInSystem} title={t('preview.openInSystemApp')}>
-              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-secondary'>
+              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                 <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
                 <polyline points='15 3 21 3 21 9' />
                 <line x1='10' y1='14' x2='21' y2='3' />
@@ -367,7 +367,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
           )}
           {preferActionButtonsInFront && (
             <div className={toolbarBtn} onClick={() => void onDownload()} title={t('preview.downloadFile')}>
-              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-secondary'>
+              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                 <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
                 <polyline points='7 10 12 15 17 10' />
                 <line x1='12' y1='15' x2='12' y2='3' />
@@ -378,13 +378,13 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
           {leftExtra}
         </div>
 
-        <div className='flex items-center gap-4px flex-shrink-0'>
+        <div className='flex flex-shrink-0 items-center gap-1'>
           {rightExtra}
 
           {showHistoryControls && ((contentType === 'markdown' && (viewMode === 'source' || isSplitScreenEnabled)) || (contentType === 'html' && (viewMode === 'source' || isSplitScreenEnabled)) || (contentType === 'code' && isEditable && isEditMode)) && (
             <>
               <div className={`${toolbarBtn} ${historyTarget ? '' : '!cursor-not-allowed opacity-50'} ${snapshotSaving ? 'opacity-60' : ''}`} onClick={historyTarget && !snapshotSaving ? onSaveSnapshot : undefined} title={historyTarget ? t('preview.saveSnapshot') : t('preview.snapshotNotSupported')}>
-                <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8' className='text-secondary'>
+                <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8'>
                   <path d='M5 7h3l1-2h6l1 2h3a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a1 1 0 0 1 1-1Z' />
                   <circle cx='12' cy='13' r='3' />
                 </svg>
@@ -393,7 +393,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
               {historyTarget ? (
                 <Dropdown droplist={renderHistoryDropdown()} trigger={['hover']} position='br' onVisibleChange={(visible) => visible && onRefreshHistory()}>
                   <div className={toolbarBtn} title={t('preview.historyVersions')}>
-                    <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8' className='text-secondary'>
+                    <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8'>
                       <path d='M12 8v5l3 2' />
                       <path d='M12 3a9 9 0 1 0 9 9' />
                       <polyline points='21 3 21 9 15 9' />
@@ -403,7 +403,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
                 </Dropdown>
               ) : (
                 <div className={`${toolbarBtn} !cursor-not-allowed opacity-50`} title={t('preview.historyNotSupported')}>
-                  <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8' className='text-secondary'>
+                  <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8'>
                     <path d='M12 8v5l3 2' />
                     <path d='M12 3a9 9 0 1 0 9 9' />
                     <polyline points='21 3 21 9 15 9' />
@@ -416,7 +416,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
 
           {!preferActionButtonsInFront && showOpenInSystemButton && (
             <div className={toolbarBtn} onClick={onOpenInSystem} title={t('preview.openInSystemApp')}>
-              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-secondary'>
+              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                 <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
                 <polyline points='15 3 21 3 21 9' />
                 <line x1='10' y1='14' x2='21' y2='3' />
@@ -427,7 +427,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
 
           {!preferActionButtonsInFront && (
             <div className={toolbarBtn} onClick={() => void onDownload()} title={t('preview.downloadFile')}>
-              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-secondary'>
+              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
                 <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
                 <polyline points='7 10 12 15 17 10' />
                 <line x1='12' y1='15' x2='12' y2='3' />
@@ -438,7 +438,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
 
           {isHTML && onInspectModeToggle && (
             <div className={`${toolbarBtn} ${inspectMode ? toolbarBtnActive : ''}`} onClick={onInspectModeToggle} title={inspectMode ? t('preview.html.inspectElementDisable') : t('preview.html.inspectElementEnable')}>
-              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className={inspectMode ? 'text-white' : 'text-secondary'}>
+              <svg width={toolbarIconSize} height={toolbarIconSize} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
                 <path d='M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z' />
                 <path d='M13 13l6 6' />
               </svg>
