@@ -51,7 +51,7 @@ const GeminiModelSelector: React.FC<{
 
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
+        <Button className={classNames('sendbox-model-btn header-model-btn', compact && 'max-w-[120px]!')} shape='round' size='small' style={{ cursor: 'default' }}>
           <span className='flex items-center gap-1.5 min-w-0'>
             <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
           </span>
@@ -83,7 +83,7 @@ const GeminiModelSelector: React.FC<{
         </div>
       </Button>
     ) : (
-      <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small'>
+      <Button className={classNames('sendbox-model-btn header-model-btn', compact && 'max-w-[120px]!')} shape='round' size='small'>
         <span className='flex items-center gap-1.5 min-w-0'>
           {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rd-full shrink-0 ${currentModelHealth.color}`} />}
           <span className={compact ? 'block truncate' : undefined}>{label}</span>
@@ -119,7 +119,7 @@ const GeminiModelSelector: React.FC<{
                         }
                       >
                         {option.subModels.map((subModel) => (
-                          <Menu.Item key={`${provider.id}-${subModel.value}`} className={currentModel?.id + currentModel?.useModel === provider.id + subModel.value ? '!bg-2' : ''} onClick={() => void handleSelectModel(provider, subModel.value)}>
+                          <Menu.Item key={`${provider.id}-${subModel.value}`} className={currentModel?.id + currentModel?.useModel === provider.id + subModel.value ? 'bg-accent!' : ''} onClick={() => void handleSelectModel(provider, subModel.value)}>
                             {subModel.label}
                           </Menu.Item>
                         ))}

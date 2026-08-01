@@ -1170,7 +1170,7 @@ const SkillSettings: React.FC = () => {
           {/* Tab switcher */}
           <Tabs
             variant='line'
-            className='flex-shrink-0'
+            className='shrink-0'
             value={activeTab}
             onChange={(value) => {
               if (value === 'installed' && activeTab === 'installed') {
@@ -1196,13 +1196,13 @@ const SkillSettings: React.FC = () => {
 
           {/* Sync status indicator for enterprise mode - compact inline style */}
           {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px flex-shrink-0'>
+            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px shrink-0'>
               <Spin size={12} />
               <span className='text-11px text-primary'>{t('settings.skill.syncing', '同步中...')}</span>
             </div>
           )}
           {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.skills.installed.length > 0 || syncStatus.skills.failed.length > 0) && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-light rd-6px flex-shrink-0'>
+            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-light rd-6px shrink-0'>
               <Check size={12} className='text-success' />
               <span className='text-11px text-success'>{t('settings.skill.syncCompleted', '已同步')}</span>
             </div>
@@ -1212,7 +1212,7 @@ const SkillSettings: React.FC = () => {
           <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-tertiary' />} className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
           {activeTab === 'installed' && isElectronDesktop() && (
             <Tooltip content={t('settings.customSkills', '自定义技能')}>
-              <Button icon={isEnterprise ? <Plus size={13} /> : <Upload size={13} />} onClick={onImportButtonClick} className='rd-full flex-shrink-0'>
+              <Button icon={isEnterprise ? <Plus size={13} /> : <Upload size={13} />} onClick={onImportButtonClick} className='rd-full shrink-0'>
                 {isEnterprise ? t('common.create', '创建') : t('common.upload', '上传')}
               </Button>
             </Tooltip>
@@ -1223,7 +1223,7 @@ const SkillSettings: React.FC = () => {
         {(activeTab === 'store' || activeTab === 'exclusive') && (
           <>
             {/* Category filter */}
-            <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
+            <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 shrink-0 scrollbar-hide'>
               {[{ key: 'all', label: t('settings.skill.allCategories', '精选') }, ...categories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
                 <span key={key} className={classNames('category-chip', selectedCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedCategory(key)}>
                   {label}
@@ -1330,7 +1330,7 @@ const SkillSettings: React.FC = () => {
                 <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-3 flex items-start gap-3 animate-pulse'>
-                      <div className='size-12 flex-shrink-0 rd-8px bg-fill-3' />
+                      <div className='size-12 shrink-0 rd-8px bg-fill-3' />
                       <div className='flex-1 min-w-0 flex flex-col gap-1.5 pt-0.5'>
                         <div className='h-3.5 w-3/5 rd-4px bg-fill-3' />
                         <div className='h-2.5 w-full rd-4px bg-fill-3' />
