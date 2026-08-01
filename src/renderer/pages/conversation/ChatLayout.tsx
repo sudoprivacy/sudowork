@@ -13,7 +13,6 @@ import { STORAGE_KEYS } from '@/common/storageKeys';
 import ResizableSeparator from '@/renderer/components/ResizableSeparator';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { useStoredPanelLayout } from '@/renderer/hooks/useStoredPanelLayout';
-import ConversationTabs from '@/renderer/pages/conversation/ConversationTabs';
 import { PreviewPanel, usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent } from '@/renderer/utils/workspaceEvents';
 
@@ -225,26 +224,25 @@ const ChatLayout: React.FC<{
 
   const showWorkspaceHeader = props.siderTitle != null;
   const headerBlock = (
-    <>
-      <ConversationTabs />
-      <ArcoLayout.Header
-        className='h-10.5 flex items-center justify-between px-4 gap-4 bg-background! chat-layout-header overflow-hidden'
-        style={{
-          paddingLeft: isMacRuntime && layout?.siderCollapsed ? 200 : undefined,
-          transition: 'padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
-      >
-        <div className='shrink-0'>{props.headerLeft}</div>
-        <span className='min-w-0 flex-1 truncate text-16px font-bold text-foreground'>{props.title}</span>
-        <div className='flex items-center gap-3 shrink-0'>
-          {isWindowsRuntime && workspaceEnabled && (
-            <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} border-none bg-transparent`} aria-label='Toggle workspace' onClick={() => dispatchWorkspaceToggleEvent()}>
-              {rightSiderCollapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
-            </button>
-          )}
-        </div>
-      </ArcoLayout.Header>
-    </>
+    <ArcoLayout.Header
+      className='h-10.5 flex items-center justify-between px-4 gap-4 bg-background! chat-layout-header overflow-hidden'
+      style={{
+        paddingLeft: isMacRuntime && layout?.siderCollapsed ? 200 : undefined,
+        paddingRight: isWindowsRuntime ? 140 : undefined,
+        transition: 'padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}
+    >
+      <div className='shrink-0'>{props.headerLeft}</div>
+      <span className='min-w-0 flex-1 truncate text-16px font-bold text-foreground'>{props.title}</span>
+      <div className='flex items-center gap-3 shrink-0'>
+        {props.headerExtra}
+        {isWindowsRuntime && workspaceEnabled && (
+          <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} border-none bg-transparent`} aria-label='Toggle workspace' onClick={() => dispatchWorkspaceToggleEvent()}>
+            {rightSiderCollapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
+          </button>
+        )}
+      </div>
+    </ArcoLayout.Header>
   );
 
   const chatPanel = (
