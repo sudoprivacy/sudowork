@@ -9,11 +9,8 @@ import { ChevronLeft as ExpandLeft, ChevronRight as ExpandRight, ChevronRight as
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import useSWR from 'swr';
 import classNames from 'classnames';
-import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { STORAGE_KEYS } from '@/common/storageKeys';
-import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
@@ -21,7 +18,6 @@ import ConversationTabs from '@/renderer/pages/conversation/ConversationTabs';
 import { PreviewPanel, usePreviewContext } from '@/renderer/pages/conversation/preview';
 import ConversationTitleMinimap from '@/renderer/pages/conversation/components/ConversationTitleMinimap';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@/renderer/utils/workspaceEvents';
-import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 
 const MIN_CHAT_RATIO = 25;
 const MIN_WORKSPACE_RATIO = 12;
@@ -142,7 +138,7 @@ const ChatLayout: React.FC<{
   const rightSidebarToggleRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(() => (typeof window === 'undefined' ? 0 : window.innerWidth));
   const [conversationTogglePosition, setConversationTogglePosition] = useState<React.CSSProperties | null>(null);
-  const { backend, agentName, agentLogo, agentLogoIsEmoji, workspaceEnabled = true, rightSiderWidthOverride } = props;
+  const { workspaceEnabled = true, rightSiderWidthOverride } = props;
   const layout = useLayoutContext();
   const isMacRuntime = isMacEnvironment();
   const isWindowsRuntime = isWindowsEnvironment();
@@ -154,10 +150,10 @@ const ChatLayout: React.FC<{
   const { isOpen: isPreviewOpen } = usePreviewContext();
 
   // Fetch custom agents config as fallback when agentName is not provided
-  const { data: customAgents } = useSWR(backend === 'custom' && !agentName ? 'assistantHub.installed' : null, fetchAssistantsAsConfigs);
+  // const { data: customAgents } = useSWR(backend === 'custom' && !agentName ? 'assistantHub.installed' : null, fetchAssistantsAsConfigs);
 
   // Compute display name with fallback chain (use first custom agent as fallback for backward compatibility)
-  const displayName = agentName || (backend === 'custom' && customAgents?.[0]?.name) || ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL]?.name || backend;
+  // const displayName = agentName || (backend === 'custom' && customAgents?.[0]?.name) || ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL]?.name || backend;
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -467,7 +463,7 @@ const ChatLayout: React.FC<{
         </FlexFullContainer>
         <div className='flex items-center gap-3 shrink-0'>
           {props.headerExtra}
-          {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} compact={false} showLogoInCompact={false} compactLabelType='mode' />}
+          {/* {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} compact={false} showLogoInCompact={false} compactLabelType='mode' />} */}
           {isWindowsRuntime && workspaceEnabled && (
             <button type='button' className='workspace-header__toggle' aria-label='Toggle workspace' onClick={() => dispatchWorkspaceToggleEvent()}>
               {rightSiderCollapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}

@@ -28,10 +28,9 @@ import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acp
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import PageWrapper from '@/renderer/components/base/PageWrapper';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
-import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
 import { CUSTOM_AVATAR_IMAGE_MAP } from './utils/constants';
-import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkeleton';
+import { AgentPillBarSkeleton } from './components/GuidSkeleton';
 import GuidActionRow from './components/GuidActionRow';
 import AgentPillBar from './components/AgentPillBar';
 import GuidInputCard from './components/GuidInputCard';
@@ -456,24 +455,24 @@ const GuidPage: React.FC = () => {
     [agentSelection, guidInput, mention]
   );
 
-  const handleSelectAssistant = useCallback(
-    (assistantId: string) => {
-      agentSelection.setSelectedAgentKey(assistantId);
-      mention.setMentionOpen(false);
-      mention.setMentionQuery(null);
-      mention.setMentionSelectorOpen(false);
-      mention.setMentionActiveIndex(0);
+  // const handleSelectAssistant = useCallback(
+  //   (assistantId: string) => {
+  //     agentSelection.setSelectedAgentKey(assistantId);
+  //     mention.setMentionOpen(false);
+  //     mention.setMentionQuery(null);
+  //     mention.setMentionSelectorOpen(false);
+  //     mention.setMentionActiveIndex(0);
 
-      // Pre-fill input with defaultInitPrompt if available
-      // assistantId format is "custom:xxx" or "builtin-xxx", need to strip prefix for lookup
-      const lookupId = assistantId.startsWith('custom:') ? assistantId.slice(7) : assistantId;
-      const assistantConfig = agentSelection.customAgents.find((a) => a.id === lookupId);
-      if (assistantConfig?.defaultInitPrompt) {
-        guidInput.setInput(assistantConfig.defaultInitPrompt);
-      }
-    },
-    [agentSelection, guidInput, mention]
-  );
+  //     // Pre-fill input with defaultInitPrompt if available
+  //     // assistantId format is "custom:xxx" or "builtin-xxx", need to strip prefix for lookup
+  //     const lookupId = assistantId.startsWith('custom:') ? assistantId.slice(7) : assistantId;
+  //     const assistantConfig = agentSelection.customAgents.find((a) => a.id === lookupId);
+  //     if (assistantConfig?.defaultInitPrompt) {
+  //       guidInput.setInput(assistantConfig.defaultInitPrompt);
+  //     }
+  //   },
+  //   [agentSelection, guidInput, mention]
+  // );
 
   // Handle back button: deselect assistant and return to normal view
   const handleBackFromAssistant = useCallback(() => {
@@ -761,11 +760,11 @@ const GuidPage: React.FC = () => {
         ) : (
           /* Assistant selection grid */
           <>
-            {agentSelection.availableAgents === undefined ? (
+            {/* {agentSelection.availableAgents === undefined ? (
               <AssistantsSkeleton />
             ) : (
               <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} availableAgents={agentSelection.availableAgents} sessionMode={agentSelection.sessionMode} isEnterprise={isEnterprise} />
-            )}
+            )} */}
           </>
         )}
       </div>
