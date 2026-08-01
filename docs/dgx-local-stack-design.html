@@ -161,7 +161,7 @@ flowchart LR
     <li><strong>平台</strong>：aarch64（ARM）+ Blackwell GPU + 最新 CUDA；整栈按标准 aarch64 Linux port 处理，非重写。</li>
     <li><strong>容器化推理</strong>：gpustack 经容器运行时把 GPU 透传给引擎容器（vLLM/SGLang）；引擎镜像需与本机 CUDA/架构匹配的变体。</li>
     <li><strong>受限网络</strong>：在网络受限地区，工具链与镜像走区域镜像源，或"在有出口的机器上取好、经局域网推送"。凭证与站点信息不入库、不入交付文档。</li>
-    <li><strong>凭证边界</strong>：边缘机器上只保留一个上游凭证（SaaS router key）；其余云 key 留在云端路由。</li>
+    <li><strong>凭证边界</strong>：边缘机器上只保留一个上游凭证（SaaS router key），其余云 key 留在云端路由。该凭证按盒子信任级别处置——不完全可信 / 借用 / 客户机器上让它<strong>只驻留内存</strong>（部署时注入、断电即清），不落持久盘；可信交付形态用<strong>设备证明（TEE）+ 按设备签发可吊销凭证</strong>，使原始 key 从不落到边缘盒子。</li>
     <li><strong>服务地址与物理网卡解耦</strong>：推理节点与引擎<strong>宣告与物理网卡无关的地址</strong>（容器运行时的宿主机桥接地址，或一张常驻虚拟网卡），使拔网线 / 切 WiFi / DHCP 漂移时服务地址保持稳定。</li>
     <li><strong>健壮性（统一内存机型）</strong>：① 给 OS/SSH 设 cgroup <strong>硬内存保留</strong>（<code>MemoryMin</code>），保证失控时仍可远程恢复；② 常驻<strong>内存看门狗</strong>，监控系统级可用内存，在濒临耗尽时回收失控引擎（覆盖绕过 cgroup 记账的 GPU 分配）；③ 引擎容器加 cgroup 内存上限做纵深防御。看门狗以<strong>让失败变廉价</strong>（干净 kill）为目标，在濒临耗尽时触发。<strong>一次常驻一个模型</strong>，按<strong>峰值</strong>（含预处理）选型。（本地↔云 fallback 见 §2 / §5。）</li>
   </ul>
