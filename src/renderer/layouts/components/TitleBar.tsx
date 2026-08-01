@@ -66,18 +66,13 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
     dispatchWorkspaceToggleEvent();
   };
 
-  const siderToggleStyle: React.CSSProperties = useMemo(() => {
-    if (layout?.siderCollapsed) {
-      if (!isMacRuntime) {
-        return {};
-      }
-      return { marginLeft: '80px' };
-    }
-    return {
-      width: 'calc(var(--layout-sider-width, 260px) - 8px)',
-      justifyContent: 'flex-end',
-    };
-  }, [isMacRuntime, layout?.siderCollapsed]);
+  const siderToggleStyle: React.CSSProperties = useMemo(
+    () => ({
+      transform: layout?.siderCollapsed ? `translateX(${isMacRuntime ? 80 : 0}px)` : 'translateX(calc(var(--layout-sider-width, 260px) - 44px))',
+      transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    }),
+    [isMacRuntime, layout?.siderCollapsed]
+  );
 
   const toolbarStyle: React.CSSProperties = useMemo(() => {
     if (!isMacRuntime) return {};
@@ -106,16 +101,22 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
             {layout?.siderCollapsed ? <PanelLeftOpen size={iconSize} /> : <PanelLeftClose size={iconSize} />}
           </button>
         )}
-        {layout?.siderCollapsed && (
-          <button
-            type='button'
-            className='[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
-            onClick={onNewConversation}
-            aria-label={t('common.newConversation')}
-          >
-            <MessageCirclePlus size={iconSize - 1} />
-          </button>
-        )}
+        <button
+          type='button'
+          className='[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
+          style={{
+            opacity: layout?.siderCollapsed ? 1 : 0,
+            transform: layout?.siderCollapsed ? 'scale(1)' : 'scale(0.8)',
+            pointerEvents: layout?.siderCollapsed ? 'auto' : 'none',
+            transition: `opacity 0.2s ease ${layout?.siderCollapsed ? '0.15s' : '0s'}, transform 0.2s ease ${layout?.siderCollapsed ? '0.15s' : '0s'}`,
+          }}
+          tabIndex={layout?.siderCollapsed ? 0 : -1}
+          aria-hidden={!layout?.siderCollapsed}
+          onClick={onNewConversation}
+          aria-label={t('common.newConversation')}
+        >
+          <MessageCirclePlus size={iconSize - 1} />
+        </button>
       </div>
       <div className='pointer-events-auto relative z-1 ml-auto flex min-h-9 items-center gap-1 [-webkit-app-region:no-drag]' style={toolbarStyle}>
         {showWorkspaceButton && (
