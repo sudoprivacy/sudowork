@@ -7,8 +7,8 @@ export default function BidPage() {
   const { t } = useTranslation();
 
   return (
-    <PageWrapper className='h-full' contentClassName='h-full max-w-none flex flex-col' title={t('common.siderMenu.bidGeneration')}>
-      <section className='flex w-full max-w-180 flex-1 flex-col items-center justify-center self-center px-6 text-center'>
+    <PageWrapper className='h-full' contentClassName='h-full flex flex-col' title={t('common.siderMenu.bidGeneration')}>
+      <section className='flex w-full flex-1 flex-col items-center justify-center self-center px-6 text-center'>
         <div className='relative mb-10 h-44 w-52'>
           <div className='absolute left-4 top-5 h-36 w-28 -rotate-10 rounded-xl border border-shallow bg-muted shadow-sm' />
           <div className='absolute right-4 top-5 h-36 w-28 rotate-10 rounded-xl border border-shallow bg-muted shadow-sm' />
