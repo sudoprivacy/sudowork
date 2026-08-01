@@ -89,7 +89,7 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?:
         <div className={classNames('min-w-0', isAiMessage ? 'w-full' : 'flex-none w-fit')}>{props.children}</div>
       </div>
     );
-  })(({ message, isStreaming, footer, onTeamAnswerQuestion, onTeamQuestionFallbackSend }) => {
+  })(function MessageItemContent({ message, isStreaming, footer, onTeamAnswerQuestion, onTeamQuestionFallbackSend }) {
     const { t } = useTranslation();
     switch (message.type) {
       case 'text':
@@ -417,7 +417,7 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
     }
 
     return withTimeSeparators;
-  }, [list, aiProcessing, showToolCalls]);
+  }, [list, aiProcessing, showToolCalls, conversationContext?.conversationId]);
 
   const isShowingEmptyState = Boolean(isEmptyStateReady && emptyState && processedList.length === 0 && !aiProcessing);
 
