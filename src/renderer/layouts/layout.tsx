@@ -105,7 +105,7 @@ const Layout: React.FC = () => {
 
         <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
           <ArcoLayout.Sider collapsedWidth={0} collapsed={collapsed} width={DEFAULT_SIDER_WIDTH} className='layout-sider'>
-            <ArcoLayout.Header className='flex items-center justify-start h-12 px-4 layout-sider-header'>
+            <ArcoLayout.Header className='flex items-center justify-start h-9 px-4 layout-sider-header'>
               <button
                 type='button'
                 className='flex-1 min-w-0 text-left truncate text-lg text-foreground font-600 cursor-pointer border-none bg-transparent'

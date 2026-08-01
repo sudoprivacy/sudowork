@@ -73,8 +73,8 @@ body,
 }
 
 .app-titlebar--mac {
-  height: 45px;
-  min-height: 36px;
+  height: var(--titlebar-height);
+  min-height: var(--titlebar-height);
   /* 给 macOS 红绿灯按钮预留空间 */
   padding-right: 12px;
 }

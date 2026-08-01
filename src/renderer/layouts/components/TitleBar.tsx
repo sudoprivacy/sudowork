@@ -92,7 +92,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
     >
       <div className='flex items-center [-webkit-app-region:no-drag]' style={siderToggleStyle}>
         {showSiderToggle && (
-          <button type='button' className='app-titlebar__button hover:bg-transparent! active:bg-transparent!' onClick={handleSiderToggle} aria-label={siderTooltip}>
+          <button type='button' className={classNames('app-titlebar__button hover:bg-transparent! active:bg-transparent!', isMacRuntime && 'translate-y-3px')} onClick={handleSiderToggle} aria-label={siderTooltip}>
             {layout?.siderCollapsed ? <PanelLeftOpen size={iconSize} /> : <PanelLeftClose size={iconSize} />}
           </button>
         )}
