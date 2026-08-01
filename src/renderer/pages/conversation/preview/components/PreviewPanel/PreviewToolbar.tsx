@@ -239,11 +239,11 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
   const preferActionButtonsInFront = Boolean(leftExtra);
 
   const toolbarBtn = 'f-center gap-0.5 px-2 py-1 rounded-sm cursor-pointer transition-colors duration-150 text-xs font-medium text-foreground-secondary hover:bg-accent hover:text-accent-foreground';
-  const toolbarBtnActive = '!text-brand-foreground bg-brand hover:!text-brand-foreground hover:bg-brand hover:brightness-95';
+  const toolbarBtnActive = 'text-brand-foreground! bg-brand hover:text-brand-foreground! hover:bg-brand hover:brightness-95';
   const toolbarIconSize = 12;
 
   return (
-    <div className='flex h-8 flex-shrink-0 items-center justify-between overflow-x-auto border-b border-border bg-card px-2.5 scrollbar-hide'>
+    <div className='flex h-8 shrink-0 items-center justify-between overflow-x-auto border-b border-border bg-card px-2.5 scrollbar-hide'>
       <div className='flex w-full items-center justify-between gap-2' style={{ minWidth: 'max-content' }}>
         {/* 左侧：Tabs（Markdown/HTML）+ 文件名 / Left: Tabs (Markdown/HTML) + Filename */}
         <div className='flex h-full items-center gap-2'>
@@ -279,7 +279,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
                 <>
                   {/* 保存按钮：Markdown/HTML 在 source 或分屏模式下有变更时显示 / Save button: shown for Markdown/HTML in source or split mode with changes */}
                   {(isMarkdown || isHTML) && (viewMode === 'source' || isSplitScreenEnabled) && isDirty && onSave && (
-                    <div className={`${toolbarBtn} !text-success-foreground bg-success hover:!text-success-foreground hover:bg-success hover:brightness-95`} onClick={() => void onSave()} title={t('common.save')}>
+                    <div className={`${toolbarBtn} text-success-foreground! bg-success hover:text-success-foreground! hover:bg-success hover:brightness-95`} onClick={() => void onSave()} title={t('common.save')}>
                       <Save size={toolbarIconSize} />
                       <span>{isSaving ? t('common.saving') : t('common.save')}</span>
                     </div>
@@ -317,7 +317,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
 
           {/* 保存按钮：编辑模式下且有修改时显示 / Save button: shown in edit mode with unsaved changes */}
           {isEditable && isEditMode && isDirty && onSave && (
-            <div className={`${toolbarBtn} !text-success-foreground bg-success hover:!text-success-foreground hover:bg-success hover:brightness-95`} onClick={() => void onSave()} title={t('common.save')}>
+            <div className={`${toolbarBtn} text-success-foreground! bg-success hover:text-success-foreground! hover:bg-success hover:brightness-95`} onClick={() => void onSave()} title={t('common.save')}>
               <Save size={toolbarIconSize} />
               <span>{isSaving ? t('common.saving') : t('common.save')}</span>
             </div>
@@ -354,12 +354,12 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
           {leftExtra}
         </div>
 
-        <div className='flex flex-shrink-0 items-center gap-1'>
+        <div className='flex shrink-0 items-center gap-1'>
           {rightExtra}
 
           {showHistoryControls && ((contentType === 'markdown' && (viewMode === 'source' || isSplitScreenEnabled)) || (contentType === 'html' && (viewMode === 'source' || isSplitScreenEnabled)) || (contentType === 'code' && isEditable && isEditMode)) && (
             <>
-              <div className={`${toolbarBtn} ${historyTarget ? '' : '!cursor-not-allowed opacity-50'} ${snapshotSaving ? 'opacity-60' : ''}`} onClick={historyTarget && !snapshotSaving ? onSaveSnapshot : undefined} title={historyTarget ? t('preview.saveSnapshot') : t('preview.snapshotNotSupported')}>
+              <div className={`${toolbarBtn} ${historyTarget ? '' : 'cursor-not-allowed! opacity-50'} ${snapshotSaving ? 'opacity-60' : ''}`} onClick={historyTarget && !snapshotSaving ? onSaveSnapshot : undefined} title={historyTarget ? t('preview.saveSnapshot') : t('preview.snapshotNotSupported')}>
                 <Camera size={toolbarIconSize} strokeWidth={1.8} />
                 <span>{t('preview.snapshot')}</span>
               </div>
@@ -371,7 +371,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
                   </div>
                 </Dropdown>
               ) : (
-                <div className={`${toolbarBtn} !cursor-not-allowed opacity-50`} title={t('preview.historyNotSupported')}>
+                <div className={`${toolbarBtn} cursor-not-allowed! opacity-50`} title={t('preview.historyNotSupported')}>
                   <History size={toolbarIconSize} strokeWidth={1.8} />
                   <span>{t('preview.history')}</span>
                 </div>
