@@ -6,13 +6,14 @@
 
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { ChevronLeft as ExpandLeft, ChevronRight as ExpandRight } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Group, Panel, usePanelRef, type PanelSize } from 'react-resizable-panels';
 
-import classNames from 'classnames';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
+import ResizableSeparator from '@/renderer/components/ResizableSeparator';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
+import { useStoredPanelLayout } from '@/renderer/hooks/useStoredPanelLayout';
 import ConversationTabs from '@/renderer/pages/conversation/ConversationTabs';
 import { PreviewPanel, usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@/renderer/utils/workspaceEvents';
@@ -94,9 +95,6 @@ const ChatLayout: React.FC<{
       // 忽略错误
     }
     return true; // 默认折叠
-  });
-  const [conversationCollapsed, setConversationCollapsed] = useState(() => {
-    return false;
   });
   const currentConversationIdRef = useRef<string | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -238,106 +236,70 @@ const ChatLayout: React.FC<{
   }, [rightSiderCollapsed]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.CONVERSATION_PANEL_COLLAPSE, String(conversationCollapsed));
-    } catch {
-      // 忽略错误
-    }
-  }, [conversationCollapsed]);
-
-  useEffect(() => {
-    if (rightSiderCollapsed && conversationCollapsed) {
-      setConversationCollapsed(false);
-    }
-  }, [conversationCollapsed, rightSiderCollapsed]);
-
-  useEffect(() => {
     if (!workspaceEnabled) {
       setRightSiderCollapsed(true);
     }
   }, [workspaceEnabled]);
 
-  const {
-    splitRatio: workspaceSplitRatio,
-    setSplitRatio: setWorkspaceSplitRatio,
-    createDragHandle: createWorkspaceDragHandle,
-  } = useResizableSplit({
-    defaultWidth: 20,
-    minWidth: MIN_WORKSPACE_RATIO,
-    maxWidth: 40,
+  const workspacePanelRef = usePanelRef();
+  const isRightSiderWidthOverridden = Boolean(rightSiderWidthOverride);
+  const { defaultLayout: workspaceDefaultLayout, onLayoutChanged: onWorkspaceLayoutChanged } = useStoredPanelLayout({
     storageKey: 'chat-workspace-split-ratio',
+    primaryPanelId: 'workspace',
+    secondaryPanelId: 'main',
+    defaultRatio: 20,
+    minRatio: MIN_WORKSPACE_RATIO,
+    maxRatio: 40,
   });
-
-  const safeContainerWidth = Math.max(containerWidth || 0, 1);
-  const isConversationCollapsed = conversationCollapsed;
-  const isRightSiderWidthOverridden = Boolean(rightSiderWidthOverride) && !isConversationCollapsed;
-  const configuredWorkspaceRatio = rightSiderWidthOverride?.ratio ?? workspaceSplitRatio;
-  const activeWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? configuredWorkspaceRatio : 0;
-  const availableRatioForChatPreview = Math.max(1, 100 - activeWorkspaceRatio);
-  const availableWidthForChatPreview = (safeContainerWidth * availableRatioForChatPreview) / 100;
-  const minChatRatioByPx = (MIN_CHAT_PANEL_PX / Math.max(availableWidthForChatPreview, 1)) * 100;
-  const minPreviewRatioByPx = (MIN_PREVIEW_PANEL_PX / Math.max(availableWidthForChatPreview, 1)) * 100;
-  const dynamicChatMinRatio = workspaceEnabled && isPreviewOpen ? Math.max(MIN_CHAT_RATIO, minChatRatioByPx) : MIN_CHAT_RATIO;
-  const dynamicChatMaxCandidate = workspaceEnabled && isPreviewOpen ? Math.min(80, 100 - Math.max(MIN_PREVIEW_RATIO, minPreviewRatioByPx)) : 80;
-  const dynamicChatMaxRatio = Math.max(dynamicChatMinRatio, dynamicChatMaxCandidate);
-  const isDesktop = true;
-
-  const {
-    splitRatio: chatSplitRatio,
-    setSplitRatio: setChatSplitRatio,
-    createDragHandle: createPreviewDragHandle,
-  } = useResizableSplit({
-    defaultWidth: 60,
-    minWidth: dynamicChatMinRatio,
-    maxWidth: dynamicChatMaxRatio,
+  const { defaultLayout: chatDefaultLayout, onLayoutChanged: onChatLayoutChanged } = useStoredPanelLayout({
     storageKey: 'chat-preview-split-ratio',
+    primaryPanelId: 'chat',
+    secondaryPanelId: 'preview',
+    defaultRatio: 60,
+    minRatio: MIN_CHAT_RATIO,
+    maxRatio: 100 - MIN_PREVIEW_RATIO,
   });
-
-  const effectiveWorkspaceRatio = workspaceEnabled && !rightSiderCollapsed ? configuredWorkspaceRatio : 0;
-  const availableChatPreviewRatio = Math.max(0, 100 - effectiveWorkspaceRatio);
-  const chatFlex = isConversationCollapsed ? 0 : isPreviewOpen ? (availableChatPreviewRatio * chatSplitRatio) / 100 : 100 - effectiveWorkspaceRatio;
-  const workspaceFlex = effectiveWorkspaceRatio;
-  const viewportWidth = containerWidth || (typeof window === 'undefined' ? 0 : window.innerWidth);
-  const effectiveWorkspaceMaxWidthPx = rightSiderWidthOverride?.maxWidthPx ?? 500;
-  const ratioWorkspaceWidthPx = Math.min(effectiveWorkspaceMaxWidthPx, Math.max(200, (configuredWorkspaceRatio / 100) * (viewportWidth || 0)));
-  const maxWorkspaceWidthByChatPx = Math.max(MIN_RIGHT_SIDER_PANEL_PX, (viewportWidth || 0) - MIN_CHAT_PANEL_PX);
-  const fixedWorkspaceWidthPx = rightSiderWidthOverride?.widthPx ? Math.min(rightSiderWidthOverride.widthPx, maxWorkspaceWidthByChatPx) : null;
-  const workspaceWidthPx = workspaceEnabled ? (fixedWorkspaceWidthPx ?? ratioWorkspaceWidthPx) : 0;
+  const [initialWorkspaceLayout] = useState(() => (rightSiderCollapsed ? { main: 100, workspace: 0 } : workspaceDefaultLayout));
+  const workspaceRatioRef = useRef(workspaceDefaultLayout.workspace);
+  const safeContainerWidth = Math.max(containerWidth, 1);
+  const workspaceMaxWidthPx = rightSiderWidthOverride?.maxWidthPx ?? 500;
+  const workspaceMinSizePx = Math.max(MIN_RIGHT_SIDER_PANEL_PX, safeContainerWidth * (MIN_WORKSPACE_RATIO / 100));
+  const onWorkspaceResize = useCallback((size: PanelSize) => {
+    const isCollapsed = size.inPixels === 0;
+    if (!isCollapsed) {
+      workspaceRatioRef.current = size.asPercentage;
+    }
+    if (rightCollapsedRef.current !== isCollapsed) {
+      rightCollapsedRef.current = isCollapsed;
+      setRightSiderCollapsed(isCollapsed);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!workspaceEnabled || !isPreviewOpen || !isDesktop || rightSiderCollapsed) {
+    if (!workspaceEnabled || rightSiderCollapsed) {
+      workspacePanelRef.current?.collapse();
       return;
     }
-    const safeContainerWidth = Math.max(containerWidth || 0, 1);
-    const minChatPreviewRatioByPx = ((MIN_CHAT_PANEL_PX + MIN_PREVIEW_PANEL_PX) / safeContainerWidth) * 100;
-    const maxWorkspaceByPx = 100 - minChatPreviewRatioByPx;
-    const maxWorkspace = Math.max(MIN_WORKSPACE_RATIO, Math.min(40, maxWorkspaceByPx));
-    if (!isRightSiderWidthOverridden && workspaceSplitRatio > maxWorkspace) {
-      setWorkspaceSplitRatio(maxWorkspace);
+
+    if (rightSiderWidthOverride?.widthPx) {
+      const width = Math.max(MIN_RIGHT_SIDER_PANEL_PX, Math.min(rightSiderWidthOverride.widthPx, safeContainerWidth - MIN_CHAT_PANEL_PX));
+      workspacePanelRef.current?.resize(`${width}px`);
+    } else if (rightSiderWidthOverride?.ratio) {
+      workspacePanelRef.current?.resize(`${rightSiderWidthOverride.ratio}%`);
+    } else {
+      workspacePanelRef.current?.resize(`${workspaceRatioRef.current}%`);
     }
-    // 宽度非常紧张时，优先保证聊天+预览可见，自动收起工作空间
-    if (safeContainerWidth < MIN_CHAT_PANEL_PX + MIN_PREVIEW_PANEL_PX + MIN_WORKSPACE_PANEL_PX) {
+  }, [rightSiderCollapsed, rightSiderWidthOverride, safeContainerWidth, workspaceEnabled, workspacePanelRef]);
+
+  useEffect(() => {
+    if (workspaceEnabled && isPreviewOpen && !rightSiderCollapsed && containerWidth < MIN_CHAT_PANEL_PX + MIN_PREVIEW_PANEL_PX + MIN_WORKSPACE_PANEL_PX) {
       setRightSiderCollapsed(true);
     }
-    // 故意不将 workspaceSplitRatio 加入依赖，避免拖动工作空间时触发额外的 effect
-  }, [containerWidth, isDesktop, isPreviewOpen, isRightSiderWidthOverridden, rightSiderCollapsed, setWorkspaceSplitRatio, workspaceEnabled, workspaceSplitRatio]);
-
-  useEffect(() => {
-    if (!workspaceEnabled || !isPreviewOpen || !isDesktop || isConversationCollapsed) {
-      return;
-    }
-    const clampedChat = Math.max(dynamicChatMinRatio, Math.min(dynamicChatMaxRatio, chatSplitRatio));
-    // Use a threshold to prevent oscillation from floating-point precision issues.
-    // Without this, sub-pixel container width changes at high DPI can cause the
-    // clamped value to differ by infinitesimal amounts, triggering infinite re-renders.
-    if (Math.abs(clampedChat - chatSplitRatio) > 0.1) {
-      setChatSplitRatio(clampedChat);
-    }
-  }, [chatSplitRatio, dynamicChatMaxRatio, dynamicChatMinRatio, isConversationCollapsed, isDesktop, isPreviewOpen, setChatSplitRatio, workspaceEnabled]);
+  }, [containerWidth, isPreviewOpen, rightSiderCollapsed, workspaceEnabled]);
 
   // 预览打开时自动收起侧边栏和工作空间 / Auto-collapse sidebar and workspace when preview opens
   useEffect(() => {
-    if (!workspaceEnabled || !isDesktop) {
+    if (!workspaceEnabled) {
       previousPreviewOpenRef.current = false;
       return;
     }
@@ -363,10 +325,9 @@ const ChatLayout: React.FC<{
     }
 
     previousPreviewOpenRef.current = isPreviewOpen;
-  }, [isPreviewOpen, isDesktop, layout, rightSiderCollapsed, workspaceEnabled]);
+  }, [isPreviewOpen, layout, rightSiderCollapsed, workspaceEnabled]);
 
-  const showDesktopWorkspaceSidebar = workspaceEnabled && !rightSiderCollapsed;
-  const desktopWorkspaceSidebarWidth = Math.max(MIN_RIGHT_SIDER_PANEL_PX, Math.round(workspaceWidthPx));
+  const workspaceMaxSizePx = Math.max(workspaceMinSizePx, Math.min(workspaceMaxWidthPx, safeContainerWidth * 0.4));
   const showWorkspaceHeader = props.siderTitle != null;
   const headerBlock = (
     <>
@@ -389,175 +350,60 @@ const ChatLayout: React.FC<{
     </>
   );
 
-  // 预览打开时使用顶部标题栏布局（聊天+预览位于标题栏下方）
-  // When preview is open on desktop, keep chat+preview below the header.
-  const useHeaderFullWidth = isPreviewOpen;
+  const chatPanel = (
+    <ArcoLayout.Content className='flex flex-col h-full'>
+      {!isPreviewOpen && headerBlock}
+      <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>{props.children}</ArcoLayout.Content>
+    </ArcoLayout.Content>
+  );
+
+  const mainPanel = isPreviewOpen ? (
+    <div className='flex flex-col h-full min-w-0'>
+      <div className='flex shrink-0 bg-background!'>{headerBlock}</div>
+      <Group className='flex-1 min-h-0' defaultLayout={chatDefaultLayout} onLayoutChanged={onChatLayoutChanged}>
+        <Panel id='chat' defaultSize='60%' minSize={`${MIN_CHAT_PANEL_PX}px`} className='flex flex-col min-w-0'>
+          {chatPanel}
+        </Panel>
+        <ResizableSeparator />
+        <Panel id='preview' defaultSize='40%' minSize={`${MIN_PREVIEW_PANEL_PX}px`} className='min-w-0'>
+          <div className='preview-panel flex flex-col h-full py-1.5 pr-3 pl-2'>
+            <div className='h-full w-full overflow-hidden rounded-[15px] border border-[var(--bg-3)]'>
+              <PreviewPanel />
+            </div>
+          </div>
+        </Panel>
+      </Group>
+    </div>
+  ) : (
+    chatPanel
+  );
 
   return (
     <ArcoLayout className='size-full'>
-      <div ref={containerRef} className={classNames('flex flex-1 relative w-full overflow-hidden', useHeaderFullWidth && 'flex-col')}>
-        {useHeaderFullWidth ? (
-          <>
-            {showDesktopWorkspaceSidebar ? (
-              <div className='flex flex-1 min-h-0 relative'>
-                <div className='flex flex-col flex-1 min-w-0'>
-                  <div className='flex shrink-0 bg-background!'>
-                    <div className='flex-1 min-w-0'>{headerBlock}</div>
-                  </div>
-                  <div className='flex flex-1 min-h-0 relative'>
-                    {!isConversationCollapsed && (
-                      <div className='flex flex-col relative' style={{ flexGrow: 0, flexShrink: 0, flexBasis: `${chatFlex}%`, minWidth: '240px' }}>
-                        <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>{props.children}</ArcoLayout.Content>
-                      </div>
-                    )}
-                    {!isConversationCollapsed && (
-                      <div className='preview-panel flex flex-col relative overflow-visible mt-1.5 mb-3 mr-3 ml-2 rounded-[15px]' style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, border: '1px solid var(--bg-3)', minWidth: '260px' }}>
-                        {createPreviewDragHandle({
-                          className: 'absolute top-0 bottom-0 z-30',
-                          style: { width: '20px', left: '-20px' },
-                          linePlacement: 'end',
-                          lineClassName: 'opacity-30 group-hover:opacity-100 group-active:opacity-100',
-                          lineStyle: { width: '2px' },
-                        })}
-                        <div className='h-full w-full overflow-hidden rounded-[15px]'>
-                          <PreviewPanel />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div
-                  className={classNames('relative chat-layout-right-sider layout-sider')}
-                  style={{
-                    flexGrow: 0,
-                    flexShrink: 0,
-                    flexBasis: rightSiderCollapsed ? '0px' : `${desktopWorkspaceSidebarWidth}px`,
-                    width: rightSiderCollapsed ? '0px' : `${desktopWorkspaceSidebarWidth}px`,
-                    minWidth: rightSiderCollapsed ? '0px' : `${MIN_RIGHT_SIDER_PANEL_PX}px`,
-                    overflow: 'visible',
-                  }}
-                >
-                  <div
-                    className={classNames('bg-background! relative chat-layout-right-sider layout-sider')}
-                    style={{
-                      height: '100%',
-                      overflow: 'hidden',
-                      borderLeft: rightSiderCollapsed ? 'none' : '1px solid var(--bg-3)',
-                    }}
-                  >
-                    {!rightSiderCollapsed && !isRightSiderWidthOverridden && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
-                    {showWorkspaceHeader ? (
-                      <>
-                        <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='right'>
-                          {props.siderTitle}
-                        </WorkspacePanelHeader>
-                        <ArcoLayout.Content style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>{props.sider}</ArcoLayout.Content>
-                      </>
-                    ) : (
-                      <ArcoLayout.Content style={{ height: '100%' }}>{props.sider}</ArcoLayout.Content>
-                    )}
-                  </div>
-                </div>
+      <div ref={containerRef} className='flex flex-1 relative w-full overflow-hidden'>
+        {workspaceEnabled ? (
+          <Group className='flex-1 min-w-0' defaultLayout={initialWorkspaceLayout} onLayoutChanged={onWorkspaceLayoutChanged}>
+            <Panel id='main' minSize={`${isPreviewOpen ? MIN_CHAT_PANEL_PX + MIN_PREVIEW_PANEL_PX : MIN_CHAT_PANEL_PX}px`} className='min-w-0'>
+              {mainPanel}
+            </Panel>
+            <ResizableSeparator className={rightSiderCollapsed ? 'invisible' : undefined} isDisabled={isRightSiderWidthOverridden || rightSiderCollapsed} />
+            <Panel id='workspace' panelRef={workspacePanelRef} defaultSize='20%' minSize={`${workspaceMinSizePx}px`} maxSize={`${workspaceMaxSizePx}px`} collapsedSize='0%' collapsible groupResizeBehavior='preserve-pixel-size' onResize={onWorkspaceResize} className='h-full'>
+              <div className='bg-background! h-full overflow-hidden border-l border-[var(--bg-3)]'>
+                {showWorkspaceHeader ? (
+                  <>
+                    <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='right'>
+                      {props.siderTitle}
+                    </WorkspacePanelHeader>
+                    <ArcoLayout.Content style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>{props.sider}</ArcoLayout.Content>
+                  </>
+                ) : (
+                  <ArcoLayout.Content style={{ height: '100%' }}>{props.sider}</ArcoLayout.Content>
+                )}
               </div>
-            ) : (
-              <>
-                <div className='flex shrink-0 bg-background!'>
-                  <div className='flex-1 min-w-0'>{headerBlock}</div>
-                </div>
-                <div className='flex flex-1 min-h-0 relative'>
-                  {!isConversationCollapsed && (
-                    <div className='flex flex-col relative' style={{ flexGrow: 0, flexShrink: 0, flexBasis: `${chatFlex}%`, minWidth: '240px' }}>
-                      <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>{props.children}</ArcoLayout.Content>
-                    </div>
-                  )}
-                  {!isConversationCollapsed && (
-                    <div className='preview-panel flex flex-col relative overflow-visible mt-1.5 mb-3 mr-3 ml-2 rounded-[15px]' style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, border: '1px solid var(--bg-3)', minWidth: '260px' }}>
-                      {createPreviewDragHandle({
-                        className: 'absolute top-0 bottom-0 z-30',
-                        style: { width: '20px', left: '-20px' },
-                        linePlacement: 'end',
-                        lineClassName: 'opacity-30 group-hover:opacity-100 group-active:opacity-100',
-                        lineStyle: { width: '2px' },
-                      })}
-                      <div className='h-full w-full overflow-hidden rounded-[15px]'>
-                        <PreviewPanel />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </>
+            </Panel>
+          </Group>
         ) : (
-          <>
-            {!isConversationCollapsed && (
-              <div className='flex flex-col relative' style={{ flexGrow: isPreviewOpen ? 0 : chatFlex, flexShrink: 0, flexBasis: isPreviewOpen ? `${chatFlex}%` : 0, minWidth: '240px' }}>
-                <ArcoLayout.Content className='flex flex-col h-full'>
-                  {headerBlock}
-                  <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>{props.children}</ArcoLayout.Content>
-                </ArcoLayout.Content>
-              </div>
-            )}
-            {isPreviewOpen && (
-              <div
-                className='preview-panel flex flex-col relative overflow-visible my-3 mr-3 ml-2 rounded-[15px]'
-                style={{
-                  flexGrow: 1,
-                  flexShrink: 1,
-                  flexBasis: 0,
-                  border: '1px solid var(--bg-3)',
-                  minWidth: '260px',
-                  boxSizing: 'border-box',
-                }}
-              >
-                {!isConversationCollapsed &&
-                  createPreviewDragHandle({
-                    className: 'absolute top-0 bottom-0 z-30',
-                    style: { width: '20px', left: '-20px' },
-                    linePlacement: 'end',
-                    lineClassName: 'opacity-30 group-hover:opacity-100 group-active:opacity-100',
-                    lineStyle: { width: '2px' },
-                  })}
-                <div className='h-full w-full overflow-hidden rounded-[15px]'>
-                  <PreviewPanel />
-                </div>
-              </div>
-            )}
-            {workspaceEnabled && (
-              <div
-                className={classNames('relative chat-layout-right-sider layout-sider')}
-                style={{
-                  flexGrow: isPreviewOpen || isRightSiderWidthOverridden ? 0 : workspaceFlex,
-                  flexShrink: 0,
-                  flexBasis: rightSiderCollapsed || (!isPreviewOpen && !isRightSiderWidthOverridden) ? (rightSiderCollapsed ? '0px' : 0) : `${Math.round(workspaceWidthPx)}px`,
-                  width: rightSiderCollapsed || (!isPreviewOpen && !isRightSiderWidthOverridden) ? (rightSiderCollapsed ? '0px' : undefined) : `${Math.round(workspaceWidthPx)}px`,
-                  minWidth: rightSiderCollapsed ? '0px' : `${MIN_RIGHT_SIDER_PANEL_PX}px`,
-                  overflow: 'visible',
-                }}
-              >
-                <div
-                  className={classNames('bg-background! relative chat-layout-right-sider layout-sider')}
-                  style={{
-                    height: '100%',
-                    overflow: 'hidden',
-                    borderLeft: rightSiderCollapsed ? 'none' : '1px solid var(--bg-3)',
-                  }}
-                >
-                  {!rightSiderCollapsed && !isRightSiderWidthOverridden && createWorkspaceDragHandle({ className: 'absolute left-0 top-0 bottom-0', style: {}, reverse: true })}
-                  {showWorkspaceHeader ? (
-                    <>
-                      <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='right'>
-                        {props.siderTitle}
-                      </WorkspacePanelHeader>
-                      <ArcoLayout.Content style={{ height: `calc(100% - ${WORKSPACE_HEADER_HEIGHT}px)` }}>{props.sider}</ArcoLayout.Content>
-                    </>
-                  ) : (
-                    <ArcoLayout.Content style={{ height: '100%' }}>{props.sider}</ArcoLayout.Content>
-                  )}
-                </div>
-              </div>
-            )}
-          </>
+          <div className='flex-1 min-w-0'>{mainPanel}</div>
         )}
 
         {!isMacRuntime && !isWindowsRuntime && workspaceEnabled && rightSiderCollapsed && (

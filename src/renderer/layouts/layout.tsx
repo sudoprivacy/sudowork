@@ -101,7 +101,7 @@ const Layout: React.FC = () => {
   return (
     <LayoutContext.Provider value={layoutContextValue}>
       <div className={classNames('app-shell relative flex flex-col size-full min-h-0', { 'app-shell--sider-collapsed': collapsed })} style={{ '--layout-sider-width': `${DEFAULT_SIDER_WIDTH}px` } as React.CSSProperties}>
-        <Titlebar workspaceAvailable={workspaceAvailable} />
+        <Titlebar workspaceAvailable={workspaceAvailable} onNewConversation={goToNewConversation} />
 
         <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
           <ArcoLayout.Sider collapsedWidth={0} collapsed={collapsed} width={DEFAULT_SIDER_WIDTH} className='layout-sider'>

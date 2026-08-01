@@ -242,11 +242,6 @@ body,
   overflow-x: hidden;
 }
 
-/* 拖动时禁用过渡，保证流畅 */
-.layout-sider--dragging {
-  transition: none !important;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .app-titlebar::before,
   .preview-panel {

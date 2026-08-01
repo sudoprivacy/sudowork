@@ -6,9 +6,11 @@
 
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { Message } from '@arco-design/web-react';
+import { Group, Panel } from 'react-resizable-panels';
 import { useTranslation } from 'react-i18next';
-import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
 import { ipcBridge } from '@/common';
+import ResizableSeparator from '@/renderer/components/ResizableSeparator';
+import { useStoredPanelLayout } from '@/renderer/hooks/useStoredPanelLayout';
 import { PreviewToolbarExtrasProvider, type PreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { usePreviewContext } from '../../context/PreviewContext';
 import AudioPreview from '../viewers/AudioViewer';
@@ -109,13 +111,13 @@ const PreviewPanel: React.FC = () => {
     [setToolbarExtrasCallback]
   );
 
-  // 内层分割：编辑器和预览的分割比例（默认 50/50）
-  // Inner split: Split ratio between editor and preview (default 50/50)
-  const { splitRatio, createDragHandle } = useResizableSplit({
-    defaultWidth: DEFAULT_SPLIT_RATIO,
-    minWidth: MIN_SPLIT_WIDTH,
-    maxWidth: MAX_SPLIT_WIDTH,
+  const { defaultLayout: splitDefaultLayout, onLayoutChanged: onSplitLayoutChanged } = useStoredPanelLayout({
     storageKey: 'preview-panel-split-ratio',
+    primaryPanelId: 'editor',
+    secondaryPanelId: 'preview',
+    defaultRatio: DEFAULT_SPLIT_RATIO,
+    minRatio: MIN_SPLIT_WIDTH,
+    maxRatio: MAX_SPLIT_WIDTH,
   });
 
   // 使用 useCallback 包装 updateContent，确保引用稳定 / Wrap updateContent with useCallback for stable reference
@@ -427,37 +429,41 @@ const PreviewPanel: React.FC = () => {
     return <PreviewHistoryDropdown historyVersions={historyVersions} historyLoading={historyLoading} historyError={historyError} historyTarget={historyTarget} currentTheme={currentTheme} onSnapshotSelect={handleSnapshotSelect} />;
   };
 
+  const renderSplitContent = (editor: React.ReactNode, preview: React.ReactNode) => (
+    <Group className='flex-1' defaultLayout={splitDefaultLayout} onLayoutChanged={onSplitLayoutChanged}>
+      <Panel id='editor' defaultSize={`${DEFAULT_SPLIT_RATIO}%`} minSize={`${MIN_SPLIT_WIDTH}%`} maxSize={`${MAX_SPLIT_WIDTH}%`} className='flex flex-col min-w-0'>
+        {editor}
+      </Panel>
+      <ResizableSeparator />
+      <Panel id='preview' defaultSize={`${100 - DEFAULT_SPLIT_RATIO}%`} minSize={`${100 - MAX_SPLIT_WIDTH}%`} maxSize={`${100 - MIN_SPLIT_WIDTH}%`} className='flex flex-col min-w-0'>
+        {preview}
+      </Panel>
+    </Group>
+  );
+
   // 渲染预览内容 / Render preview content
   const renderContent = () => {
     // Markdown 模式 / Markdown mode
     if (isMarkdown) {
       // 分屏模式：左右分割（编辑器 + 预览）/ Split-screen mode: Editor + Preview
       if (isSplitScreenEnabled && sourceViewEnabled) {
-        // 桌面端：左右分割布局 / Desktop: Split layout
-        return (
-          <div className='flex flex-1 relative overflow-hidden'>
-            {/* 左侧：编辑器 / Left: Editor */}
-            <div className='flex flex-col relative' style={{ width: `${splitRatio}%` }}>
-              <div className='h-40px flex items-center px-12px'>
-                <span className='text-12px text-secondary'>{t('preview.editor')}</span>
-              </div>
-              <div className='flex-1 overflow-hidden'>
-                <MarkdownEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} />
-              </div>
-              {/* 拖动分割线 / Drag handle */}
-              {createDragHandle({ className: 'absolute right-0 top-0 bottom-0' })}
+        return renderSplitContent(
+          <>
+            <div className='h-40px flex items-center px-12px'>
+              <span className='text-12px text-secondary'>{t('preview.editor')}</span>
             </div>
-
-            {/* 右侧：预览 / Right: Preview */}
-            <div className='flex flex-col' style={{ width: `${100 - splitRatio}%`, minWidth: 0 }}>
-              <div className='h-40px flex items-center px-12px'>
-                <span className='text-12px text-secondary'>{t('preview.preview')}</span>
-              </div>
-              <div className='flex flex-col flex-1 overflow-hidden'>
-                <MarkdownPreview content={content} hideToolbar containerRef={previewContainerRef} onScroll={handlePreviewScroll} filePath={metadata?.filePath} />
-              </div>
+            <div className='flex-1 overflow-hidden'>
+              <MarkdownEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} />
             </div>
-          </div>
+          </>,
+          <>
+            <div className='h-40px flex items-center px-12px'>
+              <span className='text-12px text-secondary'>{t('preview.preview')}</span>
+            </div>
+            <div className='flex flex-col flex-1 overflow-hidden'>
+              <MarkdownPreview content={content} hideToolbar containerRef={previewContainerRef} onScroll={handlePreviewScroll} filePath={metadata?.filePath} />
+            </div>
+          </>
         );
       }
 
@@ -469,33 +475,25 @@ const PreviewPanel: React.FC = () => {
     if (isHTML) {
       // 分屏模式：左右分割（编辑器 + 预览）/ Split-screen mode: Editor + Preview
       if (isSplitScreenEnabled && sourceViewEnabled) {
-        // 桌面端：左右分割布局 / Desktop: Split layout
-        return (
-          <div className='flex flex-1 relative overflow-hidden'>
-            {/* 左侧：编辑器 / Left: Editor */}
-            <div className='flex flex-col relative' style={{ width: `${splitRatio}%` }}>
-              <div className='h-40px flex items-center px-12px'>
-                <span className='text-12px text-secondary'>{t('preview.editor')}</span>
-              </div>
-              <div className='flex-1 overflow-hidden'>
-                <HTMLEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} filePath={metadata?.filePath} />
-              </div>
-              {/* 拖动分割线 / Drag handle */}
-              {createDragHandle({ className: 'absolute right-0 top-0 bottom-0' })}
+        return renderSplitContent(
+          <>
+            <div className='h-40px flex items-center px-12px'>
+              <span className='text-12px text-secondary'>{t('preview.editor')}</span>
             </div>
-
-            {/* 右侧：预览 / Right: Preview */}
-            <div className='flex flex-col' style={{ width: `${100 - splitRatio}%`, minWidth: 0 }}>
-              <div className='h-40px flex items-center justify-between px-12px'>
-                <span className='text-12px text-secondary'>{t('preview.preview')}</span>
-              </div>
-              <div className='flex flex-col flex-1 overflow-hidden'>
-                {/* prettier-ignore */}
-                {/* eslint-disable-next-line max-len */}
-                <HTMLRenderer content={content} filePath={previewFilePath} containerRef={previewContainerRef} onScroll={handlePreviewScroll} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
-              </div>
+            <div className='flex-1 overflow-hidden'>
+              <HTMLEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} filePath={metadata?.filePath} />
             </div>
-          </div>
+          </>,
+          <>
+            <div className='h-40px flex items-center justify-between px-12px'>
+              <span className='text-12px text-secondary'>{t('preview.preview')}</span>
+            </div>
+            <div className='flex flex-col flex-1 overflow-hidden'>
+              {/* prettier-ignore */}
+              {/* eslint-disable-next-line max-len */}
+              <HTMLRenderer content={content} filePath={previewFilePath} containerRef={previewContainerRef} onScroll={handlePreviewScroll} inspectMode={inspectMode} copySuccessMessage={t('preview.html.copySuccess')} onElementSelected={handleElementSelected} />
+            </div>
+          </>
         );
       }
 
@@ -522,30 +520,23 @@ const PreviewPanel: React.FC = () => {
     } else if (contentType === 'code') {
       // 分屏模式：左右分割（编辑器 + 预览）/ Split-screen mode: Editor + Preview
       if (isSplitScreenEnabled && isEditMode && isEditable && sourceViewEnabled) {
-        return (
-          <div className='flex flex-1 relative overflow-hidden'>
-            {/* 左侧：编辑器 / Left: Editor */}
-            <div className='flex flex-col relative' style={{ width: `${splitRatio}%` }}>
-              <div className='h-40px flex items-center px-12px'>
-                <span className='text-12px text-secondary'>{t('preview.editor')}</span>
-              </div>
-              <div className='flex-1 overflow-hidden'>
-                <TextEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} />
-              </div>
-              {/* 拖动分割线 / Drag handle */}
-              {createDragHandle({ className: 'absolute right-0 top-0 bottom-0' })}
+        return renderSplitContent(
+          <>
+            <div className='h-40px flex items-center px-12px'>
+              <span className='text-12px text-secondary'>{t('preview.editor')}</span>
             </div>
-
-            {/* 右侧：预览 / Right: Preview */}
-            <div className='flex flex-col' style={{ width: `${100 - splitRatio}%`, minWidth: 0 }}>
-              <div className='h-40px flex items-center px-12px'>
-                <span className='text-12px text-secondary'>{t('preview.preview')}</span>
-              </div>
-              <div className='flex flex-col flex-1 overflow-hidden'>
-                <CodePreview content={content} language={metadata?.language} hideToolbar containerRef={previewContainerRef} onScroll={handlePreviewScroll} />
-              </div>
+            <div className='flex-1 overflow-hidden'>
+              <TextEditor value={content} onChange={updateContent} containerRef={editorContainerRef} onScroll={handleEditorScroll} />
             </div>
-          </div>
+          </>,
+          <>
+            <div className='h-40px flex items-center px-12px'>
+              <span className='text-12px text-secondary'>{t('preview.preview')}</span>
+            </div>
+            <div className='flex flex-col flex-1 overflow-hidden'>
+              <CodePreview content={content} language={metadata?.language} hideToolbar containerRef={previewContainerRef} onScroll={handlePreviewScroll} />
+            </div>
+          </>
         );
       }
 

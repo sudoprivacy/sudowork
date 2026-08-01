@@ -130,6 +130,7 @@ export default defineConfig({
         'src/renderer/layouts/components/SiderFooter.tsx',
         'src/renderer/hooks/useAvailableModels.ts',
         'src/renderer/hooks/useHasAvailableModel.ts',
+        'src/renderer/hooks/useStoredPanelLayout.ts',
         'src/renderer/components/sendboxKeyGuards.ts',
         'src/renderer/messages/RuntimeErrorBanner.tsx',
         'src/renderer/messages/useAutoScroll.ts',

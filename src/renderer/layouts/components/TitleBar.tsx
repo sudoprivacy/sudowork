@@ -6,7 +6,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import classNames from 'classnames';
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { MessageCirclePlus, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspaceEvents';
@@ -17,9 +17,10 @@ import { isElectronDesktop, isMacOS } from '@renderer/utils/platform';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;
+  onNewConversation: () => void;
 }
 
-const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
+const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversation }) => {
   const { t } = useTranslation();
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
   const layout = useLayoutContext();
@@ -85,15 +86,25 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
 
   return (
     <div className={classNames('app-titlebar relative z-10 flex items-center justify-between gap-2 pl-2 select-none bg-background h-9 min-h-9 leading-9', isMacRuntime ? 'pr-3' : 'pr-2', isDesktopRuntime && '[-webkit-app-region:drag]')}>
-      <div className='relative z-1 flex items-center [-webkit-app-region:no-drag]' style={siderToggleStyle}>
+      <div className={classNames('relative z-1 flex items-center gap-2 [-webkit-app-region:no-drag]', isMacRuntime && 'translate-y-3px')} style={siderToggleStyle}>
         {showSiderToggle && (
           <button
             type='button'
-            className={classNames('[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-transparent! active:bg-transparent!', isMacRuntime && 'translate-y-3px')}
+            className='[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
             onClick={handleSiderToggle}
             aria-label={siderTooltip}
           >
             {layout?.siderCollapsed ? <PanelLeftOpen size={iconSize} /> : <PanelLeftClose size={iconSize} />}
+          </button>
+        )}
+        {layout?.siderCollapsed && (
+          <button
+            type='button'
+            className='[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
+            onClick={onNewConversation}
+            aria-label={t('common.newConversation')}
+          >
+            <MessageCirclePlus size={iconSize - 1} />
           </button>
         )}
       </div>
