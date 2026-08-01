@@ -158,7 +158,7 @@ const ChatConversation: React.FC<{
 
   return (
     <TaskPanelHeaderProvider>
-      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversation?.id}>
+      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled}>
         {conversationNode}
       </ChatLayout>
     </TaskPanelHeaderProvider>

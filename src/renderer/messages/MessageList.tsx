@@ -14,7 +14,6 @@ import { IconCopy } from '@arco-design/web-react/icon';
 import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage, TurnTokenUsage } from '@/common/chatLib';
 import { ipcBridge } from '@/common';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
-import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@/renderer/utils/chatMinimapEvents';
 import MessageAcpPermission from '@renderer/messages/acp/MessageAcpPermission';
 import MessageAcpQuestion from '@renderer/messages/acp/MessageAcpQuestion';
 import MessageAcpToolCall from '@renderer/messages/acp/MessageAcpToolCall';
@@ -427,39 +426,6 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
     messages: list,
     items: processedList,
   });
-
-  useEffect(() => {
-    const handleMessageJump = (event: Event) => {
-      const detail = (event as CustomEvent<ChatMessageJumpDetail>).detail;
-      if (!detail || !detail.conversationId) return;
-      if (!conversationContext?.conversationId || detail.conversationId !== conversationContext.conversationId) return;
-
-      const targetIndex = processedList.findIndex((item) => {
-        if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary' || (item as { type?: string }).type === 'turn_actions' || (item as { type?: string }).type === 'time_separator' || (item as { type?: string }).type === 'loading_indicator') {
-          return false;
-        }
-        const message = item as TMessage;
-        if (detail.messageId && message.id === detail.messageId) return true;
-        if (detail.msgId && message.msg_id === detail.msgId) return true;
-        return false;
-      });
-      if (targetIndex < 0) return;
-
-      hideScrollButton();
-      requestAnimationFrame(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: targetIndex,
-          align: detail.align || 'start',
-          behavior: detail.behavior || 'smooth',
-        });
-      });
-    };
-
-    window.addEventListener(CHAT_MESSAGE_JUMP_EVENT, handleMessageJump);
-    return () => {
-      window.removeEventListener(CHAT_MESSAGE_JUMP_EVENT, handleMessageJump);
-    };
-  }, [conversationContext?.conversationId, hideScrollButton, processedList, virtuosoRef]);
 
   // Click scroll button
   const handleScrollButtonClick = () => {

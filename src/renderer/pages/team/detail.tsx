@@ -139,7 +139,6 @@ function TeamDetailPage() {
       agentName={leader.assistant_name}
       agentLogo={leaderLogoProps.agentLogo}
       agentLogoIsEmoji={leaderLogoProps.agentLogoIsEmoji}
-      conversationId={leader.conversation_id}
       workspaceEnabled
       rightSiderWidthOverride={isTeamMemberTabActive ? { widthPx: 440 } : null}
       headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} />}

@@ -16,7 +16,6 @@ import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
 import ConversationTabs from '@/renderer/pages/conversation/ConversationTabs';
 import { PreviewPanel, usePreviewContext } from '@/renderer/pages/conversation/preview';
-import ConversationTitleMinimap from '@/renderer/pages/conversation/components/ConversationTitleMinimap';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@/renderer/utils/workspaceEvents';
 
 const MIN_CHAT_RATIO = 25;
@@ -114,10 +113,7 @@ const ChatLayout: React.FC<{
   headerLeft?: React.ReactNode;
   workspaceEnabled?: boolean;
   rightSiderWidthOverride?: IRightSiderWidthOverride | null;
-  /** 会话 ID，用于模式切换 / Conversation ID for mode switching */
-  conversationId?: string;
 }> = (props) => {
-  const { conversationId } = props;
   const { t } = useTranslation();
   const [rightSiderCollapsed, setRightSiderCollapsed] = useState(() => {
     try {
@@ -459,7 +455,7 @@ const ChatLayout: React.FC<{
       <ArcoLayout.Header className='h-9 flex items-center justify-between p-4 gap-4 bg-background! chat-layout-header overflow-hidden'>
         <div className='shrink-0'>{props.headerLeft}</div>
         <FlexFullContainer className='h-full min-w-0' containerClassName='flex items-center gap-4'>
-          <ConversationTitleMinimap title={props.title} conversationId={conversationId} />
+          <span className='max-w-full truncate text-16px font-bold text-foreground'>{props.title}</span>
         </FlexFullContainer>
         <div className='flex items-center gap-3 shrink-0'>
           {props.headerExtra}
