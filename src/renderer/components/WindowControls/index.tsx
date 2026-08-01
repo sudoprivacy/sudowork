@@ -80,13 +80,18 @@ const WindowControls: React.FC = () => {
 
   return (
     <div className='flex items-stretch [-webkit-app-region:no-drag]'>
-      <button type='button' className='app-window-controls__button' onClick={handleMinimize} aria-label='Minimize'>
+      <button type='button' className='h-9 w-10 border-none bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-[rgba(128,128,128,0.2)] active:bg-[rgba(128,128,128,0.3)]' onClick={handleMinimize} aria-label='Minimize'>
         <Minus theme='outline' size='14' fill='currentColor' strokeWidth={4} />
       </button>
-      <button type='button' className='app-window-controls__button' onClick={handleToggleMaximize} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
+      <button
+        type='button'
+        className='h-9 w-10 border-none bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-[rgba(128,128,128,0.2)] active:bg-[rgba(128,128,128,0.3)]'
+        onClick={handleToggleMaximize}
+        aria-label={isMaximized ? 'Restore' : 'Maximize'}
+      >
         {isMaximized ? <WindowRestoreIcon size={14} /> : <WindowMaximizeIcon size={14} />}
       </button>
-      <button type='button' className='app-window-controls__button app-window-controls__button--close' onClick={handleClose} aria-label='Close'>
+      <button type='button' className='h-9 w-10 border-none bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-[#e81123] hover:text-white active:bg-[#c10f1f] active:text-white' onClick={handleClose} aria-label='Close'>
         <CloseSmall theme='outline' size='16' fill='currentColor' strokeWidth={3} />
       </button>
     </div>

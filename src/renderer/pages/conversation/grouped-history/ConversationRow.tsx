@@ -37,10 +37,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
 
   const renderLeadingIcon = () => {
     if (cronStatus != CronJobStatusEnums.None) {
-      return <CronStatusIcon status={cronStatus} size={16} className='flex-shrink-0' />;
+      return <CronStatusIcon status={cronStatus} size={16} className='shrink-0' />;
     }
 
-    return <MessageCircleMore size={16} strokeWidth={2} className='flex-shrink-0 text-foreground-secondary' />;
+    return <MessageCircleMore size={16} strokeWidth={2} className='shrink-0 text-foreground-secondary' />;
   };
 
   const handleRowClick = () => {

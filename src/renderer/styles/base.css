@@ -31,21 +31,7 @@ body,
 #root,
 .layout,
 .layout-content {
-  min-width: var(--app-min-width); /* prevent layout collapse on very small screens */
-}
-
-.app-titlebar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  height: var(--titlebar-height);
-  min-height: var(--titlebar-height);
-  line-height: var(--titlebar-height);
-  user-select: none;
-  position: relative;
-  z-index: 10;
-  background: var(--background);
+  min-width: 360px; /* prevent layout collapse on very small screens */
 }
 
 /* 左侧标题栏表面与侧栏同步收起，避免折叠动画期间出现背景跳变。 */
@@ -59,87 +45,8 @@ body,
   pointer-events: none;
 }
 
-.app-titlebar > * {
-  position: relative;
-  z-index: 1;
-}
-
 .app-shell--sider-collapsed .app-titlebar::before {
   width: 0;
-}
-
-.app-titlebar--desktop {
-  -webkit-app-region: drag;
-}
-
-.app-titlebar--mac {
-  height: var(--titlebar-height);
-  min-height: var(--titlebar-height);
-  /* 给 macOS 红绿灯按钮预留空间 */
-  padding-right: 12px;
-}
-
-.app-titlebar__toolbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  -webkit-app-region: no-drag;
-  margin-left: auto;
-  min-height: var(--titlebar-height);
-}
-
-.app-titlebar__button {
-  -webkit-app-region: no-drag;
-  width: var(--titlebar-height);
-  height: var(--titlebar-height);
-  border: none;
-  border-radius: 6px;
-  background-color: transparent;
-  color: var(--foreground);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.app-titlebar__button:hover {
-  background-color: var(--accent);
-}
-
-.app-titlebar__button:active {
-  background-color: var(--fill-deep);
-}
-
-.app-window-controls__button {
-  width: 40px;
-  height: var(--titlebar-height);
-  border: none;
-  background: transparent;
-  color: var(--foreground);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background-color 0.18s ease;
-}
-
-.app-window-controls__button:hover {
-  background-color: rgba(128, 128, 128, 0.2);
-}
-
-.app-window-controls__button:active {
-  background-color: rgba(128, 128, 128, 0.3);
-}
-
-.app-window-controls__button--close:hover {
-  background-color: #e81123;
-  color: #fff;
-}
-
-.app-window-controls__button--close:active {
-  background-color: #c10f1f;
-  color: #fff;
 }
 
 .workspace-header__toggle {

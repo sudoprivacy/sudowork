@@ -7,10 +7,6 @@
 :root {
   color-scheme: light;
 
-  /* 项目扩展 Token：布局与尺寸 */
-  --app-min-width: 360px;
-  --titlebar-height: 36px;
-
   /* 项目扩展 Token：圆角 */
   --radius-sm: 6px;
   --radius-md: 8px;

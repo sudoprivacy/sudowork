@@ -84,22 +84,27 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   }, [isMacRuntime]);
 
   return (
-    <div
-      className={classNames('flex items-center gap-2 app-titlebar', {
-        'app-titlebar--desktop': isDesktopRuntime,
-        'app-titlebar--mac': isMacRuntime,
-      })}
-    >
-      <div className='flex items-center [-webkit-app-region:no-drag]' style={siderToggleStyle}>
+    <div className={classNames('app-titlebar relative z-10 flex items-center justify-between gap-2 pl-2 select-none bg-background h-9 min-h-9 leading-9', isMacRuntime ? 'pr-3' : 'pr-2', isDesktopRuntime && '[-webkit-app-region:drag]')}>
+      <div className='relative z-1 flex items-center [-webkit-app-region:no-drag]' style={siderToggleStyle}>
         {showSiderToggle && (
-          <button type='button' className={classNames('app-titlebar__button hover:bg-transparent! active:bg-transparent!', isMacRuntime && 'translate-y-3px')} onClick={handleSiderToggle} aria-label={siderTooltip}>
+          <button
+            type='button'
+            className={classNames('[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-transparent! active:bg-transparent!', isMacRuntime && 'translate-y-3px')}
+            onClick={handleSiderToggle}
+            aria-label={siderTooltip}
+          >
             {layout?.siderCollapsed ? <PanelLeftOpen size={iconSize} /> : <PanelLeftClose size={iconSize} />}
           </button>
         )}
       </div>
-      <div className='app-titlebar__toolbar' style={toolbarStyle}>
+      <div className='relative z-1 flex items-center gap-1 ml-auto [-webkit-app-region:no-drag] min-h-9' style={toolbarStyle}>
         {showWorkspaceButton && (
-          <button type='button' className='app-titlebar__button' onClick={handleWorkspaceToggle} aria-label={workspaceTooltip}>
+          <button
+            type='button'
+            className='[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
+            onClick={handleWorkspaceToggle}
+            aria-label={workspaceTooltip}
+          >
             {workspaceCollapsed ? <PanelRightOpen size={iconSize} /> : <PanelRightClose size={iconSize} />}
           </button>
         )}
