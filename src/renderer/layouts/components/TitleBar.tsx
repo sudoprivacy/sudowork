@@ -84,9 +84,17 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
     return { marginLeft: '80px' };
   }, [isMacRuntime]);
 
+  const dragRegionStyle: React.CSSProperties = useMemo(
+    () => ({
+      left: layout?.siderCollapsed ? (isMacRuntime ? 168 : 80) : 'calc(var(--layout-sider-width, 260px) + 8px)',
+      right: isMacRuntime ? 52 : 140,
+    }),
+    [isMacRuntime, layout?.siderCollapsed]
+  );
+
   return (
     <div className={classNames('app-titlebar pointer-events-none absolute inset-x-0 top-0 z-10 flex h-9 min-h-9 items-center justify-between gap-2 pl-2 leading-9 select-none', isMacRuntime ? 'pr-3' : 'pr-2')}>
-      {isDesktopRuntime && <div aria-hidden='true' className='pointer-events-auto absolute inset-x-0 top-0 h-2 [-webkit-app-region:drag]' />}
+      {isDesktopRuntime && <div aria-hidden='true' className='pointer-events-auto absolute top-0 h-9 [-webkit-app-region:drag]' style={dragRegionStyle} />}
       <div className={classNames('pointer-events-auto relative z-1 flex items-center gap-2 [-webkit-app-region:no-drag]', isMacRuntime && 'translate-y-3px')} style={siderToggleStyle}>
         {showSiderToggle && (
           <button

@@ -1,13 +1,14 @@
 import { FileText, Sparkles } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import PageWrapper from '@renderer/components/base/PageWrapper';
 
 export default function BidPage() {
   const { t } = useTranslation();
 
   return (
-    <div className='size-full bg-background f-center'>
-      <section className='flex w-full max-w-180 flex-col items-center px-6 text-center'>
+    <PageWrapper className='h-full' contentClassName='h-full max-w-none flex flex-col' title={t('common.siderMenu.bidGeneration')}>
+      <section className='flex w-full max-w-180 flex-1 flex-col items-center justify-center self-center px-6 text-center'>
         <div className='relative mb-10 h-44 w-52'>
           <div className='absolute left-4 top-5 h-36 w-28 -rotate-10 rounded-xl border border-shallow bg-muted shadow-sm' />
           <div className='absolute right-4 top-5 h-36 w-28 rotate-10 rounded-xl border border-shallow bg-muted shadow-sm' />
@@ -27,9 +28,8 @@ export default function BidPage() {
           </div>
         </div>
 
-        <h1 className='m-0 text-28px font-600 text-foreground'>{t('common.siderMenu.bidGeneration')}</h1>
-        <p className='mb-0 mt-3 text-sm text-foreground-secondary'>{t('common.comingSoon')}</p>
+        <p className='m-0 text-18px font-500 text-foreground'>{t('common.comingSoon')}</p>
       </section>
-    </div>
+    </PageWrapper>
   );
 }
