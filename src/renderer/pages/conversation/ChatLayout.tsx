@@ -264,12 +264,6 @@ const ChatLayout: React.FC<{
             </>
           )}
         </Group>
-
-        {!isMacRuntime && !isWindowsRuntime && workspaceEnabled && rightSiderCollapsed && (
-          <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} absolute top-1/2 right-2 z-10 border border-border bg-card`} style={{ transform: 'translateY(-50%)' }} onClick={() => dispatchWorkspaceToggleEvent()} aria-label='Expand workspace'>
-            <ExpandLeft size={16} />
-          </button>
-        )}
       </div>
     </ArcoLayout>
   );
