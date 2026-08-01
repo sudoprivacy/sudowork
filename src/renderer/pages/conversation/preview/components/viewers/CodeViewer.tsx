@@ -141,7 +141,7 @@ const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', h
     <div className='flex flex-col w-full h-full overflow-hidden'>
       {/* 工具栏：原文/预览切换 + 下载按钮 / Toolbar: Source/Preview toggle + Download button */}
       {!hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px shrink-0'>
           <div className='flex items-center gap-4px'>
             {/* 原文按钮 / Source button */}
             <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'source' ? 'bg-primary text-white' : 'text-secondary'}`} onClick={() => handleViewModeChange('source')}>
@@ -174,7 +174,7 @@ const CodePreview: React.FC<CodePreviewProps> = ({ content, language = 'text', h
         {viewMode === 'source' || isLargeContent ? (
           // 原文模式或大文本：显示纯文本，避免高亮器阻塞
           // Source mode or large text: render plain text to avoid highlighter blocking
-          <pre className='w-full m-0 p-12px rd-8px overflow-auto font-mono text-12px text-foreground whitespace-pre-wrap break-words'>{displayedContent}</pre>
+          <pre className='w-full m-0 p-12px rd-8px overflow-auto font-mono text-12px text-foreground whitespace-pre-wrap wrap-break-word'>{displayedContent}</pre>
         ) : (
           // 预览模式：语法高亮 / Preview mode: Syntax highlighting
           <SyntaxHighlighter style={currentTheme === 'dark' ? vs2015 : vs} language={language} PreTag='div' wrapLongLines={language === 'text' || language === 'txt'} customStyle={language === 'text' || language === 'txt' ? { whiteSpace: 'pre-wrap', wordBreak: 'break-word' } : undefined}>

@@ -325,7 +325,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
     return (
       <div className='h-full w-full flex flex-col'>
         {!usePortalToolbar && !hideToolbar && (
-          <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
+          <div className='flex items-center justify-between h-40px px-12px shrink-0'>
             <div className='flex items-center gap-8px'>
               <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
               <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -362,7 +362,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
       return (
         <div className='h-full w-full flex flex-col'>
           {!usePortalToolbar && !hideToolbar && (
-            <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
+            <div className='flex items-center justify-between h-40px px-12px shrink-0'>
               <div className='flex items-center gap-8px'>
                 <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
                 <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -395,7 +395,7 @@ const WordPreview: React.FC<WordPreviewProps> = ({ filePath, hideToolbar = false
     return (
       <div className='flex-1 min-h-0 w-full flex flex-col'>
         {!usePortalToolbar && !hideToolbar && (
-          <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
+          <div className='flex items-center justify-between h-40px px-12px shrink-0'>
             <div className='flex items-center gap-8px'>
               <span className='text-13px text-secondary'>📄 {t('preview.word.title')}</span>
               <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>

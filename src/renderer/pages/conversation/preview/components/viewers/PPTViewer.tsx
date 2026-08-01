@@ -267,7 +267,7 @@ const PPTPreview: React.FC<PPTPreviewProps> = ({ filePath, content, hideToolbar 
     return (
       <div className='h-full w-full flex flex-col'>
         {!usePortalToolbar && !hideToolbar && (
-          <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
+          <div className='flex items-center justify-between h-40px px-12px shrink-0'>
             <div className='flex items-center gap-8px'>
               <span className='text-13px text-secondary'>📊 {t('preview.pptTitle')}</span>
               <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>

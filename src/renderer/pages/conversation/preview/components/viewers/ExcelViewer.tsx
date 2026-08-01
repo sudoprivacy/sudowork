@@ -586,7 +586,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
     return (
       <div className='h-full w-full flex flex-col'>
         {!usePortalToolbar && !hideToolbar && (
-          <div className='flex items-center justify-between h-40px px-12px border-b flex-shrink-0'>
+          <div className='flex items-center justify-between h-40px px-12px border-b shrink-0'>
             <div className='flex items-center gap-8px'>
               <span className='text-13px text-secondary'>📊 {t('preview.excel.title')}</span>
               <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -630,7 +630,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
       <style>{EXCEL_SCROLLBAR_CSS}</style>
 
       {!usePortalToolbar && !hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px border-b flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px border-b shrink-0'>
           <div className='flex items-center gap-8px'>
             <span className='text-13px text-secondary'>📊 {t('preview.excel.title')}</span>
             <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
@@ -660,7 +660,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           renderSheetTable(excelData.sheets[0].name)
         ) : (
           <>
-            <div className='flex items-center h-28px px-8px border-b overflow-x-auto flex-shrink-0'>
+            <div className='flex items-center h-28px px-8px border-b overflow-x-auto shrink-0'>
               {excelData.sheets.map((sheet) => (
                 <button
                   key={sheet.name}

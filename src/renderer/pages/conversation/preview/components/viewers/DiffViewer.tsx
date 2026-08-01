@@ -116,7 +116,7 @@ const DiffPreview: React.FC<DiffPreviewProps> = ({ content, hideToolbar = false,
   return (
     <div className='flex flex-col w-full h-full overflow-hidden'>
       {!hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px shrink-0'>
           <div className='flex items-center gap-4px'>
             <div className={`px-12px py-4px rd-4px cursor-pointer transition-colors text-12px ${viewMode === 'source' ? 'bg-primary text-white' : 'text-secondary'}`} onClick={() => handleViewModeChange('source')}>
               {t('preview.source')}

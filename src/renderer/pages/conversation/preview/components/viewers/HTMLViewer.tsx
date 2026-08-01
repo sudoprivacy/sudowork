@@ -317,7 +317,7 @@ const HTMLPreview: React.FC<HTMLPreviewProps> = ({ content, filePath, hideToolba
     <div className='h-full w-full flex flex-col'>
       {/* 工具栏 */}
       {!hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px border-b flex-shrink-0'>
+        <div className='flex items-center justify-between h-40px px-12px border-b shrink-0'>
           <div className='flex items-center gap-8px'>
             {/* 编辑按钮 */}
             <button onClick={handleToggleEdit} className={`px-12px py-4px rd-4px text-12px transition-colors ${editMode ? 'bg-primary text-white' : 'text-foreground'}`}>

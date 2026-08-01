@@ -344,7 +344,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, hideToolbar 
     <div className='flex flex-col w-full h-full overflow-hidden'>
       {/* 工具栏：Tabs 切换 + 下载按钮 / Toolbar: Tabs toggle + Download button */}
       {!hideToolbar && (
-        <div className='flex items-center justify-between h-40px px-12px flex-shrink-0 border-b overflow-x-auto'>
+        <div className='flex items-center justify-between h-40px px-12px shrink-0 border-b overflow-x-auto'>
           <div className='flex items-center justify-between gap-12px w-full' style={{ minWidth: 'max-content' }}>
             {/* 左侧：原文/预览 Tabs / Left: Source/Preview Tabs */}
             <div className='flex items-center h-full gap-2px'>
@@ -371,7 +371,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, hideToolbar 
             </div>
 
             {/* 右侧按钮组：下载 + 关闭 / Right button group: Download + Close */}
-            <div className='flex items-center gap-8px flex-shrink-0'>
+            <div className='flex items-center gap-8px shrink-0'>
               {/* 下载按钮 / Download button */}
               <div className='flex items-center gap-4px px-8px py-4px rd-4px cursor-pointer transition-colors' onClick={handleDownload} title={t('preview.downloadMarkdown')}>
                 <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='text-secondary'>
