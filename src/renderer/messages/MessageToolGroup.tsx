@@ -315,8 +315,8 @@ const ImageDisplay: React.FC<{
   if (loading) {
     return (
       <div className='flex items-center gap-8px my-8px'>
-        <LoadingOne className='loading' size={14} color='var(--foreground)' />
-        <span className='text-secondary text-sm'>{t('common.loading', { defaultValue: 'Loading...' })}</span>
+        <LoadingOne className='loading text-foreground' size={14} />
+        <span className='text-sm text-foreground-secondary'>{t('common.loading', { defaultValue: 'Loading...' })}</span>
       </div>
     );
   }
@@ -324,7 +324,7 @@ const ImageDisplay: React.FC<{
   // 错误状态 Error state
   if (error || !imageUrl) {
     return (
-      <div className='flex items-center gap-8px my-8px text-secondary text-sm'>
+      <div className='my-2 flex items-center gap-2 text-sm text-foreground-secondary'>
         <span>{t('messages.imageLoadFailed', { defaultValue: 'Failed to load image' })}</span>
       </div>
     );
@@ -353,10 +353,10 @@ const ImageDisplay: React.FC<{
         {/* 操作按钮 Action buttons */}
         <div className='flex gap-8px'>
           <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
-            <Button type='secondary' size='small' shape='circle' icon={<Copy size={14} color='var(--foreground)' />} onClick={handleCopy} />
+            <Button type='secondary' size='small' shape='circle' icon={<Copy size={14} className='text-foreground' />} onClick={handleCopy} />
           </Tooltip>
           <Tooltip content={t('common.download', { defaultValue: 'Download' })}>
-            <Button type='secondary' size='small' shape='circle' icon={<Download size={14} color='var(--foreground)' />} onClick={handleDownload} />
+            <Button type='secondary' size='small' shape='circle' icon={<Download size={14} className='text-foreground' />} onClick={handleDownload} />
           </Tooltip>
         </div>
       </div>
@@ -489,7 +489,7 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
             <Alert
               className={ALERT_CLASSES}
               type={status === 'Error' ? 'error' : status === 'Success' ? 'success' : status === 'Canceled' ? 'warning' : 'info'}
-              icon={isLoading && <LoadingOne size={12} color='var(--foreground)' className='loading lh-[1] flex' />}
+              icon={isLoading && <LoadingOne size={12} className='loading lh-[1] flex text-foreground' />}
               content={
                 <div>
                   <Tag className={'mr-4px'}>
@@ -502,7 +502,7 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
 
             {(description || resultDisplay || status === 'Error') && (
               <div className='mt-8px'>
-                {description && <div className={`text-12px text-secondary mb-2 ${status === 'Error' ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>{description}</div>}
+                {description && <div className={`mb-2 text-12px text-foreground-secondary ${status === 'Error' ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>{description}</div>}
                 {resultDisplay && (
                   <div>
                     {/* 在 Alert 外展示完整结果 Display full result outside Alert */}

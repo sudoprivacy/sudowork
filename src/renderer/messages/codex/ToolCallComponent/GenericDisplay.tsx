@@ -77,13 +77,13 @@ const GenericDisplay: React.FC<{ content: GenericUpdate }> = ({ content }) => {
             <StatusTag status={status} />
           </div>
 
-          {description && <div className='text-sm text-secondary mb-2'>{description}</div>}
+          {description && <div className='mb-2 text-sm text-foreground-secondary'>{description}</div>}
 
           {/* Display data if available */}
           {data && (
             <div className='text-sm mb-2'>
-              <div className='text-xs text-secondary mb-1'>Data:</div>
-              <div className='bg-1 p-2 rounded text-sm max-h-40 overflow-y-auto'>
+              <div className='mb-1 text-xs text-foreground-secondary'>Data:</div>
+              <div className='max-h-40 overflow-y-auto rounded-md bg-muted p-2 text-sm'>
                 <pre className='text-xs whitespace-pre-wrap'>{JSON.stringify(data, null, 2)}</pre>
               </div>
             </div>
@@ -96,14 +96,14 @@ const GenericDisplay: React.FC<{ content: GenericUpdate }> = ({ content }) => {
                 <div key={index}>
                   {content.type === 'output' && content.output && (
                     <div className='mt-3'>
-                      <div className='bg-2 p-3 rounded border font-mono text-sm overflow-x-auto max-h-60 overflow-y-auto'>
+                      <div className='max-h-60 overflow-x-auto overflow-y-auto rounded-md border border-border bg-muted p-3 font-mono text-sm'>
                         <pre className='whitespace-pre-wrap break-words text-foreground'>{content.output}</pre>
                       </div>
                     </div>
                   )}
                   {content.type === 'text' && content.text && (
                     <div className='mt-3'>
-                      <div className='bg-1 p-3 rounded border text-sm text-foreground'>{content.text}</div>
+                      <div className='rounded-md border border-border bg-muted p-3 text-sm text-foreground'>{content.text}</div>
                     </div>
                   )}
                 </div>
@@ -111,7 +111,7 @@ const GenericDisplay: React.FC<{ content: GenericUpdate }> = ({ content }) => {
             </div>
           )}
 
-          <div className='text-xs text-secondary mt-2'>Tool Call ID: {toolCallId}</div>
+          <div className='mt-2 text-xs text-foreground-secondary'>Tool Call ID: {toolCallId}</div>
         </div>
       </div>
     </Card>

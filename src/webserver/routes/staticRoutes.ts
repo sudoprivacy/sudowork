@@ -4,20 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Express, Request, Response } from 'express';
-import express from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { app } from 'electron';
+import express from 'express';
+import type { Express, Request, Response } from 'express';
 import { TokenMiddleware } from '@/webserver/auth/middleware/TokenMiddleware';
 import { AUTH_CONFIG } from '../config/constants';
 import { createRateLimiter } from '../middleware/security';
 
 /**
- * Vite dev server port (electron-vite default)
+ * Vite dev server port shared with electron-vite.
  */
-const VITE_DEV_PORT = 5173;
+const VITE_DEV_PORT = parseInt(process.env.VITE_DEV_SERVER_PORT || '5174', 10);
 
 /**
  * Try to resolve built renderer assets path, return null if not found
@@ -147,7 +147,7 @@ function registerProductionStaticRoutes(expressApp: Express, staticRoot: string,
  * Register static assets and page routes
  *
  * In production: serve built files from out/renderer/
- * In development: proxy to Vite dev server (localhost:5173)
+ * In development: proxy to the configured Vite dev server
  */
 export function registerStaticRoutes(expressApp: Express): void {
   const resolved = resolveRendererPath();

@@ -167,7 +167,7 @@ export default defineConfig(({ mode }) => {
         // causing EACCES. launch-dev.js probes for a free port and passes it via
         // VITE_DEV_SERVER_PORT. electron-vite sets ELECTRON_RENDERER_URL to the
         // actual URL, so Electron main process loads the correct origin.
-        port: parseInt(process.env.VITE_DEV_SERVER_PORT || '5173', 10),
+        port: parseInt(process.env.VITE_DEV_SERVER_PORT || '5174', 10),
         // Explicit HMR config so Vite client connects directly to the Vite dev server,
         // not to the WebUI proxy server (which would reject the WebSocket and cause infinite reload)
         hmr: {

@@ -24,7 +24,7 @@ const MessageTimeSeparator: React.FC<MessageTimeSeparatorProps> = React.memo(({ 
 
   return (
     <div className='flex justify-center items-center py-8px px-8px max-w-full md:max-w-780px mx-auto'>
-      <span className='text-11px text-4 select-none'>{timeStr}</span>
+      <span className='select-none text-11px text-foreground-quaternary'>{timeStr}</span>
     </div>
   );
 });

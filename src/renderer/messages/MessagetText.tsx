@@ -145,8 +145,8 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
 
   const copyButton = (
     <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
-      <div className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors' onClick={handleCopy} style={{ lineHeight: 0 }}>
-        <Copy size={16} color='var(--text-secondary)' />
+      <div className='cursor-pointer rounded-md p-1 text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground' onClick={handleCopy} style={{ lineHeight: 0 }}>
+        <Copy size={16} />
       </div>
     </Tooltip>
   );
@@ -180,9 +180,9 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
               'w-fit max-w-full': isUserMessage || !hasCodeLikeContent,
               'w-full max-w-full': !isUserMessage && hasCodeLikeContent,
               // 用户消息使用 OpenClaw 风格的粉色调
-              'bg-[var(--message-user-bg)] text-[var(--message-user-text)] border-[var(--message-user-border)] hover:bg-[var(--message-user-hover)]': isUserMessage,
-              // 助手消息使用白色/深灰色调
-              'bg-[var(--message-assistant-bg)] text-[var(--message-assistant-text)] border-[var(--message-assistant-border)] hover:bg-[var(--message-assistant-hover)]': !isUserMessage,
+              'border-border bg-secondary-brand text-secondary-brand-foreground hover:bg-brand-surface': isUserMessage,
+              // 助手消息使用卡片语义色
+              'border-border bg-card text-card-foreground hover:bg-muted': !isUserMessage,
               // 流式输出时添加红色闪烁边框
               'streaming-message': isStreaming && !isUserMessage,
             })}
@@ -210,7 +210,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
         {/* Skill tags - displayed below user message content */}
         {skills.length > 0 && isUserMessage && (
           <div className={classNames('mt-6px mb-6px', { 'self-end': isUserMessage })}>
-            <div className='flex items-center gap-4px text-10px text-secondary mb-4px'>
+            <div className='mb-1 flex items-center gap-1 text-10px text-foreground-secondary'>
               <Lightning size={10} className='text-primary' />
               <span>当前使用技能</span>
             </div>
@@ -219,14 +219,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
                 const skillInfo = installedSkills.find((s) => s.name === skillName);
                 const { displayName, emoji } = getInstalledSkillDisplay(skillInfo || { name: skillName, version: '' });
                 return (
-                  <Tag
-                    key={skillName}
-                    className='text-12px b-1 b-solid b-border-2 rd-4px'
-                    style={{
-                      backgroundColor: 'var(--color-primary-light-1)',
-                      borderColor: 'var(--color-primary-light-2)',
-                    }}
-                  >
+                  <Tag key={skillName} className='rounded-md border border-border bg-brand-surface text-12px text-foreground'>
                     <span className='mr-4px'>{emoji || '⚡'}</span>
                     {displayName}
                   </Tag>
@@ -245,7 +238,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
           {isUserMessage && copyButton}
         </div>
       </div>
-      {showCopyAlert && <Alert type='success' content={t('messages.copySuccess')} showIcon className='fixed top-20px left-50% transform -translate-x-50% z-9999 w-max max-w-[80%]' style={{ boxShadow: 'var(--shadow-md)' }} closable={false} />}
+      {showCopyAlert && <Alert type='success' content={t('messages.copySuccess')} showIcon className='fixed top-20px left-50% z-9999 w-max max-w-[80%] -translate-x-50% transform shadow-md' closable={false} />}
     </>
   );
 };

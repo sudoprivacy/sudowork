@@ -44,17 +44,19 @@
 .tool-steps-card {
   width: 100%;
   max-width: 420px;
-  border: 1px solid var(--color-border-2, #e5e6eb);
-  border-radius: 12px;
-  background: var(--color-bg-1, #ffffff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
 }
 
 .tool-steps-card:hover {
-  border-color: var(--color-border-3, #c9cdd4);
+  border-color: var(--border-deep);
+  box-shadow: var(--shadow-md);
 }
 
 /* ——— Card header ——— */
@@ -70,11 +72,11 @@
 }
 
 .tool-steps-card__header:hover {
-  background: var(--color-fill-1, #f7f8fa);
+  background: var(--accent);
 }
 
 .tool-steps-card__header--expanded {
-  border-bottom: 1px solid var(--color-border-2, #e5e6eb);
+  border-bottom: 1px solid var(--border);
 }
 
 .tool-steps-card__header-left {
@@ -87,13 +89,13 @@
 .tool-steps-card__title {
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-text-1, #1d2129);
+  color: var(--foreground);
   line-height: 1.4;
   white-space: nowrap;
 }
 
 .tool-steps-card__title--muted {
-  color: var(--color-text-3, #86909c);
+  color: var(--foreground-tertiary);
 }
 
 .tool-steps-card__count {
@@ -103,31 +105,30 @@
   min-width: 28px;
   height: 18px;
   padding: 0 6px;
-  border-radius: 9px;
-  background: var(--color-fill-2, #f2f3f5);
-  color: var(--color-text-3, #86909c);
+  border-radius: var(--radius-full);
+  background: var(--fill-shallow);
+  color: var(--foreground-tertiary);
   font-size: 11px;
   font-weight: 500;
   line-height: 1;
 }
 
 .tool-steps-card__count--running {
-  background: rgba(22, 93, 255, 0.12);
-  color: rgb(var(--primary-6, 22 93 255));
+  background: var(--brand-surface);
+  color: var(--brand);
 }
 
 .tool-steps-card__count--error {
-  background: var(--danger-soft);
-  color: var(--danger);
+  color: var(--destructive);
 }
 
 .tool-steps-card__count--done {
-  background: var(--color-fill-2, #f2f3f5);
-  color: var(--color-text-3, #86909c);
+  background: var(--fill-shallow);
+  color: var(--foreground-tertiary);
 }
 
 .tool-steps-card__chevron {
-  color: var(--color-text-3, #86909c);
+  color: var(--foreground-tertiary);
   transition: transform 0.15s ease;
   flex-shrink: 0;
 }
@@ -146,7 +147,7 @@
 }
 
 .tool-steps-status-dot--running {
-  background: rgb(var(--primary-6, 22 93 255));
+  background: var(--brand);
 }
 
 .tool-steps-status-dot--running::after {
@@ -154,7 +155,7 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: rgb(var(--primary-6, 22 93 255));
+  background: var(--brand);
   opacity: 0.6;
   animation: tool-steps-ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
@@ -172,15 +173,15 @@
 }
 
 .tool-steps-status-dot--done {
-  background: var(--color-text-4, #c9cdd4);
+  background: var(--foreground-quaternary);
 }
 
 .tool-steps-status-dot--error {
-  background: var(--danger);
+  background: var(--destructive);
 }
 
 .tool-steps-status-dot--default {
-  background: var(--color-text-4, #c9cdd4);
+  background: var(--foreground-quaternary);
 }
 
 /* ——— Steps list ——— */
@@ -224,7 +225,7 @@
   top: 30px; /* below the 22px status badge (6 pad + 22 badge + 2 gap) */
   bottom: -2px; /* extend into the gap between rows */
   width: 1px;
-  background: var(--color-border-2, #e5e6eb);
+  background: var(--border);
   pointer-events: none;
 }
 
@@ -233,7 +234,7 @@
 }
 
 .tool-step-row:hover {
-  background: var(--color-fill-1, #f7f8fa);
+  background: var(--accent);
 }
 
 .tool-step-row__main {
@@ -253,29 +254,29 @@
   height: 22px;
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 0 0 2px var(--color-bg-1, #ffffff);
+  box-shadow: 0 0 0 2px var(--card);
   position: relative;
   z-index: 1;
 }
 
 .tool-step-row__status--success {
-  background: var(--success-soft);
+  background: var(--fill-shallow);
   color: var(--success);
 }
 
 .tool-step-row__status--error {
-  background: var(--danger-soft);
-  color: var(--danger);
+  background: var(--fill-shallow);
+  color: var(--destructive);
 }
 
 .tool-step-row__status--running {
-  background: rgba(22, 93, 255, 0.12);
-  color: rgb(var(--primary-6, 22 93 255));
+  background: var(--brand-surface);
+  color: var(--brand);
 }
 
 .tool-step-row__status--default {
-  background: var(--color-fill-2, #f2f3f5);
-  color: var(--color-text-3, #86909c);
+  background: var(--fill-shallow);
+  color: var(--foreground-tertiary);
 }
 
 .tool-step-row__status-svg {
@@ -294,7 +295,7 @@
 .tool-step-row__name {
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-text-1, #1d2129);
+  color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -304,7 +305,7 @@
 
 .tool-step-row__desc {
   font-size: 12px;
-  color: var(--color-text-3, #86909c);
+  color: var(--foreground-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -323,8 +324,8 @@
   justify-content: center;
   width: 20px;
   height: 20px;
-  border-radius: 4px;
-  color: var(--color-text-4, #c9cdd4);
+  border-radius: var(--radius-sm);
+  color: var(--foreground-quaternary);
   flex-shrink: 0;
   cursor: pointer;
   transition:
@@ -333,8 +334,8 @@
 }
 
 .tool-step-row__toggle:hover {
-  color: var(--color-text-2, #4e5969);
-  background: var(--color-fill-2, #f2f3f5);
+  color: var(--foreground-secondary);
+  background: var(--accent);
 }
 
 /* ——— Detail panel ———
@@ -344,8 +345,8 @@
   margin-top: 6px;
   margin-left: 34px;
   padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--color-fill-1, #f7f8fa);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
   overflow: hidden;
   animation: slideDown 0.2s ease-out;
 }
@@ -371,7 +372,7 @@
 
 .tool-detail-label {
   font-size: 11px;
-  color: var(--color-text-3, #86909c);
+  color: var(--foreground-tertiary);
   font-weight: 500;
   margin-bottom: 2px;
 }
@@ -379,10 +380,10 @@
 .tool-detail-content {
   font-size: 12px;
   line-height: 1.5;
-  color: var(--color-text-2, #4e5969);
-  background: var(--color-bg-1, #ffffff);
-  border: 1px solid var(--color-border-2, #e5e6eb);
-  border-radius: 4px;
+  color: var(--foreground-secondary);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   margin: 0;
   white-space: pre-wrap;

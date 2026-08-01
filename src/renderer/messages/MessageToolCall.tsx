@@ -35,7 +35,7 @@ const MessageToolCall: React.FC<{ message: IMessageToolCall }> = ({ message }) =
     return <Alert content={OpName + ':' + file_path} type={status === 'error' ? 'error' : status === 'success' ? 'success' : 'info'}></Alert>;
   }
   if (message.content.name === 'google_web_search') {
-    return <Alert icon={<MessageSearch color='var(--foreground)' className='lh-[1]' />} content={message.content.args.query}></Alert>;
+    return <Alert icon={<MessageSearch className='lh-[1] text-foreground' />} content={message.content.args.query}></Alert>;
   }
   if (message.content.name === 'run_shell_command') {
     const shellSnippet = `\`\`\`shell\n${message.content.args.command}\n#${message.content.args.description}`;

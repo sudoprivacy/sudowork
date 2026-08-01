@@ -398,7 +398,7 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
   );
 
   return (
-    <Card className='mb-4' bordered={false} style={{ background: 'var(--bg-1)' }}>
+    <Card className='mb-4 bg-card' bordered={false}>
       <div className='space-y-4'>
         <div className='flex items-start space-x-2'>
           <span className='text-2xl flex-shrink-0'>{'💬'}</span>
@@ -408,7 +408,7 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
         {!hasResponded && !isCancelled && (
           <>
             <div className='mt-10px'>
-              <Text className='text-xs text-secondary'>{items.length > 1 ? `${currentStep + 1}/${items.length}` : t('messages.chooseAction')}</Text>
+              <Text className='text-xs text-foreground-secondary'>{items.length > 1 ? `${currentStep + 1}/${items.length}` : t('messages.chooseAction')}</Text>
             </div>
 
             {currentItem ? (
@@ -426,7 +426,7 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
                               {option.label}
                               {renderOptionExtras(option)}
                             </Button>
-                            {option.description ? <Text className='text-xs text-secondary pl-4px'>{option.description}</Text> : null}
+                            {option.description ? <Text className='pl-1 text-xs text-foreground-secondary'>{option.description}</Text> : null}
                           </div>
                         );
                       })}
@@ -465,7 +465,7 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
                   ) : null}
 
                   {!!currentValueLabel && (
-                    <Text className='text-xs text-secondary'>
+                    <Text className='text-xs text-foreground-secondary'>
                       {t('messages.option')}: {currentValueLabel}
                     </Text>
                   )}
@@ -500,21 +500,12 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
               const displayValue = answer?.displayValue || '';
               const skipped = answer?.skipped || false;
               return (
-                <div
-                  key={item.id}
-                  className='p-2 rounded-md border'
-                  style={{
-                    backgroundColor: skipped ? 'var(--color-fill-1)' : 'var(--success-soft)',
-                    borderColor: skipped ? 'rgb(var(--gray-3))' : 'var(--success-line)',
-                  }}
-                >
-                  <div className='text-xs text-secondary mb-1'>
+                <div key={item.id} className='rounded-md border border-border bg-muted p-2'>
+                  <div className='mb-1 text-xs text-foreground-secondary'>
                     {items.length > 1 ? `${idx + 1}. ` : ''}
                     {item.prompt}
                   </div>
-                  <Text className='text-sm whitespace-pre-wrap' style={{ color: skipped ? 'var(--color-text-3)' : 'var(--success)' }}>
-                    {skipped ? `⊘ ${t('messages.questionSkipped')}` : `✓ ${displayValue}`}
-                  </Text>
+                  <Text className={`whitespace-pre-wrap text-sm ${skipped ? 'text-foreground-tertiary' : 'text-success'}`}>{skipped ? `⊘ ${t('messages.questionSkipped')}` : `✓ ${displayValue}`}</Text>
                 </div>
               );
             })}
@@ -522,8 +513,8 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
         )}
 
         {isCancelled && (
-          <div className='mt-10px p-2 rounded-md border' style={{ backgroundColor: 'var(--warning-soft)', borderColor: 'var(--warning-line)' }}>
-            <Text className='text-sm whitespace-pre-wrap' style={{ color: 'var(--warning)' }}>
+          <div className='bg-warning-surface mt-2.5 rounded-md border border-border p-2'>
+            <Text className='whitespace-pre-wrap text-sm text-warning'>
               {'⚠ '}
               {t('messages.questionCancelled')}
             </Text>

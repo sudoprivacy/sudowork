@@ -24,6 +24,7 @@ import { registerStaticRoutes } from './routes/staticRoutes';
 // Express Request type extension is defined in src/webserver/types/express.d.ts
 
 const DEFAULT_ADMIN_USERNAME = AUTH_CONFIG.DEFAULT_USER.USERNAME;
+const VITE_DEV_PORT = parseInt(process.env.VITE_DEV_SERVER_PORT || '5174', 10);
 
 // 存储初始密码（内存中，用于首次显示）/ Store initial password (in memory, for first-time display)
 let initialAdminPassword: string | null = null;
@@ -268,7 +269,7 @@ export async function startWebServerWithInstance(port: number, allowRemote = fal
       // Proxy to Vite dev server
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const net = require('net') as typeof import('net');
-      const viteSocket = net.connect(5173, 'localhost', () => {
+      const viteSocket = net.connect(VITE_DEV_PORT, 'localhost', () => {
         const reqLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
         const headers = Object.entries(req.headers)
           .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)

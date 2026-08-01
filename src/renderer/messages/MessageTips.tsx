@@ -5,8 +5,6 @@
  */
 
 import { CircleCheck as CheckOne, TriangleAlert as Attention } from 'lucide-react';
-import { theme } from '@office-ai/platform';
-import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import type { IMessageTips } from '@/common/chatLib';
 import MarkdownView from '../components/Markdown';
@@ -14,9 +12,9 @@ import CollapsibleContent from '../components/CollapsibleContent';
 import RuntimeErrorBanner from './RuntimeErrorBanner';
 
 const icon = {
-  success: <CheckOne size={16} color={theme.Color.FunctionalColor.success} className='m-t-2px' />,
-  warning: <Attention size={16} strokeLinejoin='bevel' className='m-t-2px' color={theme.Color.FunctionalColor.warn} />,
-  error: <Attention size={16} strokeLinejoin='bevel' className='m-t-2px' color={theme.Color.FunctionalColor.error} />,
+  success: <CheckOne size={16} className='mt-0.5 text-success' />,
+  warning: <Attention size={16} strokeLinejoin='bevel' className='mt-0.5 text-warning' />,
+  error: <Attention size={16} strokeLinejoin='bevel' className='mt-0.5 text-destructive' />,
 };
 
 const useFormatContent = (content: string) => {
@@ -50,7 +48,7 @@ const MessageTips: React.FC<{ message: IMessageTips }> = ({ message }) => {
   if (json)
     return (
       <div className='w-full'>
-        <div className={classNames('bg-message-tips rd-8px p-x-12px p-y-8px flex items-start gap-4px')}>
+        <div className='flex items-start gap-1 rounded-md bg-muted px-3 py-2'>
           {icon[type] || icon.warning}
           <MarkdownView>{`\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``}</MarkdownView>
         </div>
@@ -58,7 +56,7 @@ const MessageTips: React.FC<{ message: IMessageTips }> = ({ message }) => {
     );
   return (
     <div className='w-full'>
-      <div className={classNames('bg-message-tips rd-8px  p-x-12px p-y-8px flex items-start gap-4px')}>
+      <div className='flex items-start gap-1 rounded-md bg-muted px-3 py-2'>
         {icon[type] || icon.warning}
         <CollapsibleContent maxHeight={48} defaultCollapsed={true} className='flex-1' useMask={true}>
           <span

@@ -47,16 +47,10 @@ const MessageAgentStatus: React.FC<MessageAgentStatusProps> = ({ message }) => {
 
   const isError = status === 'error';
   const isSuccess = status === 'connected' || status === 'authenticated' || status === 'session_active';
+  const statusClassName = isError ? 'text-destructive' : isSuccess ? 'text-success' : 'text-blue';
 
   return (
-    <div
-      className='agent-status-message flex items-center gap-3 p-3 rounded-lg border'
-      style={{
-        backgroundColor: isError ? 'var(--danger-soft)' : isSuccess ? 'var(--success-soft)' : 'var(--color-primary-light-1)',
-        borderColor: isError ? 'var(--danger-line)' : isSuccess ? 'var(--success-line)' : 'rgb(var(--primary-3))',
-        color: isError ? 'var(--danger)' : isSuccess ? 'var(--success)' : 'rgb(var(--primary-6))',
-      }}
-    >
+    <div className={`agent-status-message flex items-center gap-3 rounded-lg border border-border bg-muted p-3 ${statusClassName}`}>
       <div className='flex items-center gap-2'>
         <Text style={{ fontWeight: 'bold' }} className='capitalize'>
           {displayName}

@@ -3,7 +3,7 @@ import { execSync, spawn } from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
 
-const DEFAULT_PORTS = [5173, 9230];
+const DEFAULT_PORTS = [5174, 9230];
 const KILLABLE_NAMES = new Set(['electron', 'sudowork', 'sudowork.exe']);
 
 const log = (...args) => console.log('[dev-bootstrap]', ...args);

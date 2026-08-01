@@ -55,12 +55,12 @@ const BaseToolCallDisplay: React.FC<BaseToolCallDisplayProps> = ({ toolCallId, t
             {additionalTags}
           </div>
 
-          {description && <div className='text-sm text-secondary mb-2 overflow-hidden'>{description}</div>}
+          {description && <div className='mb-2 overflow-hidden text-sm text-foreground-secondary'>{description}</div>}
 
           {/* 特定工具的详细信息 */}
           {children}
 
-          <div className='text-xs text-secondary mt-2'>Tool Call ID: {toolCallId}</div>
+          <div className='mt-2 text-xs text-foreground-secondary'>Tool Call ID: {toolCallId}</div>
         </div>
       </div>
     </Card>

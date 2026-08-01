@@ -48,7 +48,7 @@ const ContentView: React.FC<{ content: IMessageAcpToolCall['content']['update'][
   if (content.type === 'content' && content.content && content.content.type === 'text' && content.content.text) {
     return (
       <div className='mt-3'>
-        <div className='bg-1 p-3 rounded border overflow-hidden'>
+        <div className='overflow-hidden rounded-md border border-border bg-muted p-3'>
           <div className='overflow-x-auto wrap-break-word'>
             <MarkdownView>{content.content.text}</MarkdownView>
           </div>
@@ -89,7 +89,7 @@ const MessageAcpToolCall: React.FC<{ message: IMessageAcpToolCall }> = ({ messag
             <span className='font-medium text-foreground'>{title || getKindDisplayName(kind)}</span>
             <StatusTag status={status} />
           </div>
-          {rawInput && <div className='text-sm'>{typeof rawInput === 'string' ? <MarkdownView>{`\`\`\`\n${rawInput}\n\`\`\``}</MarkdownView> : <pre className='bg-1 p-2 rounded text-xs overflow-x-auto'>{JSON.stringify(rawInput, null, 2)}</pre>}</div>}
+          {rawInput && <div className='text-sm'>{typeof rawInput === 'string' ? <MarkdownView>{`\`\`\`\n${rawInput}\n\`\`\``}</MarkdownView> : <pre className='overflow-x-auto rounded-md bg-muted p-2 text-xs'>{JSON.stringify(rawInput, null, 2)}</pre>}</div>}
           {diffContent && diffContent.length > 0 && (
             <div>
               {diffContent.map((content, index) => (
@@ -97,7 +97,7 @@ const MessageAcpToolCall: React.FC<{ message: IMessageAcpToolCall }> = ({ messag
               ))}
             </div>
           )}
-          <div className='text-xs text-secondary mt-2'>Tool Call ID: {toolCallId}</div>
+          <div className='mt-2 text-xs text-foreground-secondary'>Tool Call ID: {toolCallId}</div>
         </div>
       </div>
     </Card>

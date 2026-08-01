@@ -568,8 +568,13 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
           <div className='absolute bottom-0 left-0 right-0 h-100px pointer-events-none' />
           {/* Scroll button */}
           <div className='absolute bottom-20px left-50% transform -translate-x-50% z-100'>
-            <div className='flex items-center justify-center w-40px h-40px rd-full bg-base shadow-lg cursor-pointer hover:bg-1 transition-all hover:scale-110 border' onClick={handleScrollButtonClick} title={t('messages.scrollToBottom')} style={{ lineHeight: 0 }}>
-              <Down size={20} color='var(--text-secondary)' style={{ display: 'block' }} />
+            <div
+              className='f-center h-10 w-10 cursor-pointer rounded-full border border-border bg-card text-foreground-secondary shadow-lg transition-all hover:scale-110 hover:bg-accent hover:text-foreground'
+              onClick={handleScrollButtonClick}
+              title={t('messages.scrollToBottom')}
+              style={{ lineHeight: 0 }}
+            >
+              <Down size={20} style={{ display: 'block' }} />
             </div>
           </div>
         </>

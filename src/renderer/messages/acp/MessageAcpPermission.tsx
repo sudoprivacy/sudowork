@@ -84,7 +84,7 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
   }
 
   return (
-    <Card className='mb-4' bordered={false} style={{ background: 'var(--bg-1)' }}>
+    <Card className='mb-4 bg-card' bordered={false}>
       <div className='space-y-4'>
         {/* Header with icon and title */}
         <div className='flex items-center space-x-2'>
@@ -93,8 +93,8 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
         </div>
         {(toolCall.rawInput?.command || toolCall.title) && (
           <div>
-            <Text className='text-xs text-secondary mb-1'>{t('messages.command')}</Text>
-            <code className='text-xs bg-1 p-2 rounded block text-foreground break-all'>{toolCall.rawInput?.command || toolCall.title}</code>
+            <Text className='mb-1 text-xs text-foreground-secondary'>{t('messages.command')}</Text>
+            <code className='block break-all rounded-md bg-muted p-2 text-xs text-foreground'>{toolCall.rawInput?.command || toolCall.title}</code>
           </div>
         )}
         {!hasResponded && (
@@ -124,10 +124,8 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
         )}
 
         {hasResponded && (
-          <div className='mt-10px p-2 rounded-md border' style={{ backgroundColor: 'var(--success-soft)', borderColor: 'var(--success-line)' }}>
-            <Text className='text-sm' style={{ color: 'var(--success)' }}>
-              ✓ {t('messages.responseSentSuccessfully')}
-            </Text>
+          <div className='mt-2.5 rounded-md border border-border bg-muted p-2'>
+            <Text className='text-sm text-success'>✓ {t('messages.responseSentSuccessfully')}</Text>
           </div>
         )}
       </div>

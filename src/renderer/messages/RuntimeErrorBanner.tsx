@@ -5,7 +5,6 @@
  */
 
 import { TriangleAlert as Attention } from 'lucide-react';
-import { theme } from '@office-ai/platform';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { bodyKey, ctaKey, formatBytes, showsBytes, titleKey, toRuntimeErrorClass, type RuntimeErrorClass } from '@/common/runtime-errors';
@@ -29,13 +28,13 @@ export default function RuntimeErrorBanner({ errorClass, errorBytes, fallbackCon
 
   return (
     <div className='w-full' data-testid={`runtime-error-${cls}`}>
-      <div className='bg-message-tips rd-8px p-x-12px p-y-10px flex items-start gap-8px'>
-        <Attention size={18} strokeLinejoin='bevel' className='m-t-2px flex-shrink-0' color={theme.Color.FunctionalColor.error} />
+      <div className='flex items-start gap-2 rounded-md bg-muted px-3 py-2.5'>
+        <Attention size={18} strokeLinejoin='bevel' className='mt-0.5 flex-shrink-0 text-destructive' />
         <div className='flex-1 min-w-0'>
-          {title ? <div className='text-foreground font-medium m-b-4px [word-break:break-word]'>{title}</div> : null}
+          {title ? <div className='mb-1 font-medium text-foreground [word-break:break-word]'>{title}</div> : null}
           <div className='whitespace-break-spaces text-foreground/85 [word-break:break-word] text-13px'>{body}</div>
           {cta && onCtaClick ? (
-            <button type='button' onClick={() => onCtaClick(cls)} className='m-t-8px text-12px text-primary hover:underline cursor-pointer bg-transparent border-0 p-0' data-testid={`runtime-error-cta-${cls}`}>
+            <button type='button' onClick={() => onCtaClick(cls)} className='mt-2 cursor-pointer border-0 bg-transparent p-0 text-12px text-primary hover:underline' data-testid={`runtime-error-cta-${cls}`}>
               {cta}
             </button>
           ) : null}
@@ -48,8 +47,8 @@ export default function RuntimeErrorBanner({ errorClass, errorBytes, fallbackCon
 function LegacyErrorRow({ content }: { content: string }) {
   return (
     <div className='w-full' data-testid='runtime-error-fallback'>
-      <div className='bg-message-tips rd-8px p-x-12px p-y-8px flex items-start gap-4px'>
-        <Attention size={16} strokeLinejoin='bevel' className='m-t-2px' color={theme.Color.FunctionalColor.error} />
+      <div className='flex items-start gap-1 rounded-md bg-muted px-3 py-2'>
+        <Attention size={16} strokeLinejoin='bevel' className='mt-0.5 text-destructive' />
         <span className='whitespace-break-spaces text-foreground [word-break:break-word]'>{content}</span>
       </div>
     </div>

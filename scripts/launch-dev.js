@@ -199,7 +199,7 @@ function start() {
   delete cleanEnv.ELECTRON_RUN_AS_NODE;
 
   // Auto-detect Vite renderer port
-  const preferredVite = 5173;
+  const preferredVite = parseInt(cleanEnv.VITE_DEV_SERVER_PORT || '5174', 10);
   let vitePort;
   try {
     vitePort = findAvailablePort(preferredVite, 30);

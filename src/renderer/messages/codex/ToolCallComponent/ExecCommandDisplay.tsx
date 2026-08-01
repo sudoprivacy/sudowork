@@ -62,12 +62,12 @@ const ExecCommandDisplay: React.FC<{ content: ExecCommandUpdate }> = ({ content 
       {/* Display command if available 显示命令 */}
       {subtype === 'exec_command_begin' && 'command' in data && data.command && Array.isArray(data.command) && data.command.length > 0 && (
         <div className='text-sm mb-2'>
-          <div className='text-xs text-secondary mb-1'>{t('tools.labels.command')}</div>
-          <div className='bg-2 p-2 rounded font-mono text-xs overflow-x-auto border'>
-            <span className='text-secondary'>$ </span>
+          <div className='mb-1 text-xs text-foreground-secondary'>{t('tools.labels.command')}</div>
+          <div className='overflow-x-auto rounded-md border border-border bg-muted p-2 font-mono text-xs'>
+            <span className='text-foreground-secondary'>$ </span>
             <span className='text-success'>{data.command.join(' ')}</span>
             {'cwd' in data && data.cwd && (
-              <div className='text-secondary text-xs mt-1'>
+              <div className='mt-1 text-xs text-foreground-secondary'>
                 {t('tools.labels.working_directory')}: {data.cwd}
               </div>
             )}
@@ -82,7 +82,7 @@ const ExecCommandDisplay: React.FC<{ content: ExecCommandUpdate }> = ({ content 
             <div key={index}>
               {content.type === 'output' && content.output && (
                 <div className='mt-3'>
-                  <div className='bg-2 p-3 rounded border font-mono text-sm overflow-x-auto max-h-60 overflow-y-auto'>
+                  <div className='max-h-60 overflow-x-auto overflow-y-auto rounded-md border border-border bg-muted p-3 font-mono text-sm'>
                     <pre className='whitespace-pre-wrap break-words text-foreground'>{content.output}</pre>
                   </div>
                 </div>
