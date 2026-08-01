@@ -236,7 +236,7 @@ export const useResizableSplit = (options: UseResizableSplitOptions = {}) => {
       onPointerDown={handleDragStart(reverse)}
       onDoubleClick={() => setSplitRatio(defaultWidth)}
     >
-      <span className={classNames('pointer-events-none block h-full w-0.5 rounded-full bg-fill-medium opacity-90 transition-all duration-150 group-hover:w-1.5 group-hover:bg-brand group-active:w-1.5 group-active:bg-brand', lineClassName)} style={lineStyle} />
+      <span className={classNames('pointer-events-none block h-full w-0.5 rounded-full bg-fill-shallow transition-all duration-150 group-hover:w-1 group-hover:bg-fill-deep group-active:w-1 group-active:bg-fill-deep', lineClassName)} style={lineStyle} />
     </div>
   );
 

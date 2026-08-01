@@ -4,11 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Layout as ArcoLayout, Tooltip } from '@arco-design/web-react';
-import { ChevronLeft as ExpandLeft, ChevronRight as ExpandRight, ChevronRight as Right } from 'lucide-react';
+import { Layout as ArcoLayout } from '@arco-design/web-react';
+import { ChevronLeft as ExpandLeft, ChevronRight as ExpandRight } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { createPortal } from 'react-dom';
+
 import classNames from 'classnames';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
@@ -61,40 +60,11 @@ const WorkspacePanelHeader: React.FC<WorkspaceHeaderProps> = ({ children, showTo
   </div>
 );
 
-interface ConversationHeaderToggleProps {
-  collapsed: boolean;
-  title: string;
-  onToggle: () => void;
-  style?: React.CSSProperties;
-}
-
 interface IRightSiderWidthOverride {
   widthPx?: number;
   maxWidthPx?: number;
   ratio?: number;
 }
-
-const ConversationHeaderToggle: React.FC<ConversationHeaderToggleProps> = ({ collapsed, title, onToggle, style }) => (
-  <div className='pointer-events-none' style={{ width: '34px', height: '44px', ...style }}>
-    <div className='absolute left-0 top-0 bottom-0 w-0 bg-3 opacity-90' />
-    <Tooltip content={title} position='bottom'>
-      <button
-        type='button'
-        className='conversation-toggle-floating absolute left-0 top-1/2 f-center rounded-full pointer-events-auto transition-colors duration-200 -translate-y-1/2'
-        style={{
-          width: '34px',
-          height: '34px',
-          marginLeft: '-17px',
-        }}
-        aria-label={title}
-        aria-pressed={collapsed}
-        onClick={onToggle}
-      >
-        <Right size={18} className='transition-transform duration-200' style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)' }} />
-      </button>
-    </Tooltip>
-  </div>
-);
 
 // headerExtra 用于在会话头部右侧插入自定义操作（如模型选择）
 // headerExtra allows injecting custom actions (e.g., model picker) into the header's right area
@@ -114,7 +84,6 @@ const ChatLayout: React.FC<{
   workspaceEnabled?: boolean;
   rightSiderWidthOverride?: IRightSiderWidthOverride | null;
 }> = (props) => {
-  const { t } = useTranslation();
   const [rightSiderCollapsed, setRightSiderCollapsed] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.WORKSPACE_PANEL_COLLAPSE);
@@ -131,9 +100,7 @@ const ChatLayout: React.FC<{
   });
   const currentConversationIdRef = useRef<string | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
-  const rightSidebarToggleRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(() => (typeof window === 'undefined' ? 0 : window.innerWidth));
-  const [conversationTogglePosition, setConversationTogglePosition] = useState<React.CSSProperties | null>(null);
   const { workspaceEnabled = true, rightSiderWidthOverride } = props;
   const layout = useLayoutContext();
   const isMacRuntime = isMacEnvironment();
@@ -401,54 +368,6 @@ const ChatLayout: React.FC<{
   const showDesktopWorkspaceSidebar = workspaceEnabled && !rightSiderCollapsed;
   const desktopWorkspaceSidebarWidth = Math.max(MIN_RIGHT_SIDER_PANEL_PX, Math.round(workspaceWidthPx));
   const showWorkspaceHeader = props.siderTitle != null;
-  const showConversationCollapseToggle = workspaceEnabled && !rightSiderCollapsed;
-  const toggleConversationCollapsed = () => setConversationCollapsed((prev) => !prev);
-  const conversationCollapseTitle = isConversationCollapsed ? t('conversation.layout.expandConversation', { defaultValue: 'Expand conversation' }) : t('conversation.layout.collapseConversation', { defaultValue: 'Collapse conversation' });
-  const conversationToggleProps = {
-    collapsed: isConversationCollapsed,
-    title: conversationCollapseTitle,
-    onToggle: toggleConversationCollapsed,
-  };
-  const conversationToggleNode = showConversationCollapseToggle ? <ConversationHeaderToggle {...conversationToggleProps} style={conversationTogglePosition ?? undefined} /> : null;
-
-  useEffect(() => {
-    if (!showConversationCollapseToggle) {
-      setConversationTogglePosition(null);
-      return undefined;
-    }
-    const element = rightSidebarToggleRef.current;
-    if (!element) {
-      return undefined;
-    }
-
-    const updatePosition = () => {
-      const rect = element.getBoundingClientRect();
-      setConversationTogglePosition({
-        position: 'fixed',
-        top: `${Math.round(rect.top + rect.height / 2)}px`,
-        left: `${Math.round(rect.left)}px`,
-        transform: 'translateY(-50%)',
-        zIndex: 9999,
-      });
-    };
-
-    updatePosition();
-
-    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => updatePosition());
-    resizeObserver?.observe(element);
-
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [showConversationCollapseToggle, rightSiderCollapsed, containerWidth, isPreviewOpen, workspaceSplitRatio, workspaceWidthPx, isConversationCollapsed]);
-
-  const conversationTogglePortal = conversationToggleNode && typeof document !== 'undefined' ? createPortal(conversationToggleNode, document.body) : null;
-
   const headerBlock = (
     <>
       <ConversationTabs />
@@ -508,7 +427,6 @@ const ChatLayout: React.FC<{
                   </div>
                 </div>
                 <div
-                  ref={rightSidebarToggleRef}
                   className={classNames('relative chat-layout-right-sider layout-sider')}
                   style={{
                     flexGrow: 0,
@@ -607,7 +525,6 @@ const ChatLayout: React.FC<{
             )}
             {workspaceEnabled && (
               <div
-                ref={rightSidebarToggleRef}
                 className={classNames('relative chat-layout-right-sider layout-sider')}
                 style={{
                   flexGrow: isPreviewOpen || isRightSiderWidthOverridden ? 0 : workspaceFlex,
@@ -648,7 +565,6 @@ const ChatLayout: React.FC<{
             <ExpandLeft size={16} />
           </button>
         )}
-        {conversationTogglePortal}
       </div>
     </ArcoLayout>
   );
