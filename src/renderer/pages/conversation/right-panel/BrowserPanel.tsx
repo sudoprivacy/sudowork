@@ -306,7 +306,7 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
 
   return (
     <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col'>
-      <div className='flex flex-col flex-shrink-0'>
+      <div className='flex flex-col shrink-0'>
         <div className='browser-tabs'>
           <div ref={browserTabsScrollerRef} className='browser-tabs__scroller'>
             <div ref={browserTabsTabsRef} className='browser-tabs__tabs'>
