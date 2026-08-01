@@ -99,9 +99,15 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
 
   return (
     <div
-      className={classNames('group min-w-0 items-center gap-3 overflow-hidden rounded-xl border border-border bg-card px-3 py-3 text-left shadow-sm transition-all', fullWidth ? 'flex w-full' : 'inline-flex max-w-full', 'hover:border-deep hover:bg-accent hover:shadow-md active:scale-[0.98]', {
-        'opacity-50 cursor-not-allowed': missing || loading,
-      })}
+      className={classNames(
+        'group box-border min-w-0 items-center gap-3 overflow-hidden rounded-xl border border-border bg-card px-3 py-3 text-left shadow-sm transition-all',
+        fullWidth ? 'flex w-full' : 'inline-flex max-w-full',
+        'hover:border-deep hover:bg-accent hover:shadow-md active:scale-[0.98]',
+        {
+          'cursor-pointer': !missing && !loading,
+          'cursor-not-allowed opacity-50': missing || loading,
+        }
+      )}
       onClick={handleClick}
       role='button'
       tabIndex={0}
@@ -113,13 +119,10 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
         }
       }}
     >
-      <div className='f-center h-12 w-12 shrink-0 rounded-xl border border-border bg-fill-default text-foreground shadow-sm' style={{ lineHeight: 0 }}>
-        {resolveFileIcon(fileName, { size: 26 })}
-      </div>
-      <div className='min-w-0 flex flex-col gap-4px leading-tight'>
-        <div className='flex items-center gap-8px'>
+      {resolveFileIcon(fileName, { size: 26 })}
+      <div className='min-w-0 flex flex-1 flex-col gap-4px leading-tight'>
+        <div className='flex items-center'>
           <span className='max-w-full truncate text-15px font-semibold text-foreground'>{fileName}</span>
-          <span className={classNames('shrink-0 rounded-full bg-fill-shallow px-1.5 py-0.5 text-[10px] font-medium', missing ? 'text-destructive' : 'text-success')}>{missing ? t('messages.generatedFile.statusMissing') : kindLabel}</span>
         </div>
         <div className='max-w-full truncate text-12px text-foreground-secondary'>
           {directory ? <span className='opacity-75'>{directory}</span> : null}
@@ -130,24 +133,23 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
           {directory && ext ? <span className='ml-1.5 rounded-full bg-fill-shallow px-1.5 py-0.5 text-[10px] leading-4 text-foreground-secondary uppercase tracking-wide'>{ext}</span> : null}
         </div>
       </div>
-      {!missing && (
-        // Secondary actions: open with system app + reveal in OS file manager.
-        // Hidden by default to keep the card visually quiet; revealed on
-        // group-hover. stopPropagation in handlers so they don't trigger
-        // the card's primary in-app preview click.
-        <div className='ml-auto flex shrink-0 items-center gap-2px opacity-0 transition-opacity group-hover:opacity-100'>
-          <Tooltip content={t(isHtml ? 'messages.generatedFile.openInSystemBrowser' : 'messages.generatedFile.openWithDefaultApp')} position='top' mini>
-            <button type='button' onClick={handleOpenExternal} className='f-center cursor-pointer rounded-md border-0 bg-transparent p-1 text-foreground-secondary hover:bg-accent hover:text-foreground' style={{ lineHeight: 0 }}>
-              <ShareOne size={14} />
-            </button>
-          </Tooltip>
-          <Tooltip content={t('messages.generatedFile.showInFolder')} position='top' mini>
-            <button type='button' onClick={handleShowInFolder} className='f-center cursor-pointer rounded-md border-0 bg-transparent p-1 text-foreground-secondary hover:bg-accent hover:text-foreground' style={{ lineHeight: 0 }}>
-              <FolderOpen size={14} />
-            </button>
-          </Tooltip>
-        </div>
-      )}
+      <div className='ml-auto flex shrink-0 self-stretch flex-col items-end justify-between gap-1'>
+        <span className={classNames('rounded-full bg-fill-shallow px-1.5 py-0.5 text-[10px] font-medium', missing ? 'text-destructive' : 'text-success')}>{missing ? t('messages.generatedFile.statusMissing') : kindLabel}</span>
+        {!missing && (
+          <div className='flex items-center gap-2px opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'>
+            <Tooltip content={t(isHtml ? 'messages.generatedFile.openInSystemBrowser' : 'messages.generatedFile.openWithDefaultApp')} position='top' mini>
+              <button type='button' onClick={handleOpenExternal} className='f-center cursor-pointer rounded-md border-0 bg-transparent p-1 text-foreground-secondary hover:bg-accent hover:text-foreground' style={{ lineHeight: 0 }}>
+                <ShareOne size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip content={t('messages.generatedFile.showInFolder')} position='top' mini>
+              <button type='button' onClick={handleShowInFolder} className='f-center cursor-pointer rounded-md border-0 bg-transparent p-1 text-foreground-secondary hover:bg-accent hover:text-foreground' style={{ lineHeight: 0 }}>
+                <FolderOpen size={14} />
+              </button>
+            </Tooltip>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

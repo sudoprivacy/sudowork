@@ -72,18 +72,19 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, t
   const grouped = useMemo(() => groupByDay(entries, t), [entries, t]);
 
   return (
-    <div className='flex flex-1 min-w-0 flex-col h-full min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 gap-3'>
+    <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-3 py-4'>
       {entries.length === 0 ? (
         <EmptyState loading={loading} />
       ) : (
-        <div className='flex flex-col gap-3'>
+        <div className='flex flex-col gap-5'>
           {grouped.map((group) => (
-            <section key={group.label} className='w-[90%] min-w-0 overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm'>
-              <div className='mb-2.5 flex items-center justify-between gap-2'>
-                <div className='text-11px font-semibold uppercase tracking-[0.16em] text-foreground-secondary'>{group.label}</div>
-                <div className='rounded-full bg-fill-shallow px-2 py-0.5 text-[10px] font-medium leading-4 text-foreground-secondary'>{group.entries.length}</div>
+            <section key={group.label} className='min-w-0'>
+              <div className='mb-2 flex items-center gap-2 px-1'>
+                <div className='shrink-0 text-13px font-semibold text-foreground-secondary'>{group.label}</div>
+                <div className='h-px flex-1 bg-border' />
+                <div className='shrink-0 text-10px tabular-nums text-foreground-tertiary'>{group.entries.length}</div>
               </div>
-              <GeneratedFileCards entries={group.entries} layout='stack' />
+              <GeneratedFileCards entries={group.entries} layout='stack' fullWidth />
             </section>
           ))}
         </div>
