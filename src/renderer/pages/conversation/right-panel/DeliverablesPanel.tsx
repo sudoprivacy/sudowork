@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Archive } from 'lucide-react';
+import { FolderOpen } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -98,9 +98,9 @@ const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
     return <div className='flex-1 f-center text-12px text-foreground-secondary'>{t('conversation.rightPanel.deliverables.loading')}</div>;
   }
   return (
-    <div className='flex-1 flex flex-col items-center justify-center text-center px-6'>
-      <div className='flex flex-col items-center gap-2.5 rounded-xl bg-card px-5 py-6'>
-        <Archive size={36} className='text-foreground-quaternary' />
+    <div className='flex-1 f-center flex-col text-center px-6'>
+      <div className='f-center flex-col gap-2.5'>
+        <FolderOpen size={36} className='text-foreground-quaternary' />
         <div className='text-13px font-semibold text-foreground'>{t('conversation.rightPanel.deliverables.emptyTitle')}</div>
         <div className='max-w-55 text-12px leading-18px text-foreground-secondary opacity-80'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>
       </div>
