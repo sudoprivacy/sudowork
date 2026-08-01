@@ -21,7 +21,7 @@ import ChatSider from '@renderer/pages/conversation/ChatSider';
 import AcpModelSelector from '@renderer/components/AcpModelSelector';
 import { unwrapTeamResult } from './utils';
 import { useTeamSession } from './hooks/useTeamSession';
-import { useTeamRunView } from './hooks/useTeamRunView';
+
 import TeamLeaderEmptyState from './components/TeamLeaderEmptyState';
 import TeamWarmupOverlay from './components/TeamWarmupOverlay';
 import { useTeamWarmup } from './hooks/useTeamWarmup';
@@ -32,16 +32,14 @@ function TeamDetailPage() {
   const navigate = useNavigate();
   const { teamId = '' } = useParams<{ teamId: string }>();
   const { team, loading } = useTeamSession(teamId);
-  const teamRunView = useTeamRunView(teamId);
+
   const teamWarmup = useTeamWarmup(teamId);
   const [leaderConv, setLeaderConv] = useState<TChatConversation | undefined>(undefined);
-  const [isLeaderChatProcessing, setIsLeaderChatProcessing] = useState(false);
   const currentTeam = team?.id === teamId ? team : null;
 
   const leader = useMemo(() => currentTeam?.assistants.find((a) => a.role === 'leader') ?? null, [currentTeam]);
 
   useEffect(() => {
-    setIsLeaderChatProcessing(false);
     if (!leader?.conversation_id) {
       setLeaderConv(undefined);
       return undefined;
@@ -111,10 +109,6 @@ function TeamDetailPage() {
     return null;
   }
 
-  const runStatus = teamRunView.activeRun?.status;
-  const isRunActive = runStatus === 'accepted' || runStatus === 'running';
-  const isHeaderActive = isRunActive || isLeaderChatProcessing;
-  const isHeaderStatusVisible = Boolean(runStatus || isLeaderChatProcessing);
   const currentLeaderConv = leaderConv?.id === leader.conversation_id ? leaderConv : undefined;
   const leaderIcon = resolveTeamAssistantIcon({ assistantId: leader.assistant_id, source: leader.source, backend: leader.assistant_backend, avatar: leader.icon, name: leader.assistant_name });
   const leaderLogoProps = toChatLayoutAgentLogo(leaderIcon);
@@ -128,7 +122,6 @@ function TeamDetailPage() {
       agentLogoIsEmoji={leaderLogoProps.agentLogoIsEmoji}
       workspaceEnabled
       headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} />}
-      headerExtra={isHeaderStatusVisible ? <span className={`text-12px px-8px py-2px rounded-full ${isHeaderActive ? 'bg-green-500/10 text-green-600' : 'bg-gray-400/10 text-gray-500'}`}>{t(`team.status.${isHeaderActive ? 'active' : 'idle'}`)}</span> : null}
       sider={<ChatSider conversation={currentLeaderConv} teamId={teamId} />}
     >
       <div className='relative flex min-h-0 flex-1 flex-col'>
@@ -142,7 +135,6 @@ function TeamDetailPage() {
           teamSendMessage={leaderTeamSendMessage}
           showEmptyStateWhenNoMessages
           emptyState={<TeamLeaderEmptyState assistantName={leader.assistant_name} assistantAvatar={leader.icon} assistantBackend={leader.assistant_backend} assistantId={leader.assistant_id} source={leader.source} onPromptClick={onEmptyPromptClick} />}
-          onProcessingChange={setIsLeaderChatProcessing}
         />
         <TeamWarmupOverlay phase={teamWarmup.phase} members={currentTeam.assistants} runtimeStatus={teamWarmup.runtimeStatus} error={teamWarmup.error} onRetry={teamWarmup.onRetry} />
       </div>

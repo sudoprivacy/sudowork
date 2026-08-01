@@ -237,8 +237,6 @@ const ChatLayout: React.FC<{
         <div className='shrink-0'>{props.headerLeft}</div>
         <span className='min-w-0 flex-1 truncate text-16px font-bold text-foreground'>{props.title}</span>
         <div className='flex items-center gap-3 shrink-0'>
-          {props.headerExtra}
-          {/* {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} compact={false} showLogoInCompact={false} compactLabelType='mode' />} */}
           {isWindowsRuntime && workspaceEnabled && (
             <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} border-none bg-transparent`} aria-label='Toggle workspace' onClick={() => dispatchWorkspaceToggleEvent()}>
               {rightSiderCollapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}

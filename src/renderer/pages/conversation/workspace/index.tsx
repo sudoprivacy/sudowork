@@ -1281,7 +1281,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               />
             ) : (
               <Tree
-                className='!pl-32px !pr-16px workspace-tree'
+                className='pl-32px! pr-16px! workspace-tree'
                 showLine
                 key={treeHook.treeKey}
                 selectedKeys={treeHook.selected}
@@ -1322,9 +1322,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                     >
                       <span className='flex items-center gap-4px min-w-0 flex-1 overflow-hidden whitespace-nowrap'>
                         <span className='overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0'>{displayTitle}</span>
-                        {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded flex-shrink-0'>PASTE</span>}
+                        {isPasteTarget && <span className='ml-1 text-xs text-blue-700 font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded shrink-0'>PASTE</span>}
                       </span>
-                      <span className='flex items-center gap-6px flex-shrink-0'>{!isFile && directFileCount > 0 && <span className='workspace-tree__count-badge'>{directFileCount}</span>}</span>
+                      <span className='flex items-center gap-6px shrink-0'>{!isFile && directFileCount > 0 && <span className='workspace-tree__count-badge'>{directFileCount}</span>}</span>
                     </div>
                   );
                 }}
@@ -1445,7 +1445,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            className='fixed z-[9999] min-w-200px max-w-240px rounded-12px bg-base/95 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-sm p-6px'
+            className='fixed z-9999 min-w-200px max-w-240px rounded-12px bg-base/95 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-sm p-6px'
             style={{ top: contextMenuStyle.top, left: contextMenuStyle.left }}
             onClick={(event) => event.stopPropagation()}
             onContextMenu={(event) => {

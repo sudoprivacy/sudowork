@@ -10,7 +10,6 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
-import AgentStatusDot from '@/renderer/components/AgentStatusBanner';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import addChatIcon from '@/renderer/assets/add-chat.svg';
 import { uuid } from '@/common/utils';
@@ -154,11 +153,9 @@ const ChatConversation: React.FC<{
           agentName: (conversation?.extra as { agentName?: string })?.agentName,
         };
 
-  const headerExtraNode = <div className='flex items-center gap-8px'>{conversation && <AgentStatusDot conversation_id={conversation.id} conversationType={conversation.type} />}</div>;
-
   return (
     <TaskPanelHeaderProvider>
-      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled}>
+      <ChatLayout title={conversation?.name} {...chatLayoutProps} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled}>
         {conversationNode}
       </ChatLayout>
     </TaskPanelHeaderProvider>
