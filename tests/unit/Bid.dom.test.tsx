@@ -12,14 +12,6 @@ vi.mock('react-i18next', () => ({
       })[key] || key,
   }),
 }));
-vi.mock('@renderer/components/base/EmptyState', () => ({
-  default: ({ title, description }: { title: string; description: string }) => (
-    <div>
-      <h1>{title}</h1>
-      <p>{description}</p>
-    </div>
-  ),
-}));
 
 describe('BidPage', () => {
   it('shows the coming soon state', () => {
