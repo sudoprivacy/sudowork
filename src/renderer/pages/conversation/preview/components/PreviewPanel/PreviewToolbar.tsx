@@ -9,6 +9,7 @@ import { Camera, Columns2, Download, ExternalLink, History, MousePointer2, Save,
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PreviewHistoryTarget } from '@/common/types/preview';
+import Tabs from '@/renderer/components/ui/Tabs';
 
 /**
  * PreviewToolbar 组件属性
@@ -247,35 +248,18 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
       <div className='flex w-full items-center justify-between gap-2' style={{ minWidth: 'max-content' }}>
         {/* 左侧：Tabs（Markdown/HTML）+ 文件名 / Left: Tabs (Markdown/HTML) + Filename */}
         <div className='flex h-full items-center gap-2'>
-          {(isMarkdown || isHTML || isDiff) && sourceViewEnabled && (
+          {(isMarkdown || isHTML || isDiff) && (
             <>
-              <div className='flex items-center h-full gap-0'>
-                <div
-                  className={`flex h-full cursor-pointer items-center border-b-2 border-transparent px-2.5 text-xs font-medium transition-colors duration-150 ${viewMode === 'source' ? 'border-brand bg-brand-surface text-brand' : 'text-foreground-secondary hover:bg-accent hover:text-foreground'}`}
-                  onClick={() => {
-                    try {
-                      onViewModeChange('source');
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                >
-                  {isHTML ? t('preview.code') : t('preview.source')}
-                </div>
-                <div
-                  className={`flex h-full cursor-pointer items-center border-b-2 border-transparent px-2.5 text-xs font-medium transition-colors duration-150 ${viewMode === 'preview' ? 'border-brand bg-brand-surface text-brand' : 'text-foreground-secondary hover:bg-accent hover:text-foreground'}`}
-                  onClick={() => {
-                    try {
-                      onViewModeChange('preview');
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                >
-                  {t('preview.preview')}
-                </div>
-              </div>
-              {!isDiff && (
+              <Tabs
+                ariaLabel={t('preview.preview')}
+                items={[...(sourceViewEnabled ? [{ value: 'source', label: isHTML ? t('preview.code') : t('preview.source') }] : []), { value: 'preview', label: t('preview.preview') }]}
+                value={sourceViewEnabled ? viewMode : 'preview'}
+                // variant='line'
+                onChange={(value) => {
+                  if (sourceViewEnabled) onViewModeChange(value as 'source' | 'preview');
+                }}
+              />
+              {!isDiff && sourceViewEnabled && (
                 <>
                   {/* 保存按钮：Markdown/HTML 在 source 或分屏模式下有变更时显示 / Save button: shown for Markdown/HTML in source or split mode with changes */}
                   {(isMarkdown || isHTML) && (viewMode === 'source' || isSplitScreenEnabled) && isDirty && onSave && (
@@ -300,12 +284,6 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
                 </>
               )}
             </>
-          )}
-
-          {(isMarkdown || isHTML || isDiff) && !sourceViewEnabled && (
-            <div className='flex items-center h-full gap-0'>
-              <div className='flex h-full items-center border-b-2 border-brand bg-brand-surface px-2.5 text-xs font-medium text-brand'>{t('preview.preview')}</div>
-            </div>
           )}
 
           {contentType === 'code' && isEditable && sourceViewEnabled && (
