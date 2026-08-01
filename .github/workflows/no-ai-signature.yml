@@ -14,6 +14,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Self-test the detector
+        run: sh scripts/ci/check-no-ai-signature.sh --selftest
+
       - name: Reject AI signatures in commit messages
         run: |
           HEAD_REF="${{ github.head_ref }}"
