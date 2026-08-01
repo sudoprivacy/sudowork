@@ -99,10 +99,8 @@ const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
   }
   return (
     <div className='flex-1 flex flex-col items-center justify-center text-center px-6'>
-      <div className='flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-border bg-card px-5 py-6 shadow-sm'>
-        <div className='flex h-12 w-12 items-center justify-center rounded-full bg-fill-shallow'>
-          <Archive size={36} className='text-foreground-quaternary' />
-        </div>
+      <div className='flex flex-col items-center gap-2.5 rounded-xl bg-card px-5 py-6'>
+        <Archive size={36} className='text-foreground-quaternary' />
         <div className='text-13px font-semibold text-foreground'>{t('conversation.rightPanel.deliverables.emptyTitle')}</div>
         <div className='max-w-55 text-12px leading-18px text-foreground-secondary opacity-80'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>
       </div>
