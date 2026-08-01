@@ -68,7 +68,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
 
   const siderToggleStyle: React.CSSProperties = useMemo(
     () => ({
-      transform: layout?.siderCollapsed ? `translateX(${isMacRuntime ? 80 : 0}px)` : 'translateX(calc(var(--layout-sider-width, 260px) - 44px))',
+      transform: `${layout?.siderCollapsed ? `translateX(${isMacRuntime ? 80 : 0}px)` : 'translateX(calc(var(--layout-sider-width, 260px) - 44px))'}${isMacRuntime ? ' translateY(4px)' : ''}`,
       transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     }),
     [isMacRuntime, layout?.siderCollapsed]
@@ -90,11 +90,11 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
   return (
     <div className={classNames('app-titlebar pointer-events-none absolute inset-x-0 top-0 z-10 flex h-9 min-h-9 items-center justify-between gap-2 pl-2 leading-9 select-none', isMacRuntime ? 'pr-3' : 'pr-2')}>
       {isDesktopRuntime && <div aria-hidden='true' className='pointer-events-auto absolute top-0 h-9 [-webkit-app-region:drag]' style={dragRegionStyle} />}
-      <div className={classNames('pointer-events-auto relative z-1 flex items-center gap-2 [-webkit-app-region:no-drag]', isMacRuntime && 'translate-y-3px')} style={siderToggleStyle}>
+      <div className='pointer-events-auto relative z-1 flex items-center gap-2 [-webkit-app-region:no-drag]' style={siderToggleStyle}>
         {showSiderToggle && (
           <button
             type='button'
-            className='[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
+            className='[-webkit-app-region:no-drag] size-30px border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
             onClick={handleSiderToggle}
             aria-label={siderTooltip}
           >
@@ -103,7 +103,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
         )}
         <button
           type='button'
-          className='[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
+          className='[-webkit-app-region:no-drag] size-30px border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
           style={{
             opacity: layout?.siderCollapsed ? 1 : 0,
             transform: layout?.siderCollapsed ? 'scale(1)' : 'scale(0.8)',
@@ -122,7 +122,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
         {showWorkspaceButton && (
           <button
             type='button'
-            className='[-webkit-app-region:no-drag] size-9 border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
+            className='[-webkit-app-region:no-drag] size-30px border-none rd-6px bg-transparent text-foreground inline-flex items-center justify-center cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep'
             onClick={handleWorkspaceToggle}
             aria-label={workspaceTooltip}
           >
