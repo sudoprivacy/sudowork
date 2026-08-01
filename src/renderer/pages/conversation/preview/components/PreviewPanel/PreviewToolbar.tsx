@@ -239,8 +239,8 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
   const isDiff = contentType === 'diff';
   const preferActionButtonsInFront = Boolean(leftExtra);
 
-  const toolbarBtn = 'f-center gap-0.5 px-2 py-1 rounded-sm cursor-pointer transition-colors duration-150 text-xs font-medium text-foreground-secondary hover:bg-accent hover:text-accent-foreground';
-  const toolbarBtnActive = 'text-brand-foreground! bg-brand hover:text-brand-foreground! hover:bg-brand hover:brightness-95';
+  const toolbarBtn = 'f-center gap-0.5 px-2 py-1.5 rounded-sm cursor-pointer transition-colors duration-150 text-xs font-medium text-foreground-secondary hover:bg-accent hover:text-foreground';
+  const toolbarBtnActive = 'bg-secondary-brand! text-brand! hover:bg-brand-surface! hover:text-brand!';
   const toolbarIconSize = 12;
 
   return (
