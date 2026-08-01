@@ -49,7 +49,7 @@ const ContentView: React.FC<{ content: IMessageAcpToolCall['content']['update'][
     return (
       <div className='mt-3'>
         <div className='bg-1 p-3 rounded border overflow-hidden'>
-          <div className='overflow-x-auto break-words'>
+          <div className='overflow-x-auto wrap-break-word'>
             <MarkdownView>{content.content.text}</MarkdownView>
           </div>
         </div>
