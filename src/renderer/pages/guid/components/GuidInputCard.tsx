@@ -130,10 +130,11 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 
   return (
     <div
-      className={`relative box-border flex w-full flex-col border bg-card p-16px rd-20px ${dir ? 'pb-8px' : ''} ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed bg-brand-surface' : ''}`}
+      className={`relative box-border flex w-full flex-col border bg-card p-16px shadow-soft rd-20px ${dir ? 'pb-8px' : ''} ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed bg-brand-surface' : ''}`}
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
+        boxShadow: isInputActive ? `${activeShadow}, var(--shadow-soft)` : undefined,
         ...(isFileDragging
           ? {
               borderColor: 'var(--brand)',
@@ -142,7 +143,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           : {
               borderWidth: '1px',
               borderColor: isInputActive ? activeBorderColor : inactiveBorderColor,
-              boxShadow: isInputActive ? activeShadow : 'none',
             }),
       }}
       {...dragHandlers}

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Alert, Message, Tag, Tooltip } from '@arco-design/web-react';
+import { Message, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Zap as Lightning } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useMemo, useState, useEffect } from 'react';
@@ -92,7 +92,6 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
   const visibleFiles = useMemo(() => filterUserVisibleFiles(files), [files]);
   const { data, json } = useFormatContent(text);
   const { t } = useTranslation();
-  const [showCopyAlert, setShowCopyAlert] = useState(false);
   const hasCodeFence = typeof displayContent === 'string' ? /```/.test(displayContent) : false;
   const hasCodeLikeContent = json || hasCodeFence;
   const skills = message.content.skills || [];
@@ -135,8 +134,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
     const textToCopy = baseText;
     copyText(textToCopy)
       .then(() => {
-        setShowCopyAlert(true);
-        setTimeout(() => setShowCopyAlert(false), 2000);
+        Message.success(t('messages.copySuccess'));
       })
       .catch(() => {
         Message.error(t('common.copyFailed'));
@@ -238,7 +236,6 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
           {isUserMessage && copyButton}
         </div>
       </div>
-      {showCopyAlert && <Alert type='success' content={t('messages.copySuccess')} showIcon className='fixed top-20px left-50% z-9999 w-max max-w-[80%] -translate-x-50% transform shadow-md' closable={false} />}
     </>
   );
 };

@@ -95,6 +95,7 @@ export default defineConfig({
     'rounded-xl': '[border-radius:var(--radius-xl)]',
     'shadow-sm': '[box-shadow:var(--shadow-sm)]',
     'shadow-md': '[box-shadow:var(--shadow-md)]',
+    'shadow-soft': '[box-shadow:var(--shadow-soft)]',
     'shadow-lg': '[box-shadow:var(--shadow-lg)]',
     'shadow-xl': '[box-shadow:var(--shadow-xl)]',
     'shadow-focus': '[box-shadow:var(--shadow-focus)]',

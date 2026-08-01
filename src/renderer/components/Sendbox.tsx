@@ -539,10 +539,11 @@ const SendBox: React.FC<{
       {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)} />}
       <div
         ref={containerRef}
-        className={`relative p-16px border border-border bg-fill flex flex-col ${slashController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'border-dashed' : ''}`}
+        className={`relative p-16px border border-border bg-fill shadow-soft flex flex-col ${slashController.isOpen ? 'overflow-visible' : 'overflow-hidden'} ${isFileDragging ? 'border-dashed' : ''}`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           borderRadius: topAttached ? '0 0 20px 20px' : '20px',
+          boxShadow: isInputActive ? `${activeShadow}, var(--shadow-soft)` : undefined,
           ...(isFileDragging
             ? {
                 backgroundColor: 'var(--brand-surface)',
@@ -554,7 +555,6 @@ const SendBox: React.FC<{
                 borderWidth: '1px',
                 borderTopWidth: topAttached ? 0 : '1px',
                 borderColor: isInputActive ? activeBorderColor : inactiveBorderColor,
-                boxShadow: isInputActive ? activeShadow : 'none',
               }),
         }}
         {...dragHandlers}

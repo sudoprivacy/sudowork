@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Alert, Message, Tooltip } from '@arco-design/web-react';
+import { Message, Tooltip } from '@arco-design/web-react';
 import { Copy, FileText as FileWord, Share2 as ShareOne } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -33,7 +33,6 @@ type TurnActionsProps = {
 
 const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conversationId, tokenUsage, showTokenUsageBadge = false }) => {
   const { t } = useTranslation();
-  const [showCopyAlert, setShowCopyAlert] = useState(false);
   const [converting, setConverting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareoneInstalled, setShareoneInstalled] = useState(false);
@@ -50,8 +49,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
     const textToCopy = turnTexts.join('\n\n');
     copyText(textToCopy)
       .then(() => {
-        setShowCopyAlert(true);
-        setTimeout(() => setShowCopyAlert(false), 2000);
+        Message.success(t('messages.copySuccess'));
       })
       .catch(() => {
         Message.error(t('common.copyFailed'));
@@ -133,41 +131,35 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
   ) : null;
 
   return (
-    <>
-      <div className='flex min-h-7 flex-wrap items-center gap-1'>
-        <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
-          <div className='f-center size-6 cursor-pointer rounded-md text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground' onClick={handleCopy}>
-            <Copy size={16} />
+    <div className='flex min-h-7 flex-wrap items-center gap-1'>
+      <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
+        <div className='f-center size-6 cursor-pointer rounded-md text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground' onClick={handleCopy}>
+          <Copy size={16} />
+        </div>
+      </Tooltip>
+      <Tooltip content={t('messages.convertToWord', { defaultValue: 'Convert to Word' })}>
+        <div className={`f-center size-6 rounded-md transition-colors ${converting ? 'cursor-default text-foreground-quaternary' : 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground'}`} onClick={handleConvertToWord}>
+          <FileWord size={16} />
+        </div>
+      </Tooltip>
+      <Tooltip content={shareoneInstalled ? t('messages.shareone') : t('messages.shareCliNotInstalled')}>
+        <div className={`f-center size-6 rounded-md transition-colors ${shareoneInstalled && !sharing ? 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground' : 'cursor-default text-foreground-quaternary'}`} onClick={shareoneInstalled && !sharing ? handleShare : undefined}>
+          <ShareOne size={16} />
+        </div>
+      </Tooltip>
+      {showTokenUsageBadge && totalTokens && (
+        <Tooltip content={usageTooltip}>
+          <div className='ml-1 max-w-full truncate rounded-md border border-border bg-fill-shallow px-1.5 py-0.5 text-11px leading-18px text-foreground-secondary'>
+            {t('messages.tokenUsageSummary', { defaultValue: '{{total}} tokens', total: totalTokens })}
+            {points ? ` · ${t('messages.tokenUsagePointsShort', { defaultValue: '{{value}} points', value: points })}` : ''}
+            {inputTokens && outputTokens ? ` · ${t('messages.tokenUsageInOut', { defaultValue: 'in {{input}} / out {{output}}', input: inputTokens, output: outputTokens })}` : ''}
+            {thoughtTokens ? ` · ${t('messages.tokenUsageReasoningShort', { defaultValue: 'reasoning {{value}}', value: thoughtTokens })}` : ''}
+            {cachedReadTokens ? ` · ${t('messages.tokenUsageCacheReadShort', { defaultValue: 'cache {{value}}', value: cachedReadTokens })}` : ''}
+            {cachedWriteTokens ? ` · ${t('messages.tokenUsageCacheWriteShort', { defaultValue: 'write {{value}}', value: cachedWriteTokens })}` : ''}
           </div>
         </Tooltip>
-        <Tooltip content={t('messages.convertToWord', { defaultValue: 'Convert to Word' })}>
-          <div className={`f-center size-6 rounded-md transition-colors ${converting ? 'cursor-default text-foreground-quaternary' : 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground'}`} onClick={handleConvertToWord}>
-            <FileWord size={16} />
-          </div>
-        </Tooltip>
-        <Tooltip content={shareoneInstalled ? t('messages.shareone') : t('messages.shareCliNotInstalled')}>
-          <div
-            className={`f-center size-6 rounded-md transition-colors ${shareoneInstalled && !sharing ? 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground' : 'cursor-default text-foreground-quaternary'}`}
-            onClick={shareoneInstalled && !sharing ? handleShare : undefined}
-          >
-            <ShareOne size={16} />
-          </div>
-        </Tooltip>
-        {showTokenUsageBadge && totalTokens && (
-          <Tooltip content={usageTooltip}>
-            <div className='ml-1 max-w-full truncate rounded-md border border-border bg-fill-shallow px-1.5 py-0.5 text-11px leading-18px text-foreground-secondary'>
-              {t('messages.tokenUsageSummary', { defaultValue: '{{total}} tokens', total: totalTokens })}
-              {points ? ` · ${t('messages.tokenUsagePointsShort', { defaultValue: '{{value}} points', value: points })}` : ''}
-              {inputTokens && outputTokens ? ` · ${t('messages.tokenUsageInOut', { defaultValue: 'in {{input}} / out {{output}}', input: inputTokens, output: outputTokens })}` : ''}
-              {thoughtTokens ? ` · ${t('messages.tokenUsageReasoningShort', { defaultValue: 'reasoning {{value}}', value: thoughtTokens })}` : ''}
-              {cachedReadTokens ? ` · ${t('messages.tokenUsageCacheReadShort', { defaultValue: 'cache {{value}}', value: cachedReadTokens })}` : ''}
-              {cachedWriteTokens ? ` · ${t('messages.tokenUsageCacheWriteShort', { defaultValue: 'write {{value}}', value: cachedWriteTokens })}` : ''}
-            </div>
-          </Tooltip>
-        )}
-      </div>
-      {showCopyAlert && <Alert type='success' content={t('messages.copySuccess')} showIcon className='fixed left-50% top-5 z-9999 w-max max-w-[80%] -translate-x-50% shadow-md' closable={false} />}
-    </>
+      )}
+    </div>
   );
 };
 

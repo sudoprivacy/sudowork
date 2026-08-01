@@ -34,6 +34,7 @@
   /* 项目扩展 Token：阴影 */
   --shadow-sm: 0 1px 3px rgb(0 0 0 / 8%);
   --shadow-md: 0 4px 12px rgb(0 0 0 / 10%);
+  --shadow-soft: 0 6px 18px rgb(0 0 0 / 9%);
   --shadow-lg: 0 8px 24px rgb(0 0 0 / 12%);
   --shadow-xl: 0 12px 36px rgb(0 0 0 / 16%);
   --shadow-focus: 0 0 0 2px color-mix(in srgb, var(--ring) 15%, transparent);
