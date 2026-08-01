@@ -61,7 +61,7 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
   // 点击侧栏顶部应用名时回到新会话页，行为与「新会话」按钮一致
   // Clicking the sidebar app name returns to the new conversation page, matching the "New Chat" button
-  const goToNewConversation = useCallback(() => {
+  const onNewConversation = useCallback(() => {
     cleanupSiderTooltips();
     // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
     void ConfigStorage.set('guid.lastSelectedAgent', '');
@@ -101,7 +101,7 @@ const Layout: React.FC = () => {
   return (
     <LayoutContext.Provider value={layoutContextValue}>
       <div className={classNames('app-shell relative flex flex-col size-full min-h-0', { 'app-shell--sider-collapsed': collapsed })} style={{ '--layout-sider-width': `${DEFAULT_SIDER_WIDTH}px` } as React.CSSProperties}>
-        <Titlebar workspaceAvailable={workspaceAvailable} onNewConversation={goToNewConversation} />
+        <Titlebar workspaceAvailable={workspaceAvailable} onNewConversation={onNewConversation} />
 
         <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
           <ArcoLayout.Sider collapsedWidth={0} collapsed={collapsed} width={DEFAULT_SIDER_WIDTH} className='layout-sider'>
@@ -111,14 +111,14 @@ const Layout: React.FC = () => {
                 className='flex-1 min-w-0 text-left truncate text-lg text-foreground font-600 cursor-pointer border-none bg-transparent'
                 onClick={() => {
                   onClick();
-                  goToNewConversation();
+                  onNewConversation();
                 }}
               >
                 {config.app_name}
               </button>
             </ArcoLayout.Header>
             <ArcoLayout.Content className='px-3 pb-3 layout-sider-content'>
-              <Sider />
+              <Sider onNewConversation={onNewConversation} />
             </ArcoLayout.Content>
           </ArcoLayout.Sider>
 

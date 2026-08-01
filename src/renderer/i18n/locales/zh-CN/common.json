@@ -68,10 +68,13 @@
   "skip": "跳过",
   "setupContinuesInBackground": "先进入应用，运行环境会继续在后台安装。",
   "refresh": "刷新",
+  "comingSoon": "即将到来",
   "tray.showWindow": "显示 {{appName}}",
   "tray.toggleTheme": "切换主题色",
   "tray.quit": "退出",
   "siderMenu": {
+    "newConversation": "新会话",
+    "bidGeneration": "标书生成",
     "agent": "智能体",
     "skillStore": "技能商店",
     "localKb": "本地知识库",

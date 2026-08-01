@@ -62,10 +62,13 @@
   "skip": "跳過",
   "setupContinuesInBackground": "先進入應用程式，執行環境會繼續在背景安裝。",
   "refresh": "重新整理",
+  "comingSoon": "即將推出",
   "tray.showWindow": "顯示 {{appName}}",
   "tray.toggleTheme": "切換主題色",
   "tray.quit": "結束",
   "siderMenu": {
+    "newConversation": "新會話",
+    "bidGeneration": "標書生成",
     "agent": "數位助手",
     "skillStore": "技能商店",
     "security": "安全防護",

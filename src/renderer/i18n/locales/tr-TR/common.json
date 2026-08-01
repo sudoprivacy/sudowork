@@ -62,10 +62,13 @@
   "skip": "Atla",
   "setupContinuesInBackground": "Uygulamaya şimdi girin. Çalışma zamanı kurulumu arka planda devam edecek.",
   "refresh": "Yenile",
+  "comingSoon": "Yakında",
   "tray.showWindow": "{{appName}}'ü Göster",
   "tray.toggleTheme": "Temayı Değiştir",
   "tray.quit": "Çıkış",
   "siderMenu": {
+    "newConversation": "Yeni sohbet",
+    "bidGeneration": "Teklif oluşturma",
     "agent": "Dijital Asistanlar",
     "skillStore": "Beceri Mağazası",
     "security": "Güvenlik",

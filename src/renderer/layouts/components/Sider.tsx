@@ -4,21 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MessageCirclePlus } from 'lucide-react';
-import classNames from 'classnames';
+import { FileText, MessageCirclePlus } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Button } from '@arco-design/web-react';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
-import { emitter } from '@renderer/utils/emitter';
-import { ConfigStorage } from '@common/storage';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
 import SettingsSider from './SettingsSider';
+import SidebarNavItem from './SidebarNavItem';
 import SiderFooter from './SiderFooter';
 
-const Sider: React.FC = () => {
+export default function Sider({ onNewConversation }: ISiderProps) {
   // 侧栏收起由外层 ArcoLayout.Sider 把宽度动画到 0 整体隐藏，内容始终保持展开态，
   // 因此这里不再处理收起态的布局分支。
   const { pathname, search, hash } = useLocation();
@@ -32,8 +29,22 @@ const Sider: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const isSettings = pathname.startsWith('/settings');
-  const isNewConversationSelected = pathname === '/guid';
   const lastNonSettingsPathRef = useRef('/guid');
+  const mainMenuItems: IMainMenuItem[] = [
+    {
+      id: 'new-conversation',
+      label: t('common.siderMenu.newConversation'),
+      icon: <MessageCirclePlus />,
+      path: '/guid',
+      onClick: onNewConversation,
+    },
+    {
+      id: 'bid',
+      label: t('common.siderMenu.bidGeneration'),
+      icon: <FileText />,
+      path: '/bid',
+    },
+  ];
 
   const workspaceHistoryProps = {
     collapsed: false,
@@ -64,22 +75,23 @@ const Sider: React.FC = () => {
           </Suspense>
         ) : (
           <div className='h-full min-h-0 flex flex-col overflow-hidden pt-1 box-border'>
-            <Button
-              type='text'
-              long
-              className={classNames('h-9 shrink-0 justify-start! gap-2.5 px-2.5! rounded-lg! text-foreground! hover:bg-fill-default! active:bg-fill-deep!', isNewConversationSelected && 'bg-fill-medium!')}
-              aria-current={isNewConversationSelected ? 'page' : undefined}
-              onClick={() => {
-                cleanupSiderTooltips();
-                void ConfigStorage.set('guid.lastSelectedAgent', '');
-                emitter.emit('guid.reset');
-                void navigate('/guid');
-                onSessionClick();
-              }}
-            >
-              <MessageCirclePlus size={16} strokeWidth={2} className='shrink-0' />
-              <span className='truncate text-sm font-500'>{t('conversation.welcome.newConversation')}</span>
-            </Button>
+            <div className='flex shrink-0 flex-col gap-0.5'>
+              {mainMenuItems.map((item) => (
+                <SidebarNavItem
+                  key={item.id}
+                  icon={React.cloneElement(item.icon, { size: 20, strokeWidth: 1.8 })}
+                  label={item.label}
+                  selected={pathname === item.path}
+                  onClick={() => {
+                    if (item.onClick) {
+                      item.onClick();
+                    } else {
+                      void navigate(item.path);
+                    }
+                  }}
+                />
+              ))}
+            </div>
 
             <div className='flex min-h-24 flex-1 flex-col mt-2'>
               <Suspense fallback={<div className='size-full' />}>
@@ -93,6 +105,16 @@ const Sider: React.FC = () => {
       <SiderFooter isSettings={isSettings} onBackToMain={onBackToMain} />
     </div>
   );
-};
+}
 
-export default Sider;
+interface ISiderProps {
+  onNewConversation: () => void;
+}
+
+interface IMainMenuItem {
+  id: string;
+  label: string;
+  icon: React.ReactElement<{ size?: number; strokeWidth?: number }>;
+  path: string;
+  onClick?: () => void;
+}

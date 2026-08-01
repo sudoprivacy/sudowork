@@ -63,10 +63,13 @@
   "skip": "スキップ",
   "setupContinuesInBackground": "先にアプリへ入り、実行環境のセットアップはバックグラウンドで続行します。",
   "refresh": "更新",
+  "comingSoon": "近日公開",
   "tray.showWindow": "{{appName}} を表示",
   "tray.toggleTheme": "テーマを切り替え",
   "tray.quit": "終了",
   "siderMenu": {
+    "newConversation": "新しい会話",
+    "bidGeneration": "入札書生成",
     "agent": "デジタルアシスタント",
     "skillStore": "スキルストア",
     "security": "セキュリティ",

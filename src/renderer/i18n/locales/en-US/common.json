@@ -69,10 +69,13 @@
   "skip": "Skip",
   "setupContinuesInBackground": "Enter the app now. Runtime setup will continue in the background.",
   "refresh": "Refresh",
+  "comingSoon": "Coming soon",
   "tray.showWindow": "Show {{appName}}",
   "tray.toggleTheme": "Toggle Theme",
   "tray.quit": "Quit",
   "siderMenu": {
+    "newConversation": "New conversation",
+    "bidGeneration": "Bid generation",
     "agent": "Agent",
     "skillStore": "Skill Store",
     "localKb": "Local KB",

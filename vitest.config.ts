@@ -128,6 +128,7 @@ export default defineConfig({
         // Renderer utils
         'src/renderer/components/HubEmptyState.tsx',
         'src/renderer/layouts/components/SiderFooter.tsx',
+        'src/renderer/pages/bid/index.tsx',
         'src/renderer/hooks/useAvailableModels.ts',
         'src/renderer/hooks/useHasAvailableModel.ts',
         'src/renderer/hooks/useStoredPanelLayout.ts',
