@@ -23,7 +23,7 @@ type GuidActionRowProps = {
   onSelectWorkspace: (dir: string) => void;
 
   // Model selector node (rendered by parent)
-  modelSelectorNode: React.ReactNode;
+  modelSelectorNode?: React.ReactNode;
 
   // Agent mode
   selectedAgent: AcpBackend | 'custom';
@@ -51,7 +51,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   files,
   onFilesUploaded,
   onSelectWorkspace,
-  modelSelectorNode,
+  // modelSelectorNode,
   selectedAgent,
   effectiveModeAgent,
   selectedMode,
@@ -146,7 +146,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
           {skillTriggerNode}
 
-          {modelSelectorNode}
+          {/* {modelSelectorNode} */}
 
           {supportsModeSwitch(modeBackend) && <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield size={14} color='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />}
 

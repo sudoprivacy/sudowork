@@ -51,8 +51,7 @@ interface WorkspaceHeaderProps {
 }
 
 const WorkspacePanelHeader: React.FC<WorkspaceHeaderProps> = ({ children, showToggle = false, collapsed, onToggle, togglePlacement = 'right' }) => (
-  // border-[var(--bg-3)]: bg token 当边框的既有误用（uno.config:38 警示），零改样重构不处理
-  <div className='workspace-panel-header flex items-center justify-start px-3 py-1 gap-3 border-b border-[var(--bg-3)]' style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}>
+  <div className='workspace-panel-header flex items-center justify-start px-3 py-1 gap-3 border-b border-border' style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}>
     {showToggle && togglePlacement === 'left' && (
       <button type='button' className='workspace-header__toggle mr-1' aria-label='Toggle workspace' onClick={onToggle}>
         {collapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
@@ -461,7 +460,7 @@ const ChatLayout: React.FC<{
   const headerBlock = (
     <>
       <ConversationTabs />
-      <ArcoLayout.Header className='h-9 flex items-center justify-between p-4 gap-4 !bg-1 chat-layout-header overflow-hidden'>
+      <ArcoLayout.Header className='h-9 flex items-center justify-between p-4 gap-4 bg-background! chat-layout-header overflow-hidden'>
         <div className='shrink-0'>{props.headerLeft}</div>
         <FlexFullContainer className='h-full min-w-0' containerClassName='flex items-center gap-4'>
           <ConversationTitleMinimap title={props.title} conversationId={conversationId} />
@@ -491,7 +490,7 @@ const ChatLayout: React.FC<{
             {showDesktopWorkspaceSidebar ? (
               <div className='flex flex-1 min-h-0 relative'>
                 <div className='flex flex-col flex-1 min-w-0'>
-                  <div className='flex shrink-0 !bg-1'>
+                  <div className='flex shrink-0 bg-background!'>
                     <div className='flex-1 min-w-0'>{headerBlock}</div>
                   </div>
                   <div className='flex flex-1 min-h-0 relative'>
@@ -529,7 +528,7 @@ const ChatLayout: React.FC<{
                   }}
                 >
                   <div
-                    className={classNames('!bg-1 relative chat-layout-right-sider layout-sider')}
+                    className={classNames('bg-background! relative chat-layout-right-sider layout-sider')}
                     style={{
                       height: '100%',
                       overflow: 'hidden',
@@ -552,7 +551,7 @@ const ChatLayout: React.FC<{
               </div>
             ) : (
               <>
-                <div className='flex shrink-0 !bg-1'>
+                <div className='flex shrink-0 bg-background!'>
                   <div className='flex-1 min-w-0'>{headerBlock}</div>
                 </div>
                 <div className='flex flex-1 min-h-0 relative'>
@@ -628,7 +627,7 @@ const ChatLayout: React.FC<{
                 }}
               >
                 <div
-                  className={classNames('!bg-1 relative chat-layout-right-sider layout-sider')}
+                  className={classNames('bg-background! relative chat-layout-right-sider layout-sider')}
                   style={{
                     height: '100%',
                     overflow: 'hidden',
@@ -653,8 +652,7 @@ const ChatLayout: React.FC<{
         )}
 
         {!isMacRuntime && !isWindowsRuntime && workspaceEnabled && rightSiderCollapsed && (
-          // border-[var(--bg-3)]: bg token 当边框的既有误用（uno.config:38 警示），零改样重构不处理
-          <button type='button' className='bg-2 border border-[var(--bg-3)] workspace-header__toggle absolute top-1/2 right-2 z-10' style={{ transform: 'translateY(-50%)' }} onClick={() => dispatchWorkspaceToggleEvent()} aria-label='Expand workspace'>
+          <button type='button' className='bg-2 border border-border workspace-header__toggle absolute top-1/2 right-2 z-10' style={{ transform: 'translateY(-50%)' }} onClick={() => dispatchWorkspaceToggleEvent()} aria-label='Expand workspace'>
             <ExpandLeft size={16} />
           </button>
         )}

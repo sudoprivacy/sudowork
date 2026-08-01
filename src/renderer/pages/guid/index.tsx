@@ -35,7 +35,6 @@ import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkele
 import GuidActionRow from './components/GuidActionRow';
 import AgentPillBar from './components/AgentPillBar';
 import GuidInputCard from './components/GuidInputCard';
-import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown from './components/MentionDropdown';
 import MentionSelectorBadge from './components/MentionSelectorBadge';
 import PromptTemplates from './components/PromptTemplates';
@@ -252,7 +251,7 @@ const GuidPage: React.FC = () => {
   }, [selectedAssistantConfig, localeKey]);
 
   // Determine if model selector should be in Gemini mode
-  const isGeminiMode = (agentSelection.selectedAgent === 'gemini' && !agentSelection.isPresetAgent) || (agentSelection.isPresetAgent && agentSelection.currentEffectiveAgentInfo.agentType === 'gemini' && agentSelection.currentEffectiveAgentInfo.isAvailable);
+  // const isGeminiMode = (agentSelection.selectedAgent === 'gemini' && !agentSelection.isPresetAgent) || (agentSelection.isPresetAgent && agentSelection.currentEffectiveAgentInfo.agentType === 'gemini' && agentSelection.currentEffectiveAgentInfo.isAvailable);
 
   // Whether we are in selected assistant mode (preset or user-created custom)
   const isAssistantMode = selectedAssistantConfig !== null;
@@ -529,18 +528,18 @@ const GuidPage: React.FC = () => {
   const mentionDropdownNode = <MentionDropdown menuRef={mention.mentionMenuRef} options={mention.filteredMentionOptions} selectedKey={mention.mentionMenuSelectedKey} onSelect={mention.selectMentionAgent} />;
 
   // Build the model selector node
-  const modelSelectorNode = (
-    <GuidModelSelector
-      isGeminiMode={isGeminiMode}
-      modelList={modelSelection.modelList}
-      currentModel={modelSelection.currentModel}
-      setCurrentModel={modelSelection.setCurrentModel}
-      geminiModeLookup={modelSelection.geminiModeLookup}
-      currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
-      selectedAcpModel={agentSelection.selectedAcpModel}
-      setSelectedAcpModel={agentSelection.setSelectedAcpModel}
-    />
-  );
+  // const modelSelectorNode = (
+  //   <GuidModelSelector
+  //     isGeminiMode={isGeminiMode}
+  //     modelList={modelSelection.modelList}
+  //     currentModel={modelSelection.currentModel}
+  //     setCurrentModel={modelSelection.setCurrentModel}
+  //     geminiModeLookup={modelSelection.geminiModeLookup}
+  //     currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
+  //     selectedAcpModel={agentSelection.selectedAcpModel}
+  //     setSelectedAcpModel={agentSelection.setSelectedAcpModel}
+  //   />
+  // );
 
   // Popover-button path: independent state, does NOT touch the input
 
@@ -592,7 +591,7 @@ const GuidPage: React.FC = () => {
       files={guidInput.files}
       onFilesUploaded={guidInput.handleFilesUploaded}
       onSelectWorkspace={(dir) => guidInput.setDir(dir)}
-      modelSelectorNode={modelSelectorNode}
+      // modelSelectorNode={modelSelectorNode}
       selectedAgent={agentSelection.selectedAgent}
       effectiveModeAgent={agentSelection.currentEffectiveAgentInfo.agentType}
       selectedMode={agentSelection.selectedMode}

@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 import AgentStatusDot from '@/renderer/components/AgentStatusBanner';
-import AcpModelSelector from '@/renderer/components/AcpModelSelector';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import addChatIcon from '@/renderer/assets/add-chat.svg';
 import { uuid } from '@/common/utils';
@@ -127,18 +126,18 @@ const ChatConversation: React.FC<{
     }
   }, [conversation, resolvedAgentName]);
 
-  const modelSelector = useMemo(() => {
-    if (!conversation) return undefined;
-    if (conversation.type === 'acp') {
-      const extra = conversation.extra as { backend?: string; currentModelId?: string };
-      return <AcpModelSelector conversationId={conversation.id} backend={extra.backend} initialModelId={extra.currentModelId} />;
-    }
-    if (conversation.type === 'remote-agent') {
-      const extra = conversation.extra as { currentModelId?: string };
-      return <AcpModelSelector conversationId={conversation.id} backend='remote-agent' initialModelId={extra.currentModelId} />;
-    }
-    return undefined;
-  }, [conversation]);
+  // const modelSelector = useMemo(() => {
+  //   if (!conversation) return undefined;
+  //   if (conversation.type === 'acp') {
+  //     const extra = conversation.extra as { backend?: string; currentModelId?: string };
+  //     return <AcpModelSelector conversationId={conversation.id} backend={extra.backend} initialModelId={extra.currentModelId} />;
+  //   }
+  //   if (conversation.type === 'remote-agent') {
+  //     const extra = conversation.extra as { currentModelId?: string };
+  //     return <AcpModelSelector conversationId={conversation.id} backend='remote-agent' initialModelId={extra.currentModelId} />;
+  //   }
+  //   return undefined;
+  // }, [conversation]);
 
   // 如果有预设助手信息，使用预设助手的 logo 和名称；加载中时不进入 fallback；否则使用 backend 的 logo
   // If preset assistant info exists, use preset logo/name; while loading, avoid fallback; otherwise use backend logo
@@ -159,7 +158,7 @@ const ChatConversation: React.FC<{
 
   return (
     <TaskPanelHeaderProvider>
-      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerLeft={modelSelector} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversation?.id}>
+      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversation?.id}>
         {conversationNode}
       </ChatLayout>
     </TaskPanelHeaderProvider>
