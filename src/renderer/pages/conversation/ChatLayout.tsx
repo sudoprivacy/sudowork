@@ -5,6 +5,7 @@
  */
 
 import { Layout as ArcoLayout } from '@arco-design/web-react';
+import classNames from 'classnames';
 import { ChevronLeft as ExpandLeft, ChevronRight as ExpandRight } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Group, Panel, type PanelSize } from 'react-resizable-panels';
@@ -227,7 +228,7 @@ const ChatLayout: React.FC<{
   const headerBlock = (
     <>
       <ConversationTabs />
-      <ArcoLayout.Header className='h-12 flex items-center justify-between p-4 gap-4 bg-background! chat-layout-header overflow-hidden'>
+      <ArcoLayout.Header className={classNames('h-10.5 flex items-center justify-between px-4 gap-4 bg-background! chat-layout-header overflow-hidden', isMacRuntime && layout?.siderCollapsed && 'pl-200px!')}>
         <div className='shrink-0'>{props.headerLeft}</div>
         <span className='min-w-0 flex-1 truncate text-16px font-bold text-foreground'>{props.title}</span>
         <div className='flex items-center gap-3 shrink-0'>
