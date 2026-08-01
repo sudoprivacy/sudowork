@@ -23,12 +23,6 @@ export const STORAGE_KEYS = {
   /** Active tab on the right-side workspace card: 'files' | 'skills' (issue #293) */
   WORKSPACE_ACTIVE_TAB: 'sudowork_workspace_active_tab',
 
-  /** Active tab in the right-side panel: 'workspace' | 'browser' | 'terminal' */
-  RIGHT_PANEL_ACTIVE_TAB: 'sudowork_right_panel_active_tab',
-
-  /** Last browser URL in the right-side browser panel */
-  RIGHT_PANEL_BROWSER_URL: 'sudowork_right_panel_browser_url',
-
   /** Conversation panel collapse state / 会话面板折叠状态 */
   CONVERSATION_PANEL_COLLAPSE: 'sudowork_conversation_panel_collapsed',
 
@@ -56,8 +50,6 @@ export function migrateLocalStorageKeys(): void {
     ['aionui_workspace_collapse_state', 'sudowork_workspace_collapse_state'],
     ['aionui_workspace_panel_collapsed', 'sudowork_workspace_panel_collapsed'],
     ['aionui_workspace_active_tab', 'sudowork_workspace_active_tab'],
-    ['aionui_right_panel_active_tab', 'sudowork_right_panel_active_tab'],
-    ['aionui_right_panel_browser_url', 'sudowork_right_panel_browser_url'],
     ['aionui_conversation_panel_collapsed', 'sudowork_conversation_panel_collapsed'],
     ['aionui_conversation_tabs', 'sudowork_conversation_tabs'],
     ['aionui_sider_collapsed', 'sudowork_sider_collapsed'],

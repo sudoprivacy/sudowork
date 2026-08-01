@@ -87,9 +87,6 @@
   },
   "rightPanel": {
     "tabs": {
-      "workspace": "Workspace",
-      "browser": "Browser",
-      "terminal": "Terminal",
       "deliverables": "Deliverables"
     },
     "deliverables": {

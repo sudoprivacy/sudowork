@@ -15,7 +15,6 @@ import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 import { getContentTypeByExtension } from '@/renderer/pages/conversation/preview/utils/fileUtils';
 import { formatFileSize } from '@/renderer/services/FileService';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
-import { emitter } from '@/renderer/utils/emitter';
 
 interface GeneratedFileCardProps {
   entry: GeneratedFileEntry;
@@ -25,10 +24,7 @@ interface GeneratedFileCardProps {
 /**
  * One preview chip representing a file the AI just produced this turn.
  *
- * Click dispatch:
- *  - `.html` / `.htm`  → right-panel BrowserPanel (via `right-panel.browser.open`
- *    emitter, same path AI-generated HTML auto-opening uses).
- *  - anything else     → PreviewPanel overlay via `usePreviewLauncher`.
+ * Clicking opens the file in PreviewPanel via `usePreviewLauncher`.
  *
  * Stale-file check on mount: if the file has been moved / deleted by the time
  * the message is being rendered, the card dims itself and disables clicking.
@@ -67,13 +63,6 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
 
   const handleClick = useCallback(() => {
     if (missing || loading) return;
-    if (isHtml) {
-      // Same channel that AI-write-HTML auto-open uses (browser-panel-cdp PR).
-      // BrowserPanel's subscriber pushes a new tab + activates; ChatSider's
-      // subscriber switches the right-panel selection to the browser tab.
-      emitter.emit('right-panel.browser.open', { url: `file://${entry.path}`, switchTab: true });
-      return;
-    }
     const contentType = getContentTypeByExtension(entry.path);
     void launchPreview({
       originalPath: entry.path,
@@ -81,7 +70,7 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
       contentType,
       editable: false,
     });
-  }, [missing, loading, isHtml, entry.path, fileName, launchPreview]);
+  }, [missing, loading, entry.path, fileName, launchPreview]);
 
   const handleOpenExternal = useCallback(
     (e: React.MouseEvent) => {

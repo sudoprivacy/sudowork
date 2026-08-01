@@ -87,9 +87,6 @@
   },
   "rightPanel": {
     "tabs": {
-      "workspace": "工作空间",
-      "browser": "浏览器",
-      "terminal": "终端",
       "deliverables": "交付物"
     },
     "deliverables": {

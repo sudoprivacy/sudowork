@@ -22,7 +22,6 @@ import AcpModelSelector from '@renderer/components/AcpModelSelector';
 import { unwrapTeamResult } from './utils';
 import { useTeamSession } from './hooks/useTeamSession';
 import { useTeamRunView } from './hooks/useTeamRunView';
-import TeamMemberListTab from './components/TeamMemberListTab';
 import TeamLeaderEmptyState from './components/TeamLeaderEmptyState';
 import TeamWarmupOverlay from './components/TeamWarmupOverlay';
 import { useTeamWarmup } from './hooks/useTeamWarmup';
@@ -32,11 +31,10 @@ function TeamDetailPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { teamId = '' } = useParams<{ teamId: string }>();
-  const { team, statusMap, loading, addMember, renameMember, removeMember } = useTeamSession(teamId);
+  const { team, loading } = useTeamSession(teamId);
   const teamRunView = useTeamRunView(teamId);
   const teamWarmup = useTeamWarmup(teamId);
   const [leaderConv, setLeaderConv] = useState<TChatConversation | undefined>(undefined);
-  const [activeRightPanelTab, setActiveRightPanelTab] = useState('workspace');
   const [isLeaderChatProcessing, setIsLeaderChatProcessing] = useState(false);
   const currentTeam = team?.id === teamId ? team : null;
 
@@ -100,15 +98,6 @@ function TeamDetailPage() {
     [leader?.conversation_id]
   );
 
-  const activeSlotIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const slotId of Object.keys(teamRunView.childTurnsBySlot)) ids.add(slotId);
-    for (const work of teamRunView.activeRun?.slot_work ?? []) {
-      if (work.active_turn_id || (work.starting_child_count ?? 0) > 0) ids.add(work.slot_id);
-    }
-    return ids;
-  }, [teamRunView.activeRun?.slot_work, teamRunView.childTurnsBySlot]);
-
   if (loading && !currentTeam) {
     return (
       <div className='flex items-center justify-center h-full'>
@@ -122,12 +111,10 @@ function TeamDetailPage() {
     return null;
   }
 
-  const memberTabNode = <TeamMemberListTab team={currentTeam} statusMap={statusMap} activeSlotIds={activeSlotIds} onAddMember={addMember} onRenameMember={renameMember} onRemoveMember={removeMember} />;
   const runStatus = teamRunView.activeRun?.status;
   const isRunActive = runStatus === 'accepted' || runStatus === 'running';
   const isHeaderActive = isRunActive || isLeaderChatProcessing;
   const isHeaderStatusVisible = Boolean(runStatus || isLeaderChatProcessing);
-  const isTeamMemberTabActive = activeRightPanelTab === 'team';
   const currentLeaderConv = leaderConv?.id === leader.conversation_id ? leaderConv : undefined;
   const leaderIcon = resolveTeamAssistantIcon({ assistantId: leader.assistant_id, source: leader.source, backend: leader.assistant_backend, avatar: leader.icon, name: leader.assistant_name });
   const leaderLogoProps = toChatLayoutAgentLogo(leaderIcon);
@@ -140,10 +127,9 @@ function TeamDetailPage() {
       agentLogo={leaderLogoProps.agentLogo}
       agentLogoIsEmoji={leaderLogoProps.agentLogoIsEmoji}
       workspaceEnabled
-      rightSiderWidthOverride={isTeamMemberTabActive ? { widthPx: 440 } : null}
       headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} />}
       headerExtra={isHeaderStatusVisible ? <span className={`text-12px px-8px py-2px rounded-full ${isHeaderActive ? 'bg-green-500/10 text-green-600' : 'bg-gray-400/10 text-gray-500'}`}>{t(`team.status.${isHeaderActive ? 'active' : 'idle'}`)}</span> : null}
-      sider={<ChatSider conversation={currentLeaderConv} teamId={teamId} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} isOverflowTabsEnabled onActiveTabChange={setActiveRightPanelTab} />}
+      sider={<ChatSider conversation={currentLeaderConv} teamId={teamId} />}
     >
       <div className='relative flex min-h-0 flex-1 flex-col'>
         <AcpChat

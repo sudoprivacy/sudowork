@@ -14,7 +14,6 @@ import GeneratedFileCards from '@/renderer/messages/GeneratedFileCard';
 interface DeliverablesPanelProps {
   conversationId?: string;
   teamId?: string;
-  active?: boolean;
 }
 
 /**
