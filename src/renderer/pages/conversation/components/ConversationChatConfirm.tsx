@@ -246,7 +246,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
             <Typography.Ellipsis className='text-16px font-bold color-[rgba(29,33,41,1)]' rows={2} expandable>
               {$t(confirmation.title) || 'Choose an action'}
             </Typography.Ellipsis>
-            <Divider className={'!my-10px'}></Divider>
+            <Divider className='my-10px!' />
             <Typography.Ellipsis className='text-14px color-[rgba(29,33,41,1)]' rows={5} expandable>
               {$t(confirmation.description)}
             </Typography.Ellipsis>

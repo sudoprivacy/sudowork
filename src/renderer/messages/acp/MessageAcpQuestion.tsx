@@ -401,7 +401,7 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
     <Card className='mb-4 bg-card' bordered={false}>
       <div className='space-y-4'>
         <div className='flex items-start space-x-2'>
-          <span className='text-2xl flex-shrink-0'>{'💬'}</span>
+          <span className='text-2xl shrink-0'>{'💬'}</span>
           <div className='min-w-0 flex-1'>{displayedIntro ? <Text className='block whitespace-pre-wrap'>{displayedIntro}</Text> : <Text className='block whitespace-pre-wrap'>{question}</Text>}</div>
         </div>
 
