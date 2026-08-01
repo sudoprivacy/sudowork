@@ -14,7 +14,7 @@ export default function ChatSider({ conversation, teamId }: IChatSiderProps) {
   const { t } = useTranslation();
 
   return (
-    <div className='flex h-full min-h-0 flex-col bg-[var(--color-bg-1)]'>
+    <div className='flex h-full min-h-0 flex-col bg-background'>
       <div className='right-panel-tabs'>
         <button type='button' role='tab' aria-selected className='right-panel-tabs__item right-panel-tabs__item--active'>
           <span className='relative z-10'>{t('conversation.rightPanel.tabs.deliverables')}</span>

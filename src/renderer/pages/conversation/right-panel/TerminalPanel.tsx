@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useReducer, useRef, use
 import { useTranslation } from 'react-i18next';
 import { Terminal } from 'xterm';
 import { ipcBridge } from '@/common';
+import { useThemeContext } from '@/renderer/context/ThemeContext';
 import 'xterm/css/xterm.css';
 
 type TerminalTab = {
@@ -105,6 +106,13 @@ const getThemeColor = (name: string, fallback: string): string => {
   return value || fallback;
 };
 
+const getTerminalTheme = () => ({
+  background: getThemeColor('--background', '#161616'),
+  foreground: getThemeColor('--foreground', '#f5f5f5'),
+  cursor: getThemeColor('--brand', '#c96442'),
+  selectionBackground: getThemeColor('--brand', '#c96442'),
+});
+
 const createTab = (): TerminalTab => ({
   id: `terminal-tab-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   sessionId: null,
@@ -114,6 +122,7 @@ const createTab = (): TerminalTab => ({
 
 const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conversationId }) => {
   const { t } = useTranslation();
+  const { theme } = useThemeContext();
 
   ensureExitListener();
 
@@ -209,6 +218,12 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conv
     runtime?.terminal.blur();
     terminalContainerRefs.current[activeTabId]?.querySelector('textarea')?.blur();
   }, [active, activeTabId]);
+
+  useEffect(() => {
+    for (const runtime of moduleRuntimes.values()) {
+      runtime.terminal.options.theme = getTerminalTheme();
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (!active) return;
@@ -312,12 +327,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conv
         fontSize: 12,
         lineHeight: 1.45,
         scrollback: 5000,
-        theme: {
-          background: getThemeColor('--color-bg-1', '#161616'),
-          foreground: getThemeColor('--color-text-1', '#f5f5f5'),
-          cursor: getThemeColor('--ui-accent-orange', '#f59e0b'),
-          selectionBackground: 'rgba(245, 158, 11, 0.25)',
-        },
+        theme: getTerminalTheme(),
       });
       const fitAddon = new FitAddon();
       terminal.loadAddon(fitAddon);

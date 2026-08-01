@@ -67,8 +67,8 @@
   min-width: 0;
   min-height: 40px;
   padding: 6px 8px 0;
-  border-bottom: 1px solid var(--color-border-2);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-fill-1) 72%, transparent) 0%, transparent 100%);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--fill-default) 72%, transparent) 0%, transparent 100%);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -108,8 +108,8 @@
   max-width: 100%;
   min-height: 40px;
   padding: 6px 8px 0;
-  border-bottom: 1px solid var(--color-border-2);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-fill-1) 72%, transparent) 0%, transparent 100%);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--fill-default) 72%, transparent) 0%, transparent 100%);
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -169,7 +169,7 @@
   border: none;
   border-radius: 10px 10px 0 0;
   background: transparent;
-  color: var(--color-text-3);
+  color: var(--foreground-tertiary);
   font-size: 12px;
   font-weight: 500;
   line-height: 1;
@@ -183,14 +183,14 @@
 
 .right-panel-tabs__item:hover,
 .browser-tabs__item:hover {
-  color: var(--color-text-1);
-  background: var(--color-fill-1);
+  color: var(--foreground);
+  background: var(--accent);
 }
 
 .right-panel-tabs__item--active,
 .browser-tabs__item--active {
-  color: var(--color-text-1);
-  background: color-mix(in srgb, var(--ui-accent-orange) 10%, transparent);
+  color: var(--foreground);
+  background: var(--brand-surface);
 }
 
 .right-panel-tabs__item--active::after,
@@ -202,8 +202,8 @@
   bottom: -1px;
   height: 2px;
   border-radius: 999px;
-  background: var(--ui-accent-orange);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent-orange) 24%, transparent);
+  background: var(--brand);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 24%, transparent);
 }
 
 .right-panel-tabs__indicator,
@@ -240,15 +240,15 @@
   height: 16px;
   margin-left: 2px;
   border-radius: 999px;
-  color: var(--color-text-3);
+  color: var(--foreground-tertiary);
   transition:
     background-color 0.16s ease,
     color 0.16s ease;
 }
 
 .browser-tabs__close:hover {
-  background: var(--color-fill-2);
-  color: var(--color-text-1);
+  background: var(--fill-medium);
+  color: var(--foreground);
 }
 
 .browser-tabs__new-tab {
@@ -258,7 +258,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--color-text-3);
+  color: var(--foreground-tertiary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -283,8 +283,8 @@
 }
 
 .browser-tabs__new-tab:hover {
-  background: var(--color-fill-1);
-  color: var(--color-text-1);
+  background: var(--accent);
+  color: var(--foreground);
 }
 
 .right-panel-stack {
@@ -312,7 +312,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: var(--color-bg-1);
+  background: var(--background);
 }
 
 .terminal-root__header {
@@ -321,8 +321,8 @@
   min-height: 40px;
   padding: 0 12px;
   gap: 12px;
-  border-bottom: 1px solid var(--color-border-2);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-fill-1) 58%, transparent) 0%, transparent 100%);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--fill-default) 58%, transparent) 0%, transparent 100%);
   font-family:
     ui-monospace,
     SFMono-Regular,
@@ -371,7 +371,7 @@
   border: none;
   border-radius: 10px 10px 0 0;
   background: transparent;
-  color: var(--color-text-3);
+  color: var(--foreground-tertiary);
   font-size: 12px;
   font-weight: 500;
   line-height: 1;
@@ -384,13 +384,13 @@
 }
 
 .terminal-root__tab:hover {
-  color: var(--color-text-1);
-  background: var(--color-fill-1);
+  color: var(--foreground);
+  background: var(--accent);
 }
 
 .terminal-root__tab--active {
-  color: var(--color-text-1);
-  background: color-mix(in srgb, var(--ui-accent-orange) 10%, transparent);
+  color: var(--foreground);
+  background: var(--brand-surface);
 }
 
 .terminal-root__tab--active::after {
@@ -401,7 +401,7 @@
   bottom: -1px;
   height: 2px;
   border-radius: 999px;
-  background: var(--ui-accent-orange);
+  background: var(--brand);
 }
 
 .terminal-root__tab-label {
@@ -415,12 +415,12 @@
   width: 16px;
   height: 16px;
   border-radius: 999px;
-  color: var(--color-text-3);
+  color: var(--foreground-tertiary);
 }
 
 .terminal-root__tab-close:hover {
-  background: var(--color-fill-2);
-  color: var(--color-text-1);
+  background: var(--fill-medium);
+  color: var(--foreground);
 }
 
 .terminal-root__new-tab {
@@ -431,7 +431,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--color-text-3);
+  color: var(--foreground-tertiary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -461,12 +461,12 @@
 }
 
 .terminal-root__new-tab:hover {
-  background: var(--color-fill-1);
-  color: var(--color-text-1);
+  background: var(--accent);
+  color: var(--foreground);
 }
 
 .terminal-root__header-title {
-  color: var(--color-text-1);
+  color: var(--foreground);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -474,7 +474,7 @@
 
 .terminal-root__header-path {
   align-self: center;
-  color: var(--color-text-3);
+  color: var(--foreground-tertiary);
   font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
@@ -521,7 +521,7 @@
 }
 
 .terminal-root--xterm .xterm-rows {
-  color: var(--color-text-1);
+  color: var(--foreground);
 }
 
 /* ——— Tabs row (临时空间 / 可用技能) — now the card header ——— */

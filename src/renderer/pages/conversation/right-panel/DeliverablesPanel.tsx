@@ -72,16 +72,16 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, t
   const grouped = useMemo(() => groupByDay(entries, t), [entries, t]);
 
   return (
-    <div className='flex flex-1 min-w-0 flex-col h-full min-h-0 overflow-y-auto overflow-x-hidden px-12px py-12px gap-12px'>
+    <div className='flex flex-1 min-w-0 flex-col h-full min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 gap-3'>
       {entries.length === 0 ? (
         <EmptyState loading={loading} />
       ) : (
-        <div className='flex flex-col gap-12px'>
+        <div className='flex flex-col gap-3'>
           {grouped.map((group) => (
-            <section key={group.label} className='w-[90%] min-w-0 overflow-hidden rounded-16px border border-light bg-[var(--color-bg-2)] p-12px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
-              <div className='mb-10px flex items-center justify-between gap-8px'>
-                <div className='text-11px font-semibold uppercase tracking-[0.16em] text-secondary'>{group.label}</div>
-                <div className='rounded-full bg-fill-1 px-8px py-1px text-[10px] font-medium leading-4 text-secondary'>{group.entries.length}</div>
+            <section key={group.label} className='w-[90%] min-w-0 overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm'>
+              <div className='mb-2.5 flex items-center justify-between gap-2'>
+                <div className='text-11px font-semibold uppercase tracking-[0.16em] text-foreground-secondary'>{group.label}</div>
+                <div className='rounded-full bg-fill-shallow px-2 py-0.5 text-[10px] font-medium leading-4 text-foreground-secondary'>{group.entries.length}</div>
               </div>
               <GeneratedFileCards entries={group.entries} layout='stack' />
             </section>
@@ -95,16 +95,16 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, t
 const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
   const { t } = useTranslation();
   if (loading) {
-    return <div className='flex-1 f-center text-12px text-secondary'>{t('conversation.rightPanel.deliverables.loading')}</div>;
+    return <div className='flex-1 f-center text-12px text-foreground-secondary'>{t('conversation.rightPanel.deliverables.loading')}</div>;
   }
   return (
-    <div className='flex-1 flex flex-col items-center justify-center text-center px-24px'>
-      <div className='flex flex-col items-center gap-10px rounded-20px border border-dashed border-light bg-[var(--color-bg-2)] px-20px py-24px shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
-        <div className='flex h-48px w-48px items-center justify-center rounded-full bg-fill-1'>
-          <Archive size={36} color='var(--text-disabled)' />
+    <div className='flex-1 flex flex-col items-center justify-center text-center px-6'>
+      <div className='flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-border bg-card px-5 py-6 shadow-sm'>
+        <div className='flex h-12 w-12 items-center justify-center rounded-full bg-fill-shallow'>
+          <Archive size={36} className='text-foreground-quaternary' />
         </div>
         <div className='text-13px font-semibold text-foreground'>{t('conversation.rightPanel.deliverables.emptyTitle')}</div>
-        <div className='max-w-220px text-12px leading-18px text-secondary opacity-80'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>
+        <div className='max-w-55 text-12px leading-18px text-foreground-secondary opacity-80'>{t('conversation.rightPanel.deliverables.emptyHint')}</div>
       </div>
     </div>
   );
