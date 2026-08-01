@@ -243,13 +243,13 @@ const BdpanUploadDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, o
 
     return (
       <div className='flex flex-col h-100'>
-        {/* Local path hint. 注：border-[var(--bg-3)]（本组件多处）= bg 当边框的既有误用（uno.config:38 警示），零改样重构不处理 */}
-        <div className='px-4 py-2 bg-2 border-b border-[var(--bg-3)] flex-shrink-0 text-13px text-secondary truncate'>
+        {/* Local path hint */}
+        <div className='px-4 py-2 bg-2 border-b border-border shrink-0 text-13px text-secondary truncate'>
           {t('conversation.bdpan.upload.localPath')}: <span className='font-mono text-foreground'>{localName}</span>
         </div>
 
         {/* Breadcrumb nav bar */}
-        <div className='flex items-center gap-1 px-4 py-2.5 border-b border-[var(--bg-3)] flex-shrink-0 flex-wrap'>
+        <div className='flex items-center gap-1 px-4 py-2.5 border-b border-border shrink-0 flex-wrap'>
           <div className='flex items-center gap-1 flex-1 flex-wrap'>
             {crumbs.map((crumb, i) => {
               const isLast = i === crumbs.length - 1;
@@ -297,7 +297,7 @@ const BdpanUploadDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, o
               {dirs.length === 0 && !showNewFolder && <div className='flex items-center justify-center h-full text-secondary text-14px'>{t('conversation.bdpan.emptyDir')}</div>}
               {/* Inline new folder row */}
               {showNewFolder && (
-                <div className='flex items-center gap-2 px-4 py-2 border-b border-[var(--bg-3)]'>
+                <div className='flex items-center gap-2 px-4 py-2 border-b border-border'>
                   <FolderPlus size={18} fill='var(--color-text-3)' />
                   <Input ref={newFolderInputRef} style={{ flex: 1 }} placeholder={t('conversation.bdpan.mkdir.placeholder')} value={newFolderName} onChange={setNewFolderName} onPressEnter={handleCreateFolder} disabled={creatingFolder} />
                   <Button size='small' type='primary' loading={creatingFolder} disabled={!newFolderName.trim()} onClick={handleCreateFolder}>
@@ -320,11 +320,11 @@ const BdpanUploadDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, o
         </div>
 
         {/* Footer: upload to current dir */}
-        <div className='flex items-center justify-between px-4 py-3 border-t border-[var(--bg-3)] flex-shrink-0'>
+        <div className='flex items-center justify-between px-4 py-3 border-t border-border shrink-0'>
           <span className='text-secondary text-13px truncate flex-1 mr-2'>
             {t('conversation.bdpan.upload.uploadTo')}: <span className='font-mono text-foreground'>{currentPath}</span>
           </span>
-          <div className='flex items-center gap-2 flex-shrink-0'>
+          <div className='flex items-center gap-2 shrink-0'>
             <Button onClick={onCancel}>{t('conversation.bdpan.cancel')}</Button>
             <Button type='primary' onClick={() => onConfirm(currentPath)}>
               {t('conversation.bdpan.upload.uploadButton')}
