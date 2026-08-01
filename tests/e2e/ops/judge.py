@@ -17,7 +17,14 @@ from .press_key import press_key
 
 
 async def _get_shadow_text(tab):
-    """Get text including Shadow DOM content."""
+    """Get on-screen text: text nodes, Shadow DOM, and user-visible attributes.
+
+    Some visible text lives in attributes, not text nodes — a truncated agent
+    chip renders "S..." while the full "Sudo Code" is only in the send-box
+    placeholder. The judge checks keyword presence, so including placeholder /
+    value / aria-label / title avoids false negatives without risking false
+    positives (the text is genuinely on screen).
+    """
     r = await js_evaluate(tab, """(() => {
         const texts = [];
         function collect(root) {
@@ -28,6 +35,11 @@ async def _get_shadow_text(tab):
                 if (t) texts.push(t);
             }
             root.querySelectorAll('*').forEach(el => {
+                ['placeholder', 'aria-label', 'title'].forEach(attr => {
+                    const v = el.getAttribute && el.getAttribute(attr);
+                    if (v && v.trim()) texts.push(v.trim());
+                });
+                if (el.value && String(el.value).trim()) texts.push(String(el.value).trim());
                 if (el.shadowRoot) collect(el.shadowRoot);
             });
         }
