@@ -89,6 +89,7 @@ export default defineConfig({
   shortcuts: {
     'f-center': 'flex items-center justify-center',
     'scrollbar-hide': '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+    'rounded-sm': '[border-radius:var(--radius-sm)]',
     'rounded-md': '[border-radius:var(--radius-md)]',
     'rounded-lg': '[border-radius:var(--radius-lg)]',
     'rounded-xl': '[border-radius:var(--radius-xl)]',

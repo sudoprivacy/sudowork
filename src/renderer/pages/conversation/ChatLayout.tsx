@@ -26,6 +26,7 @@ const WORKSPACE_HEADER_HEIGHT = 32;
 const MIN_CHAT_PANEL_PX = 360;
 const MIN_PREVIEW_PANEL_PX = 340;
 const MIN_RIGHT_SIDER_PANEL_PX = 300;
+const WORKSPACE_TOGGLE_CLASS_NAME = 'f-center size-7 shrink-0 rounded-sm text-foreground cursor-pointer transition-colors duration-200 hover:bg-accent active:bg-fill-deep';
 
 const isMacEnvironment = () => {
   if (typeof navigator === 'undefined') return false;
@@ -46,15 +47,15 @@ interface WorkspaceHeaderProps {
 }
 
 const WorkspacePanelHeader: React.FC<WorkspaceHeaderProps> = ({ children, showToggle = false, collapsed, onToggle, togglePlacement = 'right' }) => (
-  <div className='workspace-panel-header flex items-center justify-start px-3 py-1 gap-3 border-b border-border' style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}>
+  <div className='flex items-center justify-start px-3 py-1 gap-3 border-b border-border' style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}>
     {showToggle && togglePlacement === 'left' && (
-      <button type='button' className='workspace-header__toggle mr-1' aria-label='Toggle workspace' onClick={onToggle}>
+      <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} mr-1 border-none bg-transparent`} aria-label='Toggle workspace' onClick={onToggle}>
         {collapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
       </button>
     )}
     <div className='flex-1 truncate'>{children}</div>
     {showToggle && togglePlacement === 'right' && (
-      <button type='button' className='workspace-header__toggle' aria-label='Toggle workspace' onClick={onToggle}>
+      <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} border-none bg-transparent`} aria-label='Toggle workspace' onClick={onToggle}>
         {collapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
       </button>
     )}
@@ -236,7 +237,7 @@ const ChatLayout: React.FC<{
           {props.headerExtra}
           {/* {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} compact={false} showLogoInCompact={false} compactLabelType='mode' />} */}
           {isWindowsRuntime && workspaceEnabled && (
-            <button type='button' className='workspace-header__toggle' aria-label='Toggle workspace' onClick={() => dispatchWorkspaceToggleEvent()}>
+            <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} border-none bg-transparent`} aria-label='Toggle workspace' onClick={() => dispatchWorkspaceToggleEvent()}>
               {rightSiderCollapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
             </button>
           )}
@@ -248,7 +249,7 @@ const ChatLayout: React.FC<{
   const chatPanel = (
     <ArcoLayout.Content className='flex flex-col h-full'>
       {!isPreviewOpen && headerBlock}
-      <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>{props.children}</ArcoLayout.Content>
+      <ArcoLayout.Content className='flex flex-col flex-1 bg-background overflow-hidden'>{props.children}</ArcoLayout.Content>
     </ArcoLayout.Content>
   );
 
@@ -262,7 +263,7 @@ const ChatLayout: React.FC<{
         <ResizableSeparator />
         <Panel id='preview' defaultSize='40%' minSize={`${MIN_PREVIEW_PANEL_PX}px`} maxSize={`${100 - MIN_CHAT_RATIO}%`} className='min-w-0'>
           <div className='preview-panel flex flex-col h-full py-1.5 pr-3 pl-2'>
-            <div className='h-full w-full overflow-hidden rounded-[15px] border border-[var(--bg-3)]'>
+            <div className='h-full w-full overflow-hidden rounded-xl border border-border'>
               <PreviewPanel />
             </div>
           </div>
@@ -284,7 +285,7 @@ const ChatLayout: React.FC<{
             <>
               <ResizableSeparator isDisabled={isRightSiderWidthOverridden} />
               <Panel id='workspace' defaultSize={`${restoredWorkspaceRatio}%`} minSize={`${workspaceMinSizePx}px`} maxSize={`${workspaceMaxSizePx}px`} groupResizeBehavior='preserve-pixel-size' onResize={onWorkspaceResize} className='h-full'>
-                <div className='bg-background! h-full overflow-hidden border-l border-[var(--bg-3)]'>
+                <div className='bg-background! h-full overflow-hidden border-l border-border'>
                   {showWorkspaceHeader ? (
                     <>
                       <WorkspacePanelHeader showToggle={!isMacRuntime && !isWindowsRuntime} collapsed={rightSiderCollapsed} onToggle={() => dispatchWorkspaceToggleEvent()} togglePlacement='right'>
@@ -302,7 +303,7 @@ const ChatLayout: React.FC<{
         </Group>
 
         {!isMacRuntime && !isWindowsRuntime && workspaceEnabled && rightSiderCollapsed && (
-          <button type='button' className='bg-2 border border-border workspace-header__toggle absolute top-1/2 right-2 z-10' style={{ transform: 'translateY(-50%)' }} onClick={() => dispatchWorkspaceToggleEvent()} aria-label='Expand workspace'>
+          <button type='button' className={`${WORKSPACE_TOGGLE_CLASS_NAME} absolute top-1/2 right-2 z-10 border border-border bg-card`} style={{ transform: 'translateY(-50%)' }} onClick={() => dispatchWorkspaceToggleEvent()} aria-label='Expand workspace'>
             <ExpandLeft size={16} />
           </button>
         )}
