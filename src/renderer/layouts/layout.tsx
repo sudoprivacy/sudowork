@@ -62,7 +62,6 @@ const Layout: React.FC = () => {
   // 点击侧栏顶部应用名时回到新会话页，行为与「新会话」按钮一致
   // Clicking the sidebar app name returns to the new conversation page, matching the "New Chat" button
   const onNewConversation = useCallback(() => {
-    cleanupSiderTooltips();
     // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
     void ConfigStorage.set('guid.lastSelectedAgent', '');
     // 触发 Guide 页面重置所有用户输入状态
