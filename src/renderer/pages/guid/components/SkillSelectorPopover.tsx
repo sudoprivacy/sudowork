@@ -13,7 +13,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import type { AtMentionTab, SkillSelectorItem } from '@/renderer/pages/guid/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
-import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import Tabs from '@/renderer/components/ui/Tabs';
 import SkillSelectorSkeleton from './SkillSelectorSkeleton';
@@ -171,13 +170,13 @@ function SkillSelectorMenuContent({ skills, selectedKeys, loading = false, onSel
                     }}
                     className={classNames('w-full bg-transparent text-left p-2.5 rounded-xl transition-all cursor-pointer', {
                       'bg-accent': index === activeIndex,
+                      'border-b border-border': index < filteredSkills.length - 1,
                     })}
                     onMouseDown={(e) => e.preventDefault()}
                     onMouseMove={() => setActiveIndex(index)}
                     onClick={() => onSelectItem(skill)}
                   >
-                    <div className='flex items-center gap-2'>
-                      <div className='size-8 shrink-0 rd-6px f-center text-16px'>{skill.icon ? <img src={skill.icon} alt={skill.displayName} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <span>{skill.emoji || '⚡'}</span>}</div>
+                    <div className='flex items-center'>
                       <div className='min-w-0 flex-1 space-y-1'>
                         <div className='flex items-center gap-1.5 min-w-0'>
                           <span className={classNames('text-14px truncate text-foreground font-medium')}>{skill.displayName}</span>
