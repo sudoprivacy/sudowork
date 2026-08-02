@@ -5,7 +5,7 @@
     "ok": "打断"
   },
   "welcome": {
-    "title": "Hi，今天有什么安排？",
+    "title": "今天想让{{brandName}}帮你做些什么？",
     "placeholder": "发消息、上传文件或打开文件夹...",
     "downloadLocalFile": "导入本地文件",
     "downloadBdpanFile": "导入百度网盘文件",

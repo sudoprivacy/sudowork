@@ -5,7 +5,7 @@
     "ok": "中断"
   },
   "welcome": {
-    "title": "Hi、今日の予定は何ですか？",
+    "title": "今日は{{brandName}}に何をお手伝いしてもらいますか？",
     "placeholder": "メッセージの送信、ファイルの追加、フォルダーの追加、またはスケジュールタスクの作成...",
     "downloadLocalFile": "ローカルファイルをインポート",
     "downloadBdpanFile": "バイドゥ・ネットディスクのファイルをインポート",

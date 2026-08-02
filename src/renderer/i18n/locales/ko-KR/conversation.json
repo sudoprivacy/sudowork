@@ -5,7 +5,7 @@
     "ok": "중단"
   },
   "welcome": {
-    "title": "안녕하세요, 오늘의 계획은 무엇인가요?",
+    "title": "오늘 {{brandName}}이(가) 무엇을 도와드릴까요?",
     "placeholder": "메시지 전송, 파일 업로드, 폴더 열기 또는 예약 작업 만들기...",
     "downloadLocalFile": "로컬 파일 가져오기",
     "downloadBdpanFile": "바이두 넷디스크 파일 가져오기",

@@ -5,6 +5,7 @@
  */
 
 import { Button, Message } from '@arco-design/web-react';
+import brand from '@brand';
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { ArrowLeft, AtSign, Bot, SquarePen } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -672,7 +673,7 @@ const GuidPage: React.FC = () => {
           /* ========== Normal Mode ========== */
           <>
             <p className='mb-6 text-center text-2xl font-semibold text-foreground' onClick={handleBackToChat}>
-              {t('conversation.welcome.title')}
+              {t('conversation.welcome.title', { brandName: brand.displayName })}
             </p>
             {agentSelection.availableAgents === undefined ? (
               <AgentPillBarSkeleton />

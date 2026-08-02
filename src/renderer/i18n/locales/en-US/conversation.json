@@ -5,7 +5,7 @@
     "ok": "Interrupt"
   },
   "welcome": {
-    "title": "Hi, what's your plan for today?",
+    "title": "What can {{brandName}} help you with today?",
     "placeholder": "Send a message, upload files, or open a folder...",
     "downloadLocalFile": "Import Local Files",
     "downloadBdpanFile": "Import Baidu Netdisk Files",
