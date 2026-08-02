@@ -116,6 +116,7 @@ export default defineConfig({
         // Common
         'src/common/chatLib.ts',
         'src/common/nexus/hubErrors.ts',
+        'src/common/nexus/secret-store.ts',
         'src/common/runtime-errors.ts',
         'src/common/nexusFiles.ts',
         'src/common/scodeConfig.ts',

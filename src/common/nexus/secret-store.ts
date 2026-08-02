@@ -1,0 +1,225 @@
+import { app, safeStorage } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
+import { IS_OFFLINE_BUILD } from '@/common/buildMode';
+import { getNexusSecretClient, type NexusSecretClient, type SecretMetadata } from './nexus-secret-client';
+
+export interface ISecretStore {
+  initialize(): Promise<void>;
+  putSecret(namespace: string, key: string, value: string, description?: string): SecretMetadata;
+  getSecret(namespace: string, key: string, version?: number): string;
+  deleteSecret(namespace: string, key: string): boolean;
+  restoreSecret(namespace: string, key: string): boolean;
+  listSecrets(namespace?: string, includeDeleted?: boolean): SecretMetadata[];
+}
+
+interface IStoredSecret extends SecretMetadata {
+  value: string;
+}
+
+interface IEncryptedFile {
+  version: 1;
+  payload: string;
+}
+
+class NexusVaultSecretStore implements ISecretStore {
+  constructor(private readonly client: NexusSecretClient) {}
+
+  async initialize(): Promise<void> {}
+
+  putSecret(namespace: string, key: string, value: string, description?: string): SecretMetadata {
+    return this.client.putSecret(namespace, key, value, description);
+  }
+
+  getSecret(namespace: string, key: string, version?: number): string {
+    return this.client.getSecret(namespace, key, version);
+  }
+
+  deleteSecret(namespace: string, key: string): boolean {
+    return this.client.deleteSecret(namespace, key);
+  }
+
+  restoreSecret(namespace: string, key: string): boolean {
+    return this.client.restoreSecret(namespace, key);
+  }
+
+  listSecrets(namespace?: string, includeDeleted?: boolean): SecretMetadata[] {
+    return this.client.listSecrets(namespace, includeDeleted);
+  }
+}
+
+export class LocalEncryptedSecretStore implements ISecretStore {
+  private readonly entries = new Map<string, IStoredSecret>();
+  private isInitialized = false;
+
+  private get filePath(): string {
+    return path.join(app.getPath('userData'), 'nexus-secrets.enc');
+  }
+
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('系统安全存储不可用，无法初始化本地 Nexus 密钥库');
+    }
+    if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') {
+      throw new Error('系统密钥环不可用，拒绝使用明文后端保存凭据');
+    }
+    const backupPath = `${this.filePath}.bak`;
+    if (!fs.existsSync(this.filePath) && fs.existsSync(backupPath)) {
+      fs.renameSync(backupPath, this.filePath);
+    }
+    if (fs.existsSync(this.filePath)) {
+      let entries: IStoredSecret[];
+      try {
+        const file = JSON.parse(fs.readFileSync(this.filePath, 'utf-8')) as IEncryptedFile;
+        if (file.version !== 1 || typeof file.payload !== 'string') throw new Error('invalid envelope');
+        entries = JSON.parse(safeStorage.decryptString(Buffer.from(file.payload, 'base64'))) as IStoredSecret[];
+        if (!Array.isArray(entries) || entries.some((entry) => !entry || typeof entry.namespace !== 'string' || typeof entry.key !== 'string' || typeof entry.value !== 'string')) {
+          throw new Error('invalid entries');
+        }
+      } catch {
+        throw new Error('本地 Nexus 密钥库文件损坏或无法解密，请联系管理员恢复');
+      }
+      for (const entry of entries) this.entries.set(this.ref(entry.namespace, entry.key), entry);
+      try {
+        fs.rmSync(backupPath, { force: true });
+      } catch {
+        // A stale backup is harmless once the primary file is readable.
+      }
+    }
+    this.isInitialized = true;
+  }
+
+  putSecret(namespace: string, key: string, value: string, description?: string): SecretMetadata {
+    this.assertInitialized();
+    const now = Date.now();
+    const ref = this.ref(namespace, key);
+    const previous = this.entries.get(ref);
+    const entry: IStoredSecret = {
+      namespace,
+      key,
+      value,
+      description,
+      currentVersion: (previous?.currentVersion ?? 0) + 1,
+      deleted: false,
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+    };
+    this.entries.set(ref, entry);
+    try {
+      this.persist();
+    } catch (error) {
+      if (previous) this.entries.set(ref, previous);
+      else this.entries.delete(ref);
+      throw error;
+    }
+    return this.metadata(entry);
+  }
+
+  getSecret(namespace: string, key: string, version?: number): string {
+    this.assertInitialized();
+    const entry = this.entries.get(this.ref(namespace, key));
+    if (!entry || entry.deleted) throw new Error(`Secret not found: ${namespace}/${key}`);
+    if (version !== undefined && version !== entry.currentVersion) {
+      throw new Error('本地 Nexus 密钥库不支持读取历史版本');
+    }
+    return entry.value;
+  }
+
+  deleteSecret(namespace: string, key: string): boolean {
+    this.assertInitialized();
+    const entry = this.entries.get(this.ref(namespace, key));
+    if (!entry || entry.deleted) return false;
+    const previousUpdatedAt = entry.updatedAt;
+    entry.deleted = true;
+    entry.updatedAt = Date.now();
+    try {
+      this.persist();
+    } catch (error) {
+      entry.deleted = false;
+      entry.updatedAt = previousUpdatedAt;
+      throw error;
+    }
+    return true;
+  }
+
+  restoreSecret(namespace: string, key: string): boolean {
+    this.assertInitialized();
+    const entry = this.entries.get(this.ref(namespace, key));
+    if (!entry || !entry.deleted) return false;
+    const previousUpdatedAt = entry.updatedAt;
+    entry.deleted = false;
+    entry.updatedAt = Date.now();
+    try {
+      this.persist();
+    } catch (error) {
+      entry.deleted = true;
+      entry.updatedAt = previousUpdatedAt;
+      throw error;
+    }
+    return true;
+  }
+
+  listSecrets(namespace?: string, includeDeleted = false): SecretMetadata[] {
+    this.assertInitialized();
+    return [...this.entries.values()].filter((entry) => (!namespace || entry.namespace === namespace) && (includeDeleted || !entry.deleted)).map((entry) => this.metadata(entry));
+  }
+
+  private assertInitialized(): void {
+    if (!this.isInitialized) throw new Error('本地 Nexus 密钥库尚未初始化');
+  }
+
+  private ref(namespace: string, key: string): string {
+    return `${namespace}\0${key}`;
+  }
+
+  private metadata(entry: IStoredSecret): SecretMetadata {
+    const { value: _value, ...metadata } = entry;
+    return metadata;
+  }
+
+  private persist(): void {
+    const dir = path.dirname(this.filePath);
+    const tempPath = `${this.filePath}.tmp`;
+    fs.mkdirSync(dir, { recursive: true });
+    const payload = safeStorage.encryptString(JSON.stringify([...this.entries.values()])).toString('base64');
+    fs.writeFileSync(tempPath, JSON.stringify({ version: 1, payload } satisfies IEncryptedFile), { mode: 0o600 });
+    if (process.platform !== 'win32' || !fs.existsSync(this.filePath)) {
+      fs.renameSync(tempPath, this.filePath);
+      return;
+    }
+
+    const backupPath = `${this.filePath}.bak`;
+    fs.rmSync(backupPath, { force: true });
+    fs.renameSync(this.filePath, backupPath);
+    try {
+      fs.renameSync(tempPath, this.filePath);
+    } catch (error) {
+      fs.renameSync(backupPath, this.filePath);
+      throw error;
+    }
+    try {
+      fs.rmSync(backupPath, { force: true });
+    } catch {
+      // The primary file is committed; stale backup cleanup can wait.
+    }
+  }
+}
+
+let store: ISecretStore | null = null;
+let initialization: Promise<void> | null = null;
+
+export function getSecretStore(): ISecretStore {
+  if (!store) store = IS_OFFLINE_BUILD ? new LocalEncryptedSecretStore() : new NexusVaultSecretStore(getNexusSecretClient());
+  return store;
+}
+
+export function initializeSecretStore(): Promise<void> {
+  initialization ??= getSecretStore()
+    .initialize()
+    .catch((error) => {
+      initialization = null;
+      throw error;
+    });
+  return initialization;
+}

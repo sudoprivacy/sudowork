@@ -162,7 +162,7 @@ scripts/verify-offline-resources.js
 
 - `brand.config.json`
 - `src/shared/runtime-versions.json`
-- `src/shared/runtime-sha256.json`
+- `src/shared/runtime-sha256.json`（仅校验已有可信发布摘要的资源）
 - `src/shared/scode-platforms.json`
 - 本次构建的目标平台与架构
 
@@ -466,6 +466,8 @@ UI 不显示“Nexus Vault 已禁用”，因为这是实现细节。
 - electron-builder 不打包；
 - RuntimeInstaller 不导入服务；
 - 不执行检测或安装；
+- 主进程不注册 bdpan IPC Bridge；
+- Renderer 不显示 bdpan 导入、上传入口；
 - InitLoading 不显示该步骤。
 
 在线版保持现状。
@@ -522,7 +524,7 @@ git --version
 验证：
 
 - 三个核心资源完整时通过；
-- 缺文件、零字节、版本不匹配、SHA256 不匹配时构建失败；
+- 缺文件、零字节、版本不匹配时构建失败；已有可信发布摘要的资源 SHA256 不匹配时构建失败；
 - bdpan 和 Vault 缺失不影响离线构建；
 - 目标架构与构建机架构不同仍检查正确资源。
 

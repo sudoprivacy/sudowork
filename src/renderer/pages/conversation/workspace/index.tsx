@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
+import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME, isReservedDraftsDirName } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
@@ -1161,7 +1162,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {!readonly && <DirectorySelectionModal visible={showDirectorySelector} onConfirm={handleSelectDirectoryFromModal} onCancel={() => setShowDirectorySelector(false)} />}
 
         {/* Bdpan Upload Dir Picker */}
-        {!readonly && <BdpanUploadDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />}
+        {!IS_OFFLINE_BUILD && !readonly && <BdpanUploadDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />}
 
         {/* Tabs header — mirrors ui.zip `components/task-panel.tsx` layout:
             two equal tabs sit at the very top of the card (no separate status-
@@ -1509,15 +1510,17 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                     {t('conversation.workspace.contextMenu.rename')}
                   </button>
                   <div className='h-1px bg-muted my-2px'></div>
-                  <button
-                    type='button'
-                    className={menuButtonBase}
-                    onClick={() => {
-                      showBdpanUploadPicker(contextMenuNode);
-                    }}
-                  >
-                    {t('conversation.workspace.contextMenu.uploadToBdpan')}
-                  </button>
+                  {!IS_OFFLINE_BUILD && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        showBdpanUploadPicker(contextMenuNode);
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.uploadToBdpan')}
+                    </button>
+                  )}
                   <button
                     type='button'
                     className={menuButtonBase}
@@ -1597,16 +1600,18 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {t('conversation.workspace.contextMenu.newFolder')}
                     </button>
                   )}
-                  <div className='h-1px bg-muted my-2px'></div>
-                  <button
-                    type='button'
-                    className={menuButtonBase}
-                    onClick={() => {
-                      showBdpanUploadPicker(contextMenuNode);
-                    }}
-                  >
-                    {t('conversation.workspace.contextMenu.uploadToBdpan')}
-                  </button>
+                  {(!IS_OFFLINE_BUILD || isContextMenuNodeFile) && <div className='h-1px bg-muted my-2px'></div>}
+                  {!IS_OFFLINE_BUILD && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      onClick={() => {
+                        showBdpanUploadPicker(contextMenuNode);
+                      }}
+                    >
+                      {t('conversation.workspace.contextMenu.uploadToBdpan')}
+                    </button>
+                  )}
                   {isContextMenuNodeFile && (
                     <button
                       type='button'

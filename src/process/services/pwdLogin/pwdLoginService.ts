@@ -12,7 +12,7 @@ import { app } from 'electron';
 import type { IPwdLoginParams, IPwdLoginResult } from '@/common/ipcBridge';
 import { BaseApprovalStore, type IApprovalKey } from '@/common/approval/ApprovalStore';
 import { PermissionType } from '@/common/codex/types/permissionTypes';
-import { getNexusSecretClient } from '@/common/nexus/nexus-secret-client';
+import { getSecretStore } from '@/common/nexus/secret-store';
 import { putSecretResilient, getSecretResilient } from '@/common/nexus/nexus-secret-resilient';
 import { buildNamespace } from '@/common/nexus/namespace';
 import { mainError, mainLog } from '@process/utils/mainLogger';
@@ -94,7 +94,7 @@ export async function resolvePwdAdapter(title: string): Promise<PwdAdapter | und
 function hasCredential(title: string): boolean {
   try {
     const key = title.trim();
-    return getNexusSecretClient()
+    return getSecretStore()
       .listSecrets(PWD_LOGIN_NAMESPACE, false)
       .some((s) => s.key === key);
   } catch {

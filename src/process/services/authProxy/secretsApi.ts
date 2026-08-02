@@ -10,7 +10,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { URL } from 'url';
-import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
+import { getSecretStore } from '@common/nexus/secret-store';
 import { putSecretResilient } from '@common/nexus/nexus-secret-resilient';
 import { cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -77,7 +77,7 @@ async function applyEnableSideEffect(namespace: string, intentEnable: boolean): 
     } else {
       // Check if all entries' secrets are gone before disabling
       try {
-        const client = getNexusSecretClient();
+        const client = getSecretStore();
         const activeSecrets = client.listSecrets(namespace, false);
         const hasActiveEntry = configItem.entries.some((entry) => activeSecrets.some((s) => s.key === entry.config_key));
         if (!hasActiveEntry) {
@@ -109,7 +109,7 @@ async function applyEnableSideEffect(namespace: string, intentEnable: boolean): 
 async function handleList(req: IncomingMessage, res: ServerResponse, parsedUrl: URL): Promise<void> {
   try {
     const namespace = parsedUrl.searchParams.get('namespace') ?? undefined;
-    const client = getNexusSecretClient();
+    const client = getSecretStore();
     const secrets = client.listSecrets(namespace, false);
     const metadata = secrets.map((s) => ({
       namespace: s.namespace,
@@ -167,7 +167,7 @@ async function handlePut(req: IncomingMessage, res: ServerResponse, namespace: s
     // For non-deleted or first-create secrets, restoreSecret returns error which we ignore.
     // (No resilient wrapper here — restore has no batch variant upstream.)
     try {
-      getNexusSecretClient().restoreSecret(namespace, key);
+      getSecretStore().restoreSecret(namespace, key);
     } catch {
       // Intentional: restoreSecret throws on non-deleted secrets (the
       // common path for first-time PUT). The throw isn't a failure.
@@ -186,7 +186,7 @@ async function handlePut(req: IncomingMessage, res: ServerResponse, namespace: s
 
 async function handleDelete(req: IncomingMessage, res: ServerResponse, namespace: string, key: string): Promise<void> {
   try {
-    const client = getNexusSecretClient();
+    const client = getSecretStore();
     const result = client.deleteSecret(namespace, key);
     cacheDelete(namespace, key);
 

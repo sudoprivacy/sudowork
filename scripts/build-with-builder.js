@@ -431,6 +431,17 @@ if (archArgs.length > 1) {
 
 console.log(`🔨 Building for architecture: ${targetArch}`);
 console.log(`📋 Builder arguments: ${builderArgs || '(none)'}`);
+if (!multiArch) process.env.ELECTRON_BUILDER_ARCH = targetArch;
+
+if (brand.BUILD_OFFLINE === true) {
+  const targetPlatform = builderArgs.includes('--win') ? 'win32' : builderArgs.includes('--linux') ? 'linux' : builderArgs.includes('--mac') ? 'darwin' : process.platform;
+  const targets = (multiArch ? archArgs : [targetArch]).map((arch) => `${targetPlatform}-${arch}`);
+  execSync(`${process.execPath} scripts/verify-offline-resources.js ${targets.join(' ')}`, {
+    cwd: path.resolve(__dirname, '..'),
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+}
 if (skipVite) console.log('⚡ --skip-vite: Will skip Vite compilation if output exists');
 if (skipNative) console.log('⚡ --skip-native: Will skip native module rebuilding');
 if (packOnly) console.log('⚡ --pack-only: Will skip electron-builder distributable creation');

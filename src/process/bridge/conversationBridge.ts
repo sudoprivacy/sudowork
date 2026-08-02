@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
+import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
@@ -812,6 +813,10 @@ export function initConversationBridge(): void {
     const resolvedFiles: string[] = [];
     for (const f of filesToProcess) {
       if (f.startsWith('bdpan://')) {
+        if (IS_OFFLINE_BUILD) {
+          mainWarn('ConversationBridge', 'Rejected bdpan attachment because bdpan is disabled in offline builds');
+          return { success: false, msg: '内网版不支持 bdpan 附件' };
+        }
         // Parse bdpan:///<path>?root=<root>
         const raw = decodeURIComponent(f.slice('bdpan://'.length));
         const qIdx = raw.indexOf('?');

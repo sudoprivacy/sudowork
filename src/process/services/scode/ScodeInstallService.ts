@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import scodePlatforms from '@/shared/scode-platforms.json';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
@@ -451,6 +452,10 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     mainLog(TAG, `Using bundled scode archive from ${bundledPath}`);
     options?.onProgress?.(5);
   } else {
+    if (IS_OFFLINE_BUILD) {
+      throw new Error(`内网安装包缺少 Sudocode v${getScodeVersion()}，请重新安装完整版本`);
+    }
+
     // Download from GitHub
     mainLog(TAG, 'Bundled scode not found, attempting download from GitHub...');
     fs.mkdirSync(downloadDir, { recursive: true });

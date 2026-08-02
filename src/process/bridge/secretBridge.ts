@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
+import { getSecretStore } from '@common/nexus/secret-store';
 import { cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
@@ -12,7 +12,7 @@ import { ipcBridge } from '../../common';
 export function initSecretBridge(): void {
   ipcBridge.secret.get.provider(async ({ namespace, key }) => {
     try {
-      const client = getNexusSecretClient();
+      const client = getSecretStore();
       const value = client.getSecret(namespace, key);
       return { success: true, data: value };
     } catch (err) {
@@ -23,7 +23,7 @@ export function initSecretBridge(): void {
 
   ipcBridge.secret.put.provider(async ({ namespace, key, value, description }) => {
     try {
-      const client = getNexusSecretClient();
+      const client = getSecretStore();
       client.putSecret(namespace, key, value, description);
       cachePut(namespace, key, value);
       mainLog('SecretBridge', `Secret saved [${namespace}/${key}]`);
@@ -36,7 +36,7 @@ export function initSecretBridge(): void {
 
   ipcBridge.secret.list.provider(async ({ namespace }) => {
     try {
-      const client = getNexusSecretClient();
+      const client = getSecretStore();
       const secrets = client.listSecrets(namespace);
       return { success: true, data: secrets };
     } catch (err) {
@@ -47,7 +47,7 @@ export function initSecretBridge(): void {
 
   ipcBridge.secret.delete.provider(async ({ namespace, key }) => {
     try {
-      const client = getNexusSecretClient();
+      const client = getSecretStore();
       const deleted = client.deleteSecret(namespace, key);
       cacheDelete(namespace, key);
       mainLog('SecretBridge', `Secret deleted [${namespace}/${key}]`);
@@ -60,7 +60,7 @@ export function initSecretBridge(): void {
 
   ipcBridge.secret.restore.provider(async ({ namespace, key }) => {
     try {
-      const client = getNexusSecretClient();
+      const client = getSecretStore();
       const restored = client.restoreSecret(namespace, key);
       const value = client.getSecret(namespace, key);
       cachePut(namespace, key, value);

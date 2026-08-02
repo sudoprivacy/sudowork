@@ -2,6 +2,7 @@ import { PassThrough } from 'stream';
 import { EventEmitter } from 'events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const buildMode = vi.hoisted(() => ({ isOffline: false }));
 const listSecrets = vi.fn();
 const processKill = vi.fn();
 const processSupervisorTrack = vi.fn();
@@ -57,6 +58,12 @@ vi.mock('child_process', async (importOriginal) => {
     exec: execMock,
   };
 });
+
+vi.mock('@/common/buildMode', () => ({
+  get IS_OFFLINE_BUILD() {
+    return buildMode.isOffline;
+  },
+}));
 
 vi.mock('@process/utils/mainLogger', () => ({
   mainLog: vi.fn(),
@@ -122,6 +129,7 @@ describe('DynamicNexusVfsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    buildMode.isOffline = false;
     vi.useRealTimers();
     existsSyncMock.mockReturnValue(true);
     execMock.mockImplementation((_cmd: string, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
@@ -142,7 +150,7 @@ describe('DynamicNexusVfsService', () => {
     const startPromise = dynamicNexusVfsService.start();
     const startError = startPromise.then(
       () => null,
-      (err: unknown) => err,
+      (err: unknown) => err
     );
     await vi.runAllTimersAsync();
 
@@ -160,6 +168,20 @@ describe('DynamicNexusVfsService', () => {
     await dynamicNexusVfsService.start();
 
     expect(listSecrets).toHaveBeenCalledWith('__sudowork_startup_probe__', false);
+    expect(dynamicNexusVfsService.isRunning).toBe(true);
+  });
+
+  it('starts offline without loading or probing the vault plugin', async () => {
+    buildMode.isOffline = true;
+    listSecrets.mockImplementation(() => {
+      throw new Error('password-vault unavailable');
+    });
+
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    await dynamicNexusVfsService.start();
+
+    expect(spawnMock).toHaveBeenCalledWith(expect.any(String), expect.not.arrayContaining(['--plugin-dir']), expect.any(Object));
+    expect(listSecrets).not.toHaveBeenCalled();
     expect(dynamicNexusVfsService.isRunning).toBe(true);
   });
 });

@@ -37,6 +37,7 @@
  */
 
 import { getNexusSecretClient, type SecretMetadata } from './nexus-secret-client.js';
+import { getSecretStore } from './secret-store.js';
 
 /**
  * Recognise the gRPC "method not found" / UNIMPLEMENTED error class.
@@ -61,12 +62,12 @@ export function isVaultMethodMissing(err: unknown): boolean {
  * stored secret (either path).
  */
 export function putSecretResilient(namespace: string, key: string, value: string, description?: string): SecretMetadata {
-  const client = getNexusSecretClient();
+  const client = getSecretStore();
   try {
     return client.putSecret(namespace, key, value, description);
   } catch (err) {
     if (!isVaultMethodMissing(err)) throw err;
-    const results = client.batchPut([{ namespace, key, value, description }]);
+    const results = getNexusSecretClient().batchPut([{ namespace, key, value, description }]);
     if (!results.length) {
       // batch_put returning empty for a 1-item input is a vault impl
       // bug — surface it loudly rather than papering over it.
@@ -83,12 +84,12 @@ export function putSecretResilient(namespace: string, key: string, value: string
  * normalise to the batch shape for consistency in fallback path).
  */
 export function getSecretResilient(namespace: string, key: string): string {
-  const client = getNexusSecretClient();
+  const client = getSecretStore();
   try {
     return client.getSecret(namespace, key);
   } catch (err) {
     if (!isVaultMethodMissing(err)) throw err;
-    const result = client.batchGet([{ namespace, key }]);
+    const result = getNexusSecretClient().batchGet([{ namespace, key }]);
     const values = Object.values(result);
     return values.length ? values[0] : '';
   }

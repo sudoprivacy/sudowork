@@ -11,6 +11,7 @@ const builderConfig = loadModule('../../electron-builder.brand.js');
 
 describe('brand configuration', () => {
   it('drives default tenant and channel branding', () => {
+    expect(typeof brand.BUILD_OFFLINE).toBe('boolean');
     expect(DEFAULT_TENANT_CONFIG.logo).toBe(brand.logo || undefined);
     expect(DEFAULT_TENANT_CONFIG.logoDark).toBe(brand.logoDark || undefined);
     expect(DEFAULT_TENANT_CONFIG.app_name).toBe(brand.displayName);
@@ -34,6 +35,11 @@ describe('brand configuration', () => {
     expect(builderConfig.executableName).toBe(brand.displayName);
     expect(builderConfig.copyright).toContain(brand.companyName);
     expect(builderConfig.win.legalTrademarks).toContain(brand.companyName);
+    if (brand.BUILD_OFFLINE) {
+      const packagedResources = JSON.stringify([builderConfig.extraResources, builderConfig.mac?.extraResources, builderConfig.win?.extraResources, builderConfig.linux?.extraResources]);
+      expect(packagedResources).not.toMatch(/bdpan-installer|nexus-vault/);
+      expect(packagedResources).toContain(`v${loadModule('../../src/shared/runtime-versions.json').scode}-scode-`);
+    }
 
     const mainSource = fs.readFileSync(path.resolve(__dirname, '../../src/index.ts'), 'utf8');
     expect(mainSource).toContain('app.setName(brand.displayName)');

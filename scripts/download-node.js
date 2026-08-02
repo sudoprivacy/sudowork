@@ -103,11 +103,14 @@ function downloadFile(url, dest) {
 async function downloadNode(platform, force = false) {
   const outputPath = getOutputPath(platform);
 
-  // Skip if already exists
+  // Skip only valid staged resources.
   if (fs.existsSync(outputPath) && !force) {
-    console.log(`Already exists: ${outputPath}`);
-    console.log('Use --force to re-download.');
-    return;
+    if (fs.statSync(outputPath).size >= 100 * 1024) {
+      console.log(`Already exists: ${outputPath}`);
+      console.log('Use --force to re-download.');
+      return;
+    }
+    fs.rmSync(outputPath, { force: true });
   }
 
   // Ensure resources directory exists
@@ -116,7 +119,6 @@ async function downloadNode(platform, force = false) {
   // Download
   const url = getDownloadUrl(platform);
   await downloadFile(url, outputPath);
-
   console.log(`Saved to: ${outputPath}`);
 }
 

@@ -121,8 +121,8 @@ const isWindows = process.platform === 'win32';
 // local-connector, fuse-plugin) into every caller and make the platform
 // matrix harder to audit.
 
-function getBinaryName() {
-  return getClusterBinary(process.platform);
+function getBinaryName(platform = process.platform) {
+  return getClusterBinary(platform);
 }
 
 function getArtifactName(platform = process.platform, arch = process.arch) {
@@ -299,13 +299,20 @@ function findBinary(dir) {
   return null;
 }
 
-async function installForPlatform(platform, arch, force) {
+async function installForPlatform(platform, arch, force, stageOnly = false) {
   const artifact = getArtifactName(platform, arch);
   const urls = [...COS_BASE_URLS.map((base) => `${base}/${artifact}`), `${NEXUS_VFS_GITHUB_URL}/${artifact}`];
-  const binName = getBinaryName();
+  const binName = getBinaryName(platform);
   const installedBinary = path.join(BIN_DIR, binName);
+  const resourcesDir = path.join(__dirname, '..', 'resources');
+  const stagedPath = path.join(resourcesDir, `v${VERSION}-${artifact}`);
 
-  if (fs.existsSync(installedBinary) && fs.existsSync(READY_MARKER) && fs.readFileSync(READY_MARKER, 'utf-8').trim() === VERSION && !force) {
+  if (stageOnly && fs.existsSync(stagedPath) && fs.statSync(stagedPath).size >= 100 * 1024 && !force) {
+    console.log(`Already staged (v${VERSION}): ${stagedPath}`);
+    return true;
+  }
+
+  if (!stageOnly && fs.existsSync(installedBinary) && fs.existsSync(READY_MARKER) && fs.readFileSync(READY_MARKER, 'utf-8').trim() === VERSION && !force) {
     console.log(`Already installed (v${VERSION}): ${installedBinary}`);
     console.log('Use --force to re-download.');
     return true;
@@ -362,15 +369,20 @@ async function installForPlatform(platform, arch, force) {
   // Stage the verified cluster archive into resources/ so electron-builder can
   // bundle it as an extraResource. This mirrors the vault staging below and
   // the scode/nexusd-cluster pattern in download-scode.js.
-  const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
   try {
-    fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-    const stagedName = `v${VERSION}-${artifact}`;
-    const stagedPath = path.join(RESOURCES_DIR, stagedName);
+    fs.mkdirSync(resourcesDir, { recursive: true });
     fs.copyFileSync(archivePath, stagedPath);
     console.log(`Staged cluster archive for packaging: ${stagedPath}`);
   } catch (err) {
+    if (stageOnly) throw err;
     console.warn(`⚠️  Could not stage cluster archive to resources/: ${err.message}`);
+  }
+
+  if (stageOnly) {
+    try {
+      fs.unlinkSync(archivePath);
+    } catch {}
+    return true;
   }
 
   extractArchive(archivePath, extractDir);
@@ -718,9 +730,13 @@ function findBinaryInDir(dir, wanted) {
 async function main() {
   const args = process.argv.slice(2);
   const force = args.includes('--force') || args.includes('-f');
-
-  const platform = process.platform;
-  const arch = process.arch;
+  const stageOnly = args.includes('--stage-only');
+  const targetArgs = args.filter((arg) => !arg.startsWith('-'));
+  const target = targetArgs[0];
+  if (target && !/^(darwin|win32|linux)-(x64|arm64)$/.test(target)) {
+    throw new Error(`Unsupported target: ${target}`);
+  }
+  const [platform, arch] = target ? target.split('-') : [process.platform, process.arch];
 
   if (!OS_NAME[platform] || !CLUSTER_ARCH[arch]) {
     console.warn(`⚠️  Unsupported platform: ${platform}-${arch}; skipping nexus-vfs.`);
@@ -735,15 +751,18 @@ async function main() {
   console.log('');
 
   try {
-    const ok = await installForPlatform(platform, arch, force);
+    const ok = await installForPlatform(platform, arch, force, stageOnly);
     if (ok) {
       console.log('\n✅ nexus-vfs download completed');
     } else {
       console.log('\n⏭️  Skipping nexus-vfs (not available for this platform)');
     }
   } catch (err) {
+    if (stageOnly) throw err;
     console.error(`\n❌ Failed to download nexus-vfs:`, err.message);
   }
+
+  if (stageOnly) return;
 
   // Vault plugin — separate artifact from nexus repo.
   try {
@@ -782,5 +801,5 @@ async function main() {
 
 main().catch((err) => {
   console.error('Error:', err.message);
-  process.exit(0);
+  process.exit(1);
 });

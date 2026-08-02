@@ -136,41 +136,40 @@ vi.mock('@/process/initStorage', () => ({
   },
 }));
 
-vi.mock('@/common/nexus/nexus-secret-client', () => ({
-  getNexusSecretClient: () => ({
-    getSecret: (namespace: string, key: string) => {
-      getSecretCalls.push({ namespace, key });
-      if (getSecretMethodMissing) throw methodNotFound('secret_get');
-      if (mockSecretThrow) throw mockSecretThrow;
-      const stored = secretStore.get(`${namespace}/${key}`);
-      return stored !== undefined ? stored : mockSecretValue;
-    },
-    putSecret: (namespace: string, key: string, value: string) => {
-      if (putSecretMethodMissing) throw methodNotFound('secret_put');
-      secretStore.set(`${namespace}/${key}`, value);
-    },
-    batchGet: (queries: Array<{ namespace: string; key: string }>) => {
-      batchGetCalls.push(queries);
-      const out: Record<string, string> = {};
-      for (const q of queries) {
-        const v = secretStore.get(`${q.namespace}/${q.key}`);
-        if (v !== undefined) out[`${q.namespace}/${q.key}`] = v;
-      }
-      return out;
-    },
-    batchPut: (secrets: Array<{ namespace: string; key: string; value: string; description?: string }>) => {
-      batchPutCalls.push(secrets);
-      for (const s of secrets) secretStore.set(`${s.namespace}/${s.key}`, s.value);
-      // Mirror the real NexusSecretClient.batchPut return shape — putSecretResilient
-      // reads the first element to surface metadata to its caller.
-      return secrets.map((s) => ({ namespace: s.namespace, key: s.key, currentVersion: 1, deleted: false, description: s.description }));
-    },
-    listSecrets: (namespace: string) => {
-      listSecretsCalls.push(namespace);
-      return [...secretStore.keys()].filter((k) => k.startsWith(`${namespace}/`)).map((k) => ({ namespace, key: k.slice(namespace.length + 1) }));
-    },
-  }),
-}));
+const mockSecretClient = {
+  getSecret: (namespace: string, key: string) => {
+    getSecretCalls.push({ namespace, key });
+    if (getSecretMethodMissing) throw methodNotFound('secret_get');
+    if (mockSecretThrow) throw mockSecretThrow;
+    const stored = secretStore.get(`${namespace}/${key}`);
+    return stored !== undefined ? stored : mockSecretValue;
+  },
+  putSecret: (namespace: string, key: string, value: string) => {
+    if (putSecretMethodMissing) throw methodNotFound('secret_put');
+    secretStore.set(`${namespace}/${key}`, value);
+  },
+  batchGet: (queries: Array<{ namespace: string; key: string }>) => {
+    batchGetCalls.push(queries);
+    const out: Record<string, string> = {};
+    for (const q of queries) {
+      const v = secretStore.get(`${q.namespace}/${q.key}`);
+      if (v !== undefined) out[`${q.namespace}/${q.key}`] = v;
+    }
+    return out;
+  },
+  batchPut: (secrets: Array<{ namespace: string; key: string; value: string; description?: string }>) => {
+    batchPutCalls.push(secrets);
+    for (const s of secrets) secretStore.set(`${s.namespace}/${s.key}`, s.value);
+    return secrets.map((s) => ({ namespace: s.namespace, key: s.key, currentVersion: 1, deleted: false, description: s.description }));
+  },
+  listSecrets: (namespace: string) => {
+    listSecretsCalls.push(namespace);
+    return [...secretStore.keys()].filter((k) => k.startsWith(`${namespace}/`)).map((k) => ({ namespace, key: k.slice(namespace.length + 1) }));
+  },
+};
+
+vi.mock('@/common/nexus/nexus-secret-client', () => ({ getNexusSecretClient: () => mockSecretClient }));
+vi.mock('@/common/nexus/secret-store', () => ({ getSecretStore: () => mockSecretClient }));
 
 vi.mock('@process/utils/mainLogger', () => ({
   mainLog: vi.fn(),

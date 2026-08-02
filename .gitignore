@@ -211,7 +211,8 @@ vx.toml
 resources/nexus.tar.gz
 resources/nexusd
 resources/nexusd.exe
-resources/v*-nexus-cluster-*
+resources/v*-nexusd-cluster-*
+resources/v*-scode-*
 resources/claude-code.tgz
 resources/gemini-cli.tgz
 resources/node-*.tar.gz

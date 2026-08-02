@@ -12,7 +12,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
+import { getSecretStore } from '@common/nexus/secret-store';
 import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 import { SCODE_DIR } from '@process/services/scode/ScodeInstallService';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -82,7 +82,7 @@ async function writeSecretIfChanged(key: string, value: string): Promise<void> {
     if (current === value) {
       return; // unchanged — avoid bumping Nexus version number on every save
     }
-    const client = getNexusSecretClient();
+    const client = getSecretStore();
     client.putSecret(USER_KEY_NAMESPACE, key, value);
     try {
       client.restoreSecret(USER_KEY_NAMESPACE, key);

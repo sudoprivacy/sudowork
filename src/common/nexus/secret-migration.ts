@@ -14,12 +14,12 @@
  */
 
 import { decryptCredentials } from '@/channels/utils/credentialCrypto';
+import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import { getDatabase } from '@process/database/export';
 import { UserRepository } from '@/webserver/auth/repository/UserRepository';
 import { ProcessConfig } from '@process/initStorage';
 import { secretCache, markMigrated } from './secret-cache';
-import type { NexusSecretClient } from './nexus-secret-client';
-import { getNexusSecretClient } from './nexus-secret-client';
+import { getSecretStore, initializeSecretStore, type ISecretStore } from './secret-store';
 import { resolveConfig } from './config';
 
 // ============================================================================
@@ -44,7 +44,8 @@ interface MigrationMap {
 // Constants
 // ============================================================================
 
-const SECRET_MIGRATION_VERSION_KEY = 'secret_migration_version';
+const SECRET_MIGRATION_VERSION_KEY = IS_OFFLINE_BUILD ? 'local_secret_migration_version' : 'secret_migration_version';
+const SECRET_MIGRATION_MAP_KEY = IS_OFFLINE_BUILD ? 'local_secret_migration_map' : 'secret_migration_map';
 const SECRET_MIGRATION_VERSION = 1;
 
 /**
@@ -65,15 +66,16 @@ const CHANNEL_CREDENTIAL_FIELDS: Record<string, string[]> = {
 // ============================================================================
 
 export class SecretMigrationCoordinator {
-  private client: NexusSecretClient | null = null;
+  private client: ISecretStore | null = null;
   private migrationMap: MigrationMap = {};
+  private failedSecretCount = 0;
 
   /**
    * Initialize the coordinator with optional credentials for Nexus authentication.
    * Uses resolveConfig() to get full config if no options provided.
    */
   initialize(): void {
-    this.client = getNexusSecretClient();
+    this.client = getSecretStore();
     secretCache.initialize();
   }
 
@@ -89,7 +91,8 @@ export class SecretMigrationCoordinator {
    * Run migration if not already done.
    * Idempotent - safe to call multiple times.
    */
-  async migrateAll(): Promise<MigrationResult> {
+  async migrateAll(options?: { isNexusHealthCheckRequired?: boolean }): Promise<MigrationResult> {
+    this.failedSecretCount = 0;
     const result: MigrationResult = {
       success: true,
       migratedCount: 0,
@@ -104,16 +107,17 @@ export class SecretMigrationCoordinator {
       return result;
     }
 
-    // Step 2: Wait for Nexus to be healthy
-    console.log('[SecretMigration] Waiting for Nexus to be healthy...');
-    const nexusHealthy = await this.waitForNexus(30000); // 30s timeout
-    if (!nexusHealthy) {
-      result.success = false;
-      result.errors.push('Nexus is not healthy, cannot migrate');
-      return result;
+    if (options?.isNexusHealthCheckRequired !== false) {
+      console.log('[SecretMigration] Waiting for Nexus to be healthy...');
+      const nexusHealthy = await this.waitForNexus(30000);
+      if (!nexusHealthy) {
+        result.success = false;
+        result.errors.push('Nexus is not healthy, cannot migrate');
+        return result;
+      }
     }
 
-    console.log('[SecretMigration] Nexus is healthy, starting migration...');
+    console.log('[SecretMigration] Starting migration...');
 
     // Step 3: Load migration map
     await this.loadMigrationMap();
@@ -131,6 +135,8 @@ export class SecretMigrationCoordinator {
         result.failedCount++;
       }
     }
+
+    result.failedCount += this.failedSecretCount;
 
     // Step 5: Mark migration as complete
     if (result.failedCount === 0) {
@@ -195,7 +201,7 @@ export class SecretMigrationCoordinator {
    */
   private async loadMigrationMap(): Promise<void> {
     try {
-      const mapJson = await ProcessConfig.get('secret_migration_map' as any);
+      const mapJson = await ProcessConfig.get(SECRET_MIGRATION_MAP_KEY as any);
       if (mapJson && typeof mapJson === 'string') {
         this.migrationMap = JSON.parse(mapJson);
       }
@@ -208,7 +214,7 @@ export class SecretMigrationCoordinator {
    * Save migration map to ConfigStorage.
    */
   private async saveMigrationMap(): Promise<void> {
-    await ProcessConfig.set('secret_migration_map' as any, JSON.stringify(this.migrationMap));
+    await ProcessConfig.set(SECRET_MIGRATION_MAP_KEY as any, JSON.stringify(this.migrationMap));
   }
 
   /**
@@ -261,6 +267,7 @@ export class SecretMigrationCoordinator {
       markMigrated(namespace, key, value);
       console.log(`[SecretMigration] Secret verified: ${ref}`);
     } catch (error) {
+      this.failedSecretCount++;
       console.error(`[SecretMigration] Failed to migrate ${ref}: ${error instanceof Error ? error.message : String(error)}`);
       throw error; // Re-throw so the caller can track failures
     }
@@ -326,6 +333,7 @@ export class SecretMigrationCoordinator {
       await this.saveMigrationMap();
     } catch (error) {
       console.error('[SecretMigration] Error migrating channel credentials:', error);
+      throw error;
     }
 
     console.log(`[SecretMigration] Channel credentials migration complete: ${migrated} migrated, ${failed} failed`);
@@ -395,6 +403,7 @@ export class SecretMigrationCoordinator {
       await this.saveMigrationMap();
     } catch (error) {
       console.error('[SecretMigration] Error migrating AI platform credentials:', error);
+      throw error;
     }
 
     console.log(`[SecretMigration] AI platform credentials migration complete: ${migrated} migrated, ${failed} failed`);
@@ -439,6 +448,7 @@ export class SecretMigrationCoordinator {
       await this.saveMigrationMap();
     } catch (error) {
       console.error('[SecretMigration] Error migrating ACP auth tokens:', error);
+      throw error;
     }
 
     console.log(`[SecretMigration] ACP auth tokens migration complete: ${migrated} migrated, ${failed} failed`);
@@ -472,6 +482,7 @@ export class SecretMigrationCoordinator {
       await this.saveMigrationMap();
     } catch (error) {
       console.error('[SecretMigration] Error migrating JWT secrets:', error);
+      throw error;
     }
 
     console.log(`[SecretMigration] JWT secrets migration complete: ${migrated} migrated, ${failed} failed`);
@@ -497,23 +508,21 @@ export function getMigrationCoordinator(): SecretMigrationCoordinator {
  * This should be called after Nexus is healthy.
  */
 export async function initializeSecrets(): Promise<void> {
+  await initializeSecretStore();
   const coordinator = getMigrationCoordinator();
   coordinator.initialize();
 
-  // Run migration if needed
-  const migrationResult = await coordinator.migrateAll();
-
+  const migrationResult = await coordinator.migrateAll({ isNexusHealthCheckRequired: !IS_OFFLINE_BUILD });
   if (!migrationResult.success) {
     console.warn('[SecretMigration] Migration completed with errors:', migrationResult.errors);
-    // Continue to preload even if migration had issues
+    if (IS_OFFLINE_BUILD) throw new Error(`本地凭据迁移失败（${migrationResult.failedCount} 项）`);
   }
 
-  // Preload cache after migration
   try {
     await secretCache.preload();
     console.log('[SecretMigration] Secret cache preloaded successfully');
   } catch (error) {
     console.error('[SecretMigration] Failed to preload secret cache:', error);
-    // Don't throw - we can still operate in fallback mode
+    if (IS_OFFLINE_BUILD) throw error;
   }
 }

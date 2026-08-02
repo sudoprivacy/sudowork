@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
+import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
 import { initStatusManager } from '../initStatus';
@@ -116,13 +117,11 @@ export class ServiceManager {
     this.shuttingDown = false;
     this.startupInProgress = true;
 
-    // 提前创建 secrets promise，让消费者可以立即 await
-    // Promise 在 startNexusOnce() 中通过 initializeSecrets() resolve
-    if (!this.secretsReadyPromise) {
-      this.secretsReadyPromise = new Promise<boolean>((resolve) => {
-        this.secretsReadyResolve = resolve;
-      });
-    }
+    // Each startup attempt needs a fresh promise: a failed attempt resolves its
+    // promise to false, and a later retry must still be able to become ready.
+    this.secretsReadyPromise = new Promise<boolean>((resolve) => {
+      this.secretsReadyResolve = resolve;
+    });
 
     runtimeInstaller.primeStatusForStartup();
     initStatusManager.clearRetry();
@@ -259,6 +258,7 @@ export class ServiceManager {
     };
 
     await startAttempts(this.NEXUS_START_ATTEMPTS, 'normal');
+    await this.initializeSecretsAfterNexus();
   }
 
   private async startNexusOnce(): Promise<void> {
@@ -280,38 +280,8 @@ export class ServiceManager {
       // with post-start stabilization and incorrectly flip the UI back to failed.
       initStatusManager.addLog(`[Nexus] Nexus service is ready on 127.0.0.1:${dynamicNexusVfsService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
-
-      // Initialize secrets system after Nexus is healthy
-      // This runs migration (if needed) and preloads the secret cache
-      // secretsReadyPromise 已在 startup() 入口处创建
-      this.initializeSecrets()
-        .then(async () => {
-          // Start Auth Proxy after secrets are initialized
-          try {
-            const { startAuthProxy } = await import('@process/services/authProxy');
-            const port = await startAuthProxy();
-            if (port > 0) {
-              mainLog('ServiceManager', `Auth Proxy started on port ${port}`);
-            }
-          } catch (err) {
-            mainWarn('ServiceManager', 'Auth Proxy start failed (non-critical):', err);
-          }
-          // Sync sudorouter creds from sudocode.json into Nexus (Nexus ready, cache preloaded).
-          try {
-            const { syncUserKeyOnStartup } = await import('@process/services/authProxy/userKeySync');
-            await syncUserKeyOnStartup();
-          } catch (err) {
-            mainWarn('ServiceManager', 'User key sync failed (non-critical):', err);
-          }
-          this.secretsReadyResolve?.(true);
-        })
-        .catch((err) => {
-          mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', err);
-          this.secretsReadyResolve?.(false);
-        });
     } catch (err) {
       mainError('ServiceManager', 'Failed to start Nexus', err);
-      this.secretsReadyResolve?.(false);
       throw err;
     }
   }
@@ -338,21 +308,46 @@ export class ServiceManager {
     return this.stopNexus();
   }
 
-  /**
-   * Initialize the secrets system after Nexus is healthy.
-   * This runs the migration coordinator and preloads the secret cache.
-   */
-  private async initializeSecrets(): Promise<void> {
-    try {
-      const { initializeSecrets } = await import('@common/nexus/secret-migration');
-      mainLog('ServiceManager', 'Initializing secrets system...');
-      await initializeSecrets();
-      mainLog('ServiceManager', 'Secrets system initialized');
-    } catch (err) {
-      // Don't throw - secrets initialization failure should not block startup
-      // The system can operate in fallback mode without the secrets cache
-      mainWarn('ServiceManager', 'Secrets initialization failed:', err);
+  private async initializeSecretsAfterNexus(): Promise<void> {
+    if (!IS_OFFLINE_BUILD) {
+      void this.initializeSecretDependentServices().catch((error) => {
+        mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', error);
+        this.secretsReadyResolve?.(false);
+      });
+      return;
     }
+
+    try {
+      await this.initializeSecretDependentServices();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.secretsReadyResolve?.(false);
+      throw new Error(`本地 Nexus 密钥库初始化失败: ${message}`);
+    }
+  }
+
+  /** Initialize secrets, then start the services that require them. */
+  private async initializeSecretDependentServices(): Promise<void> {
+    const { initializeSecrets } = await import('@common/nexus/secret-migration');
+    mainLog('ServiceManager', 'Initializing secrets system...');
+    await initializeSecrets();
+    mainLog('ServiceManager', 'Secrets system initialized');
+
+    try {
+      const { startAuthProxy } = await import('@process/services/authProxy');
+      const port = await startAuthProxy();
+      if (port > 0) mainLog('ServiceManager', `Auth Proxy started on port ${port}`);
+    } catch (err) {
+      mainWarn('ServiceManager', 'Auth Proxy start failed (non-critical):', err);
+    }
+
+    try {
+      const { syncUserKeyOnStartup } = await import('@process/services/authProxy/userKeySync');
+      await syncUserKeyOnStartup();
+    } catch (err) {
+      mainWarn('ServiceManager', 'User key sync failed (non-critical):', err);
+    }
+    this.secretsReadyResolve?.(true);
   }
 
   // ────────────────────────────────────────────────────────────────────────────

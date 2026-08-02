@@ -8,6 +8,7 @@ import { app } from 'electron';
 import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import runtimeSha256 from '@/shared/runtime-sha256.json';
@@ -211,7 +212,7 @@ class DynamicNexusVfsService {
   }
 
   checkInstalledSync(): boolean {
-    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent() && (!vaultPluginInstaller.isPlatformSupported() || vaultPluginInstaller.checkInstalledSync());
+    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent() && (IS_OFFLINE_BUILD || !vaultPluginInstaller.isPlatformSupported() || vaultPluginInstaller.checkInstalledSync());
   }
 
   async checkInstalled(): Promise<boolean> {
@@ -328,6 +329,12 @@ class DynamicNexusVfsService {
       mainLog('NexusVfs', `Using bundled nexus-vfs archive from ${bundledPath}`);
       this.emit('downloading', `Using bundled nexus-vfs from ${bundledPath}`, 0);
     } else {
+      if (IS_OFFLINE_BUILD) {
+        const message = `内网安装包缺少 Nexus Cluster v${this.getBundledVersion()}，请重新安装完整版本`;
+        this.emit('error', message);
+        throw new Error(message);
+      }
+
       mainLog('NexusVfs', 'Bundled nexus-vfs not found, attempting remote download...');
       archivePath = path.join(downloadDir, this.getArtifactName());
 
@@ -413,7 +420,9 @@ class DynamicNexusVfsService {
 
     this.emit('idle', `nexus-vfs installed: ${targetBinary}`, 100);
 
-    await vaultPluginInstaller.install((stage, message, percent) => this.emit(stage, message, percent));
+    if (!IS_OFFLINE_BUILD) {
+      await vaultPluginInstaller.install((stage, message, percent) => this.emit(stage, message, percent));
+    }
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -437,7 +446,7 @@ class DynamicNexusVfsService {
     // --hostname is a cosmetic display label; --data-dir + --plugin-dir are
     // global flags that apply under the subcommand.
     const args = ['serve-local', '--port', String(port), '--hostname', 'localhost', '--data-dir', this.getDaemonDataDir()];
-    if (vaultPluginInstaller.isPlatformSupported() && vaultPluginInstaller.checkInstalledSync()) {
+    if (!IS_OFFLINE_BUILD && vaultPluginInstaller.isPlatformSupported() && vaultPluginInstaller.checkInstalledSync()) {
       args.push('--plugin-dir', pluginDir);
     }
     return { command: bin, args };
@@ -510,11 +519,13 @@ class DynamicNexusVfsService {
     mainLog('NexusVfs', `Waiting for nexus-vfs gRPC port ${this._port} to accept connections...`);
     await this.waitForPortReady(this._port, NEXUS_VFS_START_TIMEOUT_MS);
     const elapsed = Date.now() - spawnStart;
-    try {
-      await this.waitForVaultServiceReady(NEXUS_VAULT_READY_TIMEOUT_MS);
-    } catch (err) {
-      await this.stop().catch(() => {});
-      throw err;
+    if (!IS_OFFLINE_BUILD) {
+      try {
+        await this.waitForVaultServiceReady(NEXUS_VAULT_READY_TIMEOUT_MS);
+      } catch (err) {
+        await this.stop().catch(() => {});
+        throw err;
+      }
     }
     mainLog('NexusVfs', `nexus-vfs ready — port=${this._port} startup=${elapsed}ms`);
     this._running = true;

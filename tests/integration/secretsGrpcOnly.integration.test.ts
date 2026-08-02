@@ -22,7 +22,8 @@
  * in v0.2.8.
  *
  * If you need to add a new secrets call path, route it through
- * `getNexusSecretClient()` (see `src/common/nexus/nexus-secret-client.ts`).
+ * `getSecretStore()` (see `src/common/nexus/secret-store.ts`). Online builds
+ * delegate to NexusSecretClient over gRPC; offline builds use safeStorage.
  * Do NOT introduce a parallel HTTP path. If gRPC is missing a method,
  * extend `password-vault.<method>` dispatch upstream in nexi-lab/nexus
  * + regenerate the protobuf, don't shortcut through HTTP.
@@ -64,19 +65,12 @@ function readSrc(rel: string): string {
 }
 
 describe('Secrets must go through gRPC — static architectural guard', () => {
-  it('authProxy secretsApi.ts uses getNexusSecretClient (gRPC) for all CRUD handlers', () => {
-    // Positive assertion: the production secrets API handler MUST import
-    // and use the gRPC client. A refactor that drops this import would
-    // mean someone routed secrets elsewhere — surface that immediately.
+  it('authProxy secretsApi.ts uses the unified Secret Store for all CRUD handlers', () => {
     const secretsApi = readSrc('src/process/services/authProxy/secretsApi.ts');
-    expect(secretsApi).toMatch(/from ['"]@common\/nexus\/nexus-secret-client['"]/);
-    expect(secretsApi).toMatch(/getNexusSecretClient/);
-    // Each CRUD handler (list / put / delete) must obtain the client.
-    // Count is informational — if it drops to 0 the imports check above
-    // already fails; >=3 means each handler holds its own ref (no shared
-    // mutable singleton at module scope).
-    const usages = secretsApi.match(/getNexusSecretClient\(\)/g) ?? [];
-    expect(usages.length).toBeGreaterThanOrEqual(3);
+    expect(secretsApi).toMatch(/from ['"]@common\/nexus\/secret-store['"]/);
+
+    const secretStore = readSrc('src/common/nexus/secret-store.ts');
+    expect(secretStore).toMatch(/new NexusVaultSecretStore\(getNexusSecretClient\(\)\)/);
   });
 
   it('authProxy secretsApi.ts does NOT call any HTTP /api/v2/secrets endpoint', () => {

@@ -38,7 +38,10 @@ import { initStatusManager } from '@/process/services/initStatus';
 
 type TestableServiceManager = ServiceManager & {
   startNexusWithRetries: () => Promise<void>;
-  startOpenClawWithRetries: () => Promise<void>;
+  startNexusOnce: () => Promise<void>;
+  initializeSecretsAfterNexus: () => Promise<void>;
+  preparePortForStart: () => Promise<void>;
+  startSudoclawWithRetries: () => Promise<void>;
   verifyStartupReadiness: () => Promise<void>;
   startSafetyPolling: () => Promise<void>;
 };
@@ -51,16 +54,16 @@ describe('ServiceManager', () => {
 
   it('deduplicates concurrent Sudoclaw starts', async () => {
     const manager = new ServiceManager() as TestableServiceManager;
-    const startOpenClawWithRetries = vi.spyOn(manager, 'startOpenClawWithRetries').mockImplementation(
+    const startSudoclawWithRetries = vi.spyOn(manager, 'startSudoclawWithRetries').mockImplementation(
       async () =>
         await new Promise<void>((resolve) => {
           setTimeout(resolve, 20);
         })
     );
 
-    await Promise.all([manager.startOpenClaw(), manager.startOpenClaw(), manager.startOpenClaw()]);
+    await Promise.all([manager.startSudoclaw(), manager.startSudoclaw(), manager.startSudoclaw()]);
 
-    expect(startOpenClawWithRetries).toHaveBeenCalledTimes(1);
+    expect(startSudoclawWithRetries).toHaveBeenCalledTimes(1);
   });
 
   it('deduplicates concurrent Nexus starts', async () => {
@@ -77,6 +80,16 @@ describe('ServiceManager', () => {
     expect(startNexusWithRetries).toHaveBeenCalledTimes(1);
   });
 
+  it('does not restart Nexus when secrets initialization fails', async () => {
+    const manager = new ServiceManager() as TestableServiceManager;
+    vi.spyOn(manager, 'preparePortForStart').mockResolvedValue(undefined);
+    const startNexusOnce = vi.spyOn(manager, 'startNexusOnce').mockResolvedValue(undefined);
+    vi.spyOn(manager, 'initializeSecretsAfterNexus').mockRejectedValue(new Error('keychain unavailable'));
+
+    await expect(manager.startNexusWithRetries()).rejects.toThrow('keychain unavailable');
+    expect(startNexusOnce).toHaveBeenCalledTimes(1);
+  });
+
   it('starts up without requesting Sudoclaw startup', async () => {
     const manager = new ServiceManager() as TestableServiceManager;
     vi.mocked(runtimeInstaller.ensureAll).mockResolvedValue(true);
@@ -90,5 +103,22 @@ describe('ServiceManager', () => {
     expect(runtimeInstaller.ensureAll).toHaveBeenCalledWith({
       startNexus: expect.any(Function),
     });
+  });
+
+  it('creates a fresh secrets readiness promise when startup is retried', async () => {
+    const manager = new ServiceManager() as TestableServiceManager;
+    vi.mocked(initStatusManager.getStatus).mockReturnValue({ stepDetails: {}, displayMode: 'startup' });
+    vi.mocked(runtimeInstaller.ensureAll).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    vi.spyOn(manager, 'verifyStartupReadiness').mockResolvedValue(undefined);
+
+    await manager.startup();
+    expect(await manager.waitForSecrets()).toBe(false);
+
+    await manager.startup();
+    const retrySecrets = manager.waitForSecrets();
+    const secretsReadyResolve = (manager as unknown as { secretsReadyResolve: (isReady: boolean) => void }).secretsReadyResolve;
+    secretsReadyResolve(true);
+
+    expect(await retrySecrets).toBe(true);
   });
 });

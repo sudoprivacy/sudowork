@@ -116,6 +116,9 @@ const mockClient = {
 vi.mock('@common/nexus/nexus-secret-client', () => ({
   getNexusSecretClient: () => mockClient,
 }));
+vi.mock('@common/nexus/secret-store', () => ({
+  getSecretStore: () => mockClient,
+}));
 vi.mock('@common/nexus/nexus-secret-resilient', async () => {
   const { putSecretResilient: realPut } = await import('../../../src/common/nexus/nexus-secret-resilient');
   return { putSecretResilient: realPut };

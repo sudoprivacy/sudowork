@@ -6,6 +6,7 @@
 
 import { mainError } from '@process/utils/mainLogger';
 import { acpDetector } from '@/agent/acp/AcpDetector';
+import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import { initAcpConversationBridge } from './acpConversationBridge';
 import { initApplicationBridge } from './applicationBridge';
 import { initAuthBridge } from './authBridge';
@@ -115,7 +116,7 @@ export function initAllBridges(): void {
   initSystemConfigBridge();
   // Safety hook IPC is hidden while the feature is disabled.
   // initSafetyBridge();
-  initBdpanBridge();
+  if (!IS_OFFLINE_BUILD) initBdpanBridge();
   initHealthMonitorBridge();
   initImageGenerationBridge();
   initSecretBridge();

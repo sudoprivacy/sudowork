@@ -18,6 +18,10 @@ vi.mock('@common/nexus/nexus-secret-client.js', () => ({
   getNexusSecretClient: () => mockClient,
 }));
 
+vi.mock('@common/nexus/secret-store.js', () => ({
+  getSecretStore: () => mockClient,
+}));
+
 // Resolve via the path the resilient module uses; the .js extension is the
 // emit suffix preserved through bundler resolution.
 import { putSecretResilient, getSecretResilient, isVaultMethodMissing } from '../../../src/common/nexus/nexus-secret-resilient';

@@ -142,11 +142,15 @@ function downloadFile(url, dest) {
 async function downloadScode(platform, force = false) {
   const outputFile = getOutputFile(platform);
 
-  // Skip if already exists
+  // Skip only valid staged resources. Old zero-byte placeholders must be
+  // replaced, otherwise an offline build can never become self-contained.
   if (fs.existsSync(outputFile) && !force) {
-    console.log(`Already exists: ${outputFile}`);
-    console.log('Use --force to re-download.');
-    return true;
+    if (fs.statSync(outputFile).size >= 100 * 1024) {
+      console.log(`Already exists: ${outputFile}`);
+      console.log('Use --force to re-download.');
+      return true;
+    }
+    fs.rmSync(outputFile, { force: true });
   }
 
   // Ensure resources directory exists
@@ -157,7 +161,6 @@ async function downloadScode(platform, force = false) {
 
   try {
     await downloadFile(url, outputFile);
-
     console.log(`Saved to: ${outputFile}`);
     return true;
   } catch (err) {
