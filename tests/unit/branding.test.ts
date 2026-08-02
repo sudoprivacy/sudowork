@@ -44,6 +44,12 @@ describe('brand configuration', () => {
     const mainSource = fs.readFileSync(path.resolve(__dirname, '../../src/index.ts'), 'utf8');
     expect(mainSource).toContain('app.setName(brand.displayName)');
 
+    if (brand.BUILD_OFFLINE) {
+      const aboutSource = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/pages/settings/about/index.tsx'), 'utf8');
+      expect(aboutSource).toContain('{!IS_OFFLINE_BUILD && (');
+      expect(aboutSource).toContain('{!IS_OFFLINE_BUILD && <OpsModal');
+    }
+
     const installerSource = fs.readFileSync(path.resolve(__dirname, '../../scripts/installer.nsh'), 'utf8');
     expect(installerSource).toContain('${PRODUCT_NAME}');
     expect(installerSource).not.toContain('安装 Sudowork');

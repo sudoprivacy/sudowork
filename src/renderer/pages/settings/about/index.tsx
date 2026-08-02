@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import brand from '@brand';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@common/buildInfo';
+import { IS_OFFLINE_BUILD } from '@common/buildMode';
 import { useBrandConfig } from '@renderer/hooks/useBrandConfig';
 import { openExternalUrl } from '@renderer/utils/platform';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -59,16 +60,18 @@ const About: React.FC = () => {
           </div>
         )}
 
-        {/* 操作按钮 / Actions */}
-        <div className='flex items-center gap-2 mt-8'>
-          <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('sudowork-open-update-modal'))}>
-            {t('settings.checkForUpdates', '检查更新')}
-          </Button>
-          <Button type='text' onClick={() => setOpsVisible(true)} icon={<IconSettings style={{ fontSize: 20 }} />} />
-        </div>
+        {/* 内网版没有更新和运维配置入口，避免用户触发依赖公网的操作。 */}
+        {!IS_OFFLINE_BUILD && (
+          <div className='flex items-center gap-2 mt-8'>
+            <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('sudowork-open-update-modal'))}>
+              {t('settings.checkForUpdates', '检查更新')}
+            </Button>
+            <Button type='text' onClick={() => setOpsVisible(true)} icon={<IconSettings style={{ fontSize: 20 }} />} />
+          </div>
+        )}
       </div>
 
-      <OpsModal visible={opsVisible} onClose={() => setOpsVisible(false)} />
+      {!IS_OFFLINE_BUILD && <OpsModal visible={opsVisible} onClose={() => setOpsVisible(false)} />}
     </PageWrapper>
   );
 };
