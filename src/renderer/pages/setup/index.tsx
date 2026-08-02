@@ -8,8 +8,8 @@ import { setAppMode } from '@/common/eeclawMode';
 import { ConfigStorage } from '@/common/storage';
 import { normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
 import { createTenantConfigCache, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
-import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '@/renderer/components/WindowControls';
+import { useBrandConfig } from '@/renderer/hooks/useBrandConfig';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 
 const isWindowControlsVisible = isElectronDesktop() && !isMacOS();
@@ -32,6 +32,7 @@ function isValidServerUrl(url: string): boolean {
 
 export default function ModeSetup() {
   const { t } = useTranslation();
+  const { logo } = useBrandConfig();
   const [selectedMode, setSelectedMode] = useState<ModeType>('consumer');
   const [serverUrl, setServerUrl] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -133,7 +134,7 @@ export default function ModeSetup() {
         <section className='w-full rounded-24px border border-border bg-card p-6 shadow-xl [-webkit-app-region:no-drag] sm:p-9'>
           <header className='mb-8 flex flex-col items-center text-center'>
             <div className='mb-5 flex h-64px w-64px items-center justify-center rounded-18px border border-border bg-muted shadow-sm'>
-              <img src={SudoworkIcon} alt={brand.displayName} className='h-44px w-44px' />
+              <img src={logo} alt='' className='h-44px w-44px' />
             </div>
             <h1 className='m-0 text-26px font-700 leading-34px text-foreground'>{t('setup.mode.title', { name: brand.displayName })}</h1>
             <p className='mb-0 mt-2 max-w-520px text-14px leading-22px text-foreground-secondary'>{t('setup.mode.subtitle')}</p>

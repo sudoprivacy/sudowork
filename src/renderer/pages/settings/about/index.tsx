@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import brand from '@brand';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@common/buildInfo';
-import sudoIcon from '@renderer/assets/sudowork-icon-dark.svg';
+import { useBrandConfig } from '@renderer/hooks/useBrandConfig';
 import { openExternalUrl } from '@renderer/utils/platform';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import OpsModal from './components/OpsModal';
@@ -19,6 +19,7 @@ import OpsModal from './components/OpsModal';
 const About: React.FC = () => {
   const { t } = useTranslation();
   const { config } = useTenantConfig();
+  const { logo } = useBrandConfig();
   const [opsVisible, setOpsVisible] = useState<boolean>(false);
 
   return (
@@ -26,7 +27,7 @@ const About: React.FC = () => {
       <div className='f-center flex-col w-full min-h-[62vh] py-8 text-center'>
         {/* Logo 磁贴 / Logo tile */}
         <div className='f-center h-19 w-19 border border-border bg-card shadow-sm rd-18px'>
-          <img src={config.logo || sudoIcon} alt={config.about_name} className='w-11.5 h-11.5' />
+          <img src={logo} alt='' className='w-11.5 h-11.5' />
         </div>
 
         <Typography.Title heading={4} className='text-20px font-700 text-foreground mb-1.5 mt-0 lh-28px'>

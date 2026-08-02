@@ -9,10 +9,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { ShieldCheck, User } from 'lucide-react';
 import brand from '@brand';
-import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
+import { useBrandConfig } from '@/renderer/hooks/useBrandConfig';
 import { useAuth } from '../../context/AuthContext';
 
-const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt={brand.displayName} className='h-14 w-14 object-contain' />;
+function AionLogoMark() {
+  const { logo } = useBrandConfig();
+  return <img src={logo} alt='' className='h-14 w-14 object-contain' />;
+}
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();

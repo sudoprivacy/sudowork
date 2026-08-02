@@ -14,6 +14,7 @@ import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveCachedTenantCo
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useSystemLoginMethod } from '@/renderer/hooks/useSystemLoginMethod';
+import { useBrandConfig } from '@/renderer/hooks/useBrandConfig';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import { useAuth, GUEST_FLAG_KEY } from '../../context/AuthContext';
@@ -79,6 +80,7 @@ const LoginPage: React.FC = () => {
 
   // 从 localStorage 读取缓存的租户配置
   const tenantConfig = getCachedTenantConfig();
+  const { logo: tenantLogo } = useBrandConfig(tenantConfig);
 
   // OAuth2: fetch config from MOSS when the OAuth2 tab is selected
   useEffect(() => {
@@ -495,7 +497,7 @@ const LoginPage: React.FC = () => {
     return (
       <LoginShell>
         <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
-          <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantConfig.logo} />
+          <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantLogo} />
 
           <Radio.Group
             type='button'
@@ -561,7 +563,7 @@ const LoginPage: React.FC = () => {
   if (loginMethod === 1) {
     return (
       <LoginShell>
-        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
+        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantLogo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
       </LoginShell>
     );
   }
@@ -570,7 +572,7 @@ const LoginPage: React.FC = () => {
   if (loginMethod === 2) {
     return (
       <LoginShell>
-        <ThirdPartyAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} systemConfig={systemConfig} onBackToModeSelect={handleBackToModeSelect} />
+        <ThirdPartyAuthPanel appName={tenantConfig.app_name} logo={tenantLogo} defaultLogo={SudoworkIcon} systemConfig={systemConfig} onBackToModeSelect={handleBackToModeSelect} />
       </LoginShell>
     );
   }
@@ -578,7 +580,7 @@ const LoginPage: React.FC = () => {
   return (
     <LoginShell>
       <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
-        <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantConfig.logo} />
+        <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantLogo} />
 
         <Radio.Group
           type='button'

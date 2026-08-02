@@ -9,9 +9,8 @@ import type { TFunction } from 'i18next';
 import { Check, Circle, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import brand from '@brand';
 import { init } from '@/common/ipcBridge';
-import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
+import { useBrandConfig } from '@/renderer/hooks/useBrandConfig';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useInit } from '../context/InitContext';
 import WindowControls from './WindowControls';
@@ -106,6 +105,7 @@ function StepIcon({ status, spinnerFrame }: IStepIconProps) {
 export default function InitLoading({ variant = 'full' }: IInitLoadingProps) {
   const { t } = useTranslation();
   const { status, skipInitScreen, refetch } = useInit();
+  const { logo } = useBrandConfig();
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -240,7 +240,7 @@ export default function InitLoading({ variant = 'full' }: IInitLoadingProps) {
         <main className='relative z-1 mx-auto flex min-h-screen w-full max-w-640px items-center px-5 py-12 sm:px-8'>
           <section className='w-full rounded-24px border border-border bg-card p-6 text-center shadow-xl [-webkit-app-region:no-drag] sm:p-9'>
             <div className='mx-auto mb-5 flex h-64px w-64px items-center justify-center rounded-18px border border-border bg-muted shadow-sm'>
-              <img src={SudoworkIcon} alt={brand.displayName} className='h-44px w-44px' />
+              <img src={logo} alt='' className='h-44px w-44px' />
             </div>
             <h1 className='m-0 text-24px font-700 leading-32px text-foreground'>{t('setup.init.startupTitle', '正在启动核心服务')}</h1>
             <p className='mb-0 mt-2 text-14px leading-22px text-foreground-secondary'>{headerMessage}</p>
@@ -263,7 +263,7 @@ export default function InitLoading({ variant = 'full' }: IInitLoadingProps) {
         <section className='w-full rounded-24px border border-border bg-card p-5 shadow-xl [-webkit-app-region:no-drag] sm:p-8'>
           <header className='mb-6 flex flex-col items-center text-center'>
             <div className='mb-4 flex h-56px w-56px items-center justify-center rounded-16px border border-border bg-muted shadow-sm'>
-              <img src={SudoworkIcon} alt={brand.displayName} className='h-38px w-38px' />
+              <img src={logo} alt='' className='h-38px w-38px' />
             </div>
             <h1 className='m-0 text-24px font-700 leading-32px text-foreground'>{headerTitle}</h1>
             {isHeaderMessageVisible && <p className='mb-0 mt-2 max-w-520px text-13px leading-20px text-foreground-secondary'>{headerMessage}</p>}

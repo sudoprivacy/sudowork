@@ -17,6 +17,8 @@ import brand from '@brand';
 export interface TenantConfig {
   /** Logo 图片 base64 编码（如：data:image/png;base64,xxx） */
   logo?: string;
+  /** 暗色模式下使用的 Logo；未配置时暗色模式仍使用 `logo` */
+  logoDark?: string;
   /** App Name - 登录页标题、首页侧栏名称 */
   app_name?: string;
   /** Top Name - 客户端顶部 header（标题栏 Titlebar）显示 */
@@ -77,6 +79,7 @@ export const DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
 
 export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
   logo: brand.logo || undefined,
+  logoDark: brand.logoDark || undefined,
   app_name: brand.displayName,
   top_name: brand.displayName,
   login_desp: brand.tagline,
@@ -102,6 +105,7 @@ export function resolveCachedTenantConfig(config?: (TenantConfigInput & { [TENAN
 export function resolveTenantConfig(config?: TenantConfigInput | null): Required<TenantConfig> {
   return {
     logo: (config?.logo as string | undefined) || DEFAULT_TENANT_CONFIG.logo,
+    logoDark: (config?.logoDark as string | undefined) || DEFAULT_TENANT_CONFIG.logoDark,
     app_name: (config?.app_name as string | undefined) || DEFAULT_TENANT_CONFIG.app_name,
     top_name: (config?.top_name as string | undefined) || DEFAULT_TENANT_CONFIG.top_name,
     login_desp: (config?.login_desp as string | undefined) || DEFAULT_TENANT_CONFIG.login_desp,

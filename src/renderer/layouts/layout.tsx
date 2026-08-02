@@ -13,7 +13,7 @@ import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { useDeepLink } from '@renderer/hooks/useDeepLink';
 import { useDirectorySelection } from '@renderer/hooks/useDirectorySelection';
 import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
-import sudoIcon from '@renderer/assets/sudowork-icon-dark.svg';
+import { useBrandConfig } from '@renderer/hooks/useBrandConfig';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
 import { isElectronDesktop, isMacOS } from '@renderer/utils/platform';
@@ -58,6 +58,7 @@ const DEFAULT_SIDER_WIDTH = 260;
 
 const Layout: React.FC = () => {
   const { config } = useTenantConfig(); // 获取租户配置
+  const { logo } = useBrandConfig();
   const [collapsed, setCollapsed] = useState(false);
   const { onClick } = useDebug();
   const navigate = useNavigate();
@@ -116,7 +117,7 @@ const Layout: React.FC = () => {
                   onNewConversation();
                 }}
               >
-                <img src={config.logo || sudoIcon} alt='' className='size-6 shrink-0 object-contain' />
+                <img src={logo} alt='' className='size-6 shrink-0 object-contain' />
                 <span className='truncate'>{config.app_name}</span>
               </button>
             </ArcoLayout.Header>
