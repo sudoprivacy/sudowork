@@ -6,8 +6,8 @@
 
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Button, Empty, Input, Modal } from '@arco-design/web-react';
-import { ChevronDown as Down, FolderOpen } from 'lucide-react';
+import { Button, Input, Modal } from '@arco-design/web-react';
+import { ChevronDown as Down, ClipboardList, FolderOpen, MessagesSquare } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -219,8 +219,9 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ colla
   if (activeTab === 'timeline' && timelineConversations.length === 0 && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
-        <div className='f-center'>
-          <Empty description={t('conversation.history.noHistory')} />
+        <div className='size-full flex flex-col items-center justify-center gap-2 text-xs text-foreground-tertiary'>
+          <MessagesSquare size={24} strokeWidth={1.5} />
+          <span>{t('conversation.history.noHistory')}</span>
         </div>
       </FlexFullContainer>
     );
@@ -229,8 +230,9 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ colla
   if (activeTab === 'scheduled' && filteredScheduledGroups.length === 0 && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
-        <div className='f-center'>
-          <Empty icon={null} description={t('conversation.history.noScheduledTask')} className='mt-80px' />
+        <div className='size-full flex flex-col items-center justify-center gap-2 text-xs text-foreground-tertiary'>
+          <ClipboardList size={24} strokeWidth={1.5} />
+          <span>{t('conversation.history.noScheduledTask')}</span>
         </div>
       </FlexFullContainer>
     );
