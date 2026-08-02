@@ -27,11 +27,8 @@ type GuidInputCardProps = {
   placeholder: string;
 
   // Styling
-  isInputActive: boolean;
   isFileDragging: boolean;
-  activeBorderColor: string;
   inactiveBorderColor: string;
-  activeShadow: string;
   dragHandlers: Record<string, any>;
 
   // Mention state
@@ -67,11 +64,8 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   onBlur,
   onSelect,
   placeholder,
-  isInputActive,
   isFileDragging,
-  activeBorderColor,
   inactiveBorderColor,
-  activeShadow,
   dragHandlers,
   mentionOpen,
   mentionSelectorBadge,
@@ -134,7 +128,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease, border-color 0.25s ease, border-width 0.25s ease',
-        boxShadow: isInputActive ? `${activeShadow}, var(--shadow-soft)` : undefined,
         ...(isFileDragging
           ? {
               borderColor: 'var(--brand)',
@@ -142,7 +135,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
             }
           : {
               borderWidth: '1px',
-              borderColor: isInputActive ? activeBorderColor : inactiveBorderColor,
+              borderColor: inactiveBorderColor,
             }),
       }}
       {...dragHandlers}

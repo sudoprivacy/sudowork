@@ -68,7 +68,7 @@ const GuidPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { closeAllTabs, openTab } = useConversationTabs();
-  const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
+  const { inactiveBorderColor, activeShadow } = useInputFocusRing();
   const { isEnterprise } = useAppMode();
   const { user } = useAuth();
 
@@ -711,11 +711,8 @@ const GuidPage: React.FC = () => {
             setCursorPosition(target.selectionStart);
           }}
           placeholder={`${mention.selectedAgentLabel}, ${typewriterPlaceholder || t('conversation.welcome.placeholder')}`}
-          isInputActive={guidInput.isInputFocused}
           isFileDragging={guidInput.isFileDragging}
-          activeBorderColor={activeBorderColor}
           inactiveBorderColor={inactiveBorderColor}
-          activeShadow={activeShadow}
           dragHandlers={guidInput.dragHandlers}
           mentionOpen={mention.mentionOpen}
           mentionSelectorBadge={

@@ -101,9 +101,7 @@ const SendBox: React.FC<{
   const [isLoading, setIsLoading] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isSingleLine, setIsSingleLine] = useState(!defaultMultiLine);
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const isInputActive = isInputFocused;
-  const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
+  const { inactiveBorderColor } = useInputFocusRing();
   const containerRef = useRef<HTMLDivElement>(null);
   const singleLineWidthRef = useRef<number>(0);
   const measurementCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -465,11 +463,7 @@ const SendBox: React.FC<{
   });
   const handleInputFocus = useCallback(() => {
     handlePasteFocus();
-    setIsInputFocused(true);
   }, [handlePasteFocus]);
-  const handleInputBlur = useCallback(() => {
-    setIsInputFocused(false);
-  }, []);
 
   const sendMessageHandler = () => {
     const block = shouldBlockSubmit({ loading: Boolean(loading), localSendInFlight: isLoading, allowSubmitWhileRunning });
@@ -543,7 +537,6 @@ const SendBox: React.FC<{
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
           borderRadius: topAttached ? '0 0 20px 20px' : '20px',
-          boxShadow: isInputActive ? `${activeShadow}, var(--shadow-soft)` : undefined,
           ...(isFileDragging
             ? {
                 backgroundColor: 'var(--brand-surface)',
@@ -554,7 +547,7 @@ const SendBox: React.FC<{
             : {
                 borderWidth: '1px',
                 borderTopWidth: topAttached ? 0 : '1px',
-                borderColor: isInputActive ? activeBorderColor : inactiveBorderColor,
+                borderColor: inactiveBorderColor,
               }),
         }}
         {...dragHandlers}
@@ -665,7 +658,6 @@ const SendBox: React.FC<{
             onPaste={onPaste}
             onContextMenu={handleContextMenu}
             onFocus={handleInputFocus}
-            onBlur={handleInputBlur}
             {...compositionHandlers}
             autoSize={isSingleLine ? false : { minRows: 2, maxRows: 5 }}
             onKeyDown={createKeyDownHandler(sendMessageHandler, (event) => {
