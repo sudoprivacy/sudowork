@@ -148,8 +148,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
         </div>
       </Tooltip>
       {showTokenUsageBadge && totalTokens && (
-        <Tooltip content={usageTooltip}>
-          <div className='ml-1 max-w-full truncate rounded-md border border-border bg-fill-shallow px-1.5 py-0.5 text-11px leading-18px text-foreground-secondary'>
+          <div className='ml-1 max-w-full truncate text-11px leading-18px text-foreground-secondary'>
             {t('messages.tokenUsageSummary', { defaultValue: '{{total}} tokens', total: totalTokens })}
             {points ? ` · ${t('messages.tokenUsagePointsShort', { defaultValue: '{{value}} points', value: points })}` : ''}
             {inputTokens && outputTokens ? ` · ${t('messages.tokenUsageInOut', { defaultValue: 'in {{input}} / out {{output}}', input: inputTokens, output: outputTokens })}` : ''}
@@ -157,7 +156,6 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
             {cachedReadTokens ? ` · ${t('messages.tokenUsageCacheReadShort', { defaultValue: 'cache {{value}}', value: cachedReadTokens })}` : ''}
             {cachedWriteTokens ? ` · ${t('messages.tokenUsageCacheWriteShort', { defaultValue: 'write {{value}}', value: cachedWriteTokens })}` : ''}
           </div>
-        </Tooltip>
       )}
     </div>
   );

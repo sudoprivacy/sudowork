@@ -181,7 +181,6 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
               // 助手消息使用卡片语义色
               'rounded-2xl border border-solid border-border bg-card p-8px text-card-foreground': !isUserMessage,
               // 流式输出时添加红色闪烁边框
-              'streaming-message': isStreaming && !isUserMessage,
             })}
           >
             {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}

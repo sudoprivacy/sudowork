@@ -4,37 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import classNames from 'classnames';
-import sudoclawProDark from '@/renderer/assets/sudoclaw_transparent_large.png';
+import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-const sudoclawProWhite = sudoclawProDark;
-
-const isDarkMode = () => {
-  if (typeof document === 'undefined') return false;
-  return document.documentElement.getAttribute('data-theme') === 'dark';
-};
-
-const MessageLoadingIndicator: React.FC = () => {
-  const [darkMode, setDarkMode] = React.useState(() => isDarkMode());
-
-  React.useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setDarkMode(isDarkMode());
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
-
-  const streamingAvatar = darkMode ? sudoclawProDark : sudoclawProWhite;
+function MessageLoadingIndicator() {
+  const { t } = useTranslation();
 
   return (
-    <div className={classNames('min-w-0 flex w-full message-item [&>div]:max-w-full m-t-10px max-w-full md:max-w-800px mx-auto group justify-start')}>
-      <div className='flex items-center text-foreground-secondary'>
-        <img src={streamingAvatar} alt='AI Loading Avatar' className='loading w-40px h-40px max-w-none object-contain' />
+    <div className='min-w-0 flex w-full message-item m-t-10px max-w-full md:max-w-800px mx-auto justify-start'>
+      <div className='flex items-center gap-2 text-foreground-secondary'>
+        <Loader2 className='w-5 h-5 animate-spin' />
+        <span className='text-sm'>{t('messages.processing')}</span>
       </div>
     </div>
   );
-};
+}
 
 export default MessageLoadingIndicator;
