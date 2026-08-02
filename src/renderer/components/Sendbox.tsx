@@ -612,7 +612,7 @@ const SendBox: React.FC<{
         </div>
         <div className={isSingleLine ? 'flex items-center gap-2 w-full min-w-0 overflow-hidden' : 'w-full overflow-hidden'}>
           {isSingleLine && (
-            <div className='flex-shrink-0 sendbox-tools flex items-center'>
+            <div className='shrink-0 sendbox-tools flex items-center'>
               {tools}
               {skillTriggerButton}
             </div>
@@ -631,7 +631,7 @@ const SendBox: React.FC<{
             disabled={disabled}
             value={input}
             placeholder={placeholder}
-            className='pl-0 pr-0 !b-none focus:shadow-none m-0 !bg-transparent !focus:bg-transparent !hover:bg-transparent lh-[20px] !resize-none text-14px'
+            className='pl-0 pr-0 !b-none focus:shadow-none m-0 bg-transparent! !focus:bg-transparent !hover:bg-transparent lh-[20px] resize-none! text-14px'
             style={{
               width: isSingleLine ? 'auto' : '100%',
               flex: isSingleLine ? 1 : 'none',

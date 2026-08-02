@@ -65,7 +65,7 @@ export default function PromptTemplates({ visible, scenarios, onSelectPrompt }: 
       {activeCategory && currentCategory && (
         <div className='flex flex-wrap gap-2 mt-2 animate-fade-in animate-duration-400 animate-ease-out'>
           {currentCategory.prompts.map((prompt) => (
-            <Button key={prompt.labelKey} size='small' shape='square' className='!border !border-border' onClick={() => onSelectPrompt(t(prompt.contentKey))}>
+            <Button key={prompt.labelKey} size='small' shape='square' className='border! border-border!' onClick={() => onSelectPrompt(t(prompt.contentKey))}>
               {t(prompt.labelKey)}
             </Button>
           ))}
