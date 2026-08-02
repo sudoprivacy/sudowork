@@ -363,9 +363,11 @@ export class AcpConnection {
     await transport.connect();
     this.transport = transport;
 
-    // auth-proxy is token-only, but keep the token↔pid map for revoke-on-disconnect.
-    if (this.proxyToken && transport.pid) {
-      registerToken(this.proxyToken, transport.pid);
+    // auth-proxy is token-only: the token MUST be registered for the agent's
+    // proxied calls to pass isValidToken. os_pid is only the bookkeeping value
+    // for revoke-on-disconnect, so register even when nexus returns no pid.
+    if (this.proxyToken) {
+      registerToken(this.proxyToken, transport.pid ?? 0);
     }
 
     await this.initialize();

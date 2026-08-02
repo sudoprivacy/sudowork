@@ -13,6 +13,7 @@
  */
 
 import type { ChildProcess } from 'child_process';
+import { StringDecoder } from 'string_decoder';
 import type { AcpMessage, AcpIncomingMessage } from '@/types/acpTypes';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import { killChild } from './utils';
@@ -300,6 +301,9 @@ export class GrpcAcpTransport implements AcpTransport {
       this._connected = true;
       void this.readStdout();
     } catch (error) {
+      this.client?.close();
+      this.client = null;
+      this._connected = false;
       const err = error instanceof Error ? error : new Error(`nexus start_session failed: ${error}`);
       this.options.events.onSetupError(err);
       throw err;
@@ -324,6 +328,9 @@ export class GrpcAcpTransport implements AcpTransport {
    */
   private async readStdout(): Promise<void> {
     const stdoutPath = `/proc/${this.sessionId}/fd/1`;
+    // StringDecoder holds an incomplete trailing multibyte sequence across reads,
+    // so a UTF-8 char split between two StreamReadAt chunks is not corrupted.
+    const decoder = new StringDecoder('utf8');
     let offset = '0';
     let buffer = '';
     while (this._connected && this.client) {
@@ -335,7 +342,7 @@ export class GrpcAcpTransport implements AcpTransport {
         return;
       }
       if (res.data.length > 0) {
-        buffer += res.data.toString('utf-8');
+        buffer += decoder.write(res.data);
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
         for (const line of lines) {
