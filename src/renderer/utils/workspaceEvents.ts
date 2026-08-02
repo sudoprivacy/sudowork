@@ -10,6 +10,7 @@ export const WORKSPACE_HAS_FILES_EVENT = 'sudowork-workspace-has-files';
 
 export interface WorkspaceStateDetail {
   collapsed: boolean;
+  previewActive?: boolean;
 }
 
 export interface WorkspaceHasFilesDetail {
@@ -22,9 +23,9 @@ export function dispatchWorkspaceToggleEvent() {
   window.dispatchEvent(new CustomEvent(WORKSPACE_TOGGLE_EVENT));
 }
 
-export function dispatchWorkspaceStateEvent(collapsed: boolean) {
+export function dispatchWorkspaceStateEvent(collapsed: boolean, previewActive?: boolean) {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent<WorkspaceStateDetail>(WORKSPACE_STATE_EVENT, { detail: { collapsed } }));
+  window.dispatchEvent(new CustomEvent<WorkspaceStateDetail>(WORKSPACE_STATE_EVENT, { detail: { collapsed, previewActive } }));
 }
 
 /**

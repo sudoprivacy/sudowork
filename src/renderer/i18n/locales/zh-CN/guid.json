@@ -1,15 +1,55 @@
 {
   "promptTemplates": {
     "title": "常用场景",
-    "scenarios": {
-      "sourcePrice": "寻源问价",
-      "sourcePriceContent": "我需要采购【品目/服务名称】，请帮我：\n①梳理国内主流供应商及品牌，给出优劣对比；\n②查询近期同类项目市场成交价格区间；\n③评估主要供应商的资信情况，有无不良记录或风险信号。",
-      "preBidCheck": "发标前体检",
-      "preBidCheckContent": "请对以下招标文件做发标前合规体检，重点检查：\n①技术参数是否存在品牌倾向或排他性条款；\n②资质条件门槛是否过高或不合规；\n③评分办法是否公平合理；\n④有无可能引发投诉或废标的条款风险。\n\n【请粘贴招标文件内容，或上传文件】",
-      "preAwardVerify": "定标前核查",
-      "preAwardVerifyContent": "请对拟定标供应商进行定标前尽调，核查内容：\n①申报业绩的真实性与合规性；\n②关键人员资质证书的有效性；\n③与其他投标人是否存在关联关系或串标嫌疑；\n④报价合理性分析，有无低价倾销或围标风险。\n\n供应商名称：\n【请上传投标文件或粘贴关键信息】",
-      "controlPrice": "控制价测算",
-      "controlPriceContent": "请帮我测算以下采购项目的合理控制价，结合历史成交数据、当前市场行情及成本构成，给出建议价格区间和测算依据。\n\n采购品目：\n技术参数：\n采购数量：\n预算来源："
+    "categories": {
+      "coding": "编程",
+      "writing": "写作",
+      "translation": "翻译",
+      "analysis": "分析",
+      "creative": "创意",
+      "learning": "学习"
+    },
+    "coding": {
+      "writeScript": "帮我写一个脚本",
+      "writeScriptContent": "帮我写一个 Python 脚本，用于...",
+      "codeReview": "帮我 Review 代码",
+      "codeReviewContent": "请帮我 review 以下代码，指出潜在问题并给出优化建议：\n\n```\n// 粘贴代码\n```",
+      "debug": "帮我调试报错",
+      "debugContent": "我遇到了以下报错，请帮我分析原因并给出解决方案：\n\n错误信息：",
+      "explain": "解释这段代码",
+      "explainContent": "请解释以下代码的工作原理，用简单易懂的方式说明：\n\n```\n// 粘贴代码\n```"
+    },
+    "writing": {
+      "article": "帮我撰写文章",
+      "articleContent": "请帮我撰写一篇关于...的文章，要求...",
+      "polish": "润色一段文字",
+      "polishContent": "请帮我润色以下文字，使其更加专业流畅：\n\n",
+      "email": "帮我写封邮件",
+      "emailContent": "请帮我写一封邮件，主题是...，收件人是..."
+    },
+    "translation": {
+      "toEnglish": "翻译为英文",
+      "toEnglishContent": "请将以下内容翻译为英文，保持原文风格：\n\n",
+      "toChinese": "翻译为中文",
+      "toChineseContent": "请将以下内容翻译为中文，要求信达雅：\n\n"
+    },
+    "analysis": {
+      "data": "分析数据趋势",
+      "dataContent": "请分析以下数据，找出关键趋势和洞察：\n\n",
+      "summarize": "总结要点",
+      "summarizeContent": "请总结以下内容的要点，用简洁的 bullet points 列出：\n\n"
+    },
+    "creative": {
+      "brainstorm": "头脑风暴",
+      "brainstormContent": "请帮我就...这个主题进行头脑风暴，给出 10 个创意想法",
+      "naming": "取名字",
+      "namingContent": "请帮我为...取一个好听且有意义的名字，给出 5 个备选"
+    },
+    "learning": {
+      "explain": "解释一个概念",
+      "explainContent": "请用通俗易懂的方式解释...这个概念，并举例说明",
+      "compare": "对比两个事物",
+      "compareContent": "请对比...和...的区别，从原理、优缺点、适用场景等方面分析"
     }
   },
   "skillSelectorTitle": "技能",

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Dropdown, Message, Modal, Tag } from '@arco-design/web-react';
-import { Plus, Shield, Upload } from 'lucide-react';
+import { Button, Message, Modal, Tag } from '@arco-design/web-react';
+import { Plus, Shield } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -21,8 +21,6 @@ import { useAddOrUpdateMessage, useUpdateMessageList } from '@/renderer/messages
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/fileSelection';
-import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
-import BdpanImportFilePicker from '@/renderer/components/base/BdpanImportFilePicker';
 import FilePreview from '@/renderer/components/FilePreview';
 import HorizontalFileList from '@/renderer/components/HorizontalFileList';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
@@ -907,8 +905,6 @@ const AcpSendBox: React.FC<{
   const { openFileSelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
   });
-  const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
-  const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [pwdLoginModal, setPwdLoginModal] = useState<{ visible: boolean; title: string }>({ visible: false, title: '' });
   // /login <title> — user-triggered auto-login via saved credentials.
   // Intercepted in onSendHandler before the text hits the agent, so the
@@ -1041,40 +1037,10 @@ const AcpSendBox: React.FC<{
         lockMultiLine={true}
         tools={
           <div className='flex items-center gap-3'>
-            <Dropdown
-              trigger='click'
-              popupVisible={fileMenuOpen}
-              onVisibleChange={setFileMenuOpen}
-              droplist={
-                <div className='flex flex-col gap-2px p-6px rd-12px border border-border bg-popover text-popover-foreground shadow-lg' style={{ minWidth: 200 }}>
-                  <div
-                    className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px transition-colors hover:bg-accent active:bg-fill-deep'
-                    onClick={() => {
-                      setFileMenuOpen(false);
-                      openFileSelector();
-                    }}
-                  >
-                    <Upload size={16} color='var(--foreground-secondary)' style={{ lineHeight: 0 }} />
-                    <span>{t('conversation.welcome.downloadLocalFile')}</span>
-                  </div>
-                  <div
-                    className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px transition-colors hover:bg-accent active:bg-fill-deep'
-                    onClick={() => {
-                      setFileMenuOpen(false);
-                      setBdpanSelectorVisible(true);
-                    }}
-                  >
-                    <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
-                    <span>{t('conversation.welcome.downloadBdpanFile')}</span>
-                  </div>
-                </div>
-              }
-            >
-              <span className='relative'>
-                <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={18} className='text-foreground-secondary' />} />
-                {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-primary-foreground font-600 pointer-events-none'>{selectedFileCount}</span>}
-              </span>
-            </Dropdown>
+            <span className='relative'>
+              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={18} className='text-foreground-secondary' />} onClick={openFileSelector} />
+              {selectedFileCount > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-primary-foreground font-600 pointer-events-none'>{selectedFileCount}</span>}
+            </span>
             <AgentModeSelector backend={backend} conversationId={conversation_id} compact initialMode={sessionMode} compactLeadingIcon={<Shield />} modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })} compactLabelPrefix={t('agentMode.permission')} />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
           </div>
@@ -1163,14 +1129,6 @@ const AcpSendBox: React.FC<{
           emitter.emit('acp.selected.file.append', [item]);
         }}
       ></SendBox>
-      <BdpanImportFilePicker
-        visible={bdpanSelectorVisible}
-        onCancel={() => setBdpanSelectorVisible(false)}
-        onConfirm={(paths) => {
-          setBdpanSelectorVisible(false);
-          appendSelectedFiles(paths);
-        }}
-      />
       <PwdLoginApprovalModal
         visible={pwdLoginModal.visible}
         title={pwdLoginModal.title}

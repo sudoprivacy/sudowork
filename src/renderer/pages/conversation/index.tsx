@@ -164,7 +164,13 @@ const ChatConversationIndex: React.FC = () => {
     })();
   }, [data?.id, data?.extra]);
 
-  if (isLoading) return <Spin loading></Spin>;
+  if (isLoading) {
+    return (
+      <div className='flex flex-1 items-center justify-center'>
+        <Spin loading />
+      </div>
+    );
+  }
   return <ChatConversation conversation={data}></ChatConversation>;
 };
 

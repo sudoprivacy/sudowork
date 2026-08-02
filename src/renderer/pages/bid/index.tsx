@@ -1,4 +1,4 @@
-import { FileSearch, ListChecks, ShieldCheck, Sparkles, WandSparkles, Workflow } from 'lucide-react';
+import { FileCheck2, FileSearch, ListChecks, Sparkles, Workflow } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -18,7 +18,7 @@ export default function BidPage() {
       description: t('common.bid.outlineDescription'),
     },
     {
-      icon: WandSparkles,
+      icon: FileCheck2,
       title: t('common.bid.generateTitle'),
       description: t('common.bid.generateDescription'),
     },
@@ -63,7 +63,7 @@ export default function BidPage() {
 
       <section className='py-7'>
         <h3 className='mb-5 mt-0 flex items-center gap-2 text-16px text-foreground font-600'>
-          <ShieldCheck size={18} className='text-brand' />
+          <FileCheck2 size={18} className='text-brand' />
           {t('common.bid.capabilities')}
         </h3>
         <div className='flex flex-wrap items-center gap-2'>

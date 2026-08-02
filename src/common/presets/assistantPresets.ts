@@ -56,6 +56,28 @@ export type AssistantPreset = {
 
 export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
+    id: 'gewu',
+    avatar: '🔍',
+    presetAgentType: 'scode',
+    resourceDir: 'assistant/gewu',
+    ruleFiles: {
+      'en-US': 'gewu.md',
+      'zh-CN': 'gewu.md',
+    },
+    nameI18n: {
+      'en-US': 'Gewu',
+      'zh-CN': '格物',
+    },
+    descriptionI18n: {
+      'en-US': 'Digital procurement risk-control officer for state-owned enterprise buyers. Verifies supplier qualifications, bids, and related-party risks before award — reports every finding it can verify.',
+      'zh-CN': '服务国企采购方的数字员工，懂全中国的招投标。买明白：买什么型号、花多少钱、跟谁买、对方干不干净。把好关：定标前核查业绩、人员、关联方、报价，风险提前亮明，能查到的，不漏报。',
+    },
+    promptsI18n: {
+      'en-US': ['Check whether this supplier has any related-party or collusive bidding risk', 'Verify if the performance records in this bid document are real', 'Is this quote reasonable compared to market price?'],
+      'zh-CN': ['帮我核查一下这几家投标方是否存在关联关系或围标嫌疑', '核实一下这份投标文件里的业绩证明是否真实', '这个报价跟市场行情比是否合理'],
+    },
+  },
+  {
     id: 'cowork',
     avatar: 'cowork.svg',
     presetAgentType: 'scode',

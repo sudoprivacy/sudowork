@@ -29,10 +29,12 @@ import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import PageWrapper from '@/renderer/components/base/PageWrapper';
+import type { BrandPromptScenario } from './utils/constants';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
 import { CUSTOM_AVATAR_IMAGE_MAP } from './utils/constants';
-import { AgentPillBarSkeleton } from './components/GuidSkeleton';
+import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkeleton';
+import AssistantSelectionArea from './components/AssistantSelectionArea';
 import GuidActionRow from './components/GuidActionRow';
 import AgentPillBar from './components/AgentPillBar';
 import GuidInputCard from './components/GuidInputCard';
@@ -196,6 +198,8 @@ const GuidPage: React.FC = () => {
     return uniqueItems;
   }, [installedSkills, agentEnabledSkills, isEnterprise]);
 
+  const brandDefaultAgentId = (brand as { defaultAgentId?: string }).defaultAgentId;
+
   // --- Resolve selected assistant info for header ---
   const selectedAssistantConfig = useMemo(() => {
     // Show assistant header for any assistant (preset or user-created custom)
@@ -207,16 +211,17 @@ const GuidPage: React.FC = () => {
     const presetAgents = agentSelection.customAgents.filter((a) => a.isPreset);
     const customAgents = agentSelection.customAgents.filter((a) => !a.isPreset);
 
-    // This consumer build exposes only Gewu among builtin presets. It still uses
-    // the legacy flat preset store, so synthesize its display metadata when the
-    // directory-based AssistantManager has not returned it yet.
-    const allowedBuiltinPresets = presetAgents.filter((agent) => agent.id === 'builtin-gewu');
+    // When a brand default agent is configured, expose only that builtin preset;
+    // in free-pick mode expose all builtin presets so any selected one can show its header.
+    const allowedBuiltinPresets = brandDefaultAgentId ? presetAgents.filter((agent) => agent.id === `builtin-${brandDefaultAgentId}`) : presetAgents.filter((agent) => agent.id.startsWith('builtin-'));
     const hubInstalledPresets = presetAgents.filter((agent) => !agent.id.startsWith('builtin-'));
     const matchedAgent = [...allowedBuiltinPresets, ...hubInstalledPresets, ...customAgents].find((agent) => agent.id === customAgentId);
     if (matchedAgent) return matchedAgent;
 
-    if (customAgentId === 'builtin-gewu') {
-      const preset = ASSISTANT_PRESETS.find((item) => item.id === 'gewu');
+    // Synthesize display metadata from ASSISTANT_PRESETS for any brand-locked builtin
+    // that hasn't yet been written to the directory-based AssistantManager store.
+    if (brandDefaultAgentId && customAgentId === `builtin-${brandDefaultAgentId}`) {
+      const preset = ASSISTANT_PRESETS.find((item) => item.id === brandDefaultAgentId);
       if (preset) {
         return {
           id: customAgentId,
@@ -235,7 +240,7 @@ const GuidPage: React.FC = () => {
     }
 
     return null;
-  }, [agentSelection.selectedAgentInfo, agentSelection.customAgents]);
+  }, [agentSelection.selectedAgentInfo, agentSelection.customAgents, brandDefaultAgentId]);
 
   // Resolve avatar for selected assistant header
   const selectedAssistantAvatar = useMemo(() => {
@@ -270,10 +275,12 @@ const GuidPage: React.FC = () => {
   }, [selectedAssistantConfig, localeKey]);
 
   // Determine if model selector should be in Gemini mode
-  // const isGeminiMode = (agentSelection.selectedAgent === 'gemini' && !agentSelection.isPresetAgent) || (agentSelection.isPresetAgent && agentSelection.currentEffectiveAgentInfo.agentType === 'gemini' && agentSelection.currentEffectiveAgentInfo.isAvailable);
+  // const isGeminiMode = ...
 
-  // Whether we are in selected assistant mode (preset or user-created custom)
-  const isAssistantMode = selectedAssistantConfig !== null;
+  const isLockedBrandAgent = !!brandDefaultAgentId && agentSelection.selectedAgentKey === `custom:builtin-${brandDefaultAgentId}`;
+  // Gewu is the default runtime preset, not a separate landing page. Other
+  // explicitly selected assistants keep the existing assistant detail view.
+  const isAssistantLandingMode = selectedAssistantConfig !== null && !isLockedBrandAgent;
 
   useEffect(() => {
     if (!isElectronDesktop()) return;
@@ -475,24 +482,22 @@ const GuidPage: React.FC = () => {
     [agentSelection, guidInput, mention]
   );
 
-  // const handleSelectAssistant = useCallback(
-  //   (assistantId: string) => {
-  //     agentSelection.setSelectedAgentKey(assistantId);
-  //     mention.setMentionOpen(false);
-  //     mention.setMentionQuery(null);
-  //     mention.setMentionSelectorOpen(false);
-  //     mention.setMentionActiveIndex(0);
-
-  //     // Pre-fill input with defaultInitPrompt if available
-  //     // assistantId format is "custom:xxx" or "builtin-xxx", need to strip prefix for lookup
-  //     const lookupId = assistantId.startsWith('custom:') ? assistantId.slice(7) : assistantId;
-  //     const assistantConfig = agentSelection.customAgents.find((a) => a.id === lookupId);
-  //     if (assistantConfig?.defaultInitPrompt) {
-  //       guidInput.setInput(assistantConfig.defaultInitPrompt);
-  //     }
-  //   },
-  //   [agentSelection, guidInput, mention]
-  // );
+  const handleSelectAssistant = useCallback(
+    (assistantId: string) => {
+      agentSelection.setSelectedAgentKey(assistantId);
+      mention.setMentionOpen(false);
+      mention.setMentionQuery(null);
+      mention.setMentionSelectorOpen(false);
+      mention.setMentionActiveIndex(0);
+      // Pre-fill input with defaultInitPrompt if available
+      const lookupId = assistantId.startsWith('custom:') ? assistantId.slice(7) : assistantId;
+      const assistantConfig = agentSelection.customAgents.find((a) => a.id === lookupId);
+      if (assistantConfig?.defaultInitPrompt) {
+        guidInput.setInput(assistantConfig.defaultInitPrompt);
+      }
+    },
+    [agentSelection, guidInput, mention]
+  );
 
   // Handle back button: deselect assistant and return to normal view
   const handleBackFromAssistant = useCallback(() => {
@@ -615,15 +620,19 @@ const GuidPage: React.FC = () => {
       effectiveModeAgent={agentSelection.currentEffectiveAgentInfo.agentType}
       selectedMode={agentSelection.selectedMode}
       onModeSelect={agentSelection.setSelectedMode}
-      isPresetAgent={agentSelection.isPresetAgent}
+      isPresetAgent={agentSelection.isPresetAgent && !isLockedBrandAgent}
       selectedAgentInfo={agentSelection.selectedAgentInfo}
       customAgents={agentSelection.customAgents}
       localeKey={localeKey}
-      onClosePresetTag={() => {
-        agentSelection.setSelectedAgentKey('gemini');
-        guidInput.setInput('');
-        prefilledAssistantRef.current = null;
-      }}
+      onClosePresetTag={
+        isLockedBrandAgent
+          ? undefined
+          : () => {
+              agentSelection.setSelectedAgentKey('gemini');
+              guidInput.setInput('');
+              prefilledAssistantRef.current = null;
+            }
+      }
       skillTriggerNode={skillTriggerNode}
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
@@ -639,7 +648,7 @@ const GuidPage: React.FC = () => {
       <div className='grow shrink-0' />
       {/* Normal/Assistant conversation area */}
       <div className='w-full px-4 box-border mx-auto mt-[-5vh]'>
-        {isAssistantMode ? (
+        {isAssistantLandingMode ? (
           /* ========== Selected Assistant Mode ========== */
           <>
             {/* Assistant Header: back + avatar + name + edit + agent dropdown */}
@@ -696,22 +705,24 @@ const GuidPage: React.FC = () => {
             <p className='mb-6 text-center text-2xl font-semibold text-foreground' onClick={handleBackToChat}>
               {t('conversation.welcome.title', { brandName: brand.displayName })}
             </p>
-            {agentSelection.availableAgents === undefined ? (
-              <AgentPillBarSkeleton />
-            ) : agentSelection.availableAgents.length > 0 ? (
-              <AgentPillBar
-                availableAgents={agentSelection.availableAgents}
-                selectedAgentKey={agentSelection.selectedAgentKey}
-                getAgentKey={agentSelection.getAgentKey}
-                onSelectAgent={handleSelectAgentFromPillBar}
-                sessionMode={agentSelection.sessionMode}
-                onSessionModeChange={agentSelection.setSessionMode}
-                isEnterprise={isEnterprise}
-                localModeAvailable={user?.localModeAvailable}
-              />
-            ) : null}
+            {!isLockedBrandAgent &&
+              (agentSelection.availableAgents === undefined ? (
+                <AgentPillBarSkeleton />
+              ) : agentSelection.availableAgents.length > 0 ? (
+                <AgentPillBar
+                  availableAgents={agentSelection.availableAgents}
+                  selectedAgentKey={agentSelection.selectedAgentKey}
+                  getAgentKey={agentSelection.getAgentKey}
+                  onSelectAgent={handleSelectAgentFromPillBar}
+                  sessionMode={agentSelection.sessionMode}
+                  onSessionModeChange={agentSelection.setSessionMode}
+                  isEnterprise={isEnterprise}
+                  localModeAvailable={user?.localModeAvailable}
+                />
+              ) : null)}
             <PromptTemplates
-              visible={!agentSelection.isPresetAgent}
+              visible={!agentSelection.isPresetAgent || isLockedBrandAgent}
+              scenarios={(brand as { defaultPromptScenarios?: BrandPromptScenario[] }).defaultPromptScenarios}
               onSelectPrompt={(content) => {
                 guidInput.setInput(content);
                 guidInput.handleTextareaFocus();
@@ -755,8 +766,8 @@ const GuidPage: React.FC = () => {
           actionRow={actionRowNode}
         />
         {/* ========== Bottom Section ========== */}
-        {isAssistantMode ? (
-          /* Suggestion prompts for selected assistant */
+        {selectedAssistantConfig && !isLockedBrandAgent ? (
+          /* Suggestion prompts for the active assistant, including default Gewu */
           assistantPrompts.length > 0 && (
             <div className='mt-16px w-full animate-fade-in animate-duration-400 animate-ease-out'>
               <div className='mb-8px text-13px text-foreground-tertiary'>{t('guid.trySuggestionPrompts', { defaultValue: 'Try these clickable example prompts:' })}</div>
@@ -777,13 +788,14 @@ const GuidPage: React.FC = () => {
             </div>
           )
         ) : (
-          /* Assistant selection grid */
+          /* Assistant selection grid — only in free-pick mode */
           <>
-            {/* {agentSelection.availableAgents === undefined ? (
-              <AssistantsSkeleton />
-            ) : (
-              <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} availableAgents={agentSelection.availableAgents} sessionMode={agentSelection.sessionMode} isEnterprise={isEnterprise} />
-            )} */}
+            {!brandDefaultAgentId &&
+              (agentSelection.availableAgents === undefined ? (
+                <AssistantsSkeleton />
+              ) : (
+                <AssistantSelectionArea customAgents={agentSelection.customAgents} localeKey={localeKey} onSelectAssistant={handleSelectAssistant} availableAgents={agentSelection.availableAgents} sessionMode={agentSelection.sessionMode} isEnterprise={isEnterprise} />
+              ))}
           </>
         )}
       </div>

@@ -1,15 +1,55 @@
 {
   "promptTemplates": {
     "title": "よく使うシナリオ",
-    "scenarios": {
-      "sourcePrice": "調達先・価格調査",
-      "sourcePriceContent": "I need to procure [item/service name]. Please help me:\n① Identify mainstream suppliers and brands with a pros/cons comparison;\n② Research recent transaction price ranges for similar procurements;\n③ Assess the creditworthiness of major suppliers and flag any risk signals or red flags.",
-      "preBidCheck": "入札前ヘルスチェック",
-      "preBidCheckContent": "Please conduct a pre-bid compliance review of the following tender document, focusing on:\n① Whether technical specs show brand preference or exclusionary clauses;\n② Whether qualification requirements are disproportionate or non-compliant;\n③ Whether the scoring criteria are fair and reasonable;\n④ Any clauses that may trigger complaints or void the bidding process.\n\n[Please paste the tender document content or upload the file]",
-      "preAwardVerify": "落札前審査",
-      "preAwardVerifyContent": "Please conduct a pre-award due diligence on the proposed winning supplier:\n① Authenticity and compliance of declared past performance;\n② Validity of key personnel qualifications and certificates;\n③ Whether the supplier has affiliations with other bidders or collusion risks;\n④ Bid price reasonableness — any dumping or bid-rigging concerns.\n\nSupplier name:\n[Please upload bid documents or paste key information]",
-      "controlPrice": "統制価格試算",
-      "controlPriceContent": "Please estimate a reasonable control price for the following procurement, based on historical transaction data, current market rates, and cost analysis. Provide a suggested price range and supporting rationale.\n\nItem to procure:\nTechnical specifications:\nQuantity:\nBudget source:"
+    "categories": {
+      "coding": "プログラミング",
+      "writing": "文章作成",
+      "translation": "翻訳",
+      "analysis": "分析",
+      "creative": "クリエイティブ",
+      "learning": "学習"
+    },
+    "coding": {
+      "writeScript": "スクリプトを書く",
+      "writeScriptContent": "Pythonスクリプトを書いてください。用途は...",
+      "codeReview": "コードレビュー",
+      "codeReviewContent": "以下のコードをレビューして、潜在的な問題を指摘し、改善案を提案してください：\n\n```\n// コードをここに貼り付け\n```",
+      "debug": "エラーのデバッグ",
+      "debugContent": "以下のエラーが発生しました。原因を分析し、解決策を教えてください：\n\nエラーメッセージ：",
+      "explain": "コードを解説",
+      "explainContent": "以下のコードの動作原理を分かりやすく説明してください：\n\n```\n// コードをここに貼り付け\n```"
+    },
+    "writing": {
+      "article": "記事を書く",
+      "articleContent": "...に関する記事を書いてください。要件は...",
+      "polish": "文章を推敲",
+      "polishContent": "以下の文章をより専門的で流暢になるように推敲してください：\n\n",
+      "email": "メールを書く",
+      "emailContent": "メールを書いてください。件名は...、宛先は..."
+    },
+    "translation": {
+      "toEnglish": "英語に翻訳",
+      "toEnglishContent": "以下の内容を英語に翻訳してください。原文のスタイルを維持してください：\n\n",
+      "toChinese": "中国語に翻訳",
+      "toChineseContent": "以下の内容を中国語に翻訳してください：\n\n"
+    },
+    "analysis": {
+      "data": "データ分析",
+      "dataContent": "以下のデータを分析し、主要なトレンドとインサイトを見つけてください：\n\n",
+      "summarize": "要点をまとめる",
+      "summarizeContent": "以下の内容の要点を簡潔な箇条書きでまとめてください：\n\n"
+    },
+    "creative": {
+      "brainstorm": "ブレインストーミング",
+      "brainstormContent": "...というテーマでブレインストーミングを行い、10個のクリエイティブなアイデアを出してください",
+      "naming": "ネーミング",
+      "namingContent": "...に良い名前を考えてください。5つの候補を挙げてください"
+    },
+    "learning": {
+      "explain": "概念を解説",
+      "explainContent": "...という概念を分かりやすく、例を挙げて説明してください",
+      "compare": "二つを比較",
+      "compareContent": "...と...の違いを、原理、メリット・デメリット、適用場面などの観点から分析してください"
     }
   },
   "skillSelectorTitle": "スキル",

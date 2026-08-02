@@ -7,7 +7,7 @@
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { ChevronLeft as ExpandLeft, ChevronRight as ExpandRight } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Group, Panel, type PanelSize } from 'react-resizable-panels';
+import { Group, Panel, type Layout, type LayoutChangedMeta, type PanelImperativeHandle, type PanelSize } from 'react-resizable-panels';
 
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import ResizableSeparator from '@/renderer/components/ResizableSeparator';
@@ -16,10 +16,8 @@ import { useStoredPanelLayout } from '@/renderer/hooks/useStoredPanelLayout';
 import { PreviewPanel, usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent } from '@/renderer/utils/workspaceEvents';
 
-const MIN_CHAT_RATIO = 25;
 const MIN_WORKSPACE_RATIO = 12;
 const MAX_WORKSPACE_RATIO = 50;
-const MIN_PREVIEW_RATIO = 20;
 const MIN_CHAT_PANEL_PX = 360;
 const MIN_PREVIEW_PANEL_PX = 340;
 const MIN_RIGHT_SIDER_PANEL_PX = 300;
@@ -75,8 +73,6 @@ const ChatLayout: React.FC<{
   const layout = useLayoutContext();
   const isMacRuntime = isMacEnvironment();
   const isWindowsRuntime = isWindowsEnvironment();
-  const previousSiderCollapsedRef = useRef<boolean | null>(null);
-  const previousPreviewOpenRef = useRef(false);
 
   const { isOpen: isPreviewOpen } = usePreviewContext();
 
@@ -104,11 +100,11 @@ const ChatLayout: React.FC<{
 
   useEffect(() => {
     if (!workspaceEnabled) {
-      dispatchWorkspaceStateEvent(true);
+      dispatchWorkspaceStateEvent(true, isPreviewOpen);
       return;
     }
-    dispatchWorkspaceStateEvent(rightSiderCollapsed);
-  }, [rightSiderCollapsed, workspaceEnabled]);
+    dispatchWorkspaceStateEvent(rightSiderCollapsed, isPreviewOpen);
+  }, [rightSiderCollapsed, workspaceEnabled, isPreviewOpen]);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -156,15 +152,10 @@ const ChatLayout: React.FC<{
     minRatio: MIN_WORKSPACE_RATIO,
     maxRatio: MAX_WORKSPACE_RATIO,
   });
-  const { defaultLayout: chatDefaultLayout, onLayoutChanged: onChatLayoutChanged } = useStoredPanelLayout({
-    storageKey: 'chat-preview-split-ratio',
-    primaryPanelId: 'chat',
-    secondaryPanelId: 'preview',
-    defaultRatio: 60,
-    minRatio: MIN_CHAT_RATIO,
-    maxRatio: 100 - MIN_PREVIEW_RATIO,
-  });
+
   const workspaceWidthRef = useRef<number | null>(null);
+  const previewPanelRef = useRef<PanelImperativeHandle | null>(null);
+  const previewRatioRef = useRef(50);
   const safeContainerWidth = Math.max(containerWidth, 1);
   const workspaceMinSizePx = Math.max(MIN_RIGHT_SIDER_PANEL_PX, safeContainerWidth * (MIN_WORKSPACE_RATIO / 100));
   const workspaceMaxSizePx = Math.max(workspaceMinSizePx, Math.min(rightSiderWidthOverride?.maxWidthPx ?? Number.POSITIVE_INFINITY, safeContainerWidth * (MAX_WORKSPACE_RATIO / 100)));
@@ -181,20 +172,17 @@ const ChatLayout: React.FC<{
   const restoredWorkspaceRatio = Math.max(workspaceMinRatio, Math.min(requestedWorkspaceRatio, workspaceMaxRatio));
   const restoredWorkspaceLayout = { main: 100 - restoredWorkspaceRatio, workspace: restoredWorkspaceRatio };
 
-  // Preview mode may collapse the left navigation, but it does not control Workspace visibility.
   useEffect(() => {
-    if (isPreviewOpen && !previousPreviewOpenRef.current) {
-      if (previousSiderCollapsedRef.current === null && typeof layout?.siderCollapsed !== 'undefined') {
-        previousSiderCollapsedRef.current = layout.siderCollapsed;
-      }
-      layout?.setSiderCollapsed?.(true);
-    } else if (!isPreviewOpen && previousPreviewOpenRef.current && previousSiderCollapsedRef.current !== null && layout?.setSiderCollapsed) {
-      layout.setSiderCollapsed(previousSiderCollapsedRef.current);
-      previousSiderCollapsedRef.current = null;
-    }
+    if (!isPreviewOpen) return;
+    const frame = requestAnimationFrame(() => previewPanelRef.current?.resize(`${previewRatioRef.current}%`));
+    return () => cancelAnimationFrame(frame);
+  }, [isPreviewOpen]);
 
-    previousPreviewOpenRef.current = isPreviewOpen;
-  }, [isPreviewOpen, layout]);
+  const onPreviewLayoutChanged = useCallback((panelLayout: Layout, meta: LayoutChangedMeta) => {
+    if (meta.isUserInteraction && Number.isFinite(panelLayout.preview)) {
+      previewRatioRef.current = panelLayout.preview;
+    }
+  }, []);
 
   const headerBlock = (
     <ArcoLayout.Header
@@ -220,47 +208,40 @@ const ChatLayout: React.FC<{
 
   const chatPanel = (
     <ArcoLayout.Content className='flex flex-col h-full'>
-      {!isPreviewOpen && headerBlock}
+      {headerBlock}
       <ArcoLayout.Content className='flex flex-col flex-1 bg-background overflow-hidden'>{props.children}</ArcoLayout.Content>
     </ArcoLayout.Content>
   );
 
-  const mainPanel = isPreviewOpen ? (
-    <div className='flex flex-col h-full min-w-0'>
-      <div className='flex shrink-0 bg-background!'>{headerBlock}</div>
-      <Group className='flex-1 min-h-0' defaultLayout={chatDefaultLayout} onLayoutChanged={onChatLayoutChanged}>
-        <Panel id='chat' defaultSize='60%' minSize={`${MIN_CHAT_PANEL_PX}px`} className='flex flex-col min-w-0'>
-          {chatPanel}
-        </Panel>
-        <ResizableSeparator />
-        <Panel id='preview' defaultSize='40%' minSize={`${MIN_PREVIEW_PANEL_PX}px`} maxSize={`${100 - MIN_CHAT_RATIO}%`} className='min-w-0'>
-          <div className='preview-panel flex flex-col h-full py-1.5 pr-3 pl-2'>
-            <div className='h-full w-full overflow-hidden rounded-xl border border-border'>
-              <PreviewPanel />
-            </div>
-          </div>
-        </Panel>
-      </Group>
-    </div>
-  ) : (
-    chatPanel
-  );
+  const mainPanel = chatPanel;
 
   return (
     <ArcoLayout className='size-full'>
       <div ref={containerRef} className='flex flex-1 relative w-full overflow-hidden'>
-        <Group className='flex-1 min-w-0' defaultLayout={rightSiderCollapsed ? { main: 100 } : restoredWorkspaceLayout} onLayoutChanged={onWorkspaceLayoutChanged}>
-          <Panel id='main' minSize={`${isPreviewOpen ? MIN_CHAT_PANEL_PX + MIN_PREVIEW_PANEL_PX : MIN_CHAT_PANEL_PX}px`} className='min-w-0'>
+        <Group className='flex-1 min-w-0' defaultLayout={!isPreviewOpen && rightSiderCollapsed ? { main: 100 } : isPreviewOpen ? { main: 50, preview: 50 } : restoredWorkspaceLayout} onLayoutChanged={isPreviewOpen ? onPreviewLayoutChanged : onWorkspaceLayoutChanged}>
+          <Panel id='main' minSize={`${MIN_CHAT_PANEL_PX}px`} className='min-w-0'>
             {mainPanel}
           </Panel>
-          {workspaceEnabled && !rightSiderCollapsed && (
+          {(isPreviewOpen || (workspaceEnabled && !rightSiderCollapsed)) && (
             <>
               <ResizableSeparator isDisabled={isRightSiderWidthOverridden} />
-              <Panel id='workspace' defaultSize={`${restoredWorkspaceRatio}%`} minSize={`${workspaceMinSizePx}px`} maxSize={`${workspaceMaxSizePx}px`} groupResizeBehavior='preserve-pixel-size' onResize={onWorkspaceResize} className='h-full'>
-                <div className='bg-background! h-full overflow-hidden border-l border-border'>
-                  <ArcoLayout.Content className='h-full'>{props.sider}</ArcoLayout.Content>
-                </div>
-              </Panel>
+              {isPreviewOpen ? (
+                <Panel key='preview' id='preview' panelRef={previewPanelRef} defaultSize='50%' minSize={`${MIN_PREVIEW_PANEL_PX}px`} maxSize={`${workspaceMaxSizePx}px`} groupResizeBehavior='preserve-pixel-size' className='h-full'>
+                  <div className='bg-background! h-full overflow-hidden border-l border-border'>
+                    <div className='preview-panel flex flex-col h-full py-1.5 pr-3 pl-2 relative z-11 [-webkit-app-region:no-drag]'>
+                      <div className='h-full w-full overflow-hidden rounded-xl border border-border'>
+                        <PreviewPanel />
+                      </div>
+                    </div>
+                  </div>
+                </Panel>
+              ) : (
+                <Panel key='workspace' id='workspace' defaultSize={`${restoredWorkspaceRatio}%`} minSize={`${workspaceMinSizePx}px`} maxSize={`${workspaceMaxSizePx}px`} groupResizeBehavior='preserve-pixel-size' onResize={onWorkspaceResize} className='h-full'>
+                  <div className='bg-background! h-full overflow-hidden border-l border-border'>
+                    <ArcoLayout.Content className='h-full'>{props.sider}</ArcoLayout.Content>
+                  </div>
+                </Panel>
+              )}
             </>
           )}
         </Group>

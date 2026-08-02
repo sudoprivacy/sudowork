@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
+import brand from '@brand';
 import { ipcBridge } from '@/common';
 import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
 import { getPresetById } from '@/common/presets/presetResolver';
@@ -20,6 +21,12 @@ import { emitter } from '@/renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@/renderer/context/AuthContext';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { resolveGuidModelBackendKey } from '../utils/modelBackendKey';
+
+/**
+ * Brand-configured locked agent key, or null for free-pick mode.
+ * Set via brand.config.json `defaultAgentId` (e.g. "gewu" → "custom:builtin-gewu").
+ */
+const LOCKED_AGENT_KEY: string | null = (brand as { defaultAgentId?: string }).defaultAgentId ? `custom:builtin-${(brand as { defaultAgentId?: string }).defaultAgentId}` : null;
 
 // Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
 // 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取
@@ -207,9 +214,11 @@ type UseGuidAgentSelectionOptions = {
 export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const { isEnterprise } = useAppMode();
 
-  // Initial selected agent key: enterprise mode defaults to generic 'remote-agent'
+  // Initial selected agent key: enterprise mode defaults to generic 'remote-agent'.
+  // Consumer mode is locked to the built-in Gewu (格物) procurement risk-control assistant —
+  // there is no assistant picker in this build, so every session must start on it.
   const getInitialAgentKey = useCallback(() => {
-    return isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE;
+    return isEnterprise ? 'remote-agent' : (LOCKED_AGENT_KEY ?? DEFAULT_PRESET_AGENT_TYPE);
   }, [isEnterprise]);
 
   const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(() => getInitialAgentKey());
@@ -225,12 +234,10 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   const [selectedMode, _setSelectedMode] = useState<string>('default');
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
+  /** Set when the user arrives via ?assistant=<name>; cleared on resetSelection(). */
+  const urlPreselectedRef = useRef(false);
   const modelBackendKeyRef = useRef<string>(isEnterprise ? 'remote-agent' : DEFAULT_PRESET_AGENT_TYPE);
   const probedModelBackendsRef = useRef(new Set<string>());
-  // Track whether we've auto-selected first agent (enterprise mode case) to prevent infinite loops
-  const hasAutoSelectedAgentRef = useRef(false);
-  // Track the last availableAgents to detect mode changes
-  const lastAvailableAgentsKeyRef = useRef<string>('');
   const [acpCachedModels, setAcpCachedModels] = useState<Record<string, AcpModelInfo>>({});
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
 
@@ -347,16 +354,17 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
           console.error('Failed to save enterprise agent:', error);
         });
       }
-    } else {
-      // Consumer mode: reset to default preset if currently on remote-agent or custom
-      if (selectedAgentKeyRef.current === 'remote-agent' || selectedAgentKeyRef.current.startsWith('custom:')) {
-        _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
-        selectedAgentKeyRef.current = DEFAULT_PRESET_AGENT_TYPE;
-        ConfigStorage.set('guid.lastSelectedAgent', DEFAULT_PRESET_AGENT_TYPE).catch((error) => {
+    } else if (LOCKED_AGENT_KEY) {
+      // Consumer mode with a brand-locked agent: force selection.
+      if (selectedAgentKeyRef.current !== LOCKED_AGENT_KEY) {
+        _setSelectedAgentKey(LOCKED_AGENT_KEY);
+        selectedAgentKeyRef.current = LOCKED_AGENT_KEY;
+        ConfigStorage.set('guid.lastSelectedAgent', LOCKED_AGENT_KEY).catch((error) => {
           console.error('Failed to save consumer agent:', error);
         });
       }
     }
+    // else: free-pick mode, no forced reset
   }, [isEnterprise]);
 
   const availableCustomAgentIds = useMemo(() => {
@@ -480,83 +488,59 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
     }
   }, [isEnterprise, sessionMode, availableAgents, customAgents]);
 
-  // Load last selected agent (skip when URL parameter takes priority)
-  // Auto-select first available agent if current selection is not valid (enterprise mode case)
+  // Lock to brand agent or restore saved preference, depending on brand config.
   useEffect(() => {
     if (!availableAgents || availableAgents.length === 0) return;
-    // Skip restoring persisted agent when a URL parameter explicitly specifies the assistant
-    if (assistantFromUrl) return;
 
-    // Create a key to detect when availableAgents fundamentally changes (e.g., enterprise mode toggle)
-    const agentsKey = availableAgents.map((a) => a.backend).join(',');
-    if (agentsKey !== lastAvailableAgentsKeyRef.current) {
-      // Agent list changed fundamentally, reset auto-selection flag
-      lastAvailableAgentsKeyRef.current = agentsKey;
-      hasAutoSelectedAgentRef.current = false;
+    // URL-specified assistant always takes priority over brand lock or saved preference.
+    if (assistantFromUrl || urlPreselectedRef.current) return;
+
+    if (!isEnterprise && LOCKED_AGENT_KEY) {
+      // Brand agent lock: always force this agent in consumer mode.
+      _setSelectedAgentKeyWithRef(LOCKED_AGENT_KEY);
+      ConfigStorage.set('guid.lastSelectedAgent', LOCKED_AGENT_KEY).catch((error) => {
+        console.error('Failed to save locked brand agent:', error);
+      });
+      return;
     }
 
-    let cancelled = false;
+    // Enterprise mode OR consumer free-pick: restore saved preference.
+    if (assistantFromUrl) return;
+    if (isEnterprise && sessionMode === 'local') return;
 
-    const loadLastSelectedAgent = async () => {
-      try {
-        // Use ref value to avoid dependency cycle
-        const currentKey = selectedAgentKeyRef.current;
+    let isCancelled = false;
+    ConfigStorage.get('guid.lastSelectedAgent')
+      .then((savedAgentKey) => {
+        if (isCancelled || !savedAgentKey || savedAgentKey === selectedAgentKeyRef.current) return;
 
-        // Check if current selectedAgentKey is valid (in availableAgents)
-        const currentIsInAvailable = availableAgents.some((agent) => {
-          const key = agent.backend === 'custom' && agent.customAgentId ? `custom:${agent.customAgentId}` : agent.backend;
-          return key === currentKey;
-        });
-
-        // If current selection is not valid, auto-select first available — BUT NOT in enterprise mode
-        // (enterprise mode: 'remote-agent' is always valid, and we don't force-select specific agents)
-        if (!currentIsInAvailable && !hasAutoSelectedAgentRef.current && !isEnterprise) {
-          hasAutoSelectedAgentRef.current = true;
-          const firstAgent = availableAgents[0];
-          const firstKey = firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
-          _setSelectedAgentKeyWithRef(firstKey);
-          // Save to storage for persistence
-          ConfigStorage.set('guid.lastSelectedAgent', firstKey).catch((error) => {
-            console.error('Failed to save auto-selected agent:', error);
-          });
+        // In free-pick mode, skip builtin preset keys — they were written by a
+        // previous locked-agent session and no longer make sense here.
+        if (!LOCKED_AGENT_KEY && savedAgentKey.startsWith('custom:builtin-')) {
+          void ConfigStorage.set('guid.lastSelectedAgent', '');
           return;
         }
 
-        // Current selection is valid or already auto-selected, try to restore saved preference
-        // Only restore if it's different from current selection
-        const savedAgentKey = await ConfigStorage.get('guid.lastSelectedAgent');
-        if (cancelled || !savedAgentKey || savedAgentKey === currentKey) return;
-
-        const isInAvailable = availableAgents.some((agent) => {
-          const key = agent.backend === 'custom' && agent.customAgentId ? `custom:${agent.customAgentId}` : agent.backend;
-          return key === savedAgentKey;
-        });
-
-        if (isInAvailable && !(isEnterprise && sessionMode === 'local')) {
-          _setSelectedAgentKeyWithRef(savedAgentKey);
-        }
-      } catch (error) {
+        const isAvailable = availableAgents.some((agent) => (agent.customAgentId ? `custom:${agent.customAgentId}` : agent.backend) === savedAgentKey);
+        if (isAvailable) _setSelectedAgentKeyWithRef(savedAgentKey);
+      })
+      .catch((error) => {
         console.error('Failed to load last selected agent:', error);
-      }
-    };
-
-    void loadLastSelectedAgent();
+      });
 
     return () => {
-      cancelled = true;
+      isCancelled = true;
     };
-  }, [availableAgents, assistantFromUrl]); // Intentionally NOT including selectedAgentKey/state - use ref instead
+  }, [_setSelectedAgentKeyWithRef, assistantFromUrl, availableAgents, isEnterprise, sessionMode]);
 
   // Load custom agents + extension-contributed assistants
   // 所有模式（E 端 Remote/Local 和 C 端）都从本地 hub/tenant/custom/system 加载助手；
   // 企业 Remote 模式下，这些目录已从 Moss server 同步，因此无需另走云端接口。
   useEffect(() => {
     let isActive = true;
-    // Use the visibility-aware variant so admin-revoked enterprise assistants
-    // disappear from the picker. Token comes from localStorage via the same
-    // helper used by sessionBinding; falls back to the unfiltered list when
-    // logged out, keeping personal-mode behavior intact.
+    // Only enterprise assistants are subject to server-side visibility/ACL filtering.
+    // Personal Hub assistants must remain available after URL preselection.
     const assistantsPromise = (async () => {
+      if (!isEnterprise) return fetchAssistantsAsConfigs();
       try {
         const { readAccessToken } = await import('@/renderer/shared/dify/sessionBinding');
         const { fetchVisibleAssistantsAsConfigs } = await import('@/renderer/shared/agents/assistantAdapter');
@@ -639,6 +623,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
     if (matchedAgent) {
       const agentKey = `custom:${matchedAgent.id}`;
       setSelectedAgentKey(agentKey);
+      urlPreselectedRef.current = true; // Prevent lock effects from overriding this URL-driven selection
     }
   }, [assistantFromUrl, customAgents, setSelectedAgentKey]);
 
@@ -1132,15 +1117,16 @@ This identity statement takes priority over the default identity in USER.md.
   // In enterprise mode, directly select the first available agent (remote-agent)
   // 企业模式下直接选择第一个可用 agent
   const resetSelection = useCallback(() => {
-    // In enterprise remote mode, default to remote-agent; in local mode, default to scode
-    const defaultKey = isEnterprise && sessionMode === 'remote' ? 'remote-agent' : isEnterprise && sessionMode === 'local' ? 'scode' : DEFAULT_PRESET_AGENT_TYPE;
+    // Clear URL-preselect flag so lock effects can take effect again on next reset.
+    urlPreselectedRef.current = false;
+    // In enterprise remote mode, default to remote-agent; in local mode, default to scode;
+    // consumer mode is locked to the Gewu assistant.
+    const defaultKey = isEnterprise && sessionMode === 'remote' ? 'remote-agent' : isEnterprise && sessionMode === 'local' ? 'scode' : (LOCKED_AGENT_KEY ?? DEFAULT_PRESET_AGENT_TYPE);
     _setSelectedAgentKey(defaultKey);
     selectedAgentKeyRef.current = defaultKey;
     _setSelectedMode('default');
     // Don't clear selectedAcpModel - keep the user's model preference
     // 不要清除 selectedAcpModel - 保留用户的模型偏好
-    hasAutoSelectedAgentRef.current = false;
-
     // Clear persisted agent key so it won't be restored on next mount
     ConfigStorage.set('guid.lastSelectedAgent', '').catch((error) => {
       console.error('Failed to clear saved agent:', error);
@@ -1152,22 +1138,27 @@ This identity statement takes priority over the default identity in USER.md.
       return;
     }
 
-    // Consumer mode: check for scode availability
+    // Consumer mode: check the Gewu assistant is actually available before locking to it.
     const agents = availableAgentsRef.current;
-    const scodeAvailable = agents?.some((a) => a.backend === 'scode');
-    if (scodeAvailable) {
-      _setSelectedAgentKey('scode');
-      selectedAgentKeyRef.current = 'scode';
-    } else if (agents && agents.length > 0) {
-      const firstAgent = agents[0];
-      const firstKey = firstAgent.backend === 'custom' && firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
-      _setSelectedAgentKey(firstKey);
-      selectedAgentKeyRef.current = firstKey;
-      ConfigStorage.set('guid.lastSelectedAgent', firstKey).catch((error) => {
-        console.error('Failed to save auto-selected agent:', error);
-      });
+    if (LOCKED_AGENT_KEY) {
+      const lockedAvailable = agents?.some((a) => a.backend === 'custom' && `custom:${a.customAgentId}` === LOCKED_AGENT_KEY);
+      if (lockedAvailable) {
+        _setSelectedAgentKey(LOCKED_AGENT_KEY);
+        selectedAgentKeyRef.current = LOCKED_AGENT_KEY;
+      } else if (agents && agents.length > 0) {
+        const firstAgent = agents[0];
+        const firstKey = firstAgent.backend === 'custom' && firstAgent.customAgentId ? `custom:${firstAgent.customAgentId}` : firstAgent.backend;
+        _setSelectedAgentKey(firstKey);
+        selectedAgentKeyRef.current = firstKey;
+        ConfigStorage.set('guid.lastSelectedAgent', firstKey).catch((error) => {
+          console.error('Failed to save auto-selected agent:', error);
+        });
+      } else {
+        _setSelectedAgentKey(LOCKED_AGENT_KEY);
+        selectedAgentKeyRef.current = LOCKED_AGENT_KEY;
+      }
     } else {
-      // No agents available yet, set default and let auto-selection handle it later
+      // Free-pick mode: reset to default backend
       _setSelectedAgentKey(DEFAULT_PRESET_AGENT_TYPE);
       selectedAgentKeyRef.current = DEFAULT_PRESET_AGENT_TYPE;
     }

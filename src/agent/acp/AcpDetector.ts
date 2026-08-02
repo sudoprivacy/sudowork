@@ -118,15 +118,20 @@ class AcpDetector {
         });
       }
 
-      // 2. Add CLI custom agents from ConfigStorage (non-preset only)
+      // 2. Add assistants from legacy ConfigStorage unless the filesystem SSOT
+      // already supplied the same ID. Builtin presets still use this flat-file
+      // storage path, while newer assistants live under AssistantManager dirs.
+      const detectedCustomAgentIds = new Set(detected.map((agent) => agent.customAgentId).filter((id): id is string => typeof id === 'string'));
       const cliAgents = (await ProcessConfig.get('acp.customAgents')) || [];
       for (const agent of cliAgents) {
-        if (agent.isPreset) continue; // presets come from AssistantManager
-        if (!agent.enabled) continue;
+        if (!agent.enabled || detectedCustomAgentIds.has(agent.id)) continue;
         detected.push({
           backend: 'custom',
           name: agent.name,
           customAgentId: agent.id,
+          isPreset: agent.isPreset,
+          avatar: agent.avatar,
+          presetAgentType: agent.presetAgentType,
           cliPath: agent.defaultCliPath,
           acpArgs: agent.acpArgs,
         });

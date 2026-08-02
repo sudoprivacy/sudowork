@@ -5,7 +5,17 @@
  */
 
 import coworkSvg from '@/renderer/assets/cowork.svg';
-import type { PromptTemplate } from '../types';
+import type { PromptCategory } from '../types';
+
+/**
+ * A brand-configured prompt scenario (plain strings, no i18n keys).
+ * Configured in brand.config.json `defaultPromptScenarios`.
+ */
+export type BrandPromptScenario = {
+  label: string;
+  content: string;
+  icon?: string;
+};
 
 /**
  * Map custom avatar identifiers to their resolved image URLs.
@@ -16,27 +26,65 @@ export const CUSTOM_AVATAR_IMAGE_MAP: Record<string, string> = {
 };
 
 /**
- * Procurement scenario prompt templates shown on the Guide page.
+ * Default prompt template categories shown on the Guide page (free-pick mode).
+ * When brand.config.json specifies `defaultPromptScenarios`, those are used instead.
  */
-export const DEFAULT_PROMPT_SCENARIOS: PromptTemplate[] = [
+export const DEFAULT_PROMPT_CATEGORIES: PromptCategory[] = [
   {
-    labelKey: 'guid.promptTemplates.scenarios.sourcePrice',
-    contentKey: 'guid.promptTemplates.scenarios.sourcePriceContent',
-    icon: '🔍',
+    key: 'coding',
+    labelKey: 'guid.promptTemplates.categories.coding',
+    icon: '💻',
+    prompts: [
+      { labelKey: 'guid.promptTemplates.coding.writeScript', contentKey: 'guid.promptTemplates.coding.writeScriptContent' },
+      { labelKey: 'guid.promptTemplates.coding.codeReview', contentKey: 'guid.promptTemplates.coding.codeReviewContent' },
+      { labelKey: 'guid.promptTemplates.coding.debug', contentKey: 'guid.promptTemplates.coding.debugContent' },
+      { labelKey: 'guid.promptTemplates.coding.explain', contentKey: 'guid.promptTemplates.coding.explainContent' },
+    ],
   },
   {
-    labelKey: 'guid.promptTemplates.scenarios.preBidCheck',
-    contentKey: 'guid.promptTemplates.scenarios.preBidCheckContent',
-    icon: '📋',
+    key: 'writing',
+    labelKey: 'guid.promptTemplates.categories.writing',
+    icon: '✍️',
+    prompts: [
+      { labelKey: 'guid.promptTemplates.writing.article', contentKey: 'guid.promptTemplates.writing.articleContent' },
+      { labelKey: 'guid.promptTemplates.writing.polish', contentKey: 'guid.promptTemplates.writing.polishContent' },
+      { labelKey: 'guid.promptTemplates.writing.email', contentKey: 'guid.promptTemplates.writing.emailContent' },
+    ],
   },
   {
-    labelKey: 'guid.promptTemplates.scenarios.preAwardVerify',
-    contentKey: 'guid.promptTemplates.scenarios.preAwardVerifyContent',
-    icon: '🔎',
+    key: 'translation',
+    labelKey: 'guid.promptTemplates.categories.translation',
+    icon: '🌐',
+    prompts: [
+      { labelKey: 'guid.promptTemplates.translation.toEnglish', contentKey: 'guid.promptTemplates.translation.toEnglishContent' },
+      { labelKey: 'guid.promptTemplates.translation.toChinese', contentKey: 'guid.promptTemplates.translation.toChineseContent' },
+    ],
   },
   {
-    labelKey: 'guid.promptTemplates.scenarios.controlPrice',
-    contentKey: 'guid.promptTemplates.scenarios.controlPriceContent',
-    icon: '💰',
+    key: 'analysis',
+    labelKey: 'guid.promptTemplates.categories.analysis',
+    icon: '📊',
+    prompts: [
+      { labelKey: 'guid.promptTemplates.analysis.data', contentKey: 'guid.promptTemplates.analysis.dataContent' },
+      { labelKey: 'guid.promptTemplates.analysis.summarize', contentKey: 'guid.promptTemplates.analysis.summarizeContent' },
+    ],
+  },
+  {
+    key: 'creative',
+    labelKey: 'guid.promptTemplates.categories.creative',
+    icon: '🎨',
+    prompts: [
+      { labelKey: 'guid.promptTemplates.creative.brainstorm', contentKey: 'guid.promptTemplates.creative.brainstormContent' },
+      { labelKey: 'guid.promptTemplates.creative.naming', contentKey: 'guid.promptTemplates.creative.namingContent' },
+    ],
+  },
+  {
+    key: 'learning',
+    labelKey: 'guid.promptTemplates.categories.learning',
+    icon: '📚',
+    prompts: [
+      { labelKey: 'guid.promptTemplates.learning.explain', contentKey: 'guid.promptTemplates.learning.explainContent' },
+      { labelKey: 'guid.promptTemplates.learning.compare', contentKey: 'guid.promptTemplates.learning.compareContent' },
+    ],
   },
 ];

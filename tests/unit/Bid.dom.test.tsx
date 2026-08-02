@@ -9,35 +9,35 @@ vi.mock('react-i18next', () => ({
       ({
         'common.siderMenu.bidGeneration': 'Bid generation',
         'common.bid.status': 'In development',
-        'common.bid.headline': 'Turn complex bid requirements into a polished response',
-        'common.bid.description': 'Import tender documents and draft a complete bid.',
-        'common.bid.workflowTitle': 'Planned workflow',
-        'common.bid.importTitle': 'Import tender files',
-        'common.bid.importDescription': 'Identify key requirements.',
-        'common.bid.outlineTitle': 'Plan the structure',
-        'common.bid.outlineDescription': 'Build a clear response outline.',
-        'common.bid.generateTitle': 'Draft with AI',
-        'common.bid.generateDescription': 'Draft content and check for gaps.',
-        'common.bid.capabilities': 'Planned capabilities',
+        'common.bid.headline': 'From procurement needs to a tender document, faster',
+        'common.bid.description': 'Import procurement requirements and produce a tender document.',
+        'common.bid.workflowTitle': 'Tender drafting workflow',
+        'common.bid.importTitle': 'Import procurement requirements',
+        'common.bid.importDescription': 'Identify the category and technical specs.',
+        'common.bid.outlineTitle': 'Parameter compliance check',
+        'common.bid.outlineDescription': 'Flag exclusionary or brand-locked clauses.',
+        'common.bid.generateTitle': 'Produce the tender document',
+        'common.bid.generateDescription': 'Generate a complete tender document from the requirements.',
+        'common.bid.capabilities': 'Tender drafting capabilities',
         'common.bid.requirementExtraction': 'Requirement extraction',
-        'common.bid.outlinePlanning': 'Outline planning',
-        'common.bid.riskReview': 'Risk review',
+        'common.bid.outlinePlanning': 'Structure planning',
+        'common.bid.riskReview': 'Parameter compliance review',
         'common.bid.documentExport': 'Document export',
       })[key] || key,
   }),
 }));
 
 describe('BidPage', () => {
-  it('previews the planned bid workflow', () => {
+  it('previews the planned bid drafting workflow', () => {
     render(<BidPage />);
 
     expect(screen.getByRole('heading', { name: 'Bid generation' })).toBeInTheDocument();
     expect(screen.getByText('In development')).toBeInTheDocument();
-    expect(screen.getByText('Turn complex bid requirements into a polished response')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Planned workflow' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Planned capabilities' })).toBeInTheDocument();
-    expect(screen.getByText('Import tender files')).toBeInTheDocument();
-    expect(screen.getByText('Plan the structure')).toBeInTheDocument();
-    expect(screen.getByText('Draft with AI')).toBeInTheDocument();
+    expect(screen.getByText('From procurement needs to a tender document, faster')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tender drafting workflow' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tender drafting capabilities' })).toBeInTheDocument();
+    expect(screen.getByText('Import procurement requirements')).toBeInTheDocument();
+    expect(screen.getByText('Parameter compliance check')).toBeInTheDocument();
+    expect(screen.getByText('Produce the tender document')).toBeInTheDocument();
   });
 });

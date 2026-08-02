@@ -4,15 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Dropdown } from '@arco-design/web-react';
-import { ArrowUp, FolderOpen, Plus, Shield, Upload } from 'lucide-react';
-import React, { useState } from 'react';
+import { Button } from '@arco-design/web-react';
+import { ArrowUp, Plus, Shield } from 'lucide-react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
-import BdpanLogo from '@/renderer/assets/logos/bdpan.png';
-import BdpanImportFilePicker from '@/renderer/components/base/BdpanImportFilePicker';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';
 
@@ -36,7 +34,8 @@ type GuidActionRowProps = {
   selectedAgentInfo: AvailableAgent | undefined;
   customAgents: AcpBackendConfig[];
   localeKey: string;
-  onClosePresetTag: () => void;
+  /** When undefined the close × is hidden (brand-locked agent). */
+  onClosePresetTag?: () => void;
 
   // Skill selector trigger node (Popover-wrapped button built by parent)
   skillTriggerNode?: React.ReactNode;
@@ -50,7 +49,8 @@ type GuidActionRowProps = {
 const GuidActionRow: React.FC<GuidActionRowProps> = ({
   files,
   onFilesUploaded,
-  onSelectWorkspace,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onSelectWorkspace: _onSelectWorkspace,
   // modelSelectorNode,
   selectedAgent,
   effectiveModeAgent,
@@ -67,8 +67,6 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   onSend,
 }) => {
   const { t } = useTranslation();
-  const [bdpanSelectorVisible, setBdpanSelectorVisible] = useState(false);
-  const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
   const modeOptions = getAgentModes(modeBackend);
   const currentModeOption = modeOptions.find((mode) => mode.value === selectedMode);
@@ -78,92 +76,40 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   const permissionLabel = currentModeOption ? `${t('agentMode.permission')} · ${getModeDisplayLabel(currentModeOption)}` : t('agentMode.permission');
 
   return (
-    <>
-      <div className='flex items-center justify-between w-full gap-2 mt-3'>
-        <div className='inline-flex items-center gap-2.5 shrink min-w-0'>
-          <Dropdown
-            trigger={'click'}
-            popupVisible={fileMenuOpen}
-            onVisibleChange={setFileMenuOpen}
-            droplist={
-              <div className='flex min-w-50 flex-col gap-2px border border-border bg-popover p-6px shadow-lg rd-12px'>
-                <div
-                  className='flex h-38px cursor-pointer items-center gap-10px px-10px text-14px text-foreground transition-colors hover:bg-accent active:bg-fill-deep rd-8px'
-                  onClick={() => {
-                    setFileMenuOpen(false);
-                    ipcBridge.dialog.showOpen
-                      .invoke({ properties: ['openFile', 'multiSelections'] })
-                      .then((res) => {
-                        if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
-                          onFilesUploaded(res.data.filePaths);
-                        }
-                      })
-                      .catch((error) => {
-                        console.error('Failed to open file dialog:', error);
-                      });
-                  }}
-                >
-                  <Upload size={16} className='text-foreground-secondary' />
-                  <span>{t('conversation.welcome.downloadLocalFile')}</span>
-                </div>
-                <div
-                  className='flex h-38px cursor-pointer items-center gap-10px px-10px text-14px text-foreground transition-colors hover:bg-accent active:bg-fill-deep rd-8px'
-                  onClick={() => {
-                    setFileMenuOpen(false);
-                    setBdpanSelectorVisible(true);
-                  }}
-                >
-                  <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
-                  <span>{t('conversation.welcome.downloadBdpanFile')}</span>
-                </div>
-                <div
-                  className='flex h-38px cursor-pointer items-center gap-10px px-10px text-14px text-foreground transition-colors hover:bg-accent active:bg-fill-deep rd-8px'
-                  onClick={() => {
-                    setFileMenuOpen(false);
-                    ipcBridge.dialog.showOpen
-                      .invoke({ properties: ['openDirectory'] })
-                      .then((res) => {
-                        if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
-                          onSelectWorkspace(res.data.filePaths[0]);
-                        }
-                      })
-                      .catch((error) => {
-                        console.error('Failed to open directory dialog:', error);
-                      });
-                  }}
-                >
-                  <FolderOpen size={16} className='text-foreground-secondary' />
-                  <span>{t('conversation.welcome.specifyWorkspace')}</span>
-                </div>
-              </div>
-            }
-          >
-            <span className='relative'>
-              <Button shape='circle' type='secondary' title={t('conversation.welcome.downloadLocalFile')} icon={<Plus size={18} className='text-foreground-secondary' />} />
-              {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-primary-foreground font-600 pointer-events-none'>{files.length}</span>}
-            </span>
-          </Dropdown>
+    <div className='flex items-center justify-between w-full gap-2 mt-3'>
+      <div className='inline-flex items-center gap-2.5 shrink min-w-0'>
+        <span className='relative'>
+          <Button
+            shape='circle'
+            type='secondary'
+            title={t('conversation.welcome.downloadLocalFile')}
+            icon={<Plus size={18} className='text-foreground-secondary' />}
+            onClick={() => {
+              ipcBridge.dialog.showOpen
+                .invoke({ properties: ['openFile', 'multiSelections'] })
+                .then((res) => {
+                  if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
+                    onFilesUploaded(res.data.filePaths);
+                  }
+                })
+                .catch((error) => {
+                  console.error('Failed to open file dialog:', error);
+                });
+            }}
+          />
+          {files.length > 0 && <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-primary-foreground font-600 pointer-events-none'>{files.length}</span>}
+        </span>
 
-          {skillTriggerNode}
+        {skillTriggerNode}
 
-          {/* {modelSelectorNode} */}
+        {/* {modelSelectorNode} */}
 
-          {supportsModeSwitch(modeBackend) && <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield size={14} color='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />}
+        {supportsModeSwitch(modeBackend) && <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield size={14} color='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />}
 
-          {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
-        </div>
-        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} className='text-primary-foreground' />} onClick={onSend} />
+        {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
       </div>
-
-      <BdpanImportFilePicker
-        visible={bdpanSelectorVisible}
-        onCancel={() => setBdpanSelectorVisible(false)}
-        onConfirm={(paths) => {
-          setBdpanSelectorVisible(false);
-          onFilesUploaded(paths);
-        }}
-      />
-    </>
+      <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} className='text-primary-foreground' />} onClick={onSend} />
+    </div>
   );
 };
 

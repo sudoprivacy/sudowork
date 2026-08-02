@@ -23,6 +23,7 @@ interface TitlebarProps {
 const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversation }) => {
   const { t } = useTranslation();
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
+  const [isPreviewActive, setIsPreviewActive] = useState(false);
   const layout = useLayoutContext();
 
   // 监听工作空间折叠状态，保持按钮图标一致 / Sync workspace collapsed state for toggle button
@@ -34,6 +35,9 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
       const customEvent = event as CustomEvent<WorkspaceStateDetail>;
       if (typeof customEvent.detail?.collapsed === 'boolean') {
         setWorkspaceCollapsed(customEvent.detail.collapsed);
+      }
+      if (typeof customEvent.detail?.previewActive === 'boolean') {
+        setIsPreviewActive(customEvent.detail.previewActive);
       }
     };
     window.addEventListener(WORKSPACE_STATE_EVENT, handler as EventListener);
@@ -47,7 +51,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
   // Windows/Linux 显示自定义窗口按钮；macOS 在标题栏给工作区一个切换入口
   const showWindowControls = isDesktopRuntime && !isMacRuntime;
   // WebUI 和 macOS 桌面都需要在标题栏放工作区开关
-  const showWorkspaceButton = workspaceAvailable && (!isDesktopRuntime || isMacRuntime);
+  const showWorkspaceButton = workspaceAvailable && (!isDesktopRuntime || isMacRuntime) && !isPreviewActive;
 
   const workspaceTooltip = workspaceCollapsed ? t('common.expandMore', { defaultValue: '展开更多' }) : t('common.collapse', { defaultValue: '收起' });
   const iconSize = 18;
