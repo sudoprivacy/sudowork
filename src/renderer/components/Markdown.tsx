@@ -141,46 +141,49 @@ function CodeBlock(props: any) {
     return (
       <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', ...(props.codeStyle || {}) }}>
         <div
+          className='code-block-card'
+          data-language={language.toLocaleLowerCase()}
           style={{
             width: '100%',
             minWidth: 0,
             maxWidth: '100%',
-            border: '1px solid var(--bg-3)',
-            borderRadius: '0.3rem',
+            border: '1px solid var(--border-deep)',
+            borderRadius: '10px',
+            background: 'var(--muted)',
+            boxShadow: '0 1px 2px rgb(0 0 0 / 4%)',
             overflow: 'hidden',
           }}
         >
           <div
             style={{
               display: 'flex',
+              minHeight: '34px',
               justifyContent: 'space-between',
               alignItems: 'center',
-              backgroundColor: 'var(--bg-2)',
-              borderTopLeftRadius: '0.3rem',
-              borderTopRightRadius: '0.3rem',
-              borderBottomLeftRadius: fold ? '0.3rem' : '0',
-              borderBottomRightRadius: fold ? '0.3rem' : '0',
-              padding: '6px 10px',
-              borderBottom: !fold ? '1px solid var(--bg-3)' : undefined,
+              backgroundColor: 'var(--fill-shallow)',
+              padding: '5px 8px 5px 12px',
+              borderBottom: !fold ? '1px solid var(--border-medium)' : undefined,
             }}
           >
             <span
               style={{
-                textDecoration: 'none',
-                color: 'var(--text-secondary)',
-                fontSize: '12px',
-                lineHeight: '20px',
+                color: 'var(--foreground-tertiary)',
+                fontSize: '11px',
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                lineHeight: '16px',
               }}
             >
-              {'<' + language.toLocaleLowerCase() + '>'}
+              {language.toLocaleLowerCase()}
             </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
               {/* 复制代码按钮 / Copy code button */}
               <Copy
                 theme='outline'
-                size='18'
-                style={{ cursor: 'pointer' }}
-                fill='var(--text-secondary)'
+                size='16'
+                className='code-block-action'
+                fill='var(--foreground-tertiary)'
+                title={t('common.copy', '复制')}
                 onClick={() => {
                   void copyText(formatCode(children))
                     .then(() => {
@@ -192,7 +195,11 @@ function CodeBlock(props: any) {
                 }}
               />
               {/* 折叠/展开按钮 / Fold/unfold button */}
-              {logicRender(!fold, <Up theme='outline' size='20' style={{ cursor: 'pointer' }} fill='var(--text-secondary)' onClick={() => setFlow(true)} />, <Down theme='outline' size='20' style={{ cursor: 'pointer' }} fill='var(--text-secondary)' onClick={() => setFlow(false)} />)}
+              {logicRender(
+                !fold,
+                <Up theme='outline' size='18' className='code-block-action' fill='var(--foreground-tertiary)' title={t('common.collapse', '收起')} onClick={() => setFlow(true)} />,
+                <Down theme='outline' size='18' className='code-block-action' fill='var(--foreground-tertiary)' title={t('common.expandMore', '展开更多')} onClick={() => setFlow(false)} />
+              )}
             </div>
           </div>
           {logicRender(
@@ -216,32 +223,23 @@ function CodeBlock(props: any) {
                     width: 'max-content',
                     minWidth: '100%',
                     margin: '0',
+                    padding: '12px 14px',
                     border: 'none',
                     background: 'transparent',
                     color: 'var(--foreground)',
+                    fontSize: '13px',
+                    lineHeight: '20px',
                     overflowX: 'visible',
                     whiteSpace: 'pre',
                   }}
                   codeTagProps={{
                     style: {
                       color: 'var(--foreground)',
+                      fontSize: '13px',
+                      lineHeight: '20px',
                     },
                   }}
                 />
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  alignItems: 'center',
-                  backgroundColor: 'var(--bg-2)',
-                  borderBottomLeftRadius: '0.3rem',
-                  borderBottomRightRadius: '0.3rem',
-                  padding: '6px 10px',
-                  borderTop: '1px solid var(--bg-3)',
-                }}
-              >
-                <Up theme='outline' size='20' style={{ cursor: 'pointer' }} fill='var(--text-secondary)' onClick={() => setFlow(true)} title={t('common.collapse', '收起')} />
               </div>
             </>
           )}
@@ -308,6 +306,29 @@ const createInitStyle = (currentTheme = 'light', cssVars?: Record<string, string
   }
   code{
     font-size:14px;
+  }
+
+  .code-block-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 150ms ease;
+  }
+  .code-block-action:hover {
+    background: var(--accent);
+  }
+  .code-block-card[data-language='markdown'] .hljs-section,
+  .code-block-card[data-language='md'] .hljs-section {
+    color: var(--brand) !important;
+    font-weight: 600;
+  }
+  .code-block-card[data-language='markdown'] .hljs-bullet,
+  .code-block-card[data-language='md'] .hljs-bullet {
+    color: var(--foreground-tertiary) !important;
   }
 
   .markdown-shadow-body>p:last-child{
@@ -551,6 +572,7 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
               return defaultUrlTransform(url);
             }}
             components={{
+              pre: ({ children }) => <>{children}</>,
               span: ({ node: _node, className, children, ...props }) => {
                 return (
                   <span {...props} className={className}>
