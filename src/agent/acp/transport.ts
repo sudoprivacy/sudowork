@@ -8,7 +8,8 @@
  * ACP Transport abstraction — pluggable wire protocols for AcpConnection.
  *
  * StdioAcpTransport: spawn local CLI, communicate via stdin/stdout (default)
- * GrpcAcpTransport:  connect to remote ACP server via nexus-vfs gRPC Call RPC
+ * GrpcAcpTransport:  nexus spawns + supervises the agent; sudowork drives its
+ *                    stdio over the nexus VFS gRPC plane (fd streams).
  */
 
 import type { ChildProcess } from 'child_process';
@@ -16,6 +17,8 @@ import type { AcpMessage, AcpIncomingMessage } from '@/types/acpTypes';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import { killChild } from './utils';
 import { ACP_PERF_LOG } from './acpConnectors';
+import type { GenericSpawnSpec } from './acpConnectors';
+import { NexusVfsClient } from './nexusVfsClient';
 
 // ── Transport interface ────────────────────────────────────────────
 
@@ -231,145 +234,158 @@ export class StdioAcpTransport implements AcpTransport {
   }
 }
 
-// ── gRPC transport ─────────────────────────────────────────────────
+// ── gRPC tunnel transport (nexus ManagedAgentService) ──────────────
+
+export interface GrpcTransportOptions {
+  /** nexus VFS gRPC address, host:port (e.g. 127.0.0.1:2130). */
+  endpoint: string;
+  /** Loopback plane authenticates with an empty token. */
+  authToken: string;
+  /** `/agents/{id}/` name, e.g. `<node>-sudowork-<conversationId>`. */
+  agentId: string;
+  /** What nexus spawns — sudowork owns this spec (SSOT). */
+  spawnSpec: GenericSpawnSpec;
+  events: AcpTransportEvents;
+  /** Idle re-read interval for the non-blocking stdout reader (ms). */
+  idlePollMs?: number;
+}
 
 /**
- * ACP transport over nexus-vfs gRPC Call RPC.
- *
- * Uses the generic Call RPC as a tunnel: each ACP JSON-RPC message is
- * serialized into CallRequest.payload, and the server's CallResponse
- * carries the reply. Server-initiated messages (session updates,
- * permission requests) are delivered via a polling loop that calls
- * `acp_poll` at a configurable interval during active prompts.
- *
- * Requires the nexus-vfs server to implement `acp_dispatch` and
- * `acp_poll` method handlers (routed through the Call dispatcher).
+ * ACP transport where nexus spawns + supervises the agent and exposes its
+ * stdio as VFS fd streams. sudowork drives it over grpc-js:
+ *   - start_session (Call) → session_id + os_pid; nexus spawns spawn_spec
+ *   - reader: StreamReadAt (non-blocking) /proc/{sid}/fd/1 → NDJSON → onMessage
+ *   - writer: StreamWriteNowait /proc/{sid}/fd/0 (agent stdin)
+ *   - close:  cancel_v1
+ * nexus never parses ACP; NDJSON framing stays here.
  */
-export interface GrpcTransportOptions {
-  endpoint: string;
-  authToken: string;
-  events: AcpTransportEvents;
-  pollIntervalMs?: number;
-}
-
-// NexusGrpcClient shape from nexus-napi native module
-interface NexusGrpcClient {
-  call(method: string, payload: string, authToken: string): string;
-  ping(authToken: string): string;
-}
-
 export class GrpcAcpTransport implements AcpTransport {
-  private client: NexusGrpcClient | null = null;
-  private endpoint: string;
-  private authToken: string;
-  private events: AcpTransportEvents;
-  private pollIntervalMs: number;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private client: NexusVfsClient | null = null;
+  private sessionId: string | null = null;
+  private osPid: number | null = null;
+  private readonly options: GrpcTransportOptions;
+  private readonly idlePollMs: number;
   private _connected = false;
+  private closing = false;
 
   constructor(options: GrpcTransportOptions) {
-    this.endpoint = options.endpoint;
-    this.authToken = options.authToken;
-    this.events = options.events;
-    this.pollIntervalMs = options.pollIntervalMs ?? 100;
-  }
-
-  /** Establish the gRPC connection. Must be called before send(). */
-  async connect(): Promise<void> {
-    try {
-      // Lazy-load nexus-napi to avoid hard dependency when gRPC is unused.
-      // The module is a platform-specific native addon (.node) built from
-      // native/nexus-napi — only available when the Rust crate is compiled.
-      // @ts-expect-error nexus-napi is a platform-specific native addon, not resolvable at type-check time
-      const napiModule = await import('nexus-napi');
-      this.client = new napiModule.NexusGrpcClient(this.endpoint) as NexusGrpcClient;
-      // Verify connectivity with a health check
-      this.client.ping(this.authToken);
-      this._connected = true;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(`gRPC connect failed: ${error}`);
-      this.events.onSetupError(err);
-      throw err;
-    }
+    this.options = options;
+    this.idlePollMs = options.idlePollMs ?? 30;
   }
 
   get connected(): boolean {
     return this._connected;
   }
 
-  /**
-   * Send an ACP JSON-RPC message via the gRPC Call RPC.
-   *
-   * The message is tunneled through `acp_dispatch`: the entire ACP
-   * JSON-RPC object is the Call payload. The response (if any) is
-   * parsed and dispatched to onMessage.
-   */
-  send(message: object): void {
-    if (!this.client || !this._connected) return;
+  /** OS pid of the nexus-spawned agent (auth-proxy token registration / bookkeeping). */
+  get pid(): number | undefined {
+    return this.osPid ?? undefined;
+  }
+
+  /** start_session on nexus (it spawns spawn_spec), then begin the stdout reader. */
+  async connect(): Promise<void> {
     try {
-      const payload = JSON.stringify(message);
-      const responseJson = this.client.call('acp_dispatch', payload, this.authToken);
-      if (responseJson) {
-        try {
-          const parsed = JSON.parse(responseJson);
-          // Server may batch multiple messages in an array
-          // (response + queued session updates)
-          if (Array.isArray(parsed)) {
-            for (const msg of parsed) {
-              this.events.onMessage(msg as AcpMessage);
-            }
-          } else if (parsed && typeof parsed === 'object') {
-            this.events.onMessage(parsed as AcpMessage);
-          }
-        } catch {
-          // Non-JSON response — ignore
-        }
-      }
+      this.client = new NexusVfsClient(this.options.endpoint, this.options.authToken);
+      const res = await this.client.call<{ session_id: string; os_pid?: number | null }>('managed_agent.start_session_v1', {
+        agent_id: this.options.agentId,
+        spawn_spec: {
+          cmd: this.options.spawnSpec.cmd,
+          args: this.options.spawnSpec.args,
+          env: toStringEnv(this.options.spawnSpec.env),
+          cwd: this.options.spawnSpec.cwd,
+        },
+      });
+      this.sessionId = res.session_id;
+      this.osPid = res.os_pid ?? null;
+      this._connected = true;
+      void this.readStdout();
     } catch (error) {
-      console.error('[ACP gRPC] send failed:', error);
-      this._connected = false;
-      this.events.onClose({ code: 1, signal: null });
+      const err = error instanceof Error ? error : new Error(`nexus start_session failed: ${error}`);
+      this.options.events.onSetupError(err);
+      throw err;
     }
   }
 
+  /** Write one NDJSON-framed ACP message to the agent's stdin stream. */
+  send(message: object): void {
+    if (!this.client || !this._connected || !this.sessionId) return;
+    const line = Buffer.from(JSON.stringify(message) + '\n', 'utf-8');
+    this.client.streamWrite(`/proc/${this.sessionId}/fd/0`, line).catch((error) => {
+      console.error('[ACP gRPC] stdin write failed:', error);
+    });
+  }
+
   /**
-   * Start polling for server-initiated messages (session updates,
-   * permission requests). Called automatically during prompt execution;
-   * stopped when the prompt response arrives.
+   * Non-blocking read loop over the agent's stdout stream. Per the DT_STREAM
+   * contract: data → deliver + advance offset + read again immediately;
+   * empty (eof=true) → "no data now", retry the SAME offset after a short wait;
+   * a rejection (is_error=true = stream closed+drained = agent exited) is the
+   * real disconnect.
    */
-  startPolling(): void {
-    if (this.pollTimer) return;
-    this.pollTimer = setInterval(() => {
-      if (!this._connected || !this.client) {
-        this.stopPolling();
+  private async readStdout(): Promise<void> {
+    const stdoutPath = `/proc/${this.sessionId}/fd/1`;
+    let offset = '0';
+    let buffer = '';
+    while (this._connected && this.client) {
+      let res;
+      try {
+        res = await this.client.streamReadAt(stdoutPath, offset, { blocking: false });
+      } catch {
+        this.handleClose();
         return;
       }
-      try {
-        const responseJson = this.client.call('acp_poll', '{}', this.authToken);
-        if (responseJson) {
-          const messages = JSON.parse(responseJson);
-          if (Array.isArray(messages)) {
-            for (const msg of messages) {
-              this.events.onMessage(msg as AcpMessage);
+      if (res.data.length > 0) {
+        buffer += res.data.toString('utf-8');
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              this.options.events.onMessage(JSON.parse(line) as AcpMessage);
+            } catch {
+              // non-JSON line — ignore
             }
           }
         }
-      } catch {
-        // Poll failures are non-fatal — server may not have queued messages
+        offset = res.nextOffset;
+        // immediate re-read (no wait) keeps streaming latency low
+      } else {
+        await delay(this.idlePollMs);
       }
-    }, this.pollIntervalMs);
+    }
   }
 
-  stopPolling(): void {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
+  private handleClose(): void {
+    if (this.closing) return;
+    this._connected = false;
+    // code/signal not relayed over the tunnel yet (eof only); get_session_v1
+    // carries the terminal state when a caller needs crash-vs-clean.
+    this.options.events.onClose({ code: 0, signal: null });
   }
 
   async close(): Promise<void> {
-    this.stopPolling();
+    this.closing = true;
     this._connected = false;
+    if (this.client && this.sessionId) {
+      try {
+        await this.client.call('managed_agent.cancel_v1', { session_id: this.sessionId, mode: 'session' });
+      } catch {
+        // best-effort cancel + reap
+      }
+    }
+    this.client?.close();
     this.client = null;
   }
+}
+
+function toStringEnv(env: Record<string, string | undefined>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(env)) {
+    if (typeof v === 'string') out[k] = v;
+  }
+  return out;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -18,7 +18,7 @@ import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
 import { StdioAcpTransport, GrpcAcpTransport } from './transport';
 import type { AcpTransport } from './transport';
-import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { ACP_PERF_LOG, buildGenericSpawnSpec, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import type { SpawnResult } from './acpConnectors';
 import { readTextFile, writeTextFile } from './utils';
 
@@ -279,6 +279,16 @@ export class AcpConnection {
       },
     };
 
+    // When a nexus agent-plane endpoint is configured, spawn the agent via
+    // nexus (ManagedAgentService) and tunnel its stdio over the VFS fd streams
+    // instead of spawning it locally. Covers the buildGenericSpawnSpec backends
+    // (scode + other generic CLIs); npx bridges keep the local spawn path.
+    const nexusEndpoint = customEnv?.ACP_GRPC_ENDPOINT;
+    if (nexusEndpoint && cliPath && !AcpConnection.NPX_BACKENDS.has(backend)) {
+      await this.connectViaNexusTunnel(backend, cliPath, workingDir, acpArgs, customEnv, nexusEndpoint);
+      return;
+    }
+
     switch (backend) {
       case 'claude':
         await connectClaude(workingDir, npxHooks, customEnv);
@@ -318,39 +328,48 @@ export class AcpConnection {
         await this.connectGenericBackend('custom', cliPath, workingDir, acpArgs, customEnv);
         break;
 
-      case 'grpc': {
-        // gRPC transport — connect to a remote ACP server endpoint.
-        // Endpoint comes from customEnv.ACP_GRPC_ENDPOINT or cliPath.
-        const endpoint = customEnv?.ACP_GRPC_ENDPOINT || cliPath;
-        if (!endpoint) {
-          throw new Error('gRPC endpoint is required (set ACP_GRPC_ENDPOINT or pass as cliPath)');
-        }
-        const grpcTransport = new GrpcAcpTransport({
-          endpoint,
-          authToken: this.proxyToken || '',
-          events: {
-            onMessage: (msg) => this.handleMessage(msg),
-            onClose: (info) => {
-              if (this.isSetupComplete) {
-                this.handleProcessExit(info.code, info.signal as NodeJS.Signals | null);
-              }
-            },
-            onSetupError: (error) => {
-              throw error;
-            },
-          },
-        });
-        await grpcTransport.connect();
-        this.transport = grpcTransport;
-        // Initialize protocol
-        await this.initialize();
-        this.isSetupComplete = true;
-        break;
-      }
-
       default:
         throw new Error(`Unsupported backend: ${backend}`);
     }
+  }
+
+  /**
+   * Connect through the nexus tunnel: nexus spawns + supervises the agent from
+   * sudowork's spawn-spec and exposes its stdio as VFS fd streams. Same protocol
+   * handling as the local path — only the transport (spawn) differs.
+   */
+  private async connectViaNexusTunnel(backend: AcpBackend, cliPath: string, workingDir: string, acpArgs: string[] | undefined, customEnv: Record<string, string> | undefined, endpoint: string): Promise<void> {
+    const spawnSpec = await buildGenericSpawnSpec(backend, cliPath, workingDir, acpArgs, customEnv);
+    const agentId = `sudowork-${backend}-${crypto.randomUUID()}`;
+
+    const transport = new GrpcAcpTransport({
+      endpoint,
+      authToken: this.proxyToken || '',
+      agentId,
+      spawnSpec,
+      events: {
+        onMessage: (msg) => this.handleMessage(msg),
+        onClose: (info) => {
+          if (this.isSetupComplete) {
+            this.handleProcessExit(info.code, info.signal as NodeJS.Signals | null);
+          }
+        },
+        onSetupError: () => {
+          // connect() rethrows the setup error; nothing extra to do here.
+        },
+      },
+    });
+
+    await transport.connect();
+    this.transport = transport;
+
+    // auth-proxy is token-only, but keep the token↔pid map for revoke-on-disconnect.
+    if (this.proxyToken && transport.pid) {
+      registerToken(this.proxyToken, transport.pid);
+    }
+
+    await this.initialize();
+    this.isSetupComplete = true;
   }
 
   /**
