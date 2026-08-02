@@ -99,15 +99,10 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
 
   return (
     <div
-      className={classNames(
-        'group box-border min-w-0 items-center gap-3 overflow-hidden rounded-xl border border-border bg-card px-3 py-3 text-left shadow-sm transition-all',
-        fullWidth ? 'flex w-full' : 'inline-flex max-w-full',
-        'hover:border-deep hover:bg-accent hover:shadow-md active:scale-[0.98]',
-        {
-          'cursor-pointer': !missing && !loading,
-          'cursor-not-allowed opacity-50': missing || loading,
-        }
-      )}
+      className={classNames('group box-border min-w-0 items-center gap-3 overflow-hidden rounded-xl border border-border bg-card px-3 py-3 text-left shadow-sm transition-all', fullWidth ? 'flex w-full' : 'inline-flex max-w-full', 'hover:border-deep hover:bg-accent hover:shadow-md', {
+        'cursor-pointer': !missing && !loading,
+        'cursor-not-allowed opacity-50': missing || loading,
+      })}
       onClick={handleClick}
       role='button'
       tabIndex={0}
