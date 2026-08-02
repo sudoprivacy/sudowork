@@ -257,7 +257,9 @@ export class ServiceManager {
       throw lastError instanceof Error ? lastError : new Error(String(lastError));
     };
 
+    // 密钥库错误属于确定性错误，不应混入 daemon 重试，否则只会无意义地反复重启 Nexus。
     await startAttempts(this.NEXUS_START_ATTEMPTS, 'normal');
+    // 必须等 Nexus gRPC 端口真正就绪后，再初始化依赖 Secret Store 的服务。
     await this.initializeSecretsAfterNexus();
   }
 
@@ -275,9 +277,7 @@ export class ServiceManager {
       initStatusManager.addLog(`[Nexus] Start command: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
       initStatusManager.addLog('[Nexus] Starting Nexus service...');
       await dynamicNexusVfsService.start();
-      // start() already waits until the gRPC port is ready before resolving.
-      // Do not immediately probe again here; a duplicate one-shot check can race
-      // with post-start stabilization and incorrectly flip the UI back to failed.
+      // start() 返回前已经等待 gRPC 端口就绪；这里不能立刻重复探测，避免与启动后的稳定阶段竞争并误报失败。
       initStatusManager.addLog(`[Nexus] Nexus service is ready on 127.0.0.1:${dynamicNexusVfsService.port}`);
       initStatusManager.setStepProgress('nexus', 100, 'Nexus 服务已就绪');
     } catch (err) {
@@ -309,6 +309,7 @@ export class ServiceManager {
   }
 
   private async initializeSecretsAfterNexus(): Promise<void> {
+    // 在线版保持原有非阻塞行为；离线版的本地密钥库和凭据迁移是核心能力，失败必须阻止 ready。
     if (!IS_OFFLINE_BUILD) {
       void this.initializeSecretDependentServices().catch((error) => {
         mainWarn('ServiceManager', 'Secrets initialization failed (non-critical):', error);

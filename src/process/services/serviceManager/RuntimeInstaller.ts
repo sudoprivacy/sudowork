@@ -116,6 +116,7 @@ class RuntimeInstaller {
 
     // ── At least one component appears to be missing — do full async check ──
     mainLog(TAG, 'Checking runtime dependencies...');
+    // 内网版连 bdpan 模块都不加载，避免初始化期间意外触发检测或安装逻辑。
     const [nexusModule, claudeCliModule, gitModule, bdpanModule] = await Promise.all([import('../nexus-vfs/DynamicNexusVfsService'), import('../claudeCli/CliInstallService'), import('../git/GitInstallService'), IS_OFFLINE_BUILD ? Promise.resolve(null) : import('../bdpan/BdpanInstallService')]);
     const { dynamicNexusVfsService } = nexusModule;
     const { claudeCliService } = claudeCliModule;
@@ -183,6 +184,7 @@ class RuntimeInstaller {
 
     if (gitInstalled) {
       markStepDone('git', 'Git 已就绪');
+      // Git 不是离线版 ready 的前置条件，缺失时不能调用 Homebrew 或系统软件源。
     } else if (IS_OFFLINE_BUILD) {
       markStepDone('git', 'Git 未安装，内网版已跳过自动安装');
     } else {
@@ -201,6 +203,7 @@ class RuntimeInstaller {
 
     if (claudeInstalled) {
       markStepDone('claude', 'Claude Code CLI 已就绪');
+      // Claude CLI 同样是可选能力；内网版只检测，不执行任何在线安装。
     } else if (IS_OFFLINE_BUILD) {
       markStepDone('claude', 'Claude Code CLI 未安装，内网版已跳过');
     } else if (hasClaudeResource) {
@@ -479,6 +482,7 @@ class RuntimeInstaller {
       }
     })();
 
+    // 内网版彻底不创建 bdpan 安装任务，后续 Promise 汇总也不会包含它。
     const bdpanTask: Promise<TaskResult> | null = IS_OFFLINE_BUILD
       ? null
       : (async () => {

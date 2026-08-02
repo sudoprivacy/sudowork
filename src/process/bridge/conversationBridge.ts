@@ -813,6 +813,7 @@ export function initConversationBridge(): void {
     const resolvedFiles: string[] = [];
     for (const f of filesToProcess) {
       if (f.startsWith('bdpan://')) {
+        // UI 隐藏不能替代输入校验；遗留会话仍可能携带 bdpan URI，必须在主进程明确拒绝。
         if (IS_OFFLINE_BUILD) {
           mainWarn('ConversationBridge', 'Rejected bdpan attachment because bdpan is disabled in offline builds');
           return { success: false, msg: '内网版不支持 bdpan 附件' };

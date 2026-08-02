@@ -44,6 +44,7 @@ interface MigrationMap {
 // Constants
 // ============================================================================
 
+// 本地密钥库和在线 Vault 使用独立标记，避免其中一种迁移记录错误地跳过另一种迁移。
 const SECRET_MIGRATION_VERSION_KEY = IS_OFFLINE_BUILD ? 'local_secret_migration_version' : 'secret_migration_version';
 const SECRET_MIGRATION_MAP_KEY = IS_OFFLINE_BUILD ? 'local_secret_migration_map' : 'secret_migration_map';
 const SECRET_MIGRATION_VERSION = 1;
@@ -512,9 +513,11 @@ export async function initializeSecrets(): Promise<void> {
   const coordinator = getMigrationCoordinator();
   coordinator.initialize();
 
+  // 离线后端是本地文件，不做 Nexus HTTP health 探测；在线 Vault 保持原有健康检查。
   const migrationResult = await coordinator.migrateAll({ isNexusHealthCheckRequired: !IS_OFFLINE_BUILD });
   if (!migrationResult.success) {
     console.warn('[SecretMigration] Migration completed with errors:', migrationResult.errors);
+    // 离线版迁移失败必须阻止 ready，不能遗漏凭据后仍写成“迁移完成”。
     if (IS_OFFLINE_BUILD) throw new Error(`本地凭据迁移失败（${migrationResult.failedCount} 项）`);
   }
 
@@ -523,6 +526,7 @@ export async function initializeSecrets(): Promise<void> {
     console.log('[SecretMigration] Secret cache preloaded successfully');
   } catch (error) {
     console.error('[SecretMigration] Failed to preload secret cache:', error);
+    // 离线启动依赖本地缓存立即提供凭据，预加载失败不能静默进入主界面。
     if (IS_OFFLINE_BUILD) throw error;
   }
 }

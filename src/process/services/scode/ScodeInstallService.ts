@@ -452,6 +452,7 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     mainLog(TAG, `Using bundled scode archive from ${bundledPath}`);
     options?.onProgress?.(5);
   } else {
+    // 内网版缺少随包资源说明安装包本身不完整，必须立即失败，严禁回退到 GitHub 下载。
     if (IS_OFFLINE_BUILD) {
       throw new Error(`内网安装包缺少 Sudocode v${getScodeVersion()}，请重新安装完整版本`);
     }

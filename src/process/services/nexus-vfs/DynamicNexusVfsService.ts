@@ -212,6 +212,7 @@ class DynamicNexusVfsService {
   }
 
   checkInstalledSync(): boolean {
+    // 内网版完全禁用 Vault，因此安装状态只由 Cluster 二进制和版本标记决定。
     return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent() && (IS_OFFLINE_BUILD || !vaultPluginInstaller.isPlatformSupported() || vaultPluginInstaller.checkInstalledSync());
   }
 
@@ -329,6 +330,7 @@ class DynamicNexusVfsService {
       mainLog('NexusVfs', `Using bundled nexus-vfs archive from ${bundledPath}`);
       this.emit('downloading', `Using bundled nexus-vfs from ${bundledPath}`, 0);
     } else {
+      // 内网版不允许访问 COS/GitHub；随包资源缺失时应快速暴露构建产物不完整。
       if (IS_OFFLINE_BUILD) {
         const message = `内网安装包缺少 Nexus Cluster v${this.getBundledVersion()}，请重新安装完整版本`;
         this.emit('error', message);
@@ -420,6 +422,7 @@ class DynamicNexusVfsService {
 
     this.emit('idle', `nexus-vfs installed: ${targetBinary}`, 100);
 
+    // 内网版只安装 Nexus Cluster，不能下载或安装 Vault 插件。
     if (!IS_OFFLINE_BUILD) {
       await vaultPluginInstaller.install((stage, message, percent) => this.emit(stage, message, percent));
     }
@@ -446,6 +449,7 @@ class DynamicNexusVfsService {
     // --hostname is a cosmetic display label; --data-dir + --plugin-dir are
     // global flags that apply under the subcommand.
     const args = ['serve-local', '--port', String(port), '--hostname', 'localhost', '--data-dir', this.getDaemonDataDir()];
+    // 内网版启动参数不能携带 Vault 插件目录，确保 daemon 不会加载 Vault。
     if (!IS_OFFLINE_BUILD && vaultPluginInstaller.isPlatformSupported() && vaultPluginInstaller.checkInstalledSync()) {
       args.push('--plugin-dir', pluginDir);
     }
@@ -519,6 +523,7 @@ class DynamicNexusVfsService {
     mainLog('NexusVfs', `Waiting for nexus-vfs gRPC port ${this._port} to accept connections...`);
     await this.waitForPortReady(this._port, NEXUS_VFS_START_TIMEOUT_MS);
     const elapsed = Date.now() - spawnStart;
+    // 内网版没有 Vault，Cluster 端口就绪即完成；在线版继续等待 Vault 服务可用。
     if (!IS_OFFLINE_BUILD) {
       try {
         await this.waitForVaultServiceReady(NEXUS_VAULT_READY_TIMEOUT_MS);

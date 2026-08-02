@@ -58,13 +58,16 @@ export class LocalEncryptedSecretStore implements ISecretStore {
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
+    // 本地密钥库必须依赖操作系统提供的 safeStorage，不能降级成 Base64 或明文保存。
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error('系统安全存储不可用，无法初始化本地 Nexus 密钥库');
     }
+    // Linux 的 basic_text 后端没有真实加密能力，宁可阻止启动也不能静默保存敏感信息。
     if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') {
       throw new Error('系统密钥环不可用，拒绝使用明文后端保存凭据');
     }
     const backupPath = `${this.filePath}.bak`;
+    // Windows 原子替换中断后可能只剩备份文件，主文件缺失时优先恢复备份。
     if (!fs.existsSync(this.filePath) && fs.existsSync(backupPath)) {
       fs.renameSync(backupPath, this.filePath);
     }
@@ -78,13 +81,14 @@ export class LocalEncryptedSecretStore implements ISecretStore {
           throw new Error('invalid entries');
         }
       } catch {
+        // 解密失败时绝不能用空密钥库覆盖原文件，否则会造成不可恢复的数据丢失。
         throw new Error('本地 Nexus 密钥库文件损坏或无法解密，请联系管理员恢复');
       }
       for (const entry of entries) this.entries.set(this.ref(entry.namespace, entry.key), entry);
       try {
         fs.rmSync(backupPath, { force: true });
       } catch {
-        // A stale backup is harmless once the primary file is readable.
+        // 主文件已成功读取，残留备份清理失败不影响本次初始化。
       }
     }
     this.isInitialized = true;
@@ -180,6 +184,7 @@ export class LocalEncryptedSecretStore implements ISecretStore {
 
   private persist(): void {
     const dir = path.dirname(this.filePath);
+    // 始终先写临时文件再原子替换，避免进程中断留下半写入的密钥库。
     const tempPath = `${this.filePath}.tmp`;
     fs.mkdirSync(dir, { recursive: true });
     const payload = safeStorage.encryptString(JSON.stringify([...this.entries.values()])).toString('base64');
@@ -189,6 +194,7 @@ export class LocalEncryptedSecretStore implements ISecretStore {
       return;
     }
 
+    // Windows 不能直接覆盖已存在文件，先保留旧文件，替换失败时立即回滚。
     const backupPath = `${this.filePath}.bak`;
     fs.rmSync(backupPath, { force: true });
     fs.renameSync(this.filePath, backupPath);
@@ -201,7 +207,7 @@ export class LocalEncryptedSecretStore implements ISecretStore {
     try {
       fs.rmSync(backupPath, { force: true });
     } catch {
-      // The primary file is committed; stale backup cleanup can wait.
+      // 新主文件已提交，备份清理只是善后，失败不能反向回滚内存状态。
     }
   }
 }
@@ -210,6 +216,7 @@ let store: ISecretStore | null = null;
 let initialization: Promise<void> | null = null;
 
 export function getSecretStore(): ISecretStore {
+  // 在线版继续使用 Nexus Vault；内网版仅替换存储后端，不移除上层凭据能力。
   if (!store) store = IS_OFFLINE_BUILD ? new LocalEncryptedSecretStore() : new NexusVaultSecretStore(getNexusSecretClient());
   return store;
 }

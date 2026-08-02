@@ -116,6 +116,7 @@ export function initAllBridges(): void {
   initSystemConfigBridge();
   // Safety hook IPC is hidden while the feature is disabled.
   // initSafetyBridge();
+  // 内网版不注册 bdpan IPC，从主进程入口彻底关闭该能力。
   if (!IS_OFFLINE_BUILD) initBdpanBridge();
   initHealthMonitorBridge();
   initImageGenerationBridge();
