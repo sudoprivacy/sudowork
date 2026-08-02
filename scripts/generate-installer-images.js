@@ -1,265 +1,220 @@
+#!/usr/bin/env node
+
 /**
- * Generate modern installer BMP images for NSIS MUI2.
- *
- * Produces two 24-bit BMP files that electron-builder feeds to the NSIS
- * compiler at build time:
- *
- *   resources/installerSidebar.bmp   — 164 × 314 px  (welcome / finish pages)
- *   resources/installerHeader.bmp    — 150 × 57  px  (step header area)
- *
- * Design: gradient background (brand dark-blue → lighter blue) with the
- * product name rendered as a simple pixel-font watermark.
- *
- * Run:  node scripts/generate-installer-images.js
+ * Prepare native app and installer icons from brand.config.json.
+ * Generated files live in .cache so the checked-in Sudowork icons remain the
+ * permanent fallback and are never overwritten.
  */
 
+const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { appBuilderPath } = require('app-builder-bin');
+const sharp = require('sharp');
 
-// ── Brand colours ───────────────────────────────────────────────────
-const BRAND_START = { r: 22, g: 28, b: 45 }; // dark navy
-const BRAND_END = { r: 56, g: 97, b: 170 }; // medium blue
-const ACCENT = { r: 110, g: 140, b: 210 }; // light accent for decorations
-const WHITE = { r: 255, g: 255, b: 255 };
+const ROOT_DIR = path.resolve(__dirname, '..');
+const OUTPUT_DIR = path.join(ROOT_DIR, '.cache', 'native-brand', 'current');
+const MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024;
+const BRAND_START = { r: 22, g: 28, b: 45 };
+const BRAND_END = { r: 56, g: 97, b: 170 };
 
-// ── Helpers ─────────────────────────────────────────────────────────
+async function readLogo(source) {
+  if (source.startsWith('data:')) {
+    const match = /^data:([^,]*?),(.*)$/s.exec(source);
+    if (!match) throw new Error('Invalid brand.logo data URL');
+    const isBase64 = match[1].split(';').includes('base64');
+    const data = isBase64 ? Buffer.from(match[2], 'base64') : Buffer.from(decodeURIComponent(match[2]));
+    if (data.length === 0) throw new Error('brand.logo data URL is empty');
+    if (data.length > MAX_DOWNLOAD_BYTES) throw new Error('brand.logo exceeds 10 MB');
+    return data;
+  }
 
-/** Linear interpolation between two colour channels */
-function lerp(a, b, t) {
-  return Math.round(a + (b - a) * t);
+  if (!source.startsWith('https://')) {
+    throw new Error('brand.logo must be a data URL or HTTPS URL');
+  }
+
+  const response = await fetch(source, { signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`Unable to download brand.logo: HTTP ${response.status}`);
+  if (!response.url.startsWith('https://')) throw new Error('brand.logo redirected to a non-HTTPS URL');
+
+  const declaredSize = Number(response.headers.get('content-length'));
+  if (declaredSize > MAX_DOWNLOAD_BYTES) throw new Error('brand.logo exceeds 10 MB');
+  if (!response.body) throw new Error('brand.logo response has no body');
+
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of response.body) {
+    size += chunk.length;
+    if (size > MAX_DOWNLOAD_BYTES) throw new Error('brand.logo exceeds 10 MB');
+    chunks.push(Buffer.from(chunk));
+  }
+  if (size === 0) throw new Error('brand.logo is empty');
+  return Buffer.concat(chunks);
 }
 
-/** Interpolate two RGB objects */
-function lerpColor(c1, c2, t) {
-  return {
-    r: lerp(c1.r, c2.r, t),
-    g: lerp(c1.g, c2.g, t),
-    b: lerp(c1.b, c2.b, t),
-  };
-}
-
-/**
- * Write a 24-bit BMP file (no compression, bottom-up row order).
- * `pixelFn(x, y)` returns `{ r, g, b }` for each pixel where
- * (0, 0) is the top-left corner.
- */
-function writeBMP(filePath, width, height, pixelFn) {
+function writeBmp(filePath, width, height, pixels) {
   const rowBytes = width * 3;
-  const rowPadding = (4 - (rowBytes % 4)) % 4;
-  const stride = rowBytes + rowPadding;
+  const stride = rowBytes + ((4 - (rowBytes % 4)) % 4);
   const pixelDataSize = stride * height;
-  const fileSize = 54 + pixelDataSize;
+  const output = Buffer.alloc(54 + pixelDataSize);
 
-  const buf = Buffer.alloc(fileSize);
+  output.write('BM', 0);
+  output.writeUInt32LE(output.length, 2);
+  output.writeUInt32LE(54, 10);
+  output.writeUInt32LE(40, 14);
+  output.writeInt32LE(width, 18);
+  output.writeInt32LE(height, 22);
+  output.writeUInt16LE(1, 26);
+  output.writeUInt16LE(24, 28);
+  output.writeUInt32LE(pixelDataSize, 34);
+  output.writeInt32LE(2835, 38);
+  output.writeInt32LE(2835, 42);
 
-  // ── BMP file header (14 bytes) ──
-  buf.write('BM', 0); // signature
-  buf.writeUInt32LE(fileSize, 2); // file size
-  buf.writeUInt32LE(0, 6); // reserved
-  buf.writeUInt32LE(54, 10); // pixel data offset
-
-  // ── DIB header – BITMAPINFOHEADER (40 bytes) ──
-  buf.writeUInt32LE(40, 14); // header size
-  buf.writeInt32LE(width, 18); // width
-  buf.writeInt32LE(height, 22); // height (positive = bottom-up)
-  buf.writeUInt16LE(1, 26); // colour planes
-  buf.writeUInt16LE(24, 28); // bits per pixel
-  buf.writeUInt32LE(0, 30); // compression (BI_RGB)
-  buf.writeUInt32LE(pixelDataSize, 34);
-  buf.writeInt32LE(2835, 38); // X pixels/metre (~72 DPI)
-  buf.writeInt32LE(2835, 42); // Y pixels/metre
-  buf.writeUInt32LE(0, 46); // colours in table
-  buf.writeUInt32LE(0, 50); // important colours
-
-  // ── Pixel data (bottom-up) ──
-  for (let y = height - 1; y >= 0; y--) {
-    const rowOffset = 54 + (height - 1 - y) * stride;
+  for (let y = 0; y < height; y++) {
+    const sourceRow = y * rowBytes;
+    const targetRow = 54 + (height - 1 - y) * stride;
     for (let x = 0; x < width; x++) {
-      const { r, g, b } = pixelFn(x, y);
-      const off = rowOffset + x * 3;
-      buf[off] = b; // BMP stores BGR
-      buf[off + 1] = g;
-      buf[off + 2] = r;
+      const source = sourceRow + x * 3;
+      const target = targetRow + x * 3;
+      output[target] = pixels[source + 2];
+      output[target + 1] = pixels[source + 1];
+      output[target + 2] = pixels[source];
     }
-    // padding bytes are already 0
   }
 
-  fs.writeFileSync(filePath, buf);
-  console.log(`  ✓ ${path.basename(filePath)}  (${width}×${height})`);
+  fs.writeFileSync(filePath, output);
 }
 
-// ── Simple 5×7 pixel font for product name ──────────────────────────
-const GLYPH = {
-  S: [
-    '0111',
-    '1000',
-    '0110',
-    '0001',
-    '1110',
-  ],
-  u: [
-    '0000',
-    '1001',
-    '1001',
-    '1001',
-    '0110',
-  ],
-  d: [
-    '0001',
-    '1011',
-    '1101',
-    '1001',
-    '0111',
-  ],
-  o: [
-    '0000',
-    '0110',
-    '1001',
-    '1001',
-    '0110',
-  ],
-  w: [
-    '0000',
-    '10001',
-    '10101',
-    '10101',
-    '01010',
-  ],
-  r: [
-    '0000',
-    '1011',
-    '1100',
-    '1000',
-    '1000',
-  ],
-  k: [
-    '1000',
-    '1010',
-    '1100',
-    '1010',
-    '1001',
-  ],
-};
-
-/**
- * Draw the text "Sudowork" into the pixel grid.
- * Returns a Set of "x,y" strings that should be lit up.
- */
-function renderText(startX, startY, scale) {
-  const text = 'Sudowork';
-  const pixels = new Set();
-  let cursorX = startX;
-
-  for (const ch of text) {
-    const g = GLYPH[ch];
-    if (!g) {
-      cursorX += 4 * scale;
-      continue;
+async function createInstallerBmp(icon, filePath, width, height, iconSize, iconX, iconY, isHorizontal) {
+  const gradient = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const ratio = (isHorizontal ? x : y) / (isHorizontal ? width - 1 : height - 1);
+      const offset = (y * width + x) * 3;
+      gradient[offset] = Math.round(BRAND_START.r + (BRAND_END.r - BRAND_START.r) * ratio);
+      gradient[offset + 1] = Math.round(BRAND_START.g + (BRAND_END.g - BRAND_START.g) * ratio);
+      gradient[offset + 2] = Math.round(BRAND_START.b + (BRAND_END.b - BRAND_START.b) * ratio);
     }
-    for (let gy = 0; gy < g.length; gy++) {
-      for (let gx = 0; gx < g[gy].length; gx++) {
-        if (g[gy][gx] === '1') {
-          for (let sy = 0; sy < scale; sy++) {
-            for (let sx = 0; sx < scale; sx++) {
-              pixels.add(`${cursorX + gx * scale + sx},${startY + gy * scale + sy}`);
-            }
-          }
-        }
+  }
+
+  const logo = await sharp(icon).resize(iconSize, iconSize, { fit: 'contain' }).png().toBuffer();
+  const pixels = await sharp(gradient, { raw: { width, height, channels: 3 } })
+    .composite([{ input: logo, left: iconX, top: iconY }])
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  writeBmp(filePath, width, height, pixels);
+}
+
+async function createIco(icon, filePath) {
+  const sizes = [16, 24, 32, 48, 64, 128, 256];
+  const images = await Promise.all(sizes.map((size) => sharp(icon).resize(size, size, { fit: 'contain' }).png().toBuffer()));
+  const headerSize = 6 + images.length * 16;
+  const output = Buffer.alloc(headerSize + images.reduce((total, image) => total + image.length, 0));
+  output.writeUInt16LE(1, 2);
+  output.writeUInt16LE(images.length, 4);
+
+  let offset = headerSize;
+  images.forEach((image, index) => {
+    const entry = 6 + index * 16;
+    output[entry] = sizes[index] === 256 ? 0 : sizes[index];
+    output[entry + 1] = sizes[index] === 256 ? 0 : sizes[index];
+    output.writeUInt16LE(1, entry + 4);
+    output.writeUInt16LE(32, entry + 6);
+    output.writeUInt32LE(image.length, entry + 8);
+    output.writeUInt32LE(offset, entry + 12);
+    image.copy(output, offset);
+    offset += image.length;
+  });
+  fs.writeFileSync(filePath, output);
+}
+
+function createIcns(appPng, outputDir) {
+  const conversionDir = path.join(outputDir, 'converted-icns');
+  fs.mkdirSync(conversionDir);
+  execFileSync(appBuilderPath, ['icon', '--format', 'icns', '--input', appPng, '--out', conversionDir], { stdio: 'pipe' });
+  const generated = path.join(conversionDir, 'icon.icns');
+  if (!fs.existsSync(generated)) throw new Error('Failed to generate app.icns');
+  fs.renameSync(generated, path.join(outputDir, 'app.icns'));
+  fs.rmSync(conversionDir, { recursive: true, force: true });
+}
+
+async function prepareBrandAssets(options = {}) {
+  const rootDir = options.rootDir || ROOT_DIR;
+  const outputDir = options.outputDir || path.join(rootDir, '.cache', 'native-brand', 'current');
+  const brand = options.brand || require(path.join(rootDir, 'brand.config.json'));
+  const resourcesDir = path.join(rootDir, 'resources');
+  const parentDir = path.dirname(outputDir);
+  const tempDir = path.join(parentDir, `.tmp-${process.pid}-${Date.now()}`);
+  const isCustom = typeof brand.logo === 'string' && brand.logo.trim().length > 0;
+
+  fs.mkdirSync(parentDir, { recursive: true });
+  fs.rmSync(tempDir, { recursive: true, force: true });
+  fs.mkdirSync(tempDir);
+
+  try {
+    let icon;
+    if (isCustom) {
+      icon = await readLogo(brand.logo.trim());
+      const metadata = await sharp(icon).metadata();
+      if (!metadata.width || !metadata.height) throw new Error('brand.logo is not a supported image');
+
+      const appPng = await sharp(icon)
+        .rotate()
+        .resize(1024, 1024, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toBuffer();
+      fs.writeFileSync(path.join(tempDir, 'app.png'), appPng);
+      fs.writeFileSync(path.join(tempDir, 'app_dev.png'), appPng);
+      await createIco(icon, path.join(tempDir, 'app.ico'));
+      createIcns(path.join(tempDir, 'app.png'), tempDir);
+    } else {
+      for (const file of ['app.png', 'app_dev.png', 'app.ico', 'app.icns']) {
+        fs.copyFileSync(path.join(resourcesDir, file), path.join(tempDir, file));
       }
+      icon = fs.readFileSync(path.join(tempDir, 'app.png'));
     }
-    cursorX += (g[0].length + 1) * scale;
+
+    await sharp(icon)
+      .resize(14, 14, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .tint('#000000')
+      .extend({ top: 2, bottom: 2, left: 2, right: 2, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toFile(path.join(tempDir, 'trayTemplate.png'));
+    await sharp(icon)
+      .resize(28, 28, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .tint('#000000')
+      .extend({ top: 4, bottom: 4, left: 4, right: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toFile(path.join(tempDir, 'trayTemplate@2x.png'));
+
+    await createInstallerBmp(icon, path.join(tempDir, 'installerSidebar.bmp'), 164, 314, 80, 42, 42, false);
+    await createInstallerBmp(icon, path.join(tempDir, 'installerHeader.bmp'), 150, 57, 40, 100, 8, true);
+
+    fs.writeFileSync(
+      path.join(tempDir, 'manifest.json'),
+      `${JSON.stringify({ isCustom, sourceDigest: crypto.createHash('sha256').update(isCustom ? brand.logo : 'sudowork-default').digest('hex') }, null, 2)}\n`
+    );
+
+    fs.rmSync(outputDir, { recursive: true, force: true });
+    fs.renameSync(tempDir, outputDir);
+    return { isCustom, outputDir };
+  } catch (error) {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    throw error;
   }
-  return pixels;
 }
 
-// ── Generate sidebar image (164 × 314) ─────────────────────────────
-function generateSidebar(outPath) {
-  const W = 164;
-  const H = 314;
+module.exports = { prepareBrandAssets, readLogo };
 
-  // Pre-render product name at the bottom
-  const textPixels = renderText(16, H - 40, 2);
-
-  writeBMP(outPath, W, H, (x, y) => {
-    // Vertical gradient
-    const t = y / (H - 1);
-    const bg = lerpColor(BRAND_START, BRAND_END, t);
-
-    // Decorative diagonal lines (subtle)
-    const diag = ((x + y) % 40) < 1;
-    if (diag && t > 0.1 && t < 0.6) {
-      return lerpColor(bg, ACCENT, 0.15);
-    }
-
-    // Decorative circle near top
-    const cx = W / 2;
-    const cy = 80;
-    const radius = 35;
-    const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
-    if (Math.abs(dist - radius) < 2) {
-      return lerpColor(bg, WHITE, 0.25);
-    }
-    // Inner small circle
-    if (Math.abs(dist - 15) < 1.5) {
-      return lerpColor(bg, WHITE, 0.35);
-    }
-
-    // Diamond shape inside the circle (simplified logo)
-    const dx = Math.abs(x - cx);
-    const dy = Math.abs(y - cy);
-    if (dx + dy <= 10 && dx + dy >= 7) {
-      return lerpColor(bg, WHITE, 0.5);
-    }
-
-    // Horizontal accent line
-    if (y >= 140 && y <= 142 && x >= 20 && x <= W - 20) {
-      return lerpColor(bg, ACCENT, 0.4);
-    }
-
-    // Product name text
-    if (textPixels.has(`${x},${y}`)) {
-      return lerpColor(bg, WHITE, 0.7);
-    }
-
-    return bg;
-  });
+if (require.main === module) {
+  prepareBrandAssets({ outputDir: OUTPUT_DIR })
+    .then(({ isCustom, outputDir }) => {
+      console.log(`Prepared ${isCustom ? 'custom' : 'default Sudowork'} native icons in ${path.relative(ROOT_DIR, outputDir)}`);
+    })
+    .catch((error) => {
+      console.error(`Failed to prepare native brand icons: ${error.message}`);
+      process.exit(1);
+    });
 }
-
-// ── Generate header image (150 × 57) ───────────────────────────────
-function generateHeader(outPath) {
-  const W = 150;
-  const H = 57;
-
-  writeBMP(outPath, W, H, (x, y) => {
-    // Horizontal gradient (left to right)
-    const t = x / (W - 1);
-    const bg = lerpColor(BRAND_START, BRAND_END, t);
-
-    // Small diamond icon on the right side
-    const cx = W - 30;
-    const cy = H / 2;
-    const dx = Math.abs(x - cx);
-    const dy = Math.abs(y - cy);
-    if (dx + dy <= 12 && dx + dy >= 9) {
-      return lerpColor(bg, WHITE, 0.5);
-    }
-    if (dx + dy <= 5) {
-      return lerpColor(bg, WHITE, 0.3);
-    }
-
-    // Subtle horizontal lines pattern
-    if (y % 8 === 0 && x < W - 50) {
-      return lerpColor(bg, ACCENT, 0.08);
-    }
-
-    return bg;
-  });
-}
-
-// ── Main ────────────────────────────────────────────────────────────
-const resDir = path.join(__dirname, '..', 'resources');
-
-console.log('Generating NSIS installer images…');
-generateSidebar(path.join(resDir, 'installerSidebar.bmp'));
-generateHeader(path.join(resDir, 'installerHeader.bmp'));
-console.log('Done.');

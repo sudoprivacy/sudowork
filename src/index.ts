@@ -424,54 +424,31 @@ function finishAppQuit(force = false): void {
   app.quit();
 }
 
+const getNativeBrandAssetPath = (fileName: string, defaultFileName = fileName): string => {
+  const generatedPath = app.isPackaged ? path.join(process.resourcesPath, fileName) : path.join(process.cwd(), '.cache', 'native-brand', 'current', fileName);
+  if (fs.existsSync(generatedPath)) return generatedPath;
+  const fallbackPath = app.isPackaged ? path.join(process.resourcesPath, defaultFileName) : path.join(process.cwd(), 'resources', defaultFileName);
+  return fallbackPath;
+};
+
 /**
  * 获取托盘图标 / Get tray icon
  * macOS 使用 Template 图标以适配深色/浅色菜单栏
  * macOS uses Template image to adapt to dark/light menu bar
  */
 const getTrayIcon = (): Electron.NativeImage => {
-  const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(__dirname, '../../resources');
-
-  // Windows: 优先使用 .ico 格式，Linux/macOS 使用 .png
-  const iconFile = process.platform === 'win32' ? 'app.ico' : 'app.png';
-  let iconPath = path.join(resourcesPath, iconFile);
-
-  if (!fs.existsSync(iconPath)) {
-    // Fallback 1: Check if it's in the same directory as the executable (common for some portable builds)
-    const execDir = path.dirname(app.getPath('exe'));
-    iconPath = path.join(execDir, 'resources', iconFile);
-  }
-
-  if (!fs.existsSync(iconPath)) {
-    // Fallback 2: Check standard production resources path (extraResources from builder)
-    const prodPath = path.join(process.resourcesPath, iconFile);
-    iconPath = prodPath;
-  }
-
-  let icon: Electron.NativeImage;
-
-  if (fs.existsSync(iconPath)) {
-    icon = nativeImage.createFromPath(iconPath);
-  } else {
-    // Fallback: try alternative paths
-    const fallbackPath = app.isPackaged ? path.join(process.resourcesPath, 'app.png') : path.join(process.cwd(), 'resources', 'app.png');
-    icon = nativeImage.createFromPath(fallbackPath);
-  }
+  const iconFile = process.platform === 'darwin' ? 'trayTemplate.png' : process.platform === 'win32' ? 'app.ico' : 'app.png';
+  const icon = nativeImage.createFromPath(getNativeBrandAssetPath(iconFile, 'app.png'));
 
   if (icon.isEmpty()) {
-    console.warn('[Tray] Icon file is empty, creating default icon');
-    // Create a default 32x32 icon programmatically
-    icon = nativeImage.createEmpty();
+    console.warn('[Tray] Icon file is empty');
+    return nativeImage.createEmpty();
   }
 
   if (process.platform === 'darwin') {
-    // macOS: 使用 16x16 的 Template 图标，由系统按菜单栏深浅自动渲染黑/白
-    // macOS: use a 16x16 template image so the system auto-renders black/white per menu bar appearance
-    const trayIcon = icon.resize({ width: 16, height: 16 });
-    trayIcon.setTemplateImage(true);
-    return trayIcon;
+    icon.setTemplateImage(true);
+    return icon;
   }
-  // Windows/Linux: 使用 32x32 图标确保清晰可见 / Use 32x32 icon for clear visibility
   return icon.resize({ width: 32, height: 32 });
 };
 
@@ -579,21 +556,11 @@ const createWindow = (): void => {
   const windowWidth = Math.max(980, Math.min(Math.floor(screenWidth * 0.72), 1180));
   const windowHeight = Math.max(680, Math.min(Math.floor(screenHeight * 0.72), 800));
 
-  // Get app icon for development mode (Windows/Linux need icon in BrowserWindow)
-  // In production, icons are set via forge.config.ts packagerConfig
-  let devIcon: Electron.NativeImage | undefined;
-  if (!app.isPackaged) {
-    try {
-      // Windows: app.ico (no dev version), Linux: app_dev.png (with padding)
-      const iconFile = process.platform === 'win32' ? 'app.ico' : 'app_dev.png';
-      const iconPath = path.join(process.cwd(), 'resources', iconFile);
-      if (fs.existsSync(iconPath)) {
-        devIcon = nativeImage.createFromPath(iconPath);
-        if (devIcon.isEmpty()) devIcon = undefined;
-      }
-    } catch {
-      // Ignore icon loading errors in development
-    }
+  let windowIcon: Electron.NativeImage | undefined;
+  if (process.platform !== 'darwin') {
+    const iconFile = process.platform === 'win32' ? 'app.ico' : app.isPackaged ? 'app.png' : 'app_dev.png';
+    const icon = nativeImage.createFromPath(getNativeBrandAssetPath(iconFile));
+    if (!icon.isEmpty()) windowIcon = icon;
   }
 
   // Create the browser window.
@@ -603,8 +570,7 @@ const createWindow = (): void => {
     show: false, // Hide until CSS is loaded to prevent FOUC
     backgroundColor: '#ffffff',
     autoHideMenuBar: true,
-    // Set icon for Windows/Linux in development mode
-    ...(devIcon && process.platform !== 'darwin' ? { icon: devIcon } : {}),
+    ...(windowIcon ? { icon: windowIcon } : {}),
     // Custom titlebar configuration / 自定义标题栏配置
     ...(process.platform === 'darwin'
       ? {
@@ -854,20 +820,10 @@ const handleAppReady = async (): Promise<void> => {
 
   protocol.handle(AION_ASSET_PROTOCOL, createAssetProtocolResponse);
 
-  // Set dock icon in development mode on macOS
-  // In production, the icon is set via forge.config.ts packagerConfig.icon
+  // Packaged macOS apps get their Dock icon from the generated ICNS file.
   if (process.platform === 'darwin' && !app.isPackaged && app.dock) {
-    try {
-      const iconPath = path.join(process.cwd(), 'resources', 'app_dev.png');
-      if (fs.existsSync(iconPath)) {
-        const icon = nativeImage.createFromPath(iconPath);
-        if (!icon.isEmpty()) {
-          app.dock.setIcon(icon);
-        }
-      }
-    } catch {
-      // Ignore dock icon errors in development
-    }
+    const icon = nativeImage.createFromPath(getNativeBrandAssetPath('app_dev.png'));
+    if (!icon.isEmpty()) app.dock.setIcon(icon);
   }
 
   if (isResetPasswordMode) {

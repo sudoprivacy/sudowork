@@ -500,6 +500,11 @@ function buildTeamMcp() {
 }
 
 try {
+  // Native app icons are build-time assets. Always refresh them, even when the
+  // Vite output is cached, so brand.config.json cannot produce stale packages.
+  console.log('🎨 Preparing native brand icons...');
+  execSync(`node "${path.resolve(__dirname, 'generate-installer-images.js')}"`, { stdio: 'inherit' });
+
   // 0. Build safety hook first (required for Sudoclaw gateway interception)
   const hookBuilt = buildSafetyHook();
   if (!hookBuilt) {
@@ -553,19 +558,6 @@ try {
 
   if (!fs.existsSync(rendererIndex)) {
     throw new Error('Missing renderer entry: out/renderer/index.html');
-  }
-
-  // Generate NSIS installer images (sidebar + header BMP files)
-  // These are referenced by electron-builder.yml and must exist before packaging.
-  try {
-    const genScript = path.resolve(__dirname, 'generate-installer-images.js');
-    if (fs.existsSync(genScript)) {
-      console.log('🎨 Generating installer images…');
-      execSync(`node "${genScript}"`, { stdio: 'inherit' });
-    }
-  } catch (imgErr) {
-    console.log(`⚠️  Installer image generation failed: ${imgErr.message}`);
-    console.log('   Continuing without custom images — NSIS will use defaults.');
   }
 
   // If --pack-only, skip electron-builder distributable creation

@@ -41,5 +41,12 @@ describe('brand configuration', () => {
     const installerSource = fs.readFileSync(path.resolve(__dirname, '../../scripts/installer.nsh'), 'utf8');
     expect(installerSource).toContain('${PRODUCT_NAME}');
     expect(installerSource).not.toContain('安装 Sudowork');
+
+    const builderSource = fs.readFileSync(path.resolve(__dirname, '../../electron-builder.yml'), 'utf8');
+    expect(builderSource).toContain('win:\n');
+    expect(builderSource).toContain('icon: .cache/native-brand/current/app.ico');
+    expect(builderSource).toContain('icon: .cache/native-brand/current/app.icns');
+    expect(builderSource).toContain('icon: .cache/native-brand/current/app.png');
+    expect(builderSource).toContain('installerIcon: .cache/native-brand/current/app.ico');
   });
 });

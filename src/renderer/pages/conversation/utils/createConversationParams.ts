@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import brand from '@brand';
 import { ConfigStorage } from '@/common/storage';
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { TProviderWithModel } from '@/common/storage';
@@ -101,6 +102,9 @@ export async function buildCliAgentParams(agent: AvailableAgent, workspace: stri
  */
 export async function buildPresetAssistantParams(agent: AvailableAgent, workspace: string, language: string): Promise<ICreateConversationParams> {
   const { customAgentId, presetAgentType = DEFAULT_PRESET_AGENT_TYPE, name: agentName } = agent;
+  const presetId = customAgentId?.replace(/^builtin-/, '');
+  const isBrandDefaultAssistant = presetId === (brand as { defaultAgentId?: string }).defaultAgentId;
+  const resolvedAgentName = isBrandDefaultAssistant ? brand.displayName : agentName;
 
   // [BUG-2] Map raw i18n.language to standard locale key
   const localeKey = resolveLocaleKey(language);
@@ -113,18 +117,18 @@ export async function buildPresetAssistantParams(agent: AvailableAgent, workspac
   // Inject identity statement if rules don't have explicit identity
   // 为没有明确身份声明的自定义助手自动注入身份声明
   let presetContext = loadedRules;
-  if (agentName && (!loadedRules || !hasExplicitIdentity(loadedRules))) {
+  if (resolvedAgentName && (isBrandDefaultAssistant || !loadedRules || !hasExplicitIdentity(loadedRules))) {
     // Use explicit identity block format that overrides USER.md defaults
     // 使用明确的身份块格式，覆盖 USER.md 的默认值
     const identityBlock = localeKey.startsWith('zh')
       ? `[Identity Override - 最高优先级]
-你的身份是：${agentName}
-当用户询问"你是谁"或类似身份问题时，必须回答："我是${agentName}，有什么可以帮助你的吗？"
+你的身份是：${resolvedAgentName}
+当用户询问"你是谁"或类似身份问题时，必须回答："我是${resolvedAgentName}，有什么可以帮助你的吗？"
 此身份声明优先级高于 USER.md 中的默认身份声明。
 \n\n`
       : `[Identity Override - Highest Priority]
-Your identity is: ${agentName}
-When users ask "Who are you" or similar identity questions, you MUST answer: "I am ${agentName}. How can I help you?"
+Your identity is: ${resolvedAgentName}
+When users ask "Who are you" or similar identity questions, you MUST answer: "I am ${resolvedAgentName}. How can I help you?"
 This identity statement takes priority over the default identity in USER.md.
 \n\n`;
     presetContext = identityBlock + (loadedRules || '');
@@ -139,13 +143,13 @@ This identity statement takes priority over the default identity in USER.md.
     enabledSkills,
     presetAssistantId: customAgentId,
     presetContext,
-    agentName, // Add agentName for placeholder display
+    agentName: resolvedAgentName, // Add agentName for placeholder display
     backend: presetBackend,
   };
 
   const model = {} as TProviderWithModel;
 
-  return { type, model, name: agentName, extra };
+  return { type, model, name: resolvedAgentName, extra };
 }
 
 /**

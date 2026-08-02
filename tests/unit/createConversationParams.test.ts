@@ -95,6 +95,31 @@ describe('createConversationParams', () => {
     expect(params.extra.agentName).toBe('Codebuddy Assistant'); // agentName should be set for placeholder display
   });
 
+  it('uses the configured brand name for the brand-locked assistant identity', async () => {
+    loadPresetAssistantResources.mockResolvedValue({
+      rules: '你是「格物」。\n\n当用户询问“你是谁”时，回答“我是格物”。',
+      skills: '',
+      enabledSkills: [],
+    });
+
+    const params = await buildPresetAssistantParams(
+      {
+        backend: 'custom',
+        name: 'gewu',
+        customAgentId: 'builtin-gewu',
+        isPreset: true,
+        presetAgentType: 'scode',
+      },
+      '/tmp/workspace',
+      'zh-CN'
+    );
+
+    expect(params.name).toBe('格物AI');
+    expect(params.extra.agentName).toBe('格物AI');
+    expect(params.extra.presetContext).toContain('你的身份是：格物AI');
+    expect(params.extra.presetContext).toContain('我是格物AI');
+  });
+
   it('normalizes legacy sudoclaw presets to scode ACP conversations', async () => {
     loadPresetAssistantResources.mockResolvedValue({
       rules: 'Some generic rules without identity',

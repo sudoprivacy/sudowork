@@ -194,6 +194,8 @@ function validatePrereqs() {
 
 function start() {
   validatePrereqs();
+  console.log('Preparing native brand icons...');
+  execSync(`node "${path.join(__dirname, 'generate-installer-images.js')}"`, { stdio: 'inherit' });
   const passthroughArgs = process.argv.slice(3);
   const cleanEnv = { ...process.env };
   delete cleanEnv.ELECTRON_RUN_AS_NODE;

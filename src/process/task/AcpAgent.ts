@@ -882,11 +882,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           // Reload rules from filesystem
           let loadedRules = await readAssistantResource('rules', this.options.presetAssistantId, localeKey, ruleFilePattern).catch(() => '');
 
-          // Get latest assistant name from meta
-          const latestAgentName = meta?.nameI18n?.[localeKey] || meta?.nameI18n?.['en-US'] || meta?.id || strippedId;
+          // The brand-locked assistant represents the product itself, so its
+          // identity comes from brand.config.json rather than the preset ID/name.
+          const isBrandDefaultAssistant = strippedId === (brand as { defaultAgentId?: string }).defaultAgentId;
+          const latestAgentName = isBrandDefaultAssistant ? brand.displayName : meta?.nameI18n?.[localeKey] || meta?.nameI18n?.['en-US'] || meta?.id || strippedId;
 
-          // Inject identity statement if rules don't have explicit identity
-          if (latestAgentName && (!loadedRules || !hasExplicitIdentity(loadedRules))) {
+          // Brand identity must override any explicit identity bundled in preset rules.
+          if (latestAgentName && (isBrandDefaultAssistant || !loadedRules || !hasExplicitIdentity(loadedRules))) {
             const identityBlock = localeKey.startsWith('zh')
               ? `[Identity Override - 最高优先级]
 你的身份是：${latestAgentName}
