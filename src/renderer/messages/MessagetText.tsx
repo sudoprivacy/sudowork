@@ -174,20 +174,15 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
         )}
         {proseHasContent && (
           <div
-            className={classNames('min-w-0 box-border overflow-hidden [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px p-8px border border-solid transition-colors duration-200', {
+            className={classNames('min-w-0 box-border overflow-hidden [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px transition-colors duration-200', {
               'w-fit max-w-full': isUserMessage || !hasCodeLikeContent,
               'w-full max-w-full': !isUserMessage && hasCodeLikeContent,
-              // 用户消息使用 OpenClaw 风格的粉色调
-              'border-border bg-secondary-brand text-secondary-brand-foreground': isUserMessage,
+              'min-w-14 rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl bg-secondary px-4 py-3 text-base text-foreground whitespace-pre-wrap break-words': isUserMessage,
               // 助手消息使用卡片语义色
-              'border-border bg-card text-card-foreground': !isUserMessage,
+              'rounded-2xl border border-solid border-border bg-card p-8px text-card-foreground': !isUserMessage,
               // 流式输出时添加红色闪烁边框
               'streaming-message': isStreaming && !isUserMessage,
             })}
-            style={{
-              borderRadius: isUserMessage ? '16px 16px 16px 16px' : '16px 16px 16px 16px',
-              maxWidth: '100%',
-            }}
           >
             {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}
             {json ? (

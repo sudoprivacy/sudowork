@@ -76,7 +76,7 @@ const TENANT_CONFIG_BRAND_KEY = '__brand';
 export const DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
 
 export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
-  logo: undefined,
+  logo: brand.logo || undefined,
   app_name: brand.displayName,
   top_name: brand.displayName,
   login_desp: brand.tagline,

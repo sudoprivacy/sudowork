@@ -11,6 +11,7 @@ const builderConfig = loadModule('../../electron-builder.brand.js');
 
 describe('brand configuration', () => {
   it('drives default tenant and channel branding', () => {
+    expect(DEFAULT_TENANT_CONFIG.logo).toBe(brand.logo || undefined);
     expect(DEFAULT_TENANT_CONFIG.app_name).toBe(brand.displayName);
     expect(DEFAULT_TENANT_CONFIG.app_company_name).toBe(brand.companyName);
     expect(resolveCachedTenantConfig(createTenantConfigCache(DEFAULT_TENANT_CONFIG))).toEqual(DEFAULT_TENANT_CONFIG);
