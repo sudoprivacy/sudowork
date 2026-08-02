@@ -13,6 +13,7 @@ import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { useDeepLink } from '@renderer/hooks/useDeepLink';
 import { useDirectorySelection } from '@renderer/hooks/useDirectorySelection';
 import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
+import sudoIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
 import { isElectronDesktop, isMacOS } from '@renderer/utils/platform';
@@ -109,13 +110,14 @@ const Layout: React.FC = () => {
             <ArcoLayout.Header className={classNames('mb-1 flex h-9 items-center justify-start px-4 layout-sider-header', isMacRuntime && 'mt-10')}>
               <button
                 type='button'
-                className='flex-1 min-w-0 text-left truncate text-lg text-foreground font-600 cursor-pointer border-none bg-transparent'
+                className='flex flex-1 min-w-0 items-center gap-2 text-left text-lg text-foreground font-600 cursor-pointer border-none bg-transparent'
                 onClick={() => {
                   onClick();
                   onNewConversation();
                 }}
               >
-                {config.app_name}
+                <img src={config.logo || sudoIcon} alt='' className='size-6 shrink-0 object-contain' />
+                <span className='truncate'>{config.app_name}</span>
               </button>
             </ArcoLayout.Header>
             <ArcoLayout.Content className='px-3 pb-3 layout-sider-content'>
