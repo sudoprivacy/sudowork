@@ -12,7 +12,6 @@ import { LayoutContext } from '@renderer/context/LayoutContext';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { useDeepLink } from '@renderer/hooks/useDeepLink';
 import { useDirectorySelection } from '@renderer/hooks/useDirectorySelection';
-import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
 import { useBrandConfig } from '@renderer/hooks/useBrandConfig';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
@@ -71,7 +70,6 @@ const Layout: React.FC = () => {
     emitter.emit('guid.reset');
     void navigate('/guid');
   }, [navigate]);
-  useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   useDeepLink();
   const location = useLocation();

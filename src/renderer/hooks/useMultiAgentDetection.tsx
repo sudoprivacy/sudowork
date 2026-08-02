@@ -6,6 +6,10 @@
 
 /**
  * Hook for detecting multi-agent mode on application startup
+ *
+ * @deprecated 仅用于弹出「已进入多智能体模式」toast，不含任何业务逻辑，
+ * 调用入口已从 layout.tsx 移除。确认不再需要此提示后可整体删除本文件
+ * 及各语言包中的 conversation.welcome.multiAgentModeEnabled key。
  */
 
 import { Message } from '@arco-design/web-react';
