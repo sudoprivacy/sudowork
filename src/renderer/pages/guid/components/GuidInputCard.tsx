@@ -81,7 +81,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 }) => {
   const { t } = useTranslation();
   const { compositionHandlers, isComposing } = useCompositionInput();
-  const textareaAutoSize = { minRows: 3, maxRows: 20 };
+  const textareaAutoSize = { minRows: 3, maxRows: 9 };
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

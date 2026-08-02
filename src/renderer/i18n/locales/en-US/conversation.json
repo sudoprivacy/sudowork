@@ -6,7 +6,7 @@
   },
   "welcome": {
     "title": "What can {{brandName}} help you with today?",
-    "placeholder": "Send a message, upload files, or open a folder...",
+    "placeholder": "Type a message or drop a file to get started...",
     "downloadLocalFile": "Import Local Files",
     "downloadBdpanFile": "Import Baidu Netdisk Files",
     "linkFolder": "Open Folder",

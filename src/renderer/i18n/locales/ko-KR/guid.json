@@ -1,55 +1,15 @@
 {
   "promptTemplates": {
-    "title": "프롬프트 템플릿",
-    "categories": {
-      "coding": "프로그래밍",
-      "writing": "글쓰기",
-      "translation": "번역",
-      "analysis": "분석",
-      "creative": "창작",
-      "learning": "학습"
-    },
-    "coding": {
-      "writeScript": "스크립트 작성",
-      "writeScriptContent": "Python 스크립트를 작성해 주세요. 용도는...",
-      "codeReview": "코드 리뷰",
-      "codeReviewContent": "다음 코드를 리뷰하고 잠재적 문제를 지적하며 개선안을 제안해 주세요:\n\n```\n// 코드를 여기에 붙여넣기\n```",
-      "debug": "오류 디버깅",
-      "debugContent": "다음 오류가 발생했습니다. 원인을 분석하고 해결 방법을 알려주세요:\n\n오류 메시지:",
-      "explain": "코드 설명",
-      "explainContent": "다음 코드의 동작 원리를 이해하기 쉽게 설명해 주세요:\n\n```\n// 코드를 여기에 붙여넣기\n```"
-    },
-    "writing": {
-      "article": "글 작성",
-      "articleContent": "...에 대한 글을 작성해 주세요. 요구사항은...",
-      "polish": "문장 다듬기",
-      "polishContent": "다음 문장을 더 전문적이고 매끄럽게 다듬어 주세요:\n\n",
-      "email": "이메일 작성",
-      "emailContent": "이메일을 작성해 주세요. 제목은..., 수신자는..."
-    },
-    "translation": {
-      "toEnglish": "영어로 번역",
-      "toEnglishContent": "다음 내용을 영어로 번역해 주세요. 원문 스타일을 유지해 주세요:\n\n",
-      "toChinese": "중국어로 번역",
-      "toChineseContent": "다음 내용을 중국어로 번역해 주세요:\n\n"
-    },
-    "analysis": {
-      "data": "데이터 분석",
-      "dataContent": "다음 데이터를 분석하고 주요 트렌드와 인사이트를 찾아주세요:\n\n",
-      "summarize": "요점 정리",
-      "summarizeContent": "다음 내용의 요점을 간결한 글머리 기호로 정리해 주세요:\n\n"
-    },
-    "creative": {
-      "brainstorm": "브레인스토밍",
-      "brainstormContent": "...라는 주제로 브레인스토밍을 하고 10가지 창의적인 아이디어를 제시해 주세요",
-      "naming": "이름 짓기",
-      "namingContent": "...에 좋은 이름을 지어주세요. 5가지 후보를 제시해 주세요"
-    },
-    "learning": {
-      "explain": "개념 설명",
-      "explainContent": "...라는 개념을 알기 쉽게 예시와 함께 설명해 주세요",
-      "compare": "두 가지 비교",
-      "compareContent": "...와 ...의 차이점을 원리, 장단점, 적용 사례 등의 관점에서 분석해 주세요"
+    "title": "자주 쓰는 시나리오",
+    "scenarios": {
+      "sourcePrice": "공급처·가격 조사",
+      "sourcePriceContent": "I need to procure [item/service name]. Please help me:\n① Identify mainstream suppliers and brands with a pros/cons comparison;\n② Research recent transaction price ranges for similar procurements;\n③ Assess the creditworthiness of major suppliers and flag any risk signals or red flags.",
+      "preBidCheck": "입찰 전 사전 점검",
+      "preBidCheckContent": "Please conduct a pre-bid compliance review of the following tender document, focusing on:\n① Whether technical specs show brand preference or exclusionary clauses;\n② Whether qualification requirements are disproportionate or non-compliant;\n③ Whether the scoring criteria are fair and reasonable;\n④ Any clauses that may trigger complaints or void the bidding process.\n\n[Please paste the tender document content or upload the file]",
+      "preAwardVerify": "낙찰 전 검증",
+      "preAwardVerifyContent": "Please conduct a pre-award due diligence on the proposed winning supplier:\n① Authenticity and compliance of declared past performance;\n② Validity of key personnel qualifications and certificates;\n③ Whether the supplier has affiliations with other bidders or collusion risks;\n④ Bid price reasonableness — any dumping or bid-rigging concerns.\n\nSupplier name:\n[Please upload bid documents or paste key information]",
+      "controlPrice": "기준가격 산정",
+      "controlPriceContent": "Please estimate a reasonable control price for the following procurement, based on historical transaction data, current market rates, and cost analysis. Provide a suggested price range and supporting rationale.\n\nItem to procure:\nTechnical specifications:\nQuantity:\nBudget source:"
     }
   },
   "skillSelectorTitle": "스킬",

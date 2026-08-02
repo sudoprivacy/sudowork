@@ -6,7 +6,7 @@
   },
   "welcome": {
     "title": "今日は{{brandName}}に何をお手伝いしてもらいますか？",
-    "placeholder": "メッセージの送信、ファイルの追加、フォルダーの追加、またはスケジュールタスクの作成...",
+    "placeholder": "Type a message or drop a file to get started...",
     "downloadLocalFile": "ローカルファイルをインポート",
     "downloadBdpanFile": "バイドゥ・ネットディスクのファイルをインポート",
     "linkFolder": "フォルダを追加",

@@ -25,6 +25,7 @@ import { useConversationTabs } from '@/renderer/pages/conversation/context/Conve
 import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { resolveLocaleKey } from '@/common/utils';
+import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import PageWrapper from '@/renderer/components/base/PageWrapper';
@@ -206,16 +207,34 @@ const GuidPage: React.FC = () => {
     const presetAgents = agentSelection.customAgents.filter((a) => a.isPreset);
     const customAgents = agentSelection.customAgents.filter((a) => !a.isPreset);
 
-    // Filter builtin presets to allowed list
-    // const allowedPresetIds = ['builtin-ui-ux-pro-max', 'builtin-planning-with-files', 'builtin-beautiful-mermaid', 'builtin-moltbook', 'builtin-copilot', 'builtin-doctor', 'builtin-jiansheku'];
-    // const allowedBuiltinPresets = presetAgents.filter((a) => allowedPresetIds.includes(a.id));
-    const allowedBuiltinPresets: AcpBackendConfig[] = []; // Hidden: builtin assistants temporarily disabled
-    const hubInstalledPresets = presetAgents.filter((a) => !a.id.startsWith('builtin-'));
+    // This consumer build exposes only Gewu among builtin presets. It still uses
+    // the legacy flat preset store, so synthesize its display metadata when the
+    // directory-based AssistantManager has not returned it yet.
+    const allowedBuiltinPresets = presetAgents.filter((agent) => agent.id === 'builtin-gewu');
+    const hubInstalledPresets = presetAgents.filter((agent) => !agent.id.startsWith('builtin-'));
+    const matchedAgent = [...allowedBuiltinPresets, ...hubInstalledPresets, ...customAgents].find((agent) => agent.id === customAgentId);
+    if (matchedAgent) return matchedAgent;
 
-    // Combine: allowed builtin presets + hub-installed presets + user-created custom assistants
-    const filteredAgents = [...allowedBuiltinPresets, ...hubInstalledPresets, ...customAgents];
+    if (customAgentId === 'builtin-gewu') {
+      const preset = ASSISTANT_PRESETS.find((item) => item.id === 'gewu');
+      if (preset) {
+        return {
+          id: customAgentId,
+          name: preset.nameI18n['en-US'],
+          nameI18n: preset.nameI18n,
+          description: preset.descriptionI18n['en-US'],
+          descriptionI18n: preset.descriptionI18n,
+          avatar: preset.avatar,
+          isPreset: true,
+          isBuiltin: true,
+          presetAgentType: preset.presetAgentType,
+          enabledSkills: preset.defaultEnabledSkills,
+          promptsI18n: preset.promptsI18n,
+        } satisfies AcpBackendConfig;
+      }
+    }
 
-    return filteredAgents.find((a) => a.id === customAgentId) || null;
+    return null;
   }, [agentSelection.selectedAgentInfo, agentSelection.customAgents]);
 
   // Resolve avatar for selected assistant header
@@ -615,7 +634,9 @@ const GuidPage: React.FC = () => {
   );
 
   return (
-    <PageWrapper contentClassName='!max-w-[70%] h-full f-center flex-col'>
+    <PageWrapper contentClassName='!max-w-[70%] h-full flex flex-col items-center'>
+      {/* Top spacer: grows to center content initially, shrink-0 keeps upper elements stable when textarea grows */}
+      <div className='grow shrink-0' />
       {/* Normal/Assistant conversation area */}
       <div className='w-full px-4 box-border mx-auto mt-[-5vh]'>
         {isAssistantMode ? (
@@ -711,7 +732,7 @@ const GuidPage: React.FC = () => {
             const target = e.currentTarget as HTMLTextAreaElement;
             setCursorPosition(target.selectionStart);
           }}
-          placeholder={`${mention.selectedAgentLabel}, ${typewriterPlaceholder || t('conversation.welcome.placeholder')}`}
+          placeholder={typewriterPlaceholder || t('conversation.welcome.placeholder')}
           isFileDragging={guidInput.isFileDragging}
           inactiveBorderColor={inactiveBorderColor}
           dragHandlers={guidInput.dragHandlers}
@@ -766,6 +787,8 @@ const GuidPage: React.FC = () => {
           </>
         )}
       </div>
+      {/* Bottom spacer: absorbs height growth from textarea expansion */}
+      <div className='grow' />
       <QuickActionButtons onOpenLink={openLink} inactiveBorderColor={inactiveBorderColor} activeShadow={activeShadow} />
       {/* Assistant Edit Drawer */}
       <AssistantEditDrawer visible={editDrawerVisible} assistantId={selectedAssistantConfig?.id || null} localeKey={localeKey} onClose={() => setEditDrawerVisible(false)} onSaved={handleEditDrawerSaved} />

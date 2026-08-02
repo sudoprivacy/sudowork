@@ -1,55 +1,15 @@
 {
   "promptTemplates": {
-    "title": "Bilgi İstemi Şablonları",
-    "categories": {
-      "coding": "Programlama",
-      "writing": "Yazarlık",
-      "translation": "Çeviri",
-      "analysis": "Analiz",
-      "creative": "Yaratıcılık",
-      "learning": "Öğrenme"
-    },
-    "coding": {
-      "writeScript": "Bir betik yaz",
-      "writeScriptContent": "Bana bir Python betiği yazın, amacı...",
-      "codeReview": "Kod incelemesi",
-      "codeReviewContent": "Lütfen aşağıdaki kodu inceleyin, olası sorunları belirtin ve iyileştirme önerileri sunun:\n\n```\n// Kodu buraya yapıştırın\n```",
-      "debug": "Hata ayıklama",
-      "debugContent": "Aşağıdaki hatayla karşılaştım, lütfen nedenini analiz edip çözüm sunun:\n\nHata mesajı:",
-      "explain": "Kodu açıkla",
-      "explainContent": "Lütfen aşağıdaki kodun nasıl çalıştığını basit ve anlaşılır bir şekilde açıklayın:\n\n```\n// Kodu buraya yapıştırın\n```"
-    },
-    "writing": {
-      "article": "Makale yaz",
-      "articleContent": "Lütfen ... hakkında bir makale yazın, gereksinimler...",
-      "polish": "Metni düzenle",
-      "polishContent": "Lütfen aşağıdaki metni daha profesyonel ve akıcı hale getirin:\n\n",
-      "email": "E-posta yaz",
-      "emailContent": "Lütfen bir e-posta yazın, konu..., alıcı..."
-    },
-    "translation": {
-      "toEnglish": "İngilizceye çevir",
-      "toEnglishContent": "Lütfen aşağıdaki içeriği İngilizceye çevirin, orijinal tarzı koruyun:\n\n",
-      "toChinese": "Çinceye çevir",
-      "toChineseContent": "Lütfen aşağıdaki içeriği Çinceye çevirin:\n\n"
-    },
-    "analysis": {
-      "data": "Veri analizi",
-      "dataContent": "Lütfen aşağıdaki verileri analiz edin ve temel eğilimleri ve içgörüleri belirleyin:\n\n",
-      "summarize": "Özetleme",
-      "summarizeContent": "Lütfen aşağıdaki içeriğin önemli noktalarını kısa madde işaretleri halinde özetleyin:\n\n"
-    },
-    "creative": {
-      "brainstorm": "Beyin fırtınası",
-      "brainstormContent": "Lütfen ... konusunda beyin fırtınası yapın ve 10 yaratıcı fikir verin",
-      "naming": "İsim bul",
-      "namingContent": "Lütfen ... için güzel ve anlamlı bir isim bulun, 5 seçenek sunun"
-    },
-    "learning": {
-      "explain": "Bir kavramı açıkla",
-      "explainContent": "Lütfen ... kavramını basit bir dille ve örneklerle açıklayın",
-      "compare": "İki şeyi karşılaştır",
-      "compareContent": "Lütfen ... ve ... arasındaki farkları ilkeler, artılar/eksiler ve kullanım alanları açısından analiz edin"
+    "title": "Sık Kullanılan Senaryolar",
+    "scenarios": {
+      "sourcePrice": "Tedarik & Fiyat Araştırması",
+      "sourcePriceContent": "I need to procure [item/service name]. Please help me:\n① Identify mainstream suppliers and brands with a pros/cons comparison;\n② Research recent transaction price ranges for similar procurements;\n③ Assess the creditworthiness of major suppliers and flag any risk signals or red flags.",
+      "preBidCheck": "İhale Öncesi Kontrol",
+      "preBidCheckContent": "Please conduct a pre-bid compliance review of the following tender document, focusing on:\n① Whether technical specs show brand preference or exclusionary clauses;\n② Whether qualification requirements are disproportionate or non-compliant;\n③ Whether the scoring criteria are fair and reasonable;\n④ Any clauses that may trigger complaints or void the bidding process.\n\n[Please paste the tender document content or upload the file]",
+      "preAwardVerify": "İhale Öncesi Doğrulama",
+      "preAwardVerifyContent": "Please conduct a pre-award due diligence on the proposed winning supplier:\n① Authenticity and compliance of declared past performance;\n② Validity of key personnel qualifications and certificates;\n③ Whether the supplier has affiliations with other bidders or collusion risks;\n④ Bid price reasonableness — any dumping or bid-rigging concerns.\n\nSupplier name:\n[Please upload bid documents or paste key information]",
+      "controlPrice": "Kontrol Fiyatı Tahmini",
+      "controlPriceContent": "Please estimate a reasonable control price for the following procurement, based on historical transaction data, current market rates, and cost analysis. Provide a suggested price range and supporting rationale.\n\nItem to procure:\nTechnical specifications:\nQuantity:\nBudget source:"
     }
   },
   "skillSelectorTitle": "Beceriler",

@@ -1,55 +1,15 @@
 {
   "promptTemplates": {
-    "title": "Prompt Templates",
-    "categories": {
-      "coding": "Coding",
-      "writing": "Writing",
-      "translation": "Translation",
-      "analysis": "Analysis",
-      "creative": "Creative",
-      "learning": "Learning"
-    },
-    "coding": {
-      "writeScript": "Write a script",
-      "writeScriptContent": "Help me write a Python script to...",
-      "codeReview": "Code review",
-      "codeReviewContent": "Please review the following code, identify potential issues and suggest improvements:\n\n```\n// Paste code here\n```",
-      "debug": "Debug an error",
-      "debugContent": "I encountered the following error, please help me analyze the cause and provide a solution:\n\nError message:",
-      "explain": "Explain code",
-      "explainContent": "Please explain how the following code works in a clear and simple way:\n\n```\n// Paste code here\n```"
-    },
-    "writing": {
-      "article": "Write an article",
-      "articleContent": "Please help me write an article about..., requirements...",
-      "polish": "Polish text",
-      "polishContent": "Please help me polish the following text to make it more professional and fluent:\n\n",
-      "email": "Write an email",
-      "emailContent": "Please help me write an email, subject is..., recipient is..."
-    },
-    "translation": {
-      "toEnglish": "Translate to English",
-      "toEnglishContent": "Please translate the following content to English, maintaining the original style:\n\n",
-      "toChinese": "Translate to Chinese",
-      "toChineseContent": "Please translate the following content to Chinese with faithfulness, expressiveness, and elegance:\n\n"
-    },
-    "analysis": {
-      "data": "Analyze data trends",
-      "dataContent": "Please analyze the following data and identify key trends and insights:\n\n",
-      "summarize": "Summarize key points",
-      "summarizeContent": "Please summarize the key points of the following content using concise bullet points:\n\n"
-    },
-    "creative": {
-      "brainstorm": "Brainstorm",
-      "brainstormContent": "Please brainstorm on the topic of... and give me 10 creative ideas",
-      "naming": "Name something",
-      "namingContent": "Please help me come up with a meaningful name for..., provide 5 options"
-    },
-    "learning": {
-      "explain": "Explain a concept",
-      "explainContent": "Please explain the concept of... in simple terms with examples",
-      "compare": "Compare two things",
-      "compareContent": "Please compare... and..., analyzing their principles, pros/cons, and use cases"
+    "title": "Common Scenarios",
+    "scenarios": {
+      "sourcePrice": "Source & Price",
+      "sourcePriceContent": "I need to procure [item/service name]. Please help me:\n① Identify mainstream suppliers and brands with a pros/cons comparison;\n② Research recent transaction price ranges for similar procurements;\n③ Assess the creditworthiness of major suppliers and flag any risk signals or red flags.",
+      "preBidCheck": "Pre-Bid Health Check",
+      "preBidCheckContent": "Please conduct a pre-bid compliance review of the following tender document, focusing on:\n① Whether technical specs show brand preference or exclusionary clauses;\n② Whether qualification requirements are disproportionate or non-compliant;\n③ Whether the scoring criteria are fair and reasonable;\n④ Any clauses that may trigger complaints or void the bidding process.\n\n[Please paste the tender document content or upload the file]",
+      "preAwardVerify": "Pre-Award Verification",
+      "preAwardVerifyContent": "Please conduct a pre-award due diligence on the proposed winning supplier:\n① Authenticity and compliance of declared past performance;\n② Validity of key personnel qualifications and certificates;\n③ Whether the supplier has affiliations with other bidders or collusion risks;\n④ Bid price reasonableness — any dumping or bid-rigging concerns.\n\nSupplier name:\n[Please upload bid documents or paste key information]",
+      "controlPrice": "Control Price Estimate",
+      "controlPriceContent": "Please estimate a reasonable control price for the following procurement, based on historical transaction data, current market rates, and cost analysis. Provide a suggested price range and supporting rationale.\n\nItem to procure:\nTechnical specifications:\nQuantity:\nBudget source:"
     }
   },
   "skillSelectorTitle": "Skills",

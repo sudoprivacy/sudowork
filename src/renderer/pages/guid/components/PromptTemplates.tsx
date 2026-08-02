@@ -1,65 +1,35 @@
-/**
- * @license
- * Copyright 2026 SudoPrivacy
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
-import Tabs from '@/renderer/components/ui/Tabs';
-import { DEFAULT_PROMPT_CATEGORIES } from '../utils/constants';
-
-type PromptTemplatesProps = {
-  /** Whether the component should be visible */
-  visible: boolean;
-  /** Callback when a prompt template is selected */
-  onSelectPrompt: (content: string) => void;
-};
+import { DEFAULT_PROMPT_SCENARIOS } from '../utils/constants';
 
 /**
- * Displays categorized prompt templates above the input card.
- * Users can click a category to expand its prompts, then click a prompt to fill the input.
+ * Displays scenario-based prompt shortcuts above the input card.
+ * Clicking a scenario fills the input with the corresponding prompt template.
  */
-const PromptTemplates: React.FC<PromptTemplatesProps> = ({ visible, onSelectPrompt }) => {
+export default function PromptTemplates({ visible, onSelectPrompt }: IPromptTemplatesProps) {
   const { t } = useTranslation();
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   if (!visible) return null;
 
-  const currentCategory = DEFAULT_PROMPT_CATEGORIES.find((c) => c.key === activeCategory);
-
   return (
     <div className='w-full mb-4 animate-fade-in animate-duration-400 animate-ease-out'>
-      {/* Title */}
       <div className='flex items-center gap-6px mb-10px'>
-        <span className='text-13px text-foreground-secondary'>💡 {t('guid.promptTemplates.title', { defaultValue: '常用提示词' })}</span>
+        <span className='text-13px text-foreground-secondary'>💡 {t('guid.promptTemplates.title')}</span>
       </div>
-
-      {/* Category tags */}
-      <Tabs
-        className='mb-1'
-        value={activeCategory ?? ''}
-        items={DEFAULT_PROMPT_CATEGORIES.map((category) => ({
-          value: category.key,
-          label: t(category.labelKey),
-          icon: category.icon,
-        }))}
-        onChange={(value) => setActiveCategory(activeCategory === value ? null : value)}
-      />
-
-      {/* Expanded prompt list */}
-      {activeCategory && currentCategory && (
-        <div className='flex flex-wrap gap-2 mt-2 animate-fade-in animate-duration-400 animate-ease-out'>
-          {currentCategory.prompts.map((prompt) => (
-            <Button key={prompt.labelKey} size='small' shape='square' className='!border !border-border' onClick={() => onSelectPrompt(t(prompt.contentKey))}>
-              {t(prompt.labelKey)}
-            </Button>
-          ))}
-        </div>
-      )}
+      <div className='flex flex-wrap gap-2'>
+        {DEFAULT_PROMPT_SCENARIOS.map((scenario) => (
+          <Button key={scenario.labelKey} onClick={() => onSelectPrompt(t(scenario.contentKey))}>
+            {scenario.icon && <span className='mr-1'>{scenario.icon}</span>}
+            {t(scenario.labelKey)}
+          </Button>
+        ))}
+      </div>
     </div>
   );
-};
+}
 
-export default PromptTemplates;
+interface IPromptTemplatesProps {
+  visible: boolean;
+  onSelectPrompt: (content: string) => void;
+}

@@ -6,7 +6,7 @@
   },
   "welcome": {
     "title": "Bugün {{brandName}} size nasıl yardımcı olabilir?",
-    "placeholder": "Mesaj gönder, dosya yükle veya klasör aç...",
+    "placeholder": "Type a message or drop a file to get started...",
     "downloadLocalFile": "Yerel Dosya İçe Aktar",
     "downloadBdpanFile": "Baidu Netdisk Dosyası İçe Aktar",
     "linkFolder": "Klasör Aç",

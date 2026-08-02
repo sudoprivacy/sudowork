@@ -1,55 +1,15 @@
 {
   "promptTemplates": {
-    "title": "常用提示詞",
-    "categories": {
-      "coding": "程式設計",
-      "writing": "寫作",
-      "translation": "翻譯",
-      "analysis": "分析",
-      "creative": "創意",
-      "learning": "學習"
-    },
-    "coding": {
-      "writeScript": "幫我寫一個腳本",
-      "writeScriptContent": "幫我寫一個 Python 腳本，用於...",
-      "codeReview": "幫我 Review 程式碼",
-      "codeReviewContent": "請幫我 review 以下程式碼，指出潛在問題並給出優化建議：\n\n```\n// 貼上程式碼\n```",
-      "debug": "幫我除錯",
-      "debugContent": "我遇到了以下錯誤，請幫我分析原因並給出解決方案：\n\n錯誤訊息：",
-      "explain": "解釋這段程式碼",
-      "explainContent": "請解釋以下程式碼的工作原理，用簡單易懂的方式說明：\n\n```\n// 貼上程式碼\n```"
-    },
-    "writing": {
-      "article": "幫我撰寫文章",
-      "articleContent": "請幫我撰寫一篇關於...的文章，要求...",
-      "polish": "潤飾一段文字",
-      "polishContent": "請幫我潤飾以下文字，使其更加專業流暢：\n\n",
-      "email": "幫我寫封郵件",
-      "emailContent": "請幫我寫一封郵件，主題是...，收件人是..."
-    },
-    "translation": {
-      "toEnglish": "翻譯為英文",
-      "toEnglishContent": "請將以下內容翻譯為英文，保持原文風格：\n\n",
-      "toChinese": "翻譯為中文",
-      "toChineseContent": "請將以下內容翻譯為中文，要求信達雅：\n\n"
-    },
-    "analysis": {
-      "data": "分析數據趨勢",
-      "dataContent": "請分析以下數據，找出關鍵趨勢和洞察：\n\n",
-      "summarize": "總結要點",
-      "summarizeContent": "請總結以下內容的要點，用簡潔的 bullet points 列出：\n\n"
-    },
-    "creative": {
-      "brainstorm": "腦力激盪",
-      "brainstormContent": "請幫我就...這個主題進行腦力激盪，給出 10 個創意想法",
-      "naming": "取名字",
-      "namingContent": "請幫我為...取一個好聽且有意義的名字，給出 5 個備選"
-    },
-    "learning": {
-      "explain": "解釋一個概念",
-      "explainContent": "請用通俗易懂的方式解釋...這個概念，並舉例說明",
-      "compare": "對比兩個事物",
-      "compareContent": "請對比...和...的區別，從原理、優缺點、適用場景等方面分析"
+    "title": "常用場景",
+    "scenarios": {
+      "sourcePrice": "尋源問價",
+      "sourcePriceContent": "我需要採購【品目/服務名稱】，請幫我：\n①梳理國內主流供應商及品牌，給出優劣對比；\n②查詢近期同類項目市場成交價格區間；\n③評估主要供應商的資信情況，有無不良記錄或風險信號。",
+      "preBidCheck": "發標前體檢",
+      "preBidCheckContent": "請對以下招標文件做發標前合規體檢，重點檢查：\n①技術參數是否存在品牌傾向或排他性條款；\n②資質條件門檻是否過高或不合規；\n③評分辦法是否公平合理；\n④有無可能引發投訴或廢標的條款風險。\n\n【請貼上招標文件內容，或上傳文件】",
+      "preAwardVerify": "定標前核查",
+      "preAwardVerifyContent": "請對擬定標供應商進行定標前盡調，核查內容：\n①申報業績的真實性與合規性；\n②關鍵人員資質證書的有效性；\n③與其他投標人是否存在關聯關係或串標嫌疑；\n④報價合理性分析，有無低價傾銷或圍標風險。\n\n供應商名稱：\n【請上傳投標文件或貼上關鍵資訊】",
+      "controlPrice": "控制價測算",
+      "controlPriceContent": "請幫我測算以下採購項目的合理控制價，結合歷史成交數據、當前市場行情及成本構成，給出建議價格區間和測算依據。\n\n採購品目：\n技術參數：\n採購數量：\n預算來源："
     }
   },
   "skillSelectorTitle": "技能",

@@ -6,7 +6,7 @@
   },
   "welcome": {
     "title": "今天想讓{{brandName}}幫你做些什麼？",
-    "placeholder": "發送訊息、上傳檔案、開啟資料夾或建立定時任務...",
+    "placeholder": "說一句話或丟一份文件，即可開始工作...",
     "downloadLocalFile": "導入本地檔案",
     "downloadBdpanFile": "導入百度網盤檔案",
     "linkFolder": "開啟資料夾",
