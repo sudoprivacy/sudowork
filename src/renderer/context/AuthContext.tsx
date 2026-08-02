@@ -5,6 +5,7 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import brand from '@brand';
 import { ipcBridge } from '@/common';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
@@ -12,6 +13,7 @@ import { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveIm
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 import { buildScodeConfigFromLoginPayload, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
+import type { ScodeConfig } from '@/common/ipcBridge';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
 import { fetchSystemConfig } from '@/common/systemConfig';
 import { buildCasLogoutServiceUrl, buildCasLogoutUrl, resolveThirdPartyAuthConfig } from '@/common/thirdPartyAuthConfig';
@@ -232,11 +234,22 @@ export const GUEST_FLAG_KEY = 'sudowork_guest';
 export const GUEST_USER_ID = 'sudowork_guest';
 const DEVICE_ID_KEY = 'sudowork_device_id';
 
-// Restore guest custom models from SQLite into sudocode.json with an empty base,
-// which drops sudorouter and other non-custom entries (clears residue).
+// 在品牌预置的演示模型之上恢复游客自定义模型。
+// 未配置时仍使用空基础配置，保持原游客流程并清除上一个登录账号的模型残留。
 async function restoreGuestScodeModels(): Promise<void> {
   try {
-    await ipcBridge.scode.restoreCustomModelProviders.invoke({ userId: GUEST_USER_ID, baseConfig: {} });
+    // 读取品牌配置中可选的游客 Scode 模型配置。
+    const configuredBase = (brand as { guestScode?: ScodeConfig })?.guestScode;
+    // 以品牌配置为基础恢复游客自定义模型；未配置时传空对象以保持原游客流程。
+    const result = await ipcBridge.scode.restoreCustomModelProviders.invoke({ userId: GUEST_USER_ID, baseConfig: configuredBase ?? {} });
+    // 仅在配置了品牌模型且恢复成功时同步默认模型。
+    const defaultModel = configuredBase && result?.success ? result.data?.default_model : undefined;
+
+    // 同步 sudocode.json、settings.json 和 Guid 模型偏好，避免沿用上一个账号的模型选择。
+    if (defaultModel) {
+      await ipcBridge.scode.setDefaultModel.invoke({ modelId: defaultModel });
+      await syncScodeGuidModelPreference(defaultModel);
+    }
   } catch (err) {
     console.warn('[Auth] Guest scode restore failed:', err);
   }

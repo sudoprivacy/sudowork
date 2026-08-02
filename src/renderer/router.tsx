@@ -44,11 +44,11 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
 // Enterprise-allowed settings paths
 const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/mcp', '/settings/display', '/settings/channels', '/settings/system', '/settings/about'];
 
-// Mode-aware default settings route
+// 按当前模式跳转到侧栏中实际可见的默认设置页。
 const SettingsDefaultRoute: React.FC = () => {
   const { isEnterprise } = useAppMode();
   const { isGuest } = useAuth();
-  return <Navigate to={isGuest ? '/settings/model' : isEnterprise ? '/settings/enterprise' : '/settings/profile'} replace />;
+  return <Navigate to={isGuest ? '/settings/display' : isEnterprise ? '/settings/enterprise' : '/settings/profile'} replace />;
 };
 
 const PROTECTED_ROUTE_CONFIGS = [
@@ -91,9 +91,9 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <Navigate to='/login' replace />;
   }
 
-  // 游客态隐藏「用户中心」「充值中心」（需求 4）：直达这两个 URL 重定向到 /settings/model
+  // 游客隐藏用户中心和充值中心，直达这些地址时跳到第一个可见设置页。
   if (status === 'guest' && (location.pathname === '/settings/profile' || location.pathname === '/settings/recharge')) {
-    return <Navigate to='/settings/model' replace />;
+    return <Navigate to='/settings/display' replace />;
   }
 
   // Wait for useAppMode async initialization to prevent route guard bypass on page refresh

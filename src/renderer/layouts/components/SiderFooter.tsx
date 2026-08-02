@@ -22,7 +22,7 @@ export default function SiderFooter({ isSettings, onBackToMain }: ISiderFooterPr
   const onMenuClick = async (key: string) => {
     setIsUserMenuOpen(false);
     if (key === 'settings') {
-      void navigate(isGuest ? '/settings/model' : '/settings/profile');
+      void navigate(isGuest ? '/settings/display' : '/settings/profile');
     } else if (key === 'login') {
       void navigate('/login', { replace: true });
     } else if (key === 'logout') {

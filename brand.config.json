@@ -29,5 +29,254 @@
   "companyName": "北京数牍科技有限公司",
   "tagline": "AgentOps | 办公专家",
   "websiteUrl": "https://sudowork.sudoprivacy.com",
-  "privacyPolicyUrl": "https://sudowork.sudoprivacy.com/privacy.html"
+  "privacyPolicyUrl": "https://sudowork.sudoprivacy.com/privacy.html",
+  "guestScode": {
+    "auth_modes": {
+      "proxy": {
+        "sudorouter": {
+          "baseUrl": "https://hk.sudorouter.ai/v1",
+          "apiKey": "sk-bXIGlq3DiulCjg8baMC6LPLWhXxj09i9xqgoVjTm0QqRnFB5"
+        }
+      }
+    },
+    "models": {
+      "auto": {
+        "alias": "auto",
+        "name": "auto",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "gpt-5.5",
+            "api": "openai-responses"
+          }
+        }
+      },
+      "grok-4-20-reasoning": {
+        "alias": "grok-4-20-reasoning",
+        "name": "grok-4-20-reasoning",
+        "input": ["text"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "grok-4-20-reasoning",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "grok-4.3": {
+        "alias": "grok-4.3",
+        "name": "grok-4.3",
+        "input": ["text"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "grok-4.3",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "deepseek-v4-flash": {
+        "alias": "deepseek-v4-flash",
+        "name": "deepseek-v4-flash",
+        "input": ["text"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "deepseek-v4-flash",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "deepseek-v4-pro": {
+        "alias": "deepseek-v4-pro",
+        "name": "deepseek-v4-pro",
+        "input": ["text"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "deepseek-v4-pro",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "glm-5.2": {
+        "alias": "glm-5.2",
+        "name": "glm-5.2",
+        "input": ["text"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "glm-5.2",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "MiniMax-M2.5": {
+        "alias": "MiniMax-M2.5",
+        "name": "MiniMax-M2.5",
+        "input": ["text"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "MiniMax-M2.5",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "gemini-3.5-flash": {
+        "alias": "gemini-3.5-flash",
+        "name": "gemini-3.5-flash",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "gemini-3.5-flash",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "gemini-3.1-flash-lite": {
+        "alias": "gemini-3.1-flash-lite",
+        "name": "gemini-3.1-flash-lite",
+        "input": ["text"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "gemini-3.1-flash-lite",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "gemini-3-flash-preview": {
+        "alias": "gemini-3-flash-preview",
+        "name": "gemini-3-flash-preview",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "gemini-3-flash-preview",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "gemini-3.1-pro-preview": {
+        "alias": "gemini-3.1-pro-preview",
+        "name": "gemini-3.1-pro-preview",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "gemini-3.1-pro-preview",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "Kimi-K2.6": {
+        "alias": "Kimi-K2.6",
+        "name": "Kimi-K2.6",
+        "input": ["text"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "Kimi-K2.6",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "gpt-5.3-codex": {
+        "alias": "gpt-5.3-codex",
+        "name": "gpt-5.3-codex",
+        "input": ["text"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "gpt-5.3-codex",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "gpt-5.4": {
+        "alias": "gpt-5.4",
+        "name": "gpt-5.4",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "gpt-5.4",
+            "api": "openai-responses"
+          }
+        }
+      },
+      "gpt-5.5": {
+        "alias": "gpt-5.5",
+        "name": "gpt-5.5",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "gpt-5.5",
+            "api": "openai-responses"
+          }
+        }
+      },
+      "claude-sonnet-4-6": {
+        "alias": "claude-sonnet-4-6",
+        "name": "claude-sonnet-4-6",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "claude-sonnet-4-6",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "claude-opus-4-6": {
+        "alias": "claude-opus-4-6",
+        "name": "claude-opus-4-6",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "claude-opus-4-6",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "claude-opus-4-7": {
+        "alias": "claude-opus-4-7",
+        "name": "claude-opus-4-7",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "claude-opus-4-7",
+            "api": "openai-completions"
+          }
+        }
+      },
+      "claude-opus-4-8": {
+        "alias": "claude-opus-4-8",
+        "name": "claude-opus-4-8",
+        "input": ["text", "image"],
+        "providers": {
+          "proxy": {
+            "provider": "sudorouter",
+            "model": "claude-opus-4-8",
+            "api": "openai-completions"
+          }
+        }
+      }
+    },
+    "web_search": {
+      "provider": "tavily",
+      "apiUrl": "https://hk.sudorouter.ai/search/tavily/search",
+      "apiKey": "sk-bXIGlq3DiulCjg8baMC6LPLWhXxj09i9xqgoVjTm0QqRnFB5"
+    },
+    "default_model": "auto",
+    "tools": {
+      "imageGenerationModel": "gemini-2.5-flash-image"
+    }
+  }
 }

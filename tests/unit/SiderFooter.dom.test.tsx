@@ -74,6 +74,14 @@ describe('SiderFooter', () => {
     expect(screen.queryByRole('button', { name: 'Back to Main' })).not.toBeInTheDocument();
   });
 
+  it('opens the first visible settings page for guests', () => {
+    mocks.isGuest = true;
+    render(<SiderFooter isSettings={false} onBackToMain={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Settings/ }));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/display');
+  });
+
   it('replaces account information with Back to Main on settings pages', () => {
     const onBackToMain = vi.fn();
     render(<SiderFooter isSettings onBackToMain={onBackToMain} />);
