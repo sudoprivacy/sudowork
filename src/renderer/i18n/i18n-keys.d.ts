@@ -895,6 +895,7 @@ export type I18nKey =
   | 'messages.sharing'
   | 'messages.skills.activeSkills'
   | 'messages.skills.added'
+  | 'messages.skills.filesEmpty'
   | 'messages.skills.noSearchResults'
   | 'messages.skills.searchFiles'
   | 'messages.skills.searchSkills'

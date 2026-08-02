@@ -1,0 +1,18 @@
+{
+  "id": "procurement-assistant",
+  "name": "procurement-assistant",
+  "display_name": "采购助手",
+  "description": "辅助管理供应商、采购清单、比价、采购订单、采购台账和成本分析。",
+  "icon": "",
+  "emoji": "🛒",
+  "category": "",
+  "categories": ["办公商务", "采购管理"],
+  "applicable_scenarios": "[\"供应商信息记录与查询\",\"采购清单和采购订单生成\",\"多供应商报价、交期和付款条件对比\",\"历史价格与采购成本分析\"]",
+  "core_features": "[{\"title\":\"供应商管理\",\"desc\":\"整理供应商信息、资质和报价历史\"},{\"title\":\"采购清单\",\"desc\":\"创建采购清单并跟踪订单状态\"},{\"title\":\"比价分析\",\"desc\":\"对比价格、交期和付款条件并给出建议\"}]",
+  "homepage": null,
+  "author_id": "444140",
+  "is_builtin": true,
+  "enabled": true,
+  "installed_version": "1.0.0",
+  "installed_at": "2026-07-02T00:00:00.000Z"
+}

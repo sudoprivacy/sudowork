@@ -45,7 +45,8 @@
     "noSearchResults": "Eşleşen sonuç bulunamadı",
     "activeSkills": "Aktif Beceriler",
     "added": "Eklendi",
-    "tabToSwitch": "Tab ile değiştir"
+    "tabToSwitch": "Tab ile değiştir",
+    "filesEmpty": "Çalışma alanında dosya yok"
   },
   "confirmation": {
     "applyChange": "Bu değişikliği uygula?",

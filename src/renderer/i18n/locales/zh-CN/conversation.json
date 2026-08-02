@@ -59,7 +59,7 @@
     "batchDeleteSuccess": "已删除 {{count}} 个话题",
     "batchNoSelection": "请先选择话题",
     "export": "导出",
-    "exportDialogTitle": "导出话题",
+    "exportDialogTitle": "导出会话",
     "exportDialogSingleDescription": "将导出当前话题的会话记录（JSON + Markdown）及工作区文件，并打包为 ZIP。",
     "exportDialogBatchDescription": "将导出已选 {{count}} 个话题的会话记录（JSON + Markdown）及工作区文件，并打包为 ZIP。",
     "exportTargetFolder": "导出到文件夹",

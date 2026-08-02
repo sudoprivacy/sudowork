@@ -45,7 +45,8 @@
     "noSearchResults": "未找到匹配結果",
     "activeSkills": "目前使用技能",
     "added": "已新增",
-    "tabToSwitch": "Tab 切換"
+    "tabToSwitch": "Tab 切換",
+    "filesEmpty": "工作區中沒有檔案"
   },
   "confirmation": {
     "applyChange": "應用此更改？",

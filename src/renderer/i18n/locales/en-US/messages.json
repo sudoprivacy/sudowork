@@ -62,7 +62,8 @@
     "noSearchResults": "No matching results",
     "activeSkills": "Active Skills",
     "added": "Added",
-    "tabToSwitch": "Tab to switch"
+    "tabToSwitch": "Tab to switch",
+    "filesEmpty": "No files in workspace"
   },
   "confirmation": {
     "applyChange": "Apply this change?",

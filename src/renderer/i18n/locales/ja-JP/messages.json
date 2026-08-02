@@ -45,7 +45,8 @@
     "noSearchResults": "一致する結果がありません",
     "activeSkills": "使用中のスキル",
     "added": "追加済み",
-    "tabToSwitch": "Tab で切り替え"
+    "tabToSwitch": "Tab で切り替え",
+    "filesEmpty": "ワークスペースにファイルがありません"
   },
   "confirmation": {
     "applyChange": "この変更を適用しますか？",

@@ -23,6 +23,7 @@ import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { skillHub } from '@/common/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
+import { defaultAgentSkillOrder, prioritizeSkills } from '@/renderer/pages/guid/utils/skillOrder';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { allSupportedExts } from '../services/FileService';
 import type { FileMetadata } from '../services/FileService';
@@ -362,7 +363,7 @@ const SendBox: React.FC<{
         };
       });
     // Deduplicate items by name to prevent duplicate keys
-    return Array.from(new Map(items.map((item) => [item.name, item])).values());
+    return prioritizeSkills(Array.from(new Map(items.map((item) => [item.name, item])).values()), defaultAgentSkillOrder);
   }, [installedSkills]);
 
   const skillSelectorController = useSkillSelectorController({

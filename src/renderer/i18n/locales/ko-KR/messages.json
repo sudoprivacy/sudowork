@@ -45,7 +45,8 @@
     "noSearchResults": "일치하는 결과가 없습니다",
     "activeSkills": "현재 사용 중인 스킬",
     "added": "추가됨",
-    "tabToSwitch": "Tab 전환"
+    "tabToSwitch": "Tab 전환",
+    "filesEmpty": "작업 공간에 파일이 없습니다"
   },
   "confirmation": {
     "applyChange": "이 변경 사항을 적용하시겠습니까?",

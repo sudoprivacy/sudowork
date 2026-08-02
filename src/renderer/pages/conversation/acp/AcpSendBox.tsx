@@ -8,6 +8,7 @@ import { Button, Message, Modal, Tag } from '@arco-design/web-react';
 import { Plus, Shield } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import brand from '@brand';
 import { ipcBridge } from '@/common';
 import type { AcpBackend } from '@/types/acpTypes';
 import { transformMessage, type AcpQuestionItem, type IMessageAcpQuestion, type TMessage } from '@/common/chatLib';
@@ -599,7 +600,7 @@ const AcpSendBox: React.FC<{
   isAwaitingUserInput?: boolean;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
   onProcessingChange?: (isProcessing: boolean) => void;
-}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }) => {
+}> = ({ conversation_id, backend, sessionMode, teamSendMessage, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const isProcessing = (running || aiProcessing) && !isAwaitingUserInput;
@@ -1025,7 +1026,7 @@ const AcpSendBox: React.FC<{
         loading={isProcessing}
         disabled={false}
         topAttached={Boolean(thought?.subject) || isProcessing || isAwaitingUserInput}
-        placeholder={isAwaitingUserInput ? t('messages.enterAnswer') : t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
+        placeholder={isAwaitingUserInput ? t('messages.enterAnswer') : t('acp.sendbox.placeholder', { backend: brand.displayName, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
         allowSubmitWhileRunning={allowSubmitWhileRunning}
         queuedInputs={queuedInputs}

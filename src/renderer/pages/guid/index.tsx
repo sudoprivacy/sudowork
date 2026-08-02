@@ -29,6 +29,7 @@ import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import PageWrapper from '@/renderer/components/base/PageWrapper';
+import { brandDefaultAgentId, defaultAgentSkillOrder, prioritizeSkills } from './utils/skillOrder';
 import type { BrandPromptScenario } from './utils/constants';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
@@ -175,19 +176,22 @@ const GuidPage: React.FC = () => {
 
   // Convert installed skills to selector items (filtered by selected assistant)
   const skillSelectorItems = useMemo<SkillSelectorItem[]>(() => {
-    const items = installedSkills
-      .filter((skill) => !isEnterprise || skill.enabled !== false)
-      .map((skill) => {
-        const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
-        return {
-          name: skill.name,
-          displayName,
-          description,
-          icon: icon || resolveSkillIcon(skill.meta?.icon),
-          emoji,
-          enabled: skill.enabled,
-        };
-      });
+    const items = prioritizeSkills(
+      installedSkills
+        .filter((skill) => !isEnterprise || skill.enabled !== false)
+        .map((skill) => {
+          const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
+          return {
+            name: skill.name,
+            displayName,
+            description,
+            icon: icon || resolveSkillIcon(skill.meta?.icon),
+            emoji,
+            enabled: skill.enabled,
+          };
+        }),
+      defaultAgentSkillOrder
+    );
     if (agentEnabledSkills && agentEnabledSkills.length > 0) {
       // Use Set for O(1) lookup and deduplicate agentEnabledSkills
       const enabledSkillSet = new Set(agentEnabledSkills);
@@ -197,8 +201,6 @@ const GuidPage: React.FC = () => {
     const uniqueItems = Array.from(new Map(items.map((item) => [item.name, item])).values());
     return uniqueItems;
   }, [installedSkills, agentEnabledSkills, isEnterprise]);
-
-  const brandDefaultAgentId = (brand as { defaultAgentId?: string }).defaultAgentId;
 
   // --- Resolve selected assistant info for header ---
   const selectedAssistantConfig = useMemo(() => {
@@ -240,7 +242,7 @@ const GuidPage: React.FC = () => {
     }
 
     return null;
-  }, [agentSelection.selectedAgentInfo, agentSelection.customAgents, brandDefaultAgentId]);
+  }, [agentSelection.selectedAgentInfo, agentSelection.customAgents]);
 
   // Resolve avatar for selected assistant header
   const selectedAssistantAvatar = useMemo(() => {

@@ -1,0 +1,18 @@
+{
+  "id": "gov-procurement-analyst",
+  "name": "gov-procurement-analyst",
+  "display_name": "政府采购智能分析",
+  "description": "政府采购全流程分析，覆盖商机发现、投标决策、标书编制、供应商背调、合规审计、竞对画像和评分预测。",
+  "icon": "",
+  "emoji": "🏛️",
+  "category": "",
+  "categories": ["商业分析", "政府采购"],
+  "applicable_scenarios": "[\"政府采购商机发现与项目匹配\",\"投标决策、报价与中标概率分析\",\"标书编制、资质检查与格式合规审计\",\"供应商背调与竞争对手画像\"]",
+  "core_features": "[{\"title\":\"投标决策\",\"desc\":\"结合资质、业绩、地区和报价给出投标建议\"},{\"title\":\"合规审计\",\"desc\":\"检查时间节点、关联关系和评分异常\"},{\"title\":\"标书辅助\",\"desc\":\"生成结构、检查评分项覆盖和格式要求\"}]",
+  "homepage": null,
+  "author_id": "524844",
+  "is_builtin": true,
+  "enabled": true,
+  "installed_version": "4.8.0",
+  "installed_at": "2026-08-01T00:00:00.000Z"
+}
