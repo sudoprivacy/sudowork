@@ -61,5 +61,9 @@ describe('brand configuration', () => {
     expect(builderSource).toContain('icon: .cache/native-brand/current/app.icns');
     expect(builderSource).toContain('icon: .cache/native-brand/current/app.png');
     expect(builderSource).toContain('installerIcon: .cache/native-brand/current/app.ico');
+
+    const buildScriptSource = fs.readFileSync(path.resolve(__dirname, '../../scripts/build-with-builder.js'), 'utf8');
+    expect(buildScriptSource).toContain("targetArch === 'x64' ? 'amd64' : targetArch");
+    expect(buildScriptSource).toContain("execSync('node scripts/build-browser-mcp.js'");
   });
 });

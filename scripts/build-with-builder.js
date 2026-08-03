@@ -256,7 +256,8 @@ function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
     ];
     const hasAppImage = appImageNames.some((name) => fs.existsSync(path.join(outDir, name)));
     if (!hasAppImage) missing.push(appImageNames.join(' or '));
-    expectFile(`${PRODUCT_NAME}-${appVersion}-linux-${targetArch}.deb`);
+    const debArch = targetArch === 'x64' ? 'amd64' : targetArch;
+    expectFile(`${PRODUCT_NAME}-${appVersion}-linux-${debArch}.deb`);
   }
 
   if (missing.length > 0) {
@@ -478,6 +479,22 @@ function buildSafetyHook() {
   }
 }
 
+function buildBrowserMcp() {
+  const repoRoot = path.resolve(__dirname, '..');
+  const outPath = path.join(repoRoot, 'resources', 'browser-panel-mcp', 'index.js');
+
+  console.log('🔨 Building browser-panel MCP server...');
+  execSync('node scripts/build-browser-mcp.js', {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  if (!fs.existsSync(outPath)) {
+    throw new Error(`browser-panel MCP bundle missing at ${outPath} — aborting packaging to avoid a broken installer.`);
+  }
+}
+
 // Build the team-mcp MCP server bundle. Unlike the safety hook, this is
 // mandatory: a missing bundle breaks team creation entirely, so failures must
 // abort packaging rather than silently ship a broken installer (root cause of
@@ -517,7 +534,8 @@ try {
     console.log('⚠️  Continuing without safety hook. Sudoclaw interception will not work.');
   }
 
-  // 0b. Build team-mcp MCP server (mandatory — missing bundle breaks team creation).
+  // 0b. Build packaged MCP servers; missing bundles would silently ship broken features.
+  buildBrowserMcp();
   buildTeamMcp();
 
   // 1. Ensure package.json main entry is correct for electron-vite
