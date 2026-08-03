@@ -644,6 +644,7 @@ jobs:
             out/*.msi
             out/*.dmg
             out/*.AppImage
+            out/*.deb
             out/*.zip
             out/*.yml
             out/*.blockmap
