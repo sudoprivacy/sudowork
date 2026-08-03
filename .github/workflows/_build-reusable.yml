@@ -181,6 +181,7 @@ jobs:
             windows-arm64) PLATFORM="win32-arm64" ;;
             linux-x64)   PLATFORM="linux-x64" ;;
             linux-arm64) PLATFORM="linux-arm64" ;;
+            linux)       PLATFORM="linux-x64" ;;
             *)           PLATFORM="${{ matrix.platform }}" ;;
           esac
           echo "Downloading resources for target platform: $PLATFORM"
