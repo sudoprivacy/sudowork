@@ -114,7 +114,7 @@ const SudocodeModelSettings: React.FC = () => {
           <Button icon={<IconRefresh />} onClick={loadConfig}>
             {t('common.refresh', '刷新')}
           </Button>
-          <Button type='primary' icon={<IconPlus />} onClick={openAddDialog} className='!bg-primary !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
+          <Button type='primary' icon={<IconPlus />} onClick={openAddDialog}>
             {t('settings.addModel', '添加模型')}
           </Button>
         </Space>
@@ -127,23 +127,23 @@ const SudocodeModelSettings: React.FC = () => {
       ) : (
         <AionScrollArea className='h-full'>
           <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-5'>
-            <div className='bg-muted rd-3 border border-light p-4'>
-              <div className='text-12px text-secondary mb-1.5'>{t('common.defaultModel', '默认模型')}</div>
+            <div className='bg-card border border-border rounded-lg shadow-sm p-4'>
+              <div className='text-12px text-foreground-secondary mb-1.5'>{t('common.defaultModel', '默认模型')}</div>
               <div className='text-16px font-600 text-foreground truncate'>{config?.default_model || t('common.notSet', '未设置')}</div>
             </div>
-            <div className='bg-muted rd-3 border border-light p-4'>
-              <div className='text-12px text-secondary mb-1.5'>{t('settings.sudocodeModel.sudorouterModels', 'Sudorouter 模型')}</div>
+            <div className='bg-card border border-border rounded-lg shadow-sm p-4'>
+              <div className='text-12px text-foreground-secondary mb-1.5'>{t('settings.sudocodeModel.sudorouterModels', 'Sudorouter 模型')}</div>
               <div className='text-16px font-600 text-foreground'>{sudorouterModels.length}</div>
             </div>
-            <div className='bg-muted rd-3 border border-light p-4'>
-              <div className='text-12px text-secondary mb-1.5'>{t('settings.sudocodeModel.customProviders', '第三方提供商')}</div>
+            <div className='bg-card border border-border rounded-lg shadow-sm p-4'>
+              <div className='text-12px text-foreground-secondary mb-1.5'>{t('settings.sudocodeModel.customProviders', '第三方提供商')}</div>
               <div className='text-16px font-600 text-foreground'>{customProviders.length}</div>
             </div>
           </div>
 
           <div className='space-y-4'>
-            <section className='border border-light rd-3 overflow-hidden bg-muted'>
-              <div className='px-4 py-3 flex items-center justify-between'>
+            <section className='border border-border rounded-lg overflow-hidden bg-card'>
+              <div className='px-4 py-3 flex items-center justify-between border-b border-shallow'>
                 <div className='flex items-center gap-2 font-600 text-foreground'>
                   <IconCloud className='text-18px' />
                   Sudorouter
@@ -154,22 +154,22 @@ const SudocodeModelSettings: React.FC = () => {
             </section>
 
             {customProviders.length === 0 ? (
-              <div className='border border-light border-dashed rd-3 bg-muted py-12 text-center'>
-                <IconSettings className='text-32px text-tertiary mb-3' />
+              <div className='border border-border border-dashed rounded-lg bg-muted py-12 text-center'>
+                <IconSettings className='text-32px text-foreground-tertiary mb-3' />
                 <div className='text-15px font-600 text-foreground mb-1'>{t('settings.sudocodeModel.noCustomProviders', '还没有第三方模型')}</div>
                 <Text type='secondary'>{t('settings.sudocodeModel.noCustomProvidersHint', '添加 OpenAI 兼容 API 后，可在 Sudo Code 模型下拉中选择。')}</Text>
               </div>
             ) : (
               customProviders.map((provider) => (
-                <section key={provider.id} className='border border-light rd-3 overflow-hidden bg-muted'>
-                  <div className='px-4 py-3 border-b border-light flex items-center justify-between gap-3 flex-wrap'>
+                <section key={provider.id} className='border border-border rounded-lg overflow-hidden bg-card'>
+                  <div className='px-4 py-3 border-b border-shallow flex items-center justify-between gap-3 flex-wrap'>
                     <div className='min-w-0'>
                       <div className='flex items-center gap-2 font-600 text-foreground'>
                         <IconCloud className='text-18px' />
                         <span className='truncate'>{provider.id}</span>
                         <Tag color='blue'>{t('settings.sudocodeModel.openAICompatibleTag', 'OpenAI 兼容')}</Tag>
                       </div>
-                      <div className='text-12px text-secondary truncate mt-1'>{provider.baseUrl}</div>
+                      <div className='text-12px text-foreground-secondary truncate mt-1'>{provider.baseUrl}</div>
                     </div>
                     <Space>
                       <Tag bordered>{maskSecret(provider.apiKey) || t('common.notSet', '未设置')}</Tag>
@@ -180,13 +180,13 @@ const SudocodeModelSettings: React.FC = () => {
                       </Popconfirm>
                     </Space>
                   </div>
-                  <div className='divide-y divide-light'>
-                    {provider.modelIds.map((modelId) => {
+                  <div>
+                    {provider.modelIds.map((modelId, index) => {
                       const entry = findModelEntry(config, modelId);
                       const displayModelId = entry?.providers?.['api-key']?.model || entry?.name || modelId;
                       const input = entry?.input || [];
                       return (
-                        <div key={modelId} className='px-4 py-3 flex items-center justify-between gap-3 flex-wrap'>
+                        <div key={modelId} className={`px-4 py-3 flex items-center justify-between gap-3 flex-wrap ${index > 0 ? 'border-t border-shallow' : ''}`}>
                           <div className='min-w-0'>
                             <div className='text-14px font-600 text-foreground truncate'>{displayModelId}</div>
                             <div className='mt-1.5 flex flex-wrap gap-1.5'>

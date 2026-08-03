@@ -22,7 +22,6 @@ const BUILTIN_TAB_IDS = [
   'profile',
   'recharge',
   'members',
-  'model',
   // 'agent',
   // 'tools',
   // 'skill',
@@ -30,6 +29,7 @@ const BUILTIN_TAB_IDS = [
   'display',
   // 'channels',
   // 'runtime',
+  'model',
   'system',
   'about',
 ] as const; // 隐藏'copilot'；'cron'已移至左侧边栏

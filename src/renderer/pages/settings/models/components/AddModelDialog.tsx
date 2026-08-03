@@ -285,8 +285,8 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
           </Form.Item>
         )}
         {!isEditing && selectedModelIds.length > 0 && (
-          <div className='mb-4 border border-light rd-2 bg-muted p-3'>
-            <div className='mb-2 text-12px text-secondary'>{t('settings.sudocodeModel.selectedModelsCount', '已选择 {{count}} 个模型', { count: selectedModelIds.length })}</div>
+          <div className='mb-4 border border-border rounded-md bg-muted p-3'>
+            <div className='mb-2 text-12px text-foreground-secondary'>{t('settings.sudocodeModel.selectedModelsCount', '已选择 {{count}} 个模型', { count: selectedModelIds.length })}</div>
             <div className='flex flex-wrap gap-1.5'>
               {selectedModelIds.map((modelId) => (
                 <Tag
