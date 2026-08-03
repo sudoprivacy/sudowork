@@ -250,18 +250,15 @@ function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
 
   if (args.includes('--linux') || args.includes('--all')) {
     expectFile(path.join('linux-unpacked', EXECUTABLE_NAME));
-    const appImageNames = [
+    // electron-builder renames x64 per target: AppImage → x86_64, deb → amd64.
+    expectOneFile([
       `${PRODUCT_NAME}-${appVersion}-linux-${targetArch}.AppImage`,
       `${PRODUCT_NAME}-${appVersion}-linux-x86_64.AppImage`,
-    ];
-    const hasAppImage = appImageNames.some((name) => fs.existsSync(path.join(outDir, name)));
-    if (!hasAppImage) missing.push(appImageNames.join(' or '));
-    const snapNames = [
-      `${PRODUCT_NAME}-${appVersion}-linux-${targetArch}.snap`,
-      `${PRODUCT_NAME}-${appVersion}-linux-amd64.snap`,
-    ];
-    const hasSnap = snapNames.some((name) => fs.existsSync(path.join(outDir, name)));
-    if (!hasSnap) missing.push(snapNames.join(' or '));
+    ]);
+    expectOneFile([
+      `${PRODUCT_NAME}-${appVersion}-linux-${targetArch}.deb`,
+      `${PRODUCT_NAME}-${appVersion}-linux-amd64.deb`,
+    ]);
   }
 
   if (missing.length > 0) {

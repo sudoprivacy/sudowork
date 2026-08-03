@@ -295,6 +295,19 @@ mac:
 
 linux:
   icon: .cache/native-brand/current/app.png
+  # electron-builder's linux default is AppImage + snap. snap is unusable for the
+  # offline/intranet deployments this brand targets: it needs snapd and resolves
+  # from the Snap Store by default. deb goes through apt/dpkg like any other
+  # system package; AppImage stays as the no-install fallback.
+  target:
+    - AppImage
+    - deb
+  # Match the win/mac naming convention. Without this, linux falls back to
+  # electron-builder's per-target defaults (`${name}_${version}_${arch}.deb`),
+  # which validateBuildArtifacts() in scripts/build-with-builder.js does not match.
+  # Note ${arch} expands per target: AppImage → x86_64, deb → amd64.
+  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  category: Office
 
 dmg:
   icon: .cache/native-brand/current/app.icns
