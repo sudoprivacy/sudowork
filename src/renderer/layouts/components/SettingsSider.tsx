@@ -22,7 +22,7 @@ const BUILTIN_TAB_IDS = [
   'profile',
   'recharge',
   'members',
-  // 'model',
+  'model',
   // 'agent',
   // 'tools',
   // 'skill',

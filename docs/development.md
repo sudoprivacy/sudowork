@@ -54,6 +54,12 @@ The build output goes to `out/` directory:
 - `out/renderer/` - Renderer process code
 - `out/preload/` - Preload scripts
 
+## Brand Configuration
+
+Product naming, logos, offline packaging, default assistant behavior, prompt scenarios, and optional guest Scode defaults are configured in the root `brand.config.json`.
+
+See [Brand configuration](branding.md) for the complete field reference, constraints, security notes, and verification commands.
+
 ## Tech Stack
 
 - **Electron** - Cross-platform desktop framework
