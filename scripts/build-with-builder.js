@@ -256,12 +256,7 @@ function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
     ];
     const hasAppImage = appImageNames.some((name) => fs.existsSync(path.join(outDir, name)));
     if (!hasAppImage) missing.push(appImageNames.join(' or '));
-    const snapNames = [
-      `${PRODUCT_NAME}-${appVersion}-linux-${targetArch}.snap`,
-      `${PRODUCT_NAME}-${appVersion}-linux-amd64.snap`,
-    ];
-    const hasSnap = snapNames.some((name) => fs.existsSync(path.join(outDir, name)));
-    if (!hasSnap) missing.push(snapNames.join(' or '));
+    expectFile(`${PRODUCT_NAME}-${appVersion}-linux-${targetArch}.deb`);
   }
 
   if (missing.length > 0) {

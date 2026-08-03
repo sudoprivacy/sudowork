@@ -47,7 +47,7 @@
     "build:win": "bun run build:win:x64",
     "build:win:arm64": "node scripts/prepare-runtime-resources.js win32-arm64 && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && node scripts/build-with-builder.js arm64 --win --arm64",
     "build:win:x64": "node scripts/prepare-runtime-resources.js win32-x64 && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && node scripts/build-with-builder.js x64 --win --x64",
-    "build:linux": "node scripts/prepare-runtime-resources.js linux-x64 && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && node scripts/build-with-builder.js x64 --linux --x64",
+    "build:linux": "node scripts/prepare-runtime-resources.js linux-x64 && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run build:native && node scripts/build-with-builder.js x64 --linux --x64",
     "lint": "eslint --quiet --ext .ts,.tsx .",
     "check": "bun run type:check && bun run lint && bun run format:check && bunx vitest run",
     "type:check": "bunx tsc --noEmit",

@@ -294,7 +294,11 @@ mac:
       to: bdpan-installer-darwin-${arch}
 
 linux:
+  target:
+    - AppImage
+    - deb
   icon: .cache/native-brand/current/app.png
+  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
 dmg:
   icon: .cache/native-brand/current/app.icns

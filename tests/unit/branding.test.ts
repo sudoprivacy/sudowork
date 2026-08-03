@@ -35,6 +35,7 @@ describe('brand configuration', () => {
     expect(builderConfig.executableName).toBe(brand.displayName);
     expect(builderConfig.copyright).toContain(brand.companyName);
     expect(builderConfig.win.legalTrademarks).toContain(brand.companyName);
+    expect(builderConfig.linux.target).toEqual(['AppImage', 'deb']);
     if (brand.BUILD_OFFLINE) {
       const packagedResources = JSON.stringify([builderConfig.extraResources, builderConfig.mac?.extraResources, builderConfig.win?.extraResources, builderConfig.linux?.extraResources]);
       expect(packagedResources).not.toMatch(/bdpan-installer|nexus-vault/);

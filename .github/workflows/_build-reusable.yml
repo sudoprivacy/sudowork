@@ -179,6 +179,7 @@ jobs:
             macos-x64)   PLATFORM="darwin-x64" ;;
             windows-x64) PLATFORM="win32-x64" ;;
             windows-arm64) PLATFORM="win32-arm64" ;;
+            linux)       PLATFORM="linux-${{ matrix.arch }}" ;;
             linux-x64)   PLATFORM="linux-x64" ;;
             linux-arm64) PLATFORM="linux-arm64" ;;
             *)           PLATFORM="${{ matrix.platform }}" ;;
@@ -193,7 +194,7 @@ jobs:
           node scripts/download-shareone.js
         env:
           npm_config_arch: ${{ matrix.arch }}
-          npm_config_platform: ${{ matrix.platform == 'windows-x64' && 'win32' || matrix.platform == 'windows-arm64' && 'win32' || 'darwin' }}
+          npm_config_platform: ${{ startsWith(matrix.platform, 'windows') && 'win32' || startsWith(matrix.platform, 'linux') && 'linux' || 'darwin' }}
 
       - name: Setup Windows native dependencies (for Windows only)
         if: startsWith(matrix.platform, 'windows')
@@ -411,7 +412,7 @@ jobs:
           WINDOWS_BUILD_COMMAND: ${{ matrix.command }}
           # Node.js memory limit for vite bundling (prevents OOM during build)
           # Node.js 内存限制，防止 vite 打包时内存不足
-          NODE_OPTIONS: "--max-old-space-size=8192"
+          NODE_OPTIONS: '--max-old-space-size=8192'
           # Target arch / 目标架构
           npm_config_arch: ${{ matrix.arch }}
           npm_config_target_arch: ${{ matrix.arch }}
@@ -456,7 +457,7 @@ jobs:
 
       # macOS: Build with notarization - DMG failure = CI failure, notarization failure = warning only
       # macOS: 构建并公证 - DMG 失败 = CI 失败，公证失败 = 仅警告
-      - name: "Diagnostic: Check network to Apple (macOS)"
+      - name: 'Diagnostic: Check network to Apple (macOS)'
         if: startsWith(matrix.platform, 'macos')
         run: |
           echo "=========================================="
@@ -524,7 +525,7 @@ jobs:
           echo "notarization_status=build_failed" >> $GITHUB_OUTPUT
           exit 1
         env:
-          NODE_OPTIONS: "--max-old-space-size=8192"
+          NODE_OPTIONS: '--max-old-space-size=8192'
           npm_config_arch: ${{ matrix.arch }}
           APP_ID: ${{ secrets.APP_ID }}
           appleId: ${{ secrets.APPLE_ID }}
@@ -538,7 +539,7 @@ jobs:
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/.cache/electron-builder
           ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
           npm_config_electron_builder_binaries_mirror: https://github.com/electron-userland/electron-builder-binaries/releases/download/
-          ELECTRON_MIRROR: ""
+          ELECTRON_MIRROR: ''
           npm_config_disturl: https://electronjs.org/headers
           npm_config_runtime: electron
           npm_config_target_arch: ${{ matrix.arch }}
@@ -556,21 +557,19 @@ jobs:
           retry_wait_seconds: 60
           command: ${{ matrix.command }}
         env:
-          NODE_OPTIONS: "--max-old-space-size=8192"
+          NODE_OPTIONS: '--max-old-space-size=8192'
           npm_config_arch: ${{ matrix.arch }}
           npm_config_cache: ${{ runner.temp }}/.npm
           ELECTRON_CACHE: ${{ runner.temp }}/.cache/electron
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/.cache/electron-builder
           ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
           npm_config_electron_builder_binaries_mirror: https://github.com/electron-userland/electron-builder-binaries/releases/download/
-          ELECTRON_MIRROR: ""
+          ELECTRON_MIRROR: ''
           npm_config_disturl: https://electronjs.org/headers
           npm_config_runtime: electron
           npm_config_target_arch: ${{ matrix.arch }}
           CI: true
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-
 
       - name: Verify packaged i18n assets
         if: >-
@@ -618,7 +617,7 @@ jobs:
             ls -lh out/ || true
             echo "=========================================="
             echo "Total artifacts:"
-            find out/ -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.zip" -o -name "*.yml" -o -name "*.blockmap" \) -exec basename {} \; || true
+            find out/ -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.zip" -o -name "*.yml" -o -name "*.blockmap" \) -exec basename {} \; || true
           else
             echo "No out directory found!"
           fi
@@ -643,6 +642,7 @@ jobs:
             out/*.msi
             out/*.dmg
             out/*.AppImage
+            out/*.deb
             out/*.zip
             out/*.yml
             out/*.blockmap
