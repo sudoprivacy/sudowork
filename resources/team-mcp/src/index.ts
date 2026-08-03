@@ -131,7 +131,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'team_members',
-    description: 'List current team members with their slot_id, name, role, status, backend, and model.',
+    description: 'List current team members with their slot_id, name, role, status, backend, model, and assistant_id.',
     inputSchema: {
       type: 'object',
       properties: {},

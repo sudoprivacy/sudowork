@@ -693,6 +693,7 @@ class TeamService {
     try {
       const session = await this.ensureSession(teamId);
       const members = teamStore.listMembersByTeam(teamId);
+      let activatedInitialTeammate = false;
       for (const m of members) {
         if (!m.conversation_id) continue;
         const wasPending = m.status === 'pending';
@@ -709,6 +710,7 @@ class TeamService {
         teamStore.updateMember(m.id, { status: 'idle', conversation_id: m.conversation_id });
         ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: m.id, status: 'idle' });
         if (m.role === 'teammate' && wasPending) {
+          activatedInitialTeammate = true;
           try {
             await this.welcomeSpawnedTeammate(teamId, m, session, { removeOnFailure: false });
           } catch (error) {
@@ -717,6 +719,13 @@ class TeamService {
         }
       }
       new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
+      if (activatedInitialTeammate) {
+        try {
+          await this.notifyLeaderInitialRoster(teamId);
+        } catch (error) {
+          mainWarn('TeamService', `Failed to notify leader of initial roster for team ${teamId}:`, error);
+        }
+      }
       mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
       ipcBridge.team.onSessionChanged.emit({ teamId, status: 'ready' });
     } catch (error) {
@@ -1276,6 +1285,7 @@ class TeamService {
               status: m.status,
               backend: m.backend,
               model: m.model,
+              assistant_id: m.assistant_id ?? '',
             })),
           },
         };

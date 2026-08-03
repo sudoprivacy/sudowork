@@ -183,6 +183,8 @@ async function importService() {
     removeMember: typeof mod.teamService.removeMember;
     ensureSession: (teamId: string) => Promise<unknown>;
     rebuildTeam: typeof mod.teamService.rebuildTeam;
+    rebuildTeamRuntime: (teamId: string) => Promise<void>;
+    dispatchTeamTool: (teamId: string, caller: TeamMember, tool: string, args: Record<string, unknown>) => Promise<{ ok: boolean; data?: { members: Array<Record<string, unknown>> } }>;
     cleanup: () => void;
     sessions: Map<
       string,
@@ -407,6 +409,46 @@ describe('TeamService createTeam members', () => {
       expect(h.members.get(member.id)?.status).toBe('idle');
       expect(h.emitAgentStatusChanged).toHaveBeenCalledWith({ team_id: team.id, slot_id: member.id, status: 'idle' });
     }
+  });
+
+  it('rebuildTeamRuntime notifies leader of the initial roster only on first activation of initial teammates', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+
+    await service.rebuildTeam(team.id);
+
+    const leader = leaderFor(team.id);
+    const initialNotices = h.mails.filter((mail) => mail.to_member_id === leader.id && mail.from_member_id === 'team_system');
+    expect(initialNotices).toHaveLength(1);
+    expect(initialNotices[0].content).toContain('The user pre-selected these teammates');
+    expect(initialNotices[0].content).toContain('slot_id=');
+    const record = service.sessions.get(team.id)?.teamRun.getRecord();
+    expect(record?.pending_wakes.get(leader.id)?.some((wake) => wake.source === 'team_membership_changed')).toBe(true);
+
+    const mailsBefore = h.mails.length;
+    await service.rebuildTeamRuntime(team.id);
+    expect(h.mails.length).toBe(mailsBefore);
+  });
+
+  it('team_members roster includes assistant_id', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+
+    const result = await service.dispatchTeamTool(team.id, leaderFor(team.id), 'team_members', {});
+    expect(result.ok).toBe(true);
+    const members = result.data?.members ?? [];
+    expect(members).toHaveLength(2);
+    for (const entry of members) {
+      expect(entry).toHaveProperty('assistant_id');
+    }
+    expect(members.find((entry) => entry.role === 'teammate')?.assistant_id).toBe('claude');
   });
 
   it('bootstrap attach failure marks failed without waking leader and stops session', async () => {
