@@ -7,11 +7,6 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch, tag, or commit SHA to build from'
-        required: true
-        default: 'main'
-        type: string
       platform:
         description: 'Platform to build'
         required: true
@@ -76,7 +71,7 @@ jobs:
     uses: ./.github/workflows/_build-reusable.yml
     with:
       matrix: ${{ needs.prepare-matrix.outputs.matrix }}
-      ref: ${{ inputs.branch }}
+      ref: ${{ github.sha }}
       skip_code_quality: ${{ inputs.skip_code_quality }}
       append_commit_hash: true
     secrets: inherit

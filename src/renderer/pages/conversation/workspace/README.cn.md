@@ -212,9 +212,7 @@ const {
 import ChatWorkspace from './workspace';
 
 function ConversationPage() {
-  return (
-    <ChatWorkspace conversation_id={conversationId} workspace={workspacePath} eventPrefix='gemini' />
-  );
+  return <ChatWorkspace conversation_id={conversationId} workspace={workspacePath} eventPrefix='gemini' />;
 }
 ```
 
