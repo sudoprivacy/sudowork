@@ -16,6 +16,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('@process/services/claudeCli/NodeRuntimeService', () => ({
+  getNodeBinaryPath: vi.fn(() => '/mock/node'),
+  isNodeInstalled: vi.fn(() => false),
+}));
+
 // -------------------------------------------------------------------
 // 1. Pure-logic tests for mergePaths (no Electron, no mocking needed)
 // -------------------------------------------------------------------
@@ -163,7 +168,7 @@ describe('getEnhancedEnv', () => {
     expect(typeof result.PATH).toBe('string');
     // Spot-check: no undefined string values were injected
     for (const [k, v] of Object.entries(result)) {
-      (expect(typeof v).toBe('string'), `key ${k} has non-string value`);
+      expect(typeof v, `key ${k} has non-string value`).toBe('string');
     }
   });
 });

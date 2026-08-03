@@ -286,7 +286,7 @@ describe('SudoclawInstallService', () => {
     );
 
     const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
-    module.repairOpenClawConfig();
+    module.repairSudoclawConfig();
 
     expect(JSON.parse(fs.readFileSync(configPath, 'utf-8'))).toMatchObject({
       agents: {
@@ -322,7 +322,7 @@ describe('SudoclawInstallService', () => {
     );
 
     const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
-    module.repairOpenClawConfig();
+    module.repairSudoclawConfig();
 
     const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     expect(repaired.tools.web).toEqual({ search: { provider: 'tavily' } });
@@ -347,7 +347,7 @@ describe('SudoclawInstallService', () => {
     );
 
     const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
-    module.repairOpenClawConfig();
+    module.repairSudoclawConfig();
 
     const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     expect(repaired.tools.web.search.provider).toBe('custom-provider');
@@ -386,7 +386,7 @@ describe('SudoclawInstallService', () => {
     );
 
     const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
-    module.repairOpenClawConfig();
+    module.repairSudoclawConfig();
 
     const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     expect(repaired.plugins.entries.tavily).toMatchObject({
@@ -428,7 +428,7 @@ describe('SudoclawInstallService', () => {
     );
 
     const module = await import('@/process/services/sudoclaw/SudoclawInstallService');
-    module.repairOpenClawConfig();
+    module.repairSudoclawConfig();
 
     const repaired = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     expect(repaired.plugins.entries.tavily.config.webSearch).toEqual({

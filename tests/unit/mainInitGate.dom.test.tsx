@@ -21,6 +21,17 @@ vi.mock('../../src/renderer/context/InitContext', () => ({
   useInit: () => mockUseInit(),
 }));
 
+vi.mock('../../src/renderer/hooks/useAppMode', () => ({
+  useAppMode: () => ({ needsSetup: false, isEnterprise: false }),
+  isModeResolved: () => true,
+}));
+
+vi.mock('../../src/common', () => ({
+  ipcBridge: {
+    conversation: { reaped: { on: () => () => undefined } },
+  },
+}));
+
 vi.mock('../../src/renderer/components/InitLoading', () => ({
   default: ({ variant }: { variant?: string }) => <div data-testid='init-loading'>{variant ?? 'full'}</div>,
 }));
@@ -70,7 +81,7 @@ describe('Main init gate', () => {
     expect(screen.queryByTestId('router')).not.toBeInTheDocument();
   });
 
-  it('waits for display mode to resolve before rendering the init screen', () => {
+  it('uses the full init screen while display mode is unresolved', () => {
     mockUseInit.mockReturnValue({
       status: createInitStatus({ phase: 'pending', displayMode: undefined }),
       isReady: false,
@@ -80,10 +91,9 @@ describe('Main init gate', () => {
       refetch: vi.fn(),
     });
 
-    const { container } = render(<Main />);
+    render(<Main />);
 
-    expect(container).toBeEmptyDOMElement();
-    expect(screen.queryByTestId('init-loading')).not.toBeInTheDocument();
+    expect(screen.getByTestId('init-loading')).toHaveTextContent('full');
     expect(screen.queryByTestId('router')).not.toBeInTheDocument();
   });
 

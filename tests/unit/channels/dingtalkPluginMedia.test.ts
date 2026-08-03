@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 /**
  * Tests for DingTalkPlugin media upload and send functionality.
@@ -157,9 +157,15 @@ async function loadPluginWithMocks() {
     getDingTalkFileType: vi.fn((fileName: string) => {
       const ext = fileName.split('.').pop()?.toLowerCase() || '';
       const map: Record<string, string> = {
-        pdf: 'pdf', doc: 'doc', docx: 'doc',
-        xls: 'xlsx', xlsx: 'xlsx', ppt: 'ppt', pptx: 'ppt',
-        zip: 'zip', rar: 'rar',
+        pdf: 'pdf',
+        doc: 'doc',
+        docx: 'doc',
+        xls: 'xlsx',
+        xlsx: 'xlsx',
+        ppt: 'ppt',
+        pptx: 'ppt',
+        zip: 'zip',
+        rar: 'rar',
       };
       return map[ext] || 'pdf';
     }),
@@ -172,10 +178,18 @@ async function loadPluginWithMocks() {
       protected config: any = null;
       protected messageHandler: any = null;
       protected confirmHandler: any = null;
-      getStatus() { return this._status; }
-      getConfig() { return this.config; }
-      setMessageHandler(h: any) { this.messageHandler = h; }
-      setConfirmHandler(h: any) { this.confirmHandler = h; }
+      getStatus() {
+        return this._status;
+      }
+      getConfig() {
+        return this.config;
+      }
+      setMessageHandler(h: any) {
+        this.messageHandler = h;
+      }
+      setConfirmHandler(h: any) {
+        this.confirmHandler = h;
+      }
     }
     return { BasePlugin };
   });
@@ -196,9 +210,7 @@ describe('DingTalkPlugin uploadMedia', () => {
 
     expect(result).toBe('@test_media_id_123');
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
     expect(uploadReq).toBeDefined();
     expect(uploadReq!.options.path).toContain('access_token=test-access-token');
     expect(uploadReq!.options.path).toContain('type=image');
@@ -217,9 +229,7 @@ describe('DingTalkPlugin uploadMedia', () => {
 
     await (plugin as any).uploadMedia('/tmp/report.pdf', 'file');
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
     expect(uploadReq).toBeDefined();
     expect(uploadReq!.options.path).toContain('type=file');
   });
@@ -232,9 +242,7 @@ describe('DingTalkPlugin uploadMedia', () => {
     (plugin as any).clientId = 'test-client-id';
     (plugin as any).tokenCache = { accessToken: 'test-token', expiresAt: Date.now() + 3600000 };
 
-    await expect(
-      (plugin as any).uploadMedia('/tmp/nonexistent.jpg', 'image')
-    ).rejects.toThrow('File not found');
+    await expect((plugin as any).uploadMedia('/tmp/nonexistent.jpg', 'image')).rejects.toThrow('File not found');
   });
 
   it('throws error when upload API returns errcode != 0', async () => {
@@ -245,9 +253,7 @@ describe('DingTalkPlugin uploadMedia', () => {
     (plugin as any).clientId = 'test-client-id';
     (plugin as any).tokenCache = { accessToken: 'test-token', expiresAt: Date.now() + 3600000 };
 
-    await expect(
-      (plugin as any).uploadMedia('/tmp/bad.jpg', 'image')
-    ).rejects.toThrow('errcode=40004');
+    await expect((plugin as any).uploadMedia('/tmp/bad.jpg', 'image')).rejects.toThrow('errcode=40004');
   });
 
   it('throws error when upload response has no media_id', async () => {
@@ -258,12 +264,10 @@ describe('DingTalkPlugin uploadMedia', () => {
     (plugin as any).clientId = 'test-client-id';
     (plugin as any).tokenCache = { accessToken: 'test-token', expiresAt: Date.now() + 3600000 };
 
-    await expect(
-      (plugin as any).uploadMedia('/tmp/empty.jpg', 'image')
-    ).rejects.toThrow('no media_id');
+    await expect((plugin as any).uploadMedia('/tmp/empty.jpg', 'image')).rejects.toThrow('no media_id');
   });
 
-  it('multipart body contains filename in Content-Disposition', async () => {
+  it('multipart body uses an ASCII placeholder filename in Content-Disposition', async () => {
     const { DingTalkPlugin } = await loadPluginWithMocks();
     const plugin = new DingTalkPlugin();
     (plugin as any).clientId = 'test-client-id';
@@ -271,13 +275,11 @@ describe('DingTalkPlugin uploadMedia', () => {
 
     await (plugin as any).uploadMedia('/tmp/my_photo.jpg', 'image');
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
     expect(uploadReq).toBeDefined();
 
     const bodyStr = Buffer.concat(uploadReq!.writeData).toString('utf-8');
-    expect(bodyStr).toContain('filename="my_photo.jpg"');
+    expect(bodyStr).toContain('filename="upload.jpg"');
     expect(bodyStr).toContain('name="media"');
   });
 
@@ -289,9 +291,7 @@ describe('DingTalkPlugin uploadMedia', () => {
 
     await (plugin as any).uploadMedia('/tmp/photo.jpg', 'image');
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
     expect(uploadReq).toBeDefined();
 
     const bodyStr = Buffer.concat(uploadReq!.writeData).toString('binary');
@@ -306,9 +306,7 @@ describe('DingTalkPlugin uploadMedia', () => {
 
     await (plugin as any).uploadMedia('/tmp/photo.jpg', 'image');
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
     expect(uploadReq).toBeDefined();
     expect(uploadReq!.options.path).toContain('access_token=');
     // Special chars should be encoded
@@ -334,9 +332,7 @@ describe('DingTalkPlugin sendMediaViaAPI', () => {
 
     expect(result).toBe('test_process_key');
 
-    const apiReq = capturedRequests.find((r) =>
-      r.options.path?.includes('oToMessages/batchSend')
-    );
+    const apiReq = capturedRequests.find((r) => r.options.path?.includes('oToMessages/batchSend'));
     expect(apiReq).toBeDefined();
 
     const body = JSON.parse(Buffer.concat(apiReq!.writeData).toString('utf-8'));
@@ -355,9 +351,7 @@ describe('DingTalkPlugin sendMediaViaAPI', () => {
 
     expect(result).toBe('test_process_key');
 
-    const apiReq = capturedRequests.find((r) =>
-      r.options.path?.includes('oToMessages/batchSend')
-    );
+    const apiReq = capturedRequests.find((r) => r.options.path?.includes('oToMessages/batchSend'));
     expect(apiReq).toBeDefined();
 
     const body = JSON.parse(Buffer.concat(apiReq!.writeData).toString('utf-8'));
@@ -376,9 +370,7 @@ describe('DingTalkPlugin sendMediaViaAPI', () => {
 
     await (plugin as any).sendMediaViaAPI('group', 'group456', 'image', '@media_abc');
 
-    const apiReq = capturedRequests.find((r) =>
-      r.options.path?.includes('groupMessages/send')
-    );
+    const apiReq = capturedRequests.find((r) => r.options.path?.includes('groupMessages/send'));
     expect(apiReq).toBeDefined();
 
     const body = JSON.parse(Buffer.concat(apiReq!.writeData).toString('utf-8'));
@@ -395,9 +387,7 @@ describe('DingTalkPlugin sendMediaViaAPI', () => {
 
     await (plugin as any).sendMediaViaAPI('group', 'group456', 'file', '@media_xyz', 'data.xlsx', 'xlsx');
 
-    const apiReq = capturedRequests.find((r) =>
-      r.options.path?.includes('groupMessages/send')
-    );
+    const apiReq = capturedRequests.find((r) => r.options.path?.includes('groupMessages/send'));
     expect(apiReq).toBeDefined();
 
     const body = JSON.parse(Buffer.concat(apiReq!.writeData).toString('utf-8'));
@@ -414,9 +404,7 @@ describe('DingTalkPlugin sendMediaViaAPI', () => {
 
     await (plugin as any).sendMediaViaAPI('user', 'user123', 'image', '@media_abc');
 
-    const apiReq = capturedRequests.find((r) =>
-      r.options.path?.includes('oToMessages/batchSend')
-    );
+    const apiReq = capturedRequests.find((r) => r.options.path?.includes('oToMessages/batchSend'));
     expect(apiReq).toBeDefined();
     expect(apiReq!.options.headers['x-acs-dingtalk-access-token']).toBe('test-token');
     expect(apiReq!.options.headers['Content-Type']).toBe('application/json');
@@ -443,12 +431,8 @@ describe('DingTalkPlugin sendMessage routing', () => {
       imageUrl: '/tmp/photo.jpg',
     });
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
-    const sendReq = capturedRequests.find((r) =>
-      r.options.path?.includes('oToMessages/batchSend')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
+    const sendReq = capturedRequests.find((r) => r.options.path?.includes('oToMessages/batchSend'));
     expect(uploadReq).toBeDefined();
     expect(sendReq).toBeDefined();
 
@@ -465,12 +449,8 @@ describe('DingTalkPlugin sendMessage routing', () => {
       fileName: 'report.pdf',
     });
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
-    const sendReq = capturedRequests.find((r) =>
-      r.options.path?.includes('oToMessages/batchSend')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
+    const sendReq = capturedRequests.find((r) => r.options.path?.includes('oToMessages/batchSend'));
     expect(uploadReq).toBeDefined();
     expect(sendReq).toBeDefined();
 
@@ -495,9 +475,7 @@ describe('DingTalkPlugin sendMessage routing', () => {
     await plugin.sendMessage('user:user123', { type: 'image' });
 
     // Verify no upload request was made
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
     expect(uploadReq).toBeUndefined();
   });
 
@@ -512,9 +490,7 @@ describe('DingTalkPlugin sendMessage routing', () => {
 
     await plugin.sendMessage('user:user123', { type: 'file', fileName: 'test.pdf' });
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
     expect(uploadReq).toBeUndefined();
   });
 
@@ -529,9 +505,7 @@ describe('DingTalkPlugin sendMessage routing', () => {
 
     await plugin.sendMessage('user:user123', { type: 'file', fileUrl: '/tmp/test.pdf' });
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
     expect(uploadReq).toBeUndefined();
   });
 
@@ -544,12 +518,8 @@ describe('DingTalkPlugin sendMessage routing', () => {
       fileName: 'data.xlsx',
     });
 
-    const uploadReq = capturedRequests.find((r) =>
-      r.options.path?.includes('/media/upload')
-    );
-    const sendReq = capturedRequests.find((r) =>
-      r.options.path?.includes('groupMessages/send')
-    );
+    const uploadReq = capturedRequests.find((r) => r.options.path?.includes('/media/upload'));
+    const sendReq = capturedRequests.find((r) => r.options.path?.includes('groupMessages/send'));
     expect(uploadReq).toBeDefined();
     expect(sendReq).toBeDefined();
 

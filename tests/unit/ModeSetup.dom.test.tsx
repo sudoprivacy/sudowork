@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const configStorageGet = vi.fn();
+const { configStorageGet } = vi.hoisted(() => ({ configStorageGet: vi.fn() }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -18,8 +18,12 @@ vi.mock('@/common/storage', () => ({
   },
 }));
 
-vi.mock('@/common/eeclawMode', () => ({ setAppMode: vi.fn() }));
+vi.mock('@/common/eeclawMode', () => ({
+  getAppMode: vi.fn().mockResolvedValue('c'),
+  setAppMode: vi.fn(),
+}));
 vi.mock('@/renderer/utils/platform', () => ({ isElectronDesktop: () => false, isMacOS: () => false }));
+vi.mock('@/renderer/hooks/useBrandConfig', () => ({ useBrandConfig: () => ({ logo: '/logo.svg' }) }));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

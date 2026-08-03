@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const discoverBuiltinSkills = vi.fn(async () => {});
+const discoverSkills = vi.fn(async () => {});
 const getBuiltinSkillsIndex = vi.fn(() => [{ name: 'cron', description: 'Builtin cron skill' }]);
+const getSkillsIndex = vi.fn(() => []);
 
 vi.mock('../../src/process/task/AcpSkillManager', () => ({
   AcpSkillManager: {
     getInstance: vi.fn(() => ({
       discoverBuiltinSkills,
+      discoverSkills,
       getBuiltinSkillsIndex,
+      getSkillsIndex,
     })),
   },
   buildSkillsIndexText: vi.fn((skills: Array<{ name: string; description: string }>) => {
@@ -37,7 +41,9 @@ vi.mock('@process/services/cron/cronPolicy', async (importOriginal) => {
 describe('prepareFirstMessageWithSkillsIndex', () => {
   beforeEach(() => {
     discoverBuiltinSkills.mockClear();
+    discoverSkills.mockClear();
     getBuiltinSkillsIndex.mockClear();
+    getSkillsIndex.mockClear();
     getBuiltinSkillsIndex.mockReturnValue([{ name: 'cron', description: 'Builtin cron skill' }]);
     isCronSkillAllowed.mockReset();
     isCronSkillAllowed.mockResolvedValue(true);
@@ -57,7 +63,7 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     expect(result).toContain('/tmp/.nexus/skills/_system/_builtin/{skill-name}/SKILL.md');
     expect(result).not.toContain('/_hub/');
     expect(result).not.toContain('/_my-custom-skill/');
-    expect(result).not.toContain('pptx');
+    expect(result).not.toContain('/pptx/SKILL.md');
     expect(result).toContain('cron');
   });
 
@@ -122,7 +128,7 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
   it('injects workspace skills directory hint before user request', async () => {
     const { injectSkillsDirectoryHint } = await import('../../src/process/task/agentUtils');
 
-    const result = injectSkillsDirectoryHint('[Assistant Rules - You MUST follow these instructions]\n\n[User Request]\ndo something', '/tmp/workspace/skills');
+    const result = await injectSkillsDirectoryHint('[Assistant Rules - You MUST follow these instructions]\n\n[User Request]\ndo something', '/tmp/workspace/skills');
 
     expect(result).toContain('[Skills Directory]');
     expect(result).toContain('/tmp/workspace/skills');

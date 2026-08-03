@@ -31,40 +31,40 @@ describe('pickImageGenerationModelId', () => {
 describe('migrateImageGenerationModelConfig', () => {
   it('migrates the legacy default exactly once', () => {
     const saved = cfg({ switch: true, useModel: LEGACY_DEFAULT_IMAGE_GENERATION_MODEL });
-    const first = migrateImageGenerationModelConfig(saved, false);
+    const first = migrateImageGenerationModelConfig(saved, false, DEFAULT_IMAGE_GENERATION_MODEL);
     expect(first.changed).toBe(true);
     expect(first.config.useModel).toBe(DEFAULT_IMAGE_GENERATION_MODEL);
   });
 
   it('preserves an explicit gpt-image-1.5 selection after migration has already run', () => {
     const saved = cfg({ switch: true, useModel: LEGACY_DEFAULT_IMAGE_GENERATION_MODEL });
-    const result = migrateImageGenerationModelConfig(saved, true);
+    const result = migrateImageGenerationModelConfig(saved, true, DEFAULT_IMAGE_GENERATION_MODEL);
     expect(result.changed).toBe(false);
     expect(result.config.useModel).toBe(LEGACY_DEFAULT_IMAGE_GENERATION_MODEL);
   });
 
   it('fills in the default when useModel is missing', () => {
-    const result = migrateImageGenerationModelConfig({ switch: true } as ImageGenerationModelConfig, true);
+    const result = migrateImageGenerationModelConfig({ switch: true } as ImageGenerationModelConfig, true, DEFAULT_IMAGE_GENERATION_MODEL);
     expect(result.changed).toBe(true);
     expect(result.config.useModel).toBe(DEFAULT_IMAGE_GENERATION_MODEL);
   });
 
   it('leaves a non-legacy selection untouched', () => {
     const saved = cfg({ switch: true, useModel: 'doubao-seedream-4-0-250828' });
-    const result = migrateImageGenerationModelConfig(saved, false);
+    const result = migrateImageGenerationModelConfig(saved, false, DEFAULT_IMAGE_GENERATION_MODEL);
     expect(result.changed).toBe(false);
     expect(result.config).toBe(saved);
   });
 
   it('returns an enabled default config when nothing is saved', () => {
-    const result = migrateImageGenerationModelConfig(undefined, false);
+    const result = migrateImageGenerationModelConfig(undefined, false, DEFAULT_IMAGE_GENERATION_MODEL);
     expect(result.changed).toBe(true);
     expect(result.config).toEqual({ useModel: DEFAULT_IMAGE_GENERATION_MODEL, switch: true });
   });
 
   it('preserves the off switch while migrating the legacy model', () => {
     const saved = cfg({ switch: false, useModel: LEGACY_DEFAULT_IMAGE_GENERATION_MODEL });
-    const result = migrateImageGenerationModelConfig(saved, false);
+    const result = migrateImageGenerationModelConfig(saved, false, DEFAULT_IMAGE_GENERATION_MODEL);
     expect(result.config.switch).toBe(false);
     expect(result.config.useModel).toBe(DEFAULT_IMAGE_GENERATION_MODEL);
   });
@@ -72,18 +72,18 @@ describe('migrateImageGenerationModelConfig', () => {
 
 describe('resolveLoginImageModelId', () => {
   it('respects the user selection when the switch is on — login must not override it', () => {
-    expect(resolveLoginImageModelId(cfg({ switch: true, useModel: 'doubao-seedream-4-0-250828' }))).toBe('doubao-seedream-4-0-250828');
+    expect(resolveLoginImageModelId(cfg({ switch: true, useModel: 'doubao-seedream-4-0-250828' }), DEFAULT_IMAGE_GENERATION_MODEL)).toBe('doubao-seedream-4-0-250828');
   });
 
   it('respects an explicit gpt-image-1.5 selection', () => {
-    expect(resolveLoginImageModelId(cfg({ switch: true, useModel: LEGACY_DEFAULT_IMAGE_GENERATION_MODEL }))).toBe(LEGACY_DEFAULT_IMAGE_GENERATION_MODEL);
+    expect(resolveLoginImageModelId(cfg({ switch: true, useModel: LEGACY_DEFAULT_IMAGE_GENERATION_MODEL }), DEFAULT_IMAGE_GENERATION_MODEL)).toBe(LEGACY_DEFAULT_IMAGE_GENERATION_MODEL);
   });
 
   it('returns null when the user has turned image generation off', () => {
-    expect(resolveLoginImageModelId(cfg({ switch: false, useModel: 'doubao-seedream-4-0-250828' }))).toBeNull();
+    expect(resolveLoginImageModelId(cfg({ switch: false, useModel: 'doubao-seedream-4-0-250828' }), DEFAULT_IMAGE_GENERATION_MODEL)).toBeNull();
   });
 
   it('falls back to the default when nothing is saved', () => {
-    expect(resolveLoginImageModelId(undefined)).toBe(DEFAULT_IMAGE_GENERATION_MODEL);
+    expect(resolveLoginImageModelId(undefined, DEFAULT_IMAGE_GENERATION_MODEL)).toBe(DEFAULT_IMAGE_GENERATION_MODEL);
   });
 });

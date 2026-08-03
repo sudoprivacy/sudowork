@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
   chatSiderProps: [] as Array<{ conversation?: { id?: string } }>,
   acpChatProps: [] as Array<{
     conversation_id: string;
-    onProcessingChange?: (isProcessing: boolean) => void;
+    backend?: string;
+    workspace?: string;
+    teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
     onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
   }>,
 }));
@@ -47,6 +49,14 @@ vi.mock('../../src/renderer/pages/team/hooks/useTeamSession', () => ({
   useTeamSession: (...args: unknown[]) => mocks.useTeamSession(...args),
 }));
 
+vi.mock('../../src/renderer/context/AuthContext', () => ({
+  useAuth: () => ({ isGuest: false }),
+}));
+
+vi.mock('../../src/renderer/hooks/useHasAvailableModel', () => ({
+  useHasAvailableModel: () => ({ hasModel: true, ready: true }),
+}));
+
 vi.mock('../../src/renderer/pages/team/hooks/useTeamRunView', () => ({
   useTeamRunView: (...args: unknown[]) => mocks.useTeamRunView(...args),
 }));
@@ -76,7 +86,13 @@ vi.mock('@renderer/pages/conversation/ChatSider', async () => {
 vi.mock('@renderer/pages/conversation/acp/AcpChat', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return {
-    default: (props: { conversation_id: string; onProcessingChange?: (isProcessing: boolean) => void; onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown> }) => {
+    default: (props: {
+      conversation_id: string;
+      backend?: string;
+      workspace?: string;
+      teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+      onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
+    }) => {
       mocks.acpChatProps.push(props);
       return React.createElement('div', { 'data-testid': 'acp-chat', 'data-conversation-id': props.conversation_id });
     },
@@ -232,23 +248,20 @@ describe('TeamDetailPage route safety', () => {
     expect(mocks.chatSiderProps.at(-1)?.conversation).toBeUndefined();
   });
 
-  it('shows the leader header as active for accepted and running runs', () => {
+  it('passes leader messages through the team sendMessage API', async () => {
     const team = makeTeam('team-1', 'leader-conversation');
     mocks.useTeamSession.mockReturnValue({ team, statusMap: new Map(), loading: false });
     mocks.getConversation.mockReturnValue(new Promise(() => {}));
-    mocks.useTeamRunView.mockReturnValue({ activeRun: { team_id: 'team-1', team_run_id: 'run-1', target_slot_id: 'team-1-leader', target_role: 'lead', status: 'accepted', active_child_count: 0, pending_wake_count: 1, starting_child_count: 0 }, childTurnsBySlot: {}, reconcile: vi.fn() });
 
-    const { rerender } = render(<TeamDetailPage />);
+    render(<TeamDetailPage />);
 
-    expect(screen.getByTestId('header-extra')).toHaveTextContent('team.status.active');
+    await waitFor(() => expect(mocks.acpChatProps.at(-1)?.teamSendMessage).toBeTypeOf('function'));
+    await mocks.acpChatProps.at(-1)?.teamSendMessage?.({ input: 'Delegate this', files: ['brief.md'], msg_id: 'msg-1' });
 
-    mocks.useTeamRunView.mockReturnValue({ activeRun: { team_id: 'team-1', team_run_id: 'run-1', target_slot_id: 'team-1-leader', target_role: 'lead', status: 'running', active_child_count: 1, pending_wake_count: 0, starting_child_count: 0 }, childTurnsBySlot: {}, reconcile: vi.fn() });
-    rerender(<TeamDetailPage />);
-
-    expect(screen.getByTestId('header-extra')).toHaveTextContent('team.status.active');
+    expect(mocks.sendMessage).toHaveBeenCalledWith({ teamId: 'team-1', input: 'Delegate this', files: ['brief.md'], msgId: 'msg-1' });
   });
 
-  it('uses leader chat processing to keep the leader header active and resets on conversation change', async () => {
+  it('updates the leader chat when the leader conversation changes', async () => {
     const oldTeam = makeTeam('team-1', 'old-conversation');
     const newTeam = makeTeam('team-1', 'new-conversation');
     mocks.useTeamSession.mockReturnValue({ team: oldTeam, statusMap: new Map(), loading: false });
@@ -256,19 +269,12 @@ describe('TeamDetailPage route safety', () => {
 
     const { rerender } = render(<TeamDetailPage />);
 
-    await waitFor(() => expect(mocks.acpChatProps.some((props) => props.conversation_id === 'old-conversation')).toBe(true));
-    expect(screen.getByTestId('header-extra')).toBeEmptyDOMElement();
-
-    act(() => {
-      mocks.acpChatProps.at(-1)?.onProcessingChange?.(true);
-    });
-    expect(screen.getByTestId('header-extra')).toHaveTextContent('team.status.active');
+    await waitFor(() => expect(mocks.acpChatProps.at(-1)?.conversation_id).toBe('old-conversation'));
 
     mocks.useTeamSession.mockReturnValue({ team: newTeam, statusMap: new Map(), loading: false });
-    mocks.getConversation.mockReturnValue(new Promise(() => {}));
     mocks.acpChatProps = [];
     rerender(<TeamDetailPage />);
 
-    expect(screen.getByTestId('header-extra')).toBeEmptyDOMElement();
+    expect(mocks.acpChatProps.at(-1)?.conversation_id).toBe('new-conversation');
   });
 });

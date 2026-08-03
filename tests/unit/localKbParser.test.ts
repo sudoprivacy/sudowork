@@ -1,7 +1,17 @@
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/process/utils/mainLogger', () => ({ mainWarn: vi.fn() }));
+vi.mock('@/process/services/poppler/PopplerRuntimeService', () => ({
+  popplerRuntimeService: {
+    checkManaged: vi.fn().mockResolvedValue({ installed: false }),
+    getToolPath: vi.fn(),
+    getToolEnv: vi.fn(),
+  },
+}));
+
 import { inferMimeType, parseLocalKbDocument, sha256File } from '@/process/services/local-kb/documentParser';
 
 describe('local KB document parser', () => {

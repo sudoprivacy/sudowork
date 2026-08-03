@@ -51,14 +51,15 @@ describe('conversationAssistantSkills', () => {
       },
     } as TChatConversation;
 
-    const getCustomAgents = vi.fn(async () => [{ id: 'builtin-cowork', name: 'Cowork', enabledSkills: ['pptx', 'xlsx'] }]);
+    const getAssistantMeta = vi.fn(async () => ({ id: 'cowork', name: 'Cowork', enabledSkills: ['pptx', 'xlsx'] }));
 
     await expect(
       resolveLatestConversationEnabledSkills(conversation, {
-        getCustomAgents,
+        getAssistantMeta,
         warn: vi.fn(),
       })
     ).resolves.toEqual(['pptx', 'xlsx']);
+    expect(getAssistantMeta).toHaveBeenCalledWith('cowork');
   });
 
   it('falls back to the stored conversation skills when the latest assistant config is unavailable', async () => {
@@ -85,7 +86,7 @@ describe('conversationAssistantSkills', () => {
 
     await expect(
       resolveLatestConversationEnabledSkills(conversation, {
-        getCustomAgents: vi.fn(async () => undefined),
+        getAssistantMeta: vi.fn(async () => null),
         warn: vi.fn(),
       })
     ).resolves.toEqual(['pptx']);

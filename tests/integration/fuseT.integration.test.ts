@@ -31,6 +31,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { createRequire } from 'module';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -167,21 +168,21 @@ describe('FUSE-T — IPC platform gate', () => {
   });
 });
 
-describe('FUSE-T — eager dylib dispatch in download-nexus-vfs.js', () => {
-  // Static-string assertions on the dispatch tables. We grep the JS
-  // source rather than importing the script (running it would actually
-  // hit the network); the strings are what the kernel team's release
-  // pipeline matches against, so any rename here is the regression we
-  // want to surface.
-  const script = fs.readFileSync(path.join(REPO_ROOT, 'scripts/download-nexus-vfs.js'), 'utf-8');
+describe('FUSE-T — eager dylib dispatch naming policy', () => {
+  // Artifact and dylib names live in plugin-naming.js; download-nexus-vfs.js
+  // consumes that SSOT instead of duplicating its generated strings.
+  const namingPolicy = createRequire(import.meta.url)(path.join(REPO_ROOT, 'scripts/plugin-naming.js')) as {
+    getPluginArtifact: (platform: string, arch: string, plugin: string) => string | null;
+    getPluginDylib: (platform: string, plugin: string) => string | null;
+  };
 
   it('macOS arm64 + x86_64 fuse-plugin artifact names are exposed', () => {
-    expect(script).toContain("'nexus-fuse-plugin-macos-arm64.tar.gz'");
-    expect(script).toContain("'nexus-fuse-plugin-macos-x86_64.tar.gz'");
+    expect(namingPolicy.getPluginArtifact('darwin', 'arm64', 'nexus_fuse_plugin')).toBe('nexus-fuse-plugin-macos-arm64.tar.gz');
+    expect(namingPolicy.getPluginArtifact('darwin', 'x64', 'nexus_fuse_plugin')).toBe('nexus-fuse-plugin-macos-x86_64.tar.gz');
   });
 
   it('libnexus_fuse_plugin.dylib is wired for darwin', () => {
-    expect(script).toContain("'libnexus_fuse_plugin.dylib'");
+    expect(namingPolicy.getPluginDylib('darwin', 'nexus_fuse_plugin')).toBe('libnexus_fuse_plugin.dylib');
   });
 
   it('macOS + Linux fuse-plugin SHA256 sums are filled in the canonical JSON', () => {

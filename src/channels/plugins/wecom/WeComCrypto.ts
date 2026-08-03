@@ -90,67 +90,9 @@ export function decryptWeComMedia(ciphertext: Buffer, key: Buffer, iv: Buffer, a
     decipher = createDecipheriv('aes-128-ecb', key, null);
   }
 
-  // WeCom media encryption uses non-standard PKCS#7 padding
-  // Disable auto-padding and manually strip padding after decryption
-  decipher.setAutoPadding(false);
-  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-
-  // Strip padding: check last byte and remove trailing bytes if they match
-  // Standard PKCS#7: last N bytes all equal N (padding length)
-  // WeCom variant: padding bytes may have different values but form a valid block
-  return stripPkcs7Padding(decrypted);
-}
-
-/**
- * Strip PKCS#7 padding from decrypted data.
- *
- * Handles both standard PKCS#7 (padding value equals padding length)
- * and WeCom's variant where padding bytes may differ.
- *
- * @param data - Decrypted data with potential padding
- * @returns Data with padding stripped, or original data if no valid padding found
- */
-function stripPkcs7Padding(data: Buffer): Buffer {
-  if (data.length === 0) return data;
-
-  const lastByte = data[data.length - 1];
-
-  // Valid padding range: 1-32 bytes
-  if (lastByte < 1 || lastByte > 32) return data;
-
-  // Standard PKCS#7: last N bytes all equal N
-  const paddingLength = lastByte;
-  if (data.length >= paddingLength) {
-    const paddingBytes = data.slice(-paddingLength);
-    const allMatch = paddingBytes.every((byte) => byte === paddingLength);
-    if (allMatch) {
-      return data.slice(0, -paddingLength);
-    }
-  }
-
-  // WeCom variant: check if trailing bytes are uniform padding
-  // WeCom may use padding value that differs from padding length
-  // Common case: 16 bytes of uniform value (AES block size)
-  for (const checkLen of [32, 16]) {
-    if (data.length >= checkLen) {
-      const trailing = data.slice(-checkLen);
-      const uniformValue = trailing[0];
-      // All bytes in trailing block should be the same
-      const allSame = trailing.every((byte) => byte === uniformValue);
-      if (allSame && uniformValue > 0) {
-        // Verify remaining data has valid content
-        const stripped = data.slice(0, -checkLen);
-        const signature = stripped.slice(0, 4).toString('hex');
-        const validSignatures = ['ffd8ffe0', 'ffd8ffe1', '89504e47', '25504446', '47494638'];
-        if (validSignatures.includes(signature)) {
-          return stripped;
-        }
-      }
-    }
-  }
-
-  // No valid padding pattern found, return original
-  return data;
+  // Keep Node's PKCS#7 validation enabled: decipher.final() then fails closed
+  // for malformed ciphertext and the usual wrong-key case.
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
 /**

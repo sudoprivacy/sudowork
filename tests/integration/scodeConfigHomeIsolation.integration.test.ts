@@ -179,7 +179,27 @@ describeMaybe('scode config-home isolation (real binary)', () => {
 // Same contract, driven through a REAL pseudo-terminal (ConPTY on Windows) — the
 // engine sudowork actually spawns runs in a pty, so this exercises the isolation
 // the way a user's terminal would, not just a captured pipe.
-const describePty = scodeBin && pty ? describe : describe.skip;
+function canSpawnPty(): boolean {
+  if (!pty) return false;
+  const command = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : '/usr/bin/true';
+  const args = process.platform === 'win32' ? ['/d', '/c', 'exit', '0'] : [];
+  try {
+    pty.spawn(command, args, {
+      name: 'xterm-color',
+      cols: 80,
+      rows: 24,
+      env: process.env as { [key: string]: string },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Loading the native addon is insufficient: sandboxed macOS runners can load it
+// while posix_spawnp is unavailable. Only condition the external-environment test
+// after an actual minimal PTY spawn probe.
+const describePty = scodeBin && canSpawnPty() ? describe : describe.skip;
 
 describePty('scode config-home isolation (real pty / ConPTY)', () => {
   function runInPty(args: string[], env: NodeJS.ProcessEnv, cwd: string): Promise<string> {

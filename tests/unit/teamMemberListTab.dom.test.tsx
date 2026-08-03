@@ -34,6 +34,11 @@ vi.mock('@/renderer/shared/agents/assistantAdapter', () => ({
   resolveAssistantName: (name: string) => name,
 }));
 
+vi.mock('@renderer/components/AcpModelSelector', async () => {
+  const React = await vi.importActual<typeof import('react')>('react');
+  return { default: () => React.createElement('div', { 'data-testid': 'model-selector' }) };
+});
+
 vi.mock('@renderer/pages/conversation/acp/AcpChat', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return {

@@ -31,15 +31,6 @@ vi.mock('@/common/storage', () => ({
   ConfigStorage: { get: vi.fn(), set: vi.fn() },
 }));
 
-// Mock the message queue to execute synchronously
-vi.mock('./messageQueue', async () => {
-  return {
-    globalMessageQueue: {
-      add: async (fn: () => void) => fn(),
-    },
-  };
-});
-
 // We test handleMcpOperationResult directly since it's the logic under test.
 // The hook wraps it with useCallback, but the logic is identical.
 
@@ -75,26 +66,18 @@ describe('MCP operations toast feedback', () => {
   async function callHandleMcpOperationResult(response: { success: boolean; data?: { results: Array<{ agent: string; success: boolean; error?: string }> }; msg?: string }, operation: 'sync' | 'remove', successMessage?: string) {
     // Re-implement the core logic from useMcpOperations.handleMcpOperationResult
     // to test it in isolation (the hook requires React context)
-    const { globalMessageQueue } = await import('@/renderer/hooks/mcp/messageQueue');
-
     if (response.success && response.data) {
       const failedAgents = response.data.results.filter((r) => !r.success);
 
       if (failedAgents.length > 0) {
         const failedNames = failedAgents.map((r) => `${r.agent}: ${r.error || ''}`).join(', ');
-        await globalMessageQueue.add(() => {
-          mockMessage.warning({ content: failedNames, duration: 6000 });
-        });
+        mockMessage.warning({ content: failedNames, duration: 6000 });
       } else {
         const msg = successMessage ?? mockT(operation === 'sync' ? 'settings.mcpSyncSuccess' : 'settings.mcpRemoveSuccess');
-        await globalMessageQueue.add(() => {
-          mockMessage.success(msg);
-        });
+        mockMessage.success(msg);
       }
     } else {
-      await globalMessageQueue.add(() => {
-        mockMessage.error({ content: response.msg || 'unknown', duration: 6000 });
-      });
+      mockMessage.error({ content: response.msg || 'unknown', duration: 6000 });
     }
   }
 

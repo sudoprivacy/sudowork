@@ -118,10 +118,7 @@ describe('NavigationInterceptor — ai-dev-browser command parsing', () => {
 
 describe('NavigationInterceptor — intercept() integration', () => {
   it('produces a preview_open message for ai-dev-browser shell-command navigation', () => {
-    const result = NavigationInterceptor.intercept(
-      { toolName: 'Bash', rawInput: { command: 'browser page_goto --url https://example.com' } },
-      'conv-abc'
-    );
+    const result = NavigationInterceptor.intercept({ toolName: 'Bash', rawInput: { command: 'browser page_goto --url https://example.com' } }, 'conv-abc');
     expect(result.intercepted).toBe(true);
     expect(result.url).toBe('https://example.com');
     expect(result.previewMessage?.type).toBe('preview_open');
@@ -130,27 +127,18 @@ describe('NavigationInterceptor — intercept() integration', () => {
   });
 
   it('produces a preview_open message for a direct page_goto tool call', () => {
-    const result = NavigationInterceptor.intercept(
-      { toolName: 'page_goto', arguments: { url: 'https://foo.test' } },
-      'conv-xyz'
-    );
+    const result = NavigationInterceptor.intercept({ toolName: 'page_goto', arguments: { url: 'https://foo.test' } }, 'conv-xyz');
     expect(result.intercepted).toBe(true);
     expect(result.url).toBe('https://foo.test');
   });
 
   it('does not intercept chrome-devtools navigation (removed)', () => {
-    const result = NavigationInterceptor.intercept(
-      { toolName: 'navigate_page', server: 'chrome-devtools', arguments: { url: 'https://example.com' } },
-      'conv-abc'
-    );
+    const result = NavigationInterceptor.intercept({ toolName: 'navigate_page', server: 'chrome-devtools', arguments: { url: 'https://example.com' } }, 'conv-abc');
     expect(result.intercepted).toBe(false);
   });
 
   it('does not intercept non-navigation calls', () => {
-    const result = NavigationInterceptor.intercept(
-      { toolName: 'Bash', rawInput: { command: 'ls -la' } },
-      'conv-abc'
-    );
+    const result = NavigationInterceptor.intercept({ toolName: 'Bash', rawInput: { command: 'ls -la' } }, 'conv-abc');
     expect(result.intercepted).toBe(false);
   });
 });
@@ -159,7 +147,7 @@ describe('NavigationInterceptor — browser-panel MCP tools', () => {
   it('matches direct browser-panel MCP tool names as bare strings', () => {
     expect(NavigationInterceptor.isNavigationTool('panel_open')).toBe(true);
     expect(NavigationInterceptor.isNavigationTool('panel_navigate')).toBe(true);
-    expect(NavigationInterceptor.isNavigationTool('BROWSER_OPEN')).toBe(true);
+    expect(NavigationInterceptor.isNavigationTool('PANEL_OPEN')).toBe(true);
   });
 
   it('matches mcp-prefixed direct tool name (Claude Code surface form)', () => {

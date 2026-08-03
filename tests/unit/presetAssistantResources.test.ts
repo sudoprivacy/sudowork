@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { registerAssistantMetas } from '@/common/presets/presetResolver';
 import { loadPresetAssistantResources, type PresetAssistantResourceDeps } from '../../src/renderer/shared/agents/presetAssistantResources';
 
 function createDeps(overrides: Partial<PresetAssistantResourceDeps> = {}): PresetAssistantResourceDeps {
@@ -62,6 +63,7 @@ describe('loadPresetAssistantResources', () => {
   });
 
   it('falls back to builtin preset resources and warns when user resources fail', async () => {
+    registerAssistantMetas([{ id: 'cowork', ruleFile: 'cowork.md', skillFile: 'cowork-skills.zh-CN.md' }]);
     const deps = createDeps({
       readAssistantRule: vi.fn(async () => {
         throw new Error('missing user rule');

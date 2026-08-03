@@ -4,7 +4,7 @@ import type { TChatConversation } from '@/common/storage';
 import { shouldSyncWorkspaceSkills, isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 
 describe('workspace skill sync gating', () => {
-  it('enables workspace skill sync for openclaw conversations with a workspace', () => {
+  it('disables workspace skill sync for legacy openclaw conversations', () => {
     const conversation = {
       id: 'conv-openclaw',
       name: 'OpenClaw',
@@ -24,7 +24,7 @@ describe('workspace skill sync gating', () => {
       },
     } as TChatConversation;
 
-    expect(shouldSyncWorkspaceSkills(conversation)).toBe(true);
+    expect(shouldSyncWorkspaceSkills(conversation)).toBe(false);
   });
 
   it('enables workspace skill sync for acp preset conversations with enabled skills', () => {
