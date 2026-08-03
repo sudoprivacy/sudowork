@@ -44,7 +44,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
   it('should scroll to show user message when user sends a message (position=right)', async () => {
     const initialMessages: TMessage[] = [createMessage('left', '1'), createMessage('right', '2')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initialMessages, itemCount: 2 } });
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages: initialMessages, items: initialMessages } });
 
     // Manually set the ref to mock Virtuoso
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
@@ -52,7 +52,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
     // Add a new user message (position=right)
     const newMessages: TMessage[] = [...initialMessages, createMessage('right', '3')];
 
-    rerender({ messages: newMessages, itemCount: 3 });
+    rerender({ messages: newMessages, items: newMessages });
 
     // Wait for double RAF
     await act(async () => {
@@ -69,36 +69,31 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
     );
   });
 
-  it('should scroll to absolute bottom when AI responds with text message (position=left)', async () => {
+  it('should use followOutput for AI streaming (position=left)', async () => {
     const initialMessages: TMessage[] = [createMessage('right', '1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initialMessages, itemCount: 1 } });
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages: initialMessages, items: initialMessages } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
     // Add AI response (position=left, type=text)
     const newMessages: TMessage[] = [...initialMessages, createMessage('left', '2')];
 
-    rerender({ messages: newMessages, itemCount: 2 });
+    rerender({ messages: newMessages, items: newMessages });
 
     await act(async () => {
       vi.runAllTimers();
     });
 
-    // Should scroll to the absolute bottom (Footer visible) for AI messages so
-    // the last message's bottom border isn't clipped against the SendBox.
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        top: Number.MAX_SAFE_INTEGER,
-        behavior: 'auto',
-      })
-    );
+    // AI messages rely on Virtuoso's followOutput callback returning 'auto',
+    // not explicit scrollTo calls.
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
   });
 
   it('should reset userScrolled flag when user sends message', async () => {
     const initialMessages: TMessage[] = [createMessage('left', '1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initialMessages, itemCount: 1 } });
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages: initialMessages, items: initialMessages } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -120,7 +115,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
     // Add user message - should force scroll
     const newMessages: TMessage[] = [...initialMessages, createMessage('right', '2')];
 
-    rerender({ messages: newMessages, itemCount: 2 });
+    rerender({ messages: newMessages, items: newMessages });
 
     await act(async () => {
       vi.runAllTimers();
@@ -131,7 +126,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
   });
 
   it('should show scroll button when not at bottom', () => {
-    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: [], itemCount: 0 } });
+    const { result } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages: [], items: [] } });
 
     // Initially hidden
     expect(result.current.showScrollButton).toBe(false);
@@ -141,18 +136,25 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
       result.current.handleAtBottomStateChange(false);
     });
 
+    // Wait for debounce (80ms)
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
     expect(result.current.showScrollButton).toBe(true);
 
     // Back to bottom
     act(() => {
       result.current.handleAtBottomStateChange(true);
+      vi.advanceTimersByTime(100); // Wait for debounce
     });
 
     expect(result.current.showScrollButton).toBe(false);
   });
 
   it('should provide scrollToBottom function that scrolls to absolute bottom', () => {
-    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: [], itemCount: 5 } });
+    const messages = Array.from({ length: 5 }, (_, i) => createMessage('left', `${i}`));
+    const { result } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages, items: messages } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -171,7 +173,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
   });
 
   it('should handle followOutput correctly based on scroll state', () => {
-    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: [], itemCount: 0 } });
+    const { result } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages: [], items: [] } });
 
     // When at bottom and not user-scrolled, should return 'auto'
     expect(result.current.handleFollowOutput(true)).toBe('auto');
@@ -222,10 +224,10 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
     createdAt: Date.now(),
   });
 
-  it('should auto-scroll to absolute bottom when a tool_group message is appended', async () => {
+  it('should use followOutput for tool_group message append', async () => {
     const initial: TMessage[] = [createTextMessage('right', 'u1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 1 } });
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages: initial, items: initial } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -239,27 +241,21 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
 
     // AI now starts a tool call — this is a NEW left-position message.
     const withTool: TMessage[] = [...initial, createToolGroupMessage('t1')];
-    rerender({ messages: withTool, itemCount: 2 });
+    rerender({ messages: withTool, items: withTool });
 
     await act(async () => {
       vi.runAllTimers();
     });
 
-    // Scroll to absolute bottom (Footer visible) so tool call message is not
-    // clipped against the SendBox below.
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        top: Number.MAX_SAFE_INTEGER,
-        behavior: 'auto',
-      })
-    );
+    // Tool call messages rely on Virtuoso's followOutput callback, not explicit scrollTo.
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
   });
 
-  it('should auto-scroll on in-place tool_group content updates (streaming output)', async () => {
+  it('should keep followOutput enabled during in-place tool_group content updates (streaming output)', async () => {
     const userMsg = createTextMessage('right', 'u1');
     const initial: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 2 } });
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages: initial, items: initial } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -272,20 +268,15 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
     // Tool call content grows in place (same length, same id, new reference).
     // This simulates streaming stdout where only the last message's content updates.
     const updated: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1\nstep 2\nstep 3')];
-    rerender({ messages: updated, itemCount: 2 });
+    rerender({ messages: updated, items: updated });
 
     await act(async () => {
       vi.runAllTimers();
     });
 
-    // Should still scroll to absolute bottom on in-place updates so the tool
-    // call message's bottom border stays clear of the SendBox during streaming.
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        top: Number.MAX_SAFE_INTEGER,
-        behavior: 'auto',
-      })
-    );
+    // During in-place updates, followOutput should remain 'auto' so Virtuoso
+    // handles scrolling internally without explicit scrollTo calls.
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
     // Regression guard: must NOT use scrollToIndex({ align: 'end' }) for AI
     // follow — that aligns the message bottom flush with the viewport bottom,
     // causing the bottom border to be visually clipped against the SendBox.
@@ -296,7 +287,7 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
     const userMsg = createTextMessage('right', 'u1');
     const initial: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 2 } });
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages: initial, items: initial } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -316,7 +307,7 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
 
     // Tool output streams in — should NOT auto-scroll because user is reading history
     const updated: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1\nstep 2')];
-    rerender({ messages: updated, itemCount: 2 });
+    rerender({ messages: updated, items: updated });
 
     await act(async () => {
       vi.runAllTimers();
@@ -326,11 +317,11 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
     expect(mockVirtuosoHandle.scrollTo).not.toHaveBeenCalled();
   });
 
-  it('should resume auto-scroll after user scrolls back to bottom', async () => {
+  it('should resume followOutput after user scrolls back to bottom', async () => {
     const userMsg = createTextMessage('right', 'u1');
     const initial: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 2 } });
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), { initialProps: { messages: initial, items: initial } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -348,6 +339,7 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
     // User scrolls back to bottom (Virtuoso reports atBottom)
     act(() => {
       result.current.handleAtBottomStateChange(true);
+      vi.advanceTimersByTime(100); // Wait for debounce
     });
 
     mockVirtuosoHandle.scrollToIndex.mockClear();
@@ -355,14 +347,14 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
 
     // More streaming content arrives
     const updated: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1\nstep 2')];
-    rerender({ messages: updated, itemCount: 2 });
+    rerender({ messages: updated, items: updated });
 
     await act(async () => {
       vi.runAllTimers();
     });
 
-    // Auto-scroll should have resumed (scroll to absolute bottom).
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: Number.MAX_SAFE_INTEGER }));
+    // followOutput should have resumed after scrolling back to bottom.
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
   });
 });
 
@@ -454,8 +446,8 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
   };
 
   it('starts with no bottom spacer in idle state', () => {
-    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
-      initialProps: { messages: [] as TMessage[], itemCount: 0 },
+    const { result } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), {
+      initialProps: { messages: [] as TMessage[], items: [] },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -468,8 +460,8 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
 
   it('seeds the spacer to full viewport height when the user sends a message', async () => {
     const initial: TMessage[] = [];
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
-      initialProps: { messages: initial, itemCount: 0 },
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), {
+      initialProps: { messages: initial, items: [] },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -481,7 +473,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
     renderTurnDom('u1', 10, 100, 100, 0);
 
     const next: TMessage[] = [createMessage('right', 'u1')];
-    rerender({ messages: next, itemCount: 1 });
+    rerender({ messages: next, items: next });
 
     await act(async () => {
       vi.runAllTimers();
@@ -502,8 +494,8 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
 
   it('does NOT auto-scroll while pinned — AI output fills the spacer instead', async () => {
     const userMsg = createMessage('right', 'u1');
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
-      initialProps: { messages: [] as TMessage[], itemCount: 0 },
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), {
+      initialProps: { messages: [] as TMessage[], items: [] },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -513,7 +505,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
 
     // User sends — enter pinned mode.
     renderTurnDom('u1', 10, 100, 100, 0);
-    rerender({ messages: [userMsg], itemCount: 1 });
+    rerender({ messages: [userMsg], items: [userMsg] });
     await act(async () => {
       vi.runAllTimers();
     });
@@ -525,7 +517,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
     // user(100) + ai(200) = 300 < 600 (viewport), so we should remain pinned.
     renderTurnDom('u1', 10, 100, 300, result.current.bottomSpacerHeight);
     const aiMsg = createMessage('left', 'a1');
-    rerender({ messages: [userMsg, aiMsg], itemCount: 2 });
+    rerender({ messages: [userMsg, aiMsg], items: [userMsg, aiMsg] });
 
     await act(async () => {
       vi.runAllTimers();
@@ -538,11 +530,11 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
     expect(result.current.bottomSpacerHeight).toBeGreaterThan(0);
   });
 
-  it('releases the pin and resumes auto-follow once turn content overflows the viewport', async () => {
+  it('releases the pin and resumes followOutput once turn content overflows the viewport', async () => {
     const userMsg = createMessage('right', 'u1');
     const aiMsg = createMessage('left', 'a1');
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
-      initialProps: { messages: [] as TMessage[], itemCount: 0 },
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), {
+      initialProps: { messages: [] as TMessage[], items: [] },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -552,7 +544,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
 
     // User sends.
     renderTurnDom('u1', 10, 100, 100, 0);
-    rerender({ messages: [userMsg], itemCount: 1 });
+    rerender({ messages: [userMsg], items: [userMsg] });
     await act(async () => {
       vi.runAllTimers();
     });
@@ -562,7 +554,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
     // (user 100 + AI 700 = items 800 > 600 viewport) → spacer should collapse
     // to 0 and the pin should release.
     renderTurnDom('u1', 10, 100, 800, result.current.bottomSpacerHeight);
-    rerender({ messages: [userMsg, aiMsg], itemCount: 2 });
+    rerender({ messages: [userMsg, aiMsg], items: [userMsg, aiMsg] });
     await act(async () => {
       vi.runAllTimers();
     });
@@ -570,28 +562,23 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
 
     mockVirtuosoHandle.scrollTo.mockClear();
 
-    // Further AI streaming after overflow should trigger auto-follow to the
-    // absolute bottom of the scroller.
+    // Further AI streaming after overflow should enable followOutput since pin is released.
     renderTurnDom('u1', 10, 100, 900, 0);
     const aiMsg2 = createMessage('left', 'a2');
-    rerender({ messages: [userMsg, aiMsg, aiMsg2], itemCount: 3 });
+    rerender({ messages: [userMsg, aiMsg, aiMsg2], items: [userMsg, aiMsg, aiMsg2] });
     await act(async () => {
       vi.runAllTimers();
     });
 
     expect(result.current.bottomSpacerHeight).toBe(0);
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        top: Number.MAX_SAFE_INTEGER,
-        behavior: 'auto',
-      })
-    );
+    // After pin release, followOutput should return 'auto' so Virtuoso handles scrolling.
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
   });
 
   it('clears the spacer when the message list becomes empty (e.g., conversation switch)', async () => {
     const userMsg = createMessage('right', 'u1');
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
-      initialProps: { messages: [userMsg], itemCount: 1 },
+    const { result, rerender } = renderHook(({ messages, items }) => useAutoScroll({ messages, items }), {
+      initialProps: { messages: [userMsg], items: [userMsg] },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -600,14 +587,15 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
     });
 
     // Simulate a fresh user send establishing pinned state.
+    const userMsg2 = createMessage('right', 'u2');
     renderTurnDom('u1', 10, 100, 100, 0);
-    rerender({ messages: [userMsg, createMessage('right', 'u2')], itemCount: 2 });
+    rerender({ messages: [userMsg, userMsg2], items: [userMsg, userMsg2] });
     await act(async () => {
       vi.runAllTimers();
     });
 
     // Conversation cleared.
-    rerender({ messages: [] as TMessage[], itemCount: 0 });
+    rerender({ messages: [] as TMessage[], items: [] });
     await act(async () => {
       vi.runAllTimers();
     });
