@@ -214,4 +214,26 @@ describe('TenantConfigSection', () => {
     expect(screen.queryByTestId('config-item-2')).not.toBeInTheDocument();
     expect(screen.queryByText('invalid_item')).not.toBeInTheDocument();
   });
+
+  it('should filter out shareone item when IS_SHAREONE_DISABLED', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: [
+            { id: 1, name: 'Normal Config', pinyin: 'normal_config', entries: [{ id: 10, config_key: 'key1', config_desc: 'desc', name: 'Key1', required: 1 }] },
+            { id: 2, name: 'ShareOne Config', pinyin: 'shareone', entries: [{ id: 20, config_key: 'shareone_key', config_desc: 'desc', name: 'ShareOne', required: 1 }] },
+          ],
+        }),
+    });
+
+    render(<TenantConfigSection />);
+
+    await screen.findByTestId('config-item-1');
+    expect(screen.getByText('Normal Config')).toBeInTheDocument();
+    expect(screen.queryByTestId('config-item-2')).not.toBeInTheDocument();
+    expect(screen.queryByText('ShareOne Config')).not.toBeInTheDocument();
+  });
 });

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IS_SHAREONE_DISABLED } from '@/common/buildMode';
 import { BUILD_SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
 import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
@@ -44,6 +45,10 @@ export function resolveEnterpriseConfigItemIconUrl(iconUrl: string | null, baseU
     return `${baseUrl.replace(/\/+$/, '')}${iconUrl.startsWith('/') ? iconUrl : `/${iconUrl}`}`;
   }
   return configItemDefaultIcon;
+}
+
+export function isTenantConfigItemVisible(configItem: TenantConfigItem): boolean {
+  return !IS_SHAREONE_DISABLED || configItem.pinyin !== 'shareone';
 }
 
 export function shouldBlockEnableUntilConfigured(configItem: TenantConfigItem, values: TenantConfigValues): boolean {

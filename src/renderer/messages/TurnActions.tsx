@@ -10,6 +10,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import brand from '@brand';
 import type { TurnTokenUsage } from '@/common/chatLib';
+import { IS_SHAREONE_DISABLED } from '@/common/buildMode';
 import { costToUsagePoints, formatUsagePoints, resolveUsagePoints } from '@/common/tokenUsage';
 import { copyText } from '@/renderer/utils/clipboard';
 import { ipcBridge } from '@/common';
@@ -38,6 +39,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
   const [shareoneInstalled, setShareoneInstalled] = useState(false);
 
   useEffect(() => {
+    if (IS_SHAREONE_DISABLED) return;
     void ipcBridge.shareoneCli.checkInstalled.invoke().then((res) => {
       if (res?.success && res.data?.installed) {
         setShareoneInstalled(true);
@@ -142,11 +144,16 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
           <FileWord size={16} />
         </div>
       </Tooltip>
-      <Tooltip content={shareoneInstalled ? t('messages.shareone') : t('messages.shareCliNotInstalled')}>
-        <div className={`f-center size-6 rounded-md transition-colors ${shareoneInstalled && !sharing ? 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground' : 'cursor-default text-foreground-quaternary'}`} onClick={shareoneInstalled && !sharing ? handleShare : undefined}>
-          <ShareOne size={16} />
-        </div>
-      </Tooltip>
+      {!IS_SHAREONE_DISABLED && (
+        <Tooltip content={shareoneInstalled ? t('messages.shareone') : t('messages.shareCliNotInstalled')}>
+          <div
+            className={`f-center size-6 rounded-md transition-colors ${shareoneInstalled && !sharing ? 'cursor-pointer text-foreground-secondary hover:bg-accent hover:text-foreground' : 'cursor-default text-foreground-quaternary'}`}
+            onClick={shareoneInstalled && !sharing ? handleShare : undefined}
+          >
+            <ShareOne size={16} />
+          </div>
+        </Tooltip>
+      )}
       {showTokenUsageBadge && totalTokens && (
         <div className='ml-1 max-w-full truncate text-11px leading-18px text-foreground-secondary'>
           {t('messages.tokenUsageSummary', { defaultValue: '{{total}} tokens', total: totalTokens })}

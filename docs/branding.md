@@ -10,6 +10,7 @@
 | `logo` | `string` | 默认及浅色主题 Logo，同时用于生成应用、Dock、托盘和安装器图标。支持 `data:` URL 或 HTTPS URL；设为空字符串时使用仓库内置图标。 |
 | `logoDark` | `string` | 深色主题 Logo。未配置时回退到 `logo`；不影响应用、托盘和安装器的原生图标。 |
 | `BUILD_OFFLINE` | `boolean` | 是否构建离线版。只有严格设置为 `true` 时，才会打包本地运行时并启用离线逻辑。 |
+| `disabledFeatures` | `string[]` | 按品牌隐藏功能入口。当前支持 `shareone`，会隐藏对话分享、工作区分享、运行环境和凭据配置入口。 |
 | `defaultAgentId` | `string` | Guide 页默认并锁定的内置助手技术 ID。删除该字段后恢复自由选择助手。 |
 | `defaultAgentSkills` | `string[]` | 将指定 Skill 按配置顺序置顶。仅影响排序，不会安装或自动启用 Skill；未配置 `defaultAgentId` 时不生效。 |
 | `defaultPromptScenarios` | `object[]` | Guide 页的品牌快捷提示词。非空时替换默认分类提示词；删除或设为空数组时使用系统默认提示词。 |

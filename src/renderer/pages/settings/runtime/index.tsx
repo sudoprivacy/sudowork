@@ -22,6 +22,7 @@ import {
   popplerRuntime as popplerRuntimeIpc,
 } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import { IS_SHAREONE_DISABLED } from '@/common/buildMode';
 import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import RuntimeToolRow from './components/RuntimeToolRow';
@@ -387,6 +388,7 @@ export default function RuntimeSettings() {
   }, [refreshScode, t]);
 
   const refreshShareone = useCallback(async () => {
+    if (IS_SHAREONE_DISABLED) return;
     try {
       const res = await shareoneCli.checkInstalled.invoke();
       if (res?.success && res.data) {
@@ -600,10 +602,12 @@ export default function RuntimeSettings() {
       setScodeLoad('idle');
       void refreshScode();
     });
-    const unsubShareoneResult = shareoneCli.installResult.on(() => {
-      setShareoneLoad('idle');
-      void refreshShareone();
-    });
+    const unsubShareoneResult: () => void = IS_SHAREONE_DISABLED
+      ? () => undefined
+      : shareoneCli.installResult.on(() => {
+          setShareoneLoad('idle');
+          void refreshShareone();
+        });
     const unsubEmbeddingProgress = localKnowledgeBaseIpc.installEmbeddingModelProgress.on(({ phase, percent }) => {
       setEmbeddingLoad('installing');
       setEmbeddingPhase(phase);
@@ -786,9 +790,11 @@ export default function RuntimeSettings() {
           <div className='space-y-4'>
             <div className='bg-muted rd-16px border px-4 md:px-6 lg:px-7 py-4 md:py-4.5'>
               <div className='flex flex-col divide-y divide-light'>
-                {tableData.map((record) => (
-                  <RuntimeToolRow key={record.key} record={record} />
-                ))}
+                {tableData
+                  .filter((record) => !IS_SHAREONE_DISABLED || record.key !== 'shareone')
+                  .map((record) => (
+                    <RuntimeToolRow key={record.key} record={record} />
+                  ))}
               </div>
             </div>
           </div>

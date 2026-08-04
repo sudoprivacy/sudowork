@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { ConfigStorage } from '@/common/storage';
 import { useAuth } from '@/renderer/context/AuthContext';
 import type { TenantConfigItem } from '../types';
-import { resolveEnterpriseConfigItemIconUrl } from '../utils';
+import { isTenantConfigItemVisible, resolveEnterpriseConfigItemIconUrl } from '../utils';
 import PreferenceRow from './PreferenceRow';
 
 const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string; baseUrl?: string }> = ({ iconUrl, name, baseUrl }) => {
@@ -53,7 +53,7 @@ export const EnterpriseSecretSection: React.FC = () => {
       const itemsData = await itemsRes.json();
       if (!itemsData.success) return;
 
-      const systemItems: TenantConfigItem[] = itemsData.data.filter((item: TenantConfigItem) => item.scope === 'system' && authorizedIds.has(item.id)).map((item: TenantConfigItem) => item);
+      const systemItems: TenantConfigItem[] = itemsData.data.filter((item: TenantConfigItem) => item.scope === 'system' && authorizedIds.has(item.id) && isTenantConfigItemVisible(item));
 
       setItems(systemItems);
     } catch {

@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
-import { IS_OFFLINE_BUILD } from '@/common/buildMode';
+import { IS_OFFLINE_BUILD, IS_SHAREONE_DISABLED } from '@/common/buildMode';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME, isReservedDraftsDirName } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
@@ -690,6 +690,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [shareoneInstalled, setShareoneInstalled] = useState(false);
 
   useEffect(() => {
+    if (IS_SHAREONE_DISABLED) return;
     void ipcBridge.shareoneCli.checkInstalled.invoke().then((res) => {
       if (res?.success && res.data?.installed) {
         setShareoneInstalled(true);
@@ -1509,7 +1510,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.rename')}
                   </button>
-                  <div className='h-1px bg-muted my-2px'></div>
+                  {(!IS_OFFLINE_BUILD || !IS_SHAREONE_DISABLED) && <div className='h-1px bg-muted my-2px'></div>}
                   {!IS_OFFLINE_BUILD && (
                     <button
                       type='button'
@@ -1521,18 +1522,20 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {t('conversation.workspace.contextMenu.uploadToBdpan')}
                     </button>
                   )}
-                  <button
-                    type='button'
-                    className={menuButtonBase}
-                    disabled={!shareoneInstalled}
-                    onClick={() => {
-                      if (!shareoneInstalled) return;
-                      void handleShareFile(contextMenuNode);
-                      modalsHook.closeContextMenu();
-                    }}
-                  >
-                    {shareoneInstalled ? t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' }) : t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' })}
-                  </button>
+                  {!IS_SHAREONE_DISABLED && (
+                    <button
+                      type='button'
+                      className={menuButtonBase}
+                      disabled={!shareoneInstalled}
+                      onClick={() => {
+                        if (!shareoneInstalled) return;
+                        void handleShareFile(contextMenuNode);
+                        modalsHook.closeContextMenu();
+                      }}
+                    >
+                      {shareoneInstalled ? t('conversation.workspace.contextMenu.shareone', { defaultValue: 'ShareOne' }) : t('settings.runtimeSettings.status.disabled', { defaultValue: '未启用' })}
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -1600,7 +1603,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {t('conversation.workspace.contextMenu.newFolder')}
                     </button>
                   )}
-                  {(!IS_OFFLINE_BUILD || isContextMenuNodeFile) && <div className='h-1px bg-muted my-2px'></div>}
+                  {(!IS_OFFLINE_BUILD || (!IS_SHAREONE_DISABLED && isContextMenuNodeFile)) && <div className='h-1px bg-muted my-2px'></div>}
                   {!IS_OFFLINE_BUILD && (
                     <button
                       type='button'
@@ -1612,7 +1615,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {t('conversation.workspace.contextMenu.uploadToBdpan')}
                     </button>
                   )}
-                  {isContextMenuNodeFile && (
+                  {!IS_SHAREONE_DISABLED && isContextMenuNodeFile && (
                     <button
                       type='button'
                       className={menuButtonBase}
