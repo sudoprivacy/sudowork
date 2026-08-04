@@ -23,7 +23,7 @@ const About: React.FC = () => {
   const [opsVisible, setOpsVisible] = useState<boolean>(false);
 
   return (
-    <PageWrapper contentClassName='max-w-120'>
+    <PageWrapper title={t('settings.about')}>
       <div className='f-center flex-col w-full min-h-[62vh] py-8 text-center'>
         {/* Logo 磁贴 / Logo tile */}
         <div className='f-center h-19 w-19 border border-border bg-card shadow-sm rd-18px'>

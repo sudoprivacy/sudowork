@@ -171,8 +171,8 @@
     "stopFailed": "{{name}} 停止失败",
     "embeddingModelName": "本地知识库 Embedding 模型"
   },
-  "system": "系统",
-  "about": "关于",
+  "system": "系统设置",
+  "about": "关于我们",
   "openclaw": "Copilot",
   "openclaw_notInstalled": "Sudoclaw 正在安装中，请稍后重启应用或等待片刻后重试。",
   "openclaw_primaryModel": "主模型",
@@ -451,7 +451,7 @@
   "channels.guide": "连接 Telegram、飞书、钉钉等消息应用，让你的 AI Agent 随时在线可控。",
   "channels.selectFirst": "选择一个渠道并完成凭据配置。",
   "channels.enableAfterConfig": "启用该渠道后，即可开始与 AI Agent 对话。",
-  "display": "显示",
+  "display": "显示设置",
   "imageGeneration": "图像生成",
   "imageGenerationToggle": "启用图像生成工具",
   "imageGenerationDescription": "选择默认用于图像工具的已配置模型。",
@@ -461,7 +461,7 @@
   "imageModelListLoadFailed": "图片模型列表加载失败。",
   "imageGenerationGuide": "图像模型配置指南",
   "noAvailable": "暂无可用图像模型，请先配置。",
-  "mcpSettings": "MCP 工具配置",
+  "mcpSettings": "MCP 配置",
   "mcpServerList": "MCP 服务器",
   "mcpStatus": "状态",
   "mcpAddServer": "手动添加",
@@ -1212,7 +1212,7 @@
     "saveCustomProvidersFailed": "保存第三方模型配置失败",
     "saveConfigSuccess": "模型配置已保存",
     "loadingConfig": "加载模型配置...",
-    "pageTitle": "模型",
+    "pageTitle": "模型设置",
     "pageDescription": "管理 sudocode.json 中供本地 Sudo Code 使用的模型。",
     "sudorouterModels": "Sudorouter 模型",
     "customProviders": "第三方提供商",
@@ -1398,5 +1398,5 @@
   "uploadAssistantTitle": "上传智能体",
   "skill.notInstalled": "未安装",
   "enterprise": "企业设置",
-  "mcpService": "MCP 服务"
+  "mcpService": "MCP 配置"
 }

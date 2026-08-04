@@ -6,6 +6,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Tabs, Message, Spin } from '@arco-design/web-react';
+import { useTranslation } from 'react-i18next';
 import { ConfigStorage } from '@/common/storage';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import EnterpriseMcpTab from './tabs/EnterpriseMcpTab';
@@ -22,6 +23,7 @@ import { normalizeInstallError, describeMcpError } from './utils/normalizeError'
 import type { EnterpriseMcpServerDto, EnterpriseMcpTemplateDto } from './types';
 
 const EnterpriseMcpSettings: React.FC = () => {
+  const { t } = useTranslation();
   const [activeKey, setActiveKey] = useState<string>('enterprise');
   const [isAdmin, setIsAdmin] = useState(false);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
@@ -194,7 +196,7 @@ const EnterpriseMcpSettings: React.FC = () => {
   };
 
   return (
-    <PageWrapper title='MCP 服务' subtitle='管理企业、部门与个人 MCP 服务，安装模板，查看企业策略。'>
+    <PageWrapper title={t('settings.mcpService')} subtitle='管理企业、部门与个人 MCP 服务，安装模板，查看企业策略。'>
       <div className='flex flex-col gap-4'>
         <AdminRedirectBanner visible={isAdmin} serverUrl={serverUrl} />
 

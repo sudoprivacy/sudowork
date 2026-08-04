@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bot, Building2, Cable, Cloud, CreditCard, Globe, HardDrive, Info, MessageSquare, Monitor, Puzzle, Settings, ShieldCheck, Sparkles, User, Users, Wrench } from 'lucide-react';
+import { Blocks, Bot, Building2, Cable, Cloud, CreditCard, Globe, HardDrive, Info, MessageSquare, Monitor, Puzzle, Settings, ShieldCheck, Sparkles, User, Users } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -23,7 +23,7 @@ const BUILTIN_TAB_IDS = [
   'recharge',
   'members',
   // 'agent',
-  // 'tools',
+  'tools',
   // 'skill',
   // 'security',
   'display',
@@ -117,9 +117,9 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     // Build builtin items
     const builtinMap: Record<string, SiderItem> = {
       profile: { id: 'profile', label: t('settings.profile'), icon: <User />, path: 'profile' },
-      enterprise: { id: 'enterprise', label: t('settings.enterprise', { defaultValue: '企业设置' }), icon: <Building2 />, path: 'enterprise' },
-      mcp: { id: 'mcp', label: t('settings.mcpService', { defaultValue: 'MCP 服务' }), icon: <Cable />, path: 'mcp' },
-      recharge: { id: 'recharge', label: t('settings.rechargeCenter') || '充值中心', icon: <CreditCard />, path: 'recharge' },
+      enterprise: { id: 'enterprise', label: t('settings.enterprise'), icon: <Building2 />, path: 'enterprise' },
+      mcp: { id: 'mcp', label: t('settings.mcpService'), icon: <Cable />, path: 'mcp' },
+      recharge: { id: 'recharge', label: t('settings.rechargeCenter'), icon: <CreditCard />, path: 'recharge' },
       members: {
         id: 'members',
         label: t('settings.memberManagement'),
@@ -127,14 +127,14 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         path: 'members',
         hidden: true, // 固定隐藏，服务端已只有一个企业
       },
-      model: { id: 'model', label: t('settings.model'), icon: <Cloud />, path: 'model' },
+      model: { id: 'model', label: t('settings.sudocodeModel.pageTitle'), icon: <Cloud />, path: 'model' },
       agent: { id: 'agent', label: t('settings.agent'), icon: <Bot />, path: 'agent' },
-      tools: { id: 'tools', label: t('settings.tools'), icon: <Wrench />, path: 'tools' },
+      tools: { id: 'tools', label: t('settings.mcpSettings'), icon: <Blocks />, path: 'tools' },
       skill: { id: 'skill', label: t('settings.skill'), icon: <Sparkles />, path: 'skill' },
       security: { id: 'security', label: t('settings.security'), icon: <ShieldCheck />, path: 'security' },
       display: { id: 'display', label: t('settings.display'), icon: <Monitor />, path: 'display' },
       // copilot: { id: 'copilot', label: t('settings.copilot'), icon: <BotMessageSquare />, path: 'copilot' },
-      channels: { id: 'channels', label: t('settings.webui'), icon: isDesktop ? <Globe /> : <MessageSquare />, path: 'channels' },
+      channels: { id: 'channels', label: t('common.siderMenu.webui'), icon: isDesktop ? <Globe /> : <MessageSquare />, path: 'channels' },
       runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDrive />, path: 'runtime' },
       system: { id: 'system', label: t('settings.system'), icon: <Settings />, path: 'system' },
       about: { id: 'about', label: t('settings.about'), icon: <Info />, path: 'about' },

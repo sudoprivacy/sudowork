@@ -6,6 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Input, Message, Spin } from '@arco-design/web-react';
+import { useTranslation } from 'react-i18next';
 import { Building2, CheckCircle, XCircle } from 'lucide-react';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
@@ -14,6 +15,7 @@ import { useTenantStore } from '@/renderer/stores/useTenantStore';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const EnterpriseSettings: React.FC = () => {
+  const { t } = useTranslation();
   const { logout } = useAuth();
   const [tenantName, setTenantName] = useState<string>('');
   const [serverUrl, setServerUrl] = useState<string>('');
@@ -91,7 +93,7 @@ const EnterpriseSettings: React.FC = () => {
 
   if (loading) {
     return (
-      <PageWrapper>
+      <PageWrapper title={t('settings.enterprise')}>
         <div className='f-center py-25'>
           <Spin size={32} />
         </div>
@@ -100,7 +102,7 @@ const EnterpriseSettings: React.FC = () => {
   }
 
   return (
-    <PageWrapper>
+    <PageWrapper title={t('settings.enterprise')}>
       {/* Card 1: Enterprise Connection Info */}
       <div className='mb-6 rd-16px bg-muted p-6'>
         <div className='flex items-center gap-2 mb-5'>
