@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Card, Input, Message, Tag, Typography } from '@arco-design/web-react';
-import React, { useMemo, useState } from 'react';
+import { Button, Card, Checkbox, Input, Message, Tag, Typography } from '@arco-design/web-react';
+import { Check } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AcpQuestionAnswerItem, AcpQuestionItem, AcpQuestionItemOption, IMessageAcpQuestion } from '@/common/chatLib';
 import { uuid } from '@/common/utils';
@@ -21,6 +22,10 @@ interface IQuestionSubmitResult {
 
 interface IMessageAcpQuestionProps {
   message: IMessageAcpQuestion;
+  className?: string;
+  isInteractive?: boolean;
+  variant?: 'message' | 'overlay';
+  onAnswered?: (answer: { selectedAnswer: string; answerItems: AcpQuestionAnswerItem[] }) => void;
   onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<IQuestionSubmitResult | void>;
   onTeamQuestionFallbackSend?: (params: { input: string; msg_id: string }) => Promise<IQuestionSubmitResult | void>;
 }
@@ -150,7 +155,7 @@ function parseStructuredAnswer(answer: string, items: NormalizedItem[]): AcpQues
   return [];
 }
 
-const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ message, onTeamAnswerQuestion, onTeamQuestionFallbackSend }) => {
+const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ message, className = '', isInteractive = true, variant = 'message', onAnswered, onTeamAnswerQuestion, onTeamQuestionFallbackSend }) => {
   const { question, intro } = message.content || {};
   const conversationId = message.content?.conversationId || message.conversation_id;
   const { t } = useTranslation();
@@ -225,6 +230,10 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
   const [isResponding, setIsResponding] = useState(false);
   const [hasResponded, setHasResponded] = useState(message.content?.answered || false);
   const isCancelled = message.content?.cancelled === true;
+
+  useEffect(() => {
+    setHasResponded(message.content?.answered === true);
+  }, [message.content?.answered]);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(initialSelectedOptions);
   const [selectedMulti, setSelectedMulti] = useState<Record<string, string[]>>(initialSelectedMulti);
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>(initialCustomAnswers);
@@ -364,9 +373,13 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
 
       if (!result || result.success === true) {
         setHasResponded(true);
-        message.content.answered = true;
-        message.content.selectedAnswer = answerPayload.display;
-        message.content.answerItems = answerPayload.answerItems;
+        if (onAnswered) {
+          onAnswered({ selectedAnswer: answerPayload.display, answerItems: answerPayload.answerItems });
+        } else {
+          message.content.answered = true;
+          message.content.selectedAnswer = answerPayload.display;
+          message.content.answerItems = answerPayload.answerItems;
+        }
       } else {
         Message.error(result?.msg || t('messages.failedToSendQuestionAnswer'));
       }
@@ -387,6 +400,113 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
   const canGoNext = currentItem ? currentItem.optional || (currentKind === 'multi_select' ? currentMulti.length > 0 || Boolean(customAnswers[currentItem.id]?.trim()) : Boolean(currentValueLabel.trim())) : false;
   const shouldShowCustomInput = currentItem ? currentKind === 'text' || (currentItem.allowCustomInput && (currentItem.options.length === 0 || customInputEnabled[currentItem.id])) : false;
 
+  if (variant === 'overlay' && !hasResponded && !isCancelled && currentItem) {
+    const heading = displayedIntro || question;
+    const isPromptDistinct = currentItem.prompt.trim() !== heading.trim();
+
+    return (
+      <section className={`flex max-h-[70vh] flex-col overflow-hidden bg-card ${className}`}>
+        <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto'>
+          <header className='flex items-start justify-between gap-4 px-5 pb-3 pt-5'>
+            <div className='min-w-0 flex-1'>
+              <Text className='block text-base font-medium leading-snug whitespace-pre-wrap'>{heading}</Text>
+              {isPromptDistinct ? <Text className='mt-1 block text-sm text-foreground-secondary whitespace-pre-wrap'>{currentItem.prompt}</Text> : null}
+            </div>
+            {items.length > 1 ? (
+              <Text className='shrink-0 pt-0.5 text-xs tabular-nums text-foreground-secondary'>
+                {currentStep + 1} / {items.length}
+              </Text>
+            ) : null}
+          </header>
+
+          {currentKind !== 'text' && currentItem.options.length > 0 ? (
+            <div className='px-3 pb-2'>
+              {currentItem.options.map((option, index) => {
+                const isSelected = currentKind === 'multi_select' ? currentMulti.includes(option.label) : selectedOptions[currentItem.id] === option.label;
+                const content = (
+                  <span className='min-w-0 flex-1'>
+                    <span className='flex items-center gap-2 text-sm text-foreground'>
+                      {option.label}
+                      {option.recommended ? (
+                        <Tag size='small' color='arcoblue'>
+                          {t('messages.recommended')}
+                        </Tag>
+                      ) : null}
+                    </span>
+                    {option.description ? <span className='mt-0.5 block text-xs text-foreground-secondary'>{option.description}</span> : null}
+                  </span>
+                );
+                return (
+                  <div key={`${currentItem.id}-${option.value}`}>
+                    {currentKind === 'multi_select' ? (
+                      <div className='group flex w-full cursor-pointer items-center gap-3 rounded-xl bg-transparent px-3 py-2.5 text-left transition-colors hover:bg-fill-shallow' onClick={() => handleMultiOptionToggle(currentItem, option)}>
+                        <span className='shrink-0' onClick={(event) => event.stopPropagation()}>
+                          <Checkbox checked={isSelected} disabled={isResponding} onChange={() => handleMultiOptionToggle(currentItem, option)} />
+                        </span>
+                        {content}
+                      </div>
+                    ) : (
+                      <button
+                        type='button'
+                        disabled={isResponding}
+                        aria-label={option.label}
+                        aria-pressed={isSelected}
+                        className='group flex w-full items-center gap-3 rounded-xl border-none bg-transparent px-3 py-2.5 text-left transition-colors hover:bg-fill-shallow disabled:cursor-not-allowed disabled:opacity-50'
+                        onClick={() => handleSingleOptionClick(currentItem, option)}
+                      >
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-medium transition-colors ${isSelected ? 'bg-fill-medium text-foreground' : 'bg-fill-default text-foreground-secondary group-hover:bg-fill-medium group-hover:text-foreground'}`}>
+                          {index + 1}
+                        </span>
+                        {content}
+                        {isSelected ? <Check size={16} className='shrink-0 text-primary' /> : null}
+                      </button>
+                    )}
+                    {index < currentItem.options.length - 1 ? <div className='mx-3 h-px bg-border' /> : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+
+        <div className='shrink-0 border-t border-border px-5 py-3'>
+          {currentKind === 'text' || currentItem.allowCustomInput ? (
+            <TextArea
+              autoFocus={currentKind === 'text'}
+              value={customAnswers[currentItem.id] || ''}
+              disabled={isResponding}
+              autoSize={{ minRows: 1, maxRows: 4 }}
+              placeholder={currentItem.optional ? t('common.skip') : currentItem.customInputHint || t('messages.enterAnswer')}
+              onChange={(nextValue) => {
+                setCustomAnswers((prev) => ({ ...prev, [currentItem.id]: nextValue }));
+                if (currentKind !== 'multi_select' && selectedOptions[currentItem.id]) {
+                  setSelectedOptions((prev) => ({ ...prev, [currentItem.id]: '' }));
+                }
+              }}
+            />
+          ) : null}
+
+          <div className={`flex items-center justify-end gap-2 ${currentKind === 'text' || currentItem.allowCustomInput ? 'mt-2' : ''}`}>
+            {currentStep > 0 ? (
+              <Button size='small' disabled={isResponding} onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}>
+                {t('common.ariaLabel.back')}
+              </Button>
+            ) : null}
+            {currentStep < items.length - 1 ? (
+              <Button type='primary' size='small' disabled={isResponding || !canGoNext} onClick={() => setCurrentStep((prev) => Math.min(items.length - 1, prev + 1))}>
+                {t('common.ariaLabel.next')}
+              </Button>
+            ) : (
+              <Button type='primary' size='small' disabled={isResponding || !canGoNext} onClick={handleSubmit}>
+                {isResponding ? t('messages.processing') : t('messages.confirm')}
+              </Button>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const renderOptionExtras = (option: AcpQuestionItemOption) => (
     <>
       {option.recommended ? (
@@ -398,14 +518,16 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
   );
 
   return (
-    <Card className='mb-4 bg-card' bordered={false}>
+    <Card className={`mb-4 bg-card ${className}`} bordered={false}>
       <div className='space-y-4'>
         <div className='flex items-start space-x-2'>
           <span className='text-2xl shrink-0'>{'💬'}</span>
           <div className='min-w-0 flex-1 mt-1'>{displayedIntro ? <Text className='block whitespace-pre-wrap'>{displayedIntro}</Text> : <Text className='block whitespace-pre-wrap'>{question}</Text>}</div>
         </div>
 
-        {!hasResponded && !isCancelled && (
+        {!hasResponded && !isCancelled && !isInteractive ? <Text className='block text-sm text-foreground-secondary'>{t('messages.waitingForUserInput')}</Text> : null}
+
+        {!hasResponded && !isCancelled && isInteractive && (
           <>
             <div className='mt-10px'>
               <Text className='text-xs text-foreground-secondary'>{items.length > 1 ? `${currentStep + 1}/${items.length}` : t('messages.chooseAction')}</Text>
@@ -483,7 +605,7 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
                       {t('common.ariaLabel.next')}
                     </Button>
                   ) : (
-                    <Button type='primary' size='small' disabled={isResponding} onClick={handleSubmit}>
+                    <Button type='primary' size='small' disabled={isResponding || !canGoNext} onClick={handleSubmit}>
                       {isResponding ? t('messages.processing') : t('messages.confirm')}
                     </Button>
                   )}

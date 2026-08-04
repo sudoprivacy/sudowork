@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 
 const mockSendMessage = vi.fn().mockResolvedValue({ success: true });
@@ -46,6 +46,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 import MessageAcpQuestion from '@/renderer/messages/acp/MessageAcpQuestion';
+import AcpQuestionOverlay from '@/renderer/pages/conversation/acp/AcpQuestionOverlay';
 import type { IMessageAcpQuestion } from '@/common/chatLib';
 import { transformMessage } from '@/common/chatLib';
 
@@ -338,6 +339,87 @@ describe('MessageAcpQuestion', () => {
     expect(onTeamQuestionFallbackSend).toHaveBeenCalledWith({ input: 'Q1: Project\nQ2: zh-CN', msg_id: expect.any(String) });
     expect(mockSendMessage).not.toHaveBeenCalled();
     expect(mockAnswerQuestion).not.toHaveBeenCalled();
+  });
+
+  it('should render a pending history entry without duplicate controls', () => {
+    const message: IMessageAcpQuestion = {
+      id: 'msg-history',
+      msg_id: 'msg-history',
+      type: 'acp_question',
+      position: 'left',
+      conversation_id: 'conv-1',
+      createdAt: Date.now(),
+      content: {
+        question: 'Choose a mode',
+        options: ['Fast', 'Safe'],
+        conversationId: 'conv-1',
+      },
+    };
+
+    render(<MessageAcpQuestion message={message} isInteractive={false} />);
+
+    expect(screen.getByText('messages.waitingForUserInput')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Fast' })).not.toBeInTheDocument();
+  });
+
+  it('should keep custom input visible in the bottom overlay', () => {
+    const message: IMessageAcpQuestion = {
+      id: 'msg-overlay-custom',
+      msg_id: 'msg-overlay-custom',
+      type: 'acp_question',
+      position: 'left',
+      conversation_id: 'conv-1',
+      createdAt: Date.now(),
+      content: {
+        question: 'Choose a mode',
+        options: [],
+        conversationId: 'conv-1',
+        items: [
+          {
+            id: 'q1',
+            prompt: 'Choose a mode',
+            options: ['Fast', 'Safe'],
+            allowCustomInput: true,
+            customInputHint: 'Type another mode',
+          },
+        ],
+      },
+    };
+
+    render(<AcpQuestionOverlay message={message} onAnswered={vi.fn()} />);
+
+    expect(screen.getByPlaceholderText('Type another mode')).toBeInTheDocument();
+  });
+
+  it('should submit a pending question from the bottom overlay', async () => {
+    const onAnswered = vi.fn();
+    const message: IMessageAcpQuestion = {
+      id: 'msg-overlay',
+      msg_id: 'msg-overlay',
+      type: 'acp_question',
+      position: 'left',
+      conversation_id: 'conv-1',
+      createdAt: Date.now(),
+      content: {
+        question: 'Choose a mode',
+        options: ['Fast', 'Safe'],
+        conversationId: 'conv-1',
+        toolCallId: 'tool-overlay',
+      },
+    };
+
+    render(<AcpQuestionOverlay message={message} onAnswered={onAnswered} />);
+
+    expect(screen.getByRole('region', { name: 'messages.waitingForUserInput' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Safe' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() =>
+      expect(onAnswered).toHaveBeenCalledWith({
+        selectedAnswer: 'Safe',
+        answerItems: [{ id: 'q1', index: 1, submissionValue: 'Safe', displayValue: 'Safe', skipped: false }],
+      })
+    );
   });
 
   it('should show one step at a time and advance after selecting an option', () => {

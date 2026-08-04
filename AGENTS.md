@@ -162,7 +162,7 @@ This is a strict rule that applies to all AI coding assistants. Violating this w
 
 ## Reference Project
 
-`/Users/xiaohei/Documents/weimob/storeclaw-fe-admin` is the reference project for AI chat UX and renderer behavior. When implementing or reviewing chat features—especially message layout, reasoning/tool-call summaries, elapsed-time display, web references, streaming Markdown, code blocks, and generated-media presentation—inspect its current implementation before designing a new solution.
+`/Users/xiaohei/Documents/weimob/storeclaw-fe-admin` is the reference project for AI chat UX and renderer behavior. When implementing or reviewing chat features—especially message layout, reasoning/tool-call summaries, elapsed-time display, web references, streaming Markdown, code blocks, and generated-media presentation—inspect its current implementation before designing a new solution. When necessary, read the reference project's source code directly to understand its actual data flow and implementation details rather than relying on assumptions.
 
 Use it as a read-only product and implementation reference. Adapt the smallest compatible approach to Sudowork's Electron/Arco/UnoCSS architecture; do not copy its dependencies, APIs, styling conventions, or web-only assumptions blindly.
 

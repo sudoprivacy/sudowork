@@ -4,17 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConversationProvider } from '@/renderer/context/ConversationContext';
 import type { AcpBackend } from '@/types/acpTypes';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import MessageList from '@renderer/messages/MessageList';
-import { MessageListProvider, useMessageList, useMessageLstCache } from '@renderer/messages/hooks';
+import { MessageListProvider, useMessageList, useMessageLstCache, useUpdateMessageList } from '@renderer/messages/hooks';
 import HOC from '@renderer/utils/HOC';
 import LocalImageView from '@renderer/components/LocalImageView';
-import type { IMessageAcpQuestion, TMessage } from '@/common/chatLib';
+import type { AcpQuestionAnswerItem, IMessageAcpQuestion, TMessage } from '@/common/chatLib';
 import ConversationChatConfirm from '../components/ConversationChatConfirm';
 import { SafetyChatConfirm } from '../SafetyChatConfirm';
+import AcpQuestionOverlay from './AcpQuestionOverlay';
 import AcpSendBox from './AcpSendBox';
 
 function buildLegacyQuestionItems(message: IMessageAcpQuestion) {
@@ -58,6 +59,7 @@ const AcpChat: React.FC<{
   const { loaded: messagesLoaded } = useMessageLstCache(conversation_id);
   const [aiProcessing, setAiProcessing] = useState(false);
   const messages = useMessageList();
+  const updateMessages = useUpdateMessageList();
 
   // Reset aiProcessing when conversation changes
   // 切换会话时重置 aiProcessing 状态
@@ -72,10 +74,18 @@ const AcpChat: React.FC<{
     if (!pendingQuestion) return [];
     return pendingQuestion.content.items?.length ? pendingQuestion.content.items : buildLegacyQuestionItems(pendingQuestion);
   }, [pendingQuestion]);
+  const onQuestionAnswered = useCallback(
+    ({ selectedAnswer, answerItems }: { selectedAnswer: string; answerItems: AcpQuestionAnswerItem[] }) => {
+      if (!pendingQuestion) return;
+      updateMessages((list) => list.map((message) => (message.type === 'acp_question' && message.msg_id === pendingQuestion.msg_id ? { ...message, content: { ...message.content, answered: true, selectedAnswer, answerItems } } : message)));
+    },
+    [pendingQuestion, updateMessages]
+  );
+  const onTeamQuestionFallbackSend = teamSendMessage ? ({ input, msg_id }: { input: string; msg_id: string }) => teamSendMessage({ input, msg_id }) : undefined;
 
   return (
     <ConversationProvider value={{ conversationId: conversation_id, workspace, type: backend === 'remote-agent' ? 'remote-agent' : 'acp' }}>
-      <div className='flex-1 flex flex-col px-20px min-h-0'>
+      <div className='relative flex-1 flex flex-col px-20px min-h-0'>
         <LocalImageView.Provider value={{ root: workspace || '' }}>
           <FlexFullContainer>
             <MessageList
@@ -83,28 +93,32 @@ const AcpChat: React.FC<{
               aiProcessing={shouldShowProcessing}
               emptyState={emptyState}
               isEmptyStateReady={Boolean(showEmptyStateWhenNoMessages && messagesLoaded) && !isAwaitingUserInput}
+              isQuestionInteractionDisabled={isAwaitingUserInput}
               onTeamAnswerQuestion={onTeamAnswerQuestion}
-              onTeamQuestionFallbackSend={teamSendMessage ? ({ input, msg_id }) => teamSendMessage({ input, msg_id }) : undefined}
+              onTeamQuestionFallbackSend={onTeamQuestionFallbackSend}
             ></MessageList>
           </FlexFullContainer>
         </LocalImageView.Provider>
-        <SafetyChatConfirm conversation_id={conversation_id}>
-          <ConversationChatConfirm conversation_id={conversation_id}>
-            <AcpSendBox
-              conversation_id={conversation_id}
-              backend={backend}
-              sessionMode={sessionMode}
-              agentName={agentName}
-              teamSendMessage={teamSendMessage}
-              teamAnswerQuestion={teamAnswerQuestion}
-              pendingQuestion={pendingQuestion}
-              pendingQuestionItems={pendingQuestionItems}
-              isAwaitingUserInput={isAwaitingUserInput}
-              onAiProcessingChange={setAiProcessing}
-              onProcessingChange={onProcessingChange}
-            ></AcpSendBox>
-          </ConversationChatConfirm>
-        </SafetyChatConfirm>
+        <div inert={isAwaitingUserInput ? true : undefined} aria-hidden={isAwaitingUserInput || undefined}>
+          <SafetyChatConfirm conversation_id={conversation_id}>
+            <ConversationChatConfirm conversation_id={conversation_id}>
+              <AcpSendBox
+                conversation_id={conversation_id}
+                backend={backend}
+                sessionMode={sessionMode}
+                agentName={agentName}
+                teamSendMessage={teamSendMessage}
+                teamAnswerQuestion={teamAnswerQuestion}
+                pendingQuestion={pendingQuestion}
+                pendingQuestionItems={pendingQuestionItems}
+                isAwaitingUserInput={isAwaitingUserInput}
+                onAiProcessingChange={setAiProcessing}
+                onProcessingChange={onProcessingChange}
+              ></AcpSendBox>
+            </ConversationChatConfirm>
+          </SafetyChatConfirm>
+        </div>
+        {pendingQuestion ? <AcpQuestionOverlay key={pendingQuestion.msg_id || pendingQuestion.id} message={pendingQuestion} onAnswered={onQuestionAnswered} onTeamAnswerQuestion={teamAnswerQuestion ?? onTeamAnswerQuestion} onTeamQuestionFallbackSend={onTeamQuestionFallbackSend} /> : null}
       </div>
     </ConversationProvider>
   );
