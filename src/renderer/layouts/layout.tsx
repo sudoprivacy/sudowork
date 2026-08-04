@@ -115,7 +115,7 @@ const Layout: React.FC = () => {
                   onNewConversation();
                 }}
               >
-                <img src={logo} alt='' className='size-6 shrink-0 object-contain' />
+                <img src={logo} alt='' className='size-7 shrink-0 object-contain' />
                 <span className='truncate'>{appName}</span>
               </button>
             </ArcoLayout.Header>
