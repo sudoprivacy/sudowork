@@ -18,20 +18,6 @@ import { SafetyChatConfirm } from '../SafetyChatConfirm';
 import AcpQuestionOverlay from './AcpQuestionOverlay';
 import AcpSendBox from './AcpSendBox';
 
-function buildLegacyQuestionItems(message: IMessageAcpQuestion) {
-  const options = (message.content.options || []).map((option) => ({ label: option, value: option }));
-  return [
-    {
-      id: 'q1',
-      prompt: message.content.question || '',
-      kind: options.length > 0 ? ('single_select' as const) : ('text' as const),
-      options,
-      allowCustomInput: options.length === 0,
-      optional: false,
-    },
-  ];
-}
-
 function getPendingQuestion(list: TMessage[]): IMessageAcpQuestion | null {
   for (let i = list.length - 1; i >= 0; i--) {
     const message = list[i];
@@ -70,10 +56,6 @@ const AcpChat: React.FC<{
   const pendingQuestion = useMemo(() => getPendingQuestion(messages), [messages]);
   const isAwaitingUserInput = pendingQuestion !== null;
   const shouldShowProcessing = aiProcessing && !isAwaitingUserInput;
-  const pendingQuestionItems = useMemo(() => {
-    if (!pendingQuestion) return [];
-    return pendingQuestion.content.items?.length ? pendingQuestion.content.items : buildLegacyQuestionItems(pendingQuestion);
-  }, [pendingQuestion]);
   const onQuestionAnswered = useCallback(
     ({ selectedAnswer, answerItems }: { selectedAnswer: string; answerItems: AcpQuestionAnswerItem[] }) => {
       if (!pendingQuestion) return;
@@ -88,33 +70,13 @@ const AcpChat: React.FC<{
       <div className='relative flex-1 flex flex-col px-20px min-h-0'>
         <LocalImageView.Provider value={{ root: workspace || '' }}>
           <FlexFullContainer>
-            <MessageList
-              className='flex-1'
-              aiProcessing={shouldShowProcessing}
-              emptyState={emptyState}
-              isEmptyStateReady={Boolean(showEmptyStateWhenNoMessages && messagesLoaded) && !isAwaitingUserInput}
-              isQuestionInteractionDisabled={isAwaitingUserInput}
-              onTeamAnswerQuestion={onTeamAnswerQuestion}
-              onTeamQuestionFallbackSend={onTeamQuestionFallbackSend}
-            ></MessageList>
+            <MessageList className='flex-1' aiProcessing={shouldShowProcessing} emptyState={emptyState} isEmptyStateReady={Boolean(showEmptyStateWhenNoMessages && messagesLoaded) && !isAwaitingUserInput}></MessageList>
           </FlexFullContainer>
         </LocalImageView.Provider>
         <div inert={isAwaitingUserInput ? true : undefined} aria-hidden={isAwaitingUserInput || undefined}>
           <SafetyChatConfirm conversation_id={conversation_id}>
             <ConversationChatConfirm conversation_id={conversation_id}>
-              <AcpSendBox
-                conversation_id={conversation_id}
-                backend={backend}
-                sessionMode={sessionMode}
-                agentName={agentName}
-                teamSendMessage={teamSendMessage}
-                teamAnswerQuestion={teamAnswerQuestion}
-                pendingQuestion={pendingQuestion}
-                pendingQuestionItems={pendingQuestionItems}
-                isAwaitingUserInput={isAwaitingUserInput}
-                onAiProcessingChange={setAiProcessing}
-                onProcessingChange={onProcessingChange}
-              ></AcpSendBox>
+              <AcpSendBox conversation_id={conversation_id} backend={backend} sessionMode={sessionMode} agentName={agentName} teamSendMessage={teamSendMessage} isAwaitingUserInput={isAwaitingUserInput} onAiProcessingChange={setAiProcessing} onProcessingChange={onProcessingChange}></AcpSendBox>
             </ConversationChatConfirm>
           </SafetyChatConfirm>
         </div>

@@ -186,7 +186,7 @@ describe('MessageAcpQuestion', () => {
       },
     };
 
-    render(<MessageAcpQuestion message={message} />);
+    render(<AcpQuestionOverlay message={message} onAnswered={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Project' }));
     fireEvent.click(screen.getByRole('button', { name: 'zh-CN' }));
@@ -224,7 +224,7 @@ describe('MessageAcpQuestion', () => {
       },
     };
 
-    render(<MessageAcpQuestion message={message} />);
+    render(<AcpQuestionOverlay message={message} onAnswered={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Yes' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'No' })).toBeInTheDocument();
@@ -259,7 +259,7 @@ describe('MessageAcpQuestion', () => {
       },
     };
 
-    render(<MessageAcpQuestion message={message} />);
+    render(<AcpQuestionOverlay message={message} onAnswered={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'A' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
@@ -293,7 +293,7 @@ describe('MessageAcpQuestion', () => {
       },
     };
 
-    render(<MessageAcpQuestion message={message} onTeamAnswerQuestion={onTeamAnswerQuestion} />);
+    render(<AcpQuestionOverlay message={message} onAnswered={vi.fn()} onTeamAnswerQuestion={onTeamAnswerQuestion} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'A' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
@@ -330,7 +330,7 @@ describe('MessageAcpQuestion', () => {
       },
     };
 
-    render(<MessageAcpQuestion message={message} onTeamQuestionFallbackSend={onTeamQuestionFallbackSend} />);
+    render(<AcpQuestionOverlay message={message} onAnswered={vi.fn()} onTeamQuestionFallbackSend={onTeamQuestionFallbackSend} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Project' }));
     fireEvent.click(screen.getByRole('button', { name: 'zh-CN' }));
@@ -356,7 +356,7 @@ describe('MessageAcpQuestion', () => {
       },
     };
 
-    render(<MessageAcpQuestion message={message} isInteractive={false} />);
+    render(<MessageAcpQuestion message={message} />);
 
     expect(screen.getByText('messages.waitingForUserInput')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Fast' })).not.toBeInTheDocument();
@@ -453,17 +453,17 @@ describe('MessageAcpQuestion', () => {
       },
     };
 
-    render(<MessageAcpQuestion message={message} />);
+    render(<AcpQuestionOverlay message={message} onAnswered={vi.fn()} />);
 
-    expect(screen.getByText('1/2')).toBeInTheDocument();
-    expect(screen.getByText('1. Where to save preferences?')).toBeInTheDocument();
-    expect(screen.queryByText('2. Default visual style preference?')).not.toBeInTheDocument();
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
+    expect(screen.getByText('Where to save preferences?')).toBeInTheDocument();
+    expect(screen.queryByText('Default visual style preference?')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Project' }));
 
-    expect(screen.getByText('2/2')).toBeInTheDocument();
-    expect(screen.getByText('2. Default visual style preference?')).toBeInTheDocument();
-    expect(screen.queryByText('1. Where to save preferences?')).not.toBeInTheDocument();
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+    expect(screen.getByText('Default visual style preference?')).toBeInTheDocument();
+    expect(screen.queryByText('Where to save preferences?')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'None (Recommended)' })).toBeInTheDocument();
   });
 });

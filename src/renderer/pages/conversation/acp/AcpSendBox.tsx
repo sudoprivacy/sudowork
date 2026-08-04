@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { AcpBackend } from '@/types/acpTypes';
-import { transformMessage, type AcpQuestionItem, type IMessageAcpQuestion, type TMessage } from '@/common/chatLib';
+import { transformMessage, type TMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import SendBox from '@/renderer/components/Sendbox';
@@ -497,43 +497,6 @@ const useAcpMessage = (conversation_id: string) => {
   return { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef };
 };
 
-function buildPendingQuestionItems(message: IMessageAcpQuestion): AcpQuestionItem[] {
-  if (message.content.items?.length) {
-    return message.content.items;
-  }
-
-  const legacyOptions = (message.content.options || []).map((option) => ({ label: option, value: option }));
-  return [
-    {
-      id: 'q1',
-      prompt: message.content.question || '',
-      kind: legacyOptions.length > 0 ? 'single_select' : 'text',
-      options: legacyOptions,
-      allowCustomInput: legacyOptions.length === 0,
-      optional: false,
-    },
-  ];
-}
-
-function getCurrentPendingQuestionItemFromItems(message: IMessageAcpQuestion, items: AcpQuestionItem[]): AcpQuestionItem | null {
-  if (items.length === 0) return null;
-  const answeredCount = message.content.answerItems?.length ?? 0;
-  return items[Math.min(answeredCount, items.length - 1)] ?? null;
-}
-
-function buildQuestionAnswers(message: IMessageAcpQuestion, items: AcpQuestionItem[], input: string): Array<{ id: string; value: string; label?: string }> | null {
-  const currentItem = getCurrentPendingQuestionItemFromItems(message, items);
-  const normalizedInput = input.trim();
-  if (!currentItem || !normalizedInput) return null;
-  return [
-    {
-      id: currentItem.id,
-      value: normalizedInput,
-      label: normalizedInput,
-    },
-  ];
-}
-
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
 const USER_CANCELLED_TEXT = '请求已被用户终止';
@@ -594,13 +557,10 @@ const AcpSendBox: React.FC<{
   agentName?: string;
   /** Team override: when set, sends route through the team API instead of the single-chat ACP API (附录 II.8). */
   teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
-  teamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
-  pendingQuestion?: IMessageAcpQuestion | null;
-  pendingQuestionItems?: AcpQuestionItem[];
   isAwaitingUserInput?: boolean;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
   onProcessingChange?: (isProcessing: boolean) => void;
-}> = ({ conversation_id, backend, sessionMode, teamSendMessage, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }) => {
+}> = ({ conversation_id, backend, sessionMode, teamSendMessage, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const appName = useTenantStore((state) => state.appName);
@@ -776,39 +736,6 @@ const AcpSendBox: React.FC<{
         return;
       }
       setPwdLoginModal({ visible: true, title });
-      return;
-    }
-
-    if (pendingQuestion) {
-      const answers = buildQuestionAnswers(pendingQuestion, pendingQuestionItems ?? buildPendingQuestionItems(pendingQuestion), message);
-      const toolCallId = pendingQuestion.content.responseToolCallId || pendingQuestion.content.toolCallId;
-      if (!answers || !toolCallId) {
-        Message.warning(t('messages.completeRequiredAnswers'));
-        return;
-      }
-      clearFiles();
-
-      try {
-        if (teamAnswerQuestion) {
-          const result = await teamAnswerQuestion({ conversationId: pendingQuestion.content.conversationId, toolCallId, answers });
-          if (result && result.success === false) {
-            Message.error(result.msg || t('messages.failedToSendQuestionAnswer'));
-          }
-        } else {
-          const result = await ipcBridge.acpConversation.answerQuestion.invoke({
-            conversationId: pendingQuestion.content.conversationId,
-            toolCallId,
-            answers,
-          });
-          if (!result || result.success !== true) {
-            Message.error(result?.msg || t('messages.failedToSendQuestionAnswer'));
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('[AcpSendBox] Failed to answer pending question:', error);
-        Message.error(t('messages.failedToSendQuestionAnswer'));
-      }
       return;
     }
 
