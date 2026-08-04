@@ -97,7 +97,7 @@ function errText(payload?: Buffer): string {
 }
 
 /** Thin grpc-js client over the nexus VFS plane: Call + fd-stream read/write. */
-export class NexusVfsClient {
+export class NexusVfsGrpcClient {
   private readonly client: VfsGrpcClient;
   private readonly token: string;
 

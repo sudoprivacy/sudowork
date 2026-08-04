@@ -115,8 +115,7 @@ export type AcpBackendAll =
   | 'vibe' // Mistral Vibe CLI
   | 'nanobot' // nanobot CLI (via ACP)
   | 'custom' // User-configured custom ACP agent
-  | 'remote-agent' // Enterprise: Moss Server remote agent
-  | 'grpc'; // gRPC transport — connect to remote ACP server via nexus-vfs Call RPC
+  | 'remote-agent'; // Enterprise: Moss Server remote agent
 
 /**
  * 潜在的 ACP CLI 工具列表
@@ -561,14 +560,6 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     cliCommand: undefined, // No CLI, uses WebSocket to Moss Server
     authRequired: true, // Requires enterprise auth token
     enabled: true, // Enabled when enterprise mode is active
-    supportsStreaming: true,
-  },
-  grpc: {
-    id: 'grpc',
-    name: 'gRPC Remote', // Connect to remote ACP server via nexus-vfs gRPC
-    cliCommand: undefined, // No CLI, uses gRPC Call RPC as transport
-    authRequired: true,
-    enabled: true,
     supportsStreaming: true,
   },
 };

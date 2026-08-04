@@ -16,10 +16,10 @@ import type { ChildProcess } from 'child_process';
 import { StringDecoder } from 'string_decoder';
 import type { AcpMessage, AcpIncomingMessage } from '@/types/acpTypes';
 import { processSupervisor } from '@process/ProcessSupervisor';
+import { NexusVfsGrpcClient } from '@common/nexus/nexusVfsGrpcClient';
 import { killChild } from './utils';
 import { ACP_PERF_LOG } from './acpConnectors';
 import type { GenericSpawnSpec } from './acpConnectors';
-import { NexusVfsClient } from './nexusVfsClient';
 
 // ── Transport interface ────────────────────────────────────────────
 
@@ -261,7 +261,7 @@ export interface GrpcTransportOptions {
  * nexus never parses ACP; NDJSON framing stays here.
  */
 export class GrpcAcpTransport implements AcpTransport {
-  private client: NexusVfsClient | null = null;
+  private client: NexusVfsGrpcClient | null = null;
   private sessionId: string | null = null;
   private osPid: number | null = null;
   private readonly options: GrpcTransportOptions;
@@ -286,7 +286,7 @@ export class GrpcAcpTransport implements AcpTransport {
   /** start_session on nexus (it spawns spawn_spec), then begin the stdout reader. */
   async connect(): Promise<void> {
     try {
-      this.client = new NexusVfsClient(this.options.endpoint, this.options.authToken);
+      this.client = new NexusVfsGrpcClient(this.options.endpoint, this.options.authToken);
       const res = await this.client.call<{ session_id: string; os_pid?: number | null }>('managed_agent.start_session_v1', {
         agent_id: this.options.agentId,
         spawn_spec: {
