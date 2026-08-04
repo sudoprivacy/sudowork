@@ -1764,6 +1764,58 @@ const migration_v28: IMigration = {
 };
 
 /**
+ * Migration v29 -> v30: Add team member preset/delegated flags.
+ *
+ * isPreset marks members chosen by the user at team creation (vs dynamically
+ * spawned); isDelegated records whether the leader has delegated work to a
+ * pre-selected teammate. Together they back the spawn gate that forces the
+ * leader to try pre-selected members before spawning new ones.
+ */
+const migration_v30: IMigration = {
+  version: 30,
+  name: 'Add team member preset/delegated flags',
+  up: (db) => {
+    const tableInfo = db.prepare('PRAGMA table_info(team_members)').all() as Array<{ name: string }>;
+    if (!tableInfo.some((col) => col.name === 'is_preset')) {
+      db.exec(`ALTER TABLE team_members ADD COLUMN is_preset INTEGER DEFAULT 0 CHECK(is_preset IN (0, 1));`);
+    }
+    if (!tableInfo.some((col) => col.name === 'is_delegated')) {
+      db.exec(`ALTER TABLE team_members ADD COLUMN is_delegated INTEGER DEFAULT 0 CHECK(is_delegated IN (0, 1));`);
+    }
+    mainLog('Migration v30', 'Added team member preset/delegated flags');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE team_members_v30_rollback (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('lead', 'teammate')),
+        name TEXT NOT NULL,
+        assistant_id TEXT,
+        backend TEXT NOT NULL,
+        preset_agent_type TEXT,
+        skills TEXT,
+        preset_context TEXT,
+        model TEXT,
+        avatar TEXT,
+        conversation_id TEXT,
+        status TEXT NOT NULL,
+        deleted INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        source TEXT CHECK(source IN ('agent', 'assistant')),
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+      INSERT INTO team_members_v30_rollback (id, team_id, role, name, assistant_id, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, deleted, created_at, source)
+      SELECT id, team_id, role, name, assistant_id, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, deleted, created_at, source FROM team_members;
+      DROP TABLE team_members;
+      ALTER TABLE team_members_v30_rollback RENAME TO team_members;
+      CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
+    `);
+    mainLog('Migration v30', 'Rolled back: Removed team member preset/delegated flags');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1772,7 +1824,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
-  migration_v25, migration_v26, migration_v27, migration_v28, migration_v29,
+  migration_v25, migration_v26, migration_v27, migration_v28, migration_v29, migration_v30,
 ];
 
 /**

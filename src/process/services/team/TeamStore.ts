@@ -38,6 +38,8 @@ export interface TeamMember {
   avatar: string | null;
   conversation_id: string | null;
   status: string;
+  isPreset?: boolean;
+  isDelegated?: boolean;
   created_at: number;
 }
 
@@ -97,6 +99,8 @@ interface TeamMemberRow {
   avatar: string | null;
   conversation_id: string | null;
   status: string;
+  is_preset: number;
+  is_delegated: number;
   created_at: number;
 }
 
@@ -177,6 +181,8 @@ function rowToMember(row: TeamMemberRow): TeamMember {
     avatar: row.avatar,
     conversation_id: row.conversation_id,
     status: row.status,
+    isPreset: row.is_preset === 1,
+    isDelegated: row.is_delegated === 1,
     created_at: row.created_at,
   };
 }
@@ -287,8 +293,8 @@ class TeamStore {
 
   insertMember(member: TeamMember): void {
     const result = getDatabase().mutate(
-      `INSERT INTO team_members (id, team_id, role, name, assistant_id, source, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO team_members (id, team_id, role, name, assistant_id, source, backend, preset_agent_type, skills, preset_context, model, avatar, conversation_id, status, is_preset, is_delegated, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       member.id,
       member.team_id,
       member.role,
@@ -303,6 +309,8 @@ class TeamStore {
       member.avatar,
       member.conversation_id,
       member.status,
+      member.isPreset ? 1 : 0,
+      member.isDelegated ? 1 : 0,
       member.created_at
     );
     if (!result.success) throw new Error(result.error);
@@ -324,6 +332,11 @@ class TeamStore {
       JSON.stringify(merged.skills),
       memberId
     );
+    if (!result.success) throw new Error(result.error);
+  }
+
+  markMemberDelegated(memberId: string): void {
+    const result = getDatabase().mutate(`UPDATE team_members SET is_delegated = 1 WHERE id = ? AND deleted = 0`, memberId);
     if (!result.success) throw new Error(result.error);
   }
 

@@ -31,9 +31,9 @@ export function buildGovernancePrompt(role: TeamRole, teamName: string, memberNa
       `Workflow:\n` +
       `1. On your first team turn, call team_members to get the current roster.\n` +
       `2. Before delegating work, adding or removing teammates, or referring to teammates, call team_members to get the latest roster.\n` +
-      `3. Analyze the user's request and decide whether the current team is sufficient. If existing teammates are enough, use them first.\n` +
+      `3. The current teammates were pre-selected by the user when creating the team — they are the intended members, not mere candidates. On every task you MUST first try to use them: delegate a relevant piece of work to EACH pre-selected teammate, one at a time via team_send_message addressed to that teammate's slot_id (do NOT broadcast with to='*'; call team_members for slot_ids). Use their output if they can do the work.\n` +
       `4. Break work into tasks with team_task_create and assign using team_send_message. Use slot_id values for tool arguments and display names in user-facing text.\n` +
-      `5. If more teammates would help, FIRST call team_list_assistants to read the real assistant catalog, then team_list_models for candidate models — never guess assistant_id or model.\n` +
+      `5. You may spawn additional teammates ONLY after every ready pre-selected teammate has been delegated work, and only to fill a gap no current teammate can cover or to replace one that reported it cannot handle its task (team_spawn_agent is rejected until then). If more teammates would help, FIRST call team_list_assistants to read the real assistant catalog, then team_list_models for candidate models — never guess assistant_id or model.\n` +
       `6. Reply with a staffing proposal: one short sentence on why more teammates help, then a table (teammate name, responsibility, recommended assistant, recommended model).\n` +
       `7. Ask the user whether to create them as proposed or to adjust. Do NOT call team_spawn_agent in that same turn — wait for the user's confirmation in the next message, unless the user explicitly asked you to create a specific teammate immediately.\n` +
       `8. After confirmation, create teammates with team_spawn_agent, then assign work via team_task_create and team_send_message.\n` +
@@ -52,6 +52,7 @@ export function buildGovernancePrompt(role: TeamRole, teamName: string, memberNa
     `- Execute the task the leader assigned to you.\n` +
     `- When you finish, get blocked, or have nothing to do, notify the leader via team_send_message (an idle notification).\n` +
     `- Do NOT use Sleep to wait — Sleep is blocked in team sessions and will be interrupted.\n` +
+    `- If an assigned task is beyond your capabilities or does not fit your role, tell the leader honestly via team_send_message (explain why) instead of forcing a low-quality answer.\n` +
     `- Coordinate only through the team_* tools.`
   );
 }

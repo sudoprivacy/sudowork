@@ -71,6 +71,7 @@ interface ProvisionInitialMemberParams {
   conversationName?: string;
   model?: string;
   role: 'lead' | 'teammate';
+  isPreset: boolean;
 }
 
 type AttachRuntimeFailureMode = 'bootstrap' | 'dynamic';
@@ -315,6 +316,7 @@ class TeamService {
         conversationName: name,
         model: leaderInput.model,
         role: 'lead',
+        isPreset: true,
       });
       const updates: Partial<Team> = { leader_member_id: leader.id };
       const leaderConversation = leader.conversation_id ? getDatabase().getConversation(leader.conversation_id).data : null;
@@ -335,6 +337,7 @@ class TeamService {
           name: member.name,
           model: member.model,
           role: 'teammate',
+          isPreset: true,
         });
       }
 
@@ -404,6 +407,8 @@ class TeamService {
       avatar: selection.avatar ?? meta?.avatar ?? null,
       conversation_id: conversationId,
       status: 'pending',
+      isPreset: params.isPreset,
+      isDelegated: false,
       created_at: Date.now(),
     };
     try {
@@ -495,6 +500,8 @@ class TeamService {
       avatar: selection.avatar ?? meta?.avatar ?? null,
       conversation_id: conversationId,
       status: 'pending',
+      isPreset: false,
+      isDelegated: false,
       created_at: Date.now(),
     };
     try {
@@ -1343,6 +1350,9 @@ class TeamService {
         session.teamRun.abortLease(lease.lease_id);
         continue;
       }
+      if (caller.role === 'lead' && recipient.role === 'teammate' && to !== '*') {
+        teamStore.markMemberDelegated(targetId);
+      }
       session.teamRun.commitLease(lease.lease_id, { slot_id: targetId, role: recipient.role, source: wakeSource, message_id: mailId });
       this.notifyWake(teamId, targetId);
     }
@@ -1352,6 +1362,14 @@ class TeamService {
   /** team_spawn_agent: Lead-only — non-lead callers are rejected. */
   private async toolSpawnAgent(teamId: string, caller: TeamMember, args: Record<string, unknown>): Promise<TeamToolResult> {
     if (caller.role !== 'lead') return { ok: false, error: 'Only the team lead can spawn agents' };
+    const untouched = teamStore.listMembersByTeam(teamId).filter((m) => m.role === 'teammate' && m.isPreset && !m.isDelegated && (m.status === 'idle' || m.status === 'working'));
+    if (untouched.length > 0) {
+      const names = untouched.map((m) => m.name).join(', ');
+      return {
+        ok: false,
+        error: `Before spawning, delegate work to every ready pre-selected teammate first: ${names}. They were chosen by the user and must be tried before spawning. Spawning is allowed only after they have been tried or reported unable to handle the task.`,
+      };
+    }
     const name = args.name;
     const assistantId = args.assistant_id;
     if (typeof name !== 'string' || typeof assistantId !== 'string') {

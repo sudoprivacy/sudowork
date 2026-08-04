@@ -134,6 +134,10 @@ vi.mock('@process/services/team/TeamStore', () => ({
       if (!member) throw new Error(`Team member not found: ${memberId}`);
       h.members.set(memberId, { ...member, ...updates });
     },
+    markMemberDelegated: (memberId: string) => {
+      const member = h.members.get(memberId);
+      if (member) h.members.set(memberId, { ...member, isDelegated: true });
+    },
     getMember: (memberId: string) => h.members.get(memberId) ?? null,
     insertMail: (mail: TeamMail) => h.insertMail(mail),
     hasUnread: (teamId: string, toMemberId: string) => h.mails.some((mail) => mail.team_id === teamId && mail.to_member_id === toMemberId && !mail.read),
@@ -626,5 +630,134 @@ describe('TeamService createTeam members', () => {
     expect(h.softDeletedTeams).toHaveLength(1);
     expect(h.softDeletedMemberTeams).toHaveLength(1);
     expect(h.reapConversation).toHaveBeenCalledWith('conv-leader', { reason: 'team-spawn-rollback', deleteWorkspace: false });
+  });
+
+  // ---- preset-member reuse: spawn gate (toolSpawnAgent) ----
+
+  it('team_spawn_agent is rejected while a ready pre-selected teammate is untried', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const leader = leaderFor(team.id);
+
+    const result = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+      name: 'Debater',
+      assistant_id: 'claude',
+      role: 'teammate',
+    });
+
+    expect(result.ok).toBe(false);
+    expect((result as { error?: string }).error).toContain('PresetWorker');
+  });
+
+  it('team_spawn_agent is allowed after delegating to the pre-selected teammate', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
+      const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+
+      const delegated = await service.dispatchTeamTool(team.id, leader, 'team_send_message', { to: teammate.id, message: 'Argue the pro side.' });
+      expect(delegated.ok).toBe(true);
+      expect(h.members.get(teammate.id)?.isDelegated).toBe(true);
+
+      const spawn = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(spawn.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('team_send_message broadcast does not mark teammates delegated and keeps the gate', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const leader = leaderFor(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+
+    const broadcast = await service.dispatchTeamTool(team.id, leader, 'team_send_message', { to: '*', message: 'Heads up' });
+    expect(broadcast.ok).toBe(true);
+    expect(h.members.get(teammate.id)?.isDelegated).toBe(false);
+
+    const spawn = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+      name: 'Debater',
+      assistant_id: 'claude',
+      role: 'teammate',
+    });
+    expect(spawn.ok).toBe(false);
+  });
+
+  it('team_spawn_agent skips pre-selected teammates in a non-ready state', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
+      const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+      h.members.set(teammate.id, { ...teammate, status: 'failed' });
+
+      const spawn = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(spawn.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('team_spawn_agent does not gate on dynamically spawned teammates', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: 'scode', name: 'Leader', role: 'lead' }]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
+
+      const first = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(first.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+      const spawned = [...h.members.values()].find((m) => m.role === 'teammate');
+      expect(spawned?.isPreset).toBe(false);
+
+      const second = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Judge',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(second.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
   });
 });
