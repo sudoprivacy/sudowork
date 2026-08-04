@@ -24,9 +24,10 @@ import '@icon-park/react/styles/index.css';
 import 'uno.css';
 import '../adapter/browser';
 import Main from '@renderer/main';
+import BrandRuntimeSync from '@renderer/components/BrandRuntimeSync';
+import TenantConfigSync from '@renderer/components/TenantConfigSync';
 import { AuthProvider } from '@renderer/context/AuthContext';
 import { DashboardStatsProvider } from '@renderer/context/DashboardStatsContext';
-import { TenantConfigProvider } from '@renderer/context/TenantConfigContext';
 import { ThemeProvider, useThemeContext } from '@renderer/context/ThemeContext';
 import { ConversationTabsProvider } from '@renderer/pages/conversation/context/ConversationTabsContext';
 import { PreviewProvider } from '@renderer/pages/conversation/preview/context/PreviewContext';
@@ -69,11 +70,7 @@ const arcoLocales: Record<string, typeof enUS> = {
 };
 
 const AppProviders: React.FC<PropsWithChildren> = ({ children }) =>
-  React.createElement(
-    InitProvider,
-    null,
-    React.createElement(AuthProvider, null, React.createElement(DashboardStatsProvider, null, React.createElement(TenantConfigProvider, null, React.createElement(ThemeProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children))))))
-  );
+  React.createElement(InitProvider, null, React.createElement(AuthProvider, null, React.createElement(DashboardStatsProvider, null, React.createElement(ThemeProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children))))));
 
 const Config: React.FC<PropsWithChildren> = ({ children }) => {
   const {
@@ -88,4 +85,4 @@ const Config: React.FC<PropsWithChildren> = ({ children }) => {
 
 const App = HOC.Wrapper(Config)(Main);
 
-root.render(React.createElement(AppProviders, null, React.createElement(App)));
+root.render(React.createElement(AppProviders, null, React.createElement(React.Fragment, null, React.createElement(TenantConfigSync), React.createElement(BrandRuntimeSync), React.createElement(App))));

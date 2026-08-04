@@ -37,6 +37,9 @@ export const STORAGE_KEYS = {
 
   /** Language preference / 语言偏好 */
   LANGUAGE: 'sudowork_language',
+
+  /** Last successfully resolved tenant snapshot / 上次成功解析的完整租户快照 */
+  TENANT: 'sudowork_tenant',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

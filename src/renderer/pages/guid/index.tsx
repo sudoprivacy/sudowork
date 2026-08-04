@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { mutate } from 'swr';
 import { useAddEventListener } from '@/renderer/utils/emitter';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { skillHub } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
@@ -70,6 +71,7 @@ const GuidPage: React.FC = () => {
   const prefilledAssistantRef = useRef<string | null>(null);
 
   const { t, i18n } = useTranslation();
+  const appName = useTenantStore((state) => state.appName);
   const navigate = useNavigate();
   const location = useLocation();
   const { closeAllTabs, openTab } = useConversationTabs();
@@ -705,7 +707,7 @@ const GuidPage: React.FC = () => {
           /* ========== Normal Mode ========== */
           <>
             <p className='mb-6 text-center text-2xl font-semibold text-foreground' onClick={handleBackToChat}>
-              {t('conversation.welcome.title', { brandName: brand.displayName })}
+              {t('conversation.welcome.title', { brandName: appName })}
             </p>
             {!isLockedBrandAgent &&
               (agentSelection.availableAgents === undefined ? (

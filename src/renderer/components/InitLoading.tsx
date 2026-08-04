@@ -11,7 +11,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { init } from '@/common/ipcBridge';
 import { IS_OFFLINE_BUILD } from '@/common/buildMode';
-import { useBrandConfig } from '@/renderer/hooks/useBrandConfig';
+import { useTenantLogo } from '@/renderer/hooks/useTenantLogo';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useInit } from '../context/InitContext';
 import WindowControls from './WindowControls';
@@ -106,7 +106,7 @@ function StepIcon({ status, spinnerFrame }: IStepIconProps) {
 export default function InitLoading({ variant = 'full' }: IInitLoadingProps) {
   const { t } = useTranslation();
   const { status, skipInitScreen, refetch } = useInit();
-  const { logo } = useBrandConfig();
+  const logo = useTenantLogo();
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());

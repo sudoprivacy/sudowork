@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import brand from '@brand';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 import staticLogo from '../assets/sudowork-icon-dark.svg';
 import thinkingGif from '../assets/sudoclaw_transparent_large.gif';
 
@@ -18,6 +18,7 @@ type AcpResponseMessage = { type: string };
 const isAcpResponseMessage = (data: unknown): data is AcpResponseMessage => typeof data === 'object' && data !== null && 'type' in data && typeof (data as { type: unknown }).type === 'string';
 
 const App: React.FC = () => {
+  const { appName, logo } = useTenantStore();
   const [fsmState, setFsmState] = useState<AvatarFsmState>('idle');
 
   useEffect(() => {
@@ -69,6 +70,7 @@ const App: React.FC = () => {
   }, []);
 
   const isThinking = fsmState === 'thinking';
+  const idleLogo = logo || staticLogo;
 
   return (
     <div className='avatar-container'>
@@ -105,14 +107,14 @@ const App: React.FC = () => {
           </>
         ) : (
           <>
-            <img src={staticLogo} alt='' className='avatar-trail trail-3' draggable={false} />
-            <img src={staticLogo} alt='' className='avatar-trail trail-2' draggable={false} />
-            <img src={staticLogo} alt='' className='avatar-trail trail-1' draggable={false} />
+            <img src={idleLogo} alt='' className='avatar-trail trail-3' draggable={false} />
+            <img src={idleLogo} alt='' className='avatar-trail trail-2' draggable={false} />
+            <img src={idleLogo} alt='' className='avatar-trail trail-1' draggable={false} />
           </>
         )}
 
         {/* 主 logo */}
-        <img src={isThinking ? thinkingGif : staticLogo} alt={`${brand.displayName} avatar`} className={`avatar-img${isThinking ? ' avatar-img--thinking' : ' avatar-img--static'}`} draggable={false} />
+        <img src={isThinking ? thinkingGif : idleLogo} alt={`${appName} avatar`} className={`avatar-img${isThinking ? ' avatar-img--thinking' : ' avatar-img--static'}`} draggable={false} />
       </div>
     </div>
   );

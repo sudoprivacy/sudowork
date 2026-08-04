@@ -10,11 +10,11 @@ import { useTranslation } from 'react-i18next';
 import { Button, Input, Message, Radio } from '@arco-design/web-react';
 import { KeyRound, Lock, ShieldCheck, Smartphone, User } from 'lucide-react';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
-import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveCachedTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useSystemLoginMethod } from '@/renderer/hooks/useSystemLoginMethod';
-import { useBrandConfig } from '@/renderer/hooks/useBrandConfig';
+import { useTenantLogo } from '@/renderer/hooks/useTenantLogo';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
 import { useAuth, GUEST_FLAG_KEY } from '../../context/AuthContext';
@@ -43,20 +43,6 @@ function isValidPhone(phone: string): boolean {
   return false;
 }
 
-// 从 localStorage 读取缓存的租户配置
-function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
-  try {
-    const cached = localStorage.getItem(TENANT_CONFIG_STORAGE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      return resolveCachedTenantConfig(parsed) ?? DEFAULT_TENANT_CONFIG;
-    }
-  } catch {
-    // ignore
-  }
-  return DEFAULT_TENANT_CONFIG;
-}
-
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -78,9 +64,8 @@ const LoginPage: React.FC = () => {
   const [oauth2Waiting, setOauth2Waiting] = useState(false);
   const oauth2StateRef = React.useRef<string | null>(null);
 
-  // 从 localStorage 读取缓存的租户配置
-  const tenantConfig = getCachedTenantConfig();
-  const { logo: tenantLogo } = useBrandConfig(tenantConfig);
+  const tenant = useTenantStore();
+  const tenantLogo = useTenantLogo();
 
   // OAuth2: fetch config from MOSS when the OAuth2 tab is selected
   useEffect(() => {
@@ -480,7 +465,7 @@ const LoginPage: React.FC = () => {
       await ConfigStorage.set('system.appMode', undefined);
       // Clear enterprise auth from localStorage
       localStorage.removeItem('eeclaw_auth_v1');
-      localStorage.removeItem(TENANT_CONFIG_STORAGE_KEY);
+      useTenantStore.getState().clearTenantCache();
       // Clear C-side auth to avoid falling into authenticated state
       localStorage.removeItem('sudowork_auth_v2');
       localStorage.removeItem('sudowork_auth_v1');
@@ -497,7 +482,7 @@ const LoginPage: React.FC = () => {
     return (
       <LoginShell>
         <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
-          <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantLogo} />
+          <LoginHeader appName={tenant.appName} description={tenant.loginDescription} logo={tenantLogo} />
 
           <Radio.Group
             type='button'
@@ -563,7 +548,7 @@ const LoginPage: React.FC = () => {
   if (loginMethod === 1) {
     return (
       <LoginShell>
-        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantLogo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
+        <PasswordAuthPanel appName={tenant.appName} logo={tenantLogo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
       </LoginShell>
     );
   }
@@ -572,7 +557,7 @@ const LoginPage: React.FC = () => {
   if (loginMethod === 2) {
     return (
       <LoginShell>
-        <ThirdPartyAuthPanel appName={tenantConfig.app_name} logo={tenantLogo} defaultLogo={SudoworkIcon} systemConfig={systemConfig} onBackToModeSelect={handleBackToModeSelect} />
+        <ThirdPartyAuthPanel appName={tenant.appName} logo={tenantLogo} defaultLogo={SudoworkIcon} systemConfig={systemConfig} onBackToModeSelect={handleBackToModeSelect} />
       </LoginShell>
     );
   }
@@ -580,7 +565,7 @@ const LoginPage: React.FC = () => {
   return (
     <LoginShell>
       <section className='relative z-1 my-auto w-full max-w-md rounded-xl border border-border bg-card p-8 text-card-foreground shadow-xl [-webkit-app-region:no-drag] max-sm:p-6'>
-        <LoginHeader appName={tenantConfig.app_name} description={tenantConfig.login_desp} logo={tenantLogo} />
+        <LoginHeader appName={tenant.appName} description={tenant.loginDescription} logo={tenantLogo} />
 
         <Radio.Group
           type='button'

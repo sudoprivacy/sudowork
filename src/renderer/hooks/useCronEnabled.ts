@@ -5,7 +5,7 @@
  */
 
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 
 /**
  * Whether the client-side cron (scheduled task) feature is available.
@@ -17,7 +17,8 @@ import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
  */
 export function useCronEnabled(): boolean {
   const { isEnterprise } = useAppMode();
-  const { config, confirmed } = useTenantConfig();
+  const clientCronEnabled = useTenantStore((state) => state.clientCronEnabled);
+  const isPolicyConfirmed = useTenantStore((state) => state.isPolicyConfirmed);
 
   if (!isEnterprise) {
     return true;
@@ -25,7 +26,7 @@ export function useCronEnabled(): boolean {
   // Fail closed: in enterprise mode, show cron only when the tenant config was
   // confirmed from the server this session AND the flag is not disabled. A stale
   // cache (e.g. a failed startup refresh after an admin disabled cron) must not
-  // keep the UI visible. resolveTenantConfig normalizes the flag to a boolean
+  // keep the UI visible. resolveTenantPolicy normalizes the flag to a boolean
   // (default true), so `confirmed` is what guards staleness.
-  return confirmed && config.client_cron_enabled !== false;
+  return isPolicyConfirmed && clientCronEnabled;
 }

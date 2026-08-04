@@ -22,6 +22,7 @@ import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICss
 import type { SecretMetadata } from './nexus/nexus-secret-client';
 import type { FusePluginStatus } from './nexus/fuse-plugin-status';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
+import type { TenantConfig } from './types/tenantConfig';
 import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
 import type {
@@ -2693,16 +2694,10 @@ export const crash = {
 
 // --- Enterprise mode (eeclaw) IPC namespace ---
 
-export interface TenantConfigData {
-  id: string;
-  logo: string | null;
-  app_name: string | null;
-  top_name: string | null;
-  about_name: string | null;
-  app_company_name: string | null;
-  login_desp: string | null;
-  updated_at: number;
-}
+export type TenantConfigData = TenantConfig & {
+  id?: string;
+  updated_at?: number;
+};
 
 export interface UserProfileUsageData {
   input_tokens: number;

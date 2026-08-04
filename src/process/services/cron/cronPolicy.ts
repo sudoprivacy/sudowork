@@ -5,7 +5,7 @@
  */
 
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { resolveTenantConfig } from '@/common/types/tenantConfig';
+import { resolveTenantPolicy } from '@/common/types/tenantConfig';
 import { ProcessConfig } from '@process/initStorage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
@@ -77,7 +77,7 @@ export async function getClientCronEnabled(forceFresh = false): Promise<boolean>
       const response = await fetch(`${serverUrl}/api/v1/tenant/config`, { signal: AbortSignal.timeout(10000) });
       if (response.ok) {
         const json = (await response.json()) as { success?: boolean; data?: Record<string, unknown> };
-        const resolved = resolveTenantConfig(json?.data ?? null);
+        const resolved = resolveTenantPolicy(json?.data ?? null);
         const enabled = resolved.client_cron_enabled !== false;
         cache = { enabled, fetchedAt: now };
         // Persist the confirmed flag for the offline fallback. The marker lets a

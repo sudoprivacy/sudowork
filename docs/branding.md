@@ -2,6 +2,12 @@
 
 根目录的 `brand.config.json` 用于配置产品名称、Logo、打包模式和默认交互内容。修改后需要重启开发进程；正式包需要重新构建。
 
+## 运行时品牌
+
+Renderer 统一从 `src/renderer/stores/useTenantStore.ts` 读取租户数据。品牌展示和租户行为策略使用同一份扁平状态，并持久化为一个完整租户快照。启动时优先恢复缓存；没有合法缓存时才读取 `brand.config.json`，最后回退到内置 Sudowork 默认值。
+
+登录后租户配置请求成功时，按字段使用“远端租户配置 > `brand.config.json` > 内置默认值”重新计算完整状态，并同时更新 Zustand 内存和缓存。远端请求失败时保持当前状态不变。普通退出登录保留品牌缓存但重置策略确认状态；显式返回模式选择时清除租户缓存。
+
 ## 一级字段
 
 | 字段 | 类型 | 作用 |
@@ -64,7 +70,7 @@ node -e "JSON.parse(require('fs').readFileSync('brand.config.json', 'utf8'))"
 node scripts/generate-installer-images.js
 
 # 运行相关测试
-bunx vitest run tests/unit/branding.test.ts tests/unit/nativeBrandAssets.test.ts
+bunx vitest run tests/unit/branding.test.ts tests/unit/useTenantStore.dom.test.ts tests/unit/useTenantLogo.dom.test.ts tests/unit/nativeBrandAssets.test.ts
 
 # 检查类型
 bunx tsc --noEmit

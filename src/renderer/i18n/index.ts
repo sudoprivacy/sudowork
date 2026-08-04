@@ -8,7 +8,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 // Static imports for all locales to ensure packaged app can always switch language.
-import brand from '@brand';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 import { DEFAULT_LANGUAGE, normalizeLanguageCode, mergeWithFallback, ensureAndSwitch, type LocaleData } from '@/common/i18n';
 import i18nConfig from '@/shared/i18n-config.json';
 import { ipcBridge } from '@/common';
@@ -80,7 +80,7 @@ i18n
     lng: localStorage.getItem('i18nextLng') || DEFAULT_LANGUAGE,
     fallbackLng: DEFAULT_LANGUAGE,
     debug: false,
-    interpolation: { escapeValue: false, defaultVariables: { appName: brand.displayName } },
+    interpolation: { escapeValue: false, defaultVariables: { appName: useTenantStore.getState().appName } },
   })
   .catch((error: Error) => {
     console.error('Failed to initialize i18n:', error);

@@ -10,6 +10,7 @@ import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { TProviderWithModel } from '@/common/storage';
 import { resolveLocaleKey } from '@/common/utils';
 import { loadPresetAssistantResources } from '@/renderer/shared/agents/presetAssistantResources';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 import type { AvailableAgent } from '@/renderer/shared/agents/types';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
 
@@ -104,7 +105,7 @@ export async function buildPresetAssistantParams(agent: AvailableAgent, workspac
   const { customAgentId, presetAgentType = DEFAULT_PRESET_AGENT_TYPE, name: agentName } = agent;
   const presetId = customAgentId?.replace(/^builtin-/, '');
   const isBrandDefaultAssistant = presetId === (brand as { defaultAgentId?: string }).defaultAgentId;
-  const resolvedAgentName = isBrandDefaultAssistant ? brand.displayName : agentName;
+  const resolvedAgentName = isBrandDefaultAssistant ? useTenantStore.getState().appName : agentName;
 
   // [BUG-2] Map raw i18n.language to standard locale key
   const localeKey = resolveLocaleKey(language);

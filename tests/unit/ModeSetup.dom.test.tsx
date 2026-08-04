@@ -23,7 +23,7 @@ vi.mock('@/common/eeclawMode', () => ({
   setAppMode: vi.fn(),
 }));
 vi.mock('@/renderer/utils/platform', () => ({ isElectronDesktop: () => false, isMacOS: () => false }));
-vi.mock('@/renderer/hooks/useBrandConfig', () => ({ useBrandConfig: () => ({ logo: '/logo.svg' }) }));
+vi.mock('@/renderer/hooks/useTenantLogo', () => ({ useTenantLogo: () => '/logo.svg' }));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { ipcBridge } from '@/common';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 
 /**
  * Whether tool calls are shown in the chat stream.
@@ -25,7 +25,7 @@ import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
  */
 export function useShowToolCalls(): boolean {
   const { isEnterprise } = useAppMode();
-  const { config } = useTenantConfig();
+  const clientShowToolCalls = useTenantStore((state) => state.clientShowToolCalls);
   // null = no local override yet (follow default) / null 表示尚无本地覆盖（跟随默认值）
   const [localValue, setLocalValue] = useState<boolean | null>(null);
 
@@ -42,6 +42,6 @@ export function useShowToolCalls(): boolean {
   if (localValue !== null) {
     return localValue;
   }
-  // resolveTenantConfig normalizes this to a boolean (default true).
-  return isEnterprise ? config.client_show_tool_calls !== false : true;
+  // resolveTenantPolicy normalizes this to a boolean (default true).
+  return isEnterprise ? clientShowToolCalls : true;
 }

@@ -2,14 +2,13 @@ import { Button, Input, Message } from '@arco-design/web-react';
 import { Building2, Check, Settings2, UserRound } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import brand from '@brand';
 import { ipcBridge } from '@/common';
 import { setAppMode } from '@/common/eeclawMode';
 import { ConfigStorage } from '@/common/storage';
 import { normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
-import { createTenantConfigCache, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import WindowControls from '@/renderer/components/WindowControls';
-import { useBrandConfig } from '@/renderer/hooks/useBrandConfig';
+import { useTenantLogo } from '@/renderer/hooks/useTenantLogo';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 
 const isWindowControlsVisible = isElectronDesktop() && !isMacOS();
@@ -32,7 +31,8 @@ function isValidServerUrl(url: string): boolean {
 
 export default function ModeSetup() {
   const { t } = useTranslation();
-  const { logo } = useBrandConfig();
+  const appName = useTenantStore((state) => state.appName);
+  const logo = useTenantLogo();
   const [selectedMode, setSelectedMode] = useState<ModeType>('consumer');
   const [serverUrl, setServerUrl] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -97,11 +97,10 @@ export default function ModeSetup() {
         return;
       }
 
-      const tenantConfig = resolveTenantConfig(result.data);
+      useTenantStore.getState().applyRemoteConfig(result.data);
       await setAppMode('e');
       await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
-      await ConfigStorage.set('eeclaw.tenantName', tenantConfig.app_company_name);
-      localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(createTenantConfigCache(tenantConfig)));
+      await ConfigStorage.set('eeclaw.tenantName', useTenantStore.getState().companyName);
       await ipcBridge.application.startConsumerServices.invoke();
       window.location.reload();
     } catch (error) {
@@ -136,7 +135,7 @@ export default function ModeSetup() {
             <div className='mb-5 flex h-64px w-64px items-center justify-center rounded-18px border border-border bg-muted shadow-sm'>
               <img src={logo} alt='' className='h-44px w-44px' />
             </div>
-            <h1 className='m-0 text-26px font-700 leading-34px text-foreground'>{t('setup.mode.title', { name: brand.displayName })}</h1>
+            <h1 className='m-0 text-26px font-700 leading-34px text-foreground'>{t('setup.mode.title', { name: appName })}</h1>
             <p className='mb-0 mt-2 max-w-520px text-14px leading-22px text-foreground-secondary'>{t('setup.mode.subtitle')}</p>
           </header>
 

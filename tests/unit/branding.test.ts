@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import brand from '@brand';
 import { applyChannelBrand } from '@/channels/actions/types';
 import { IS_SHAREONE_DISABLED } from '@/common/buildMode';
-import { createTenantConfigCache, DEFAULT_TENANT_CONFIG, resolveCachedTenantConfig } from '@/common/types/tenantConfig';
+import { resolveRemoteTenant, resolveTenantDefaults } from '@/renderer/stores/useTenantStore';
 
 const loadModule = createRequire(__filename);
 const builderConfig = loadModule('../../electron-builder.brand.js');
@@ -15,16 +15,13 @@ describe('brand configuration', () => {
     expect(typeof brand.BUILD_OFFLINE).toBe('boolean');
     expect(brand.disabledFeatures).toContain('shareone');
     expect(IS_SHAREONE_DISABLED).toBe(true);
-    expect(DEFAULT_TENANT_CONFIG.logo).toBe(brand.logo || undefined);
-    expect(DEFAULT_TENANT_CONFIG.logoDark).toBe(brand.logoDark || undefined);
-    expect(DEFAULT_TENANT_CONFIG.app_name).toBe(brand.displayName);
-    expect(DEFAULT_TENANT_CONFIG.app_company_name).toBe(brand.companyName);
-    const currentCache = createTenantConfigCache(DEFAULT_TENANT_CONFIG);
-    expect(currentCache.__brand).not.toBe(brand.displayName);
-    expect(resolveCachedTenantConfig(currentCache)).toEqual(DEFAULT_TENANT_CONFIG);
-    expect(resolveCachedTenantConfig({ ...DEFAULT_TENANT_CONFIG, __brand: brand.displayName })).toBeNull();
-    expect(resolveCachedTenantConfig({ ...DEFAULT_TENANT_CONFIG, __brand: 'PreviousBrand' })).toBeNull();
-    expect(resolveCachedTenantConfig({ app_name: 'Tenant Brand' })?.app_name).toBe('Tenant Brand');
+    expect(resolveTenantDefaults()).toMatchObject({
+      logo: brand.logo || undefined,
+      appName: brand.displayName,
+      topName: brand.displayName,
+      companyName: brand.companyName,
+    });
+    expect(resolveRemoteTenant({ app_name: 'Tenant Brand' }).appName).toBe('Tenant Brand');
     expect(
       applyChannelBrand({
         title: 'Sudowork Assistant',

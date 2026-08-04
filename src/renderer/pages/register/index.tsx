@@ -8,12 +8,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { ShieldCheck, User } from 'lucide-react';
-import brand from '@brand';
-import { useBrandConfig } from '@/renderer/hooks/useBrandConfig';
+import { useTenantLogo } from '@/renderer/hooks/useTenantLogo';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 import { useAuth } from '../../context/AuthContext';
 
 function AionLogoMark() {
-  const { logo } = useBrandConfig();
+  const logo = useTenantLogo();
   return <img src={logo} alt='' className='h-14 w-14 object-contain' />;
 }
 
@@ -21,6 +21,7 @@ const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { register } = useAuth();
+  const appName = useTenantStore((state) => state.appName);
 
   // 从 URL 参数获取 register_token 和 phone
   const registerToken = searchParams.get('token') || '';
@@ -111,7 +112,7 @@ const RegisterPage: React.FC = () => {
           <div className='mx-auto mb-5 flex h-18 w-18 items-center justify-center rounded-xl bg-secondary shadow-sm'>
             <AionLogoMark />
           </div>
-          <h1 className='text-2xl font-700 tracking-tight text-foreground'>{brand.displayName}</h1>
+          <h1 className='text-2xl font-700 tracking-tight text-foreground'>{appName}</h1>
           <p className='mt-2 text-sm text-foreground-tertiary'>完成注册，开始使用</p>
         </header>
 

@@ -9,8 +9,8 @@ import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { Building2, CheckCircle, XCircle } from 'lucide-react';
 import { ConfigStorage } from '@/common/storage';
 import { ipcBridge } from '@/common';
-import { createTenantConfigCache, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import { useAuth } from '@/renderer/context/AuthContext';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
 const EnterpriseSettings: React.FC = () => {
@@ -61,14 +61,14 @@ const EnterpriseSettings: React.FC = () => {
         return;
       }
 
-      const tenantConfig = resolveTenantConfig(result.data);
+      useTenantStore.getState().applyRemoteConfig(result.data);
+      const companyName = useTenantStore.getState().companyName;
 
       // Step 2: Update ConfigStorage
       await ConfigStorage.set('eeclaw.serverUrl', normalizedUrl);
-      await ConfigStorage.set('eeclaw.tenantName', tenantConfig.app_company_name);
-      localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(createTenantConfigCache(tenantConfig)));
+      await ConfigStorage.set('eeclaw.tenantName', companyName);
       setServerUrl(normalizedUrl);
-      setTenantName(tenantConfig.app_company_name);
+      setTenantName(companyName);
       setEditingServerUrl(normalizedUrl);
 
       // Step 3: Clear auth data (SECURITY-2)

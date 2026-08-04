@@ -8,7 +8,6 @@ import { Message, Tooltip } from '@arco-design/web-react';
 import { Copy, FileText as FileWord, Share2 as ShareOne } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import brand from '@brand';
 import type { TurnTokenUsage } from '@/common/chatLib';
 import { IS_SHAREONE_DISABLED } from '@/common/buildMode';
 import { costToUsagePoints, formatUsagePoints, resolveUsagePoints } from '@/common/tokenUsage';
@@ -16,6 +15,7 @@ import { copyText } from '@/renderer/utils/clipboard';
 import { ipcBridge } from '@/common';
 import { emitter } from '@/renderer/utils/emitter';
 import { showShareLoading, updateShareSuccess, updateShareError } from '@/renderer/utils/shareNotify';
+import { useTenantStore } from '@/renderer/stores/useTenantStore';
 
 const formatTokenCount = (value?: number | null) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
@@ -34,6 +34,7 @@ type TurnActionsProps = {
 
 const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conversationId, tokenUsage, showTokenUsageBadge = false }) => {
   const { t } = useTranslation();
+  const appName = useTenantStore((state) => state.appName);
   const [converting, setConverting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareoneInstalled, setShareoneInstalled] = useState(false);
@@ -89,7 +90,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
     try {
       const markdown = turnTextsRaw.join('\n\n');
       const firstUserText = turnTextsRaw[0] || '';
-      const title = firstUserText.slice(0, 50) || `${brand.displayName} Share`;
+      const title = firstUserText.slice(0, 50) || `${appName} Share`;
       const res = await ipcBridge.shareoneCli.publishTurn.invoke({ markdown, title });
       if (res?.success && res.data) {
         updateShareSuccess(notifyId, res.data.url);
@@ -104,7 +105,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
     } finally {
       setSharing(false);
     }
-  }, [turnTextsRaw, shareoneInstalled, sharing, t]);
+  }, [turnTextsRaw, shareoneInstalled, sharing, t, appName]);
 
   const totalTokens = formatTokenCount(tokenUsage?.totalTokens);
   const points = formatUsagePoints(resolveUsagePoints(tokenUsage));
