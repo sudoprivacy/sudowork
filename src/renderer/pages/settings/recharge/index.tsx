@@ -13,6 +13,7 @@ import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import OrderList from './components/OrderList';
 import PointsDashboard from './components/PointsDashboard';
+import RechargeSkeleton from './components/RechargeSkeleton';
 import { OrderStatusEnum } from './types';
 import type { CreateOrderResponse, OrderStatus, PaymentMethod, PayOrderResponse, RechargePackage, RechargeStep } from './types';
 import { formatCurrency } from './utils';
@@ -360,15 +361,13 @@ const RechargeCenter: React.FC = () => {
   ];
 
   // Render package selection
-  const renderPackageSelection = () => (
-    <div className={PANEL_CLASS}>
-      <div className='text-14px font-600 text-foreground mb-4'>{t('settings.recharge.selectPackageRecharge', '选择套餐充值')}</div>
+  const renderPackageSelection = () =>
+    loading && packages.length === 0 ? (
+      <RechargeSkeleton variant='packages' />
+    ) : (
+      <div className={PANEL_CLASS}>
+        <div className='text-14px font-600 text-foreground mb-4'>{t('settings.recharge.selectPackageRecharge', '选择套餐充值')}</div>
 
-      {loading && packages.length === 0 ? (
-        <div className='flex justify-center py-10'>
-          <Spin />
-        </div>
-      ) : (
         <div className='grid grid-cols-3 gap-3'>
           {packages.map((pkg) => (
             <div
@@ -390,34 +389,33 @@ const RechargeCenter: React.FC = () => {
             </div>
           ))}
         </div>
-      )}
 
-      <div className='pt-4'>
-        <div className='text-14px font-500 text-foreground mb-3'>{t('settings.recharge.selectPayment', '支付方式')}</div>
-        <div className='flex items-center gap-6'>
-          {paymentOptions.map(({ method, Icon, iconClassName, label }) => (
-            <button key={method} onClick={() => setPaymentMethod(method)} className={`relative flex items-center gap-2 px-4 py-2 rd-12px border transition-all cursor-pointer ${paymentMethod === method ? 'border-brand bg-brand-surface' : 'border-border bg-muted hover:bg-accent'}`}>
-              <Icon size={18} className={iconClassName} />
-              <span className='text-14px text-foreground'>{label}</span>
-              {paymentMethod === method && (
-                <div className='absolute -top-1 -right-1 w-3.5 h-3.5 rd-full bg-brand f-center text-brand-foreground'>
-                  <Check size={9} />
-                </div>
-              )}
-            </button>
-          ))}
+        <div className='pt-4'>
+          <div className='text-14px font-500 text-foreground mb-3'>{t('settings.recharge.selectPayment', '支付方式')}</div>
+          <div className='flex items-center gap-6'>
+            {paymentOptions.map(({ method, Icon, iconClassName, label }) => (
+              <button key={method} onClick={() => setPaymentMethod(method)} className={`relative flex items-center gap-2 px-4 py-2 rd-12px border transition-all cursor-pointer ${paymentMethod === method ? 'border-brand bg-brand-surface' : 'border-border bg-muted hover:bg-accent'}`}>
+                <Icon size={18} className={iconClassName} />
+                <span className='text-14px text-foreground'>{label}</span>
+                {paymentMethod === method && (
+                  <div className='absolute -top-1 -right-1 w-3.5 h-3.5 rd-full bg-brand f-center text-brand-foreground'>
+                    <Check size={9} />
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {error && <div className='pt-4 text-14px text-destructive'>{error}</div>}
+
+        <div className='flex justify-end gap-3 pt-4'>
+          <Button type='primary' loading={loading} disabled={!selectedPackage} onClick={handleCreateOrder}>
+            {t('settings.recharge.createOrder', '创建订单')}
+          </Button>
         </div>
       </div>
-
-      {error && <div className='pt-4 text-14px text-destructive'>{error}</div>}
-
-      <div className='flex justify-end gap-3 pt-4'>
-        <Button type='primary' loading={loading} disabled={!selectedPackage} onClick={handleCreateOrder}>
-          {t('settings.recharge.createOrder', '创建订单')}
-        </Button>
-      </div>
-    </div>
-  );
+    );
 
   // Render paying state
   const renderPaying = () => (
@@ -513,13 +511,7 @@ const RechargeCenter: React.FC = () => {
   return (
     <PageWrapper title={t('settings.rechargeCenter', '充值中心')}>
       <div className='flex flex-col gap-6 pb-2'>
-        {statsLoading ? (
-          <div className='flex justify-center py-10'>
-            <Spin />
-          </div>
-        ) : (
-          <PointsDashboard remainingPoints={stats?.remaining ?? 0} usedPoints={stats?.used ?? 0} bonusPoints={stats?.bonus ?? 0} />
-        )}
+        {statsLoading ? <RechargeSkeleton variant='points' /> : <PointsDashboard remainingPoints={stats?.remaining ?? 0} usedPoints={stats?.used ?? 0} bonusPoints={stats?.bonus ?? 0} />}
 
         {/* Recharge Section */}
         {renderRechargeContent()}
