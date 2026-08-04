@@ -340,7 +340,7 @@ const SystemSettings: React.FC = () => {
     {
       key: 'closeToTray',
       label: t('settings.closeToTray'),
-      component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' />,
+      component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
     },
     ...(isEnterprise
       ? []
@@ -349,32 +349,32 @@ const SystemSettings: React.FC = () => {
             key: 'showTokenUsageBadges',
             label: t('settings.showTokenUsageBadges'),
             hint: t('settings.showTokenUsageBadgesDesc'),
-            component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} className='settings-accent-switch' />,
+            component: showTokenUsageBadgesLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={showTokenUsageBadges} onChange={handleShowTokenUsageBadgesChange} />,
           },
         ]),
     {
       key: 'showToolCalls',
       label: t('settings.showToolCalls'),
       hint: t('settings.showToolCallsDesc'),
-      component: <Switch checked={showToolCallsChecked} onChange={handleShowToolCallsChange} className='settings-accent-switch' />,
+      component: <Switch checked={showToolCallsChecked} onChange={handleShowToolCallsChange} />,
     },
     {
       key: 'autoInterrupt',
       label: t('settings.autoInterrupt'),
       hint: t('settings.autoInterruptDesc'),
-      component: <Switch checked={autoInterrupt} onChange={handleAutoInterruptChange} className='settings-accent-switch' />,
+      component: <Switch checked={autoInterrupt} onChange={handleAutoInterruptChange} />,
     },
     {
       key: 'messageQueue',
       label: t('settings.messageQueue'),
       hint: t('settings.messageQueueDesc'),
-      component: <Switch checked={messageQueue} onChange={handleMessageQueueChange} className='settings-accent-switch' />,
+      component: <Switch checked={messageQueue} onChange={handleMessageQueueChange} />,
     },
     {
       key: 'avatarEnabled',
       label: t('settings.avatarEnabled'),
       hint: t('settings.avatarEnabledDesc'),
-      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' />,
+      component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} />,
     },
     ...(isEnterprise || !isProductImprovementEnabled()
       ? []
@@ -383,14 +383,14 @@ const SystemSettings: React.FC = () => {
             key: 'productImprovement',
             label: t('settings.productImprovement.title'),
             hint: t('settings.productImprovement.hint'),
-            component: productImprovementLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} className='settings-accent-switch' />,
+            component: productImprovementLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={productImprovementEnabled} onChange={handleProductImprovementChange} />,
           },
         ]),
     {
       key: 'imageEconomyMode',
       label: t('settings.imageEconomyMode'),
       hint: t('settings.imageEconomyModeDesc'),
-      component: imageEconomyModeLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={imageEconomyMode} onChange={handleImageEconomyModeChange} className='settings-accent-switch' />,
+      component: imageEconomyModeLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={imageEconomyMode} onChange={handleImageEconomyModeChange} />,
     },
     {
       key: 'promptTimeout',

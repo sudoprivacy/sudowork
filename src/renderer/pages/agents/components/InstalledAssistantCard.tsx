@@ -107,7 +107,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
             </Tooltip>
           </Popconfirm>
         )}
-        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} className={isEnabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''} />}
+        {canToggle && <Switch size='small' checked={isEnabled} onChange={(checked) => onToggleEnabled(checked)} />}
       </div>
     </div>
   );

@@ -57,17 +57,7 @@ const ChannelHeader: React.FC<ChannelHeaderProps> = ({ channel, onToggleEnabled 
         {statusText}
       </span>
       <div className='ml-auto flex items-center justify-end' onClick={(e) => e.stopPropagation()}>
-        <Switch
-          data-channel-switch-for={channel.id}
-          data-channel-switch-disabled={isDisabled ? 'true' : 'false'}
-          aria-disabled={isDisabled ? 'true' : undefined}
-          checked={channel.enabled}
-          onChange={onToggleEnabled}
-          size='small'
-          disabled={isDisabled}
-          className='settings-accent-switch'
-          style={channel.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined}
-        />
+        <Switch data-channel-switch-for={channel.id} data-channel-switch-disabled={isDisabled ? 'true' : 'false'} aria-disabled={isDisabled ? 'true' : undefined} checked={channel.enabled} onChange={onToggleEnabled} size='small' disabled={isDisabled} />
       </div>
     </div>
   );

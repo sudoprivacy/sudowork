@@ -6,7 +6,7 @@
 
 import { Button, Dropdown, Menu, Switch, Tooltip } from '@arco-design/web-react';
 import { IconRefresh, IconSettings } from '@arco-design/web-react/icon';
-import { Check, Loader2, LogIn, Pencil, Trash2, X } from 'lucide-react';
+import { Check, Loader2, LogIn, Pencil, Trash2, Unplug, X } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IMcpServer } from '@/common/storage';
@@ -46,7 +46,7 @@ const getStatusIcon = (status?: IMcpServer['status'], oauthStatus?: IMcpOAuthSta
     return <Check size={16} className='text-success' />;
   }
 
-  return <X size={16} className='text-secondary' />;
+  return <Unplug size={16} className='text-foreground-secondary' />;
 };
 
 const getStatusText = (status?: IMcpServer['status'], oauthStatus?: IMcpOAuthStatus, t?: any) => {
@@ -100,30 +100,28 @@ const McpServerHeader: React.FC<McpServerHeaderProps> = ({ server, agentInstallS
       </div>
       {!isReadOnly && (
         <div className='flex items-center gap-2' onClick={(e) => e.stopPropagation()}>
-          <div className='flex items-center gap-2 invisible group-hover:visible'>
-            <Dropdown
-              trigger='hover'
-              droplist={
-                <Menu className={'w-32'}>
-                  <Menu.Item key='edit' onClick={() => onEditServer(server)}>
-                    <div className='flex items-center gap-3'>
-                      <Pencil size={14} />
-                      {t('settings.mcpEditServer', '编辑')}
-                    </div>
-                  </Menu.Item>
-                  <Menu.Item key='delete' onClick={() => onDeleteServer(server.id)}>
-                    <div className='flex items-center gap-3 text-danger'>
-                      <Trash2 size={14} />
-                      {t('settings.mcpDeleteServer', '删除')}
-                    </div>
-                  </Menu.Item>
-                </Menu>
-              }
-            >
-              <Button size='mini' icon={<IconSettings />} />
-            </Dropdown>
-          </div>
-          <Switch checked={server.enabled} onChange={(checked) => onToggleServer(server.id, checked)} disabled={server.status === 'testing'} className='settings-accent-switch' style={server.enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
+          <Dropdown
+            trigger='hover'
+            droplist={
+              <Menu className='w-32'>
+                <Menu.Item key='edit' onClick={() => onEditServer(server)}>
+                  <div className='flex items-center gap-3'>
+                    <Pencil size={14} />
+                    {t('settings.mcpEditServer', '编辑')}
+                  </div>
+                </Menu.Item>
+                <Menu.Item key='delete' onClick={() => onDeleteServer(server.id)}>
+                  <div className='flex items-center gap-3 text-danger'>
+                    <Trash2 size={14} />
+                    {t('settings.mcpDeleteServer', '删除')}
+                  </div>
+                </Menu.Item>
+              </Menu>
+            }
+          >
+            <Button size='mini' icon={<IconSettings />} />
+          </Dropdown>
+          <Switch checked={server.enabled} onChange={(checked) => onToggleServer(server.id, checked)} disabled={server.status === 'testing'} />
         </div>
       )}
     </div>

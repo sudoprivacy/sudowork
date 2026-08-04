@@ -157,7 +157,7 @@ const TenantConfigItemGroup: React.FC<TenantConfigItemGroupProps> = ({ configIte
                   <span className={enabled ? 'mr-1.5 inline-block size-[5px] rd-full bg-success align-middle' : 'mr-1.5 inline-block size-[5px] rd-full bg-text-3 align-middle'} />
                   {statusText}
                 </span>
-                <Switch size='small' checked={enabled} onChange={handleToggle} className='settings-accent-switch' style={enabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
+                <Switch size='small' checked={enabled} onChange={handleToggle} />
               </div>
             </div>
           }

@@ -249,7 +249,7 @@ export default function SecurityPage() {
               {t('settings.securitySettings.protecting')}
             </span>
           }
-          action={<Switch checked={envProtection} disabled size='small' className='settings-accent-switch' />}
+          action={<Switch checked={envProtection} disabled size='small' />}
         />
         <SecurityItem
           icon={<Lock size={22} />}
@@ -266,7 +266,7 @@ export default function SecurityPage() {
               {t('settings.securitySettings.protecting')}
             </span>
           }
-          action={<Switch checked={infoProtection} disabled size='small' className='settings-accent-switch' />}
+          action={<Switch checked={infoProtection} disabled size='small' />}
         />
         <SecurityItem
           icon={<Scan size={22} />}
@@ -283,7 +283,7 @@ export default function SecurityPage() {
               {t('settings.securitySettings.protecting')}
             </span>
           }
-          action={<Switch checked={skillScan} disabled size='small' className='settings-accent-switch' />}
+          action={<Switch checked={skillScan} disabled size='small' />}
         />
 
         {SAFETY_HOOK_SETTINGS_VISIBLE && (
@@ -310,7 +310,7 @@ export default function SecurityPage() {
                       <span className='w-1.25 h-1.25 rd-50% inline-block mr-1.25' style={{ backgroundColor: hookEnabled ? '#52c41a' : '#999' }}></span>
                       {hookEnabled ? t('settings.securitySettings.protecting', '保护中') : t('settings.securitySettings.hook.disabled', '已关闭')}
                     </Tag>
-                    <Switch checked={hookEnabled} onChange={handleToggleHook} size='small' className='settings-accent-switch' />
+                    <Switch checked={hookEnabled} onChange={handleToggleHook} size='small' />
                   </div>
 
                   {/* 黑名单规则 - 关闭时显示提示，开启时显示规则列表 */}

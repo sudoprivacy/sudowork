@@ -113,7 +113,7 @@ export default function CronPage() {
             title={t('cron.create.keepAwake', '保持唤醒')}
             description={t('cron.create.awakeBanner', '定时任务仅在电脑唤醒时运行')}
             status={<span className='text-13px text-secondary'>{keepAwake ? t('common.enabled', '已启用') : t('common.disabled', '已关闭')}</span>}
-            action={<Switch size='small' className='cron-keep-awake-switch' checked={keepAwake} onChange={handleKeepAwakeChange} />}
+            action={<Switch size='small' checked={keepAwake} onChange={handleKeepAwakeChange} />}
           />
         )}
 

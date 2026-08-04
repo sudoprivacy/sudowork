@@ -91,7 +91,7 @@ export default function ToolsSettings() {
             <div className='rounded-xl border border-border bg-card p-4 md:p-6'>
               <div className='flex items-center justify-between'>
                 <span className='text-14px text-foreground'>{t('settings.imageGeneration', '图像生成')}</span>
-                <Switch checked={imageGenerationModel?.switch} onChange={(checked) => onImageGenerationModelChange({ switch: checked })} className='settings-accent-switch' />
+                <Switch checked={imageGenerationModel?.switch} onChange={(checked) => onImageGenerationModelChange({ switch: checked })} />
               </div>
 
               <div className='my-5 border-b border-border' />
