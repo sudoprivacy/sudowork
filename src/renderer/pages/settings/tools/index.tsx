@@ -80,7 +80,7 @@ export default function ToolsSettings() {
       <div className='flex flex-col h-full w-full'>
         <AionScrollArea className='flex-1 min-h-0 pb-4' disableOverflow>
           <div className='space-y-4'>
-            <div className='px-3 md:px-8 py-6 bg-muted rd-12px md:rd-16px flex flex-col min-h-0 border border-light'>
+            <div className='min-h-0 flex flex-col rounded-xl border border-border bg-card p-4 md:p-6'>
               <div className='flex-1 min-h-0'>
                 <AionScrollArea className='h-full overflow-visible' disableOverflow>
                   <McpManagementSection />
@@ -88,13 +88,13 @@ export default function ToolsSettings() {
               </div>
             </div>
 
-            <div className='px-3 md:px-8 py-6 bg-muted rd-12px md:rd-16px border border-light'>
+            <div className='rounded-xl border border-border bg-card p-4 md:p-6'>
               <div className='flex items-center justify-between'>
                 <span className='text-14px text-foreground'>{t('settings.imageGeneration', '图像生成')}</span>
-                <Switch checked={imageGenerationModel?.switch} onChange={(checked) => onImageGenerationModelChange({ switch: checked })} className='settings-accent-switch' style={imageGenerationModel?.switch ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />
+                <Switch checked={imageGenerationModel?.switch} onChange={(checked) => onImageGenerationModelChange({ switch: checked })} className='settings-accent-switch' />
               </div>
 
-              <div className='my-5 border-b border-light' />
+              <div className='my-5 border-b border-border' />
 
               <Form layout='horizontal' labelAlign='left' className='space-y-3'>
                 <Form.Item label={t('settings.imageGenerationModel', '图像模型')}>
@@ -105,10 +105,10 @@ export default function ToolsSettings() {
                       onImageGenerationModelChange({ useModel: val as string });
                     }}
                     options={imageOptions}
-                    style={{ minWidth: 260 }}
+                    className='w-full md:w-65'
                   />
-                  {isImageListLoading && <div className='text-12px text-secondary mt-8px'>{t('settings.imageModelLoading')}</div>}
-                  {isImageListError && <div className='text-12px text-secondary mt-8px'>{t('settings.imageModelListLoadFailed')}</div>}
+                  {isImageListLoading && <div className='mt-2 text-12px text-foreground-secondary'>{t('settings.imageModelLoading')}</div>}
+                  {isImageListError && <div className='mt-2 text-12px text-foreground-secondary'>{t('settings.imageModelListLoadFailed')}</div>}
                 </Form.Item>
               </Form>
             </div>

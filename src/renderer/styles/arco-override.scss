@@ -53,6 +53,15 @@ body[arco-theme='dark'] {
   --arcoblue-10: 250, 250, 250;
 }
 
+.arco-switch-checked {
+  background-color: var(--brand);
+
+  .arco-switch-dot {
+    color: var(--brand);
+    background-color: var(--brand-foreground);
+  }
+}
+
 .arco-input.input-on-muted {
   background-color: var(--card);
   border-color: var(--input);

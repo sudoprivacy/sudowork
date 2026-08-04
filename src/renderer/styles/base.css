@@ -61,16 +61,6 @@ body,
   animation: bg-animate 1s alternate infinite;
 }
 
-.cron-keep-awake-switch.arco-switch-checked,
-.settings-accent-switch.arco-switch-checked {
-  background-color: var(--primary) !important;
-}
-
-.cron-keep-awake-switch.arco-switch-checked .arco-switch-handle,
-.settings-accent-switch.arco-switch-checked .arco-switch-handle {
-  background-color: var(--primary-foreground) !important;
-}
-
 /* Category chips 移至 uno.config.ts 的 shortcut（category-chip / -idle / -active） */
 
 @keyframes bg-animate {
