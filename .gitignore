@@ -74,6 +74,13 @@ typings/
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
+# Fixed native shell branding; keep all other cache content ignored.
+!.cache/
+.cache/*
+!.cache/native-brand/
+.cache/native-brand/*
+!.cache/native-brand/current/
+!.cache/native-brand/current/**
 
 # next.js build output
 .next

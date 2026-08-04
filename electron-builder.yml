@@ -267,7 +267,6 @@ nsis:
   uninstallDisplayName: ${productName}
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
   include: scripts/installer.nsh
-  # Native branding assets are generated from brand.config.json before packaging.
   installerSidebar: .cache/native-brand/current/installerSidebar.bmp
   uninstallerSidebar: .cache/native-brand/current/installerSidebar.bmp
   installerHeader: .cache/native-brand/current/installerHeader.bmp

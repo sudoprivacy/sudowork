@@ -160,6 +160,12 @@ chore: remove debug console.log statements
 
 This is a strict rule that applies to all AI coding assistants. Violating this will pollute the git history.
 
+## Reference Project
+
+`/Users/xiaohei/Documents/weimob/storeclaw-fe-admin` is the reference project for AI chat UX and renderer behavior. When implementing or reviewing chat features—especially message layout, reasoning/tool-call summaries, elapsed-time display, web references, streaming Markdown, code blocks, and generated-media presentation—inspect its current implementation before designing a new solution.
+
+Use it as a read-only product and implementation reference. Adapt the smallest compatible approach to Sudowork's Electron/Arco/UnoCSS architecture; do not copy its dependencies, APIs, styling conventions, or web-only assumptions blindly.
+
 ## Architecture Notes
 
 Three process types: Main (`src/process/`), Renderer (`src/renderer/`), Worker (`src/worker/`).

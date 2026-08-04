@@ -425,17 +425,11 @@ function finishAppQuit(force = false): void {
 }
 
 const getNativeBrandAssetPath = (fileName: string, defaultFileName = fileName): string => {
-  const generatedPath = app.isPackaged ? path.join(process.resourcesPath, fileName) : path.join(process.cwd(), '.cache', 'native-brand', 'current', fileName);
-  if (fs.existsSync(generatedPath)) return generatedPath;
-  const fallbackPath = app.isPackaged ? path.join(process.resourcesPath, defaultFileName) : path.join(process.cwd(), 'resources', defaultFileName);
-  return fallbackPath;
+  const customPath = app.isPackaged ? path.join(process.resourcesPath, fileName) : path.join(process.cwd(), '.cache', 'native-brand', 'current', fileName);
+  return fs.existsSync(customPath) ? customPath : app.isPackaged ? path.join(process.resourcesPath, defaultFileName) : path.join(process.cwd(), 'resources', defaultFileName);
 };
 
-/**
- * 获取托盘图标 / Get tray icon
- * macOS 使用 Template 图标以适配深色/浅色菜单栏
- * macOS uses Template image to adapt to dark/light menu bar
- */
+/** 获取托盘图标 / Get tray icon */
 const getTrayIcon = (): Electron.NativeImage => {
   const iconFile = process.platform === 'darwin' ? 'trayTemplate.png' : process.platform === 'win32' ? 'app.ico' : 'app.png';
   const icon = nativeImage.createFromPath(getNativeBrandAssetPath(iconFile, 'app.png'));

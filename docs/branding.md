@@ -13,7 +13,7 @@ Renderer 统一从 `src/renderer/stores/useTenantStore.ts` 读取租户数据。
 | 字段 | 类型 | 作用 |
 | --- | --- | --- |
 | `displayName` | `string` | 产品名称。用于页面标题、应用名称、可执行文件名、托盘提示和默认助手名称。修改后可能改变 Electron 的用户数据目录。 |
-| `logo` | `string` | 默认及浅色主题 Logo，同时用于生成应用、Dock、托盘和安装器图标。支持 `data:` URL 或 HTTPS URL；设为空字符串时使用仓库内置图标。 |
+| `logo` | `string` | Renderer 默认及浅色主题 Logo。支持 `data:` URL 或 HTTPS URL；设为空字符串时使用应用内置 Logo。它不影响应用壳、Dock、托盘、状态栏或安装器图标。 |
 | `logoDark` | `string` | 深色主题 Logo。未配置时回退到 `logo`；不影响应用、托盘和安装器的原生图标。 |
 | `BUILD_OFFLINE` | `boolean` | 是否构建离线版。只有严格设置为 `true` 时，才会打包本地运行时并启用离线逻辑。 |
 | `disabledFeatures` | `string[]` | 按品牌隐藏功能入口。当前支持 `shareone`，会隐藏对话分享、工作区分享、运行环境和凭据配置入口。 |
@@ -56,18 +56,17 @@ Renderer 统一从 `src/renderer/stores/useTenantStore.ts` 读取租户数据。
 
 - Base64 等形式的 `data:` URL。
 - HTTPS 图片 URL。
-- 空字符串，表示使用内置图标。
+- 空字符串，表示使用应用内置 Logo。
 
-原生图标生成会拒绝 HTTP、空内容、无法解析的图片、超过 10 MiB 的图片，以及超过 10 秒的下载。
+## 原生壳图标
+
+应用壳、Dock、Windows/Linux 应用图标、macOS 状态栏和 Windows 安装器图标固定存放在 `.cache/native-brand/current/`，不从 `brand.config.json` 自动生成。`resources/` 中的同名 Sudowork 文件仅作为默认兜底，不应被定制品牌覆盖。
 
 ## 验证
 
 ```bash
 # 检查 JSON 语法
 node -e "JSON.parse(require('fs').readFileSync('brand.config.json', 'utf8'))"
-
-# 生成原生品牌资源
-node scripts/generate-installer-images.js
 
 # 运行相关测试
 bunx vitest run tests/unit/branding.test.ts tests/unit/useTenantStore.dom.test.ts tests/unit/useTenantLogo.dom.test.ts tests/unit/nativeBrandAssets.test.ts
