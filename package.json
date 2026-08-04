@@ -247,7 +247,8 @@
     "xterm": "^5.3.0",
     "yaml": "^2.9.0",
     "yauzl": "^3.2.1",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "zustand": "^5.0.14"
   },
   "optionalDependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.46.2",
