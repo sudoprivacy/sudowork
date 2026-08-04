@@ -132,9 +132,7 @@ export default function ModeSetup() {
       <main className='relative z-1 mx-auto flex min-h-screen w-full max-w-820px items-center px-5 py-12 sm:px-8'>
         <section className='w-full rounded-24px border border-border bg-card p-6 shadow-xl [-webkit-app-region:no-drag] sm:p-9'>
           <header className='mb-8 flex flex-col items-center text-center'>
-            <div className='mb-5 flex h-64px w-64px items-center justify-center rounded-18px border border-border bg-muted shadow-sm'>
-              <img src={logo} alt='' className='h-44px w-44px' />
-            </div>
+            <img src={logo} alt='' className='mb-3 h-16 w-16 object-contain' />
             <h1 className='m-0 text-26px font-700 leading-34px text-foreground'>{t('setup.mode.title', { name: appName })}</h1>
             <p className='mb-0 mt-2 max-w-520px text-14px leading-22px text-foreground-secondary'>{t('setup.mode.subtitle')}</p>
           </header>
