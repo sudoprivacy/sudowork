@@ -109,7 +109,6 @@
     "retry": "Retry"
   },
   "membership": {
-    "initialRosterNotice": "The user pre-selected these teammates when creating the team. They already exist and should be considered before creating more teammates. Call team_members to get the latest roster before delegating work.",
     "memberAddedNotice": "A teammate was added to the team. Call team_members to get the latest roster before delegating work."
   }
 }

@@ -693,7 +693,6 @@ class TeamService {
     try {
       const session = await this.ensureSession(teamId);
       const members = teamStore.listMembersByTeam(teamId);
-      let activatedInitialTeammate = false;
       for (const m of members) {
         if (!m.conversation_id) continue;
         const wasPending = m.status === 'pending';
@@ -710,7 +709,6 @@ class TeamService {
         teamStore.updateMember(m.id, { status: 'idle', conversation_id: m.conversation_id });
         ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: m.id, status: 'idle' });
         if (m.role === 'teammate' && wasPending) {
-          activatedInitialTeammate = true;
           try {
             await this.welcomeSpawnedTeammate(teamId, m, session, { removeOnFailure: false });
           } catch (error) {
@@ -719,13 +717,6 @@ class TeamService {
         }
       }
       new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
-      if (activatedInitialTeammate) {
-        try {
-          await this.notifyLeaderInitialRoster(teamId);
-        } catch (error) {
-          mainWarn('TeamService', `Failed to notify leader of initial roster for team ${teamId}:`, error);
-        }
-      }
       mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
       ipcBridge.team.onSessionChanged.emit({ teamId, status: 'ready' });
     } catch (error) {
@@ -855,14 +846,6 @@ class TeamService {
     }
     session.teamRun.commitLease(lease.lease_id, { slot_id: leaderId, role: 'lead', source: 'team_membership_changed', message_id: mailId });
     this.notifyWake(teamId, leaderId);
-  }
-
-  private async notifyLeaderInitialRoster(teamId: string): Promise<void> {
-    const members = teamStore.listMembersByTeam(teamId);
-    const teammates = members.filter((member) => member.role === 'teammate');
-    if (teammates.length === 0) return;
-    await i18nReady;
-    this.writeLeaderMembershipNotice(teamId, `${i18n.t('team.membership.initialRosterNotice')}\n\n${members.map((member) => this.formatRosterLine(member)).join('\n')}`, 'team_system');
   }
 
   private async notifyLeaderMemberAdded(teamId: string, member: TeamMember): Promise<void> {
@@ -1598,6 +1581,7 @@ class TeamService {
   }
 
   private shouldWakeLeaderAfterIdle(teamId: string, leaderSlotId: string): boolean {
+    if (!teamStore.getLatestUserMail(teamId)) return false;
     const members = teamStore.listMembersByTeam(teamId);
     const leader = members.find((m) => m.id === leaderSlotId && m.role === 'lead');
     if (!leader || leader.status === 'failed' || leader.status === 'error' || leader.status === 'completed') return false;
