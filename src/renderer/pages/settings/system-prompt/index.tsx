@@ -5,36 +5,33 @@
  */
 
 import { Button, Message, Spin } from '@arco-design/web-react';
-import React, { useEffect, useState } from 'react';
+import MarkdownEditor from '@uiw/react-markdown-editor';
+import React, { useCallback, useEffect, useState } from 'react';
 import brand from '@brand';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import Markdown from '@/renderer/components/Markdown';
 import PageWrapper from '@/renderer/components/base/PageWrapper';
-import MarkdownEditor from '@/renderer/pages/conversation/preview/components/editors/MarkdownEditor';
+import { useThemeContext } from '@/renderer/context/ThemeContext';
 
 export default function SystemPromptSettings() {
   const { t } = useTranslation();
+  const { theme } = useThemeContext();
   const [content, setContent] = useState('');
   const [savedContent, setSavedContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    const loadSystemPrompt = async () => {
-      try {
-        const { content: loadedContent } = await ipcBridge.systemSettings.getDefaultAssistantSystemPrompt.invoke();
-        setContent(loadedContent);
-        setSavedContent(loadedContent);
-      } catch {
-        Message.error(t('settings.systemPromptEditor.loadFailed'));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    void loadSystemPrompt();
+  const loadSystemPrompt = useCallback(async () => {
+    try {
+      const { content: loadedContent } = await ipcBridge.systemSettings.getDefaultAssistantSystemPrompt.invoke();
+      setContent(loadedContent);
+      setSavedContent(loadedContent);
+    } catch {
+      Message.error(t('settings.systemPromptEditor.loadFailed'));
+    } finally {
+      setIsLoading(false);
+    }
   }, [t]);
 
   const onSave = async () => {
@@ -54,6 +51,10 @@ export default function SystemPromptSettings() {
       setIsSaving(false);
     }
   };
+
+  useEffect(() => {
+    void loadSystemPrompt();
+  }, [loadSystemPrompt]);
 
   const isSaveDisabled = isLoading || isSaving || !content.trim() || content === savedContent;
 
@@ -78,13 +79,8 @@ export default function SystemPromptSettings() {
               <Spin />
             </div>
           ) : (
-            <div className='grid min-h-0 flex-1 grid-cols-2 overflow-hidden border border-border rd-8px'>
-              <div className='min-w-0 overflow-hidden border-r border-border'>
-                <MarkdownEditor value={content} onChange={setContent} />
-              </div>
-              <div className='min-w-0 overflow-auto p-4'>
-                <Markdown>{content}</Markdown>
-              </div>
+            <div className='min-h-0 flex-1 overflow-hidden rd-8px' data-color-mode={theme}>
+              <MarkdownEditor visible className='h-full w-full' value={content} height='100%' onChange={setContent} />
             </div>
           )}
         </div>
