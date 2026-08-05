@@ -86,7 +86,7 @@ function shouldUseOpenAIResponsesApi(modelId: string): boolean {
 
 export function getScodeModelApiType(modelId: string, api?: string): string {
   const modelApi = api?.trim();
-  if (shouldUseOpenAIResponsesApi(modelId)) {
+  if (shouldUseOpenAIResponsesApi(modelId) && (!modelApi || modelApi === OPENAI_COMPAT_API)) {
     return OPENAI_RESPONSES_API;
   }
   return modelApi || OPENAI_COMPAT_API;
