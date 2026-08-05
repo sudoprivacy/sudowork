@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { Suspense } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
@@ -15,6 +21,7 @@ const DisplaySettings = React.lazy(() => import('./pages/settings/display'));
 const GeminiSettings = React.lazy(() => import('./pages/settings/gemini'));
 const SudocodeModelSettings = React.lazy(() => import('./pages/settings/models'));
 const Skills = React.lazy(() => import('./pages/skills'));
+const LocalKnowledgeBase = React.lazy(() => import('./pages/local-knowledge-base'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
@@ -45,7 +52,8 @@ const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '
 // Mode-aware default settings route
 const SettingsDefaultRoute: React.FC = () => {
   const { isEnterprise } = useAppMode();
-  return <Navigate to={isEnterprise ? '/settings/enterprise' : '/settings/profile'} replace />;
+  const { isGuest } = useAuth();
+  return <Navigate to={isGuest ? '/settings/model' : isEnterprise ? '/settings/enterprise' : '/settings/profile'} replace />;
 };
 
 const PROTECTED_ROUTE_CONFIGS = [
@@ -65,6 +73,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/about', component: About },
   { path: '/settings/tools', component: ToolsSettings },
   { path: '/app/skills', component: Skills },
+  { path: '/app/local-kb', component: LocalKnowledgeBase },
   { path: '/settings/skill', component: Skills },
   { path: '/app/security', component: SecurityPage },
   { path: '/app/channels', component: ChannelsPage },
@@ -92,8 +101,13 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <AppLoader />;
   }
 
-  if (status !== 'authenticated') {
+  if (status !== 'authenticated' && status !== 'guest') {
     return <Navigate to='/login' replace />;
+  }
+
+  // 游客态隐藏「用户中心」「充值中心」（需求 4）：直达这两个 URL 重定向到 /settings/model
+  if (status === 'guest' && (location.pathname === '/settings/profile' || location.pathname === '/settings/recharge')) {
+    return <Navigate to='/settings/model' replace />;
   }
 
   // Wait for useAppMode async initialization to prevent route guard bypass on page refresh

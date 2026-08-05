@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useCallback } from 'react';
 import { Message } from '@arco-design/web-react';
 import { ipcBridge } from '@/common';
@@ -415,7 +421,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
         // Office 文件扩展名 / Office file extensions
         const pptExtensions = ['ppt', 'pptx', 'odp'];
         const wordExtensions = ['doc', 'docx', 'odt'];
-        const excelExtensions = ['xls', 'xlsx', 'ods'];
+        const excelExtensions = ['xls', 'xlsx', 'ods', 'csv'];
         const officeExtensions = [...pptExtensions, ...wordExtensions, ...excelExtensions];
 
         let contentType: PreviewContentType = 'code';
@@ -436,9 +442,6 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           contentType = 'word';
         } else if (excelExtensions.includes(ext)) {
           contentType = 'excel';
-        } else if (ext === 'csv') {
-          // CSV files are text files, read as text (don't use excel viewer)
-          contentType = 'code';
         } else if (['html', 'htm'].includes(ext)) {
           contentType = 'html';
         } else if (imageExtensions.includes(ext)) {
@@ -500,7 +503,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
 
         // Warm LibreOffice availability cache for Office viewers.
         // 为 Office 预览组件预热 LibreOffice 可用性缓存。
-        if (officeExtensions.includes(ext)) {
+        if (officeExtensions.includes(ext) && ext !== 'csv') {
           await checkLibreOfficeAvailable();
         }
 
@@ -525,6 +528,9 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
             if (contentType === 'word') {
               contentType = getWordTextPreviewType(remotePreview.mime, remotePreview.content) || 'code';
               content = remotePreview.content;
+            } else if (contentType === 'excel' && ext === 'csv') {
+              content = remotePreview.content;
+              localPreviewFilePath = await createRemoteTextPreviewFile(nodeData.name, content);
             } else {
               content = contentType === 'image' ? textToDataUrl(remotePreview.mime, remotePreview.content) : remotePreview.content;
             }
@@ -615,6 +621,60 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
   );
 
   /**
+   * 下载文件（本地会话直接读盘，远程会话走 Moss 接口）
+   * Download a file (local sessions read from disk, remote sessions go through the Moss API)
+   */
+  const handleDownloadNode = useCallback(
+    async (nodeData: IDirOrFile | null) => {
+      if (!nodeData || !nodeData.fullPath || !nodeData.isFile) return;
+
+      ensureNodeSelected(nodeData);
+      closeContextMenu();
+
+      try {
+        let bytes: Uint8Array;
+
+        if (dataSource === 'moss-session') {
+          if (!conversation_id) {
+            throw new Error('conversation_id is required for remote download');
+          }
+          const res = await ipcBridge.conversation.previewRemoteWorkspaceFile.invoke({
+            conversation_id,
+            path: nodeData.relativePath || nodeData.fullPath,
+          });
+          if (!res?.success || !res.data) {
+            // 服务端对超过预览上限的文件返回 413 / The server returns 413 for files over the preview limit
+            if (res?.msg?.includes('413') || /exceeds preview limit/i.test(res?.msg || '')) {
+              Message.error(t('conversation.workspace.contextMenu.downloadTooLarge'));
+              return;
+            }
+            throw new Error(res?.msg || 'Failed to download remote workspace file');
+          }
+          bytes = res.data.kind === 'base64' ? base64ToBytes(res.data.contentBase64) : new TextEncoder().encode(res.data.content);
+        } else {
+          bytes = base64ToBytes(await ipcBridge.fs.readFileBase64.invoke({ path: nodeData.fullPath }));
+        }
+
+        const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nodeData.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        Message.success(t('conversation.workspace.contextMenu.downloadSuccess'));
+      } catch (error) {
+        console.error('[useWorkspaceFileOps] Failed to download:', error);
+        Message.error(t('conversation.workspace.contextMenu.downloadFailed'));
+      }
+    },
+    [closeContextMenu, conversation_id, dataSource, ensureNodeSelected, t]
+  );
+
+  /**
    * 打开重命名弹窗
    * Open rename modal
    */
@@ -636,6 +696,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
     handleRenameConfirm,
     handleAddToChat,
     handlePreviewFile,
+    handleDownloadNode,
     openRenameModal,
   };
 }

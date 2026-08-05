@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Workspace utility functions
  * 工作空间工具函数
  */

@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Agent edit drawer for the GUID page.
  * Provides the same editing experience as the Settings > Agents drawer,
  * allowing users to modify agent details without leaving the conversation page.

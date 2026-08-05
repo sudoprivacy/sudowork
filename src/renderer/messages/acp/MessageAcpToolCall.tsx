@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Card, Tag } from '@arco-design/web-react';
 import { createTwoFilesPatch } from 'diff';
 import React, { useMemo } from 'react';

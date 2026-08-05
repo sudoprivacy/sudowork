@@ -1,7 +1,7 @@
 {
   "list": {
     "title": "團隊",
-    "empty": "尚無團隊。建立一個開始協作。",
+    "empty": "暫無團隊會話歷史\n點擊上方 + 號新建團隊",
     "createButton": "新建團隊"
   },
   "create": {

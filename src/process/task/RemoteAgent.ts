@@ -1052,7 +1052,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
     // Persist messages to local DB for enterprise mode local-first reads
     // 将消息持久化到本地数据库，支持企业模式本地优先读取
-    if (msg.type === 'content' || msg.type === 'user_content' || msg.type === 'acp_tool_call' || msg.type === 'error') {
+    if (msg.type === 'content' || msg.type === 'user_content' || msg.type === 'acp_tool_call' || msg.type === 'error' || msg.type === 'thought') {
       try {
         const tMessage = this.streamMsgToTMessage(enrichedMsg);
         if (tMessage) {
@@ -1376,6 +1376,18 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           conversation_id: msg.conversation_id,
           content: { content: msg.data as string, type: 'error' },
         } as any;
+      case 'thought': {
+        const data = msg.data as { subject?: string; description?: string } | null;
+        if (!data?.description?.trim()) return null;
+        return {
+          id: uuid(),
+          type: 'thought',
+          msg_id: msg.msg_id,
+          position: 'left',
+          conversation_id: msg.conversation_id,
+          content: { subject: data.subject || '', description: data.description },
+        } as any;
+      }
       default:
         return null;
     }

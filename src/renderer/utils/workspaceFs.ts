@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { ipcBridge } from '@/common';
 
 interface IBridgeResponse<D = unknown> {

@@ -1,8 +1,10 @@
 /**
  * @license
- * Copyright 2025 Sudowork (sudowork.ai)
+ * Copyright 2026 SudoPrivacy
  * SPDX-License-Identifier: Apache-2.0
- *
+ */
+
+/**
  * 统一的 Agent Logo 映射工具
  * Unified Agent Logo mapping utility
  *

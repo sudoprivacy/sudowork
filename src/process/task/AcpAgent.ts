@@ -95,6 +95,7 @@ import { detectChannelQueryIntent, executeChannelInfoCommand, type ChannelQueryC
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
 import { StreamTextBuffer, CronTextAccumulator, preprocessContentMessage } from './acp/AcpMessagePipeline';
+import { StreamingThinkFilter } from './acp/StreamingThinkFilter';
 import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
 
@@ -177,6 +178,8 @@ export interface AcpAgentData {
   presetAssistantId?: string;
   /** Per-member team MCP server config (K2 wire, injected via session/new.mcp_servers, see A1); undefined for non-team conversations */
   teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
+  /** Team id this conversation belongs to (mirrors extra.teamId); undefined for non-team conversations. Routes team deliverables aggregation. */
+  teamId?: string;
 }
 
 class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
@@ -228,6 +231,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Message pipeline
   private readonly streamTextBuffer = new StreamTextBuffer();
+  // Per-msg_id streaming think-tag filters (see getOrCreateThinkFilter / flushThinkFilters).
+  private readonly thinkFilters = new Map<string, StreamingThinkFilter>();
   private readonly cronAccumulator = new CronTextAccumulator();
 
   // Workspace file tracking for channel file_send messages
@@ -1078,6 +1083,14 @@ This identity statement takes priority over the default identity in USER.md.
           }
         }
 
+        // Local KB enhancement: prepend best-effort local knowledge matches.
+        try {
+          const { knowledgeRetrievalService } = await import('@process/services/knowledge/KnowledgeRetrievalService');
+          contentToSend = await knowledgeRetrievalService.augmentWithLocalKnowledge(rawUserQuery, contentToSend);
+        } catch (localKbErr) {
+          mainWarn('[AcpAgent]', 'Local KB augment failed; sending original message:', localKbErr);
+        }
+
         // Dify enhancement: wrap user message with <knowledge_context> block
         // when this conversation has a bound Dify-enhanced assistant. Falls
         // through unchanged for non-enhanced sessions or on any error.
@@ -1130,6 +1143,7 @@ This identity statement takes priority over the default identity in USER.md.
       }
       return result;
     } catch (e) {
+      this.flushThinkFilters();
       this.streamTextBuffer.flushAll();
       cronBusyGuard.setProcessing(this.conversation_id, false);
       this.status = 'finished';
@@ -1500,6 +1514,7 @@ This identity statement takes priority over the default identity in USER.md.
 
   private patchAssistantTokenUsage(msgId: string, tokenUsage: TurnTokenUsage, options: { flush?: boolean } = {}): void {
     if (options.flush) {
+      this.flushThinkFilters();
       this.streamTextBuffer.flushAll();
     }
 
@@ -1657,6 +1672,7 @@ This identity statement takes priority over the default identity in USER.md.
     this.userCancelled = true;
 
     // 1. Flush buffered streaming text
+    this.flushThinkFilters();
     this.streamTextBuffer.flushAll();
 
     // 2. Respond to pending permission requests with Cancelled
@@ -1808,28 +1824,30 @@ This identity statement takes priority over the default identity in USER.md.
    * `archiveTurnFiles` has moved/renamed files but before `currentTurnFiles` is
    * cleared — so the marker records the real post-archive location.
    */
-  private async archiveCurrentTurnFiles(): Promise<GeneratedFileEntry[]> {
-    if (!this.workspace || this.currentTurnFiles.size === 0) {
+  private async archiveCurrentTurnFiles(turnFiles: ReadonlyMap<string, TrackedTurnFile> = this.currentTurnFiles): Promise<GeneratedFileEntry[]> {
+    if (!this.workspace || turnFiles.size === 0) {
       return [];
     }
 
-    this.currentTurnProtectedFinalPaths = this.getCurrentTurnFinalRootPaths();
+    this.currentTurnProtectedFinalPaths = this.getCurrentTurnFinalRootPaths(turnFiles);
     this.pendingCurrentTurnPostCleanup = true;
-    const archivedPaths = await archiveTurnFiles(this.workspace, this.currentTurnFiles);
-    const entries = this.buildGeneratedFileEntries(archivedPaths);
-    this.currentTurnFiles.clear();
+    const archivedPaths = await archiveTurnFiles(this.workspace, turnFiles);
+    const entries = this.buildGeneratedFileEntries(archivedPaths, turnFiles);
+    if (turnFiles === this.currentTurnFiles) {
+      this.currentTurnFiles.clear();
+    }
     mainLog('[AcpAgent]', '[TURN-ARCHIVE] Archived currentTurnFiles and cleared tracking');
     return entries;
   }
 
-  private getCurrentTurnFinalRootPaths(): Set<string> {
+  private getCurrentTurnFinalRootPaths(turnFiles: ReadonlyMap<string, TrackedTurnFile> = this.currentTurnFiles): Set<string> {
     const protectedPaths = new Set<string>();
-    if (!this.workspace || this.currentTurnFiles.size === 0) {
+    if (!this.workspace || turnFiles.size === 0) {
       return protectedPaths;
     }
 
     const workspaceRoot = nodePath.resolve(this.workspace);
-    for (const file of this.currentTurnFiles.values()) {
+    for (const file of turnFiles.values()) {
       if (file.intent !== 'final') {
         continue;
       }
@@ -1889,12 +1907,12 @@ This identity statement takes priority over the default identity in USER.md.
    * file's FINAL on-disk location so the marker records the post-archive path
    * (after drafts → root restore + collision rename), not the pre-archive one.
    */
-  private buildGeneratedFileEntries(archivedPaths?: ReadonlyMap<string, string>): GeneratedFileEntry[] {
-    if (!this.workspace || this.currentTurnFiles.size === 0) return [];
+  private buildGeneratedFileEntries(archivedPaths?: ReadonlyMap<string, string>, turnFiles: ReadonlyMap<string, TrackedTurnFile> = this.currentTurnFiles): GeneratedFileEntry[] {
+    if (!this.workspace || turnFiles.size === 0) return [];
 
     return buildGeneratedFileEntriesFromTracked({
       workspaceRoot: nodePath.resolve(this.workspace),
-      trackedFiles: this.currentTurnFiles,
+      trackedFiles: turnFiles,
       archivedPaths,
       statSize: (absolutePath) => {
         try {
@@ -1966,7 +1984,7 @@ This identity statement takes priority over the default identity in USER.md.
     // Live-push the deliverables list to the renderer's right-panel
     // "交付物" tab so it can append without refetching from DB.
     try {
-      ipcBridge.deliverables.changed.emit({ conversationId: this.conversation_id, files: entries });
+      ipcBridge.deliverables.changed.emit({ conversationId: this.conversation_id, teamId: this.options.teamId, files: entries });
     } catch (err) {
       mainLog('[AcpAgent]', `[TRACK] deliverables.changed emit failed: ${String(err)}`);
     }
@@ -2238,6 +2256,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   kill(): Promise<void> {
+    this.flushThinkFilters();
     this.streamTextBuffer.flushAll();
     this.toolCallMeta.clear();
     this.workspaceFileSnapshot.clear();
@@ -2675,10 +2694,10 @@ This identity statement takes priority over the default identity in USER.md.
               }
             }
 
-            // ★ Track files generated by Bash tool (scan workspace for new files)
-            // 追踪 Bash 工具产生的文件（扫描工作空间新增文件）
-            if (n === 'bash') {
-              mainLog('[AcpAgent]', `[TRACK-BASH] Bash tool detected, status: ${toolStatus}`);
+            // ★ Track files generated by shell tools (bash/PowerShell) — scan workspace for new files
+            // 追踪 shell 工具（bash/PowerShell）产生的文件（扫描工作空间新增文件）
+            if (n === 'bash' || n === 'powershell') {
+              mainLog('[AcpAgent]', `[TRACK-SHELL] Shell tool detected (${n}), status: ${toolStatus}`);
               if (toolStatus === 'completed') {
                 this.trackBashGeneratedFiles(rawInput?.command as string | undefined);
                 this.deliverBashGeneratedFilesToChannel();
@@ -3070,16 +3089,20 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     if (!this.userCancelled) {
-      await this.installTrackedWorkspaceSkills();
       // Turn-end fallback: discover root-level deliverables the per-tool tracking
       // missed and both forward them to channels AND track them, so they enter
       // currentTurnFiles → the deliverables marker (not only the temp space /
       // channel). Must run before the final-file summary + archive below.
       this.deliverWorkspaceFilesAtTurnEnd();
+      // 锁定 currentTurnFiles 副本：下面的 await 期间，团队 EventLoop 可能驱动下一 turn
+      // （sendMessage 会 clear currentTurnFiles、重拍 turnStartDeliverableSnapshot），
+      // 归档必须基于此处锁定的副本，否则竞态下不发交付物标记。
+      const turnFiles = new Map(this.currentTurnFiles);
       const finalFiles = this.getCurrentTurnFinalFileSummaries();
+      await this.installTrackedWorkspaceSkills();
       // Archive FIRST, then build the marker from the returned final paths, so
       // the recorded path matches the file's real post-archive location.
-      const generatedEntries = await this.archiveCurrentTurnFiles();
+      const generatedEntries = await this.archiveCurrentTurnFiles(turnFiles);
       this.emitFallbackCompletionMessage(finalFiles);
       this.emitGeneratedFilesMarkerMessage(generatedEntries);
     }
@@ -3377,7 +3400,21 @@ This identity statement takes priority over the default identity in USER.md.
       saveContextUsage(this.conversation_id, usageData);
     }
 
-    const filteredMessage = preprocessContentMessage(message as IResponseMessage);
+    let filteredMessage = preprocessContentMessage(message as IResponseMessage);
+
+    // Streaming think-tag filter (per-msg_id state machine). Applied on the common upstream
+    // of queue() (DB) and responseStream.emit() (IPC display) so both paths stay clean.
+    if (filteredMessage.type === 'content' && typeof filteredMessage.data === 'string' && filteredMessage.msg_id) {
+      const filter = this.getOrCreateThinkFilter(filteredMessage.msg_id);
+      const { content, thinkDelta, thinkFull } = filter.feed(filteredMessage.data);
+      filteredMessage = { ...filteredMessage, data: content };
+      // Emit extracted think content as a thought message BEFORE the content
+      // empty check below: a pure-think chunk (e.g. "<think>The") has empty
+      // content and would otherwise return early, dropping the thought.
+      if (thinkDelta && thinkFull) {
+        this.emitThoughtMessage(`${filteredMessage.msg_id}-think`, thinkDelta, thinkFull);
+      }
+    }
 
     if (message.type === 'content' && filteredMessage.type === 'content' && filteredMessage.data === '') {
       return;
@@ -3388,7 +3425,7 @@ This identity statement takes priority over the default identity in USER.md.
       this.lastVisibleAssistantContentSequence = ++this.turnEventSequence;
     }
 
-    if (filteredMessage.type !== 'thought' && filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {
+    if (filteredMessage.type !== 'acp_model_info' && filteredMessage.type !== 'acp_context_usage') {
       const tMessage = transformMessage(filteredMessage as IResponseMessage);
 
       if (tMessage) {
@@ -3396,6 +3433,7 @@ This identity statement takes priority over the default identity in USER.md.
         if (isStreamTextChunk) {
           this.streamTextBuffer.queue(tMessage, this.options.backend);
         } else {
+          this.flushThinkFilters();
           this.streamTextBuffer.flushAll();
           addOrUpdateMessage(message.conversation_id, tMessage);
         }
@@ -3420,6 +3458,81 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
+  /**
+   * Flush all streaming think filters: release any pending tail as ordinary
+   * content (so a trailing char like '<' is not lost) via the same emit + queue
+   * path as a normal chunk, then clear all filters. MUST be called before
+   * streamTextBuffer.flushAll() so the queued tail is flushed to DB immediately
+   * rather than relying on the 120ms timer.
+   */
+  private flushThinkFilters(): void {
+    for (const [msgId, filter] of this.thinkFilters) {
+      const tail = filter.flush();
+      if (!tail) continue;
+      const flushedMessage = {
+        type: 'content',
+        msg_id: msgId,
+        conversation_id: this.conversation_id,
+        data: tail,
+      } as IResponseMessage;
+      const tMessage = transformMessage(flushedMessage);
+      if (tMessage && tMessage.type === 'text') {
+        this.streamTextBuffer.queue(tMessage, this.options.backend);
+      }
+      ipcBridge.acpConversation.responseStream.emit(flushedMessage);
+      channelEventBus.emitAgentMessage(this.conversation_id, { ...flushedMessage, conversation_id: this.conversation_id });
+    }
+    this.thinkFilters.clear();
+  }
+
+  private getOrCreateThinkFilter(msgId: string): StreamingThinkFilter {
+    let filter = this.thinkFilters.get(msgId);
+    if (!filter) {
+      filter = new StreamingThinkFilter();
+      this.thinkFilters.set(msgId, filter);
+    }
+    return filter;
+  }
+
+  /**
+   * Emit think content (extracted by StreamingThinkFilter from inline `<think>`
+   * tags) as a `thought` message so it renders in the "思考过程" area
+   * (MessageThought). Bypasses handleStreamEvent because that path triggers
+   * flushThinkFilters() for non text/content messages, which would clear the
+   * filter mid-stream and lose accumulated think state.
+   *
+   * DB receives the FULL accumulated text (replace-merge via composeMessage,
+   * unchanged — shared with RemoteAgent). IPC receives only the per-call DELTA
+   * (append-merge in the renderer) so long reasoning is O(n) over IPC instead
+   * of re-sending the full text every chunk. subject is derived from `full` and
+   * shared by both paths. Also marks the turn as having visible assistant output
+   * so a pure-think reply no longer trips the "no summary" fallback.
+   */
+  private emitThoughtMessage(thoughtMsgId: string, delta: string, full: string): void {
+    if (!delta.trim()) return;
+    this.turnHadVisibleAssistantContent = true;
+    this.lastVisibleAssistantContentSequence = ++this.turnEventSequence;
+    const subject = this.extractThoughtSubject(full);
+    const dbMessage = {
+      type: 'thought',
+      msg_id: thoughtMsgId,
+      conversation_id: this.conversation_id,
+      data: { subject, description: full },
+    } as IResponseMessage;
+    const tMessage = transformMessage(dbMessage);
+    if (tMessage) {
+      addOrUpdateMessage(this.conversation_id, tMessage);
+    }
+    const ipcMessage = {
+      type: 'thought',
+      msg_id: thoughtMsgId,
+      conversation_id: this.conversation_id,
+      data: { subject, description: delta },
+    } as IResponseMessage;
+    ipcBridge.acpConversation.responseStream.emit(ipcMessage);
+    channelEventBus.emitAgentMessage(this.conversation_id, { ...ipcMessage, conversation_id: this.conversation_id });
+  }
+
   private async handleSignalEvent(v: IResponseMessage): Promise<void> {
     // Ignore messages if user has cancelled
     if (this.userCancelled && v.type !== 'finish') {
@@ -3427,6 +3540,7 @@ This identity statement takes priority over the default identity in USER.md.
       return;
     }
 
+    this.flushThinkFilters();
     this.streamTextBuffer.flushAll();
 
     if (v.type === 'acp_permission') {

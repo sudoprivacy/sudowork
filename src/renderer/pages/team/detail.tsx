@@ -1,4 +1,10 @@
-import { Spin } from '@arco-design/web-react';
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Message, Spin } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -6,6 +12,8 @@ import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
 import { emitter } from '@/renderer/utils/emitter';
+import { useAuth } from '@/renderer/context/AuthContext';
+import { useHasAvailableModel } from '@/renderer/hooks/useHasAvailableModel';
 import type { AcpBackend } from '@/types/acpTypes';
 import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
 import ChatLayout from '@renderer/pages/conversation/ChatLayout';
@@ -60,12 +68,20 @@ function TeamDetailPage() {
     };
   }, [leader?.conversation_id]);
 
+  const { isGuest } = useAuth();
+  const { hasModel, ready } = useHasAvailableModel();
   const leaderTeamSendMessage = useMemo(
     () =>
       async ({ input, files, msg_id }: { input: string; files?: string[]; msg_id?: string }) => {
+        // claude/scode leaders carry their own config and must not be blocked by model.config.
+        // Probing on every team message is too costly, so skip the guard for these two backends only.
+        if (isGuest && ready && !hasModel && leader.assistant_backend !== 'claude' && leader.assistant_backend !== 'scode') {
+          Message.error(t('guid.modelNotConfigured', { defaultValue: '未配置可用模型，请在设置页添加模型' }));
+          return;
+        }
         await ipcBridge.team.sendMessage.invoke({ teamId, input, files, msgId: msg_id });
       },
-    [teamId]
+    [teamId, t, isGuest, hasModel, ready, leader?.assistant_backend]
   );
 
   const onLeaderTeamAnswerQuestion = useMemo(
@@ -128,7 +144,7 @@ function TeamDetailPage() {
       rightSiderWidthOverride={isTeamMemberTabActive ? { widthPx: 440 } : null}
       headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} />}
       headerExtra={isHeaderStatusVisible ? <span className={`text-12px px-8px py-2px rounded-full ${isHeaderActive ? 'bg-green-500/10 text-green-600' : 'bg-gray-400/10 text-gray-500'}`}>{t(`team.status.${isHeaderActive ? 'active' : 'idle'}`)}</span> : null}
-      sider={<ChatSider conversation={currentLeaderConv} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} isOverflowTabsEnabled onActiveTabChange={setActiveRightPanelTab} />}
+      sider={<ChatSider conversation={currentLeaderConv} teamId={teamId} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} isOverflowTabsEnabled onActiveTabChange={setActiveRightPanelTab} />}
     >
       <div className='relative flex min-h-0 flex-1 flex-col'>
         <AcpChat
@@ -137,6 +153,7 @@ function TeamDetailPage() {
           agentName={leader.assistant_name}
           workspace={currentTeam.workspace ?? undefined}
           onTeamAnswerQuestion={onLeaderTeamAnswerQuestion}
+          teamAnswerQuestion={onLeaderTeamAnswerQuestion}
           teamSendMessage={leaderTeamSendMessage}
           showEmptyStateWhenNoMessages
           emptyState={<TeamLeaderEmptyState assistantName={leader.assistant_name} assistantAvatar={leader.icon} assistantBackend={leader.assistant_backend} assistantId={leader.assistant_id} source={leader.source} onPromptClick={onEmptyPromptClick} />}

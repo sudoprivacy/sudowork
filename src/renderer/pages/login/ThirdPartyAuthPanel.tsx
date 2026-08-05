@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Message, Select } from '@arco-design/web-react';
 import { PeopleSafe, Link } from '@icon-park/react';
@@ -12,7 +18,7 @@ import './LoginPage.css';
 export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, systemConfig, onBackToModeSelect }: IThirdPartyAuthPanelProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { exchangeThirdPartyAuthCode, loginWithThirdPartyAuth } = useAuth();
+  const { enterGuest, exchangeThirdPartyAuthCode, loginWithThirdPartyAuth } = useAuth();
   const resolvedConfig = useMemo(() => resolveThirdPartyAuthConfig(systemConfig), [systemConfig]);
   const [selectedProviderId, setSelectedProviderId] = useState(() => resolvedConfig?.defaultProvider || '');
   const [isWaiting, setIsWaiting] = useState(false);
@@ -155,9 +161,18 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
         <div className='text-center text-12px text-tertiary mt-2px'>{t('login.thirdPartyBrowserHint')}</div>
 
         {onBackToModeSelect && (
-          <div className='text-center mt-12px'>
+          <div className='flex items-center justify-center gap-16px mt-12px'>
             <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={onBackToModeSelect}>
               {t('login.backToModeSelect')}
+            </span>
+            <span
+              className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors'
+              onClick={async () => {
+                await enterGuest();
+                void navigate('/guid');
+              }}
+            >
+              {t('login.skip')}
             </span>
           </div>
         )}

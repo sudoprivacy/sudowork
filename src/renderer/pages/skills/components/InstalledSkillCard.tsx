@@ -1,12 +1,18 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { Button, Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
-import { Trash2, Shield, Zap, Download } from 'lucide-react';
+import { Trash2, Shield, Zap, Download, Upload } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
 import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 
-export default function InstalledSkillCard({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating, enterprisePublishButton, hideUninstall }: IInstalledSkillCardProps) {
+export default function InstalledSkillCard({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating, onUpload, uploading, uploadStatus, enterprisePublishButton, hideUninstall }: IInstalledSkillCardProps) {
   const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
   const displayVersion = normalizeSkillVersion(skill.version);
   const canUninstall = !skill.isBuiltin && !hideUninstall;
@@ -48,6 +54,12 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
             <Button icon={<Download size={13} />} loading={updating} onClick={() => onUpdate?.()} className='!size-7' />
           </Tooltip>
         )}
+        {uploadStatus}
+        {!uploadStatus && onUpload && (
+          <Tooltip content={t('settings.skill.uploadToHub', '上传到 SkillHub')}>
+            <Button icon={<Upload size={13} />} loading={uploading} onClick={() => onUpload()} className='!size-7' />
+          </Tooltip>
+        )}
         {enterprisePublishButton}
         {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} />}
         {skill.isBuiltin ? (
@@ -82,6 +94,10 @@ interface IInstalledSkillCardProps {
   hasUpdate?: boolean;
   onUpdate?: () => void;
   updating?: boolean;
+  /** Personal mode: upload this custom skill to SkillHub for tenant approval. */
+  onUpload?: () => void;
+  uploading?: boolean;
+  uploadStatus?: React.ReactNode;
   /** Enterprise mode: publish button element */
   enterprisePublishButton?: React.ReactNode;
   /** Enterprise mode: whether to hide uninstall button (only custom skills can be uninstalled) */

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Dropdown, Empty, Input, Menu, Message, Modal, Spin, Tooltip } from '@arco-design/web-react';
 import { IconCheckCircle, IconCloseCircle, IconCopy, IconDelete, IconDown, IconRefresh, IconScan } from '@arco-design/web-react/icon';
 import { ChevronDown, CircleCheck, CircleX } from 'lucide-react';

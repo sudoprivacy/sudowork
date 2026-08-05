@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Image, Message } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
 import classNames from 'classnames';
@@ -27,6 +33,7 @@ import MessageFileChanges, { parseDiff } from './codex/MessageFileChanges';
 import MessageFileSend from './MessageFileSend';
 import { useMessageList } from './hooks';
 import MessagePlan from './MessagePlan';
+import MessageThought from './MessageThought';
 import MessageTips from './MessageTips';
 import MessageToolCall from './MessageToolCall';
 import MessageToolGroup from './MessageToolGroup';
@@ -90,6 +97,8 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?:
         return <MessageText message={message} isStreaming={isStreaming} footer={footer}></MessageText>;
       case 'tips':
         return <MessageTips message={message}></MessageTips>;
+      case 'thought':
+        return <MessageThought message={message}></MessageThought>;
       case 'tool_call':
         return <MessageToolCall message={message}></MessageToolCall>;
       case 'tool_group':

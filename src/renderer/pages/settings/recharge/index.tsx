@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Message, Spin } from '@arco-design/web-react';
 import { Check, CircleCheck, CircleX, CreditCard, MessageCircle, RefreshCw } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';

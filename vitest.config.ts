@@ -59,6 +59,7 @@ export default defineConfig({
       include: [
         // Process / bridge
         'src/process/database/corruptionError.ts',
+        'src/process/database/workspaceQueries.ts',
         'src/process/startupNotice.ts',
         'src/process/services/autoUpdaterService.ts',
         'src/process/services/conversationReaper.ts',
@@ -71,6 +72,15 @@ export default defineConfig({
         'src/process/services/pwdLogin/pwdAdapters.ts',
         'src/process/services/pwdLogin/pwdLoginService.ts',
         'src/process/services/fuset/FuseTSupervisor.ts',
+        'src/process/services/knowledge/KnowledgeRetrievalService.ts',
+        'src/process/services/local-kb/documentParser.ts',
+        'src/process/services/local-kb/query.ts',
+        'src/process/services/local-kb/vectorIndex.ts',
+        'src/process/services/local-kb/buildExecutor.ts',
+        'src/process/services/local-kb/embeddingModelService.ts',
+        'src/process/services/local-kb/LocalKnowledgeBaseSkillServer.ts',
+        'src/process/services/local-kb/LocalKnowledgeBaseService.ts',
+        'src/process/services/poppler/PopplerRuntimeService.ts',
         'src/process/services/nexus-vfs/FusePluginClient.ts',
         'src/process/telemetry/SudoLogTelemetryReporter.ts',
         'src/process/bridge/updateBridge.ts',
@@ -116,10 +126,13 @@ export default defineConfig({
         'src/common/types/conversion.ts',
         // Renderer utils
         'src/renderer/components/HubEmptyState.tsx',
+        'src/renderer/hooks/useAvailableModels.ts',
+        'src/renderer/hooks/useHasAvailableModel.ts',
         'src/renderer/components/sendboxKeyGuards.ts',
         'src/renderer/messages/RuntimeErrorBanner.tsx',
         'src/renderer/messages/useAutoScroll.ts',
         'src/renderer/utils/emitter.ts',
+        'src/renderer/pages/guid/utils/modelBackendKey.ts',
         // Preview components
         'src/renderer/pages/conversation/preview/components/viewers/WordViewer.tsx',
         'src/renderer/pages/conversation/preview/components/viewers/PPTViewer.tsx',

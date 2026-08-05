@@ -1,11 +1,12 @@
 import { modelInputForModelId } from './imageUtils';
 import type { ScodeConfig, ScodeModelEntry } from './ipcBridge';
-import { getSudorouterBaseUrl } from './systemConfig';
+import { FALLBACK_SCODE_AUTO_MODEL_ID, getSudorouterBaseUrl } from './systemConfig';
 
 export type LoginSudoclawPayload = {
   sudorouterKey?: string;
   modelServiceUrl?: string;
   models: string[];
+  scodeAutoModel?: string;
 };
 
 export type ScodeCustomModelProvider = {
@@ -28,7 +29,7 @@ const SUDOROUTER_PROVIDER_ID = 'sudorouter';
 const OPENAI_COMPAT_API = 'openai-completions';
 const OPENAI_RESPONSES_API = 'openai-responses';
 export const SCODE_AUTO_MODEL_ALIAS = 'auto';
-export const SCODE_AUTO_ROUTER_MODEL_ID = 'claude-opus-4-8';
+export const SCODE_AUTO_ROUTER_MODEL_ID = FALLBACK_SCODE_AUTO_MODEL_ID;
 
 export type SpecificPricingItem = {
   model_id: string;
@@ -41,7 +42,13 @@ export type SpecificImagePricingItem = {
   extra?: Record<string, unknown>;
 };
 
-export function resolveAutoRouterModelId(modelIds: string[], pricingItems?: SpecificPricingItem[]): string | null {
+function normalizeExplicitAutoModelId(modelId?: string): string | undefined {
+  return typeof modelId === 'string' && modelId.trim() ? modelId.trim() : undefined;
+}
+
+export function resolveAutoRouterModelId(modelIds: string[], pricingItems?: SpecificPricingItem[], explicitAutoModelId?: string): string | null {
+  const configuredAutoModelId = normalizeExplicitAutoModelId(explicitAutoModelId);
+  if (configuredAutoModelId) return configuredAutoModelId;
   if (modelIds.length === 0) return null;
   if (modelIds.length === 1) return modelIds[0];
   if (modelIds.includes(SCODE_AUTO_ROUTER_MODEL_ID)) return SCODE_AUTO_ROUTER_MODEL_ID;
@@ -77,9 +84,9 @@ function shouldUseOpenAIResponsesApi(modelId: string): boolean {
   return /^gpt-5\.(4|5)(?:$|-)/i.test(modelId.trim());
 }
 
-function getCustomApiType(modelId: string, api?: string): string {
+export function getScodeModelApiType(modelId: string, api?: string): string {
   const modelApi = api?.trim();
-  if (shouldUseOpenAIResponsesApi(modelId)) {
+  if (shouldUseOpenAIResponsesApi(modelId) && (!modelApi || modelApi === OPENAI_COMPAT_API)) {
     return OPENAI_RESPONSES_API;
   }
   return modelApi || OPENAI_COMPAT_API;
@@ -101,19 +108,19 @@ function isCustomApiKeyModelEntry(entry: ScodeModelEntry | undefined, providerId
   return entry?.providers?.['api-key']?.provider === providerId;
 }
 
-function buildSudorouterModelEntry(modelId: string, alias = modelId): ScodeModelEntry {
+export function buildSudorouterModelEntry(modelId: string, alias = modelId): ScodeModelEntry {
   return {
     alias,
     name: alias,
     input: modelInputForModelId(modelId),
     providers: {
-      proxy: { provider: SUDOROUTER_PROVIDER_ID, model: modelId, api: OPENAI_COMPAT_API },
+      proxy: { provider: SUDOROUTER_PROVIDER_ID, model: modelId, api: getScodeModelApiType(modelId) },
     },
   };
 }
 
-export function addScodeAutoModel(models: Record<string, ScodeModelEntry>, modelIds: string[], pricingItems?: SpecificPricingItem[]): string | null {
-  const id = resolveAutoRouterModelId(modelIds, pricingItems);
+export function addScodeAutoModel(models: Record<string, ScodeModelEntry>, modelIds: string[], pricingItems?: SpecificPricingItem[], explicitAutoModelId?: string): string | null {
+  const id = resolveAutoRouterModelId(modelIds, pricingItems, explicitAutoModelId);
   if (id) models[SCODE_AUTO_MODEL_ALIAS] = buildSudorouterModelEntry(id, SCODE_AUTO_MODEL_ALIAS);
   return id;
 }
@@ -131,7 +138,7 @@ function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModel
       output: model.outputContext,
     },
     providers: {
-      'api-key': { provider: providerId, model: modelId, api: getCustomApiType(modelId, model.api) },
+      'api-key': { provider: providerId, model: modelId, api: getScodeModelApiType(modelId, model.api) },
     },
   };
 }
@@ -209,7 +216,7 @@ export function normalizeCustomApiKeyModelsInScodeConfig(config: ScodeConfig | n
           ...apiKeyProvider,
           provider: providerId,
           model: providerModelId,
-          api: getCustomApiType(providerModelId, apiKeyProvider.api),
+          api: getScodeModelApiType(providerModelId, apiKeyProvider.api),
         },
       },
     };
@@ -231,6 +238,32 @@ export function normalizeCustomApiKeyModelsInScodeConfig(config: ScodeConfig | n
   return nextConfig;
 }
 
+export function normalizeScodeModelApiTypesInScodeConfig(config: ScodeConfig | null | undefined): ScodeConfig {
+  const nextConfig: ScodeConfig = { ...(config || {}) };
+  const nextModels: Record<string, ScodeModelEntry> = {};
+
+  for (const [alias, entry] of Object.entries(config?.models || {})) {
+    const nextEntry: ScodeModelEntry = { ...entry };
+    const nextProviders: ScodeModelEntry['providers'] = { ...(entry.providers || {}) };
+
+    for (const mode of ['proxy', 'api-key'] as const) {
+      const provider = nextProviders[mode];
+      const modelId = provider?.model?.trim();
+      if (!provider || !modelId) continue;
+      nextProviders[mode] = {
+        ...provider,
+        api: getScodeModelApiType(modelId, provider.api),
+      };
+    }
+
+    nextEntry.providers = nextProviders;
+    nextModels[alias] = nextEntry;
+  }
+
+  nextConfig.models = nextModels;
+  return nextConfig;
+}
+
 export function buildScodeConfigFromLoginPayload(payload: LoginSudoclawPayload, existing?: ScodeConfig | null, pricingItems?: SpecificPricingItem[]): ScodeConfig {
   return mergeSudorouterIntoScodeConfig(existing || {}, payload, pricingItems);
 }
@@ -246,7 +279,7 @@ export function mergeSudorouterIntoScodeConfig(existing: ScodeConfig | null | un
     }
   }
 
-  const autoModelId = addScodeAutoModel(nextModels, modelIds, pricingItems);
+  const autoModelId = addScodeAutoModel(nextModels, modelIds, pricingItems, payload.scodeAutoModel);
   for (const modelId of modelIds) {
     nextModels[normalizeModelAlias(modelId)] = buildSudorouterModelEntry(modelId);
   }

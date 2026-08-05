@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Dropdown, Menu, Switch, Tooltip } from '@arco-design/web-react';
 import { IconRefresh, IconSettings } from '@arco-design/web-react/icon';
 import { Check, Loader2, LogIn, Pencil, Trash2, X } from 'lucide-react';

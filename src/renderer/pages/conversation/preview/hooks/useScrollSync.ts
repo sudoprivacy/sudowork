@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useCallback, useRef } from 'react';
 import { SCROLL_SYNC_DEBOUNCE } from '../constants';
 

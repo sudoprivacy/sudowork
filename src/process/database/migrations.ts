@@ -893,7 +893,7 @@ const migration_v15: IMigration = {
 
     mainLog('Migration v15', 'Removed strict constraints for extension channels');
   },
-  down: (db) => {
+  down: (_db) => {
     // Cannot safely rollback if there are custom types/sources in the database.
     // For now, we just log a warning and do nothing, or we could delete them.
     mainWarn('Migration v15', 'Rollback skipped to prevent data loss of extension channels.');
@@ -1367,6 +1367,109 @@ const migration_v23: IMigration = {
   },
 };
 
+const migration_v29: IMigration = {
+  version: 29,
+  name: 'Add local knowledge base tables',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS local_kb_categories (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS local_kb_spaces (
+        id TEXT PRIMARY KEY,
+        category_id TEXT REFERENCES local_kb_categories(id) ON DELETE SET NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        source_mode TEXT NOT NULL DEFAULT 'files',
+        root_path TEXT,
+        build_status TEXT NOT NULL DEFAULT 'idle',
+        retrieval_mode TEXT NOT NULL DEFAULT 'grep-only',
+        last_built_at INTEGER,
+        last_build_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_local_kb_spaces_category_id
+        ON local_kb_spaces(category_id);
+      CREATE INDEX IF NOT EXISTS idx_local_kb_spaces_updated_at
+        ON local_kb_spaces(updated_at DESC);
+
+      CREATE TABLE IF NOT EXISTS local_kb_documents (
+        id TEXT PRIMARY KEY,
+        space_id TEXT NOT NULL REFERENCES local_kb_spaces(id) ON DELETE CASCADE,
+        file_name TEXT NOT NULL,
+        relative_path TEXT,
+        absolute_path TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        content_hash TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        parse_status TEXT NOT NULL DEFAULT 'pending',
+        parse_error TEXT,
+        last_indexed_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_local_kb_documents_space_id
+        ON local_kb_documents(space_id);
+      CREATE INDEX IF NOT EXISTS idx_local_kb_documents_hash
+        ON local_kb_documents(space_id, content_hash);
+
+      CREATE TABLE IF NOT EXISTS local_kb_build_jobs (
+        id TEXT PRIMARY KEY,
+        space_id TEXT NOT NULL REFERENCES local_kb_spaces(id) ON DELETE CASCADE,
+        mode TEXT NOT NULL DEFAULT 'full',
+        status TEXT NOT NULL DEFAULT 'queued',
+        progress INTEGER NOT NULL DEFAULT 0,
+        current_step TEXT,
+        error_message TEXT,
+        started_at INTEGER,
+        finished_at INTEGER,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_local_kb_build_jobs_space_id
+        ON local_kb_build_jobs(space_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_local_kb_build_jobs_status
+        ON local_kb_build_jobs(status, created_at);
+
+      CREATE TABLE IF NOT EXISTS local_kb_query_logs (
+        id TEXT PRIMARY KEY,
+        space_id TEXT,
+        query TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        hit_count INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+    `);
+    mainLog('Migration v29', 'Added local knowledge base tables');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP TABLE IF EXISTS local_kb_query_logs;
+      DROP INDEX IF EXISTS idx_local_kb_build_jobs_status;
+      DROP INDEX IF EXISTS idx_local_kb_build_jobs_space_id;
+      DROP TABLE IF EXISTS local_kb_build_jobs;
+      DROP INDEX IF EXISTS idx_local_kb_documents_hash;
+      DROP INDEX IF EXISTS idx_local_kb_documents_space_id;
+      DROP TABLE IF EXISTS local_kb_documents;
+      DROP INDEX IF EXISTS idx_local_kb_spaces_updated_at;
+      DROP INDEX IF EXISTS idx_local_kb_spaces_category_id;
+      DROP TABLE IF EXISTS local_kb_spaces;
+      DROP TABLE IF EXISTS local_kb_categories;
+    `);
+    mainLog('Migration v29', 'Rolled back: Removed local knowledge base tables');
+  },
+};
+
 /**
  * Migration v23 -> v24: Add team collaboration tables
  * teams / team_members / team_mailbox / team_tasks for multi-agent team collaboration.
@@ -1663,8 +1766,8 @@ const migration_v28: IMigration = {
 /**
  * Migration v28 -> v29: Add digital employee tables.
  */
-const migration_v29: IMigration = {
-  version: 29,
+const migration_v30: IMigration = {
+  version: 30,
   name: 'Add digital employee tables',
   up: (db) => {
     db.exec(`
@@ -1722,7 +1825,7 @@ const migration_v29: IMigration = {
       CREATE INDEX IF NOT EXISTS idx_digital_employee_work_records_conversation_id ON digital_employee_work_records(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_digital_employee_work_records_updated_at ON digital_employee_work_records(updated_at);
     `);
-    mainLog('Migration v29', 'Added digital employee tables');
+    mainLog('Migration v30', 'Added digital employee tables');
   },
   down: (db) => {
     db.exec(`
@@ -1737,15 +1840,15 @@ const migration_v29: IMigration = {
       DROP TABLE IF EXISTS digital_employee_resources;
       DROP TABLE IF EXISTS digital_employees;
     `);
-    mainLog('Migration v29', 'Rolled back: Removed digital employee tables');
+    mainLog('Migration v30', 'Rolled back: Removed digital employee tables');
   },
 };
 
 /**
- * Migration v29 -> v30: Add local digital employee SOP table.
+ * Migration v30 -> v31: Add local digital employee SOP table.
  */
-const migration_v30: IMigration = {
-  version: 30,
+const migration_v31: IMigration = {
+  version: 31,
   name: 'Add digital employee SOP table',
   up: (db) => {
     db.exec(`
@@ -1770,7 +1873,7 @@ const migration_v30: IMigration = {
       CREATE INDEX IF NOT EXISTS idx_digital_employee_sops_status ON digital_employee_sops(status);
       CREATE INDEX IF NOT EXISTS idx_digital_employee_sops_updated_at ON digital_employee_sops(updated_at);
     `);
-    mainLog('Migration v30', 'Added digital employee SOP table');
+    mainLog('Migration v31', 'Added digital employee SOP table');
   },
   down: (db) => {
     db.exec(`
@@ -1779,7 +1882,7 @@ const migration_v30: IMigration = {
       DROP INDEX IF EXISTS idx_digital_employee_sops_employee_id;
       DROP TABLE IF EXISTS digital_employee_sops;
     `);
-    mainLog('Migration v30', 'Rolled back: Removed digital employee SOP table');
+    mainLog('Migration v31', 'Rolled back: Removed digital employee SOP table');
   },
 };
 
@@ -1793,6 +1896,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
   migration_v25, migration_v26, migration_v27, migration_v28, migration_v29, migration_v30,
+  migration_v31,
 ];
 
 /**

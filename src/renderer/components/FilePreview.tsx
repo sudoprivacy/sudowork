@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { IconClose } from '@arco-design/web-react/icon';
 import { Button, Image } from '@arco-design/web-react';
@@ -36,6 +42,7 @@ const OFFICE_EXTENSIONS: Record<string, PreviewContentType> = {
   xls: 'excel',
   xlsx: 'excel',
   ods: 'excel',
+  csv: 'excel',
 };
 
 const getContentTypeFromExt = (ext: string): PreviewContentType => {
@@ -44,7 +51,6 @@ const getContentTypeFromExt = (ext: string): PreviewContentType => {
   if (e === 'diff' || e === 'patch') return 'diff';
   if (e === 'pdf') return 'pdf';
   if (OFFICE_EXTENSIONS[e]) return OFFICE_EXTENSIONS[e];
-  if (e === 'csv') return 'code';
   if (e === 'html' || e === 'htm') return 'html';
   if (IMAGE_EXTENSIONS.has(e)) return 'image';
   if (VIDEO_EXTENSIONS.has(e)) return 'video';

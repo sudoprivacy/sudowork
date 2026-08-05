@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Unified fetch client for enterprise MCP APIs.
  * - Pulls Bearer token via the caller-supplied tokenProvider (kept as a function
  *   so this module stays decoupled from React context).

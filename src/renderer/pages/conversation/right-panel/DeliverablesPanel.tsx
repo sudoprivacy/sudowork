@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { FileCabinet } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +13,7 @@ import GeneratedFileCards from '@/renderer/messages/GeneratedFileCard';
 
 interface DeliverablesPanelProps {
   conversationId?: string;
+  teamId?: string;
   active?: boolean;
 }
 
@@ -19,21 +26,22 @@ interface DeliverablesPanelProps {
  * Dedupe semantics match the backend service: latest-wins per absolute path,
  * so re-generating a file shows the newest snapshot, not a log.
  */
-const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId }) => {
+const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, teamId }) => {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<GeneratedFileEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Cold-load whenever the conversation changes.
+  // Cold-load whenever the conversation/team changes.
   useEffect(() => {
-    if (!conversationId) {
+    const key = teamId ? { teamId } : conversationId ? { conversationId } : null;
+    if (!key) {
       setEntries([]);
       return;
     }
     let cancelled = false;
     setLoading(true);
     ipcBridge.deliverables.list
-      .invoke({ conversationId })
+      .invoke(key)
       .then((res) => {
         if (cancelled) return;
         if (res?.success && Array.isArray(res.data)) setEntries(res.data);
@@ -47,19 +55,20 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId })
     return () => {
       cancelled = true;
     };
-  }, [conversationId]);
+  }, [conversationId, teamId]);
 
   // Live appends from AcpAgent at turn-finish.
   useEffect(() => {
-    if (!conversationId) return;
-    const unsubscribe = ipcBridge.deliverables.changed.on(({ conversationId: id, files }) => {
-      if (id !== conversationId) return;
-      setEntries((prev) => mergeEntries(prev, files));
+    if (!teamId && !conversationId) return;
+    const unsubscribe = ipcBridge.deliverables.changed.on((event) => {
+      const matches = teamId ? event.teamId === teamId : event.conversationId === conversationId;
+      if (!matches) return;
+      setEntries((prev) => mergeEntries(prev, event.files));
     });
     return () => {
       unsubscribe();
     };
-  }, [conversationId]);
+  }, [conversationId, teamId]);
 
   const grouped = useMemo(() => groupByDay(entries, t), [entries, t]);
 

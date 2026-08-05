@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
 import type { EditableModel, ProviderRow } from '../types';
 
@@ -9,6 +15,7 @@ export const PROVIDER_PRESETS = [
   { label: 'Kimi 中国版 / Kimi China', value: 'kimi-china', providerId: 'kimi-china', baseUrl: 'https://api.moonshot.cn/v1', apiKeyRequired: true },
   { label: 'MiniMax 中国版 / MiniMax China', value: 'minimax-china', providerId: 'minimax-china', baseUrl: 'https://api.minimax.chat/v1', apiKeyRequired: true },
   { label: '深度求索 / DeepSeek', value: 'deepseek', providerId: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', apiKeyRequired: true },
+  { label: '深度求索 Anthropic / DeepSeek Anthropic', value: 'deepseek-anthropic', providerId: 'deepseek-anthropic', baseUrl: 'https://api.deepseek.com/anthropic', apiKeyRequired: true, api: 'anthropic-messages' },
   { label: 'Ollama 本地 / Ollama', value: 'ollama', providerId: 'ollama', baseUrl: 'http://localhost:11434/v1', apiKeyRequired: false },
   { label: '自定义 / Custom', value: 'custom', providerId: 'custom-openai', baseUrl: '', apiKeyRequired: true },
 ];

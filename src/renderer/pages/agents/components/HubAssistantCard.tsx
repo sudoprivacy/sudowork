@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { Progress, Tooltip } from '@arco-design/web-react';
 import { Bot, Copy, Download, Zap } from 'lucide-react';
@@ -38,7 +44,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-1.5 pr-25 min-w-0'>
+        <div className='flex items-center gap-1.5 pr-32 min-w-0'>
           <span className='min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
           {latestVersion && <span className='px-5px py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
@@ -59,6 +65,11 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
             {!hasUpdate && !updating && (
               <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
                 {t('settings.assistant.installed', '已安装')}
+              </span>
+            )}
+            {hasUpdate && !updating && (
+              <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
+                {t('settings.assistant.updateAvailable', '可更新')}
               </span>
             )}
             <Tooltip content={t('settings.assistant.duplicate', '复制')}>

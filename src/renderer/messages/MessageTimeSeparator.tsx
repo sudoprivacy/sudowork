@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatMessageTime } from '@/renderer/utils/messageTime';
@@ -18,7 +24,7 @@ const MessageTimeSeparator: React.FC<MessageTimeSeparatorProps> = React.memo(({ 
 
   return (
     <div className='flex justify-center items-center py-8px px-8px max-w-full md:max-w-780px mx-auto'>
-      <span className='text-11px text-[color:var(--color-text-4)] select-none'>{timeStr}</span>
+      <span className='text-11px text-4 select-none'>{timeStr}</span>
     </div>
   );
 });

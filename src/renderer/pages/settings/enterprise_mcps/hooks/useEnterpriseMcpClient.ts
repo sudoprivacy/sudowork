@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useMemo } from 'react';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { createEnterpriseMcpClient, type EnterpriseMcpClient } from '../api/client';

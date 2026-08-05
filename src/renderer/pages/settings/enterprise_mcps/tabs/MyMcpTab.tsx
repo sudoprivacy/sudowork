@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useMemo, useState } from 'react';
 import { Switch, Button, Popconfirm, Message } from '@arco-design/web-react';
 import { IconEdit, IconDelete } from '@arco-design/web-react/icon';

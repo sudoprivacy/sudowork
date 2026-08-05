@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Message } from '@arco-design/web-react';
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { ArrowLeft, AtSign, Bot, SquarePen } from 'lucide-react';
@@ -121,11 +127,13 @@ const GuidPage: React.FC = () => {
     // Agent state
     selectedAgent: agentSelection.selectedAgent,
     selectedAgentKey: agentSelection.selectedAgentKey,
+    modelBackendKey: agentSelection.modelBackendKey,
     selectedAgentInfo: agentSelection.selectedAgentInfo,
     isPresetAgent: agentSelection.isPresetAgent,
     selectedMode: agentSelection.selectedMode,
     selectedAcpModel: agentSelection.selectedAcpModel,
     currentModel: modelSelection.currentModel,
+    currentAcpCachedModelInfo: agentSelection.currentAcpCachedModelInfo,
     sessionMode: agentSelection.sessionMode,
 
     // Agent helpers

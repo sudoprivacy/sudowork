@@ -155,7 +155,11 @@
       "openFailed": "開啟失敗",
       "revealFailed": "無法開啟所在資料夾",
       "uploadToBdpan": "上傳至百度網盤",
-      "newFolder": "新增資料夾"
+      "newFolder": "新增資料夾",
+      "download": "下載",
+      "downloadSuccess": "下載成功",
+      "downloadFailed": "下載失敗",
+      "downloadTooLarge": "檔案超過伺服器下載上限（文字 2MB / 其他 20MB）"
     },
     "newFolder": {
       "title": "新增資料夾",

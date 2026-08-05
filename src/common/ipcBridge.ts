@@ -39,6 +39,22 @@ import type {
   IDigitalEmployeeUpdateInput,
   IDigitalEmployeeWorkRecord,
 } from './digitalEmployee';
+import type {
+  ILocalKbAddFilesInput,
+  ILocalKbBuildJob,
+  ILocalKbCategory,
+  ILocalKbCreateCategoryInput,
+  ILocalKbCreateSpaceInput,
+  ILocalKbDeleteDocumentInput,
+  ILocalKbDependencyStatus,
+  ILocalKbDocument,
+  ILocalKbInstallEmbeddingModelInput,
+  ILocalKbInstallProgress,
+  ILocalKbSearchResult,
+  ILocalKbSetDirectoryInput,
+  ILocalKbSpace,
+  ILocalKbUpdateSpaceInput,
+} from './types/localKnowledgeBase';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -640,10 +656,11 @@ export const deliverables = {
         createdAt: number;
       }>
     >,
-    { conversationId: string }
+    { conversationId?: string; teamId?: string }
   >('deliverables.list'),
   changed: bridge.buildEmitter<{
     conversationId: string;
+    teamId?: string;
     files: Array<{
       path: string;
       relativePath?: string;
@@ -723,6 +740,30 @@ export const libreOffice = {
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
 };
 
+export const localKnowledgeBase = {
+  listCategories: bridge.buildProvider<IBridgeResponse<ILocalKbCategory[]>, void>('local-kb.categories.list'),
+  createCategory: bridge.buildProvider<IBridgeResponse<ILocalKbCategory>, ILocalKbCreateCategoryInput>('local-kb.categories.create'),
+  updateCategory: bridge.buildProvider<IBridgeResponse<ILocalKbCategory>, { id: string; updates: Partial<ILocalKbCreateCategoryInput> }>('local-kb.categories.update'),
+  deleteCategory: bridge.buildProvider<IBridgeResponse<void>, { id: string }>('local-kb.categories.delete'),
+  listSpaces: bridge.buildProvider<IBridgeResponse<ILocalKbSpace[]>, { categoryId?: string | null } | undefined>('local-kb.spaces.list'),
+  createSpace: bridge.buildProvider<IBridgeResponse<ILocalKbSpace>, ILocalKbCreateSpaceInput>('local-kb.spaces.create'),
+  updateSpace: bridge.buildProvider<IBridgeResponse<ILocalKbSpace>, { id: string; updates: ILocalKbUpdateSpaceInput }>('local-kb.spaces.update'),
+  deleteSpace: bridge.buildProvider<IBridgeResponse<void>, { id: string }>('local-kb.spaces.delete'),
+  listDocuments: bridge.buildProvider<IBridgeResponse<ILocalKbDocument[]>, { spaceId: string }>('local-kb.documents.list'),
+  addFiles: bridge.buildProvider<IBridgeResponse<ILocalKbDocument[]>, ILocalKbAddFilesInput>('local-kb.documents.add-files'),
+  setDirectory: bridge.buildProvider<IBridgeResponse<ILocalKbDocument[]>, ILocalKbSetDirectoryInput>('local-kb.documents.set-directory'),
+  deleteDocument: bridge.buildProvider<IBridgeResponse<void>, ILocalKbDeleteDocumentInput>('local-kb.documents.delete'),
+  queueBuild: bridge.buildProvider<IBridgeResponse<ILocalKbBuildJob>, { spaceId: string }>('local-kb.build.queue'),
+  getBuildStatus: bridge.buildProvider<IBridgeResponse<{ space: ILocalKbSpace; latestJob: ILocalKbBuildJob | null }>, { spaceId: string }>('local-kb.build.status'),
+  listBuildJobs: bridge.buildProvider<IBridgeResponse<ILocalKbBuildJob[]>, { spaceId: string; limit?: number }>('local-kb.build.jobs'),
+  search: bridge.buildProvider<IBridgeResponse<ILocalKbSearchResult>, { spaceId: string; query: string }>('local-kb.search'),
+  searchMany: bridge.buildProvider<IBridgeResponse<ILocalKbSearchResult>, { spaceIds: string[]; query: string }>('local-kb.search-many'),
+  getDependencyStatus: bridge.buildProvider<IBridgeResponse<ILocalKbDependencyStatus>, void>('local-kb.dependencies.status'),
+  installEmbeddingModel: bridge.buildProvider<IBridgeResponse<void>, ILocalKbInstallEmbeddingModelInput | undefined>('local-kb.dependencies.embedding.install'),
+  installEmbeddingModelProgress: bridge.buildEmitter<ILocalKbInstallProgress>('local-kb.dependencies.embedding.install-progress'),
+  installEmbeddingModelResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('local-kb.dependencies.embedding.install-result'),
+};
+
 // FUSE-T installer (macOS) / FUSE-T 安装（macOS 专用）
 // Userspace FUSE driver required by nexus-fuse-plugin on macOS. Lazy: NOT
 // invoked from RuntimeInstaller.ensureAll() — callers (sudocode mount path,
@@ -799,6 +840,18 @@ export const pythonRuntime = {
   installProgress: bridge.buildEmitter<{ phase: IPythonInstallPhase; percent?: number }>('python-runtime.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('python-runtime.install-result'),
+};
+
+// Poppler runtime installer / Poppler PDF 工具安装
+export type IPopplerInstallPhase = 'downloading' | 'extracting' | 'verifying' | 'cleanup';
+
+export const popplerRuntime = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('poppler-runtime.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('poppler-runtime.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('poppler-runtime.uninstall'),
+  getInstallState: bridge.buildProvider<IBridgeResponse<{ installing: boolean; phase?: IPopplerInstallPhase; percent?: number }>, void>('poppler-runtime.get-install-state'),
+  installProgress: bridge.buildEmitter<{ phase: IPopplerInstallPhase; percent?: number }>('poppler-runtime.install-progress'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('poppler-runtime.install-result'),
 };
 
 // Sudoclaw config (~/.nexus/sudoclaw) / Sudoclaw 配置
@@ -928,7 +981,7 @@ export const scode = {
   restoreCustomModelProviders: bridge.buildProvider<IBridgeResponse<ScodeConfig>, { userId: string; baseConfig?: ScodeConfig }>('scode.restore-custom-model-providers'),
   /** Update only the default_model field in sudocode.json */
   setDefaultModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string }>('scode.set-default-model'),
-  /** Fetch live model list from sudorouter specific_pricing, rewrite sudocode.json models, return resolved model info */
+  /** Read the pre-connection model list from sudocode.json (fallback before ACP is connected) */
   refreshModels: bridge.buildProvider<IBridgeResponse<AcpModelInfo>, void>('scode.refresh-models'),
   /** Read-only fetch of sudorouter specific_pricing items (no write to sudocode.json) */
   fetchSpecificPricing: bridge.buildProvider<IBridgeResponse<SpecificPricingItem[]>, void>('scode.fetch-specific-pricing'),
@@ -1793,6 +1846,12 @@ export interface ISkillDownloadResult {
   filePath: string;
 }
 
+export interface ISkillUploadResult {
+  id: string;
+  name: string;
+  status: 'pending' | 'approved';
+}
+
 export interface ISkillHubDetail {
   skill: ISkillHubSkill;
   versions: ISkillHubVersion[];
@@ -1872,6 +1931,10 @@ export const skillHub = {
   downloadSkillZip: bridge.buildProvider<IBridgeResponse<ISkillDownloadResult>, { skillName: string; version: string; sourceUrl: string; checksum?: string }>('skill-hub.download-skill-zip'),
   /** Import a local skill zip package or directory and synthesize metadata from SKILL.md */
   importLocalSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { sourcePath: string }>('skill-hub.import-local-skill'),
+  /** Upload a personal-mode custom skill to SkillHub as a tenant-exclusive skill pending approval */
+  uploadSkillToHub: bridge.buildProvider<IBridgeResponse<ISkillUploadResult>, { skillName: string; tenantId: string }>('skill-hub.upload-skill-to-hub'),
+  /** Refresh local approval status for custom skills uploaded to SkillHub */
+  refreshUploadedSkillStatuses: bridge.buildProvider<IBridgeResponse<{ checked: number; updated: number }>, void>('skill-hub.refresh-uploaded-skill-statuses'),
   /** Get installed skills with rich metadata */
   getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
   /** Enable or disable a custom installed skill. Optionally specify category to disambiguate skills with same name in different directories. */
@@ -1972,6 +2035,8 @@ export interface IAssistantInstallResult {
 export const assistantHub = {
   /** Get all installed assistants (enabled + disabled) with full metadata */
   getInstalledAssistants: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, void>('assistant-hub.get-installed-assistants'),
+  /** Refresh local approval status for custom assistants uploaded to Assistant Hub */
+  refreshUploadedAssistantStatuses: bridge.buildProvider<IBridgeResponse<{ checked: number; updated: number }>, void>('assistant-hub.refresh-uploaded-assistant-statuses'),
   /**
    * Same as `getInstalledAssistants` but reconciles with sudowork-server's
    * `/agents/visible` to filter out hub/tenant assistants the current user is
@@ -1994,7 +2059,7 @@ export const assistantHub = {
 
   // === Hub API methods (parallel to skillHub) ===
   /** Fetch assistants list from Assistant Hub API with cursor-based pagination */
-  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string; sourceType?: 'hub' | 'tenant' }>('assistant-hub.fetch-assistants'),
+  fetchAssistants: bridge.buildProvider<IBridgeResponse<IAssistantHubListResponse>, { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string; sourceType?: 'hub' | 'tenant'; accessToken?: string }>('assistant-hub.fetch-assistants'),
   /** Fetch assistant categories from Assistant Hub API (type=1 for assistants) */
   fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('assistant-hub.fetch-categories'),
   /** Fetch assistant detail from Assistant Hub API */
@@ -2724,6 +2789,7 @@ export const eeclaw = {
       sudorouter_key?: string;
       model_service_url?: string;
       models?: string[];
+      scode_auto_model?: string;
     }>,
     { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string; params?: Record<string, string> }; deviceId: string }
   >('eeclaw.login'),

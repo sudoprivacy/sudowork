@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Message, Popconfirm, Space, Spin, Tag, Typography } from '@arco-design/web-react';
 import { IconCloud, IconDelete, IconEdit, IconPlus, IconRefresh, IconSettings } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -6,13 +12,25 @@ import { ipcBridge } from '@/common';
 import type { ScodeConfig } from '@/common/ipcBridge';
 import { extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { useAuth } from '@/renderer/context/AuthContext';
+import { GUEST_USER_ID, useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import type { EditingModelTarget, ProviderRow } from './types';
 import { buildProviderRows, contextLabel, findModelEntry, getConfiguredModelIds, maskSecret, normalizeDefaultModel } from './utils';
 import AddModelDialog from './components/AddModelDialog';
 
 const { Text } = Typography;
+
+function protocolLabel(api?: string): { color: 'arcoblue' | 'green' | 'purple'; i18nKey: string; fallback: string } {
+  switch (api) {
+    case 'openai-responses':
+      return { color: 'green', i18nKey: 'settings.sudocodeModel.protocolOpenAIResponses', fallback: 'OpenAI Responses' };
+    case 'anthropic-messages':
+      return { color: 'purple', i18nKey: 'settings.sudocodeModel.protocolAnthropicMessages', fallback: 'Anthropic Messages' };
+    case 'openai-completions':
+    default:
+      return { color: 'arcoblue', i18nKey: 'settings.sudocodeModel.protocolOpenAICompletions', fallback: 'OpenAI Chat Completions' };
+  }
+}
 
 const SudocodeModelSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -53,12 +71,11 @@ const SudocodeModelSettings: React.FC = () => {
           Message.error(res?.msg || t('settings.sudocodeModel.saveConfigFailed', '保存模型配置失败'));
           return;
         }
-        if (user?.id) {
-          const persistRes = await ipcBridge.scode.saveCustomModelProviders.invoke({ userId: user.id, providers: extractCustomProvidersFromScodeConfig(nextConfig) });
-          if (!persistRes?.success) {
-            Message.error(persistRes?.msg || t('settings.sudocodeModel.saveCustomProvidersFailed', '保存第三方模型配置失败'));
-            return;
-          }
+        const userId = user?.id ?? GUEST_USER_ID;
+        const persistRes = await ipcBridge.scode.saveCustomModelProviders.invoke({ userId, providers: extractCustomProvidersFromScodeConfig(nextConfig) });
+        if (!persistRes?.success) {
+          Message.error(persistRes?.msg || t('settings.sudocodeModel.saveCustomProvidersFailed', '保存第三方模型配置失败'));
+          return;
         }
         setConfig(nextConfig);
         Message.success(t('settings.sudocodeModel.saveConfigSuccess', '模型配置已保存'));
@@ -98,6 +115,14 @@ const SudocodeModelSettings: React.FC = () => {
       await saveConfig(removeCustomProviderFromScodeConfig(config || {}, providerId));
     },
     [config, saveConfig]
+  );
+
+  const getProviderProtocolLabels = useCallback(
+    (provider: ProviderRow) => {
+      const apis = new Set(provider.modelIds.map((modelId) => findModelEntry(config, modelId)?.providers?.['api-key']?.api || 'openai-completions'));
+      return Array.from(apis).map((api) => protocolLabel(api));
+    },
+    [config]
   );
 
   return (
@@ -152,7 +177,7 @@ const SudocodeModelSettings: React.FC = () => {
               <div className='border border-light border-dashed rd-3 bg-muted py-12 text-center'>
                 <IconSettings className='text-32px text-tertiary mb-3' />
                 <div className='text-15px font-600 text-foreground mb-1'>{t('settings.sudocodeModel.noCustomProviders', '还没有第三方模型')}</div>
-                <Text type='secondary'>{t('settings.sudocodeModel.noCustomProvidersHint', '添加 OpenAI 兼容 API 后，可在 Sudo Code 模型下拉中选择。')}</Text>
+                <Text type='secondary'>{t('settings.sudocodeModel.noCustomProvidersHint', '添加 OpenAI/Anthropic 兼容 API 后，可在 Sudo Code 模型下拉中选择。')}</Text>
               </div>
             ) : (
               customProviders.map((provider) => (
@@ -162,7 +187,11 @@ const SudocodeModelSettings: React.FC = () => {
                       <div className='flex items-center gap-2 font-600 text-foreground'>
                         <IconCloud className='text-18px' />
                         <span className='truncate'>{provider.id}</span>
-                        <Tag color='blue'>{t('settings.sudocodeModel.openAICompatibleTag', 'OpenAI 兼容')}</Tag>
+                        {getProviderProtocolLabels(provider).map((item) => (
+                          <Tag key={item.i18nKey} color={item.color}>
+                            {t(item.i18nKey, item.fallback)}
+                          </Tag>
+                        ))}
                       </div>
                       <div className='text-12px text-secondary truncate mt-1'>{provider.baseUrl}</div>
                     </div>

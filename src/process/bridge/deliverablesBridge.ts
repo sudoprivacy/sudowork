@@ -15,9 +15,9 @@ import { mainError } from '@process/utils/mainLogger';
  * each time a new turn surfaces deliverables.
  */
 export function initDeliverablesBridge(): void {
-  ipcBridge.deliverables.list.provider(async ({ conversationId }) => {
+  ipcBridge.deliverables.list.provider(async ({ conversationId, teamId }) => {
     try {
-      const files = deliverablesService.listForConversation(conversationId);
+      const files = teamId ? deliverablesService.listForTeam(teamId) : deliverablesService.listForConversation(conversationId ?? '');
       return { success: true, data: files };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);

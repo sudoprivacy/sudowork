@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { TChatConversation } from '@/common/storage';
 import { STORAGE_KEYS } from '@/common/storageKeys';

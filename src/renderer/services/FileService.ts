@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { ipcBridge } from '@/common';
 // Simple formatBytes implementation moved from deleted updateConfig
 function formatBytes(bytes: number, decimals = 2): string {
@@ -55,9 +61,19 @@ export function getFileExtension(fileName: string): string {
 
 import { NEXUS_TIMESTAMP_REGEX } from '@/common/constants';
 
-// 清理Nexus时间戳后缀，返回原始文件名
+// 清理Nexus时间戳后缀，返回原始文件名。
+// 循环去除：历史文件可能带有多个累积的后缀（修复前会产生
+// a_nexus_<t1>_nexus_<t2>.xlsx），单次 replace 只能去掉一个。
+// Loops so that legacy names carrying several accumulated suffixes are
+// fully cleaned — a single replace only strips the last one.
 export function cleanNexusTimestamp(fileName: string): string {
-  return fileName.replace(NEXUS_TIMESTAMP_REGEX, '$1');
+  let out = fileName;
+  for (let i = 0; i < 16; i++) {
+    const next = out.replace(NEXUS_TIMESTAMP_REGEX, '$1');
+    if (next === out) break;
+    out = next;
+  }
+  return out;
 }
 
 // 从文件路径获取清理后的文件名（用于UI显示）

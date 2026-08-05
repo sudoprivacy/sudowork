@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { ReactNode } from 'react';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';

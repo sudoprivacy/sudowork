@@ -22,8 +22,7 @@ import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService'
 import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerationModelSync';
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
-import type { ScodeModelEntry } from '@/common/ipcBridge';
-import { addScodeAutoModel, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
+import { mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, normalizeScodeModelApiTypesInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
 import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 const TAG = 'ScodeBridge';
@@ -126,59 +125,10 @@ export async function fetchSpecificPricingItems(): Promise<SpecificPricingItem[]
   return json.data.filter((it): it is SpecificPricingItem => typeof it?.model_id === 'string' && it.model_id.trim().length > 0);
 }
 
-/**
- * Fetch the live model list from sudorouter's specific_pricing endpoint and
- * rewrite ONLY the `models` dict of sudocode.json. Preserves auth_modes /
- * default_model / web_search / tools.
- *
- * Best-effort: on any fetch/parse failure (offline, timeout, success=false)
- * this is a no-op — sudocode.json keeps its existing models so the dropdown
- * degrades to the last-known list instead of going empty.
- */
-export async function syncScodeModelsFromPricing(): Promise<void> {
-  const pricingItems = await fetchSpecificPricingItems();
-
-  const modelIds = pricingItems.map((m) => m.model_id.trim()).filter(Boolean);
-  if (modelIds.length === 0) {
-    mainWarn(TAG, 'specific_pricing returned empty model list, keeping existing models');
-    return;
-  }
-
-  const existing = readExistingConfig();
-  const normalizedExisting = normalizeCustomApiKeyModelsInScodeConfig(existing);
-  const normalizedExistingModels = normalizedExisting.models || {};
-  const existingModels = (normalizedExistingModels && typeof normalizedExistingModels === 'object' ? normalizedExistingModels : {}) as Record<string, ScodeModelEntry>;
-  const models: Record<string, ScodeModelEntry> = {};
-  for (const [alias, entry] of Object.entries(existingModels)) {
-    if (entry?.providers?.proxy?.provider !== 'sudorouter') {
-      models[alias] = entry;
-    }
-  }
-
-  addScodeAutoModel(models, modelIds, pricingItems);
-  for (const modelId of modelIds) {
-    models[modelId] = {
-      alias: modelId,
-      name: modelId,
-      input: modelInputForModelId(modelId),
-      providers: {
-        proxy: { provider: 'sudorouter', model: modelId, api: 'openai-completions' },
-      },
-    };
-  }
-
-  normalizedExisting.models = models; // only replace `models`; other keys preserved
-  if (typeof normalizedExisting.default_model === 'string' && !models[normalizedExisting.default_model]) {
-    const fallbackModel = modelIds[0];
-    if (fallbackModel) {
-      normalizedExisting.default_model = fallbackModel;
-    } else {
-      delete normalizedExisting.default_model;
-    }
-  }
-  writeConfig(normalizedExisting as unknown as Record<string, unknown>);
-  mainLog(TAG, `Synced ${modelIds.length} sudorouter models from specific_pricing into sudocode.json`);
-}
+// NOTE: syncScodeModelsFromPricing() was removed. Model discovery is now
+// handled by scode's capabilities SSOT (model-capabilities.json), which is
+// refreshed from sudorouter's /v1/models endpoint every 24h and exposed via
+// ACP get_model_info(). See sudoprivacy/sudocode#344.
 
 /**
  * Resolve the image generation model id for a main-process sync point (startup /
@@ -292,23 +242,23 @@ async function migrateVisionInputOnStartup(): Promise<void> {
   }
 }
 
-async function migrateCustomApiKeyModelsOnStartup(): Promise<void> {
+async function normalizeScodeModelEntriesOnStartup(): Promise<void> {
   try {
     const config = readExistingConfig();
-    const normalizedConfig = normalizeCustomApiKeyModelsInScodeConfig(config) as unknown as Record<string, unknown>;
+    const normalizedConfig = normalizeScodeModelApiTypesInScodeConfig(normalizeCustomApiKeyModelsInScodeConfig(config)) as unknown as Record<string, unknown>;
     if (JSON.stringify(config) !== JSON.stringify(normalizedConfig)) {
       writeConfig(normalizedConfig);
-      mainLog(TAG, 'Normalized custom api-key models in sudocode.json');
+      mainLog(TAG, 'Normalized model entries in sudocode.json');
     }
   } catch (err) {
-    mainWarn(TAG, `Failed to normalize custom api-key models: ${err instanceof Error ? err.message : String(err)}`);
+    mainWarn(TAG, `Failed to normalize scode model entries: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
 export function registerScodeBridge(): void {
   void syncImageModelOnStartup();
   void ensureSettingsModelOnStartup();
-  void migrateCustomApiKeyModelsOnStartup();
+  void normalizeScodeModelEntriesOnStartup();
   void migrateVisionInputOnStartup();
   ipcBridge.scode.getConfig.provider(async () => {
     try {
@@ -331,7 +281,7 @@ export function registerScodeBridge(): void {
           incoming.web_search = existing.web_search;
         }
       }
-      writeConfig(normalizeCustomApiKeyModelsInScodeConfig(incoming) as unknown as Record<string, unknown>);
+      writeConfig(normalizeScodeModelApiTypesInScodeConfig(normalizeCustomApiKeyModelsInScodeConfig(incoming)) as unknown as Record<string, unknown>);
       mainLog(TAG, 'Saved sudocode.json config');
       return { success: true };
     } catch (err) {
@@ -378,7 +328,9 @@ export function registerScodeBridge(): void {
 
   ipcBridge.scode.refreshModels.provider(async () => {
     try {
-      await syncScodeModelsFromPricing();
+      // Model discovery is now handled by scode's capabilities SSOT
+      // (model-capabilities.json, refreshed from sudorouter /v1/models).
+      // This handler reads the pre-connection fallback from sudocode.json.
       const { getScodeProxyModelInfoSync } = await import('@process/services/scode/scodeProxyModels');
       const info = getScodeProxyModelInfoSync();
       if (!info) {

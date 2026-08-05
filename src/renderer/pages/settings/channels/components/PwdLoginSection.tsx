@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * 网站自动登录 (pwd_login) section of 秘钥管理.
  *
  * Lists pwd_login sites — built-in adapters + agent-registered custom sites

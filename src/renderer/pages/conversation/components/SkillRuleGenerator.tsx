@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Radio, Message, Dropdown, Menu, List, Spin, Empty, Typography, Input } from '@arco-design/web-react';
 import { Magic, FolderOpen, Lightning } from '@icon-park/react';
@@ -109,7 +115,7 @@ Please acknowledge receiving this rule/skill and confirm you will apply it.
                   <div className='bg-primary-light-1 p-2 rounded'>{file.name.endsWith('.py') ? <Lightning size={18} fill='var(--color-primary-6)' /> : <FolderOpen size={18} fill='var(--color-primary-6)' />}</div>
                   <div className='flex-1'>
                     <Typography.Text bold>{file.name}</Typography.Text>
-                    <div className='text-[var(--color-text-3)] text-xs truncate'>{file.relativePath || file.name}</div>
+                    <div className='text-3 text-xs truncate'>{file.relativePath || file.name}</div>
                   </div>
                   {loadingFile && <Spin size={16} />}
                 </div>

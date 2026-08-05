@@ -54,7 +54,9 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
   if (extra.backend === 'scode') {
     ensureWorkspaceAgentsMdRules(workspace);
   }
-  const currentModelId = extra.currentModelId || getDefaultAcpModelId(extra.backend) || undefined;
+  // team 成员不写入默认 model，使 getModelInfo 实时解析 sudocode.json 的 default_model，
+  // 与 UI/runtime 同源，保证 UI 显示与实际使用一致；非 team 会话保持原 backend 默认行为。
+  const currentModelId = extra.currentModelId || (extra.isTeamMember ? null : getDefaultAcpModelId(extra.backend)) || undefined;
   return {
     type: 'acp',
     extra: {

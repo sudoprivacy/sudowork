@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Modal, Tooltip } from '@arco-design/web-react';
 import { IconSearch } from '@arco-design/web-react/icon';
@@ -30,7 +36,7 @@ import type { IBridgeResponse, SkillLatestVersion, SkillDetailResponse, SkillSto
 
 const SkillSettings: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const navigate = useNavigate();
 
   // Tab state
@@ -109,6 +115,7 @@ const SkillSettings: React.FC = () => {
 
   // Upload/Publish state for enterprise mode
   const [publishingSkillName, setPublishingSkillName] = useState<string | null>(null);
+  const [uploadingSkillName, setUploadingSkillName] = useState<string | null>(null);
 
   // Track if sync has been triggered for current tab session (avoid loop)
   const syncTriggeredRef = useRef(false);
@@ -151,12 +158,15 @@ const SkillSettings: React.FC = () => {
   }, []);
 
   // ---- Fetch installed list (for installed tab) ----
-  const fetchInstalledList = useCallback(async () => {
+  const fetchInstalledList = useCallback(async (options?: { isSilent?: boolean }) => {
     if (!isElectronDesktop()) {
       setInstalledSkillsReady(true);
       return;
     }
-    setInstalledLoading(true);
+    const isSilent = options?.isSilent === true;
+    if (!isSilent) {
+      setInstalledLoading(true);
+    }
     try {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
@@ -166,10 +176,21 @@ const SkillSettings: React.FC = () => {
     } catch (err) {
       console.error('Failed to fetch installed list:', err);
     } finally {
-      setInstalledLoading(false);
+      if (!isSilent) {
+        setInstalledLoading(false);
+      }
       setInstalledSkillsReady(true);
     }
   }, []);
+
+  const refreshUploadedSkillStatuses = useCallback(async () => {
+    if (!isElectronDesktop() || isEnterprise) return;
+    try {
+      await skillHub.refreshUploadedSkillStatuses.invoke();
+    } catch (statusError) {
+      console.error('Failed to refresh uploaded skill statuses:', statusError);
+    }
+  }, [isEnterprise]);
 
   // ---- Enterprise mode: Upload custom skill to Moss Server ----
   const handleUploadCustomSkill = useCallback(
@@ -201,6 +222,79 @@ const SkillSettings: React.FC = () => {
       }
     },
     [fetchInstalledList, t]
+  );
+
+  const onConfirmUploadSkillToHub = useCallback(
+    async (skill: IInstalledSkillInfo) => {
+      if (!isElectronDesktop() || isEnterprise) return;
+
+      const tenantId = enterpriseCode?.trim();
+      if (!tenantId) {
+        Message.warning(t('settings.skill.uploadNoTenantId', '当前账号没有租户 ID，无法上传技能'));
+        return;
+      }
+
+      const skillName = skill.name;
+      const displayName = skill.meta?.display_name || skillName;
+      setUploadingSkillName(skillName);
+      try {
+        const res = await skillHub.uploadSkillToHub.invoke({ skillName, tenantId });
+        if (res.success && res.data) {
+          Message.success(
+            t('settings.skill.uploadSubmittedSuccess', {
+              name: displayName,
+              defaultValue: '技能 "{{name}}" 已提交审批，等待管理员审核',
+            })
+          );
+          await fetchInstalledSkills();
+          await fetchInstalledList();
+          emitter.emit('skills.changed');
+        } else {
+          Message.error(
+            t('settings.skill.uploadFailed', {
+              msg: res.msg || 'Unknown error',
+              defaultValue: '上传失败: {{msg}}',
+            })
+          );
+        }
+      } catch (err) {
+        console.error('Failed to upload skill to SkillHub:', err);
+        Message.error(
+          t('settings.skill.uploadFailed', {
+            msg: String(err),
+            defaultValue: '上传失败: {{msg}}',
+          })
+        );
+      } finally {
+        setUploadingSkillName(null);
+      }
+    },
+    [enterpriseCode, fetchInstalledSkills, fetchInstalledList, isEnterprise, t]
+  );
+
+  const onUploadSkillToHub = useCallback(
+    (skill: IInstalledSkillInfo) => {
+      if (!isElectronDesktop() || isEnterprise) return;
+
+      const tenantId = enterpriseCode?.trim();
+      if (!tenantId) {
+        Message.warning(t('settings.skill.uploadNoTenantId', '当前账号没有租户 ID，无法上传技能'));
+        return;
+      }
+
+      const displayName = skill.meta?.display_name || skill.name;
+      Modal.confirm({
+        title: t('settings.skill.uploadConfirmTitle', '上传技能'),
+        content: t('settings.skill.uploadConfirmContent', {
+          name: displayName,
+          defaultValue: '确认将技能 "{{name}}" 上传到 SkillHub？上传后需要管理员审批，审批通过后同租户用户可在专属技能中使用。',
+        }),
+        okText: t('common.confirm', '确定'),
+        cancelText: t('common.cancel', '取消'),
+        onOk: () => onConfirmUploadSkillToHub(skill),
+      });
+    },
+    [enterpriseCode, isEnterprise, onConfirmUploadSkillToHub, t]
   );
 
   const handleImportLocalSkill = useCallback(
@@ -640,9 +734,12 @@ const SkillSettings: React.FC = () => {
   // Load installed list when switching to installed tab
   useEffect(() => {
     if (activeTab === 'installed') {
-      void fetchInstalledList();
+      void (async () => {
+        await refreshUploadedSkillStatuses();
+        await fetchInstalledList({ isSilent: true });
+      })();
     }
-  }, [activeTab, fetchInstalledList]);
+  }, [activeTab, fetchInstalledList, refreshUploadedSkillStatuses]);
 
   // Fetch latest hub versions for installed hub skills so we can detect updates
   // Only in personal mode (not enterprise) - enterprise mode doesn't interact with SkillHub
@@ -964,6 +1061,19 @@ const SkillSettings: React.FC = () => {
         const skillHasUpdate = skill.isHubInstalled && !!latestVer && (!installedVer || latestVer.version !== installedVer);
         // Pass category to handlers for precise skill location
         const skillCategory = skill.category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
+        const isCustomSkill = skillCategory === 'custom' || (!skillCategory && !skill.isBuiltin && skill.meta?.source_type === 'upload');
+        const skillHubPublishStatus = skill.meta?.publish_status || (skill.meta?.uploaded ? 'pending' : undefined);
+        const uploadStatus =
+          !isEnterprise && isCustomSkill && skillHubPublishStatus === 'pending' ? (
+            <Tooltip content={t('settings.skill.uploadPending', '上传审批中')}>
+              <span className='store-action-badge'>{t('settings.skill.publishPendingShort', '审核中')}</span>
+            </Tooltip>
+          ) : !isEnterprise && isCustomSkill && skillHubPublishStatus === 'approved' ? (
+            <Tooltip content={t('settings.skill.uploadApproved', '已通过审批')}>
+              <span className='store-action-badge text-success'>{t('settings.skill.publishedShort', '已发布')}</span>
+            </Tooltip>
+          ) : undefined;
+        const canUploadToHub = !isEnterprise && isCustomSkill && skillHubPublishStatus !== 'pending' && skillHubPublishStatus !== 'approved';
         return (
           <InstalledSkillCard
             key={`${skill.name}:${installedListRevision}`}
@@ -975,6 +1085,9 @@ const SkillSettings: React.FC = () => {
             hasUpdate={skillHasUpdate}
             onUpdate={() => skillHubId && void handleUpdate(skillHubId, skill.name, skill.meta)}
             updating={updatingSkillId === skillHubId}
+            onUpload={canUploadToHub ? () => onUploadSkillToHub(skill) : undefined}
+            uploading={uploadingSkillName === skill.name}
+            uploadStatus={uploadStatus}
             hideUninstall={hideUninstall}
             onClick={
               skill.meta
@@ -1155,16 +1268,22 @@ const SkillSettings: React.FC = () => {
                   </div>
                 )
               ) : activeTab === 'exclusive' && !enterpriseCode ? (
-                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                  <Shield size={32} className='text-tertiary' />
-                  <span className='text-13px'>{t('settings.skill.noEnterpriseCode', '当前账号没有企业编码，无法加载专属技能。')}</span>
-                </div>
+                isGuest ? (
+                  <HubEmptyState onLogin={() => navigate('/login')} />
+                ) : (
+                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                    <Shield size={32} className='text-tertiary' />
+                    <span className='text-13px'>{t('settings.skill.noEnterpriseCode', '当前账号没有企业编码，无法加载专属技能。')}</span>
+                  </div>
+                )
               ) : loading || !installedSkillsReady ? (
                 <div className='flex justify-center items-center py-12'>
                   <Spin size={28} />
                 </div>
               ) : skills.length === 0 ? (
-                hubError ? (
+                isGuest ? (
+                  <HubEmptyState onLogin={() => navigate('/login')} />
+                ) : hubError ? (
                   <HubEmptyState error={hubError} onRetry={() => void fetchSkills()} />
                 ) : (
                   <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>

@@ -11,7 +11,7 @@ import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
 import { assistantManager } from '@/process/AssistantManager';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
-import { ACP_BACKENDS_ALL, resolvePresetAgentBackend, type AcpBackendAll, type PresetAgentType } from '@/types/acpTypes';
+import { ACP_BACKENDS_ALL, resolvePresetAgentBackend, type AcpBackendAll, type AcpModelInfo, type PresetAgentType } from '@/types/acpTypes';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import i18n, { i18nReady } from '@process/i18n';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -553,7 +553,8 @@ class TeamService {
     }
   }
 
-  private async welcomeSpawnedTeammate(teamId: string, member: TeamMember, session: TeamSession): Promise<void> {
+  private async welcomeSpawnedTeammate(teamId: string, member: TeamMember, session: TeamSession, options?: { removeOnFailure?: boolean }): Promise<void> {
+    const { removeOnFailure = true } = options ?? {};
     const team = teamStore.getTeam(teamId);
     if (!team) return;
     const welcomeFrom = this.leaderSlotOrNull(teamId) ?? 'user';
@@ -572,7 +573,7 @@ class TeamService {
         created_at: Date.now(),
       });
     } catch (error) {
-      await this.removeMember(teamId, member.id);
+      if (removeOnFailure) await this.removeMember(teamId, member.id);
       throw error;
     }
     const { lease } = session.teamRun.acquireWake(member.id, member.role, 'spawn_welcome');
@@ -694,6 +695,7 @@ class TeamService {
       const members = teamStore.listMembersByTeam(teamId);
       for (const m of members) {
         if (!m.conversation_id) continue;
+        const wasPending = m.status === 'pending';
         const convResult = getDatabase().getConversation(m.conversation_id);
         if (!convResult.success || !convResult.data) throw new Error(`Failed to load team member conversation: ${m.name}`);
         const teamMcpConfig = this.buildTeamMcpConfig(session, m.id);
@@ -706,6 +708,13 @@ class TeamService {
         if (!attached) throw new Error(`Failed to attach team member: ${m.name}`);
         teamStore.updateMember(m.id, { status: 'idle', conversation_id: m.conversation_id });
         ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: m.id, status: 'idle' });
+        if (m.role === 'teammate' && wasPending) {
+          try {
+            await this.welcomeSpawnedTeammate(teamId, m, session, { removeOnFailure: false });
+          } catch (error) {
+            mainWarn('TeamService', `Failed to welcome rebuilt teammate ${m.id}:`, error);
+          }
+        }
       }
       new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
       mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
@@ -737,6 +746,23 @@ class TeamService {
     if (!toolCallId.trim()) throw new Error('Invalid toolCallId');
 
     await runtime.agent.answerQuestion(toolCallId, this.sanitizeQuestionAnswers(answers));
+  }
+
+  /** Model info for a team member's live agent, routed by conversation_id. */
+  getMemberModelInfo(conversationId: string): AcpModelInfo | null {
+    const found = this.findMemberByConversation(conversationId);
+    if (!found) return null;
+    const agent = this.getRuntime(found.teamId, found.slotId)?.agent;
+    return agent ? agent.getModelInfo() : null;
+  }
+
+  /** Switch model for a team member's live agent, routed by conversation_id. */
+  async setMemberModel(conversationId: string, modelId: string): Promise<AcpModelInfo | null> {
+    const found = this.findMemberByConversation(conversationId);
+    if (!found) throw new Error('Team member not found for conversation');
+    const agent = this.getRuntime(found.teamId, found.slotId)?.agent;
+    if (!agent) throw new Error('Team member agent not available');
+    return agent.setModel(modelId);
   }
 
   /** User message to a specific member (writes mailbox from=user under an operation lease, then wakes the loop). */

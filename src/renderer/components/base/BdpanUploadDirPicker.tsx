@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Input, Message, Modal, Spin } from '@arco-design/web-react';
 import { FolderOpen, FolderPlus, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -237,8 +243,8 @@ const BdpanUploadDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, o
 
     return (
       <div className='flex flex-col h-100'>
-        {/* Local path hint */}
-        <div className='px-4 py-2 bg-[var(--bg-2)] border-b border-[var(--bg-3)] flex-shrink-0 text-13px text-secondary truncate'>
+        {/* Local path hint. 注：border-[var(--bg-3)]（本组件多处）= bg 当边框的既有误用（uno.config:38 警示），零改样重构不处理 */}
+        <div className='px-4 py-2 bg-2 border-b border-[var(--bg-3)] flex-shrink-0 text-13px text-secondary truncate'>
           {t('conversation.bdpan.upload.localPath')}: <span className='font-mono text-foreground'>{localName}</span>
         </div>
 
@@ -282,7 +288,7 @@ const BdpanUploadDirPicker: React.FC<Props> = ({ visible, localPath, onCancel, o
           ) : (
             <>
               {dirs.map((dir) => (
-                <div key={dir.path} className='flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors select-none hover:bg-[var(--bg-2)]' onClick={() => loadFiles(dir.path, root)}>
+                <div key={dir.path} className='flex items-center gap-2.5 px-4 py-2.5 cursor-pointer transition-colors select-none hover:bg-2' onClick={() => loadFiles(dir.path, root)}>
                   <FolderOpen size={18} fill='var(--color-text-3)' />
                   <span className='flex-1 text-foreground text-14px truncate'>{dir.filename}</span>
                   <span className='text-secondary text-12px'>›</span>

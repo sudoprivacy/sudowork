@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { Tag } from '@arco-design/web-react';
 import type { EnterpriseMcpRiskLevel } from '../types';

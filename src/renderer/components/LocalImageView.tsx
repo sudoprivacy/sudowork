@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Image } from '@arco-design/web-react';
 import { LoadingTwo } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 export function formatCurrency(amount: number, currency: 'USD' | 'CNY') {
   if (currency === 'CNY') {
     return `¥${amount}`;

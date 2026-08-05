@@ -44,6 +44,7 @@ export async function ensureMainSystemConfig(): Promise<void> {
       loginMethod: data?.login_method ?? null,
       skillhubBaseurl: data?.skillhub_baseurl ?? null,
       sudorouterBaseurl: data?.sudorouter_baseurl ?? null,
+      scodeAutoModel: data?.scode_auto_model ?? null,
       logReportBaseurl: data?.log_report?.baseurl ?? null,
       versionUpdateEnabled: data?.version_update?.enabled ?? null,
       productImprovementEnabled: data?.product_improvement?.enabled ?? null,

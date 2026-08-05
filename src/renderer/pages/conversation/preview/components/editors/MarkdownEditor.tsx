@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { markdown } from '@codemirror/lang-markdown';
 import CodeMirror from '@uiw/react-codemirror';
 import React, { useRef, useCallback } from 'react';

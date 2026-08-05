@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Input, Tag, Tooltip } from '@arco-design/web-react';
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input';
 import { IconClose, IconPaste } from '@arco-design/web-react/icon';

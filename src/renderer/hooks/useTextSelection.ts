@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 
 // 选中文本的位置信息 / Selection position information

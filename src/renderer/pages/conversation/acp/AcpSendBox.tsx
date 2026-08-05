@@ -1,10 +1,16 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Dropdown, Message, Modal, Tag } from '@arco-design/web-react';
 import { Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { AcpBackend } from '@/types/acpTypes';
-import { transformMessage, type TMessage } from '@/common/chatLib';
+import { transformMessage, type AcpQuestionItem, type IMessageAcpQuestion, type TMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import SendBox from '@/renderer/components/Sendbox';
@@ -79,7 +85,9 @@ const useAcpMessage = (conversation_id: string) => {
   } | null>(null);
 
   // Think 消息节流：限制更新频率，减少渲染次数
-  // Throttle thought updates to reduce render frequency
+  // Throttle thought updates to reduce render frequency. Think deltas arrive
+  // incrementally, so pending accumulates description (subject follows the
+  // latest delta) and each flush appends to the current thought state.
   const thoughtThrottleRef = useRef<{
     lastUpdate: number;
     pending: ThoughtData | null;
@@ -88,32 +96,27 @@ const useAcpMessage = (conversation_id: string) => {
 
   const throttledSetThought = useMemo(() => {
     const THROTTLE_MS = 50;
+    const flush = () => {
+      const ref = thoughtThrottleRef.current;
+      const pending = ref.pending;
+      ref.pending = null;
+      ref.lastUpdate = Date.now();
+      if (pending) {
+        setThought((prev) => ({ subject: pending.subject, description: (prev.description || '') + pending.description }));
+      }
+    };
     return (data: ThoughtData) => {
       const now = Date.now();
       const ref = thoughtThrottleRef.current;
+      ref.pending = ref.pending ? { subject: data.subject, description: ref.pending.description + data.description } : { subject: data.subject, description: data.description };
       if (now - ref.lastUpdate >= THROTTLE_MS) {
-        ref.lastUpdate = now;
-        ref.pending = null;
         if (ref.timer) {
           clearTimeout(ref.timer);
           ref.timer = null;
         }
-        setThought(data);
-      } else {
-        ref.pending = data;
-        if (!ref.timer) {
-          ref.timer = setTimeout(
-            () => {
-              ref.lastUpdate = Date.now();
-              ref.timer = null;
-              if (ref.pending) {
-                setThought(ref.pending);
-                ref.pending = null;
-              }
-            },
-            THROTTLE_MS - (now - ref.lastUpdate)
-          );
-        }
+        flush();
+      } else if (!ref.timer) {
+        ref.timer = setTimeout(flush, THROTTLE_MS - (now - ref.lastUpdate));
       }
     };
   }, []);
@@ -200,6 +203,11 @@ const useAcpMessage = (conversation_id: string) => {
             aiProcessingRef.current = true;
           }
           throttledSetThought(message.data as ThoughtData);
+          // Also stream the reasoning block into the message list (collapsed display)
+          // 同时把思考内容写入消息列表（折叠展示）
+          if (transformedMessage) {
+            addOrUpdateMessage(transformedMessage);
+          }
           break;
         case 'start':
           stopPendingRef.current = false;
@@ -490,6 +498,43 @@ const useAcpMessage = (conversation_id: string) => {
   return { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef };
 };
 
+function buildPendingQuestionItems(message: IMessageAcpQuestion): AcpQuestionItem[] {
+  if (message.content.items?.length) {
+    return message.content.items;
+  }
+
+  const legacyOptions = (message.content.options || []).map((option) => ({ label: option, value: option }));
+  return [
+    {
+      id: 'q1',
+      prompt: message.content.question || '',
+      kind: legacyOptions.length > 0 ? 'single_select' : 'text',
+      options: legacyOptions,
+      allowCustomInput: legacyOptions.length === 0,
+      optional: false,
+    },
+  ];
+}
+
+function getCurrentPendingQuestionItemFromItems(message: IMessageAcpQuestion, items: AcpQuestionItem[]): AcpQuestionItem | null {
+  if (items.length === 0) return null;
+  const answeredCount = message.content.answerItems?.length ?? 0;
+  return items[Math.min(answeredCount, items.length - 1)] ?? null;
+}
+
+function buildQuestionAnswers(message: IMessageAcpQuestion, items: AcpQuestionItem[], input: string): Array<{ id: string; value: string; label?: string }> | null {
+  const currentItem = getCurrentPendingQuestionItemFromItems(message, items);
+  const normalizedInput = input.trim();
+  if (!currentItem || !normalizedInput) return null;
+  return [
+    {
+      id: currentItem.id,
+      value: normalizedInput,
+      label: normalizedInput,
+    },
+  ];
+}
+
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
 const USER_CANCELLED_TEXT = '请求已被用户终止';
@@ -550,12 +595,16 @@ const AcpSendBox: React.FC<{
   agentName?: string;
   /** Team override: when set, sends route through the team API instead of the single-chat ACP API (附录 II.8). */
   teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+  teamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
+  pendingQuestion?: IMessageAcpQuestion | null;
+  pendingQuestionItems?: AcpQuestionItem[];
+  isAwaitingUserInput?: boolean;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
   onProcessingChange?: (isProcessing: boolean) => void;
-}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, onAiProcessingChange, onProcessingChange }) => {
+}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
-  const isProcessing = running || aiProcessing;
+  const isProcessing = (running || aiProcessing) && !isAwaitingUserInput;
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
@@ -727,6 +776,39 @@ const AcpSendBox: React.FC<{
         return;
       }
       setPwdLoginModal({ visible: true, title });
+      return;
+    }
+
+    if (pendingQuestion) {
+      const answers = buildQuestionAnswers(pendingQuestion, pendingQuestionItems ?? buildPendingQuestionItems(pendingQuestion), message);
+      const toolCallId = pendingQuestion.content.responseToolCallId || pendingQuestion.content.toolCallId;
+      if (!answers || !toolCallId) {
+        Message.warning(t('messages.completeRequiredAnswers'));
+        return;
+      }
+      clearFiles();
+
+      try {
+        if (teamAnswerQuestion) {
+          const result = await teamAnswerQuestion({ conversationId: pendingQuestion.content.conversationId, toolCallId, answers });
+          if (result && result.success === false) {
+            Message.error(result.msg || t('messages.failedToSendQuestionAnswer'));
+          }
+        } else {
+          const result = await ipcBridge.acpConversation.answerQuestion.invoke({
+            conversationId: pendingQuestion.content.conversationId,
+            toolCallId,
+            answers,
+          });
+          if (!result || result.success !== true) {
+            Message.error(result?.msg || t('messages.failedToSendQuestionAnswer'));
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('[AcpSendBox] Failed to answer pending question:', error);
+        Message.error(t('messages.failedToSendQuestionAnswer'));
+      }
       return;
     }
 
@@ -938,7 +1020,7 @@ const AcpSendBox: React.FC<{
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
-      <ThoughtDisplay thought={thought} running={isProcessing} onStop={handleStop} startTime={processingStartTime} />
+      <ThoughtDisplay thought={isAwaitingUserInput ? { subject: t('messages.waitingForUserInput'), description: t('messages.enterAnswer') } : thought} running={isProcessing} state={isAwaitingUserInput ? 'waiting' : 'processing'} onStop={handleStop} startTime={processingStartTime} />
 
       <SendBox
         value={content}
@@ -946,8 +1028,8 @@ const AcpSendBox: React.FC<{
         initialSelectedSkills={selectedSkills}
         loading={isProcessing}
         disabled={false}
-        topAttached={Boolean(thought?.subject) || isProcessing}
-        placeholder={t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
+        topAttached={Boolean(thought?.subject) || isProcessing || isAwaitingUserInput}
+        placeholder={isAwaitingUserInput ? t('messages.enterAnswer') : t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
         allowSubmitWhileRunning={allowSubmitWhileRunning}
         queuedInputs={queuedInputs}

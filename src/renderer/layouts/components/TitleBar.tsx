@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useEffect, useMemo, useState } from 'react';
 import classNames from 'classnames';
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
@@ -59,7 +65,20 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
     dispatchWorkspaceToggleEvent();
   };
 
-  const menuStyle: React.CSSProperties = useMemo(() => {
+  const siderToggleStyle: React.CSSProperties = useMemo(() => {
+    if (layout?.siderCollapsed) {
+      if (!isMacRuntime) {
+        return {};
+      }
+      return { marginLeft: '80px' };
+    }
+    return {
+      width: 'calc(var(--layout-sider-width, 260px) - 8px)',
+      justifyContent: 'flex-end',
+    };
+  }, [isMacRuntime, layout?.siderCollapsed]);
+
+  const toolbarStyle: React.CSSProperties = useMemo(() => {
     if (!isMacRuntime) return {};
     return { marginLeft: '80px' };
   }, [isMacRuntime]);
@@ -71,14 +90,14 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
         'app-titlebar--mac': isMacRuntime,
       })}
     >
-      <div className='flex items-center [-webkit-app-region:no-drag]' style={menuStyle}>
+      <div className='flex items-center [-webkit-app-region:no-drag]' style={siderToggleStyle}>
         {showSiderToggle && (
           <button type='button' className='app-titlebar__button hover:bg-transparent! active:bg-transparent!' onClick={handleSiderToggle} aria-label={siderTooltip}>
             {layout?.siderCollapsed ? <PanelLeftOpen size={iconSize} /> : <PanelLeftClose size={iconSize} />}
           </button>
         )}
       </div>
-      <div className='app-titlebar__toolbar'>
+      <div className='app-titlebar__toolbar' style={toolbarStyle}>
         {showWorkspaceButton && (
           <button type='button' className='app-titlebar__button' onClick={handleWorkspaceToggle} aria-label={workspaceTooltip}>
             {workspaceCollapsed ? <PanelRightOpen size={iconSize} /> : <PanelRightClose size={iconSize} />}

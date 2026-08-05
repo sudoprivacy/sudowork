@@ -1,9 +1,16 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Message } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import { libreOffice as libreOfficeIpc } from '@/common/ipcBridge';
+import { FILE_INTENT_MARKERS } from '@/common/constants';
 import type { ExcelWorkbookData } from '@/common/types/conversion';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import LibreOfficeInstallPrompt from '../LibreOfficeInstallPrompt';
@@ -69,6 +76,46 @@ const WIDE_TABLE_COLUMN_THRESHOLD = 6;
 // A4 横向大约可容纳的字符宽度（半角字符数）
 // Approximate character width that A4 landscape can fit
 const LANDSCAPE_CHAR_WIDTH = 120;
+
+const isCsvFilePath = (value?: string): boolean => {
+  return value?.toLowerCase().endsWith('.csv') ?? false;
+};
+
+const FILE_INTENT_MARKER_VALUES = [...FILE_INTENT_MARKERS.final, ...FILE_INTENT_MARKERS.draft];
+
+const normalizeFileIntentMarkerCell = (value: unknown): string => {
+  return String(value ?? '')
+    .trim()
+    .replace(/^#\s*/, '')
+    .replace(/^\/\/\s*/, '')
+    .replace(/^\/\*\s*/, '')
+    .replace(/\s*\*\/$/, '')
+    .replace(/^<!--\s*/, '')
+    .replace(/\s*-->$/, '')
+    .trim();
+};
+
+const isFileIntentMarkerRow = (row: unknown): boolean => {
+  if (!Array.isArray(row)) return false;
+
+  const nonEmptyCells = row.filter((cell) => String(cell ?? '').trim() !== '');
+  if (nonEmptyCells.length !== 1) return false;
+
+  const normalized = normalizeFileIntentMarkerCell(nonEmptyCells[0]);
+  return FILE_INTENT_MARKER_VALUES.some((marker) => normalized === marker || normalized.startsWith(`${marker} `) || normalized.startsWith(`${marker}:`) || normalized.startsWith(`${marker} -`));
+};
+
+const stripCsvFileIntentMarkerRows = (workbookData: ExcelWorkbookData, isCsv: boolean): ExcelWorkbookData => {
+  if (!isCsv) return workbookData;
+
+  return {
+    ...workbookData,
+    sheets: workbookData.sheets.map((sheet) => ({
+      ...sheet,
+      data: isFileIntentMarkerRow(sheet.data?.[0]) ? sheet.data.slice(1) : sheet.data,
+    })),
+  };
+};
 
 /**
  * 估算表格内容的总字符宽度
@@ -166,9 +213,10 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         } else {
           const response = await ipcBridge.document.convert.invoke({ filePath, to: 'excel-json' });
           if (response.result.success && response.result.data) {
-            setExcelData(response.result.data as ExcelWorkbookData);
-            if ((response.result.data as ExcelWorkbookData).sheets.length > 0) {
-              setActiveSheet((response.result.data as ExcelWorkbookData).sheets[0].name);
+            const workbookData = stripCsvFileIntentMarkerRows(response.result.data as ExcelWorkbookData, isCsvFilePath(filePath));
+            setExcelData(workbookData);
+            if (workbookData.sheets.length > 0) {
+              setActiveSheet(workbookData.sheets[0].name);
             }
           }
         }
@@ -252,7 +300,8 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         const jsonResponse = await ipcBridge.document.convert.invoke({ filePath, to: 'excel-json' });
 
         if (jsonResponse.result.success && jsonResponse.result.data) {
-          const workbookData = jsonResponse.result.data as ExcelWorkbookData;
+          const isCsv = isCsvFilePath(filePath);
+          const workbookData = stripCsvFileIntentMarkerRows(jsonResponse.result.data as ExcelWorkbookData, isCsv);
           setExcelData(workbookData);
 
           if (workbookData.sheets.length > 0) {
@@ -275,12 +324,11 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
           const isWideTable = maxColumns > WIDE_TABLE_COLUMN_THRESHOLD || estimatedWidth > LANDSCAPE_CHAR_WIDTH;
           console.log('[ExcelViewer] Max columns:', maxColumns, 'estimatedWidth:', estimatedWidth, 'isWideTable:', isWideTable);
 
-          // 检查 LibreOffice 是否可用 / Check LibreOffice availability
-          const libreOfficeAvailable = await ipcBridge.document.libreOffice.isAvailable.invoke();
+          const libreOfficeAvailable = isCsv ? false : await ipcBridge.document.libreOffice.isAvailable.invoke();
 
           // 决策：宽表格优先使用 JSON 渲染（支持水平滚动），否则用 PDF
           // Decision: Wide tables prefer JSON rendering (horizontal scroll), otherwise PDF
-          const shouldUsePdf = libreOfficeAvailable && !isWideTable;
+          const shouldUsePdf = libreOfficeAvailable && !isWideTable && !isCsv;
           setUseLibreOffice(shouldUsePdf);
 
           if (shouldUsePdf) {
@@ -302,7 +350,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
               setUseLibreOffice(false);
               throw new Error(pdfResponse.result.error || t('preview.excel.convertFailed'));
             }
-          } else if (isWideTable && !libreOfficeAvailable) {
+          } else if (isWideTable && !libreOfficeAvailable && !isCsv) {
             // 宽表格且 LibreOffice 不可用：提示安装 / Wide table and no LibreOffice: prompt install
             setNeedsLibreOfficeInstall(true);
             setLoading(false);

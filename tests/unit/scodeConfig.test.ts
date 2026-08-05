@@ -5,6 +5,7 @@ import {
   mergeCustomProviderIntoScodeConfig,
   mergeCustomProvidersIntoScodeConfig,
   normalizeCustomApiKeyModelsInScodeConfig,
+  normalizeScodeModelApiTypesInScodeConfig,
   removeCustomProviderFromScodeConfig,
   SCODE_AUTO_MODEL_ALIAS,
   SCODE_AUTO_ROUTER_MODEL_ID,
@@ -41,7 +42,7 @@ describe('scodeConfig', () => {
       {
         sudorouterKey: 'router-key',
         modelServiceUrl: 'https://hk.sudorouter.ai/v1',
-        models: ['gemini-3-flash-preview'],
+        models: ['gemini-3-flash-preview', SCODE_AUTO_ROUTER_MODEL_ID],
       },
       existing
     );
@@ -60,13 +61,13 @@ describe('scodeConfig', () => {
       alias: SCODE_AUTO_MODEL_ALIAS,
       name: SCODE_AUTO_MODEL_ALIAS,
       providers: {
-        proxy: { provider: 'sudorouter', model: SCODE_AUTO_ROUTER_MODEL_ID, api: 'openai-completions' },
+        proxy: { provider: 'sudorouter', model: SCODE_AUTO_ROUTER_MODEL_ID, api: 'openai-responses' },
       },
     });
     const sudorouterModelAliases = Object.entries(next.models || {})
       .filter(([, model]) => model.providers?.proxy?.provider === 'sudorouter')
       .map(([alias]) => alias);
-    expect(sudorouterModelAliases).toEqual([SCODE_AUTO_MODEL_ALIAS, 'gemini-3-flash-preview']);
+    expect(sudorouterModelAliases).toEqual([SCODE_AUTO_MODEL_ALIAS, 'gemini-3-flash-preview', SCODE_AUTO_ROUTER_MODEL_ID]);
     expect(next.models?.['custom-openai/gpt-4o']?.providers?.['api-key']).toEqual({
       provider: 'custom-openai',
       model: 'gpt-4o',
@@ -145,11 +146,35 @@ describe('scodeConfig', () => {
     const next = buildScodeConfigFromLoginPayload({
       sudorouterKey: 'router-key',
       modelServiceUrl: 'https://hk.sudorouter.ai/v1',
-      models: ['gemini-3-flash-preview'],
+      models: ['gemini-3-flash-preview', SCODE_AUTO_ROUTER_MODEL_ID],
     });
 
     expect(next.default_model).toBe(SCODE_AUTO_MODEL_ALIAS);
     expect(next.models?.[SCODE_AUTO_MODEL_ALIAS]?.providers?.proxy?.model).toBe(SCODE_AUTO_ROUTER_MODEL_ID);
+  });
+
+  it('uses the server-configured auto model from the login payload', () => {
+    const next = buildScodeConfigFromLoginPayload({
+      sudorouterKey: 'router-key',
+      modelServiceUrl: 'https://hk.sudorouter.ai/v1',
+      models: ['gemini-3-flash-preview', SCODE_AUTO_ROUTER_MODEL_ID, 'gpt-5.6'],
+      scodeAutoModel: 'gpt-5.6',
+    });
+
+    expect(next.default_model).toBe(SCODE_AUTO_MODEL_ALIAS);
+    expect(next.models?.[SCODE_AUTO_MODEL_ALIAS]?.providers?.proxy?.model).toBe('gpt-5.6');
+  });
+
+  it('allows the server-configured auto model to target a model outside the advertised list', () => {
+    const next = buildScodeConfigFromLoginPayload({
+      sudorouterKey: 'router-key',
+      modelServiceUrl: 'https://hk.sudorouter.ai/v1',
+      models: ['gemini-3-flash-preview'],
+      scodeAutoModel: 'gpt-5.6',
+    });
+
+    expect(next.models?.[SCODE_AUTO_MODEL_ALIAS]?.providers?.proxy?.model).toBe('gpt-5.6');
+    expect(next.models?.['gpt-5.6']).toBeUndefined();
   });
 
   it('resets existing user-selected sudorouter model to auto on login refresh', () => {
@@ -261,7 +286,7 @@ describe('scodeConfig', () => {
     expect(config.models?.['custom-openai/gpt-4o']?.providers?.['api-key']?.model).toBe('gpt-4o');
   });
 
-  it('uses OpenAI Responses API for custom gpt-5.4 models', () => {
+  it('uses OpenAI Responses API for gpt-5.4 models', () => {
     const config = mergeCustomProviderIntoScodeConfig(
       buildScodeConfigFromLoginPayload({
         sudorouterKey: 'router-key',
@@ -276,11 +301,85 @@ describe('scodeConfig', () => {
       }
     );
 
-    expect(config.models?.['gpt-5.4']?.providers?.proxy?.api).toBe('openai-completions');
+    expect(config.models?.['gpt-5.4']?.providers?.proxy?.api).toBe('openai-responses');
     expect(config.models?.['custom-openai/gpt-5.4']?.providers?.['api-key']).toEqual({
       provider: 'custom-openai',
       model: 'gpt-5.4',
       api: 'openai-responses',
     });
+  });
+
+  it('preserves explicit Anthropic Messages API for custom providers', () => {
+    const config = mergeCustomProviderIntoScodeConfig(null, {
+      providerId: 'deepseek-anthropic',
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      apiKey: 'deepseek-key',
+      models: [{ id: 'deepseek-v4-flash', api: 'anthropic-messages', supportsTools: true }],
+    });
+
+    expect(config.auth_modes?.['api-key']?.['deepseek-anthropic']).toEqual({
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      apiKey: 'deepseek-key',
+    });
+    expect(config.models?.['deepseek-anthropic/deepseek-v4-flash']?.providers?.['api-key']).toEqual({
+      provider: 'deepseek-anthropic',
+      model: 'deepseek-v4-flash',
+      api: 'anthropic-messages',
+    });
+  });
+
+  it('normalizes existing sudorouter gpt-5.5 models to OpenAI Responses API', () => {
+    const config = normalizeScodeModelApiTypesInScodeConfig({
+      models: {
+        auto: {
+          alias: 'auto',
+          name: 'auto',
+          providers: {
+            proxy: { provider: 'sudorouter', model: 'gpt-5.5', api: 'openai-completions' },
+          },
+        },
+        'gpt-5.5': {
+          alias: 'gpt-5.5',
+          name: 'gpt-5.5',
+          providers: {
+            proxy: { provider: 'sudorouter', model: 'gpt-5.5', api: 'openai-completions' },
+          },
+        },
+      },
+    });
+
+    expect(config.models?.auto?.providers?.proxy?.api).toBe('openai-responses');
+    expect(config.models?.['gpt-5.5']?.providers?.proxy?.api).toBe('openai-responses');
+  });
+
+  it('drops sudorouter models when rebuilding from an empty base with custom providers only (guest restore)', () => {
+    const withBoth = mergeCustomProviderIntoScodeConfig(
+      buildScodeConfigFromLoginPayload({
+        sudorouterKey: 'router-key',
+        modelServiceUrl: 'https://hk.sudorouter.ai/v1',
+        models: ['gemini-3-flash-preview', SCODE_AUTO_ROUTER_MODEL_ID],
+      }),
+      {
+        providerId: 'custom-openai',
+        baseUrl: 'https://api.example.com/v1',
+        apiKey: 'custom-key',
+        models: [{ id: 'gpt-4o' }],
+      }
+    );
+
+    const restored = mergeCustomProvidersIntoScodeConfig({}, extractCustomProvidersFromScodeConfig(withBoth));
+
+    // Custom provider retained
+    expect(restored.models?.['custom-openai/gpt-4o']?.providers?.['api-key']?.provider).toBe('custom-openai');
+    expect(restored.auth_modes?.['api-key']?.['custom-openai']).toEqual({
+      baseUrl: 'https://api.example.com/v1',
+      apiKey: 'custom-key',
+    });
+    // Sudorouter models and credentials cleared (guest has no sudorouter key)
+    expect(restored.auth_modes?.proxy?.sudorouter).toBeUndefined();
+    const sudorouterAliases = Object.entries(restored.models || {})
+      .filter(([, model]) => model.providers?.proxy?.provider === 'sudorouter')
+      .map(([alias]) => alias);
+    expect(sudorouterAliases).toEqual([]);
   });
 });

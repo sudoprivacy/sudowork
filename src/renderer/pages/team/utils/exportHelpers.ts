@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { sanitizeFileName } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';
 import type { TeamAssistant, TTeam } from '../types';
 

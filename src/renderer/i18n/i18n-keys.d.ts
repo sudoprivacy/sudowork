@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* eslint-disable */
 /**
  * AUTO-GENERATED FILE - DO NOT EDIT
@@ -241,6 +247,7 @@ export type I18nKey =
   | 'common.siderMenu.agent'
   | 'common.siderMenu.cron'
   | 'common.siderMenu.digitalEmployees'
+  | 'common.siderMenu.localKb'
   | 'common.siderMenu.security'
   | 'common.siderMenu.skillStore'
   | 'common.siderMenu.team'
@@ -990,7 +997,9 @@ export type I18nKey =
   | 'messages.skills.searchSkills'
   | 'messages.skills.tabToSwitch'
   | 'messages.skills.triggerLabel'
+  | 'messages.thinkingProcess'
   | 'messages.unknownMessageType'
+  | 'messages.waitingForUserInput'
   | 'messages.yes'
   | 'preview.addToChat'
   | 'preview.audio.loadFailed'
@@ -1969,6 +1978,7 @@ export type I18nKey =
   | 'settings.runtimeSettings.button.stop'
   | 'settings.runtimeSettings.button.uninstall'
   | 'settings.runtimeSettings.description'
+  | 'settings.runtimeSettings.embeddingModelName'
   | 'settings.runtimeSettings.installFailed'
   | 'settings.runtimeSettings.installSuccess'
   | 'settings.runtimeSettings.phase.cleanup'
@@ -1982,6 +1992,7 @@ export type I18nKey =
   | 'settings.runtimeSettings.phase.ready'
   | 'settings.runtimeSettings.phase.starting'
   | 'settings.runtimeSettings.phase.unpacking'
+  | 'settings.runtimeSettings.phase.verifying'
   | 'settings.runtimeSettings.source.managed'
   | 'settings.runtimeSettings.source.system'
   | 'settings.runtimeSettings.startFailed'
@@ -2186,8 +2197,15 @@ export type I18nKey =
   | 'settings.skill.updateFailed'
   | 'settings.skill.updateSuccess'
   | 'settings.skill.updateTo'
+  | 'settings.skill.uploadApproved'
+  | 'settings.skill.uploadConfirmContent'
+  | 'settings.skill.uploadConfirmTitle'
   | 'settings.skill.uploadFailed'
+  | 'settings.skill.uploadNoTenantId'
+  | 'settings.skill.uploadPending'
+  | 'settings.skill.uploadSubmittedSuccess'
   | 'settings.skill.uploadSuccess'
+  | 'settings.skill.uploadToHub'
   | 'settings.skill.versions'
   | 'settings.skillAdded'
   | 'settings.skillAlreadyExists'
@@ -2631,25 +2649,4 @@ export type I18nKey =
   | 'update.showInFolder'
   | 'update.upToDateTitle';
 
-export type I18nModule =
-  | 'common'
-  | 'agentMode'
-  | 'update'
-  | 'login'
-  | 'fileSelection'
-  | 'preview'
-  | 'conversation'
-  | 'settings'
-  | 'messages'
-  | 'mcp'
-  | 'acp'
-  | 'codex'
-  | 'tools'
-  | 'gemini'
-  | 'cron'
-  | 'team'
-  | 'starOffice'
-  | 'guid'
-  | 'agent'
-  | 'digitalEmployee'
-  | 'setup';
+export type I18nModule = 'common' | 'agentMode' | 'update' | 'login' | 'fileSelection' | 'preview' | 'conversation' | 'settings' | 'messages' | 'mcp' | 'acp' | 'codex' | 'tools' | 'gemini' | 'cron' | 'team' | 'starOffice' | 'guid' | 'agent' | 'digitalEmployee' | 'setup';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Modal } from '@arco-design/web-react';
 import { Pencil, UserPlus, X } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -7,6 +13,7 @@ import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import type { AcpBackend } from '@/types/acpTypes';
 import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
+import AcpModelSelector from '@renderer/components/AcpModelSelector';
 import type { TeamAssistant, TeammateStatus, TTeam } from '../types';
 import TeamAddMemberModal from './TeamAddMemberModal';
 
@@ -48,6 +55,7 @@ function TeamMemberNameInput({ initialValue, onCommit, onCancel }: ITeamMemberNa
     }
   };
 
+  // border-[var(--color-border-1)] 保留内联：未桥接的 Arco 默认，无零改样等价类
   return <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onBlur={commit} onKeyDown={handleKeyDown} className='min-w-0 flex-1 box-border rounded-4px border border-[var(--color-border-1)] bg-[var(--color-bg-1)] px-6px h-28px text-13px outline-none' />;
 }
 
@@ -106,7 +114,7 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
     <div className='flex h-full min-w-0 w-full flex-1 flex-col'>
       <div className='flex items-center justify-between px-20px py-8px'>
         <span className='text-13px font-600 text-gray-600'>{t('team.detail.memberTab')}</span>
-        <button type='button' className='inline-flex cursor-pointer items-center gap-4px rounded-6px px-8px py-4px text-12px text-gray-600 transition-colors hover:bg-[var(--color-fill-2)] hover:text-foreground' onClick={() => setIsAddMemberVisible(true)}>
+        <button type='button' className='inline-flex cursor-pointer items-center gap-4px rounded-6px px-8px py-4px text-12px text-gray-600 transition-colors hover:bg-fill-2 hover:text-foreground' onClick={() => setIsAddMemberVisible(true)}>
           <UserPlus size={14} />
           {t('team.create.addMember')}
         </button>
@@ -127,7 +135,7 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
       </div>
 
       {memberAssistants.length > 0 && (
-        <div className='flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--color-border-2)]'>
+        <div className='flex min-h-0 flex-1 flex-col overflow-hidden border-t border-light'>
           {activeMember && activeMember.conversation_id ? (
             <AcpChat
               conversation_id={activeMember.conversation_id}
@@ -135,6 +143,7 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
               agentName={activeMember.assistant_name}
               workspace={team.workspace ?? undefined}
               onTeamAnswerQuestion={onTeamAnswerQuestion}
+              teamAnswerQuestion={onTeamAnswerQuestion}
               teamSendMessage={teamSendMessage}
               onProcessingChange={setIsSelectedChatProcessing}
             />
@@ -168,10 +177,8 @@ function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRena
   };
 
   return (
-    <div className={`group/team-member flex w-full min-w-0 h-28px items-center gap-8px overflow-hidden rounded-4px px-8px py-4px cursor-pointer ${isActive ? 'bg-[var(--color-fill-2)]' : 'hover:bg-[var(--color-fill-1)]'}`} onClick={isEditing ? undefined : onSelect}>
-      <span className='inline-flex size-24px shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-fill-3)] text-12px font-medium text-1'>
-        {icon ? <img src={icon} alt='' className='size-full object-cover' /> : <span className='size-10px rounded-full bg-[var(--color-text-4)]' />}
-      </span>
+    <div className={`group/team-member flex w-full min-w-0 h-28px items-center gap-8px overflow-hidden rounded-4px px-8px py-4px cursor-pointer ${isActive ? 'bg-fill-2' : 'hover:bg-fill-1'}`} onClick={isEditing ? undefined : onSelect}>
+      <span className='inline-flex size-24px shrink-0 items-center justify-center overflow-hidden rounded-full bg-fill-3 text-12px font-medium text-1'>{icon ? <img src={icon} alt='' className='size-full object-cover' /> : <span className='size-10px rounded-full bg-text-4' />}</span>
       {isEditing ? (
         <TeamMemberNameInput
           initialValue={member.assistant_name}
@@ -182,11 +189,18 @@ function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRena
           onCancel={() => setIsEditing(false)}
         />
       ) : (
-        <span className='min-w-0 flex-1 truncate text-13px'>{member.assistant_name}</span>
+        <div className='flex min-w-0 flex-1 items-center gap-6px'>
+          <span className='min-w-0 truncate text-13px'>{member.assistant_name}</span>
+          {member.conversation_id && (
+            <span className='inline-flex shrink-0 items-center' onClick={(e) => e.stopPropagation()}>
+              <AcpModelSelector conversationId={member.conversation_id} backend={member.assistant_backend} isCompact />
+            </span>
+          )}
+        </div>
       )}
       {!isEditing && (
         <div className='hidden shrink-0 items-center gap-4px group-hover/team-member:flex' onClick={(e) => e.stopPropagation()}>
-          <button type='button' title={t('team.actions.rename')} className='inline-flex size-24px cursor-pointer items-center justify-center rounded-4px text-gray-400 hover:bg-[var(--color-fill-2)] hover:text-foreground' onClick={() => setIsEditing(true)}>
+          <button type='button' title={t('team.actions.rename')} className='inline-flex size-24px cursor-pointer items-center justify-center rounded-4px text-gray-400 hover:bg-fill-2 hover:text-foreground' onClick={() => setIsEditing(true)}>
             <Pencil size={16} />
           </button>
           <button type='button' title={t('team.actions.remove')} className='inline-flex size-24px cursor-pointer items-center justify-center rounded-4px text-gray-400 hover:bg-red-500/10 hover:text-red-500' onClick={handleRemove}>

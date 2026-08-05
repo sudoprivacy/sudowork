@@ -60,6 +60,19 @@ async def run_case(tab, case_path: Path) -> dict:
     print(f"  {name}")
     print(f"{'='*60}")
 
+    # Settle the startup gate before driving the UI. In CI the Nexus runtime
+    # install fails (no napi toolchain) and raises the "Starting Core Services"
+    # dialog; Skip enters the app — the documented product behaviour. On a
+    # healthy box the dialog never renders and this is a no-op. Done here so
+    # every UI case is robust to the gate without repeating the step; cases that
+    # settle it explicitly (dismiss_init_dialog in their steps) opt out.
+    if "dismiss_init_dialog" in OPS and "dismiss_init_dialog" not in step_ops:
+        settle = await invoke_op(tab, "dismiss_init_dialog", OPS)
+        if isinstance(settle, dict) and settle.get("pass") is False:
+            print(f"  [0] FAIL: dismiss_init_dialog — {settle.get('reason', '')}")
+            return {"name": name, "passed": 0, "failed": 1,
+                    "results": [{"step": 0, "op": "dismiss_init_dialog", **settle}]}
+
     for i, step in enumerate(steps):
         op_name = step.get("op")
         if op_name not in OPS:

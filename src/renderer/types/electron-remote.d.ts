@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 declare module '@electron/remote' {
   export interface OpenDialogOptions {
     title?: string;

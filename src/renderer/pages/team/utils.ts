@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Team bridge results arrive as `{ __error: string }` on failure rather than rejecting.
  * Unwrap the envelope into a thrown error so callers can use try/catch (mirrors cron's unwrapCronResult).
  */

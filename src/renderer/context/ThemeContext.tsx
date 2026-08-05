@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // context/ThemeContext.tsx - Unified Theme Management Context 统一主题管理上下文
 import type { PropsWithChildren } from 'react';
 import React, { createContext, useContext } from 'react';

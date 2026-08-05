@@ -97,6 +97,86 @@ export function initSchema(db: Database.Database): void {
       ON scode_custom_model_providers(user_id);
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS local_kb_categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS local_kb_spaces (
+      id TEXT PRIMARY KEY,
+      category_id TEXT REFERENCES local_kb_categories(id) ON DELETE SET NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      source_mode TEXT NOT NULL DEFAULT 'files',
+      root_path TEXT,
+      build_status TEXT NOT NULL DEFAULT 'idle',
+      retrieval_mode TEXT NOT NULL DEFAULT 'grep-only',
+      last_built_at INTEGER,
+      last_build_error TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_local_kb_spaces_category_id
+      ON local_kb_spaces(category_id);
+    CREATE INDEX IF NOT EXISTS idx_local_kb_spaces_updated_at
+      ON local_kb_spaces(updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS local_kb_documents (
+      id TEXT PRIMARY KEY,
+      space_id TEXT NOT NULL REFERENCES local_kb_spaces(id) ON DELETE CASCADE,
+      file_name TEXT NOT NULL,
+      relative_path TEXT,
+      absolute_path TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      content_hash TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      parse_status TEXT NOT NULL DEFAULT 'pending',
+      parse_error TEXT,
+      last_indexed_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_local_kb_documents_space_id
+      ON local_kb_documents(space_id);
+    CREATE INDEX IF NOT EXISTS idx_local_kb_documents_hash
+      ON local_kb_documents(space_id, content_hash);
+
+    CREATE TABLE IF NOT EXISTS local_kb_build_jobs (
+      id TEXT PRIMARY KEY,
+      space_id TEXT NOT NULL REFERENCES local_kb_spaces(id) ON DELETE CASCADE,
+      mode TEXT NOT NULL DEFAULT 'full',
+      status TEXT NOT NULL DEFAULT 'queued',
+      progress INTEGER NOT NULL DEFAULT 0,
+      current_step TEXT,
+      error_message TEXT,
+      started_at INTEGER,
+      finished_at INTEGER,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_local_kb_build_jobs_space_id
+      ON local_kb_build_jobs(space_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_local_kb_build_jobs_status
+      ON local_kb_build_jobs(status, created_at);
+
+    CREATE TABLE IF NOT EXISTS local_kb_query_logs (
+      id TEXT PRIMARY KEY,
+      space_id TEXT,
+      query TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      hit_count INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+  `);
+
   mainLog('Database', 'Schema initialized successfully');
 }
 
@@ -125,4 +205,4 @@ export function setDatabaseVersion(db: Database.Database, version: number): void
  * Current database schema version
  * Update this when adding new migrations in migrations.ts
  */
-export const CURRENT_DB_VERSION = 30;
+export const CURRENT_DB_VERSION = 31;

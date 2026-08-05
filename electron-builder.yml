@@ -139,6 +139,7 @@ files:
   - 'node_modules/better-sqlite3/vendor/**'
   - 'node_modules/bcrypt/vendor/**'
   - 'node_modules/node-pty/vendor/**'
+  - 'node_modules/@xenova/transformers/node_modules/sharp/vendor/**'
   # Exclude vite source maps
   - '!**/*.map'
   # Exclude syntax highlighter languages (keep common ones)

@@ -1,10 +1,28 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { nexus as nexusIpc, claudeCli as claudeCliIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, acpConversation, shareoneCli } from '@/common/ipcBridge';
-import type { ICliStatus, ILibreOfficeInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import {
+  nexus as nexusIpc,
+  claudeCli as claudeCliIpc,
+  libreOffice as libreOfficeIpc,
+  pythonRuntime as pythonRuntimeIpc,
+  scode as scodeIpc,
+  nodeRuntime as nodeRuntimeIpc,
+  acpConversation,
+  shareoneCli,
+  localKnowledgeBase as localKnowledgeBaseIpc,
+  popplerRuntime as popplerRuntimeIpc,
+} from '@/common/ipcBridge';
+import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import RuntimeToolRow from './components/RuntimeToolRow';
 import type { LoadState, ToolRow } from './types';
@@ -41,11 +59,21 @@ export default function RuntimeSettings() {
   const [pythonPhase, setPythonPhase] = useState<IPythonInstallPhase | undefined>(undefined);
   const [pythonPercent, setPythonPercent] = useState<number | undefined>(undefined);
 
+  const [popplerStatus, setPopplerStatus] = useState<ICliStatus | null>(null);
+  const [popplerLoad, setPopplerLoad] = useState<LoadState>('idle');
+  const [popplerPhase, setPopplerPhase] = useState<IPopplerInstallPhase | undefined>(undefined);
+  const [popplerPercent, setPopplerPercent] = useState<number | undefined>(undefined);
+
   const [scodeStatus, setScodeStatus] = useState<ICliStatus | null>(null);
   const [scodeLoad, setScodeLoad] = useState<LoadState>('idle');
 
   const [shareoneStatus, setShareoneStatus] = useState<ICliStatus | null>(null);
   const [shareoneLoad, setShareoneLoad] = useState<LoadState>('idle');
+
+  const [embeddingStatus, setEmbeddingStatus] = useState<ICliStatus | null>(null);
+  const [embeddingLoad, setEmbeddingLoad] = useState<LoadState>('idle');
+  const [embeddingPhase, setEmbeddingPhase] = useState<LocalKbInstallPhase | undefined>(undefined);
+  const [embeddingPercent, setEmbeddingPercent] = useState<number | undefined>(undefined);
 
   const [nexusVersion, setNexusVersion] = useState<string | undefined>(undefined);
 
@@ -269,6 +297,64 @@ export default function RuntimeSettings() {
     }
   }, [refreshPython, t]);
 
+  const refreshPoppler = useCallback(async (options?: RefreshOptions) => {
+    if (!options?.silent) {
+      setPopplerLoad('loading');
+    }
+    try {
+      const res = await popplerRuntimeIpc.checkInstalled.invoke();
+      if (res?.success && res.data) {
+        setPopplerStatus(res.data);
+      } else {
+        setPopplerStatus({ installed: false, source: 'none' });
+      }
+    } catch {
+      setPopplerStatus({ installed: false, source: 'none' });
+    } finally {
+      if (!options?.silent) {
+        setPopplerLoad('idle');
+      }
+    }
+  }, []);
+
+  const installPoppler = useCallback(async () => {
+    setPopplerLoad('installing');
+    setPopplerPhase(undefined);
+    setPopplerPercent(undefined);
+    try {
+      const res = await popplerRuntimeIpc.install.invoke();
+      if (res?.success) {
+        await refreshPoppler();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Poppler' }));
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Poppler' }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'Poppler' }));
+    } finally {
+      setPopplerLoad('idle');
+      setPopplerPhase(undefined);
+      setPopplerPercent(undefined);
+    }
+  }, [refreshPoppler, t]);
+
+  const uninstallPoppler = useCallback(async () => {
+    setPopplerLoad('loading');
+    try {
+      const res = await popplerRuntimeIpc.uninstall.invoke();
+      if (res?.success) {
+        Message.success(t('settings.runtimeSettings.uninstallSuccess', { name: 'Poppler' }));
+        await refreshPoppler();
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.uninstallFailed', { name: 'Poppler' }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.uninstallFailed', { name: 'Poppler' }));
+    } finally {
+      setPopplerLoad('idle');
+    }
+  }, [refreshPoppler, t]);
+
   const refreshScode = useCallback(async () => {
     try {
       const res = await scodeIpc.getStatus.invoke();
@@ -329,6 +415,53 @@ export default function RuntimeSettings() {
       setShareoneLoad('idle');
     }
   }, [refreshShareone, t]);
+
+  const refreshEmbedding = useCallback(async (options?: RefreshOptions) => {
+    if (!options?.silent) {
+      setEmbeddingLoad('loading');
+    }
+    try {
+      const res = await localKnowledgeBaseIpc.getDependencyStatus.invoke();
+      if (res?.success && res.data) {
+        setEmbeddingStatus({
+          installed: res.data.embeddingModel.installed,
+          path: res.data.embeddingModel.path,
+          version: res.data.embeddingModel.modelId,
+          source: res.data.embeddingModel.installed ? 'managed' : 'none',
+        });
+      } else {
+        setEmbeddingStatus({ installed: false, source: 'none' });
+      }
+    } catch {
+      setEmbeddingStatus({ installed: false, source: 'none' });
+    } finally {
+      if (!options?.silent) {
+        setEmbeddingLoad('idle');
+      }
+    }
+  }, []);
+
+  const installEmbedding = useCallback(async () => {
+    const embeddingModelName = t('settings.runtimeSettings.embeddingModelName');
+    setEmbeddingLoad('installing');
+    setEmbeddingPhase(undefined);
+    setEmbeddingPercent(undefined);
+    try {
+      const res = await localKnowledgeBaseIpc.installEmbeddingModel.invoke(undefined);
+      if (res?.success) {
+        await refreshEmbedding();
+        Message.success(t('settings.runtimeSettings.installSuccess', { name: embeddingModelName }));
+      } else {
+        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: embeddingModelName }));
+      }
+    } catch (e) {
+      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: embeddingModelName }));
+    } finally {
+      setEmbeddingLoad('idle');
+      setEmbeddingPhase(undefined);
+      setEmbeddingPercent(undefined);
+    }
+  }, [refreshEmbedding, t]);
 
   const refreshNexus = useCallback(async () => {
     try {
@@ -407,9 +540,9 @@ export default function RuntimeSettings() {
 
   const refreshRuntimePage = useCallback(
     async (options?: RefreshOptions) => {
-      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshNexus(), refreshLibreOffice(options), refreshPython(options)]);
+      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshEmbedding(options), refreshNexus(), refreshLibreOffice(options), refreshPython(options), refreshPoppler(options)]);
     },
-    [refreshClaude, refreshLibreOffice, refreshNexus, refreshNode, refreshPython, refreshScode, refreshShareone]
+    [refreshClaude, refreshEmbedding, refreshLibreOffice, refreshNexus, refreshNode, refreshPoppler, refreshPython, refreshScode, refreshShareone]
   );
 
   // Load all on mount; also restore install state if an install is already in progress
@@ -427,6 +560,13 @@ export default function RuntimeSettings() {
         setPythonLoad('installing');
         if (res.data.phase) setPythonPhase(res.data.phase);
         if (res.data.percent != null) setPythonPercent(res.data.percent);
+      }
+    });
+    void popplerRuntimeIpc.getInstallState.invoke().then((res) => {
+      if (res?.success && res.data?.installing) {
+        setPopplerLoad('installing');
+        if (res.data.phase) setPopplerPhase(res.data.phase);
+        if (res.data.percent != null) setPopplerPercent(res.data.percent);
       }
     });
   }, [refreshRuntimePage]);
@@ -464,6 +604,20 @@ export default function RuntimeSettings() {
       setShareoneLoad('idle');
       void refreshShareone();
     });
+    const unsubEmbeddingProgress = localKnowledgeBaseIpc.installEmbeddingModelProgress.on(({ phase, percent }) => {
+      setEmbeddingLoad('installing');
+      setEmbeddingPhase(phase);
+      if (percent != null) setEmbeddingPercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
+    });
+    const unsubEmbeddingResult = localKnowledgeBaseIpc.installEmbeddingModelResult.on((result) => {
+      setEmbeddingLoad('idle');
+      setEmbeddingPhase(undefined);
+      setEmbeddingPercent(undefined);
+      if (!result.success && result.msg) {
+        Message.error(result.msg);
+      }
+      void refreshEmbedding();
+    });
     const unsubNexusProgress = nexusIpc.installProgress.on(({ phase, percent }) => {
       setNexusPhase(phase);
       if (percent != null) setNexusPercent(percent);
@@ -479,6 +633,17 @@ export default function RuntimeSettings() {
       if (percent != null) setPythonPercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
     });
     const unsubPyResult = pythonRuntimeIpc.installResult.on(() => void refreshPython());
+    const unsubPopplerProgress = popplerRuntimeIpc.installProgress.on(({ phase, percent }) => {
+      setPopplerLoad('installing');
+      setPopplerPhase(phase);
+      if (percent != null) setPopplerPercent((prev) => (prev != null ? Math.max(prev, percent) : percent));
+    });
+    const unsubPopplerResult = popplerRuntimeIpc.installResult.on(() => {
+      setPopplerLoad('idle');
+      setPopplerPhase(undefined);
+      setPopplerPercent(undefined);
+      void refreshPoppler();
+    });
     return () => {
       unsubNode();
       unsubClaude();
@@ -486,14 +651,18 @@ export default function RuntimeSettings() {
       unsubScodeProgress();
       unsubScodeResult();
       unsubShareoneResult();
+      unsubEmbeddingProgress();
+      unsubEmbeddingResult();
       unsubNexusProgress();
       unsubNexusResult();
       unsubLoProgress();
       unsubLoResult();
       unsubPyProgress();
       unsubPyResult();
+      unsubPopplerProgress();
+      unsubPopplerResult();
     };
-  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshLibreOffice, refreshPython]);
+  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshEmbedding, refreshLibreOffice, refreshPython, refreshPoppler]);
 
   const tableData: ToolRow[] = [
     {
@@ -546,6 +715,19 @@ export default function RuntimeSettings() {
       onUninstall: uninstallPython,
     },
     {
+      key: 'poppler',
+      displayName: 'Poppler',
+      command: 'pdftotext',
+      badge: 'PP',
+      status: popplerStatus,
+      loadState: popplerLoad,
+      installPhase: popplerPhase,
+      installPercent: popplerPercent,
+      onRefresh: refreshPoppler,
+      onInstall: installPoppler,
+      onUninstall: uninstallPoppler,
+    },
+    {
       key: 'sudocode',
       displayName: 'Sudo Code',
       command: 'scode',
@@ -564,6 +746,18 @@ export default function RuntimeSettings() {
       loadState: shareoneLoad,
       onRefresh: refreshShareone,
       onInstall: shareoneStatus?.installed ? undefined : installShareone,
+    },
+    {
+      key: 'embedding',
+      displayName: t('settings.runtimeSettings.embeddingModelName', { defaultValue: 'Local KB Embedding Model' }),
+      command: 'Xenova/multilingual-e5-small',
+      badge: 'EM',
+      status: embeddingStatus,
+      loadState: embeddingLoad,
+      installPhase: embeddingPhase,
+      installPercent: embeddingPercent,
+      onRefresh: refreshEmbedding,
+      onInstall: embeddingStatus?.installed ? undefined : installEmbedding,
     },
     {
       key: 'nexus',

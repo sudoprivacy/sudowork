@@ -1,5 +1,11 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, Bot, ChevronDown, Globe, ListChecks, LogOut, Plus, Settings, ShieldCheck, Sparkles, UsersRound } from 'lucide-react';
+import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Plus, Settings, ShieldCheck, Sparkles, UsersRound } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -31,7 +37,7 @@ const Sider: React.FC = () => {
 
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { logout, user: currentUser } = useAuth();
+  const { logout, user: currentUser, isGuest } = useAuth();
   const { isEnterprise, mode } = useAppMode();
   const { isCronVisible } = useCronAccess();
   const [isBatchMode, setIsBatchMode] = useState(false);
@@ -59,6 +65,7 @@ const Sider: React.FC = () => {
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/app/agent' },
     { id: 'digital-employees', label: t('common.siderMenu.digitalEmployees'), icon: UsersRound, path: '/app/digital-employees' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/app/skills' },
+    { id: 'local-kb', label: t('common.siderMenu.localKb'), icon: BookOpen, path: '/app/local-kb' },
     { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'channels' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/app/channels' }] : []),
     ...(isCronVisible ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/app/cron' }] : []),
@@ -147,7 +154,7 @@ const Sider: React.FC = () => {
       const target = lastNonSettingsPathRef.current || '/guid';
       void navigate(target);
     } else {
-      void navigate('/settings/profile');
+      void navigate(isGuest ? '/settings/model' : '/settings/profile');
     }
     onSessionClick();
   };
@@ -157,6 +164,9 @@ const Sider: React.FC = () => {
       handleSettingsClick();
       setUserMenuOpen(false);
       return;
+    } else if (key === 'login') {
+      setUserMenuOpen(false);
+      void navigate('/login', { replace: true });
     } else if (key === 'logout') {
       setUserMenuOpen(false);
       await logout();
@@ -290,12 +300,21 @@ const Sider: React.FC = () => {
                     <span>{t('common.settings')}</span>
                   </div>
                 </Menu.Item>
-                <Menu.Item key='logout'>
-                  <div className='flex items-center gap-2.5 text-danger'>
-                    <LogOut size={17} strokeWidth={1.8} className='text-danger' />
-                    <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
-                  </div>
-                </Menu.Item>
+                {isGuest ? (
+                  <Menu.Item key='login'>
+                    <div className='flex items-center gap-2.5'>
+                      <LogIn size={17} strokeWidth={1.8} className='text-secondary' />
+                      <span>{t('login.submit')}</span>
+                    </div>
+                  </Menu.Item>
+                ) : (
+                  <Menu.Item key='logout'>
+                    <div className='flex items-center gap-2.5 text-danger'>
+                      <LogOut size={17} strokeWidth={1.8} className='text-danger' />
+                      <span>{t('login.logout', { defaultValue: '退出登录' })}</span>
+                    </div>
+                  </Menu.Item>
+                )}
               </Menu>
             }
             trigger='click'
@@ -308,10 +327,12 @@ const Sider: React.FC = () => {
           >
             <div className='flex flex-col gap-0.5'>
               <div ref={userTriggerRef} className='flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors rd-3 border hover:bg-hover active:bg-fill-2 ml-0.5'>
-                <div className='size-8 rd-50% bg-fill-3 f-center text-foreground text-14px font-bold shrink-0'>{userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}</div>
+                <div className='size-8 rd-50% bg-fill-3 f-center text-foreground text-14px font-bold shrink-0'>
+                  {isGuest ? <LogIn size={16} strokeWidth={1.8} /> : userInfo.avatar ? <img src={userInfo.avatar} alt={userInfo.name} className='w-full h-full rd-50% object-cover' /> : <span>{userInfo.name.charAt(0).toUpperCase()}</span>}
+                </div>
                 <div className='flex-1 min-w-0'>
-                  <div className='text-14px font-medium text-foreground truncate'>{userInfo.name}</div>
-                  <div className='text-12px text-secondary truncate'>{userInfo.email}</div>
+                  <div className='text-14px font-medium text-foreground truncate'>{isGuest ? t('login.submit') : userInfo.name}</div>
+                  {!isGuest && <div className='text-12px text-secondary truncate'>{userInfo.email}</div>}
                 </div>
                 <ChevronDown size={16} strokeWidth={1.8} className='shrink-0 text-secondary' />
               </div>

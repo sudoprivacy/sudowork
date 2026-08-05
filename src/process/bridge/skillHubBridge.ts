@@ -5,6 +5,7 @@
  */
 
 import fsSync, { existsSync } from 'fs';
+import type { Dirent } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -15,7 +16,7 @@ import JSZip from 'jszip';
 import { serviceManager } from '@process/services/serviceManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS } from '@/process/initStorage';
-import { skillManager } from '@/process/SkillManager';
+import { skillManager, type ISkillInfo } from '@/process/SkillManager';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 import { ipcBridge } from '@/common';
 import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
@@ -32,7 +33,29 @@ const SKILL_HUB_META_FILE = '_sudowork_meta.json';
 const MOSS_SKILL_META_FILE = '_moss_meta.json';
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 const MISSING_ROOT_SKILL_MD_MESSAGE = 'The selected directory must contain a root-level SKILL.md file (case-insensitive)';
+const SKILL_HUB_UPLOAD_EXCLUDED_FILE_NAMES = new Set([SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE, '_sudowork_audit.json', '_sudowork_audit.md']);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
+type SkillHubPublishStatus = 'pending' | 'approved' | 'rejected';
+type SkillHubUploadStatus = Extract<SkillHubPublishStatus, 'pending' | 'approved'>;
+
+interface SkillHubUploadApiBody {
+  status?: string;
+  message?: string;
+  msg?: string;
+  id?: string;
+  data?: {
+    id?: string;
+    skill?: {
+      id?: string;
+      name?: string;
+      status?: number;
+    };
+    version?: {
+      version?: string;
+    };
+  };
+}
 
 /**
  * Read skill metadata file, trying both Moss and Sudowork meta file names
@@ -520,6 +543,309 @@ async function installImportedSkillFromPreparedDirectory(skillDir: string, impor
   };
 }
 
+function isPathInside(parentPath: string, childPath: string): boolean {
+  const relativePath = path.relative(parentPath, childPath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveCustomSkillDirForUpload(skillName: string): Promise<string | null> {
+  const customSkillsDir = getCustomSkillsDir();
+  const disabledCustomSkillsDir = path.join(customSkillsDir, '_disable');
+  const directCandidates = [path.join(customSkillsDir, skillName), path.join(disabledCustomSkillsDir, skillName)];
+
+  for (const candidate of directCandidates) {
+    if (await pathExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  for (const parentDir of [customSkillsDir, disabledCustomSkillsDir]) {
+    let entries: Dirent[];
+    try {
+      entries = await fs.readdir(parentDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
+      const candidateDir = path.join(parentDir, entry.name);
+      const meta = await readSkillHubMetaFromDirectory(candidateDir);
+      if (meta?.name === skillName || meta?.display_name === skillName) {
+        return candidateDir;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function createSkillHubUploadZip(skillDir: string): Promise<Buffer> {
+  const zip = new JSZip();
+
+  const addDirectoryToZip = async (currentDir: string, relativeDir = ''): Promise<void> => {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const sourcePath = path.join(currentDir, entry.name);
+      const relativePath = relativeDir ? path.posix.join(relativeDir, entry.name) : entry.name;
+
+      if (entry.isDirectory()) {
+        await addDirectoryToZip(sourcePath, relativePath);
+        continue;
+      }
+
+      if (entry.isSymbolicLink()) {
+        throw new Error(`Symlinks are not supported in skill packages: ${relativePath}`);
+      }
+
+      if (!entry.isFile() || SKILL_HUB_UPLOAD_EXCLUDED_FILE_NAMES.has(entry.name)) {
+        continue;
+      }
+
+      const zipEntryPath = canonicalizeSkillMarkdownPath(relativePath);
+      const content = await fs.readFile(sourcePath);
+      zip.file(zipEntryPath, content);
+    }
+  };
+
+  await addDirectoryToZip(skillDir);
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
+function normalizeUploadFormValue(value: unknown): string {
+  if (value == null) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return JSON.stringify(value);
+}
+
+function appendOptionalFormValue(formData: FormData, name: string, value: unknown): void {
+  const normalized = normalizeUploadFormValue(value);
+  if (normalized) {
+    formData.append(name, normalized);
+  }
+}
+
+function appendOptionalFormList(formData: FormData, name: string, values: string[]): void {
+  for (const value of values) {
+    const normalized = value.trim();
+    if (normalized) {
+      formData.append(name, normalized);
+    }
+  }
+}
+
+function normalizeUploadAuthorId(authorId: string | null | undefined): string {
+  const normalized = authorId?.trim() || '';
+  if (!normalized) {
+    return '';
+  }
+
+  if (UUID_PATTERN.test(normalized)) {
+    return normalized;
+  }
+
+  mainWarn('SkillHub', `Skip non-UUID author_id when uploading custom skill: ${normalized}`);
+  return '';
+}
+
+function resolveUploadCategories(meta: SkillHubMeta | null, manifest: Awaited<ReturnType<typeof readSkillManifestFromDirectory>>): string[] {
+  const categories = new Set<string>();
+
+  for (const category of meta?.categories || []) {
+    const normalized = category.trim();
+    if (normalized) categories.add(normalized);
+  }
+
+  const primaryCategory = meta?.category?.trim() || manifest.category;
+  if (primaryCategory) {
+    categories.add(primaryCategory);
+  }
+
+  return Array.from(categories);
+}
+
+async function readSkillUploadIconFile(skillDir: string, icon: string | null | undefined): Promise<{ content: Buffer; fileName: string; mimeType: string } | null> {
+  const normalizedIcon = icon?.trim();
+  if (!normalizedIcon || /^(https?:|data:|aion-asset:|file:)/i.test(normalizedIcon)) {
+    return null;
+  }
+
+  const iconPath = path.resolve(skillDir, normalizedIcon);
+  if (!isPathInside(skillDir, iconPath)) {
+    return null;
+  }
+
+  const ext = path.extname(iconPath).toLowerCase();
+  if (ext !== '.png' && ext !== '.svg') {
+    return null;
+  }
+
+  try {
+    const content = await fs.readFile(iconPath);
+    return {
+      content,
+      fileName: path.basename(iconPath),
+      mimeType: ext === '.png' ? 'image/png' : 'image/svg+xml',
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function parseSkillHubUploadResponse(response: Response): Promise<SkillHubUploadApiBody | null> {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as SkillHubUploadApiBody;
+  } catch {
+    return { message: text };
+  }
+}
+
+function resolveSkillHubUploadStatus(body: SkillHubUploadApiBody | null): SkillHubUploadStatus {
+  return normalizeSkillHubPublishStatus(body?.data?.skill?.status) === 'approved' ? 'approved' : 'pending';
+}
+
+function resolveSkillHubUploadId(body: SkillHubUploadApiBody | null, fallbackId: string): string {
+  return body?.data?.skill?.id || body?.data?.id || body?.id || fallbackId;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeSkillHubPublishStatus(status: unknown): SkillHubPublishStatus | null {
+  if (typeof status === 'number') {
+    if (status === 1) return 'approved';
+    if (status === 2) return 'rejected';
+    if (status === 0) return 'pending';
+    return null;
+  }
+
+  if (typeof status !== 'string') {
+    return null;
+  }
+
+  const normalized = status.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (['1', 'approved', 'approve', 'published', 'online', 'active'].includes(normalized)) {
+    return 'approved';
+  }
+
+  if (['2', 'rejected', 'reject'].includes(normalized)) {
+    return 'rejected';
+  }
+
+  if (['0', 'pending', 'reviewing', 'submitted', 'inactive'].includes(normalized)) {
+    return 'pending';
+  }
+
+  return null;
+}
+
+function resolveSkillHubDetailPublishStatus(body: unknown): SkillHubPublishStatus | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const data = isRecord(body.data) ? body.data : body;
+  const skill = isRecord(data.skill) ? data.skill : data;
+
+  return normalizeSkillHubPublishStatus(skill.status ?? data.status ?? body.status);
+}
+
+async function fetchUploadedSkillPublishStatus(skillId: string, token: string): Promise<SkillHubPublishStatus | null> {
+  const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/${encodeURIComponent(skillId)}`, {
+    headers: { Authorization: token },
+  });
+
+  if (!response.ok) {
+    mainLog('SkillHub', `Skip uploaded skill status refresh for ${skillId}: HTTP ${response.status}`);
+    return null;
+  }
+
+  const body = await response.json();
+  return resolveSkillHubDetailPublishStatus(body);
+}
+
+function isUploadedCustomSkillStatusRefreshCandidate(skill: ISkillInfo): boolean {
+  const meta = skill.meta;
+  if (skill.category !== 'custom' || !meta?.id || meta.source_type !== 'upload') {
+    return false;
+  }
+
+  const isUploadedToSkillHub = meta.uploaded === true || Boolean(meta.publish_status);
+  const isAwaitingFinalStatus = meta.publish_status !== 'approved' && meta.publish_status !== 'rejected';
+  return isUploadedToSkillHub && isAwaitingFinalStatus;
+}
+
+async function refreshUploadedSkillStatusesFromSkillHub(token: string): Promise<{ checked: number; updated: number }> {
+  const skills = await skillManager.getInstalledSkills();
+  const candidates = skills.filter(isUploadedCustomSkillStatusRefreshCandidate);
+  let updated = 0;
+
+  for (const skill of candidates) {
+    try {
+      const skillId = skill.meta?.id;
+      if (!skillId) continue;
+
+      const remoteStatus = await fetchUploadedSkillPublishStatus(skillId, token);
+      if (!remoteStatus) continue;
+
+      const skillDir = await resolveCustomSkillDirForUpload(skill.name);
+      if (!skillDir) continue;
+
+      const currentMeta = await readSkillHubMetaFromDirectory(skillDir);
+      if (!currentMeta) continue;
+
+      const currentStatus = currentMeta.publish_status || (currentMeta.uploaded ? 'pending' : undefined);
+      if (currentStatus === remoteStatus) continue;
+
+      const nextMeta: SkillHubMeta = {
+        ...currentMeta,
+        publish_status: remoteStatus,
+      };
+      if (remoteStatus === 'approved') {
+        nextMeta.published_at = currentMeta.published_at || new Date().toISOString();
+      }
+
+      await writeSkillMetaFile(skillDir, nextMeta);
+      updated += 1;
+      mainLog('SkillHub', `Updated uploaded skill "${skill.name}" publish status: ${currentStatus || 'unknown'} -> ${remoteStatus}`);
+    } catch (error) {
+      mainWarn('SkillHub', `Failed to refresh uploaded skill status for "${skill.name}":`, error);
+    }
+  }
+
+  return { checked: candidates.length, updated };
+}
+
 /**
  * Download file from URL with progress callback
  */
@@ -981,6 +1307,167 @@ export function initSkillHubBridge(): void {
       }
     } catch (error) {
       mainError('SkillHub', 'Failed to import local skill:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.skillHub.uploadSkillToHub.provider(async ({ skillName, tenantId }) => {
+    if (isEnterpriseMode()) {
+      return { success: false, msg: 'SkillHub upload is only available in personal mode' };
+    }
+
+    const normalizedSkillName = skillName.trim();
+    const normalizedTenantId = tenantId.trim();
+    if (!normalizedSkillName) {
+      return { success: false, msg: 'Skill name is required' };
+    }
+    if (!normalizedTenantId) {
+      return { success: false, msg: 'User has no tenant ID, cannot upload skill' };
+    }
+
+    try {
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('SkillHub', 'skillhub token not provisioned, skip uploadSkillToHub');
+        return tokenMissingResponse('skillHub');
+      }
+
+      const skillDir = await resolveCustomSkillDirForUpload(normalizedSkillName);
+      if (!skillDir) {
+        return { success: false, msg: `Custom skill "${normalizedSkillName}" not found` };
+      }
+
+      const customSkillsDir = getCustomSkillsDir();
+      const resolvedSkillDir = path.resolve(skillDir);
+      if (!isPathInside(path.resolve(customSkillsDir), resolvedSkillDir)) {
+        return { success: false, msg: 'Only custom skills can be uploaded to SkillHub' };
+      }
+
+      const importedMeta = await readSkillHubMetaFromDirectory(skillDir);
+      const manifest = await readSkillManifestFromDirectory(skillDir);
+      const uploadSkillName = importedMeta?.name?.trim() || manifest.skillName;
+      const displayName = importedMeta?.display_name?.trim() || manifest.displayName || buildSkillDisplayName(uploadSkillName);
+      const version = normalizeInstalledSkillVersion(importedMeta?.installed_version) || manifest.version || (await readInstalledVersionFromDirectory(skillDir)) || '1.0.0';
+      const categories = resolveUploadCategories(importedMeta, manifest);
+      const uploadAuthorId = normalizeUploadAuthorId(importedMeta?.author_id);
+
+      const zipBuffer = await createSkillHubUploadZip(skillDir);
+      const formData = new FormData();
+      formData.append('name', uploadSkillName);
+      formData.append('display_name', displayName);
+      formData.append('version', version);
+      formData.append('tenant_id', normalizedTenantId);
+      formData.append('status', '0');
+      appendOptionalFormValue(formData, 'category', importedMeta?.category || manifest.category);
+      if (categories.length > 0) {
+        appendOptionalFormList(formData, 'categories', categories);
+      }
+      appendOptionalFormValue(formData, 'description', importedMeta?.description || manifest.description);
+      appendOptionalFormValue(formData, 'core_features', importedMeta?.core_features);
+      appendOptionalFormValue(formData, 'applicable_scenarios', importedMeta?.applicable_scenarios);
+      appendOptionalFormValue(formData, 'emoji', importedMeta?.emoji || manifest.emoji);
+      appendOptionalFormValue(formData, 'homepage', importedMeta?.homepage || manifest.homepage);
+      appendOptionalFormValue(formData, 'author_id', uploadAuthorId);
+
+      const skillBlob = new Blob([new Uint8Array(zipBuffer)], { type: 'application/zip' });
+      formData.append('skill_file', skillBlob, `${uploadSkillName}.zip`);
+
+      const iconFile = await readSkillUploadIconFile(skillDir, importedMeta?.icon || manifest.icon);
+      if (iconFile) {
+        const iconBlob = new Blob([new Uint8Array(iconFile.content)], { type: iconFile.mimeType });
+        formData.append('icon_file', iconBlob, iconFile.fileName);
+      }
+
+      const uploadUrl = `${getSkillHubBaseUrl()}/api/skills`;
+      mainLog('SkillHub', `Uploading custom skill "${uploadSkillName}" to SkillHub tenant ${normalizedTenantId}`);
+      mainLog(
+        'SkillHub',
+        `Custom skill upload payload: ${JSON.stringify({
+          name: uploadSkillName,
+          display_name: displayName,
+          version,
+          tenant_id: normalizedTenantId,
+          status: 0,
+          category: importedMeta?.category || manifest.category || null,
+          categories,
+          has_description: Boolean(importedMeta?.description || manifest.description),
+          has_core_features: Boolean(importedMeta?.core_features),
+          has_applicable_scenarios: Boolean(importedMeta?.applicable_scenarios),
+          has_author_id: Boolean(uploadAuthorId),
+          has_icon_file: Boolean(iconFile),
+        })}`
+      );
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: { Authorization: token },
+        body: formData,
+      });
+      const responseBody = await parseSkillHubUploadResponse(response);
+
+      if (!response.ok) {
+        const message = responseBody?.message || responseBody?.msg || JSON.stringify(responseBody);
+        mainError('SkillHub', `Upload skill failed: ${response.status} - ${message}`);
+        return { success: false, msg: `Upload failed: HTTP ${response.status} - ${message}` };
+      }
+
+      const uploadedId = resolveSkillHubUploadId(responseBody, importedMeta?.id || '');
+      const publishStatus = resolveSkillHubUploadStatus(responseBody);
+      const now = new Date().toISOString();
+      const nextMeta: SkillHubMeta = {
+        id: uploadedId,
+        name: uploadSkillName,
+        display_name: displayName,
+        description: importedMeta?.description?.trim() || manifest.description || '',
+        icon: importedMeta?.icon?.trim() || manifest.icon || UPLOAD_SKILL_DEFAULT_ICON_FILE,
+        emoji: importedMeta?.emoji ?? manifest.emoji,
+        category: importedMeta?.category?.trim() || manifest.category || '',
+        categories,
+        applicable_scenarios: importedMeta?.applicable_scenarios ?? null,
+        core_features: importedMeta?.core_features ?? null,
+        homepage: importedMeta?.homepage?.trim() || manifest.homepage || null,
+        author_id: uploadAuthorId,
+        source_type: 'upload',
+        is_builtin: false,
+        enabled: importedMeta?.enabled !== false,
+        installed_version: version,
+        installed_at: importedMeta?.installed_at || now,
+        visible_to: importedMeta?.visible_to ?? null,
+        uploaded: true,
+        uploaded_at: now,
+        publish_status: publishStatus,
+      };
+      await writeSkillMetaFile(skillDir, nextMeta);
+
+      return {
+        success: true,
+        data: {
+          id: uploadedId,
+          name: uploadSkillName,
+          status: publishStatus,
+        },
+      };
+    } catch (error) {
+      mainError('SkillHub', 'Failed to upload skill to SkillHub:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.skillHub.refreshUploadedSkillStatuses.provider(async () => {
+    if (isEnterpriseMode()) {
+      return { success: true, data: { checked: 0, updated: 0 } };
+    }
+
+    try {
+      const token = getSkillhubToken();
+      if (!token) {
+        mainError('SkillHub', 'skillhub token not provisioned, skip refreshUploadedSkillStatuses');
+        return tokenMissingResponse('skillHub');
+      }
+
+      const result = await refreshUploadedSkillStatusesFromSkillHub(token);
+      return { success: true, data: result };
+    } catch (error) {
+      mainError('SkillHub', 'Failed to refresh uploaded skill statuses:', error);
       return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });

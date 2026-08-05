@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Message } from '@arco-design/web-react';
@@ -21,7 +27,7 @@ interface PasswordAuthPanelProps {
 const PasswordAuthPanel: React.FC<PasswordAuthPanelProps> = ({ appName, logo, defaultLogo, onBackToModeSelect }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { loginByPassword, registerByPassword } = useAuth();
+  const { enterGuest, loginByPassword, registerByPassword } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [account, setAccount] = useState('');
@@ -148,9 +154,18 @@ const PasswordAuthPanel: React.FC<PasswordAuthPanelProps> = ({ appName, logo, de
         {mode === 'login' && <div className='text-center text-12px text-tertiary mt-12px'>{t('login.pwdFootNote')}</div>}
 
         {onBackToModeSelect && (
-          <div className='text-center mt-12px'>
+          <div className='flex items-center justify-center gap-16px mt-12px'>
             <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={onBackToModeSelect}>
               ← 返回模式选择
+            </span>
+            <span
+              className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors'
+              onClick={async () => {
+                await enterGuest();
+                void navigate('/guid');
+              }}
+            >
+              {t('login.skip')}
             </span>
           </div>
         )}

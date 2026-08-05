@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Layout as ArcoLayout, Tooltip } from '@arco-design/web-react';
 import { ExpandLeft, ExpandRight, Right } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
@@ -45,6 +51,7 @@ interface WorkspaceHeaderProps {
 }
 
 const WorkspacePanelHeader: React.FC<WorkspaceHeaderProps> = ({ children, showToggle = false, collapsed, onToggle, togglePlacement = 'right' }) => (
+  // border-[var(--bg-3)]: bg token 当边框的既有误用（uno.config:38 警示），零改样重构不处理
   <div className='workspace-panel-header flex items-center justify-start px-3 py-1 gap-3 border-b border-[var(--bg-3)]' style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}>
     {showToggle && togglePlacement === 'left' && (
       <button type='button' className='workspace-header__toggle mr-1' aria-label='Toggle workspace' onClick={onToggle}>
@@ -75,7 +82,7 @@ interface IRightSiderWidthOverride {
 
 const ConversationHeaderToggle: React.FC<ConversationHeaderToggleProps> = ({ collapsed, title, onToggle, style }) => (
   <div className='pointer-events-none' style={{ width: '34px', height: '44px', ...style }}>
-    <div className='absolute left-0 top-0 bottom-0 w-0 bg-[var(--bg-3)] opacity-90' />
+    <div className='absolute left-0 top-0 bottom-0 w-0 bg-3 opacity-90' />
     <Tooltip content={title} position='bottom'>
       <button
         type='button'
@@ -646,6 +653,7 @@ const ChatLayout: React.FC<{
         )}
 
         {!isMacRuntime && !isWindowsRuntime && workspaceEnabled && rightSiderCollapsed && (
+          // border-[var(--bg-3)]: bg token 当边框的既有误用（uno.config:38 警示），零改样重构不处理
           <button type='button' className='bg-2 border border-[var(--bg-3)] workspace-header__toggle absolute top-1/2 right-2 z-10' style={{ transform: 'translateY(-50%)' }} onClick={() => dispatchWorkspaceToggleEvent()} aria-label='Expand workspace'>
             <ExpandLeft size={16} />
           </button>

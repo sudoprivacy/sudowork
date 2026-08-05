@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Input, Spin, Typography } from '@arco-design/web-react';
 import { SendOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';

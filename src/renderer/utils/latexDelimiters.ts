@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Convert LaTeX-style math delimiters to dollar-sign delimiters
  * that remark-math can process.
  *

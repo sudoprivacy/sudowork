@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useMemo } from 'react';
 import useSWR from 'swr';
 import { DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage';

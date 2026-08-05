@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import classNames from 'classnames';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /// <reference types="vite/client" />
 /**
  * Renderer-side dev-mode debug triggers, attached at

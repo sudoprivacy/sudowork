@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import classNames from 'classnames';
 import React, { useState } from 'react';
 import { Down, PreviewOpen } from '@icon-park/react';
@@ -51,7 +57,7 @@ const FileChangesPanel: React.FC<FileChangesPanelProps> = ({ title, files, defau
   }
 
   return (
-    <div className={classNames('w-full box-border rounded-8px overflow-hidden border border-[var(--aou-2)]', className)} style={{ width: '100%' }}>
+    <div className={classNames('w-full box-border rounded-8px overflow-hidden border border-aou-2', className)} style={{ width: '100%' }}>
       {/* 标题栏 / Header */}
       <div className='flex items-center justify-between px-4 py-3 cursor-pointer select-none' onClick={() => setExpanded(!expanded)}>
         <div className='flex items-center gap-2'>

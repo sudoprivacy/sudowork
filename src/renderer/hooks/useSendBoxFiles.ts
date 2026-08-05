@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useCallback } from 'react';
 import type { FileMetadata } from '@/renderer/services/FileService';
 import { getCleanFileNames } from '@/renderer/services/FileService';

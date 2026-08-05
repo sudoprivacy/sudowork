@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 export type WorkspaceSkillSource = 'skills' | 'claude-skills' | 'scode-skills';
 
 export function resolveWorkspaceSkillRoot(workspace: string, backend?: string): { path: string; source: WorkspaceSkillSource } {

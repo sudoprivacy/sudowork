@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { IResponseMessage } from '@/common/ipcBridge';
 
 const ACP_FINISH_TIMEOUT_ACTIVITY_TYPES = new Set<IResponseMessage['type']>(['thought', 'start', 'content', 'acp_permission', 'acp_tool_call', 'plan']);

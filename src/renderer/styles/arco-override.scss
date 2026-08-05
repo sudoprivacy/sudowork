@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // Arco Design custom overrides - non-theme related
 
 // Arco 在 `body` 上定义设计 token，所以覆盖必须同样落在 `body`（写在 :root 会被
@@ -18,6 +24,9 @@ body {
   // Arco 边框 token 桥接：Arco 组件在 body 上消费 --color-border-2（写到 :root 会被 body 遮蔽），
   // 故在此覆盖为项目语义 token。值引用 --border-light，自动随主题切换。
   --color-border-2: var(--border-light);
+
+  // 深边框 token：放 body 因 --color-border-3 仅 Arco 在 body 定义，:root 不可见会失效。
+  --border-bold: var(--color-border-3);
 
   --arcoblue-1: 255, 243, 230;
   --arcoblue-2: 253, 200, 150;

@@ -1,4 +1,11 @@
-import type { ICliStatus, ILibreOfficeInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 
 export type LoadState = 'idle' | 'loading' | 'installing';
 
@@ -13,7 +20,7 @@ export interface ToolRow {
   nexusRunning?: boolean;
   nexusInstalled?: boolean;
   loadState: LoadState;
-  installPhase?: ILibreOfficeInstallPhase | NexusInstallPhase | string;
+  installPhase?: ILibreOfficeInstallPhase | NexusInstallPhase | LocalKbInstallPhase | IPopplerInstallPhase | string;
   installPercent?: number;
   onRefresh: () => Promise<void>;
   onInstall?: () => Promise<void>;

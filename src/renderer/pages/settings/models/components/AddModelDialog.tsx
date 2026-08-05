@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Checkbox, Form, Input, InputNumber, Message, Modal, Select, Spin, Tag } from '@arco-design/web-react';
 import { IconDownload, IconEye } from '@arco-design/web-react/icon';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -13,6 +19,14 @@ function normalizeModelIds(value: unknown): string[] {
   return Array.from(new Set(values.map((item) => String(item || '').trim()).filter(Boolean)));
 }
 
+const DEFAULT_MODEL_API = 'openai-completions';
+
+const MODEL_API_OPTIONS = [
+  { value: 'openai-completions', i18nKey: 'settings.sudocodeModel.protocolOpenAICompletions', fallback: 'OpenAI Chat Completions' },
+  { value: 'openai-responses', i18nKey: 'settings.sudocodeModel.protocolOpenAIResponses', fallback: 'OpenAI Responses' },
+  { value: 'anthropic-messages', i18nKey: 'settings.sudocodeModel.protocolAnthropicMessages', fallback: 'Anthropic Messages' },
+];
+
 function buildEditableModel(modelId: string, values: IAddModelFormValues): EditableModel {
   const input = ['text'];
   if (values.supportsVision) {
@@ -21,6 +35,7 @@ function buildEditableModel(modelId: string, values: IAddModelFormValues): Edita
   return {
     id: modelId,
     name: modelId,
+    api: values.api,
     input,
     supportsTools: values.supportsTools,
     supportsReasoning: values.supportsReasoning,
@@ -37,10 +52,12 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [providerModels, setProviderModels] = useState<string[]>([]);
   const providerPreset = Form.useWatch('providerPreset', form);
+  const selectedApi = String(Form.useWatch('api', form) || DEFAULT_MODEL_API);
   const selectedModelIds = normalizeModelIds(Form.useWatch('modelIds', form));
   const selectedPreset = useMemo(() => PROVIDER_PRESETS.find((item) => item.value === providerPreset), [providerPreset]);
   const isEditing = Boolean(editingTarget);
   const modelOptions = useMemo(() => providerModels.map((model) => ({ label: model, value: model })), [providerModels]);
+  const modelApiOptions = useMemo(() => MODEL_API_OPTIONS.map((item) => ({ label: t(item.i18nKey, item.fallback), value: item.value })), [t]);
 
   useEffect(() => {
     if (!visible) return;
@@ -54,6 +71,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
         providerId: editingTarget.provider.id,
         baseUrl: editingTarget.provider.baseUrl,
         apiKey: editingTarget.provider.apiKey,
+        api: editableModel.api || DEFAULT_MODEL_API,
         modelId: editableModel.id,
         modelIds: [],
         supportsTools: entry?.supports_tools !== false,
@@ -72,6 +90,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
       providerId: 'custom-openai',
       baseUrl: '',
       apiKey: '',
+      api: DEFAULT_MODEL_API,
       modelId: '',
       modelIds: [],
       supportsTools: true,
@@ -90,6 +109,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
     form.setFieldsValue({
       providerId: preset.providerId,
       baseUrl: preset.baseUrl,
+      api: preset.api || DEFAULT_MODEL_API,
       modelIds: [],
     });
     setProviderModels([]);
@@ -112,7 +132,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
       const res = await ipcBridge.mode.fetchModelList.invoke({
         base_url: baseUrl,
         api_key: apiKey,
-        platform: 'custom',
+        platform: selectedApi === 'anthropic-messages' ? 'anthropic' : 'custom',
       });
       const models =
         res.data?.mode
@@ -212,6 +232,9 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
         </Form.Item>
         <Form.Item label={t('settings.sudocodeModel.baseUrlLabel', '接口地址')} field='baseUrl' rules={[{ required: true }]}>
           <Input placeholder='https://api.example.com/v1' />
+        </Form.Item>
+        <Form.Item label={t('settings.sudocodeModel.protocolLabel', '请求协议')} field='api' rules={[{ required: true }]} extra={t('settings.sudocodeModel.protocolExtra', '选择该模型的 API 请求格式，保存后写入 sudocode.json 的 providers.api-key.api。')}>
+          <Select options={modelApiOptions} />
         </Form.Item>
         <Form.Item label='API Key' field='apiKey' rules={selectedPreset?.apiKeyRequired === false ? [] : [{ required: true }]}>
           <Input
@@ -329,6 +352,7 @@ interface IAddModelFormValues {
   providerId: string;
   baseUrl: string;
   apiKey?: string;
+  api: string;
   modelId?: string;
   modelIds?: string[];
   supportsTools?: boolean;

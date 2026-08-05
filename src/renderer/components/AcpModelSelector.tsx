@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Dropdown, Message, Tooltip } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
@@ -10,6 +16,7 @@ import type { IResponseMessage } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import type { IProvider } from '@/common/storage';
 import type { AcpModelInfo } from '@/types/acpTypes';
+import { useAuth } from '@/renderer/context/AuthContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
 import { buildProviderModelGroups } from '@/renderer/utils/modelProviderGroups';
@@ -43,9 +50,12 @@ const AcpModelSelector: React.FC<{
   backend?: string;
   /** Pre-selected model ID from Guid page */
   initialModelId?: string;
-}> = ({ conversationId, backend, initialModelId }) => {
+  /** Compact mode: force truncate the model label (e.g. team member row). */
+  isCompact?: boolean;
+}> = ({ conversationId, backend, initialModelId, isCompact = false }) => {
   const { t } = useTranslation();
   const { isOpen: isPreviewOpen } = usePreviewContext();
+  const { isGuest } = useAuth();
   const fallbackModelId = resolvePreferredAcpModelId({
     backend,
     explicitModelId: initialModelId,
@@ -71,44 +81,15 @@ const AcpModelSelector: React.FC<{
     }
 
     // For scode, pull the live model list from sudorouter specific_pricing
-    // (rewrites sudocode.json models). Falls back to the standard path on
-    // failure so the dropdown still works offline.
-    if (backend === 'scode') {
-      void fetchScodeLiveModelInfo();
-      return () => {
-        cancelled = true;
-      };
-    }
-
+    // Model discovery for scode is now handled by the capabilities SSOT
+    // inside scode itself (refreshed from sudorouter /v1/models every 24h).
+    // ACP get_model_info() returns config aliases + capabilities models.
+    // The standard fetch path works for all backends including scode.
     runStandardModelInfoFetch();
 
     return () => {
       cancelled = true;
     };
-
-    async function fetchScodeLiveModelInfo() {
-      try {
-        const result = await ipcBridge.scode.refreshModels.invoke();
-        if (cancelled) return;
-        if (result.success && result.data && (result.data.availableModels?.length ?? 0) > 0) {
-          const info = result.data;
-          // Honor a Guid-page pre-selected model on first load.
-          if (!hasUserChangedModel.current && initialModelId) {
-            const match = info.availableModels.find((m) => m.id === initialModelId);
-            if (match) {
-              setModelInfo({ ...info, currentModelId: match.id, currentModelLabel: match.label });
-              return;
-            }
-          }
-          setModelInfo(info);
-          return;
-        }
-      } catch (error) {
-        console.error('[AcpModelSelector][scode] refreshModels failed:', error);
-      }
-      if (cancelled) return;
-      runStandardModelInfoFetch();
-    }
 
     function runStandardModelInfoFetch() {
       ipcBridge.acpConversation.getModelInfo
@@ -388,7 +369,7 @@ const AcpModelSelector: React.FC<{
     defaultModelLabel,
     fallbackLabel: t('conversation.welcome.useCliModel'),
   });
-  const compact = isPreviewOpen;
+  const compact = isPreviewOpen || isCompact;
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useSWR<IProvider[]>('model.config', () => ipcBridge.mode.getModelConfig.invoke());
@@ -445,7 +426,7 @@ const AcpModelSelector: React.FC<{
             <div key={group.key} className='flex flex-col gap-0.5'>
               <div className='flex items-center justify-between gap-2 pl-2.5 pr-0.5 pt-1 pb-0.5 min-h-6'>
                 <span className='text-12px leading-18px text-secondary truncate'>{group.name || t('common.other', { defaultValue: 'Other' })}</span>
-                {backend === 'scode' && groupIndex === 0 && (
+                {backend === 'scode' && !isGuest && groupIndex === 0 && (
                   <span onClick={(e) => e.stopPropagation()}>
                     <Tooltip content={t('common.refresh')} position='top'>
                       <Button size='mini' shape='circle' type='text' icon={<IconRefresh spin={refreshingModels} />} loading={refreshingModels} onClick={handleRefreshModels} />

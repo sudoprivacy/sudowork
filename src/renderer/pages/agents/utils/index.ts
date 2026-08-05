@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import coworkSvg from '@/renderer/assets/cowork.svg';
@@ -28,6 +34,37 @@ export function isEmoji(str: string): boolean {
 export const normalizeAssistantVersion = (version?: string | null) => normalizeSkillVersion(version).replace(/^v(?=\d)/i, '');
 
 export const normalizeAssistantLookupKey = (value: string | null | undefined) => value?.trim().toLowerCase();
+
+function parseComparableVersion(version?: string | null): number[] | null {
+  const normalized = normalizeAssistantVersion(version);
+  if (!normalized) return null;
+
+  const coreVersion = normalized.split(/[+-]/)[0];
+  const segments = coreVersion.split('.');
+  if (segments.length === 0 || segments.some((segment) => !/^\d+$/.test(segment))) {
+    return null;
+  }
+
+  return segments.map((segment) => Number(segment));
+}
+
+export function isAssistantVersionNewer(latestVersion?: string | null, installedVersion?: string | null): boolean {
+  const latestParts = parseComparableVersion(latestVersion);
+  const installedParts = parseComparableVersion(installedVersion);
+  if (!latestParts || !installedParts) {
+    return false;
+  }
+
+  const segmentCount = Math.max(latestParts.length, installedParts.length);
+  for (let index = 0; index < segmentCount; index += 1) {
+    const latestSegment = latestParts[index] || 0;
+    const installedSegment = installedParts[index] || 0;
+    if (latestSegment > installedSegment) return true;
+    if (latestSegment < installedSegment) return false;
+  }
+
+  return false;
+}
 
 export const resolveAssistantVersionLike = (assistant: IAssistantHubSkill, versionLike?: IAssistantHubVersionLike | null): AssistantLatestVersion | null => {
   const sourceUrl = versionLike?.source_url || versionLike?.sourceUrl || assistant._sourceUrl;

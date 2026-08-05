@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * useTaskDags — 从文件树数据中提取 .tasks/ DAG JSON 并读取内容
  *
  * 直接复用 treeHook.files（文件树已加载的目录树），不额外发起任何目录扫描请求。

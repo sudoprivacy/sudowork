@@ -36,6 +36,7 @@ declare const __COS_RELEASE_BASE__: string | undefined;
 export const FALLBACK_SUDOROUTER_BASE_URL = 'https://hk.sudorouter.ai';
 export const FALLBACK_SKILLHUB_BASE_URL = 'https://sudoworkhub.sudoprivacy.com';
 export const FALLBACK_LOG_REPORT_BASE_URL = 'https://sudolog.sudoprivacy.com';
+export const FALLBACK_SCODE_AUTO_MODEL_ID = 'gpt-5.5';
 
 /** Build-time injected value, or fallback when not injected (mirrors sudoworkServer.ts:33). */
 export const BUILD_SUDOROUTER_BASE_URL: string = (typeof __SUDOROUTER_BASE_URL__ !== 'undefined' && __SUDOROUTER_BASE_URL__) || FALLBACK_SUDOROUTER_BASE_URL;
@@ -52,6 +53,7 @@ export interface SystemConfig {
   product_improvement?: { enabled: number; encryption_required?: boolean };
   sudorouter_baseurl?: string;
   skillhub_baseurl?: string;
+  scode_auto_model?: string;
 }
 
 export interface ThirdPartyAuthProvider {
@@ -165,6 +167,11 @@ export function isSudorouterBaseUrl(url: string | null | undefined): boolean {
 
 export function getSkillHubBaseUrl(): string {
   return resolve(getSystemConfigCache()?.skillhub_baseurl, BUILD_SKILLHUB_BASE_URL);
+}
+
+export function getConfiguredScodeAutoModelId(): string | undefined {
+  const raw = getSystemConfigCache()?.scode_auto_model;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
 }
 
 export function getLogReportBaseUrl(): string {

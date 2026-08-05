@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Button, Collapse, Message, Modal } from '@arco-design/web-react';
 import { IconPlus, IconEdit, IconDelete } from '@arco-design/web-react/icon';
 import React, { useState, useEffect, useCallback } from 'react';

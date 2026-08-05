@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { Button, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
 import { Bot, Copy, Download, Eye, SquarePen, Trash2, Upload, Zap } from 'lucide-react';
@@ -9,7 +15,7 @@ import { normalizeAssistantVersion, resolveAvatarImageSrc } from '../utils';
 const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) => {
   const { assistant, isExtension, localeKey } = props;
   const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick } = props;
-  const { enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode } = props;
+  const { uploadStatus, enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode } = props;
   const { t } = useTranslation();
   const isCustom = enterpriseMode ? assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled) : !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
   const isReadonly = assistant.isBuiltin || isExtension || assistant._isHubInstalled || hideDelete || (enterpriseMode && !isCustom);
@@ -87,6 +93,7 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
             <Button shape='circle' className='!size-7' icon={<Upload size={13} />} onClick={onUpload} />
           </Tooltip>
         )}
+        {uploadStatus}
         {/* Duplicate button - available for all assistant types */}
         <Tooltip content={t('settings.assistant.duplicate', '复制')}>
           <Button shape='circle' className='!size-7' icon={<Copy size={13} />} onClick={onDuplicate} />
@@ -117,6 +124,7 @@ type InstalledAssistantCardProps = {
   hasUpdate?: boolean;
   updating?: boolean;
   onUpload?: () => void;
+  uploadStatus?: React.ReactNode;
   onClick: () => void;
   /** Enterprise mode: publish button element */
   enterprisePublishButton?: React.ReactNode;

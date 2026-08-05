@@ -64,5 +64,6 @@
   "thirdPartyStateInvalid": "인증 콜백 검증에 실패했습니다. 다시 시도하세요",
   "thirdPartyMissingTicket": "인증 콜백에 ticket이 없습니다",
   "thirdPartyFailed": "타사 인증 로그인 실패",
-  "backToModeSelect": "← 모드 선택으로 돌아가기"
+  "backToModeSelect": "← 모드 선택으로 돌아가기",
+  "skip": "지금은 건너뛰기 →"
 }

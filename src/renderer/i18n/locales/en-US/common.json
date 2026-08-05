@@ -74,6 +74,7 @@
     "agent": "Agent",
     "digitalEmployees": "Digital Employees",
     "skillStore": "Skill Store",
+    "localKb": "Local KB",
     "security": "Security",
     "webui": "Remote Access",
     "cron": "Scheduled Tasks",

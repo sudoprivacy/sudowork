@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
 import type { ISkillHubSkill, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import type { SkillDetailResponse, SkillStoreTab, LocalSkillImportSource, LocalSkillImportDialogOptions } from '../types';

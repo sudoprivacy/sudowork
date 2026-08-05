@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useEffect } from 'react';
 import { mutate } from 'swr';
 import { subscribeMcpEvents } from '../api/mcpEvents';

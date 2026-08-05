@@ -64,6 +64,7 @@
   "agentTabAutoSwitch": "模型不兼容 Gemini，已自动切换到 {{fallback}}",
   "autoSwitchToAgent": "Gemini 未配置，正在自动切换到 {{agent}}",
   "autoSwitchedAgent": "{{from}} 不可用，已自动切换到 {{to}}",
+  "modelNotConfigured": "未配置可用模型，请在设置页添加模型",
   "scanning": {
     "initialMessage": "当前Agent不可用, 正在检测其他可用agent...",
     "scanningMessage": "正在扫描本地可用agent...",

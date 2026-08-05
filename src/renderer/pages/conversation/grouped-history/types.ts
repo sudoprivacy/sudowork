@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { TChatConversation } from '@/common/storage';
 import type { CronJobStatusEnums } from '@/renderer/utils/enum';
 

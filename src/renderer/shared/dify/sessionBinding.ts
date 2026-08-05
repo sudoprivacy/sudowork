@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
  * Renderer-side helpers for wiring a chat session into the Dify enhancement
  * orchestrator running in the main process.
  *

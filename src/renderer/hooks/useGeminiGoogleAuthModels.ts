@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
@@ -8,6 +14,8 @@ import { getGeminiModeList, type GeminiModeOption } from './useModeModeList';
 export interface GeminiGoogleAuthModelResult {
   geminiModeOptions: GeminiModeOption[];
   isGoogleAuth: boolean;
+  /** google.auth.status SWR 是否已解析（raw data !== undefined）。现有 isGoogleAuth 被 Boolean() 抹平无法反映 pending。 */
+  isGoogleAuthResolved: boolean;
   subscriptionStatus?: {
     isSubscriber: boolean;
     tier?: string;
@@ -49,6 +57,7 @@ export const useGeminiGoogleAuthModels = (): GeminiGoogleAuthModelResult => {
   return {
     geminiModeOptions,
     isGoogleAuth: Boolean(isGoogleAuth),
+    isGoogleAuthResolved: isGoogleAuth !== undefined,
     subscriptionStatus: subscriptionResponse?.data,
   };
 };

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { bridge } from '@office-ai/platform';
 import React, { useCallback, useEffect, useState } from 'react';
 import { SHOW_OPEN_REQUEST_EVENT } from '../../adapter/constant';

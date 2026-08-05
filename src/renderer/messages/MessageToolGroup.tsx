@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Alert, Button, Image, Message, Radio, Tag, Tooltip } from '@arco-design/web-react';
 import { Copy, Download, LoadingOne } from '@icon-park/react';
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';

@@ -33,24 +33,11 @@ const FRESH_THRESHOLD_MS = 60_000;
 
 /** Collect the resolved workspace paths of every conversation that has one. */
 function collectLiveWorkspaces(): Set<string> {
+  const paths = getDatabase().getAllConversationWorkspaces();
   const live = new Set<string>();
-  const db = getDatabase();
-  const pageSize = 1000;
-  let page = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    const result = db.getUserConversations(undefined, page, pageSize);
-    result.data.forEach((conversation) => {
-      const workspace = (conversation.extra as { workspace?: string } | undefined)?.workspace;
-      if (workspace) {
-        live.add(path.resolve(workspace));
-      }
-    });
-    hasMore = result.hasMore;
-    page += 1;
+  for (const ws of paths) {
+    live.add(path.resolve(ws));
   }
-
   return live;
 }
 
