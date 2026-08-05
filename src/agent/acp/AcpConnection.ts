@@ -18,7 +18,8 @@ import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
 import { StdioAcpTransport, GrpcAcpTransport } from './transport';
 import type { AcpTransport } from './transport';
-import { ACP_PERF_LOG, buildGenericSpawnSpec, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { buildGenericSpawnSpec, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { ACP_PERF_LOG } from './perf';
 import type { SpawnResult } from './acpConnectors';
 import { readTextFile, writeTextFile } from './utils';
 

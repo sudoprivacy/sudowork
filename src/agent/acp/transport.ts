@@ -18,7 +18,7 @@ import { processSupervisor } from '@process/ProcessSupervisor';
 import { NexusVfsGrpcClient } from '@common/nexus/nexusVfsGrpcClient';
 import { NdjsonParser } from './ndjson';
 import { killChild } from './utils';
-import { ACP_PERF_LOG } from './acpConnectors';
+import { ACP_PERF_LOG } from './perf';
 import type { GenericSpawnSpec } from './acpConnectors';
 
 // ── Transport interface ────────────────────────────────────────────
