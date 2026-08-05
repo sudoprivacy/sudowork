@@ -60,6 +60,8 @@ export default function SystemPromptSettings() {
   return (
     <PageWrapper
       isFullWidth
+      className='h-full overflow-hidden'
+      contentClassName='h-full flex flex-col'
       title={t('settings.systemPrompt')}
       subtitle={t('settings.systemPromptEditor.description')}
       actions={
@@ -68,15 +70,15 @@ export default function SystemPromptSettings() {
         </Button>
       }
     >
-      <AionScrollArea className='h-full pb-4' disableOverflow>
-        <div className='flex min-h-120 flex-col gap-3'>
+      <AionScrollArea className='min-h-0 flex-1 pb-4' disableOverflow>
+        <div className='flex h-full min-h-0 flex-col gap-3'>
           <div className='text-13px text-foreground-secondary'>{t('settings.systemPromptEditor.currentAssistant', { agentId: brand.displayName })}</div>
           {isLoading ? (
             <div className='flex flex-1 items-center justify-center'>
               <Spin />
             </div>
           ) : (
-            <div className='grid min-h-100 flex-1 grid-cols-2 overflow-hidden border border-border rd-8px'>
+            <div className='grid min-h-0 flex-1 grid-cols-2 overflow-hidden border border-border rd-8px'>
               <div className='min-w-0 overflow-hidden border-r border-border'>
                 <MarkdownEditor value={content} onChange={setContent} />
               </div>
