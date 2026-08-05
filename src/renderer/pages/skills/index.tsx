@@ -5,13 +5,11 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Spin, Message, Input, Modal, Tooltip } from '@arco-design/web-react';
-import { IconSearch } from '@arco-design/web-react/icon';
-import { X, Shield, Zap, Upload, Share2, Plus, Check } from 'lucide-react';
+import { Button, Spin, Message, Modal, Tooltip } from '@arco-design/web-react';
+import { X, Shield, Zap, Upload, Share2 } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import Tabs from '@renderer/components/ui/Tabs';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import { ipcBridge } from '@/common';
@@ -29,7 +27,7 @@ import { SkillAuditReportModal } from './components/SkillAuditReportModal';
 import SkillCard from './components/SkillCard';
 import InstalledSkillCard from './components/InstalledSkillCard';
 import SkillDetailModal from './components/SkillDetailModal';
-import { installedInfoToSkill, resolveSkillTenantId, getLocalSkillImportDialogOptions, getInstalledSkillBadgeCount, fetchSkillsHttp, fetchCategoriesHttp, fetchSkillDetailHttp, VERSION_CACHE_TTL } from './utils';
+import { installedInfoToSkill, resolveSkillTenantId, getLocalSkillImportDialogOptions, fetchSkillsHttp, fetchCategoriesHttp, fetchSkillDetailHttp, VERSION_CACHE_TTL } from './utils';
 import type { IBridgeResponse, SkillLatestVersion, SkillDetailResponse, SkillStoreTab, LocalSkillImportSource } from './types';
 
 // ==================== Main Component ====================
@@ -39,14 +37,14 @@ const SkillSettings: React.FC = () => {
   const { user, isGuest } = useAuth();
   const navigate = useNavigate();
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<SkillStoreTab>('store');
+  // The settings page now always displays the installed-skills panel.
+  const [activeTab] = useState<SkillStoreTab>('installed');
 
   // Store tab state
   const [skills, setSkills] = useState<ISkillHubSkill[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const searchQuery = '';
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -123,7 +121,7 @@ const SkillSettings: React.FC = () => {
   const searchInitializedRef = useRef(false);
 
   // Sync status state
-  const [syncStatus, setSyncStatus] = useState<{
+  const [, setSyncStatus] = useState<{
     syncing: boolean;
     skills: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> };
     assistants: { installed: string[]; skipped: string[]; deleted: string[]; failed: Array<{ id: string; name: string; error: string }> };
@@ -1045,8 +1043,6 @@ const SkillSettings: React.FC = () => {
         return matches;
       })
     : localTenantSkills;
-  // Hub skills: 目录分类为 hub（source_type 仅作兼容兜底）
-  const hubInstalledSkills = installedList.filter((skill) => skill.category === 'hub' || (!skill.category && !skill.isBuiltin && (skill.meta?.source_type === 'hub' || skill.isHubInstalled)));
   // Custom skills: 目录分类为 custom（source_type 仅作兼容兜底）
   const customInstalledSkills = installedList.filter((skill) => skill.category === 'custom' || (!skill.category && !skill.isBuiltin && skill.meta?.source_type === 'upload'));
   // Builtin skills: 目录分类为 system 或 isBuiltin 为 true
@@ -1163,62 +1159,17 @@ const SkillSettings: React.FC = () => {
   );
 
   return (
-    <PageWrapper>
+    <PageWrapper
+      title={t('settings.skill', '技能')}
+      actions={
+        isElectronDesktop() ? (
+          <Button type='primary' icon={<Upload size={13} />} onClick={onImportButtonClick}>
+            {t('common.upload', '上传')}
+          </Button>
+        ) : undefined
+      }
+    >
       <div ref={containerRef} className='flex flex-col h-full w-full'>
-        {/* Header: tabs + search + create button */}
-        <div className='flex items-center gap-6 mb-3'>
-          {/* Tab switcher */}
-          <Tabs
-            variant='line'
-            className='shrink-0'
-            value={activeTab}
-            onChange={(value) => {
-              if (value === 'installed' && activeTab === 'installed') {
-                void fetchInstalledList();
-                return;
-              }
-              setActiveTab(value as SkillStoreTab);
-            }}
-            items={[
-              { value: 'store', label: t('settings.skill.storeTab', '技能库') },
-              { value: 'exclusive', label: t('settings.skill.exclusiveTab', '专属技能') },
-              {
-                value: 'installed',
-                label: (
-                  <span className='f-center'>
-                    {t('settings.skill.installedTab', '我的技能')}
-                    {getInstalledSkillBadgeCount(installedList) > 0 && <span className='f-center min-w-4 h-4 ml-[5px] px-1 rd-full bg-primary text-primary-foreground text-10px leading-4 font-medium'>{getInstalledSkillBadgeCount(installedList)}</span>}
-                  </span>
-                ),
-              },
-            ]}
-          />
-
-          {/* Sync status indicator for enterprise mode - compact inline style */}
-          {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-brand-surface rounded-sm shrink-0'>
-              <Spin size={12} />
-              <span className='text-11px text-brand'>{t('settings.skill.syncing', '同步中...')}</span>
-            </div>
-          )}
-          {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.skills.installed.length > 0 || syncStatus.skills.failed.length > 0) && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-muted rounded-sm shrink-0'>
-              <Check size={12} className='text-success' />
-              <span className='text-11px text-success'>{t('settings.skill.syncCompleted', '已同步')}</span>
-            </div>
-          )}
-
-          {/* Search - always rendered to preserve layout, hidden on installed tab */}
-          <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-foreground-tertiary' />} className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
-          {activeTab === 'installed' && isElectronDesktop() && (
-            <Tooltip content={t('settings.customSkills', '自定义技能')}>
-              <Button icon={isEnterprise ? <Plus size={13} /> : <Upload size={13} />} onClick={onImportButtonClick} className='rd-full shrink-0'>
-                {isEnterprise ? t('common.create', '创建') : t('common.upload', '上传')}
-              </Button>
-            </Tooltip>
-          )}
-        </div>
-
         {/* ===== STORE TAB ===== */}
         {(activeTab === 'store' || activeTab === 'exclusive') && (
           <>
@@ -1360,9 +1311,6 @@ const SkillSettings: React.FC = () => {
                   <Zap size={32} className='text-foreground-tertiary' />
                   <div className='text-13px text-foreground-secondary'>{t('settings.skill.noInstalledSkills', '暂无已安装的技能')}</div>
                   <div className='text-12px text-foreground-tertiary'>{t('settings.skill.noInstalledSkillsHint', '前往技能库安装你需要的技能')}</div>
-                  <Button size='small' type='outline' className='mt-1' onClick={() => setActiveTab('store')}>
-                    {t('settings.skill.browseStore', '浏览技能库')}
-                  </Button>
                 </div>
               ) : (
                 <div className='pb-4 space-y-5'>
@@ -1392,14 +1340,6 @@ const SkillSettings: React.FC = () => {
                       {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-card border border-dashed border-border rounded-lg px-3.5 py-4.5 text-12px text-foreground-tertiary'>{t('settings.noTenantSkills', '暂无专属技能')}</div>}
                     </section>
                   )}
-
-                  <section>
-                    <div className='flex items-center justify-between gap-2 mb-2.5'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.hubSkills', '商店技能')}</div>
-                      <span className='px-1.5 py-0 bg-fill-shallow text-foreground-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
-                    </div>
-                    {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-card border border-dashed border-border rounded-lg px-3.5 py-4.5 text-12px text-foreground-tertiary'>{t('settings.noHubSkills', '暂无商店安装的技能')}</div>}
-                  </section>
 
                   <section>
                     <div className='flex items-center justify-between gap-2 mb-2.5'>
