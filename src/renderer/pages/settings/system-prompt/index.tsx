@@ -20,25 +20,19 @@ export default function SystemPromptSettings() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    let isDisposed = false;
-
-    ipcBridge.systemSettings.getDefaultAssistantSystemPrompt
-      .invoke()
-      .then(({ content: loadedContent }) => {
-        if (isDisposed) return;
+    const loadSystemPrompt = async () => {
+      try {
+        const { content: loadedContent } = await ipcBridge.systemSettings.getDefaultAssistantSystemPrompt.invoke();
         setContent(loadedContent);
         setSavedContent(loadedContent);
-      })
-      .catch(() => {
-        if (!isDisposed) Message.error(t('settings.systemPromptEditor.loadFailed'));
-      })
-      .finally(() => {
-        if (!isDisposed) setIsLoading(false);
-      });
-
-    return () => {
-      isDisposed = true;
+      } catch {
+        Message.error(t('settings.systemPromptEditor.loadFailed'));
+      } finally {
+        setIsLoading(false);
+      }
     };
+
+    void loadSystemPrompt();
   }, [t]);
 
   const onSave = async () => {
