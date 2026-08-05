@@ -484,7 +484,7 @@ describe('TeamService createTeam members', () => {
       h.emitMemberSpawned.mockClear();
       h.notifyWake.mockClear();
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', model: 'model-1', wakeTeammateOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', model: 'model-1' });
       const spawnCall = h.createConversation.mock.calls.at(-1)?.[0] as { skipWorkerRegistration?: boolean };
 
       expect(teammate.role).toBe('teammate');
@@ -525,7 +525,7 @@ describe('TeamService createTeam members', () => {
       h.emitMemberSpawned.mockClear();
       h.emitAgentStatusChanged.mockClear();
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', wakeTeammateOnSpawn: false, notifyLeaderOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', notifyLeaderOnSpawn: false });
 
       expect(h.emitMemberSpawned).toHaveBeenCalledTimes(1);
       await vi.runOnlyPendingTimersAsync();
@@ -533,33 +533,6 @@ describe('TeamService createTeam members', () => {
       expect(h.emitMemberSpawned).toHaveBeenCalledTimes(1);
       expect(h.members.get(teammate.id)?.status).toBe('failed');
       expect(h.emitAgentStatusChanged).toHaveBeenCalledWith(expect.objectContaining({ team_id: team.id, slot_id: teammate.id, status: 'failed' }));
-    } finally {
-      await vi.runOnlyPendingTimersAsync();
-      vi.useRealTimers();
-    }
-  });
-
-  it('spawnMember removes the pending member when welcome write fails', async () => {
-    vi.useFakeTimers();
-    try {
-      const service = await importService();
-      const team = await service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: 'scode', name: 'Leader', role: 'lead' }]);
-      await service.rebuildTeam(team.id);
-      h.emitMemberRemoved.mockClear();
-      h.emitMemberSpawned.mockClear();
-      h.insertMail.mockImplementation((mail: TeamMail) => {
-        if (mail.type === 'message' && mail.to_member_id !== leaderFor(team.id).id) throw new Error('welcome failed');
-        h.mails.push({ ...mail });
-      });
-
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', notifyLeaderOnSpawn: false });
-
-      expect(h.members.has(teammate.id)).toBe(true);
-      await vi.runOnlyPendingTimersAsync();
-
-      expect(h.members.has(teammate.id)).toBe(false);
-      expect(h.emitMemberRemoved).toHaveBeenCalledWith({ team_id: team.id, slot_id: teammate.id });
-      expect(h.emitMemberSpawned).toHaveBeenCalledTimes(1);
     } finally {
       await vi.runOnlyPendingTimersAsync();
       vi.useRealTimers();
@@ -579,7 +552,7 @@ describe('TeamService createTeam members', () => {
         h.mails.push({ ...mail });
       });
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', wakeTeammateOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate' });
 
       await vi.runOnlyPendingTimersAsync();
 

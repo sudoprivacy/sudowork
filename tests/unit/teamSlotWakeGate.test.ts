@@ -26,7 +26,7 @@ describe('SlotWakeGate.beforeWake (附录 I.2)', () => {
   it('Lifecycle wake records while paused WITHOUT clearing paused', () => {
     const g = new SlotWakeGate();
     g.pause('s1');
-    expect(g.beforeWake('s1', 'spawn_welcome')).toBe('Record');
+    expect(g.beforeWake('s1', 'mcp_shutdown_request')).toBe('Record');
     expect(g.isPaused('s1')).toBe(true);
   });
 
@@ -78,41 +78,33 @@ describe('SlotWakeGate pause/resume/clear/retained', () => {
 
 describe('acquirePolicy (附录 I.2)', () => {
   it('user_message/user_intervention: RejectSlotBusy only when Busy', () => {
-    expect(acquirePolicy('user_message', 'Idle', false)).toBe('Accept');
-    expect(acquirePolicy('user_message', 'Busy', false)).toBe('RejectSlotBusy');
-    expect(acquirePolicy('user_intervention', 'Pending', false)).toBe('Accept');
-    expect(acquirePolicy('user_intervention', 'Busy', false)).toBe('RejectSlotBusy');
+    expect(acquirePolicy('user_message', 'Idle')).toBe('Accept');
+    expect(acquirePolicy('user_message', 'Busy')).toBe('RejectSlotBusy');
+    expect(acquirePolicy('user_intervention', 'Pending')).toBe('Accept');
+    expect(acquirePolicy('user_intervention', 'Busy')).toBe('RejectSlotBusy');
   });
 
   it('mcp_send_message: Suppress when Paused, Accept otherwise', () => {
-    expect(acquirePolicy('mcp_send_message', 'Paused', false)).toBe('Suppress');
-    expect(acquirePolicy('mcp_send_message', 'Idle', false)).toBe('Accept');
-    expect(acquirePolicy('mcp_send_message', 'Busy', false)).toBe('Accept');
-  });
-
-  it('spawn_welcome: dedup / busy / pending / accept', () => {
-    expect(acquirePolicy('spawn_welcome', 'Idle', true)).toBe('Suppress'); // already welcomed
-    expect(acquirePolicy('spawn_welcome', 'Busy', false)).toBe('RejectInvalid');
-    expect(acquirePolicy('spawn_welcome', 'Pending', false)).toBe('Suppress');
-    expect(acquirePolicy('spawn_welcome', 'Idle', false)).toBe('Accept');
-    expect(acquirePolicy('spawn_welcome', 'Paused', false)).toBe('Accept');
+    expect(acquirePolicy('mcp_send_message', 'Paused')).toBe('Suppress');
+    expect(acquirePolicy('mcp_send_message', 'Idle')).toBe('Accept');
+    expect(acquirePolicy('mcp_send_message', 'Busy')).toBe('Accept');
   });
 
   it('mcp_shutdown_request: always Accept', () => {
-    expect(acquirePolicy('mcp_shutdown_request', 'Busy', false)).toBe('Accept');
-    expect(acquirePolicy('mcp_shutdown_request', 'Paused', false)).toBe('Accept');
+    expect(acquirePolicy('mcp_shutdown_request', 'Busy')).toBe('Accept');
+    expect(acquirePolicy('mcp_shutdown_request', 'Paused')).toBe('Accept');
   });
 
   it('idle/interrupted_notification: Accept only when Idle', () => {
-    expect(acquirePolicy('idle_notification', 'Idle', false)).toBe('Accept');
-    expect(acquirePolicy('idle_notification', 'Busy', false)).toBe('Suppress');
-    expect(acquirePolicy('interrupted_notification', 'Pending', false)).toBe('Suppress');
+    expect(acquirePolicy('idle_notification', 'Idle')).toBe('Accept');
+    expect(acquirePolicy('idle_notification', 'Busy')).toBe('Suppress');
+    expect(acquirePolicy('interrupted_notification', 'Pending')).toBe('Suppress');
   });
 
   it('SystemRecovery: Suppress when Paused, Accept otherwise', () => {
-    expect(acquirePolicy('crash_notification', 'Paused', false)).toBe('Suppress');
-    expect(acquirePolicy('recovery_drain', 'Idle', false)).toBe('Accept');
-    expect(acquirePolicy('inactivity_timeout', 'Busy', false)).toBe('Accept');
-    expect(acquirePolicy('shutdown_rejected', 'Pending', false)).toBe('Accept');
+    expect(acquirePolicy('crash_notification', 'Paused')).toBe('Suppress');
+    expect(acquirePolicy('recovery_drain', 'Idle')).toBe('Accept');
+    expect(acquirePolicy('inactivity_timeout', 'Busy')).toBe('Accept');
+    expect(acquirePolicy('shutdown_rejected', 'Pending')).toBe('Accept');
   });
 });
