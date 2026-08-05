@@ -20,6 +20,8 @@ import os from 'os';
 import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
+import { getDataPath } from '@process/utils';
+import { getZzapiCredentialEnv } from '@process/services/zzapi/zzapiCredentials';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const PERF_LOG = process.env.ACP_PERF === '1';
@@ -282,6 +284,26 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     mergedPath = mergePaths(mergedPath, managedNodeBinDir);
   }
 
+  // Append the managed CLI wrapper directory (~/.nexus/bin) — this is where
+  // CliInstallService writes the `claude`, `shareone` and `zzapi` wrappers.
+  //
+  // Until now that directory only reached child processes indirectly, via the
+  // `export PATH="$HOME/.nexus/bin:$PATH"` line that CliInstallService appends
+  // to .zshrc/.bashrc and that loadShellEnvironment() picks up. That chain
+  // breaks on Windows, when the rc file is unwritable, and whenever the login
+  // shell snapshot fails — leaving agents unable to invoke the very CLIs
+  // Sudowork just installed. Appending it here makes it unconditional.
+  // Appended (not prepended) so a user's own install still takes priority.
+  //
+  // 追加托管 CLI wrapper 目录（~/.nexus/bin）。此前它只能通过 shell rc 间接进入
+  // 子进程 PATH，Windows 或 rc 未生效时会断链，导致 agent 调不到已安装的 CLI。
+  // Derived from getDataPath() rather than hardcoded so it stays in lockstep
+  // with CliInstallService's getBinDir(), which is defined the same way.
+  const managedBinDir = path.join(getDataPath(), 'bin');
+  if (existsSync(managedBinDir)) {
+    mergedPath = mergePaths(mergedPath, managedBinDir);
+  }
+
   const enhancedEnv = {
     ...process.env,
     ...shellEnv,
@@ -290,6 +312,13 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     // When customEnv.PATH exists, merge it with the already merged path (fix: don't override)
     PATH: customEnv?.PATH ? mergePaths(mergedPath, customEnv.PATH) : mergedPath,
   } as Record<string, string>;
+
+  // ZZAPI credentials from the secret store (cached; see zzapiCredentials.ts).
+  // Only filled in when absent, matching how the other injected credentials
+  // behave (acpConnectors.ts) — a value the user exported themselves wins.
+  for (const [key, value] of Object.entries(getZzapiCredentialEnv())) {
+    if (!enhancedEnv[key]) enhancedEnv[key] = value;
+  }
 
   if (!app.isPackaged) {
     enhancedEnv.NPM_CONFIG_REGISTRY = DEV_NPM_REGISTRY;

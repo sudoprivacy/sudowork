@@ -707,6 +707,20 @@ export const shareoneCli = {
   publishFile: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { filePath: string }>('shareone.publish-file'),
 };
 
+// ZZAPI CLI installer / 中资寻源询价命令行工具
+export const zzapiCli = {
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('zzapi.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('zzapi.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('zzapi.uninstall'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('zzapi.install-result'),
+  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('zzapi.install-progress'),
+  /** Validate an app key / secret pair against the 中资 token endpoint without storing it */
+  testCredentials: bridge.buildProvider<IBridgeResponse<{ ok: boolean; error?: string }>, { appKey: string; appSecret: string }>('zzapi.test-credentials'),
+  /** Whether stored credentials are injected into agent processes */
+  getEnabled: bridge.buildProvider<IBridgeResponse<{ enabled: boolean; hasCredentials: boolean }>, void>('zzapi.get-enabled'),
+  setEnabled: bridge.buildProvider<IBridgeResponse<void>, { enabled: boolean }>('zzapi.set-enabled'),
+};
+
 // LibreOffice installer / LibreOffice 在线安装
 export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
 export type ISudoclawInstallPhase = 'extracting' | 'installing' | 'configuring';

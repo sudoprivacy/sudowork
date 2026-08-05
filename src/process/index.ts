@@ -102,6 +102,19 @@ export const initializeProcess = async () => {
     void serviceManager.startup();
     perfLog('serviceManager.startup', Date.now() - serviceStart);
 
+    // Optional CLI — install in the background so agents can call `zzapi`
+    // without the user visiting the runtime settings page. Never gates startup.
+    // ensureZzapiInstalled() swallows its own failures; the .catch() here is for
+    // the dynamic import itself, so a module-resolution error can't become a
+    // silent unhandled rejection.
+    void import('./services/zzapi/ZzapiCliService').then(({ ensureZzapiInstalled }) => ensureZzapiInstalled()).catch((error) => mainError('Process', 'ZZAPI background install could not start', error));
+
+    // Prefetch ZZAPI credentials into memory so getEnhancedEnv() can hand them
+    // to agents synchronously. Waits for Nexus to be ready internally; a miss is
+    // still recoverable — saving credentials in settings re-reads them
+    // (see secretBridge.ts).
+    void import('./services/zzapi/zzapiCredentials').then(({ initZzapiCredentials }) => initZzapiCredentials()).catch((error) => mainError('Process', 'ZZAPI credential prefetch could not start', error));
+
     const channelStart = Date.now();
     try {
       await getChannelManager().initialize();
