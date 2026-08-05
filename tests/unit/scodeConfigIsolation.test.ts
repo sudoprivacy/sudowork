@@ -81,6 +81,31 @@ describe('scode config isolation — path SSOT', () => {
     expect(SCODE_SETTINGS_PATH).toBe(path.join(SCODE_HOME, 'settings.json'));
   });
 
+  it('derives stable isolated user memory directories without exposing raw IDs', async () => {
+    const { SCODE_HOME, SCODE_USER_MEMORY_ROOT, ensureScodeUserMemoryDir, hasScodeUserMemoryPath, isScodeUserMemoryPath } = await import('../../src/process/services/scode/scodePaths');
+    const memoryRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'sudowork-user-memory-'));
+
+    try {
+      const userA = ensureScodeUserMemoryDir('account-a', memoryRoot);
+      const userAAgain = ensureScodeUserMemoryDir(' account-a ', memoryRoot);
+      const userB = ensureScodeUserMemoryDir('account-b', memoryRoot);
+      const guest = ensureScodeUserMemoryDir(undefined, memoryRoot);
+
+      expect(userA).toBe(userAAgain);
+      expect(userA).not.toBe(userB);
+      expect(userA).not.toBe(guest);
+      expect(userA.startsWith(memoryRoot + path.sep)).toBe(true);
+      expect(userA).not.toContain('account-a');
+      expect(fs.existsSync(userA)).toBe(true);
+      expect(path.relative(memoryRoot, path.join(userA, 'MEMORY.md')).startsWith('..')).toBe(false);
+      expect(isScodeUserMemoryPath(path.join(SCODE_HOME, 'settings.json'))).toBe(false);
+      expect(hasScodeUserMemoryPath({ path: path.join(SCODE_USER_MEMORY_ROOT, 'user', 'MEMORY.md') })).toBe(true);
+      expect(hasScodeUserMemoryPath({ path: path.join(SCODE_HOME, 'settings.json') })).toBe(false);
+    } finally {
+      await fsp.rm(memoryRoot, { recursive: true, force: true });
+    }
+  });
+
   it('ScodeInstallService.SCODE_DIR is an alias of the SSOT home (no duplicate literal)', async () => {
     const paths = await import('../../src/process/services/scode/scodePaths');
     const install = await import('../../src/process/services/scode/ScodeInstallService');

@@ -27,14 +27,15 @@ describe('ScodeInstallService', () => {
     await fs.rm(tempRoot, { recursive: true, force: true });
   });
 
-  it('writes memory-storage rules to workspace AGENTS.md for scode sessions', async () => {
+  it('routes user memories to native persistent memory instead of workspace AGENTS.md', async () => {
     const { ensureWorkspaceAgentsMdRules } = await import('../../src/process/services/scode/ScodeInstallService');
 
     ensureWorkspaceAgentsMdRules(tempRoot);
 
     const agentsMd = await fs.readFile(path.join(tempRoot, '.nexus', 'sudocode', 'AGENTS.md'), 'utf-8');
     expect(agentsMd).toContain('<!-- SUDOCODE_MEMORY_STORAGE -->');
-    expect(agentsMd).toContain('Do NOT use the Config tool for memory operations.');
-    expect(agentsMd).toContain('Do NOT write memories or natural-language instructions to `settings.json`');
+    expect(agentsMd).toContain('Use the native persistent memory system described in the system prompt.');
+    expect(agentsMd).toContain('Do NOT store user memories in any AGENTS.md under the current workspace');
+    expect(agentsMd).not.toContain('Update the AGENTS.md file that applies to the current workspace.');
   });
 });

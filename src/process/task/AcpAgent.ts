@@ -54,6 +54,8 @@ import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { classifyLlmError } from '@process/utils/llmErrorClassification';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
+import { ensureScodeUserMemoryDir, hasScodeUserMemoryPath, isScodeUserMemoryPath } from '@process/services/scode/scodePaths';
+import { getUserContext } from '@process/telemetry/UserContext';
 import { extractGovernanceBlock } from '@process/services/team/GovernancePrompt';
 import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
@@ -159,6 +161,17 @@ interface InitializeResult {
 function normalizeToolCallStatus(status: string | undefined): 'pending' | 'in_progress' | 'completed' | 'failed' {
   if (!status) return 'pending';
   return status as 'pending' | 'in_progress' | 'completed' | 'failed';
+}
+
+function getScodeMemoryScopeId(): string | undefined {
+  if (ProcessConfig.getSync('system.appMode') === 'e') {
+    const userInfo = ProcessConfig.getSync('eeclaw.userInfo') as { id?: string | number } | undefined;
+    const userId = userInfo?.id === undefined ? '' : String(userInfo.id).trim();
+    return userId ? `enterprise:${userId}` : undefined;
+  }
+
+  const userId = getUserContext().user_id;
+  return userId ? `personal:${userId}` : undefined;
 }
 
 export interface AcpAgentData {
@@ -427,10 +440,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
 
       // Store resolved config for connection
-      if (data.backend === 'scode' && this.persistedModelId) {
+      if (data.backend === 'scode') {
         customEnv = {
           ...customEnv,
-          SUDOCODE_CURRENT_MODEL_ID: this.persistedModelId,
+          SUDOCODE_MEMORY_DIR: ensureScodeUserMemoryDir(getScodeMemoryScopeId()),
+          ...(this.persistedModelId && { SUDOCODE_CURRENT_MODEL_ID: this.persistedModelId }),
         };
       }
 
@@ -511,6 +525,28 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       }
     })();
     return this.bootstrap;
+  }
+
+  private async ensureCurrentScodeMemoryScope(): Promise<void> {
+    if (this.options.backend !== 'scode') return;
+
+    const memoryDir = ensureScodeUserMemoryDir(getScodeMemoryScopeId());
+    const previousMemoryDir = this.extra.customEnv?.SUDOCODE_MEMORY_DIR;
+    if (previousMemoryDir === memoryDir) return;
+
+    if (previousMemoryDir && this.connection.isConnected) {
+      await this.connection.disconnect();
+      this.bootstrap = undefined;
+      this.extra.acpSessionId = undefined;
+      this.options.acpSessionId = undefined;
+      this.isFirstMessage = true;
+      clearAcpSessionId(this.conversation_id);
+    }
+
+    this.extra.customEnv = {
+      ...this.extra.customEnv,
+      SUDOCODE_MEMORY_DIR: memoryDir,
+    };
   }
 
   private async connect(): Promise<void> {
@@ -826,6 +862,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         msg_id: data.msg_id || uuid(),
         data: { processingStartTime: this.processingStartTime },
       });
+
+      await this.ensureCurrentScodeMemoryScope();
 
       // Intercept /model slash command locally so model switching does not depend on backend command support.
       const modelMatch = data.content.trim().match(/^\/model(?:\s+(.*))?$/);
@@ -2026,6 +2064,9 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     const preliminaryPath = input.actualPath || this.resolveWorkspacePath(input.requestedPath);
+    if (isScodeUserMemoryPath(preliminaryPath)) {
+      return;
+    }
     const classification = this.fileIntentClassifier.classify({
       filePath: preliminaryPath,
       requestedPath: input.requestedPath,
@@ -2590,6 +2631,10 @@ This identity statement takes priority over the default identity in USER.md.
         const toolCallUpdate = data as ToolCallUpdate;
         const toolName = toolCallUpdate.update?.title || '';
         const toolCallId = toolCallUpdate.update?.toolCallId;
+        if (hasScodeUserMemoryPath(toolCallUpdate.update?.rawInput)) {
+          if (toolCallId) this.toolCallMeta.set(toolCallId, { toolName, rawInput: toolCallUpdate.update?.rawInput });
+          return;
+        }
         console.log(`[AcpAgent] tool_call event: toolName=${toolName}, toolCallId=${toolCallId}`);
 
         // Team 场景禁止 Sleep：leader/member 用 Sleep 会在 turn 内 busy-wait，
@@ -2649,6 +2694,11 @@ This identity statement takes priority over the default identity in USER.md.
         const statusUpdate = data as ToolCallUpdateStatus;
         const toolCallId = statusUpdate.update?.toolCallId;
         const toolStatus = statusUpdate.update?.status;
+        const toolMeta = toolCallId ? this.toolCallMeta.get(toolCallId) : undefined;
+        if (hasScodeUserMemoryPath(statusUpdate.update?.rawInput) || hasScodeUserMemoryPath(toolMeta?.rawInput)) {
+          if (toolCallId) this.toolCallMeta.delete(toolCallId);
+          return;
+        }
         if (toolStatus === 'completed' || toolStatus === 'failed') {
           this.lastToolCompletionSequence = ++this.turnEventSequence;
         }
@@ -3222,6 +3272,10 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private handleFileOperation(operation: { method: string; path: string; content?: string; sessionId: string }): void {
+    if (isScodeUserMemoryPath(operation.path)) {
+      return;
+    }
+
     // Telemetry: record file operation step
     const turnId = getCurrentTurnId(this.conversation_id);
     if (turnId) {
@@ -4486,6 +4540,7 @@ This identity statement takes priority over the default identity in USER.md.
         for (const attachmentPath of attachments) {
           if (typeof attachmentPath === 'string' && attachmentPath.trim()) {
             const resolvedPath = attachmentPath.trim();
+            if (isScodeUserMemoryPath(resolvedPath)) continue;
             // Verify the file exists
             try {
               if (fs.existsSync(resolvedPath)) {
@@ -4504,7 +4559,7 @@ This identity statement takes priority over the default identity in USER.md.
     if (!/write|edit|create/.test(n)) return null;
 
     const filePath = (rawInput.path || rawInput.file_path || rawInput.filename) as string | undefined;
-    if (!filePath || typeof filePath !== 'string') return null;
+    if (!filePath || typeof filePath !== 'string' || isScodeUserMemoryPath(filePath)) return null;
 
     const ext = nodePath.extname(filePath).toLowerCase();
     if (!AcpAgent.DOCUMENT_EXTENSIONS.has(ext) && !AcpAgent.IMAGE_EXTENSIONS.has(ext)) return null;
@@ -4548,6 +4603,10 @@ This identity statement takes priority over the default identity in USER.md.
     let resolvedPath = filePath;
     if (!nodePath.isAbsolute(filePath)) {
       resolvedPath = nodePath.resolve(this.workspace, filePath);
+    }
+
+    if (isScodeUserMemoryPath(resolvedPath)) {
+      return false;
     }
 
     // Verify the file exists before sending

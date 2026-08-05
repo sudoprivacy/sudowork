@@ -134,6 +134,28 @@ describeMaybe('scode config-home isolation (real binary)', () => {
     fs.rmSync(isoHome, { recursive: true, force: true });
   });
 
+  it('routes two different workspaces to one SUDOCODE_MEMORY_DIR', () => {
+    const workspaceA = fs.mkdtempSync(path.join(os.tmpdir(), 'scode-memory-ws-A-'));
+    const workspaceB = fs.mkdtempSync(path.join(os.tmpdir(), 'scode-memory-ws-B-'));
+    const memoryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scode-user-memory-'));
+    const env = { ...process.env, SUDOCODE_MEMORY_DIR: memoryDir };
+
+    try {
+      for (const cwd of [workspaceA, workspaceB]) {
+        const prompt = execFileSync(scodeBin as string, ['system-prompt', '--cwd', cwd], {
+          env,
+          encoding: 'utf-8',
+          timeout: 30_000,
+        });
+        expect(normalize(prompt)).toContain(normalize(memoryDir));
+      }
+    } finally {
+      fs.rmSync(workspaceA, { recursive: true, force: true });
+      fs.rmSync(workspaceB, { recursive: true, force: true });
+      fs.rmSync(memoryDir, { recursive: true, force: true });
+    }
+  });
+
   it('two different config homes are fully isolated — neither sees the other', () => {
     const homeA = fs.mkdtempSync(path.join(os.tmpdir(), 'scode-iso-A-'));
     const homeB = fs.mkdtempSync(path.join(os.tmpdir(), 'scode-iso-B-'));

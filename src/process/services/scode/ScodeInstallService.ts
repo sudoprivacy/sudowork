@@ -50,7 +50,7 @@ const SCODE_READY_MARKER = '.scode-bin-ready';
 const SCODE_GITHUB_RELEASE_BASE_URL = 'https://github.com/sudoprivacy/sudocode/releases/download';
 const SCODE_SKILLS_DIR = path.join(SCODE_DIR, 'skills');
 const SCODE_LEGACY_MANAGED_SKILLS_FILE = path.join(SCODE_DIR, '.sudowork-managed-skills.json');
-const SCODE_PRESERVED_ENTRY_NAMES = new Set(['sudocode.json', 'scode.json', 'settings.json', 'skills', 'AGENTS.md']);
+const SCODE_PRESERVED_ENTRY_NAMES = new Set(['sudocode.json', 'scode.json', 'settings.json', 'skills', 'user-memory', 'AGENTS.md']);
 
 /** Marker used to identify the safety-rules section inside AGENTS.md */
 const AGENTS_MD_SAFETY_MARKER = '<!-- SUDOCODE_DELETE_SAFETY_RULES -->';
@@ -644,21 +644,21 @@ When users ask about current date/time (e.g., "What day is today?", "今天几�
 ${AGENTS_MD_MEMORY_MARKER}
 ## Memory Storage / 记忆存储
 
-Conversation memories and user-specific long-term instructions are instruction-file content, not runtime settings.
-会话记忆、用户偏好和长期规则属于指令文件内容，不属于运行时配置。
+Use the persistent memory directory provided by Sudo Code for user memories, preferences, and long-term rules.
+用户记忆、偏好和长期规则统一使用 Sudo Code 提供的持久化 Memory 目录。
 
-When the user asks you to remember, save, update, or persist a preference/rule/identity detail/workflow:
-当用户要求记住、保存、更新或持久化偏好/规则/身份信息/工作流时：
-1. Update the AGENTS.md file that applies to the current workspace. Prefer \`.nexus/sudocode/AGENTS.md\` under the current working directory unless the user explicitly names another AGENTS.md file.
-   更新当前工作区对应的 AGENTS.md。除非用户明确指定其他 AGENTS.md，否则优先写入当前工作目录下的 \`.nexus/sudocode/AGENTS.md\`。
-2. Store memories as Markdown instructions under a clear "Memory" section.
-   以 Markdown 指令形式存放在清晰的 "Memory" 小节下。
+When saving, updating, or forgetting a memory:
+保存、更新或忘记记忆时：
+1. Use the native persistent memory system described in the system prompt.
+   使用系统提示中说明的原生持久化 Memory 系统。
+2. Do NOT store user memories in any AGENTS.md under the current workspace, including \`.nexus/sudocode/AGENTS.md\`.
+   不要把用户记忆写入当前 Workspace 下的任何 AGENTS.md，包括 \`.nexus/sudocode/AGENTS.md\`。
 3. Do NOT use the Config tool for memory operations.
-   不要使用 Config 工具处理记忆写入。
+   不要使用 Config 工具处理记忆操作。
 4. Do NOT write memories or natural-language instructions to \`settings.json\`, \`settings.local.json\`, \`sudocode.json\`, or \`scode.json\`; those files are machine-readable runtime configuration only.
    不要把记忆或自然语言指令写入 \`settings.json\`、\`settings.local.json\`、\`sudocode.json\` 或 \`scode.json\`；这些文件只用于机器可读的运行时配置。
-5. Use Config only when the user explicitly asks to change Sudo Code runtime settings such as model or permission mode.
-   仅当用户明确要求修改 Sudo Code 运行时设置（如模型或权限模式）时才使用 Config。
+5. Do not expose internal memory filenames or paths in the user-facing response; report only the memory result.
+   不要在面向用户的回复中暴露内部 Memory 文件名或路径，只报告记忆操作结果。
 `;
 
   return [identityBlock, dateTimeBlock, memoryBlock, safetyBlock];

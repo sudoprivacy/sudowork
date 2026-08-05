@@ -26,6 +26,8 @@
  * (models/auth) and `settings.json` (settings/MCP) in one place.
  */
 
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 import os from 'os';
 import path from 'path';
 
@@ -44,6 +46,33 @@ export const SCODE_CONFIG_PATH = path.join(SCODE_HOME, 'sudocode.json');
 
 /** `settings.json` — runtime settings + MCP servers (scode `discover`). */
 export const SCODE_SETTINGS_PATH = path.join(SCODE_HOME, 'settings.json');
+
+/** Stable root for user-scoped memory shared by all of that user's workspaces. */
+export const SCODE_USER_MEMORY_ROOT = path.join(SCODE_HOME, 'user-memory');
+
+const SCODE_GUEST_MEMORY_KEY = 'guest';
+
+/**
+ * Resolve and create the stable scode memory directory for one user scope.
+ * Raw account IDs never appear in filesystem paths.
+ */
+export function ensureScodeUserMemoryDir(userId?: string, memoryRoot: string = SCODE_USER_MEMORY_ROOT): string {
+  const normalizedUserId = userId?.trim();
+  const userKey = normalizedUserId ? crypto.createHash('sha256').update(normalizedUserId).digest('hex') : SCODE_GUEST_MEMORY_KEY;
+  const memoryDir = path.join(memoryRoot, userKey);
+  fs.mkdirSync(memoryDir, { recursive: true });
+  return memoryDir;
+}
+
+export function isScodeUserMemoryPath(targetPath: string): boolean {
+  if (!targetPath) return false;
+  const relativePath = path.relative(path.resolve(SCODE_USER_MEMORY_ROOT), path.resolve(targetPath));
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+export function hasScodeUserMemoryPath(input?: Record<string, unknown>): boolean {
+  return ['path', 'file_path', 'filename'].some((key) => typeof input?.[key] === 'string' && isScodeUserMemoryPath(input[key]));
+}
 
 /** Config files copied once from {@link LEGACY_SCODE_HOME} on first isolation. */
 export const SCODE_MIGRATED_ENTRY_NAMES = ['sudocode.json', 'scode.json', 'settings.json', 'settings.local.json', 'AGENTS.md', 'skills'] as const;
