@@ -8,10 +8,10 @@ import { Left } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 
-export default function PageWrapper({ children, className, contentClassName, title, subtitle, back, actions }: IPageWrapperProps) {
+export default function PageWrapper({ children, className, contentClassName, title, subtitle, back, actions, isFullWidth = false }: IPageWrapperProps) {
   return (
     <div className={classNames('page-wrapper min-h-full w-full box-border overflow-y-auto px-10 pb-4 pt-9', className)}>
-      <div className={classNames('page-content mx-auto w-full max-w-240', contentClassName)}>
+      <div className={classNames('page-content mx-auto w-full', !isFullWidth && 'max-w-240', contentClassName)}>
         {back && (
           <div className='inline-flex items-center gap-1 text-13px text-secondary cursor-pointer hover:text-foreground hover:bg-base rd-2 px-2 py-1 mb-4 -ml-2' onClick={back.onClick}>
             <Left theme='outline' size={18} />
@@ -41,4 +41,5 @@ interface IPageWrapperProps {
   subtitle?: React.ReactNode;
   back?: { label?: string; onClick: () => void };
   actions?: React.ReactNode;
+  isFullWidth?: boolean;
 }

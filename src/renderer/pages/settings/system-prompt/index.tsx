@@ -4,13 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Input, Message, Spin } from '@arco-design/web-react';
+import { Button, Message, Spin } from '@arco-design/web-react';
 import React, { useEffect, useState } from 'react';
 import brand from '@brand';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import Markdown from '@/renderer/components/Markdown';
 import PageWrapper from '@/renderer/components/base/PageWrapper';
+import MarkdownEditor from '@/renderer/pages/conversation/preview/components/editors/MarkdownEditor';
 
 export default function SystemPromptSettings() {
   const { t } = useTranslation();
@@ -57,6 +59,7 @@ export default function SystemPromptSettings() {
 
   return (
     <PageWrapper
+      isFullWidth
       title={t('settings.systemPrompt')}
       subtitle={t('settings.systemPromptEditor.description')}
       actions={
@@ -66,14 +69,21 @@ export default function SystemPromptSettings() {
       }
     >
       <AionScrollArea className='h-full pb-4' disableOverflow>
-        <div className='flex min-h-120 flex-col gap-3 border border-border bg-card p-6 rd-16px'>
+        <div className='flex min-h-120 flex-col gap-3'>
           <div className='text-13px text-foreground-secondary'>{t('settings.systemPromptEditor.currentAssistant', { agentId: brand.displayName })}</div>
           {isLoading ? (
             <div className='flex flex-1 items-center justify-center'>
               <Spin />
             </div>
           ) : (
-            <Input.TextArea value={content} onChange={setContent} placeholder={t('settings.systemPromptEditor.placeholder')} autoSize={false} className='min-h-100 flex-1 font-mono resize-none' />
+            <div className='grid min-h-100 flex-1 grid-cols-2 overflow-hidden border border-border rd-8px'>
+              <div className='min-w-0 overflow-hidden border-r border-border'>
+                <MarkdownEditor value={content} onChange={setContent} />
+              </div>
+              <div className='min-w-0 overflow-auto p-4'>
+                <Markdown>{content}</Markdown>
+              </div>
+            </div>
           )}
         </div>
       </AionScrollArea>
