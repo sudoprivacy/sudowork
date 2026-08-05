@@ -1046,7 +1046,7 @@ const SkillSettings: React.FC = () => {
   // Custom skills: 目录分类为 custom（source_type 仅作兼容兜底）
   const customInstalledSkills = installedList.filter((skill) => skill.category === 'custom' || (!skill.category && !skill.isBuiltin && skill.meta?.source_type === 'upload'));
   // Builtin skills: 目录分类为 system 或 isBuiltin 为 true
-  const builtinInstalledSkills = installedList.filter((skill) => skill.category === 'system' || skill.isBuiltin);
+  const builtinInstalledSkills = installedList.filter((skill) => (skill.category === 'system' || skill.isBuiltin) && skill.enabled !== false);
 
   const renderInstalledSkillGrid = (skillList: IInstalledSkillInfo[], hideUninstall = false) => (
     <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
@@ -1315,10 +1315,7 @@ const SkillSettings: React.FC = () => {
               ) : (
                 <div className='pb-4 space-y-5'>
                   <section>
-                    <div className='flex items-center justify-between gap-2 mb-2.5'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.customSkills', '自定义技能')}</div>
-                      <span className='px-1.5 py-0 bg-fill-shallow text-foreground-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
-                    </div>
+                    <div className='mb-2.5 text-13px font-medium text-foreground'>{t('settings.customSkills', '自定义技能')}</div>
                     {customInstalledSkills.length > 0 ? (
                       isEnterprise ? (
                         renderCustomSkillGridWithEnterpriseActions(customInstalledSkills)
@@ -1333,19 +1330,13 @@ const SkillSettings: React.FC = () => {
                   {/* Tenant skills section - enterprise mode only */}
                   {isEnterprise && (
                     <section>
-                      <div className='flex items-center justify-between gap-2 mb-2.5'>
-                        <div className='text-13px font-medium text-foreground'>{t('settings.tenantSkills', '专属技能')}</div>
-                        <span className='px-1.5 py-0 bg-fill-shallow text-foreground-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
-                      </div>
+                      <div className='mb-2.5 text-13px font-medium text-foreground'>{t('settings.tenantSkills', '专属技能')}</div>
                       {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-card border border-dashed border-border rounded-lg px-3.5 py-4.5 text-12px text-foreground-tertiary'>{t('settings.noTenantSkills', '暂无专属技能')}</div>}
                     </section>
                   )}
 
                   <section>
-                    <div className='flex items-center justify-between gap-2 mb-2.5'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.builtinSkills', '内置技能')}</div>
-                      <span className='px-1.5 py-0 bg-fill-shallow text-foreground-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
-                    </div>
+                    <div className='mb-2.5 text-13px font-medium text-foreground'>{t('settings.builtinSkills', '内置技能')}</div>
                     {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-card border border-dashed border-border rounded-lg px-3.5 py-4.5 text-12px text-foreground-tertiary'>{t('settings.noBuiltinSkills', '暂无可用的内置技能')}</div>}
                   </section>
                 </div>
@@ -1397,6 +1388,7 @@ const SkillSettings: React.FC = () => {
               }}
               isInstalled
               isHubInstalled={installedDetailInfo?.isHubInstalled ?? false}
+              isBuiltin={installedDetailInfo?.isBuiltin ?? false}
               hasVersion={false}
               latestVersionInfo={installedDetailLatestVer}
               installing={false}

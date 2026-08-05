@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Button, Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
-import { Trash2, Shield, Zap, Download, Upload } from 'lucide-react';
+import { Trash2, Shield, Sparkles, Zap, Download, Upload } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
@@ -24,18 +24,24 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
   return (
     <div className={classNames('card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65', !hasDetail && 'cursor-default')} onClick={hasDetail ? onClick : undefined}>
       {/* Icon */}
-      <div className='w-12 flex-shrink-0'>
-        <div className='size-12 rounded-md overflow-hidden'>
-          {icon ? (
-            <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
-          ) : emoji ? (
-            <div className='w-full h-full f-center text-22px'>{emoji}</div>
-          ) : (
-            <div className='w-full h-full f-center'>
-              <Zap size={22} className='text-primary' />
-            </div>
-          )}
-        </div>
+      <div className='w-12 flex-shrink-0 f-center'>
+        {skill.isBuiltin ? (
+          <div className='size-10 rounded-lg bg-secondary f-center text-foreground-secondary'>
+            <Sparkles size={19} />
+          </div>
+        ) : (
+          <div className='size-12 rounded-md overflow-hidden'>
+            {icon ? (
+              <img src={icon} alt={displayName} className='w-full h-full object-cover' onError={handleSkillIconError} />
+            ) : emoji ? (
+              <div className='w-full h-full f-center text-22px'>{emoji}</div>
+            ) : (
+              <div className='w-full h-full f-center'>
+                <Zap size={22} className='text-primary' />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Content */}

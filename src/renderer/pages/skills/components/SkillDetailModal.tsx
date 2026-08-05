@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Spin, Modal, Popconfirm, Progress } from '@arco-design/web-react';
 import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
-import { PackagePlus, Trash2, Shield } from 'lucide-react';
+import { PackagePlus, Sparkles, Trash2, Shield } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
@@ -46,6 +46,7 @@ export default function SkillDetailModal({
   onClose,
   isInstalled,
   isHubInstalled,
+  isBuiltin = false,
   hasVersion,
   latestVersionInfo,
   installing,
@@ -120,13 +121,23 @@ export default function SkillDetailModal({
   const hasUpdate = isInstalled && latestVersionInfo && (!installedVersion || latestVersionInfo.version !== installedVersion);
 
   return (
-    <Modal visible={visible} onCancel={onClose} footer={null} maskClosable style={{ width: 480 }}>
+    <Modal visible={visible} onCancel={onClose} footer={null} maskClosable style={{ width: 580 }}>
       <div className='flex flex-col max-h-80vh'>
         <AionScrollArea className='flex-1 min-h-0'>
           <div className='px-2 pb-4'>
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-5'>
-              <div className='size-18 rounded-lg overflow-hidden mb-3'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
+              <div className='size-18 rounded-lg overflow-hidden mb-3'>
+                {isBuiltin ? (
+                  <div className='size-full bg-secondary f-center text-foreground-secondary'>
+                    <Sparkles size={30} />
+                  </div>
+                ) : skill.icon ? (
+                  <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} />
+                ) : (
+                  <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>
+                )}
+              </div>
               <div className='font-semibold text-17px text-foreground text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-1 mt-1.5 flex-wrap justify-center'>
@@ -247,6 +258,8 @@ interface ISkillDetailModalProps {
   isInstalled: boolean;
   /** Whether the installed skill was installed from the hub (can be uninstalled) */
   isHubInstalled: boolean;
+  /** Whether to replace the skill artwork with the shared built-in icon. */
+  isBuiltin?: boolean;
   hasVersion: boolean;
   latestVersionInfo?: SkillLatestVersion;
   installing: boolean;
