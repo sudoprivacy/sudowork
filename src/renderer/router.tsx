@@ -23,6 +23,7 @@ const Skills = React.lazy(() => import('./pages/skills'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
+const SystemPromptSettings = React.lazy(() => import('./pages/settings/system-prompt'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/tools'));
 const ChannelsPage = React.lazy(() => import('./pages/settings/channels'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
@@ -42,7 +43,7 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
 );
 
 // Enterprise-allowed settings paths
-const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/mcp', '/settings/display', '/settings/channels', '/settings/system', '/settings/about'];
+const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/mcp', '/settings/display', '/settings/channels', '/settings/system', '/settings/system-prompt', '/settings/about'];
 
 // 按当前模式跳转到侧栏中实际可见的默认设置页。
 const SettingsDefaultRoute: React.FC = () => {
@@ -64,6 +65,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/copilot', component: CopilotSettings },
   { path: '/settings/runtime', component: RuntimeSettings },
   { path: '/settings/system', component: SystemSettings },
+  { path: '/settings/system-prompt', component: SystemPromptSettings },
   { path: '/settings/about', component: About },
   { path: '/settings/tools', component: ToolsSettings },
   { path: '/settings/skill', component: Skills },

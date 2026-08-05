@@ -172,6 +172,16 @@
     "embeddingModelName": "Local KB Embedding Model"
   },
   "system": "System",
+  "systemPrompt": "System Prompt",
+  "systemPromptEditor": {
+    "description": "Edit the default assistant's core system prompt. New conversations use saved changes immediately; existing conversations require an app restart or Agent rebuild.",
+    "currentAssistant": "Current assistant: {{agentId}}",
+    "placeholder": "Enter the system prompt",
+    "emptyError": "The system prompt cannot be empty",
+    "loadFailed": "Failed to load the system prompt",
+    "saveSuccess": "System prompt saved",
+    "saveFailed": "Failed to save the system prompt"
+  },
   "about": "About",
   "openclaw": "Copilot",
   "openclaw_notInstalled": "Sudoclaw is being installed. Please restart the app or wait a moment and try again.",

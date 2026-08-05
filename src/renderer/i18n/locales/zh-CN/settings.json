@@ -172,6 +172,16 @@
     "embeddingModelName": "本地知识库 Embedding 模型"
   },
   "system": "系统设置",
+  "systemPrompt": "系统提示词",
+  "systemPromptEditor": {
+    "description": "编辑默认助手使用的主体系统提示词。保存后新会话立即使用；已有会话需重启应用或重建 Agent 后生效。",
+    "currentAssistant": "当前助手：{{agentId}}",
+    "placeholder": "请输入系统提示词",
+    "emptyError": "系统提示词不能为空",
+    "loadFailed": "系统提示词加载失败",
+    "saveSuccess": "系统提示词已保存",
+    "saveFailed": "系统提示词保存失败"
+  },
   "about": "关于我们",
   "openclaw": "Copilot",
   "openclaw_notInstalled": "Sudoclaw 正在安装中，请稍后重启应用或等待片刻后重试。",

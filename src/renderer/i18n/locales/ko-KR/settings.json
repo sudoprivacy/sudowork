@@ -167,6 +167,16 @@
     "stopFailed": "{{name}} 중지 실패"
   },
   "system": "시스템",
+  "systemPrompt": "시스템 프롬프트",
+  "systemPromptEditor": {
+    "description": "기본 어시스턴트의 핵심 시스템 프롬프트를 편집합니다. 새 대화에는 저장 즉시 적용되며, 기존 대화에는 앱을 다시 시작하거나 Agent를 재구성한 후 적용됩니다.",
+    "currentAssistant": "현재 어시스턴트: {{agentId}}",
+    "placeholder": "시스템 프롬프트를 입력하세요",
+    "emptyError": "시스템 프롬프트는 비워 둘 수 없습니다",
+    "loadFailed": "시스템 프롬프트를 불러오지 못했습니다",
+    "saveSuccess": "시스템 프롬프트를 저장했습니다",
+    "saveFailed": "시스템 프롬프트를 저장하지 못했습니다"
+  },
   "about": "정보",
   "openclaw": "Sudoclaw",
   "openclaw_notInstalled": "Sudoclaw 설치 중입니다. 앱을 다시 시작하거나 잠시 후 다시 시도하세요.",

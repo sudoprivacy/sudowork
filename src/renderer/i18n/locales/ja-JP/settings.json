@@ -167,6 +167,16 @@
     "stopFailed": "{{name}} の停止に失敗しました"
   },
   "system": "システム",
+  "systemPrompt": "システムプロンプト",
+  "systemPromptEditor": {
+    "description": "デフォルトアシスタントの基本システムプロンプトを編集します。新しい会話には保存後すぐに適用され、既存の会話にはアプリの再起動または Agent の再構築後に適用されます。",
+    "currentAssistant": "現在のアシスタント：{{agentId}}",
+    "placeholder": "システムプロンプトを入力してください",
+    "emptyError": "システムプロンプトを空にすることはできません",
+    "loadFailed": "システムプロンプトの読み込みに失敗しました",
+    "saveSuccess": "システムプロンプトを保存しました",
+    "saveFailed": "システムプロンプトの保存に失敗しました"
+  },
   "about": "情報",
   "openclaw": "Sudoclaw",
   "openclaw_notInstalled": "Sudoclaw をインストール中です。アプリを再起動するか、しばらく待ってから再試行してください。",

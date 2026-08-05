@@ -12,9 +12,12 @@
  * Handles read/write operations for system-level settings (e.g. close to tray)
  */
 
+import { app } from 'electron';
+import brand from '@brand';
 import { ipcBridge } from '@/common';
 import { DEFAULT_BROWSER_PANEL_HOMEPAGE } from '@/common/browserPanelUrl';
 import { ProcessConfig } from '@/process/initStorage';
+import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { changeLanguage } from '@process/i18n';
 import { mainError } from '@process/utils/mainLogger';
 import { userBreadcrumbs } from '@process/telemetry/BreadcrumbTracker';
@@ -51,6 +54,33 @@ export function onLanguageChanged(listener: LanguageChangeListener): void {
  */
 export function onAvatarEnabledChanged(listener: AvatarEnabledChangeListener): void {
   _avatarEnabledChangeListener = listener;
+}
+
+export async function getDefaultAssistantSystemPrompt() {
+  const agentId = (brand as { defaultAgentId?: string }).defaultAgentId?.trim() || '';
+  if (!agentId) {
+    throw new Error('No default assistant is configured');
+  }
+
+  const locale = app.getLocale() || 'en-US';
+  const content = await readAssistantResource('rules', `builtin-${agentId}`, locale, ruleFilePattern);
+  if (!content.trim()) {
+    throw new Error(`System prompt not found for assistant: ${agentId}`);
+  }
+
+  return { agentId, content };
+}
+
+export async function setDefaultAssistantSystemPrompt(content: string): Promise<void> {
+  const agentId = (brand as { defaultAgentId?: string }).defaultAgentId?.trim() || '';
+  if (!agentId) {
+    throw new Error('No default assistant is configured');
+  }
+  if (!content.trim()) {
+    throw new Error('System prompt cannot be empty');
+  }
+
+  await ProcessConfig.set('assistant.systemPromptOverride', { assistantId: agentId, content });
 }
 
 export function initSystemSettingsBridge(): void {
@@ -144,4 +174,7 @@ export function initSystemSettingsBridge(): void {
     userBreadcrumbs.settingsChange('browserDefaultUrl', url);
     await ProcessConfig.set('system.browserDefaultUrl', url);
   });
+
+  ipcBridge.systemSettings.getDefaultAssistantSystemPrompt.provider(getDefaultAssistantSystemPrompt);
+  ipcBridge.systemSettings.setDefaultAssistantSystemPrompt.provider(({ content }) => setDefaultAssistantSystemPrompt(content));
 }

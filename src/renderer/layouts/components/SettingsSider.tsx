@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Blocks, Bot, Building2, Cable, Cloud, CreditCard, Globe, HardDrive, Info, MessageSquare, Monitor, Puzzle, Settings, ShieldCheck, Sparkles, User, Users } from 'lucide-react';
+import { Blocks, Bot, Building2, Cable, Cloud, CreditCard, FileText, Globe, HardDrive, Info, MessageSquare, Monitor, Puzzle, Settings, ShieldCheck, Sparkles, User, Users } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import brand from '@brand';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
@@ -31,11 +32,12 @@ const BUILTIN_TAB_IDS = [
   // 'runtime',
   'model',
   'system',
+  'system-prompt',
   'about',
 ] as const; // 隐藏'copilot'；'cron'已移至左侧边栏
 
 /** Enterprise mode builtin tab IDs (restricted subset). */
-const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'display', 'channels', 'system', 'about'] as const;
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'display', 'channels', 'system', 'system-prompt', 'about'] as const;
 
 type SiderItem = {
   id: string;
@@ -137,6 +139,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       channels: { id: 'channels', label: t('common.siderMenu.webui'), icon: isDesktop ? <Globe /> : <MessageSquare />, path: 'channels' },
       runtime: { id: 'runtime', label: t('settings.runtime'), icon: <HardDrive />, path: 'runtime' },
       system: { id: 'system', label: t('settings.system'), icon: <Settings />, path: 'system' },
+      'system-prompt': { id: 'system-prompt', label: t('settings.systemPrompt'), icon: <FileText />, path: 'system-prompt', hidden: !brand.defaultAgentId?.trim() },
       about: { id: 'about', label: t('settings.about'), icon: <Info />, path: 'about' },
     };
 

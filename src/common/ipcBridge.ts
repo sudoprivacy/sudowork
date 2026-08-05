@@ -1075,6 +1075,11 @@ export const windowControls = {
   maximizedChanged: bridge.buildEmitter<{ isMaximized: boolean }>('window-controls:maximized-changed'),
 };
 
+export interface IDefaultAssistantSystemPrompt {
+  agentId: string;
+  content: string;
+}
+
 // 系统设置接口 / System settings API
 export const systemSettings = {
   getCloseToTray: bridge.buildProvider<boolean, void>('system-settings:get-close-to-tray'),
@@ -1097,6 +1102,8 @@ export const systemSettings = {
   // Default URL for new tabs in the right-panel BrowserPanel
   getBrowserDefaultUrl: bridge.buildProvider<string, void>('system-settings:get-browser-default-url'),
   setBrowserDefaultUrl: bridge.buildProvider<void, { url: string }>('system-settings:set-browser-default-url'),
+  getDefaultAssistantSystemPrompt: bridge.buildProvider<IDefaultAssistantSystemPrompt, void>('system-settings:get-default-assistant-system-prompt'),
+  setDefaultAssistantSystemPrompt: bridge.buildProvider<void, { content: string }>('system-settings:set-default-assistant-system-prompt'),
 };
 
 export const logs = {

@@ -107,7 +107,9 @@ body[arco-theme='dark'] {
     }
 
     &.arco-btn-disabled {
-      color: color-mix(in srgb, var(--primary-foreground) 45%, transparent) !important;
+      color: var(--foreground-tertiary) !important;
+      background-color: var(--fill-shallow) !important;
+      border-color: var(--input) !important;
     }
   }
 }

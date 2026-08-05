@@ -165,6 +165,16 @@
     "stopFailed": "{{name}} durdurulamadı"
   },
   "system": "Sistem",
+  "systemPrompt": "Sistem İstemi",
+  "systemPromptEditor": {
+    "description": "Varsayılan asistanın temel sistem istemini düzenleyin. Yeni konuşmalar kaydedilen değişiklikleri hemen kullanır; mevcut konuşmalar için uygulamayı yeniden başlatmak veya Agent'ı yeniden oluşturmak gerekir.",
+    "currentAssistant": "Geçerli asistan: {{agentId}}",
+    "placeholder": "Sistem istemini girin",
+    "emptyError": "Sistem istemi boş olamaz",
+    "loadFailed": "Sistem istemi yüklenemedi",
+    "saveSuccess": "Sistem istemi kaydedildi",
+    "saveFailed": "Sistem istemi kaydedilemedi"
+  },
   "about": "Hakkında",
   "openclaw": "Sudoclaw",
   "openclaw_notInstalled": "Sudoclaw yükleniyor. Lütfen uygulamayı yeniden başlatın veya biraz bekleyip tekrar deneyin.",

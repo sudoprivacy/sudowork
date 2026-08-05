@@ -167,6 +167,16 @@
     "stopFailed": "{{name}} 停止失敗"
   },
   "system": "系統設定",
+  "systemPrompt": "系統提示詞",
+  "systemPromptEditor": {
+    "description": "編輯預設助手使用的主體系統提示詞。儲存後新對話立即使用；已有對話需重新啟動應用或重建 Agent 後生效。",
+    "currentAssistant": "目前助手：{{agentId}}",
+    "placeholder": "請輸入系統提示詞",
+    "emptyError": "系統提示詞不能為空",
+    "loadFailed": "系統提示詞載入失敗",
+    "saveSuccess": "系統提示詞已儲存",
+    "saveFailed": "系統提示詞儲存失敗"
+  },
   "about": "關於我們",
   "openclaw": "Sudoclaw",
   "openclaw_notInstalled": "Sudoclaw 正在安裝中，請稍後重啟應用或等待片刻後重試。",

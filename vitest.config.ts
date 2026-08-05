@@ -88,6 +88,8 @@ export default defineConfig({
         'src/process/bridge/applicationBridge.ts',
         'src/process/bridge/documentBridge.ts',
         'src/process/bridge/pwdLoginBridge.ts',
+        'src/process/bridge/systemSettingsBridge.ts',
+        'src/process/utils/assistantResources.ts',
         'src/process/utils/enabledSkillFilter.ts',
         // Team collaboration
         'src/process/bridge/teamBridge.ts',
@@ -130,6 +132,7 @@ export default defineConfig({
         'src/renderer/components/HubEmptyState.tsx',
         'src/renderer/layouts/components/SiderFooter.tsx',
         'src/renderer/pages/bid/index.tsx',
+        'src/renderer/pages/settings/system-prompt/index.tsx',
         'src/renderer/hooks/useAvailableModels.ts',
         'src/renderer/hooks/useHasAvailableModel.ts',
         'src/renderer/hooks/useStoredPanelLayout.ts',

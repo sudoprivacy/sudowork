@@ -13,10 +13,11 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
-import { getAssistantsDir } from '../initStorage';
-import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS } from '../constants/assistantStorage';
+import brand from '@brand';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { mainWarn } from '@process/utils/mainLogger';
+import { getAssistantsDir, ProcessConfig } from '../initStorage';
+import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS } from '../constants/assistantStorage';
 
 type ResourceType = 'rules' | 'skills';
 
@@ -81,9 +82,23 @@ export async function readBuiltinResource(resourceType: ResourceType, fileName: 
  * Search order:
  * Enterprise mode: custom/{id} > hub/{id} > system/{strippedId}
  * Personal mode: _my-custom-assistant/{id} > _hub/{id} > _system/{strippedId}
+ *
+ * @param resourceType 要读取的资源类型：`rules` 表示助手主体规则，`skills` 表示助手技能说明。
+ * @param assistantId 助手 ID，例如 `builtin-gewu`；查找 system 目录时会去掉 `builtin-` 前缀。
+ * @param locale 首选语言，例如 `zh-CN`；仅在查找旧版扁平文件和安装包内置文件时用于语言回退。
+ * @param fileNamePattern 文件名生成函数，根据助手 ID 和语言生成回退文件名，例如 `builtin-gewu.zh-CN.md`。
  */
 export async function readAssistantResource(resourceType: ResourceType, assistantId: string, locale: string, fileNamePattern: (id: string, loc: string) => string): Promise<string> {
   const fileName = resourceTypeToFile(resourceType);
+  const strippedId = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
+
+  const defaultAgentId = (brand as { defaultAgentId?: string }).defaultAgentId?.trim();
+  if (resourceType === 'rules' && defaultAgentId && strippedId === defaultAgentId) {
+    const override = await ProcessConfig.get('assistant.systemPromptOverride');
+    if (override?.assistantId === strippedId && override.content.trim()) {
+      return override.content;
+    }
+  }
 
   // 1. Try directory-based paths with priority: custom > hub > system - mode-aware
   const subdirs = isEnterpriseMode() ? { custom: ENTERPRISE_ASSISTANT_SUBDIRS.custom, hub: ENTERPRISE_ASSISTANT_SUBDIRS.hub, system: ENTERPRISE_ASSISTANT_SUBDIRS.system } : { custom: ASSISTANT_SUBDIRS.custom, hub: ASSISTANT_SUBDIRS.hub, system: ASSISTANT_SUBDIRS.system };
@@ -91,7 +106,6 @@ export async function readAssistantResource(resourceType: ResourceType, assistan
   const dirCandidates: string[] = [path.join(getAssistantsDir(), subdirs.custom, assistantId, fileName), path.join(getAssistantsDir(), subdirs.hub, assistantId, fileName)];
 
   // For builtin assistants (id starts with "builtin-"), strip prefix for system dir lookup
-  const strippedId = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
   dirCandidates.push(path.join(getAssistantsDir(), subdirs.system, strippedId, fileName));
   // Also try with the full id in system/
   if (strippedId !== assistantId) {

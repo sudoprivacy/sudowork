@@ -127,6 +127,12 @@ export interface IConfigStorageRefer {
    * Empty / absent → fall back to build-time define, then to literal.
    */
   'system.sudoworkServerUrl'?: string;
+  // User override for the brand-default assistant's system prompt
+  // 品牌默认助手的用户系统提示词覆盖
+  'assistant.systemPromptOverride'?: {
+    assistantId: string;
+    content: string;
+  };
   // Telegram assistant default model / Telegram 助手默认模型
   'assistant.telegram.defaultModel'?: {
     id: string;
