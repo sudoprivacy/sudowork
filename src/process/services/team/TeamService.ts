@@ -1276,6 +1276,7 @@ class TeamService {
               backend: m.backend,
               model: m.model,
               assistant_id: m.assistant_id ?? '',
+              is_delegated: m.isDelegated === true,
             })),
           },
         };
@@ -1362,14 +1363,6 @@ class TeamService {
   /** team_spawn_agent: Lead-only — non-lead callers are rejected. */
   private async toolSpawnAgent(teamId: string, caller: TeamMember, args: Record<string, unknown>): Promise<TeamToolResult> {
     if (caller.role !== 'lead') return { ok: false, error: 'Only the team lead can spawn agents' };
-    const untouched = teamStore.listMembersByTeam(teamId).filter((m) => m.role === 'teammate' && m.isPreset && !m.isDelegated && (m.status === 'idle' || m.status === 'working'));
-    if (untouched.length > 0) {
-      const names = untouched.map((m) => m.name).join(', ');
-      return {
-        ok: false,
-        error: `Before spawning, delegate work to every ready pre-selected teammate first: ${names}. They were chosen by the user and must be tried before spawning. Spawning is allowed only after they have been tried or reported unable to handle the task.`,
-      };
-    }
     const name = args.name;
     const assistantId = args.assistant_id;
     if (typeof name !== 'string' || typeof assistantId !== 'string') {

@@ -413,7 +413,7 @@ describe('TeamService createTeam members', () => {
     }
   });
 
-  it('team_members roster includes assistant_id', async () => {
+  it('team_members roster includes assistant_id and is_delegated', async () => {
     const service = await importService();
     const team = await service.createTeam('user-1', 'Team', '/workspace', [
       { assistant_id: 'scode', name: 'Leader', role: 'lead' },
@@ -427,8 +427,13 @@ describe('TeamService createTeam members', () => {
     expect(members).toHaveLength(2);
     for (const entry of members) {
       expect(entry).toHaveProperty('assistant_id');
+      expect(entry).toHaveProperty('is_delegated');
     }
     expect(members.find((entry) => entry.role === 'teammate')?.assistant_id).toBe('claude');
+    // Before any delegation, every teammate's is_delegated is false — the first-task signal.
+    for (const entry of members) {
+      expect(entry.is_delegated).toBe(false);
+    }
   });
 
   it('bootstrap attach failure marks failed without waking leader and stops session', async () => {
@@ -632,28 +637,34 @@ describe('TeamService createTeam members', () => {
     expect(h.reapConversation).toHaveBeenCalledWith('conv-leader', { reason: 'team-spawn-rollback', deleteWorkspace: false });
   });
 
-  // ---- preset-member reuse: spawn gate (toolSpawnAgent) ----
+  // ---- spawn (toolSpawnAgent): gate removed; is_delegated now backs the first-task signal ----
 
-  it('team_spawn_agent is rejected while a ready pre-selected teammate is untried', async () => {
-    const service = await importService();
-    const team = await service.createTeam('user-1', 'Team', '/workspace', [
-      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-      { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
-    ]);
-    await service.rebuildTeam(team.id);
-    const leader = leaderFor(team.id);
+  it('team_spawn_agent is allowed even while a pre-selected teammate is untried (gate removed)', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
 
-    const result = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
-      name: 'Debater',
-      assistant_id: 'claude',
-      role: 'teammate',
-    });
+      const result = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
 
-    expect(result.ok).toBe(false);
-    expect((result as { error?: string }).error).toContain('PresetWorker');
+      expect(result.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
   });
 
-  it('team_spawn_agent is allowed after delegating to the pre-selected teammate', async () => {
+  it('leader delegation marks the teammate is_delegated (first-task signal) and spawn is allowed', async () => {
     vi.useFakeTimers();
     try {
       const service = await importService();
@@ -682,29 +693,36 @@ describe('TeamService createTeam members', () => {
     }
   });
 
-  it('team_send_message broadcast does not mark teammates delegated and keeps the gate', async () => {
-    const service = await importService();
-    const team = await service.createTeam('user-1', 'Team', '/workspace', [
-      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-      { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
-    ]);
-    await service.rebuildTeam(team.id);
-    const leader = leaderFor(team.id);
-    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+  it('team_send_message broadcast does not mark teammates is_delegated', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
+      const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
 
-    const broadcast = await service.dispatchTeamTool(team.id, leader, 'team_send_message', { to: '*', message: 'Heads up' });
-    expect(broadcast.ok).toBe(true);
-    expect(h.members.get(teammate.id)?.isDelegated).toBe(false);
+      const broadcast = await service.dispatchTeamTool(team.id, leader, 'team_send_message', { to: '*', message: 'Heads up' });
+      expect(broadcast.ok).toBe(true);
+      expect(h.members.get(teammate.id)?.isDelegated).toBe(false);
 
-    const spawn = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
-      name: 'Debater',
-      assistant_id: 'claude',
-      role: 'teammate',
-    });
-    expect(spawn.ok).toBe(false);
+      const spawn = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(spawn.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
   });
 
-  it('team_spawn_agent skips pre-selected teammates in a non-ready state', async () => {
+  it('team_spawn_agent is allowed regardless of pre-selected teammate state (gate removed)', async () => {
     vi.useFakeTimers();
     try {
       const service = await importService();
@@ -730,7 +748,7 @@ describe('TeamService createTeam members', () => {
     }
   });
 
-  it('team_spawn_agent does not gate on dynamically spawned teammates', async () => {
+  it('team_spawn_agent spawns teammates without gating (is_preset false for spawned)', async () => {
     vi.useFakeTimers();
     try {
       const service = await importService();
