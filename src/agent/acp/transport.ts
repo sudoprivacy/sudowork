@@ -13,10 +13,10 @@
  */
 
 import type { ChildProcess } from 'child_process';
-import { StringDecoder } from 'string_decoder';
 import type { AcpMessage, AcpIncomingMessage } from '@/types/acpTypes';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import { NexusVfsGrpcClient } from '@common/nexus/nexusVfsGrpcClient';
+import { NdjsonParser } from './ndjson';
 import { killChild } from './utils';
 import { ACP_PERF_LOG } from './acpConnectors';
 import type { GenericSpawnSpec } from './acpConnectors';
@@ -209,25 +209,15 @@ export class StdioAcpTransport implements AcpTransport {
   }
 
   private wireNdjsonReader(child: ChildProcess, events: AcpTransportEvents): void {
-    let buffer = '';
+    const parser = new NdjsonParser();
     child.stdout?.on('data', (data: Buffer) => {
-      buffer += data.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            const handleStart = ACP_PERF_LOG ? Date.now() : 0;
-            const message = JSON.parse(line) as AcpMessage;
-            events.onMessage(message);
-            if (ACP_PERF_LOG) {
-              const handleDuration = Date.now() - handleStart;
-              if (handleDuration > 5) {
-                console.log(`[ACP-PERF] stream: handleMessage ${handleDuration}ms method=${'method' in message ? (message as AcpIncomingMessage).method : 'response'}`);
-              }
-            }
-          } catch {
-            // Ignore parsing errors for non-JSON messages
+      for (const message of parser.push(data)) {
+        const handleStart = ACP_PERF_LOG ? Date.now() : 0;
+        events.onMessage(message);
+        if (ACP_PERF_LOG) {
+          const handleDuration = Date.now() - handleStart;
+          if (handleDuration > 5) {
+            console.log(`[ACP-PERF] stream: handleMessage ${handleDuration}ms method=${'method' in message ? (message as AcpIncomingMessage).method : 'response'}`);
           }
         }
       }
@@ -328,11 +318,8 @@ export class GrpcAcpTransport implements AcpTransport {
    */
   private async readStdout(): Promise<void> {
     const stdoutPath = `/proc/${this.sessionId}/fd/1`;
-    // StringDecoder holds an incomplete trailing multibyte sequence across reads,
-    // so a UTF-8 char split between two StreamReadAt chunks is not corrupted.
-    const decoder = new StringDecoder('utf8');
+    const parser = new NdjsonParser();
     let offset = '0';
-    let buffer = '';
     while (this._connected && this.client) {
       let res;
       try {
@@ -342,17 +329,8 @@ export class GrpcAcpTransport implements AcpTransport {
         return;
       }
       if (res.data.length > 0) {
-        buffer += decoder.write(res.data);
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          if (line.trim()) {
-            try {
-              this.options.events.onMessage(JSON.parse(line) as AcpMessage);
-            } catch {
-              // non-JSON line — ignore
-            }
-          }
+        for (const message of parser.push(res.data)) {
+          this.options.events.onMessage(message);
         }
         offset = res.nextOffset;
         // immediate re-read (no wait) keeps streaming latency low

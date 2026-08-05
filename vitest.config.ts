@@ -111,6 +111,7 @@ export default defineConfig({
         'src/agent/acp/AcpAdapter.ts',
         'src/agent/acp/AcpConnection.ts',
         'src/agent/acp/modelInfo.ts',
+        'src/agent/acp/ndjson.ts',
         'src/agent/acp/transport.ts',
         'src/process/task/acpWorkspaceTracking.ts',
         'src/process/task/CronCommandDetector.ts',

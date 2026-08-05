@@ -352,6 +352,11 @@ export class AcpConnection {
         onClose: (info) => {
           if (this.isSetupComplete) {
             this.handleProcessExit(info.code, info.signal as NodeJS.Signals | null);
+          } else {
+            // Tunnel closed during setup (agent exited before initialize returned):
+            // reject the pending initialize so connect() fails fast with a clear
+            // error instead of waiting out the request timeout.
+            this.failPendingRequests('ACP agent exited before initialize completed');
           }
         },
         onSetupError: () => {
@@ -386,13 +391,7 @@ export class AcpConnection {
     }
 
     // 1. Reject all pending requests with clear error message
-    for (const [_id, request] of this.pendingRequests) {
-      if (request.timeoutId) {
-        clearTimeout(request.timeoutId);
-      }
-      request.reject(new Error(`ACP process exited unexpectedly (code: ${code}, signal: ${signal})`));
-    }
-    this.pendingRequests.clear();
+    this.failPendingRequests(`ACP process exited unexpectedly (code: ${code}, signal: ${signal})`);
 
     // 2. Clear connection state
     this.sessionId = null;
@@ -406,6 +405,17 @@ export class AcpConnection {
 
     // 3. Notify AcpAgent about disconnect
     this.onDisconnect({ code, signal });
+  }
+
+  /** Reject + clear every in-flight request (shared by the exit and setup-close paths). */
+  private failPendingRequests(reason: string): void {
+    for (const [, request] of this.pendingRequests) {
+      if (request.timeoutId) {
+        clearTimeout(request.timeoutId);
+      }
+      request.reject(new Error(reason));
+    }
+    this.pendingRequests.clear();
   }
 
   private sendRequest<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
