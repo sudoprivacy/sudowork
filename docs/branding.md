@@ -13,6 +13,7 @@ Renderer 统一从 `src/renderer/stores/useTenantStore.ts` 读取租户数据。
 | 字段 | 类型 | 作用 |
 | --- | --- | --- |
 | `displayName` | `string` | 产品名称。用于页面标题、应用名称、可执行文件名、托盘提示和默认助手名称。修改后可能改变 Electron 的用户数据目录。 |
+| `englishName` | `string` | Linux 原生窗口标识，用于 `app.name` 和 `StartupWMClass`。建议仅使用英文字母、数字、点、下划线或连字符；未配置或为空时使用 `SudoWork`。 |
 | `logo` | `string` | Renderer 默认及浅色主题 Logo。支持 `data:` URL 或 HTTPS URL；设为空字符串时使用应用内置 Logo。它不影响应用壳、Dock、托盘、状态栏或安装器图标。 |
 | `logoDark` | `string` | 深色主题 Logo。未配置时回退到 `logo`；不影响应用、托盘和安装器的原生图标。 |
 | `BUILD_OFFLINE` | `boolean` | 是否构建离线版。只有严格设置为 `true` 时，才会打包本地运行时并启用离线逻辑。 |

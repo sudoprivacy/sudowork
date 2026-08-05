@@ -39,6 +39,8 @@ describe('brand configuration', () => {
     expect(builderConfig.copyright).toContain(brand.companyName);
     expect(builderConfig.win.legalTrademarks).toContain(brand.companyName);
     expect(builderConfig.linux.target).toEqual(['AppImage', 'deb']);
+    expect(builderConfig.linux.desktop.entry.StartupWMClass).toBe((brand as { englishName?: string }).englishName?.trim() || 'SudoWork');
+    expect(builderConfig.linux.desktop.entry.StartupWMClass).toMatch(/^[A-Za-z][A-Za-z0-9._-]*$/);
     if (brand.BUILD_OFFLINE) {
       const packagedResources = JSON.stringify([builderConfig.extraResources, builderConfig.mac?.extraResources, builderConfig.win?.extraResources, builderConfig.linux?.extraResources]);
       expect(packagedResources).not.toMatch(/bdpan-installer|nexus-vault/);
@@ -46,7 +48,8 @@ describe('brand configuration', () => {
     }
 
     const mainSource = fs.readFileSync(path.resolve(__dirname, '../../src/index.ts'), 'utf8');
-    expect(mainSource).toContain('app.setName(brand.displayName)');
+    expect(mainSource).toContain("const ENGLISH_NAME = (brand as { englishName?: string }).englishName?.trim() || 'SudoWork'");
+    expect(mainSource).toContain("app.setName(process.platform === 'linux' ? ENGLISH_NAME : brand.displayName)");
 
     if (brand.BUILD_OFFLINE) {
       const aboutSource = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/pages/settings/about/index.tsx'), 'utf8');

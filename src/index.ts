@@ -52,9 +52,9 @@ import { markAppStart, markFirstWindowShow, initializeTelemetry, shutdownTelemet
 markAppStart();
 
 const APP_LOG_PREFIX = `[${brand.displayName}]`;
+const ENGLISH_NAME = (brand as { englishName?: string }).englishName?.trim() || 'SudoWork';
 
-// Set this before Electron derives native names and user-data paths.
-app.setName(brand.displayName);
+app.setName(process.platform === 'linux' ? ENGLISH_NAME : brand.displayName);
 
 // 记录应用启动
 mainLog('App', `${brand.displayName} starting, version: ${app.getVersion()}`);
