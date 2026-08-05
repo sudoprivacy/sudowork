@@ -5,7 +5,10 @@ const runtimeVersions = require('./src/shared/runtime-versions.json');
 
 const copyright = `Copyright © 2026 ${brand.companyName}`;
 const englishName = brand.englishName?.trim() || 'SudoWork';
-const linuxDesktop = { desktop: { entry: { StartupWMClass: englishName } } };
+const linuxBranding = {
+  artifactName: `${englishName}-\${version}-linux-\${arch}.\${ext}`,
+  desktop: { entry: { StartupWMClass: englishName } },
+};
 const branding = {
   productName: brand.displayName,
   executableName: brand.displayName,
@@ -13,7 +16,7 @@ const branding = {
 };
 
 if (brand.BUILD_OFFLINE !== true) {
-  module.exports = { extends: './electron-builder.yml', ...branding, linux: linuxDesktop, win: { legalTrademarks: copyright } };
+  module.exports = { extends: './electron-builder.yml', ...branding, linux: linuxBranding, win: { legalTrademarks: copyright } };
 } else {
   const config = parse(fs.readFileSync('./electron-builder.yml', 'utf8'));
   const withoutRuntime = (entries = []) =>
@@ -41,6 +44,6 @@ if (brand.BUILD_OFFLINE !== true) {
   config.extraResources = withoutRuntime(config.extraResources);
   config.mac = { ...config.mac, extraResources: [...withoutRuntime(config.mac?.extraResources), ...runtimeResources('darwin')] };
   config.win = { ...config.win, legalTrademarks: copyright, extraResources: [...withoutRuntime(config.win?.extraResources), ...runtimeResources('win32')] };
-  config.linux = { ...config.linux, ...linuxDesktop, extraResources: [...withoutRuntime(config.linux?.extraResources), ...runtimeResources('linux')] };
+  config.linux = { ...config.linux, ...linuxBranding, extraResources: [...withoutRuntime(config.linux?.extraResources), ...runtimeResources('linux')] };
   module.exports = { ...config, ...branding, win: { ...config.win, legalTrademarks: copyright } };
 }

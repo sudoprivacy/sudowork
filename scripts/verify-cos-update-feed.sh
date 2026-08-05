@@ -41,6 +41,8 @@ done < <(
   find "$ASSETS_DIR" -maxdepth 1 -type f \( \
     -name '*.exe' -o \
     -name '*.dmg' -o \
+    -name '*.AppImage' -o \
+    -name '*.deb' -o \
     -name '*.zip' -o \
     -name '*.blockmap' \
   \) -print0

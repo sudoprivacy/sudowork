@@ -18,6 +18,7 @@ const brand = require('../brand.config.json');
 
 const BUILDER_CONFIG_FILE = 'electron-builder.brand.js';
 const PRODUCT_NAME = brand.displayName;
+const ENGLISH_NAME = brand.englishName?.trim() || 'SudoWork';
 const EXECUTABLE_NAME = brand.displayName;
 
 // DMG retry logic for macOS: detects DMG creation failures by checking artifacts
@@ -251,13 +252,13 @@ function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
   if (args.includes('--linux') || args.includes('--all')) {
     expectFile(path.join('linux-unpacked', EXECUTABLE_NAME));
     const appImageNames = [
-      `${PRODUCT_NAME}-${appVersion}-linux-${targetArch}.AppImage`,
-      `${PRODUCT_NAME}-${appVersion}-linux-x86_64.AppImage`,
+      `${ENGLISH_NAME}-${appVersion}-linux-${targetArch}.AppImage`,
+      `${ENGLISH_NAME}-${appVersion}-linux-x86_64.AppImage`,
     ];
     const hasAppImage = appImageNames.some((name) => fs.existsSync(path.join(outDir, name)));
     if (!hasAppImage) missing.push(appImageNames.join(' or '));
     const debArch = targetArch === 'x64' ? 'amd64' : targetArch;
-    expectFile(`${PRODUCT_NAME}-${appVersion}-linux-${debArch}.deb`);
+    expectFile(`${ENGLISH_NAME}-${appVersion}-linux-${debArch}.deb`);
   }
 
   if (missing.length > 0) {

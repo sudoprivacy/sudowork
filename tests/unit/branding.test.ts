@@ -39,8 +39,10 @@ describe('brand configuration', () => {
     expect(builderConfig.copyright).toContain(brand.companyName);
     expect(builderConfig.win.legalTrademarks).toContain(brand.companyName);
     expect(builderConfig.linux.target).toEqual(['AppImage', 'deb']);
-    expect(builderConfig.linux.desktop.entry.StartupWMClass).toBe((brand as { englishName?: string }).englishName?.trim() || 'SudoWork');
+    const englishName = (brand as { englishName?: string }).englishName?.trim() || 'SudoWork';
+    expect(builderConfig.linux.desktop.entry.StartupWMClass).toBe(englishName);
     expect(builderConfig.linux.desktop.entry.StartupWMClass).toMatch(/^[A-Za-z][A-Za-z0-9._-]*$/);
+    expect(builderConfig.linux.artifactName).toBe(`${englishName}-\${version}-linux-\${arch}.\${ext}`);
     if (brand.BUILD_OFFLINE) {
       const packagedResources = JSON.stringify([builderConfig.extraResources, builderConfig.mac?.extraResources, builderConfig.win?.extraResources, builderConfig.linux?.extraResources]);
       expect(packagedResources).not.toMatch(/bdpan-installer|nexus-vault/);
@@ -69,6 +71,7 @@ describe('brand configuration', () => {
     expect(builderSource).toContain('installerIcon: .cache/native-brand/current/app.ico');
 
     const buildScriptSource = fs.readFileSync(path.resolve(__dirname, '../../scripts/build-with-builder.js'), 'utf8');
+    expect(buildScriptSource).toContain("const ENGLISH_NAME = brand.englishName?.trim() || 'SudoWork'");
     expect(buildScriptSource).toContain("targetArch === 'x64' ? 'amd64' : targetArch");
     expect(buildScriptSource).toContain("execSync('node scripts/build-browser-mcp.js'");
   });
