@@ -5,7 +5,7 @@
  */
 
 import { Button, Message, Spin } from '@arco-design/web-react';
-import MarkdownEditor from '@uiw/react-markdown-editor';
+import MarkdownEditor, { getCommands } from '@uiw/react-markdown-editor';
 import React, { useCallback, useEffect, useState } from 'react';
 import brand from '@brand';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,19 @@ import { ipcBridge } from '@/common';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import PageWrapper from '@/renderer/components/base/PageWrapper';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
+
+/** Exclude media insertion and return focus to the editor after each toolbar action. */
+const SYSTEM_PROMPT_TOOLBARS = getCommands()
+  .filter((command) => command.keyCommand !== 'image')
+  .map((command) => ({
+    ...command,
+    execute: command.execute
+      ? (editor: Parameters<NonNullable<typeof command.execute>>[0]) => {
+          command.execute?.(editor);
+          editor.view?.focus();
+        }
+      : undefined,
+  }));
 
 export default function SystemPromptSettings() {
   const { t } = useTranslation();
@@ -80,7 +93,7 @@ export default function SystemPromptSettings() {
             </div>
           ) : (
             <div className='min-h-0 flex-1 overflow-hidden rd-8px' data-color-mode={theme}>
-              <MarkdownEditor visible className='h-full w-full' value={content} height='100%' onChange={setContent} />
+              <MarkdownEditor visible className='h-full w-full' value={content} height='100%' toolbars={SYSTEM_PROMPT_TOOLBARS} onChange={setContent} />
             </div>
           )}
         </div>
