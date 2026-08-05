@@ -196,11 +196,9 @@ export function initModelBridge(): void {
 
         return { success: true, data: { mode: modelList } };
       } catch (e: unknown) {
-        // Fall back to default model list on API failure
         const errorMessage = e instanceof Error ? e.message : String(e);
-        mainWarn('ModelBridge', 'Failed to fetch Anthropic models via API, falling back to default list:', errorMessage);
-        const defaultAnthropicModels = ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-haiku-20240307'];
-        return { success: true, data: { mode: defaultAnthropicModels } };
+        mainWarn('ModelBridge', 'Failed to fetch Anthropic models via API:', errorMessage);
+        return { success: false, msg: errorMessage };
       }
     }
 

@@ -309,6 +309,25 @@ describe('scodeConfig', () => {
     });
   });
 
+  it('preserves explicit Anthropic Messages API for custom providers', () => {
+    const config = mergeCustomProviderIntoScodeConfig(null, {
+      providerId: 'deepseek-anthropic',
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      apiKey: 'deepseek-key',
+      models: [{ id: 'deepseek-v4-flash', api: 'anthropic-messages', supportsTools: true }],
+    });
+
+    expect(config.auth_modes?.['api-key']?.['deepseek-anthropic']).toEqual({
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      apiKey: 'deepseek-key',
+    });
+    expect(config.models?.['deepseek-anthropic/deepseek-v4-flash']?.providers?.['api-key']).toEqual({
+      provider: 'deepseek-anthropic',
+      model: 'deepseek-v4-flash',
+      api: 'anthropic-messages',
+    });
+  });
+
   it('normalizes existing sudorouter gpt-5.5 models to OpenAI Responses API', () => {
     const config = normalizeScodeModelApiTypesInScodeConfig({
       models: {
