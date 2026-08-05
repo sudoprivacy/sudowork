@@ -25,7 +25,7 @@ const BUILTIN_TAB_IDS = [
   'members',
   // 'agent',
   'tools',
-  // 'skill',
+  'skill',
   // 'security',
   'display',
   // 'channels',

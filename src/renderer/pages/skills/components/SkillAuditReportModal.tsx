@@ -27,9 +27,9 @@ export const SkillAuditReportModal: React.FC<{
           <div className='flex items-center gap-2'>
             <Shield size={16} className='text-success' />
             <span className='font-semibold text-15px text-foreground'>{t('settings.skill.audit.reportTitle', '安全审计报告')}</span>
-            <span className='text-12px text-tertiary'>— {skillName}</span>
+            <span className='text-12px text-foreground-tertiary'>— {skillName}</span>
           </div>
-          <div className='size-7 f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary' onClick={onClose}>
+          <div className='size-7 f-center rd-full bg-fill-shallow hover:bg-fill-medium cursor-pointer transition-colors text-foreground-secondary' onClick={onClose}>
             <X size={14} />
           </div>
         </div>

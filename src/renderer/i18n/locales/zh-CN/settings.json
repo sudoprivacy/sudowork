@@ -285,7 +285,7 @@
   "systemMode": "系统",
   "agent": "智能体",
   "tools": "工具",
-  "skill": "技能商店",
+  "skill": "技能",
   "skill.noInstalledSkills": "暂无已安装的技能",
   "skill.noInstalledSkillsHint": "前往技能库安装你需要的技能",
   "skill.browseStore": "浏览技能库",

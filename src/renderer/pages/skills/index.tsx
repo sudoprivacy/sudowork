@@ -1187,7 +1187,7 @@ const SkillSettings: React.FC = () => {
                 label: (
                   <span className='f-center'>
                     {t('settings.skill.installedTab', '我的技能')}
-                    {getInstalledSkillBadgeCount(installedList) > 0 && <span className='f-center min-w-4 h-4 ml-[5px] px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{getInstalledSkillBadgeCount(installedList)}</span>}
+                    {getInstalledSkillBadgeCount(installedList) > 0 && <span className='f-center min-w-4 h-4 ml-[5px] px-1 rd-full bg-primary text-primary-foreground text-10px leading-4 font-medium'>{getInstalledSkillBadgeCount(installedList)}</span>}
                   </span>
                 ),
               },
@@ -1196,20 +1196,20 @@ const SkillSettings: React.FC = () => {
 
           {/* Sync status indicator for enterprise mode - compact inline style */}
           {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px shrink-0'>
+            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-brand-surface rounded-sm shrink-0'>
               <Spin size={12} />
-              <span className='text-11px text-primary'>{t('settings.skill.syncing', '同步中...')}</span>
+              <span className='text-11px text-brand'>{t('settings.skill.syncing', '同步中...')}</span>
             </div>
           )}
           {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.skills.installed.length > 0 || syncStatus.skills.failed.length > 0) && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-light rd-6px shrink-0'>
+            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-muted rounded-sm shrink-0'>
               <Check size={12} className='text-success' />
               <span className='text-11px text-success'>{t('settings.skill.syncCompleted', '已同步')}</span>
             </div>
           )}
 
           {/* Search - always rendered to preserve layout, hidden on installed tab */}
-          <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-tertiary' />} className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
+          <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-foreground-tertiary' />} className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
           {activeTab === 'installed' && isElectronDesktop() && (
             <Tooltip content={t('settings.customSkills', '自定义技能')}>
               <Button icon={isEnterprise ? <Plus size={13} /> : <Upload size={13} />} onClick={onImportButtonClick} className='rd-full shrink-0'>
@@ -1236,8 +1236,8 @@ const SkillSettings: React.FC = () => {
               {/* Enterprise mode: show tenant skills from local tenant/ directory */}
               {activeTab === 'exclusive' && isEnterprise ? (
                 filteredTenantSkills.length === 0 ? (
-                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                    <Shield size={32} className='text-tertiary' />
+                  <div className='flex flex-col items-center justify-center py-12 text-foreground-secondary gap-2'>
+                    <Shield size={32} className='text-foreground-tertiary' />
                     <span className='text-13px'>{t('settings.skill.noTenantSkills', '暂无专属技能')}</span>
                   </div>
                 ) : (
@@ -1271,8 +1271,8 @@ const SkillSettings: React.FC = () => {
                 isGuest ? (
                   <HubEmptyState onLogin={() => navigate('/login')} />
                 ) : (
-                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                    <Shield size={32} className='text-tertiary' />
+                  <div className='flex flex-col items-center justify-center py-12 text-foreground-secondary gap-2'>
+                    <Shield size={32} className='text-foreground-tertiary' />
                     <span className='text-13px'>{t('settings.skill.noEnterpriseCode', '当前账号没有企业编码，无法加载专属技能。')}</span>
                   </div>
                 )
@@ -1286,8 +1286,8 @@ const SkillSettings: React.FC = () => {
                 ) : hubError ? (
                   <HubEmptyState error={hubError} onRetry={() => void fetchSkills()} />
                 ) : (
-                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                    <Zap size={32} className='text-tertiary' />
+                  <div className='flex flex-col items-center justify-center py-12 text-foreground-secondary gap-2'>
+                    <Zap size={32} className='text-foreground-tertiary' />
                     <span className='text-13px'>{t('settings.skill.noResults', '暂无技能')}</span>
                   </div>
                 )
@@ -1329,12 +1329,12 @@ const SkillSettings: React.FC = () => {
               {loadingMore && (
                 <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-3 flex items-start gap-3 animate-pulse'>
-                      <div className='size-12 shrink-0 rd-8px bg-fill-3' />
+                    <div key={`skel-${i}`} className='bg-card rounded-lg border border-border p-3 flex items-start gap-3 animate-pulse'>
+                      <div className='size-12 shrink-0 rounded-md bg-fill-medium' />
                       <div className='flex-1 min-w-0 flex flex-col gap-1.5 pt-0.5'>
-                        <div className='h-3.5 w-3/5 rd-4px bg-fill-3' />
-                        <div className='h-2.5 w-full rd-4px bg-fill-3' />
-                        <div className='h-2.5 w-4/5 rd-4px bg-fill-3' />
+                        <div className='h-3.5 w-3/5 rounded-sm bg-fill-medium' />
+                        <div className='h-2.5 w-full rounded-sm bg-fill-medium' />
+                        <div className='h-2.5 w-4/5 rounded-sm bg-fill-medium' />
                       </div>
                     </div>
                   ))}
@@ -1357,9 +1357,9 @@ const SkillSettings: React.FC = () => {
                 </div>
               ) : installedList.length === 0 ? (
                 <div className='flex flex-col items-center justify-center py-12 gap-2'>
-                  <Zap size={32} className='text-tertiary' />
-                  <div className='text-13px text-secondary'>{t('settings.skill.noInstalledSkills', '暂无已安装的技能')}</div>
-                  <div className='text-12px text-tertiary'>{t('settings.skill.noInstalledSkillsHint', '前往技能库安装你需要的技能')}</div>
+                  <Zap size={32} className='text-foreground-tertiary' />
+                  <div className='text-13px text-foreground-secondary'>{t('settings.skill.noInstalledSkills', '暂无已安装的技能')}</div>
+                  <div className='text-12px text-foreground-tertiary'>{t('settings.skill.noInstalledSkillsHint', '前往技能库安装你需要的技能')}</div>
                   <Button size='small' type='outline' className='mt-1' onClick={() => setActiveTab('store')}>
                     {t('settings.skill.browseStore', '浏览技能库')}
                   </Button>
@@ -1369,7 +1369,7 @@ const SkillSettings: React.FC = () => {
                   <section>
                     <div className='flex items-center justify-between gap-2 mb-2.5'>
                       <div className='text-13px font-medium text-foreground'>{t('settings.customSkills', '自定义技能')}</div>
-                      <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
+                      <span className='px-1.5 py-0 bg-fill-shallow text-foreground-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
                     </div>
                     {customInstalledSkills.length > 0 ? (
                       isEnterprise ? (
@@ -1378,7 +1378,7 @@ const SkillSettings: React.FC = () => {
                         renderInstalledSkillGrid(customInstalledSkills)
                       )
                     ) : (
-                      <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary f-center'>{t('settings.noCustomSkills', '暂无自定义技能')}</div>
+                      <div className='bg-card border border-dashed border-border rounded-lg px-3.5 py-4.5 text-12px text-foreground-secondary f-center'>{t('settings.noCustomSkills', '暂无自定义技能')}</div>
                     )}
                   </section>
 
@@ -1387,26 +1387,26 @@ const SkillSettings: React.FC = () => {
                     <section>
                       <div className='flex items-center justify-between gap-2 mb-2.5'>
                         <div className='text-13px font-medium text-foreground'>{t('settings.tenantSkills', '专属技能')}</div>
-                        <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
+                        <span className='px-1.5 py-0 bg-fill-shallow text-foreground-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
                       </div>
-                      {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noTenantSkills', '暂无专属技能')}</div>}
+                      {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-card border border-dashed border-border rounded-lg px-3.5 py-4.5 text-12px text-foreground-tertiary'>{t('settings.noTenantSkills', '暂无专属技能')}</div>}
                     </section>
                   )}
 
                   <section>
                     <div className='flex items-center justify-between gap-2 mb-2.5'>
                       <div className='text-13px font-medium text-foreground'>{t('settings.hubSkills', '商店技能')}</div>
-                      <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
+                      <span className='px-1.5 py-0 bg-fill-shallow text-foreground-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
                     </div>
-                    {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noHubSkills', '暂无商店安装的技能')}</div>}
+                    {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-card border border-dashed border-border rounded-lg px-3.5 py-4.5 text-12px text-foreground-tertiary'>{t('settings.noHubSkills', '暂无商店安装的技能')}</div>}
                   </section>
 
                   <section>
                     <div className='flex items-center justify-between gap-2 mb-2.5'>
                       <div className='text-13px font-medium text-foreground'>{t('settings.builtinSkills', '内置技能')}</div>
-                      <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
+                      <span className='px-1.5 py-0 bg-fill-shallow text-foreground-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
                     </div>
-                    {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noBuiltinSkills', '暂无可用的内置技能')}</div>}
+                    {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-card border border-dashed border-border rounded-lg px-3.5 py-4.5 text-12px text-foreground-tertiary'>{t('settings.noBuiltinSkills', '暂无可用的内置技能')}</div>}
                   </section>
                 </div>
               )}
@@ -1516,33 +1516,33 @@ const SkillSettings: React.FC = () => {
           <div className='flex flex-col gap-4'>
             <div className='flex items-center justify-between'>
               <div className='font-semibold text-15px text-foreground'>{t('settings.skill.importSourceTitle', '导入自定义技能')}</div>
-              <button type='button' className='size-7 f-center rd-full bg-fill-2 hover:bg-fill-3 cursor-pointer transition-colors text-secondary border-none outline-none' onClick={() => setImportSourceVisible(false)}>
+              <button type='button' className='size-7 f-center rd-full bg-fill-shallow hover:bg-fill-medium cursor-pointer transition-colors text-foreground-secondary border-none outline-none' onClick={() => setImportSourceVisible(false)}>
                 <X size={14} />
               </button>
             </div>
-            <div className='text-12px text-secondary leading-relaxed'>{t('settings.skill.importSourceDescription', '请选择导入方式。')}</div>
+            <div className='text-12px text-foreground-secondary leading-relaxed'>{t('settings.skill.importSourceDescription', '请选择导入方式。')}</div>
             <div className='grid grid-cols-2 gap-2.5'>
               <button
                 type='button'
-                className='p-3.5 text-left rd-12px border bg-fill-1 hover:bg-fill-2 cursor-pointer transition-colors outline-none'
+                className='p-3.5 text-left rounded-lg border border-border bg-card hover:bg-muted cursor-pointer transition-colors outline-none'
                 onClick={() => {
                   setImportSourceVisible(false);
                   void handleImportLocalSkill('zip');
                 }}
               >
                 <div className='font-medium text-13px text-foreground'>{t('settings.skill.importZipOption', '从文件导入')}</div>
-                <div className='mt-1 text-11px text-secondary'>{t('settings.skill.importZipOptionDescription', '打开文件选择框，仅显示 zip 文件。')}</div>
+                <div className='mt-1 text-11px text-foreground-secondary'>{t('settings.skill.importZipOptionDescription', '打开文件选择框，仅显示 zip 文件。')}</div>
               </button>
               <button
                 type='button'
-                className='p-3.5 text-left rd-12px border bg-fill-1 hover:bg-fill-2 cursor-pointer transition-colors outline-none'
+                className='p-3.5 text-left rounded-lg border border-border bg-card hover:bg-muted cursor-pointer transition-colors outline-none'
                 onClick={() => {
                   setImportSourceVisible(false);
                   void handleImportLocalSkill('directory');
                 }}
               >
                 <div className='font-medium text-13px text-foreground'>{t('settings.skill.importFolderOption', '从文件夹导入')}</div>
-                <div className='mt-1 text-11px text-secondary'>{t('settings.skill.importFolderOptionDescription', '选择包含 SKILL.md 的技能目录。')}</div>
+                <div className='mt-1 text-11px text-foreground-secondary'>{t('settings.skill.importFolderOptionDescription', '选择包含 SKILL.md 的技能目录。')}</div>
               </button>
             </div>
           </div>

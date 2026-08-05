@@ -17,16 +17,16 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
     <div className='card group flex items-start gap-3 relative overflow-hidden' onClick={onClick}>
       {/* Icon */}
       <div className='w-12 flex-shrink-0 flex flex-col items-center'>
-        <div className='size-12 rd-8px overflow-hidden'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-22px'>{skill.emoji || '📦'}</div>}</div>
+        <div className='size-12 rounded-md overflow-hidden'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-22px'>{skill.emoji || '📦'}</div>}</div>
       </div>
 
       {/* Content */}
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-2 pr-14.5 min-w-0'>
           <span className='font-medium text-13px text-foreground truncate'>{skill.display_name}</span>
-          {latestVersion && <span className='px-[5px] py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
+          {latestVersion && <span className='px-[5px] py-0 bg-secondary text-foreground-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{latestVersion}</span>}
         </div>
-        <div className='text-11px text-secondary mt-[3px] line-clamp-2 leading-relaxed'>{skill.description}</div>
+        <div className='text-11px text-foreground-secondary mt-[3px] line-clamp-2 leading-relaxed'>{skill.description}</div>
       </div>
 
       {/* Action - top right */}
@@ -40,9 +40,7 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
             <Button icon={<Download size={13} />} onClick={onUpdate} className='!size-7' />
           </Tooltip>
         ) : isInstalled ? (
-          <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
-            {t('settings.skill.installed', '已安装')}
-          </span>
+          <span className='store-action-badge !bg-brand-surface !text-brand'>{t('settings.skill.installed', '已安装')}</span>
         ) : !isInstalled && hasVersion ? (
           <Tooltip content={t('settings.skill.install', '安装')}>
             <Button icon={<Download size={13} />} onClick={onInstall} className='!size-7' />

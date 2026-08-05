@@ -126,12 +126,12 @@ export default function SkillDetailModal({
           <div className='px-2 pb-4'>
             {/* Icon + Name header */}
             <div className='flex flex-col items-center mb-5'>
-              <div className='size-18 rd-14px overflow-hidden mb-3'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
+              <div className='size-18 rounded-lg overflow-hidden mb-3'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
               <div className='font-semibold text-17px text-foreground text-center'>{skill.display_name}</div>
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-1 mt-1.5 flex-wrap justify-center'>
                   {skill.categories.map((cat, idx) => (
-                    <span key={idx} className='px-[7px] py-[1px] bg-control text-secondary text-11px rd-4px'>
+                    <span key={idx} className='px-[7px] py-[1px] bg-secondary text-foreground-secondary text-11px rd-4px'>
                       {cat}
                     </span>
                   ))}
@@ -146,17 +146,17 @@ export default function SkillDetailModal({
             ) : (
               <div className='space-y-4'>
                 {/* 技能介绍 */}
-                <div className='bg-control rd-10px p-3.5'>
+                <div className='bg-muted rounded-lg p-3.5'>
                   <div className='flex items-center gap-1.5 mb-2'>
                     <span className='text-14px'>✦</span>
                     <span className='font-medium text-13px text-foreground'>{t('settings.skill.introduction', '技能介绍')}</span>
                   </div>
-                  <div className='text-12px text-secondary leading-relaxed'>{skill.description}</div>
+                  <div className='text-12px text-foreground-secondary leading-relaxed'>{skill.description}</div>
                 </div>
 
                 {/* 怎么使用 */}
                 {(coreFeatures.length > 0 || applicableScenarios.length > 0) && (
-                  <div className='bg-control rd-10px p-3.5'>
+                  <div className='bg-muted rounded-lg p-3.5'>
                     <div className='flex items-center gap-1.5 mb-2.5'>
                       <span className='text-14px'>📄</span>
                       <span className='font-medium text-13px text-foreground'>{t('settings.skill.howToUse', '怎么使用？')}</span>
@@ -164,8 +164,8 @@ export default function SkillDetailModal({
                     <div className='space-y-1.5'>
                       {coreFeatures.map((feature, idx) => (
                         <div key={idx} className='flex items-start gap-1.5'>
-                          <span className='text-secondary text-11px mt-[1px] flex-shrink-0'>•</span>
-                          <div className='text-12px text-secondary leading-relaxed'>
+                          <span className='text-foreground-secondary text-11px mt-[1px] flex-shrink-0'>•</span>
+                          <div className='text-12px text-foreground-secondary leading-relaxed'>
                             {feature.title}
                             {feature.desc && <span>{feature.title ? `，${feature.desc}` : feature.desc}</span>}
                           </div>
@@ -173,8 +173,8 @@ export default function SkillDetailModal({
                       ))}
                       {applicableScenarios.map((scenario, idx) => (
                         <div key={`s-${idx}`} className='flex items-start gap-1.5'>
-                          <span className='text-tertiary text-11px mt-[1px] flex-shrink-0'>•</span>
-                          <div className='text-12px text-secondary leading-relaxed'>{scenario}</div>
+                          <span className='text-foreground-tertiary text-11px mt-[1px] flex-shrink-0'>•</span>
+                          <div className='text-12px text-foreground-secondary leading-relaxed'>{scenario}</div>
                         </div>
                       ))}
                     </div>
@@ -189,7 +189,7 @@ export default function SkillDetailModal({
         </AionScrollArea>
 
         {/* Action buttons — hidden when opened from installed tab */}
-        <div className={classNames('px-2 pt-3 border-t mt-1', hideActions && 'hidden')}>
+        <div className={classNames('px-2 pt-3 border-t border-border mt-1', hideActions && 'hidden')}>
           <div className='flex gap-2 items-center'>
             {isInstalled ? (
               <>
@@ -232,7 +232,7 @@ export default function SkillDetailModal({
           {/* Security badge */}
           <div className='f-center gap-2 mt-3'>
             <Shield size={12} className='text-success flex-shrink-0' />
-            <span className='text-10px text-secondary'>{t('settings.skill.securityVerified', '已通过安全与合规验证，无恶意代码或数据泄露风险。')}</span>
+            <span className='text-10px text-foreground-secondary'>{t('settings.skill.securityVerified', '已通过安全与合规验证，无恶意代码或数据泄露风险。')}</span>
           </div>
         </div>
       </div>

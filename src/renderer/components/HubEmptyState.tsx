@@ -57,8 +57,8 @@ export default function HubEmptyState({ error, onRetry, onLogin }: IHubEmptyStat
   if (onLogin) {
     return (
       <div className='flex flex-col items-center justify-center py-8 text-center' data-testid='hub-empty-state-login'>
-        <IconLock className='text-32px text-secondary mb-3' />
-        <div className='text-13px text-secondary mb-3'>{t('settings.hubEmpty.loginToView', { defaultValue: '登录后查看完整列表' })}</div>
+        <IconLock className='text-32px text-foreground-secondary mb-3' />
+        <div className='text-13px text-foreground-secondary mb-3'>{t('settings.hubEmpty.loginToView', { defaultValue: '登录后查看完整列表' })}</div>
         <Button size='mini' onClick={onLogin}>
           {t('settings.hubEmpty.login', { defaultValue: '去登录' })}
         </Button>
@@ -76,9 +76,9 @@ export default function HubEmptyState({ error, onRetry, onLogin }: IHubEmptyStat
 
   return (
     <div className='flex flex-col items-center justify-center py-8 text-center' data-testid={`hub-empty-state-${error.code.toLowerCase()}`}>
-      <Icon className='text-32px text-secondary mb-3' />
-      <div className='text-13px text-secondary mb-1'>{t(titleKey, { defaultValue: titleFallback })}</div>
-      {error.message ? <div className='text-11px text-tertiary mb-3 max-w-90'>{error.message}</div> : null}
+      <Icon className='text-32px text-foreground-secondary mb-3' />
+      <div className='text-13px text-foreground-secondary mb-1'>{t(titleKey, { defaultValue: titleFallback })}</div>
+      {error.message ? <div className='text-11px text-foreground-tertiary mb-3 max-w-90'>{error.message}</div> : null}
       {error.retriable && onRetry ? (
         <Button size='mini' icon={<IconRefresh />} onClick={onRetry}>
           {t('settings.hubEmpty.retry', { defaultValue: '重试' })}
