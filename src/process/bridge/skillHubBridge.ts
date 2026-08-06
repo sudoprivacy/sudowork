@@ -36,6 +36,7 @@ const MISSING_ROOT_SKILL_MD_MESSAGE = 'The selected directory must contain a roo
 const SKILL_HUB_UPLOAD_EXCLUDED_FILE_NAMES = new Set([SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE, '_sudowork_audit.json', '_sudowork_audit.md']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
+type SkillHubSkill = import('@/common/ipcBridge').ISkillHubSkill;
 type SkillHubPublishStatus = 'pending' | 'approved' | 'rejected';
 type SkillHubUploadStatus = Extract<SkillHubPublishStatus, 'pending' | 'approved'>;
 
@@ -917,6 +918,110 @@ async function verifyChecksum(buffer: Buffer, expectedChecksum: string): Promise
  * Initialize IPC bridge for Skill Hub API.
  * Fetches skills, categories, and skill details from the external Skill Hub service.
  */
+/**
+ * Download + install a hub skill package into the hub skills dir, writing its
+ * metadata (installed_version is the single source of truth) and reloading the
+ * skill runtime.
+ *
+ * Extracted from the download-and-install IPC provider so first-install AND
+ * SkillUpdateService (auto-update) share one install path — no duplicated logic,
+ * and install is reachable as a plain function rather than only via IPC.
+ */
+export async function installHubSkillPackage(params: {
+  skillName: string;
+  displayName: string;
+  sourceUrl: string;
+  version: string;
+  checksum?: string;
+  skillMeta?: SkillHubSkill;
+}): Promise<{ success: true; data: { skillName: string; installedVersion: string } } | { success: false; msg: string }> {
+  const { skillName, displayName, sourceUrl, version, checksum, skillMeta } = params;
+  try {
+    // Trim skillName to prevent directory names with leading/trailing spaces
+    const trimmedSkillName = skillName.trim();
+    mainLog('SkillHub', `Downloading skill: ${trimmedSkillName} version: ${version}`);
+
+    // Download zip file
+    const zipBuffer = await downloadFile(sourceUrl, (percent) => {
+      mainLog('SkillHub', `Download progress: ${percent}%`);
+    });
+
+    // Verify checksum if provided
+    if (checksum) {
+      const isValid = await verifyChecksum(zipBuffer, checksum);
+      if (!isValid) {
+        mainWarn('SkillHub', 'Checksum verification failed, but continuing anyway');
+      }
+    }
+
+    // Get hub skills subdirectory
+    const hubSkillsDir = getHubSkillsDir();
+    await fs.mkdir(hubSkillsDir, { recursive: true });
+
+    const skillDir = path.join(hubSkillsDir, trimmedSkillName);
+
+    await removeExistingInstalledSkillDirs({
+      userSkillsDir: hubSkillsDir,
+      requestedSkillName: trimmedSkillName,
+      finalSkillDirName: trimmedSkillName,
+    });
+    await fs.mkdir(skillDir, { recursive: true });
+
+    await extractSkillZipToDirectory(zipBuffer, skillDir);
+
+    // Write hub metadata file so installed skills can be displayed with full info.
+    // NOTE: Metadata file is the single source of truth for installed version.
+    const meta: SkillHubMeta = {
+      id: skillMeta?.id ?? '',
+      name: trimmedSkillName,
+      display_name: skillMeta?.display_name ?? displayName,
+      description: skillMeta?.description ?? '',
+      icon: skillMeta?.icon ?? '',
+      emoji: skillMeta?.emoji ?? null,
+      category: skillMeta?.category ?? '',
+      categories: skillMeta?.categories ?? [],
+      applicable_scenarios: skillMeta?.applicable_scenarios ?? null,
+      core_features: skillMeta?.core_features ?? null,
+      homepage: skillMeta?.homepage ?? null,
+      author_id: skillMeta?.author_id ?? '',
+      source_type: 'hub',
+      is_builtin: false,
+      enabled: true,
+      installed_version: version,
+      installed_at: new Date().toISOString(),
+    };
+    await writeSkillMetaFile(skillDir, meta);
+
+    mainLog('SkillHub', `Successfully installed skill "${trimmedSkillName}" v${version} to ${skillDir}`);
+
+    // Reload Sudoclaw gateway to pick up new skills.
+    // - On Unix: use SIGUSR1 for hot-reload (keeps sessions alive)
+    // - On Windows/In-process: full restart required (SIGUSR1 not supported)
+    void (async () => {
+      try {
+        await reloadSkillRuntime();
+      } catch (err) {
+        mainWarn('SkillHub', 'Reload failed:', err);
+        await serviceManager.restartSudoclaw();
+      }
+    })();
+
+    return {
+      success: true,
+      data: {
+        skillName: trimmedSkillName,
+        installedVersion: version,
+      },
+    };
+  } catch (error) {
+    mainError('SkillHub', 'Failed to install skill:', error);
+    return {
+      success: false,
+      msg: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export function initSkillHubBridge(): void {
   mainLog('SkillHub', 'Initializing SkillHub bridge...');
 
@@ -1156,93 +1261,7 @@ export function initSkillHubBridge(): void {
   });
 
   // Download and install skill
-  ipcBridge.skillHub.downloadAndInstallSkill.provider(async ({ skillName, displayName, sourceUrl, version, checksum, skillMeta }) => {
-    try {
-      // Trim skillName to prevent directory names with leading/trailing spaces
-      const trimmedSkillName = skillName.trim();
-      mainLog('SkillHub', `Downloading skill: ${trimmedSkillName} version: ${version}`);
-
-      // Download zip file
-      const zipBuffer = await downloadFile(sourceUrl, (percent) => {
-        mainLog('SkillHub', `Download progress: ${percent}%`);
-      });
-
-      // Verify checksum if provided
-      if (checksum) {
-        const isValid = await verifyChecksum(zipBuffer, checksum);
-        if (!isValid) {
-          mainWarn('SkillHub', 'Checksum verification failed, but continuing anyway');
-        }
-      }
-
-      // Get hub skills subdirectory
-      const hubSkillsDir = getHubSkillsDir();
-      await fs.mkdir(hubSkillsDir, { recursive: true });
-
-      const skillDir = path.join(hubSkillsDir, trimmedSkillName);
-
-      await removeExistingInstalledSkillDirs({
-        userSkillsDir: hubSkillsDir,
-        requestedSkillName: trimmedSkillName,
-        finalSkillDirName: trimmedSkillName,
-      });
-      await fs.mkdir(skillDir, { recursive: true });
-
-      await extractSkillZipToDirectory(zipBuffer, skillDir);
-
-      // Write hub metadata file so installed skills can be displayed with full info
-      // NOTE: Metadata file is the single source of truth for installed version.
-      // The standalone sudowork-version file is no longer written for new installs.
-      const meta: SkillHubMeta = {
-        id: skillMeta?.id ?? '',
-        name: trimmedSkillName,
-        display_name: skillMeta?.display_name ?? displayName,
-        description: skillMeta?.description ?? '',
-        icon: skillMeta?.icon ?? '',
-        emoji: skillMeta?.emoji ?? null,
-        category: skillMeta?.category ?? '',
-        categories: skillMeta?.categories ?? [],
-        applicable_scenarios: skillMeta?.applicable_scenarios ?? null,
-        core_features: skillMeta?.core_features ?? null,
-        homepage: skillMeta?.homepage ?? null,
-        author_id: skillMeta?.author_id ?? '',
-        source_type: 'hub',
-        is_builtin: false,
-        enabled: true,
-        installed_version: version,
-        installed_at: new Date().toISOString(),
-      };
-      await writeSkillMetaFile(skillDir, meta);
-
-      mainLog('SkillHub', `Successfully installed skill "${trimmedSkillName}" v${version} to ${skillDir}`);
-
-      // Reload Sudoclaw gateway to pick up new skills.
-      // - On Unix: use SIGUSR1 for hot-reload (keeps sessions alive)
-      // - On Windows/In-process: full restart required (SIGUSR1 not supported)
-      void (async () => {
-        try {
-          await reloadSkillRuntime();
-        } catch (err) {
-          mainWarn('SkillHub', 'Reload failed:', err);
-          await serviceManager.restartSudoclaw();
-        }
-      })();
-
-      return {
-        success: true,
-        data: {
-          skillName: trimmedSkillName,
-          installedVersion: version,
-        },
-      };
-    } catch (error) {
-      mainError('SkillHub', 'Failed to install skill:', error);
-      return {
-        success: false,
-        msg: error instanceof Error ? error.message : String(error),
-      };
-    }
-  });
+  ipcBridge.skillHub.downloadAndInstallSkill.provider(async (params) => installHubSkillPackage(params));
 
   ipcBridge.skillHub.downloadSkillZip.provider(async ({ skillName, version, sourceUrl, checksum }) => {
     try {

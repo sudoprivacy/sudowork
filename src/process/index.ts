@@ -102,6 +102,12 @@ export const initializeProcess = async () => {
     void serviceManager.startup();
     perfLog('serviceManager.startup', Date.now() - serviceStart);
 
+    // Keep installed hub skills current on every launch (default ON, opt-out).
+    // Fire-and-forget + dynamic import so it never blocks or bloats startup.
+    void import('./services/skillUpdate/SkillUpdateService')
+      .then(({ checkAndUpdateInstalledHubSkills }) => checkAndUpdateInstalledHubSkills())
+      .catch((err) => mainError('Process', 'Skill auto-update failed', err));
+
     const channelStart = Date.now();
     try {
       await getChannelManager().initialize();
