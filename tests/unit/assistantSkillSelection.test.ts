@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from '@/renderer/pages/settings/assistantSkillSelection';
+import { getSelectableAssistantSkills, isAssistantSkillSelected, isAutoInjectedBuiltinSkill, sanitizeAssistantEnabledSkills, toggleAssistantSkillSelection } from '@/renderer/pages/agents/utils';
 
 describe('assistantSkillSelection', () => {
   const installedSkills = [
