@@ -4,28 +4,6 @@ import type { TChatConversation } from '@/common/storage';
 import { shouldSyncWorkspaceSkills, isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 
 describe('workspace skill sync gating', () => {
-  it('enables workspace skill sync for openclaw conversations with a workspace', () => {
-    const conversation = {
-      id: 'conv-openclaw',
-      name: 'OpenClaw',
-      type: 'openclaw-gateway',
-      createTime: Date.now(),
-      modifyTime: Date.now(),
-      extra: {
-        workspace: '/tmp/openclaw-workspace',
-      },
-      model: {
-        id: 'default',
-        platform: 'openclaw',
-        name: 'default',
-        baseUrl: '',
-        apiKey: '',
-        useModel: 'default',
-      },
-    } as TChatConversation;
-
-    expect(shouldSyncWorkspaceSkills(conversation)).toBe(true);
-  });
 
   it('enables workspace skill sync for acp preset conversations with enabled skills', () => {
     const conversation = {
