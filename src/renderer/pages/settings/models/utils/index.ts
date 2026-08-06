@@ -101,6 +101,37 @@ export function sanitizeProviderId(value: string): string {
 }
 
 /**
+ * Normalize a single value, array value, or empty value into unique model IDs.
+ * @param value - Select form field value.
+ */
+export function normalizeModelIds(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : [value];
+  return Array.from(new Set(values.map((item) => String(item || '').trim()).filter(Boolean)));
+}
+
+/**
+ * Build a saveable custom model from form defaults.
+ * @param modelId - Upstream model ID.
+ * @param values - Protocol and capability defaults from the form.
+ */
+export function buildEditableModelFromFormValues(modelId: string, values: IModelFormDefaults): EditableModel {
+  const input = ['text'];
+  if (values.supportsVision) {
+    input.push('image');
+  }
+  return {
+    id: modelId,
+    name: modelId,
+    api: values.api,
+    input,
+    supportsTools: values.supportsTools,
+    supportsReasoning: values.supportsReasoning,
+    inputContext: values.inputContext,
+    outputContext: values.outputContext,
+  };
+}
+
+/**
  * 将输入/输出上下文窗口大小格式化为可读的标签文本。
  * @param input - 输入上下文大小（K tokens）
  * @param output - 输出上下文大小（K tokens）
@@ -149,13 +180,31 @@ export function editableModelFromEntry(config: ScodeConfig | null, modelId: stri
   const providerModelId = entry?.providers?.['api-key']?.model || modelId;
   return {
     id: providerModelId,
-    name: entry?.name || providerModelId,
+    name: providerModelId,
+    api: entry?.providers?.['api-key']?.api,
     input: entry?.input,
     supportsTools: entry?.supports_tools,
     supportsReasoning: entry?.supports_reasoning,
     inputContext: entry?.context?.input,
     outputContext: entry?.context?.output,
   };
+}
+
+/**
+ * Build provider-level edit models, preserving existing model settings while applying defaults to new models.
+ * @param config - Current sudocode config.
+ * @param provider - Provider being edited.
+ * @param modelIds - Upstream model IDs selected or entered by the user.
+ * @param values - Protocol and capability defaults for newly added models.
+ */
+export function buildProviderEditModels(config: ScodeConfig | null, provider: ProviderRow, modelIds: string[], values: IModelFormDefaults): EditableModel[] {
+  const existingModels = new Map<string, EditableModel>();
+  for (const modelId of provider.modelIds) {
+    const editableModel = editableModelFromEntry(config, modelId);
+    existingModels.set(editableModel.id, editableModel);
+  }
+
+  return normalizeModelIds(modelIds).map((modelId) => existingModels.get(modelId) || buildEditableModelFromFormValues(modelId, values));
 }
 
 /**
@@ -176,4 +225,13 @@ export function normalizeDefaultModel(config: ScodeConfig, previousModelId?: str
     return nextConfig;
   }
   return config;
+}
+
+export interface IModelFormDefaults {
+  api: string;
+  supportsTools?: boolean;
+  supportsVision?: boolean;
+  supportsReasoning?: boolean;
+  inputContext?: number;
+  outputContext?: number;
 }

@@ -1200,6 +1200,8 @@
     "modelIdPlaceholder": "例如 gpt-4o 或 openai/gpt-4o",
     "modelIdsPlaceholder": "选择或输入一个或多个模型",
     "bulkModelSelectHint": "可从列表多选模型，也可继续手动输入。",
+    "selectAllModels": "全选",
+    "clearSelectedModels": "清空",
     "selectedModelsCount": "已选择 {{count}} 个模型",
     "advancedConfig": "高级配置",
     "supportsTools": "工具调用",
