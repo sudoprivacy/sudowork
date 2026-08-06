@@ -72,6 +72,9 @@ export interface IConfigStorageRefer {
   // ON (true): force-cap to 128 KB regardless of advertised value, trading image fidelity for
   // lower input-token cost on metered plans. See `image-handling-non-user-facing.html` Decision 3.
   'image.economyMode'?: boolean;
+  // 已安装 hub skill 自动更新到最新版 / Auto-update installed hub skills to latest.
+  // Default ON (unset = enabled); explicit `false` opts out (manual updates only).
+  'skill.autoUpdate'?: boolean;
   // guid 页面上次选择的 agent 类型 / Last selected agent type on guid page
   'guid.lastSelectedAgent'?: string;
   // guid 页面 session 模式（E端 Local/Remote 切换）/ Guid page session mode (Enterprise Local/Remote toggle)
