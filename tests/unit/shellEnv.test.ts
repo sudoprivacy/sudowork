@@ -90,6 +90,7 @@ describe('getEnhancedEnv', () => {
         throw new Error('shell not available');
       }),
       execFile: vi.fn(),
+      exec: vi.fn((_cmd: unknown, cb: unknown) => { if (typeof cb === 'function') (cb as (e: null, o: { stdout: string; stderr: string }) => void)(null, { stdout: '', stderr: '' }); }),
     }));
 
     const originalPath = process.env.PATH;
@@ -109,6 +110,7 @@ describe('getEnhancedEnv', () => {
     vi.doMock('child_process', () => ({
       execFileSync: vi.fn().mockReturnValue(`PATH=${SHELL_EXTRA}:/usr/bin\nHOME=/home/user\n`),
       execFile: vi.fn(),
+      exec: vi.fn((_cmd: unknown, cb: unknown) => { if (typeof cb === 'function') (cb as (e: null, o: { stdout: string; stderr: string }) => void)(null, { stdout: '', stderr: '' }); }),
     }));
 
     const originalPath = process.env.PATH;
@@ -137,6 +139,7 @@ describe('getEnhancedEnv', () => {
         throw new Error('skip shell');
       }),
       execFile: vi.fn(),
+      exec: vi.fn((_cmd: unknown, cb: unknown) => { if (typeof cb === 'function') (cb as (e: null, o: { stdout: string; stderr: string }) => void)(null, { stdout: '', stderr: '' }); }),
     }));
 
     const originalPath = process.env.PATH;
@@ -156,6 +159,7 @@ describe('getEnhancedEnv', () => {
         throw new Error('skip shell');
       }),
       execFile: vi.fn(),
+      exec: vi.fn((_cmd: unknown, cb: unknown) => { if (typeof cb === 'function') (cb as (e: null, o: { stdout: string; stderr: string }) => void)(null, { stdout: '', stderr: '' }); }),
     }));
 
     const { getEnhancedEnv } = await import('@process/utils/shellEnv');
@@ -253,6 +257,7 @@ describe('ForkTask environment propagation (regression)', () => {
         throw new Error('skip shell');
       }),
       execFile: vi.fn(),
+      exec: vi.fn((_cmd: unknown, cb: unknown) => { if (typeof cb === 'function') (cb as (e: null, o: { stdout: string; stderr: string }) => void)(null, { stdout: '', stderr: '' }); }),
     }));
 
     // Simulate a PATH that a global tool (e.g. openclaw) would be installed in

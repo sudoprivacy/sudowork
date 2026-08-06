@@ -104,13 +104,6 @@ export const useConversations = () => {
 
   const groupedHistory: GroupedHistoryResult = useMemo(() => {
     const result = buildGroupedHistory(conversations, t, cronJobs);
-    console.log('[useConversations] groupedHistory result:', {
-      conversationsCount: conversations.length,
-      pinnedTimelineCount: result.pinnedTimeline.length,
-      pinnedScheduledCount: result.pinnedScheduled.length,
-      timelineSectionsCount: result.timelineSections.length,
-      scheduledGroupsCount: result.scheduledGroups.length,
-    });
     return result;
   }, [conversations, t, cronJobs]);
 

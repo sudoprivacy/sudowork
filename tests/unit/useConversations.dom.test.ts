@@ -39,6 +39,15 @@ const mockConversationChangedOn = vi.fn((cb: (...args: unknown[]) => void) => {
 
 vi.mock('../../src/common', () => ({
   ipcBridge: {
+    cron: {
+      listJobs: { invoke: async () => [] },
+      listJobsByConversation: { invoke: async () => [] },
+      removeJob: { invoke: async () => ({}) },
+      updateJob: { invoke: async () => ({}) },
+      onJobCreated: { on: () => () => {} },
+      onJobUpdated: { on: () => () => {} },
+      onJobRemoved: { on: () => () => {} },
+    },
     database: {
       getUserConversations: { invoke: (...args: unknown[]) => mockInvoke(...args) },
       conversationChanged: { on: (...args: unknown[]) => mockConversationChangedOn(...args) },
