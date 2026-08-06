@@ -226,7 +226,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   return (
     <div className='flex-1 min-h-0 settings-sider flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden scrollbar-hide'>
       {menus.map((item) => {
-        const isSelected = pathname.includes(item.path);
+        const isSelected = pathname === `/settings/${item.path}`;
         return (
           <Tooltip key={item.id} {...siderTooltipProps} content={item.label} position='right'>
             <SidebarNavItem
