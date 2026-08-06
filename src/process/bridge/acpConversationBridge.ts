@@ -21,6 +21,7 @@ import { isEnterpriseMode, getCachedSessionMode } from '@/common/enterpriseDebug
 import { getConversationProvider } from '@/process/providers';
 import type RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
 import { ipcBridge } from '../../common';
+import { setAcpModelWithScodePersistence } from './acpModelSwitch';
 
 function getScodeConversationModelInfo(conversationId: string) {
   const result = getDatabase().getConversation(conversationId);
@@ -367,18 +368,21 @@ export function initAcpConversationBridge(): void {
       if (task instanceof AcpAgent) {
         mainLog('AcpConversationBridge', `setModel: Task is AcpAgent`);
 
-        // Persist default model to sudocode.json and settings.json when switching scode models
         const conv = getDatabase().getConversation(conversationId);
-        if (conv?.data?.extra?.backend === 'scode') {
-          try {
-            const { writeScodeDefaultModel } = await import('./scodeBridge');
-            writeScodeDefaultModel(modelId);
-          } catch {
-            /* best-effort */
-          }
-        }
-
-        const modelInfo = await task.setModel(modelId);
+        const backend = conv?.data?.extra?.backend;
+        const modelInfo = await setAcpModelWithScodePersistence({
+          backend,
+          modelId,
+          onSetModel: (nextModelId) => task.setModel(nextModelId),
+          onPersistScodeDefaultModel: async (nextModelId) => {
+            try {
+              const { writeScodeDefaultModel } = await import('./scodeBridge');
+              writeScodeDefaultModel(nextModelId);
+            } catch {
+              /* best-effort */
+            }
+          },
+        });
 
         return { success: true, data: { modelInfo } };
       }

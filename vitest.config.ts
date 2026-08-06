@@ -85,6 +85,7 @@ export default defineConfig({
         'src/process/telemetry/SudoLogTelemetryReporter.ts',
         'src/process/bridge/updateBridge.ts',
         'src/process/bridge/applicationBridge.ts',
+        'src/process/bridge/acpModelSwitch.ts',
         'src/process/bridge/documentBridge.ts',
         'src/process/bridge/pwdLoginBridge.ts',
         'src/process/utils/enabledSkillFilter.ts',
