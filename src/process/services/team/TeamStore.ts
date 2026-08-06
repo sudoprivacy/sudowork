@@ -416,6 +416,17 @@ class TeamStore {
     return result.data.map(rowToMail);
   }
 
+  /**
+   * Max created_at of a recipient's mailbox (同表 append-only watermark)。
+   * 团队兜底回传去重用：取与去重查询同表（team_mailbox）的 leader mailbox 最大时间，
+   * 避免跨表基准导致误命中上一 turn 的陈旧 mail。空表返回 0。
+   */
+  getMailMaxCreatedAt(teamId: string, toMemberId: string): number {
+    const result = getDatabase().queryOne<{ maxCreated: number | null }>(`SELECT MAX(created_at) AS maxCreated FROM team_mailbox WHERE team_id = ? AND to_member_id = ?`, teamId, toMemberId);
+    if (!result.success) throw new Error(result.error);
+    return result.data?.maxCreated ?? 0;
+  }
+
   hasUnread(teamId: string, toMemberId: string): boolean {
     const result = getDatabase().queryOne<{ count: number }>(`SELECT COUNT(*) as count FROM team_mailbox WHERE team_id = ? AND to_member_id = ? AND read = 0`, teamId, toMemberId);
     if (!result.success) throw new Error(result.error);
