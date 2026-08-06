@@ -17,6 +17,14 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+// TeamMemberListTab renders an <AcpModelSelector> per member card, which pulls in
+// preview-context/auth/model-store dependencies not relevant to this tab's tests.
+// Stub it (matching teamDetail.dom's approach) so the tab renders standalone.
+vi.mock('@renderer/components/AcpModelSelector', async () => {
+  const React = await vi.importActual<typeof import('react')>('react');
+  return { default: () => React.createElement('div', { 'data-testid': 'model-selector' }) };
+});
+
 vi.mock('@/common', () => ({
   ipcBridge: {
     team: {

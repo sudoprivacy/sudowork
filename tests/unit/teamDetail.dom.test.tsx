@@ -25,6 +25,10 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mocks.navigate,
 }));
 
+vi.mock('@/renderer/context/AuthContext', () => ({
+  useAuth: () => ({ isGuest: false }),
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
