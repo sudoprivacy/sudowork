@@ -15,7 +15,13 @@ export type ProviderRow = {
 
 export type EditableModel = ScodeCustomModelProvider['models'][number];
 
-export type EditingModelTarget = {
-  provider: ProviderRow;
-  modelId: string;
-};
+export type EditingModelTarget =
+  | {
+      mode: 'model';
+      provider: ProviderRow;
+      modelId: string;
+    }
+  | {
+      mode: 'provider';
+      provider: ProviderRow;
+    };

@@ -5,19 +5,14 @@
  */
 
 import { Button, Checkbox, Form, Input, InputNumber, Message, Modal, Select, Spin, Tag } from '@arco-design/web-react';
-import { IconDownload, IconEye } from '@arco-design/web-react/icon';
+import { IconDownload, IconEraser, IconEye, IconSelectAll } from '@arco-design/web-react/icon';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { ScodeConfig } from '@/common/ipcBridge';
 import { buildCustomModelAlias, type ScodeCustomModelProvider } from '@/common/scodeConfig';
-import { editableModelFromEntry, findModelEntry, presetValueForProvider, sanitizeProviderId, PROVIDER_PRESETS } from '../utils';
-import type { EditableModel, EditingModelTarget } from '../types';
-
-function normalizeModelIds(value: unknown): string[] {
-  const values = Array.isArray(value) ? value : [value];
-  return Array.from(new Set(values.map((item) => String(item || '').trim()).filter(Boolean)));
-}
+import { buildEditableModelFromFormValues, buildProviderEditModels, editableModelFromEntry, findModelEntry, normalizeModelIds, presetValueForProvider, sanitizeProviderId, PROVIDER_PRESETS } from '../utils';
+import type { EditingModelTarget } from '../types';
 
 const DEFAULT_MODEL_API = 'openai-completions';
 
@@ -26,23 +21,6 @@ const MODEL_API_OPTIONS = [
   { value: 'openai-responses', i18nKey: 'settings.sudocodeModel.protocolOpenAIResponses', fallback: 'OpenAI Responses' },
   { value: 'anthropic-messages', i18nKey: 'settings.sudocodeModel.protocolAnthropicMessages', fallback: 'Anthropic Messages' },
 ];
-
-function buildEditableModel(modelId: string, values: IAddModelFormValues): EditableModel {
-  const input = ['text'];
-  if (values.supportsVision) {
-    input.push('image');
-  }
-  return {
-    id: modelId,
-    name: modelId,
-    api: values.api,
-    input,
-    supportsTools: values.supportsTools,
-    supportsReasoning: values.supportsReasoning,
-    inputContext: values.inputContext,
-    outputContext: values.outputContext,
-  };
-}
 
 export default function AddModelDialog({ visible, onClose, onSubmit, existingProviderIds, existingModelIds, config, editingTarget }: IAddModelDialogProps) {
   const { t } = useTranslation();
@@ -55,14 +33,18 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
   const selectedApi = String(Form.useWatch('api', form) || DEFAULT_MODEL_API);
   const selectedModelIds = normalizeModelIds(Form.useWatch('modelIds', form));
   const selectedPreset = useMemo(() => PROVIDER_PRESETS.find((item) => item.value === providerPreset), [providerPreset]);
+  const isModelEditing = editingTarget?.mode === 'model';
+  const isProviderEditing = editingTarget?.mode === 'provider';
   const isEditing = Boolean(editingTarget);
+  const isBulkModelPicker = !isModelEditing;
   const modelOptions = useMemo(() => providerModels.map((model) => ({ label: model, value: model })), [providerModels]);
   const modelApiOptions = useMemo(() => MODEL_API_OPTIONS.map((item) => ({ label: t(item.i18nKey, item.fallback), value: item.value })), [t]);
+  const dialogTitle = isProviderEditing ? t('common.edit', '编辑') : isModelEditing ? t('settings.sudocodeModel.editModelTitle', '编辑模型') : t('settings.addModel', '添加模型');
 
   useEffect(() => {
     if (!visible) return;
     form.resetFields();
-    if (editingTarget) {
+    if (isModelEditing) {
       const entry = findModelEntry(config, editingTarget.modelId);
       const editableModel = editableModelFromEntry(config, editingTarget.modelId);
       const input = entry?.input || [];
@@ -85,6 +67,30 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
       return;
     }
 
+    if (isProviderEditing) {
+      const editableModels = editingTarget.provider.modelIds.map((modelId) => editableModelFromEntry(config, modelId));
+      const firstModel = editableModels[0];
+      const firstInput = firstModel?.input || [];
+      const modelIds = editableModels.map((model) => model.id);
+      form.setFieldsValue({
+        providerPreset: presetValueForProvider(editingTarget.provider),
+        providerId: editingTarget.provider.id,
+        baseUrl: editingTarget.provider.baseUrl,
+        apiKey: editingTarget.provider.apiKey,
+        api: firstModel?.api || DEFAULT_MODEL_API,
+        modelId: '',
+        modelIds,
+        supportsTools: firstModel?.supportsTools ?? true,
+        supportsVision: firstInput.includes('image'),
+        supportsReasoning: Boolean(firstModel?.supportsReasoning),
+        inputContext: firstModel?.inputContext,
+        outputContext: firstModel?.outputContext,
+      });
+      setIsApiKeyVisible(false);
+      setProviderModels(modelIds);
+      return;
+    }
+
     form.setFieldsValue({
       providerPreset: 'custom',
       providerId: 'custom-openai',
@@ -99,8 +105,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
     });
     setIsApiKeyVisible(false);
     setProviderModels([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, visible]);
+  }, [config, editingTarget, form, isModelEditing, isProviderEditing, visible]);
 
   useEffect(() => {
     if (isEditing) return;
@@ -115,7 +120,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
     setProviderModels([]);
   }, [form, isEditing, providerPreset]);
 
-  const handleFetchProviderModels = async () => {
+  const onFetchProviderModels = async () => {
     const baseUrl = String(form.getFieldValue('baseUrl') || '').trim();
     const apiKey = String(form.getFieldValue('apiKey') || '').trim();
     if (!baseUrl) {
@@ -156,11 +161,20 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
     }
   };
 
-  const handleSubmit = async () => {
+  const onSelectAllProviderModels = () => {
+    form.setFieldValue('modelIds', normalizeModelIds([...selectedModelIds, ...providerModels]));
+  };
+
+  const onClearSelectedModels = () => {
+    form.setFieldValue('modelIds', []);
+  };
+
+  const onSubmitDialog = async () => {
     const values = (await form.validate()) as IAddModelFormValues;
     const providerId = sanitizeProviderId(values.providerId);
-    const modelIds = isEditing ? normalizeModelIds(values.modelId) : normalizeModelIds(values.modelIds);
-    const modelAlias = isEditing && modelIds[0] ? buildCustomModelAlias(providerId, modelIds[0]) : undefined;
+    const modelIds = isModelEditing ? normalizeModelIds(values.modelId) : normalizeModelIds(values.modelIds);
+    let previousModelId = isModelEditing ? editingTarget.modelId : undefined;
+    let nextModelId = isModelEditing && modelIds[0] ? buildCustomModelAlias(providerId, modelIds[0]) : undefined;
     if (!providerId) {
       Message.error(t('settings.sudocodeModel.providerIdInvalid', 'Provider ID 无效'));
       return;
@@ -176,14 +190,23 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
 
     for (const modelId of modelIds) {
       const alias = buildCustomModelAlias(providerId, modelId);
-      if (existingModelIds.some((item) => item === alias && item !== editingTarget?.modelId)) {
+      const isCurrentProviderModel = isProviderEditing && providerId === editingTarget.provider.id && editingTarget.provider.modelIds.includes(alias);
+      if (existingModelIds.some((item) => item === alias && item !== previousModelId && !isCurrentProviderModel)) {
         Message.error(t('settings.sudocodeModel.modelIdExists', '模型名称已存在，请换一个名称'));
         return;
       }
     }
 
-    const nextModels = modelIds.map((modelId) => buildEditableModel(modelId, values));
-    const models = editingTarget ? editingTarget.provider.modelIds.map((item) => (item === editingTarget.modelId ? nextModels[0] : editableModelFromEntry(config, item))) : nextModels;
+    if (isProviderEditing && providerId !== editingTarget.provider.id && config?.default_model && editingTarget.provider.modelIds.includes(config.default_model)) {
+      const defaultModel = editableModelFromEntry(config, config.default_model);
+      if (modelIds.includes(defaultModel.id)) {
+        previousModelId = config.default_model;
+        nextModelId = buildCustomModelAlias(providerId, defaultModel.id);
+      }
+    }
+
+    const nextModels = modelIds.map((modelId) => buildEditableModelFromFormValues(modelId, values));
+    const models = isModelEditing ? editingTarget.provider.modelIds.map((item) => (item === editingTarget.modelId ? nextModels[0] : editableModelFromEntry(config, item))) : isProviderEditing ? buildProviderEditModels(config, editingTarget.provider, modelIds, values) : nextModels;
 
     setIsSaving(true);
     try {
@@ -195,8 +218,8 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
           models,
         },
         editingTarget?.provider.id,
-        editingTarget?.modelId,
-        modelAlias
+        previousModelId,
+        nextModelId
       );
       onClose();
     } finally {
@@ -207,10 +230,13 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
   return (
     <Modal
       visible={visible}
-      title={isEditing ? t('settings.sudocodeModel.editModelTitle', '编辑模型') : t('settings.addModel', '添加模型')}
-      style={{ width: 760 }}
+      title={dialogTitle}
+      className='sudocode-model-dialog'
+      style={{ width: 'min(760px, calc(100vw - 32px))' }}
+      alignCenter={false}
+      focusLock={false}
       onCancel={onClose}
-      onOk={handleSubmit}
+      onOk={onSubmitDialog}
       okText={t('common.save', '保存')}
       cancelText={t('common.cancel', '取消')}
       confirmLoading={isSaving}
@@ -243,12 +269,12 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
             suffix={<Button type='text' size='mini' icon={<IconEye />} onClick={() => setIsApiKeyVisible((prev) => !prev)} />}
           />
         </Form.Item>
-        {isEditing ? (
+        {isModelEditing ? (
           <Form.Item
             label={
               <div className='flex items-center justify-between gap-3 w-full'>
                 <span>{t('settings.sudocodeModel.modelIdLabel', '模型名称')}</span>
-                <Button size='mini' icon={<IconDownload />} loading={isFetchingModels} onClick={() => void handleFetchProviderModels()}>
+                <Button size='mini' icon={<IconDownload />} loading={isFetchingModels} onClick={() => void onFetchProviderModels()}>
                   {t('settings.fetchModelList')}
                 </Button>
               </div>
@@ -273,11 +299,19 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
         ) : (
           <Form.Item
             label={
-              <div className='flex items-center justify-between gap-3 w-full'>
+              <div className='flex items-center justify-between gap-3 w-full flex-wrap'>
                 <span>{t('settings.sudocodeModel.modelIdLabel', '模型名称')}</span>
-                <Button size='mini' icon={<IconDownload />} loading={isFetchingModels} onClick={() => void handleFetchProviderModels()}>
-                  {t('settings.fetchModelList')}
-                </Button>
+                <div className='flex items-center gap-2 flex-wrap justify-end'>
+                  <Button size='mini' icon={<IconDownload />} loading={isFetchingModels} onClick={() => void onFetchProviderModels()}>
+                    {t('settings.fetchModelList')}
+                  </Button>
+                  <Button size='mini' icon={<IconSelectAll />} disabled={providerModels.length === 0} onClick={onSelectAllProviderModels}>
+                    {t('settings.sudocodeModel.selectAllModels', '全选')}
+                  </Button>
+                  <Button size='mini' icon={<IconEraser />} disabled={selectedModelIds.length === 0} onClick={onClearSelectedModels}>
+                    {t('settings.sudocodeModel.clearSelectedModels', '清空')}
+                  </Button>
+                </div>
               </div>
             }
             field='modelIds'
@@ -301,7 +335,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
             />
           </Form.Item>
         )}
-        {!isEditing && selectedModelIds.length > 0 && (
+        {isBulkModelPicker && selectedModelIds.length > 0 && (
           <div className='mb-4 border border-light rd-2 bg-muted p-3'>
             <div className='mb-2 text-12px text-secondary'>{t('settings.sudocodeModel.selectedModelsCount', '已选择 {{count}} 个模型', { count: selectedModelIds.length })}</div>
             <div className='flex flex-wrap gap-1.5'>

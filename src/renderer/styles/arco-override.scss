@@ -112,11 +112,39 @@ body[arco-theme='dark'] {
 
 .arco-modal {
   border-radius: 16px;
+
+  &,
+  &-mask,
+  &-wrapper,
+  &-close-icon {
+    -webkit-app-region: no-drag;
+  }
+
   &-header {
     border-bottom-color: var(--border-tiny);
   }
   &-footer {
     border-top-color: var(--border-tiny);
+  }
+}
+
+.arco-modal.sudocode-model-dialog {
+  top: 56px;
+  max-height: calc(100vh - 72px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .arco-modal-header,
+  .arco-modal-footer {
+    flex: 0 0 auto;
+  }
+
+  .arco-modal-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }
 

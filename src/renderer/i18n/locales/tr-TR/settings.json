@@ -1054,6 +1054,8 @@
     "modelIdPlaceholder": "örn. gpt-4o veya openai/gpt-4o",
     "modelIdsPlaceholder": "Bir veya daha fazla model seçin ya da girin",
     "bulkModelSelectHint": "Listeden birden fazla model seçin ya da manuel girmeye devam edin.",
+    "selectAllModels": "Tümünü Seç",
+    "clearSelectedModels": "Temizle",
     "selectedModelsCount": "{{count}} model seçildi",
     "advancedConfig": "Gelişmiş Ayarlar",
     "supportsTools": "Araç Çağrısı",

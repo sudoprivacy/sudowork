@@ -86,22 +86,27 @@ const SudocodeModelSettings: React.FC = () => {
     [user?.id, t]
   );
 
-  const openAddDialog = useCallback(() => {
+  const onOpenAddDialog = useCallback(() => {
     setEditingTarget(null);
     setDialogVisible(true);
   }, []);
 
-  const openEditDialog = useCallback((provider: ProviderRow, modelId: string) => {
-    setEditingTarget({ provider, modelId });
+  const onOpenEditModelDialog = useCallback((provider: ProviderRow, modelId: string) => {
+    setEditingTarget({ mode: 'model', provider, modelId });
     setDialogVisible(true);
   }, []);
 
-  const closeDialog = useCallback(() => {
+  const onOpenEditProviderDialog = useCallback((provider: ProviderRow) => {
+    setEditingTarget({ mode: 'provider', provider });
+    setDialogVisible(true);
+  }, []);
+
+  const onCloseDialog = useCallback(() => {
     setDialogVisible(false);
     setEditingTarget(null);
   }, []);
 
-  const handleSubmitProvider = useCallback(
+  const onSubmitProvider = useCallback(
     async (provider: ScodeCustomModelProvider, previousProviderId?: string, previousModelId?: string, nextModelId?: string) => {
       const sourceConfig = previousProviderId && previousProviderId !== provider.providerId ? removeCustomProviderFromScodeConfig(config || {}, previousProviderId) : config || {};
       const nextConfig = normalizeDefaultModel(mergeCustomProviderIntoScodeConfig(sourceConfig, provider), previousModelId, nextModelId);
@@ -110,7 +115,7 @@ const SudocodeModelSettings: React.FC = () => {
     [config, saveConfig]
   );
 
-  const handleRemoveProvider = useCallback(
+  const onRemoveProvider = useCallback(
     async (providerId: string) => {
       await saveConfig(removeCustomProviderFromScodeConfig(config || {}, providerId));
     },
@@ -134,7 +139,7 @@ const SudocodeModelSettings: React.FC = () => {
           <Button icon={<IconRefresh />} onClick={loadConfig}>
             {t('common.refresh', '刷新')}
           </Button>
-          <Button type='primary' icon={<IconPlus />} onClick={openAddDialog} className='!bg-primary !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
+          <Button type='primary' icon={<IconPlus />} onClick={onOpenAddDialog} className='!bg-primary !border-[var(--ui-accent-orange)] !text-white hover:!bg-[var(--ui-accent-orange-hover)] hover:!border-[var(--ui-accent-orange-hover)] hover:!text-white'>
             {t('settings.addModel', '添加模型')}
           </Button>
         </Space>
@@ -197,7 +202,10 @@ const SudocodeModelSettings: React.FC = () => {
                     </div>
                     <Space>
                       <Tag bordered>{maskSecret(provider.apiKey) || t('common.notSet', '未设置')}</Tag>
-                      <Popconfirm title={t('settings.sudocodeModel.deleteProviderConfirm', '删除该第三方提供商及其模型？')} onOk={() => void handleRemoveProvider(provider.id)}>
+                      <Button icon={<IconEdit />} loading={saving} onClick={() => onOpenEditProviderDialog(provider)}>
+                        {t('common.edit', '编辑')}
+                      </Button>
+                      <Popconfirm title={t('settings.sudocodeModel.deleteProviderConfirm', '删除该第三方提供商及其模型？')} onOk={() => void onRemoveProvider(provider.id)}>
                         <Button status='danger' icon={<IconDelete style={{ fontSize: 16 }} />} loading={saving}>
                           {t('common.delete', '删除')}
                         </Button>
@@ -230,7 +238,7 @@ const SudocodeModelSettings: React.FC = () => {
                               </Tag>
                             </div>
                           </div>
-                          <Button icon={<IconEdit />} loading={saving} onClick={() => openEditDialog(provider, modelId)}>
+                          <Button icon={<IconEdit />} loading={saving} onClick={() => onOpenEditModelDialog(provider, modelId)}>
                             {t('common.edit', '编辑')}
                           </Button>
                         </div>
@@ -243,7 +251,7 @@ const SudocodeModelSettings: React.FC = () => {
           </div>
         </AionScrollArea>
       )}
-      <AddModelDialog visible={dialogVisible} onClose={closeDialog} onSubmit={handleSubmitProvider} existingProviderIds={customProviders.map((provider) => provider.id)} existingModelIds={configuredModelIds} config={config} editingTarget={editingTarget} />
+      <AddModelDialog visible={dialogVisible} onClose={onCloseDialog} onSubmit={onSubmitProvider} existingProviderIds={customProviders.map((provider) => provider.id)} existingModelIds={configuredModelIds} config={config} editingTarget={editingTarget} />
     </PageWrapper>
   );
 };
