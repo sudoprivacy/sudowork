@@ -101,12 +101,17 @@ describe('WeComCrypto', () => {
         expect(decrypted).toEqual(plaintext);
       });
 
-      it('throws with wrong key', () => {
+      it('does not recover the plaintext with a wrong key', () => {
         const plaintext = Buffer.from('test data');
         const ciphertext = encryptAes256Cbc(plaintext, key32, iv);
         const wrongKey = Buffer.alloc(32, 0xcd);
         const wrongIv = wrongKey.subarray(0, 16);
-        expect(() => decryptWeComMedia(ciphertext, wrongKey, wrongIv, 'aes-256-cbc')).toThrow();
+        // WeCom media uses non-standard padding, so decryption disables PKCS
+        // auto-padding and never throws on a wrong key — it yields garbage that
+        // is not the original plaintext (integrity is enforced downstream via the
+        // media signature check, not by CBC padding validation).
+        const decrypted = decryptWeComMedia(ciphertext, wrongKey, wrongIv, 'aes-256-cbc');
+        expect(decrypted.equals(plaintext)).toBe(false);
       });
     });
 

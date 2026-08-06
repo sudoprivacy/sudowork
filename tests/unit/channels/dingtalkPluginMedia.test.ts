@@ -263,7 +263,7 @@ describe('DingTalkPlugin uploadMedia', () => {
     ).rejects.toThrow('no media_id');
   });
 
-  it('multipart body contains filename in Content-Disposition', async () => {
+  it('multipart body uses an ASCII placeholder filename in Content-Disposition', async () => {
     const { DingTalkPlugin } = await loadPluginWithMocks();
     const plugin = new DingTalkPlugin();
     (plugin as any).clientId = 'test-client-id';
@@ -277,7 +277,10 @@ describe('DingTalkPlugin uploadMedia', () => {
     expect(uploadReq).toBeDefined();
 
     const bodyStr = Buffer.concat(uploadReq!.writeData).toString('utf-8');
-    expect(bodyStr).toContain('filename="my_photo.jpg"');
+    // The multipart filename is an extension-based ASCII placeholder ('upload.jpg'),
+    // not the original name — a non-ASCII filename here makes DingTalk return
+    // errcode=-1. The user-visible name travels separately via the JSON msgParam.
+    expect(bodyStr).toContain('filename="upload.jpg"');
     expect(bodyStr).toContain('name="media"');
   });
 
