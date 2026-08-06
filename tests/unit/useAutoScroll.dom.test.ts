@@ -44,7 +44,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
   it('should scroll to show user message when user sends a message (position=right)', async () => {
     const initialMessages: TMessage[] = [createMessage('left', '1'), createMessage('right', '2')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initialMessages, itemCount: 2 } });
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: initialMessages, itemCount: 2 } });
 
     // Manually set the ref to mock Virtuoso
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
@@ -72,7 +72,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
   it('should scroll to absolute bottom when AI responds with text message (position=left)', async () => {
     const initialMessages: TMessage[] = [createMessage('right', '1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initialMessages, itemCount: 1 } });
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: initialMessages, itemCount: 1 } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -98,7 +98,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
   it('should reset userScrolled flag when user sends message', async () => {
     const initialMessages: TMessage[] = [createMessage('left', '1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initialMessages, itemCount: 1 } });
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: initialMessages, itemCount: 1 } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -131,7 +131,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
   });
 
   it('should show scroll button when not at bottom', () => {
-    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: [], itemCount: 0 } });
+    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: [], itemCount: 0 } });
 
     // Initially hidden
     expect(result.current.showScrollButton).toBe(false);
@@ -152,7 +152,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
   });
 
   it('should provide scrollToBottom function that scrolls to absolute bottom', () => {
-    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: [], itemCount: 5 } });
+    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: [], itemCount: 5 } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -171,7 +171,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
   });
 
   it('should handle followOutput correctly based on scroll state', () => {
-    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: [], itemCount: 0 } });
+    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: [], itemCount: 0 } });
 
     // When at bottom and not user-scrolled, should return 'auto'
     expect(result.current.handleFollowOutput(true)).toBe('auto');
@@ -225,7 +225,7 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
   it('should auto-scroll to absolute bottom when a tool_group message is appended', async () => {
     const initial: TMessage[] = [createTextMessage('right', 'u1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 1 } });
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: initial, itemCount: 1 } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -259,7 +259,7 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
     const userMsg = createTextMessage('right', 'u1');
     const initial: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 2 } });
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: initial, itemCount: 2 } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -296,7 +296,7 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
     const userMsg = createTextMessage('right', 'u1');
     const initial: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 2 } });
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: initial, itemCount: 2 } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -330,7 +330,7 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
     const userMsg = createTextMessage('right', 'u1');
     const initial: TMessage[] = [userMsg, createToolGroupMessage('t1', 'step 1')];
 
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), { initialProps: { messages: initial, itemCount: 2 } });
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), { initialProps: { messages: initial, itemCount: 2 } });
 
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
 
@@ -454,7 +454,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
   };
 
   it('starts with no bottom spacer in idle state', () => {
-    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+    const { result } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), {
       initialProps: { messages: [] as TMessage[], itemCount: 0 },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
@@ -468,7 +468,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
 
   it('seeds the spacer to full viewport height when the user sends a message', async () => {
     const initial: TMessage[] = [];
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), {
       initialProps: { messages: initial, itemCount: 0 },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
@@ -502,7 +502,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
 
   it('does NOT auto-scroll while pinned — AI output fills the spacer instead', async () => {
     const userMsg = createMessage('right', 'u1');
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), {
       initialProps: { messages: [] as TMessage[], itemCount: 0 },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
@@ -541,7 +541,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
   it('releases the pin and resumes auto-follow once turn content overflows the viewport', async () => {
     const userMsg = createMessage('right', 'u1');
     const aiMsg = createMessage('left', 'a1');
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), {
       initialProps: { messages: [] as TMessage[], itemCount: 0 },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
@@ -590,7 +590,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
 
   it('clears the spacer when the message list becomes empty (e.g., conversation switch)', async () => {
     const userMsg = createMessage('right', 'u1');
-    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, itemCount }), {
+    const { result, rerender } = renderHook(({ messages, itemCount }) => useAutoScroll({ messages, items: messages.length ? messages : Array.from({ length: itemCount }) }), {
       initialProps: { messages: [userMsg], itemCount: 1 },
     });
     (result.current.virtuosoRef as any).current = mockVirtuosoHandle;
