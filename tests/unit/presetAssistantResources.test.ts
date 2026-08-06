@@ -4,8 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadPresetAssistantResources, type PresetAssistantResourceDeps } from '../../src/renderer/shared/agents/presetAssistantResources';
+import { registerAssistantMetas } from '../../src/common/presets/presetResolver';
+
+// Builtin presets are resolved through a runtime-populated registry (filesystem-driven
+// assistants). Register the preset under test so getPresetById('cowork') resolves and
+// the builtin rule/skill fallback path is exercised.
+beforeEach(() => {
+  registerAssistantMetas([{ id: 'cowork', name: 'cowork', ruleFile: 'cowork.md', skillFile: 'cowork-skills.md' }]);
+});
 
 function createDeps(overrides: Partial<PresetAssistantResourceDeps> = {}): PresetAssistantResourceDeps {
   return {
