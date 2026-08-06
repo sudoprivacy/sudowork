@@ -168,20 +168,20 @@ describe('FUSE-T — IPC platform gate', () => {
 });
 
 describe('FUSE-T — eager dylib dispatch in download-nexus-vfs.js', () => {
-  // Static-string assertions on the dispatch tables. We grep the JS
-  // source rather than importing the script (running it would actually
-  // hit the network); the strings are what the kernel team's release
-  // pipeline matches against, so any rename here is the regression we
-  // want to surface.
-  const script = fs.readFileSync(path.join(REPO_ROOT, 'scripts/download-nexus-vfs.js'), 'utf-8');
+  // Artifact/dylib naming was extracted from download-nexus-vfs.js into the
+  // SSOT module scripts/plugin-naming.js (getPluginArtifact / getPluginDylib),
+  // which download-nexus-vfs.js consumes. Assert the composed names the kernel
+  // team's release pipeline matches against — importing the pure namer is safe
+  // (no network) and pins the actual contract, not a source substring.
+  const { getPluginArtifact, getPluginDylib } = require(path.join(REPO_ROOT, 'scripts/plugin-naming.js'));
 
   it('macOS arm64 + x86_64 fuse-plugin artifact names are exposed', () => {
-    expect(script).toContain("'nexus-fuse-plugin-macos-arm64.tar.gz'");
-    expect(script).toContain("'nexus-fuse-plugin-macos-x86_64.tar.gz'");
+    expect(getPluginArtifact('darwin', 'arm64', 'nexus_fuse_plugin')).toBe('nexus-fuse-plugin-macos-arm64.tar.gz');
+    expect(getPluginArtifact('darwin', 'x64', 'nexus_fuse_plugin')).toBe('nexus-fuse-plugin-macos-x86_64.tar.gz');
   });
 
   it('libnexus_fuse_plugin.dylib is wired for darwin', () => {
-    expect(script).toContain("'libnexus_fuse_plugin.dylib'");
+    expect(getPluginDylib('darwin', 'nexus_fuse_plugin')).toBe('libnexus_fuse_plugin.dylib');
   });
 
   it('macOS + Linux fuse-plugin SHA256 sums are filled in the canonical JSON', () => {
