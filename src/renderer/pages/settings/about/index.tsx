@@ -8,6 +8,7 @@ import { Button, Typography } from '@arco-design/web-react';
 import { IconLink, IconSettings } from '@arco-design/web-react/icon';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import brand from '@brand';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@common/buildInfo';
 import { IS_OFFLINE_BUILD } from '@common/buildMode';
 import { useTenantLogo } from '@renderer/hooks/useTenantLogo';
@@ -21,6 +22,10 @@ const About: React.FC = () => {
   const tenant = useTenantStore();
   const logo = useTenantLogo();
   const [opsVisible, setOpsVisible] = useState<boolean>(false);
+  const brandConfig = brand as { companyName?: string; websiteUrl?: string; privacyPolicyUrl?: string };
+  const isCompanyNameVisible = Boolean(brandConfig.companyName?.trim());
+  const isWebsiteVisible = Boolean(brandConfig.websiteUrl?.trim());
+  const isPrivacyPolicyVisible = Boolean(brandConfig.privacyPolicyUrl?.trim());
 
   return (
     <PageWrapper title={t('settings.about')}>
@@ -33,20 +38,26 @@ const About: React.FC = () => {
         <Typography.Title heading={4} className='text-20px font-700 text-foreground mb-1.5 mt-0 lh-28px'>
           {tenant.aboutName}
         </Typography.Title>
-        <div className='text-13px text-foreground-tertiary'>{tenant.companyName}</div>
+        {isCompanyNameVisible && tenant.companyName && <div className='text-13px text-foreground-tertiary'>{tenant.companyName}</div>}
 
         {/* 链接 / Links */}
-        <div className='f-center gap-3 mt-4'>
-          <button type='button' className='group inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-12px text-foreground-secondary transition-colors hover:text-brand' onClick={() => void openExternalUrl(tenant.websiteUrl).catch(console.error)}>
-            <span>{t('settings.officialWebsite', '官网')}</span>
-            <IconLink className='text-12px opacity-60 transition-opacity group-hover:opacity-100' />
-          </button>
-          <span className='text-12px text-foreground-tertiary'>·</span>
-          <button type='button' className='group inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-12px text-foreground-secondary transition-colors hover:text-brand' onClick={() => void openExternalUrl(tenant.privacyPolicyUrl).catch(console.error)}>
-            <span>{t('settings.privacyPolicy', '隐私声明')}</span>
-            <IconLink className='text-12px opacity-60 transition-opacity group-hover:opacity-100' />
-          </button>
-        </div>
+        {(isWebsiteVisible || isPrivacyPolicyVisible) && (
+          <div className='f-center gap-3 mt-4'>
+            {isWebsiteVisible && (
+              <button type='button' className='group inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-12px text-foreground-secondary transition-colors hover:text-brand' onClick={() => void openExternalUrl(tenant.websiteUrl).catch(console.error)}>
+                <span>{t('settings.officialWebsite', '官网')}</span>
+                <IconLink className='text-12px opacity-60 transition-opacity group-hover:opacity-100' />
+              </button>
+            )}
+            {isWebsiteVisible && isPrivacyPolicyVisible && <span className='text-12px text-foreground-tertiary'>·</span>}
+            {isPrivacyPolicyVisible && (
+              <button type='button' className='group inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-12px text-foreground-secondary transition-colors hover:text-brand' onClick={() => void openExternalUrl(tenant.privacyPolicyUrl).catch(console.error)}>
+                <span>{t('settings.privacyPolicy', '隐私声明')}</span>
+                <IconLink className='text-12px opacity-60 transition-opacity group-hover:opacity-100' />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 版本信息 / Version info */}
         <div className='flex items-center gap-1.5 mt-6'>

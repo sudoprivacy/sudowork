@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import brand from '@brand';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 
+const optionalBrand = brand as typeof brand & Partial<{ tagline: string; companyName: string; websiteUrl: string; privacyPolicyUrl: string }>;
+
 async function loadStore() {
   vi.resetModules();
   return import('@/renderer/stores/useTenantStore');
@@ -25,7 +27,10 @@ describe('useTenantStore', () => {
     expect(state).toMatchObject({
       appName: brand.displayName,
       topName: brand.displayName,
-      companyName: brand.companyName,
+      loginDescription: optionalBrand.tagline?.trim() ?? '',
+      companyName: optionalBrand.companyName?.trim() ?? '',
+      websiteUrl: optionalBrand.websiteUrl?.trim() ?? '',
+      privacyPolicyUrl: optionalBrand.privacyPolicyUrl?.trim() ?? '',
       clientCronEnabled: true,
       clientShowToolCalls: true,
       workspaceUploadLimitBytes: 20 * 1024 * 1024,

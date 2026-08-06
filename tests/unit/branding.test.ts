@@ -9,6 +9,7 @@ import { resolveRemoteTenant, resolveTenantDefaults } from '@/renderer/stores/us
 
 const loadModule = createRequire(__filename);
 const builderConfig = loadModule('../../electron-builder.brand.js');
+const optionalBrand = brand as typeof brand & Partial<{ tagline: string; companyName: string; websiteUrl: string; privacyPolicyUrl: string }>;
 
 describe('brand configuration', () => {
   it('drives default tenant and channel branding', () => {
@@ -19,7 +20,10 @@ describe('brand configuration', () => {
       logo: brand.logo || undefined,
       appName: brand.displayName,
       topName: brand.displayName,
-      companyName: brand.companyName,
+      loginDescription: optionalBrand.tagline?.trim() ?? '',
+      companyName: optionalBrand.companyName?.trim() ?? '',
+      websiteUrl: optionalBrand.websiteUrl?.trim() ?? '',
+      privacyPolicyUrl: optionalBrand.privacyPolicyUrl?.trim() ?? '',
     });
     expect(resolveRemoteTenant({ app_name: 'Tenant Brand' }).appName).toBe('Tenant Brand');
     expect(
@@ -36,8 +40,10 @@ describe('brand configuration', () => {
   it('drives Electron runtime and packaging names', () => {
     expect(builderConfig.productName).toBe(brand.displayName);
     expect(builderConfig.executableName).toBe(brand.displayName);
-    expect(builderConfig.copyright).toContain(brand.companyName);
-    expect(builderConfig.win.legalTrademarks).toContain(brand.companyName);
+    const companyName = optionalBrand.companyName?.trim() ?? '';
+    const copyright = companyName ? `Copyright © 2026 ${companyName}` : '';
+    expect(builderConfig.copyright).toBe(copyright);
+    expect(builderConfig.win.legalTrademarks).toBe(copyright);
     expect(builderConfig.linux.target).toEqual(['AppImage', 'deb']);
     const englishName = (brand as { englishName?: string }).englishName?.trim() || 'SudoWork';
     expect(builderConfig.linux.executableName).toBe(englishName);
@@ -57,6 +63,8 @@ describe('brand configuration', () => {
 
     if (brand.BUILD_OFFLINE) {
       const aboutSource = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/pages/settings/about/index.tsx'), 'utf8');
+      expect(aboutSource).toContain('{isCompanyNameVisible && tenant.companyName && <div');
+      expect(aboutSource).toContain('{(isWebsiteVisible || isPrivacyPolicyVisible) && (');
       expect(aboutSource).toContain('{!IS_OFFLINE_BUILD && (');
       expect(aboutSource).toContain('{!IS_OFFLINE_BUILD && <OpsModal');
     }

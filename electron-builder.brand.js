@@ -3,7 +3,8 @@ const { parse } = require('yaml');
 const brand = require('./brand.config.json');
 const runtimeVersions = require('./src/shared/runtime-versions.json');
 
-const copyright = `Copyright © 2026 ${brand.companyName}`;
+const companyName = brand.companyName?.trim();
+const copyright = companyName ? `Copyright © 2026 ${companyName}` : '';
 const englishName = brand.englishName?.trim() || 'SudoWork';
 const linuxBranding = {
   executableName: englishName,

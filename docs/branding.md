@@ -21,10 +21,10 @@ Renderer 统一从 `src/renderer/stores/useTenantStore.ts` 读取租户数据。
 | `defaultAgentId` | `string` | Guide 页默认并锁定的内置助手技术 ID。删除该字段后恢复自由选择助手。 |
 | `defaultAgentSkills` | `string[]` | 将指定 Skill 按配置顺序置顶。仅影响排序，不会安装或自动启用 Skill；未配置 `defaultAgentId` 时不生效。 |
 | `defaultPromptScenarios` | `object[]` | Guide 页的品牌快捷提示词。非空时替换默认分类提示词；删除或设为空数组时使用系统默认提示词。 |
-| `companyName` | `string` | 公司名称。显示在“关于”页面，并用于安装包版权和 Windows 商标信息。 |
-| `tagline` | `string` | 默认登录页副标题，可被运行时租户配置覆盖。 |
-| `websiteUrl` | `string` | “关于”页面中官网按钮打开的地址，建议使用完整 HTTPS URL。 |
-| `privacyPolicyUrl` | `string` | “关于”页面中隐私声明按钮打开的地址，建议使用完整 HTTPS URL。 |
+| `companyName` | `string` | 公司名称。非空时显示在“关于”页面，并用于安装包版权和 Windows 商标信息；未配置或为空时不显示公司名称。 |
+| `tagline` | `string` | 登录页副标题。非空时显示；未配置或为空时不显示。 |
+| `websiteUrl` | `string` | “关于”页面官网入口。非空时显示，建议使用完整 HTTPS URL；未配置或为空时隐藏入口。 |
+| `privacyPolicyUrl` | `string` | “关于”页面隐私声明入口。非空时显示，建议使用完整 HTTPS URL；未配置或为空时隐藏入口。 |
 | `guestScode` | `object` | 可选的游客 Scode 模型配置。配置后，游客进入应用时会恢复其中的模型、Provider 和默认模型；删除后游客需自行配置模型。 |
 
 ## `defaultPromptScenarios` 子项
