@@ -97,7 +97,7 @@ jobs:
         # — observability fix for the bug class where users (e.g. 进二
         # on v0.2.7) saw silent empty catalogs without any signal that
         # their skillhub token wasn't provisioned.
-        run: bunx vitest run tests/unit/hubErrors.test.ts tests/unit/HubEmptyState.dom.test.tsx
+        run: bunx vitest run tests/unit/hubErrors.test.ts tests/unit/HubEmptyState.dom.test.tsx tests/unit/skillUpdateVersion.test.ts
 
   # Job 2c: Conversation resource reaper regression tests
   unit-tests-conversation-reaper:
