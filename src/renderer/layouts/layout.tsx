@@ -14,7 +14,7 @@ import { useDirectorySelection } from '@renderer/hooks/useDirectorySelection';
 import { useTenantLogo } from '@renderer/hooks/useTenantLogo';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
-import { isElectronDesktop, isMacOS } from '@renderer/utils/platform';
+import { isElectronDesktop, isLinux, isMacOS } from '@renderer/utils/platform';
 import { useTenantStore } from '@renderer/stores/useTenantStore';
 import UpdateModal from '@renderer/layouts/components/UpdateModal';
 import DebugPanel from '@renderer/layouts/components/DebugPanel';
@@ -74,7 +74,9 @@ const Layout: React.FC = () => {
   useDeepLink();
   const location = useLocation();
   const workspaceAvailable = location.pathname.startsWith('/conversation/');
-  const isMacRuntime = isElectronDesktop() && isMacOS();
+  const isDesktopRuntime = isElectronDesktop();
+  const isMacRuntime = isDesktopRuntime && isMacOS();
+  const isLinuxRuntime = isDesktopRuntime && isLinux();
 
   // 清理侧栏 Tooltip 残留节点，避免路由切换后浮层卡在左上角
   useEffect(() => {
@@ -106,7 +108,7 @@ const Layout: React.FC = () => {
 
         <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
           <ArcoLayout.Sider collapsedWidth={0} collapsed={collapsed} width={DEFAULT_SIDER_WIDTH} className='layout-sider'>
-            <ArcoLayout.Header className={classNames('mb-1 flex h-9 items-center justify-start px-4 layout-sider-header', isMacRuntime && 'mt-10')}>
+            <ArcoLayout.Header className={classNames('mb-1 flex h-9 items-center justify-start px-4 layout-sider-header', isMacRuntime && 'mt-10', isLinuxRuntime && 'mt-3')}>
               <button
                 type='button'
                 className='flex flex-1 min-w-0 items-center gap-2 text-left text-lg text-foreground font-600 cursor-pointer border-none bg-transparent'

@@ -13,7 +13,7 @@ import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/u
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
 import WindowControls from '@renderer/components/WindowControls';
 import { useLayoutContext } from '@renderer/context/LayoutContext';
-import { isElectronDesktop, isMacOS } from '@renderer/utils/platform';
+import { isElectronDesktop, isLinux, isMacOS } from '@renderer/utils/platform';
 
 interface TitlebarProps {
   workspaceAvailable: boolean;
@@ -48,6 +48,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
 
   const isDesktopRuntime = isElectronDesktop();
   const isMacRuntime = isDesktopRuntime && isMacOS();
+  const isLinuxRuntime = isDesktopRuntime && isLinux();
   // Windows/Linux 显示自定义窗口按钮；macOS 在标题栏给工作区一个切换入口
   const showWindowControls = isDesktopRuntime && !isMacRuntime;
   // WebUI 和 macOS 桌面都需要在标题栏放工作区开关
@@ -72,10 +73,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
 
   const siderToggleStyle: React.CSSProperties = useMemo(
     () => ({
-      transform: `${layout?.siderCollapsed ? `translateX(${isMacRuntime ? 80 : 0}px)` : 'translateX(calc(var(--layout-sider-width, 260px) - 44px))'}${isMacRuntime ? ' translateY(4px)' : ''}`,
+      transform: `${layout?.siderCollapsed ? `translateX(${isMacRuntime ? 80 : 0}px)` : 'translateX(calc(var(--layout-sider-width, 260px) - 44px))'}${isMacRuntime ? ' translateY(4px)' : isLinuxRuntime ? ' translateY(12px)' : ''}`,
       transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     }),
-    [isMacRuntime, layout?.siderCollapsed]
+    [isLinuxRuntime, isMacRuntime, layout?.siderCollapsed]
   );
 
   const toolbarStyle: React.CSSProperties = useMemo(() => {

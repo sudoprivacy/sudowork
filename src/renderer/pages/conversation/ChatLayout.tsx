@@ -33,6 +33,11 @@ const isWindowsEnvironment = () => {
   return /win/i.test(navigator.userAgent);
 };
 
+const isLinuxEnvironment = () => {
+  if (typeof navigator === 'undefined') return false;
+  return /linux/i.test(navigator.userAgent);
+};
+
 interface IRightSiderWidthOverride {
   widthPx?: number;
   maxWidthPx?: number;
@@ -73,6 +78,7 @@ const ChatLayout: React.FC<{
   const layout = useLayoutContext();
   const isMacRuntime = isMacEnvironment();
   const isWindowsRuntime = isWindowsEnvironment();
+  const isLinuxRuntime = isLinuxEnvironment();
 
   const { isOpen: isPreviewOpen } = usePreviewContext();
 
@@ -186,9 +192,9 @@ const ChatLayout: React.FC<{
 
   const headerBlock = (
     <ArcoLayout.Header
-      className='h-10.5 flex items-center justify-between px-4 gap-4 bg-background! chat-layout-header overflow-hidden'
+      className={`h-10.5 flex items-center justify-between px-4 gap-4 bg-background! chat-layout-header overflow-hidden${isLinuxRuntime ? ' mt-3' : ''}`}
       style={{
-        paddingLeft: isMacRuntime && layout?.siderCollapsed ? 200 : undefined,
+        paddingLeft: isMacRuntime && layout?.siderCollapsed ? 200 : isLinuxRuntime && layout?.siderCollapsed ? 120 : undefined,
         paddingRight: isWindowsRuntime ? 140 : undefined,
         transition: 'padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
