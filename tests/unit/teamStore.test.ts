@@ -88,15 +88,14 @@ beforeEach(() => {
 });
 
 describe('team migrations', () => {
-  it('CURRENT_DB_VERSION is 28', () => {
-    expect(CURRENT_DB_VERSION).toBe(28);
-  });
-  it('ALL_MIGRATIONS includes v24, v25, v26, v27, and v28', () => {
-    expect(ALL_MIGRATIONS.some((m) => m.version === 24)).toBe(true);
-    expect(ALL_MIGRATIONS.some((m) => m.version === 25)).toBe(true);
-    expect(ALL_MIGRATIONS.some((m) => m.version === 26)).toBe(true);
-    expect(ALL_MIGRATIONS.some((m) => m.version === 27)).toBe(true);
-    expect(ALL_MIGRATIONS.some((m) => m.version === 28)).toBe(true);
+  it('CURRENT_DB_VERSION equals the highest migration, migrations are contiguous', () => {
+    // Invariant that survives future bumps: the schema version must match the
+    // newest migration, and migrations must be contiguous with no gaps.
+    const versions = ALL_MIGRATIONS.map((m) => m.version).sort((a, b) => a - b);
+    expect(CURRENT_DB_VERSION).toBe(versions[versions.length - 1]);
+    for (let i = 1; i < versions.length; i++) {
+      expect(versions[i]).toBe(versions[i - 1] + 1);
+    }
   });
   it('migration_v24 has name + up/down functions', () => {
     const m = ALL_MIGRATIONS.find((x) => x.version === 24)!;
