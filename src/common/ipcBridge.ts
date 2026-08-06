@@ -1584,6 +1584,8 @@ export interface ICreateConversationParams {
     presetRules?: string; // system rules injected at initialization
     /** Enabled skills list for filtering SkillManager skills */
     enabledSkills?: string[];
+    /** Local knowledge base space IDs allowed for this conversation */
+    localKnowledgeSpaceIds?: string[];
     /**
      * Preset context/rules to inject into the first message.
      * Used by smart assistants to provide custom prompts/rules.

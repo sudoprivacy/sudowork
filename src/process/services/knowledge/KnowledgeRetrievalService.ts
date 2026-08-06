@@ -6,20 +6,23 @@ const MAX_LOCAL_KB_SPACES = 6;
 const MAX_HIT_TEXT_LENGTH = 700;
 
 export class KnowledgeRetrievalService {
-  async augmentWithLocalKnowledge(query: string, message: string): Promise<string> {
-    const context = await this.retrieveLocalKnowledgeContext(query);
+  async augmentWithLocalKnowledge(query: string, message: string, spaceIds?: string[]): Promise<string> {
+    const context = await this.retrieveLocalKnowledgeContext(query, spaceIds);
     return context ? `${context}\n\n${message}` : message;
   }
 
-  async retrieveLocalKnowledgeContext(query: string): Promise<string | null> {
+  async retrieveLocalKnowledgeContext(query: string, spaceIds?: string[]): Promise<string | null> {
     const q = query.trim();
     if (!q) return null;
 
     try {
       const { localKnowledgeBaseService } = await import('../local-kb/LocalKnowledgeBaseService');
+      const hasSpaceFilter = Array.isArray(spaceIds);
+      const allowedSpaceIds = new Set((spaceIds || []).map((spaceId) => spaceId.trim()).filter(Boolean));
+      if (hasSpaceFilter && allowedSpaceIds.size === 0) return null;
       const spaces = localKnowledgeBaseService
         .listSpaces()
-        .filter((space) => space.buildStatus === 'ready')
+        .filter((space) => space.buildStatus === 'ready' && (!hasSpaceFilter || allowedSpaceIds.has(space.id)))
         .slice(0, MAX_LOCAL_KB_SPACES);
       if (spaces.length === 0) return null;
 

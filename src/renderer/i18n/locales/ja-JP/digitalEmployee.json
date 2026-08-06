@@ -1,6 +1,6 @@
 {
   "title": "デジタル従業員",
-  "subtitle": "StaffDeck の従業員ライブラリを Sudowork で利用できます",
+  "subtitle": "起動可能な業務デジタル従業員を管理します",
   "searchPlaceholder": "従業員、役割、責務を検索",
   "empty": "デジタル従業員はありません",
   "actions": {
@@ -14,7 +14,7 @@
     "description": "責務",
     "personaPrompt": "アイデンティティルール",
     "backend": "バックエンド",
-    "defaultMode": "デフォルトモード",
+    "defaultMode": "権限モード",
     "status": "ステータス"
   },
   "backend": {
@@ -29,7 +29,7 @@
     "disabled": "無効"
   },
   "source": {
-    "staffdeck_seed": "StaffDeck",
+    "staffdeck_seed": "組み込み",
     "custom": "カスタム",
     "hub": "ストア",
     "tenant": "エンタープライズ"
@@ -115,16 +115,22 @@
   "resourceTypes": {
     "assistant": "アシスタント",
     "skill": "スキル",
-    "general_skill": "汎用スキル",
+    "general_skill": "スキル",
     "sop": "SOP",
     "tool": "ツール",
     "knowledge": "ナレッジ",
     "mcp": "MCP"
   },
   "card": {
+    "primaryCapability": "主な能力",
+    "noDescription": "能力説明は未設定です",
     "resources": "能力",
+    "resourcesCount": "{{count}} 件有効",
     "workRecords": "作業",
+    "workRecordsCount": "{{count}} 回の作業",
     "status": "ステータス",
+    "lastWork": "最近の作業",
+    "neverWorked": "記録はまだありません",
     "lastWorkedAt": "最終作業：{{time}}"
   }
 }

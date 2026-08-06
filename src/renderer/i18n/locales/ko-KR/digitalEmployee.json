@@ -1,6 +1,6 @@
 {
   "title": "디지털 직원",
-  "subtitle": "StaffDeck 직원 라이브러리를 Sudowork에서 사용할 수 있습니다",
+  "subtitle": "바로 시작할 수 있는 업무 디지털 직원을 관리합니다",
   "searchPlaceholder": "직원, 역할 또는 책임 검색",
   "empty": "디지털 직원이 없습니다",
   "actions": {
@@ -14,7 +14,7 @@
     "description": "책임",
     "personaPrompt": "정체성 규칙",
     "backend": "백엔드",
-    "defaultMode": "기본 모드",
+    "defaultMode": "권한 모드",
     "status": "상태"
   },
   "backend": {
@@ -29,7 +29,7 @@
     "disabled": "비활성"
   },
   "source": {
-    "staffdeck_seed": "StaffDeck",
+    "staffdeck_seed": "기본 제공",
     "custom": "사용자 지정",
     "hub": "스토어",
     "tenant": "엔터프라이즈"
@@ -115,16 +115,22 @@
   "resourceTypes": {
     "assistant": "어시스턴트",
     "skill": "스킬",
-    "general_skill": "일반 스킬",
+    "general_skill": "스킬",
     "sop": "SOP",
     "tool": "도구",
     "knowledge": "지식",
     "mcp": "MCP"
   },
   "card": {
+    "primaryCapability": "주요 역량",
+    "noDescription": "역량 설명이 아직 설정되지 않았습니다",
     "resources": "역량",
+    "resourcesCount": "{{count}}개 활성",
     "workRecords": "작업",
+    "workRecordsCount": "{{count}}회 작업",
     "status": "상태",
+    "lastWork": "최근 작업",
+    "neverWorked": "아직 기록 없음",
     "lastWorkedAt": "최근 작업: {{time}}"
   }
 }

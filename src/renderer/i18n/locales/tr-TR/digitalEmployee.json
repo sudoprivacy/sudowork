@@ -1,6 +1,6 @@
 {
   "title": "Dijital Çalışanlar",
-  "subtitle": "StaffDeck çalışan kütüphanesi Sudowork içinde kullanılabilir",
+  "subtitle": "Başlatılmaya hazır iş dijital çalışanlarını yönetin",
   "searchPlaceholder": "Çalışan, rol veya sorumluluk ara",
   "empty": "Dijital çalışan yok",
   "actions": {
@@ -14,7 +14,7 @@
     "description": "Sorumluluklar",
     "personaPrompt": "Kimlik Kuralları",
     "backend": "Arka uç",
-    "defaultMode": "Varsayılan Mod",
+    "defaultMode": "İzin Modu",
     "status": "Durum"
   },
   "backend": {
@@ -29,7 +29,7 @@
     "disabled": "Devre dışı"
   },
   "source": {
-    "staffdeck_seed": "StaffDeck",
+    "staffdeck_seed": "Yerleşik",
     "custom": "Özel",
     "hub": "Mağaza",
     "tenant": "Kurumsal"
@@ -115,16 +115,22 @@
   "resourceTypes": {
     "assistant": "Asistan",
     "skill": "Beceri",
-    "general_skill": "Genel Beceri",
+    "general_skill": "Beceri",
     "sop": "SOP",
     "tool": "Araç",
     "knowledge": "Bilgi",
     "mcp": "MCP"
   },
   "card": {
+    "primaryCapability": "Ana yetenek",
+    "noDescription": "Yetenek açıklaması yapılandırılmadı",
     "resources": "Kaynaklar",
+    "resourcesCount": "{{count}} etkin",
     "workRecords": "İş",
+    "workRecordsCount": "{{count}} çalışma",
     "status": "Durum",
+    "lastWork": "Son iş",
+    "neverWorked": "Henüz kayıt yok",
     "lastWorkedAt": "Son iş: {{time}}"
   }
 }

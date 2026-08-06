@@ -1,6 +1,6 @@
 {
   "title": "數位員工",
-  "subtitle": "StaffDeck 員工庫已遷移到 Sudowork",
+  "subtitle": "管理可直接啟動的業務數位員工",
   "searchPlaceholder": "搜尋員工、職位或職責",
   "empty": "暫無數位員工",
   "actions": {
@@ -14,7 +14,7 @@
     "description": "職責描述",
     "personaPrompt": "身份規則",
     "backend": "執行後端",
-    "defaultMode": "預設模式",
+    "defaultMode": "權限模式",
     "status": "狀態"
   },
   "backend": {
@@ -29,7 +29,7 @@
     "disabled": "停用"
   },
   "source": {
-    "staffdeck_seed": "StaffDeck",
+    "staffdeck_seed": "內建",
     "custom": "自訂",
     "hub": "商店",
     "tenant": "企業"
@@ -115,16 +115,22 @@
   "resourceTypes": {
     "assistant": "助手",
     "skill": "技能",
-    "general_skill": "通用技能",
+    "general_skill": "技能",
     "sop": "SOP",
     "tool": "工具",
     "knowledge": "知識",
     "mcp": "MCP"
   },
   "card": {
+    "primaryCapability": "主要能力",
+    "noDescription": "暫未設定能力描述",
     "resources": "能力",
+    "resourcesCount": "{{count}} 項可用能力",
     "workRecords": "工作",
+    "workRecordsCount": "{{count}} 次工作",
     "status": "狀態",
+    "lastWork": "最近工作",
+    "neverWorked": "暫無記錄",
     "lastWorkedAt": "最近工作：{{time}}"
   }
 }

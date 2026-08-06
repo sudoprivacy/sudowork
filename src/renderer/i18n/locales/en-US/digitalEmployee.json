@@ -1,6 +1,6 @@
 {
   "title": "Digital Employees",
-  "subtitle": "StaffDeck employee library is available in Sudowork",
+  "subtitle": "Manage business digital employees ready to launch",
   "searchPlaceholder": "Search employees, roles, or responsibilities",
   "empty": "No digital employees",
   "actions": {
@@ -14,7 +14,7 @@
     "description": "Responsibilities",
     "personaPrompt": "Identity Rules",
     "backend": "Backend",
-    "defaultMode": "Default Mode",
+    "defaultMode": "Permission Mode",
     "status": "Status"
   },
   "backend": {
@@ -29,7 +29,7 @@
     "disabled": "Disabled"
   },
   "source": {
-    "staffdeck_seed": "StaffDeck",
+    "staffdeck_seed": "Built-in",
     "custom": "Custom",
     "hub": "Store",
     "tenant": "Enterprise"
@@ -115,16 +115,22 @@
   "resourceTypes": {
     "assistant": "Assistant",
     "skill": "Skill",
-    "general_skill": "General Skill",
+    "general_skill": "Skill",
     "sop": "SOP",
     "tool": "Tool",
     "knowledge": "Knowledge",
     "mcp": "MCP"
   },
   "card": {
+    "primaryCapability": "Primary capability",
+    "noDescription": "No capability description configured",
     "resources": "Resources",
+    "resourcesCount": "{{count}} active",
     "workRecords": "Work",
+    "workRecordsCount": "{{count}} runs",
     "status": "Status",
+    "lastWork": "Recent work",
+    "neverWorked": "No records yet",
     "lastWorkedAt": "Last work: {{time}}"
   }
 }

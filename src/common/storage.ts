@@ -304,6 +304,8 @@ export type TChatConversation =
           presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
           /** 启用的 skills 列表，用于过滤 SkillManager 加载的 skills / Enabled skills list for filtering SkillManager skills */
           enabledSkills?: string[];
+          /** Local knowledge base space IDs allowed for this conversation */
+          localKnowledgeSpaceIds?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
           /** 是否置顶会话 / Whether this conversation is pinned */
@@ -399,6 +401,8 @@ export type TChatConversation =
           presetAssistantId?: string;
           /** 启用的 skills 列表 / Enabled skills list */
           enabledSkills?: string[];
+          /** Local knowledge base space IDs allowed for this conversation */
+          localKnowledgeSpaceIds?: string[];
           /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */

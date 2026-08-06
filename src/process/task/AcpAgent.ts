@@ -170,6 +170,7 @@ export interface AcpAgentData {
   agentName?: string;
   presetContext?: string;
   enabledSkills?: string[];
+  localKnowledgeSpaceIds?: string[];
   yoloMode?: boolean;
   acpSessionId?: string;
   acpSessionUpdatedAt?: number;
@@ -1086,7 +1087,7 @@ This identity statement takes priority over the default identity in USER.md.
         // Local KB enhancement: prepend best-effort local knowledge matches.
         try {
           const { knowledgeRetrievalService } = await import('@process/services/knowledge/KnowledgeRetrievalService');
-          contentToSend = await knowledgeRetrievalService.augmentWithLocalKnowledge(rawUserQuery, contentToSend);
+          contentToSend = await knowledgeRetrievalService.augmentWithLocalKnowledge(rawUserQuery, contentToSend, this.options.localKnowledgeSpaceIds);
         } catch (localKbErr) {
           mainWarn('[AcpAgent]', 'Local KB augment failed; sending original message:', localKbErr);
         }

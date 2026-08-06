@@ -107,12 +107,15 @@ interface ISeedEmployee {
 }
 
 const DEFAULT_BACKEND: AcpBackendAll = 'scode';
-const STAFFDECK_SEED_VERSION = 3;
+const STAFFDECK_SEED_VERSION = 5;
+const SUPPORTED_SEED_RESOURCE_TYPES = new Set<DigitalEmployeeResourceType>(['sop']);
+const SUPPORTED_RUNTIME_RESOURCE_TYPES = new Set<DigitalEmployeeResourceType>(['assistant', 'skill', 'general_skill', 'knowledge', 'sop']);
+const UNSUPPORTED_LEGACY_RESOURCE_CONFIG_KEYS = ['staffdeckKnowledgeBaseId', 'staffdeckGeneralSkillId', 'staffdeckToolId', 'staffdeckTool'];
 
 const RESOURCE_TYPE_LABELS: Record<DigitalEmployeeResourceType, string> = {
   assistant: '助手',
   skill: '技能',
-  general_skill: '通用技能',
+  general_skill: '技能',
   mcp: 'MCP',
   knowledge: '知识库',
   sop: 'SOP',
@@ -333,7 +336,7 @@ const STAFFDECK_SEED_EMPLOYEES: ISeedEmployee[] = [
     name: '财务',
     roleName: '报销管家',
     description: '熟悉公司报销、差旅、预算与发票全流程，能解答报销政策、核对单据合规性、发起报销与额度查询，遇到超标或特殊情形时把问题带上下文交还给财务负责人。',
-    personaPrompt: '你是 StaffDeck 财务数字员工，负责把报销和票据事项拆成清晰步骤，校验材料完整性，提示风险，并在需要审批时生成可执行的交接说明。',
+    personaPrompt: '你是财务数字员工，负责把报销和票据事项拆成清晰步骤，校验材料完整性，提示风险，并在需要审批时生成可执行的交接说明。',
     resources: [
       { id: 'der_staffdeck_finance_01', resourceType: 'knowledge', resourceId: 'kb_894511261b6d402f', resourceName: '财务-报销政策手册', config: { summary: '由文档 财务-报销政策手册.md 创建', staffdeckKnowledgeBaseId: 'kb_894511261b6d402f' } },
       { id: 'der_staffdeck_finance_02', resourceType: 'knowledge', resourceId: 'kb_5f26d5f1fceb4f02', resourceName: '财务-发票与单据规范', config: { summary: '由文档 财务-发票与单据规范.md 创建', staffdeckKnowledgeBaseId: 'kb_5f26d5f1fceb4f02' } },
@@ -396,7 +399,7 @@ const STAFFDECK_SEED_EMPLOYEES: ISeedEmployee[] = [
     name: '法务',
     roleName: '合规审查官',
     description: '覆盖合同审查、条款风险识别与合规咨询，依据企业合规制度和历史判例给出审查意见，遇到高风险或无先例的条款自动升级给法务专员。',
-    personaPrompt: '你是 StaffDeck 法务数字员工，负责识别合同和合作方流程中的合规风险，输出风险分级、修改建议和需要人工法务确认的问题清单。',
+    personaPrompt: '你是法务数字员工，负责识别合同和合作方流程中的合规风险，输出风险分级、修改建议和需要人工法务确认的问题清单。',
     resources: [
       { id: 'der_staffdeck_legal_01', resourceType: 'knowledge', resourceId: 'kb_dee9ad74d3a24492', resourceName: '法务-历史条款判例库', config: { summary: '由文档 法务-历史条款判例库.md 创建', staffdeckKnowledgeBaseId: 'kb_dee9ad74d3a24492' } },
       { id: 'der_staffdeck_legal_02', resourceType: 'knowledge', resourceId: 'kb_43fee5729c5e4c98', resourceName: '法务-企业合规制度汇编', config: { summary: '由文档 法务-企业合规制度汇编.md 创建', staffdeckKnowledgeBaseId: 'kb_43fee5729c5e4c98' } },
@@ -433,7 +436,7 @@ const STAFFDECK_SEED_EMPLOYEES: ISeedEmployee[] = [
     name: '人事',
     roleName: '员工服务助手',
     description: '面向全体在职员工的 HR 服务窗口，解答假期、社保公积金、薪酬福利、考勤等高频制度问题，可发起请假 / 开具在职证明等事务申请，遇到超出制度规定或需要人工判断的情形交还给 HR 负责人。',
-    personaPrompt: '你是 StaffDeck 人事数字员工，负责按员工服务政策收集必要信息、核对规则、生成办理结果，并在政策冲突或敏感场景中建议转人工。',
+    personaPrompt: '你是人事数字员工，负责按员工服务政策收集必要信息、核对规则、生成办理结果，并在政策冲突或敏感场景中建议转人工。',
     resources: [
       { id: 'der_staffdeck_hr_01', resourceType: 'knowledge', resourceId: 'kb_02d1509fe23c4984', resourceName: '人事-薪酬福利与证明办理指南', config: { summary: '由文档 人事-薪酬福利与证明办理指南.md 创建', staffdeckKnowledgeBaseId: 'kb_02d1509fe23c4984' } },
       { id: 'der_staffdeck_hr_02', resourceType: 'knowledge', resourceId: 'kb_f1a95c02b53e49ed', resourceName: '人事-社保公积金政策说明', config: { summary: '由文档 人事-社保公积金政策说明.md 创建', staffdeckKnowledgeBaseId: 'kb_f1a95c02b53e49ed' } },
@@ -485,7 +488,7 @@ const STAFFDECK_SEED_EMPLOYEES: ISeedEmployee[] = [
     name: 'IT',
     roleName: '内部支持工程师',
     description: '处理账号权限、设备申领、常见故障排查等 IT 服务请求，能按 SOP 分流工单、调用内部系统接口开通权限，复杂问题转交人工工程师。',
-    personaPrompt: '你是 StaffDeck IT 数字员工，负责把内部支持请求拆成可执行工单，先定位影响范围和紧急程度，再选择权限、账号、网络或设备处理路径。',
+    personaPrompt: '你是 IT 数字员工，负责把内部支持请求拆成可执行工单，先定位影响范围和紧急程度，再选择权限、账号、网络或设备处理路径。',
     resources: [
       { id: 'der_staffdeck_it_01', resourceType: 'knowledge', resourceId: 'kb_a20ad54438a349d8', resourceName: 'IT-服务目录与权限说明', config: { summary: '由文档 IT-服务目录与权限说明.md 创建', staffdeckKnowledgeBaseId: 'kb_a20ad54438a349d8' } },
       { id: 'der_staffdeck_it_02', resourceType: 'knowledge', resourceId: 'kb_6170222d9b2a41c4', resourceName: 'IT-常见故障排查手册', config: { summary: '由文档 IT-常见故障排查手册.md 创建', staffdeckKnowledgeBaseId: 'kb_6170222d9b2a41c4' } },
@@ -522,7 +525,7 @@ const STAFFDECK_SEED_EMPLOYEES: ISeedEmployee[] = [
     name: '行政',
     roleName: '事务管家',
     description: '统筹会议室预订、办公用品申领、用章申请等行政事务，把琐碎的事务性沟通标准化，让行政团队从重复问答中解放出来。',
-    personaPrompt: '你是 StaffDeck 行政数字员工，负责快速收集行政事务所需字段，检查库存、时间和审批要求，输出可直接提交的办理单。',
+    personaPrompt: '你是行政数字员工，负责快速收集行政事务所需字段，检查库存、时间和审批要求，输出可直接提交的办理单。',
     resources: [
       { id: 'der_staffdeck_admin_01', resourceType: 'knowledge', resourceId: 'kb_8e03cb0777a44f50', resourceName: '行政-会议室与用章管理规定', config: { summary: '由文档 行政-会议室与用章管理规定.md 创建', staffdeckKnowledgeBaseId: 'kb_8e03cb0777a44f50' } },
       { id: 'der_staffdeck_admin_02', resourceType: 'knowledge', resourceId: 'kb_eb7d5194c1b04805', resourceName: '行政-行政服务手册', config: { summary: '由文档 行政-行政服务手册.md 创建', staffdeckKnowledgeBaseId: 'kb_eb7d5194c1b04805' } },
@@ -606,6 +609,15 @@ function mergeStaffDeckResourceDetails(resource: IDigitalEmployeeResource | IDig
     ...(STAFFDECK_RESOURCE_DETAILS[resource.resourceId] || {}),
     ...(resource.config || {}),
   };
+}
+
+function isUnsupportedLegacyResource(resource: IDigitalEmployeeResource): boolean {
+  if (resource.resourceType === 'sop') return false;
+  return resource.id.startsWith('der_staffdeck_') || UNSUPPORTED_LEGACY_RESOURCE_CONFIG_KEYS.some((key) => Boolean(resource.config[key]));
+}
+
+function isSupportedRuntimeResource(resource: IDigitalEmployeeResource): boolean {
+  return SUPPORTED_RUNTIME_RESOURCE_TYPES.has(resource.resourceType) && !isUnsupportedLegacyResource(resource);
 }
 
 function getStringConfig(config: Record<string, unknown>, key: string): string | undefined {
@@ -941,7 +953,7 @@ function rowToEmployee(row: IDigitalEmployeeRow, resources: IDigitalEmployeeReso
 }
 
 function buildResourceContext(resources: IDigitalEmployeeResource[]): string {
-  const enabledResources = resources.filter((resource) => resource.enabled).sort((a, b) => a.sortOrder - b.sortOrder || a.resourceName?.localeCompare(b.resourceName || '') || 0);
+  const enabledResources = resources.filter((resource) => resource.enabled && isSupportedRuntimeResource(resource)).sort((a, b) => a.sortOrder - b.sortOrder || a.resourceName?.localeCompare(b.resourceName || '') || 0);
 
   if (!enabledResources.length) {
     return '- 暂无绑定资源。';
@@ -988,7 +1000,7 @@ function buildDigitalEmployeeContext(employee: IDigitalEmployee): string {
     '## 执行要求',
     '1. 以该数字员工的岗位边界、语气和专业职责处理任务。',
     '2. 优先遵循绑定的 SOP；SOP 不完整时，先列出缺失字段再继续。',
-    '3. 绑定的工具表示可用业务动作或外部系统能力；无法直接调用时，输出可交接的操作单和参数。',
+    '3. 绑定的知识表示当前数字员工可检索的本地知识库；需要事实依据时优先使用检索上下文。',
     '4. 绑定的技能表示当前会话允许调用的 Sudowork skills；需要时主动使用。',
     '5. 遇到审批、权限、合规或高风险事项时，明确指出需要人工确认的环节。',
   ]
@@ -1000,6 +1012,7 @@ function getEnabledSkillNames(employee: IDigitalEmployee): string[] {
   const skillNames = new Set<string>();
   for (const resource of employee.resources) {
     if (!resource.enabled) continue;
+    if (!isSupportedRuntimeResource(resource)) continue;
     if (resource.resourceType === 'skill') {
       skillNames.add(resource.resourceId);
     }
@@ -1013,6 +1026,17 @@ function getEnabledSkillNames(employee: IDigitalEmployee): string[] {
     }
   }
   return Array.from(skillNames);
+}
+
+function getEnabledKnowledgeSpaceIds(employee: IDigitalEmployee): string[] {
+  const spaceIds = new Set<string>();
+  for (const resource of employee.resources) {
+    if (!resource.enabled || resource.resourceType !== 'knowledge') continue;
+    if (!isSupportedRuntimeResource(resource)) continue;
+    const resourceId = normalizeText(resource.resourceId);
+    if (resourceId) spaceIds.add(resourceId);
+  }
+  return Array.from(spaceIds);
 }
 
 function getCurrentModelId(employee: IDigitalEmployee): string | undefined {
@@ -1116,31 +1140,52 @@ export class DigitalEmployeeService {
         requireQueryResult(
           db.mutate(
             `UPDATE digital_employees
-             SET metadata = ?
+             SET name = ?,
+                 role_name = ?,
+                 description = ?,
+                 persona_prompt = ?,
+                 metadata = ?
              WHERE id = ? AND source_type = 'staffdeck_seed'`,
+            employee.name,
+            employee.roleName,
+            employee.description,
+            employee.personaPrompt,
             buildSeedMetadata(employee, seedRowsById.get(employee.id)?.metadata),
             employee.id
           ),
           'update digital employee seed metadata'
         );
 
-        employee.resources.forEach((resource, index) => {
-          const seedSopContent = resource.resourceType === 'sop' ? buildSeedSopContent(resource) : undefined;
-          const seedSopId = seedSopContent ? getSeedSopId(resource) : undefined;
-          const resourceConfig = seedSopContent
-            ? {
-                ...mergeStaffDeckResourceDetails(resource),
-                sopId: seedSopId,
-                sopKey: seedSopContent.sopKey,
-                status: 'published',
-                version: seedSopContent.version,
-                skillCard: seedSopContent,
-              }
-            : mergeStaffDeckResourceDetails(resource);
+        requireQueryResult(
+          db.mutate(
+            `DELETE FROM digital_employee_resources
+             WHERE employee_id = ?
+               AND id LIKE 'der_staffdeck_%'
+               AND resource_type <> 'sop'`,
+            employee.id
+          ),
+          'delete unsupported digital employee seed resources'
+        );
 
-          requireQueryResult(
-            db.mutate(
-              `INSERT INTO digital_employee_resources
+        employee.resources
+          .filter((resource) => SUPPORTED_SEED_RESOURCE_TYPES.has(resource.resourceType))
+          .forEach((resource, index) => {
+            const seedSopContent = resource.resourceType === 'sop' ? buildSeedSopContent(resource) : undefined;
+            const seedSopId = seedSopContent ? getSeedSopId(resource) : undefined;
+            const resourceConfig = seedSopContent
+              ? {
+                  ...mergeStaffDeckResourceDetails(resource),
+                  sopId: seedSopId,
+                  sopKey: seedSopContent.sopKey,
+                  status: 'published',
+                  version: seedSopContent.version,
+                  skillCard: seedSopContent,
+                }
+              : mergeStaffDeckResourceDetails(resource);
+
+            requireQueryResult(
+              db.mutate(
+                `INSERT INTO digital_employee_resources
                 (id, employee_id, resource_type, resource_id, resource_name, config, enabled, sort_order, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
                ON CONFLICT(id) DO UPDATE SET
@@ -1151,23 +1196,23 @@ export class DigitalEmployeeService {
                  config = excluded.config,
                  sort_order = excluded.sort_order,
                  updated_at = excluded.updated_at`,
-              resource.id,
-              employee.id,
-              resource.resourceType,
-              resource.resourceId,
-              resource.resourceName || null,
-              stringifyJsonObject(resourceConfig),
-              index,
-              now,
-              now
-            ),
-            'insert digital employee resource seed'
-          );
+                resource.id,
+                employee.id,
+                resource.resourceType,
+                resource.resourceId,
+                resource.resourceName || null,
+                stringifyJsonObject(resourceConfig),
+                index,
+                now,
+                now
+              ),
+              'insert digital employee resource seed'
+            );
 
-          if (seedSopContent && seedSopId) {
-            requireQueryResult(
-              db.mutate(
-                `INSERT INTO digital_employee_sops
+            if (seedSopContent && seedSopId) {
+              requireQueryResult(
+                db.mutate(
+                  `INSERT INTO digital_employee_sops
                   (id, employee_id, sop_key, name, business_domain, description, status, version, content, metadata, created_at, updated_at)
                  VALUES (?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?)
                  ON CONFLICT(id) DO UPDATE SET
@@ -1181,27 +1226,27 @@ export class DigitalEmployeeService {
                    content = excluded.content,
                    metadata = excluded.metadata,
                    updated_at = excluded.updated_at`,
-                seedSopId,
-                employee.id,
-                seedSopContent.sopKey,
-                seedSopContent.name,
-                seedSopContent.businessDomain || null,
-                seedSopContent.description,
-                seedSopContent.version,
-                JSON.stringify(seedSopContent),
-                stringifyJsonObject({
-                  importedFrom: 'StaffDeck',
-                  seedVersion: STAFFDECK_SEED_VERSION,
-                  staffdeckSkillId: getStringConfig(resourceConfig, 'staffdeckSkillId'),
-                  businessSkillId: getStringConfig(resourceConfig, 'businessSkillId'),
-                }),
-                now,
-                now
-              ),
-              'insert digital employee SOP seed'
-            );
-          }
-        });
+                  seedSopId,
+                  employee.id,
+                  seedSopContent.sopKey,
+                  seedSopContent.name,
+                  seedSopContent.businessDomain || null,
+                  seedSopContent.description,
+                  seedSopContent.version,
+                  JSON.stringify(seedSopContent),
+                  stringifyJsonObject({
+                    importedFrom: 'StaffDeck',
+                    seedVersion: STAFFDECK_SEED_VERSION,
+                    staffdeckSkillId: getStringConfig(resourceConfig, 'staffdeckSkillId'),
+                    businessSkillId: getStringConfig(resourceConfig, 'businessSkillId'),
+                  }),
+                  now,
+                  now
+                ),
+                'insert digital employee SOP seed'
+              );
+            }
+          });
       }
     });
 
@@ -1422,7 +1467,7 @@ export class DigitalEmployeeService {
         );
       }
 
-      source.resources.forEach((resource, index) => {
+      source.resources.filter(isSupportedRuntimeResource).forEach((resource, index) => {
         const configuredSopKey = typeof resource.config.sopKey === 'string' ? resource.config.sopKey : undefined;
         const copiedSop = resource.resourceType === 'sop' ? copiedSopsByKey.get(resource.resourceId) || (configuredSopKey ? copiedSopsByKey.get(configuredSopKey) : undefined) : undefined;
         const resourceConfig = copiedSop ? buildSopResourceConfig(copiedSop) : resource.config;
@@ -1749,6 +1794,7 @@ export class DigitalEmployeeService {
     const initialMessage = normalizeText(input.initialMessage, `${employee.name} ${employee.roleName}`);
     const backend = employee.backend || DEFAULT_BACKEND;
     const enabledSkills = getEnabledSkillNames(employee);
+    const localKnowledgeSpaceIds = getEnabledKnowledgeSpaceIds(employee);
     const result = await ConversationService.createConversation({
       type: 'acp',
       name: initialMessage,
@@ -1762,6 +1808,7 @@ export class DigitalEmployeeService {
         agentName: employee.name,
         presetContext: buildDigitalEmployeeContext(employee),
         enabledSkills,
+        localKnowledgeSpaceIds,
         sessionMode: employee.defaultMode || 'default',
         currentModelId: getCurrentModelId(employee),
         sessionModeParam: 'local',
