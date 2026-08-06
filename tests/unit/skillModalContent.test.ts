@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getInstalledSkillBadgeCount, getLocalSkillImportDialogOptions } from '@/renderer/components/SettingsModal/contents/SkillModalContent';
+import { getInstalledSkillBadgeCount, getLocalSkillImportDialogOptions } from '@/renderer/pages/skills/utils';
 
 describe('getInstalledSkillBadgeCount', () => {
   it('uses the full installed skill list count instead of the hub-only comparison subset', () => {
