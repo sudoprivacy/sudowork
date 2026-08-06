@@ -9,7 +9,6 @@ import { app } from 'electron';
 import { existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync, unlinkSync } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
-import { getSystemDir } from './initStorage';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
 export const getTempPath = () => {
   const rootPath = app.getPath('temp');
@@ -358,6 +357,11 @@ export const copyFilesToDirectory = async (dir: string, files?: string[], skipCl
 
   const expandedFiles = await expandPathsToFiles(files);
 
+  // Lazy import: initStorage eagerly computes paths at load time via getConfigPath
+  // from this module, so a top-level import here would form a load-time cycle
+  // (getConfigPath still undefined when initStorage evaluates). Deferring to call
+  // time breaks the cycle. Matches the dynamic-import pattern initStorage itself uses.
+  const { getSystemDir } = await import('./initStorage');
   const { cacheDir } = getSystemDir();
   const tempDir = path.join(cacheDir, 'temp');
   const copiedFiles: string[] = [];
