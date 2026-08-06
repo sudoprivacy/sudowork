@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const discoverBuiltinSkills = vi.fn(async () => {});
 const getBuiltinSkillsIndex = vi.fn(() => [{ name: 'cron', description: 'Builtin cron skill' }]);
+const discoverSkills = vi.fn(async () => {});
+const getSkillsIndex = vi.fn(() => [{ name: 'cron', description: 'Builtin cron skill' }]);
 
 vi.mock('../../src/process/task/AcpSkillManager', () => ({
   AcpSkillManager: {
     getInstance: vi.fn(() => ({
       discoverBuiltinSkills,
       getBuiltinSkillsIndex,
+      discoverSkills,
+      getSkillsIndex,
     })),
   },
   buildSkillsIndexText: vi.fn((skills: Array<{ name: string; description: string }>) => {
@@ -57,7 +61,10 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     expect(result).toContain('/tmp/.nexus/skills/_system/_builtin/{skill-name}/SKILL.md');
     expect(result).not.toContain('/_hub/');
     expect(result).not.toContain('/_my-custom-skill/');
-    expect(result).not.toContain('pptx');
+    // Only the mocked builtin skill (cron) should be injected — no pptx skill entry.
+    // (A blanket not-contain 'pptx' would false-fail on the unrelated deliverable-file
+    // naming guidance, which legitimately uses a .pptx example filename.)
+    expect(result).not.toContain('pptx/SKILL.md');
     expect(result).toContain('cron');
   });
 
@@ -122,7 +129,7 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
   it('injects workspace skills directory hint before user request', async () => {
     const { injectSkillsDirectoryHint } = await import('../../src/process/task/agentUtils');
 
-    const result = injectSkillsDirectoryHint('[Assistant Rules - You MUST follow these instructions]\n\n[User Request]\ndo something', '/tmp/workspace/skills');
+    const result = await injectSkillsDirectoryHint('[Assistant Rules - You MUST follow these instructions]\n\n[User Request]\ndo something', '/tmp/workspace/skills');
 
     expect(result).toContain('[Skills Directory]');
     expect(result).toContain('/tmp/workspace/skills');
