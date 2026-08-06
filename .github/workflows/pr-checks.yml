@@ -162,6 +162,37 @@ jobs:
         # verified end-to-end against the live app.
         run: bunx vitest run tests/integration/conversationReaper.test.ts tests/integration/orphanWorkspaceSweeper.test.ts tests/integration/assistantHubUninstallReaper.test.ts tests/unit/conversationTrackerDiscard.test.ts tests/unit/messageDispose.test.ts
 
+  # Job 2d: FULL test suite. Root cause of the v0.2.16 release being blocked by 87
+  # broken tests on dev: PR CI only ran the hardcoded subsets above, never the whole
+  # suite — so test-breaking merges (renamed APIs, moved modules, changed component
+  # contracts) passed PR review and only surfaced at the release nightly. Gate the
+  # entire suite here (same `vitest run` the nightly Code Quality job runs on Linux)
+  # so dev stays release-clean and regressions are caught at PR time, not release time.
+  unit-tests-full:
+    name: Full Unit Test Suite
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run full test suite
+        run: bunx vitest run
+
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
     name: Build Test (${{ matrix.platform }})
