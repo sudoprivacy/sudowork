@@ -232,6 +232,7 @@ describe('AcpAdapter - AskUserQuestion v2', () => {
               prompt: '默认语言？',
               kind: 'single_select',
               required: true,
+              allowCustomInput: false,
               options: [
                 { label: 'zh-CN', value: 'zh-CN' },
                 { label: 'en-US', value: 'en-US' },
@@ -253,11 +254,13 @@ describe('AcpAdapter - AskUserQuestion v2', () => {
       expect.objectContaining({
         id: 'save_scope',
         prompt: '保存到哪里？',
+        allowCustomInput: undefined,
         options: [expect.objectContaining({ label: 'Project', value: 'project' }), expect.objectContaining({ label: 'User', value: 'user' })],
       }),
       expect.objectContaining({
         id: 'default_language',
         prompt: '默认语言？',
+        allowCustomInput: false,
         options: [expect.objectContaining({ label: 'zh-CN', value: 'zh-CN' }), expect.objectContaining({ label: 'en-US', value: 'en-US' })],
       }),
     ]);

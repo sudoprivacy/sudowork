@@ -251,7 +251,7 @@ export class AcpAdapter {
           prompt,
           kind: this.normalizeKind(candidate.kind, options.length > 0),
           options,
-          allowCustomInput: candidate.allowCustomInput === true,
+          allowCustomInput: typeof candidate.allowCustomInput === 'boolean' ? candidate.allowCustomInput : undefined,
           customInputHint: typeof candidate.customInputHint === 'string' ? candidate.customInputHint : undefined,
           optional: candidate.required === false || candidate.optional === true,
         };

@@ -362,7 +362,7 @@ describe('MessageAcpQuestion', () => {
     expect(screen.queryByRole('button', { name: 'Fast' })).not.toBeInTheDocument();
   });
 
-  it('should keep custom input visible in the bottom overlay', () => {
+  it('should show custom input by default for a single-select question', () => {
     const message: IMessageAcpQuestion = {
       id: 'msg-overlay-custom',
       msg_id: 'msg-overlay-custom',
@@ -379,7 +379,6 @@ describe('MessageAcpQuestion', () => {
             id: 'q1',
             prompt: 'Choose a mode',
             options: ['Fast', 'Safe'],
-            allowCustomInput: true,
             customInputHint: 'Type another mode',
           },
         ],
@@ -389,6 +388,27 @@ describe('MessageAcpQuestion', () => {
     render(<AcpQuestionOverlay message={message} onAnswered={vi.fn()} />);
 
     expect(screen.getByPlaceholderText('Type another mode')).toBeInTheDocument();
+  });
+
+  it('should show custom input by default for a multi-select question', () => {
+    const message: IMessageAcpQuestion = {
+      id: 'msg-overlay-multi',
+      msg_id: 'msg-overlay-multi',
+      type: 'acp_question',
+      position: 'left',
+      conversation_id: 'conv-1',
+      createdAt: Date.now(),
+      content: {
+        question: 'Choose modes',
+        options: [],
+        conversationId: 'conv-1',
+        items: [{ id: 'q1', prompt: 'Choose modes', kind: 'multi_select', options: ['Fast', 'Safe'] }],
+      },
+    };
+
+    render(<AcpQuestionOverlay message={message} onAnswered={vi.fn()} />);
+
+    expect(screen.getByPlaceholderText('Enter answer')).toBeInTheDocument();
   });
 
   it('should submit a pending question from the bottom overlay', async () => {
@@ -446,7 +466,6 @@ describe('MessageAcpQuestion', () => {
             id: 'q2',
             prompt: 'Default visual style preference?',
             options: ['None (Recommended)', 'cute', 'notion'],
-            allowCustomInput: true,
             customInputHint: 'Type another style name',
           },
         ],
@@ -458,11 +477,13 @@ describe('MessageAcpQuestion', () => {
     expect(screen.getByText('1 / 2')).toBeInTheDocument();
     expect(screen.getByText('Where to save preferences?')).toBeInTheDocument();
     expect(screen.queryByText('Default visual style preference?')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Enter answer')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Project' }));
 
     expect(screen.getByText('2 / 2')).toBeInTheDocument();
     expect(screen.getByText('Default visual style preference?')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Type another style name')).toBeInTheDocument();
     expect(screen.queryByText('Where to save preferences?')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'None (Recommended)' })).toBeInTheDocument();
   });

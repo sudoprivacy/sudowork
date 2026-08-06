@@ -17,7 +17,7 @@ export function normalizeAcpQuestionItems(message: IMessageAcpQuestion, booleanF
       prompt: message.content?.question || '',
       kind: options.length > 0 ? 'single_select' : 'text',
       options,
-      allowCustomInput: options.length === 0,
+      allowCustomInput: true,
       optional: false,
     },
   ];
@@ -83,7 +83,7 @@ function normalizeItem(item: AcpQuestionItem, index: number, booleanFallback: { 
       { label: booleanFallback.no, value: 'false' },
     ];
   }
-  return { ...item, id: item.id || `q${index + 1}`, options };
+  return { ...item, id: item.id || `q${index + 1}`, options, allowCustomInput: item.allowCustomInput !== false };
 }
 
 function toOption(raw: unknown): AcpQuestionItemOption | null {

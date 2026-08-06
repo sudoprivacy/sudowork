@@ -3010,7 +3010,7 @@ This identity statement takes priority over the default identity in USER.md.
                 description: option.description,
                 recommended: option.recommended === true,
               })),
-              allowCustomInput: question.allowCustomInput === true,
+              allowCustomInput: question.allowCustomInput,
               customInputHint: question.customInputHint,
               optional: !question.required,
             })),
