@@ -327,14 +327,18 @@ describe('Scode ACP integration', () => {
       expect(env.NODE_OPTIONS).toBeUndefined();
       expect(env.HOOK_PYTHON_WHL).toBeUndefined();
       expect(env.SUDOWORK_ACP_CHILD).toBeUndefined();
-      expect(pythonPaths).toContain(path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser'));
+      expect(pythonPaths).toContain(path.join(os.homedir(), '.nexus', 'skills', '_system', '_builtin', 'browser'));
       expect(pythonPaths).toContain('/custom/python');
       expect(pythonPaths).not.toContain(hookPythonPath);
       expect(env.CLAUDECODE).toBeUndefined();
       expect(env.npm_config_registry).toBeUndefined();
     });
 
-    it('still injects safety hook for other ACP backends by default', async () => {
+    it('does not inject the safety hook for any backend while it is globally disabled', async () => {
+      // Safety hooks are gated off by the SAFETY_HOOKS_ENABLED module kill switch
+      // (obsolete implementation; injection path kept for future restoration). So
+      // no backend gets NODE_OPTIONS / whl / child marker, regardless of the
+      // per-run isSafetyHookEnabled() setting. The browser PYTHONPATH is still wired.
       const prepareCleanEnv = await loadPrepareCleanEnv({
         safetyHookEnabled: true,
       });
@@ -342,12 +346,11 @@ describe('Scode ACP integration', () => {
       const env = prepareCleanEnv();
       const pythonPaths = env.PYTHONPATH?.split(path.delimiter) ?? [];
 
-      expect(env.NODE_OPTIONS).toContain('/mock-app/hook/node/dist/hook.js');
-      expect(env.HOOK_PYTHON_WHL).toBe('/mock-app/hook/python/dist/hook-0.0.1-py3-none-any.whl');
-      expect(env.SUDOWORK_ACP_CHILD).toBe('1');
-      expect(pythonPaths).toContain('/mock-app/hook/python/pythonpath');
+      expect(env.NODE_OPTIONS).toBeUndefined();
+      expect(env.HOOK_PYTHON_WHL).toBeUndefined();
+      expect(env.SUDOWORK_ACP_CHILD).toBeUndefined();
       expect(pythonPaths).toContain('/custom/python');
-      expect(pythonPaths).toContain(path.join(os.homedir(), '.nexus', 'skills', '_system', 'browser'));
+      expect(pythonPaths).toContain(path.join(os.homedir(), '.nexus', 'skills', '_system', '_builtin', 'browser'));
     });
 
     it('injects UTF-8 environment variables on Windows', async () => {
