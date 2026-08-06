@@ -58,7 +58,7 @@ describe('ServiceManager', () => {
         })
     );
 
-    await Promise.all([manager.startOpenClaw(), manager.startOpenClaw(), manager.startOpenClaw()]);
+    await Promise.all([manager.startSudoclaw(), manager.startSudoclaw(), manager.startSudoclaw()]);
 
     expect(startSudoclawWithRetries).toHaveBeenCalledTimes(1);
   });
