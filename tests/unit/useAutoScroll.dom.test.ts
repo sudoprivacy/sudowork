@@ -85,14 +85,12 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
       vi.runAllTimers();
     });
 
-    // Should scroll to the absolute bottom (Footer visible) for AI messages so
-    // the last message's bottom border isn't clipped against the SendBox.
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        top: Number.MAX_SAFE_INTEGER,
-        behavior: 'auto',
-      })
-    );
+    // AI output auto-follows to the bottom via Virtuoso's followOutput (returns
+    // 'auto' when the user is at the bottom and hasn't scrolled up). #977 replaced
+    // the explicit scrollTo({ top: MAX }) with followOutput + a bottom spacer, so
+    // the last message's bottom border stays clear of the SendBox without jitter.
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
+    expect(result.current.handleFollowOutput(false)).toBe(false);
   });
 
   it('should reset userScrolled flag when user sends message', async () => {
@@ -136,9 +134,10 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
     // Initially hidden
     expect(result.current.showScrollButton).toBe(false);
 
-    // Simulate not at bottom
+    // Simulate not at bottom (bottom-state changes are debounced ~80ms to avoid flicker)
     act(() => {
       result.current.handleAtBottomStateChange(false);
+      vi.advanceTimersByTime(80);
     });
 
     expect(result.current.showScrollButton).toBe(true);
@@ -146,6 +145,7 @@ describe('useAutoScroll - scroll to bottom on message send (#977)', () => {
     // Back to bottom
     act(() => {
       result.current.handleAtBottomStateChange(true);
+      vi.advanceTimersByTime(80);
     });
 
     expect(result.current.showScrollButton).toBe(false);
@@ -245,14 +245,10 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
       vi.runAllTimers();
     });
 
-    // Scroll to absolute bottom (Footer visible) so tool call message is not
-    // clipped against the SendBox below.
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        top: Number.MAX_SAFE_INTEGER,
-        behavior: 'auto',
-      })
-    );
+    // Tool-call output auto-follows to the bottom via followOutput (see #977),
+    // keeping the message clear of the SendBox without an explicit scrollTo.
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
+    expect(result.current.handleFollowOutput(false)).toBe(false);
   });
 
   it('should auto-scroll on in-place tool_group content updates (streaming output)', async () => {
@@ -278,17 +274,12 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
       vi.runAllTimers();
     });
 
-    // Should still scroll to absolute bottom on in-place updates so the tool
+    // In-place streaming updates keep auto-following via followOutput so the tool
     // call message's bottom border stays clear of the SendBox during streaming.
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        top: Number.MAX_SAFE_INTEGER,
-        behavior: 'auto',
-      })
-    );
-    // Regression guard: must NOT use scrollToIndex({ align: 'end' }) for AI
-    // follow — that aligns the message bottom flush with the viewport bottom,
-    // causing the bottom border to be visually clipped against the SendBox.
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
+    // Regression guard: AI follow must NOT use scrollToIndex({ align: 'end' }) —
+    // that aligns the message bottom flush with the viewport bottom, clipping the
+    // bottom border against the SendBox.
     expect(mockVirtuosoHandle.scrollToIndex).not.toHaveBeenCalled();
   });
 
@@ -361,8 +352,9 @@ describe('useAutoScroll - tool call auto-follow (#306)', () => {
       vi.runAllTimers();
     });
 
-    // Auto-scroll should have resumed (scroll to absolute bottom).
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: Number.MAX_SAFE_INTEGER }));
+    // Auto-follow resumes once the user is back at the bottom: returning to bottom
+    // clears the user-scrolled flag, so followOutput reports 'auto' again.
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
   });
 });
 
@@ -570,8 +562,9 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
 
     mockVirtuosoHandle.scrollTo.mockClear();
 
-    // Further AI streaming after overflow should trigger auto-follow to the
-    // absolute bottom of the scroller.
+    // Further AI streaming after overflow should auto-follow. With the pin
+    // released, followOutput reports 'auto' again — which also proves the pin
+    // actually released (a still-pinned hook returns false).
     renderTurnDom('u1', 10, 100, 900, 0);
     const aiMsg2 = createMessage('left', 'a2');
     rerender({ messages: [userMsg, aiMsg, aiMsg2], itemCount: 3 });
@@ -580,12 +573,7 @@ describe('useAutoScroll - turn-mode bottom spacer (#345)', () => {
     });
 
     expect(result.current.bottomSpacerHeight).toBe(0);
-    expect(mockVirtuosoHandle.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        top: Number.MAX_SAFE_INTEGER,
-        behavior: 'auto',
-      })
-    );
+    expect(result.current.handleFollowOutput(true)).toBe('auto');
   });
 
   it('clears the spacer when the message list becomes empty (e.g., conversation switch)', async () => {
