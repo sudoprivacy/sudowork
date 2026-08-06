@@ -927,14 +927,7 @@ async function verifyChecksum(buffer: Buffer, expectedChecksum: string): Promise
  * SkillUpdateService (auto-update) share one install path — no duplicated logic,
  * and install is reachable as a plain function rather than only via IPC.
  */
-export async function installHubSkillPackage(params: {
-  skillName: string;
-  displayName: string;
-  sourceUrl: string;
-  version: string;
-  checksum?: string;
-  skillMeta?: SkillHubSkill;
-}): Promise<{ success: true; data: { skillName: string; installedVersion: string } } | { success: false; msg: string }> {
+export async function installHubSkillPackage(params: { skillName: string; displayName: string; sourceUrl: string; version: string; checksum?: string; skillMeta?: SkillHubSkill }): Promise<{ success: true; data: { skillName: string; installedVersion: string } } | { success: false; msg: string }> {
   const { skillName, displayName, sourceUrl, version, checksum, skillMeta } = params;
   try {
     // Trim skillName to prevent directory names with leading/trailing spaces

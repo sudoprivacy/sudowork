@@ -99,6 +99,36 @@ jobs:
         # their skillhub token wasn't provisioned.
         run: bunx vitest run tests/unit/hubErrors.test.ts tests/unit/HubEmptyState.dom.test.tsx tests/unit/skillUpdateVersion.test.ts
 
+  # Job 2b2: Prettier formatting gate. Root cause of the v0.2.16 nightly failure:
+  # prettier was enforced ONLY at nightly (build-nightly Code Quality), never in
+  # PR CI, so unformatted code merged freely to dev and broke the release build.
+  # Gate the exact same check at PR time (same script as nightly) so dev stays
+  # release-clean. Deterministic + fast — not the ESLint that was removed.
+  format-check:
+    name: Format Check
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Check Prettier formatting
+        run: bun run format:check
+
   # Job 2c: Conversation resource reaper regression tests
   unit-tests-conversation-reaper:
     name: Conversation Reaper Unit Tests

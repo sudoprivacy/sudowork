@@ -134,10 +134,7 @@ export function checkAndUpdateInstalledHubSkills(opts?: { force?: boolean }): Pr
       }
     }
 
-    mainLog(
-      'SkillUpdate',
-      `Done: checked ${installed.length} hub skill(s), updated ${updated.length}${updated.length ? ` (${updated.join('; ')})` : ''}`,
-    );
+    mainLog('SkillUpdate', `Done: checked ${installed.length} hub skill(s), updated ${updated.length}${updated.length ? ` (${updated.join('; ')})` : ''}`);
     return { checked: installed.length, updated };
   })();
 
