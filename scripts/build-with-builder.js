@@ -250,7 +250,7 @@ function validateBuildArtifacts(outDir, args, targetArch, appVersion) {
   }
 
   if (args.includes('--linux') || args.includes('--all')) {
-    expectFile(path.join('linux-unpacked', EXECUTABLE_NAME));
+    expectFile(path.join('linux-unpacked', ENGLISH_NAME));
     const appImageNames = [
       `${ENGLISH_NAME}-${appVersion}-linux-${targetArch}.AppImage`,
       `${ENGLISH_NAME}-${appVersion}-linux-x86_64.AppImage`,

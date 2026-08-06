@@ -40,6 +40,8 @@ describe('brand configuration', () => {
     expect(builderConfig.win.legalTrademarks).toContain(brand.companyName);
     expect(builderConfig.linux.target).toEqual(['AppImage', 'deb']);
     const englishName = (brand as { englishName?: string }).englishName?.trim() || 'SudoWork';
+    expect(builderConfig.linux.executableName).toBe(englishName);
+    expect(builderConfig.linux.executableName).toMatch(/^[A-Za-z][A-Za-z0-9._-]*$/);
     expect(builderConfig.linux.desktop.entry.StartupWMClass).toBe(englishName);
     expect(builderConfig.linux.desktop.entry.StartupWMClass).toMatch(/^[A-Za-z][A-Za-z0-9._-]*$/);
     expect(builderConfig.linux.artifactName).toBe(`${englishName}-\${version}-linux-\${arch}.\${ext}`);

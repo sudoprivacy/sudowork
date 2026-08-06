@@ -6,6 +6,7 @@ const runtimeVersions = require('./src/shared/runtime-versions.json');
 const copyright = `Copyright © 2026 ${brand.companyName}`;
 const englishName = brand.englishName?.trim() || 'SudoWork';
 const linuxBranding = {
+  executableName: englishName,
   artifactName: `${englishName}-\${version}-linux-\${arch}.\${ext}`,
   desktop: { entry: { StartupWMClass: englishName } },
 };
