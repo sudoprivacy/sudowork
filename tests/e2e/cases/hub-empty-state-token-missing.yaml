@@ -1,4 +1,5 @@
 name: "hub empty state differentiates token-missing from actually-empty"
+locale: zh-CN  # clicks Chinese labels 技能商店 / 技能库 and judges Chinese copy
 description: >
   Verify the HubEmptyState observability fix: when the skill-store
   catalog can't be fetched because sudowork-server hasn't provisioned
@@ -59,5 +60,17 @@ steps:
   # ── Phase 4: Confirm NO retry button (TOKEN_MISSING is not retriable
   #             from the empty-state alone — retrying the fetch with the
   #             same null token wouldn't help; user must fix login). ──
-  - op: judge
-    expect: "页面上没有'重试'按钮（因为 token 缺失场景下重试没有意义）"
+  # A keyword judge can only confirm a string is PRESENT, never absent, so it
+  # scored this 1/3 even though the UI was correct. Assert absence directly
+  # against the DOM: no visible <button> carries the retry label
+  # (settings.hubEmpty.retry = "重试"). js_eval throws → the step fails.
+  - op: js_eval
+    code: |
+      (() => {
+        const retry = Array.from(document.querySelectorAll('button'))
+          .find(b => (b.textContent || '').includes('重试') && b.offsetHeight > 0);
+        if (retry) {
+          throw new Error('TOKEN_MISSING empty-state must not render a retry button, but a visible "重试" button is present');
+        }
+        return { retryButtonAbsent: true };
+      })()
