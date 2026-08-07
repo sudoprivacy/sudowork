@@ -15,11 +15,12 @@ describe('buildGovernancePrompt (A3 governance concatenation)', () => {
     const p = buildGovernancePrompt('lead', 'Alpha', 'Boss');
     expect(p).toContain('On your first team turn, call team_members');
     expect(p).toContain('Before delegating work, adding or removing teammates, or referring to teammates, call team_members');
-    expect(p).toContain('If existing teammates are enough, use them first');
+    expect(p).toContain('rename the reused teammates with team_rename_agent');
+    expect(p).toContain('then spawn any new teammates with team_spawn_agent');
     expect(p).toContain('Use slot_id values for tool arguments');
-    expect(p).toContain('do not propose more teammates yet');
-    expect(p).toContain('Do NOT call team_spawn_agent in that same turn');
-    expect(p).toContain('unless the user explicitly asked you to create a specific teammate immediately');
+    expect(p).toContain('do not propose a roster yet');
+    expect(p).toContain('Do NOT execute any work or call any write tool');
+    expect(p).toContain('AFTER the user confirms the roster');
     expect(p).toContain('idle means waiting for input, not unavailable');
     expect(p).toContain('do not tell one teammate to wait for another');
     expect(p).toContain('team_rename_agent or team_shutdown_agent');
