@@ -88,18 +88,13 @@ export class SlotWakeGate {
 }
 
 /** I.2 acquirePolicy: gate whether a wake is accepted at the run level (per source × slot state). */
-export function acquirePolicy(source: WakeSource, slotState: SlotState, hasSpawnWelcome: boolean): AcquireDecision {
+export function acquirePolicy(source: WakeSource, slotState: SlotState): AcquireDecision {
   switch (source) {
     case 'user_message':
     case 'user_intervention':
       return slotState === 'Busy' ? 'RejectSlotBusy' : 'Accept';
     case 'mcp_send_message':
       return slotState === 'Paused' ? 'Suppress' : 'Accept';
-    case 'spawn_welcome':
-      if (hasSpawnWelcome) return 'Suppress';
-      if (slotState === 'Busy') return 'RejectInvalid';
-      if (slotState === 'Pending') return 'Suppress';
-      return 'Accept';
     case 'mcp_shutdown_request':
       return 'Accept';
     case 'idle_notification':

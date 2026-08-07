@@ -109,7 +109,6 @@
     "retry": "重試"
   },
   "membership": {
-    "initialRosterNotice": "使用者在建立團隊時預先選擇了這些團隊成員。這些成員已經存在，建立更多成員前應先考慮使用他們。分派任務前請呼叫 team_members 取得最新 roster。",
     "memberAddedNotice": "一個 teammate 已加入團隊。分派任務前請呼叫 team_members 取得最新 roster。"
   }
 }

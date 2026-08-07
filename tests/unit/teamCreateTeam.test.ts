@@ -103,7 +103,6 @@ vi.mock('@process/i18n', () => ({
   default: {
     t: (key: string) =>
       ({
-        'team.membership.initialRosterNotice': 'The user pre-selected these teammates when creating the team. They already exist and should be considered before creating more teammates. Call team_members to get the latest roster before delegating work.',
         'team.membership.memberAddedNotice': 'A teammate was added to the team. Call team_members to get the latest roster before delegating work.',
       })[key] ?? key,
   },
@@ -134,6 +133,10 @@ vi.mock('@process/services/team/TeamStore', () => ({
       const member = h.members.get(memberId);
       if (!member) throw new Error(`Team member not found: ${memberId}`);
       h.members.set(memberId, { ...member, ...updates });
+    },
+    markMemberDelegated: (memberId: string) => {
+      const member = h.members.get(memberId);
+      if (member) h.members.set(memberId, { ...member, isDelegated: true });
     },
     getMember: (memberId: string) => h.members.get(memberId) ?? null,
     insertMail: (mail: TeamMail) => h.insertMail(mail),
@@ -183,6 +186,7 @@ async function importService() {
     removeMember: typeof mod.teamService.removeMember;
     ensureSession: (teamId: string) => Promise<unknown>;
     rebuildTeam: typeof mod.teamService.rebuildTeam;
+    dispatchTeamTool: (teamId: string, caller: TeamMember, tool: string, args: Record<string, unknown>) => Promise<{ ok: boolean; data?: { members: Array<Record<string, unknown>> } }>;
     cleanup: () => void;
     sessions: Map<
       string,
@@ -409,6 +413,29 @@ describe('TeamService createTeam members', () => {
     }
   });
 
+  it('team_members roster includes assistant_id and is_delegated', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+
+    const result = await service.dispatchTeamTool(team.id, leaderFor(team.id), 'team_members', {});
+    expect(result.ok).toBe(true);
+    const members = result.data?.members ?? [];
+    expect(members).toHaveLength(2);
+    for (const entry of members) {
+      expect(entry).toHaveProperty('assistant_id');
+      expect(entry).toHaveProperty('is_delegated');
+    }
+    expect(members.find((entry) => entry.role === 'teammate')?.assistant_id).toBe('claude');
+    // Before any delegation, every teammate's is_delegated is false — the first-task signal.
+    for (const entry of members) {
+      expect(entry.is_delegated).toBe(false);
+    }
+  });
+
   it('bootstrap attach failure marks failed without waking leader and stops session', async () => {
     const service = await importService();
     const team = await service.createTeam('user-1', 'Team', '/workspace', [
@@ -457,7 +484,7 @@ describe('TeamService createTeam members', () => {
       h.emitMemberSpawned.mockClear();
       h.notifyWake.mockClear();
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', model: 'model-1', wakeTeammateOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', model: 'model-1' });
       const spawnCall = h.createConversation.mock.calls.at(-1)?.[0] as { skipWorkerRegistration?: boolean };
 
       expect(teammate.role).toBe('teammate');
@@ -498,7 +525,7 @@ describe('TeamService createTeam members', () => {
       h.emitMemberSpawned.mockClear();
       h.emitAgentStatusChanged.mockClear();
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', wakeTeammateOnSpawn: false, notifyLeaderOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', notifyLeaderOnSpawn: false });
 
       expect(h.emitMemberSpawned).toHaveBeenCalledTimes(1);
       await vi.runOnlyPendingTimersAsync();
@@ -506,33 +533,6 @@ describe('TeamService createTeam members', () => {
       expect(h.emitMemberSpawned).toHaveBeenCalledTimes(1);
       expect(h.members.get(teammate.id)?.status).toBe('failed');
       expect(h.emitAgentStatusChanged).toHaveBeenCalledWith(expect.objectContaining({ team_id: team.id, slot_id: teammate.id, status: 'failed' }));
-    } finally {
-      await vi.runOnlyPendingTimersAsync();
-      vi.useRealTimers();
-    }
-  });
-
-  it('spawnMember removes the pending member when welcome write fails', async () => {
-    vi.useFakeTimers();
-    try {
-      const service = await importService();
-      const team = await service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: 'scode', name: 'Leader', role: 'lead' }]);
-      await service.rebuildTeam(team.id);
-      h.emitMemberRemoved.mockClear();
-      h.emitMemberSpawned.mockClear();
-      h.insertMail.mockImplementation((mail: TeamMail) => {
-        if (mail.type === 'message' && mail.to_member_id !== leaderFor(team.id).id) throw new Error('welcome failed');
-        h.mails.push({ ...mail });
-      });
-
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', notifyLeaderOnSpawn: false });
-
-      expect(h.members.has(teammate.id)).toBe(true);
-      await vi.runOnlyPendingTimersAsync();
-
-      expect(h.members.has(teammate.id)).toBe(false);
-      expect(h.emitMemberRemoved).toHaveBeenCalledWith({ team_id: team.id, slot_id: teammate.id });
-      expect(h.emitMemberSpawned).toHaveBeenCalledTimes(1);
     } finally {
       await vi.runOnlyPendingTimersAsync();
       vi.useRealTimers();
@@ -552,7 +552,7 @@ describe('TeamService createTeam members', () => {
         h.mails.push({ ...mail });
       });
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', wakeTeammateOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate' });
 
       await vi.runOnlyPendingTimersAsync();
 
@@ -608,5 +608,147 @@ describe('TeamService createTeam members', () => {
     expect(h.softDeletedTeams).toHaveLength(1);
     expect(h.softDeletedMemberTeams).toHaveLength(1);
     expect(h.reapConversation).toHaveBeenCalledWith('conv-leader', { reason: 'team-spawn-rollback', deleteWorkspace: false });
+  });
+
+  // ---- spawn (toolSpawnAgent): gate removed; is_delegated now backs the first-task signal ----
+
+  it('team_spawn_agent is allowed even while a pre-selected teammate is untried (gate removed)', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
+
+      const result = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+
+      expect(result.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('leader delegation marks the teammate is_delegated (first-task signal) and spawn is allowed', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
+      const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+
+      const delegated = await service.dispatchTeamTool(team.id, leader, 'team_send_message', { to: teammate.id, message: 'Argue the pro side.' });
+      expect(delegated.ok).toBe(true);
+      expect(h.members.get(teammate.id)?.isDelegated).toBe(true);
+
+      const spawn = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(spawn.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('team_send_message broadcast does not mark teammates is_delegated', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
+      const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+
+      const broadcast = await service.dispatchTeamTool(team.id, leader, 'team_send_message', { to: '*', message: 'Heads up' });
+      expect(broadcast.ok).toBe(true);
+      expect(h.members.get(teammate.id)?.isDelegated).toBe(false);
+
+      const spawn = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(spawn.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('team_spawn_agent is allowed regardless of pre-selected teammate state (gate removed)', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'PresetWorker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
+      const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+      h.members.set(teammate.id, { ...teammate, status: 'failed' });
+
+      const spawn = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(spawn.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('team_spawn_agent spawns teammates without gating (is_preset false for spawned)', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: 'scode', name: 'Leader', role: 'lead' }]);
+      await service.rebuildTeam(team.id);
+      const leader = leaderFor(team.id);
+
+      const first = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Debater',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(first.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+      const spawned = [...h.members.values()].find((m) => m.role === 'teammate');
+      expect(spawned?.isPreset).toBe(false);
+
+      const second = await service.dispatchTeamTool(team.id, leader, 'team_spawn_agent', {
+        name: 'Judge',
+        assistant_id: 'claude',
+        role: 'teammate',
+      });
+      expect(second.ok).toBe(true);
+      await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
   });
 });

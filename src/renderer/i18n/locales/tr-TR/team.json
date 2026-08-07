@@ -109,7 +109,6 @@
     "retry": "Tekrar dene"
   },
   "membership": {
-    "initialRosterNotice": "Kullanıcı takımı oluştururken bu takım arkadaşlarını önceden seçti. Bu üyeler zaten var; daha fazla üye oluşturmadan önce onları kullanmayı değerlendirin. İş delege etmeden önce en güncel roster için team_members çağırın.",
     "memberAddedNotice": "Takıma bir teammate eklendi. İş delege etmeden önce en güncel roster için team_members çağırın."
   }
 }

@@ -109,7 +109,6 @@
     "retry": "重试"
   },
   "membership": {
-    "initialRosterNotice": "用户在创建团队时预先选择了这些团队成员。这些成员已经存在，创建更多成员前应先考虑使用他们。分派任务前请调用 team_members 获取最新 roster。",
     "memberAddedNotice": "一个 teammate 已加入团队。分派任务前请调用 team_members 获取最新 roster。"
   }
 }

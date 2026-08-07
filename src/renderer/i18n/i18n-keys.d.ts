@@ -2484,7 +2484,6 @@ export type I18nKey =
   | 'team.list.createButton'
   | 'team.list.empty'
   | 'team.list.title'
-  | 'team.membership.initialRosterNotice'
   | 'team.membership.memberAddedNotice'
   | 'team.pin.failed'
   | 'team.rename.failed'

@@ -7,7 +7,6 @@ const ALL_SOURCES: WakeSource[] = [
   'mcp_send_message',
   'idle_notification',
   'interrupted_notification',
-  'spawn_welcome',
   'team_membership_changed',
   'mcp_shutdown_request',
   'crash_notification',
@@ -18,12 +17,12 @@ const ALL_SOURCES: WakeSource[] = [
 ];
 
 describe('WakeSource taxonomy (附录 I.2)', () => {
-  it('defines exactly the 13 wake sources', () => {
-    expect(ALL_SOURCES).toHaveLength(13);
+  it('defines exactly the 12 wake sources', () => {
+    expect(ALL_SOURCES).toHaveLength(12);
     for (const s of ALL_SOURCES) {
       expect(WAKE_META[s]).toBeDefined();
     }
-    expect(new Set(ALL_SOURCES).size).toBe(13);
+    expect(new Set(ALL_SOURCES).size).toBe(12);
   });
 
   it('Foreground (user_message/user_intervention) resumes + bypasses pause', () => {
@@ -43,7 +42,7 @@ describe('WakeSource taxonomy (附录 I.2)', () => {
   });
 
   it('Lifecycle bypasses pause but does not resume', () => {
-    for (const s of ['spawn_welcome', 'mcp_shutdown_request'] as WakeSource[]) {
+    for (const s of ['mcp_shutdown_request'] as WakeSource[]) {
       expect(wakeClass(s)).toBe('Lifecycle');
       expect(resumesPausedSlot(s)).toBe(false);
       expect(bypassesPause(s)).toBe(true);

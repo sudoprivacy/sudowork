@@ -109,7 +109,6 @@
     "retry": "다시 시도"
   },
   "membership": {
-    "initialRosterNotice": "사용자가 팀을 만들 때 이 팀원들을 미리 선택했습니다. 이 멤버들은 이미 존재하므로 더 많은 멤버를 만들기 전에 먼저 고려해야 합니다. 작업을 위임하기 전에 team_members를 호출해 최신 roster를 가져오세요.",
     "memberAddedNotice": "teammate가 팀에 추가되었습니다. 작업을 위임하기 전에 team_members를 호출해 최신 roster를 가져오세요."
   }
 }

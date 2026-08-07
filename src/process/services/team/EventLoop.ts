@@ -70,6 +70,9 @@ export class EventLoop {
   private alive = false;
   private busy = false;
   private loopPromise: Promise<void> | null = null;
+  // 本 turn 起始时 leader mailbox 的 MAX(created_at)（与去重查询同表的 watermark），
+  // 供 finalizeTurn 区分"本 turn member 主动回传"与"上一 turn 的陈旧 mail"。
+  private turnStartCreatedAt = 0;
 
   constructor(private deps: EventLoopDeps) {}
 
@@ -165,6 +168,10 @@ export class EventLoop {
       const text = messages.map((m) => m.content).join('\n\n');
       const latestUserLanguage = this.deps.getLatestUserLanguage?.() ?? null;
       const hiddenPromptPrefix = latestUserLanguage ? buildTeamUserLanguageContract(latestUserLanguage) : undefined;
+      // Watermark：sendMessage 前取 leader mailbox 同表 MAX(created_at)，
+      // 供 finalizeTurn 去重（区分本 turn member 主动回传 vs 上一 turn 陈旧 mail）。
+      const watermarkLeaderId = this.deps.leaderSlotId();
+      this.turnStartCreatedAt = watermarkLeaderId ? teamStore.getMailMaxCreatedAt(this.deps.teamId, watermarkLeaderId) : 0;
       await agent.sendMessage({ content: text, msg_id: turnId, hiddenPromptPrefix, suppressUserBubble: true });
       if (!this.alive) return null;
       // Stage 2 → 3: starting_reservations → active_child_turns (turn has run).
@@ -196,6 +203,33 @@ export class EventLoop {
     if (member.role === 'teammate') {
       const leaderId = this.deps.leaderSlotId();
       if (leaderId) {
+        // 兜底回传正文：member 本 turn 若未主动把正文发给 leader，把其内存正文（绕开 DB 落盘）
+        // 以 type=message 投进 leader mailbox。只投递、不单独唤醒（唤醒由下方 idle_notification 走闸门）。
+        // 必须同步、无 await，且在 idle_notification/onWakeSlot 之前——否则 leader 被 onWakeSlot 唤醒时
+        // 正文可能尚未入 mailbox，导致漏读。
+        try {
+          const prose = this.deps.getAgent()?.getLastTurnProseText() ?? '';
+          if (prose) {
+            const alreadyReplied = teamStore.getHistory(teamId, leaderId).some((m) => m.from_member_id === slotId && m.type === 'message' && m.created_at > this.turnStartCreatedAt);
+            if (!alreadyReplied) {
+              teamStore.insertMail({
+                id: uuid(),
+                team_id: teamId,
+                to_member_id: leaderId,
+                from_member_id: slotId,
+                type: 'message',
+                content: prose,
+                summary: null,
+                files: null,
+                read: false,
+                created_at: Date.now(),
+              });
+            }
+          }
+        } catch (e) {
+          mainWarn('EventLoop', `fallback prose reply failed for ${slotId}:`, e);
+        }
+
         const mailId = uuid();
         teamStore.insertMail({
           id: mailId,
