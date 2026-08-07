@@ -1,0 +1,79 @@
+name: "installed hub skill auto-updates to latest on launch"
+locale: en-US
+description: >
+  Regression guard for SkillUpdateService (the v0.2.16 SEV fix): an installed
+  hub skill whose on-disk installed_version trails the hub's latest is bumped
+  on the next launch (src/process/index.ts fires checkAndUpdateInstalledHubSkills
+  fire-and-forget at startup; the in-memory throttle resets across a restart).
+
+  Flow: seed shareone-skill's installed_version to a deliberately old 1.2.0 →
+  restart so the startup check re-runs → open the Skill Store (real UI nav) →
+  poll the installed-skills bridge until the version rises above the seed. The
+  assertion is `!= seeded` rather than a pinned "1.2.7" so it stays green as the
+  hub publishes newer versions (the unit test tests/unit/skillUpdateVersion.test.ts
+  already pins the isNewerVersion semver logic).
+
+  PREREQUISITES — this is a live case. It only bumps when: (a) personal/consumer
+  mode, (b) a valid skillhub token is provisioned (waitForSkillhubToken polls up
+  to 30s), (c) network to the hub, and (d) shareone-skill is already installed
+  (the seed patches an installed skill; it can't install one). Where those don't
+  hold the service no-ops (skipped: no-token / offline) and the poll fails
+  loudly — run this only in a provisioned environment.
+
+tags: [api, skill-update]
+
+steps:
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # Seed a stale installed version so the startup check has something to bump.
+  - op: seed_hub_skill
+    name: "shareone-skill"
+    installed_version: "1.2.0"
+
+  # Restart so SkillUpdateService's startup check re-runs against the stale seed.
+  - op: restart_app
+    timeout: 180
+  - op: wait_for_app_ready
+    timeout: 300
+
+  # Real UI: open the Skill Store (also satisfies the runner's "≥1 UI op" rule).
+  - op: mouse_click
+    text: "Skill Store"
+    wait: 3
+  - op: screenshot
+    path: "screenshots/skill-auto-update-store.png"
+
+  # Ground truth: poll the same bridge the renderer reads (skill-hub.get-installed-skills)
+  # until shareone-skill's installed_version rises above the seed. The update is
+  # fire-and-forget (~30s token wait + fetch + extract + meta write), so poll ~80s.
+  - op: js_eval
+    timeout: 120
+    code: |
+      (async () => {
+        const seeded = '1.2.0';
+        const target = 'shareone-skill';
+        const readInstalled = () => new Promise((resolve) => {
+          const e = window.__bridgeEmitter;
+          if (!e || !window.electronAPI) return resolve(null);
+          const ch = 'skill-hub.get-installed-skills';
+          const id = ch + '_' + Date.now();
+          const key = 'subscribe.callback-' + ch + id;
+          const h = (r) => { e.off(key, h); resolve(r); };
+          e.on(key, h);
+          window.electronAPI.emit('subscribe-' + ch, { id, data: undefined });
+          setTimeout(() => { e.off(key, h); resolve(null); }, 5000);
+        });
+        for (let i = 0; i < 40; i++) {
+          const res = await readInstalled();
+          const list = (res && res.data) || (Array.isArray(res) ? res : []);
+          const skill = Array.isArray(list) ? list.find((s) => s.name === target) : null;
+          const v = skill && ((skill.meta && skill.meta.installed_version) || skill.version);
+          if (v && v !== seeded) return { installed_version: v, bumped: true };
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+        throw new Error(
+          'shareone-skill installed_version did not rise above ' + seeded +
+          ' within ~80s (no skillhub token / offline, or hub has no newer version, or skill not installed)'
+        );
+      })()
