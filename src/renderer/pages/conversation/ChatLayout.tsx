@@ -286,9 +286,9 @@ const ChatLayout: React.FC<{
                   groupResizeBehavior={isPreviewFullscreen ? 'preserve-relative-size' : 'preserve-pixel-size'}
                   className='h-full'
                 >
-                  <div className='bg-background! h-full overflow-hidden border-l border-border'>
+                  <div className='bg-background! h-full overflow-hidden'>
                     <div className='preview-panel flex flex-col h-full py-1.5 pr-3 pl-2 relative z-11 [-webkit-app-region:no-drag]'>
-                      <div className='h-full w-full overflow-hidden rounded-xl border border-border'>
+                      <div className='h-full w-full overflow-hidden rounded-xl'>
                         <PreviewPanel isFullscreen={isPreviewFullscreen} onFullscreenToggle={onPreviewFullscreenToggle} />
                       </div>
                     </div>
