@@ -1,4 +1,5 @@
 name: "ACP session survives any per-request error (PR-A regression guard)"
+locale: zh-CN  # asserts Chinese error copy (e.g. "请求超时") in the chat
 description: >
   Regression test for the bug 进二 hit 2026-06-28: an oversized payload
   (image attach in his case) tripped single_request_too_large, which

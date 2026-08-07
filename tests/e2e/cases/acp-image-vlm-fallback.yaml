@@ -1,4 +1,5 @@
 name: "ACP image attachment never surfaces a wrong-model / oversized tip (image-handling-non-user-facing design)"
+locale: zh-CN  # asserts the Chinese legacy tip "不支持图片分析" is NOT emitted
 description: >
   Regression guard for the design at
   https://s.shareone.vip/s/image-handling-non-user-facing (Decisions 1 + 2).

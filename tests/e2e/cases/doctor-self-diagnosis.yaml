@@ -1,4 +1,5 @@
 name: "doctor self-diagnosis"
+locale: zh-CN  # clicks Chinese labels 新会话 / 诊断医生 and judges Chinese content
 description: "Doctor (Claude Code + yolo) freely explores SudoWork UI within a time budget, then we judge whatever it accomplished"
 
 steps:

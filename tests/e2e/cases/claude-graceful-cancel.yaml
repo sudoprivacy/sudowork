@@ -1,4 +1,5 @@
 name: claude graceful cancel
+locale: zh-CN  # clicks the Chinese "新会话" (New Chat) label
 description: >
   Test ACP session/cancel: send a 3-step prompt where step 2 is a long sleep,
   stop mid-execution during the sleep, then ask what it completed.
