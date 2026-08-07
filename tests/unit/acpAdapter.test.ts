@@ -5,8 +5,32 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { AcpAdapter } from '../../src/agent/acp/AcpAdapter';
+import { AcpAdapter, resolveAcpQuestionAllowCustomInput } from '../../src/agent/acp/AcpAdapter';
 import type { ToolCallUpdate, ToolCallUpdateStatus } from '../../src/types/acpTypes';
+
+describe('resolveAcpQuestionAllowCustomInput', () => {
+  const rawInput = {
+    questions: [
+      { id: 'default', prompt: 'Default?' },
+      { id: 'disabled', prompt: 'Disabled?', allowCustomInput: false },
+      { id: 'enabled', prompt: 'Enabled?', allowCustomInput: true },
+    ],
+  };
+
+  it('should default omitted model input to true even when Scode reports false', () => {
+    expect(resolveAcpQuestionAllowCustomInput('default', 0, false, rawInput)).toBe(true);
+  });
+
+  it('should preserve explicit model values', () => {
+    expect(resolveAcpQuestionAllowCustomInput('disabled', 1, false, rawInput)).toBe(false);
+    expect(resolveAcpQuestionAllowCustomInput('enabled', 2, true, rawInput)).toBe(true);
+  });
+
+  it('should use the ACP value when raw tool input is unavailable', () => {
+    expect(resolveAcpQuestionAllowCustomInput('q1', 0, false)).toBe(false);
+    expect(resolveAcpQuestionAllowCustomInput('q1', 0, undefined)).toBe(true);
+  });
+});
 
 describe('AcpAdapter - rawInput merging (#1113)', () => {
   let adapter: AcpAdapter;

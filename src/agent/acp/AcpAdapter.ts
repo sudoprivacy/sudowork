@@ -8,6 +8,18 @@ import type { AcpQuestionData, AcpQuestionItem, AcpQuestionItemKind, AcpQuestion
 import { uuid } from '@/common/utils';
 import type { AcpBackend, AcpSessionUpdate, AgentMessageChunkUpdate, AgentThoughtChunkUpdate, PlanUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 
+export function resolveAcpQuestionAllowCustomInput(questionId: string, index: number, receivedValue: boolean | undefined, rawInput?: Record<string, unknown>): boolean {
+  const rawQuestions = rawInput?.questions;
+  if (Array.isArray(rawQuestions)) {
+    const rawQuestion = rawQuestions.find((item) => item && typeof item === 'object' && (item as Record<string, unknown>).id === questionId) || rawQuestions[index];
+    if (rawQuestion && typeof rawQuestion === 'object') {
+      const rawValue = (rawQuestion as Record<string, unknown>).allowCustomInput;
+      return typeof rawValue === 'boolean' ? rawValue : true;
+    }
+  }
+  return receivedValue !== false;
+}
+
 /**
  * Adapter class to convert ACP messages to Sudowork message format
  */

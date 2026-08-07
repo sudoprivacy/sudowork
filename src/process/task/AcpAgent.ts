@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 import { app } from 'electron';
 import brand from '@brand';
-import { AcpAdapter } from '@/agent/acp/AcpAdapter';
+import { AcpAdapter, resolveAcpQuestionAllowCustomInput } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CLAUDE_YOLO_SESSION_MODE, CODEBUDDY_YOLO_SESSION_MODE, IFLOW_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from '@/agent/acp/constants';
@@ -2986,6 +2986,7 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       const msgId = `${requestId}-user-msg`;
+      const rawInput = this.toolCallMeta.get(requestId)?.rawInput;
       this.pendingQuestions.set(requestId, { resolve, reject, msgId });
 
       try {
@@ -3000,7 +3001,7 @@ This identity statement takes priority over the default identity in USER.md.
             question: data.title || data.description || data.questions[0]?.prompt || 'Question',
             intro: data.description,
             options: [],
-            items: data.questions.map((question) => ({
+            items: data.questions.map((question, index) => ({
               id: question.id,
               prompt: question.prompt,
               kind: question.kind,
@@ -3010,7 +3011,7 @@ This identity statement takes priority over the default identity in USER.md.
                 description: option.description,
                 recommended: option.recommended === true,
               })),
-              allowCustomInput: question.allowCustomInput,
+              allowCustomInput: resolveAcpQuestionAllowCustomInput(question.id, index, question.allowCustomInput, rawInput),
               customInputHint: question.customInputHint,
               optional: !question.required,
             })),
