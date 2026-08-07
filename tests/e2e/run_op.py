@@ -91,4 +91,13 @@ async def main():
 
 
 if __name__ == "__main__":
+    # Windows consoles default to GBK (cp936); op results printed with
+    # ensure_ascii=False (and Chinese op docstrings via --list) raise
+    # UnicodeEncodeError without this. Mirrors runner.py's entry setup.
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass  # non-reconfigurable stream (piped/redirected on some setups)
+
     asyncio.run(main())

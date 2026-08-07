@@ -73,6 +73,31 @@ python tests/e2e/generate.py
 python tests/e2e/runner.py --port 9230 --case model-command
 ```
 
+## Running notes
+
+- **UTF-8 is built in.** The runner reads YAML as UTF-8 and reconfigures
+  stdout/stderr, so Chinese case names / labels / judge reasons work on a
+  Windows GBK console with no `PYTHONUTF8=1` / `PYTHONIOENCODING` needed.
+- **Don't wrap the runner in an external `timeout`.** Every op has a hard
+  per-op timeout (derived from the step's own `timeout:` + a grace window; a
+  flat default otherwise), so a stalled CDP call can't wedge the suite. An
+  external `timeout 280` fires mid-legitimate-wait (a 3-phase API case can
+  legitimately spend >300s across several `wait_for_response` steps) and
+  orphans the CDP child processes.
+- **Progress heartbeat.** Each step prints `▶ [i] <op> …` before it runs and
+  its elapsed time after, so a slow/stalled op is visible immediately instead
+  of a silent terminal.
+- **Locale is deterministic per case.** A case declares `locale: en-US` (the
+  default) or `locale: zh-CN`; the runner forces it before the case so text
+  selectors and content judges never depend on the user's ambient app
+  language. Chinese-content cases carry `locale: zh-CN`; English-label cases
+  get the default.
+- **Per-case prelude.** Before each case the runner runs, in order,
+  `dismiss_init_dialog` → `set_locale` → `reset_conversation` (fresh new-chat
+  view, so cases don't inherit each other's conversation state). All three are
+  idempotent, so a case that also scripts one in its own `steps` just no-ops
+  the repeat.
+
 ## Rules
 
 1. `primitives/` and `ops/` are AUTO-GENERATED. Never hand-edit.

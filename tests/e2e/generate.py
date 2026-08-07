@@ -370,7 +370,7 @@ def generate_op(name: str, spec: dict) -> str:
 
 def main():
     # Load ops-spec
-    with open(OPS_SPEC_PATH) as f:
+    with open(OPS_SPEC_PATH, encoding="utf-8") as f:
         ops_spec = yaml.safe_load(f)
 
     primitives_spec = ops_spec.get("primitives", {})
