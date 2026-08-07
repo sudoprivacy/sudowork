@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { X as Close } from 'lucide-react';
+import { Button } from '@arco-design/web-react';
 import { IconShrink } from '@arco-design/web-react/icon';
+import { Maximize2, Minimize2, X as Close } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import type { TabFadeState } from '../../hooks/useTabOverflow';
 
 /**
@@ -81,6 +83,18 @@ interface PreviewTabsProps {
   onContextMenu: (e: React.MouseEvent, tabId: string) => void;
 
   /**
+   * 是否全屏显示预览面板
+   * Whether the preview panel is fullscreen
+   */
+  isFullscreen?: boolean;
+
+  /**
+   * 切换全屏显示回调
+   * Toggle fullscreen callback
+   */
+  onFullscreenToggle?: () => void;
+
+  /**
    * 关闭预览面板回调
    * Close preview panel callback
    */
@@ -97,15 +111,16 @@ interface PreviewTabsProps {
  * 包含左右渐变指示器，提示用户可以滚动查看更多 Tab
  * Includes left/right gradient indicators to prompt users that more tabs can be scrolled
  */
-const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeState, tabsContainerRef, onSwitchTab, onCloseTab, onContextMenu, onClosePanel }) => {
+const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeState, tabsContainerRef, onSwitchTab, onCloseTab, onContextMenu, isFullscreen = false, onFullscreenToggle, onClosePanel }) => {
   const { t } = useTranslation();
   const { left: showLeftFade, right: showRightFade } = tabFadeState;
+  const hasTrafficLightInset = isFullscreen && isElectronDesktop() && isMacOS();
 
   return (
     <div className='relative shrink-0' style={{ minHeight: '36px', borderBottom: '1px solid var(--border-default)' }}>
       <div className='flex items-center h-36px w-full'>
         {/* Tabs 滚动区域 / Tabs scroll area */}
-        <div ref={tabsContainerRef} className='flex items-center h-full flex-1 overflow-x-auto'>
+        <div ref={tabsContainerRef} className='flex items-center h-full flex-1 overflow-x-auto' style={{ paddingLeft: hasTrafficLightInset ? 160 : undefined }}>
           {tabs.length > 0 ? (
             tabs.map((tab) => (
               <div key={tab.id} className={`flex items-center gap-6px px-10px h-full cursor-pointer transition-colors shrink-0 ${tab.id === activeTabId ? 'text-foreground font-medium' : 'text-secondary'}`} onClick={() => onSwitchTab(tab.id)} onContextMenu={(e) => onContextMenu(e, tab.id)}>
@@ -129,12 +144,21 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
           )}
         </div>
 
-        {/* 收起面板按钮 / Collapse panel button */}
-        {onClosePanel && (
-          <div className='flex items-center h-full px-10px shrink-0 rounded-tr-[16px]'>
-            <div className='flex items-center justify-center w-20px h-20px rd-4px cursor-pointer transition-colors' onClick={onClosePanel} title={t('preview.collapsePanel')}>
-              <IconShrink style={{ fontSize: 14, color: 'var(--text-secondary)' }} />
-            </div>
+        {(onFullscreenToggle || onClosePanel) && (
+          <div className='flex h-full shrink-0 items-center gap-1 px-2.5 rounded-tr-[16px]'>
+            {onFullscreenToggle && (
+              <Button
+                type='text'
+                size='mini'
+                iconOnly
+                className='size-5! text-foreground-secondary!'
+                icon={isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                onClick={onFullscreenToggle}
+                title={t(isFullscreen ? 'preview.exitFullscreen' : 'preview.fullscreen')}
+                aria-label={t(isFullscreen ? 'preview.exitFullscreen' : 'preview.fullscreen')}
+              />
+            )}
+            {onClosePanel && <Button type='text' size='mini' iconOnly className='size-5!' icon={<IconShrink style={{ fontSize: 14, color: 'var(--text-secondary)' }} />} onClick={onClosePanel} title={t('preview.collapsePanel')} aria-label={t('preview.collapsePanel')} />}
           </div>
         )}
       </div>

@@ -5,9 +5,9 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { PreviewToolbar } from '@/renderer/pages/conversation/preview/components/PreviewPanel';
+import { PreviewTabs, PreviewToolbar } from '@/renderer/pages/conversation/preview/components/PreviewPanel';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -40,6 +40,29 @@ const baseProps = {
   onDownload: noop,
   onClose: noop,
 };
+
+describe('PreviewTabs', () => {
+  const baseTabProps = {
+    tabs: [{ id: 'readme', title: 'README.md' }],
+    activeTabId: 'readme',
+    tabFadeState: { left: false, right: false },
+    tabsContainerRef: React.createRef<HTMLDivElement>(),
+    onSwitchTab: noop,
+    onCloseTab: noop,
+    onContextMenu: noop,
+  };
+
+  it('toggles fullscreen from the tab bar', () => {
+    const onFullscreenToggle = vi.fn();
+    const { rerender } = render(<PreviewTabs {...baseTabProps} onFullscreenToggle={onFullscreenToggle} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.fullscreen' }));
+    expect(onFullscreenToggle).toHaveBeenCalledOnce();
+
+    rerender(<PreviewTabs {...baseTabProps} isFullscreen onFullscreenToggle={onFullscreenToggle} />);
+    expect(screen.getByRole('button', { name: 'preview.exitFullscreen' })).toBeInTheDocument();
+  });
+});
 
 describe('PreviewToolbar', () => {
   it('keeps source controls for local markdown previews by default', () => {

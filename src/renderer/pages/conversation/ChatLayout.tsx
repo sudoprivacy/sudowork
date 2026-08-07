@@ -74,8 +74,10 @@ const ChatLayout: React.FC<{
   });
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(() => (typeof window === 'undefined' ? 0 : window.innerWidth));
+  const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const { workspaceEnabled = true, rightSiderWidthOverride } = props;
   const layout = useLayoutContext();
+  const setSiderCollapsed = layout?.setSiderCollapsed;
   const isMacRuntime = isMacEnvironment();
   const isWindowsRuntime = isWindowsEnvironment();
   const isLinuxRuntime = isLinuxEnvironment();
@@ -160,8 +162,10 @@ const ChatLayout: React.FC<{
   });
 
   const workspaceWidthRef = useRef<number | null>(null);
+  const mainPanelRef = useRef<PanelImperativeHandle | null>(null);
   const previewPanelRef = useRef<PanelImperativeHandle | null>(null);
   const previewRatioRef = useRef(50);
+  const siderCollapsedBeforeFullscreenRef = useRef<boolean | null>(null);
   const safeContainerWidth = Math.max(containerWidth, 1);
   const workspaceMinSizePx = Math.max(MIN_RIGHT_SIDER_PANEL_PX, safeContainerWidth * (MIN_WORKSPACE_RATIO / 100));
   const workspaceMaxSizePx = Math.max(workspaceMinSizePx, Math.min(rightSiderWidthOverride?.maxWidthPx ?? Number.POSITIVE_INFINITY, safeContainerWidth * (MAX_WORKSPACE_RATIO / 100)));
@@ -180,15 +184,55 @@ const ChatLayout: React.FC<{
 
   useEffect(() => {
     if (!isPreviewOpen) return;
-    const frame = requestAnimationFrame(() => previewPanelRef.current?.resize(`${previewRatioRef.current}%`));
+    const frame = requestAnimationFrame(() => {
+      if (isPreviewFullscreen) {
+        mainPanelRef.current?.resize('0%');
+      } else {
+        previewPanelRef.current?.resize(`${previewRatioRef.current}%`);
+      }
+    });
     return () => cancelAnimationFrame(frame);
-  }, [isPreviewOpen]);
+  }, [isPreviewOpen, isPreviewFullscreen]);
 
-  const onPreviewLayoutChanged = useCallback((panelLayout: Layout, meta: LayoutChangedMeta) => {
-    if (meta.isUserInteraction && Number.isFinite(panelLayout.preview)) {
-      previewRatioRef.current = panelLayout.preview;
+  useEffect(() => {
+    if (isPreviewOpen || !isPreviewFullscreen) return;
+    setIsPreviewFullscreen(false);
+    if (siderCollapsedBeforeFullscreenRef.current !== null) {
+      setSiderCollapsed?.(siderCollapsedBeforeFullscreenRef.current);
+      siderCollapsedBeforeFullscreenRef.current = null;
     }
-  }, []);
+  }, [isPreviewOpen, isPreviewFullscreen, setSiderCollapsed]);
+
+  useEffect(
+    () => () => {
+      if (siderCollapsedBeforeFullscreenRef.current !== null) {
+        setSiderCollapsed?.(siderCollapsedBeforeFullscreenRef.current);
+      }
+    },
+    [setSiderCollapsed]
+  );
+
+  const onPreviewFullscreenToggle = useCallback(() => {
+    if (isPreviewFullscreen) {
+      if (siderCollapsedBeforeFullscreenRef.current !== null) {
+        setSiderCollapsed?.(siderCollapsedBeforeFullscreenRef.current);
+        siderCollapsedBeforeFullscreenRef.current = null;
+      }
+    } else {
+      siderCollapsedBeforeFullscreenRef.current = layout?.siderCollapsed ?? null;
+      setSiderCollapsed?.(true);
+    }
+    setIsPreviewFullscreen((isFullscreen) => !isFullscreen);
+  }, [isPreviewFullscreen, layout?.siderCollapsed, setSiderCollapsed]);
+
+  const onPreviewLayoutChanged = useCallback(
+    (panelLayout: Layout, meta: LayoutChangedMeta) => {
+      if (!isPreviewFullscreen && meta.isUserInteraction && Number.isFinite(panelLayout.preview)) {
+        previewRatioRef.current = panelLayout.preview;
+      }
+    },
+    [isPreviewFullscreen]
+  );
 
   const headerBlock = (
     <ArcoLayout.Header
@@ -225,18 +269,27 @@ const ChatLayout: React.FC<{
     <ArcoLayout className='size-full'>
       <div ref={containerRef} className='flex flex-1 relative w-full overflow-hidden'>
         <Group className='flex-1 min-w-0' defaultLayout={!isPreviewOpen && rightSiderCollapsed ? { main: 100 } : isPreviewOpen ? { main: 50, preview: 50 } : restoredWorkspaceLayout} onLayoutChanged={isPreviewOpen ? onPreviewLayoutChanged : onWorkspaceLayoutChanged}>
-          <Panel id='main' minSize={`${MIN_CHAT_PANEL_PX}px`} className='min-w-0'>
+          <Panel id='main' panelRef={mainPanelRef} minSize={isPreviewFullscreen ? '0%' : `${MIN_CHAT_PANEL_PX}px`} className='min-w-0'>
             {mainPanel}
           </Panel>
           {(isPreviewOpen || (workspaceEnabled && !rightSiderCollapsed)) && (
             <>
-              <ResizableSeparator isDisabled={isRightSiderWidthOverridden} />
+              <ResizableSeparator isDisabled={isRightSiderWidthOverridden || isPreviewFullscreen} />
               {isPreviewOpen ? (
-                <Panel key='preview' id='preview' panelRef={previewPanelRef} defaultSize='50%' minSize={`${MIN_PREVIEW_PANEL_PX}px`} maxSize={`${workspaceMaxSizePx}px`} groupResizeBehavior='preserve-pixel-size' className='h-full'>
+                <Panel
+                  key='preview'
+                  id='preview'
+                  panelRef={previewPanelRef}
+                  defaultSize='50%'
+                  minSize={`${MIN_PREVIEW_PANEL_PX}px`}
+                  maxSize={isPreviewFullscreen ? '100%' : `${workspaceMaxSizePx}px`}
+                  groupResizeBehavior={isPreviewFullscreen ? 'preserve-relative-size' : 'preserve-pixel-size'}
+                  className='h-full'
+                >
                   <div className='bg-background! h-full overflow-hidden border-l border-border'>
                     <div className='preview-panel flex flex-col h-full py-1.5 pr-3 pl-2 relative z-11 [-webkit-app-region:no-drag]'>
                       <div className='h-full w-full overflow-hidden rounded-xl border border-border'>
-                        <PreviewPanel />
+                        <PreviewPanel isFullscreen={isPreviewFullscreen} onFullscreenToggle={onPreviewFullscreenToggle} />
                       </div>
                     </div>
                   </div>

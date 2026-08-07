@@ -39,7 +39,7 @@ import { PreviewTabs, PreviewToolbar, PreviewContextMenu, PreviewConfirmModals, 
  * 支持多 Tab 切换，每个 Tab 可以显示不同类型的内容
  * Supports multiple tabs, each tab can display different types of content
  */
-const PreviewPanel: React.FC = () => {
+const PreviewPanel: React.FC<IPreviewPanelProps> = ({ isFullscreen = false, onFullscreenToggle }) => {
   const { t } = useTranslation();
   const { isOpen, tabs, activeTabId, activeTab, closeTab, switchTab, closePreview, updateContent, saveContent, addDomSnippet } = usePreviewContext();
 
@@ -588,7 +588,7 @@ const PreviewPanel: React.FC = () => {
 
         {/* Tab 栏 / Tab bar */}
         {/* eslint-disable-next-line max-len */}
-        <PreviewTabs tabs={previewTabs} activeTabId={activeTabId} tabFadeState={tabFadeState} tabsContainerRef={tabsContainerRef} onSwitchTab={switchTab} onCloseTab={handleCloseTab} onContextMenu={handleTabContextMenu} />
+        <PreviewTabs tabs={previewTabs} activeTabId={activeTabId} tabFadeState={tabFadeState} tabsContainerRef={tabsContainerRef} onSwitchTab={switchTab} onCloseTab={handleCloseTab} onContextMenu={handleTabContextMenu} isFullscreen={isFullscreen} onFullscreenToggle={onFullscreenToggle} />
 
         {/* 工具栏（URL 类型不显示工具栏，因为不需要下载/编辑等功能）/ Toolbar (hidden for URL type as it doesn't need download/edit features) */}
         {contentType !== 'url' && (
@@ -646,5 +646,10 @@ const PreviewPanel: React.FC = () => {
     </PreviewToolbarExtrasProvider>
   );
 };
+
+interface IPreviewPanelProps {
+  isFullscreen?: boolean;
+  onFullscreenToggle?: () => void;
+}
 
 export default PreviewPanel;
