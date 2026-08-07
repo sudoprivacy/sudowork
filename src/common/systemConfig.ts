@@ -45,6 +45,14 @@ export const BUILD_LOG_REPORT_BASE_URL: string = (typeof __LOG_REPORT_BASE_URL__
 export const BUILD_COS_RELEASE_BASE: string = (typeof __COS_RELEASE_BASE__ !== 'undefined' && __COS_RELEASE_BASE__) || COS_RELEASE_BASE;
 
 // ---- typed system-config shape (interface doc 1.4) ----
+export type RechargeMode = 'pay' | 'approve' | 'disabled';
+
+export interface ICreditApplicationConfig {
+  min_points: number;
+  max_points: number;
+  allow_duplicate_pending: boolean;
+}
+
 export interface SystemConfig {
   login_method?: number;
   third_party_auth?: ThirdPartyAuthConfig;
@@ -54,6 +62,8 @@ export interface SystemConfig {
   sudorouter_baseurl?: string;
   skillhub_baseurl?: string;
   scode_auto_model?: string;
+  recharge_mode?: RechargeMode;
+  credit_application?: ICreditApplicationConfig;
 }
 
 export interface ThirdPartyAuthProvider {
@@ -102,6 +112,10 @@ export function setSystemConfigCache(data: SystemConfig | null): void {
 /** Read the in-process cache; null only when never filled. */
 export function getSystemConfigCache(): SystemConfig | null {
   return cachedConfig;
+}
+
+export function normalizeRechargeMode(value: unknown): RechargeMode {
+  return value === 'approve' || value === 'disabled' || value === 'pay' ? value : 'pay';
 }
 
 // ---- fetch (public, no auth; fetch + res.json() work in both processes) ----

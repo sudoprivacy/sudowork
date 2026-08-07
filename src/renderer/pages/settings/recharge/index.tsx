@@ -10,11 +10,13 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
+import { fetchSystemConfig, normalizeRechargeMode } from '@/common/systemConfig';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+import CreditApplicationPanel from './components/CreditApplicationPanel';
 import OrderList from './components/OrderList';
 import PointsDashboard from './components/PointsDashboard';
 import { OrderStatusEnum } from './types';
-import type { CreateOrderResponse, OrderStatus, PaymentMethod, PayOrderResponse, RechargePackage, RechargeStep } from './types';
+import type { CreateOrderResponse, OrderStatus, PaymentMethod, PayOrderResponse, RechargeMode, RechargePackage, RechargeStep } from './types';
 import { formatCurrency } from './utils';
 
 // Lazy load QRCodeSVG
@@ -32,6 +34,7 @@ const RechargeCenter: React.FC = () => {
   // Points state
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [rechargeMode, setRechargeMode] = useState<RechargeMode | null>(null);
 
   // Recharge state
   const [step, setStep] = useState<RechargeStep>('select');
@@ -340,13 +343,29 @@ const RechargeCenter: React.FC = () => {
     [currentUser?.token, startPolling, t]
   );
 
+  useEffect(() => {
+    let isDisposed = false;
+
+    void fetchSystemConfig().then((config) => {
+      if (!isDisposed) {
+        setRechargeMode(normalizeRechargeMode(config?.recharge_mode));
+      }
+    });
+
+    return () => {
+      isDisposed = true;
+    };
+  }, []);
+
   // Initial fetch
   useEffect(() => {
-    if (currentUser?.token) {
+    if (currentUser?.token && rechargeMode) {
       void fetchStats();
-      void fetchPackages();
+      if (rechargeMode === 'pay') {
+        void fetchPackages();
+      }
     }
-  }, [currentUser?.token, fetchStats, fetchPackages]);
+  }, [currentUser?.token, fetchStats, fetchPackages, rechargeMode]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -509,6 +528,54 @@ const RechargeCenter: React.FC = () => {
         return renderPackageSelection();
     }
   };
+
+  if (!rechargeMode) {
+    return (
+      <PageWrapper title={t('settings.rechargeCenter', '充值中心')}>
+        <div className='flex justify-center py-10'>
+          <Spin />
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  if (rechargeMode === 'approve') {
+    return (
+      <PageWrapper title={t('settings.creditApplication.title', '积分申请')}>
+        <div className='flex flex-col gap-6 pb-2'>
+          {statsLoading ? (
+            <div className='flex justify-center py-10'>
+              <Spin />
+            </div>
+          ) : (
+            <PointsDashboard remainingPoints={stats?.remaining ?? 0} usedPoints={stats?.used ?? 0} bonusPoints={stats?.bonus ?? 0} />
+          )}
+
+          <CreditApplicationPanel onSubmitted={fetchStats} />
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  if (rechargeMode === 'disabled') {
+    return (
+      <PageWrapper title={t('settings.rechargeCenter', '充值中心')}>
+        <div className='flex flex-col gap-6 pb-2'>
+          {statsLoading ? (
+            <div className='flex justify-center py-10'>
+              <Spin />
+            </div>
+          ) : (
+            <PointsDashboard remainingPoints={stats?.remaining ?? 0} usedPoints={stats?.used ?? 0} bonusPoints={stats?.bonus ?? 0} />
+          )}
+
+          <div className={PANEL_CLASS}>
+            <div className='text-14px text-secondary'>{t('settings.recharge.disabled', '当前暂未开放充值')}</div>
+          </div>
+        </div>
+      </PageWrapper>
+    );
+  }
 
   return (
     <PageWrapper title={t('settings.rechargeCenter', '充值中心')}>

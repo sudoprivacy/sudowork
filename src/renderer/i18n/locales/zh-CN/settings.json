@@ -1038,7 +1038,29 @@
     "usedPoints": "累计已用",
     "bonusPoints": "赠送积分",
     "recharge": "充值",
-    "continueRecharge": "继续充值"
+    "continueRecharge": "继续充值",
+    "disabled": "当前暂未开放充值"
+  },
+  "creditApplication": {
+    "title": "积分申请",
+    "points": "申请积分",
+    "pointsRequired": "请输入申请积分",
+    "reason": "申请原因",
+    "reasonRequired": "请输入申请原因",
+    "submit": "提交申请",
+    "submitSuccess": "申请已提交",
+    "submitFailed": "提交申请失败",
+    "loadFailed": "加载积分申请失败",
+    "history": "申请记录",
+    "empty": "暂无申请记录",
+    "status": {
+      "pending": "待审批",
+      "processing": "处理中",
+      "approved": "已通过",
+      "rejected": "已拒绝",
+      "syncFailed": "同步失败",
+      "syncUnknown": "待人工核对"
+    }
   },
   "orders": {
     "title": "订单记录",
