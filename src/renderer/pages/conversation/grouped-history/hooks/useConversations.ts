@@ -18,6 +18,12 @@ import { buildGroupedHistory } from '../utils/groupingHelpers';
 
 const EXPANSION_STORAGE_KEY = 'sudowork_workspace_expansion';
 
+const getExpandableGroupKey = (item: GroupedHistoryResult['timelineSections'][number]['items'][number]): string | undefined => {
+  if (item.type === 'workspace' && item.workspaceGroup) return item.workspaceGroup.workspace;
+  if (item.type === 'digitalEmployee' && item.digitalEmployeeGroup) return item.digitalEmployeeGroup.employeeId;
+  return undefined;
+};
+
 export const useConversations = () => {
   const [conversations, setConversations] = useState<TChatConversation[]>([]);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>(() => {
@@ -126,25 +132,23 @@ export const useConversations = () => {
     const allWorkspaces: string[] = [];
     timelineSections.forEach((section) => {
       section.items.forEach((item) => {
-        if (item.type === 'workspace' && item.workspaceGroup) {
-          allWorkspaces.push(item.workspaceGroup.workspace);
-        }
+        const groupKey = getExpandableGroupKey(item);
+        if (groupKey) allWorkspaces.push(groupKey);
       });
     });
     if (allWorkspaces.length > 0) {
       setExpandedWorkspaces(allWorkspaces);
       hasAutoExpandedRef.current = true;
     }
-  }, [timelineSections]);
+  }, [expandedWorkspaces.length, timelineSections]);
 
   // Remove stale workspace entries that no longer exist in the data
   useEffect(() => {
     const currentWorkspaces = new Set<string>();
     timelineSections.forEach((section) => {
       section.items.forEach((item) => {
-        if (item.type === 'workspace' && item.workspaceGroup) {
-          currentWorkspaces.add(item.workspaceGroup.workspace);
-        }
+        const groupKey = getExpandableGroupKey(item);
+        if (groupKey) currentWorkspaces.add(groupKey);
       });
     });
     if (currentWorkspaces.size === 0) return;

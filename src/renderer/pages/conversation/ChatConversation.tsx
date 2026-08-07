@@ -111,12 +111,28 @@ const ChatConversation: React.FC<{
   // Resolve agentName: prefer preset assistant name, then extra.agentName, then undefined
   // 优先使用预设助手名称，然后是 extra.agentName
   const resolvedAgentName = presetAssistantInfo?.name || (conversation?.extra as { agentName?: string })?.agentName;
+  const digitalEmployeeId = conversation?.type === 'acp' ? (conversation.extra as { digitalEmployeeId?: string } | undefined)?.digitalEmployeeId?.trim() || undefined : undefined;
+  const { data: digitalEmployeeResponse } = useSWR(digitalEmployeeId ? ['digitalEmployee.get', digitalEmployeeId] : null, () => ipcBridge.digitalEmployee.get.invoke({ employeeId: digitalEmployeeId! }));
+  const digitalEmployee = digitalEmployeeResponse?.success ? digitalEmployeeResponse.data : undefined;
+  const isDigitalEmployeeSendDisabled = Boolean(digitalEmployeeId && digitalEmployeeResponse?.success && (!digitalEmployee || digitalEmployee.status !== 'active'));
+  const digitalEmployeeSendDisabledReason = isDigitalEmployeeSendDisabled ? (digitalEmployee ? `数字员工「${digitalEmployee.name || resolvedAgentName || '未命名'}」当前离线，无法继续对话。请先将该数字员工设为在线。` : '该数字员工已删除，无法继续对话。') : undefined;
 
   const conversationNode = useMemo(() => {
     if (!conversation) return null;
     switch (conversation.type) {
       case 'acp':
-        return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={conversation.extra?.backend || 'claude'} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName}></AcpChat>;
+        return (
+          <AcpChat
+            key={conversation.id}
+            conversation_id={conversation.id}
+            workspace={conversation.extra?.workspace}
+            backend={conversation.extra?.backend || 'claude'}
+            sessionMode={conversation.extra?.sessionMode}
+            agentName={resolvedAgentName}
+            sendDisabled={isDigitalEmployeeSendDisabled}
+            sendDisabledReason={digitalEmployeeSendDisabledReason}
+          ></AcpChat>
+        );
       case 'remote-agent': {
         // Remote-agent uses AcpChat with backend='remote-agent' (handled by conversationBridge.sendMessage)
         const remoteExtra = conversation.extra as { mossServerUrl?: string; agentName?: string };
@@ -125,7 +141,7 @@ const ChatConversation: React.FC<{
       default:
         return null;
     }
-  }, [conversation, resolvedAgentName]);
+  }, [conversation, resolvedAgentName, isDigitalEmployeeSendDisabled, digitalEmployeeSendDisabledReason]);
 
   const modelSelector = useMemo(() => {
     if (!conversation) return undefined;

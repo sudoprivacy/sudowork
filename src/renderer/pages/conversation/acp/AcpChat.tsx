@@ -53,8 +53,10 @@ const AcpChat: React.FC<{
   /** Team override: when set, sends go through the team API instead of the single-chat ACP API (附录 II.8). */
   teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
   teamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
+  sendDisabled?: boolean;
+  sendDisabledReason?: string;
   onProcessingChange?: (isProcessing: boolean) => void;
-}> = ({ conversation_id, workspace, backend, sessionMode, agentName, emptyState, showEmptyStateWhenNoMessages, onTeamAnswerQuestion, teamSendMessage, teamAnswerQuestion, onProcessingChange }) => {
+}> = ({ conversation_id, workspace, backend, sessionMode, agentName, emptyState, showEmptyStateWhenNoMessages, onTeamAnswerQuestion, teamSendMessage, teamAnswerQuestion, sendDisabled = false, sendDisabledReason, onProcessingChange }) => {
   const { loaded: messagesLoaded } = useMessageLstCache(conversation_id);
   const [aiProcessing, setAiProcessing] = useState(false);
   const messages = useMessageList();
@@ -100,6 +102,8 @@ const AcpChat: React.FC<{
               pendingQuestion={pendingQuestion}
               pendingQuestionItems={pendingQuestionItems}
               isAwaitingUserInput={isAwaitingUserInput}
+              disabled={sendDisabled}
+              disabledReason={sendDisabledReason}
               onAiProcessingChange={setAiProcessing}
               onProcessingChange={onProcessingChange}
             ></AcpSendBox>

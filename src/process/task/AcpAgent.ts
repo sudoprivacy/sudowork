@@ -177,6 +177,7 @@ export interface AcpAgentData {
   sessionMode?: string;
   currentModelId?: string;
   presetAssistantId?: string;
+  digitalEmployeeId?: string;
   /** Per-member team MCP server config (K2 wire, injected via session/new.mcp_servers, see A1); undefined for non-team conversations */
   teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
   /** Team id this conversation belongs to (mirrors extra.teamId); undefined for non-team conversations. Routes team deliverables aggregation. */
@@ -297,6 +298,22 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // 初始化完整工作空间快照用于 Bash 文件追踪
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
     mainLog('[AcpAgent]', `[INIT] Initialized workspace snapshot with ${this.workspaceFileSnapshot.size} files`);
+  }
+
+  updateRuntimeOptions(updates: Partial<Pick<AcpAgentData, 'agentName' | 'presetContext' | 'enabledSkills' | 'localKnowledgeSpaceIds' | 'sessionMode' | 'currentModelId'>>): void {
+    this.options = {
+      ...this.options,
+      ...updates,
+    };
+    if (updates.agentName !== undefined) {
+      this.extra.agentName = updates.agentName;
+    }
+    if (updates.sessionMode !== undefined) {
+      this.currentMode = updates.sessionMode || 'default';
+    }
+    if (updates.currentModelId !== undefined) {
+      this.persistedModelId = updates.currentModelId || null;
+    }
   }
 
   // ========== Connection Lifecycle ==========
@@ -1035,7 +1052,7 @@ This identity statement takes priority over the default identity in USER.md.
           }
         }
 
-        if (this.isFirstMessage) {
+        if (this.isFirstMessage || this.options.digitalEmployeeId) {
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
             presetContext: this.options.presetContext,
             enabledSkills: this.options.enabledSkills,

@@ -34,8 +34,7 @@ import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
 import { turnInputCoordinator } from '../task/turnInputCoordinator';
 import { reapConversation } from '../services/conversationReaper';
-import { closeBrowserTabsByConversation } from './browserPanelBridge';
-import { closeTerminalsByConversation } from './terminalBridge';
+import { digitalEmployeeService } from '../services/digitalEmployee/DigitalEmployeeService';
 import { migrateConversationToDatabase } from './migrationUtils';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
@@ -55,6 +54,69 @@ type RemoteConversationExtra = NonNullable<TChatConversation['extra']> & {
   mossServerUrl?: string;
   authToken?: string;
 };
+
+function getDigitalEmployeeSendBlockReason(conversation: TChatConversation | undefined): string | null {
+  const extra = conversation?.extra as { digitalEmployeeId?: string; agentName?: string } | undefined;
+  const employeeId = extra?.digitalEmployeeId?.trim();
+  if (!employeeId) return null;
+
+  try {
+    const employee = digitalEmployeeService.getEmployee(employeeId);
+    if (!employee) {
+      return '该数字员工已删除，无法继续对话。';
+    }
+    if (employee.status !== 'active') {
+      return `数字员工「${employee.name || extra?.agentName || '未命名'}」当前离线，无法继续对话。请先将该数字员工设为在线。`;
+    }
+    return null;
+  } catch (error) {
+    mainWarn('conversationBridge', 'Failed to validate digital employee status before send:', error);
+    return '无法确认数字员工状态，暂不能继续对话。';
+  }
+}
+
+async function refreshDigitalEmployeeConversationRuntime(conversation: TChatConversation | undefined): Promise<TChatConversation | undefined> {
+  const extra = conversation?.extra as { digitalEmployeeId?: string } | undefined;
+  const employeeId = extra?.digitalEmployeeId?.trim();
+  if (!conversation || !employeeId || conversation.type !== 'acp') return conversation;
+
+  const runtime = await digitalEmployeeService.buildConversationRuntime(employeeId);
+  const nextExtra = {
+    ...conversation.extra,
+    backend: runtime.backend,
+    agentName: runtime.employee.name,
+    presetContext: runtime.presetContext,
+    enabledSkills: runtime.enabledSkills,
+    localKnowledgeSpaceIds: runtime.localKnowledgeSpaceIds,
+    sessionMode: runtime.sessionMode,
+    currentModelId: runtime.currentModelId,
+    digitalEmployeeRole: runtime.employee.roleName,
+    digitalEmployeeSourceType: runtime.employee.sourceType,
+  };
+  const updatedConversation = {
+    ...conversation,
+    extra: nextExtra,
+  } as TChatConversation;
+
+  const updateResult = getDatabase().updateConversation(conversation.id, { extra: nextExtra } as Partial<TChatConversation>);
+  if (!updateResult.success) {
+    mainWarn('conversationBridge', `Failed to refresh digital employee runtime for ${conversation.id}: ${updateResult.error}`);
+  }
+
+  const task = WorkerManage.getTaskById(conversation.id) as AcpAgent | undefined;
+  if (task?.type === 'acp' && typeof task.updateRuntimeOptions === 'function') {
+    task.updateRuntimeOptions({
+      agentName: runtime.employee.name,
+      presetContext: runtime.presetContext,
+      enabledSkills: runtime.enabledSkills,
+      localKnowledgeSpaceIds: runtime.localKnowledgeSpaceIds,
+      sessionMode: runtime.sessionMode,
+      currentModelId: runtime.currentModelId,
+    });
+  }
+
+  return updatedConversation;
+}
 
 function convertMossWorkspaceNode(node: MossWorkspaceNode): IDirOrFile {
   return {
@@ -789,6 +851,17 @@ export function initConversationBridge(): void {
     if (teamGuardData && teamGuardData.type === 'acp' && teamGuardData.extra?.isTeamMember) {
       return { success: false, msg: 'Team member conversations must use the team API' };
     }
+    const digitalEmployeeBlockReason = getDigitalEmployeeSendBlockReason(teamGuardData);
+    if (digitalEmployeeBlockReason) {
+      return { success: false, msg: digitalEmployeeBlockReason };
+    }
+    let latestConversation = teamGuardData;
+    try {
+      latestConversation = await refreshDigitalEmployeeConversationRuntime(teamGuardData);
+    } catch (err) {
+      mainWarn('conversationBridge', 'Failed to refresh digital employee runtime before send:', err);
+      return { success: false, msg: err instanceof Error ? err.message : '无法刷新数字员工运行配置，暂不能继续对话。' };
+    }
 
     let task: AcpAgent | import('../task/RemoteAgent').default | undefined;
     try {
@@ -894,6 +967,8 @@ export function initConversationBridge(): void {
       const convResult = db.getConversation(conversation_id);
       if (convResult.success && convResult.data) {
         conversation = convResult.data;
+      } else if (latestConversation) {
+        conversation = latestConversation;
       }
     } catch {
       // ignore

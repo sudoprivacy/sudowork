@@ -1,6 +1,6 @@
-import { Button, Card, Drawer, Empty, Input, Message, Modal, Select, Spin, Switch, Tag, Tooltip } from '@arco-design/web-react';
+import { Button, Card, Checkbox, Drawer, Empty, Input, Message, Modal, Select, Spin, Switch, Tag, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
-import { Copy, FileText, FolderOpen, Link2, ListTree, Pencil, Play, Plus, RefreshCcw, Search, Trash2, X } from 'lucide-react';
+import { Copy, Eye, FileText, Link2, ListTree, Pencil, Play, Plus, RefreshCcw, Search, Trash2, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -57,7 +57,7 @@ interface ISopDraft {
   nodes: ISopNodeDraft[];
 }
 
-const BINDABLE_RESOURCE_TYPES: DigitalEmployeeResourceType[] = ['assistant', 'skill', 'knowledge'];
+const BINDABLE_RESOURCE_TYPES: DigitalEmployeeResourceType[] = ['skill', 'knowledge'];
 const VISIBLE_RESOURCE_TYPES = new Set<DigitalEmployeeResourceType>(['assistant', 'skill', 'general_skill', 'knowledge']);
 const COUNTABLE_RESOURCE_TYPES = new Set<DigitalEmployeeResourceType>(['assistant', 'skill', 'general_skill', 'knowledge', 'sop']);
 const LEGACY_STAFFDECK_RESOURCE_CONFIG_KEYS = ['staffdeckKnowledgeBaseId', 'staffdeckGeneralSkillId', 'staffdeckToolId', 'staffdeckTool'];
@@ -78,6 +78,10 @@ function isVisibleResource(resource: IDigitalEmployeeResource): boolean {
 
 function isCountableResource(resource: IDigitalEmployeeResource): boolean {
   return COUNTABLE_RESOURCE_TYPES.has(resource.resourceType) && !isUnsupportedLegacyResource(resource);
+}
+
+function isBuiltInEmployee(employee: IDigitalEmployee | null | undefined): boolean {
+  return employee?.sourceType === 'staffdeck_seed';
 }
 
 function getEmptyEditorState(): IEditorState {
@@ -143,8 +147,12 @@ function getDateTimeLabel(value: number | undefined): string {
   return new Date(value).toLocaleString();
 }
 
+function isLegacyResourceIdentifier(value: string): boolean {
+  return /^(?:skill|genskill|kb|tool)_[a-z0-9]+$/i.test(value.trim());
+}
+
 function listToText(values: string[] | undefined): string {
-  return values?.join('\n') || '';
+  return values?.filter((value) => !isLegacyResourceIdentifier(value)).join('\n') || '';
 }
 
 function textToList(value: string): string[] {
@@ -266,7 +274,6 @@ export default function DigitalEmployeesPage() {
   const [isSopSaving, setIsSopSaving] = useState(false);
   const [isSopDistilling, setIsSopDistilling] = useState(false);
   const [launchMessage, setLaunchMessage] = useState('');
-  const [launchWorkspace, setLaunchWorkspace] = useState('');
   const [skillOptions, setSkillOptions] = useState<IResourceOption[]>([]);
   const [assistantOptions, setAssistantOptions] = useState<IResourceOption[]>([]);
   const [knowledgeOptions, setKnowledgeOptions] = useState<IResourceOption[]>([]);
@@ -397,28 +404,39 @@ export default function DigitalEmployeesPage() {
   );
 
   const onSaveEmployee = useCallback(async () => {
+    const isEditingBuiltIn = isBuiltInEmployee(editorEmployee);
     const name = editorState.name.trim();
     const roleName = editorState.roleName.trim();
-    if (!name || !roleName) {
+    if (!isEditingBuiltIn && (!name || !roleName)) {
       Message.warning(t('digitalEmployee.messages.requiredFields'));
       return;
     }
 
     setIsSaving(true);
     try {
-      const payload = {
-        name,
-        roleName,
-        description: editorState.description.trim(),
-        personaPrompt: editorState.personaPrompt.trim(),
-        backend: editorState.backend,
-        defaultMode: editorState.defaultMode.trim() || 'default',
-        status: editorState.status,
-      };
       const response = editorEmployee
-        ? await ipcBridge.digitalEmployee.update.invoke({ employeeId: editorEmployee.id, updates: payload })
+        ? await ipcBridge.digitalEmployee.update.invoke({
+            employeeId: editorEmployee.id,
+            updates: isEditingBuiltIn
+              ? { status: editorState.status }
+              : {
+                  name,
+                  roleName,
+                  description: editorState.description.trim(),
+                  personaPrompt: editorState.personaPrompt.trim(),
+                  backend: editorState.backend,
+                  defaultMode: editorState.defaultMode.trim() || 'default',
+                  status: editorState.status,
+                },
+          })
         : await ipcBridge.digitalEmployee.create.invoke({
-            ...payload,
+            name,
+            roleName,
+            description: editorState.description.trim(),
+            personaPrompt: editorState.personaPrompt.trim(),
+            backend: editorState.backend,
+            defaultMode: editorState.defaultMode.trim() || 'default',
+            status: editorState.status,
             sourceType: 'custom',
           });
 
@@ -441,6 +459,8 @@ export default function DigitalEmployeesPage() {
 
   const onDeleteEmployee = useCallback(
     (employee: IDigitalEmployee) => {
+      if (isBuiltInEmployee(employee)) return;
+
       Modal.confirm({
         title: t('digitalEmployee.delete.title'),
         content: t('digitalEmployee.delete.content', { name: employee.name }),
@@ -482,18 +502,10 @@ export default function DigitalEmployeesPage() {
     (employee: IDigitalEmployee) => {
       setLaunchEmployee(employee);
       setLaunchMessage(t('digitalEmployee.launch.defaultMessage', { name: employee.name, role: employee.roleName }));
-      setLaunchWorkspace('');
       setIsLaunchOpen(true);
     },
     [t]
   );
-
-  const onSelectLaunchWorkspace = useCallback(async () => {
-    const response = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory', 'createDirectory'] });
-    if (response.success && response.data && !response.data.canceled) {
-      setLaunchWorkspace(response.data.filePaths[0] || '');
-    }
-  }, []);
 
   const onLaunchConversation = useCallback(async () => {
     if (!launchEmployee) return;
@@ -508,7 +520,6 @@ export default function DigitalEmployeesPage() {
       const response = await ipcBridge.digitalEmployee.launchConversation.invoke({
         employeeId: launchEmployee.id,
         initialMessage,
-        workspace: launchWorkspace.trim() || undefined,
       });
       if (!response.success || !response.data) {
         Message.error(response.msg || t('digitalEmployee.messages.actionFailed'));
@@ -531,10 +542,12 @@ export default function DigitalEmployeesPage() {
     } finally {
       setIsLaunching(false);
     }
-  }, [launchEmployee, launchMessage, launchWorkspace, navigate, t]);
+  }, [launchEmployee, launchMessage, navigate, t]);
 
   const onAddResource = useCallback(async () => {
     if (!editorEmployee) return;
+    if (isBuiltInEmployee(editorEmployee)) return;
+
     if (!BINDABLE_RESOURCE_TYPES.includes(resourceDraft.resourceType)) {
       Message.warning(t('digitalEmployee.messages.resourceRequired'));
       return;
@@ -566,6 +579,8 @@ export default function DigitalEmployeesPage() {
 
   const onRemoveResource = useCallback(
     async (resource: IDigitalEmployeeResource) => {
+      if (isBuiltInEmployee(editorEmployee)) return;
+
       const response = await ipcBridge.digitalEmployee.unbindResource.invoke({ resourceId: resource.id });
       if (!response.success) {
         Message.error(response.msg || t('digitalEmployee.messages.actionFailed'));
@@ -594,6 +609,8 @@ export default function DigitalEmployeesPage() {
 
   const onOpenCreateSop = useCallback(() => {
     if (!editorEmployee) return;
+    if (isBuiltInEmployee(editorEmployee)) return;
+
     setSopEditor(null);
     setSopDraft(getEmptySopDraft(editorEmployee.roleName));
     setIsSopEditorOpen(true);
@@ -607,6 +624,8 @@ export default function DigitalEmployeesPage() {
 
   const onDistillSopDraft = useCallback(async () => {
     if (!editorEmployee) return;
+    if (isBuiltInEmployee(editorEmployee)) return;
+
     const rawContent = sopDraft.rawContent.trim();
     if (!rawContent) {
       Message.warning(t('digitalEmployee.sop.distillWarning'));
@@ -641,6 +660,8 @@ export default function DigitalEmployeesPage() {
 
   const onSaveSop = useCallback(async () => {
     if (!editorEmployee) return;
+    if (isBuiltInEmployee(editorEmployee)) return;
+
     const name = sopDraft.name.trim();
     if (!name) {
       Message.warning(t('digitalEmployee.sop.nameRequired'));
@@ -685,6 +706,8 @@ export default function DigitalEmployeesPage() {
 
   const onDeleteSop = useCallback(
     (sop: IDigitalEmployeeSop) => {
+      if (isBuiltInEmployee(editorEmployee)) return;
+
       Modal.confirm({
         title: t('digitalEmployee.sop.deleteTitle'),
         content: t('digitalEmployee.sop.deleteContent', { name: sop.name }),
@@ -705,6 +728,9 @@ export default function DigitalEmployeesPage() {
     },
     [editorEmployee, refreshEditorEmployee, t]
   );
+
+  const editorReadOnly = isBuiltInEmployee(editorEmployee);
+  const sopEditorReadOnly = editorReadOnly && Boolean(sopEditor);
 
   return (
     <PageWrapper className='bg-[var(--bg-subtle)] tracking-normal' contentClassName='max-w-[1180px]'>
@@ -758,23 +784,32 @@ export default function DigitalEmployeesPage() {
         }
       >
         <div className='flex flex-col gap-5'>
-          <EditorFields state={editorState} onChange={setEditorState} />
-          {editorEmployee && <SopEditor sops={editorSops} onCreate={onOpenCreateSop} onEdit={onOpenEditSop} onDelete={onDeleteSop} />}
-          {editorEmployee && <ResourceEditor employee={editorEmployee} draft={resourceDraft} resourceOptions={resourceOptions} onDraftChange={setResourceDraft} onResourcePresetChange={onResourcePresetChange} onAddResource={onAddResource} onRemoveResource={onRemoveResource} />}
+          <EditorFields state={editorState} readOnly={editorReadOnly} onChange={setEditorState} />
+          {editorEmployee && <SopEditor sops={editorSops} readOnly={editorReadOnly} onCreate={onOpenCreateSop} onEdit={onOpenEditSop} onDelete={onDeleteSop} />}
+          {editorEmployee && (
+            <ResourceEditor employee={editorEmployee} draft={resourceDraft} readOnly={editorReadOnly} resourceOptions={resourceOptions} onDraftChange={setResourceDraft} onResourcePresetChange={onResourcePresetChange} onAddResource={onAddResource} onRemoveResource={onRemoveResource} />
+          )}
         </div>
       </Drawer>
 
       <Modal
         visible={isSopEditorOpen}
-        title={sopEditor ? t('digitalEmployee.sop.edit') : t('digitalEmployee.sop.create')}
+        title={sopEditorReadOnly ? t('digitalEmployee.sop.view') : sopEditor ? t('digitalEmployee.sop.edit') : t('digitalEmployee.sop.create')}
         style={{ width: 760 }}
         confirmLoading={isSopSaving}
         okText={t('digitalEmployee.sop.save')}
         cancelText={t('common.cancel')}
         onOk={() => void onSaveSop()}
         onCancel={() => setIsSopEditorOpen(false)}
+        footer={
+          sopEditorReadOnly ? (
+            <div className='flex justify-end'>
+              <Button onClick={() => setIsSopEditorOpen(false)}>{t('common.close')}</Button>
+            </div>
+          ) : undefined
+        }
       >
-        <SopDraftEditor draft={sopDraft} isDistilling={isSopDistilling} onChange={setSopDraft} onDistill={onDistillSopDraft} />
+        <SopDraftEditor draft={sopDraft} readOnly={sopEditorReadOnly} isDistilling={isSopDistilling} onChange={sopEditorReadOnly ? () => undefined : setSopDraft} onDistill={onDistillSopDraft} />
       </Modal>
 
       <Modal visible={isLaunchOpen} title={t('digitalEmployee.launch.title')} confirmLoading={isLaunching} okText={t('digitalEmployee.actions.launch')} cancelText={t('common.cancel')} onOk={() => void onLaunchConversation()} onCancel={() => setIsLaunchOpen(false)}>
@@ -791,43 +826,36 @@ export default function DigitalEmployeesPage() {
           <Field label={t('digitalEmployee.launch.message')}>
             <TextArea value={launchMessage} onChange={setLaunchMessage} autoSize={{ minRows: 4, maxRows: 8 }} />
           </Field>
-          <Field label={t('digitalEmployee.launch.workspace')}>
-            <div className='flex items-center gap-2'>
-              <Input value={launchWorkspace} onChange={setLaunchWorkspace} allowClear />
-              <Tooltip content={t('digitalEmployee.actions.selectWorkspace')}>
-                <Button icon={<FolderOpen size={16} />} onClick={() => void onSelectLaunchWorkspace()} />
-              </Tooltip>
-            </div>
-          </Field>
         </div>
       </Modal>
     </PageWrapper>
   );
 }
 
-function EditorFields({ state, onChange }: IEditorFieldsProps) {
+function EditorFields({ state, readOnly, onChange }: IEditorFieldsProps) {
   const { t } = useTranslation();
 
   return (
     <div className='flex flex-col gap-4'>
       <div className='grid grid-cols-2 gap-3'>
         <Field label={t('digitalEmployee.fields.name')}>
-          <Input value={state.name} onChange={(value) => onChange({ ...state, name: value })} />
+          <Input value={state.name} disabled={readOnly} onChange={(value) => onChange({ ...state, name: value })} />
         </Field>
         <Field label={t('digitalEmployee.fields.roleName')}>
-          <Input value={state.roleName} onChange={(value) => onChange({ ...state, roleName: value })} />
+          <Input value={state.roleName} disabled={readOnly} onChange={(value) => onChange({ ...state, roleName: value })} />
         </Field>
       </div>
       <Field label={t('digitalEmployee.fields.description')}>
-        <TextArea value={state.description} onChange={(value) => onChange({ ...state, description: value })} autoSize={{ minRows: 3, maxRows: 6 }} />
+        <TextArea value={state.description} disabled={readOnly} onChange={(value) => onChange({ ...state, description: value })} autoSize={{ minRows: 3, maxRows: 6 }} />
       </Field>
       <Field label={t('digitalEmployee.fields.personaPrompt')}>
-        <TextArea value={state.personaPrompt} onChange={(value) => onChange({ ...state, personaPrompt: value })} autoSize={{ minRows: 5, maxRows: 10 }} />
+        <TextArea value={state.personaPrompt} disabled={readOnly} onChange={(value) => onChange({ ...state, personaPrompt: value })} autoSize={{ minRows: 5, maxRows: 10 }} />
       </Field>
       <div className='grid grid-cols-2 gap-3'>
         <Field label={t('digitalEmployee.fields.backend')}>
           <Select
             value={state.backend}
+            disabled={readOnly}
             onChange={(value) => {
               const backend = value as AcpBackendAll;
               onChange({
@@ -845,7 +873,7 @@ function EditorFields({ state, onChange }: IEditorFieldsProps) {
           </Select>
         </Field>
         <Field label={t('digitalEmployee.fields.status')}>
-          <div className='h-10 flex items-center justify-between rounded-2 bg-fill-2 px-3'>
+          <div className='h-8 flex items-center justify-between rounded-[var(--border-radius-small)] bg-fill-2 px-[11px]'>
             <span className='text-14px text-foreground'>{t(`digitalEmployee.status.${state.status}`)}</span>
             <Switch checked={state.status === 'active'} onChange={(checked) => onChange({ ...state, status: checked ? 'active' : 'disabled' })} />
           </div>
@@ -861,7 +889,7 @@ function getSopStatusColor(status: DigitalEmployeeSopStatus): string {
   return 'orange';
 }
 
-function SopEditor({ sops, onCreate, onEdit, onDelete }: ISopEditorProps) {
+function SopEditor({ sops, readOnly, onCreate, onEdit, onDelete }: ISopEditorProps) {
   const { t } = useTranslation();
 
   return (
@@ -872,17 +900,21 @@ function SopEditor({ sops, onCreate, onEdit, onDelete }: ISopEditorProps) {
           <span>{t('digitalEmployee.sop.title')}</span>
           <Tag size='small'>{sops.length}</Tag>
         </div>
-        <Button size='small' type='primary' icon={<Plus size={14} />} onClick={onCreate}>
-          {t('digitalEmployee.sop.create')}
-        </Button>
+        {!readOnly && (
+          <Button size='small' type='primary' icon={<Plus size={14} />} onClick={onCreate}>
+            {t('digitalEmployee.sop.create')}
+          </Button>
+        )}
       </div>
 
-      <div className='flex flex-col gap-2'>{sops.length === 0 ? <div className='h-22 f-center border border-dashed border-border rd-2 text-secondary text-13px'>{t('digitalEmployee.sop.empty')}</div> : sops.map((sop) => <SopRow key={sop.id} sop={sop} onEdit={onEdit} onDelete={onDelete} />)}</div>
+      <div className='flex flex-col gap-2'>
+        {sops.length === 0 ? <div className='h-22 f-center border border-dashed border-border rd-2 text-secondary text-13px'>{t('digitalEmployee.sop.empty')}</div> : sops.map((sop) => <SopRow key={sop.id} sop={sop} readOnly={readOnly} onEdit={onEdit} onDelete={onDelete} />)}
+      </div>
     </div>
   );
 }
 
-function SopRow({ sop, onEdit, onDelete }: ISopRowProps) {
+function SopRow({ sop, readOnly, onEdit, onDelete }: ISopRowProps) {
   const { t } = useTranslation();
   return (
     <div className='flex items-center gap-2 border border-border rd-2 px-2.5 py-2'>
@@ -893,17 +925,25 @@ function SopRow({ sop, onEdit, onDelete }: ISopRowProps) {
         <div className='text-13px text-foreground truncate'>{sop.name}</div>
         <div className='text-11px text-secondary truncate'>{[sop.businessDomain, t('digitalEmployee.sop.nodeCount', { count: sop.content.nodes.length })].filter(Boolean).join(' / ')}</div>
       </div>
-      <Tooltip content={t('common.edit')}>
-        <Button size='mini' type='text' icon={<Pencil size={14} />} onClick={() => onEdit(sop)} />
-      </Tooltip>
-      <Tooltip content={t('common.delete')}>
-        <Button size='mini' type='text' status='danger' icon={<Trash2 size={14} />} onClick={() => onDelete(sop)} />
-      </Tooltip>
+      {readOnly ? (
+        <Tooltip content={t('digitalEmployee.sop.view')}>
+          <Button size='mini' type='text' icon={<Eye size={14} />} onClick={() => onEdit(sop)} />
+        </Tooltip>
+      ) : (
+        <>
+          <Tooltip content={t('common.edit')}>
+            <Button size='mini' type='text' icon={<Pencil size={14} />} onClick={() => onEdit(sop)} />
+          </Tooltip>
+          <Tooltip content={t('common.delete')}>
+            <Button size='mini' type='text' status='danger' icon={<Trash2 size={14} />} onClick={() => onDelete(sop)} />
+          </Tooltip>
+        </>
+      )}
     </div>
   );
 }
 
-function SopDraftEditor({ draft, isDistilling, onChange, onDistill }: ISopDraftEditorProps) {
+function SopDraftEditor({ draft, readOnly, isDistilling, onChange, onDistill }: ISopDraftEditorProps) {
   const { t } = useTranslation();
 
   const updateNode = (index: number, updates: Partial<ISopNodeDraft>) => {
@@ -923,15 +963,15 @@ function SopDraftEditor({ draft, isDistilling, onChange, onDistill }: ISopDraftE
   return (
     <div className='flex flex-col gap-4'>
       <Field label={t('digitalEmployee.sop.name')}>
-        <Input value={draft.name} onChange={(value) => onChange({ ...draft, name: value })} />
+        <Input value={draft.name} readOnly={readOnly} onChange={(value) => onChange({ ...draft, name: value })} />
       </Field>
 
       <div className='grid grid-cols-2 gap-3'>
         <Field label={t('digitalEmployee.sop.businessDomain')}>
-          <Input value={draft.businessDomain} onChange={(value) => onChange({ ...draft, businessDomain: value })} />
+          <Input value={draft.businessDomain} readOnly={readOnly} onChange={(value) => onChange({ ...draft, businessDomain: value })} />
         </Field>
         <Field label={t('digitalEmployee.sop.statusLabel')}>
-          <Select value={draft.status} onChange={(value) => onChange({ ...draft, status: value as DigitalEmployeeSopStatus })}>
+          <Select value={draft.status} disabled={readOnly} onChange={(value) => onChange({ ...draft, status: value as DigitalEmployeeSopStatus })}>
             <Select.Option value='published'>{t('digitalEmployee.sop.status.published')}</Select.Option>
             <Select.Option value='draft'>{t('digitalEmployee.sop.status.draft')}</Select.Option>
             <Select.Option value='archived'>{t('digitalEmployee.sop.status.archived')}</Select.Option>
@@ -940,57 +980,63 @@ function SopDraftEditor({ draft, isDistilling, onChange, onDistill }: ISopDraftE
       </div>
 
       <Field label={t('digitalEmployee.sop.description')}>
-        <TextArea value={draft.description} onChange={(value) => onChange({ ...draft, description: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+        <TextArea value={draft.description} readOnly={readOnly} onChange={(value) => onChange({ ...draft, description: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
       </Field>
 
       <Field label={t('digitalEmployee.sop.rawContent')}>
-        <TextArea value={draft.rawContent} placeholder={t('digitalEmployee.sop.rawPlaceholder')} onChange={(value) => onChange({ ...draft, rawContent: value })} autoSize={{ minRows: 5, maxRows: 10 }} />
+        <TextArea value={draft.rawContent} readOnly={readOnly} placeholder={t('digitalEmployee.sop.rawPlaceholder')} onChange={(value) => onChange({ ...draft, rawContent: value })} autoSize={{ minRows: 5, maxRows: 10 }} />
       </Field>
 
-      <div className='flex justify-end'>
-        <Button icon={<ListTree size={14} />} loading={isDistilling} onClick={() => void onDistill()}>
-          {t('digitalEmployee.sop.distill')}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className='flex justify-end'>
+          <Button icon={<ListTree size={14} />} loading={isDistilling} onClick={() => void onDistill()}>
+            {t('digitalEmployee.sop.distill')}
+          </Button>
+        </div>
+      )}
 
       <div className='grid grid-cols-2 gap-3'>
         <Field label={t('digitalEmployee.sop.triggerIntents')}>
-          <TextArea value={draft.triggerIntents} onChange={(value) => onChange({ ...draft, triggerIntents: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+          <TextArea value={draft.triggerIntents} readOnly={readOnly} onChange={(value) => onChange({ ...draft, triggerIntents: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
         </Field>
         <Field label={t('digitalEmployee.sop.goals')}>
-          <TextArea value={draft.goals} onChange={(value) => onChange({ ...draft, goals: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+          <TextArea value={draft.goals} readOnly={readOnly} onChange={(value) => onChange({ ...draft, goals: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
         </Field>
       </div>
 
       <div className='grid grid-cols-2 gap-3'>
         <Field label={t('digitalEmployee.sop.requiredInfo')}>
-          <TextArea value={draft.requiredInfo} onChange={(value) => onChange({ ...draft, requiredInfo: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+          <TextArea value={draft.requiredInfo} readOnly={readOnly} onChange={(value) => onChange({ ...draft, requiredInfo: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
         </Field>
         <Field label={t('digitalEmployee.sop.responseRules')}>
-          <TextArea value={draft.responseRules} onChange={(value) => onChange({ ...draft, responseRules: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+          <TextArea value={draft.responseRules} readOnly={readOnly} onChange={(value) => onChange({ ...draft, responseRules: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
         </Field>
       </div>
 
       <div className='flex flex-col gap-2'>
         <div className='flex items-center justify-between'>
           <div className='text-13px font-600 text-foreground'>{t('digitalEmployee.sop.nodes')}</div>
-          <Button size='small' icon={<Plus size={14} />} onClick={() => onChange({ ...draft, nodes: [...draft.nodes, getNewSopNode(draft.nodes)] })}>
-            {t('digitalEmployee.sop.addNode')}
-          </Button>
+          {!readOnly && (
+            <Button size='small' icon={<Plus size={14} />} onClick={() => onChange({ ...draft, nodes: [...draft.nodes, getNewSopNode(draft.nodes)] })}>
+              {t('digitalEmployee.sop.addNode')}
+            </Button>
+          )}
         </div>
         {draft.nodes.map((node, index) => (
           <div key={`${node.nodeId}-${index}`} className='border border-border rd-2 p-2.5 flex flex-col gap-2'>
             <div className='flex items-center gap-2'>
               <Tag size='small'>{index + 1}</Tag>
-              <Input value={node.name} placeholder={t('digitalEmployee.sop.nodeName')} onChange={(value) => updateNode(index, { name: value })} />
-              <Tooltip content={t('digitalEmployee.sop.optional')}>
-                <Switch size='small' checked={node.optional} onChange={(checked) => updateNode(index, { optional: checked })} />
-              </Tooltip>
-              <Tooltip content={t('digitalEmployee.sop.removeNode')}>
-                <Button size='mini' type='text' status='danger' disabled={draft.nodes.length <= 1} icon={<X size={14} />} onClick={() => removeNode(index)} />
-              </Tooltip>
+              <Input value={node.name} readOnly={readOnly} placeholder={t('digitalEmployee.sop.nodeName')} onChange={(value) => updateNode(index, { name: value })} />
+              <Checkbox className='whitespace-nowrap text-13px' checked={node.optional} disabled={readOnly} onChange={(checked) => updateNode(index, { optional: checked })}>
+                {t('digitalEmployee.sop.optional')}
+              </Checkbox>
+              {!readOnly && (
+                <Tooltip content={t('digitalEmployee.sop.removeNode')}>
+                  <Button size='mini' type='text' status='danger' disabled={draft.nodes.length <= 1} icon={<X size={14} />} onClick={() => removeNode(index)} />
+                </Tooltip>
+              )}
             </div>
-            <TextArea value={node.instruction} placeholder={t('digitalEmployee.sop.nodeInstruction')} onChange={(value) => updateNode(index, { instruction: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
+            <TextArea value={node.instruction} readOnly={readOnly} placeholder={t('digitalEmployee.sop.nodeInstruction')} onChange={(value) => updateNode(index, { instruction: value })} autoSize={{ minRows: 2, maxRows: 4 }} />
           </div>
         ))}
       </div>
@@ -998,7 +1044,7 @@ function SopDraftEditor({ draft, isDistilling, onChange, onDistill }: ISopDraftE
   );
 }
 
-function ResourceEditor({ employee, draft, resourceOptions, onDraftChange, onResourcePresetChange, onAddResource, onRemoveResource }: IResourceEditorProps) {
+function ResourceEditor({ employee, draft, readOnly, resourceOptions, onDraftChange, onResourcePresetChange, onAddResource, onRemoveResource }: IResourceEditorProps) {
   const { t } = useTranslation();
   const isPresetResource = draft.resourceType === 'skill' || draft.resourceType === 'assistant' || draft.resourceType === 'knowledge';
   const visibleResources = employee.resources.filter(isVisibleResource);
@@ -1014,54 +1060,58 @@ function ResourceEditor({ employee, draft, resourceOptions, onDraftChange, onRes
         {visibleResources.length === 0 ? (
           <div className='h-22 f-center border border-dashed border-border rd-2 text-secondary text-13px'>{t('digitalEmployee.resources.empty')}</div>
         ) : (
-          visibleResources.map((resource) => <ResourceRow key={resource.id} resource={resource} onRemove={onRemoveResource} />)
+          visibleResources.map((resource) => <ResourceRow key={resource.id} resource={resource} readOnly={readOnly} onRemove={onRemoveResource} />)
         )}
       </div>
 
-      <div className='grid grid-cols-[120px_minmax(0,1fr)] gap-2 pt-2'>
-        <Select
-          value={draft.resourceType}
-          onChange={(value) =>
-            onDraftChange({
-              ...getEmptyResourceDraft(),
-              resourceType: value as DigitalEmployeeResourceType,
-            })
-          }
-        >
-          {BINDABLE_RESOURCE_TYPES.map((type) => (
-            <Select.Option key={type} value={type}>
-              {t(`digitalEmployee.resourceTypes.${type}`)}
-            </Select.Option>
-          ))}
-        </Select>
-        {isPresetResource ? (
-          <Select showSearch allowClear value={draft.resourceId || undefined} placeholder={t('digitalEmployee.resources.selectPlaceholder')} onChange={(value) => onResourcePresetChange(typeof value === 'string' ? value : '')}>
-            {resourceOptions.map((option) => (
-              <Select.Option key={option.value} value={option.value}>
-                {option.label}
-              </Select.Option>
-            ))}
-          </Select>
-        ) : (
-          <Input value={draft.resourceId} placeholder={t('digitalEmployee.resources.idPlaceholder')} onChange={(value) => onDraftChange({ ...draft, resourceId: value, resourceName: draft.resourceName || value })} />
-        )}
-      </div>
-      {!isPresetResource && <Input value={draft.resourceName} placeholder={t('digitalEmployee.resources.namePlaceholder')} onChange={(value) => onDraftChange({ ...draft, resourceName: value })} />}
-      <TextArea value={draft.configSummary} placeholder={t('digitalEmployee.resources.summaryPlaceholder')} autoSize={{ minRows: 2, maxRows: 4 }} onChange={(value) => onDraftChange({ ...draft, configSummary: value })} />
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2 text-13px text-secondary'>
-          <Switch size='small' checked={draft.enabled} onChange={(checked) => onDraftChange({ ...draft, enabled: checked })} />
-          <span>{t('digitalEmployee.resources.enabled')}</span>
-        </div>
-        <Button type='primary' size='small' icon={<Link2 size={14} />} onClick={() => void onAddResource()}>
-          {t('digitalEmployee.resources.add')}
-        </Button>
-      </div>
+      {!readOnly && (
+        <>
+          <div className='grid grid-cols-[120px_minmax(0,1fr)] gap-2 pt-2'>
+            <Select
+              value={draft.resourceType}
+              onChange={(value) =>
+                onDraftChange({
+                  ...getEmptyResourceDraft(),
+                  resourceType: value as DigitalEmployeeResourceType,
+                })
+              }
+            >
+              {BINDABLE_RESOURCE_TYPES.map((type) => (
+                <Select.Option key={type} value={type}>
+                  {t(`digitalEmployee.resourceTypes.${type}`)}
+                </Select.Option>
+              ))}
+            </Select>
+            {isPresetResource ? (
+              <Select showSearch allowClear value={draft.resourceId || undefined} placeholder={t('digitalEmployee.resources.selectPlaceholder')} onChange={(value) => onResourcePresetChange(typeof value === 'string' ? value : '')}>
+                {resourceOptions.map((option) => (
+                  <Select.Option key={option.value} value={option.value}>
+                    {option.label}
+                  </Select.Option>
+                ))}
+              </Select>
+            ) : (
+              <Input value={draft.resourceId} placeholder={t('digitalEmployee.resources.idPlaceholder')} onChange={(value) => onDraftChange({ ...draft, resourceId: value, resourceName: draft.resourceName || value })} />
+            )}
+          </div>
+          {!isPresetResource && <Input value={draft.resourceName} placeholder={t('digitalEmployee.resources.namePlaceholder')} onChange={(value) => onDraftChange({ ...draft, resourceName: value })} />}
+          <TextArea value={draft.configSummary} placeholder={t('digitalEmployee.resources.summaryPlaceholder')} autoSize={{ minRows: 2, maxRows: 4 }} onChange={(value) => onDraftChange({ ...draft, configSummary: value })} />
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2 text-13px text-secondary'>
+              <Switch size='small' checked={draft.enabled} onChange={(checked) => onDraftChange({ ...draft, enabled: checked })} />
+              <span>{t('digitalEmployee.resources.enabled')}</span>
+            </div>
+            <Button type='primary' size='small' icon={<Link2 size={14} />} onClick={() => void onAddResource()}>
+              {t('digitalEmployee.resources.add')}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-function ResourceRow({ resource, onRemove }: IResourceRowProps) {
+function ResourceRow({ resource, readOnly, onRemove }: IResourceRowProps) {
   const { t } = useTranslation();
   return (
     <div className='flex items-center gap-2 border border-border rd-2 px-2.5 py-2'>
@@ -1070,11 +1120,13 @@ function ResourceRow({ resource, onRemove }: IResourceRowProps) {
       </Tag>
       <div className='min-w-0 flex-1'>
         <div className='text-13px text-foreground truncate'>{resource.resourceName || resource.resourceId}</div>
-        <div className='text-11px text-secondary truncate'>{resource.resourceId}</div>
+        {!readOnly && <div className='text-11px text-secondary truncate'>{resource.resourceId}</div>}
       </div>
-      <Tooltip content={t('digitalEmployee.resources.remove')}>
-        <Button size='mini' type='text' status='danger' icon={<X size={14} />} onClick={() => void onRemove(resource)} />
-      </Tooltip>
+      {!readOnly && (
+        <Tooltip content={t('digitalEmployee.resources.remove')}>
+          <Button size='mini' type='text' status='danger' icon={<X size={14} />} onClick={() => void onRemove(resource)} />
+        </Tooltip>
+      )}
     </div>
   );
 }
@@ -1082,6 +1134,7 @@ function ResourceRow({ resource, onRemove }: IResourceRowProps) {
 function EmployeeCard({ employee, onLaunch, onEdit, onDuplicate, onDelete }: IEmployeeCardProps) {
   const { t } = useTranslation();
   const isDisabled = employee.status === 'disabled';
+  const isBuiltIn = isBuiltInEmployee(employee);
   const enabledResourceCount = employee.resources.filter((resource) => resource.enabled && isCountableResource(resource)).length;
   const lastWorkedAt = employee.lastWorkedAt ? getDateTimeLabel(employee.lastWorkedAt) : t('digitalEmployee.card.neverWorked');
 
@@ -1113,9 +1166,11 @@ function EmployeeCard({ employee, onLaunch, onEdit, onDuplicate, onDelete }: IEm
             <Tooltip content={t('common.copy')}>
               <Button size='mini' type='text' className='text-[var(--ui-accent-orange)] hover:bg-[rgba(var(--ui-accent-orange-rgb),0.08)]' icon={<Copy size={14} />} onClick={() => void onDuplicate(employee)} />
             </Tooltip>
-            <Tooltip content={t('common.delete')}>
-              <Button size='mini' type='text' status='danger' icon={<Trash2 size={14} />} onClick={() => onDelete(employee)} />
-            </Tooltip>
+            {!isBuiltIn && (
+              <Tooltip content={t('common.delete')}>
+                <Button size='mini' type='text' status='danger' icon={<Trash2 size={14} />} onClick={() => onDelete(employee)} />
+              </Tooltip>
+            )}
           </div>
         </div>
 
@@ -1176,12 +1231,14 @@ function Field({ label, children }: IFieldProps) {
 
 interface IEditorFieldsProps {
   state: IEditorState;
+  readOnly: boolean;
   onChange: (state: IEditorState) => void;
 }
 
 interface IResourceEditorProps {
   employee: IDigitalEmployee;
   draft: IResourceDraft;
+  readOnly: boolean;
   resourceOptions: IResourceOption[];
   onDraftChange: (draft: IResourceDraft) => void;
   onResourcePresetChange: (value: string) => void;
@@ -1191,6 +1248,7 @@ interface IResourceEditorProps {
 
 interface ISopEditorProps {
   sops: IDigitalEmployeeSop[];
+  readOnly: boolean;
   onCreate: () => void;
   onEdit: (sop: IDigitalEmployeeSop) => void;
   onDelete: (sop: IDigitalEmployeeSop) => void;
@@ -1198,12 +1256,14 @@ interface ISopEditorProps {
 
 interface ISopRowProps {
   sop: IDigitalEmployeeSop;
+  readOnly: boolean;
   onEdit: (sop: IDigitalEmployeeSop) => void;
   onDelete: (sop: IDigitalEmployeeSop) => void;
 }
 
 interface ISopDraftEditorProps {
   draft: ISopDraft;
+  readOnly: boolean;
   isDistilling: boolean;
   onChange: (draft: ISopDraft) => void;
   onDistill: () => Promise<void>;
@@ -1211,6 +1271,7 @@ interface ISopDraftEditorProps {
 
 interface IResourceRowProps {
   resource: IDigitalEmployeeResource;
+  readOnly: boolean;
   onRemove: (resource: IDigitalEmployeeResource) => Promise<void>;
 }
 

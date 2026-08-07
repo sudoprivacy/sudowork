@@ -25,8 +25,8 @@
     "gemini": "Gemini"
   },
   "status": {
-    "active": "啟用",
-    "disabled": "停用"
+    "active": "在線",
+    "disabled": "離線"
   },
   "source": {
     "staffdeck_seed": "內建",
@@ -78,6 +78,7 @@
     "empty": "暫無 SOP",
     "create": "新增 SOP",
     "edit": "編輯 SOP",
+    "view": "檢視 SOP",
     "deleteTitle": "刪除 SOP",
     "deleteContent": "確認刪除 SOP「{{name}}」？",
     "distill": "從流程描述生成",
@@ -113,7 +114,7 @@
     }
   },
   "resourceTypes": {
-    "assistant": "助手",
+    "assistant": "智慧體",
     "skill": "技能",
     "general_skill": "技能",
     "sop": "SOP",

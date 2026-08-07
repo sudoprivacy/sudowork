@@ -25,8 +25,8 @@
     "gemini": "Gemini"
   },
   "status": {
-    "active": "有効",
-    "disabled": "無効"
+    "active": "オンライン",
+    "disabled": "オフライン"
   },
   "source": {
     "staffdeck_seed": "組み込み",
@@ -78,6 +78,7 @@
     "empty": "SOP はありません",
     "create": "新規 SOP",
     "edit": "SOP を編集",
+    "view": "SOP を表示",
     "deleteTitle": "SOP を削除",
     "deleteContent": "SOP「{{name}}」を削除しますか？",
     "distill": "プロセスから生成",
@@ -113,7 +114,7 @@
     }
   },
   "resourceTypes": {
-    "assistant": "アシスタント",
+    "assistant": "エージェント",
     "skill": "スキル",
     "general_skill": "スキル",
     "sop": "SOP",

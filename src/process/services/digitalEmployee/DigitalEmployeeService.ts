@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { app } from 'electron';
 import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import type {
   DigitalEmployeeResourceType,
@@ -27,11 +28,14 @@ import type {
 } from '@/common/digitalEmployee';
 import type { TProviderWithModel } from '@/common/storage';
 import { uuid } from '@/common/utils';
+import { assistantManager, type IAssistantInfo } from '@/process/AssistantManager';
+import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
 import type { IQueryResult } from '@process/database/types';
 import { ConversationService } from '@process/services/conversationService';
-import { mainLog } from '@process/utils/mainLogger';
+import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 interface IDigitalEmployeeRow {
   id: string;
@@ -106,8 +110,28 @@ interface ISeedEmployee {
   resources: Array<Omit<IDigitalEmployeeResourceInput, 'sortOrder'> & { id: string }>;
 }
 
+interface IAssistantResourceContext {
+  resource: IDigitalEmployeeResource;
+  lookupName: string;
+  displayName: string;
+  description?: string;
+  rules?: string;
+  enabledSkills: string[];
+}
+
+interface IDigitalEmployeeConversationRuntime {
+  employee: IDigitalEmployee;
+  backend: AcpBackendAll;
+  presetContext: string;
+  enabledSkills: string[];
+  localKnowledgeSpaceIds: string[];
+  sessionMode: string;
+  currentModelId?: string;
+}
+
 const DEFAULT_BACKEND: AcpBackendAll = 'scode';
-const STAFFDECK_SEED_VERSION = 5;
+const STAFFDECK_SEED_VERSION = 6;
+const BUILT_IN_EMPLOYEE_READONLY_MESSAGE = '内置数字员工仅支持切换在线/离线状态；如需修改其他配置，请先复制为自定义数字员工。';
 const SUPPORTED_SEED_RESOURCE_TYPES = new Set<DigitalEmployeeResourceType>(['sop']);
 const SUPPORTED_RUNTIME_RESOURCE_TYPES = new Set<DigitalEmployeeResourceType>(['assistant', 'skill', 'general_skill', 'knowledge', 'sop']);
 const UNSUPPORTED_LEGACY_RESOURCE_CONFIG_KEYS = ['staffdeckKnowledgeBaseId', 'staffdeckGeneralSkillId', 'staffdeckToolId', 'staffdeckTool'];
@@ -611,6 +635,16 @@ function mergeStaffDeckResourceDetails(resource: IDigitalEmployeeResource | IDig
   };
 }
 
+function removeLegacyResourceIdentifiers(config: Record<string, unknown>): Record<string, unknown> {
+  const sanitized = { ...config };
+  delete sanitized.staffdeckSkillId;
+  delete sanitized.staffdeckKnowledgeBaseId;
+  delete sanitized.staffdeckGeneralSkillId;
+  delete sanitized.staffdeckToolId;
+  delete sanitized.staffdeckTool;
+  return sanitized;
+}
+
 function isUnsupportedLegacyResource(resource: IDigitalEmployeeResource): boolean {
   if (resource.resourceType === 'sop') return false;
   return resource.id.startsWith('der_staffdeck_') || UNSUPPORTED_LEGACY_RESOURCE_CONFIG_KEYS.some((key) => Boolean(resource.config[key]));
@@ -661,6 +695,11 @@ function normalizeRecord(value: unknown): Record<string, unknown> {
 function normalizeSopStatus(value: DigitalEmployeeSopStatus | undefined): DigitalEmployeeSopStatus {
   if (value === 'draft' || value === 'published' || value === 'archived') return value;
   return 'published';
+}
+
+function normalizeEmployeeStatus(value: IDigitalEmployee['status'] | undefined, fallback: IDigitalEmployee['status']): IDigitalEmployee['status'] {
+  if (value === 'active' || value === 'disabled') return value;
+  return fallback;
 }
 
 function normalizeVersion(value: unknown): string {
@@ -854,7 +893,7 @@ function getSeedSopId(resource: Pick<IDigitalEmployeeResourceInput, 'resourceId'
 function buildSeedSopContent(resource: Omit<IDigitalEmployeeResourceInput, 'sortOrder'> & { id: string }): IDigitalEmployeeSopContent {
   const config = mergeStaffDeckResourceDetails(resource);
   const name = normalizeText(resource.resourceName, resource.resourceId);
-  const sopKey = normalizeText(getStringConfig(config, 'staffdeckSkillId'), resource.resourceId);
+  const sopKey = sanitizeSopKey(getStringConfig(config, 'businessSkillId'), name);
   const nodes = getStringArrayConfig(config, 'nodes').map((node, index) => buildSopNodeFromText(index, node));
   const summary = getStringConfig(config, 'summary') || name;
   return buildSopContent({
@@ -864,7 +903,7 @@ function buildSeedSopContent(resource: Omit<IDigitalEmployeeResourceInput, 'sort
     description: summary,
     version: '1.0.0',
     content: {
-      triggerIntents: [name, resource.resourceId],
+      triggerIntents: [name],
       userUtteranceExamples: [`我要办理${name}`, `帮我处理${name}`],
       goals: getStringArrayConfig(config, 'goals'),
       responseRules: ['严格按 SOP 节点推进，缺少字段时先追问。', '涉及审批、合规或异常失败时，输出可交接的人工处理摘要。'],
@@ -891,6 +930,140 @@ function formatContextList(label: string, values: string[]): string | undefined 
   return values.length ? `${label}: ${values.join(', ')}` : undefined;
 }
 
+function getAssistantResourceLocale(): string {
+  try {
+    const locale = app.getLocale() || 'en-US';
+    if (locale.startsWith('zh')) return 'zh-CN';
+    if (locale.startsWith('ja')) return 'ja-JP';
+    if (locale.startsWith('ko')) return 'ko-KR';
+    return 'en-US';
+  } catch {
+    return 'en-US';
+  }
+}
+
+function stripBuiltinAssistantPrefix(value: string): string {
+  return value.startsWith('builtin-') ? value.slice('builtin-'.length) : value;
+}
+
+function normalizeAssistantMatchKey(value: string | undefined): string {
+  return stripBuiltinAssistantPrefix(normalizeText(value)).toLowerCase();
+}
+
+function getLocalizedMetaValue(values: Record<string, string> | undefined): string | undefined {
+  if (!values) return undefined;
+  const locale = getAssistantResourceLocale();
+  return (
+    normalizeText(values[locale]) ||
+    normalizeText(values['zh-CN']) ||
+    normalizeText(values['en-US']) ||
+    Object.values(values)
+      .map((value) => normalizeText(value))
+      .find(Boolean)
+  );
+}
+
+function getAssistantSkillNames(meta: IAssistantMeta | undefined): string[] {
+  if (!meta) return [];
+  const enabledSkills = normalizeStringArray(meta.enabledSkills);
+  if (enabledSkills.length) return enabledSkills;
+  const defaultSkills = normalizeStringArray(meta.defaultEnabledSkills);
+  if (defaultSkills.length) return defaultSkills;
+  return normalizeStringArray(meta.skills);
+}
+
+function getAssistantMatchKeys(assistant: IAssistantInfo): string[] {
+  return [assistant.name, assistant.id, assistant.meta.id, assistant.meta.name, assistant.meta.display_name, ...Object.values(assistant.meta.nameI18n || {})].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+}
+
+function findAssistantInfoByResourceId(assistants: IAssistantInfo[], resourceId: string): IAssistantInfo | undefined {
+  const target = normalizeAssistantMatchKey(resourceId);
+  if (!target) return undefined;
+  return assistants.find((assistant) => getAssistantMatchKeys(assistant).some((key) => normalizeAssistantMatchKey(key) === target));
+}
+
+async function resolveAssistantMeta(resourceId: string, installedAssistants: () => Promise<IAssistantInfo[]>): Promise<{ lookupName: string; meta: IAssistantMeta; enabled: boolean } | null> {
+  const normalizedResourceId = normalizeText(resourceId);
+  if (!normalizedResourceId) return null;
+
+  const directLookupName = stripBuiltinAssistantPrefix(normalizedResourceId);
+  try {
+    const directMeta = await assistantManager.getAssistantMeta(directLookupName);
+    if (directMeta) {
+      return {
+        lookupName: directLookupName,
+        meta: directMeta,
+        enabled: directMeta.enabled !== false,
+      };
+    }
+  } catch (error) {
+    mainWarn('DigitalEmployeeService', `Failed to resolve assistant resource "${normalizedResourceId}" directly`, error);
+  }
+
+  const matched = findAssistantInfoByResourceId(await installedAssistants(), normalizedResourceId);
+  if (!matched) {
+    mainWarn('DigitalEmployeeService', `Assistant resource "${normalizedResourceId}" is not installed; skipping assistant rule merge`);
+    return null;
+  }
+
+  return {
+    lookupName: matched.name,
+    meta: matched.meta,
+    enabled: matched.enabled,
+  };
+}
+
+async function buildAssistantResourceContexts(employee: IDigitalEmployee): Promise<IAssistantResourceContext[]> {
+  const assistantResources = employee.resources.filter((resource) => resource.enabled && resource.resourceType === 'assistant' && isSupportedRuntimeResource(resource));
+  if (!assistantResources.length) return [];
+
+  let installedAssistantsPromise: Promise<IAssistantInfo[]> | undefined;
+  const installedAssistants = () => {
+    installedAssistantsPromise ||= assistantManager.getInstalledAssistants();
+    return installedAssistantsPromise;
+  };
+
+  const contexts: IAssistantResourceContext[] = [];
+  for (const resource of assistantResources) {
+    const resolved = await resolveAssistantMeta(resource.resourceId, installedAssistants);
+    if (!resolved || !resolved.enabled) continue;
+
+    let rules: string | undefined;
+    try {
+      rules = normalizeText(await readAssistantResource('rules', resolved.lookupName, getAssistantResourceLocale(), ruleFilePattern)) || undefined;
+    } catch (error) {
+      mainWarn('DigitalEmployeeService', `Failed to read assistant rules for "${resolved.lookupName}"`, error);
+    }
+
+    contexts.push({
+      resource,
+      lookupName: resolved.lookupName,
+      displayName: normalizeText(resource.resourceName) || getLocalizedMetaValue(resolved.meta.nameI18n) || normalizeText(resolved.meta.display_name) || normalizeText(resolved.meta.name) || resolved.lookupName,
+      description: getLocalizedMetaValue(resolved.meta.descriptionI18n),
+      rules,
+      enabledSkills: getAssistantSkillNames(resolved.meta),
+    });
+  }
+
+  return contexts;
+}
+
+function buildAssistantRulesContext(assistantContexts: IAssistantResourceContext[]): string | undefined {
+  if (!assistantContexts.length) return undefined;
+
+  const blocks = assistantContexts.map((assistantContext) => {
+    const details = [
+      `### ${assistantContext.displayName}`,
+      assistantContext.description ? `说明：${assistantContext.description}` : undefined,
+      assistantContext.enabledSkills.length ? `继承技能：${assistantContext.enabledSkills.join(', ')}` : undefined,
+      assistantContext.rules ? `规则：\n${assistantContext.rules}` : undefined,
+    ].filter(Boolean);
+    return details.join('\n');
+  });
+
+  return ['## 绑定智能体规则', '以下内容来自绑定的 Sudowork 智能体，作为数字员工的可复用能力补充。数字员工身份、岗位职责、绑定 SOP 与用户请求优先；如绑定智能体规则要求改变身份，以数字员工身份为准。', blocks.join('\n\n')].join('\n');
+}
+
 function requireQueryResult<T>(result: IQueryResult<T>, action: string): T {
   if (!result.success) {
     throw new Error(result.error || `Failed to ${action}`);
@@ -900,6 +1073,51 @@ function requireQueryResult<T>(result: IQueryResult<T>, action: string): T {
 
 function normalizeText(value: string | undefined, fallback = ''): string {
   return value?.trim() || fallback;
+}
+
+function isBuiltInEmployee(employee: Pick<IDigitalEmployee, 'sourceType'>): boolean {
+  return employee.sourceType === 'staffdeck_seed';
+}
+
+function assertMutableEmployee(employee: Pick<IDigitalEmployee, 'sourceType'>): void {
+  if (isBuiltInEmployee(employee)) {
+    throw new Error(BUILT_IN_EMPLOYEE_READONLY_MESSAGE);
+  }
+}
+
+function stableJsonStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJsonStringify).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJsonStringify(record[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function jsonObjectEquals(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
+  return stableJsonStringify(left) === stableJsonStringify(right);
+}
+
+function assertBuiltInEmployeeStatusOnlyUpdate(current: IDigitalEmployee, updates: IDigitalEmployeeUpdateInput): void {
+  const hasReadonlyFieldMutation =
+    (updates.name !== undefined && normalizeText(updates.name) !== current.name) ||
+    (updates.roleName !== undefined && normalizeText(updates.roleName) !== current.roleName) ||
+    (updates.description !== undefined && normalizeText(updates.description) !== current.description) ||
+    (updates.personaPrompt !== undefined && normalizeText(updates.personaPrompt) !== current.personaPrompt) ||
+    (updates.avatar !== undefined && (normalizeText(updates.avatar) || undefined) !== current.avatar) ||
+    (updates.backend !== undefined && updates.backend !== (current.backend || DEFAULT_BACKEND)) ||
+    (updates.defaultMode !== undefined && normalizeText(updates.defaultMode, 'default') !== (current.defaultMode || 'default')) ||
+    (updates.modelConfig !== undefined && !jsonObjectEquals(normalizeRecord(updates.modelConfig), normalizeRecord(current.modelConfig))) ||
+    (updates.metadata !== undefined && !jsonObjectEquals(normalizeRecord(updates.metadata), normalizeRecord(current.metadata)));
+
+  if (hasReadonlyFieldMutation) {
+    throw new Error(BUILT_IN_EMPLOYEE_READONLY_MESSAGE);
+  }
 }
 
 function rowToResource(row: IDigitalEmployeeResourceRow): IDigitalEmployeeResource {
@@ -983,7 +1201,7 @@ function buildResourceContext(resources: IDigitalEmployeeResource[]): string {
     .join('\n');
 }
 
-function buildDigitalEmployeeContext(employee: IDigitalEmployee): string {
+function buildDigitalEmployeeContext(employee: IDigitalEmployee, assistantContexts: IAssistantResourceContext[] = []): string {
   return [
     '# Sudowork Digital Employee',
     '',
@@ -997,6 +1215,8 @@ function buildDigitalEmployeeContext(employee: IDigitalEmployee): string {
     '## 已绑定能力',
     buildResourceContext(employee.resources),
     '',
+    buildAssistantRulesContext(assistantContexts),
+    '',
     '## 执行要求',
     '1. 以该数字员工的岗位边界、语气和专业职责处理任务。',
     '2. 优先遵循绑定的 SOP；SOP 不完整时，先列出缺失字段再继续。',
@@ -1008,7 +1228,7 @@ function buildDigitalEmployeeContext(employee: IDigitalEmployee): string {
     .join('\n');
 }
 
-function getEnabledSkillNames(employee: IDigitalEmployee): string[] {
+function getEnabledSkillNames(employee: IDigitalEmployee, assistantContexts: IAssistantResourceContext[] = []): string[] {
   const skillNames = new Set<string>();
   for (const resource of employee.resources) {
     if (!resource.enabled) continue;
@@ -1023,6 +1243,11 @@ function getEnabledSkillNames(employee: IDigitalEmployee): string[] {
           skillNames.add(skill.trim());
         }
       }
+    }
+  }
+  for (const assistantContext of assistantContexts) {
+    for (const skillName of assistantContext.enabledSkills) {
+      skillNames.add(skillName);
     }
   }
   return Array.from(skillNames);
@@ -1172,16 +1397,17 @@ export class DigitalEmployeeService {
           .forEach((resource, index) => {
             const seedSopContent = resource.resourceType === 'sop' ? buildSeedSopContent(resource) : undefined;
             const seedSopId = seedSopContent ? getSeedSopId(resource) : undefined;
+            const seedResourceDetails = removeLegacyResourceIdentifiers(mergeStaffDeckResourceDetails(resource));
             const resourceConfig = seedSopContent
               ? {
-                  ...mergeStaffDeckResourceDetails(resource),
+                  ...seedResourceDetails,
                   sopId: seedSopId,
                   sopKey: seedSopContent.sopKey,
                   status: 'published',
                   version: seedSopContent.version,
                   skillCard: seedSopContent,
                 }
-              : mergeStaffDeckResourceDetails(resource);
+              : seedResourceDetails;
 
             requireQueryResult(
               db.mutate(
@@ -1199,7 +1425,7 @@ export class DigitalEmployeeService {
                 resource.id,
                 employee.id,
                 resource.resourceType,
-                resource.resourceId,
+                seedSopContent?.sopKey || resource.resourceId,
                 resource.resourceName || null,
                 stringifyJsonObject(resourceConfig),
                 index,
@@ -1237,7 +1463,6 @@ export class DigitalEmployeeService {
                   stringifyJsonObject({
                     importedFrom: 'StaffDeck',
                     seedVersion: STAFFDECK_SEED_VERSION,
-                    staffdeckSkillId: getStringConfig(resourceConfig, 'staffdeckSkillId'),
                     businessSkillId: getStringConfig(resourceConfig, 'businessSkillId'),
                   }),
                   now,
@@ -1263,7 +1488,7 @@ export class DigitalEmployeeService {
       db.query<IDigitalEmployeeRow>(
         `SELECT * FROM digital_employees
          WHERE user_id = ?
-         ORDER BY CASE source_type WHEN 'staffdeck_seed' THEN 0 ELSE 1 END, updated_at DESC, created_at DESC`,
+         ORDER BY created_at DESC, id ASC`,
         userId
       ),
       'list digital employees'
@@ -1342,7 +1567,7 @@ export class DigitalEmployeeService {
         normalizeText(input.personaPrompt),
         normalizeText(input.avatar) || null,
         input.sourceType || 'custom',
-        input.status || 'active',
+        normalizeEmployeeStatus(input.status, 'active'),
         input.backend || DEFAULT_BACKEND,
         normalizeText(input.defaultMode, 'default'),
         stringifyJsonObject(input.modelConfig),
@@ -1362,6 +1587,27 @@ export class DigitalEmployeeService {
     const current = this.getEmployee(employeeId);
     if (!current) throw new Error('Digital employee not found');
 
+    if (isBuiltInEmployee(current)) {
+      assertBuiltInEmployeeStatusOnlyUpdate(current, updates);
+      const now = getNow();
+      requireQueryResult(
+        getDatabase().mutate(
+          `UPDATE digital_employees
+           SET status = ?, updated_at = ?
+          WHERE id = ? AND user_id = ?`,
+          normalizeEmployeeStatus(updates.status, current.status),
+          now,
+          employeeId,
+          this.getUserId()
+        ),
+        'update built-in digital employee status'
+      );
+
+      const employee = this.getEmployee(employeeId);
+      if (!employee) throw new Error('Updated digital employee was not found');
+      return employee;
+    }
+
     const name = updates.name !== undefined ? normalizeText(updates.name) : current.name;
     const roleName = updates.roleName !== undefined ? normalizeText(updates.roleName) : current.roleName;
     if (!name || !roleName) {
@@ -1379,7 +1625,7 @@ export class DigitalEmployeeService {
         updates.description !== undefined ? normalizeText(updates.description) : current.description,
         updates.personaPrompt !== undefined ? normalizeText(updates.personaPrompt) : current.personaPrompt,
         updates.avatar !== undefined ? normalizeText(updates.avatar) || null : current.avatar || null,
-        updates.status || current.status,
+        normalizeEmployeeStatus(updates.status, current.status),
         updates.backend || current.backend || DEFAULT_BACKEND,
         updates.defaultMode !== undefined ? normalizeText(updates.defaultMode, 'default') : current.defaultMode || 'default',
         stringifyJsonObject(updates.modelConfig ?? current.modelConfig),
@@ -1397,6 +1643,10 @@ export class DigitalEmployeeService {
   }
 
   removeEmployee(employeeId: string): void {
+    const current = this.getEmployee(employeeId);
+    if (!current) throw new Error('Digital employee not found');
+    assertMutableEmployee(current);
+
     requireQueryResult(getDatabase().mutate('DELETE FROM digital_employees WHERE id = ? AND user_id = ?', employeeId, this.getUserId()), 'remove digital employee');
   }
 
@@ -1501,6 +1751,7 @@ export class DigitalEmployeeService {
   bindResource(employeeId: string, input: IDigitalEmployeeResourceInput): IDigitalEmployeeResource {
     const employee = this.getEmployee(employeeId);
     if (!employee) throw new Error('Digital employee not found');
+    assertMutableEmployee(employee);
 
     const resourceId = normalizeText(input.resourceId);
     if (!resourceId) {
@@ -1555,6 +1806,21 @@ export class DigitalEmployeeService {
   }
 
   unbindResource(resourceId: string): void {
+    const resource = requireQueryResult(
+      getDatabase().queryOne<IDigitalEmployeeResourceRow & Pick<IDigitalEmployeeRow, 'source_type'>>(
+        `SELECT r.*, e.source_type
+         FROM digital_employee_resources r
+         INNER JOIN digital_employees e ON e.id = r.employee_id
+         WHERE r.id = ? AND e.user_id = ?`,
+        resourceId,
+        this.getUserId()
+      ),
+      'get digital employee resource owner'
+    );
+    if (resource?.source_type === 'staffdeck_seed') {
+      throw new Error(BUILT_IN_EMPLOYEE_READONLY_MESSAGE);
+    }
+
     requireQueryResult(
       getDatabase().mutate(
         `DELETE FROM digital_employee_resources
@@ -1630,6 +1896,7 @@ export class DigitalEmployeeService {
   createSop(employeeId: string, input: IDigitalEmployeeSopCreateInput): IDigitalEmployeeSop {
     const employee = this.getEmployee(employeeId);
     if (!employee) throw new Error('Digital employee not found');
+    assertMutableEmployee(employee);
 
     const name = normalizeText(input.name);
     if (!name) throw new Error('SOP name is required');
@@ -1699,6 +1966,9 @@ export class DigitalEmployeeService {
   updateSop(sopId: string, updates: IDigitalEmployeeSopUpdateInput): IDigitalEmployeeSop {
     const current = this.getSop(sopId);
     if (!current) throw new Error('SOP not found');
+    const employee = this.getEmployee(current.employeeId);
+    if (!employee) throw new Error('Digital employee not found');
+    assertMutableEmployee(employee);
 
     const name = updates.name !== undefined ? normalizeText(updates.name) : current.name;
     if (!name) throw new Error('SOP name is required');
@@ -1761,6 +2031,9 @@ export class DigitalEmployeeService {
   removeSop(sopId: string): void {
     const current = this.getSop(sopId);
     if (!current) throw new Error('SOP not found');
+    const employee = this.getEmployee(current.employeeId);
+    if (!employee) throw new Error('Digital employee not found');
+    assertMutableEmployee(employee);
 
     const result = getDatabase().runTransaction(() => {
       requireQueryResult(
@@ -1784,33 +2057,46 @@ export class DigitalEmployeeService {
     return rows.map(rowToWorkRecord);
   }
 
-  async launchConversation(input: IDigitalEmployeeLaunchInput): Promise<IDigitalEmployeeLaunchResult> {
-    const employee = this.getEmployee(input.employeeId);
+  async buildConversationRuntime(employeeId: string): Promise<IDigitalEmployeeConversationRuntime> {
+    const employee = this.getEmployee(employeeId);
     if (!employee) throw new Error('Digital employee not found');
     if (employee.status !== 'active') {
       throw new Error('Digital employee is disabled');
     }
 
-    const initialMessage = normalizeText(input.initialMessage, `${employee.name} ${employee.roleName}`);
     const backend = employee.backend || DEFAULT_BACKEND;
-    const enabledSkills = getEnabledSkillNames(employee);
+    const assistantContexts = await buildAssistantResourceContexts(employee);
+    const enabledSkills = getEnabledSkillNames(employee, assistantContexts);
     const localKnowledgeSpaceIds = getEnabledKnowledgeSpaceIds(employee);
+
+    return {
+      employee,
+      backend,
+      presetContext: buildDigitalEmployeeContext(employee, assistantContexts),
+      enabledSkills,
+      localKnowledgeSpaceIds,
+      sessionMode: employee.defaultMode || 'default',
+      currentModelId: getCurrentModelId(employee),
+    };
+  }
+
+  async launchConversation(input: IDigitalEmployeeLaunchInput): Promise<IDigitalEmployeeLaunchResult> {
+    const runtime = await this.buildConversationRuntime(input.employeeId);
+    const employee = runtime.employee;
+    const initialMessage = normalizeText(input.initialMessage, `${employee.name} ${employee.roleName}`);
     const result = await ConversationService.createConversation({
       type: 'acp',
       name: initialMessage,
       model: {} as TProviderWithModel,
       source: 'digital-employee',
       extra: {
-        workspace: normalizeText(input.workspace) || undefined,
-        customWorkspace: Boolean(normalizeText(input.workspace)),
-        workspaceDisplayName: normalizeText(input.workspaceDisplayName) || undefined,
-        backend,
+        backend: runtime.backend,
         agentName: employee.name,
-        presetContext: buildDigitalEmployeeContext(employee),
-        enabledSkills,
-        localKnowledgeSpaceIds,
-        sessionMode: employee.defaultMode || 'default',
-        currentModelId: getCurrentModelId(employee),
+        presetContext: runtime.presetContext,
+        enabledSkills: runtime.enabledSkills,
+        localKnowledgeSpaceIds: runtime.localKnowledgeSpaceIds,
+        sessionMode: runtime.sessionMode,
+        currentModelId: runtime.currentModelId,
         sessionModeParam: 'local',
         digitalEmployeeId: employee.id,
         digitalEmployeeRole: employee.roleName,
@@ -1842,7 +2128,7 @@ export class DigitalEmployeeService {
     return {
       conversationId: result.conversation.id,
       employee,
-      enabledSkills,
+      enabledSkills: runtime.enabledSkills,
     };
   }
 }

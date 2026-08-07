@@ -25,8 +25,8 @@
     "gemini": "Gemini"
   },
   "status": {
-    "active": "Active",
-    "disabled": "Disabled"
+    "active": "Online",
+    "disabled": "Offline"
   },
   "source": {
     "staffdeck_seed": "Built-in",
@@ -78,6 +78,7 @@
     "empty": "No SOPs",
     "create": "New SOP",
     "edit": "Edit SOP",
+    "view": "View SOP",
     "deleteTitle": "Delete SOP",
     "deleteContent": "Delete SOP \"{{name}}\"?",
     "distill": "Generate from Process",
@@ -113,7 +114,7 @@
     }
   },
   "resourceTypes": {
-    "assistant": "Assistant",
+    "assistant": "Agent",
     "skill": "Skill",
     "general_skill": "Skill",
     "sop": "SOP",

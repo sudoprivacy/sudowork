@@ -182,8 +182,6 @@ export interface IDigitalEmployeeSopDistillResult {
 export interface IDigitalEmployeeLaunchInput {
   employeeId: string;
   initialMessage: string;
-  workspace?: string;
-  workspaceDisplayName?: string;
 }
 
 export interface IDigitalEmployeeLaunchResult {

@@ -10,7 +10,7 @@ import { getActivityTime, getTimelineLabel } from '@/renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@/renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@/renderer/utils/workspaceHistory';
 
-import type { ConversationItem, GroupedHistoryResult, ScheduledGroup, SidebarTabKey, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
+import type { ConversationItem, DigitalEmployeeGroup, GroupedHistoryResult, ScheduledGroup, SidebarTabKey, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
 import { getConversationSortOrder } from './sortOrderHelpers';
 
 export const getConversationTimelineLabel = (conversation: ConversationItem, t: (key: string) => string): string => {
@@ -55,16 +55,43 @@ const compareCronConversationsByCreatedTime = (a: TChatConversation, b: TChatCon
   return b.id.localeCompare(a.id);
 };
 
+const getDigitalEmployeeGroupKey = (conversation: ConversationItem): string | undefined => {
+  const extra = conversation.extra as { digitalEmployeeId?: string; agentName?: string; digitalEmployeeRole?: string } | undefined;
+  const employeeId = extra?.digitalEmployeeId?.trim();
+  if (employeeId) return `digital-employee:${employeeId}`;
+
+  if (conversation.source !== 'digital-employee') return undefined;
+
+  const fallbackName = extra?.agentName?.trim() || extra?.digitalEmployeeRole?.trim();
+  return fallbackName ? `digital-employee:${fallbackName}` : undefined;
+};
+
+const getDigitalEmployeeDisplayName = (conversations: ConversationItem[], fallbackKey: string): string => {
+  const matched = conversations.find((conversation) => {
+    const extra = conversation.extra as { agentName?: string; digitalEmployeeRole?: string } | undefined;
+    return extra?.agentName?.trim() || extra?.digitalEmployeeRole?.trim();
+  });
+  const extra = matched?.extra as { agentName?: string; digitalEmployeeRole?: string } | undefined;
+  return extra?.agentName?.trim() || extra?.digitalEmployeeRole?.trim() || fallbackKey.replace(/^digital-employee:/, '');
+};
+
 export const groupConversationsByTimelineAndWorkspace = (conversations: ConversationItem[], t: (key: string) => string): TimelineSection[] => {
   console.log('[groupConversationsByTimelineAndWorkspace] Input conversations:', conversations.length);
+  const allDigitalEmployeeGroups = new Map<string, ConversationItem[]>();
   const allWorkspaceGroups = new Map<string, ConversationItem[]>();
   const withoutWorkspaceConvs: ConversationItem[] = [];
 
   conversations.forEach((conv) => {
+    const digitalEmployeeGroupKey = getDigitalEmployeeGroupKey(conv);
     const workspace = conv.extra?.workspace;
     const customWorkspace = conv.extra?.customWorkspace;
 
-    if (customWorkspace && workspace) {
+    if (digitalEmployeeGroupKey) {
+      if (!allDigitalEmployeeGroups.has(digitalEmployeeGroupKey)) {
+        allDigitalEmployeeGroups.set(digitalEmployeeGroupKey, []);
+      }
+      allDigitalEmployeeGroups.get(digitalEmployeeGroupKey)!.push(conv);
+    } else if (customWorkspace && workspace) {
       if (!allWorkspaceGroups.has(workspace)) {
         allWorkspaceGroups.set(workspace, []);
       }
@@ -74,7 +101,24 @@ export const groupConversationsByTimelineAndWorkspace = (conversations: Conversa
     }
   });
 
+  const digitalEmployeeGroupsByTimeline = new Map<string, DigitalEmployeeGroup[]>();
   const workspaceGroupsByTimeline = new Map<string, WorkspaceGroup[]>();
+
+  allDigitalEmployeeGroups.forEach((convList, employeeId) => {
+    const sortedConvs = [...convList].sort((a, b) => compareConversationsByLatestActivity(a as TChatConversation, b as TChatConversation));
+    const latestConv = sortedConvs[0];
+    const timeline = getConversationTimelineLabel(latestConv, t);
+
+    if (!digitalEmployeeGroupsByTimeline.has(timeline)) {
+      digitalEmployeeGroupsByTimeline.set(timeline, []);
+    }
+
+    digitalEmployeeGroupsByTimeline.get(timeline)!.push({
+      employeeId,
+      displayName: getDigitalEmployeeDisplayName(sortedConvs, employeeId),
+      conversations: sortedConvs as TChatConversation[],
+    });
+  });
 
   allWorkspaceGroups.forEach((convList, workspace) => {
     const sortedConvs = [...convList].sort((a, b) => compareConversationsByLatestActivity(a as TChatConversation, b as TChatConversation));
@@ -112,12 +156,21 @@ export const groupConversationsByTimelineAndWorkspace = (conversations: Conversa
 
   timelineOrder.forEach((timelineKey) => {
     const timeline = t(timelineKey);
+    const withDigitalEmployee = digitalEmployeeGroupsByTimeline.get(timeline) || [];
     const withWorkspace = workspaceGroupsByTimeline.get(timeline) || [];
     const withoutWorkspace = withoutWorkspaceByTimeline.get(timeline) || [];
 
-    if (withWorkspace.length === 0 && withoutWorkspace.length === 0) return;
+    if (withDigitalEmployee.length === 0 && withWorkspace.length === 0 && withoutWorkspace.length === 0) return;
 
     const items: TimelineItem[] = [];
+
+    withDigitalEmployee.forEach((group) => {
+      items.push({
+        type: 'digitalEmployee',
+        time: getActivityTime(group.conversations[0] as TChatConversation),
+        digitalEmployeeGroup: group,
+      });
+    });
 
     withWorkspace.forEach((group) => {
       const updateTime = getWorkspaceUpdateTime(group.workspace);

@@ -524,6 +524,26 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                       );
                     }
 
+                    if (item.type === 'digitalEmployee' && item.digitalEmployeeGroup) {
+                      const group = item.digitalEmployeeGroup;
+                      return (
+                        <div key={group.employeeId} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
+                          <WorkspaceCollapse
+                            expanded={expandedWorkspaces.includes(group.employeeId)}
+                            onToggle={() => handleToggleWorkspace(group.employeeId)}
+                            siderCollapsed={collapsed}
+                            header={
+                              <div className='flex items-center gap-8px text-14px min-w-0'>
+                                <span className='font-medium truncate flex-1 text-foreground min-w-0'>{group.displayName}</span>
+                              </div>
+                            }
+                          >
+                            <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>{group.conversations.map((conversation) => renderConversation(conversation as ConversationItem))}</div>
+                          </WorkspaceCollapse>
+                        </div>
+                      );
+                    }
+
                     if (item.type === 'conversation' && item.conversation) {
                       return renderConversation(item.conversation as ConversationItem);
                     }

@@ -22,6 +22,12 @@ export type WorkspaceGroup = {
   conversations: ConversationItem[];
 };
 
+export type DigitalEmployeeGroup = {
+  employeeId: string;
+  displayName: string;
+  conversations: ConversationItem[];
+};
+
 export type ScheduledGroup = {
   jobId: string;
   jobName: string;
@@ -30,9 +36,10 @@ export type ScheduledGroup = {
 };
 
 export type TimelineItem = {
-  type: 'workspace' | 'conversation';
+  type: 'workspace' | 'digitalEmployee' | 'conversation';
   time: number;
   workspaceGroup?: WorkspaceGroup;
+  digitalEmployeeGroup?: DigitalEmployeeGroup;
   conversation?: ConversationItem;
 };
 

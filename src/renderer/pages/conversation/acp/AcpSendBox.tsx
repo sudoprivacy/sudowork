@@ -599,9 +599,11 @@ const AcpSendBox: React.FC<{
   pendingQuestion?: IMessageAcpQuestion | null;
   pendingQuestionItems?: AcpQuestionItem[];
   isAwaitingUserInput?: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
   onProcessingChange?: (isProcessing: boolean) => void;
-}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }) => {
+}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, disabled = false, disabledReason, onAiProcessingChange, onProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const isProcessing = (running || aiProcessing) && !isAwaitingUserInput;
@@ -747,7 +749,7 @@ const AcpSendBox: React.FC<{
             type: 'tips',
             position: 'center',
             content: {
-              content: 'Failed to send message. Please try again.',
+              content: result?.msg || 'Failed to send message. Please try again.',
               type: 'error',
             },
             createdAt: Date.now() + 2,
@@ -848,13 +850,18 @@ const AcpSendBox: React.FC<{
         await teamSendMessage({ input: message, files: allFiles, msg_id });
         return;
       }
-      await ipcBridge.acpConversation.sendMessage.invoke({
+      const result = await ipcBridge.acpConversation.sendMessage.invoke({
         input: message,
         msg_id,
         conversation_id,
         files: allFiles,
         skills: activeSkills,
       });
+      if (!result || result.success !== true) {
+        Message.error(result?.msg || 'Failed to send message. Please try again.');
+        resetState();
+        return;
+      }
 
       void checkAndUpdateTitle(conversation_id, message);
       emitter.emit('chat.history.refresh');
@@ -1027,9 +1034,9 @@ const AcpSendBox: React.FC<{
         onChange={setContent}
         initialSelectedSkills={selectedSkills}
         loading={isProcessing}
-        disabled={false}
+        disabled={disabled}
         topAttached={Boolean(thought?.subject) || isProcessing || isAwaitingUserInput}
-        placeholder={isAwaitingUserInput ? t('messages.enterAnswer') : t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
+        placeholder={disabled ? disabledReason || '当前会话不可继续发送消息。' : isAwaitingUserInput ? t('messages.enterAnswer') : t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
         allowSubmitWhileRunning={allowSubmitWhileRunning}
         queuedInputs={queuedInputs}
