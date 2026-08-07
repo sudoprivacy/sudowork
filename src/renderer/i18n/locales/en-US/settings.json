@@ -1035,7 +1035,29 @@
     "usedPoints": "Used Points",
     "bonusPoints": "Bonus Points",
     "recharge": "Recharge",
-    "continueRecharge": "Continue Recharge"
+    "continueRecharge": "Continue Recharge",
+    "disabled": "Recharge is currently unavailable."
+  },
+  "creditApplication": {
+    "title": "Credit Application",
+    "points": "Requested Points",
+    "pointsRequired": "Enter requested points",
+    "reason": "Reason",
+    "reasonRequired": "Enter an application reason",
+    "submit": "Submit Application",
+    "submitSuccess": "Application submitted",
+    "submitFailed": "Failed to submit application",
+    "loadFailed": "Failed to load credit applications",
+    "history": "Application History",
+    "empty": "No applications yet",
+    "status": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "syncFailed": "Sync Failed",
+      "syncUnknown": "Needs Review"
+    }
   },
   "orders": {
     "title": "Order History",

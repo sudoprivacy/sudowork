@@ -61,3 +61,21 @@ export interface Order {
 export type RechargeStep = 'select' | 'loading' | 'paying' | 'success' | 'failed';
 
 export type PaymentMethod = 'ALIPAY' | 'WECHAT';
+
+export type RechargeMode = 'pay' | 'approve' | 'disabled';
+
+export type CreditApplicationStatus = 'PENDING' | 'PROCESSING' | 'APPROVED' | 'REJECTED' | 'SYNC_FAILED' | 'SYNC_UNKNOWN';
+
+export interface CreditApplication {
+  id: number;
+  application_no: string;
+  requested_points: number;
+  approved_points: number | null;
+  quota_amount: number | null;
+  reason: string | null;
+  status: CreditApplicationStatus;
+  admin_comment: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  sudorouter_error: string | null;
+}

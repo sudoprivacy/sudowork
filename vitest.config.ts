@@ -105,6 +105,7 @@ export default defineConfig({
         'src/process/services/team/GovernancePrompt.ts',
         'src/renderer/pages/team/hooks/useTeamWarmup.ts',
         'src/renderer/pages/team/components/TeamWarmupOverlay.tsx',
+        'src/renderer/pages/settings/recharge/components/CreditApplicationPanel.tsx',
         'src/utils/configureChromium.ts',
         // ACP
         'src/agent/acp/AcpAdapter.ts',

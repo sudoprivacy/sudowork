@@ -1,9 +1,3 @@
-/**
- * @license
- * Copyright 2026 SudoPrivacy
- * SPDX-License-Identifier: Apache-2.0
- */
-
 /* eslint-disable */
 /**
  * AUTO-GENERATED FILE - DO NOT EDIT
@@ -446,6 +440,10 @@ export type I18nKey =
   | 'conversation.workspace.contextMenu.deleteFailed'
   | 'conversation.workspace.contextMenu.deleteSuccess'
   | 'conversation.workspace.contextMenu.deleteTitle'
+  | 'conversation.workspace.contextMenu.download'
+  | 'conversation.workspace.contextMenu.downloadFailed'
+  | 'conversation.workspace.contextMenu.downloadSuccess'
+  | 'conversation.workspace.contextMenu.downloadTooLarge'
   | 'conversation.workspace.contextMenu.newFolder'
   | 'conversation.workspace.contextMenu.open'
   | 'conversation.workspace.contextMenu.openFailed'
@@ -1358,6 +1356,23 @@ export type I18nKey =
   | 'settings.copilotSettings.testing'
   | 'settings.copilotSettings.workspace'
   | 'settings.createAssistant'
+  | 'settings.creditApplication.empty'
+  | 'settings.creditApplication.history'
+  | 'settings.creditApplication.loadFailed'
+  | 'settings.creditApplication.points'
+  | 'settings.creditApplication.pointsRequired'
+  | 'settings.creditApplication.reason'
+  | 'settings.creditApplication.reasonRequired'
+  | 'settings.creditApplication.status.approved'
+  | 'settings.creditApplication.status.pending'
+  | 'settings.creditApplication.status.processing'
+  | 'settings.creditApplication.status.rejected'
+  | 'settings.creditApplication.status.syncFailed'
+  | 'settings.creditApplication.status.syncUnknown'
+  | 'settings.creditApplication.submit'
+  | 'settings.creditApplication.submitFailed'
+  | 'settings.creditApplication.submitSuccess'
+  | 'settings.creditApplication.title'
   | 'settings.cssSettings'
   | 'settings.cssTheme.addManually'
   | 'settings.cssTheme.addToPreset'
@@ -1838,6 +1853,7 @@ export type I18nKey =
   | 'settings.recharge.createNewOrder'
   | 'settings.recharge.createOrder'
   | 'settings.recharge.createOrderFailed'
+  | 'settings.recharge.disabled'
   | 'settings.recharge.expireAt'
   | 'settings.recharge.failed'
   | 'settings.recharge.getOrderInfoFailed'
@@ -2127,6 +2143,7 @@ export type I18nKey =
   | 'settings.sudocodeModel.apiKeyRequiredPlaceholder'
   | 'settings.sudocodeModel.baseUrlLabel'
   | 'settings.sudocodeModel.bulkModelSelectHint'
+  | 'settings.sudocodeModel.clearSelectedModels'
   | 'settings.sudocodeModel.contextDefaultPlaceholder'
   | 'settings.sudocodeModel.contextLabel'
   | 'settings.sudocodeModel.customProviders'
@@ -2148,6 +2165,11 @@ export type I18nKey =
   | 'settings.sudocodeModel.outputContextLabel'
   | 'settings.sudocodeModel.pageDescription'
   | 'settings.sudocodeModel.pageTitle'
+  | 'settings.sudocodeModel.protocolAnthropicMessages'
+  | 'settings.sudocodeModel.protocolExtra'
+  | 'settings.sudocodeModel.protocolLabel'
+  | 'settings.sudocodeModel.protocolOpenAICompletions'
+  | 'settings.sudocodeModel.protocolOpenAIResponses'
   | 'settings.sudocodeModel.providerIdExists'
   | 'settings.sudocodeModel.providerIdExtra'
   | 'settings.sudocodeModel.providerIdInvalid'
@@ -2155,6 +2177,7 @@ export type I18nKey =
   | 'settings.sudocodeModel.saveConfigFailed'
   | 'settings.sudocodeModel.saveConfigSuccess'
   | 'settings.sudocodeModel.saveCustomProvidersFailed'
+  | 'settings.sudocodeModel.selectAllModels'
   | 'settings.sudocodeModel.selectedModelsCount'
   | 'settings.sudocodeModel.sudorouterDefaultTag'
   | 'settings.sudocodeModel.sudorouterModels'
@@ -2553,4 +2576,24 @@ export type I18nKey =
   | 'update.showInFolder'
   | 'update.upToDateTitle';
 
-export type I18nModule = 'common' | 'agentMode' | 'update' | 'login' | 'fileSelection' | 'preview' | 'conversation' | 'settings' | 'messages' | 'mcp' | 'acp' | 'codex' | 'tools' | 'gemini' | 'cron' | 'team' | 'starOffice' | 'guid' | 'agent' | 'setup';
+export type I18nModule =
+  | 'common'
+  | 'agentMode'
+  | 'update'
+  | 'login'
+  | 'fileSelection'
+  | 'preview'
+  | 'conversation'
+  | 'settings'
+  | 'messages'
+  | 'mcp'
+  | 'acp'
+  | 'codex'
+  | 'tools'
+  | 'gemini'
+  | 'cron'
+  | 'team'
+  | 'starOffice'
+  | 'guid'
+  | 'agent'
+  | 'setup';
