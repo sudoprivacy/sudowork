@@ -5,7 +5,6 @@
  */
 
 import i18n from 'i18next';
-import { ConfigStorage } from '@/common/storage';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { DEFAULT_LANGUAGE, normalizeLanguageCode, mergeWithFallback, ensureAndSwitch, type LocaleData } from '@/common/i18n';
 
@@ -66,7 +65,10 @@ const initPromise = (async (): Promise<void> => {
 
   // Priority: user config > detected system language > default
   // 优先级：用户配置 > 检测的系统语言 > 默认语言
-  const userLanguage = await ConfigStorage.get('language');
+  // 主进程读 language 用本地 fs（ProcessConfig.getSync = configFile），不能用 ConfigStorage.get：
+  // 后者是 @office-ai/platform 的 BroadcastChannel RPC，主进程自调会永久 pending（见 initStorage.ts:93 注释）。
+  const { ProcessConfig } = await import('@process/initStorage');
+  const userLanguage = ProcessConfig.getSync('language');
   const targetLanguage = userLanguage || detectedLanguage;
 
   if (targetLanguage && targetLanguage !== DEFAULT_LANGUAGE) {

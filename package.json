@@ -9,7 +9,7 @@
   },
   "scripts": {
     "hook:build": "node scripts/build-hook.js",
-    "start": "bun run hook:build && node scripts/launch-dev.js start",
+    "start": "bun run hook:build && bun run team-mcp:build && node scripts/launch-dev.js start",
     "cli": "bun run hook:build && node scripts/launch-dev.js start",
     "webui": "bun run cli -- --webui",
     "webui:remote": "bun run cli -- --webui --remote",

@@ -61,7 +61,6 @@ interface SpawnMemberParams {
   conversationName?: string;
   model?: string;
   role?: 'lead' | 'teammate';
-  wakeTeammateOnSpawn?: boolean;
   notifyLeaderOnSpawn?: boolean;
 }
 
@@ -71,6 +70,7 @@ interface ProvisionInitialMemberParams {
   conversationName?: string;
   model?: string;
   role: 'lead' | 'teammate';
+  isPreset: boolean;
 }
 
 type AttachRuntimeFailureMode = 'bootstrap' | 'dynamic';
@@ -315,6 +315,7 @@ class TeamService {
         conversationName: name,
         model: leaderInput.model,
         role: 'lead',
+        isPreset: true,
       });
       const updates: Partial<Team> = { leader_member_id: leader.id };
       const leaderConversation = leader.conversation_id ? getDatabase().getConversation(leader.conversation_id).data : null;
@@ -335,6 +336,7 @@ class TeamService {
           name: member.name,
           model: member.model,
           role: 'teammate',
+          isPreset: true,
         });
       }
 
@@ -404,6 +406,8 @@ class TeamService {
       avatar: selection.avatar ?? meta?.avatar ?? null,
       conversation_id: conversationId,
       status: 'pending',
+      isPreset: params.isPreset,
+      isDelegated: false,
       created_at: Date.now(),
     };
     try {
@@ -495,6 +499,8 @@ class TeamService {
       avatar: selection.avatar ?? meta?.avatar ?? null,
       conversation_id: conversationId,
       status: 'pending',
+      isPreset: false,
+      isDelegated: false,
       created_at: Date.now(),
     };
     try {
@@ -507,7 +513,6 @@ class TeamService {
     ipcBridge.team.onMemberSpawned.emit({ team_id: teamId, member: toMemberIPC(member) });
     setTimeout(() => {
       void this.completeSpawnedMemberRuntime(teamId, member, createResult.conversation, session, {
-        wakeTeammateOnSpawn: params.wakeTeammateOnSpawn !== false,
         notifyLeaderOnSpawn: params.notifyLeaderOnSpawn !== false,
       }).catch((error) => this.handleSpawnedMemberRuntimeError(teamId, member.id, session, error));
     }, 0);
@@ -522,7 +527,7 @@ class TeamService {
     return Boolean(member && member.team_id === teamId && this.sessions.get(teamId) === session);
   }
 
-  private async completeSpawnedMemberRuntime(teamId: string, member: TeamMember, conversation: TChatConversation, session: TeamSession, options: { wakeTeammateOnSpawn: boolean; notifyLeaderOnSpawn: boolean }): Promise<void> {
+  private async completeSpawnedMemberRuntime(teamId: string, member: TeamMember, conversation: TChatConversation, session: TeamSession, options: { notifyLeaderOnSpawn: boolean }): Promise<void> {
     if (!this.isSpawnedMemberRuntimeCurrent(teamId, member.id, session)) return;
 
     const attached = await this.attachRuntime(teamId, member, conversation, session, 'dynamic');
@@ -537,11 +542,6 @@ class TeamService {
     }
     ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: member.id, status: 'idle' });
 
-    if (member.role === 'teammate' && options.wakeTeammateOnSpawn) {
-      if (!this.isSpawnedMemberRuntimeCurrent(teamId, member.id, session)) return;
-      await this.welcomeSpawnedTeammate(teamId, member, session);
-    }
-
     if (member.role === 'teammate' && options.notifyLeaderOnSpawn) {
       if (!this.isSpawnedMemberRuntimeCurrent(teamId, member.id, session)) return;
       try {
@@ -551,34 +551,6 @@ class TeamService {
         mainWarn('TeamService', `Failed to notify leader after spawning member ${member.id}:`, error);
       }
     }
-  }
-
-  private async welcomeSpawnedTeammate(teamId: string, member: TeamMember, session: TeamSession, options?: { removeOnFailure?: boolean }): Promise<void> {
-    const { removeOnFailure = true } = options ?? {};
-    const team = teamStore.getTeam(teamId);
-    if (!team) return;
-    const welcomeFrom = this.leaderSlotOrNull(teamId) ?? 'user';
-    const welcomeId = uuid();
-    try {
-      teamStore.insertMail({
-        id: welcomeId,
-        team_id: teamId,
-        to_member_id: member.id,
-        from_member_id: welcomeFrom,
-        type: 'message',
-        content: `Welcome to team "${team.name}". You are a teammate named '${member.name}'. Wait for the leader to assign work and coordinate only via the team_* tools.`,
-        summary: null,
-        files: null,
-        read: false,
-        created_at: Date.now(),
-      });
-    } catch (error) {
-      if (removeOnFailure) await this.removeMember(teamId, member.id);
-      throw error;
-    }
-    const { lease } = session.teamRun.acquireWake(member.id, member.role, 'spawn_welcome');
-    session.teamRun.commitLease(lease.lease_id, { slot_id: member.id, role: member.role, source: 'spawn_welcome', message_id: welcomeId });
-    this.notifyWake(teamId, member.id);
   }
 
   private handleSpawnedMemberRuntimeError(teamId: string, slotId: string, session: TeamSession, error: unknown): void {
@@ -695,7 +667,6 @@ class TeamService {
       const members = teamStore.listMembersByTeam(teamId);
       for (const m of members) {
         if (!m.conversation_id) continue;
-        const wasPending = m.status === 'pending';
         const convResult = getDatabase().getConversation(m.conversation_id);
         if (!convResult.success || !convResult.data) throw new Error(`Failed to load team member conversation: ${m.name}`);
         const teamMcpConfig = this.buildTeamMcpConfig(session, m.id);
@@ -708,13 +679,6 @@ class TeamService {
         if (!attached) throw new Error(`Failed to attach team member: ${m.name}`);
         teamStore.updateMember(m.id, { status: 'idle', conversation_id: m.conversation_id });
         ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: m.id, status: 'idle' });
-        if (m.role === 'teammate' && wasPending) {
-          try {
-            await this.welcomeSpawnedTeammate(teamId, m, session, { removeOnFailure: false });
-          } catch (error) {
-            mainWarn('TeamService', `Failed to welcome rebuilt teammate ${m.id}:`, error);
-          }
-        }
       }
       new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
       mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
@@ -846,14 +810,6 @@ class TeamService {
     }
     session.teamRun.commitLease(lease.lease_id, { slot_id: leaderId, role: 'lead', source: 'team_membership_changed', message_id: mailId });
     this.notifyWake(teamId, leaderId);
-  }
-
-  private async notifyLeaderInitialRoster(teamId: string): Promise<void> {
-    const members = teamStore.listMembersByTeam(teamId);
-    const teammates = members.filter((member) => member.role === 'teammate');
-    if (teammates.length === 0) return;
-    await i18nReady;
-    this.writeLeaderMembershipNotice(teamId, `${i18n.t('team.membership.initialRosterNotice')}\n\n${members.map((member) => this.formatRosterLine(member)).join('\n')}`, 'team_system');
   }
 
   private async notifyLeaderMemberAdded(teamId: string, member: TeamMember): Promise<void> {
@@ -1276,6 +1232,8 @@ class TeamService {
               status: m.status,
               backend: m.backend,
               model: m.model,
+              assistant_id: m.assistant_id ?? '',
+              is_delegated: m.isDelegated === true,
             })),
           },
         };
@@ -1349,6 +1307,9 @@ class TeamService {
       } catch {
         session.teamRun.abortLease(lease.lease_id);
         continue;
+      }
+      if (caller.role === 'lead' && recipient.role === 'teammate' && to !== '*') {
+        teamStore.markMemberDelegated(targetId);
       }
       session.teamRun.commitLease(lease.lease_id, { slot_id: targetId, role: recipient.role, source: wakeSource, message_id: mailId });
       this.notifyWake(teamId, targetId);
@@ -1588,6 +1549,7 @@ class TeamService {
   }
 
   private shouldWakeLeaderAfterIdle(teamId: string, leaderSlotId: string): boolean {
+    if (!teamStore.getLatestUserMail(teamId)) return false;
     const members = teamStore.listMembersByTeam(teamId);
     const leader = members.find((m) => m.id === leaderSlotId && m.role === 'lead');
     if (!leader || leader.status === 'failed' || leader.status === 'error' || leader.status === 'completed') return false;

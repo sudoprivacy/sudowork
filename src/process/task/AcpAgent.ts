@@ -214,6 +214,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private pendingModelSwitchNotice: string | null = null;
   private hasReceivedUsageUpdate = false;
   private lastAssistantTextMsgId: string | null = null;
+  /**
+   * 本 turn 累积的助手正文（流式 agent_message_chunk 的 delta 之和）。
+   * 供 team EventLoop 兜底回传：member 跑完 turn 若未主动 team_send_message，
+   * finalizeTurn 用此值把正文投给 leader。纯内存累加，不依赖 conversation
+   * 的 2s debounce 落盘（finalizeTurn 早于落盘）。每 turn 起始重置。
+   */
+  private lastTurnProseText = '';
   /** Pending token usage to apply when assistant text message arrives */
   private pendingTokenUsage: TurnTokenUsage | null = null;
   private turnHadVisibleAssistantContent = false;
@@ -719,6 +726,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // ========== Public API (BaseAgent contract) ==========
 
+  /** 本 turn 累积的助手正文（内存值，绕开 DB 落盘时序）；team EventLoop 兜底回传用。 */
+  getLastTurnProseText(): string {
+    return this.lastTurnProseText;
+  }
+
   async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string; suppressUserBubble?: boolean }): Promise<{
     success: boolean;
     msg?: string;
@@ -735,6 +747,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.stopPromise = null;
     this.hasReceivedUsageUpdate = false;
     this.lastAssistantTextMsgId = null;
+    this.lastTurnProseText = '';
     this.pendingTokenUsage = null;
     this.turnHadVisibleAssistantContent = false;
     this.turnEventSequence = 0;
@@ -2801,7 +2814,13 @@ This identity statement takes priority over the default identity in USER.md.
 
       const messages = this.adapter.convertSessionUpdate(data);
       for (let i = 0; i < messages.length; i++) {
-        this.emitMessage(messages[i]);
+        const msg = messages[i];
+        this.emitMessage(msg);
+        // 累积本 turn 助手正文（仅流式 agent_message_chunk 转出的 text+left；
+        // 标记/提示类 emit 不经此循环，不污染）。绕开 DB 落盘，供 team 兜底回传。
+        if (msg.type === 'text' && msg.position === 'left') {
+          this.lastTurnProseText += (msg.content as { content?: string } | null)?.content ?? '';
+        }
       }
     } catch (error) {
       this.emitErrorMessage(`Failed to process session update: ${error instanceof Error ? error.message : String(error)}`);

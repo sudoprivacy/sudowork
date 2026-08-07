@@ -116,7 +116,7 @@ const MEMBER_ROW = {
 let queue: MailboxRow[] = [];
 const loops: EventLoop[] = [];
 
-type AgentLike = { sendMessage: (data: { content: string; msg_id: string }) => Promise<unknown> };
+type AgentLike = { sendMessage: (data: { content: string; msg_id: string }) => Promise<unknown>; getLastTurnProseText?: () => string };
 
 function buildLoop(member: TeamMember, agent: AgentLike): { loop: EventLoop; teamRun: TeamRunManager } {
   const wakeGate = new SlotWakeGate();
@@ -387,5 +387,80 @@ describe('EventLoop orphan guard + busy serialization', () => {
     resolveFirst();
     await flush();
     expect(h.agentSend).toHaveBeenCalledTimes(2); // second turn runs serially after the first
+  });
+});
+
+// INSERT INTO team_mailbox 参数顺序：sql, id, team_id, to_member_id, from_member_id, type, content, …
+function insertMails(): Array<{ type: string; content: string; to: string; from: string }> {
+  return h.mutate.mock.calls.filter((c) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO team_mailbox')).map((c) => ({ type: String(c[5]), content: String(c[6]), to: String(c[3]), from: String(c[4]) }));
+}
+
+describe('EventLoop fallback prose reply (finalizeTurn 兜底回传正文)', () => {
+  it('未主动回传时兜底投正文 message，且在 idle_notification 之前', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend, getLastTurnProseText: () => '我方认为AI可以取代人类' };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ from_member_id: 'user', content: '请立论' }));
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    const mails = insertMails();
+    const types = mails.map((m) => m.type);
+    expect(types).toContain('message');
+    expect(types).toContain('idle_notification');
+    expect(types.indexOf('message')).toBeLessThan(types.indexOf('idle_notification'));
+    const msg = mails.find((m) => m.type === 'message');
+    expect(msg?.content).toBe('我方认为AI可以取代人类');
+    expect(msg?.to).toBe('leader');
+    expect(msg?.from).toBe('s1');
+  });
+
+  it('已主动回传（leader mailbox 有 from member 的 message 且 created_at>watermark）则跳过兜底', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend, getLastTurnProseText: () => '正文' };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ from_member_id: 'user', content: '请立论' }));
+    queue.push(row({ id: 'reply', to_member_id: 'leader', from_member_id: 's1', type: 'message', content: '已主动回传', created_at: 50 }));
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    const mails = insertMails();
+    expect(mails.some((m) => m.type === 'message')).toBe(false);
+    expect(mails.some((m) => m.type === 'idle_notification')).toBe(true);
+  });
+
+  it('上一 turn 陈旧 mail（created_at ≤ watermark）不误命中，仍兜底投正文', async () => {
+    h.queryOne.mockImplementation((sql: string) => {
+      if (typeof sql === 'string' && sql.includes('MAX(created_at)')) return { success: true, data: { maxCreated: 100 } };
+      if (sql.includes('FROM team_members')) return { success: true, data: { ...MEMBER_ROW } };
+      return { success: true, data: null };
+    });
+    const agent: AgentLike = { sendMessage: h.agentSend, getLastTurnProseText: () => '正文' };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ from_member_id: 'user', content: '请立论' }));
+    queue.push(row({ id: 'stale', to_member_id: 'leader', from_member_id: 's1', type: 'message', content: '旧', created_at: 80 }));
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    const mails = insertMails();
+    expect(mails.some((m) => m.type === 'message')).toBe(true);
+  });
+
+  it('prose 为空时不投正文（仍投 idle_notification）', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend, getLastTurnProseText: () => '' };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ from_member_id: 'user', content: '请立论' }));
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    const mails = insertMails();
+    expect(mails.some((m) => m.type === 'message')).toBe(false);
+    expect(mails.some((m) => m.type === 'idle_notification')).toBe(true);
   });
 });
