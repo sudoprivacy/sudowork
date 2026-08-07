@@ -64,6 +64,8 @@ export class AcpConnection {
   private sessionId: string | null = null;
   private isInitialized = false;
   private backend: AcpBackend | null = null;
+  /** Owning conversation id (set by AcpAgent); anchors the tunnel agentId for traceability. */
+  public conversationId: string | null = null;
   private initializeResponse: AcpResponse | null = null;
   private workingDir: string = process.cwd();
 
@@ -341,7 +343,7 @@ export class AcpConnection {
    */
   private async connectViaNexusTunnel(backend: AcpBackend, cliPath: string, workingDir: string, acpArgs: string[] | undefined, customEnv: Record<string, string> | undefined, endpoint: string): Promise<void> {
     const spawnSpec = await buildGenericSpawnSpec(backend, cliPath, workingDir, acpArgs, customEnv);
-    const agentId = `sudowork-${backend}-${crypto.randomUUID()}`;
+    const agentId = `${os.hostname()}-sudowork-${backend}-${this.conversationId ?? crypto.randomUUID().slice(0, 8)}`;
 
     const transport = new GrpcAcpTransport({
       endpoint,
