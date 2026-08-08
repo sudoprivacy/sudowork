@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Checkbox, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import { Checkbox, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
-import { LoaderCircle, MessageCircleMore, Pencil, Pin, Trash2, Upload } from 'lucide-react';
+import { FolderOpen, LoaderCircle, MessageCircleMore, Pencil, Pin, Trash2, Upload } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TChatConversation } from '@/common/storage';
+import { ipcBridge } from '@/common';
+import { joinPath } from '@/common/chatLib';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { useTerminalActiveCount } from '@/renderer/hooks/useTerminalActiveCount';
 import CronStatusIcon from '@/renderer/pages/cron/components/CronStatusIcon';
@@ -32,8 +34,20 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const ptyActiveCount = useTerminalActiveCount(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !!conversation.name;
+  const workspace = conversation.extra?.workspace;
+  // FIXME: 问题验证完成后，删除临时 Scode 路径诊断入口、对应翻译和测试。
+  const isScodeConversation = !isMossSession && conversation.type === 'acp' && conversation.extra?.backend === 'scode' && !!workspace;
 
   const actionReserveClass = isPinned ? 'mr-9' : menuVisible ? 'mr-9' : 'group-hover:mr-9';
+
+  const onOpenPath = (targetPath: string) => {
+    void ipcBridge.fs.getFileMetadata
+      .invoke({ path: targetPath })
+      .then(() => ipcBridge.shell.openFile.invoke(targetPath))
+      .catch(() => {
+        Message.error(t('conversation.history.openPathFailed'));
+      });
+  };
 
   const renderLeadingIcon = () => {
     if (cronStatus != CronJobStatusEnums.None) {
@@ -110,6 +124,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             <Dropdown
               droplist={
                 <Menu
+                  style={{ maxHeight: 'none', overflow: 'visible' }}
                   onClickMenuItem={(key) => {
                     if (key === 'pin') {
                       onTogglePin(conversation);
@@ -117,6 +132,22 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                     }
                     if (key === 'rename') {
                       onEditStart(conversation);
+                      return;
+                    }
+                    if (key === 'open-workspace' && workspace) {
+                      onOpenPath(workspace);
+                      return;
+                    }
+                    if (key === 'open-workspace-parent' && workspace) {
+                      onOpenPath(getParentPath(workspace));
+                      return;
+                    }
+                    if (key === 'open-drafts' && workspace) {
+                      onOpenPath(joinPath(workspace, '.drafts'));
+                      return;
+                    }
+                    if (key === 'open-scode-sessions' && workspace) {
+                      onOpenPath(joinPath(workspace, '.scode/sessions'));
                       return;
                     }
                     if (key === 'export') {
@@ -142,6 +173,34 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       <span>{t('conversation.history.rename')}</span>
                     </div>
                   </Menu.Item>
+                  {isScodeConversation && (
+                    <>
+                      <Menu.Item key='open-workspace'>
+                        <div className='flex items-center gap-2'>
+                          <FolderOpen size={16} strokeWidth={2} className='shrink-0 text-foreground-secondary' />
+                          <span>{t('conversation.history.openWorkspace')}</span>
+                        </div>
+                      </Menu.Item>
+                      <Menu.Item key='open-workspace-parent'>
+                        <div className='flex items-center gap-2'>
+                          <FolderOpen size={16} strokeWidth={2} className='shrink-0 text-foreground-secondary' />
+                          <span>{t('conversation.history.openWorkspaceParent')}</span>
+                        </div>
+                      </Menu.Item>
+                      <Menu.Item key='open-drafts'>
+                        <div className='flex items-center gap-2'>
+                          <FolderOpen size={16} strokeWidth={2} className='shrink-0 text-foreground-secondary' />
+                          <span>{t('conversation.history.openDrafts')}</span>
+                        </div>
+                      </Menu.Item>
+                      <Menu.Item key='open-scode-sessions'>
+                        <div className='flex items-center gap-2'>
+                          <FolderOpen size={16} strokeWidth={2} className='shrink-0 text-foreground-secondary' />
+                          <span>{t('conversation.history.openScodeSessions')}</span>
+                        </div>
+                      </Menu.Item>
+                    </>
+                  )}
                   {/* Export menu - only for local sessions */}
                   {!isMossSession && (
                     <Menu.Item key='export'>
@@ -189,5 +248,13 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     </Tooltip>
   );
 };
+
+function getParentPath(filePath: string): string {
+  const normalized = filePath.replace(/[\\/]+$/, '');
+  const separatorIndex = Math.max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'));
+  if (separatorIndex === 0) return normalized.slice(0, 1);
+  if (separatorIndex === 2 && /^[A-Za-z]:/.test(normalized)) return normalized.slice(0, 3);
+  return separatorIndex > 0 ? normalized.slice(0, separatorIndex) : normalized;
+}
 
 export default ConversationRow;
