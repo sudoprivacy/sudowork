@@ -64,7 +64,8 @@ const GuidPage: React.FC = () => {
   const [installedSkillsLoaded, setInstalledSkillsLoaded] = useState(false);
 
   const textareaRef = useRef<RefTextAreaType>(null);
-  const prefilledAssistantRef = useRef<string | null>(null);
+  // Last assistantParam prefilled for; each "去使用" navigation changes it.
+  const prevAssistantParamRef = useRef<string | null>(null);
 
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -307,30 +308,17 @@ const GuidPage: React.FC = () => {
     setGuidDraft({ selectedSkills });
   }, [selectedSkills]);
 
+  // Pre-fill the URL-selected assistant's defaultInitPrompt on each "去使用".
+  // 跨路由重挂载时 guidInput 经 guidDraftStore 持久化会恢复上次输入，故须按
+  // assistantParam 变化无条件覆盖（无 defaultInitPrompt 则清空），不依赖输入框是否为空。
   useEffect(() => {
     if (!assistantParam || !agentSelection.customAgents || agentSelection.customAgents.length === 0) return;
-    if (!agentSelection.selectedAgentKey.startsWith('custom:')) return;
-
-    const assistantId = agentSelection.selectedAgentKey.slice(7);
-
-    // Skip if we've already pre-filled for this assistant
-    if (prefilledAssistantRef.current === assistantId) return;
-
-    const assistantConfig = agentSelection.customAgents.find((a) => a.id === assistantId);
-
-    // Only pre-fill if input is empty and assistant has defaultInitPrompt
-    if (assistantConfig?.defaultInitPrompt && !guidInput.input.trim()) {
-      guidInput.setInput(assistantConfig.defaultInitPrompt);
-      prefilledAssistantRef.current = assistantId;
-    }
-  }, [assistantParam, agentSelection.customAgents, agentSelection.selectedAgentKey, guidInput]);
-
-  // Reset prefilledAssistantRef when assistantParam changes or becomes empty
-  useEffect(() => {
-    if (!assistantParam) {
-      prefilledAssistantRef.current = null;
-    }
-  }, [assistantParam]);
+    if (prevAssistantParamRef.current === assistantParam) return;
+    const target = agentSelection.customAgents.find((a) => a.name === assistantParam || a.id === assistantParam);
+    if (!target) return; // customAgents 尚未加载到目标，不更新 ref，等加载后重跑
+    prevAssistantParamRef.current = assistantParam;
+    guidInput.setInput(target.defaultInitPrompt || '');
+  }, [assistantParam, agentSelection.customAgents, guidInput]);
 
   // Listen for guid.reset event to reset agent/mention state only
   const handleGuidReset = useCallback(() => {
@@ -342,7 +330,6 @@ const GuidPage: React.FC = () => {
     mention.setMentionSelectorVisible(false);
     mention.setMentionSelectorOpen(false);
     mention.setMentionActiveIndex(0);
-    prefilledAssistantRef.current = null;
   }, [agentSelection, mention]);
 
   useAddEventListener('guid.reset', handleGuidReset, [handleGuidReset]);
@@ -445,7 +432,6 @@ const GuidPage: React.FC = () => {
         }
         agentSelection.resetSelection();
         guidInput.setInput('');
-        prefilledAssistantRef.current = null;
       } else {
         agentSelection.setSelectedAgentKey(key);
       }
@@ -480,7 +466,6 @@ const GuidPage: React.FC = () => {
   const handleBackFromAssistant = useCallback(() => {
     agentSelection.resetSelection();
     guidInput.setInput('');
-    prefilledAssistantRef.current = null;
   }, [agentSelection, guidInput]);
 
   // Handle changing the assistant's main agent type
@@ -604,7 +589,6 @@ const GuidPage: React.FC = () => {
       onClosePresetTag={() => {
         agentSelection.setSelectedAgentKey('gemini');
         guidInput.setInput('');
-        prefilledAssistantRef.current = null;
       }}
       skillTriggerNode={skillTriggerNode}
       loading={guidInput.loading}
