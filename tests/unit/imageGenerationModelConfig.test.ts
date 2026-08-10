@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage';
-import { LEGACY_DEFAULT_IMAGE_GENERATION_MODEL, migrateImageGenerationModelConfig, pickImageGenerationModelId, resolveLoginImageModelId, type ImageGenerationModelConfig } from '@/common/imageGenerationModelConfig';
+import { LEGACY_DEFAULT_IMAGE_GENERATION_MODEL, migrateImageGenerationModelConfig, pickImageGenerationModelId, resolveImageModelWithAvailability, resolveLoginImageModelId, type ImageGenerationModelConfig } from '@/common/imageGenerationModelConfig';
 
 const cfg = (over: Partial<ImageGenerationModelConfig>): ImageGenerationModelConfig => ({ switch: true, useModel: 'gemini-3-pro-image', ...over }) as ImageGenerationModelConfig;
 
@@ -85,5 +85,36 @@ describe('resolveLoginImageModelId', () => {
 
   it('falls back to the default when nothing is saved', () => {
     expect(resolveLoginImageModelId(undefined, DEFAULT_IMAGE_GENERATION_MODEL)).toBe(DEFAULT_IMAGE_GENERATION_MODEL);
+  });
+});
+
+describe('resolveImageModelWithAvailability', () => {
+  const items = [
+    { model_id: DEFAULT_IMAGE_GENERATION_MODEL, model_ratio: 1 },
+    { model_id: 'gemini-3-pro-image', model_ratio: 2 },
+  ];
+
+  it('keeps a selected custom image model value when it is available from scode config', () => {
+    expect(resolveImageModelWithAvailability(cfg({ switch: true, useModel: 'custom/black-forest-labs/FLUX.1-schnell' }), items, ['custom/black-forest-labs/FLUX.1-schnell'])).toEqual({
+      jsonModelId: 'custom/black-forest-labs/FLUX.1-schnell',
+      persistedUseModel: 'custom/black-forest-labs/FLUX.1-schnell',
+      changed: false,
+    });
+  });
+
+  it('does not leak a custom model into runtime json when image generation is off', () => {
+    expect(resolveImageModelWithAvailability(cfg({ switch: false, useModel: 'custom/flux-1' }), items, ['custom/flux-1'])).toEqual({
+      jsonModelId: null,
+      persistedUseModel: 'custom/flux-1',
+      changed: false,
+    });
+  });
+
+  it('repairs an unavailable custom image model to the default pricing model', () => {
+    expect(resolveImageModelWithAvailability(cfg({ switch: true, useModel: 'custom/removed-image-model' }), items, ['custom/flux-1'])).toEqual({
+      jsonModelId: DEFAULT_IMAGE_GENERATION_MODEL,
+      persistedUseModel: DEFAULT_IMAGE_GENERATION_MODEL,
+      changed: true,
+    });
   });
 });

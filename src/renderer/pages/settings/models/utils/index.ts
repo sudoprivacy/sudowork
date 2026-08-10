@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IMAGE_GENERATION_MODEL_PATTERN } from '@/common/scodeConfig';
 import type { ScodeConfig, ScodeModelEntry } from '@/common/ipcBridge';
 import type { EditableModel, ProviderRow } from '../types';
 
@@ -126,6 +127,7 @@ export function buildEditableModelFromFormValues(modelId: string, values: IModel
     input,
     supportsTools: values.supportsTools,
     supportsReasoning: values.supportsReasoning,
+    supportsImageGeneration: values.supportsImageGeneration,
     inputContext: values.inputContext,
     outputContext: values.outputContext,
   };
@@ -178,6 +180,8 @@ export function presetValueForProvider(provider?: ProviderRow): string {
 export function editableModelFromEntry(config: ScodeConfig | null, modelId: string): EditableModel {
   const entry = findModelEntry(config, modelId);
   const providerModelId = entry?.providers?.['api-key']?.model || modelId;
+  const isImageGenerationSupported = entry?.supports_image_generation === true || (entry?.supports_image_generation !== false && IMAGE_GENERATION_MODEL_PATTERN.test(providerModelId));
+  const supportsImageGeneration = isImageGenerationSupported ? true : entry?.supports_image_generation;
   return {
     id: providerModelId,
     name: providerModelId,
@@ -185,6 +189,7 @@ export function editableModelFromEntry(config: ScodeConfig | null, modelId: stri
     input: entry?.input,
     supportsTools: entry?.supports_tools,
     supportsReasoning: entry?.supports_reasoning,
+    supportsImageGeneration,
     inputContext: entry?.context?.input,
     outputContext: entry?.context?.output,
   };
@@ -232,6 +237,7 @@ export interface IModelFormDefaults {
   supportsTools?: boolean;
   supportsVision?: boolean;
   supportsReasoning?: boolean;
+  supportsImageGeneration?: boolean;
   inputContext?: number;
   outputContext?: number;
 }

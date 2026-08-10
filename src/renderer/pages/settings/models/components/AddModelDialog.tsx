@@ -59,6 +59,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
         supportsTools: entry?.supports_tools !== false,
         supportsVision: input.includes('image'),
         supportsReasoning: Boolean(entry?.supports_reasoning),
+        supportsImageGeneration: Boolean(editableModel.supportsImageGeneration),
         inputContext: entry?.context?.input,
         outputContext: entry?.context?.output,
       });
@@ -83,6 +84,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
         supportsTools: firstModel?.supportsTools ?? true,
         supportsVision: firstInput.includes('image'),
         supportsReasoning: Boolean(firstModel?.supportsReasoning),
+        supportsImageGeneration: Boolean(firstModel?.supportsImageGeneration),
         inputContext: firstModel?.inputContext,
         outputContext: firstModel?.outputContext,
       });
@@ -102,6 +104,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
       supportsTools: true,
       supportsVision: false,
       supportsReasoning: false,
+      supportsImageGeneration: false,
     });
     setIsApiKeyVisible(false);
     setProviderModels([]);
@@ -357,7 +360,7 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
           </div>
         )}
         <div className='mb-2 text-14px font-600 text-foreground'>{t('settings.sudocodeModel.advancedConfig', '高级配置')}</div>
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-4'>
+        <div className='grid grid-cols-1 md:grid-cols-4 gap-3 mb-4'>
           <Form.Item field='supportsTools' triggerPropName='checked'>
             <Checkbox>{t('settings.sudocodeModel.supportsTools', '工具调用')}</Checkbox>
           </Form.Item>
@@ -366,6 +369,13 @@ export default function AddModelDialog({ visible, onClose, onSubmit, existingPro
           </Form.Item>
           <Form.Item field='supportsReasoning' triggerPropName='checked'>
             <Checkbox>{t('settings.sudocodeModel.supportsReasoning', '推理模式')}</Checkbox>
+          </Form.Item>
+          <Form.Item
+            field='supportsImageGeneration'
+            triggerPropName='checked'
+            extra={t('settings.sudocodeModel.supportsImageGenerationExtra', '仅支持 OpenAI 兼容图片接口 /images/generations、/images/edits，以及 Gemini generateContent 图片输出。若服务商使用其他原生接口，即使模型支持生图也可能无法调用。')}
+          >
+            <Checkbox>{t('settings.sudocodeModel.supportsImageGeneration', '图片生成')}</Checkbox>
           </Form.Item>
         </div>
         <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
@@ -392,6 +402,7 @@ interface IAddModelFormValues {
   supportsTools?: boolean;
   supportsVision?: boolean;
   supportsReasoning?: boolean;
+  supportsImageGeneration?: boolean;
   inputContext?: number;
   outputContext?: number;
 }

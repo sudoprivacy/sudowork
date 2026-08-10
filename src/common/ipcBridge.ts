@@ -930,6 +930,7 @@ export type ScodeModelEntry = {
   input?: string[];
   supports_tools?: boolean;
   supports_reasoning?: boolean;
+  supports_image_generation?: boolean;
   context?: {
     input?: number;
     output?: number;

@@ -86,23 +86,25 @@ export function pickDefaultImageModelFromPricing(items: SpecificImagePricingItem
  *
  * Caller invariants: `saved` exists; `items` is non-empty (so defaultModel is valid).
  */
-export function resolveImageModelWithAvailability(saved: ImageGenerationModelConfig, items: SpecificImagePricingItem[]): { jsonModelId: string | null; persistedUseModel: string; changed: boolean } {
+export function resolveImageModelWithAvailability(saved: ImageGenerationModelConfig, items: SpecificImagePricingItem[], customImageModelValues: string[] = []): { jsonModelId: string | null; persistedUseModel: string; changed: boolean } {
   const switchOn = saved.switch !== false;
   const useModel = saved.useModel;
-  const inList = !!(useModel && items.some((it) => it.model_id === useModel));
+  const inPricing = !!(useModel && items.some((it) => it.model_id === useModel));
+  const inCustom = !!(useModel && customImageModelValues.includes(useModel));
+  const isAvailable = inPricing || inCustom;
   const defaultModel = pickDefaultImageModelFromPricing(items);
 
   if (!switchOn) {
-    if (useModel && !inList) {
+    if (useModel && !isAvailable) {
       return { jsonModelId: null, persistedUseModel: defaultModel, changed: true };
     }
     return { jsonModelId: null, persistedUseModel: useModel ?? '', changed: false };
   }
 
-  if (useModel && inList) {
+  if (useModel && isAvailable) {
     return { jsonModelId: useModel, persistedUseModel: useModel, changed: false };
   }
-  if (useModel && !inList) {
+  if (useModel && !isAvailable) {
     return { jsonModelId: defaultModel || null, persistedUseModel: defaultModel, changed: true };
   }
   return { jsonModelId: defaultModel || null, persistedUseModel: '', changed: false };

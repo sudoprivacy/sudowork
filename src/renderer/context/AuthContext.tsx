@@ -11,7 +11,7 @@ import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
 import { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } from '@/common/imageGenerationModelConfig';
 import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
-import { buildScodeConfigFromLoginPayload, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
+import { buildScodeConfigFromLoginPayload, extractImageModelsFromScodeConfig, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
 import { fetchSystemConfig } from '@/common/systemConfig';
 import { buildCasLogoutServiceUrl, buildCasLogoutUrl, resolveThirdPartyAuthConfig } from '@/common/thirdPartyAuthConfig';
@@ -378,8 +378,9 @@ function resolveConsumerTenantId(user: Partial<AuthUser> & { tenant_id?: string 
 // Apply the image model on login: respect the user's saved selection instead of unconditionally forcing the default.
 async function applyLoginImageModel(): Promise<void> {
   const saved = await ConfigStorage.get('tools.imageGenerationModel').catch((): undefined => undefined);
-  const res = await ipcBridge.scode.fetchSpecificImagePricing.invoke().catch((): null => null);
+  const [res, scodeConfigRes] = await Promise.all([ipcBridge.scode.fetchSpecificImagePricing.invoke().catch((): null => null), ipcBridge.scode.getConfig.invoke().catch((): null => null)]);
   const items = res?.success && Array.isArray(res.data) ? res.data : null; // null = 失败
+  const customImageModelValues = extractImageModelsFromScodeConfig(scodeConfigRes?.success ? scodeConfigRes.data : null).map((item) => item.value);
   if (!saved) {
     const def = items ? pickDefaultImageModelFromPricing(items) : '';
     await ipcBridge.scode.setImageModel.invoke({ modelId: def || null }).catch(() => {});
@@ -389,7 +390,7 @@ async function applyLoginImageModel(): Promise<void> {
     await ipcBridge.scode.setImageModel.invoke({ modelId: pickImageGenerationModelId(saved) }).catch(() => {});
     return;
   }
-  const { jsonModelId, persistedUseModel, changed } = resolveImageModelWithAvailability(saved, items);
+  const { jsonModelId, persistedUseModel, changed } = resolveImageModelWithAvailability(saved, items, customImageModelValues);
   if (changed) {
     await ConfigStorage.set('tools.imageGenerationModel', { ...saved, useModel: persistedUseModel }).catch(() => {});
   }

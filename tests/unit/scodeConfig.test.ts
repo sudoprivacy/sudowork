@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCustomImageModelValue,
   buildScodeConfigFromLoginPayload,
   extractCustomProvidersFromScodeConfig,
+  extractImageModelsFromScodeConfig,
   mergeCustomProviderIntoScodeConfig,
   mergeCustomProvidersIntoScodeConfig,
   normalizeCustomApiKeyModelsInScodeConfig,
   normalizeScodeModelApiTypesInScodeConfig,
+  parseCustomImageModelRef,
   removeCustomProviderFromScodeConfig,
   SCODE_AUTO_MODEL_ALIAS,
   SCODE_AUTO_ROUTER_MODEL_ID,
@@ -204,7 +207,7 @@ describe('scodeConfig', () => {
         providerId: 'custom-openai',
         baseUrl: 'https://api.example.com/v1',
         apiKey: 'custom-key',
-        models: [{ id: 'gpt-4o', input: ['text', 'image'], supportsTools: true, supportsReasoning: false, inputContext: 128, outputContext: 16 }],
+        models: [{ id: 'gpt-4o', input: ['text', 'image'], supportsTools: true, supportsReasoning: false, supportsImageGeneration: true, inputContext: 128, outputContext: 16 }],
       }
     );
 
@@ -216,7 +219,7 @@ describe('scodeConfig', () => {
         providerId: 'custom-openai',
         baseUrl: 'https://api.example.com/v1',
         apiKey: 'custom-key',
-        models: [{ id: 'gpt-4o', name: 'gpt-4o', api: 'openai-completions', input: ['text', 'image'], supportsTools: true, supportsReasoning: false, inputContext: 128, outputContext: 16 }],
+        models: [{ id: 'gpt-4o', name: 'gpt-4o', api: 'openai-completions', input: ['text', 'image'], supportsTools: true, supportsReasoning: false, supportsImageGeneration: true, inputContext: 128, outputContext: 16 }],
       },
     ]);
     expect(restored.auth_modes?.['api-key']?.['custom-openai']).toEqual({
@@ -224,6 +227,50 @@ describe('scodeConfig', () => {
       apiKey: 'custom-key',
     });
     expect(restored.models?.['custom-openai/gpt-4o']?.providers?.['api-key']?.provider).toBe('custom-openai');
+    expect(restored.models?.['custom-openai/gpt-4o']?.supports_image_generation).toBe(true);
+  });
+
+  it('parses custom image model values without truncating namespaced provider model ids', () => {
+    expect(buildCustomImageModelValue(' custom ', ' black-forest-labs/FLUX.1-schnell ')).toBe('custom/black-forest-labs/FLUX.1-schnell');
+    expect(parseCustomImageModelRef('custom/black-forest-labs/FLUX.1-schnell')).toEqual({
+      providerId: 'custom',
+      modelId: 'black-forest-labs/FLUX.1-schnell',
+    });
+    expect(parseCustomImageModelRef('/flux')).toBeNull();
+    expect(parseCustomImageModelRef('custom/')).toBeNull();
+    expect(parseCustomImageModelRef('gemini-3-pro-image')).toBeNull();
+  });
+
+  it('extracts explicit and conservatively detected custom image models from scode config', () => {
+    const config = mergeCustomProvidersIntoScodeConfig(null, [
+      {
+        providerId: 'custom-openai',
+        baseUrl: 'https://api.example.com/v1',
+        apiKey: 'custom-key',
+        models: [{ id: 'gpt-4o' }, { id: 'flux-1', supportsImageGeneration: true }, { id: 'black-forest-labs/FLUX.1-schnell' }, { id: 'sd-disabled', supportsImageGeneration: false }],
+      },
+      {
+        providerId: 'missing-creds',
+        baseUrl: '',
+        apiKey: '',
+        models: [{ id: 'imagen-pro', supportsImageGeneration: true }],
+      },
+    ]);
+
+    expect(extractImageModelsFromScodeConfig(config)).toEqual([
+      {
+        label: 'custom-openai / black-forest-labs/FLUX.1-schnell',
+        value: 'custom-openai/black-forest-labs/FLUX.1-schnell',
+        providerId: 'custom-openai',
+        modelId: 'black-forest-labs/FLUX.1-schnell',
+      },
+      {
+        label: 'custom-openai / flux-1',
+        value: 'custom-openai/flux-1',
+        providerId: 'custom-openai',
+        modelId: 'flux-1',
+      },
+    ]);
   });
 
   it('allows the same upstream model id across different providers by using provider-scoped aliases', () => {
