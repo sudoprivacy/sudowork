@@ -444,8 +444,8 @@ class DynamicNexusVfsService {
     // `--bind-addr 127.0.0.1:<port> --no-tls`: it binds loopback + plaintext,
     // the trusted-local-backend posture the daemon's boot auth gate permits
     // without `--insecure-no-auth`. It replaces the hand-written triplet so
-    // the invariant lives in the binary, not here (atomic with the v0.6.0 pin
-    // bump in runtime-versions.json, which is where the subcommand landed).
+    // the invariant lives in the binary, not here (the compatible runtime pin
+    // lives in runtime-versions.json, where this subcommand was introduced).
     // --hostname is a cosmetic display label; --data-dir + --plugin-dir are
     // global flags that apply under the subcommand.
     const args = ['serve-local', '--port', String(port), '--hostname', 'localhost', '--data-dir', this.getDaemonDataDir()];
