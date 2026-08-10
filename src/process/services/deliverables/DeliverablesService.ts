@@ -6,7 +6,7 @@
 
 import fs from 'node:fs';
 import nodePath from 'node:path';
-import { parseGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
+import { mergeGeneratedFileEntries, parseGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 import { getDatabase } from '@process/database';
 import { mainError } from '@process/utils/mainLogger';
 import { teamStore } from '@process/services/team/TeamStore';
@@ -38,7 +38,7 @@ class DeliverablesService {
     const collected = this.scanConversationMarkers(conversationId);
     const workspace = resolveConversationWorkspace(db, conversationId);
     const reconciled = collected.map((entry) => reconcileEntryPath(entry, workspace));
-    return dedupeAndSort(reconciled);
+    return mergeGeneratedFileEntries([], reconciled);
   }
 
   /**
@@ -58,7 +58,7 @@ class DeliverablesService {
       collected.push(...this.scanConversationMarkers(member.conversation_id));
     }
     const reconciled = collected.map((entry) => reconcileEntryPath(entry, workspace));
-    return dedupeAndSort(reconciled);
+    return mergeGeneratedFileEntries([], reconciled);
   }
 
   /**
@@ -137,21 +137,6 @@ function reconcileEntryPath(entry: GeneratedFileEntry, workspace: string | undef
     return entry;
   }
   return { ...entry, path: repaired };
-}
-
-/**
- * Latest-wins dedup, then sort by createdAt DESC. The chronological scan above
- * pushes newest entries last, so a Map re-insertion keeps the latest. Dedup
- * prefers `relativePath` (stable across workspace moves) and falls back to the
- * absolute `path` when an entry has no relativePath.
- */
-function dedupeAndSort(entries: GeneratedFileEntry[]): GeneratedFileEntry[] {
-  const byKey = new Map<string, GeneratedFileEntry>();
-  for (const entry of entries) {
-    const key = entry.relativePath ?? entry.path;
-    byKey.set(key, entry);
-  }
-  return [...byKey.values()].sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export const deliverablesService = new DeliverablesService();

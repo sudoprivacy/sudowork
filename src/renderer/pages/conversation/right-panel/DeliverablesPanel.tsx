@@ -8,7 +8,7 @@ import { FolderOpen } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import type { GeneratedFileEntry } from '@/common/generatedFiles';
+import { mergeGeneratedFileEntries, type GeneratedFileEntry } from '@/common/generatedFiles';
 import GeneratedFileCards from '@/renderer/messages/GeneratedFileCard';
 
 interface DeliverablesPanelProps {
@@ -38,12 +38,13 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, t
       return;
     }
     let cancelled = false;
+    setEntries([]);
     setLoading(true);
     ipcBridge.deliverables.list
       .invoke(key)
       .then((res) => {
         if (cancelled) return;
-        if (res?.success && Array.isArray(res.data)) setEntries(res.data);
+        if (res?.success && Array.isArray(res.data)) setEntries((current) => mergeGeneratedFileEntries(res.data, current));
       })
       .catch(() => {
         // ignore — empty state is the right fallback
@@ -110,10 +111,7 @@ const EmptyState: React.FC<{ loading: boolean }> = ({ loading }) => {
 };
 
 function mergeEntries(prev: GeneratedFileEntry[], incoming: GeneratedFileEntry[]): GeneratedFileEntry[] {
-  const byPath = new Map<string, GeneratedFileEntry>();
-  for (const entry of prev) byPath.set(entry.path, entry);
-  for (const entry of incoming) byPath.set(entry.path, entry); // latest wins
-  return [...byPath.values()].sort((a, b) => b.createdAt - a.createdAt);
+  return mergeGeneratedFileEntries(prev, incoming);
 }
 
 interface DayGroup {

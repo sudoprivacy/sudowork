@@ -23,18 +23,28 @@
 
 export const NEXUS_GENERATED_FILES_MARKER = '[[NEXUS_GENERATED_FILES]]';
 
-/** Single deliverable surfaced to the renderer. */
-export interface GeneratedFileEntry {
+/** A persisted file location used to retire a stale path after a move. */
+export interface GeneratedFileLocation {
   /** Absolute path on disk. */
   path: string;
   /** Path relative to the conversation workspace (when resolvable). */
   relativePath?: string;
+}
+
+/** Single deliverable surfaced to the renderer. */
+export interface GeneratedFileEntry extends GeneratedFileLocation {
   /**
    * What the agent did to this file in this turn.
    *  - 'create': new file
    *  - 'edit'  : pre-existing file modified
    */
   kind: 'create' | 'edit';
+  /** Previous location when this entry was produced by a verified file move. */
+  movedFrom?: GeneratedFileLocation;
+  /** Intermediate or overwritten locations retired by a verified move chain. */
+  removedPaths?: GeneratedFileLocation[];
+  /** Tombstone emitted when a verified move target no longer exists at turn end. */
+  isRemoved?: boolean;
   /** Lowercase extension without leading dot (e.g. 'html', 'pptx'); '' if none. */
   ext: string;
   /** Best-effort MIME type. Useful for icon / renderer dispatch. */
@@ -96,12 +106,41 @@ export function parseGeneratedFilesMarker(content: string): ParsedGeneratedFiles
       return { textBefore, files: [], ok: false };
     }
     const files = parsed.files.filter((f): f is GeneratedFileEntry => {
-      return !!f && typeof f.path === 'string' && (f.kind === 'create' || f.kind === 'edit') && typeof f.createdAt === 'number';
+      if (!f || typeof f.path !== 'string' || (f.kind !== 'create' && f.kind !== 'edit') || typeof f.createdAt !== 'number') return false;
+      if (f.movedFrom !== undefined && !isGeneratedFileLocation(f.movedFrom)) return false;
+      if (f.removedPaths !== undefined && (!Array.isArray(f.removedPaths) || !f.removedPaths.every(isGeneratedFileLocation))) return false;
+      if (f.isRemoved !== undefined && typeof f.isRemoved !== 'boolean') return false;
+      return true;
     });
     return { textBefore, files, ok: files.length > 0 };
   } catch {
     return { textBefore, files: [], ok: false };
   }
+}
+
+/** Apply create/edit entries and verified moves to a current deliverables list. */
+export function mergeGeneratedFileEntries(current: GeneratedFileEntry[], incoming: GeneratedFileEntry[]): GeneratedFileEntry[] {
+  const byKey = new Map<string, GeneratedFileEntry>();
+  for (const entry of current) byKey.set(entry.relativePath ?? entry.path, entry);
+
+  for (const entry of [...incoming].sort((a, b) => a.createdAt - b.createdAt)) {
+    for (const removed of [...(entry.movedFrom ? [entry.movedFrom] : []), ...(entry.removedPaths ?? [])]) {
+      const sourceKey = removed.relativePath ?? removed.path;
+      byKey.delete(sourceKey);
+      for (const [key, existing] of byKey) {
+        if (existing.path === removed.path || (removed.relativePath && existing.relativePath === removed.relativePath)) byKey.delete(key);
+      }
+    }
+    if (!entry.isRemoved) byKey.set(entry.relativePath ?? entry.path, entry);
+  }
+
+  return [...byKey.values()].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function isGeneratedFileLocation(value: unknown): value is GeneratedFileLocation {
+  if (!value || typeof value !== 'object') return false;
+  const location = value as Partial<GeneratedFileLocation>;
+  return typeof location.path === 'string' && (location.relativePath === undefined || typeof location.relativePath === 'string');
 }
 
 /**

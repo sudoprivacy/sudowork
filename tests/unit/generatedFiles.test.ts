@@ -1,12 +1,4 @@
-import {
-  appendGeneratedFilesMarker,
-  extractExtension,
-  mimeForExtension,
-  NEXUS_GENERATED_FILES_MARKER,
-  parseGeneratedFilesMarker,
-  stripGeneratedFilesMarker,
-  type GeneratedFileEntry,
-} from '@/common/generatedFiles';
+import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, mergeGeneratedFileEntries, NEXUS_GENERATED_FILES_MARKER, parseGeneratedFilesMarker, stripGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 
 const entry = (overrides: Partial<GeneratedFileEntry> = {}): GeneratedFileEntry => ({
   path: '/workspace/hello.html',
@@ -74,6 +66,15 @@ describe('parseGeneratedFilesMarker', () => {
     expect(parsed.ok).toBe(false);
   });
 
+  it('round-trips verified move metadata', () => {
+    const moved = entry({
+      path: '/outside/archive/hello.html',
+      relativePath: undefined,
+      movedFrom: { path: '/workspace/hello.html', relativePath: 'hello.html' },
+    });
+    expect(parseGeneratedFilesMarker(appendGeneratedFilesMarker('Done.', [moved])).files).toEqual([moved]);
+  });
+
   it('drops entries that are missing required fields', () => {
     const partial = appendGeneratedFilesMarker('Done.', [
       entry(),
@@ -83,6 +84,60 @@ describe('parseGeneratedFilesMarker', () => {
     const parsed = parseGeneratedFilesMarker(partial);
     expect(parsed.files).toHaveLength(1);
     expect(parsed.files[0].path).toBe('/workspace/hello.html');
+  });
+});
+
+describe('mergeGeneratedFileEntries', () => {
+  it('removes the stale source when applying a verified move', () => {
+    const source = entry();
+    const moved = entry({
+      path: '/workspace/archive/hello.html',
+      relativePath: 'archive/hello.html',
+      movedFrom: { path: source.path, relativePath: source.relativePath },
+      createdAt: source.createdAt + 1,
+    });
+
+    expect(mergeGeneratedFileEntries([source], [moved])).toEqual([moved]);
+  });
+
+  it('removes overwritten intermediate paths from a compressed move chain', () => {
+    const first = entry({ path: '/workspace/a.html', relativePath: 'a.html' });
+    const overwritten = entry({ path: '/workspace/b.html', relativePath: 'b.html' });
+    const moved = entry({
+      path: '/workspace/c.html',
+      relativePath: 'c.html',
+      movedFrom: { path: first.path, relativePath: first.relativePath },
+      removedPaths: [{ path: overwritten.path, relativePath: overwritten.relativePath }],
+      createdAt: first.createdAt + 1,
+    });
+
+    expect(mergeGeneratedFileEntries([first, overwritten], [moved])).toEqual([moved]);
+  });
+
+  it('applies a move tombstone without adding its missing target', () => {
+    const source = entry();
+    const removed = entry({
+      path: '/workspace/missing.html',
+      relativePath: 'missing.html',
+      movedFrom: { path: source.path, relativePath: source.relativePath },
+      isRemoved: true,
+      createdAt: source.createdAt + 1,
+    });
+
+    expect(mergeGeneratedFileEntries([source], [removed])).toEqual([]);
+  });
+
+  it('allows a moved source path to be recreated later', () => {
+    const source = entry();
+    const moved = entry({
+      path: '/outside/hello.html',
+      relativePath: undefined,
+      movedFrom: { path: source.path, relativePath: source.relativePath },
+      createdAt: source.createdAt + 1,
+    });
+    const recreated = entry({ createdAt: source.createdAt + 2 });
+
+    expect(mergeGeneratedFileEntries([], [source, moved, recreated])).toEqual([recreated, moved]);
   });
 });
 

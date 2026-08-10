@@ -51,13 +51,14 @@ import { applyPresetRuntime } from '@process/task/presetRuntime';
 import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { deliverablesService } from '@process/services/deliverables/DeliverablesService';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';
 import { classifyLlmError } from '@process/utils/llmErrorClassification';
 import { mergeScodeProxyModelInfo, isModelVisionCapable, getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { ensureScodeUserMemoryDir, hasScodeUserMemoryPath, isScodeUserMemoryPath } from '@process/services/scode/scodePaths';
 import { getUserContext } from '@process/telemetry/UserContext';
 import { extractGovernanceBlock } from '@process/services/team/GovernancePrompt';
-import { appendGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
+import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, type GeneratedFileEntry } from '@/common/generatedFiles';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { protectUnsupportedAcpSlashPrompt } from '@/common/slash/sudoworkCommands';
 import { cdpPort as chromiumCdpPort } from '@/utils/configureChromium';
@@ -101,6 +102,7 @@ import { StreamTextBuffer, CronTextAccumulator, preprocessContentMessage } from 
 import { StreamingThinkFilter } from './acp/StreamingThinkFilter';
 import { clearAcpSessionId, saveAcpSessionId, saveSessionMode, saveModelId, saveContextUsage } from './acp/AcpPersistence';
 import { extractLatestScodeAssistantUsageFromJsonl, findScodeSessionFile, normalizePromptUsageForMessage, SCODE_LATE_RECONCILIATION_DEFAULTS } from './acpUsageReconciliation';
+import { detectVerifiedFileMoves } from './shellFileMoveDetection';
 
 // Telemetry imports for conversation tracking
 
@@ -259,6 +261,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
   // Turn-level file tracking for precise cleanup on cancel
   private currentTurnFiles: Map<string, TrackedTurnFile> = new Map();
+  private currentTurnFileMoves: Map<string, GeneratedFileEntry> = new Map();
+  private knownDeliverablePaths: Set<string> = new Set();
   // Files already forwarded to channel clients this turn (prevents duplicate file_send)
   private sentChannelFilePaths: Set<string> = new Set();
   private currentTurnProtectedFinalPaths = new Set<string>();
@@ -781,6 +785,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // ★ Reset turn-level file tracking for new turn
     // 重置 Turn 级别文件追踪，开始新的 Turn
     this.currentTurnFiles.clear();
+    this.currentTurnFileMoves.clear();
+    const knownDeliverables = this.options.teamId ? deliverablesService.listForTeam(this.options.teamId) : deliverablesService.listForConversation(this.conversation_id);
+    this.knownDeliverablePaths = new Set(knownDeliverables.map((entry) => nodePath.resolve(entry.path)).filter((filePath) => fs.existsSync(filePath)));
     this.sentChannelFilePaths.clear();
     this.turnStartDeliverableSnapshot = this.captureDeliverableSnapshot();
     this.currentTurnProtectedFinalPaths.clear();
@@ -1849,6 +1856,7 @@ This identity statement takes priority over the default identity in USER.md.
   private async cleanupTrackedDraftFiles(): Promise<number> {
     const removedCount = await cleanupTrackedDraftsOnCancel(this.workspace, this.currentTurnFiles);
     this.currentTurnFiles.clear();
+    this.currentTurnFileMoves.clear();
     this.currentTurnProtectedFinalPaths.clear();
     this.pendingCurrentTurnPostCleanup = false;
 
@@ -2148,16 +2156,34 @@ This identity statement takes priority over the default identity in USER.md.
    * Scans workspace for new files after Bash completes and tracks them
    * 在 Bash 完成后扫描工作空间新增文件并追踪
    */
-  private trackBashGeneratedFiles(command?: string | null): void {
+  private trackBashGeneratedFiles(command?: string | null, shell: 'bash' | 'powershell' = 'bash'): void {
     try {
       const currentSnapshot = this.getWorkspaceFiles();
 
       // Compare with previous snapshot to find new and modified files
       const previousSnapshot = this.workspaceFileSnapshot;
+      const deliverablePaths = new Set(this.knownDeliverablePaths);
+      for (const file of this.currentTurnFiles.values()) deliverablePaths.add(nodePath.resolve(file.actualPath));
+      const previousPaths = new Set(previousSnapshot.keys());
+      const currentPaths = new Set(currentSnapshot.keys());
+      for (const deliverablePath of deliverablePaths) {
+        if (!this.isPathInsideWorkspace(deliverablePath)) previousPaths.add(deliverablePath);
+        if (fs.existsSync(deliverablePath)) currentPaths.add(deliverablePath);
+      }
+      const verifiedMoves = detectVerifiedFileMoves({
+        command,
+        shell,
+        workspace: this.workspace,
+        previousPaths,
+        currentPaths,
+        deliverablePaths,
+      });
+      const movedDestinationPaths = new Set(verifiedMoves.map((move) => move.destinationPath));
       const draftRestoreDetection = detectBashDraftRestoreCommand(command);
       const changedFiles: Array<{ path: string; kind: 'create' | 'edit' }> = [];
 
       for (const [file, time] of currentSnapshot) {
+        if (movedDestinationPaths.has(file)) continue;
         if (!previousSnapshot.has(file)) {
           changedFiles.push({ path: file, kind: 'create' });
           continue;
@@ -2167,6 +2193,37 @@ This identity statement takes priority over the default identity in USER.md.
         if (previousTime !== undefined && time > previousTime) {
           changedFiles.push({ path: file, kind: 'edit' });
         }
+      }
+
+      for (const move of verifiedMoves) {
+        for (const [trackingKey, trackedFile] of this.currentTurnFiles) {
+          if (nodePath.resolve(trackedFile.actualPath) === move.sourcePath) this.currentTurnFiles.delete(trackingKey);
+        }
+        const previousMove = this.currentTurnFileMoves.get(move.sourcePath);
+        const overwrittenMove = this.currentTurnFileMoves.get(move.destinationPath);
+        const movedFrom = previousMove?.movedFrom ?? { path: move.sourcePath, relativePath: move.sourceRelativePath };
+        const removedPaths = [...(previousMove?.removedPaths ?? []), ...(overwrittenMove?.movedFrom ? [overwrittenMove.movedFrom] : []), ...(overwrittenMove?.removedPaths ?? []), { path: move.sourcePath, relativePath: move.sourceRelativePath }];
+        if (previousMove) this.currentTurnFileMoves.delete(move.sourcePath);
+        let size: number | undefined;
+        try {
+          size = fs.statSync(move.destinationPath).size;
+        } catch {
+          size = undefined;
+        }
+        const ext = extractExtension(move.destinationPath);
+        this.currentTurnFileMoves.set(move.destinationPath, {
+          path: move.destinationPath,
+          relativePath: move.destinationRelativePath,
+          kind: 'edit',
+          movedFrom,
+          removedPaths,
+          ext,
+          mime: mimeForExtension(ext),
+          size,
+          createdAt: Date.now(),
+        });
+        this.knownDeliverablePaths.delete(move.sourcePath);
+        this.knownDeliverablePaths.add(move.destinationPath);
       }
 
       let trackedCount = 0;
@@ -2197,8 +2254,8 @@ This identity statement takes priority over the default identity in USER.md.
       // Update snapshot for next comparison
       this.workspaceFileSnapshot = currentSnapshot;
 
-      if (trackedCount > 0) {
-        mainLog('[AcpAgent]', `[TRACK-BASH] Total changed files tracked: ${trackedCount}`);
+      if (trackedCount > 0 || verifiedMoves.length > 0) {
+        mainLog('[AcpAgent]', `[TRACK-BASH] Total changed files tracked: ${trackedCount}, moves: ${verifiedMoves.length}`);
       }
     } catch (err) {
       mainError('[AcpAgent]', 'Failed to track Bash generated files:', err);
@@ -2267,6 +2324,11 @@ This identity statement takes priority over the default identity in USER.md.
 
   private shouldSkipWorkspaceTrackingPath(relativePath: string): boolean {
     return shouldSkipAcpWorkspaceTrackingPath(relativePath);
+  }
+
+  private isPathInsideWorkspace(filePath: string): boolean {
+    const relativePath = nodePath.relative(nodePath.resolve(this.workspace), nodePath.resolve(filePath));
+    return relativePath === '' || (!relativePath.startsWith('..') && !nodePath.isAbsolute(relativePath));
   }
 
   /**
@@ -2752,7 +2814,7 @@ This identity statement takes priority over the default identity in USER.md.
             if (n === 'bash' || n === 'powershell') {
               mainLog('[AcpAgent]', `[TRACK-SHELL] Shell tool detected (${n}), status: ${toolStatus}`);
               if (toolStatus === 'completed') {
-                this.trackBashGeneratedFiles(rawInput?.command as string | undefined);
+                this.trackBashGeneratedFiles(rawInput?.command as string | undefined, n === 'powershell' ? 'powershell' : 'bash');
                 this.deliverBashGeneratedFilesToChannel();
               }
             }
@@ -3152,13 +3214,22 @@ This identity statement takes priority over the default identity in USER.md.
       // （sendMessage 会 clear currentTurnFiles、重拍 turnStartDeliverableSnapshot），
       // 归档必须基于此处锁定的副本，否则竞态下不发交付物标记。
       const turnFiles = new Map(this.currentTurnFiles);
+      const fileMoves = [...this.currentTurnFileMoves.values()];
+      this.currentTurnFileMoves.clear();
       const finalFiles = this.getCurrentTurnFinalFileSummaries();
       await this.installTrackedWorkspaceSkills();
       // Archive FIRST, then build the marker from the returned final paths, so
       // the recorded path matches the file's real post-archive location.
       const generatedEntries = await this.archiveCurrentTurnFiles(turnFiles);
+      const finalizedMoves = fileMoves.map((entry) => {
+        try {
+          return fs.statSync(entry.path).isFile() ? entry : { ...entry, isRemoved: true };
+        } catch {
+          return { ...entry, isRemoved: true };
+        }
+      });
       this.emitFallbackCompletionMessage(finalFiles);
-      this.emitGeneratedFilesMarkerMessage(generatedEntries);
+      this.emitGeneratedFilesMarkerMessage([...generatedEntries, ...finalizedMoves]);
     }
 
     const msg: IResponseMessage = {
@@ -4712,6 +4783,9 @@ This identity statement takes priority over the default identity in USER.md.
     const trackedAbsolute = new Set<string>();
     for (const file of this.currentTurnFiles.values()) {
       trackedAbsolute.add(nodePath.resolve(file.actualPath));
+    }
+    for (const file of this.currentTurnFileMoves.values()) {
+      trackedAbsolute.add(nodePath.resolve(file.path));
     }
     try {
       const entries = fs.readdirSync(this.workspace, { withFileTypes: true });

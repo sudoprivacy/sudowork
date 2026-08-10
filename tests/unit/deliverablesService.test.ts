@@ -84,6 +84,20 @@ describe('DeliverablesService.listForConversation', () => {
     expect(result[0].createdAt).toBe(500);
   });
 
+  it('replaces a stale source marker with its verified moved destination', () => {
+    const source = entry({ path: '/w/report.md', relativePath: 'report.md', ext: 'md', createdAt: 100 });
+    const moved = entry({
+      path: '/outside/report.md',
+      relativePath: undefined,
+      ext: 'md',
+      createdAt: 200,
+      movedFrom: { path: source.path, relativePath: source.relativePath },
+    });
+    getConversationMessagesMock.mockReturnValue(paginated([markerMessage([source]), markerMessage([moved])]));
+
+    expect(deliverablesService.listForConversation('c1')).toEqual([moved]);
+  });
+
   it('ignores user (right-position) messages even if they somehow contain a marker', () => {
     getConversationMessagesMock.mockReturnValue(paginated([markerMessage([entry()], 'right')]));
     expect(deliverablesService.listForConversation('c1')).toEqual([]);

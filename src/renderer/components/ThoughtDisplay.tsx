@@ -111,13 +111,13 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
 
   return (
     <div className='p-2.5 rd-t-20px text-14px pb-6 lh-20px text-foreground' style={containerStyle}>
-      <div className='flex items-center gap-2'>
+      <div className='flex min-w-0 items-center gap-2'>
         {running && <Spin size={14} />}
-        <Tag color='arcoblue' size='small'>
-          {thought.subject}
+        <Tag color='arcoblue' size='small' className='min-w-0 overflow-hidden'>
+          <span className='block truncate'>{thought.subject}</span>
         </Tag>
-        {showDescription && <span className='flex-1 truncate'>{thought.description}</span>}
-        {running && <span className='text-foreground-tertiary text-12px whitespace-nowrap'>({formatElapsedTime(elapsedTime)})</span>}
+        {showDescription && <span className='min-w-0 flex-1 truncate'>{thought.description}</span>}
+        {running && <span className='shrink-0 text-foreground-tertiary text-12px whitespace-nowrap'>({formatElapsedTime(elapsedTime)})</span>}
       </div>
     </div>
   );

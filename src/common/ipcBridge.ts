@@ -7,6 +7,7 @@
 import type { OpenDialogOptions } from 'electron';
 import { bridge } from '@office-ai/platform';
 import type { IConfirmation } from '@/common/chatLib';
+import type { GeneratedFileEntry } from '@/common/generatedFiles';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import type { IAssistantInfo } from '@/process/AssistantManager';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
@@ -632,32 +633,11 @@ export const rightPanelBrowser = {
 // the `changed` emitter fires from the agent at turn finish so the renderer
 // can update without a refetch round-trip.
 export const deliverables = {
-  list: bridge.buildProvider<
-    IBridgeResponse<
-      Array<{
-        path: string;
-        relativePath?: string;
-        kind: 'create' | 'edit';
-        ext: string;
-        mime?: string;
-        size?: number;
-        createdAt: number;
-      }>
-    >,
-    { conversationId?: string; teamId?: string }
-  >('deliverables.list'),
+  list: bridge.buildProvider<IBridgeResponse<GeneratedFileEntry[]>, { conversationId?: string; teamId?: string }>('deliverables.list'),
   changed: bridge.buildEmitter<{
     conversationId: string;
     teamId?: string;
-    files: Array<{
-      path: string;
-      relativePath?: string;
-      kind: 'create' | 'edit';
-      ext: string;
-      mime?: string;
-      size?: number;
-      createdAt: number;
-    }>;
+    files: GeneratedFileEntry[];
   }>('deliverables.changed'),
 };
 

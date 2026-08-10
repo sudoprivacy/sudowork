@@ -125,7 +125,7 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
           {!directory && sizeLabel && ext && <span className='mx-4px opacity-50'>·</span>}
           {!directory && ext && <span className='uppercase opacity-70'>{ext}</span>}
           {directory && sizeLabel ? <span className='ml-2 rounded-full bg-fill-shallow px-1.5 py-0.5 text-[10px] leading-4 text-foreground-secondary'>{sizeLabel}</span> : null}
-          {directory && ext ? <span className='ml-1.5 rounded-full bg-fill-shallow px-1.5 py-0.5 text-[10px] leading-4 text-foreground-secondary uppercase tracking-wide'>{ext}</span> : null}
+          {/* {directory && ext ? <span className='ml-1.5 rounded-full bg-fill-shallow px-1.5 py-0.5 text-[10px] leading-4 text-foreground-secondary uppercase tracking-wide'>{ext}</span> : null} */}
         </div>
       </div>
       <div className='ml-auto flex shrink-0 self-stretch flex-col items-end justify-between gap-1'>

@@ -62,7 +62,7 @@ const useFormatContent = (content: string) => {
   }, [content]);
 };
 
-const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; footer?: React.ReactNode }> = ({ message, isStreaming = false, footer }) => {
+const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; footer?: React.ReactNode }> = ({ message, isStreaming: _isStreaming = false, footer }) => {
   // Filter think tags from content before rendering
   // 在渲染前过滤 think 标签
   const contentToRender = useMemo(() => {
@@ -86,6 +86,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
   // Done before parseFileMarker so the user-side NEXUS_FILES path can keep
   // assuming its content is unprefixed.
   const generated = useMemo(() => (typeof displayContent === 'string' ? parseGeneratedFilesMarker(displayContent) : { textBefore: displayContent as string, files: [], ok: false }), [displayContent]);
+  const generatedFiles = useMemo(() => generated.files.filter((file) => !file.isRemoved), [generated.files]);
 
   const { text: rawText, files } = parseFileMarker(generated.textBefore);
   const text = rawText.trimEnd();
@@ -120,7 +121,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
   if (!message.content.content || (typeof message.content.content === 'string' && !message.content.content.trim())) {
     return null;
   }
-  if (!text.trim() && !generated.ok && visibleFiles.length === 0) {
+  if (!text.trim() && generatedFiles.length === 0 && visibleFiles.length === 0) {
     return null;
   }
 
@@ -193,9 +194,9 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
             )}
           </div>
         )}
-        {generated.ok && generated.files.length > 0 && (
+        {generatedFiles.length > 0 && (
           <div className={classNames(proseHasContent ? 'mt-8px w-full' : 'mt-6px w-full')}>
-            <GeneratedFileCards entries={generated.files} fullWidth />
+            <GeneratedFileCards entries={generatedFiles} fullWidth />
           </div>
         )}
         {showFooter && <div className='mt-4px w-full max-w-full'>{footer}</div>}

@@ -114,6 +114,7 @@ export default defineConfig({
         'src/agent/acp/modelInfo.ts',
         'src/process/task/acpWorkspaceTracking.ts',
         'src/process/task/CronCommandDetector.ts',
+        'src/process/task/shellFileMoveDetection.ts',
         'src/process/task/turnInputCoordinator.ts',
         // Common
         'src/common/chatLib.ts',
