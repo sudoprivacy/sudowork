@@ -30,8 +30,8 @@ export function useTeamExport() {
 
   const fileExists = useCallback(async (filePath: string): Promise<boolean> => {
     try {
-      await withTimeout(ipcBridge.fs.getFileMetadata.invoke({ path: filePath }), EXPORT_IO_TIMEOUT_MS, `getFileMetadata:${filePath}`);
-      return true;
+      const metadata = await withTimeout(ipcBridge.fs.getFileMetadata.invoke({ path: filePath }), EXPORT_IO_TIMEOUT_MS, `getFileMetadata:${filePath}`);
+      return metadata !== null;
     } catch {
       return false;
     }

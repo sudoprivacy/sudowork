@@ -282,7 +282,7 @@ export const fs = {
     }
   >('create-zip-file'), // 创建 zip 文件
   cancelZip: bridge.buildProvider<boolean, { requestId: string }>('cancel-zip-file'), // 取消 zip 创建任务
-  getFileMetadata: bridge.buildProvider<IFileMetadata, { path: string }>('get-file-metadata'), // 获取文件元数据
+  getFileMetadata: bridge.buildProvider<IFileMetadata | null, { path: string }>('get-file-metadata'), // 获取文件元数据
   copyFilesToWorkspace: bridge.buildProvider<
     // 返回成功与部分失败的详细状态，便于前端提示用户 / Return details for successful and failed copies for better UI feedback
     IBridgeResponse<{ copiedFiles: string[]; failedFiles?: Array<{ path: string; error: string }> }>,

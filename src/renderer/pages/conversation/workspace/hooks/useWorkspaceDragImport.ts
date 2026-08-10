@@ -94,6 +94,7 @@ export function useWorkspaceDragImport({ onFilesDropped, t }: UseWorkspaceDragIm
     for (const item of items) {
       try {
         const metadata = await ipcBridge.fs.getFileMetadata.invoke({ path: item.path });
+        if (!metadata) throw new Error('Missing file metadata');
         const itemName = metadata.name || item.name || getBaseName(item.path);
         const kind = metadata.isDirectory ? 'directory' : 'file';
         unique.set(item.path, { path: item.path, name: itemName, kind });

@@ -1,6 +1,15 @@
 {
   "fileChanges": "Dosya Değişiklikleri",
   "fileChangesCount": "{{count}} Dosya Değişikliği",
+  "generatedFile": {
+    "kindCreate": "Oluşturuldu",
+    "kindEdit": "Güncellendi",
+    "statusMissing": "Kullanılamıyor",
+    "missingHint": "Dosya taşındığı veya silindiği için önizlenemiyor",
+    "openInSystemBrowser": "Varsayılan tarayıcıda aç",
+    "openWithDefaultApp": "Varsayılan uygulamayla aç",
+    "showInFolder": "Klasörde göster"
+  },
   "conversationInProgress": "Bir görüşme şu anda devam ediyor...",
   "confirm": "Onayla",
   "canceledExecution": "Yürütme iptal edildi",

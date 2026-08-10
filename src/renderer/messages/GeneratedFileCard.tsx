@@ -51,7 +51,11 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
       .invoke({ path: entry.path })
       .then((meta) => {
         if (cancelled) return;
-        if (typeof meta?.size === 'number') setResolvedSize(meta.size);
+        if (!meta) {
+          setMissing(true);
+          return;
+        }
+        if (typeof meta.size === 'number') setResolvedSize(meta.size);
       })
       .catch(() => {
         if (!cancelled) setMissing(true);
@@ -62,15 +66,31 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
   }, [entry.path]);
 
   const handleClick = useCallback(() => {
-    if (missing || loading) return;
-    const contentType = getContentTypeByExtension(entry.path);
-    void launchPreview({
-      originalPath: entry.path,
-      fileName,
-      contentType,
-      editable: false,
-    });
-  }, [missing, loading, entry.path, fileName, launchPreview]);
+    if (loading) return;
+    if (missing) {
+      Message.warning(t('messages.generatedFile.missingHint'));
+      return;
+    }
+
+    void (async () => {
+      try {
+        const metadata = await ipcBridge.fs.getFileMetadata.invoke({ path: entry.path });
+        if (!metadata) throw new Error('Missing file metadata');
+      } catch {
+        setMissing(true);
+        Message.warning(t('messages.generatedFile.missingHint'));
+        return;
+      }
+
+      const contentType = getContentTypeByExtension(entry.path);
+      await launchPreview({
+        originalPath: entry.path,
+        fileName,
+        contentType,
+        editable: false,
+      });
+    })();
+  }, [missing, loading, entry.path, fileName, launchPreview, t]);
 
   const handleOpenExternal = useCallback(
     (e: React.MouseEvent) => {

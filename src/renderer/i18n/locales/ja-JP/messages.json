@@ -1,6 +1,15 @@
 {
   "fileChanges": "ファイル変更",
   "fileChangesCount": "{{count}} 件のファイル変更",
+  "generatedFile": {
+    "kindCreate": "作成済み",
+    "kindEdit": "更新済み",
+    "statusMissing": "無効",
+    "missingHint": "ファイルが移動または削除されたため、プレビューできません",
+    "openInSystemBrowser": "デフォルトのブラウザで開く",
+    "openWithDefaultApp": "デフォルトのアプリで開く",
+    "showInFolder": "フォルダに表示"
+  },
   "conversationInProgress": "現在、会話中です...",
   "confirm": "確認",
   "canceledExecution": "実行がキャンセルされました",

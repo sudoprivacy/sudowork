@@ -743,7 +743,7 @@ export function initFsBridge(): void {
       };
     } catch (error) {
       mainError('fsBridge', 'Failed to get file metadata:', error);
-      throw error;
+      return null;
     }
   });
 
