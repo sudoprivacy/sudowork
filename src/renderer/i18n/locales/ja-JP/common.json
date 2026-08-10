@@ -87,6 +87,7 @@
   "siderMenu": {
     "newConversation": "新しい会話",
     "bidGeneration": "入札書生成",
+    "assetLibrary": "アセットライブラリ",
     "agent": "デジタルアシスタント",
     "skillStore": "スキルストア",
     "security": "セキュリティ",

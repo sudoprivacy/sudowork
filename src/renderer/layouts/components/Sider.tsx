@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FileText, MessageCirclePlus } from 'lucide-react';
+import { FileText, Library, MessageCirclePlus } from 'lucide-react';
 import React, { Suspense, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -35,6 +35,12 @@ export default function Sider({ onNewConversation }: ISiderProps) {
       label: t('common.siderMenu.bidGeneration'),
       icon: <FileText />,
       path: '/bid',
+    },
+    {
+      id: 'asset-library',
+      label: t('common.siderMenu.assetLibrary'),
+      icon: <Library />,
+      path: '/asset-library',
     },
   ];
 

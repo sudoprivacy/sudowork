@@ -18,6 +18,7 @@ vi.mock('react-i18next', () => ({
       ({
         'common.siderMenu.newConversation': 'New conversation',
         'common.siderMenu.bidGeneration': 'Bid generation',
+        'common.siderMenu.assetLibrary': 'Asset Library',
       })[key] || key,
   }),
 }));
@@ -48,5 +49,12 @@ describe('Sider main menu', () => {
     const bid = screen.getByRole('button', { name: 'Bid generation' });
     fireEvent.click(bid);
     expect(mocks.navigate).toHaveBeenCalledWith('/bid');
+  });
+
+  it('navigates to the asset library page', () => {
+    render(<Sider onNewConversation={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Asset Library' }));
+    expect(mocks.navigate).toHaveBeenCalledWith('/asset-library');
   });
 });

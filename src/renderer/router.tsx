@@ -13,6 +13,7 @@ import { useAppMode, isModeResolved } from './hooks/useAppMode';
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
 const Bid = React.lazy(() => import('./pages/bid'));
+const AssetLibrary = React.lazy(() => import('./pages/asset-library'));
 const MossSessionPage = React.lazy(() => import('./pages/moss-session/MossSessionPage'));
 const About = React.lazy(() => import('./pages/settings/about'));
 const AgentSettings = React.lazy(() => import('./pages/agents'));
@@ -55,6 +56,7 @@ const SettingsDefaultRoute: React.FC = () => {
 const PROTECTED_ROUTE_CONFIGS = [
   { path: '/guid', component: Guid },
   { path: '/bid', component: Bid },
+  { path: '/asset-library', component: AssetLibrary },
   { path: '/conversation/:id', component: Conversation },
   { path: '/moss-session/:sessionId', component: MossSessionPage },
   { path: '/settings/gemini', component: GeminiSettings },

@@ -92,6 +92,7 @@
   "siderMenu": {
     "newConversation": "新会话",
     "bidGeneration": "标书生成",
+    "assetLibrary": "资产库",
     "agent": "智能体",
     "skillStore": "技能商店",
     "localKb": "本地知识库",

@@ -242,6 +242,7 @@ export type I18nKey =
   | 'common.setupContinuesInBackground'
   | 'common.show'
   | 'common.siderMenu.agent'
+  | 'common.siderMenu.assetLibrary'
   | 'common.siderMenu.bidGeneration'
   | 'common.siderMenu.cron'
   | 'common.siderMenu.localKb'

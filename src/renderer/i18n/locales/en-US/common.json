@@ -93,6 +93,7 @@
   "siderMenu": {
     "newConversation": "New conversation",
     "bidGeneration": "Bid generation",
+    "assetLibrary": "Asset Library",
     "agent": "Agent",
     "skillStore": "Skill Store",
     "localKb": "Local KB",
