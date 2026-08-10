@@ -287,7 +287,7 @@ const ChatLayout: React.FC<{
                   className='h-full'
                 >
                   <div className='bg-background! h-full overflow-hidden'>
-                    <div className='preview-panel flex flex-col h-full py-1.5 pr-3 pl-2 relative z-11 [-webkit-app-region:no-drag]'>
+                    <div className={`preview-panel flex h-full flex-col py-1.5 pr-3 pl-2 relative [-webkit-app-region:no-drag] ${isLinuxRuntime ? 'z-9' : 'z-11'}`} style={{ paddingTop: isLinuxRuntime ? 28 : undefined }}>
                       <div className='h-full w-full overflow-hidden rounded-xl'>
                         <PreviewPanel isFullscreen={isPreviewFullscreen} onFullscreenToggle={onPreviewFullscreenToggle} />
                       </div>

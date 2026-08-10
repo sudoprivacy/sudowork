@@ -51,8 +51,8 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
   const isLinuxRuntime = isDesktopRuntime && isLinux();
   // Windows/Linux 显示自定义窗口按钮；macOS 在标题栏给工作区一个切换入口
   const showWindowControls = isDesktopRuntime && !isMacRuntime;
-  // WebUI 和 macOS 桌面都需要在标题栏放工作区开关
-  const showWorkspaceButton = workspaceAvailable && (!isDesktopRuntime || isMacRuntime) && !isPreviewActive;
+  // WebUI、macOS 和 Linux 在标题栏放工作区开关；Windows 使用会话头部按钮
+  const showWorkspaceButton = workspaceAvailable && (!isDesktopRuntime || isMacRuntime || isLinuxRuntime) && !isPreviewActive;
 
   const workspaceTooltip = workspaceCollapsed ? t('common.expandMore', { defaultValue: '展开更多' }) : t('common.collapse', { defaultValue: '收起' });
   const iconSize = 18;
@@ -73,7 +73,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable, onNewConversati
 
   const siderToggleStyle: React.CSSProperties = useMemo(
     () => ({
-      transform: `${layout?.siderCollapsed ? `translateX(${isMacRuntime ? 80 : 0}px)` : 'translateX(calc(var(--layout-sider-width, 260px) - 44px))'}${isMacRuntime ? ' translateY(4px)' : isLinuxRuntime ? ' translateY(12px)' : ''}`,
+      transform: `${layout?.siderCollapsed ? `translateX(${isMacRuntime ? 80 : 0}px)` : 'translateX(calc(var(--layout-sider-width, 260px) - 44px))'}${isMacRuntime ? ' translateY(4px)' : isLinuxRuntime ? ` translateY(${layout?.siderCollapsed ? 4 : 12}px)` : ''}`,
       transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     }),
     [isLinuxRuntime, isMacRuntime, layout?.siderCollapsed]
