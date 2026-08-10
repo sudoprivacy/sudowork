@@ -9,6 +9,7 @@ import { IconShrink } from '@arco-design/web-react/icon';
 import { Maximize2, Minimize2, X as Close } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import type { TabFadeState } from '../../hooks/useTabOverflow';
 
@@ -113,8 +114,9 @@ interface PreviewTabsProps {
  */
 const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeState, tabsContainerRef, onSwitchTab, onCloseTab, onContextMenu, isFullscreen = false, onFullscreenToggle, onClosePanel }) => {
   const { t } = useTranslation();
+  const layout = useLayoutContext();
   const { left: showLeftFade, right: showRightFade } = tabFadeState;
-  const hasTrafficLightInset = isFullscreen && isElectronDesktop() && isMacOS();
+  const hasTrafficLightInset = isFullscreen && layout?.siderCollapsed === true && isElectronDesktop() && isMacOS();
 
   return (
     <div className='relative shrink-0' style={{ minHeight: '36px', borderBottom: '1px solid var(--border-default)' }}>

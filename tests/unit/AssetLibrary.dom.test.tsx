@@ -43,7 +43,14 @@ vi.mock('@/common', () => ({
 vi.mock('@renderer/utils/emitter', () => ({ addEventListener: () => vi.fn() }));
 vi.mock('@renderer/pages/guid/hooks/useGuidAgentSelection', () => ({ getRendererSessionMode: () => 'local' }));
 vi.mock('@renderer/pages/conversation/preview', () => ({
-  PreviewPanel: () => <div>Preview panel</div>,
+  PreviewPanel: ({ isFullscreen, onFullscreenToggle }: { isFullscreen?: boolean; onFullscreenToggle?: () => void }) => (
+    <div>
+      Preview panel
+      <button type='button' onClick={onFullscreenToggle}>
+        {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+      </button>
+    </div>
+  ),
   usePreviewContext: () => ({ isOpen: true, closePreviewByIdentity: mocks.closePreviewByIdentity }),
 }));
 vi.mock('@renderer/pages/asset-library/components/AssetLibraryItem', () => ({
@@ -85,5 +92,19 @@ describe('AssetLibraryPage', () => {
     fireEvent.click(card);
 
     expect(await screen.findByText('Preview panel')).toBeInTheDocument();
+  });
+
+  it('toggles preview fullscreen within the asset page', async () => {
+    mocks.listForUser.mockResolvedValue({
+      success: true,
+      data: [{ path: '/tmp/report.pdf', relativePath: 'report.pdf', kind: 'create', ext: 'pdf', createdAt: Date.now(), conversationId: 'c1', conversationName: 'Tender chat' }],
+    });
+    render(<AssetLibraryPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Asset cards' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Fullscreen' }));
+
+    expect(screen.getByRole('heading', { name: 'Asset Library' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exit fullscreen' })).toBeInTheDocument();
   });
 });

@@ -1,7 +1,7 @@
 import { Input, Select } from '@arco-design/web-react';
 import { Search } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Group, Panel } from 'react-resizable-panels';
+import { Group, Panel, type Layout, type LayoutChangedMeta } from 'react-resizable-panels';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
@@ -28,6 +28,7 @@ export default function AssetLibraryPage() {
   const [category, setCategory] = useState<AssetCategory>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [activePreviewPath, setActivePreviewPath] = useState<string | null>(null);
+  const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const previewPathsRef = useRef(new Set<string>());
   const closePreviewByIdentityRef = useRef(closePreviewByIdentity);
 
@@ -96,10 +97,25 @@ export default function AssetLibraryPage() {
 
   const isAssetPreviewOpen = activePreviewPath !== null && isPreviewOpen;
 
+  const onAssetLayoutChanged = useCallback(
+    (panelLayout: Layout, meta: LayoutChangedMeta) => {
+      if (!isPreviewFullscreen) onLayoutChanged(panelLayout, meta);
+    },
+    [isPreviewFullscreen, onLayoutChanged]
+  );
+
+  const onPreviewFullscreenToggle = useCallback(() => {
+    setIsPreviewFullscreen((isFullscreen) => !isFullscreen);
+  }, []);
+
+  useEffect(() => {
+    if (!isAssetPreviewOpen && isPreviewFullscreen) setIsPreviewFullscreen(false);
+  }, [isAssetPreviewOpen, isPreviewFullscreen]);
+
   return (
     <PageWrapper className='h-full overflow-hidden!' contentClassName='flex h-full min-h-0 flex-col' isFullWidth title={t('common.siderMenu.assetLibrary')} subtitle={t('common.assetLibrary.subtitle')}>
-      <Group className='min-h-0 flex-1' defaultLayout={isAssetPreviewOpen ? defaultLayout : { assets: 100 }} onLayoutChanged={isAssetPreviewOpen ? onLayoutChanged : undefined}>
-        <Panel id='assets' minSize='360px' className='min-w-0'>
+      <Group key={isPreviewFullscreen ? 'fullscreen' : 'split'} className='min-h-0 flex-1' defaultLayout={isPreviewFullscreen ? { assets: 0, preview: 100 } : isAssetPreviewOpen ? defaultLayout : { assets: 100 }} onLayoutChanged={isAssetPreviewOpen ? onAssetLayoutChanged : undefined}>
+        <Panel id='assets' minSize={isPreviewFullscreen ? '0%' : '360px'} className='min-w-0'>
           <div className='h-full overflow-y-auto pr-3'>
             <div className='mb-6 flex flex-wrap items-center justify-between gap-4'>
               <div className='flex min-w-0 flex-1 items-center gap-3'>
@@ -144,11 +160,11 @@ export default function AssetLibraryPage() {
         </Panel>
         {isAssetPreviewOpen && (
           <>
-            <ResizableSeparator />
-            <Panel id='preview' defaultSize='45%' minSize='340px' className='h-full'>
+            <ResizableSeparator isDisabled={isPreviewFullscreen} className={isPreviewFullscreen ? 'pointer-events-none opacity-0' : undefined} />
+            <Panel id='preview' defaultSize='45%' minSize='340px' maxSize={isPreviewFullscreen ? '100%' : undefined} groupResizeBehavior={isPreviewFullscreen ? 'preserve-relative-size' : 'preserve-pixel-size'} className='h-full'>
               <div className='asset-library-preview preview-panel h-full overflow-hidden pr-3 pl-2'>
-                <div className='h-full w-full overflow-hidden rounded-xl border border-border bg-background'>
-                  <PreviewPanel />
+                <div className='box-border h-full w-full overflow-hidden rounded-xl border border-border bg-background'>
+                  <PreviewPanel isFullscreen={isPreviewFullscreen} onFullscreenToggle={onPreviewFullscreenToggle} />
                 </div>
               </div>
             </Panel>

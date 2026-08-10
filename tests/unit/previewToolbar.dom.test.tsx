@@ -7,12 +7,18 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { LayoutContext } from '@/renderer/context/LayoutContext';
 import { PreviewTabs, PreviewToolbar } from '@/renderer/pages/conversation/preview/components/PreviewPanel';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
+}));
+vi.mock('@/renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/renderer/utils/platform')>()),
+  isElectronDesktop: () => true,
+  isMacOS: () => true,
 }));
 
 const noop = vi.fn();
@@ -61,6 +67,23 @@ describe('PreviewTabs', () => {
 
     rerender(<PreviewTabs {...baseTabProps} isFullscreen onFullscreenToggle={onFullscreenToggle} />);
     expect(screen.getByRole('button', { name: 'preview.exitFullscreen' })).toBeInTheDocument();
+  });
+
+  it('reserves macOS traffic-light space only when the sidebar is collapsed', () => {
+    const { rerender } = render(
+      <LayoutContext.Provider value={{ siderCollapsed: false, setSiderCollapsed: noop }}>
+        <PreviewTabs {...baseTabProps} isFullscreen />
+      </LayoutContext.Provider>
+    );
+
+    expect(baseTabProps.tabsContainerRef.current).not.toHaveStyle({ paddingLeft: '160px' });
+
+    rerender(
+      <LayoutContext.Provider value={{ siderCollapsed: true, setSiderCollapsed: noop }}>
+        <PreviewTabs {...baseTabProps} isFullscreen />
+      </LayoutContext.Provider>
+    );
+    expect(baseTabProps.tabsContainerRef.current).toHaveStyle({ paddingLeft: '160px' });
   });
 });
 
