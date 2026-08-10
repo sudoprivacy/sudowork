@@ -5,7 +5,8 @@
  */
 
 import { ipcBridge } from '@/common';
-import { getCronProvider } from '@process/providers/cron';
+import { getCronProvider, LocalCronProvider } from '@process/providers/cron';
+import type { ICronProvider } from '@process/providers/cron';
 import { mainError, mainLog } from '@process/utils/mainLogger';
 
 /**
@@ -15,6 +16,22 @@ import { mainError, mainLog } from '@process/utils/mainLogger';
  * response; a thrown Error is converted to `{ error: message }` and surfaced
  * back through the Promise so the UI can show a toast instead of hanging.
  */
+
+const localCronProvider = (): LocalCronProvider => new LocalCronProvider();
+
+async function getCronProviderForJob(jobId: string): Promise<ICronProvider> {
+  const localProvider = localCronProvider();
+  let localJob: Awaited<ReturnType<LocalCronProvider['getJob']>> = null;
+  try {
+    localJob = await localProvider.getJob(jobId);
+  } catch {
+    localJob = null;
+  }
+  if (localJob?.metadata.digitalEmployeeId) {
+    return localProvider;
+  }
+  return getCronProvider();
+}
 
 /**
  * Initialize cron IPC bridge handlers
@@ -34,16 +51,32 @@ export function initCronBridge(): void {
   ipcBridge.cron.listJobsByConversation.provider(async ({ conversationId }) => {
     try {
       const provider = getCronProvider();
-      return provider.listJobsByConversation(conversationId);
+      const jobs = await provider.listJobsByConversation(conversationId);
+      if (provider.type === 'local') {
+        return jobs;
+      }
+      const localJobs = await localCronProvider().listJobsByConversation(conversationId);
+      const localDigitalEmployeeJobs = localJobs.filter((job) => Boolean(job.metadata.digitalEmployeeId));
+      return [...localDigitalEmployeeJobs, ...jobs];
     } catch (err) {
       mainError('CronBridge', 'listJobsByConversation failed:', err);
       return { __error: err instanceof Error ? err.message : String(err) } as never;
     }
   });
 
+  ipcBridge.cron.listJobsByDigitalEmployee.provider(async ({ employeeId }) => {
+    try {
+      const provider = localCronProvider();
+      return provider.listJobsByDigitalEmployee(employeeId);
+    } catch (err) {
+      mainError('CronBridge', 'listJobsByDigitalEmployee failed:', err);
+      return { __error: err instanceof Error ? err.message : String(err) } as never;
+    }
+  });
+
   ipcBridge.cron.getJob.provider(async ({ jobId }) => {
     try {
-      const provider = getCronProvider();
+      const provider = await getCronProviderForJob(jobId);
       return provider.getJob(jobId);
     } catch (err) {
       mainError('CronBridge', 'getJob failed:', err);
@@ -54,7 +87,7 @@ export function initCronBridge(): void {
   // CRUD handlers - wrapped so renderer errors surface as rejections, not hangs
   ipcBridge.cron.addJob.provider(async (params) => {
     try {
-      const provider = getCronProvider();
+      const provider = params.digitalEmployeeId ? localCronProvider() : getCronProvider();
       mainLog('CronBridge', `Adding job via ${provider.type} provider`);
       const job = await provider.addJob(params);
       ipcBridge.cron.onJobCreated.emit(job);
@@ -67,7 +100,7 @@ export function initCronBridge(): void {
 
   ipcBridge.cron.updateJob.provider(async ({ jobId, updates }) => {
     try {
-      const provider = getCronProvider();
+      const provider = updates.metadata?.digitalEmployeeId ? localCronProvider() : await getCronProviderForJob(jobId);
       mainLog('CronBridge', `Updating job ${jobId} via ${provider.type} provider`);
       const job = await provider.updateJob(jobId, updates);
       ipcBridge.cron.onJobUpdated.emit(job);
@@ -80,7 +113,7 @@ export function initCronBridge(): void {
 
   ipcBridge.cron.removeJob.provider(async ({ jobId }) => {
     try {
-      const provider = getCronProvider();
+      const provider = await getCronProviderForJob(jobId);
       mainLog('CronBridge', `Removing job ${jobId} via ${provider.type} provider`);
       await provider.removeJob(jobId);
       ipcBridge.cron.onJobRemoved.emit({ jobId });
@@ -92,7 +125,7 @@ export function initCronBridge(): void {
 
   ipcBridge.cron.triggerJob.provider(async ({ jobId }) => {
     try {
-      const provider = getCronProvider();
+      const provider = await getCronProviderForJob(jobId);
       mainLog('CronBridge', `Triggering job ${jobId} via ${provider.type} provider`);
       await provider.triggerJob(jobId);
       const updatedJob = await provider.getJob(jobId);

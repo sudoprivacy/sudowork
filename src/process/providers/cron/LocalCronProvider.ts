@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ICronProvider } from './types';
 import { cronService } from '@process/services/cron/CronService';
 import type { CronJob } from '@process/services/cron/CronStore';
 import type { CreateCronJobParams } from '@process/services/cron/CronService';
+import type { ICronProvider } from './types';
 
 /**
  * Local Cron Provider
@@ -25,6 +25,10 @@ export class LocalCronProvider implements ICronProvider {
 
   async listJobsByConversation(conversationId: string): Promise<CronJob[]> {
     return cronService.listJobsByConversation(conversationId);
+  }
+
+  async listJobsByDigitalEmployee(employeeId: string): Promise<CronJob[]> {
+    return cronService.listJobsByDigitalEmployee(employeeId);
   }
 
   async getJob(jobId: string): Promise<CronJob | null> {

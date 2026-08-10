@@ -1,6 +1,6 @@
 import { Button, Card, Checkbox, Drawer, Empty, Input, Message, Modal, Select, Spin, Switch, Tag, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
-import { Copy, Eye, FileText, Link2, ListTree, Pencil, Play, Plus, RefreshCcw, Search, Trash2, X } from 'lucide-react';
+import { Clock, Copy, Eye, FileText, Link2, ListTree, MessageCircle, Pencil, Play, Plus, RefreshCcw, Search, Trash2, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +9,9 @@ import { ipcBridge } from '@/common';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import { emitter } from '@/renderer/utils/emitter';
 import type { AcpBackendAll } from '@/types/acpTypes';
+import type { ICronJob } from '@/common/ipcBridge';
+import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawer';
+import { formatNextRunRelative, formatSchedule, unwrapCronResult } from '@/renderer/pages/cron/utils';
 
 const TextArea = Input.TextArea;
 
@@ -147,6 +150,12 @@ function getDateTimeLabel(value: number | undefined): string {
   return new Date(value).toLocaleString();
 }
 
+function getCronJobConversationTarget(job: ICronJob): string | undefined {
+  const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
+  if (isNewMode) return job.state.lastConversationId;
+  return job.metadata.conversationId || job.state.lastConversationId;
+}
+
 function isLegacyResourceIdentifier(value: string): boolean {
   return /^(?:skill|genskill|kb|tool)_[a-z0-9]+$/i.test(value.trim());
 }
@@ -273,6 +282,9 @@ export default function DigitalEmployeesPage() {
   const [sopDraft, setSopDraft] = useState<ISopDraft>(getEmptySopDraft);
   const [isSopSaving, setIsSopSaving] = useState(false);
   const [isSopDistilling, setIsSopDistilling] = useState(false);
+  const [editorCronJobs, setEditorCronJobs] = useState<ICronJob[]>([]);
+  const [isCronDrawerOpen, setIsCronDrawerOpen] = useState(false);
+  const [cronEditorJob, setCronEditorJob] = useState<ICronJob | null>(null);
   const [launchMessage, setLaunchMessage] = useState('');
   const [skillOptions, setSkillOptions] = useState<IResourceOption[]>([]);
   const [assistantOptions, setAssistantOptions] = useState<IResourceOption[]>([]);
@@ -359,15 +371,28 @@ export default function DigitalEmployeesPage() {
     [t]
   );
 
+  const loadEditorCronJobs = useCallback(
+    async (employeeId: string) => {
+      try {
+        const response = await ipcBridge.cron.listJobsByDigitalEmployee.invoke({ employeeId });
+        setEditorCronJobs(unwrapCronResult(response) || []);
+      } catch (error) {
+        console.warn('Failed to load digital employee scheduled tasks:', error);
+        Message.error(t('digitalEmployee.scheduledTasks.loadFailed', '定时任务加载失败'));
+      }
+    },
+    [t]
+  );
+
   const refreshEditorEmployee = useCallback(
     async (employeeId: string) => {
       const response = await ipcBridge.digitalEmployee.get.invoke({ employeeId });
       if (!response.success || !response.data) return;
       setEditorEmployee(response.data);
       setEmployees((currentEmployees) => currentEmployees.map((employee) => (employee.id === response.data?.id ? response.data : employee)));
-      await loadEditorSops(employeeId);
+      await Promise.all([loadEditorSops(employeeId), loadEditorCronJobs(employeeId)]);
     },
-    [loadEditorSops]
+    [loadEditorCronJobs, loadEditorSops]
   );
 
   useEffect(() => {
@@ -375,11 +400,35 @@ export default function DigitalEmployeesPage() {
     void loadResourceOptions();
   }, [loadEmployees, loadResourceOptions]);
 
+  useEffect(() => {
+    if (!editorEmployee) return;
+
+    const employeeId = editorEmployee.id;
+    const unsubscribeCreate = ipcBridge.cron.onJobCreated.on((job: ICronJob) => {
+      if (job.metadata.digitalEmployeeId !== employeeId) return;
+      setEditorCronJobs((jobs) => (jobs.some((item) => item.id === job.id) ? jobs : [job, ...jobs]));
+    });
+    const unsubscribeUpdate = ipcBridge.cron.onJobUpdated.on((job: ICronJob) => {
+      if (job.metadata.digitalEmployeeId !== employeeId) return;
+      setEditorCronJobs((jobs) => jobs.map((item) => (item.id === job.id ? job : item)));
+    });
+    const unsubscribeRemove = ipcBridge.cron.onJobRemoved.on(({ jobId }) => {
+      setEditorCronJobs((jobs) => jobs.filter((item) => item.id !== jobId));
+    });
+
+    return () => {
+      unsubscribeCreate();
+      unsubscribeUpdate();
+      unsubscribeRemove();
+    };
+  }, [editorEmployee]);
+
   const onOpenCreate = useCallback(() => {
     setEditorEmployee(null);
     setEditorState(getEmptyEditorState());
     setResourceDraft(getEmptyResourceDraft());
     setEditorSops([]);
+    setEditorCronJobs([]);
     setIsEditorOpen(true);
   }, []);
 
@@ -397,10 +446,11 @@ export default function DigitalEmployeesPage() {
       });
       setResourceDraft(getEmptyResourceDraft());
       setEditorSops([]);
+      setEditorCronJobs([]);
       setIsEditorOpen(true);
-      void loadEditorSops(employee.id);
+      void Promise.all([loadEditorSops(employee.id), loadEditorCronJobs(employee.id)]);
     },
-    [loadEditorSops]
+    [loadEditorCronJobs, loadEditorSops]
   );
 
   const onSaveEmployee = useCallback(async () => {
@@ -729,6 +779,69 @@ export default function DigitalEmployeesPage() {
     [editorEmployee, refreshEditorEmployee, t]
   );
 
+  const onOpenCreateCronJob = useCallback(() => {
+    if (!editorEmployee) return;
+    setCronEditorJob(null);
+    setIsCronDrawerOpen(true);
+  }, [editorEmployee]);
+
+  const onOpenEditCronJob = useCallback((job: ICronJob) => {
+    setCronEditorJob(job);
+    setIsCronDrawerOpen(true);
+  }, []);
+
+  const onCronJobSaved = useCallback(async () => {
+    if (!editorEmployee) return;
+    await loadEditorCronJobs(editorEmployee.id);
+  }, [editorEmployee, loadEditorCronJobs]);
+
+  const onOpenCronConversation = useCallback(
+    async (job: ICronJob) => {
+      let targetConversationId = getCronJobConversationTarget(job);
+      if (!targetConversationId) {
+        const latestJob = await ipcBridge.cron.getJob.invoke({ jobId: job.id });
+        if (latestJob) {
+          setEditorCronJobs((jobs) => jobs.map((item) => (item.id === latestJob.id ? latestJob : item)));
+          targetConversationId = getCronJobConversationTarget(latestJob);
+        }
+      }
+
+      if (!targetConversationId) {
+        Message.warning(t('digitalEmployee.scheduledTasks.noConversation', '暂无可查看的执行会话'));
+        return;
+      }
+
+      emitter.emit('chat.history.refresh');
+      setIsEditorOpen(false);
+      void navigate(`/conversation/${targetConversationId}`);
+      emitter.emit('conversation.remote.sync', targetConversationId);
+      window.setTimeout(() => emitter.emit('conversation.remote.sync', targetConversationId), 1000);
+      window.setTimeout(() => emitter.emit('conversation.remote.sync', targetConversationId), 3000);
+    },
+    [navigate, t]
+  );
+
+  const onDeleteCronJob = useCallback(
+    (job: ICronJob) => {
+      Modal.confirm({
+        title: t('digitalEmployee.scheduledTasks.deleteTitle', '删除定时任务'),
+        content: t('digitalEmployee.scheduledTasks.deleteContent', { name: job.name, defaultValue: '确认删除定时任务「{{name}}」？' }),
+        okText: t('common.delete'),
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          try {
+            unwrapCronResult(await ipcBridge.cron.removeJob.invoke({ jobId: job.id }));
+            setEditorCronJobs((jobs) => jobs.filter((item) => item.id !== job.id));
+            Message.success(t('cron.deleteSuccess', '任务已删除'));
+          } catch (error) {
+            Message.error(error instanceof Error ? error.message : t('digitalEmployee.messages.actionFailed'));
+          }
+        },
+      });
+    },
+    [t]
+  );
+
   const editorReadOnly = isBuiltInEmployee(editorEmployee);
   const sopEditorReadOnly = editorReadOnly && Boolean(sopEditor);
 
@@ -785,6 +898,7 @@ export default function DigitalEmployeesPage() {
       >
         <div className='flex flex-col gap-5'>
           <EditorFields state={editorState} readOnly={editorReadOnly} onChange={setEditorState} />
+          {editorEmployee && <ScheduledTaskEditor jobs={editorCronJobs} onCreate={onOpenCreateCronJob} onEdit={onOpenEditCronJob} onOpenConversation={onOpenCronConversation} onDelete={onDeleteCronJob} />}
           {editorEmployee && <SopEditor sops={editorSops} readOnly={editorReadOnly} onCreate={onOpenCreateSop} onEdit={onOpenEditSop} onDelete={onDeleteSop} />}
           {editorEmployee && (
             <ResourceEditor employee={editorEmployee} draft={resourceDraft} readOnly={editorReadOnly} resourceOptions={resourceOptions} onDraftChange={setResourceDraft} onResourcePresetChange={onResourcePresetChange} onAddResource={onAddResource} onRemoveResource={onRemoveResource} />
@@ -828,6 +942,8 @@ export default function DigitalEmployeesPage() {
           </Field>
         </div>
       </Modal>
+
+      <CronJobFormDrawer visible={isCronDrawerOpen} editJob={cronEditorJob} sessionMode='local' digitalEmployee={editorEmployee} onClose={() => setIsCronDrawerOpen(false)} onSaved={() => void onCronJobSaved()} />
     </PageWrapper>
   );
 }
@@ -879,6 +995,67 @@ function EditorFields({ state, readOnly, onChange }: IEditorFieldsProps) {
           </div>
         </Field>
       </div>
+    </div>
+  );
+}
+
+function ScheduledTaskEditor({ jobs, onCreate, onEdit, onOpenConversation, onDelete }: IScheduledTaskEditorProps) {
+  const { t } = useTranslation();
+
+  return (
+    <div className='flex flex-col gap-3 pt-4 border-t border-border'>
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-2 text-14px font-600 text-foreground'>
+          <Clock size={16} />
+          <span>{t('digitalEmployee.scheduledTasks.title', '定时任务')}</span>
+          <Tag size='small'>{jobs.length}</Tag>
+        </div>
+        <Button size='small' type='primary' icon={<Plus size={14} />} onClick={onCreate}>
+          {t('digitalEmployee.scheduledTasks.create', '新建任务')}
+        </Button>
+      </div>
+
+      <div className='flex flex-col gap-2'>
+        {jobs.length === 0 ? (
+          <div className='h-22 f-center border border-dashed border-border rd-2 text-secondary text-13px'>{t('digitalEmployee.scheduledTasks.empty', '暂无定时任务')}</div>
+        ) : (
+          jobs.map((job) => <ScheduledTaskRow key={job.id} job={job} onEdit={onEdit} onOpenConversation={onOpenConversation} onDelete={onDelete} />)
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ScheduledTaskRow({ job, onEdit, onOpenConversation, onDelete }: IScheduledTaskRowProps) {
+  const { t } = useTranslation();
+  const isPaused = !job.enabled;
+  const isError = job.state.lastStatus === 'error';
+  const statusText = isPaused ? t('digitalEmployee.scheduledTasks.statusPaused', '已暂停') : isError ? t('digitalEmployee.scheduledTasks.statusError', '执行出错') : t('digitalEmployee.scheduledTasks.statusEnabled', '已启用');
+  const statusColor = isPaused ? 'gray' : isError ? 'red' : 'green';
+  const nextRun = job.enabled ? formatNextRunRelative(t, job.state.nextRunAtMs) : '';
+  const scheduleText = formatSchedule(job);
+  const targetConversationId = getCronJobConversationTarget(job);
+
+  return (
+    <div className='flex items-center gap-2 border border-border rd-2 px-2.5 py-2'>
+      <Tag size='small' color={statusColor}>
+        {statusText}
+      </Tag>
+      <div className='min-w-0 flex-1'>
+        <div className='text-13px text-foreground truncate'>{job.name}</div>
+        <div className='text-11px text-secondary truncate'>
+          {[scheduleText, nextRun ? t('digitalEmployee.scheduledTasks.nextRun', { time: nextRun, defaultValue: '下次 {{time}}' }) : undefined, t('digitalEmployee.scheduledTasks.runCount', { count: job.state.runCount, defaultValue: '{{count}} 次执行' })].filter(Boolean).join(' / ')}
+        </div>
+      </div>
+      <Tooltip content={targetConversationId ? t('cron.goToLastConversation', '查看最近执行会话') : t('digitalEmployee.scheduledTasks.noConversation', '暂无可查看的执行会话')}>
+        <Button size='mini' type='text' icon={<MessageCircle size={14} />} disabled={!targetConversationId} onClick={() => void onOpenConversation(job)} />
+      </Tooltip>
+      <Tooltip content={t('common.edit')}>
+        <Button size='mini' type='text' icon={<Pencil size={14} />} onClick={() => onEdit(job)} />
+      </Tooltip>
+      <Tooltip content={t('common.delete')}>
+        <Button size='mini' type='text' status='danger' icon={<Trash2 size={14} />} onClick={() => onDelete(job)} />
+      </Tooltip>
     </div>
   );
 }
@@ -1244,6 +1421,21 @@ interface IResourceEditorProps {
   onResourcePresetChange: (value: string) => void;
   onAddResource: () => Promise<void>;
   onRemoveResource: (resource: IDigitalEmployeeResource) => Promise<void>;
+}
+
+interface IScheduledTaskEditorProps {
+  jobs: ICronJob[];
+  onCreate: () => void;
+  onEdit: (job: ICronJob) => void;
+  onOpenConversation: (job: ICronJob) => Promise<void>;
+  onDelete: (job: ICronJob) => void;
+}
+
+interface IScheduledTaskRowProps {
+  job: ICronJob;
+  onEdit: (job: ICronJob) => void;
+  onOpenConversation: (job: ICronJob) => Promise<void>;
+  onDelete: (job: ICronJob) => void;
 }
 
 interface ISopEditorProps {

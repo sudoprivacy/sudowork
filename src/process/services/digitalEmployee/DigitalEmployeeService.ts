@@ -129,6 +129,14 @@ interface IDigitalEmployeeConversationRuntime {
   currentModelId?: string;
 }
 
+interface ICreateWorkRecordInput {
+  employeeId: string;
+  conversationId?: string;
+  title: string;
+  status?: IDigitalEmployeeWorkRecord['status'];
+  summary?: string;
+}
+
 const DEFAULT_BACKEND: AcpBackendAll = 'scode';
 const STAFFDECK_SEED_VERSION = 6;
 const BUILT_IN_EMPLOYEE_READONLY_MESSAGE = '内置数字员工仅支持切换在线/离线状态；如需修改其他配置，请先复制为自定义数字员工。';
@@ -2057,6 +2065,35 @@ export class DigitalEmployeeService {
     return rows.map(rowToWorkRecord);
   }
 
+  createWorkRecord(input: ICreateWorkRecordInput): IDigitalEmployeeWorkRecord {
+    const employee = this.getEmployee(input.employeeId);
+    if (!employee) throw new Error('Digital employee not found');
+
+    const now = getNow();
+    const recordId = `dewr_${uuid(16)}`;
+    requireQueryResult(
+      getDatabase().mutate(
+        `INSERT INTO digital_employee_work_records
+          (id, employee_id, conversation_id, title, status, summary, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        recordId,
+        employee.id,
+        input.conversationId || null,
+        normalizeText(input.title, employee.name),
+        input.status || 'running',
+        input.summary || `${employee.name} / ${employee.roleName}`,
+        now,
+        now
+      ),
+      'create digital employee work record'
+    );
+
+    const rows = requireQueryResult(getDatabase().query<IDigitalEmployeeWorkRecordRow>('SELECT * FROM digital_employee_work_records WHERE id = ?', recordId), 'get created digital employee work record');
+    const row = rows[0];
+    if (!row) throw new Error('Created digital employee work record was not found');
+    return rowToWorkRecord(row);
+  }
+
   async buildConversationRuntime(employeeId: string): Promise<IDigitalEmployeeConversationRuntime> {
     const employee = this.getEmployee(employeeId);
     if (!employee) throw new Error('Digital employee not found');
@@ -2108,22 +2145,13 @@ export class DigitalEmployeeService {
       throw new Error(result.error || 'Failed to create digital employee conversation');
     }
 
-    const now = getNow();
-    requireQueryResult(
-      getDatabase().mutate(
-        `INSERT INTO digital_employee_work_records
-          (id, employee_id, conversation_id, title, status, summary, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
-        `dewr_${uuid(16)}`,
-        employee.id,
-        result.conversation.id,
-        initialMessage,
-        `${employee.name} / ${employee.roleName}`,
-        now,
-        now
-      ),
-      'create digital employee work record'
-    );
+    this.createWorkRecord({
+      employeeId: employee.id,
+      conversationId: result.conversation.id,
+      title: initialMessage,
+      status: 'running',
+      summary: `${employee.name} / ${employee.roleName}`,
+    });
 
     return {
       conversationId: result.conversation.id,

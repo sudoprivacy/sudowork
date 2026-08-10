@@ -73,6 +73,21 @@
     "add": "리소스 연결",
     "remove": "리소스 제거"
   },
+  "scheduledTasks": {
+    "title": "예약 작업",
+    "create": "새 예약 작업",
+    "empty": "예약 작업이 없습니다",
+    "loadFailed": "예약 작업을 불러오지 못했습니다",
+    "formHint": "저장 후 현재 디지털 직원이 일정에 따라 자동 실행합니다.",
+    "nextRun": "다음 실행",
+    "runCount": "{{count}}회 실행",
+    "statusEnabled": "활성화됨",
+    "statusPaused": "일시 중지됨",
+    "statusError": "실행 오류",
+    "noConversation": "아직 볼 수 있는 실행 대화가 없습니다",
+    "deleteTitle": "예약 작업 삭제",
+    "deleteContent": "예약 작업 \"{{name}}\"을 삭제하시겠습니까?"
+  },
   "sop": {
     "title": "SOP 흐름",
     "empty": "SOP가 없습니다",

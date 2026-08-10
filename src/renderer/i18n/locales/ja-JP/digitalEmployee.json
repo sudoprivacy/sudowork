@@ -122,6 +122,21 @@
     "knowledge": "ナレッジ",
     "mcp": "MCP"
   },
+  "scheduledTasks": {
+    "title": "スケジュールタスク",
+    "create": "新規タスク",
+    "empty": "スケジュールタスクはありません",
+    "loadFailed": "スケジュールタスクの読み込みに失敗しました",
+    "formHint": "保存後、現在のデジタル従業員がスケジュールに従って自動実行します。",
+    "nextRun": "次回 {{time}}",
+    "runCount": "{{count}} 回実行",
+    "statusEnabled": "有効",
+    "statusPaused": "一時停止",
+    "statusError": "実行エラー",
+    "noConversation": "表示できる実行会話はまだありません",
+    "deleteTitle": "スケジュールタスクを削除",
+    "deleteContent": "スケジュールタスク「{{name}}」を削除しますか？"
+  },
   "card": {
     "primaryCapability": "主な能力",
     "noDescription": "能力説明は未設定です",

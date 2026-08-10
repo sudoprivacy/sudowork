@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ICronProvider } from './types';
 import { MossCronApi, type MossCronJob, type MossCronJobRun } from '@process/remote/MossCronApi';
 import { getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
 import type { CronJob, CronSchedule } from '@process/services/cron/CronStore';
@@ -16,6 +15,7 @@ import { getConversationProvider } from '@process/providers';
 import type { TChatConversation } from '@/common/storage';
 import WorkerManage from '@process/WorkerManage';
 import type RemoteAgent from '@process/task/RemoteAgent';
+import type { ICronProvider } from './types';
 
 const MOSS_SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -200,6 +200,11 @@ export class RemoteCronProvider implements ICronProvider {
     });
   }
 
+  async listJobsByDigitalEmployee(employeeId: string): Promise<CronJob[]> {
+    const jobs = await this.listJobs();
+    return jobs.filter((job) => job.metadata.digitalEmployeeId === employeeId);
+  }
+
   async getJob(jobId: string): Promise<CronJob | null> {
     try {
       const mossJob = await this.mossCronApi.getJob(jobId);
@@ -212,6 +217,10 @@ export class RemoteCronProvider implements ICronProvider {
 
   async addJob(params: CreateCronJobParams): Promise<CronJob> {
     try {
+      if (params.digitalEmployeeId) {
+        throw new Error('Digital employee scheduled tasks are only supported by the local client scheduler');
+      }
+
       // Convert local schedule to Moss schedule
       let mossSchedule: { kind: 'at' | 'every' | 'cron'; value: string; tz?: string; description?: string };
       switch (params.schedule.kind) {

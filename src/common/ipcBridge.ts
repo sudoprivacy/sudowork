@@ -1215,6 +1215,7 @@ export const cron = {
   // Query
   listJobs: bridge.buildProvider<ICronJob[], void>('cron.list-jobs'),
   listJobsByConversation: bridge.buildProvider<ICronJob[], { conversationId: string }>('cron.list-jobs-by-conversation'),
+  listJobsByDigitalEmployee: bridge.buildProvider<ICronJob[], { employeeId: string }>('cron.list-jobs-by-digital-employee'),
   getJob: bridge.buildProvider<ICronJob | null, { jobId: string }>('cron.get-job'),
   // CRUD
   addJob: bridge.buildProvider<ICronJob, ICreateCronJobParams>('cron.add-job'),
@@ -1319,6 +1320,8 @@ export interface ICronJob {
     /** Preset assistant ID (e.g. 'builtin-doctor') — rules/skills re-resolved at execution time.
      *  In Partial<ICronJob> updates, pass `null` to explicitly clear (since JSON IPC strips `undefined`). */
     presetAssistantId?: string | null;
+    /** Digital employee owner for employee-scoped scheduled tasks */
+    digitalEmployeeId?: string;
   };
   state: {
     nextRunAtMs?: number;
@@ -1344,6 +1347,7 @@ export interface ICreateCronJobParams {
   conversationMode?: 'new' | 'reuse';
   workspace?: string;
   presetAssistantId?: string | null;
+  digitalEmployeeId?: string;
 }
 
 // Team collaboration types for IPC

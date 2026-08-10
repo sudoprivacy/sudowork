@@ -73,6 +73,21 @@
     "add": "Kaynak Bağla",
     "remove": "Kaynağı kaldır"
   },
+  "scheduledTasks": {
+    "title": "Zamanlanmış Görevler",
+    "create": "Yeni Zamanlanmış Görev",
+    "empty": "Zamanlanmış görev yok",
+    "loadFailed": "Zamanlanmış görevler yüklenemedi",
+    "formHint": "Kaydedildikten sonra mevcut dijital çalışan plana göre otomatik çalıştırır.",
+    "nextRun": "Sonraki çalışma",
+    "runCount": "{{count}} çalışma",
+    "statusEnabled": "Etkin",
+    "statusPaused": "Duraklatıldı",
+    "statusError": "Çalıştırma hatası",
+    "noConversation": "Henüz görüntülenecek çalışma konuşması yok",
+    "deleteTitle": "Zamanlanmış Görevi Sil",
+    "deleteContent": "\"{{name}}\" zamanlanmış görevi silinsin mi?"
+  },
   "sop": {
     "title": "SOP Akışları",
     "empty": "SOP yok",

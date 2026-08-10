@@ -122,6 +122,21 @@
     "knowledge": "Knowledge",
     "mcp": "MCP"
   },
+  "scheduledTasks": {
+    "title": "Scheduled Tasks",
+    "create": "New Task",
+    "empty": "No scheduled tasks",
+    "loadFailed": "Failed to load scheduled tasks",
+    "formHint": "After saving, the current digital employee will run this task on schedule.",
+    "nextRun": "Next {{time}}",
+    "runCount": "{{count}} runs",
+    "statusEnabled": "Enabled",
+    "statusPaused": "Paused",
+    "statusError": "Run failed",
+    "noConversation": "No run conversation to view yet",
+    "deleteTitle": "Delete Scheduled Task",
+    "deleteContent": "Delete scheduled task \"{{name}}\"?"
+  },
   "card": {
     "primaryCapability": "Primary capability",
     "noDescription": "No capability description configured",

@@ -1887,6 +1887,44 @@ const migration_v31: IMigration = {
 };
 
 /**
+ * Migration v31 -> v32: Link cron jobs to digital employees.
+ */
+const migration_v32: IMigration = {
+  version: 32,
+  name: 'Add digital employee cron linkage',
+  up: (db) => {
+    const tableInfo = db.prepare('PRAGMA table_info(cron_jobs)').all() as Array<{ name: string }>;
+    const hasDigitalEmployeeId = tableInfo.some((col) => col.name === 'digital_employee_id');
+    if (!hasDigitalEmployeeId) {
+      db.exec(`ALTER TABLE cron_jobs ADD COLUMN digital_employee_id TEXT;`);
+    }
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_cron_jobs_digital_employee ON cron_jobs(digital_employee_id, created_at DESC);`);
+    mainLog('Migration v32', 'Added digital employee linkage to cron jobs');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_cron_jobs_digital_employee;
+      CREATE TABLE IF NOT EXISTS cron_jobs_v31 AS SELECT
+        id, name, enabled,
+        schedule_kind, schedule_value, schedule_tz, schedule_description,
+        payload_message,
+        conversation_id, conversation_title, agent_type, created_by,
+        created_at, updated_at,
+        next_run_at, last_run_at, last_status, last_error,
+        run_count, retry_count, max_retries,
+        conversation_mode, last_conversation_id, workspace, preset_assistant_id
+      FROM cron_jobs;
+      DROP TABLE cron_jobs;
+      ALTER TABLE cron_jobs_v31 RENAME TO cron_jobs;
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_conversation ON cron_jobs(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_agent_type ON cron_jobs(agent_type);
+    `);
+    mainLog('Migration v32', 'Rolled back: Removed digital employee linkage from cron jobs');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1896,7 +1934,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
   migration_v25, migration_v26, migration_v27, migration_v28, migration_v29, migration_v30,
-  migration_v31,
+  migration_v31, migration_v32,
 ];
 
 /**

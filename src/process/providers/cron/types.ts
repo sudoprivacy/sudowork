@@ -35,6 +35,12 @@ export interface ICronProvider {
   listJobsByConversation(conversationId: string): Promise<CronJob[]>;
 
   /**
+   * List cron jobs owned by a digital employee
+   * 列出某个数字员工所属的定时任务
+   */
+  listJobsByDigitalEmployee(employeeId: string): Promise<CronJob[]>;
+
+  /**
    * Get a single cron job by ID
    * 根据 ID 获取单个定时任务
    */

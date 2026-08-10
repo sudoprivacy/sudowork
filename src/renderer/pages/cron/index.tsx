@@ -19,7 +19,7 @@ import EmptyState from '@/renderer/components/base/EmptyState';
 import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawer';
 import Item from '@/renderer/pages/cron/components/Item';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
-import { getJobStatusFlags } from '@/renderer/pages/cron/utils';
+import { formatNextRunRelative, getJobStatusFlags } from '@/renderer/pages/cron/utils';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
 function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
@@ -34,7 +34,7 @@ function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
             {!isPaused && job.schedule.description && <div className='text-13px text-secondary mb-2'>{job.schedule.description}</div>}
             {!isPaused && job.state.nextRunAtMs && (
               <div className='text-13px text-secondary'>
-                {t('cron.create.nextRun', '下次运行')} <span className='font-medium text-foreground'>{job.state.nextRunAtMs}</span>
+                {t('cron.create.nextRun', '下次运行')} <span className='font-medium text-foreground'>{formatNextRunRelative(t, job.state.nextRunAtMs)}</span>
               </div>
             )}
             {isPaused && <div className='text-13px text-secondary'>{t('cron.status.paused', '已暂停')}</div>}

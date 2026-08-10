@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/ipcBridge';
+import type { IDigitalEmployee } from '@/common/digitalEmployee';
 import type { TChatConversation } from '@/common/storage';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
@@ -23,11 +24,12 @@ const TextArea = Input.TextArea;
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({ value: i, label: `${String(i).padStart(2, '0')}` }));
 const MINUTE_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => ({ value: minute, label: String(minute).padStart(2, '0') }));
 
-export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClose, onSaved }: ICronJobFormDrawerProps) {
+export default function CronJobFormDrawer({ visible, editJob, sessionMode, digitalEmployee, onClose, onSaved }: ICronJobFormDrawerProps) {
   const { t, i18n } = useTranslation();
 
   const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
   const assistants = useAssistantsForCron();
+  const isDigitalEmployeeTask = Boolean(digitalEmployee || editJob?.metadata.digitalEmployeeId);
 
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
@@ -133,10 +135,12 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
 
       const schedule = frequencyToSchedule(frequency, { hour, minute, weekday }, t);
       const isManual = frequency === 'manual';
+      const effectiveDigitalEmployeeId = digitalEmployee?.id || editJob?.metadata.digitalEmployeeId;
 
       // When a conversation is bound in reuse mode, assistant & workspace come from
       // that conversation — ignore the form values.
-      const isBoundConversation = conversationMode === 'reuse' && !!selectedConversationId;
+      const effectiveConversationMode = isDigitalEmployeeTask ? 'new' : conversationMode;
+      const isBoundConversation = effectiveConversationMode === 'reuse' && !!selectedConversationId;
       const useBoundConversationDefaults = sessionMode !== 'remote' && isBoundConversation;
 
       // Derive agentType from selected assistant's presetAgentType; default to scode
@@ -148,9 +152,10 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
 
       // For reuse mode, allow optionally binding an existing conversation so the
       // very first run appends to it. New mode ignores the picker entirely.
-      const reuseConvId = conversationMode === 'reuse' ? selectedConversationId : '';
+      const reuseConvId = effectiveConversationMode === 'reuse' ? selectedConversationId : '';
       const reuseConvTitle = reuseConvId ? conversations.find((conversation) => conversation.id === reuseConvId)?.name : undefined;
-      const effectiveWorkspace = sessionMode === 'remote' ? undefined : workspace || undefined;
+      const effectiveWorkspace = sessionMode === 'remote' || isDigitalEmployeeTask ? undefined : workspace || undefined;
+      const effectiveAgentType = (digitalEmployee?.backend || (useBoundConversationDefaults && editJob ? editJob.metadata.agentType : agentType)) as AcpBackendAll;
 
       let result: unknown;
       if (editJob) {
@@ -166,14 +171,15 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
             target: { payload: { kind: 'message', text: values.prompt } },
             metadata: {
               ...editJob.metadata,
-              agentType: useBoundConversationDefaults ? editJob.metadata.agentType : agentType,
-              conversationMode,
+              agentType: effectiveAgentType,
+              conversationMode: effectiveConversationMode,
               // Bind/unbind conversation for reuse mode. New mode keeps the
               // existing conversationId untouched (it's auto-managed via state.lastConversationId).
-              conversationId: conversationMode === 'reuse' ? reuseConvId : editJob.metadata.conversationId,
-              conversationTitle: conversationMode === 'reuse' ? reuseConvTitle : editJob.metadata.conversationTitle,
+              conversationId: effectiveConversationMode === 'reuse' ? reuseConvId : editJob.metadata.conversationId,
+              conversationTitle: effectiveConversationMode === 'reuse' ? reuseConvTitle : editJob.metadata.conversationTitle,
               workspace: useBoundConversationDefaults ? editJob.metadata.workspace : effectiveWorkspace,
-              presetAssistantId: useBoundConversationDefaults ? editJob.metadata.presetAssistantId : isDefaultAssistant ? null : effectiveAssistantId,
+              presetAssistantId: isDigitalEmployeeTask ? null : useBoundConversationDefaults ? editJob.metadata.presetAssistantId : isDefaultAssistant ? null : effectiveAssistantId,
+              digitalEmployeeId: effectiveDigitalEmployeeId,
             },
           },
         });
@@ -184,11 +190,12 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
           message: values.prompt,
           conversationId: reuseConvId,
           conversationTitle: reuseConvTitle,
-          agentType,
+          agentType: effectiveAgentType,
           createdBy: 'user',
-          conversationMode,
+          conversationMode: effectiveConversationMode,
           workspace: effectiveWorkspace,
-          presetAssistantId: effectiveAssistantId,
+          presetAssistantId: isDigitalEmployeeTask ? undefined : effectiveAssistantId,
+          digitalEmployeeId: effectiveDigitalEmployeeId,
         });
       }
 
@@ -287,91 +294,95 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
           <div className='text-12px text-secondary mt-1'>{t('cron.create.frequencyHint', '定时任务会有几分钟的随机延迟')}</div>
         </div>
 
-        <div>
-          <div className='flex items-center gap-1 text-14px text-secondary cursor-pointer hover:text-foreground mb-3' onClick={() => setShowMore(!showMore)}>
-            <span>{t('cron.create.moreOptions', '更多选项')}</span>
-            <ChevronDown size={16} className={`transition-transform ${showMore ? 'rotate-180' : ''}`} />
-          </div>
-
-          {showMore && (
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-              <div className='col-span-2'>
-                <div className='text-13px text-secondary mb-1'>{t('cron.create.conversationMode', '执行模式')}</div>
-                <Select value={conversationMode} onChange={(value) => setConversationMode(value as 'new' | 'reuse')}>
-                  <Select.Option value='new'>{t('cron.create.conversationMode.new', '每次新建会话（推荐）')}</Select.Option>
-                  <Select.Option value='reuse'>{t('cron.create.conversationMode.reuse', '复用已有会话（适合持续追加）')}</Select.Option>
-                </Select>
-              </div>
-
-              {conversationMode === 'reuse' && (
-                <div className='col-span-2'>
-                  <div className='text-13px text-secondary mb-1'>{t('cron.create.reuseConversation', '绑定会话')}</div>
-                  <Select
-                    value={selectedConversationId}
-                    onChange={(value) => setSelectedConversationId(value as string)}
-                    showSearch
-                    filterOption={(inputValue, option) => {
-                      const optionValue = (option as React.ReactElement<{ value?: string }>)?.props?.value;
-                      if (!optionValue) return true; // keep the placeholder visible while searching
-                      const conversation = conversations.find((item) => item.id === optionValue);
-                      const label = conversation?.name || optionValue;
-                      return label.toLowerCase().includes(inputValue.toLowerCase());
-                    }}
-                  >
-                    <Select.Option value=''>
-                      <span className='text-secondary'>{t('cron.create.reuseConversationPlaceholder', '首次运行时自动创建')}</span>
-                    </Select.Option>
-                    {conversations.map((conversation) => (
-                      <Select.Option key={conversation.id} value={conversation.id}>
-                        {conversation.name || conversation.id}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                  <div className='text-12px text-secondary mt-1'>{t('cron.create.reuseConversationHint', '选择已有会话，首次运行将直接追加到该会话')}</div>
-                </div>
-              )}
-
-              {!(sessionMode !== 'remote' && conversationMode === 'reuse' && selectedConversationId) && (
-                <div>
-                  <div className='text-13px text-secondary mb-1'>{t('cron.create.agent', '智能体')}</div>
-                  <Select value={selectedAssistantId} onChange={(value) => setSelectedAssistantId(value as string)} disabled={sessionMode !== 'remote' && editJob != null && conversationMode === 'reuse'}>
-                    <Select.Option value={DEFAULT_ASSISTANT}>
-                      <span className='text-secondary'>{t('cron.create.agentPlaceholder', '默认 (Sudo Code)')}</span>
-                    </Select.Option>
-                    {selectedAssistantId !== DEFAULT_ASSISTANT && !assistants.some((assistant) => assistant.id === selectedAssistantId) && (
-                      <Select.Option value={selectedAssistantId}>
-                        <span>{selectedAssistantId}</span>
-                      </Select.Option>
-                    )}
-                    {assistants.map((assistant) => {
-                      const avatarValue = assistant.avatar?.trim();
-                      const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
-                      const avatarImage = resolvedAvatar || avatarValue;
-                      const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
-                      return (
-                        <Select.Option key={assistant.id} value={assistant.id}>
-                          <span className='flex items-center gap-1.5'>
-                            {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : avatarValue ? <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span> : null}
-                            <span>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
-                          </span>
-                        </Select.Option>
-                      );
-                    })}
-                  </Select>
-                </div>
-              )}
-
-              {sessionMode !== 'remote' && !(conversationMode === 'reuse' && selectedConversationId) && (
-                <div>
-                  <div className='text-13px text-secondary mb-1'>{t('cron.create.workspace', '工作目录')}</div>
-                  <Button long onClick={handleSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
-                    {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-secondary'>{t('cron.create.selectFolder', '选择文件夹')}</span>}
-                  </Button>
-                </div>
-              )}
+        {isDigitalEmployeeTask ? (
+          <div className='text-12px text-secondary'>{t('digitalEmployee.scheduledTasks.formHint', '保存后由当前数字员工按计划自动执行。')}</div>
+        ) : (
+          <div>
+            <div className='flex items-center gap-1 text-14px text-secondary cursor-pointer hover:text-foreground mb-3' onClick={() => setShowMore(!showMore)}>
+              <span>{t('cron.create.moreOptions', '更多选项')}</span>
+              <ChevronDown size={16} className={`transition-transform ${showMore ? 'rotate-180' : ''}`} />
             </div>
-          )}
-        </div>
+
+            {showMore && (
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+                <div className='col-span-2'>
+                  <div className='text-13px text-secondary mb-1'>{t('cron.create.conversationMode', '执行模式')}</div>
+                  <Select value={conversationMode} onChange={(value) => setConversationMode(value as 'new' | 'reuse')}>
+                    <Select.Option value='new'>{t('cron.create.conversationMode.new', '每次新建会话（推荐）')}</Select.Option>
+                    <Select.Option value='reuse'>{t('cron.create.conversationMode.reuse', '复用已有会话（适合持续追加）')}</Select.Option>
+                  </Select>
+                </div>
+
+                {conversationMode === 'reuse' && (
+                  <div className='col-span-2'>
+                    <div className='text-13px text-secondary mb-1'>{t('cron.create.reuseConversation', '绑定会话')}</div>
+                    <Select
+                      value={selectedConversationId}
+                      onChange={(value) => setSelectedConversationId(value as string)}
+                      showSearch
+                      filterOption={(inputValue, option) => {
+                        const optionValue = (option as React.ReactElement<{ value?: string }>)?.props?.value;
+                        if (!optionValue) return true; // keep the placeholder visible while searching
+                        const conversation = conversations.find((item) => item.id === optionValue);
+                        const label = conversation?.name || optionValue;
+                        return label.toLowerCase().includes(inputValue.toLowerCase());
+                      }}
+                    >
+                      <Select.Option value=''>
+                        <span className='text-secondary'>{t('cron.create.reuseConversationPlaceholder', '首次运行时自动创建')}</span>
+                      </Select.Option>
+                      {conversations.map((conversation) => (
+                        <Select.Option key={conversation.id} value={conversation.id}>
+                          {conversation.name || conversation.id}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                    <div className='text-12px text-secondary mt-1'>{t('cron.create.reuseConversationHint', '选择已有会话，首次运行将直接追加到该会话')}</div>
+                  </div>
+                )}
+
+                {!(sessionMode !== 'remote' && conversationMode === 'reuse' && selectedConversationId) && (
+                  <div>
+                    <div className='text-13px text-secondary mb-1'>{t('cron.create.agent', '智能体')}</div>
+                    <Select value={selectedAssistantId} onChange={(value) => setSelectedAssistantId(value as string)} disabled={sessionMode !== 'remote' && editJob != null && conversationMode === 'reuse'}>
+                      <Select.Option value={DEFAULT_ASSISTANT}>
+                        <span className='text-secondary'>{t('cron.create.agentPlaceholder', '默认 (Sudo Code)')}</span>
+                      </Select.Option>
+                      {selectedAssistantId !== DEFAULT_ASSISTANT && !assistants.some((assistant) => assistant.id === selectedAssistantId) && (
+                        <Select.Option value={selectedAssistantId}>
+                          <span>{selectedAssistantId}</span>
+                        </Select.Option>
+                      )}
+                      {assistants.map((assistant) => {
+                        const avatarValue = assistant.avatar?.trim();
+                        const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
+                        const avatarImage = resolvedAvatar || avatarValue;
+                        const isImageAvatar = Boolean(avatarImage && (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage)));
+                        return (
+                          <Select.Option key={assistant.id} value={assistant.id}>
+                            <span className='flex items-center gap-1.5'>
+                              {isImageAvatar ? <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} /> : avatarValue ? <span style={{ fontSize: 14, lineHeight: '16px' }}>{avatarValue}</span> : null}
+                              <span>{assistant.nameI18n?.[localeKey] || assistant.name}</span>
+                            </span>
+                          </Select.Option>
+                        );
+                      })}
+                    </Select>
+                  </div>
+                )}
+
+                {sessionMode !== 'remote' && !(conversationMode === 'reuse' && selectedConversationId) && (
+                  <div>
+                    <div className='text-13px text-secondary mb-1'>{t('cron.create.workspace', '工作目录')}</div>
+                    <Button long onClick={handleSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
+                      {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-secondary'>{t('cron.create.selectFolder', '选择文件夹')}</span>}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Form>
     </Drawer>
   );
@@ -381,6 +392,7 @@ interface ICronJobFormDrawerProps {
   visible: boolean;
   editJob?: ICronJob | null;
   sessionMode: 'local' | 'remote';
+  digitalEmployee?: Pick<IDigitalEmployee, 'id' | 'name' | 'roleName' | 'backend'> | null;
   onClose: () => void;
   onSaved: () => void;
 }

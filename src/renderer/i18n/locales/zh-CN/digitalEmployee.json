@@ -122,6 +122,21 @@
     "knowledge": "知识",
     "mcp": "MCP"
   },
+  "scheduledTasks": {
+    "title": "定时任务",
+    "create": "新建任务",
+    "empty": "暂无定时任务",
+    "loadFailed": "定时任务加载失败",
+    "formHint": "保存后由当前数字员工按计划自动执行。",
+    "nextRun": "下次 {{time}}",
+    "runCount": "{{count}} 次执行",
+    "statusEnabled": "已启用",
+    "statusPaused": "已暂停",
+    "statusError": "执行出错",
+    "noConversation": "暂无可查看的执行会话",
+    "deleteTitle": "删除定时任务",
+    "deleteContent": "确认删除定时任务「{{name}}」？"
+  },
   "card": {
     "primaryCapability": "主要能力",
     "noDescription": "暂未配置能力描述",

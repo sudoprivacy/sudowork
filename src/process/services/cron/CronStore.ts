@@ -36,6 +36,8 @@ export interface CronJob {
     workspace?: string;
     /** Preset assistant ID (e.g. 'builtin-doctor') — rules/skills re-resolved at execution time */
     presetAssistantId?: string;
+    /** Digital employee owner for employee-scoped scheduled tasks */
+    digitalEmployeeId?: string;
   };
   state: {
     nextRunAtMs?: number;
@@ -79,6 +81,7 @@ interface CronJobRow {
   last_conversation_id: string | null;
   workspace: string | null;
   preset_assistant_id: string | null;
+  digital_employee_id: string | null;
 }
 
 /**
@@ -122,6 +125,7 @@ function jobToRow(job: CronJob): CronJobRow {
     last_conversation_id: job.state.lastConversationId ?? null,
     workspace: job.metadata.workspace ?? null,
     preset_assistant_id: job.metadata.presetAssistantId ?? null,
+    digital_employee_id: job.metadata.digitalEmployeeId ?? null,
   };
 }
 
@@ -162,6 +166,7 @@ function rowToJob(row: CronJobRow): CronJob {
       conversationMode: (row.conversation_mode as 'new' | 'reuse' | null) ?? undefined,
       workspace: row.workspace ?? undefined,
       presetAssistantId: row.preset_assistant_id ?? undefined,
+      digitalEmployeeId: row.digital_employee_id ?? undefined,
     },
     state: {
       nextRunAtMs: row.next_run_at ?? undefined,
@@ -199,8 +204,8 @@ class CronStore {
         created_at, updated_at,
         next_run_at, last_run_at, last_status, last_error,
         run_count, retry_count, max_retries,
-        conversation_mode, last_conversation_id, workspace, preset_assistant_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        conversation_mode, last_conversation_id, workspace, preset_assistant_id, digital_employee_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
       )
       .run(
@@ -228,7 +233,8 @@ class CronStore {
         row.conversation_mode,
         row.last_conversation_id,
         row.workspace,
-        row.preset_assistant_id
+        row.preset_assistant_id,
+        row.digital_employee_id
       );
   }
 
@@ -271,12 +277,12 @@ class CronStore {
         name = ?, enabled = ?,
         schedule_kind = ?, schedule_value = ?, schedule_tz = ?, schedule_description = ?,
         payload_message = ?,
-        conversation_title = ?,
+        conversation_id = ?, conversation_title = ?, agent_type = ?, created_by = ?,
         updated_at = ?,
         next_run_at = ?, last_run_at = ?, last_status = ?, last_error = ?,
         run_count = ?, retry_count = ?, max_retries = ?,
         conversation_mode = ?, last_conversation_id = ?,
-        workspace = ?, preset_assistant_id = ?
+        workspace = ?, preset_assistant_id = ?, digital_employee_id = ?
       WHERE id = ?
     `
       )
@@ -288,7 +294,10 @@ class CronStore {
         row.schedule_tz,
         row.schedule_description,
         row.payload_message,
+        row.conversation_id,
         row.conversation_title,
+        row.agent_type,
+        row.created_by,
         row.updated_at,
         row.next_run_at,
         row.last_run_at,
@@ -301,6 +310,7 @@ class CronStore {
         row.last_conversation_id,
         row.workspace,
         row.preset_assistant_id,
+        row.digital_employee_id,
         jobId
       );
   }
@@ -341,6 +351,16 @@ class CronStore {
     const db = getDatabase();
     // @ts-expect-error - db is private but we need direct access
     const rows = db.db.prepare('SELECT * FROM cron_jobs WHERE conversation_id = ? ORDER BY created_at DESC').all(conversationId) as CronJobRow[];
+    return rows.map(rowToJob);
+  }
+
+  /**
+   * List cron jobs by digital employee ID
+   */
+  listByDigitalEmployee(employeeId: string): CronJob[] {
+    const db = getDatabase();
+    // @ts-expect-error - db is private but we need direct access
+    const rows = db.db.prepare('SELECT * FROM cron_jobs WHERE digital_employee_id = ? ORDER BY created_at DESC').all(employeeId) as CronJobRow[];
     return rows.map(rowToJob);
   }
 

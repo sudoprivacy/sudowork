@@ -4,26 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { powerSaveBlocker, app } from 'electron';
+import { Cron } from 'croner';
 import { ipcBridge } from '@/common';
 import type { CronMessageMeta, TMessage } from '@/common/chatLib';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
-import { ProcessConfig } from '@process/initStorage';
 import { addMessage } from '@process/message';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
-import { powerSaveBlocker, app } from 'electron';
-import { Cron } from 'croner';
-import WorkerManage from '../../WorkerManage';
-import { copyFilesToDirectory } from '../../utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { readAssistantResource, ruleFilePattern, skillFilePattern } from '@process/utils/assistantResources';
+import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { assistantManager } from '@/process/AssistantManager';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
+import { copyFilesToDirectory } from '../../utils';
+import WorkerManage from '../../WorkerManage';
+import { createConversation } from '../conversationService';
+import { digitalEmployeeService } from '../digitalEmployee/DigitalEmployeeService';
 import { cronBusyGuard } from './CronBusyGuard';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
 import { assertClientCronEnabled, getClientCronEnabled } from './cronPolicy';
-import { createConversation } from '../conversationService';
 
 /**
  * Parameters for creating a new cron job
@@ -39,6 +39,7 @@ export interface CreateCronJobParams {
   conversationMode?: 'new' | 'reuse';
   workspace?: string;
   presetAssistantId?: string | null;
+  digitalEmployeeId?: string;
 }
 
 /**
@@ -109,6 +110,7 @@ class CronService {
         conversationMode: params.conversationMode ?? 'new',
         workspace: params.workspace,
         presetAssistantId: params.presetAssistantId ?? undefined,
+        digitalEmployeeId: params.digitalEmployeeId,
       },
       state: {
         runCount: 0,
@@ -212,6 +214,13 @@ class CronService {
    */
   async listJobsByConversation(conversationId: string): Promise<CronJob[]> {
     return cronStore.listByConversation(conversationId);
+  }
+
+  /**
+   * List cron jobs by digital employee
+   */
+  async listJobsByDigitalEmployee(employeeId: string): Promise<CronJob[]> {
+    return cronStore.listByDigitalEmployee(employeeId);
   }
 
   /**
@@ -414,19 +423,39 @@ class CronService {
       const normalizedAgentType: AcpBackendAll = !storedAgentType || (storedAgentType as string) === 'sudoclaw-gateway' || (storedAgentType as string) === 'openclaw-gateway' ? 'scode' : storedAgentType;
       let resolvedAgentType: AcpBackendAll = normalizedAgentType;
       let convType: string = 'acp';
+      const digitalEmployeeId = job.metadata.digitalEmployeeId?.trim();
+      let digitalEmployeeRuntime: Awaited<ReturnType<typeof digitalEmployeeService.buildConversationRuntime>> | undefined;
 
-      if (presetAssistantId) {
+      if (digitalEmployeeId) {
+        try {
+          digitalEmployeeRuntime = await digitalEmployeeService.buildConversationRuntime(digitalEmployeeId);
+          resolvedAgentType = digitalEmployeeRuntime.backend;
+          convType = 'acp';
+          presetContext = digitalEmployeeRuntime.presetContext;
+          enabledSkills = digitalEmployeeRuntime.enabledSkills;
+          presetAgentName = digitalEmployeeRuntime.employee.name;
+        } catch (error) {
+          job.state.lastStatus = 'skipped';
+          job.state.lastError = error instanceof Error ? error.message : String(error);
+          job.state.retryCount = 0;
+          this.updateNextRunTime(job);
+          cronStore.update(job.id, { state: job.state });
+          ipcBridge.cron.onJobUpdated.emit(job);
+          mainWarn('CronService', `Digital employee cron job skipped: id=${job.id} employeeId=${digitalEmployeeId}`, error);
+          return;
+        }
+      }
+
+      if (presetAssistantId && !digitalEmployeeRuntime) {
         try {
           const appLocale = app.getLocale() || 'en-US';
           const localeKey = appLocale.startsWith('zh') ? 'zh-CN' : appLocale.startsWith('ja') ? 'ja-JP' : appLocale.startsWith('ko') ? 'ko-KR' : 'en-US';
 
           // Resolve rules file
           let rules = '';
-          let skillsText = '';
 
           // 1. Try user-customized files first, then builtin fallback
           rules = await readAssistantResource('rules', presetAssistantId, localeKey, ruleFilePattern).catch(() => '');
-          skillsText = await readAssistantResource('skills', presetAssistantId, localeKey, skillFilePattern).catch(() => '');
 
           presetContext = rules || undefined;
 
@@ -486,7 +515,7 @@ class CronService {
         const result = await createConversation({
           type: convType as any,
           name: convName,
-          source: 'cron',
+          source: digitalEmployeeRuntime ? 'digital-employee' : 'cron',
           model: { useModel: '', provider: '', baseUrl: '' } as any,
           extra: {
             backend: agentType,
@@ -494,14 +523,27 @@ class CronService {
             customWorkspace: !!job.metadata.workspace,
             cronJobId: job.id,
             cronJobName: job.name,
-            ...(presetAssistantId && {
-              presetAssistantId,
-              customAgentId: presetAssistantId,
-              agentName: presetAgentName,
-              cliPath: presetCliPath,
-              presetContext,
-              enabledSkills,
+            ...(digitalEmployeeRuntime && {
+              agentName: digitalEmployeeRuntime.employee.name,
+              presetContext: digitalEmployeeRuntime.presetContext,
+              enabledSkills: digitalEmployeeRuntime.enabledSkills,
+              localKnowledgeSpaceIds: digitalEmployeeRuntime.localKnowledgeSpaceIds,
+              sessionMode: digitalEmployeeRuntime.sessionMode,
+              currentModelId: digitalEmployeeRuntime.currentModelId,
+              sessionModeParam: 'local',
+              digitalEmployeeId: digitalEmployeeRuntime.employee.id,
+              digitalEmployeeRole: digitalEmployeeRuntime.employee.roleName,
+              digitalEmployeeSourceType: digitalEmployeeRuntime.employee.sourceType,
             }),
+            ...(presetAssistantId &&
+              !digitalEmployeeRuntime && {
+                presetAssistantId,
+                customAgentId: presetAssistantId,
+                agentName: presetAgentName,
+                cliPath: presetCliPath,
+                presetContext,
+                enabledSkills,
+              }),
           } as any,
         });
 
@@ -551,7 +593,7 @@ class CronService {
           const result = await createConversation({
             type: convType as any,
             name: job.name,
-            source: 'cron',
+            source: digitalEmployeeRuntime ? 'digital-employee' : 'cron',
             model: { useModel: '', provider: '', baseUrl: '' } as any,
             extra: {
               backend: agentType,
@@ -559,14 +601,27 @@ class CronService {
               customWorkspace: !!job.metadata.workspace,
               cronJobId: job.id,
               cronJobName: job.name,
-              ...(presetAssistantId && {
-                presetAssistantId,
-                customAgentId: presetAssistantId,
-                agentName: presetAgentName,
-                cliPath: presetCliPath,
-                presetContext,
-                enabledSkills,
+              ...(digitalEmployeeRuntime && {
+                agentName: digitalEmployeeRuntime.employee.name,
+                presetContext: digitalEmployeeRuntime.presetContext,
+                enabledSkills: digitalEmployeeRuntime.enabledSkills,
+                localKnowledgeSpaceIds: digitalEmployeeRuntime.localKnowledgeSpaceIds,
+                sessionMode: digitalEmployeeRuntime.sessionMode,
+                currentModelId: digitalEmployeeRuntime.currentModelId,
+                sessionModeParam: 'local',
+                digitalEmployeeId: digitalEmployeeRuntime.employee.id,
+                digitalEmployeeRole: digitalEmployeeRuntime.employee.roleName,
+                digitalEmployeeSourceType: digitalEmployeeRuntime.employee.sourceType,
               }),
+              ...(presetAssistantId &&
+                !digitalEmployeeRuntime && {
+                  presetAssistantId,
+                  customAgentId: presetAssistantId,
+                  agentName: presetAgentName,
+                  cliPath: presetCliPath,
+                  presetContext,
+                  enabledSkills,
+                }),
             } as any,
           });
           if (!result.success || !result.conversation) {
@@ -591,6 +646,16 @@ class CronService {
 
       if (!task) {
         throw new Error('Failed to initialize task');
+      }
+
+      if (digitalEmployeeRuntime) {
+        digitalEmployeeService.createWorkRecord({
+          employeeId: digitalEmployeeRuntime.employee.id,
+          conversationId: activeConversationId,
+          title: job.name,
+          status: 'running',
+          summary: `定时任务：${job.name}`,
+        });
       }
 
       // Set up channel response routing if conversation source is a channel type
@@ -722,7 +787,10 @@ class CronService {
    * about a missed scheduled task execution.
    */
   private insertMissedJobMessage(job: CronJob, scheduledAtMs: number): void {
-    const { conversationId } = job.metadata;
+    const conversationId = job.state.lastConversationId || job.metadata.conversationId;
+    if (!conversationId) {
+      return;
+    }
     const scheduledTime = new Date(scheduledAtMs).toLocaleString();
     const msgId = uuid();
 
