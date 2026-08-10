@@ -10,8 +10,9 @@ import path from 'path';
 import { app } from 'electron';
 import { getSudorouterBaseUrl, isSudorouterBaseUrl } from '../../common/systemConfig';
 import { detectImageMimeType, IMAGE_TARGET_RAW_SIZE } from '../../common/imageUtils';
+import { parseCustomImageModelRef } from '../../common/scodeConfig';
 import { ipcBridge } from '../../common';
-import type { IBridgeResponse } from '../../common/ipcBridge';
+import type { IBridgeResponse, ScodeConfig } from '../../common/ipcBridge';
 import { ProcessConfig } from '../initStorage';
 import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
 import { SCODE_DIR } from '../services/scode/ScodeInstallService';
@@ -115,6 +116,22 @@ export function readSudorouterCredentials(): { baseUrl: string; apiKey: string }
   return null;
 }
 
+export function readApiKeyProviderCredentials(providerId: string): { baseUrl: string; apiKey: string } | null {
+  try {
+    const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
+    const config = JSON.parse(raw) as ScodeConfig;
+    const provider = config.auth_modes?.['api-key']?.[providerId];
+    const baseUrl = provider?.baseUrl?.trim();
+    const apiKey = provider?.apiKey?.trim();
+    if (baseUrl && apiKey) {
+      return { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey };
+    }
+  } catch {
+    // ignored
+  }
+  return null;
+}
+
 export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
   // Primary: read image generation model from sudoclaw.json agents.defaults.imageGenerationModel
   let imageModelId: string | null = null;
@@ -136,6 +153,15 @@ export async function resolveImageConfig(): Promise<{ baseUrl: string; apiKey: s
       return null;
     }
     imageModelId = imageModel.useModel;
+  }
+
+  const customRef = parseCustomImageModelRef(imageModelId);
+  if (customRef) {
+    const externalCreds = readApiKeyProviderCredentials(customRef.providerId);
+    if (externalCreds) {
+      return { baseUrl: externalCreds.baseUrl, apiKey: externalCreds.apiKey, model: customRef.modelId };
+    }
+    console.log('[ImageGen] custom image provider credentials not found:', customRef.providerId);
   }
 
   // Route user-selected model through sudorouter
@@ -441,23 +467,12 @@ export async function callChatCompletionsWithImage(baseUrl: string, apiKey: stri
  */
 async function generateUserAvatar({ prompt }: { prompt: string }): Promise<IBridgeResponse<{ localPath: string; dataUrl: string }>> {
   try {
-    // 凭据：复用 readSudorouterCredentials（已优先读 sudocode.json）
-    const creds = readSudorouterCredentials();
-    // 模型：直接读 sudocode.json 的 tools.imageGenerationModel（由 AuthContext 登录时写入）
-    let model: string | undefined;
-    try {
-      const raw = fsSync.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8');
-      const config = JSON.parse(raw) as { tools?: { imageGenerationModel?: string } };
-      model = config?.tools?.imageGenerationModel;
-      if (typeof model === 'string' && model.includes('/')) model = model.split('/').pop();
-    } catch {
-      // ignored
-    }
-    if (!creds || !model || !model.trim()) {
+    const config = await resolveImageConfig();
+    if (!config) {
       return { success: false, msg: '图像生成功能尚未配置，无法生成头像' };
     }
 
-    const imageUrl = await callImagesGenerations(creds.baseUrl, creds.apiKey, model, prompt, '1024x1024', 1);
+    const imageUrl = await callImagesGenerations(config.baseUrl, config.apiKey, config.model, prompt, '1024x1024', 1);
 
     const saveDir = path.join(app.getPath('userData'), 'user-avatars');
     const saved = await saveImageResult(imageUrl, saveDir);

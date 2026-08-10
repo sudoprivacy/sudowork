@@ -20,6 +20,7 @@ export type ScodeCustomModelProvider = {
     input?: string[];
     supportsTools?: boolean;
     supportsReasoning?: boolean;
+    supportsImageGeneration?: boolean;
     inputContext?: number;
     outputContext?: number;
   }>;
@@ -40,6 +41,15 @@ export type SpecificImagePricingItem = {
   model_id: string;
   model_ratio?: number;
   extra?: Record<string, unknown>;
+};
+
+export const IMAGE_GENERATION_MODEL_PATTERN = /flux|diffusion|dall|imagen|cogview|janus|midjourney|mj-|stabilityai|sd-/i;
+
+export type ScodeImageModelOption = {
+  label: string;
+  value: string;
+  providerId: string;
+  modelId: string;
 };
 
 function normalizeExplicitAutoModelId(modelId?: string): string | undefined {
@@ -75,9 +85,20 @@ function normalizeModelAlias(modelId: string): string {
 }
 
 export function buildCustomModelAlias(providerId: string, modelId: string): string {
-  const normalizedProviderId = providerId.trim();
-  const normalizedModelId = normalizeModelAlias(modelId);
-  return `${normalizedProviderId}/${normalizedModelId}`;
+  return buildCustomImageModelValue(providerId, modelId);
+}
+
+export function buildCustomImageModelValue(providerId: string, modelId: string): string {
+  return `${providerId.trim()}/${normalizeModelAlias(modelId)}`;
+}
+
+export function parseCustomImageModelRef(value: string): { providerId: string; modelId: string } | null {
+  const index = value.indexOf('/');
+  if (index <= 0 || index === value.length - 1) return null;
+  return {
+    providerId: value.slice(0, index),
+    modelId: value.slice(index + 1),
+  };
 }
 
 function shouldUseOpenAIResponsesApi(modelId: string): boolean {
@@ -133,6 +154,7 @@ function buildCustomApiKeyModelEntry(providerId: string, model: ScodeCustomModel
     input: model.input?.length ? model.input : modelInputForModelId(modelId),
     supports_tools: model.supportsTools,
     supports_reasoning: model.supportsReasoning,
+    supports_image_generation: model.supportsImageGeneration,
     context: {
       input: model.inputContext,
       output: model.outputContext,
@@ -156,9 +178,37 @@ function modelFromCustomApiKeyEntry(alias: string, entry: ScodeModelEntry): Scod
     input: entry.input,
     supportsTools: entry.supports_tools,
     supportsReasoning: entry.supports_reasoning,
+    supportsImageGeneration: entry.supports_image_generation,
     inputContext: entry.context?.input,
     outputContext: entry.context?.output,
   };
+}
+
+export function extractImageModelsFromScodeConfig(config: ScodeConfig | null | undefined): ScodeImageModelOption[] {
+  const result: ScodeImageModelOption[] = [];
+  const apiKeyProviders = config?.auth_modes?.['api-key'] || {};
+
+  for (const [alias, entry] of Object.entries(config?.models || {})) {
+    const apiKeyProvider = entry.providers?.['api-key'];
+    const providerId = apiKeyProvider?.provider?.trim();
+    const providerCredentials = providerId ? apiKeyProviders[providerId] : undefined;
+    if (!providerId || !providerCredentials?.baseUrl?.trim() || !providerCredentials.apiKey?.trim()) continue;
+
+    const modelId = (apiKeyProvider?.model || entry.alias || alias).trim();
+    if (!modelId) continue;
+
+    const isImageModel = entry.supports_image_generation === true || (entry.supports_image_generation !== false && IMAGE_GENERATION_MODEL_PATTERN.test(modelId));
+    if (!isImageModel) continue;
+
+    result.push({
+      label: `${providerId} / ${modelId}`,
+      value: buildCustomImageModelValue(providerId, modelId),
+      providerId,
+      modelId,
+    });
+  }
+
+  return result.sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export function extractCustomProvidersFromScodeConfig(config: ScodeConfig | null | undefined): ScodeCustomModelProvider[] {

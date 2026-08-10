@@ -7,7 +7,7 @@
 # IMAGE_MODEL is read from agents.defaults.imageGenerationModel in sudoclaw.json.
 # (Note: agents.defaults.imageModel is the image *parsing* model for the gateway;
 #  image generation uses the separate imageGenerationModel field.)
-# Any leading "provider/" prefix is stripped before sending to the image API.
+# When env vars are injected by the app, IMAGE_MODEL is already the provider model id.
 # Overrides: PROVIDER_BASE_URL, PROVIDER_API_KEY, IMAGE_MODEL
 
 set -euo pipefail
@@ -90,7 +90,7 @@ if [ "$MODE" = "edit" ] && [ ! -f "$IMAGE_PATH" ]; then
   exit 1
 fi
 
-# Read BASE_URL, API_KEY, and IMAGE_MODEL from config files (with env var overrides)
+# Read BASE_URL, API_KEY, and IMAGE_MODEL from config files.
 # Priority: sudocode.json (new), fallback to sudoclaw.json (legacy)
 _SUDOCODE_CFG="${SUDOCODE_CONFIG_PATH:-$HOME/.nexus/sudocode/sudocode.json}"
 if [ -f "$_SUDOCODE_CFG" ]; then
@@ -98,12 +98,20 @@ if [ -f "$_SUDOCODE_CFG" ]; then
 import json, sys
 try:
     c = json.load(open(sys.argv[1]))
-    sr = c.get('auth_modes',{}).get('proxy',{}).get('sudorouter',{})
-    base_url = sr.get('baseUrl','')
-    api_key = sr.get('apiKey','')
     image_model = c.get('tools',{}).get('imageGenerationModel','')
+    base_url = ''
+    api_key = ''
     if isinstance(image_model, str) and '/' in image_model:
-        image_model = image_model.rsplit('/', 1)[-1]
+        provider_id, provider_model = image_model.split('/', 1)
+        provider = c.get('auth_modes',{}).get('api-key',{}).get(provider_id,{})
+        if provider.get('baseUrl') and provider.get('apiKey'):
+            base_url = provider.get('baseUrl','')
+            api_key = provider.get('apiKey','')
+            image_model = provider_model
+    if not api_key:
+        sr = c.get('auth_modes',{}).get('proxy',{}).get('sudorouter',{})
+        base_url = sr.get('baseUrl','')
+        api_key = sr.get('apiKey','')
     print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
     print(f'_CFG_API_KEY={repr(api_key)}')
     print(f'_CFG_IMAGE_MODEL={repr(image_model)}')
@@ -117,12 +125,20 @@ if [ -z "${_CFG_API_KEY:-}" ] && [ -n "${SUDOCLAW_CONFIG_PATH:-}" ] && [ -f "$SU
 import json, sys
 try:
     c = json.load(open(sys.argv[1]))
-    sr = c.get('models',{}).get('providers',{}).get('sudorouter',{})
-    base_url = sr.get('baseUrl','')
-    api_key = sr.get('apiKey','')
     image_model = c.get('agents',{}).get('defaults',{}).get('imageGenerationModel','')
+    base_url = ''
+    api_key = ''
     if isinstance(image_model, str) and '/' in image_model:
-        image_model = image_model.rsplit('/', 1)[-1]
+        provider_id, provider_model = image_model.split('/', 1)
+        provider = c.get('auth_modes',{}).get('api-key',{}).get(provider_id,{})
+        if provider.get('baseUrl') and provider.get('apiKey'):
+            base_url = provider.get('baseUrl','')
+            api_key = provider.get('apiKey','')
+            image_model = provider_model
+    if not api_key:
+        sr = c.get('models',{}).get('providers',{}).get('sudorouter',{})
+        base_url = sr.get('baseUrl','')
+        api_key = sr.get('apiKey','')
     print(f'_CFG_BASE_URL={repr(base_url.rstrip(\"/\"))}')
     print(f'_CFG_API_KEY={repr(api_key)}')
     print(f'_CFG_IMAGE_MODEL={repr(image_model)}')
@@ -130,14 +146,19 @@ except: pass
 " "$SUDOCLAW_CONFIG_PATH" 2>/dev/null)"
 fi
 
-BASE_URL="${PROVIDER_BASE_URL:-${_CFG_BASE_URL:-}}"
-API_KEY="${PROVIDER_API_KEY:-${_CFG_API_KEY:-}}"
-MODEL="${IMAGE_MODEL:-${_CFG_IMAGE_MODEL:-}}"
-
-# Strip any leading "provider/" prefix; image APIs expect the bare model id.
-# (Defensive: handles IMAGE_MODEL env overrides and any future writer that keeps the prefix.)
-if [[ "$MODEL" == */* ]]; then
-  MODEL="${MODEL##*/}"
+if [ -n "${_CFG_IMAGE_MODEL:-}" ] && [ -n "${_CFG_BASE_URL:-}" ] && [ -n "${_CFG_API_KEY:-}" ]; then
+  BASE_URL="${_CFG_BASE_URL}"
+  API_KEY="${_CFG_API_KEY}"
+  MODEL="${_CFG_IMAGE_MODEL}"
+elif [ -n "${IMAGE_MODEL:-}" ] && [ -n "${PROVIDER_BASE_URL:-}" ] && [ -n "${PROVIDER_API_KEY:-}" ]; then
+  BASE_URL="${PROVIDER_BASE_URL%/}"
+  API_KEY="${PROVIDER_API_KEY}"
+  MODEL="${IMAGE_MODEL}"
+else
+  BASE_URL="${_CFG_BASE_URL:-${PROVIDER_BASE_URL:-}}"
+  BASE_URL="${BASE_URL%/}"
+  API_KEY="${_CFG_API_KEY:-${PROVIDER_API_KEY:-}}"
+  MODEL="${_CFG_IMAGE_MODEL:-${IMAGE_MODEL:-}}"
 fi
 
 if [ -z "$MODEL" ]; then

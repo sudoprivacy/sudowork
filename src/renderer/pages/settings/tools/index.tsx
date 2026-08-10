@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { migrateImageGenerationModelConfig, pickDefaultImageModelFromPricing, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
 import { scode } from '@/common/ipcBridge';
+import { extractImageModelsFromScodeConfig } from '@/common/scodeConfig';
 import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
 import AionScrollArea from '@renderer/components/base/AionScrollArea';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -30,14 +31,24 @@ export default function ToolsSettings() {
     const loadConfigs = async () => {
       try {
         setIsImageListLoading(true);
-        const result = await scode.fetchSpecificImagePricing.invoke().catch((): null => null);
-        setIsImageListLoading(false);
+        const [pricingResult, scodeConfigResult] = await Promise.all([scode.fetchSpecificImagePricing.invoke().catch((): null => null), scode.getConfig.invoke().catch((): null => null)]);
+        const pricingItems = pricingResult?.success && Array.isArray(pricingResult.data) ? pricingResult.data : null;
+        const sudorouterOptions = pricingItems?.map((item) => ({ label: item.model_id, value: item.model_id })) || [];
+        const customOptions = extractImageModelsFromScodeConfig(scodeConfigResult?.success ? scodeConfigResult.data : null).map((item) => ({ label: item.label, value: item.value }));
+        const seenValues = new Set<string>();
+        const options = [...sudorouterOptions, ...customOptions].filter((item) => {
+          if (seenValues.has(item.value)) return false;
+          seenValues.add(item.value);
+          return true;
+        });
 
-        if (result?.success && Array.isArray(result.data)) {
-          setImageOptions(result.data.map((item) => ({ label: item.model_id, value: item.model_id })));
+        setImageOptions(options);
+        setIsImageListError(!pricingItems && !scodeConfigResult?.success && options.length === 0);
+
+        if (pricingItems) {
           setIsImageListError(false);
 
-          const defaultModelId = pickDefaultImageModelFromPricing(result.data);
+          const defaultModelId = pickDefaultImageModelFromPricing(pricingItems);
           const saved = await ConfigStorage.get('tools.imageGenerationModel');
           const alreadyMigrated = (await ConfigStorage.get('migration.imageGenerationModelDefaultMigrated').catch((): boolean => false)) === true;
           const { config, changed } = migrateImageGenerationModelConfig(saved, alreadyMigrated, defaultModelId);
@@ -51,13 +62,14 @@ export default function ToolsSettings() {
             await ConfigStorage.set('migration.imageGenerationModelDefaultMigrated', true).catch(() => {});
           }
         } else {
-          // Fetch failed: empty dropdown + error hint; leave ConfigStorage untouched (keep old value).
-          setImageOptions([]);
-          setIsImageListError(true);
+          // Fetch failed: leave ConfigStorage untouched and keep any custom options from sudocode.json.
           setImageGenerationModel(await ConfigStorage.get('tools.imageGenerationModel').catch((): undefined => undefined));
         }
       } catch (error) {
         console.error('Failed to load image generation model config:', error);
+        setIsImageListError(true);
+      } finally {
+        setIsImageListLoading(false);
       }
     };
 
@@ -100,7 +112,7 @@ export default function ToolsSettings() {
                 <Form.Item label={t('settings.imageGenerationModel', '图像模型')}>
                   <Select
                     value={imageGenerationModel?.useModel ?? ''}
-                    disabled={!imageGenerationModel?.switch || isImageListLoading || isImageListError}
+                    disabled={!imageGenerationModel?.switch || isImageListLoading || (isImageListError && imageOptions.length === 0)}
                     onChange={(val) => {
                       onImageGenerationModelChange({ useModel: val as string });
                     }}

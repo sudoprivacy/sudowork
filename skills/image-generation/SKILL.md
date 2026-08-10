@@ -35,10 +35,16 @@ Trigger this skill when the user asks to:
 
 ### Step 3: Run the image generation script
 
+Use the cross-platform Python helper by default. Use the shell helper only when Python is unavailable and `bash` is available.
+
 **For generation (new image):**
 
 1.  **Determine output path stem**: run `pwd` first to get the session workspace path, then construct an absolute path with a concise name (e.g. `/session/workspace/white_cat`). If the user specifies a location, use that absolute path instead.
 2.  **Execute** (use `timeout: 180000`):
+    ```bash
+    python skills/image-generation/scripts/generate_image.py gen "<prompt>" "<absolute_filepath_no_ext>" [size]
+    ```
+    If `python` is not available but `python3` is, use `python3`. On Unix-like systems with `bash`, this fallback is also supported:
     ```bash
     bash skills/image-generation/scripts/generate_image.sh gen "<prompt>" "<absolute_filepath_no_ext>" [size]
     ```
@@ -48,6 +54,10 @@ Trigger this skill when the user asks to:
 1.  **Determine output path stem**: use the session workspace path from `pwd` with the source filename and a timestamp (e.g. `/session/workspace/abc_1712123456`). If the user specifies a location, use that absolute path instead.
 2.  **Execute** (use `timeout: 180000`):
     ```bash
+    python skills/image-generation/scripts/generate_image.py edit "<prompt>" "<image_path>" "<absolute_filepath_no_ext>" [size]
+    ```
+    If `python` is not available but `python3` is, use `python3`. On Unix-like systems with `bash`, this fallback is also supported:
+    ```bash
     bash skills/image-generation/scripts/generate_image.sh edit "<prompt>" "<image_path>" "<absolute_filepath_no_ext>" [size]
     ```
 
@@ -56,6 +66,9 @@ The script appends the correct extension (`.png`, `.jpg`, `.webp`) based on the 
 - `size` is optional, defaults to `1024x1024`. Common sizes: `1024x1024`, `1024x1536`, `1536x1024`.
 - The script reads API credentials and image model from `~/.nexus/sudocode/sudocode.json` automatically. No manual configuration needed.
 - The image model is read from `sudocode.json` (set via Tools settings). **Always run the script directly** — it will report any configuration errors itself.
+- Do **not** manually set, override, print, echo, or probe `PROVIDER_BASE_URL`, `PROVIDER_API_KEY`, `IMAGE_MODEL`, or `SUDOCODE_CONFIG_PATH`.
+- Do **not** curl or test alternate image providers/endpoints. If the helper fails, report the helper's error message instead of switching providers.
+- Do **not** put API keys, bearer tokens, or provider credentials in shell commands, inline scripts, logs, or chat output.
 
 The script prints the saved image file path on success, or an error message on failure.
 

@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { ScodeConfig } from '@/common/ipcBridge';
-import { extractCustomProvidersFromScodeConfig, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
+import { extractCustomProvidersFromScodeConfig, IMAGE_GENERATION_MODEL_PATTERN, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { GUEST_USER_ID, useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -217,6 +217,7 @@ const SudocodeModelSettings: React.FC = () => {
                       const entry = findModelEntry(config, modelId);
                       const displayModelId = entry?.providers?.['api-key']?.model || entry?.name || modelId;
                       const input = entry?.input || [];
+                      const isImageGenerationSupported = entry?.supports_image_generation === true || (entry?.supports_image_generation !== false && IMAGE_GENERATION_MODEL_PATTERN.test(displayModelId));
                       return (
                         <div key={modelId} className='px-4 py-3 flex items-center justify-between gap-3 flex-wrap'>
                           <div className='min-w-0'>
@@ -231,6 +232,11 @@ const SudocodeModelSettings: React.FC = () => {
                               {entry?.supports_reasoning && (
                                 <Tag size='small' color='purple'>
                                   {t('settings.sudocodeModel.supportsReasoning', '推理模式')}
+                                </Tag>
+                              )}
+                              {isImageGenerationSupported && (
+                                <Tag size='small' color='green'>
+                                  {t('settings.sudocodeModel.supportsImageGeneration', '图片生成')}
                                 </Tag>
                               )}
                               <Tag size='small' color='gray'>

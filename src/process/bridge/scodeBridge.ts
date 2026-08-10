@@ -22,7 +22,8 @@ import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService'
 import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerationModelSync';
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
-import { mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, normalizeScodeModelApiTypesInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
+import type { ScodeConfig } from '@/common/ipcBridge';
+import { extractImageModelsFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, normalizeScodeModelApiTypesInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
 import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 const TAG = 'ScodeBridge';
@@ -152,6 +153,7 @@ export async function resolveImageModelForMainSync(): Promise<{ modelId: string 
 
   const saved = await ProcessConfig.get('tools.imageGenerationModel');
   const items = await fetchSpecificImagePricingItems();
+  const customImageModelValues = extractImageModelsFromScodeConfig(normalizeCustomApiKeyModelsInScodeConfig(readExistingConfig() as ScodeConfig)).map((item) => item.value);
 
   if (!saved) {
     const def = items ? pickDefaultImageModelFromPricing(items) : '';
@@ -162,7 +164,7 @@ export async function resolveImageModelForMainSync(): Promise<{ modelId: string 
     return { modelId: pickImageGenerationModelId(saved) };
   }
 
-  const { jsonModelId, persistedUseModel, changed } = resolveImageModelWithAvailability(saved, items);
+  const { jsonModelId, persistedUseModel, changed } = resolveImageModelWithAvailability(saved, items, customImageModelValues);
   if (changed) {
     await ProcessConfig.set('tools.imageGenerationModel', { ...saved, useModel: persistedUseModel });
   }
