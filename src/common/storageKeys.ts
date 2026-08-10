@@ -26,6 +26,9 @@ export const STORAGE_KEYS = {
   /** Conversation panel collapse state / 会话面板折叠状态 */
   CONVERSATION_PANEL_COLLAPSE: 'sudowork_conversation_panel_collapsed',
 
+  /** Asset library preview split ratio / 资产库预览分栏比例 */
+  ASSET_LIBRARY_PREVIEW_RATIO: 'sudowork_asset_library_preview_ratio',
+
   /** Conversation tabs state / 会话 tabs 状态 */
   CONVERSATION_TABS: 'sudowork_conversation_tabs',
 

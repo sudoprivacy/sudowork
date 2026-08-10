@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import AssetLibraryPage, { getAssetCategory } from '@renderer/pages/asset-library';
@@ -6,6 +6,7 @@ import AssetLibraryPage, { getAssetCategory } from '@renderer/pages/asset-librar
 const mocks = vi.hoisted(() => ({
   listForUser: vi.fn(),
   navigate: vi.fn(),
+  closePreviewByIdentity: vi.fn(),
 }));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate }));
@@ -41,7 +42,17 @@ vi.mock('@/common', () => ({
 }));
 vi.mock('@renderer/utils/emitter', () => ({ addEventListener: () => vi.fn() }));
 vi.mock('@renderer/pages/guid/hooks/useGuidAgentSelection', () => ({ getRendererSessionMode: () => 'local' }));
-vi.mock('@renderer/pages/asset-library/components/AssetLibraryItem', () => ({ default: () => <div>Asset cards</div> }));
+vi.mock('@renderer/pages/conversation/preview', () => ({
+  PreviewPanel: () => <div>Preview panel</div>,
+  usePreviewContext: () => ({ isOpen: true, closePreviewByIdentity: mocks.closePreviewByIdentity }),
+}));
+vi.mock('@renderer/pages/asset-library/components/AssetLibraryItem', () => ({
+  default: ({ onPreviewStart }: { onPreviewStart: () => void }) => (
+    <button type='button' onClick={onPreviewStart}>
+      Asset cards
+    </button>
+  ),
+}));
 
 describe('getAssetCategory', () => {
   it('classifies common file types', () => {
@@ -62,7 +73,7 @@ describe('AssetLibraryPage', () => {
     expect(mocks.listForUser).toHaveBeenCalledWith({ sessionMode: 'local' });
   });
 
-  it('renders returned asset cards', async () => {
+  it('renders returned asset cards and opens the preview panel', async () => {
     mocks.listForUser.mockResolvedValue({
       success: true,
       data: [{ path: '/tmp/report.pdf', relativePath: 'report.pdf', kind: 'create', ext: 'pdf', createdAt: Date.now(), conversationId: 'c1', conversationName: 'Tender chat' }],
@@ -70,6 +81,9 @@ describe('AssetLibraryPage', () => {
     render(<AssetLibraryPage />);
 
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Asset cards')).toBeInTheDocument());
+    const card = await screen.findByRole('button', { name: 'Asset cards' });
+    fireEvent.click(card);
+
+    expect(await screen.findByText('Preview panel')).toBeInTheDocument();
   });
 });

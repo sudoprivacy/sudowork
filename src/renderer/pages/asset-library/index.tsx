@@ -1,13 +1,18 @@
 import { Input, Select } from '@arco-design/web-react';
 import { Search } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Group, Panel } from 'react-resizable-panels';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { AssetLibraryEntry } from '@/common/generatedFiles';
+import { STORAGE_KEYS } from '@/common/storageKeys';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+import ResizableSeparator from '@renderer/components/ResizableSeparator';
+import { useStoredPanelLayout } from '@renderer/hooks/useStoredPanelLayout';
 import { getRendererSessionMode } from '@renderer/pages/guid/hooks/useGuidAgentSelection';
-import { FILE_EXTENSION_MAP, getFileExtension } from '@renderer/pages/conversation/preview/utils/fileUtils';
+import { PreviewPanel, usePreviewContext } from '@renderer/pages/conversation/preview';
+import { FILE_EXTENSION_MAP, getContentTypeByExtension, getFileExtension } from '@renderer/pages/conversation/preview/utils/fileUtils';
 import { addEventListener } from '@renderer/utils/emitter';
 import AssetLibraryItem from './components/AssetLibraryItem';
 import AssetLibrarySkeleton from './components/AssetLibrarySkeleton';
@@ -17,10 +22,14 @@ const SKELETON_MIN_DURATION_MS = 300;
 export default function AssetLibraryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { isOpen: isPreviewOpen, closePreviewByIdentity } = usePreviewContext();
   const [entries, setEntries] = useState<AssetLibraryEntry[]>([]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<AssetCategory>('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [activePreviewPath, setActivePreviewPath] = useState<string | null>(null);
+  const previewPathsRef = useRef(new Set<string>());
+  const closePreviewByIdentityRef = useRef(closePreviewByIdentity);
 
   const refresh = useCallback(() => {
     setIsLoading(true);
@@ -44,6 +53,25 @@ export default function AssetLibraryPage() {
     };
   }, [refresh]);
 
+  useEffect(() => {
+    closePreviewByIdentityRef.current = closePreviewByIdentity;
+  }, [closePreviewByIdentity]);
+
+  useEffect(
+    () => () => {
+      for (const path of previewPathsRef.current) {
+        const fileName = path.split(/[\\/]/).pop() || path;
+        closePreviewByIdentityRef.current(getContentTypeByExtension(path), undefined, { filePath: path, fileName });
+      }
+    },
+    []
+  );
+
+  const onPreviewStart = useCallback((path: string) => {
+    previewPathsRef.current.add(path);
+    setActivePreviewPath(path);
+  }, []);
+
   const onMissingEntry = useCallback((path: string) => {
     setEntries((current) => current.filter((entry) => entry.path !== path));
   }, []);
@@ -57,48 +85,76 @@ export default function AssetLibraryPage() {
   }, [category, entries, query]);
 
   const groupedEntries = useMemo(() => groupByDate(filteredEntries, t), [filteredEntries, t]);
+  const { defaultLayout, onLayoutChanged } = useStoredPanelLayout({
+    storageKey: STORAGE_KEYS.ASSET_LIBRARY_PREVIEW_RATIO,
+    primaryPanelId: 'assets',
+    secondaryPanelId: 'preview',
+    defaultRatio: 55,
+    minRatio: 30,
+    maxRatio: 70,
+  });
+
+  const isAssetPreviewOpen = activePreviewPath !== null && isPreviewOpen;
 
   return (
-    <PageWrapper className='h-full' title={t('common.siderMenu.assetLibrary')} subtitle={t('common.assetLibrary.subtitle')}>
-      <div className='mb-6 flex flex-wrap items-center justify-between gap-4'>
-        <div className='flex min-w-0 flex-1 items-center gap-3'>
-          <Select aria-label={t('common.assetLibrary.typeFilter')} className='w-32 shrink-0' value={category} onChange={(value) => setCategory(value as AssetCategory)}>
-            <Select.Option value='all'>{t('common.assetLibrary.typeAll')}</Select.Option>
-            <Select.Option value='image'>{t('common.assetLibrary.typeImage')}</Select.Option>
-            <Select.Option value='document'>{t('common.assetLibrary.typeDocument')}</Select.Option>
-            <Select.Option value='video'>{t('common.assetLibrary.typeVideo')}</Select.Option>
-            <Select.Option value='other'>{t('common.assetLibrary.typeOther')}</Select.Option>
-          </Select>
-          <Input allowClear className='max-w-120 flex-1' prefix={<Search size={16} className='text-foreground-tertiary' />} placeholder={t('common.assetLibrary.searchPlaceholder')} value={query} onChange={setQuery} />
-        </div>
-        <span className='shrink-0 text-13px text-foreground-secondary'>{t('common.assetLibrary.count', { count: filteredEntries.length })}</span>
-      </div>
-
-      {isLoading ? (
-        <AssetLibrarySkeleton />
-      ) : filteredEntries.length === 0 ? (
-        <div className='flex min-h-64 flex-col items-center justify-center text-center'>
-          <div className='text-16px font-600 text-foreground'>{t(query || category !== 'all' ? 'common.assetLibrary.noSearchResults' : 'common.assetLibrary.emptyTitle')}</div>
-          <div className='mt-2 max-w-100 text-13px text-foreground-secondary'>{t(query || category !== 'all' ? 'common.assetLibrary.noSearchResultsHint' : 'common.assetLibrary.emptyHint')}</div>
-        </div>
-      ) : (
-        <div className='flex flex-col gap-8'>
-          {groupedEntries.map((group) => (
-            <section key={group.label}>
-              <div className='mb-3 flex items-center gap-2'>
-                <h3 className='m-0 text-14px font-600 text-foreground-secondary'>{group.label}</h3>
-                <span className='text-12px text-foreground-tertiary'>{group.entries.length}</span>
-                <div className='h-px flex-1 bg-border' />
+    <PageWrapper className='h-full overflow-hidden!' contentClassName='flex h-full min-h-0 flex-col' isFullWidth title={t('common.siderMenu.assetLibrary')} subtitle={t('common.assetLibrary.subtitle')}>
+      <Group className='min-h-0 flex-1' defaultLayout={isAssetPreviewOpen ? defaultLayout : { assets: 100 }} onLayoutChanged={isAssetPreviewOpen ? onLayoutChanged : undefined}>
+        <Panel id='assets' minSize='360px' className='min-w-0'>
+          <div className='h-full overflow-y-auto pr-3'>
+            <div className='mb-6 flex flex-wrap items-center justify-between gap-4'>
+              <div className='flex min-w-0 flex-1 items-center gap-3'>
+                <Select aria-label={t('common.assetLibrary.typeFilter')} className='w-32 shrink-0' value={category} onChange={(value) => setCategory(value as AssetCategory)}>
+                  <Select.Option value='all'>{t('common.assetLibrary.typeAll')}</Select.Option>
+                  <Select.Option value='image'>{t('common.assetLibrary.typeImage')}</Select.Option>
+                  <Select.Option value='document'>{t('common.assetLibrary.typeDocument')}</Select.Option>
+                  <Select.Option value='video'>{t('common.assetLibrary.typeVideo')}</Select.Option>
+                  <Select.Option value='other'>{t('common.assetLibrary.typeOther')}</Select.Option>
+                </Select>
+                <Input allowClear className='max-w-120 flex-1' prefix={<Search size={16} className='text-foreground-tertiary' />} placeholder={t('common.assetLibrary.searchPlaceholder')} value={query} onChange={setQuery} />
               </div>
-              <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3'>
-                {group.entries.map((entry) => (
-                  <AssetLibraryItem key={entry.path} entry={entry} onOpenConversation={() => void navigate(`/conversation/${entry.conversationId}`)} onMissing={onMissingEntry} />
+              <span className='shrink-0 text-13px text-foreground-secondary'>{t('common.assetLibrary.count', { count: filteredEntries.length })}</span>
+            </div>
+
+            {isLoading ? (
+              <AssetLibrarySkeleton />
+            ) : filteredEntries.length === 0 ? (
+              <div className='flex min-h-64 flex-col items-center justify-center text-center'>
+                <div className='text-16px font-600 text-foreground'>{t(query || category !== 'all' ? 'common.assetLibrary.noSearchResults' : 'common.assetLibrary.emptyTitle')}</div>
+                <div className='mt-2 max-w-100 text-13px text-foreground-secondary'>{t(query || category !== 'all' ? 'common.assetLibrary.noSearchResultsHint' : 'common.assetLibrary.emptyHint')}</div>
+              </div>
+            ) : (
+              <div className='flex flex-col gap-8 pb-4'>
+                {groupedEntries.map((group) => (
+                  <section key={group.label}>
+                    <div className='mb-3 flex items-center gap-2'>
+                      <h3 className='m-0 text-14px font-600 text-foreground-secondary'>{group.label}</h3>
+                      <span className='text-12px text-foreground-tertiary'>{group.entries.length}</span>
+                      <div className='h-px flex-1 bg-border' />
+                    </div>
+                    <div className='grid gap-3' style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                      {group.entries.map((entry) => (
+                        <AssetLibraryItem key={entry.path} entry={entry} onPreviewStart={() => onPreviewStart(entry.path)} onOpenConversation={() => void navigate(`/conversation/${entry.conversationId}`)} onMissing={onMissingEntry} />
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
-            </section>
-          ))}
-        </div>
-      )}
+            )}
+          </div>
+        </Panel>
+        {isAssetPreviewOpen && (
+          <>
+            <ResizableSeparator />
+            <Panel id='preview' defaultSize='45%' minSize='340px' className='h-full'>
+              <div className='asset-library-preview preview-panel h-full overflow-hidden pr-3 pl-2'>
+                <div className='h-full w-full overflow-hidden rounded-xl border border-border bg-background'>
+                  <PreviewPanel />
+                </div>
+              </div>
+            </Panel>
+          </>
+        )}
+      </Group>
     </PageWrapper>
   );
 }
