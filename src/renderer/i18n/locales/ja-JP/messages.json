@@ -8,7 +8,8 @@
     "missingHint": "ファイルが移動または削除されたため、プレビューできません",
     "openInSystemBrowser": "デフォルトのブラウザで開く",
     "openWithDefaultApp": "デフォルトのアプリで開く",
-    "showInFolder": "フォルダに表示"
+    "showInFolder": "フォルダに表示",
+    "jumpToConversation": "会話を開く"
   },
   "conversationInProgress": "現在、会話中です...",
   "confirm": "確認",

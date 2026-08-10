@@ -53,6 +53,14 @@ export interface GeneratedFileEntry extends GeneratedFileLocation {
   size?: number;
   /** When the agent finished this write. ms since epoch. */
   createdAt: number;
+  /** Persisted message containing the deliverable marker, when available. */
+  sourceMessageId?: string;
+}
+
+/** A deliverable enriched with the conversation that produced it. */
+export interface AssetLibraryEntry extends GeneratedFileEntry {
+  conversationId: string;
+  conversationName: string;
 }
 
 /** Top-level envelope carried by the marker payload. */
@@ -110,6 +118,7 @@ export function parseGeneratedFilesMarker(content: string): ParsedGeneratedFiles
       if (f.movedFrom !== undefined && !isGeneratedFileLocation(f.movedFrom)) return false;
       if (f.removedPaths !== undefined && (!Array.isArray(f.removedPaths) || !f.removedPaths.every(isGeneratedFileLocation))) return false;
       if (f.isRemoved !== undefined && typeof f.isRemoved !== 'boolean') return false;
+      if (f.sourceMessageId !== undefined && typeof f.sourceMessageId !== 'string') return false;
       return true;
     });
     return { textBefore, files, ok: files.length > 0 };

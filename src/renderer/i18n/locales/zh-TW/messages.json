@@ -8,7 +8,8 @@
     "missingHint": "檔案已被移動或刪除，無法預覽",
     "openInSystemBrowser": "在預設瀏覽器中開啟",
     "openWithDefaultApp": "使用預設應用程式開啟",
-    "showInFolder": "在資料夾中顯示"
+    "showInFolder": "在資料夾中顯示",
+    "jumpToConversation": "跳轉到聊天"
   },
   "conversationInProgress": "目前正在進行對話...",
   "confirm": "確認",

@@ -83,6 +83,23 @@
   "tray.showWindow": "{{appName}}'ü Göster",
   "tray.toggleTheme": "Temayı Değiştir",
   "tray.quit": "Çıkış",
+  "assetLibrary": {
+    "subtitle": "Konuşmalarınızda oluşturulan teslimatları görüntüleyin",
+    "searchPlaceholder": "Dosya adı, yol veya konuşmaya göre ara",
+    "typeFilter": "Dosya türü",
+    "typeAll": "Tümü",
+    "typeImage": "Görseller",
+    "typeDocument": "Belgeler",
+    "typeVideo": "Videolar",
+    "typeOther": "Diğer",
+    "count": "{{count}} dosya",
+    "emptyTitle": "Henüz teslimat yok",
+    "emptyHint": "Sohbetler sırasında yapay zekâ tarafından oluşturulan son dosyalar burada görünür.",
+    "noSearchResults": "Eşleşen dosya yok",
+    "noSearchResultsHint": "Başka bir dosya adı, yol veya konuşma deneyin.",
+    "today": "Bugün",
+    "yesterday": "Dün"
+  },
   "siderMenu": {
     "newConversation": "Yeni sohbet",
     "bidGeneration": "Teklif oluşturma",

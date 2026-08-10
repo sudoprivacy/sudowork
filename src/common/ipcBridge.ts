@@ -7,7 +7,7 @@
 import type { OpenDialogOptions } from 'electron';
 import { bridge } from '@office-ai/platform';
 import type { IConfirmation } from '@/common/chatLib';
-import type { GeneratedFileEntry } from '@/common/generatedFiles';
+import type { AssetLibraryEntry, GeneratedFileEntry } from '@/common/generatedFiles';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import type { IAssistantInfo } from '@/process/AssistantManager';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
@@ -634,6 +634,7 @@ export const rightPanelBrowser = {
 // can update without a refetch round-trip.
 export const deliverables = {
   list: bridge.buildProvider<IBridgeResponse<GeneratedFileEntry[]>, { conversationId?: string; teamId?: string }>('deliverables.list'),
+  listForUser: bridge.buildProvider<IBridgeResponse<AssetLibraryEntry[]>, { sessionMode?: 'local' | 'remote' }>('deliverables.list-for-user'),
   changed: bridge.buildEmitter<{
     conversationId: string;
     teamId?: string;

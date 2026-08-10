@@ -6,7 +6,8 @@
 
 import fs from 'node:fs';
 import nodePath from 'node:path';
-import { mergeGeneratedFileEntries, parseGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
+import { mergeGeneratedFileEntries, parseGeneratedFilesMarker, type AssetLibraryEntry, type GeneratedFileEntry } from '@/common/generatedFiles';
+import type { TChatConversation } from '@/common/storage';
 import { getDatabase } from '@process/database';
 import { mainError } from '@process/utils/mainLogger';
 import { teamStore } from '@process/services/team/TeamStore';
@@ -39,6 +40,29 @@ class DeliverablesService {
     const workspace = resolveConversationWorkspace(db, conversationId);
     const reconciled = collected.map((entry) => reconcileEntryPath(entry, workspace));
     return mergeGeneratedFileEntries([], reconciled);
+  }
+
+  /**
+   * Return deliverables from all visible conversations for the current user.
+   * Conversation metadata is attached so the renderer can offer a direct chat jump.
+   */
+  listForConversations(conversations: TChatConversation[]): AssetLibraryEntry[] {
+    const byPath = new Map<string, AssetLibraryEntry>();
+
+    for (const conversation of conversations.filter(isVisibleConversation)) {
+      for (const entry of this.listForConversation(conversation.id)) {
+        if (!isExistingFile(entry.path)) continue;
+        const asset: AssetLibraryEntry = {
+          ...entry,
+          conversationId: conversation.id,
+          conversationName: conversation.name || conversation.id,
+        };
+        const previous = byPath.get(asset.path);
+        if (!previous || previous.createdAt <= asset.createdAt) byPath.set(asset.path, asset);
+      }
+    }
+
+    return [...byPath.values()].sort((a, b) => b.createdAt - a.createdAt);
   }
 
   /**
@@ -84,7 +108,8 @@ class DeliverablesService {
           const parsed = parseGeneratedFilesMarker(content);
           if (!parsed.ok || parsed.files.length === 0) continue;
           for (const entry of parsed.files) {
-            collected.push(entry);
+            const sourceMessageId = entry.sourceMessageId || message.id || message.msg_id;
+            collected.push(sourceMessageId ? { ...entry, sourceMessageId } : entry);
           }
         }
         if (!result.hasMore) break;
@@ -137,6 +162,19 @@ function reconcileEntryPath(entry: GeneratedFileEntry, workspace: string | undef
     return entry;
   }
   return { ...entry, path: repaired };
+}
+
+function isVisibleConversation(conversation: TChatConversation): boolean {
+  const extra = conversation.extra as { isHealthCheck?: boolean; isTeamMember?: boolean } | undefined;
+  return extra?.isHealthCheck !== true && extra?.isTeamMember !== true;
+}
+
+function isExistingFile(filePath: string): boolean {
+  try {
+    return fs.existsSync(filePath);
+  } catch {
+    return false;
+  }
 }
 
 export const deliverablesService = new DeliverablesService();

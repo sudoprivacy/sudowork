@@ -83,6 +83,23 @@
   "tray.showWindow": "顯示 {{appName}}",
   "tray.toggleTheme": "切換主題色",
   "tray.quit": "結束",
+  "assetLibrary": {
+    "subtitle": "集中查看聊天過程中產生的交付物",
+    "searchPlaceholder": "搜尋檔案名稱、路徑或來源會話",
+    "typeFilter": "檔案類型",
+    "typeAll": "全部",
+    "typeImage": "圖片",
+    "typeDocument": "文件",
+    "typeVideo": "影片",
+    "typeOther": "其他",
+    "count": "共 {{count}} 個",
+    "emptyTitle": "還沒有交付物",
+    "emptyHint": "AI 在聊天中產生的最終檔案會顯示在這裡。",
+    "noSearchResults": "沒有找到符合的檔案",
+    "noSearchResultsHint": "請嘗試搜尋其他檔案名稱、路徑或會話名稱。",
+    "today": "今天",
+    "yesterday": "昨天"
+  },
   "siderMenu": {
     "newConversation": "新會話",
     "bidGeneration": "標書生成",

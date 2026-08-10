@@ -84,6 +84,23 @@
   "tray.showWindow": "{{appName}} を表示",
   "tray.toggleTheme": "テーマを切り替え",
   "tray.quit": "終了",
+  "assetLibrary": {
+    "subtitle": "チャットで生成された成果物をまとめて表示",
+    "searchPlaceholder": "ファイル名、パス、会話を検索",
+    "typeFilter": "ファイル種類",
+    "typeAll": "すべて",
+    "typeImage": "画像",
+    "typeDocument": "ドキュメント",
+    "typeVideo": "動画",
+    "typeOther": "その他",
+    "count": "{{count}} 件",
+    "emptyTitle": "成果物はまだありません",
+    "emptyHint": "チャット中に AI が生成した最終ファイルがここに表示されます。",
+    "noSearchResults": "一致するファイルがありません",
+    "noSearchResultsHint": "別のファイル名、パス、会話を検索してください。",
+    "today": "今日",
+    "yesterday": "昨日"
+  },
   "siderMenu": {
     "newConversation": "新しい会話",
     "bidGeneration": "入札書生成",

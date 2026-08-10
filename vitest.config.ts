@@ -134,6 +134,7 @@ export default defineConfig({
         'src/renderer/layouts/components/SiderFooter.tsx',
         'src/renderer/pages/bid/index.tsx',
         'src/renderer/pages/asset-library/index.tsx',
+        'src/renderer/pages/asset-library/components/AssetLibraryItem.tsx',
         'src/renderer/pages/settings/system-prompt/index.tsx',
         'src/renderer/hooks/useAvailableModels.ts',
         'src/renderer/hooks/useHasAvailableModel.ts',

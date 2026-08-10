@@ -8,7 +8,8 @@
     "missingHint": "File was moved or deleted and cannot be previewed",
     "openInSystemBrowser": "Open in default browser",
     "openWithDefaultApp": "Open with default app",
-    "showInFolder": "Show in Folder"
+    "showInFolder": "Show in Folder",
+    "jumpToConversation": "Open conversation"
   },
   "conversationInProgress": "A conversation is currently in progress...",
   "confirm": "Confirm",

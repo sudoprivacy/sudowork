@@ -84,6 +84,23 @@
   "tray.showWindow": "{{appName}} 표시",
   "tray.toggleTheme": "테마 전환",
   "tray.quit": "종료",
+  "assetLibrary": {
+    "subtitle": "대화 중 생성된 결과물을 한곳에서 확인",
+    "searchPlaceholder": "파일 이름, 경로 또는 대화 검색",
+    "typeFilter": "파일 유형",
+    "typeAll": "전체",
+    "typeImage": "이미지",
+    "typeDocument": "문서",
+    "typeVideo": "동영상",
+    "typeOther": "기타",
+    "count": "총 {{count}}개",
+    "emptyTitle": "아직 결과물이 없습니다",
+    "emptyHint": "대화 중 AI가 생성한 최종 파일이 여기에 표시됩니다.",
+    "noSearchResults": "일치하는 파일이 없습니다",
+    "noSearchResultsHint": "다른 파일 이름, 경로 또는 대화를 검색해 보세요.",
+    "today": "오늘",
+    "yesterday": "어제"
+  },
   "siderMenu": {
     "newConversation": "새 대화",
     "bidGeneration": "입찰서 생성",

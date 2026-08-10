@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { deliverablesService } from '@process/services/deliverables/DeliverablesService';
+import { getConversationProvider } from '@process/providers';
 import { mainError } from '@process/utils/mainLogger';
 
 /**
@@ -22,6 +23,17 @@ export function initDeliverablesBridge(): void {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       mainError('DeliverablesBridge', `list failed: ${msg}`);
+      return { success: false, msg };
+    }
+  });
+
+  ipcBridge.deliverables.listForUser.provider(async ({ sessionMode }) => {
+    try {
+      const conversations = await getConversationProvider(sessionMode).listConversations(0, 10000);
+      return { success: true, data: deliverablesService.listForConversations(conversations) };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      mainError('DeliverablesBridge', `listForUser failed: ${msg}`);
       return { success: false, msg };
     }
   });

@@ -157,6 +157,48 @@ describe('DeliverablesService.listForConversation', () => {
   });
 });
 
+describe('DeliverablesService.listForConversations', () => {
+  beforeEach(() => {
+    getConversationMessagesMock.mockReset();
+    getConversationMock.mockReset();
+    getConversationMock.mockReturnValue({ success: false });
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('adds conversation metadata and excludes hidden conversations', () => {
+    getConversationMessagesMock.mockImplementation((conversationId: string) => (conversationId === 'c1' ? paginated([markerMessage([entry({ path: '/w/report.pdf', ext: 'pdf' })])]) : paginated([markerMessage([entry({ path: '/w/hidden.pdf', ext: 'pdf' })])])));
+
+    const result = deliverablesService.listForConversations([
+      { id: 'c1', name: 'Tender chat', type: 'acp', createTime: 1, modifyTime: 1, extra: { backend: 'scode' } } as never,
+      { id: 'c2', name: 'Hidden team chat', type: 'acp', createTime: 1, modifyTime: 1, extra: { backend: 'scode', isTeamMember: true } } as never,
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ path: '/w/report.pdf', conversationId: 'c1', conversationName: 'Tender chat' });
+  });
+
+  it('filters files that no longer exist', () => {
+    vi.mocked(fs.existsSync).mockImplementation((path) => path !== '/w/missing.pdf');
+    getConversationMessagesMock.mockReturnValue(paginated([markerMessage([entry({ path: '/w/existing.pdf', ext: 'pdf', createdAt: 200 }), entry({ path: '/w/missing.pdf', ext: 'pdf', createdAt: 100 })])]));
+
+    const result = deliverablesService.listForConversations([{ id: 'c1', name: 'Tender chat', type: 'acp', createTime: 1, modifyTime: 1, extra: { backend: 'scode' } } as never]);
+
+    expect(result.map((item) => item.path)).toEqual(['/w/existing.pdf']);
+  });
+
+  it('keeps same relative paths from different workspaces', () => {
+    getConversationMessagesMock.mockImplementation((conversationId: string) => paginated([markerMessage([entry({ path: `/workspace/${conversationId}/report.pdf`, relativePath: 'report.pdf', ext: 'pdf', createdAt: conversationId === 'c1' ? 100 : 200 })])]));
+
+    const conversations = [{ id: 'c1', name: 'First', type: 'acp', createTime: 1, modifyTime: 1, extra: { backend: 'scode' } } as never, { id: 'c2', name: 'Second', type: 'acp', createTime: 1, modifyTime: 1, extra: { backend: 'scode' } } as never];
+
+    expect(deliverablesService.listForConversations(conversations)).toHaveLength(2);
+  });
+});
+
 describe('DeliverablesService.listForTeam', () => {
   beforeEach(() => {
     getConversationMessagesMock.mockReset();
