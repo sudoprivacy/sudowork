@@ -1,4 +1,4 @@
-import { Input, Select, Spin } from '@arco-design/web-react';
+import { Input, Select } from '@arco-design/web-react';
 import { Search } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,9 @@ import { getRendererSessionMode } from '@renderer/pages/guid/hooks/useGuidAgentS
 import { FILE_EXTENSION_MAP, getFileExtension } from '@renderer/pages/conversation/preview/utils/fileUtils';
 import { addEventListener } from '@renderer/utils/emitter';
 import AssetLibraryItem from './components/AssetLibraryItem';
+import AssetLibrarySkeleton from './components/AssetLibrarySkeleton';
+
+const SKELETON_MIN_DURATION_MS = 300;
 
 export default function AssetLibraryPage() {
   const { t } = useTranslation();
@@ -21,10 +24,8 @@ export default function AssetLibraryPage() {
 
   const refresh = useCallback(() => {
     setIsLoading(true);
-    return ipcBridge.deliverables.listForUser
-      .invoke({ sessionMode: getRendererSessionMode() })
-      .then((result) => setEntries(result?.success && Array.isArray(result.data) ? result.data : []))
-      .catch(() => setEntries([]))
+    return Promise.all([ipcBridge.deliverables.listForUser.invoke({ sessionMode: getRendererSessionMode() }).catch((): null => null), new Promise<void>((resolve) => setTimeout(resolve, SKELETON_MIN_DURATION_MS))])
+      .then(([result]) => setEntries(result?.success && Array.isArray(result.data) ? result.data : []))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -74,9 +75,7 @@ export default function AssetLibraryPage() {
       </div>
 
       {isLoading ? (
-        <div className='flex min-h-64 items-center justify-center'>
-          <Spin loading />
-        </div>
+        <AssetLibrarySkeleton />
       ) : filteredEntries.length === 0 ? (
         <div className='flex min-h-64 flex-col items-center justify-center text-center'>
           <div className='text-16px font-600 text-foreground'>{t(query || category !== 'all' ? 'common.assetLibrary.noSearchResults' : 'common.assetLibrary.emptyTitle')}</div>

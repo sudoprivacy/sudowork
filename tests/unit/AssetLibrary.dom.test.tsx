@@ -13,6 +13,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { count?: number }) =>
       ({
+        'common.loading': 'Loading',
         'common.siderMenu.assetLibrary': 'Asset Library',
         'common.assetLibrary.subtitle': 'Generated deliverables',
         'common.assetLibrary.searchPlaceholder': 'Search files',
@@ -68,6 +69,7 @@ describe('AssetLibraryPage', () => {
     });
     render(<AssetLibraryPage />);
 
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Asset cards')).toBeInTheDocument());
   });
 });
