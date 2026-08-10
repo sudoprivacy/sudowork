@@ -244,7 +244,7 @@ const PreviewToolbar: React.FC<PreviewToolbarProps> = ({
   const toolbarIconSize = 12;
 
   return (
-    <div className='flex h-8 shrink-0 items-center justify-between overflow-x-auto border-b border-border bg-card px-2.5 scrollbar-hide'>
+    <div className='pointer-events-auto flex h-8 shrink-0 items-center justify-between overflow-x-auto border-b border-border bg-card px-2.5 scrollbar-hide'>
       <div className='flex w-full items-center justify-between gap-2' style={{ minWidth: 'max-content' }}>
         {/* 左侧：Tabs（Markdown/HTML）+ 文件名 / Left: Tabs (Markdown/HTML) + Filename */}
         <div className='flex h-full items-center gap-2'>

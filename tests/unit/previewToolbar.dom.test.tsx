@@ -76,14 +76,15 @@ describe('PreviewTabs', () => {
       </LayoutContext.Provider>
     );
 
-    expect(baseTabProps.tabsContainerRef.current).not.toHaveStyle({ paddingLeft: '160px' });
+    expect(baseTabProps.tabsContainerRef.current).not.toHaveStyle({ marginLeft: '160px' });
 
     rerender(
       <LayoutContext.Provider value={{ siderCollapsed: true, setSiderCollapsed: noop }}>
         <PreviewTabs {...baseTabProps} isFullscreen />
       </LayoutContext.Provider>
     );
-    expect(baseTabProps.tabsContainerRef.current).toHaveStyle({ paddingLeft: '160px' });
+    expect(baseTabProps.tabsContainerRef.current).toHaveStyle({ marginLeft: '160px' });
+    expect(baseTabProps.tabsContainerRef.current?.parentElement?.parentElement).toHaveClass('pointer-events-none');
   });
 });
 

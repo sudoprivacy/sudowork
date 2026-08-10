@@ -119,10 +119,10 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
   const hasTrafficLightInset = isFullscreen && layout?.siderCollapsed === true && isElectronDesktop() && isMacOS();
 
   return (
-    <div className='relative shrink-0' style={{ minHeight: '36px', borderBottom: '1px solid var(--border-default)' }}>
+    <div className={`relative shrink-0${hasTrafficLightInset ? ' pointer-events-none' : ''}`} style={{ minHeight: '36px', borderBottom: '1px solid var(--border-default)' }}>
       <div className='flex items-center h-36px w-full'>
         {/* Tabs 滚动区域 / Tabs scroll area */}
-        <div ref={tabsContainerRef} className='flex items-center h-full flex-1 overflow-x-auto' style={{ paddingLeft: hasTrafficLightInset ? 160 : undefined }}>
+        <div ref={tabsContainerRef} className={`flex items-center h-full flex-1 overflow-x-auto${hasTrafficLightInset ? ' pointer-events-auto' : ''}`} style={{ marginLeft: hasTrafficLightInset ? 160 : undefined }}>
           {tabs.length > 0 ? (
             tabs.map((tab) => (
               <div key={tab.id} className={`flex items-center gap-6px px-10px h-full cursor-pointer transition-colors shrink-0 ${tab.id === activeTabId ? 'text-foreground font-medium' : 'text-secondary'}`} onClick={() => onSwitchTab(tab.id)} onContextMenu={(e) => onContextMenu(e, tab.id)}>
@@ -147,7 +147,7 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({ tabs, activeTabId, tabFadeSta
         </div>
 
         {(onFullscreenToggle || onClosePanel) && (
-          <div className='flex h-full shrink-0 items-center gap-1 px-2.5 rounded-tr-[16px]'>
+          <div className='pointer-events-auto flex h-full shrink-0 items-center gap-1 px-2.5 rounded-tr-[16px]'>
             {onFullscreenToggle && (
               <Button
                 type='text'

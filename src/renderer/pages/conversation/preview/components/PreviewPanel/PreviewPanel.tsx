@@ -637,7 +637,7 @@ const PreviewPanel: React.FC<IPreviewPanelProps> = ({ isFullscreen = false, onFu
         )}
 
         {/* 预览内容 / Preview content */}
-        {renderContent()}
+        <div className='pointer-events-auto flex min-h-0 flex-1 flex-col overflow-hidden'>{renderContent()}</div>
 
         {/* Tab 右键菜单 / Tab context menu */}
         {/* eslint-disable-next-line max-len */}

@@ -13,7 +13,12 @@ vi.mock('react-resizable-panels', () => ({
 }));
 
 vi.mock('@/renderer/components/ResizableSeparator', () => ({ default: () => null }));
-vi.mock('@/renderer/context/LayoutContext', () => ({ useLayoutContext: () => ({ siderCollapsed: false, setSiderCollapsed: vi.fn() }) }));
+vi.mock('@/renderer/context/LayoutContext', () => ({
+  useLayoutContext: () => {
+    const [siderCollapsed, setSiderCollapsed] = React.useState(false);
+    return { siderCollapsed, setSiderCollapsed };
+  },
+}));
 vi.mock('@/renderer/hooks/useStoredPanelLayout', () => ({ useStoredPanelLayout: () => ({ defaultLayout: { main: 80, workspace: 20 }, onLayoutChanged: vi.fn() }) }));
 vi.mock('@/renderer/pages/conversation/preview', () => ({
   usePreviewContext: () => ({ isOpen: true }),
@@ -38,5 +43,21 @@ describe('ChatLayout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'fullscreen' }));
     expect(preview).toHaveStyle({ paddingTop: '28px' });
     expect(preview).toHaveClass('z-9');
+  });
+
+  it('lets macOS titlebar controls receive clicks in fullscreen', () => {
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Macintosh' });
+    const { container } = render(
+      <ChatLayout sider={<div />}>
+        <div />
+      </ChatLayout>
+    );
+
+    const preview = container.querySelector('.preview-panel');
+    fireEvent.click(screen.getByRole('button', { name: 'fullscreen' }));
+    expect(preview).toHaveClass('pointer-events-none');
+
+    fireEvent.click(screen.getByRole('button', { name: 'fullscreen' }));
+    expect(preview).not.toHaveClass('pointer-events-none');
   });
 });
