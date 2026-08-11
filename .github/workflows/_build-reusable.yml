@@ -186,7 +186,8 @@ jobs:
           esac
           echo "Downloading resources for target platform: $PLATFORM"
           node scripts/download-node.js "$PLATFORM"
-          node scripts/download-nexus-vfs.js
+          # Nexus defaults to the runner architecture, so pass the packaging target explicitly.
+          node scripts/download-nexus-vfs.js "$PLATFORM" --stage-only
           node scripts/download-scode.js "$PLATFORM"
           node scripts/download-claude-code.js
           node scripts/download-bdpan.js "$PLATFORM"
@@ -396,6 +397,10 @@ jobs:
           try {
             Write-Host "Running Windows build command: $Command"
             iex $Command
+            # Native command failures do not trigger PowerShell's try/catch automatically.
+            if ($LASTEXITCODE -ne 0) {
+              throw "Windows build command failed with exit code $LASTEXITCODE"
+            }
             Write-Host "Windows build completed successfully"
           } catch {
             $BuildFailed = $true
@@ -408,6 +413,7 @@ jobs:
           } else {
             "result=success" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           }
+          exit 0
         env:
           WINDOWS_BUILD_COMMAND: ${{ matrix.command }}
           # Node.js memory limit for vite bundling (prevents OOM during build)
