@@ -105,4 +105,5 @@
 ## 需求 20：优化 Sudowork 冷启动速度
 
 - 计划版本：待定
+- 测评报告：https://s.shareone.vip/s/gvisor-sudowork-eval-report
 - [ ] 优化 Sudowork 冷启动流程，目标为从启动应用到主界面可用不超过 2 秒。
