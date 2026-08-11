@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as fs from 'node:fs';
 import type { UserTierId } from '@office-ai/aioncli-core';
 import { getOauthInfoWithCache, Storage } from '@office-ai/aioncli-core';
-import * as fs from 'node:fs';
 
 export interface GeminiSubscriptionStatus {
   isSubscriber: boolean;
