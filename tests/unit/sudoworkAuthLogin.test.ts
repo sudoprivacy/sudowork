@@ -66,6 +66,27 @@ describe('sudoworkAuthLogin', () => {
     });
   });
 
+  it('uses the server-configured scode auto model when the login model list is empty', () => {
+    expect(
+      extractLoginSudoclawPayload({
+        data: {
+          user: {
+            id: 'u1',
+            sudorouter_key: 'user-key',
+            model_service_url: 'https://user.example.com/v1',
+            models: [],
+            scode_auto_model: 'gpt-5.5',
+          },
+        },
+      })
+    ).toEqual({
+      sudorouterKey: 'user-key',
+      modelServiceUrl: 'https://user.example.com/v1',
+      models: ['gpt-5.5'],
+      scodeAutoModel: 'gpt-5.5',
+    });
+  });
+
   it('returns null when login response does not contain a usable sudoclaw payload', () => {
     expect(
       extractLoginSudoclawPayload({

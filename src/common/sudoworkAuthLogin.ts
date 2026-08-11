@@ -54,15 +54,16 @@ export function extractLoginSudoclawPayload(payload: unknown): LoginSudoclawPayl
   const modelServiceUrl = asNonEmptyString(mergedUser.model_service_url);
   const models = asStringArray(mergedUser.models);
   const scodeAutoModel = asNonEmptyString(mergedUser.scode_auto_model);
+  const resolvedModels = models.length ? models : scodeAutoModel ? [scodeAutoModel] : [];
 
-  if (!sudorouterKey || !modelServiceUrl || models.length === 0) {
+  if (!sudorouterKey || !modelServiceUrl || resolvedModels.length === 0) {
     return null;
   }
 
   return {
     sudorouterKey,
     modelServiceUrl,
-    models,
+    models: resolvedModels,
     ...(scodeAutoModel ? { scodeAutoModel } : {}),
   };
 }
