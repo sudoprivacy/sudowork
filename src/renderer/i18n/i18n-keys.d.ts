@@ -2433,7 +2433,7 @@ export type I18nKey =
   | 'team.confirm.deleteFailed'
   | 'team.confirm.deleteSuccess'
   | 'team.confirm.deleteTeam'
-  | 'team.confirm.deleteTeamTemporary'
+  | 'team.confirm.deleteTeamCustomHint'
   | 'team.confirm.deleteTeamTitle'
   | 'team.confirm.deleteWorkspaceOption'
   | 'team.confirm.removeMember'
@@ -2580,24 +2580,4 @@ export type I18nKey =
   | 'update.showInFolder'
   | 'update.upToDateTitle';
 
-export type I18nModule =
-  | 'common'
-  | 'agentMode'
-  | 'update'
-  | 'login'
-  | 'fileSelection'
-  | 'preview'
-  | 'conversation'
-  | 'settings'
-  | 'messages'
-  | 'mcp'
-  | 'acp'
-  | 'codex'
-  | 'tools'
-  | 'gemini'
-  | 'cron'
-  | 'team'
-  | 'starOffice'
-  | 'guid'
-  | 'agent'
-  | 'setup';
+export type I18nModule = 'common' | 'agentMode' | 'update' | 'login' | 'fileSelection' | 'preview' | 'conversation' | 'settings' | 'messages' | 'mcp' | 'acp' | 'codex' | 'tools' | 'gemini' | 'cron' | 'team' | 'starOffice' | 'guid' | 'agent' | 'setup';

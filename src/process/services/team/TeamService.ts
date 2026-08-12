@@ -905,12 +905,11 @@ class TeamService {
     }
   }
 
-  private async removeTeamWorkspace(team: Team, _deleteWorkspace?: boolean): Promise<void> {
+  private async removeTeamWorkspace(team: Team, deleteWorkspace?: boolean): Promise<void> {
     if (!team.workspace) return;
-    // C3 白名单：只删 workDir 直接子目录下 temp 命名的托管 temporary workspace（与 aion 同范式）。
-    // custom workspace（用户自选）不在托管范围，一律保留 —— 提示用户自行删。
-    // 注：白名单方案下 deleteWorkspace 不再决定删除（custom 永不删、temporary 由白名单判定）；保留参数避免改动 removeTeam:848 调用链。
-    // TODO: 后续随前端复选框移除（见计划"已知限制"）一并清理 deleteWorkspace 参数。
+    if (deleteWorkspace === false) return;
+    // 白名单护栏：仅删 workDir 直接子目录下 temp 命名的托管 temporary workspace；
+    // custom（用户自选）不在托管范围，一律保留。
     if (!isSafeAutoWorkspacePath(team.workspace)) {
       mainWarn('TeamService', `Skipped non-managed workspace (kept, remove manually if needed): ${team.workspace}`);
       return;

@@ -93,7 +93,7 @@
   "confirm": {
     "deleteTeamTitle": "删除团队？",
     "deleteTeam": "删除该团队？成员将被移除。",
-    "deleteTeamTemporary": "删除该团队？成员将被移除，团队临时工作空间将按安全规则清理。",
+    "deleteTeamCustomHint": "团队工作区为自定义目录，将保留不删除；如需要可手动清理。",
     "deleteWorkspaceOption": "同时删除工作区文件夹",
     "confirmDelete": "删除",
     "cancelDelete": "取消",

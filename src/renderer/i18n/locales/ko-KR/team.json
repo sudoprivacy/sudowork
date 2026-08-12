@@ -93,7 +93,7 @@
   "confirm": {
     "deleteTeamTitle": "팀을 삭제하시겠습니까?",
     "deleteTeam": "이 팀을 삭제하시겠습니까? 멤버가 제거됩니다.",
-    "deleteTeamTemporary": "이 팀을 삭제하시겠습니까? 멤버가 제거되고 팀 임시 워크스페이스가 안전 규칙에 따라 정리됩니다.",
+    "deleteTeamCustomHint": "팀 워크스페이스는 사용자 지정 디렉터리로 삭제되지 않고 유지됩니다. 필요 시 수동으로 정리해 주세요.",
     "deleteWorkspaceOption": "워크스페이스 폴더도 함께 삭제",
     "confirmDelete": "삭제",
     "cancelDelete": "취소",

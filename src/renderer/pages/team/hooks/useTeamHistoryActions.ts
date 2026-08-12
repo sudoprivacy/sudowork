@@ -71,19 +71,22 @@ export function useTeamHistoryActions({ mutate, onDeleted }: IUseTeamHistoryActi
 
   const onDeleteTeam = useCallback(
     (team: TTeam) => {
-      const deleteWorkspaceRef = { current: false };
+      const isTemporaryWorkspace = team.workspace_kind === 'temporary' && !!team.workspace;
       const isCustomWorkspace = team.workspace_kind === 'custom' && !!team.workspace;
+      const deleteWorkspaceRef = { current: true };
       Modal.confirm({
         title: t('team.confirm.deleteTeamTitle'),
         content: React.createElement(
           'div',
           null,
-          React.createElement('div', null, team.workspace_kind === 'temporary' ? t('team.confirm.deleteTeamTemporary') : t('team.confirm.deleteTeam')),
-          isCustomWorkspace &&
+          React.createElement('div', null, t('team.confirm.deleteTeam')),
+          isCustomWorkspace && React.createElement('div', { className: 'mt-3' }, t('team.confirm.deleteTeamCustomHint')),
+          isTemporaryWorkspace &&
             React.createElement(
               Checkbox,
               {
                 className: 'mt-3',
+                defaultChecked: true,
                 onChange: (checked: boolean) => {
                   deleteWorkspaceRef.current = checked;
                 },
@@ -96,7 +99,7 @@ export function useTeamHistoryActions({ mutate, onDeleted }: IUseTeamHistoryActi
         okButtonProps: { status: 'warning' },
         onOk: async () => {
           try {
-            unwrapTeamResult(await ipcBridge.team.removeTeam.invoke({ teamId: team.id, deleteWorkspace: isCustomWorkspace ? deleteWorkspaceRef.current : undefined }));
+            unwrapTeamResult(await ipcBridge.team.removeTeam.invoke({ teamId: team.id, deleteWorkspace: isTemporaryWorkspace ? deleteWorkspaceRef.current : undefined }));
             Message.success(t('team.confirm.deleteSuccess'));
             onDeleted?.(team);
             void mutate();

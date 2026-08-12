@@ -154,4 +154,13 @@ describe('removeTeamWorkspace (C3 whitelist)', () => {
     expect(rmSpy).not.toHaveBeenCalled();
     expect(h.mainWarn).not.toHaveBeenCalled();
   });
+
+  it('keeps workspace when deleteWorkspace===false even if whitelist would match (team/members still deleted)', async () => {
+    const ws = path.join(h.workDir, 'scode-temp-123');
+    h.team = makeTeam(ws, 'temporary');
+    await teamService.removeTeam('t1', false);
+    expect(rmSpy).not.toHaveBeenCalled();
+    expect(h.softDeleteTeam).toHaveBeenCalled();
+    expect(h.softDeleteMembersByTeam).toHaveBeenCalled();
+  });
 });

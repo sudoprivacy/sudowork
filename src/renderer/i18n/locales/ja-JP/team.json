@@ -93,7 +93,7 @@
   "confirm": {
     "deleteTeamTitle": "チームを削除しますか？",
     "deleteTeam": "このチームを削除しますか？メンバーは削除されます。",
-    "deleteTeamTemporary": "このチームを削除しますか？メンバーは削除され、チーム一時ワークスペースは安全ルールに従ってクリーンアップされます。",
+    "deleteTeamCustomHint": "チームのワークスペースはカスタムディレクトリであるため削除されず保持されます。必要に応じて手動で削除してください。",
     "deleteWorkspaceOption": "ワークスペースフォルダーも削除する",
     "confirmDelete": "削除",
     "cancelDelete": "キャンセル",
