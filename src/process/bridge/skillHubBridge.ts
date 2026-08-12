@@ -11,6 +11,8 @@ import path from 'path';
 import os from 'os';
 import https from 'node:https';
 import http from 'node:http';
+import { createHash } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
 import { app } from 'electron';
 import JSZip from 'jszip';
 import { serviceManager } from '@process/services/serviceManager';
@@ -35,6 +37,8 @@ const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 const MISSING_ROOT_SKILL_MD_MESSAGE = 'The selected directory must contain a root-level SKILL.md file (case-insensitive)';
 const SKILL_HUB_UPLOAD_EXCLUDED_FILE_NAMES = new Set([SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE, '_sudowork_audit.json', '_sudowork_audit.md']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SKILL_HUB_UPLOAD_RESPONSE_BODY_LOG_LIMIT = 4000;
+const SKILL_HUB_UPLOAD_DNS_LOOKUP_TIMEOUT_MS = 3000;
 type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
 type SkillHubSkill = import('@/common/ipcBridge').ISkillHubSkill;
 type SkillHubPublishStatus = 'pending' | 'approved' | 'rejected';
@@ -56,6 +60,25 @@ interface SkillHubUploadApiBody {
       version?: string;
     };
   };
+}
+
+interface ISkillHubUploadResponseReadResult {
+  body: SkillHubUploadApiBody | null;
+  text: string;
+}
+
+interface ISkillHubUploadEndpointDiagnostics {
+  fullUrl: string;
+  protocol: string;
+  host: string;
+  hostname: string;
+  port: string;
+  pathname: string;
+  search: string;
+  origin: string;
+  resolvedAddresses?: Array<{ address: string; family: number }>;
+  dnsLookupError?: string;
+  urlParseError?: string;
 }
 
 /**
@@ -669,6 +692,118 @@ function normalizeUploadAuthorId(authorId: string | null | undefined): string {
   return '';
 }
 
+function getDefaultUrlPort(protocol: string): string {
+  if (protocol === 'https:') return '443';
+  if (protocol === 'http:') return '80';
+  return '';
+}
+
+function parseSkillHubUploadEndpoint(uploadUrl: string): ISkillHubUploadEndpointDiagnostics {
+  try {
+    const parsedUrl = new URL(uploadUrl);
+    return {
+      fullUrl: uploadUrl,
+      protocol: parsedUrl.protocol,
+      host: parsedUrl.host,
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || getDefaultUrlPort(parsedUrl.protocol),
+      pathname: parsedUrl.pathname,
+      search: parsedUrl.search,
+      origin: parsedUrl.origin,
+    };
+  } catch (error) {
+    return {
+      fullUrl: uploadUrl,
+      protocol: 'invalid',
+      host: '',
+      hostname: '',
+      port: '',
+      pathname: '',
+      search: '',
+      origin: '',
+      urlParseError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeoutId: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+async function buildSkillHubUploadEndpointDiagnostics(uploadUrl: string): Promise<ISkillHubUploadEndpointDiagnostics> {
+  const diagnostics = parseSkillHubUploadEndpoint(uploadUrl);
+  if (!diagnostics.hostname) {
+    return diagnostics;
+  }
+
+  try {
+    const resolvedAddresses = await withTimeout(lookup(diagnostics.hostname, { all: true }), SKILL_HUB_UPLOAD_DNS_LOOKUP_TIMEOUT_MS);
+    return {
+      ...diagnostics,
+      resolvedAddresses: resolvedAddresses.map((address) => ({
+        address: address.address,
+        family: address.family,
+      })),
+    };
+  } catch (error) {
+    return {
+      ...diagnostics,
+      dnsLookupError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function getAuthorizationDiagnostics(token: string): { hasAuthorization: boolean; tokenLength: number; tokenSha256Prefix: string; scheme: string } {
+  const trimmedToken = token.trim();
+  const scheme = trimmedToken.match(/^([A-Za-z][A-Za-z0-9_-]{0,20})\s+/)?.[1] || '<unspecified>';
+  return {
+    hasAuthorization: trimmedToken.length > 0,
+    tokenLength: trimmedToken.length,
+    tokenSha256Prefix: createHash('sha256').update(trimmedToken).digest('hex').slice(0, 12),
+    scheme,
+  };
+}
+
+function collectResponseHeadersForLog(response: Response): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const sensitiveHeaders = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key']);
+  response.headers.forEach((value, key) => {
+    headers[key] = sensitiveHeaders.has(key.toLowerCase()) ? '<redacted>' : value;
+  });
+  return headers;
+}
+
+function truncateUploadResponseForLog(value: string): string {
+  if (value.length <= SKILL_HUB_UPLOAD_RESPONSE_BODY_LOG_LIMIT) {
+    return value;
+  }
+  return `${value.slice(0, SKILL_HUB_UPLOAD_RESPONSE_BODY_LOG_LIMIT)}...<truncated ${value.length - SKILL_HUB_UPLOAD_RESPONSE_BODY_LOG_LIMIT} chars>`;
+}
+
+function serializeSkillHubUploadError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause instanceof Error ? { name: error.cause.name, message: error.cause.message, stack: error.cause.stack } : error.cause,
+    };
+  }
+  return { message: String(error) };
+}
+
 function resolveUploadCategories(meta: SkillHubMeta | null, manifest: Awaited<ReturnType<typeof readSkillManifestFromDirectory>>): string[] {
   const categories = new Set<string>();
 
@@ -713,16 +848,16 @@ async function readSkillUploadIconFile(skillDir: string, icon: string | null | u
   }
 }
 
-async function parseSkillHubUploadResponse(response: Response): Promise<SkillHubUploadApiBody | null> {
+async function parseSkillHubUploadResponse(response: Response): Promise<ISkillHubUploadResponseReadResult> {
   const text = await response.text();
   if (!text) {
-    return null;
+    return { body: null, text };
   }
 
   try {
-    return JSON.parse(text) as SkillHubUploadApiBody;
+    return { body: JSON.parse(text) as SkillHubUploadApiBody, text };
   } catch {
-    return { message: text };
+    return { body: { message: text }, text };
   }
 }
 
@@ -1390,35 +1525,99 @@ export function initSkillHubBridge(): void {
         formData.append('icon_file', iconBlob, iconFile.fileName);
       }
 
-      const uploadUrl = `${getSkillHubBaseUrl()}/api/skills`;
+      const skillHubBaseUrl = getSkillHubBaseUrl();
+      const uploadUrl = `${skillHubBaseUrl}/api/skills`;
+      const endpointDiagnostics = await buildSkillHubUploadEndpointDiagnostics(uploadUrl);
+      const requestStartedAt = Date.now();
       mainLog('SkillHub', `Uploading custom skill "${uploadSkillName}" to SkillHub tenant ${normalizedTenantId}`);
-      mainLog(
-        'SkillHub',
-        `Custom skill upload payload: ${JSON.stringify({
+      mainLog('SkillHub', 'Personal custom skill upload request diagnostics', {
+        mode: 'personal',
+        method: 'POST',
+        skillHubBaseUrl,
+        endpoint: endpointDiagnostics,
+        auth: getAuthorizationDiagnostics(token),
+        skillDir: resolvedSkillDir,
+        formFields: {
           name: uploadSkillName,
           display_name: displayName,
           version,
           tenant_id: normalizedTenantId,
-          status: 0,
+          status: '0',
           category: importedMeta?.category || manifest.category || null,
           categories,
+          description: importedMeta?.description || manifest.description || '',
+          core_features: importedMeta?.core_features || null,
+          applicable_scenarios: importedMeta?.applicable_scenarios || null,
+          emoji: importedMeta?.emoji || manifest.emoji || null,
+          homepage: importedMeta?.homepage || manifest.homepage || null,
+          author_id: uploadAuthorId || null,
+        },
+        fileFields: {
+          skill_file: {
+            fileName: `${uploadSkillName}.zip`,
+            contentType: 'application/zip',
+            sizeBytes: zipBuffer.byteLength,
+            sha256Prefix: createHash('sha256').update(zipBuffer).digest('hex').slice(0, 12),
+          },
+          icon_file: iconFile
+            ? {
+                fileName: iconFile.fileName,
+                contentType: iconFile.mimeType,
+                sizeBytes: iconFile.content.byteLength,
+                sha256Prefix: createHash('sha256').update(iconFile.content).digest('hex').slice(0, 12),
+              }
+            : null,
+        },
+        payloadSummary: {
           has_description: Boolean(importedMeta?.description || manifest.description),
           has_core_features: Boolean(importedMeta?.core_features),
           has_applicable_scenarios: Boolean(importedMeta?.applicable_scenarios),
           has_author_id: Boolean(uploadAuthorId),
           has_icon_file: Boolean(iconFile),
-        })}`
-      );
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: { Authorization: token },
-        body: formData,
+          form_data_fields: iconFile ? ['name', 'display_name', 'version', 'tenant_id', 'status', 'skill_file', 'icon_file'] : ['name', 'display_name', 'version', 'tenant_id', 'status', 'skill_file'],
+        },
       });
-      const responseBody = await parseSkillHubUploadResponse(response);
+
+      let response: Response;
+      try {
+        response = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: { Authorization: token },
+          body: formData,
+        });
+      } catch (error) {
+        mainError('SkillHub', 'Personal custom skill upload network error diagnostics', {
+          method: 'POST',
+          endpoint: endpointDiagnostics,
+          durationMs: Date.now() - requestStartedAt,
+          error: serializeSkillHubUploadError(error),
+        });
+        throw error;
+      }
+
+      const responseReadResult = await parseSkillHubUploadResponse(response);
+      const responseBody = responseReadResult.body;
+      mainLog('SkillHub', 'Personal custom skill upload response diagnostics', {
+        endpoint: endpointDiagnostics,
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        redirected: response.redirected,
+        finalUrl: response.url,
+        durationMs: Date.now() - requestStartedAt,
+        headers: collectResponseHeadersForLog(response),
+        body: truncateUploadResponseForLog(responseReadResult.text),
+      });
 
       if (!response.ok) {
         const message = responseBody?.message || responseBody?.msg || JSON.stringify(responseBody);
-        mainError('SkillHub', `Upload skill failed: ${response.status} - ${message}`);
+        mainError('SkillHub', 'Personal custom skill upload failed with server response', {
+          endpoint: endpointDiagnostics,
+          status: response.status,
+          statusText: response.statusText,
+          message,
+          responseBody: truncateUploadResponseForLog(responseReadResult.text),
+        });
         return { success: false, msg: `Upload failed: HTTP ${response.status} - ${message}` };
       }
 
