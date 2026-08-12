@@ -51,10 +51,6 @@ export function shouldSyncWorkspaceSkills(conversation?: TChatConversation, requ
   // TChatConversation union — so a dead `=== 'openclaw-gateway'` branch was removed
   // here. Migrated conversations are covered by the acp + scode case below.
 
-  if (conversation.type === 'acp' && conversation.extra?.backend === 'claude') {
-    return true;
-  }
-
   if (conversation.type === 'acp' && conversation.extra?.backend === 'scode') {
     return true;
   }

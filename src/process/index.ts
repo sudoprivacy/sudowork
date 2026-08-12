@@ -18,7 +18,7 @@ if (app.isPackaged) {
 }
 // initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
-import { syncElectronPath } from './services/claudeCli/CliInstallService';
+import { syncElectronPath } from './services/cli/CliInstallService';
 import { mainLog, mainError, perfLog } from './utils/mainLogger';
 import { initializeSudoworkLogUploader } from './utils/sudoworkLogUploader';
 // Crash bridge must be initialized early to handle renderer errors before other bridges

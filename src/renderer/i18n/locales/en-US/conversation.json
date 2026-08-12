@@ -8,7 +8,6 @@
     "title": "What can {{brandName}} help you with today?",
     "placeholder": "Type a message or drop a file to get started...",
     "downloadLocalFile": "Import Local Files",
-    "downloadBdpanFile": "Import Baidu Netdisk Files",
     "linkFolder": "Open Folder",
     "newConversation": "New Chat",
     "multiAgentModeEnabled": "Entering multi-agent mode",
@@ -164,7 +163,6 @@
     "skillsSearchEmpty": "No matching skills",
     "skillsLoading": "Scanning skills...",
     "skillsEmptyDescOpenClaw": "Skills placed under skills/ with a SKILL.md file will show up here automatically",
-    "skillsEmptyDescClaude": "Skills placed under .claude/skills/ with a SKILL.md file will show up here automatically",
     "lastSyncPrefix": "Last synced",
     "lastSyncJustNow": "just now",
     "lastSyncSecondsAgo": "{{count}}s ago",
@@ -213,7 +211,6 @@
       "addedToChat": "Added to chat",
       "openFailed": "Failed to open",
       "revealFailed": "Failed to open containing folder",
-      "uploadToBdpan": "Upload to Baidu Netdisk",
       "newFolder": "New Folder",
       "download": "Download",
       "downloadSuccess": "Downloaded",
@@ -270,42 +267,6 @@
   },
   "contextUsage": {
     "contextUsed": "context used"
-  },
-  "bdpan": {
-    "title": "Baidu Netdisk Files",
-    "checking": "Checking login status...",
-    "waitingAuth": "Waiting for authentication, please complete in your browser...",
-    "gettingAuthUrl": "Getting authorization link...",
-    "authCode": "Auth Code",
-    "authCodePlaceholder": "Enter 32-character auth code",
-    "authCodeSubmit": "Submit",
-    "loginTimeout": "Login timed out, please try again",
-    "loginFailed": "Login failed, please try again",
-    "lsFailed": "Failed to load files",
-    "emptyDir": "This folder is empty",
-    "selectedCount": "{{count}} file(s) selected",
-    "selectHint": "Click files to select, click folders to navigate",
-    "cancel": "Cancel",
-    "confirm": "Confirm",
-    "retry": "Retry",
-    "logout": "Logout",
-    "mkdir": {
-      "placeholder": "New folder name",
-      "confirm": "Create",
-      "failed": "Failed to create folder"
-    },
-    "upload": {
-      "title": "Upload to Baidu Netdisk",
-      "localPath": "Local",
-      "uploadTo": "Upload to",
-      "uploadButton": "Upload",
-      "success": "Uploaded to Baidu Netdisk successfully",
-      "failed": "Upload to Baidu Netdisk failed"
-    },
-    "download": {
-      "success": "已成功导入百度网盘文件",
-      "failed": "导入百度网盘文件失败"
-    }
   },
   "skill_generator": {
     "title": "Generate Skill/Rule",

@@ -21,7 +21,7 @@
     ]
   },
   "avatar": "🩺",
-  "presetAgentType": "claude",
+  "presetAgentType": "scode",
   "resourceDir": "assistant/doctor",
   "ruleFile": "doctor.md",
   "defaultEnabledSkills": ["browser"],

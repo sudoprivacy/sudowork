@@ -11,8 +11,6 @@
   "openai": "OpenAI",
   "proxyConfig": "代理",
   "yoloMode": "YOLO (Auto Allow)",
-  "claudeYoloMode": "Claude 自動允許",
-  "claudeYoloModeDesc": "跳過 Claude Code 的所有權限確認（等同於 --dangerously-skip-permissions）。",
   "customCss": "Custom CSS",
   "customCssDesc": "Enter custom CSS styles here to modify the interface appearance. The system will automatically add !important to ensure highest priority. Changes will take effect immediately.",
   "assistants": "助理",

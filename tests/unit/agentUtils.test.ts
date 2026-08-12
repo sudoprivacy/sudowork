@@ -67,13 +67,13 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     expect(result).toContain('cron');
   });
 
-  it('also injects builtin skills for claude', async () => {
+  it('also injects builtin skills for scode', async () => {
     const { prepareFirstMessageWithSkillsIndex } = await import('../../src/process/task/agentUtils');
 
     const result = await prepareFirstMessageWithSkillsIndex('do something', {
       presetContext: 'rules',
       workspace: '/tmp/workspace',
-      presetAgentType: 'claude',
+      presetAgentType: 'scode',
     });
 
     expect(discoverBuiltinSkills).toHaveBeenCalledOnce();
@@ -92,7 +92,7 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     const result = await prepareFirstMessageWithSkillsIndex('do something', {
       presetContext: 'rules',
       workspace: '/tmp/workspace',
-      presetAgentType: 'claude',
+      presetAgentType: 'scode',
     });
 
     // The cron skill index entry / file path is omitted...
@@ -117,7 +117,7 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     const result = await prepareFirstMessageWithSkillsIndex('do something', {
       presetContext: 'rules',
       workspace: '/tmp/workspace',
-      presetAgentType: 'claude',
+      presetAgentType: 'scode',
     });
 
     expect(result).toContain('cron/SKILL.md');

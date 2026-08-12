@@ -24,7 +24,7 @@ if (brand.BUILD_OFFLINE !== true) {
   const withoutRuntime = (entries = []) =>
     entries.filter((entry) => {
       const text = JSON.stringify(entry);
-      return !/bdpan-installer|nexus-vault|nexusd-cluster|scode-(macos|windows|linux)|node-(darwin|win32|linux)/.test(text);
+      return !/nexus-vault|nexusd-cluster|scode-(macos|windows|linux)|node-(darwin|win32|linux)/.test(text);
     });
   const runtimeResources = (platform) => {
     const arch = process.env.ELECTRON_BUILDER_ARCH;

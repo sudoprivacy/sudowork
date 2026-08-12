@@ -19,7 +19,7 @@ import { app } from 'electron';
 import os from 'os';
 import path from 'path';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
-import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
+import { getNodeBinaryPath, isNodeInstalled } from '@process/services/nodeRuntime/NodeRuntimeService';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const PERF_LOG = process.env.ACP_PERF === '1';

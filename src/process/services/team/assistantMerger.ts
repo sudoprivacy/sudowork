@@ -43,7 +43,6 @@ function getInstalledAssistantDescription(info: InstalledAssistantLike): string 
 
 function getDetectedAgentDescription(agent: DetectedAgentLike): string | null {
   if (agent.backend === 'scode') return 'Sudo Code CLI 智能体，适合软件开发、代码修改、工程任务执行与结果验证。';
-  if (agent.backend === 'claude') return 'Claude Code CLI 智能体，适合代码理解、任务拆解、实现与验证。';
   return null;
 }
 
@@ -79,7 +78,7 @@ export function mergeTeamAssistants(detected: DetectedAgentLike[], installed: In
 
   // Detected CLI presets / custom / extension agents not already covered.
   for (const d of detected) {
-    if (d.backend === 'remote-agent') continue; // enterprise — not a C-end team member
+    if (d.backend === 'remote-agent' || d.backend === 'claude') continue;
     const key = d.customAgentId ?? d.backend;
     if (seen.has(key)) continue;
     seen.add(key);

@@ -11,8 +11,7 @@
  * Background: both products default their config home to `~/.nexus/sudocode`, so
  * installing both on one machine made them stomp each other's `sudocode.json`
  * (models/auth), `settings.json` (settings/MCP) and the binary. sudowork now
- * isolates its engine-scode under `~/.nexus/sudowork/sudocode` (mirroring how
- * Claude Desktop / Claude Code keep separate config homes) and drives scode with
+ * isolates its engine-scode under `~/.nexus/sudowork/sudocode` and drives scode with
  * `SUDO_CODE_CONFIG_HOME` pointed there.
  *
  * These tests lock in the three load-bearing guarantees:

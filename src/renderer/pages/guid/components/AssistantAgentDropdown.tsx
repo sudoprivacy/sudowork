@@ -26,7 +26,6 @@ type AgentOption = {
 /** Built-in agent options with their preset type values and display labels */
 const BUILTIN_AGENT_OPTIONS: AgentOption[] = [
   { value: 'gemini', label: 'Gemini CLI' },
-  { value: 'claude', label: 'Claude Code' },
   { value: 'codex', label: 'Codex' },
   { value: 'opencode', label: 'OpenCode' },
   { value: 'qwen', label: 'Qwen Code' },

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildClaudeSettings, buildRuntimeAgentAuthFiles, syncSudoclawRuntimeState } from '@/process/services/sudoclaw/sudoclawRuntimeSync';
+import { buildRuntimeAgentAuthFiles, syncSudoclawRuntimeState } from '@/process/services/sudoclaw/sudoclawRuntimeSync';
 import type { SudoclawConfig } from '@/common/ipcBridge';
 
 const tempDirs: string[] = [];
@@ -99,7 +99,6 @@ describe('sudoclawRuntimeSync', () => {
 
   it('syncs agent runtime files from config and creates auth stores for all keyed providers', () => {
     const stateDir = makeTempDir();
-    const claudeSettingsPath = path.join(makeTempDir(), 'claude', 'settings.json');
     const secretWrites: Array<{ id: string; type: string; value: string }> = [];
     const config: SudoclawConfig = {
       agents: {
@@ -128,7 +127,6 @@ describe('sudoclawRuntimeSync', () => {
 
     syncSudoclawRuntimeState(config, {
       stateDir,
-      claudeSettingsPath,
       secretWriter: (id, type, value) => {
         secretWrites.push({ id, type, value });
       },
@@ -157,39 +155,6 @@ describe('sudoclawRuntimeSync', () => {
     };
     expect(authState.order['sudorouter-gemini-3-flash-preview']).toEqual(['sudorouter-gemini-3-flash-preview-api-key']);
     expect(authState.lastGood.sudorouter).toBe('sudorouter-api-key');
-
-    const claudeSettings = JSON.parse(fs.readFileSync(claudeSettingsPath, 'utf8')) as {
-      env: Record<string, string>;
-    };
-    expect(claudeSettings.env.ANTHROPIC_AUTH_TOKEN).toBe('gemini-key');
-    expect(claudeSettings.env.ANTHROPIC_MODEL).toBe('gemini-3-flash-preview');
-  });
-
-  it('builds Claude settings from the primary provider api key', () => {
-    expect(
-      buildClaudeSettings({
-        agents: {
-          defaults: {
-            model: {
-              primary: 'sudorouter-gemini-3-flash-preview/gemini-3-flash-preview',
-            },
-          },
-        },
-        models: {
-          providers: {
-            'sudorouter-gemini-3-flash-preview': {
-              apiKey: 'provider-key',
-            },
-          },
-        },
-      })
-    ).toEqual({
-      env: {
-        ANTHROPIC_BASE_URL: 'https://hk.sudorouter.ai',
-        ANTHROPIC_AUTH_TOKEN: 'provider-key',
-        ANTHROPIC_MODEL: 'gemini-3-flash-preview',
-      },
-    });
   });
 
   it('does not persist empty auth files when config has no provider api keys', () => {
@@ -219,7 +184,6 @@ describe('sudoclawRuntimeSync', () => {
       },
       {
         stateDir,
-        claudeSettingsPath: path.join(makeTempDir(), 'claude', 'settings.json'),
         secretWriter: () => {},
       }
     );

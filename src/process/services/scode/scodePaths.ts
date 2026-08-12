@@ -11,7 +11,7 @@
  * sudowork drives scode as an internal engine; a user may ALSO install standalone
  * scode from its own installer. Sharing one directory (the old behaviour) made the
  * two stomp each other's config + binary. So sudowork's engine-scode is isolated
- * here, mirroring how Claude Desktop and Claude Code keep separate config homes:
+ * in its own config home:
  *
  *   - sudowork engine-scode → ~/.nexus/sudowork/sudocode/   (this file)
  *   - standalone scode      → ~/.nexus/sudocode/            (its own default; untouched)

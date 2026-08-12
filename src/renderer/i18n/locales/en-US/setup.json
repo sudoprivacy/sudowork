@@ -52,12 +52,22 @@
     "manualReinstallHint": "Auto-reinstall is disabled after startup failure. You can manually reinstall core components or skip to enter the app.",
     "quit": "Quit",
     "step": {
-      "scode": { "label": "Sudocode", "description": "Default ACP Agent Runtime" },
-      "nexus": { "label": "Nexus OS Core Engine", "description": "Local Core Service Engine" },
-      "git": { "label": "Git Environment", "description": "Version Control Component" },
-      "node": { "label": "Node.js Runtime", "description": "JavaScript Execution Environment" },
-      "claude": { "label": "Claude Code CLI", "description": "Command-line Agent Tool" },
-      "bdpan": { "label": "bdpan CLI", "description": "File Sync Tool" }
+      "scode": {
+        "label": "Sudocode",
+        "description": "Default ACP Agent Runtime"
+      },
+      "nexus": {
+        "label": "Nexus OS Core Engine",
+        "description": "Local Core Service Engine"
+      },
+      "git": {
+        "label": "Git Environment",
+        "description": "Version Control Component"
+      },
+      "node": {
+        "label": "Node.js Runtime",
+        "description": "JavaScript Execution Environment"
+      }
     }
   }
 }

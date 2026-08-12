@@ -1,5 +1,5 @@
 import { ipcBridge } from '../../common';
-import { installNode, uninstallNode, checkNodeStatus } from '../services/claudeCli/NodeRuntimeService';
+import { installNode, uninstallNode, checkNodeStatus } from '../services/nodeRuntime/NodeRuntimeService';
 
 export function initNodeRuntimeBridge(): void {
   ipcBridge.nodeRuntime.checkInstalled.provider(async () => {

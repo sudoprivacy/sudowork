@@ -183,9 +183,7 @@ function restoreFrameworkSymlinks(fwPath) {
  * Snapshot every group of hardlinked regular files under `dir`.
  *
  * `codesign` writes a temp file and renames over the target, which breaks
- * hardlinks. For archives like claude-code.tgz that ship the platform binary
- * twice via a single inode (~210 MB total on disk), the post-sign re-pack
- * loses dedup and the tgz nearly doubles in size. Pair with restoreHardlinkGroups.
+ * hardlinks. Pair with restoreHardlinkGroups before repacking an archive.
  *
  * Symlinks are skipped — codesign follows them and we never want to convert
  * one back to a hardlink.
@@ -661,11 +659,8 @@ async function signBinariesInArchive(archivePath, identity, isNested = false, en
       console.log(`   🗑  Removed ${removedCount} un-notarizable file(s) from ${archiveName}`);
     }
 
-    // Snapshot hardlink groups before signing — codesign atomically replaces
-    // files, which breaks the inode share that install.cjs sets up between
-    // e.g. @anthropic-ai/claude-code/bin/claude.exe and the platform package's
-    // binary. Without restoring, the re-packed tgz ships the ~210 MB binary
-    // twice (claude-code.tgz: 62 MB → 123 MB; dmg: +60 MB).
+    // Snapshot hardlink groups before signing because codesign atomically
+    // replaces files and can break inode sharing inside generic archives.
     const hardlinkGroups = snapshotHardlinkGroups(extractedDir);
 
     // Sign binaries in the main extracted content
@@ -738,6 +733,33 @@ async function signBinariesInArchive(archivePath, identity, isNested = false, en
   }
 }
 
+function pruneOnnxRuntimeBinaries(resourcesDir, targetPlatform, targetArch) {
+  const root = path.join(resourcesDir, 'app.asar.unpacked', 'node_modules', 'onnxruntime-node', 'bin', 'napi-v3');
+  if (!fs.existsSync(root)) return 0;
+
+  let removed = 0;
+  for (const platformName of fs.readdirSync(root)) {
+    const platformDir = path.join(root, platformName);
+    if (!fs.statSync(platformDir).isDirectory()) continue;
+
+    if (platformName !== targetPlatform) {
+      fs.rmSync(platformDir, { recursive: true, force: true });
+      removed++;
+      continue;
+    }
+
+    for (const archName of fs.readdirSync(platformDir)) {
+      const archDir = path.join(platformDir, archName);
+      if (archName !== targetArch && fs.statSync(archDir).isDirectory()) {
+        fs.rmSync(archDir, { recursive: true, force: true });
+        removed++;
+      }
+    }
+  }
+
+  return removed;
+}
+
 async function afterPack(context) {
   const { arch, electronPlatformName, appOutDir, packager } = context;
   const targetArch = normalizeArch(typeof arch === 'string' ? arch : Arch[arch] || process.arch);
@@ -757,22 +779,15 @@ async function afterPack(context) {
     resourcesDir = path.join(appOutDir, 'resources');
   }
 
+  const prunedOnnxDirs = pruneOnnxRuntimeBinaries(resourcesDir, electronPlatformName, targetArch);
+  if (prunedOnnxDirs > 0) {
+    console.log(`   ✓ Pruned ${prunedOnnxDirs} foreign ONNX Runtime directories`);
+  }
+
   // Sign binaries inside bundled .tgz files (for macOS notarization)
   // This must run BEFORE the early return, as signing is always needed on macOS
   if (electronPlatformName === 'darwin' && process.env.CSC_NAME) {
     const identity = process.env.CSC_NAME;
-
-    // Sign bundled bdpan installer binary directly (it's a plain binary, not an archive)
-    const bdpanBinary = path.join(resourcesDir, `bdpan-installer-darwin-${targetArch}`);
-    if (fs.existsSync(bdpanBinary)) {
-      console.log(`\n🔐 Signing bdpan installer binary...`);
-      try {
-        execSync(`codesign --sign "${identity}" --force --timestamp --options runtime "${bdpanBinary}"`, { stdio: 'pipe' });
-        console.log(`   ✓ Signed: ${path.basename(bdpanBinary)}`);
-      } catch (err) {
-        console.warn(`   ⚠️  Failed to sign bdpan installer: ${err.message}`);
-      }
-    }
 
     // Sign versioned nexus archives by unpacking and re-signing their bundled binaries.
     // Current macOS resources ship Nexus as .tar.gz/.tgz archives, not plain executables.
@@ -788,7 +803,6 @@ async function afterPack(context) {
       // Resources dir not readable — nexus archives will be skipped
     }
 
-    // claude-code.tgz removed — see electron-builder.yml extraResources note.
     const fixedArchives = ['mcporter.tgz', 'shareone.tgz'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
@@ -997,3 +1011,4 @@ async function afterPack(context) {
 module.exports = afterPack;
 module.exports.shouldSignArchiveInAfterPack = shouldSignArchiveInAfterPack;
 module.exports.shouldUseRuntimeEntitlementsInAfterPack = shouldUseRuntimeEntitlementsInAfterPack;
+module.exports.pruneOnnxRuntimeBinaries = pruneOnnxRuntimeBinaries;

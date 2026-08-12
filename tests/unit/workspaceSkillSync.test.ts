@@ -52,30 +52,6 @@ describe('workspace skill sync gating', () => {
     expect(shouldSyncWorkspaceSkills(conversation)).toBe(true);
   });
 
-  it('enables workspace skill sync for claude conversations with a workspace', () => {
-    const conversation = {
-      id: 'conv-acp-claude',
-      name: 'Claude',
-      type: 'acp',
-      createTime: Date.now(),
-      modifyTime: Date.now(),
-      extra: {
-        workspace: '/tmp/claude-workspace',
-        backend: 'claude',
-      },
-      model: {
-        id: 'default',
-        platform: 'openai',
-        name: 'default',
-        baseUrl: '',
-        apiKey: '',
-        useModel: 'default',
-      },
-    } as TChatConversation;
-
-    expect(shouldSyncWorkspaceSkills(conversation)).toBe(true);
-  });
-
   it('enables workspace skill sync for preset conversations even when skills are resolved later', () => {
     const conversation = {
       id: 'conv-acp-preset-assistant',
@@ -304,7 +280,7 @@ describe('workspace skill sync gating', () => {
           modifyTime: Date.now(),
           extra: {
             workspace: '/app/data/runtime/sessions/abc123/workspace',
-            backend: 'claude',
+            backend: 'scode',
             enabledSkills: ['pptx'],
           },
           model: {
@@ -331,7 +307,7 @@ describe('workspace skill sync gating', () => {
           extra: {
             workspace: '/tmp/local-workspace', // Local path
             mossWorkDir: '/app/data/runtime/sessions/abc123/workspace', // Remote container path
-            backend: 'claude',
+            backend: 'scode',
             enabledSkills: ['pptx'],
           },
           model: {
@@ -360,7 +336,7 @@ describe('workspace skill sync gating', () => {
           modifyTime: Date.now(),
           extra: {
             workspace: '/tmp/local-workspace',
-            backend: 'claude',
+            backend: 'scode',
             enabledSkills: ['pptx'],
           },
           model: {

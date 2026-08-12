@@ -12,7 +12,7 @@ import { ProcessConfig } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
 import WorkerManage from '@/process/WorkerManage';
 import { GOOGLE_AUTH_PROVIDER_ID } from '@/common/constants';
-import type { AcpBackend } from '@/types/acpTypes';
+import { normalizePresetAgentType, type AcpBackend } from '@/types/acpTypes';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
 import { getChannelManager } from '../core/ChannelManager';
 import type { AgentDisplayInfo } from '../plugins/telegram/TelegramKeyboards';
@@ -156,14 +156,14 @@ export const handleSessionNew: ActionHandler = async (context) => {
   const platform = context.platform;
   const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : 'telegram';
 
-  // Selected agent (defaults to claude)
+  // Selected agent (defaults to scode)
   let savedAgent: unknown = undefined;
   try {
     savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wecom' ? ProcessConfig.get('assistant.wecom.agent') : ProcessConfig.get('assistant.telegram.agent'));
   } catch {
     // ignore
   }
-  const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'scode') as string;
+  const backend = normalizePresetAgentType(savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : undefined) || 'scode';
   const customAgentId = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).customAgentId as string | undefined) : undefined;
   const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 
@@ -570,7 +570,7 @@ export const handleAgentSelect: ActionHandler = async (context, params) => {
  */
 function getAgentDisplayName(agentType: ChannelAgentType): string {
   const names: Record<ChannelAgentType, string> = {
-    acp: '🧠 Claude',
+    acp: '⚡ Sudo Code',
   };
   return names[agentType] || agentType;
 }
@@ -588,7 +588,6 @@ function backendToChannelAgentType(): ChannelAgentType | null {
  */
 function getAgentEmoji(backend: string): string {
   const emojis: Record<string, string> = {
-    claude: '🧠',
     gemini: '🤖',
     codex: '⚡',
     qwen: '🔮',
@@ -606,7 +605,7 @@ function getAvailableChannelAgents(): AgentDisplayInfo[] {
   const availableAgents: AgentDisplayInfo[] = [];
   const seenTypes = new Set<ChannelAgentType>();
 
-  // Add detected agents (claude, gemini, codex, etc.)
+  // Add detected agents
   for (const agent of detectedAgents) {
     const channelType = backendToChannelAgentType();
     if (channelType && !seenTypes.has(channelType)) {

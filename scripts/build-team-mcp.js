@@ -8,7 +8,7 @@
  * The bundle is shipped as an extraResource (see electron-builder.yml). At
  * runtime TeamService injects team-mcp per-member via ACP session/new.mcp_servers
  * (K2 wire format), pointing at this file via the bundled Node, so the agent
- * CLI (scode/claude) launches it as a per-member stdio MCP server. Normal
+ * CLI launches it as a per-member stdio MCP server. Normal
  * sessions never inject it, and the server self-exits without TEAM_MCP_* env.
  *
  * @modelcontextprotocol/sdk is bundled in (no external dependency at runtime

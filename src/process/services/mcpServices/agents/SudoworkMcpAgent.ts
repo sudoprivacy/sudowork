@@ -21,7 +21,7 @@ import { ProcessConfig } from '../../../initStorage';
  * 3. @office-ai/aioncli-core 在运行时使用这些 MCP servers
  *
  * 与其他 ACP Backend MCP Agents 的区别：
- * - ACP Backend Agents: 管理真实的 CLI 工具的 MCP 配置 (如 claude mcp, qwen mcp 命令)
+ * - ACP Backend Agents: 管理真实 CLI 工具的 MCP 配置
  * - SudoworkMcpAgent: 管理 Sudowork 本地 @office-ai/aioncli-core 的运行时 MCP 配置
  */
 export class SudoworkMcpAgent extends AbstractMcpAgent {

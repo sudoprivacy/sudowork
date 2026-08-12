@@ -15,19 +15,7 @@ describe('resolveWorkspaceSkillsDir', () => {
     expect(resolveWorkspaceSkillsDir(conversation)).toBe('/tmp/workspace/skills');
   });
 
-  it('uses workspace/.claude/skills for claude ACP conversations', () => {
-    const conversation = {
-      type: 'acp',
-      extra: {
-        workspace: '/tmp/workspace',
-        backend: 'claude',
-      },
-    } as Pick<TChatConversation, 'type' | 'extra'>;
-
-    expect(resolveWorkspaceSkillsDir(conversation)).toBe('/tmp/workspace/.claude/skills');
-  });
-
-  it('falls back to workspace/skills for non-claude ACP conversations', () => {
+  it('falls back to workspace/skills for generic ACP conversations', () => {
     const conversation = {
       type: 'acp',
       extra: {

@@ -18,7 +18,7 @@
 ### 核心特性
 
 - **内置 AI Agent** - 开箱即用的 AI 助手，无需额外配置
-- **多 Agent 模式** - 支持 Claude Code、Codex、Qwen Code 等 12+ 种 CLI Agent
+- **多 Agent 模式** - 支持 Codex、Qwen Code 等 12+ 种 CLI Agent
 - **远程访问** - 通过 WebUI + Telegram/Lark/钉钉 实现远程控制
 - **定时任务** - Cron 系统支持 24/7 自动化任务
 - **文件预览** - 支持 PDF、Word、Excel、PPT 等 10+ 种格式

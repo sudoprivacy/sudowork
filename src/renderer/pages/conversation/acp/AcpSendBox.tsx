@@ -868,16 +868,6 @@ const AcpSendBox: React.FC<{
     [pwdLoginModal.title, conversation_id, t]
   );
 
-  useEffect(() => {
-    return ipcBridge.bdpan.downloadResult.on((result) => {
-      if (result.success) {
-        Message.success(t('conversation.bdpan.download.success'));
-      } else {
-        Message.error(result.error ?? t('conversation.bdpan.download.failed'));
-      }
-    });
-  }, [t]);
-
   useAddEventListener('acp.selected.file', setAtPath);
   useAddEventListener('acp.selected.file.append', (items: Array<string | FileOrFolderItem>) => {
     const merged = mergeFileSelectionItems(atPathRef.current, items);

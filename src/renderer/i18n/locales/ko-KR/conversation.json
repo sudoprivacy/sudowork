@@ -8,7 +8,6 @@
     "title": "오늘 {{brandName}}이(가) 무엇을 도와드릴까요?",
     "placeholder": "Type a message or drop a file to get started...",
     "downloadLocalFile": "로컬 파일 가져오기",
-    "downloadBdpanFile": "바이두 넷디스크 파일 가져오기",
     "linkFolder": "폴더 열기",
     "newConversation": "새 채팅",
     "multiAgentModeEnabled": "멀티 에이전트 모드 진입",
@@ -161,7 +160,6 @@
       "addedToChat": "채팅에 추가됨",
       "openFailed": "열기 실패",
       "revealFailed": "포함 폴더 열기 실패",
-      "uploadToBdpan": "바이두 넷디스크에 업로드",
       "newFolder": "새 폴더",
       "download": "다운로드",
       "downloadSuccess": "다운로드 완료",
@@ -217,42 +215,6 @@
   },
   "contextUsage": {
     "contextUsed": "사용된 컨텍스트"
-  },
-  "bdpan": {
-    "title": "바이두 넷디스크 파일",
-    "checking": "로그인 상태 확인 중...",
-    "waitingAuth": "인증 대기 중입니다. 브라우저에서 인증을 완료해 주세요...",
-    "gettingAuthUrl": "인증 링크를 가져오는 중...",
-    "authCode": "인증 코드",
-    "authCodePlaceholder": "32자리 인증 코드 입력",
-    "authCodeSubmit": "제출",
-    "loginTimeout": "로그인 시간이 초과되었습니다. 다시 시도해 주세요",
-    "loginFailed": "로그인에 실패했습니다. 다시 시도해 주세요",
-    "lsFailed": "파일 로드에 실패했습니다",
-    "emptyDir": "이 폴더는 비어 있습니다",
-    "selectedCount": "{{count}}개 파일 선택됨",
-    "selectHint": "파일 클릭하여 선택, 폴더 클릭하여 이동",
-    "cancel": "취소",
-    "confirm": "확인",
-    "retry": "재시도",
-    "logout": "로그아웃",
-    "mkdir": {
-      "placeholder": "새 폴더 이름",
-      "confirm": "만들기",
-      "failed": "폴더 만들기 실패"
-    },
-    "upload": {
-      "title": "바이두 넷디스크에 업로드",
-      "localPath": "로컬 경로",
-      "uploadTo": "업로드 위치",
-      "uploadButton": "업로드",
-      "success": "바이두 넷디스크에 업로드 성공",
-      "failed": "바이두 넷디스크 업로드 실패"
-    },
-    "download": {
-      "success": "已成功导入百度网盘文件",
-      "failed": "导入百度网盘文件失败"
-    }
   },
   "skill_generator": {
     "title": "스킬/규칙 생성",

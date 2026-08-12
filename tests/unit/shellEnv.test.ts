@@ -16,7 +16,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@process/services/claudeCli/NodeRuntimeService', () => ({
+vi.mock('@process/services/nodeRuntime/NodeRuntimeService', () => ({
   getNodeBinaryPath: vi.fn(() => '/mock/node'),
   isNodeInstalled: vi.fn(() => false),
 }));

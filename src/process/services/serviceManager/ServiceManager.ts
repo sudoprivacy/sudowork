@@ -681,7 +681,7 @@ export class ServiceManager {
   }
 
   private async ensureNodeReadyForSudoclawStart(): Promise<void> {
-    const { ensureNodeInstalled, isNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
+    const { ensureNodeInstalled, isNodeInstalled } = await import('../nodeRuntime/NodeRuntimeService');
 
     if (isNodeInstalled()) {
       initStatusManager.addLog('✓ Sudoclaw 启动前 Node.js 环境检查通过');

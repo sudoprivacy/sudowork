@@ -52,12 +52,22 @@
     "manualReinstallHint": "启动失败后不会再自动重装，可按需手动重装核心组件，或先跳过进入应用。",
     "quit": "退出",
     "step": {
-      "scode": { "label": "Sudocode", "description": "默认 ACP 代理运行时" },
-      "nexus": { "label": "Nexus OS 核心引擎", "description": "本地核心服务引擎" },
-      "git": { "label": "Git 环境", "description": "版本控制基础组件" },
-      "node": { "label": "Node.js 运行时", "description": "JavaScript 执行环境" },
-      "claude": { "label": "Claude Code CLI", "description": "命令行代理工具" },
-      "bdpan": { "label": "bdpan CLI", "description": "文件同步工具" }
+      "scode": {
+        "label": "Sudocode",
+        "description": "默认 ACP 代理运行时"
+      },
+      "nexus": {
+        "label": "Nexus OS 核心引擎",
+        "description": "本地核心服务引擎"
+      },
+      "git": {
+        "label": "Git 环境",
+        "description": "版本控制基础组件"
+      },
+      "node": {
+        "label": "Node.js 运行时",
+        "description": "JavaScript 执行环境"
+      }
     }
   }
 }

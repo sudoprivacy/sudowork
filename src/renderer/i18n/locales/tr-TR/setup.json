@@ -52,12 +52,22 @@
     "manualReinstallHint": "Başlatma başarısız olduktan sonra otomatik yeniden kurulum yapılmaz. Gerekirse temel bileşenleri manuel olarak yeniden kurabilir veya atlayarak uygulamaya girebilirsiniz.",
     "quit": "Çık",
     "step": {
-      "scode": { "label": "Sudocode", "description": "Varsayılan ACP Ajan Çalışma Zamanı" },
-      "nexus": { "label": "Nexus OS Çekirdek Motoru", "description": "Yerel Çekirdek Servis Motoru" },
-      "git": { "label": "Git Ortamı", "description": "Sürüm Kontrolü Temel Bileşeni" },
-      "node": { "label": "Node.js Çalışma Zamanı", "description": "JavaScript Yürütme Ortamı" },
-      "claude": { "label": "Claude Code CLI", "description": "Komut Satırı Ajan Aracı" },
-      "bdpan": { "label": "bdpan CLI", "description": "Dosya Senkronizasyon Aracı" }
+      "scode": {
+        "label": "Sudocode",
+        "description": "Varsayılan ACP Ajan Çalışma Zamanı"
+      },
+      "nexus": {
+        "label": "Nexus OS Çekirdek Motoru",
+        "description": "Yerel Çekirdek Servis Motoru"
+      },
+      "git": {
+        "label": "Git Ortamı",
+        "description": "Sürüm Kontrolü Temel Bileşeni"
+      },
+      "node": {
+        "label": "Node.js Çalışma Zamanı",
+        "description": "JavaScript Yürütme Ortamı"
+      }
     }
   }
 }

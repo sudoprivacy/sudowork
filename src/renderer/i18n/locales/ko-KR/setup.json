@@ -52,12 +52,22 @@
     "manualReinstallHint": "시작 실패 후 자동 재설치가 되지 않습니다. 필요한 경우 핵심 구성 요소를 수동으로 재설치하거나 먼저 건너뛰고 앱에 진입하세요.",
     "quit": "종료",
     "step": {
-      "scode": { "label": "Sudocode", "description": "기본 ACP 에이전트 런타임" },
-      "nexus": { "label": "Nexus OS 코어 엔진", "description": "로컬 코어 서비스 엔진" },
-      "git": { "label": "Git 환경", "description": "버전 관리 기본 구성 요소" },
-      "node": { "label": "Node.js 런타임", "description": "JavaScript 실행 환경" },
-      "claude": { "label": "Claude Code CLI", "description": "명령줄 에이전트 도구" },
-      "bdpan": { "label": "bdpan CLI", "description": "파일 동기화 도구" }
+      "scode": {
+        "label": "Sudocode",
+        "description": "기본 ACP 에이전트 런타임"
+      },
+      "nexus": {
+        "label": "Nexus OS 코어 엔진",
+        "description": "로컬 코어 서비스 엔진"
+      },
+      "git": {
+        "label": "Git 환경",
+        "description": "버전 관리 기본 구성 요소"
+      },
+      "node": {
+        "label": "Node.js 런타임",
+        "description": "JavaScript 실행 환경"
+      }
     }
   }
 }

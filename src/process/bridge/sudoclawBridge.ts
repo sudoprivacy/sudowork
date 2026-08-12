@@ -5,18 +5,16 @@
  */
 
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import brand from '@brand';
 import { cachePut } from '@common/nexus/secret-cache';
-import { getSudorouterBaseUrl } from '@/common/systemConfig';
 import type { SudoclawConfig } from '@/common/ipcBridge';
 import { ipcBridge } from '@/common';
 import { SUDOCLAW_DIR, getSudoclawInstalledVersion, isSudoclawInstalled, SUDOCLAW_DEFAULT_PORT, installSudoclawManually, removeSudoclawCli } from '../services/sudoclaw/SudoclawInstallService';
 import { syncSudoclawRuntimeState } from '../services/sudoclaw/sudoclawRuntimeSync';
 import { checkSudoclawHealth, SUDOCLAW_HEALTH_TIMEOUT_MS } from '../services/sudoclaw/sudoclawHealth';
-import { getNodeBinaryPath } from '../services/claudeCli/NodeRuntimeService';
+import { getNodeBinaryPath } from '../services/nodeRuntime/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
 
 interface InstallState {
@@ -27,7 +25,6 @@ interface InstallState {
 
 const CONFIG_FILENAME = 'sudoclaw.json';
 const CONFIG_PATH = path.join(SUDOCLAW_DIR, CONFIG_FILENAME);
-const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 let installState: InstallState = { installing: false };
 
 function readConfig(): SudoclawConfig | null {
@@ -38,47 +35,6 @@ function readConfig(): SudoclawConfig | null {
     return parsed;
   } catch {
     return null;
-  }
-}
-
-/**
- * Sync sudorouter provider config to ~/.claude/settings.json for Claude CLI
- * Only writes if settings.json doesn't exist yet.
- * Only apiKey is configurable, baseUrl and model are fixed.
- */
-function syncToClaudeSettings(config: SudoclawConfig): void {
-  // Skip if settings.json already exists
-  if (fs.existsSync(CLAUDE_SETTINGS_PATH)) {
-    return;
-  }
-
-  const primaryModel = config.agents?.defaults?.model?.primary || '';
-  const [providerId, modelIdPart] = primaryModel.split('/');
-  const provider = providerId ? config.models?.providers?.[providerId] : undefined;
-  const apiKey = provider?.apiKey || '';
-  const modelId = modelIdPart || primaryModel;
-
-  if (!apiKey) return;
-
-  // Create new settings with fixed values
-  const settings: Record<string, unknown> = {
-    env: {
-      ANTHROPIC_BASE_URL: getSudorouterBaseUrl(),
-      ANTHROPIC_AUTH_TOKEN: apiKey,
-      ANTHROPIC_MODEL: modelId || 'gemini-3.5-flash',
-    },
-  };
-
-  // Write
-  const claudeDir = path.dirname(CLAUDE_SETTINGS_PATH);
-  fs.mkdirSync(claudeDir, { recursive: true });
-  fs.writeFileSync(CLAUDE_SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
-  if (process.platform !== 'win32') {
-    try {
-      fs.chmodSync(CLAUDE_SETTINGS_PATH, 0o600);
-    } catch {
-      // ignore
-    }
   }
 }
 
@@ -106,12 +62,8 @@ export function initSudoclawBridge(): void {
 
       syncSudoclawRuntimeState(config, {
         stateDir: SUDOCLAW_DIR,
-        claudeSettingsPath: CLAUDE_SETTINGS_PATH,
         secretWriter: cachePut,
       });
-
-      // Sync to ~/.claude/settings.json for Claude CLI
-      syncToClaudeSettings(config);
 
       return { success: true };
     } catch (err) {

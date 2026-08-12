@@ -150,7 +150,7 @@ describe('NavigationInterceptor — browser-panel MCP tools', () => {
     expect(NavigationInterceptor.isNavigationTool('PANEL_OPEN')).toBe(true);
   });
 
-  it('matches mcp-prefixed direct tool name (Claude Code surface form)', () => {
+  it('matches an mcp-prefixed direct tool name', () => {
     expect(NavigationInterceptor.isNavigationTool('mcp__browser-panel__panel_open')).toBe(true);
   });
 

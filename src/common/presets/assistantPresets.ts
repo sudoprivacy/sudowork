@@ -218,7 +218,7 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
     id: 'doctor',
     avatar: '🩺',
-    presetAgentType: 'claude',
+    presetAgentType: 'scode',
     resourceDir: 'assistant/doctor',
     ruleFiles: {
       'en-US': 'doctor.md',

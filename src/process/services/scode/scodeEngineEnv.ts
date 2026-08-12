@@ -27,7 +27,7 @@ export function scodeEngineEnvOverrides(): Record<string, string> {
     // ~/.nexus/sudocode, so the two products never stomp each other.
     SUDO_CODE_CONFIG_HOME: SCODE_HOME,
 
-    // Lets skill bash scripts locate sudocode.json even when claude-code
+    // Lets skill bash scripts locate sudocode.json even when an agent runtime
     // overrides $HOME to a sandbox directory (.sandbox-home/).
     SUDOCODE_CONFIG_PATH: SCODE_CONFIG_PATH,
 

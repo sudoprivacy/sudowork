@@ -10,7 +10,6 @@ import { Check, Circle, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { init } from '@/common/ipcBridge';
-import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import { useTenantLogo } from '@/renderer/hooks/useTenantLogo';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useInit } from '../context/InitContext';
@@ -18,7 +17,7 @@ import WindowControls from './WindowControls';
 
 const isWindowControlsVisible = isElectronDesktop() && !isMacOS();
 
-type StepId = 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan';
+type StepId = 'git' | 'node' | 'scode' | 'nexus';
 type StepStatus = 'pending' | 'active' | 'done' | 'error';
 
 interface Step {
@@ -32,8 +31,6 @@ const STEPS: Step[] = [
   { id: 'nexus', label: 'Nexus OS 核心引擎', description: '本地核心服务引擎' },
   { id: 'git', label: 'Git 环境', description: '版本控制基础组件' },
   { id: 'node', label: 'Node.js 运行时', description: 'JavaScript 执行环境' },
-  { id: 'claude', label: 'Claude Code CLI', description: '命令行代理工具' },
-  ...(!IS_OFFLINE_BUILD ? [{ id: 'bdpan' as const, label: 'bdpan CLI', description: '文件同步工具' }] : []),
 ];
 
 const STEP_ORDER: StepId[] = STEPS.map((step) => step.id);

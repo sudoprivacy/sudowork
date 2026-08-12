@@ -19,12 +19,6 @@ describe('buildDisplayMessage', () => {
     expect(result).toContain(`${WORKSPACE}/a4ac618e1abdfa9f0a0f9cce37c97746.jpeg`);
   });
 
-  it('handles bdpan:// remote paths', () => {
-    const result = buildDisplayMessage('check this file', ['bdpan://bucket/path/to/report.pdf?token=abc'], WORKSPACE);
-    expect(result).toContain(`${WORKSPACE}/report.pdf`);
-    expect(result).not.toContain('?token=abc');
-  });
-
   it('handles relative file paths by joining with workspace', () => {
     const result = buildDisplayMessage('see attached', ['docs/spec.md'], WORKSPACE);
     expect(result).toContain(`${WORKSPACE}/docs/spec.md`);

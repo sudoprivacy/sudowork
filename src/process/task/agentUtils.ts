@@ -7,13 +7,13 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+import brand from '@brand';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { CRON_RESTRICTED_INSTRUCTION, isCronSkillAllowed } from '@process/services/cron/cronPolicy';
 import type { PresetAgentType } from '@/types/acpTypes';
-import { getNodeBinaryPath, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
+import { getNodeBinaryPath, isNodeInstalled } from '@process/services/nodeRuntime/NodeRuntimeService';
 import { AcpSkillManager, buildSkillsIndexText, type SkillIndex } from './AcpSkillManager';
-import brand from '@brand';
 
 /** mcporter CLI 路径（解压后的 JS 文件，跨平台相同） */
 const MCPORTER_CLI_PATH = path.join(os.homedir(), '.nexus', 'mcporter', 'package', 'node_modules', 'mcporter', 'dist', 'cli.js');
@@ -67,7 +67,6 @@ export function hasMcpServersConfigured(): boolean {
  * Build mcporter execution command hint (cross-platform)
  */
 export function buildMcporterCommandHint(): string {
-  const isWindows = process.platform === 'win32';
   const nodeInstalled = isNodeInstalled();
 
   if (!nodeInstalled) {
@@ -322,8 +321,8 @@ export async function buildSystemInstructions(config: FirstMessageConfig): Promi
  * 为首次消息注入系统指令（完整 skills 内容 - 用于 Gemini）
  * Inject system instructions for first message (full skills content - for Gemini)
  *
- * 注意：使用直接前缀方式而非 XML 标签，以确保 Claude Code CLI 等外部 agent 能正确识别
- * Note: Use direct prefix instead of XML tags to ensure external agents like Claude Code CLI can recognize it
+ * 注意：使用直接前缀方式而非 XML 标签，以确保外部 agent 能正确识别
+ * Note: Use a direct prefix instead of XML tags so external agents can recognize it
  *
  * @param content - 原始消息内容 / Original message content
  * @param config - 首次消息配置 / First message configuration

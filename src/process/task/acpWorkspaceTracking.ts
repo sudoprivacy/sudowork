@@ -14,18 +14,13 @@ export const SCODE_COMPLETION_REMINDER = `<system-reminder>
 
 `;
 
-export function buildAcpModelIdentityReminder(backend: string, activeModelNoticeId: string): string {
-  if (backend === 'scode') {
-    return (
-      `<system-reminder>\n` + `当前活动模型：${activeModelNoticeId}。` + `你当前正在以 ${activeModelNoticeId} 运行。` + `你的内置助手身份或品牌文本可能仍会提到 Claude 或 Anthropic，即使实际活动模型不同。` + `当用户询问你使用哪个模型时，请回答 ${activeModelNoticeId}。\n` + `</system-reminder>\n\n`
-    );
-  }
-
-  const staleIdentityHint = 'The ANTHROPIC_MODEL environment variable and the earlier "You are powered by" text in the system prompt are stale (cached from session start) and no longer reflect the actual model.';
-  return `<system-reminder>\n` + `Active model: ${activeModelNoticeId}. ` + `You are currently running as ${activeModelNoticeId}. ` + `${staleIdentityHint} ` + `When asked which model you are, answer ${activeModelNoticeId}.\n` + `</system-reminder>\n\n`;
+export function buildAcpModelIdentityReminder(_backend: string, activeModelNoticeId: string): string {
+  return (
+    `<system-reminder>\n` + `当前活动模型：${activeModelNoticeId}。` + `你当前正在以 ${activeModelNoticeId} 运行。` + `你的内置助手身份或品牌文本可能仍会提到 Claude 或 Anthropic，即使实际活动模型不同。` + `当用户询问你使用哪个模型时，请回答 ${activeModelNoticeId}。\n` + `</system-reminder>\n\n`
+  );
 }
 
-const LANGUAGE_REMINDER_BACKENDS = new Set(['scode', 'claude']);
+const LANGUAGE_REMINDER_BACKENDS = new Set(['scode']);
 
 export function shouldInjectLanguageReminder(backend: string | undefined): boolean {
   return backend ? LANGUAGE_REMINDER_BACKENDS.has(backend) : false;

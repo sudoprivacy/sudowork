@@ -27,7 +27,7 @@ export const LEGACY_SUDOCLAW_PRESET_AGENT_TYPE = 'sudoclaw' as const;
  */
 export const CHANNEL_DEFAULT_AGENT_BACKEND = 'scode' as const;
 
-export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'gemini' | typeof DEFAULT_PRESET_AGENT_TYPE | typeof LEGACY_SUDOCLAW_PRESET_AGENT_TYPE;
+export type PresetAgentType = 'codebuddy' | 'opencode' | 'qwen' | 'gemini' | typeof DEFAULT_PRESET_AGENT_TYPE | typeof LEGACY_SUDOCLAW_PRESET_AGENT_TYPE;
 
 /**
  * 使用 ACP 协议的预设 Agent 类型（需要通过 ACP 后端路由）
@@ -36,13 +36,10 @@ export type PresetAgentType = 'claude' | 'codebuddy' | 'opencode' | 'qwen' | 'ge
  * 这些类型会在创建对话时使用对应的 ACP 后端，而不是 Gemini 原生对话
  * These types will use corresponding ACP backend when creating conversation, instead of native Gemini
  */
-export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['claude', 'codebuddy', 'opencode', 'qwen', 'scode', 'sudoclaw'] as const;
+export const ACP_ROUTED_PRESET_TYPES: readonly PresetAgentType[] = ['codebuddy', 'opencode', 'qwen', 'scode', 'sudoclaw'] as const;
 
 export const CODEX_ACP_BRIDGE_VERSION = '0.9.5';
 export const CODEX_ACP_NPX_PACKAGE = `@zed-industries/codex-acp@${CODEX_ACP_BRIDGE_VERSION}`;
-
-export const CLAUDE_ACP_BRIDGE_VERSION = '0.20.2';
-export const CLAUDE_ACP_NPX_PACKAGE = `@zed-industries/claude-agent-acp@${CLAUDE_ACP_BRIDGE_VERSION}`;
 
 export const CODEBUDDY_ACP_NPX_PACKAGE = '@tencent-ai/codebuddy-code';
 
@@ -55,14 +52,21 @@ export function isAcpRoutedPresetType(type: PresetAgentType | undefined): boolea
 }
 
 /**
- * 将旧的 sudoclaw 预设类型归一化到 scode，便于新旧配置共存
- * Normalize the legacy sudoclaw preset type to scode so old metadata still works.
+ * 将旧的 sudoclaw/claude 预设类型归一化到 scode，便于新旧配置共存
+ * Normalize legacy sudoclaw/claude preset types to scode so old metadata still works.
  */
 export function normalizePresetAgentType(type: string | undefined): string | undefined {
-  if (type === LEGACY_SUDOCLAW_PRESET_AGENT_TYPE) {
+  if (type === LEGACY_SUDOCLAW_PRESET_AGENT_TYPE || type === 'claude') {
     return DEFAULT_PRESET_AGENT_TYPE;
   }
   return type;
+}
+
+export function normalizeLegacyAcpConversationState(backend: string | undefined, acpSessionId?: string): { backend: AcpBackendAll | undefined; acpSessionId?: string } {
+  if (backend === 'claude') {
+    return { backend: DEFAULT_PRESET_AGENT_TYPE };
+  }
+  return { backend: backend as AcpBackendAll | undefined, ...(acpSessionId ? { acpSessionId } : {}) };
 }
 
 /**
@@ -84,8 +88,6 @@ export function getAgentPriority(backend: string): number {
       return -1;
     case 'scode':
       return 0;
-    case 'claude':
-      return 2;
     case 'gemini':
       return 3;
     case 'custom':
@@ -97,7 +99,6 @@ export function getAgentPriority(backend: string): number {
 
 // 全部后端类型定义 - 包括暂时不支持的 / All backend types - including temporarily unsupported ones
 export type AcpBackendAll =
-  | 'claude' // Claude ACP
   | 'gemini' // Google Gemini ACP (backend, not agent type)
   | 'qwen' // Qwen Code ACP
   | 'iflow' // iFlow CLI ACP
@@ -202,8 +203,8 @@ export const POTENTIAL_ACP_CLIS: PotentialAcpCli[] = new Proxy([] as PotentialAc
  * 后端 ACP bridge 实现的会话恢复机制 / Session-resume mechanism a backend's ACP bridge implements.
  * - 'session-load': ACP 标准 `session/load`，按 session id 从磁盘恢复完整历史（默认；codex、scode，
  *   以及任何符合 ACP 标准的 bridge）/ ACP-standard `session/load` by id (default).
- * - 'meta-resume': `session/new` 携带 `_meta.claudeCode.options.resume`（claude-agent-acp / codebuddy 专用）
- *   / `session/new` carrying `_meta.claudeCode.options.resume`.
+ * - 'meta-resume': `session/new` 携带 `_meta.claudeCode.options.resume`（CodeBuddy wire compatibility）
+ *   / `session/new` carrying `_meta.claudeCode.options.resume` for CodeBuddy wire compatibility.
  *
  * 恢复失败时统一回退到全新会话，因此默认值对未经验证的 bridge 也是安全的（最坏等同于一次全新会话）。
  * Resume falls back to a fresh session on failure, so the default is safe for unverified bridges.
@@ -212,16 +213,16 @@ export type AcpResumeStrategy = 'session-load' | 'meta-resume';
 
 /**
  * ACP 后端 Agent 配置
- * 用于内置后端（claude, gemini, qwen）和用户自定义 Agent
+ * 用于内置后端（gemini, qwen）和用户自定义 Agent
  *
  * Configuration for an ACP backend agent.
- * Used for both built-in backends (claude, gemini, qwen) and custom user agents.
+ * Used for both built-in backends (gemini, qwen) and custom user agents.
  */
 export interface AcpBackendConfig {
-  /** 后端唯一标识符 / Unique identifier for the backend (e.g., 'claude', 'gemini', 'custom') */
+  /** 后端唯一标识符 / Unique identifier for the backend (e.g., 'scode', 'gemini', 'custom') */
   id: string;
 
-  /** UI 显示名称 / Display name shown in the UI (e.g., 'Goose', 'Claude Code') */
+  /** UI 显示名称 / Display name shown in the UI (e.g., 'Goose', 'Sudo Code') */
   name: string;
 
   /** 本地化名称 / Localized names (e.g., { 'zh-CN': '...', 'en-US': '...' }) */
@@ -241,7 +242,7 @@ export interface AcpBackendConfig {
    * 仅当二进制文件名与 id 不同时需要
    *
    * CLI command name used for detection via `which` command.
-   * Example: 'goose', 'claude', 'qwen'
+   * Example: 'goose', 'scode', 'qwen'
    * Only needed if the binary name differs from id.
    */
   cliCommand?: string;
@@ -272,7 +273,7 @@ export interface AcpBackendConfig {
   /**
    * 此后端 ACP bridge 实现的会话恢复机制；缺省为 'session-load'（ACP 标准）。
    * The session-resume mechanism this backend's ACP bridge implements; defaults to 'session-load'.
-   * 仅 claude/codebuddy 需覆盖为 'meta-resume'。详见 {@link AcpResumeStrategy}。
+   * CodeBuddy 覆盖为 'meta-resume'。详见 {@link AcpResumeStrategy}。
    */
   resumeStrategy?: AcpResumeStrategy;
 
@@ -306,13 +307,11 @@ export interface AcpBackendConfig {
   /**
    * 启用 ACP 模式时的参数
    * 不同 CLI 使用不同约定：
-   *   - ['--experimental-acp'] 用于 claude（未指定时的默认值）
    *   - ['--acp'] 用于 qwen, auggie
    *   - ['acp'] 用于 goose（子命令）
    *
    * Arguments to enable ACP mode when spawning the CLI.
    * Different CLIs use different conventions:
-   *   - ['--experimental-acp'] for claude (default if not specified)
    *   - ['--acp'] for qwen, auggie
    *   - ['acp'] for goose (subcommand)
    * If not specified, defaults to ['--experimental-acp'].
@@ -338,7 +337,7 @@ export interface AcpBackendConfig {
    * 此预设的主 Agent 类型（仅 isPreset=true 时生效）
    * 决定选择此预设时创建哪种类型的对话
    * - 'gemini': 创建 Gemini 对话
-   * - 'claude': 创建使用 Claude 后端的 ACP 对话
+   * - 'scode': 创建使用 Sudo Code 后端的 ACP 对话
    * - 'codex': 创建 Codex 对话
    * - 任意字符串: 扩展贡献的 ACP 适配器 ID（如 'ext-buddy'）
    * 为向后兼容默认为 'gemini'
@@ -346,7 +345,7 @@ export interface AcpBackendConfig {
    * The primary agent type for this preset (only applies when isPreset=true).
    * Determines which conversation type to create when selecting this preset.
    * - 'gemini': Creates a Gemini conversation
-   * - 'claude': Creates an ACP conversation with Claude backend
+   * - 'scode': Creates an ACP conversation with the Sudo Code backend
    * - 'codex': Creates a Codex conversation
    * - any string: Extension-contributed ACP adapter ID (e.g. 'ext-buddy')
    * Defaults to 'gemini' for backward compatibility.
@@ -393,15 +392,6 @@ export interface AcpBackendConfig {
 
 // 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones
 export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
-  claude: {
-    id: 'claude',
-    name: 'Claude Code',
-    cliCommand: 'claude',
-    authRequired: true,
-    enabled: true,
-    supportsStreaming: false,
-    resumeStrategy: 'meta-resume', // claude-agent-acp resumes via session/new _meta.claudeCode.options.resume
-  },
   gemini: {
     id: 'gemini',
     name: 'Google CLI',
@@ -447,7 +437,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     enabled: false, // ✅ Tencent CodeBuddy Code CLI，使用 `codebuddy --acp` 启动
     supportsStreaming: false,
     acpArgs: ['--acp'], // codebuddy 使用 --acp flag
-    resumeStrategy: 'meta-resume', // CodeBuddy ACP 复用 claude-agent-acp 的 _meta resume 机制
+    resumeStrategy: 'meta-resume', // CodeBuddy ACP requires _meta.claudeCode.options.resume wire compatibility
   },
   goose: {
     id: 'goose',
@@ -849,7 +839,7 @@ export interface ConfigOptionsUpdatePayload extends BaseSessionUpdate {
   };
 }
 
-/** Usage update notification from ACP backend (context window utilization, supported by claude-agent-acp and codex-acp) */
+/** Usage update notification from ACP backend (context window utilization) */
 export interface UsageUpdatePayload extends BaseSessionUpdate {
   update: {
     sessionUpdate: 'usage_update';

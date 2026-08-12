@@ -14,9 +14,8 @@ import brand from '@brand';
 import { AcpAdapter, resolveAcpQuestionAllowCustomInput } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
-import { CLAUDE_YOLO_SESSION_MODE, CODEBUDDY_YOLO_SESSION_MODE, IFLOW_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from '@/agent/acp/constants';
+import { CODEBUDDY_YOLO_SESSION_MODE, IFLOW_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from '@/agent/acp/constants';
 import { acpDetector } from '@/agent/acp/AcpDetector';
-import { getClaudeModel } from '@/agent/acp/utils';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from '@/agent/acp/modelInfo';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
@@ -399,7 +398,6 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
         if (legacyYoloMode && this.currentMode === 'default' && !data.sessionMode) {
           const yoloModeValues: Record<string, string> = {
-            claude: 'bypassPermissions',
             qwen: 'yolo',
             iflow: 'yolo',
             codex: 'yolo',
@@ -599,7 +597,6 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // YOLO mode
       if (this.extra.yoloMode) {
         const yoloModeMap: Partial<Record<AcpBackend, string>> = {
-          claude: CLAUDE_YOLO_SESSION_MODE,
           codebuddy: CODEBUDDY_YOLO_SESSION_MODE,
           qwen: QWEN_YOLO_SESSION_MODE,
           iflow: IFLOW_YOLO_SESSION_MODE,
@@ -613,26 +610,6 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             throw new Error(`[ACP] Failed to enable ${this.extra.backend} YOLO mode (${sessionMode}): ${errorMessage}`);
-          }
-        }
-      }
-
-      // Apply model from settings for Claude
-      if (this.extra.backend === 'claude') {
-        const configuredModel = getClaudeModel();
-        if (configuredModel) {
-          try {
-            const modelStart = Date.now();
-            await this.connection.setModel(configuredModel);
-            if (ACP_PERF_LOG) mainLog('ACP-PERF', `start: model set ${Date.now() - modelStart}ms`);
-          } catch (error) {
-            const errMsg = error instanceof Error ? error.message : String(error);
-            mainWarn('ACP', `Failed to set model from settings: ${errMsg}`);
-            if (errMsg.includes('model_not_found') || errMsg.includes('无可用渠道')) {
-              this.emitErrorMessage(
-                `Model "${configuredModel}" is not available on your API relay service. ` + `Please add this model to your relay's channel configuration, ` + `or update ANTHROPIC_MODEL in ~/.claude/settings.json to a supported model name. ` + `Falling back to the relay's default model.`
-              );
-            }
           }
         }
       }
@@ -656,8 +633,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       try {
         // Resume routing is driven by the per-backend strategy (SSOT in acpTypes), not ad-hoc
         // backend checks. 'session-load' (default: scode, codex, any ACP-compliant bridge) restores
-        // history from disk by id via the ACP-standard `session/load`. 'meta-resume' (claude/codebuddy)
-        // resumes through `session/new` + `_meta.claudeCode.options.resume`.
+        // history from disk by id via the ACP-standard `session/load`. CodeBuddy's 'meta-resume'
+        // strategy resumes through `session/new` + `_meta.claudeCode.options.resume`.
         const strategy = getAcpResumeStrategy(this.extra.backend);
         const response: { sessionId?: string } = strategy === 'meta-resume' ? await this.connection.newSession(this.extra.workspace, { resumeSessionId, forkSession: false }, memberMcpServers) : await this.connection.loadSession(resumeSessionId, this.extra.workspace, memberMcpServers);
 
@@ -700,8 +677,6 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       if (this.extra.backend === 'qwen') {
         await this.ensureBackendAuth('qwen', 'login');
-      } else if (this.extra.backend === 'claude') {
-        await this.ensureBackendAuth('claude', '/login');
       }
 
       try {
@@ -1090,7 +1065,7 @@ This identity statement takes priority over the default identity in USER.md.
             presetAgentType: this.options.backend,
           });
 
-          if (this.options.backend === 'claude' || this.options.backend === 'scode') {
+          if (this.options.backend === 'scode') {
             const skillsDir = resolveWorkspaceSkillsDir({
               type: 'acp',
               extra: {
@@ -1354,7 +1329,7 @@ This identity statement takes priority over the default identity in USER.md.
       const activeModelNoticeId = this.pendingModelSwitchNotice || (shouldInjectScodeStartupModelNotice ? this.getModelInfo()?.currentModelId || this.persistedModelId : null);
 
       // Inject model identity reminder for backends whose upstream identity text can be stale.
-      if (activeModelNoticeId && (this.extra.backend === 'claude' || this.extra.backend === 'scode')) {
+      if (activeModelNoticeId && this.extra.backend === 'scode') {
         const modelNotice = buildAcpModelIdentityReminder(this.extra.backend, activeModelNoticeId);
         processedContent = modelNotice + processedContent;
         this.pendingModelSwitchNotice = null;
@@ -2428,7 +2403,6 @@ This identity statement takes priority over the default identity in USER.md.
       try {
         this.extra.yoloMode = true;
         const yoloModeMap: Partial<Record<AcpBackend, string>> = {
-          claude: CLAUDE_YOLO_SESSION_MODE,
           qwen: QWEN_YOLO_SESSION_MODE,
         };
         const sessionMode = yoloModeMap[this.extra.backend];

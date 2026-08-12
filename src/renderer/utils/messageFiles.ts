@@ -22,13 +22,6 @@ export const buildDisplayMessage = (input: string, files: string[], workspacePat
   const visibleFiles = filterUserVisibleFiles(files);
   if (!visibleFiles.length) return input;
   const displayPaths = visibleFiles.map((filePath) => {
-    // bdpan remote files: show as workspace/<filename> (file will be downloaded before send)
-    if (filePath.startsWith('bdpan://')) {
-      const raw = filePath.slice('bdpan://'.length);
-      const remotePath = raw.includes('?') ? raw.slice(0, raw.indexOf('?')) : raw;
-      const fileName = remotePath.split('/').filter(Boolean).pop() || remotePath;
-      return workspacePath ? `${workspacePath}/${fileName}` : fileName;
-    }
     if (!workspacePath) return filePath;
     const isAbsolute = filePath.startsWith('/') || /^[A-Za-z]:/.test(filePath);
     if (isAbsolute) {

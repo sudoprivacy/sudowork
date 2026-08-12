@@ -46,10 +46,7 @@ const h = vi.hoisted(() => {
     responseStreamOn: vi.fn(() => vi.fn()),
     getInstalledAssistants: vi.fn(() => []),
     getAssistantMeta: vi.fn(() => null),
-    getDetectedAgents: vi.fn(() => [
-      { backend: 'scode', name: 'Sudo Code', isPreset: true },
-      { backend: 'claude', name: 'Claude Code', isPreset: true },
-    ]),
+    getDetectedAgents: vi.fn(() => [{ backend: 'scode', name: 'Sudo Code', isPreset: true }]),
     insertMail,
   };
 });
@@ -96,7 +93,7 @@ vi.mock('@process/database', () => ({
 vi.mock('@process/WorkerManage', () => ({ default: { buildConversation: h.buildConversation } }));
 vi.mock('@/process/AssistantManager', () => ({ assistantManager: { getAssistantMeta: h.getAssistantMeta, getInstalledAssistants: h.getInstalledAssistants } }));
 vi.mock('@/agent/acp/AcpDetector', () => ({ acpDetector: { getDetectedAgents: h.getDetectedAgents } }));
-vi.mock('@process/services/claudeCli/NodeRuntimeService', () => ({ getNodeBinaryPath: () => 'node' }));
+vi.mock('@process/services/nodeRuntime/NodeRuntimeService', () => ({ getNodeBinaryPath: () => 'node' }));
 vi.mock('@process/utils/assistantResources', () => ({ readAssistantResource: vi.fn(), ruleFilePattern: /.*/ }));
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn(), mainError: vi.fn() }));
 vi.mock('@process/i18n', () => ({
@@ -304,7 +301,7 @@ describe('TeamService createTeam members', () => {
     await expect(
       service.createTeam('user-1', 'Team', '/workspace', [
         { assistant_id: 'scode', name: 'Leader 1', role: 'lead' },
-        { assistant_id: 'claude', name: 'Leader 2', role: 'lead' },
+        { assistant_id: 'scode', name: 'Leader 2', role: 'lead' },
       ])
     ).rejects.toThrow('Exactly one team member must be Leader');
     await expect(service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: ' ', name: 'Leader', role: 'lead' }])).rejects.toThrow('Team member assistant_id is required');
@@ -312,7 +309,7 @@ describe('TeamService createTeam members', () => {
     await expect(
       service.createTeam('user-1', 'Team', '/workspace', [
         { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-        { assistant_id: 'claude', name: 'Worker', role: 'member' as 'teammate' },
+        { assistant_id: 'scode', name: 'Worker', role: 'member' as 'teammate' },
       ])
     ).rejects.toThrow('Team member role must be lead or teammate');
     expect(h.teams.size).toBe(0);
@@ -350,7 +347,7 @@ describe('TeamService createTeam members', () => {
 
     const team = await service.createTeam('user-1', 'Team', null, [
       { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+      { assistant_id: 'scode', name: 'Worker', role: 'teammate' },
     ]);
 
     expect(h.insertedMemberRoles).toEqual(['lead', 'teammate']);
@@ -364,7 +361,7 @@ describe('TeamService createTeam members', () => {
 
     await service.createTeam('user-1', 'Team', '/workspace', [
       { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+      { assistant_id: 'scode', name: 'Worker', role: 'teammate' },
     ]);
 
     expect(service.startTeamHttpServer).not.toHaveBeenCalled();
@@ -381,7 +378,7 @@ describe('TeamService createTeam members', () => {
     const service = await importService();
     const team = await service.createTeam('user-1', 'Team', '/workspace', [
       { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+      { assistant_id: 'scode', name: 'Worker', role: 'teammate' },
     ]);
 
     await service.rebuildTeam(team.id);
@@ -413,7 +410,7 @@ describe('TeamService createTeam members', () => {
     const service = await importService();
     const team = await service.createTeam('user-1', 'Team', '/workspace', [
       { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+      { assistant_id: 'scode', name: 'Worker', role: 'teammate' },
     ]);
     h.buildConversation.mockReturnValue(null);
 
@@ -432,7 +429,7 @@ describe('TeamService createTeam members', () => {
     const service = await importService();
     const team = await service.createTeam('user-1', 'Team', '/workspace', [
       { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+      { assistant_id: 'scode', name: 'Worker', role: 'teammate' },
     ]);
     const leader = leaderFor(team.id);
     if (!leader.conversation_id) throw new Error('missing leader conversation');
@@ -457,7 +454,7 @@ describe('TeamService createTeam members', () => {
       h.emitMemberSpawned.mockClear();
       h.notifyWake.mockClear();
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', model: 'model-1', wakeTeammateOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'scode', name: 'Worker', role: 'teammate', model: 'model-1', wakeTeammateOnSpawn: false });
       const spawnCall = h.createConversation.mock.calls.at(-1)?.[0] as { skipWorkerRegistration?: boolean };
 
       expect(teammate.role).toBe('teammate');
@@ -478,7 +475,7 @@ describe('TeamService createTeam members', () => {
       expect(h.emitAgentStatusChanged).toHaveBeenCalledWith({ team_id: team.id, slot_id: teammate.id, status: 'idle' });
       expect(notice?.content).toContain('A teammate was added to the team');
       expect(notice?.content).toContain(`slot_id=${teammate.id}`);
-      expect(notice?.content).toContain('assistant_id=claude');
+      expect(notice?.content).toContain('assistant_id=scode');
       expect(record?.pending_wakes.get(leader.id)?.some((wake) => wake.source === 'team_membership_changed')).toBe(true);
       expect(h.emitMemberSpawned).toHaveBeenCalledTimes(1);
     } finally {
@@ -498,7 +495,7 @@ describe('TeamService createTeam members', () => {
       h.emitMemberSpawned.mockClear();
       h.emitAgentStatusChanged.mockClear();
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', wakeTeammateOnSpawn: false, notifyLeaderOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'scode', name: 'Worker', role: 'teammate', wakeTeammateOnSpawn: false, notifyLeaderOnSpawn: false });
 
       expect(h.emitMemberSpawned).toHaveBeenCalledTimes(1);
       await vi.runOnlyPendingTimersAsync();
@@ -525,7 +522,7 @@ describe('TeamService createTeam members', () => {
         h.mails.push({ ...mail });
       });
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', notifyLeaderOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'scode', name: 'Worker', role: 'teammate', notifyLeaderOnSpawn: false });
 
       expect(h.members.has(teammate.id)).toBe(true);
       await vi.runOnlyPendingTimersAsync();
@@ -552,7 +549,7 @@ describe('TeamService createTeam members', () => {
         h.mails.push({ ...mail });
       });
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', wakeTeammateOnSpawn: false });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'scode', name: 'Worker', role: 'teammate', wakeTeammateOnSpawn: false });
 
       await vi.runOnlyPendingTimersAsync();
 
@@ -574,7 +571,7 @@ describe('TeamService createTeam members', () => {
       h.emitAgentStatusChanged.mockClear();
       h.insertMail.mockClear();
 
-      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate' });
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'scode', name: 'Worker', role: 'teammate' });
       await service.removeMember(team.id, teammate.id);
       await vi.runOnlyPendingTimersAsync();
 
@@ -599,7 +596,7 @@ describe('TeamService createTeam members', () => {
     await expect(
       service.createTeam('user-1', 'Team', '/workspace', [
         { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-        { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+        { assistant_id: 'scode', name: 'Worker', role: 'teammate' },
       ])
     ).rejects.toThrow('teammate failed');
 

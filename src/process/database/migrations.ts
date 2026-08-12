@@ -928,7 +928,7 @@ const migration_v16: IMigration = {
         } else if (row.type === 'codex') {
           extra.backend = 'codex';
         } else if (row.type === 'nanobot') {
-          extra.backend = 'claude'; // Nanobot has no meaningful backend; map to claude
+          extra.backend = 'scode'; // Nanobot has no meaningful backend; use the supported default
         }
       }
       updateStmt.run(JSON.stringify(extra), row.id);

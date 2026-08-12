@@ -14,7 +14,7 @@ steps:
   - op: screenshot
     path: "screenshots/doctor-30min-00-home.png"
   - op: judge
-    expect: "新会话 Sudoclaw Claude Code"
+    expect: "新会话 Sudo Code"
 
   # ── Phase 2: Select doctor preset ──
   - op: mouse_click

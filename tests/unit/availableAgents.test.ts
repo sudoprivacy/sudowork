@@ -12,7 +12,7 @@ describe('availableAgents helpers', () => {
   const agents: AvailableAgent[] = [
     { backend: 'gemini', name: 'Gemini' },
     { backend: 'gemini', name: 'Gemini CLI', cliPath: '/usr/local/bin/gemini' },
-    { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
+    { backend: 'claude' as AvailableAgent['backend'], name: 'Legacy Claude Code', cliPath: '/usr/local/bin/claude' },
     { backend: 'custom', name: 'Custom Agent', customAgentId: 'custom-1' },
     { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
     { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },
@@ -22,9 +22,8 @@ describe('availableAgents helpers', () => {
     expect(AVAILABLE_AGENTS_SWR_KEY).toBe('acp.agents.available');
   });
 
-  it('filters out gemini agents from UI', () => {
+  it('filters out gemini and legacy Claude Code agents from UI', () => {
     expect(filterAvailableAgentsForUi(agents)).toEqual([
-      { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
       { backend: 'custom', name: 'Custom Agent', customAgentId: 'custom-1' },
       { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
       { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },
@@ -33,9 +32,7 @@ describe('availableAgents helpers', () => {
 
   it('splits conversation dropdown agents into cli and preset groups', () => {
     expect(splitConversationDropdownAgents(filterAvailableAgentsForUi(agents))).toEqual({
-      cliAgents: [
-        { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
-      ],
+      cliAgents: [],
       presetAssistants: [
         { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
         { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },

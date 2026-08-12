@@ -4,14 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as os from 'os';
 import * as path from 'path';
-import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import { getDatabase } from '@process/database';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
-import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
@@ -35,8 +32,6 @@ import { getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
 import { turnInputCoordinator } from '../task/turnInputCoordinator';
 import { reapConversation } from '../services/conversationReaper';
-import { closeBrowserTabsByConversation } from './browserPanelBridge';
-import { closeTerminalsByConversation } from './terminalBridge';
 import { migrateConversationToDatabase } from './migrationUtils';
 
 const workspaceSkillSyncTasks = new Map<string, Promise<void>>();
@@ -806,85 +801,13 @@ export function initConversationBridge(): void {
     mainLog('conversationBridge', `sendMessage: found task type=${task.type}, status=${task.status}`);
 
     // 复制文件到工作空间（所有 agents 统一处理）
-    let filesToProcess = files ?? [];
+    const filesToProcess = files ?? [];
 
-    // Download bdpan:// files to workspace before copying
     const workspace = (task as any).workspace ?? '';
-    const resolvedFiles: string[] = [];
-    for (const f of filesToProcess) {
-      if (f.startsWith('bdpan://')) {
-        // UI 隐藏不能替代输入校验；遗留会话仍可能携带 bdpan URI，必须在主进程明确拒绝。
-        if (IS_OFFLINE_BUILD) {
-          mainWarn('ConversationBridge', 'Rejected bdpan attachment because bdpan is disabled in offline builds');
-          return { success: false, msg: '内网版不支持 bdpan 附件' };
-        }
-        // Parse bdpan:///<path>?root=<root>
-        const raw = decodeURIComponent(f.slice('bdpan://'.length));
-        const qIdx = raw.indexOf('?');
-        const remoteFull = qIdx >= 0 ? raw.slice(0, qIdx) : raw;
-        const rootParam = qIdx >= 0 ? (new URLSearchParams(raw.slice(qIdx + 1)).get('root') ?? '') : '';
-        // Strip root prefix to get relative path: /apps/bdpan/abc/haha.jpg -> abc/haha.jpg
-        const rootPrefix = rootParam.endsWith('/') ? rootParam : rootParam + '/';
-        const remoteArg = remoteFull.startsWith(rootPrefix) ? remoteFull.slice(rootPrefix.length) : remoteFull.replace(/^\/+/, '');
-        const filename = remoteFull.split('/').filter(Boolean).pop() ?? 'bdpan_file';
-        const destDir = workspace || os.tmpdir();
-        const localPath = path.join(destDir, filename);
-        mainLog('ConversationBridge', `Downloading bdpan file: ${remoteArg} → ${localPath}`);
-        try {
-          const localBin = `${os.homedir()}/.local/bin`;
-          if (!process.env.PATH?.includes(localBin)) {
-            process.env.PATH = `${localBin}:${process.env.PATH ?? ''}`;
-          }
-          await new Promise<void>((resolve) => {
-            const args = ['download', remoteArg, localPath, '--json'];
-            mainLog('ConversationBridge', `bdpan spawn: bdpan ${args.join(' ')}`);
-            const child = spawn('bdpan', args, {
-              env: { ...process.env, HOME: os.homedir() },
-            });
-            let stdout = '';
-            let stderr = '';
-            child.stdout?.on('data', (d: Buffer) => {
-              stdout += d.toString();
-            });
-            child.stderr?.on('data', (d: Buffer) => {
-              stderr += d.toString();
-            });
-            child.on('close', (code) => {
-              mainLog('ConversationBridge', `bdpan exit code=${code} stdout=${stdout.trim()} stderr=${stderr.trim()}`);
-              let jsonCode: number | undefined;
-              let jsonError: string | undefined;
-              try {
-                const json = JSON.parse(stdout.trim()) as { code?: number; error?: string };
-                jsonCode = json.code;
-                jsonError = json.error || undefined;
-              } catch {
-                // Ignore non-JSON output and fall back to stderr/stdout text.
-              }
-              if (jsonCode === 0) {
-                mainLog('ConversationBridge', `Downloaded ${remoteArg} → ${localPath}`);
-                resolvedFiles.push(localPath);
-                ipcBridge.bdpan.downloadResult.emit({ success: true });
-              } else {
-                const dlErr = jsonError || stderr || stdout || 'bdpan download failed';
-                mainError('ConversationBridge', `bdpan download failed: ${dlErr}`);
-                ipcBridge.bdpan.downloadResult.emit({ success: false, error: dlErr });
-              }
-              resolve();
-            });
-            child.on('error', (err) => {
-              mainError('ConversationBridge', `bdpan spawn error: ${err.message}`);
-              ipcBridge.bdpan.downloadResult.emit({ success: false, error: err.message });
-              resolve();
-            });
-          });
-        } catch (err) {
-          mainError('ConversationBridge', `bdpan download exception: ${err}`);
-        }
-      } else {
-        resolvedFiles.push(f);
-      }
+    if (filesToProcess.some((file) => file.startsWith('bdpan://'))) {
+      mainWarn('ConversationBridge', 'Rejected legacy bdpan attachment because bdpan support has been removed');
+      return { success: false, msg: 'bdpan attachments are no longer supported' };
     }
-    filesToProcess = resolvedFiles;
 
     // Remote-agent (enterprise/moss) sessions have no usable local workspace —
     // `workspace` is empty, so copyFilesToDirectory would resolve to the

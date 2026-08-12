@@ -54,11 +54,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Build claude-code
-        run: node scripts/download-claude-code.js --force
-        env:
-          npm_config_arch: ${{ matrix.arch }}
-
       - name: Build gemini-cli
         run: node scripts/download-gemini-cli.js --force
         env:
@@ -72,9 +67,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: bundles-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            resources/claude-code.tgz
-            resources/gemini-cli.tgz
+          path: resources/gemini-cli.tgz
           retention-days: 7
 
   create-release:
@@ -113,19 +106,15 @@ jobs:
           mkdir -p release-assets
 
           # macOS arm64
-          cp tmp/macos-arm64/claude-code.tgz release-assets/claude-code-macos-arm64.tgz
           cp tmp/macos-arm64/gemini-cli.tgz release-assets/gemini-cli-macos-arm64.tgz
 
           # macOS x64
-          cp tmp/macos-x64/claude-code.tgz release-assets/claude-code-macos-x64.tgz
           cp tmp/macos-x64/gemini-cli.tgz release-assets/gemini-cli-macos-x64.tgz
 
           # Windows x64
-          cp tmp/windows-x64/claude-code.tgz release-assets/claude-code-windows-x64.tgz
           cp tmp/windows-x64/gemini-cli.tgz release-assets/gemini-cli-windows-x64.tgz
 
           # Windows arm64
-          cp tmp/windows-arm64/claude-code.tgz release-assets/claude-code-windows-arm64.tgz
           cp tmp/windows-arm64/gemini-cli.tgz release-assets/gemini-cli-windows-arm64.tgz
 
       - name: List release assets
@@ -142,10 +131,10 @@ jobs:
 
             | Platform | Arch | Files |
             |----------|------|-------|
-            | macOS | arm64 | claude-code-macos-arm64.tgz, gemini-cli-macos-arm64.tgz |
-            | macOS | x64 | claude-code-macos-x64.tgz, gemini-cli-macos-x64.tgz |
-            | Windows | x64 | claude-code-windows-x64.tgz, gemini-cli-windows-x64.tgz |
-            | Windows | arm64 | claude-code-windows-arm64.tgz, gemini-cli-windows-arm64.tgz |
+            | macOS | arm64 | gemini-cli-macos-arm64.tgz |
+            | macOS | x64 | gemini-cli-macos-x64.tgz |
+            | Windows | x64 | gemini-cli-windows-x64.tgz |
+            | Windows | arm64 | gemini-cli-windows-arm64.tgz |
           files: release-assets/*
           draft: false
           prerelease: true

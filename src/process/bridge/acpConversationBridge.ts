@@ -133,8 +133,8 @@ export function initAcpConversationBridge(): void {
     const agents = acpDetector.getDetectedAgents();
     const agent = agents.find((a) => a.backend === backend);
 
-    // Skip CLI check for claude/codebuddy (uses npx) and codex (has its own detection)
-    if (!agent?.cliPath && backend !== 'claude' && backend !== 'codebuddy' && backend !== 'codex') {
+    // Skip CLI check for CodeBuddy (uses npx) and Codex (has its own detection)
+    if (!agent?.cliPath && backend !== 'codebuddy' && backend !== 'codex') {
       return {
         success: false,
         msg: `${backend} CLI not found`,
@@ -192,7 +192,7 @@ export function initAcpConversationBridge(): void {
       }
     }
 
-    // Step 3: For ACP-based agents (claude, gemini, qwen, etc.)
+    // Step 3: For ACP-based agents
     const connection = new AcpConnection();
 
     try {
@@ -304,7 +304,7 @@ export function initAcpConversationBridge(): void {
     const agents = acpDetector.getDetectedAgents();
     const agent = agents.find((item) => item.backend === backend);
 
-    if (!agent?.cliPath && backend !== 'claude' && backend !== 'codebuddy' && backend !== 'codex') {
+    if (!agent?.cliPath && backend !== 'codebuddy' && backend !== 'codex') {
       return {
         success: false,
         msg: `${backend} CLI not found`,
@@ -400,8 +400,8 @@ export function initAcpConversationBridge(): void {
     }
   });
 
-  // Set session mode for ACP/Gemini agents (claude, qwen, gemini, etc.)
-  // 设置 ACP/Gemini 代理的会话模式（claude、qwen、gemini 等）
+  // Set session mode for ACP/Gemini agents
+  // 设置 ACP/Gemini 代理的会话模式
   ipcBridge.acpConversation.setMode.provider(async ({ conversationId, mode }) => {
     try {
       const task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);

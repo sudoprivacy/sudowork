@@ -69,9 +69,9 @@ function TeamDetailPage() {
   const leaderTeamSendMessage = useMemo(
     () =>
       async ({ input, files, msg_id }: { input: string; files?: string[]; msg_id?: string }) => {
-        // claude/scode leaders carry their own config and must not be blocked by model.config.
-        // Probing on every team message is too costly, so skip the guard for these two backends only.
-        if (isGuest && ready && !hasModel && leader.assistant_backend !== 'claude' && leader.assistant_backend !== 'scode') {
+        // Scode leaders carry their own model config and must not be blocked by model.config.
+        // Probing on every team message is too costly, so skip the guard for scode only.
+        if (isGuest && ready && !hasModel && leader.assistant_backend !== 'scode') {
           Message.error(t('guid.modelNotConfigured', { defaultValue: '未配置可用模型，请在设置页添加模型' }));
           return;
         }

@@ -53,7 +53,7 @@
 | AI can execute multi-step tasks | Limited                     | **Yes — autonomous with your approval**                                                      |
 | Remote access from phone        | Rarely                      | **WebUI + Telegram / Lark / DingTalk**                                                       |
 | Scheduled automation            | No                          | **Cron — 24/7 unattended**                                                                   |
-| Multiple AI Agents at once      | No                          | **Claude Code, Codex, OpenClaw, Qwen Code, and 12+ more — auto-detected, unified interface** |
+| Multiple AI Agents at once      | No                          | **Codex, OpenClaw, Qwen Code, and 11+ more — auto-detected, unified interface**              |
 | Price                           | Free / Paid                 | **Free & Open Source**                                                                       |
 
 <p align="center">
@@ -79,9 +79,9 @@ Sudowork ships with a complete AI agent engine. Unlike tools that require you to
 
 ## Multi-Agent Mode — Already Have CLI Agents? Bring Them In
 
-If you already use Claude Code, Codex, or Qwen Code, Sudowork auto-detects them and lets you Cowork with all of them — alongside the built-in agent.
+If you already use Codex or Qwen Code, Sudowork auto-detects them and lets you Cowork with all of them — alongside the built-in agent.
 
-**Supported Agents:** Built-in Agent (zero setup) • Claude Code • Codex • Qwen Code • Goose AI • OpenClaw • Augment Code • iFlow CLI • CodeBuddy • Kimi CLI • OpenCode • Factory Droid • GitHub Copilot • Qoder CLI • Mistral Vibe • Nanobot and more
+**Supported Agents:** Built-in Agent (zero setup) • Codex • Qwen Code • Goose AI • OpenClaw • Augment Code • iFlow CLI • CodeBuddy • Kimi CLI • OpenCode • Factory Droid • GitHub Copilot • Qoder CLI • Mistral Vibe • Nanobot and more
 
 <!-- <p align="center">
   <img src="./resources/multi-agent支持openclaw.gif" alt="Multi-Agent Cowork" width="800">
@@ -188,7 +188,7 @@ _Your 24/7 AI assistant — access Sudowork from any device, anywhere._
   <img src="./resources/webui-remote.gif" alt="WebUI remote access demo" width="800">
 </p> -->
 
-<p align="center"><em>Remote control &amp; monitor your agent — Claude, Gemini, Codex. Use from browser or phone, same as Claude Code remote.</em></p>
+<p align="center"><em>Remote control &amp; monitor your agents from a browser or phone.</em></p>
 ## ✨ Cowork in Action
 
 ### **Scheduled Tasks — Cowork on Autopilot**
@@ -412,13 +412,13 @@ Deep AI Office Scenario Support:
 ## Quick Q&A
 
 <details>
-<summary><strong>Q: Do I need to install Gemini CLI or Claude Code first?</strong></summary>
-A: <strong>No.</strong> Sudowork has a built-in AI agent that works immediately after installation. Just sign in with Google or enter any API key. If you also have CLI tools like Claude Code or Gemini CLI installed, Sudowork will auto-detect and integrate them for even more capabilities.
+<summary><strong>Q: Do I need to install a CLI agent first?</strong></summary>
+A: <strong>No.</strong> Sudowork has a built-in AI agent that works immediately after installation. Just sign in with Google or enter any supported API key. Compatible installed CLI agents can also be auto-detected and integrated.
 </details>
 
 <details>
 <summary><strong>Q: What can I do with Sudowork?</strong></summary>
-A: Sudowork is your <strong>private Cowork workspace</strong>. The built-in agent can batch organize folders, process Excel data, generate documents, search the web, and generate images. With Multi-Agent Mode, you can also leverage Claude Code, Codex, and other powerful CLI agents through the same interface.
+A: Sudowork is your <strong>private Cowork workspace</strong>. The built-in agent can batch organize folders, process Excel data, generate documents, search the web, and generate images. With Multi-Agent Mode, you can also use Codex and other compatible CLI agents through the same interface.
 </details>
 
 <details>

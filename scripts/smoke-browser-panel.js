@@ -4,8 +4,7 @@
  *
  * Drives the HTTP loopback exposed by BrowserPanelHttpServer (the same
  * surface the bundled MCP server uses) so we can verify the full
- * MCP server → main process → CDP → webview chain without launching
- * Claude Code or driving the AI.
+ * MCP server → main process → CDP → webview chain without driving an agent.
  *
  * Pre-flight (manual once, before running this script):
  *   1. sudowork dev is running (`node scripts/launch-dev.js start`).
@@ -19,7 +18,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const { execSync, spawn } = require('node:child_process');
+const { spawn } = require('node:child_process');
 
 const RED = '\x1b[31m';
 const GREEN = '\x1b[32m';
@@ -135,19 +134,8 @@ async function sleep(ms) {
   });
   check('rejects requests without bearer token', unauth === 401, `got ${unauth}`);
 
-  // ── 2. claude mcp registration ──────────────────────────────────────────
-  section('2. claude mcp registration');
-  try {
-    const out = execSync('claude mcp list', { encoding: 'utf-8', timeout: 10_000 });
-    const line = out.split('\n').find((l) => l.includes('browser-panel')) || '';
-    check('browser-panel appears in `claude mcp list`', !!line, line.trim());
-    check('reports ✓ Connected', /✓\s*Connected/.test(line), line ? line.trim() : '');
-  } catch (err) {
-    check('claude CLI is callable', false, err.message);
-  }
-
-  // ── 3. MCP stdio server: handshake + tool list ──────────────────────────
-  section('3. MCP stdio server handshake');
+  // ── 2. MCP stdio server: handshake + tool list ──────────────────────────
+  section('2. MCP stdio server handshake');
   await new Promise((resolve) => {
     const repoRoot = path.resolve(__dirname, '..');
     const scriptPath = path.join(repoRoot, 'resources', 'browser-panel-mcp', 'index.js');
@@ -187,7 +175,7 @@ async function sleep(ms) {
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }) + '\n');
   });
 
-  // ── 4. HTTP routes (require an open BrowserPanel) ──────────────────────
+  // ── 3. HTTP routes (require an open BrowserPanel) ──────────────────────
   section('4. CDP-driven HTTP routes');
   const tabsRes = await postJson(discovery, '/tab/list', {});
   if (tabsRes.error) {

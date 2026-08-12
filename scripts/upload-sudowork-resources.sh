@@ -10,10 +10,6 @@ mkdir -p "$DOWNLOAD_DIR"
 
 # Sudowork resource_0.0.5 下载配置
 SUDOWORK_FILES=(
-  "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/claude-code-macos-arm64.tgz|claude-code-macos-arm64.tgz"
-  "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/claude-code-macos-x64.tgz|claude-code-macos-x64.tgz"
-  "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/claude-code-windows-arm64.tgz|claude-code-windows-arm64.tgz"
-  "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/claude-code-windows-x64.tgz|claude-code-windows-x64.tgz"
   "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/gemini-cli-macos-arm64.tgz|gemini-cli-macos-arm64.tgz"
   "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/gemini-cli-macos-x64.tgz|gemini-cli-macos-x64.tgz"
   "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/gemini-cli-windows-arm64.tgz|gemini-cli-windows-arm64.tgz"

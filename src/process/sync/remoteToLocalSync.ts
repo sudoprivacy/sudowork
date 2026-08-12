@@ -17,17 +17,18 @@
  * 5. 写入 _sudowork_meta.json 元数据
  */
 
-import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir } from '@process/initStorage';
-import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
-import { getValidToken } from '@process/bridge/eeclawBridge';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import https from 'node:https';
 import http from 'node:http';
 import JSZip from 'jszip';
+import { getValidToken } from '@process/bridge/eeclawBridge';
+import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
+import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir } from '@process/initStorage';
 import { skillManager } from '@process/SkillManager';
 import { assistantManager } from '@process/AssistantManager';
+import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { initEnterpriseDirs, getEnterpriseHubSkillsDir, getEnterpriseHubAssistantsDir, getEnterpriseTenantSkillsDir, getEnterpriseTenantAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName, getAssistantInstallDir, getSkillInstallDir } from '@/process/constants/enterpriseStorage';
 import { SKILL_HUB_META_FILE } from '@/process/constants/skillStorage';
@@ -625,7 +626,7 @@ async function installAssistantToLocal(detail: AssistantInstallDetail): Promise<
     descriptionI18n: detail.meta.description ? { 'zh-CN': detail.meta.description } : undefined,
     avatar: detail.meta.avatar || detail.meta.emoji || undefined,
     emoji: detail.meta.emoji,
-    presetAgentType: detail.meta.presetAgentType || 'claude',
+    presetAgentType: normalizePresetAgentType(typeof detail.meta.presetAgentType === 'string' ? detail.meta.presetAgentType : undefined) || DEFAULT_PRESET_AGENT_TYPE,
     source_type: 'hub',
     tag: 'hub',
     skills: detail.meta.enabledSkills || [],
@@ -802,7 +803,7 @@ async function installAssistantById(assistant: RemoteAssistantInfo, serverUrl: s
     descriptionI18n: existingMeta?.descriptionI18n || {},
     avatar: existingMeta?.avatar || undefined,
     emoji: existingMeta?.emoji || undefined,
-    presetAgentType: existingMeta?.presetAgentType || 'claude',
+    presetAgentType: normalizePresetAgentType(existingMeta?.presetAgentType) || DEFAULT_PRESET_AGENT_TYPE,
     source_type: assistantSourceType,
     tag: assistantSourceType,
     skills: existingMeta?.skills || assistant.enabledSkills || [],

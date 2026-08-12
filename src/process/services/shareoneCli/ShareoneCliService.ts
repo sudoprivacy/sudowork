@@ -4,18 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CliInstallService } from '../claudeCli/CliInstallService';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { promisify } from 'util';
+import { execFile } from 'child_process';
 import { ipcBridge } from '@/common';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
 import { isEnterpriseMode, getUserId, getMossServerUrl, getAuthToken } from '@/common/enterpriseDebugConfig';
 import { buildNamespace } from '@/common/nexus/namespace';
 import { MossSecretClient } from '@/common/nexus/moss-secret-client';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import { promisify } from 'util';
-import { execFile } from 'child_process';
+import { CliInstallService } from '../cli/CliInstallService';
 import { renderShareTemplate } from './shareTemplate';
 
 const execFileAsync = promisify(execFile);
@@ -24,7 +24,6 @@ const cli = new CliInstallService({
   name: 'shareone',
   npmPackage: '@shareone/cli',
   ossName: 'shareone',
-  declinedKey: 'shareoneCli.installDeclined',
   label: 'ShareOne CLI',
   useBundledNode: true,
   onProgress: (phase, percent) => {

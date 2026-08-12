@@ -5,9 +5,9 @@
  *
  * browser-panel MCP server.
  *
- * Launched by Claude Code as a stdio MCP subprocess via the entry sudowork
- * registers in ~/.claude.json. Surfaces the right-panel browser (CDP-driven,
- * runs inside sudowork) to the AI as a small set of tools.
+ * Launched as a stdio MCP subprocess through Sudowork's unified MCP
+ * configuration. Surfaces the right-panel browser (CDP-driven, runs inside
+ * Sudowork) to the AI as a small set of tools.
  *
  * IPC to sudowork main: HTTP loopback. The bearer token + port are read from
  * the discovery file <userData>/browser-panel-mcp.json. The MCP child does

@@ -17,8 +17,8 @@ import { existsSync, mkdirSync, promises as fs, readFileSync, writeFileSync } fr
 import os from 'os';
 import path from 'path';
 import { app } from 'electron';
-import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
-import { SCODE_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
+import { CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
+import { SCODE_HOME, SCODE_CONFIG_PATH } from '@process/services/scode/scodePaths';
 import { scodeEngineEnvOverrides } from '@process/services/scode/scodeEngineEnv';
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -188,8 +188,7 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   delete cleanEnv.NODE_DEBUG;
   delete cleanEnv.HOOK_PYTHON_WHL;
   delete cleanEnv.SUDOWORK_ACP_CHILD;
-  // Remove CLAUDECODE env var to prevent claude-agent-sdk from detecting
-  // a nested session when Sudowork itself is launched from Claude Code.
+  // Prevent child ACP runtimes from inheriting an external nested-session marker.
   delete cleanEnv.CLAUDECODE;
   // Remove ANTHROPIC_MODEL to prevent scode from inheriting a stale model alias
   // from the user's shell (e.g. "glm-5.1"). The model is controlled by sudowork
@@ -398,7 +397,7 @@ export function createGenericSpawnConfig(cliPath: string, workingDir: string, ac
 
 export type SpawnResult = { child: ChildProcess; isDetached: boolean };
 
-/** Return type for npx backend prepare functions (prepareClaude, prepareCodex, prepareCodebuddy). */
+/** Return type for npx backend prepare functions. */
 export type NpxPrepareResult = {
   cleanEnv: Record<string, string | undefined>;
   npxCommand: string;
@@ -409,7 +408,7 @@ export type NpxPrepareResult = {
 
 /**
  * Spawn an npx-based ACP backend package.
- * Used by Claude, Codex, and CodeBuddy connectors.
+ * Used by Codex and CodeBuddy connectors.
  */
 export function spawnNpxBackend(
   backend: string,
@@ -454,14 +453,6 @@ export function spawnNpxBackend(
   }
 
   return { child, isDetached: detached };
-}
-
-/** Prepare clean env + resolve npx for Claude ACP bridge. */
-function prepareClaude(customEnv?: Record<string, string>): NpxPrepareResult {
-  const cleanEnv = prepareCleanEnv();
-  if (customEnv) Object.assign(cleanEnv, customEnv);
-  ensureMinNodeVersion(cleanEnv, 20, 10, 'Claude ACP bridge');
-  return { cleanEnv, npxCommand: resolveNpxPath(cleanEnv) };
 }
 
 /** Prepare clean env + resolve npx + run diagnostics for Codex ACP bridge. */
@@ -692,20 +683,6 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
     mainLog('[ACP scode]', `Injected AI_DEV_BROWSER_IMAGE_CAP_MAX_BYTES=${cleanEnv.AI_DEV_BROWSER_IMAGE_CAP_MAX_BYTES}, MAX_DIMENSION=${cleanEnv.AI_DEV_BROWSER_IMAGE_CAP_MAX_DIMENSION}`);
   }
 
-  // Inject Claude Code OAuth token for scode subscription auth if available
-  if (backend === 'scode' && !cleanEnv.CLAUDE_CODE_OAUTH_TOKEN) {
-    try {
-      const keychain = execFileSync('security', ['find-generic-password', '-s', 'Claude Code-credentials', '-a', os.userInfo().username, '-w'], { encoding: 'utf-8', timeout: 3000 }).trim();
-      const payload = JSON.parse(keychain);
-      if (payload?.claudeAiOauth?.accessToken) {
-        cleanEnv.CLAUDE_CODE_OAUTH_TOKEN = payload.claudeAiOauth.accessToken;
-        mainLog('[ACP scode]', 'Injected Claude Code OAuth token from keychain');
-      }
-    } catch {
-      // Claude Code credentials not available — scode will use other auth methods
-    }
-  }
-
   // Ensure settings.json model is valid before spawning scode.
   // scode reads settings.json on startup and crashes (exit 1) if the model is not in sudocode.json models.
   // This prevents a death loop: crash → reconnect → read bad settings.json → crash again.
@@ -814,11 +791,6 @@ async function connectNpxBackend(config: {
 }
 
 // ── Exported per-backend connect functions ───────────────────────────
-
-/** Connect to Claude ACP bridge via npx. */
-export function connectClaude(workingDir: string, hooks: NpxConnectHooks, customEnv?: Record<string, string>): Promise<void> {
-  return connectNpxBackend({ backend: 'claude', npxPackage: CLAUDE_ACP_NPX_PACKAGE, prepareFn: () => prepareClaude(customEnv), workingDir, ...hooks });
-}
 
 /** Connect to Codex ACP bridge via npx. */
 export function connectCodex(workingDir: string, hooks: NpxConnectHooks, customEnv?: Record<string, string>): Promise<void> {

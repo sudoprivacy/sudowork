@@ -4,30 +4,27 @@ import { mergeTeamAssistants, type DetectedAgentLike, type InstalledAssistantLik
 describe('mergeTeamAssistants (附录 A2 merge/dedup/sort)', () => {
   it('merges installed + detected, dedupes by key, drops remote-agent, sorts agents before assistants by priority', () => {
     const installed: InstalledAssistantLike[] = [
-      { isBuiltin: true, isHubInstalled: false, name: 'doctor', meta: { id: 'doctor', display_name: 'Doctor', presetAgentType: 'claude', avatar: null } },
+      { isBuiltin: true, isHubInstalled: false, name: 'doctor', meta: { id: 'doctor', display_name: 'Doctor', presetAgentType: 'scode', avatar: null } },
       { isBuiltin: false, isHubInstalled: false, name: 'custom1', meta: { id: 'custom1', nameI18n: { 'zh-CN': 'Custom One' }, presetAgentType: 'scode' } },
     ];
     const detected: DetectedAgentLike[] = [
       { backend: 'scode', name: 'Sudo Code', presetAgentType: 'scode' },
-      { backend: 'claude', name: 'Claude', presetAgentType: 'claude' },
       { backend: 'remote-agent', name: 'Moss' },
       // Same assistant as the installed 'doctor' — must be deduped (installed wins, resolved backend).
-      { backend: 'custom', name: 'doctor', customAgentId: 'builtin-doctor', isPreset: true, presetAgentType: 'claude' },
+      { backend: 'custom', name: 'doctor', customAgentId: 'builtin-doctor', isPreset: true, presetAgentType: 'scode' },
     ];
 
     const assistants = mergeTeamAssistants(detected, installed);
     const ids = assistants.map((a) => a.assistant_id);
 
-    expect(ids).toEqual(['scode', 'claude', 'custom1', 'builtin-doctor']);
+    expect(ids).toEqual(['scode', 'builtin-doctor', 'custom1']);
     expect(ids).not.toContain('remote-agent');
-    expect(assistants.map((a) => a.source)).toEqual(['agent', 'agent', 'assistant', 'assistant']);
+    expect(assistants.map((a) => a.source)).toEqual(['agent', 'assistant', 'assistant']);
     const doctor = assistants.find((a) => a.assistant_id === 'builtin-doctor')!;
     expect(assistants.find((a) => a.assistant_id === 'custom1')?.name).toBe('Custom One');
-    expect(doctor.backend).toBe('claude'); // resolved, not 'custom'
+    expect(doctor.backend).toBe('scode');
     expect(doctor.source).toBe('assistant');
-    // Priority order within each source group: scode(0) before claude(2).
-    expect(ids.indexOf('scode')).toBeLessThan(ids.indexOf('claude'));
-    expect(ids.indexOf('custom1')).toBeLessThan(ids.indexOf('builtin-doctor'));
+    expect(ids.indexOf('scode')).toBeLessThan(ids.indexOf('builtin-doctor'));
   });
 
   it('falls back to detected only when installed is empty', () => {

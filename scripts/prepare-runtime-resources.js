@@ -24,7 +24,6 @@ function main() {
   run('download-nexus-vfs.js');
   run('download-scode.js');
   run('download-node.js');
-  run('download-bdpan.js');
 }
 
 main();

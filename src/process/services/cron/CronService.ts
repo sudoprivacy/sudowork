@@ -4,26 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { powerSaveBlocker, app } from 'electron';
+import { Cron } from 'croner';
 import { ipcBridge } from '@/common';
 import type { CronMessageMeta, TMessage } from '@/common/chatLib';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
-import { ProcessConfig } from '@process/initStorage';
 import { addMessage } from '@process/message';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
-import { powerSaveBlocker, app } from 'electron';
-import { Cron } from 'croner';
-import WorkerManage from '../../WorkerManage';
-import { copyFilesToDirectory } from '../../utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { readAssistantResource, ruleFilePattern, skillFilePattern } from '@process/utils/assistantResources';
+import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { assistantManager } from '@/process/AssistantManager';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
+import { copyFilesToDirectory } from '../../utils';
+import WorkerManage from '../../WorkerManage';
+import { createConversation } from '../conversationService';
 import { cronBusyGuard } from './CronBusyGuard';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
 import { assertClientCronEnabled, getClientCronEnabled } from './cronPolicy';
-import { createConversation } from '../conversationService';
 
 /**
  * Parameters for creating a new cron job
@@ -420,14 +419,8 @@ class CronService {
           const appLocale = app.getLocale() || 'en-US';
           const localeKey = appLocale.startsWith('zh') ? 'zh-CN' : appLocale.startsWith('ja') ? 'ja-JP' : appLocale.startsWith('ko') ? 'ko-KR' : 'en-US';
 
-          // Resolve rules file
-          let rules = '';
-          let skillsText = '';
-
-          // 1. Try user-customized files first, then builtin fallback
-          rules = await readAssistantResource('rules', presetAssistantId, localeKey, ruleFilePattern).catch(() => '');
-          skillsText = await readAssistantResource('skills', presetAssistantId, localeKey, skillFilePattern).catch(() => '');
-
+          // Resolve rules file from user-customized files first, then builtin fallback.
+          const rules = await readAssistantResource('rules', presetAssistantId, localeKey, ruleFilePattern).catch(() => '');
           presetContext = rules || undefined;
 
           // 3. Get enabledSkills + display info from AssistantManager (filesystem SSOT)
@@ -441,9 +434,8 @@ class CronService {
           const presetBackend = resolvePresetAgentBackend(presetAgentType);
 
           // Check that the ACP backend CLI has actually been detected on this
-          // machine. If not (e.g. Doctor wants 'claude' but Claude CLI isn't
-          // installed), fall back to scode so the job still runs instead of
-          // silently failing inside AcpAgent.initAgent.
+          // machine. If not, fall back to scode so the job still runs instead
+          // of silently failing inside AcpAgent.initAgent.
           const detected = acpDetector.getDetectedAgents();
           const hasCli = detected.some((a) => a.backend === presetBackend && !!a.cliPath);
           if (hasCli) {

@@ -45,7 +45,7 @@ bun run test:e2e           # 通过 pytest 运行 E2E（tests/e2e/，Python）
 
 两套 Vitest 环境：`node`（默认）和用于 `*.dom.test.ts` 文件的 `jsdom`。给某个功能区新增源文件时，记得同步加入 `vitest.config.ts` 的 `coverage.include`。
 
-生产构建走 `scripts/build-with-builder.js`（如 `bun run build:mac`、`build:win`、`build:linux`）。这些命令会先下载内置二进制（nexus-vfs、scode、node、bdpan、mcporter）并构建 browser MCP。`cli:download` / `*:download` 系列脚本负责获取这些随附运行时。
+生产构建走 `scripts/build-with-builder.js`（如 `bun run build:mac`、`build:win`、`build:linux`）。这些命令会先下载内置二进制（nexus-vfs、scode、node、mcporter）并构建 browser MCP。`cli:download` / `*:download` 系列脚本负责获取这些随附运行时。
 
 ## 架构
 

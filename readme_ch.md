@@ -51,7 +51,7 @@
 | AI 可以执行多步骤任务 | 有限               | **是 — 自主执行，需您批准**                                                |
 | 从手机远程访问        | 很少               | **WebUI + Telegram / Lark / DingTalk**                                     |
 | 定时自动化            | 否                 | **Cron — 24/7 无人值守**                                                   |
-| 同时运行多个 AI Agent | 否                 | **Claude Code、Codex、OpenClaw、Qwen Code 等 12+ 个 — 自动检测，统一界面** |
+| 同时运行多个 AI Agent | 否                 | **Codex、OpenClaw、Qwen Code 等 11+ 个 — 自动检测，统一界面**              |
 | 价格                  | 免费 / 付费        | **免费且开源**                                                             |
 
 <p align="center">
@@ -77,9 +77,9 @@ Sudowork 自带完整的 AI Agent。不像其他工具需要你手动安装各�
 
 ## 多 Agent 模式 — 已有 CLI 工具？一起用起来
 
-如果你已经在用 Claude Code、Codex 或 Qwen Code，Sudowork 会自动发现它们，让你同时和这些 Agent 一起协作——当然，还有内置 Agent。
+如果你已经在用 Codex 或 Qwen Code，Sudowork 会自动发现它们，让你同时和这些 Agent 一起协作——当然，还有内置 Agent。
 
-**支持的 Agent：** 内置 Agent（零配置） • Claude Code • Codex • Qwen Code • Goose AI • OpenClaw • Augment Code • iFlow CLI • CodeBuddy • Kimi CLI • OpenCode • Factory Droid • GitHub Copilot • Qoder CLI • Mistral Vibe • Nanobot 等
+**支持的 Agent：** 内置 Agent（零配置） • Codex • Qwen Code • Goose AI • OpenClaw • Augment Code • iFlow CLI • CodeBuddy • Kimi CLI • OpenCode • Factory Droid • GitHub Copilot • Qoder CLI • Mistral Vibe • Nanobot 等
 
 <!-- <p align="center">
   <img src="./resources/multi-agent支持openclaw.gif" alt="Multi-Agent Cowork" width="800">
@@ -187,7 +187,7 @@ parameter>
   <img src="./resources/webui-remote.gif" alt="WebUI remote access demo" width="800">
 </p> -->
 
-<p align="center"><em>远程监管你的 Agent — Claude、Gemini、Codex，浏览器或手机即可远程控制与查看，如同 Claude Code remote。</em></p>
+<p align="center"><em>通过浏览器或手机远程控制与查看你的 Agent。</em></p>
 
 ## ✨ Cowork 演示
 
@@ -412,13 +412,13 @@ Sudowork 是一个**免费开源的 Multi-AI Agent 桌面应用**。相比只能
 ## 常见问题
 
 <details>
-<summary><strong>问：我需要先安装 Gemini CLI 或 Claude Code 吗？</strong></summary>
-答：<strong>完全不需要。</strong> Sudowork 自带 AI Agent，装好就能用。用 Google 登录或者输入任意 API 密钥就行。如果你已经装了 Claude Code 或 Gemini CLI 这些 CLI 工具，Sudowork 会自动发现并集成它们，功能更强大。
+<summary><strong>问：我需要先安装 CLI Agent 吗？</strong></summary>
+答：<strong>完全不需要。</strong> Sudowork 自带 AI Agent，装好就能用。用 Google 登录或者输入受支持的 API 密钥即可。已安装的兼容 CLI Agent 也可以被自动发现并集成。
 </details>
 
 <details>
 <summary><strong>问：我可以用 Sudowork 做什么？</strong></summary>
-答：Sudowork 就是你的<strong>私有 Cowork 工作空间</strong>。内置 Agent 可以帮你批量整理文件夹、处理 Excel 数据、生成文档、搜索网络、生成图像。通过多 Agent 模式，你还能在同一界面同时使用 Claude Code、Codex 和其他强大的 CLI Agent。
+答：Sudowork 就是你的<strong>私有 Cowork 工作空间</strong>。内置 Agent 可以帮你批量整理文件夹、处理 Excel 数据、生成文档、搜索网络、生成图像。通过多 Agent 模式，你还能在同一界面同时使用 Codex 和其他兼容 CLI Agent。
 </details>
 
 <details>

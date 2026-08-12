@@ -7,20 +7,8 @@
 import { Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { mutate } from 'swr';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import {
-  nexus as nexusIpc,
-  claudeCli as claudeCliIpc,
-  libreOffice as libreOfficeIpc,
-  pythonRuntime as pythonRuntimeIpc,
-  scode as scodeIpc,
-  nodeRuntime as nodeRuntimeIpc,
-  acpConversation,
-  shareoneCli,
-  localKnowledgeBase as localKnowledgeBaseIpc,
-  popplerRuntime as popplerRuntimeIpc,
-} from '@/common/ipcBridge';
+import { nexus as nexusIpc, libreOffice as libreOfficeIpc, pythonRuntime as pythonRuntimeIpc, scode as scodeIpc, nodeRuntime as nodeRuntimeIpc, shareoneCli, localKnowledgeBase as localKnowledgeBaseIpc, popplerRuntime as popplerRuntimeIpc } from '@/common/ipcBridge';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
 import { IS_SHAREONE_DISABLED } from '@/common/buildMode';
 import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
@@ -37,10 +25,6 @@ export default function RuntimeSettings() {
 
   const [nodeStatus, setNodeStatus] = useState<ICliStatus | null>(null);
   const [nodeLoad, setNodeLoad] = useState<LoadState>('idle');
-
-  const [claudeStatus, setClaudeStatus] = useState<ICliStatus | null>(null);
-  const [claudeLoad, setClaudeLoad] = useState<LoadState>('idle');
-  const [claudePhase, setClaudePhase] = useState<'downloading' | 'extracting' | 'configuring' | undefined>(undefined);
 
   const [nexusPort, setNexusPort] = useState<number | undefined>(undefined);
   const [nexusRunning, setNexusRunning] = useState<boolean>(false);
@@ -131,72 +115,6 @@ export default function RuntimeSettings() {
       setNodeLoad('idle');
     }
   }, [refreshNode, t]);
-
-  const refreshClaude = useCallback(async (options?: RefreshOptions) => {
-    if (!options?.silent) {
-      setClaudeLoad('loading');
-    }
-    try {
-      const res = await claudeCliIpc.checkInstalled.invoke();
-      if (res?.success && res.data) setClaudeStatus(res.data);
-    } finally {
-      if (!options?.silent) {
-        setClaudeLoad('idle');
-      }
-    }
-  }, []);
-
-  /** Refresh the Guid homepage agent list (best-effort).
-   *  Uses rescanAgents to re-run full CLI detection so that newly
-   *  installed / uninstalled CLI agents (e.g. Claude Code) are picked up. */
-  const refreshAvailableAgents = useCallback(async () => {
-    try {
-      await acpConversation.rescanAgents.invoke();
-      await mutate('acp.agents.available');
-    } catch {
-      /* silent – agent list refresh is best-effort */
-    }
-  }, []);
-
-  const installClaude = useCallback(async () => {
-    setClaudeLoad('installing');
-    setClaudePhase(undefined);
-    try {
-      const res = await claudeCliIpc.install.invoke();
-      if (res?.success) {
-        Message.success(t('settings.runtimeSettings.installSuccess', { name: 'Claude Code' }));
-        await refreshClaude();
-        // Refresh the Guid homepage agent list so Claude Code appears immediately
-        void refreshAvailableAgents();
-      } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.installFailed', { name: 'Claude Code' }));
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.installFailed', { name: 'Claude Code' }));
-    } finally {
-      setClaudeLoad('idle');
-      setClaudePhase(undefined);
-    }
-  }, [refreshClaude, refreshAvailableAgents, t]);
-
-  const uninstallClaude = useCallback(async () => {
-    setClaudeLoad('loading');
-    try {
-      const res = await claudeCliIpc.uninstall.invoke();
-      if (res?.success) {
-        Message.success(t('settings.runtimeSettings.uninstallSuccess', { name: 'Claude Code' }));
-        await refreshClaude();
-        // Refresh the Guid homepage agent list so Claude Code is removed immediately
-        void refreshAvailableAgents();
-      } else {
-        Message.error(res?.msg || t('settings.runtimeSettings.uninstallFailed', { name: 'Claude Code' }));
-      }
-    } catch (e) {
-      Message.error(e instanceof Error ? e.message : t('settings.runtimeSettings.uninstallFailed', { name: 'Claude Code' }));
-    } finally {
-      setClaudeLoad('idle');
-    }
-  }, [refreshClaude, refreshAvailableAgents, t]);
 
   const refreshLibreOffice = useCallback(async (options?: RefreshOptions) => {
     if (!options?.silent) {
@@ -542,9 +460,9 @@ export default function RuntimeSettings() {
 
   const refreshRuntimePage = useCallback(
     async (options?: RefreshOptions) => {
-      await Promise.all([refreshNode(options), refreshClaude(options), refreshScode(), refreshShareone(), refreshEmbedding(options), refreshNexus(), refreshLibreOffice(options), refreshPython(options), refreshPoppler(options)]);
+      await Promise.all([refreshNode(options), refreshScode(), refreshShareone(), refreshEmbedding(options), refreshNexus(), refreshLibreOffice(options), refreshPython(options), refreshPoppler(options)]);
     },
-    [refreshClaude, refreshEmbedding, refreshLibreOffice, refreshNexus, refreshNode, refreshPoppler, refreshPython, refreshScode, refreshShareone]
+    [refreshEmbedding, refreshLibreOffice, refreshNexus, refreshNode, refreshPoppler, refreshPython, refreshScode, refreshShareone]
   );
 
   // Load all on mount; also restore install state if an install is already in progress
@@ -586,15 +504,6 @@ export default function RuntimeSettings() {
   // Auto-refresh when main process finishes a background install (e.g. first-launch prompt)
   useEffect(() => {
     const unsubNode = nodeRuntimeIpc.installResult.on(() => void refreshNode());
-    const unsubClaude = claudeCliIpc.installResult.on(() => {
-      setClaudePhase(undefined);
-      void refreshClaude();
-      // Also refresh the Guid homepage agent list for background installs
-      void refreshAvailableAgents();
-    });
-    const unsubClaudeProgress = claudeCliIpc.installProgress.on(({ phase }) => {
-      setClaudePhase(phase);
-    });
     const unsubScodeProgress = scodeIpc.installProgress.on(() => {
       setScodeLoad('installing');
     });
@@ -650,8 +559,6 @@ export default function RuntimeSettings() {
     });
     return () => {
       unsubNode();
-      unsubClaude();
-      unsubClaudeProgress();
       unsubScodeProgress();
       unsubScodeResult();
       unsubShareoneResult();
@@ -666,7 +573,7 @@ export default function RuntimeSettings() {
       unsubPopplerProgress();
       unsubPopplerResult();
     };
-  }, [refreshNode, refreshClaude, refreshAvailableAgents, refreshNexus, refreshScode, refreshShareone, refreshEmbedding, refreshLibreOffice, refreshPython, refreshPoppler]);
+  }, [refreshNode, refreshNexus, refreshScode, refreshShareone, refreshEmbedding, refreshLibreOffice, refreshPython, refreshPoppler]);
 
   const tableData: ToolRow[] = [
     {
@@ -679,18 +586,6 @@ export default function RuntimeSettings() {
       onRefresh: refreshNode,
       onInstall: installNode,
       onUninstall: uninstallNode,
-    },
-    {
-      key: 'claude',
-      displayName: 'Claude Code',
-      command: 'claude',
-      badge: 'CC',
-      status: claudeStatus,
-      loadState: claudeLoad,
-      installPhase: claudePhase,
-      onRefresh: refreshClaude,
-      onInstall: installClaude,
-      onUninstall: uninstallClaude,
     },
     {
       key: 'libreoffice',

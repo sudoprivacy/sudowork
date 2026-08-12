@@ -12,7 +12,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app } from 'electron';
 import brand from '@brand';
-import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
+import { getNodeBinaryPath } from '@process/services/nodeRuntime/NodeRuntimeService';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 

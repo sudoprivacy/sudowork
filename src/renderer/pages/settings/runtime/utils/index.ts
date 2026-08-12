@@ -12,7 +12,6 @@ type TranslateFn = (key: string, opts?: Record<string, unknown>) => string;
 
 export const badgeColors: Record<string, string> = {
   node: 'bg-cyan-1 color-cyan-6 border border-cyan-3',
-  claude: 'bg-orange-1 color-orange-6 border border-orange-3',
   libreoffice: 'bg-green-1 color-green-6 border border-green-3',
   python: 'bg-[#fef3c7] color-[#d97706] border border-[#fcd34d]',
   poppler: 'bg-lime-1 color-lime-7 border border-lime-3',

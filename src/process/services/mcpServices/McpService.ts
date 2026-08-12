@@ -8,7 +8,6 @@ import { execSync } from 'child_process';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import type { AcpBackend } from '../../../types/acpTypes';
 import type { IMcpServer } from '../../../common/storage';
-import { ClaudeMcpAgent } from './agents/ClaudeMcpAgent';
 import { CodebuddyMcpAgent } from './agents/CodebuddyMcpAgent';
 import { QwenMcpAgent } from './agents/QwenMcpAgent';
 import { IflowMcpAgent } from './agents/IflowMcpAgent';
@@ -23,7 +22,7 @@ import type { IMcpProtocol, DetectedMcpServer, McpConnectionTestResult, McpSyncR
  * 新架构：只定义协议，具体实现由各个Agent类完成
  *
  * Agent 类型说明：
- * - AcpBackend ('claude', 'qwen', 'iflow', 'gemini', 'codex'等): 支持的 ACP 后端
+ * - AcpBackend ('qwen', 'iflow', 'gemini', 'codex'等): 支持的 ACP 后端
  * - 'sudowork': @office-ai/aioncli-core (Sudowork 本地管理的 Gemini 实现)
  */
 export class McpService {
@@ -77,7 +76,6 @@ export class McpService {
 
   constructor() {
     this.agents = new Map([
-      ['claude', new ClaudeMcpAgent()],
       ['scode', new ScodeMcpAgent()],
       ['codebuddy', new CodebuddyMcpAgent()],
       ['qwen', new QwenMcpAgent()],

@@ -11,8 +11,6 @@
   "openai": "OpenAI",
   "proxyConfig": "プロキシ",
   "yoloMode": "YOLO (Auto Allow)",
-  "claudeYoloMode": "Claude YOLO（権限をスキップ）",
-  "claudeYoloModeDesc": "Claude Code の権限確認をすべてバイパスします（--dangerously-skip-permissions 相当）。",
   "customCss": "Custom CSS",
   "customCssDesc": "Enter custom CSS styles here to modify the interface appearance. The system will automatically add !important to ensure highest priority. Changes will take effect immediately.",
   "assistants": "アシスタント",

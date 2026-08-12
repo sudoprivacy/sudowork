@@ -52,12 +52,22 @@
     "manualReinstallHint": "起動失敗後は自動再インストールされません。必要に応じてコアコンポーネントを手動で再インストールするか、スキップしてアプリに進んでください。",
     "quit": "終了",
     "step": {
-      "scode": { "label": "Sudocode", "description": "デフォルト ACP エージェントランタイム" },
-      "nexus": { "label": "Nexus OS コアエンジン", "description": "ローカルコアサービスエンジン" },
-      "git": { "label": "Git 環境", "description": "バージョン管理コンポーネント" },
-      "node": { "label": "Node.js ランタイム", "description": "JavaScript 実行環境" },
-      "claude": { "label": "Claude Code CLI", "description": "コマンドラインエージェントツール" },
-      "bdpan": { "label": "bdpan CLI", "description": "ファイル同期ツール" }
+      "scode": {
+        "label": "Sudocode",
+        "description": "デフォルト ACP エージェントランタイム"
+      },
+      "nexus": {
+        "label": "Nexus OS コアエンジン",
+        "description": "ローカルコアサービスエンジン"
+      },
+      "git": {
+        "label": "Git 環境",
+        "description": "バージョン管理コンポーネント"
+      },
+      "node": {
+        "label": "Node.js ランタイム",
+        "description": "JavaScript 実行環境"
+      }
     }
   }
 }

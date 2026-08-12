@@ -19,7 +19,7 @@ import { getAgentModes } from '@/renderer/utils/agentModes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { emitter } from '@/renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@/renderer/context/AuthContext';
-import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
+import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
 import { resolveGuidModelBackendKey } from '../utils/modelBackendKey';
 
 /**
@@ -563,7 +563,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
           // even when ACP detection has not produced custom IDs yet.
           if (agent.isPreset) return true;
           // User-created custom assistants should always be visible regardless of ACP detection
-          // (they don't need to be detected as they use existing backends like gemini/claude)
+          // (they don't need to be detected because they use an existing backend)
           if (!agent.isBuiltin) return true;
           return availableCustomAgentIds.has(agent.id);
         });
@@ -584,7 +584,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
         }
 
         // Merge extension-contributed assistants (they are preset assistants that don't need
-        // to be in availableCustomAgentIds because they use existing backends like gemini/claude)
+        // to be in availableCustomAgentIds because they use existing backends)
         for (const ext of extAssistants) {
           const id = typeof ext.id === 'string' ? ext.id : '';
           if (!id || list.some((a) => a.id === id)) continue;
@@ -842,7 +842,6 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
         // 2. Fallback: legacy yoloMode
         if (yoloMode) {
           const yoloValues: Record<string, string> = {
-            claude: 'bypassPermissions',
             gemini: 'yolo',
             codex: 'yolo',
             iflow: 'yolo',
@@ -991,13 +990,7 @@ This identity statement takes priority over the default identity in USER.md.
   );
 
   const getAvailableFallbackAgent = useCallback((): string | null => {
-    const fallbackOrder: PresetAgentType[] = ['claude'];
-    for (const agentType of fallbackOrder) {
-      if (isMainAgentAvailable(agentType)) {
-        return agentType;
-      }
-    }
-    return null;
+    return isMainAgentAvailable(DEFAULT_PRESET_AGENT_TYPE) ? DEFAULT_PRESET_AGENT_TYPE : null;
   }, [isMainAgentAvailable]);
 
   const getEffectiveAgentType = useCallback(
@@ -1091,7 +1084,7 @@ This identity statement takes priority over the default identity in USER.md.
   }, [refreshCustomAgents]);
 
   // Defensive: re-scan available agents whenever the user clicks "New Chat"
-  // so that newly installed agents (e.g. Claude Code) appear even if the
+  // so that newly installed agents appear even if the
   // Guid page was never unmounted and the mount-only effect didn't re-run.
   // Uses rescanAgents to re-run full CLI detection on the main process,
   // then revalidates the SWR cache so the UI picks up the change.

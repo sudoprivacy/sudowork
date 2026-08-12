@@ -17,7 +17,7 @@ import { ipcBridge } from '@/common';
  * Other backends will be added here once their ACP layer exposes config options.
  *
  * 目前支援 ACP configOptions 的後端列表。
- * 其他後端（如 Claude Code、OpenCode）待上游支援後再加入。
+ * 其他後端待上游支援後再加入。
  */
 const CONFIG_OPTION_SUPPORTED_BACKENDS: AcpBackend[] = ['codex'];
 

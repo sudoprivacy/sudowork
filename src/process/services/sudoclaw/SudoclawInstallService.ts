@@ -22,10 +22,10 @@ import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { extractTarGzWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { buildVersion } from '@/common/buildInfo';
 import { getSudorouterBaseUrl } from '@/common/systemConfig';
+import { extractTarGzWithProgress } from '../archiveProgress';
 
 type SudoclawInstallResult = {
   installed: boolean;
@@ -1991,7 +1991,7 @@ export function getSudoclawCliPath(): string | null {
  */
 export async function installSudoclawManually(onProgress?: (phase: 'extracting' | 'installing' | 'configuring', percent?: number) => void): Promise<boolean> {
   // Import ensureNodeInstalled dynamically to avoid circular dependency
-  const { ensureNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
+  const { ensureNodeInstalled } = await import('../nodeRuntime/NodeRuntimeService');
 
   // Ensure Node.js is installed first
   onProgress?.('installing', 0);

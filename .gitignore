@@ -220,11 +220,9 @@ resources/nexusd
 resources/nexusd.exe
 resources/v*-nexusd-cluster-*
 resources/v*-scode-*
-resources/claude-code.tgz
 resources/gemini-cli.tgz
 resources/node-*.tar.gz
 resources/node-win32-*.zip
-resources/bdpan-installer-*
 resources/mcporter.tgz
 # browser-panel MCP server — esbuild output (built from src/ via scripts/build-browser-mcp.js)
 resources/browser-panel-mcp/index.js

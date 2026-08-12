@@ -36,9 +36,8 @@ describe('acpWorkspaceTracking', () => {
   });
 
   describe('shouldInjectLanguageReminder', () => {
-    test('covers scode and claude backends', () => {
+    test('covers the scode backend', () => {
       expect(shouldInjectLanguageReminder('scode')).toBe(true);
-      expect(shouldInjectLanguageReminder('claude')).toBe(true);
     });
 
     test('skips other backends', () => {
@@ -65,23 +64,10 @@ describe('acpWorkspaceTracking', () => {
       expect(notice).not.toContain('When asked which model you are');
     });
 
-    test('claude backend uses English text', () => {
-      const notice = buildAcpModelIdentityReminder('claude', 'claude-opus-4-7');
-      expect(notice).toContain('Active model');
-      expect(notice).toContain('claude-opus-4-7');
-      expect(notice).toContain('When asked which model you are');
-    });
-
     test('scode reminder includes model answer instruction in Chinese', () => {
       const notice = buildAcpModelIdentityReminder('scode', 'deepseek-v3');
       expect(notice).toContain('当用户询问');
       expect(notice).toContain('请回答 deepseek-v3');
-    });
-
-    test('claude reminder includes stale identity hint', () => {
-      const notice = buildAcpModelIdentityReminder('claude', 'claude-sonnet-4-6');
-      expect(notice).toContain('ANTHROPIC_MODEL');
-      expect(notice).toContain('stale');
     });
   });
 });

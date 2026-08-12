@@ -482,7 +482,7 @@ export class AcpAdapter {
 
     // Update the ToolCallUpdate content with new status, content, and rawInput
     // rawInput may arrive in tool_call_update with complete data (after streaming completes)
-    // This fixes #1113: Claude Code MCP tool calls show empty Input in View Steps panel
+    // This fixes #1113: streamed MCP tool calls may show empty Input in View Steps
     const updatedContent: ToolCallUpdate = {
       ...existingMessage.content,
       update: {

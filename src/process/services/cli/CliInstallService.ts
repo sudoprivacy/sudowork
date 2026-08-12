@@ -1,30 +1,26 @@
-import { app, BrowserWindow, dialog, Notification } from 'electron';
+import { app } from 'electron';
 import { execFile, exec } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
 import brand from '@brand';
-import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@process/utils';
-import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 import type { ICliStatus } from '@/common/ipcBridge';
-import { ipcBridge } from '@/common';
 import { extractTarGzWithProgress } from '../archiveProgress';
-import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
+import { getNodeBinaryPath, ensureNodeInstalled } from '../nodeRuntime/NodeRuntimeService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
 
 interface CliConfig {
-  /** CLI command name, e.g. 'claude' or 'gemini' */
+  /** CLI command name, e.g. 'shareone' */
   name: string;
-  /** npm package name used as fallback in dev mode, e.g. '@anthropic-ai/claude-code' */
+  /** npm package name inside the bundled archive */
   npmPackage: string;
-  /** OSS name for download URL (e.g., 'claude-code', 'gemini-cli') */
+  /** Bundled resource base name */
   ossName: string;
-  /** ProcessConfig key to store "user declined install" flag */
-  declinedKey: string;
   /** Human-readable display label for dialogs */
   label: string;
   /** Use bundled Node.js instead of ELECTRON_RUN_AS_NODE (avoids Dock bounce on macOS) */
@@ -191,8 +187,6 @@ export class CliInstallService {
 
     // Report progress: done
     emitProgress?.('configuring', 100);
-
-    // Best-effort: when the Claude CLI itself just installed, register the
   }
 
   async uninstall(): Promise<void> {
@@ -200,14 +194,6 @@ export class CliInstallService {
     const binName = process.platform === 'win32' ? `${this.cfg.name}.cmd` : this.cfg.name;
     const managedBin = path.join(getBinDir(), binName);
     if (fs.existsSync(managedBin)) fs.rmSync(managedBin);
-  }
-
-  async isDeclined(): Promise<boolean> {
-    return (await ProcessConfig.get(this.cfg.declinedKey as Parameters<typeof ProcessConfig.get>[0])) === true;
-  }
-
-  async setDeclined(value: boolean): Promise<void> {
-    await ProcessConfig.set(this.cfg.declinedKey as Parameters<typeof ProcessConfig.set>[0], value);
   }
 
   get label(): string {
@@ -275,8 +261,7 @@ export class CliInstallService {
 
   /** Read bin entry from extracted package.json to find the CLI entry file */
   private resolveEntryFile(): string | null {
-    // The self-contained bundle has the target package inside node_modules
-    // e.g. installDir/node_modules/@anthropic-ai/claude-code/package.json
+    // The self-contained bundle has the target package inside node_modules.
     const pkgPath = path.join(this.installDir, 'node_modules', this.cfg.npmPackage);
     const pkgJson = path.join(pkgPath, 'package.json');
 
@@ -372,7 +357,7 @@ export class CliInstallService {
     const lines = ['@echo off', 'setlocal enabledelayedexpansion', `set "CLI=${this.toUserProfileRelative(entryFile)}"`, 'set "ARGS=%*"'];
 
     if (!needsNode) {
-      // Native executable (e.g., claude.exe) — run directly without Node.js
+      // Native executable — run directly without Node.js
       lines.push('');
       lines.push(':: Native executable — run directly');
       lines.push('if exist "%CLI%" (');
@@ -469,87 +454,6 @@ export class CliInstallService {
       } catch {
         // ignore unwritable rc files
       }
-    }
-  }
-}
-
-export const claudeCliService = new CliInstallService({
-  name: 'claude',
-  npmPackage: '@anthropic-ai/claude-code',
-  ossName: 'claude-code',
-  declinedKey: 'claudeCli.installDeclined',
-  label: 'Claude Code CLI',
-  useBundledNode: true, // Use bundled Node.js to avoid macOS Dock bounce
-  onProgress: (phase, percent) => {
-    ipcBridge.claudeCli.installProgress.emit({ phase, percent });
-  },
-});
-
-/**
- * Called once after the main window is ready.
- * For each CLI tool not yet installed and not previously declined,
- * show a native dialog asking the user. Installs on consent, records
- * the refusal on decline so the prompt never appears again.
- */
-export async function promptCliInstallsIfNeeded(): Promise<void> {
-  // Gemini CLI is not installed via prompt (user installs manually if needed)
-  const tools = [claudeCliService];
-  const toPrompt: CliInstallService[] = [];
-
-  for (const svc of tools) {
-    if (!svc.hasTgzResource()) continue; // Skip if bundle not available (e.g. dev without cli:download)
-    const [status, declined] = await Promise.all([svc.checkInstalled(), svc.isDeclined()]);
-    if (!status.installed && !declined) {
-      toPrompt.push(svc);
-    }
-  }
-
-  if (toPrompt.length === 0) return;
-
-  const names = toPrompt.map((s) => `• ${s.label}  (${s.commandName})`).join('\n');
-  const parentWindow = BrowserWindow.getAllWindows()[0] ?? null;
-
-  const { response } = await dialog.showMessageBox(parentWindow!, {
-    type: 'question',
-    title: '安装 CLI 工具',
-    message: '检测到以下 CLI 工具尚未安装：',
-    detail: `${names}\n\n安装后可在终端直接使用这些命令。`,
-    buttons: ['安装', '暂不安装'],
-    defaultId: 0,
-    cancelId: 1,
-  });
-
-  if (response === 0) {
-    // User agreed — install one by one with notifications
-    for (const svc of toPrompt) {
-      new Notification({
-        title: `正在安装 ${svc.label}`,
-        body: `请稍候，安装完成后会通知您…`,
-        silent: true,
-      }).show();
-
-      try {
-        await svc.install();
-        mainLog('CLI', `${svc.label} installed successfully`);
-        new Notification({
-          title: `${svc.label} 安装成功`,
-          body: `重新开一个终端，执行 ${svc.commandName} 即可使用`,
-        }).show();
-        ipcBridge.claudeCli.installResult.emit({ success: true });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        mainError('CLI', `Failed to install ${svc.label}:`, err);
-        new Notification({
-          title: `${svc.label} 安装失败`,
-          body: msg,
-        }).show();
-        ipcBridge.claudeCli.installResult.emit({ success: false, msg });
-      }
-    }
-  } else {
-    // User declined — record so we never ask again
-    for (const svc of toPrompt) {
-      await svc.setDeclined(true);
     }
   }
 }

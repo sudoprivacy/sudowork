@@ -563,7 +563,7 @@ export function isChannelPlatform(value: string): value is ChannelPlatform {
  * Centralizes the backend → convType mapping used across channels.
  */
 export function resolveChannelConvType(backend: string): { convType: string; convBackend?: string } {
-  // All backends (scode, claude, gemini, codex, qwen, etc.) use ACP protocol
+  // All configured agent backends use ACP protocol
   return { convType: 'acp', convBackend: backend };
 }
 

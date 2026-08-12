@@ -3,8 +3,8 @@
  * Download @shareone/cli npm package with all dependencies and create a tgz bundle.
  * Run during build process: node scripts/download-shareone.js
  *
- * Creates a self-contained tgz bundle similar to claude-code.tgz,
- * which will be extracted at runtime by ShareoneCliService.
+ * Creates a self-contained tgz bundle for runtime extraction by
+ * ShareoneCliService.
  *
  * Usage: node scripts/download-shareone.js [--force] [--version <version>]
  *   --force           Re-download even if tgz already exists

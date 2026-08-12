@@ -8,7 +8,7 @@ import { mkdirSync as _mkdirSync, existsSync, lstatSync, readdirSync, readFileSy
 import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
-import type { AcpBackendConfig } from '@/types/acpTypes';
+import { DEFAULT_PRESET_AGENT_TYPE, type AcpBackendConfig } from '@/types/acpTypes';
 import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import type { TMessage } from '@/common/chatLib';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
@@ -885,7 +885,7 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
       enabled: enabledByDefault,
       isPreset: true,
       isBuiltin: true,
-      presetAgentType: preset.presetAgentType || 'claude',
+      presetAgentType: preset.presetAgentType || DEFAULT_PRESET_AGENT_TYPE,
       // Cowork 默认启用所有内置技能 / Cowork enables all builtin skills by default
       enabledSkills: defaultEnabledSkills,
       // 复制快捷提示词 / Copy quick prompts

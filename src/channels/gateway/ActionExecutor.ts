@@ -16,7 +16,7 @@ import { getDataPath } from '@/process/utils';
 import { mainError } from '@/process/utils/mainLogger';
 import { ConversationService } from '@/process/services/conversationService';
 import { transcriptionService } from '@/process/services/transcription/TranscriptionService';
-import type { AcpBackend } from '@/types/acpTypes';
+import { normalizePresetAgentType, type AcpBackend } from '@/types/acpTypes';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
@@ -513,7 +513,7 @@ export class ActionExecutor {
       if (!session || !session.conversationId) {
         const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : platform === 'wechat' ? 'wechat' : platform === 'wecom' ? 'wecom' : 'telegram';
 
-        // Read selected agent for this platform (defaults to claude)
+        // Read selected agent for this platform (defaults to scode)
         let savedAgent: unknown = undefined;
         try {
           savedAgent = await (platform === 'lark'
@@ -528,7 +528,7 @@ export class ActionExecutor {
         } catch {
           // ignore
         }
-        const backend = (savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : 'scode') as string;
+        const backend = normalizePresetAgentType(savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : undefined) || 'scode';
         const customAgentId = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).customAgentId as string | undefined) : undefined;
         const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 

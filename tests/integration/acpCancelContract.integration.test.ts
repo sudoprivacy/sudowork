@@ -146,6 +146,8 @@ class AcpStdioClient {
 describeMaybe('ACP session/cancel protocol (real scode binary)', () => {
   let workspace: string;
   let configHome: string;
+  let model = 'sonnet';
+  let auth = 'proxy';
 
   beforeAll(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-cancel-ws-'));
@@ -158,6 +160,10 @@ describeMaybe('ACP session/cancel protocol (real scode binary)', () => {
     if (source) {
       // Copy real config — swap API key to a dummy so no real calls are made.
       const content = fs.readFileSync(source, 'utf-8');
+      const config = JSON.parse(content) as { models?: Record<string, { providers?: Record<string, unknown> }> };
+      const configuredModel = Object.entries(config.models ?? {})[0];
+      model = configuredModel?.[0] ?? model;
+      auth = Object.keys(configuredModel?.[1].providers ?? {})[0] ?? auth;
       fs.writeFileSync(path.join(configHome, 'sudocode.json'), content.replace(/"apiKey":\s*"[^"]*"/g, '"apiKey": "sk-test-dummy"'));
     } else {
       // No real config available — skip will be handled by test assertions.
@@ -176,7 +182,7 @@ describeMaybe('ACP session/cancel protocol (real scode binary)', () => {
       SUDO_CODE_CONFIG_HOME: configHome,
       NO_COLOR: '1',
     };
-    return new AcpStdioClient(scodeBin!, ['--auth', 'proxy', '--model', 'auto', '--permission-mode', 'danger-full-access', 'acp'], env, workspace);
+    return new AcpStdioClient(scodeBin!, ['--auth', auth, '--model', model, '--permission-mode', 'danger-full-access', 'acp'], env, workspace);
   }
 
   it('initialize + session/new handshake succeeds', async () => {
@@ -243,6 +249,8 @@ describeMaybe('ACP session/cancel protocol (real scode binary)', () => {
 describeLive('ACP session/cancel live (real scode + real API)', () => {
   let workspace: string;
   let configHome: string;
+  let model = 'sonnet';
+  let auth = 'proxy';
 
   beforeAll(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-cancel-live-ws-'));
@@ -251,7 +259,12 @@ describeLive('ACP session/cancel live (real scode + real API)', () => {
     const legacyConfig = path.join(LEGACY_SCODE_HOME, 'sudocode.json');
     const source = fs.existsSync(realConfig) ? realConfig : fs.existsSync(legacyConfig) ? legacyConfig : null;
     if (!source) throw new Error('No sudocode.json found — cannot run live test');
-    fs.copyFileSync(source, path.join(configHome, 'sudocode.json'));
+    const content = fs.readFileSync(source, 'utf-8');
+    const config = JSON.parse(content) as { models?: Record<string, { providers?: Record<string, unknown> }> };
+    const configuredModel = Object.entries(config.models ?? {})[0];
+    model = configuredModel?.[0] ?? model;
+    auth = Object.keys(configuredModel?.[1].providers ?? {})[0] ?? auth;
+    fs.writeFileSync(path.join(configHome, 'sudocode.json'), content);
   });
 
   afterAll(() => {
@@ -265,7 +278,7 @@ describeLive('ACP session/cancel live (real scode + real API)', () => {
       SUDO_CODE_CONFIG_HOME: configHome,
       NO_COLOR: '1',
     };
-    return new AcpStdioClient(scodeBin!, ['--auth', 'proxy', '--model', 'auto', '--permission-mode', 'danger-full-access', 'acp'], env, workspace);
+    return new AcpStdioClient(scodeBin!, ['--auth', auth, '--model', model, '--permission-mode', 'danger-full-access', 'acp'], env, workspace);
   }
 
   it('session/cancel mid-turn yields stopReason in prompt response', async () => {

@@ -17,7 +17,7 @@ import i18n, { i18nReady } from '@process/i18n';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import type AcpAgent from '@process/task/AcpAgent';
 import { acpDetector } from '@/agent/acp/AcpDetector';
-import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
+import { getNodeBinaryPath } from '@process/services/nodeRuntime/NodeRuntimeService';
 import { createConversation } from '../conversationService';
 import { reapConversation, resolveWorkspaceDeletion } from '../conversationReaper';
 import { teamStore, type Team, type TeamMail, type TeamMember, type TeamMemberSource, type TeamWorkspaceKind } from './TeamStore';

@@ -90,7 +90,7 @@ describe('teamBridge team history providers', () => {
     const result = { id: 'team-1', name: 'Team' };
     const members = [
       { assistant_id: 'scode', name: 'Leader', role: 'lead' },
-      { assistant_id: 'claude', name: 'Worker', role: 'teammate', model: 'model-1' },
+      { assistant_id: 'scode', name: 'Worker', role: 'teammate', model: 'model-1' },
     ];
     h.createTeam.mockResolvedValue(result);
     const { initTeamBridge } = await import('@process/bridge/teamBridge');

@@ -9,7 +9,7 @@ import { getAcpResumeStrategy } from '@/types/acpTypes';
  * non-codex backend by passing a generic `resumeSessionId` to `session/new`. scode's
  * ACP `session/new` ignores that param and mints a fresh, EMPTY session — so resume
  * silently lost all history. The fix routes resume by a declarative per-backend strategy:
- * 'session-load' (default, ACP-standard) for scode/codex, 'meta-resume' for claude/codebuddy.
+ * 'session-load' (default, ACP-standard) for scode/codex, 'meta-resume' for CodeBuddy.
  */
 describe('getAcpResumeStrategy (resume routing SSOT)', () => {
   it('defaults to session-load for scode (the ACP-standard session/load path)', () => {
@@ -20,8 +20,7 @@ describe('getAcpResumeStrategy (resume routing SSOT)', () => {
     expect(getAcpResumeStrategy('codex')).toBe('session-load');
   });
 
-  it('uses meta-resume for claude and codebuddy', () => {
-    expect(getAcpResumeStrategy('claude')).toBe('meta-resume');
+  it('uses meta-resume for codebuddy', () => {
     expect(getAcpResumeStrategy('codebuddy')).toBe('meta-resume');
   });
 
@@ -60,7 +59,6 @@ async function loadAcpConnection(): Promise<AcpConnectionCtor> {
   }));
   vi.doMock('@/agent/acp/acpConnectors', () => ({
     ACP_PERF_LOG: false,
-    connectClaude: vi.fn(),
     connectCodebuddy: vi.fn(),
     connectCodex: vi.fn(),
     prepareCleanEnv: vi.fn(() => process.env),
@@ -97,8 +95,8 @@ describe('AcpConnection.newSession resume wiring', () => {
     expect(params).not.toHaveProperty('_meta');
   });
 
-  it('attaches _meta.claudeCode.options.resume for claude (meta-resume backend)', async () => {
-    const params = await captureNewSessionParams('claude');
+  it('attaches _meta.claudeCode.options.resume for codebuddy wire compatibility', async () => {
+    const params = await captureNewSessionParams('codebuddy');
     expect(params).not.toHaveProperty('resumeSessionId');
     expect(params._meta?.claudeCode?.options?.resume).toBe('prior-session');
   });

@@ -9,7 +9,7 @@
  *
  * Uses `child_process.spawn` with `detached: true` so each child runs in its
  * own process group.  This prevents CLI tools that write to `/dev/tty`
- * (e.g. `gemini mcp add`, `claude mcp remove`) from triggering SIGTTOU on
+ * (e.g. external CLI configuration commands) from triggering SIGTTOU on
  * the parent Electron process, which would otherwise cause:
  *   zsh: suspended (tty output)  npm start
  */

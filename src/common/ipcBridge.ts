@@ -236,25 +236,6 @@ export const dialog = {
   showOpen: bridge.buildProvider<IBridgeResponse<IOpenDialogResult>, { defaultPath?: string; properties?: OpenDialogOptions['properties']; filters?: OpenDialogOptions['filters'] } | undefined>('show-open'), // 打开文件/文件夹选择窗口
 };
 
-export interface BdpanFileEntry {
-  filename: string;
-  path: string;
-  isdir: boolean;
-  size: number;
-  server_mtime: number;
-}
-
-export const bdpan = {
-  whoami: bridge.buildProvider<IBridgeResponse<{ authenticated: boolean; has_valid_token: boolean; username?: string; error?: string }>, void>('bdpan.whoami'),
-  loginGetAuthUrl: bridge.buildProvider<IBridgeResponse<{ auth_url?: string; error?: string }>, void>('bdpan.loginGetAuthUrl'),
-  loginSetCode: bridge.buildProvider<IBridgeResponse<{ type: string; message?: string }>, { code: string }>('bdpan.loginSetCode'),
-  ls: bridge.buildProvider<IBridgeResponse<{ files: BdpanFileEntry[]; error?: string }>, { path: string }>('bdpan.ls'),
-  logout: bridge.buildProvider<IBridgeResponse<{ success: boolean }>, void>('bdpan.logout'),
-  download: bridge.buildProvider<IBridgeResponse<{ localPath: string }>, { remotePath: string; destDir: string }>('bdpan.download'),
-  upload: bridge.buildProvider<IBridgeResponse<{ error?: string }>, { localPath: string; remotePath: string }>('bdpan.upload'),
-  mkdir: bridge.buildProvider<IBridgeResponse<{ error?: string }>, { path: string }>('bdpan.mkdir'),
-  downloadResult: bridge.buildEmitter<{ success: boolean; error?: string }>('bdpan.downloadResult'),
-};
 export const fs = {
   getFilesByDir: bridge.buildProvider<Array<IDirOrFile>, { dir: string; root: string }>('get-file-by-dir'), // 获取指定文件夹下所有文件夹和文件列表
   listDir: bridge.buildProvider<string[], { dir: string }>('fs.list-dir'), // 列出目录下的直接子项名称（不递归）
@@ -529,8 +510,8 @@ export const acpConversation = {
   /** Re-run full CLI agent detection (after install/uninstall) */
   rescanAgents: bridge.buildProvider<IBridgeResponse, void>('acp.rescan-agents'),
   checkAgentHealth: bridge.buildProvider<IBridgeResponse<{ available: boolean; latency?: number; error?: string }>, { backend: AcpBackend }>('acp.check-agent-health'),
-  // Set session mode for ACP agents (claude, qwen, etc.)
-  // 设置 ACP 代理的会话模式（claude、qwen 等）
+  // Set session mode for ACP agents
+  // 设置 ACP 代理的会话模式
   setMode: bridge.buildProvider<IBridgeResponse<{ mode: string }>, { conversationId: string; mode: string }>('acp.set-mode'),
   // Get current session mode for ACP agents
   // 获取 ACP 代理的当前会话模式
@@ -659,17 +640,6 @@ export interface ICliStatus {
   version?: string;
   source: 'managed' | 'system' | 'none';
 }
-
-// Claude CLI installer / 安装 claude 命令行工具
-export const claudeCli = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('claude-cli.check-installed'),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>('claude-cli.install'),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('claude-cli.uninstall'),
-  /** Emitted by main process when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('claude-cli.install-result'),
-  /** Emitted during installation to report progress */
-  installProgress: bridge.buildEmitter<{ phase: 'downloading' | 'extracting' | 'configuring'; percent?: number }>('claude-cli.install-progress'),
-};
 
 // Bundled Node.js runtime
 export const nodeRuntime = {
@@ -985,7 +955,7 @@ export interface InitStatus {
   /** Which loading UI should be rendered. */
   displayMode?: 'full' | 'startup';
   error?: string;
-  /** Current installation step id: 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan' */
+  /** Current installation step id: 'git' | 'node' | 'scode' | 'nexus' */
   step?: string;
   /** Detail message for current step */
   detail?: string;

@@ -10,14 +10,7 @@ describe('resolveWorkspaceSkillRoot', () => {
     });
   });
 
-  it('uses .claude skills for claude acp conversations', () => {
-    expect(resolveWorkspaceSkillRoot('/tmp/workspace', 'claude')).toEqual({
-      path: '/tmp/workspace/.claude/skills',
-      source: 'claude-skills',
-    });
-  });
-
-  it('uses workspace skills for non-claude acp conversations', () => {
+  it('uses workspace skills for generic acp conversations', () => {
     expect(resolveWorkspaceSkillRoot('/tmp/workspace', 'codex')).toEqual({
       path: '/tmp/workspace/skills',
       source: 'skills',

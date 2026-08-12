@@ -37,7 +37,7 @@ describe('AcpAdapter - rawInput merging (#1113)', () => {
   const conversationId = 'test-conversation-id';
 
   beforeEach(() => {
-    adapter = new AcpAdapter(conversationId, 'claude');
+    adapter = new AcpAdapter(conversationId, 'scode');
   });
 
   it('should create tool call message with initial empty rawInput', () => {
@@ -225,7 +225,7 @@ describe('AcpAdapter - AskUserQuestion v2', () => {
   let adapter: AcpAdapter;
 
   beforeEach(() => {
-    adapter = new AcpAdapter('test-conversation-id', 'claude');
+    adapter = new AcpAdapter('test-conversation-id', 'scode');
   });
 
   it('should build an interactive structured question from tool_call rawInput before completion', () => {

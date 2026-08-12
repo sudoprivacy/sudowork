@@ -26,6 +26,7 @@ import { isEnterpriseMode, getEnterpriseConfig } from '@/common/enterpriseDebugC
 import { getSkillInstallDir, getAssistantInstallDir, initEnterpriseDirs, getEnterpriseCustomSkillsDir, getEnterpriseCustomAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName, SourceType } from '@/process/constants/enterpriseStorage';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import type { ISkillHubMeta } from '@/common/ipcBridge';
+import { DEFAULT_PRESET_AGENT_TYPE } from '@/types/acpTypes';
 
 // ============ 类型定义 ============
 
@@ -331,7 +332,7 @@ ${params.description || 'Custom assistant created by user.'}
     name: params.displayName, // Use actual user-input name
     nameI18n: { 'en-US': params.displayName },
     descriptionI18n: { 'en-US': params.description || '' },
-    presetAgentType: 'claude',
+    presetAgentType: DEFAULT_PRESET_AGENT_TYPE,
     defaultEnabledSkills: params.enabledSkills || [],
     enabledSkills: params.enabledSkills || [],
     source_type: 'custom',

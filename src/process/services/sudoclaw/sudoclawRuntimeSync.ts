@@ -3,7 +3,6 @@ import * as os from 'os';
 import * as path from 'path';
 import type { SudoclawConfig, SudoclawProvider } from '@/common/ipcBridge';
 import { cachePut } from '@/common/nexus/secret-cache';
-import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 type RuntimeAgentModelsFile = {
   providers?: Record<string, Record<string, unknown> & { models?: Array<Record<string, unknown>> }>;
@@ -34,11 +33,8 @@ type RuntimeAuthStateFile = {
 
 type SyncRuntimeStateOptions = {
   stateDir?: string;
-  claudeSettingsPath?: string;
   secretWriter?: (id: string, type: string, value: string) => void;
 };
-
-const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 
 function readJsonFile<T>(filePath: string): T | null {
   try {
@@ -183,29 +179,8 @@ export function buildRuntimeAgentAuthFiles(
   };
 }
 
-export function buildClaudeSettings(config: SudoclawConfig): Record<string, unknown> | null {
-  const primaryModel = config.agents?.defaults?.model?.primary || '';
-  const [providerId, modelIdPart] = primaryModel.split('/');
-  const provider = providerId ? config.models?.providers?.[providerId] : undefined;
-  const apiKey = provider?.apiKey?.trim() || '';
-  const modelId = modelIdPart || primaryModel;
-
-  if (!apiKey) {
-    return null;
-  }
-
-  return {
-    env: {
-      ANTHROPIC_BASE_URL: getSudorouterBaseUrl(),
-      ANTHROPIC_AUTH_TOKEN: apiKey,
-      ANTHROPIC_MODEL: modelId || 'gemini-3.5-flash',
-    },
-  };
-}
-
 export function syncSudoclawRuntimeState(config: SudoclawConfig, options: SyncRuntimeStateOptions = {}): void {
   const stateDir = options.stateDir || path.join(os.homedir(), '.nexus', 'sudoclaw');
-  const claudeSettingsPath = options.claudeSettingsPath || CLAUDE_SETTINGS_PATH;
   const secretWriter = options.secretWriter || cachePut;
   const providers = config.models?.providers || {};
   const runtimePaths = getRuntimePaths(stateDir);
@@ -234,25 +209,6 @@ export function syncSudoclawRuntimeState(config: SudoclawConfig, options: SyncRu
     fs.writeFileSync(runtimePaths.authStatePath, JSON.stringify(stateFile, null, 2), 'utf8');
   } else if (fs.existsSync(runtimePaths.authStatePath)) {
     fs.rmSync(runtimePaths.authStatePath, { force: true });
-  }
-
-  if (fs.existsSync(claudeSettingsPath)) {
-    return;
-  }
-
-  const settings = buildClaudeSettings(config);
-  if (!settings) {
-    return;
-  }
-
-  fs.mkdirSync(path.dirname(claudeSettingsPath), { recursive: true });
-  fs.writeFileSync(claudeSettingsPath, JSON.stringify(settings, null, 2), 'utf8');
-  if (process.platform !== 'win32') {
-    try {
-      fs.chmodSync(claudeSettingsPath, 0o600);
-    } catch {
-      // ignore
-    }
   }
 }
 

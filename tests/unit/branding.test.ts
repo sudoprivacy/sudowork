@@ -53,7 +53,7 @@ describe('brand configuration', () => {
     expect(builderConfig.linux.artifactName).toBe(`${englishName}-\${version}-linux-\${arch}.\${ext}`);
     if (brand.BUILD_OFFLINE) {
       const packagedResources = JSON.stringify([builderConfig.extraResources, builderConfig.mac?.extraResources, builderConfig.win?.extraResources, builderConfig.linux?.extraResources]);
-      expect(packagedResources).not.toMatch(/bdpan-installer|nexus-vault/);
+      expect(packagedResources).not.toMatch(/nexus-vault/);
       expect(packagedResources).toContain(`v${loadModule('../../src/shared/runtime-versions.json').scode}-scode-`);
     }
 

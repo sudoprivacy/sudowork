@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
-import { IS_OFFLINE_BUILD, IS_SHAREONE_DISABLED } from '@/common/buildMode';
+import { IS_SHAREONE_DISABLED } from '@/common/buildMode';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME, isReservedDraftsDirName } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
@@ -26,7 +26,6 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import { getLastDirectoryName, isTemporaryWorkspace as checkIsTemporaryWorkspace, isChannelWorkspace as checkIsChannelWorkspace, getWorkspaceDisplayName as getDisplayName } from '@/renderer/utils/workspace';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import DirectorySelectionModal from '@/renderer/components/DirectorySelectionModal';
-import BdpanUploadDirPicker from '@/renderer/components/base/BdpanUploadDirPicker';
 import { uuid } from '@/common/utils';
 import { extractNodeData, extractNodeKey, findNodeByKey, getTargetFolderPath, sortTreeNodes, updateTreeNodeChildren } from './utils/treeHelpers';
 import type { WorkspaceProps } from './types';
@@ -238,10 +237,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
   const [showDirectorySelector, setShowDirectorySelector] = useState(false);
   const [selectedTargetPath, setSelectedTargetPath] = useState('');
   const [migrationLoading, setMigrationLoading] = useState(false);
-
-  // Bdpan upload state
-  const [bdpanUploadPickerVisible, setBdpanUploadPickerVisible] = useState(false);
-  const [bdpanUploadLocalPath, setBdpanUploadLocalPath] = useState('');
 
   // Skills tab refresh handle — lets the shared refresh button in the card
   // header trigger a scan even when the file tree inotify watcher is quiet.
@@ -636,37 +631,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
       setSelectedTargetPath('');
     }
   }, [migrationLoading]);
-
-  const showBdpanUploadPicker = useCallback(
-    (node: IDirOrFile) => {
-      const localPath = node.fullPath ?? '';
-      if (!localPath) return;
-      setBdpanUploadLocalPath(localPath);
-      setBdpanUploadPickerVisible(true);
-      modalsHook.closeContextMenu();
-    },
-    [modalsHook.closeContextMenu]
-  );
-
-  const handleBdpanUploadConfirm = useCallback(
-    async (bdpanDirPath: string) => {
-      setBdpanUploadPickerVisible(false);
-      const localPath = bdpanUploadLocalPath;
-      try {
-        const localName = localPath.split('/').filter(Boolean).pop() ?? '';
-        const remotePath = bdpanDirPath.endsWith('/') ? `${bdpanDirPath}${localName}` : `${bdpanDirPath}/${localName}`;
-        const res = await ipcBridge.bdpan.upload.invoke({ localPath, remotePath });
-        if (res?.success) {
-          Message.success(t('conversation.bdpan.upload.success'));
-        } else {
-          Message.error(res?.data?.error ?? t('conversation.bdpan.upload.failed'));
-        }
-      } catch (err) {
-        Message.error(String(err));
-      }
-    },
-    [bdpanUploadLocalPath, t]
-  );
 
   let contextMenuStyle: React.CSSProperties | undefined;
   if (modalsHook.contextMenu.visible) {
@@ -1162,9 +1126,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
         {/* Directory Selection Modal (for WebUI only) */}
         {!readonly && <DirectorySelectionModal visible={showDirectorySelector} onConfirm={handleSelectDirectoryFromModal} onCancel={() => setShowDirectorySelector(false)} />}
 
-        {/* Bdpan Upload Dir Picker */}
-        {!IS_OFFLINE_BUILD && !readonly && <BdpanUploadDirPicker visible={bdpanUploadPickerVisible} localPath={bdpanUploadLocalPath} onCancel={() => setBdpanUploadPickerVisible(false)} onConfirm={handleBdpanUploadConfirm} />}
-
         {/* Tabs header — mirrors ui.zip `components/task-panel.tsx` layout:
             two equal tabs sit at the very top of the card (no separate status-
             dot header anymore). Active tab gets a 2px primary underline and
@@ -1510,18 +1471,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                   >
                     {t('conversation.workspace.contextMenu.rename')}
                   </button>
-                  {(!IS_OFFLINE_BUILD || !IS_SHAREONE_DISABLED) && <div className='h-1px bg-muted my-2px'></div>}
-                  {!IS_OFFLINE_BUILD && (
-                    <button
-                      type='button'
-                      className={menuButtonBase}
-                      onClick={() => {
-                        showBdpanUploadPicker(contextMenuNode);
-                      }}
-                    >
-                      {t('conversation.workspace.contextMenu.uploadToBdpan')}
-                    </button>
-                  )}
+                  {!IS_SHAREONE_DISABLED && <div className='h-1px bg-muted my-2px'></div>}
                   {!IS_SHAREONE_DISABLED && (
                     <button
                       type='button'
@@ -1603,18 +1553,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {t('conversation.workspace.contextMenu.newFolder')}
                     </button>
                   )}
-                  {(!IS_OFFLINE_BUILD || (!IS_SHAREONE_DISABLED && isContextMenuNodeFile)) && <div className='h-1px bg-muted my-2px'></div>}
-                  {!IS_OFFLINE_BUILD && (
-                    <button
-                      type='button'
-                      className={menuButtonBase}
-                      onClick={() => {
-                        showBdpanUploadPicker(contextMenuNode);
-                      }}
-                    >
-                      {t('conversation.workspace.contextMenu.uploadToBdpan')}
-                    </button>
-                  )}
+                  {!IS_SHAREONE_DISABLED && isContextMenuNodeFile && <div className='h-1px bg-muted my-2px'></div>}
                   {!IS_SHAREONE_DISABLED && isContextMenuNodeFile && (
                     <button
                       type='button'

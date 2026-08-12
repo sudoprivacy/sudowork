@@ -33,8 +33,6 @@ export type GuidSendDeps = {
   // Agent state
   selectedAgent: AcpBackend | 'custom';
   selectedAgentKey: string;
-  /** Resolved backend key (builtin/preset) for the selected agent; used to skip the guest model guard for claude. */
-  modelBackendKey: string;
   selectedAgentInfo: AvailableAgent | undefined;
   isPresetAgent: boolean;
   selectedMode: string;
@@ -94,7 +92,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedSkills,
     selectedAgent,
     selectedAgentKey,
-    modelBackendKey,
     selectedAgentInfo,
     isPresetAgent,
     selectedMode,
@@ -126,9 +123,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
   const handleSend = useCallback(async () => {
     // Guest pre-send check: prompt if no usable model. Login users (isGuest=false) always skip.
-    // claude code carries its own config (~/.claude/settings.json) and does not consume
-    // model.config; skip this guard for claude to avoid a false "no model configured".
-    if (isGuest && ready && modelBackendKey !== 'claude') {
+    if (isGuest && ready) {
       let isScodeAvailable = false;
       try {
         const scodeRes = await ipcBridge.acpConversation.probeModelInfo.invoke({ backend: 'scode' });
@@ -251,11 +246,11 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       return;
     }
 
-    // ACP path (including preset with claude agent type)
+    // ACP path
     {
       // Local mode: ACP path
       // Agent-type fallback only applies to preset assistants whose primary agent
-      // was unavailable and got switched (e.g. claude → gemini).  For non-preset
+      // was unavailable and got switched. For non-preset
       // agents (including extension-contributed ACP adapters with backend='custom'),
       // we must keep the original selectedAgent so the correct backend/cliPath is used.
       const agentTypeChanged = isPreset && selectedAgent !== finalEffectiveAgentType;
@@ -268,8 +263,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
 
       try {
-        // For presets with a non-gemini backend (e.g. claude), don't pass the
-        // UI's Gemini model — let the backend resolve the model itself.
+        // For presets with a non-gemini backend, don't pass the UI's Gemini
+        // model. Let the backend resolve the model itself.
         const isGeminiBackend = acpBackend === 'gemini';
         // Reject stale/ghost selectedAcpModel (not in available list); fall back to probe's current model.
         const acpAvailableModels = currentAcpCachedModelInfo?.availableModels;
@@ -343,7 +338,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     dir,
     selectedAgent,
     selectedAgentKey,
-    modelBackendKey,
     selectedAgentInfo,
     isPresetAgent,
     selectedMode,

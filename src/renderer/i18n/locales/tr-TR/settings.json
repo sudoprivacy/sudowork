@@ -11,8 +11,6 @@
   "openai": "OpenAI",
   "proxyConfig": "Proxy",
   "yoloMode": "YOLO (Otomatik İzin)",
-  "claudeYoloMode": "Claude YOLO (İzinleri Atla)",
-  "claudeYoloModeDesc": "Tüm Claude Code izin kontrollerini atla (--dangerously-skip-permissions ile eşdeğer).",
   "customCss": "Özel CSS",
   "customCssDesc": "Arayüz görünümünü değiştirmek için buraya özel CSS stilleri girin. Sistem en yüksek önceliği sağlamak için otomatik olarak !important ekleyecektir. Değişiklikler anında geçerli olur.",
   "assistants": "Asistanlar",

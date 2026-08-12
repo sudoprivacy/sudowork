@@ -23,8 +23,6 @@ export interface AgentModeOption {
  * Labels match CLI display text exactly — no i18n.
  *
  * Note:
- * - Claude: supports session/set_mode via ACP
- *   - Modes: default (execute), plan, bypassPermissions (YOLO)
  * - Qwen: ACP session/set_mode returns success but does not enforce plan mode behavior.
  *   Plan mode disabled until upstream fix. See https://github.com/QwenLM/qwen-code/issues/1806
  * - OpenCode: plan/build modes via ACP session/set_mode (no yolo support)
@@ -34,11 +32,6 @@ export interface AgentModeOption {
  * - Goose: mode set at startup only, not during session
  */
 export const AGENT_MODES: Record<string, AgentModeOption[]> = {
-  claude: [
-    { value: 'default', label: 'Default' },
-    { value: 'plan', label: 'Plan' },
-    { value: 'bypassPermissions', label: 'YOLO' },
-  ],
   // Qwen: ACP session/set_mode returns success but does not enforce plan mode behavior.
   // Plan mode disabled until upstream fix. See https://github.com/QwenLM/qwen-code/issues/1806
   qwen: [

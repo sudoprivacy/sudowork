@@ -6,7 +6,6 @@
 
 import { mainError } from '@process/utils/mainLogger';
 import { acpDetector } from '@/agent/acp/AcpDetector';
-import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import { initAcpConversationBridge } from './acpConversationBridge';
 import { initApplicationBridge } from './applicationBridge';
 import { initAuthBridge } from './authBridge';
@@ -34,7 +33,6 @@ import { initLogsBridge } from './logsBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
 import { initExtensionsBridge } from './extensionsBridge';
 import { initNexusBridge } from './nexusBridge';
-import { initClaudeCliBridge } from './claudeCliBridge';
 import { initLibreOfficeBridge } from './libreofficeBridge';
 import { initSkillHubBridge } from './skillHubBridge';
 import { initAssistantHubBridge } from './assistantHubBridge';
@@ -49,7 +47,6 @@ import { initPopplerRuntimeBridge } from './popplerRuntimeBridge';
 import { initFuseTBridge } from './fuseTBridge';
 // Safety hook IPC is temporarily disabled; keep safetyBridge.ts for restoration.
 // import { initSafetyBridge } from './safetyBridge';
-import { initBdpanBridge } from './bdpanBridge';
 import { initHealthMonitorBridge } from './healthMonitorBridge';
 import { initImageGenerationBridge } from './imageGenerationBridge';
 import { initSecretBridge } from './secretBridge';
@@ -102,7 +99,6 @@ export function initAllBridges(): void {
   initExtensionsBridge();
   initStarOfficeBridge();
   initNexusBridge();
-  initClaudeCliBridge();
   initLibreOfficeBridge();
   initSkillHubBridge();
   initAssistantHubBridge();
@@ -116,8 +112,6 @@ export function initAllBridges(): void {
   initSystemConfigBridge();
   // Safety hook IPC is hidden while the feature is disabled.
   // initSafetyBridge();
-  // 内网版不注册 bdpan IPC，从主进程入口彻底关闭该能力。
-  if (!IS_OFFLINE_BUILD) initBdpanBridge();
   initHealthMonitorBridge();
   initImageGenerationBridge();
   initSecretBridge();

@@ -25,7 +25,7 @@ export function buildGovernancePrompt(role: TeamRole, teamName: string, memberNa
       `You are "${memberName}", the LEADER of team "${teamName}".\n\n` +
       `${PRIORITY_BLOCK}\n\n` +
       `Role: You coordinate a team of AI agents. You do NOT do implementation work yourself — you break down tasks, assign them to teammates, and synthesize their results.\n\n` +
-      `Tools: You MUST use the team_* tools for all coordination. Your backend may expose its own similarly named tools (e.g. Claude Code's Task/subagent tool, or any built-in SendMessage). Do NOT use those to do the work yourself — they are not teammates and bypass team coordination.\n\n` +
+      `Tools: You MUST use the team_* tools for all coordination. Your backend may expose its own similarly named task or message tools. Do NOT use those to do the work yourself — they are not teammates and bypass team coordination.\n\n` +
       `Conversation style:\n` +
       `- If the user greets you or asks what you can do without a concrete task, respond naturally as the team Leader and do not propose more teammates yet.\n\n` +
       `Workflow:\n` +

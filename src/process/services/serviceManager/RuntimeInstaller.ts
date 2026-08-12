@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { IS_OFFLINE_BUILD } from '@/common/buildMode';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { isNodeInstalled } from '../claudeCli/NodeRuntimeService';
+import { isNodeInstalled } from '../nodeRuntime/NodeRuntimeService';
 import { initStatusManager } from '../initStatus';
 import { dynamicNexusVfsService as installedNexusService } from '../nexus-vfs/DynamicNexusVfsService';
 import { isScodeInstalled as isInstalledScode, ensureScodeInstalled, getScodeVersionState, ensureAgentsMdRules } from '../scode/ScodeInstallService';
@@ -55,13 +55,6 @@ class RuntimeInstaller {
     const markFastInstalledSteps = (): void => {
       initStatusManager.setStepState('git', 'done', 'Git 环境检查已跳过');
       initStatusManager.setStepProgress('git', 100, 'Git 环境检查已跳过');
-      initStatusManager.setStepState('claude', 'done', 'Claude Code CLI 不参与启动判定');
-      initStatusManager.setStepProgress('claude', 100, 'Claude Code CLI 不参与启动判定');
-      if (!IS_OFFLINE_BUILD) {
-        initStatusManager.setStepState('bdpan', 'done', 'bdpan CLI 不参与启动判定');
-        initStatusManager.setStepProgress('bdpan', 100, 'bdpan CLI 不参与启动判定');
-      }
-
       if (fastNodeOk) {
         initStatusManager.setStepState('node', 'done', 'Node.js 运行时已就绪');
         initStatusManager.setStepProgress('node', 100, 'Node.js 运行时已就绪');
@@ -116,10 +109,8 @@ class RuntimeInstaller {
 
     // ── At least one component appears to be missing — do full async check ──
     mainLog(TAG, 'Checking runtime dependencies...');
-    // 内网版连 bdpan 模块都不加载，避免初始化期间意外触发检测或安装逻辑。
-    const [nexusModule, claudeCliModule, gitModule, bdpanModule] = await Promise.all([import('../nexus-vfs/DynamicNexusVfsService'), import('../claudeCli/CliInstallService'), import('../git/GitInstallService'), IS_OFFLINE_BUILD ? Promise.resolve(null) : import('../bdpan/BdpanInstallService')]);
+    const [nexusModule, gitModule] = await Promise.all([import('../nexus-vfs/DynamicNexusVfsService'), import('../git/GitInstallService')]);
     const { dynamicNexusVfsService } = nexusModule;
-    const { claudeCliService } = claudeCliModule;
     const { ensureGitInstalled, isGitInstalled } = gitModule;
 
     const nodeInstalled = isNodeInstalled();
@@ -127,13 +118,9 @@ class RuntimeInstaller {
     const scodeVersionState = getScodeVersionState();
     const nexusInstalledPromise = dynamicNexusVfsService.checkInstalled();
     const gitInstalledPromise = isGitInstalled();
-    const claudeStatusPromise = claudeCliService.checkInstalled();
-    const bdpanInstalled = bdpanModule?.isBdpanInstalled() ?? false;
-    const [nexusInstalled, gitInstalled, claudeStatus] = await Promise.all([nexusInstalledPromise, gitInstalledPromise, claudeStatusPromise]);
-    const claudeInstalled = claudeStatus.installed;
-    const hasClaudeResource = claudeCliService.hasTgzResource();
+    const [nexusInstalled, gitInstalled] = await Promise.all([nexusInstalledPromise, gitInstalledPromise]);
 
-    const fullCheckSummary = `Git=${gitInstalled}, Claude=${claudeInstalled}, Bdpan=${IS_OFFLINE_BUILD ? 'disabled' : bdpanInstalled}, Node=${nodeInstalled}, ` + `Sudocode=${scodeInstalled}, Nexus=${nexusInstalled}, ` + `SudocodeUpgrade=${scodeVersionState.needsUpgrade}`;
+    const fullCheckSummary = `Git=${gitInstalled}, Node=${nodeInstalled}, Sudocode=${scodeInstalled}, Nexus=${nexusInstalled}, ` + `SudocodeUpgrade=${scodeVersionState.needsUpgrade}`;
     mainLog(TAG, `Full check: ${fullCheckSummary}`);
 
     // Full check may confirm everything is fine (fast check had a false negative)
@@ -160,7 +147,7 @@ class RuntimeInstaller {
       initStatusManager.setStatus('installing', '正在并行准备运行环境...', 5);
     }
 
-    type RuntimeStepId = 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan';
+    type RuntimeStepId = 'git' | 'node' | 'scode' | 'nexus';
     type TaskResult = { step: RuntimeStepId; ok: boolean; required: boolean; error?: string };
 
     const markStepDone = (step: RuntimeStepId, detail: string): void => {
@@ -201,18 +188,6 @@ class RuntimeInstaller {
       markStepError('node', '未找到 Node.js 安装资源');
     }
 
-    if (claudeInstalled) {
-      markStepDone('claude', 'Claude Code CLI 已就绪');
-      // Claude CLI 同样是可选能力；内网版只检测，不执行任何在线安装。
-    } else if (IS_OFFLINE_BUILD) {
-      markStepDone('claude', 'Claude Code CLI 未安装，内网版已跳过');
-    } else if (hasClaudeResource) {
-      initStatusManager.setStepState('claude', 'pending', '等待安装 Claude Code CLI...');
-      initStatusManager.setStepProgress('claude', 0, '等待安装 Claude Code CLI...');
-    } else {
-      markStepDone('claude', '未找到 Claude Code CLI 安装资源，已跳过');
-    }
-
     if (scodeInstalled && !scodeVersionState.needsUpgrade) {
       markStepDone('scode', 'Sudocode 文件已就绪');
     } else {
@@ -230,15 +205,6 @@ class RuntimeInstaller {
     } else {
       initStatusManager.setStepState('nexus', 'pending', '等待安装 Nexus...');
       initStatusManager.setStepProgress('nexus', 0, '等待安装 Nexus...');
-    }
-
-    if (!IS_OFFLINE_BUILD) {
-      if (bdpanInstalled) {
-        markStepDone('bdpan', 'bdpan CLI 已就绪');
-      } else {
-        initStatusManager.setStepState('bdpan', 'pending', '等待安装 bdpan CLI...');
-        initStatusManager.setStepProgress('bdpan', 0, '等待安装 bdpan CLI...');
-      }
     }
 
     const gitTask: Promise<TaskResult> = (async () => {
@@ -288,7 +254,7 @@ class RuntimeInstaller {
         mainLog(TAG, 'Installing Node.js runtime...');
         markStepActive('node', '准备解压 Node.js 运行时...', 0);
         initStatusManager.addLog('开始安装 Node.js 运行时...');
-        const { ensureNodeInstalled } = await import('../claudeCli/NodeRuntimeService');
+        const { ensureNodeInstalled } = await import('../nodeRuntime/NodeRuntimeService');
         const ok = await ensureNodeInstalled((percent) => {
           initStatusManager.setStepProgress('node', percent, `正在解压 Node.js 运行时... ${percent}%`);
         });
@@ -307,66 +273,6 @@ class RuntimeInstaller {
         markStepError('node', `Node.js 运行时安装失败: ${error}`);
         initStatusManager.addLog(`⚠ Node.js 运行时安装失败: ${error}`);
         return { step: 'node', ok: false, required: true, error };
-      }
-    })();
-
-    const claudeTask: Promise<TaskResult> = (async () => {
-      if (claudeInstalled || IS_OFFLINE_BUILD) {
-        return { step: 'claude', ok: true, required: false };
-      }
-      if (!hasClaudeResource) {
-        return { step: 'claude', ok: true, required: false };
-      }
-
-      if (!nodeInstalled) {
-        const nodeResult = await nodeTask;
-        if (!nodeResult.ok) {
-          const error = 'Claude Code CLI 安装已跳过：Node.js 运行时未就绪';
-          markStepError('claude', error);
-          initStatusManager.addLog(`⚠ ${error}`);
-          return { step: 'claude', ok: false, required: false, error };
-        }
-      }
-
-      try {
-        mainLog(TAG, 'Installing Claude Code CLI (non-blocking)...');
-        markStepActive('claude', '开始安装 Claude Code CLI...', 0);
-        initStatusManager.addLog('开始安装 Claude Code CLI...');
-
-        await claudeCliService.install((phase, percent) => {
-          if (phase === 'extracting') {
-            const safePercent = Math.max(0, Math.min(80, percent ?? 0));
-            initStatusManager.setStepProgress('claude', safePercent, `正在解压 Claude Code CLI... ${percent ?? 0}%`);
-            return;
-          }
-
-          if (phase === 'configuring') {
-            const safePercent = 80 + Math.max(0, Math.min(20, Math.round((percent ?? 0) / 5)));
-            initStatusManager.setStepProgress('claude', safePercent, `正在配置 Claude Code CLI... ${percent ?? 0}%`);
-            return;
-          }
-
-          initStatusManager.setStepProgress('claude', 10, `正在准备 Claude Code CLI... ${percent ?? 0}%`);
-        });
-
-        try {
-          const { acpDetector } = await import('@/agent/acp/AcpDetector');
-          await acpDetector.rescanCliAgents();
-          initStatusManager.addLog('✓ Claude Code CLI agent 列表已刷新');
-        } catch (error) {
-          mainWarn(TAG, 'Claude Code CLI installed but agent rescan failed', error);
-          initStatusManager.addLog(`⚠ Claude Code CLI 安装完成，但 agent 列表刷新失败: ${error instanceof Error ? error.message : String(error)}`);
-        }
-
-        markStepDone('claude', 'Claude Code CLI 已安装');
-        initStatusManager.addLog('✓ Claude Code CLI 安装完成');
-        return { step: 'claude', ok: true, required: false };
-      } catch (err) {
-        const error = err instanceof Error ? err.message : String(err);
-        mainError(TAG, 'Claude Code CLI install failed', err);
-        markStepError('claude', `Claude Code CLI 安装失败: ${error}`);
-        initStatusManager.addLog(`⚠ Claude Code CLI 安装失败: ${error}`);
-        return { step: 'claude', ok: false, required: false, error };
       }
     })();
 
@@ -482,43 +388,7 @@ class RuntimeInstaller {
       }
     })();
 
-    // 内网版彻底不创建 bdpan 安装任务，后续 Promise 汇总也不会包含它。
-    const bdpanTask: Promise<TaskResult> | null = IS_OFFLINE_BUILD
-      ? null
-      : (async () => {
-          if (bdpanInstalled) {
-            return { step: 'bdpan', ok: true, required: false };
-          }
-
-          try {
-            mainLog(TAG, 'Installing bdpan CLI (non-blocking)...');
-            markStepActive('bdpan', '开始安装 bdpan CLI...', 0);
-            initStatusManager.addLog('开始安装 bdpan CLI...');
-
-            const ok = await bdpanModule!.ensureBdpanInstalled();
-            if (ok) {
-              markStepDone('bdpan', 'bdpan CLI 已安装');
-              initStatusManager.addLog('✓ bdpan CLI 安装完成');
-              return { step: 'bdpan', ok: true, required: false };
-            }
-
-            const error = 'bdpan CLI 安装失败，请手动安装';
-            markStepError('bdpan', error, 20);
-            initStatusManager.addLog(`⚠ ${error}`);
-            return { step: 'bdpan', ok: false, required: false, error };
-          } catch (err) {
-            const error = err instanceof Error ? err.message : String(err);
-            mainError(TAG, 'bdpan CLI install failed', err);
-            markStepError('bdpan', `bdpan CLI 安装失败: ${error}`, 20);
-            initStatusManager.addLog(`⚠ bdpan CLI 安装失败: ${error}`);
-            return { step: 'bdpan', ok: false, required: false, error };
-          }
-        })();
-
-    const tasks = [gitTask, nodeTask, claudeTask, scodeTask, nexusTask];
-    if (bdpanTask) tasks.push(bdpanTask);
-
-    const results = await Promise.all(tasks);
+    const results = await Promise.all([gitTask, nodeTask, scodeTask, nexusTask]);
     const failedRequired = results.filter((result) => result.required && !result.ok);
     if (failedRequired.length > 0) {
       const error = `以下组件安装未完成: ${failedRequired.map((item) => item.step).join('、')}`;

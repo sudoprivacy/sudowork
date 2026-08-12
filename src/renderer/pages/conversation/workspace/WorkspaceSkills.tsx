@@ -12,7 +12,6 @@
  *
  * Sources:
  *   - Default (ACP)    → `<workspace>/skills/`
- *   - Claude Code      → `<workspace>/.claude/skills/`
  *   - Sudo Code        → `<workspace>/.nexus/sudocode/skills/`
  *
  * Each sub-directory containing a SKILL.md (YAML frontmatter) shows up as a
@@ -50,8 +49,7 @@ export interface WorkspaceSkillsProps {
   workspace: string;
   /**
    * Which agent backend is driving this workspace — determines whether skills
-   * live under `skills/` (most ACP), `.claude/skills/`
-   * (Claude Code), or `.nexus/sudocode/skills/` (Sudo Code).
+   * live under `skills/` (most ACP) or `.nexus/sudocode/skills/` (Sudo Code).
    */
   eventPrefix?: 'acp' | 'remote-agent';
   backend?: string;
@@ -84,7 +82,7 @@ interface SkillItem {
   path: string;
   displayName?: string;
   /** Which sub-directory it was found under (for tooltip / debug) */
-  source: 'skills' | 'claude-skills' | 'scode-skills' | 'moss-session' | string;
+  source: 'skills' | 'scode-skills' | 'moss-session' | string;
   /** Icon name from SKILL.md frontmatter, if declared. */
   icon?: string;
   /** Image URL from _sudowork_meta.json icon field, if declared. */
@@ -98,12 +96,6 @@ const resolveEmptyDescription = (eventPrefix: 'acp' | 'remote-agent' | undefined
   if (dataSource === 'moss-session') {
     return t('conversation.workspace.remoteSkillsPendingDesc', {
       defaultValue: '会话开始后显示当前 backend 可用技能',
-    });
-  }
-
-  if (backend === 'claude') {
-    return t('conversation.workspace.skillsEmptyDescClaude', {
-      defaultValue: '在 .claude/skills/ 目录下添加 SKILL.md 后会自动显示',
     });
   }
 
@@ -493,7 +485,7 @@ const WorkspaceSkills = React.forwardRef<WorkspaceSkillsHandle, WorkspaceSkillsP
 
   // inotify-style auto-refresh: piggyback on the same `dirChanged` stream the
   // file tree listens to. We don't need a separate watcher — the workspace
-  // watcher already covers `skills/` and `.claude/skills/`.
+  // The workspace watcher already covers the generic skill roots.
   //
   // IMPORTANT: Block ALL events when watchIdRef is not yet set — mirrors the
   // guard in workspace/index.tsx. The previous condition

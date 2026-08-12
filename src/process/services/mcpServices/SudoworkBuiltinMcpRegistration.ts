@@ -7,7 +7,7 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
+import { getNodeBinaryPath } from '@process/services/nodeRuntime/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@process/initStorage';
 import type { IMcpServer } from '@/common/storage';
@@ -15,10 +15,9 @@ import type { IMcpServer } from '@/common/storage';
 /**
  * Register the browser-panel MCP server into Sudowork's unified MCP config
  * (ProcessConfig 'mcp.config'). This makes it available to ALL agent backends
- * (scode, claude, gemini, etc.) via the existing syncMcpToAgents mechanism.
+ * via the existing syncMcpToAgents mechanism.
  *
- * Replaces the old approach of hardcoding into Claude Code's config via
- * `claude mcp add`, which only worked for CC and bypassed Sudowork's MCP
+ * Replaces backend-specific config writes that bypassed Sudowork's MCP
  * management layer.
  *
  * Lifecycle:

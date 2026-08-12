@@ -33,7 +33,7 @@ vi.mock('@process/database', () => ({
 vi.mock('@process/WorkerManage', () => ({ default: { buildConversation: vi.fn() } }));
 vi.mock('@/process/AssistantManager', () => ({ assistantManager: { getAssistantMeta: vi.fn(), getInstalledAssistants: vi.fn() } }));
 vi.mock('@/agent/acp/AcpDetector', () => ({ acpDetector: { getDetectedAgents: vi.fn(() => []) } }));
-vi.mock('@process/services/claudeCli/NodeRuntimeService', () => ({ getNodeBinaryPath: () => 'node' }));
+vi.mock('@process/services/nodeRuntime/NodeRuntimeService', () => ({ getNodeBinaryPath: () => 'node' }));
 vi.mock('@process/utils/assistantResources', () => ({ readAssistantResource: vi.fn(), ruleFilePattern: /.*/ }));
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn(), mainError: vi.fn() }));
 vi.mock('@process/services/conversationService', () => ({ createConversation: vi.fn() }));

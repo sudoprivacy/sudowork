@@ -11,7 +11,7 @@ assignees: ''
 ## 背景与目标
 
 ### 问题
-Sudowork 首次安装时，部分运行时组件（Node.js、Sudoclaw、Nexus、Bdpan、Git）可能安装失败或启动失败。目前用户必须手动打开「设置 → 运行环境」检查状态并点击安装/启动按钮。
+Sudowork 首次安装时，部分运行时组件（Node.js、Sudoclaw、Nexus、Git）可能安装失败或启动失败。目前用户必须手动打开「设置 → 运行环境」检查状态并点击安装/启动按钮。
 
 ### 目标
 实现自动健康监控，要求：
@@ -31,7 +31,6 @@ Sudowork 首次安装时，部分运行时组件（Node.js、Sudoclaw、Nexus、
 | **Node.js** | `isNodeInstalled()` 检查 `~/.nexus/node` | `ensureNodeInstalled()` 解压内嵌 tar.gz | N/A（无服务） |
 | **Sudoclaw** | 检查二进制 + HTTP 健康检查端口 17863 | `ensureSudoclawInstalled()` 解压 `openclaw.tgz` | `ServiceManager.startOpenClaw()` |
 | **Nexus** | 检查二进制 + HTTP 健康检查端口 12012 | `dynamicNexusService.install()` 解压 `nexus.tar.gz` | `ServiceManager.startNexus()` |
-| **Bdpan** | `isBdpanInstalled()` 检查二进制 | `ensureBdpanInstalled()` | N/A（无服务） |
 
 ---
 
@@ -68,7 +67,7 @@ Sudowork 首次安装时，部分运行时组件（Node.js、Sudoclaw、Nexus、
 
 创建 `src/process/services/serviceManager/ComponentHealthMonitor.ts`，包含：
 - `ComponentHealthMonitor` 类
-- 组件健康检查方法（Git、Node、Sudoclaw、Nexus、Bdpan）
+- 组件健康检查方法（Git、Node、Sudoclaw、Nexus）
 - 自愈逻辑（安装/启动）
 - 连续失败追踪和降级机制
 

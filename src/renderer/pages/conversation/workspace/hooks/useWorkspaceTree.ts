@@ -25,9 +25,6 @@ export function filterHiddenWorkspaceDirs(nodes: IDirOrFile[], options: { eventP
   const hiddenNames = new Set<string>();
 
   if (isRoot && eventPrefix !== 'remote-agent') {
-    if (eventPrefix === 'acp' && backend === 'claude') {
-      hiddenNames.add('.claude');
-    }
     if (eventPrefix === 'acp' && backend === 'scode') {
       hiddenNames.add('.nexus');
     }

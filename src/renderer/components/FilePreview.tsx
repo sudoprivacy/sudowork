@@ -91,9 +91,6 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
   }, [readonly, loading, fileError, path, fileName, launchPreview]);
 
   useEffect(() => {
-    // bdpan:// paths are remote — skip local fs operations
-    if (path.startsWith('bdpan://')) return;
-
     // Reset error state when path changes
     setFileError(false);
 

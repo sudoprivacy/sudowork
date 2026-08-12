@@ -201,7 +201,7 @@ const TOOLS: Tool[] = [
   {
     name: 'team_list_assistants',
     description:
-      'List assistants available to spawn as teammates (merged guide agents + installed assistants, deduped and priority-sorted). Use this BEFORE team_spawn_agent to get the real assistant_id values — do NOT guess from backend names like claude/codex/gemini. Each entry has an assistant_id usable with team_spawn_agent.',
+      'List assistants available to spawn as teammates (merged guide agents + installed assistants, deduped and priority-sorted). Use this BEFORE team_spawn_agent to get the real assistant_id values — do NOT guess from backend names. Each entry has an assistant_id usable with team_spawn_agent.',
     inputSchema: {
       type: 'object',
       properties: {},

@@ -5,12 +5,13 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
+import { normalizeLegacyAcpConversationState } from '@/types/acpTypes';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 import AcpAgent from './task/AcpAgent';
 import RemoteAgent from './task/RemoteAgent';
 import { ProcessChat, ProcessConfig } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
-import { mainLog, mainError } from '@process/utils/mainLogger';
 
 const taskList: {
   id: string;
@@ -136,8 +137,15 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
     }
     case 'acp': {
       // Local ACP agent / 本地 ACP Agent
+      const normalized = normalizeLegacyAcpConversationState(conversation.extra?.backend, conversation.extra?.acpSessionId);
+      if ((conversation.extra?.backend as string) === 'claude') {
+        getDatabase().updateConversation(conversation.id, {
+          extra: { ...conversation.extra, backend: normalized.backend, acpSessionId: undefined },
+        });
+      }
       const task = new AcpAgent({
         ...conversation.extra,
+        ...normalized,
         conversation_id: conversation.id,
         // Runtime options / 运行时选项
         yoloMode: options?.yoloMode,

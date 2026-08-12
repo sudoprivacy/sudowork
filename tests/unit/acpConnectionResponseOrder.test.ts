@@ -42,7 +42,6 @@ async function loadAcpConnection() {
   }));
   vi.doMock('@/agent/acp/acpConnectors', () => ({
     ACP_PERF_LOG: false,
-    connectClaude: vi.fn(),
     connectCodebuddy: vi.fn(),
     connectCodex: vi.fn(),
     prepareCleanEnv: vi.fn(() => process.env),

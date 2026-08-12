@@ -13,7 +13,6 @@
  */
 
 import AuggieLogo from '@/renderer/assets/logos/auggie.svg';
-import ClaudeLogo from '@/renderer/assets/logos/claude.svg';
 import CodeBuddyLogo from '@/renderer/assets/logos/codebuddy.svg';
 import CodexLogo from '@/renderer/assets/logos/codex.svg';
 import DroidLogo from '@/renderer/assets/logos/droid.svg';
@@ -38,7 +37,6 @@ const ScodeLogo = SudoworkLogo;
  * Note: keys are lowercase
  */
 const AGENT_LOGO_MAP = {
-  claude: ClaudeLogo,
   gemini: GeminiLogo,
   qwen: QwenLogo,
   iflow: IflowLogo,

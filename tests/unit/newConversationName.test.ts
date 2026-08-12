@@ -12,7 +12,7 @@ describe('applyDefaultConversationName', () => {
     const params = applyDefaultConversationName(
       {
         type: 'acp' as const,
-        name: 'Claude Code',
+        name: 'Sudo Code',
         extra: { workspace: '/tmp/workspace', customWorkspace: true },
       },
       '新会话'

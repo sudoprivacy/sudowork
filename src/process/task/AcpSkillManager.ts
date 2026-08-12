@@ -13,11 +13,11 @@
  */
 
 import fs from 'fs/promises';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import path from 'path';
 import { existsSync } from 'fs';
-import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, isUserSkillEnabled } from '../initStorage';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { ExtensionRegistry } from '@/extensions';
+import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, isUserSkillEnabled } from '../initStorage';
 
 /**
  * Skill 定义（与 aioncli-core 兼容）
@@ -311,8 +311,8 @@ export class AcpSkillManager {
     if (this.initialized) return;
 
     // When enabledSkills is undefined (non-preset agent), load ALL installed &
-    // user-enabled workspace skills so that standalone agents like Claude Code
-    // can also use skills such as "browser".
+    // user-enabled workspace skills so standalone agents can also use skills
+    // such as "browser".
     // When enabledSkills is an explicit list (preset agent), only load those.
 
     const skillsDir = this.skillsDir;

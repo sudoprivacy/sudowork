@@ -49,7 +49,7 @@ describe('createConversationParams', () => {
         name: 'Preset Assistant',
         customAgentId: 'builtin-cowork',
         isPreset: true,
-        presetAgentType: 'claude',
+        presetAgentType: 'scode',
       },
       '/tmp/workspace',
       'tr'
@@ -66,7 +66,7 @@ describe('createConversationParams', () => {
     expect(params.extra.enabledSkills).toEqual(['moltbook']);
     expect(params.extra.agentName).toBe('Preset Assistant'); // agentName should be set for placeholder display
     // ACP conversations don't resolve a model at creation time — the backend determines it
-    expect(params.extra.backend).toBe('claude');
+    expect(params.extra.backend).toBe('scode');
   });
 
   it('maps acp preset assistants to presetContext and backend', async () => {

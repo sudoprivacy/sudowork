@@ -28,16 +28,6 @@ function root(children?: IDirOrFile[]): IDirOrFile {
 }
 
 describe('filterHiddenWorkspaceDirs', () => {
-  it('hides root .claude directory for claude acp workspaces only', () => {
-    const result = filterHiddenWorkspaceDirs([dir('.claude'), dir('docs')], {
-      eventPrefix: 'acp',
-      backend: 'claude',
-      isRoot: true,
-    });
-
-    expect(result.map((node: IDirOrFile) => node.name)).toEqual(['docs']);
-  });
-
   it('does not apply local backend skill-root hiding to remote-agent workspaces', () => {
     const result = filterHiddenWorkspaceDirs([root([dir('skills'), dir('.claude'), dir('.nexus'), dir('docs')])], {
       eventPrefix: 'remote-agent',

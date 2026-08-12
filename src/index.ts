@@ -63,7 +63,7 @@ mainLog('App', `Electron: ${process.versions.electron}, Node: ${process.versions
 mainLog('App', `Packaged: ${app.isPackaged}, Dev: ${!app.isPackaged}`);
 
 // Hide Dock icon when running as Node.js CLI (ELECTRON_RUN_AS_NODE)
-// This prevents the Dock bounce when using the claude CLI wrapper
+// This prevents Dock bounce when a managed CLI uses Electron as Node.js
 if (process.env.ELECTRON_RUN_AS_NODE === '1' && process.platform === 'darwin' && app.dock) {
   app.dock.hide();
 }

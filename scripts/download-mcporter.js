@@ -3,8 +3,8 @@
  * Download mcporter npm package with all dependencies and create a tgz bundle.
  * Run during build process: bun run mcporter:download
  *
- * Creates a self-contained tgz bundle similar to claude-code.tgz,
- * which will be extracted at runtime by McporterService.
+ * Creates a self-contained tgz bundle for runtime extraction by
+ * McporterService.
  *
  * Usage: node scripts/download-mcporter.js [--force] [--version <version>]
  *   --force           Re-download even if tgz already exists

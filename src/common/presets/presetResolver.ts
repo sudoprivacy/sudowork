@@ -22,7 +22,6 @@ const presetRegistry = new Map<string, IAssistantMeta>();
 
 // Backend-specific session mode mapping for yolo/auto-approve
 const YOLO_SESSION_MODES: Record<string, string> = {
-  claude: 'bypassPermissions',
   codebuddy: 'bypassPermissions',
   gemini: 'yolo',
   codex: 'yolo',
@@ -58,7 +57,7 @@ export function getPresetByAgentId(customAgentId: string | undefined): IAssistan
  * Resolve session mode from preset's defaultMode + current backend.
  *
  * When a preset has defaultMode: 'yolo' and the user hasn't manually changed the mode,
- * map to the backend-specific auto-approve mode (e.g. claude → 'bypassPermissions').
+ * map to the backend-specific auto-approve mode.
  */
 export function resolveSessionMode(defaultMode: string | undefined, backend: string | undefined, selectedMode: string): string {
   if (selectedMode !== 'default') return selectedMode; // user explicitly set a mode

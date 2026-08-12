@@ -1,5 +1,5 @@
 name: "doctor self-diagnosis"
-description: "Doctor (Claude Code + yolo) freely explores SudoWork UI within a time budget, then we judge whatever it accomplished"
+description: "Doctor (Sudo Code + yolo) freely explores SudoWork UI within a time budget, then we judge whatever it accomplished"
 
 steps:
   # ── Phase 0: Wait for app startup to complete ──
@@ -14,9 +14,9 @@ steps:
   - op: screenshot
     path: "screenshots/doctor-00-home.png"
   - op: judge
-    expect: "新会话 Sudoclaw Claude Code"
+    expect: "新会话 Sudo Code"
 
-  # ── Phase 2: Select doctor preset (routes to Claude Code backend) ──
+  # ── Phase 2: Select doctor preset (routes to Sudo Code backend) ──
   - op: mouse_click
     text: "诊断医生"
   - op: pause
@@ -59,4 +59,4 @@ steps:
   - op: screenshot
     path: "screenshots/doctor-02-result.png"
   - op: judge
-    expect: "screenshot agent 切换 Sudoclaw Claude"
+    expect: "screenshot agent 切换 Sudo Code"

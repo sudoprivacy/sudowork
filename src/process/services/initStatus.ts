@@ -25,7 +25,7 @@ export interface InitStatus {
   /** Which loading UI should be rendered. */
   displayMode?: InitDisplayMode;
   error?: string;
-  /** Current installation step id: 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan' */
+  /** Current installation step id: 'git' | 'node' | 'scode' | 'nexus' */
   step?: string;
   /** Detail message for current step (e.g. "Extracting files... 45%") */
   detail?: string;

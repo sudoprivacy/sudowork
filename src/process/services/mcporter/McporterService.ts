@@ -6,15 +6,15 @@
 
 import type { ChildProcess } from 'child_process';
 import { spawn } from 'child_process';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'fs';
 import { app } from 'electron';
 import path from 'path';
 import os from 'os';
 import type { IMcpServer } from '@/common/storage';
-import { convertToMcporterConfig, type McporterConfig } from './mcporterConfig';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { safeExec } from '@process/utils/safeExec';
-import { getNodeBinaryPath, ensureNodeInstalled, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
+import { getNodeBinaryPath, ensureNodeInstalled, isNodeInstalled } from '@process/services/nodeRuntime/NodeRuntimeService';
+import { convertToMcporterConfig, type McporterConfig } from './mcporterConfig';
 
 /**
  * mcporter daemon 状态
@@ -410,8 +410,6 @@ class McporterService {
       writeFileSync(this.configPath, configJson, 'utf-8');
       mainLog('McporterService', `Synced ${Object.keys(config.mcpServers).length} MCP servers to ${this.configPath}`);
 
-      await this.syncToClaudeCode(config.mcpServers);
-
       const daemonStatus = await this.getDaemonStatus();
       if (daemonStatus.running) {
         mainLog('McporterService', `Daemon running (pid: ${daemonStatus.pid}), reloading config...`);
@@ -422,48 +420,6 @@ class McporterService {
     } catch (error) {
       mainError('McporterService', 'Failed to sync config:', error);
       throw error;
-    }
-  }
-
-  /**
-   * 同步 MCP 配置到 Claude Code (~/.claude.json)
-   */
-  private async syncToClaudeCode(mcpServers: McporterConfig['mcpServers']): Promise<void> {
-    const claudeConfigPath = path.join(os.homedir(), '.claude.json');
-
-    try {
-      let claudeConfig: Record<string, unknown> = {};
-      if (existsSync(claudeConfigPath)) {
-        const content = readFileSync(claudeConfigPath, 'utf-8');
-        claudeConfig = JSON.parse(content);
-      }
-
-      const claudeMcpServers: Record<string, { type?: string; url?: string; command?: string; args?: string[]; env?: Record<string, string> }> = {};
-
-      for (const [name, server] of Object.entries(mcpServers)) {
-        if (server.baseUrl) {
-          claudeMcpServers[name] = {
-            type: 'sse',
-            url: server.baseUrl,
-          };
-          if (server.headers) {
-            claudeMcpServers[name].url = server.baseUrl;
-          }
-        } else if (server.command) {
-          claudeMcpServers[name] = {
-            command: server.command,
-            args: server.args,
-            env: server.env,
-          };
-        }
-      }
-
-      claudeConfig['mcpServers'] = claudeMcpServers;
-
-      writeFileSync(claudeConfigPath, JSON.stringify(claudeConfig, null, 2), 'utf-8');
-      mainLog('McporterService', `Synced ${Object.keys(claudeMcpServers).length} MCP servers to Claude Code`);
-    } catch (error) {
-      mainWarn('McporterService', 'Failed to sync to Claude Code:', error);
     }
   }
 

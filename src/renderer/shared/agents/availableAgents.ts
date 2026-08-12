@@ -14,7 +14,7 @@ export const AVAILABLE_AGENTS_SWR_KEY = 'acp.agents.available';
  * controls what the user sees after detection.
  */
 export function filterAvailableAgentsForUi(availableAgents: AvailableAgent[]): AvailableAgent[] {
-  return availableAgents.filter((agent) => agent.backend !== 'gemini');
+  return availableAgents.filter((agent) => (agent.backend as string) !== 'gemini' && (agent.backend as string) !== 'claude');
 }
 
 export function splitConversationDropdownAgents(availableAgents: AvailableAgent[]): {

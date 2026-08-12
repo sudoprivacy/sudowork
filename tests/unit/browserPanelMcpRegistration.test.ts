@@ -24,7 +24,7 @@ vi.mock('fs', () => ({
   existsSync: vi.fn(() => true),
 }));
 
-vi.mock('@process/services/claudeCli/NodeRuntimeService', () => ({
+vi.mock('@process/services/nodeRuntime/NodeRuntimeService', () => ({
   getNodeBinaryPath: () => '/mock/node/bin/node',
 }));
 

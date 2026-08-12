@@ -5,10 +5,8 @@
  * Build inputs:  resources/browser-panel-mcp/src/index.ts
  * Build output:  resources/browser-panel-mcp/index.js
  *
- * The bundle is shipped as an extraResource (see electron-builder.yml). At
- * runtime the sudowork main process registers an entry in ~/.claude.json
- * pointing at this file via the bundled Node, so Claude Code launches it as
- * an MCP stdio server when a Claude session starts.
+ * The bundle is shipped as an extraResource (see electron-builder.yml) and
+ * registered through Sudowork's unified MCP configuration.
  *
  * @modelcontextprotocol/sdk is bundled in (no external dependency at runtime
  * inside the packaged app). Node built-ins (fs/path/url/http/...) are kept

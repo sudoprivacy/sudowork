@@ -12,6 +12,6 @@ PR 创建/更新时触发，由以下 job 组成：
 
 ## 其他工作流
 
-`build-*` / `claude.yml` / `download-resources.yml` / `hotfix.yml` / `no-merge-commits.yml` / `pr-integration-smoke.yml` 等各自承担独立职责，详见各文件顶部说明。
+`build-*` / `download-resources.yml` / `hotfix.yml` / `no-merge-commits.yml` / `pr-integration-smoke.yml` 等各自承担独立职责，详见各文件顶部说明。
 
 `candidate-promotion.yml` / `pr-e2e-artifacts.yml` / `update-ai-dev-browser.yml` 为 `workflow_dispatch` 手动触发工具。

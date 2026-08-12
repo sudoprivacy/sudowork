@@ -132,7 +132,6 @@ const GuidPage: React.FC = () => {
     // Agent state
     selectedAgent: agentSelection.selectedAgent,
     selectedAgentKey: agentSelection.selectedAgentKey,
-    modelBackendKey: agentSelection.modelBackendKey,
     selectedAgentInfo: agentSelection.selectedAgentInfo,
     isPresetAgent: agentSelection.isPresetAgent,
     selectedMode: agentSelection.selectedMode,
@@ -263,7 +262,7 @@ const GuidPage: React.FC = () => {
   // not by the assistant metadata's presetAgentType. Display the actual backend so the logo
   // matches the conversation that will be created (app logo for enterprise users).
   // 企业模式下真正的后端由 sessionMode 决定（remote-agent / scode），与助手元数据中的 presetAgentType 无关，
-  // 这里按实际后端展示，避免本地元数据里残留的 'claude' 导致 logo 误显示。
+  // 这里按实际后端展示，避免旧元数据导致 logo 误显示。
   const currentAssistantAgentType = useMemo(() => {
     if (!selectedAssistantConfig) return DEFAULT_PRESET_AGENT_TYPE;
     if (isEnterprise) {

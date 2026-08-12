@@ -23,12 +23,8 @@ LIBREOFFICE_FILES=(
   "https://download.documentfoundation.org/libreoffice/stable/26.2.1/deb/x86_64/LibreOffice_26.2.1_Linux_x86-64_deb.tar.gz|LibreOffice_26.2.1_Linux_x86-64_deb.tar.gz"
 )
 
-# Claude Code / Gemini CLI / Openclaw 下载配置 (resource_0.0.5)
+# Gemini CLI / Openclaw 下载配置 (resource_0.0.5)
 SUDOWORK_FILES=(
-  "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/claude-code-macos-arm64.tgz|claude-code-macos-arm64.tgz"
-  "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/claude-code-macos-x64.tgz|claude-code-macos-x64.tgz"
-  "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/claude-code-windows-arm64.tgz|claude-code-windows-arm64.tgz"
-  "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/claude-code-windows-x64.tgz|claude-code-windows-x64.tgz"
   "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/gemini-cli-macos-arm64.tgz|gemini-cli-macos-arm64.tgz"
   "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/gemini-cli-macos-x64.tgz|gemini-cli-macos-x64.tgz"
   "https://github.com/sudoprivacy/sudowork/releases/download/resouece_0.0.5/gemini-cli-windows-arm64.tgz|gemini-cli-windows-arm64.tgz"

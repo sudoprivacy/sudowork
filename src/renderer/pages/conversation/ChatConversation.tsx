@@ -7,6 +7,7 @@
 import React, { useMemo } from 'react';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import type { TChatConversation } from '@/common/storage';
+import { resolvePresetAgentBackend } from '@/types/acpTypes';
 import { TaskPanelHeaderProvider } from './workspace/TaskPanelHeaderContext';
 import ChatSider from './ChatSider';
 import ChatLayout from './ChatLayout';
@@ -31,7 +32,7 @@ const ChatConversation: React.FC<{
     if (!conversation) return null;
     switch (conversation.type) {
       case 'acp':
-        return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={conversation.extra?.backend || 'claude'} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName}></AcpChat>;
+        return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={resolvePresetAgentBackend(conversation.extra?.backend)} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName}></AcpChat>;
       case 'remote-agent': {
         // Remote-agent uses AcpChat with backend='remote-agent' (handled by conversationBridge.sendMessage)
         const remoteExtra = conversation.extra as { mossServerUrl?: string; agentName?: string };

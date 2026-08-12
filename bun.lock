@@ -8,7 +8,6 @@
         "@anthropic-ai/sdk": "^0.71.2",
         "@aws-sdk/client-bedrock": "^3.987.0",
         "@bufbuild/protobuf": "^2.12.0",
-        "@bufbuild/protoc-gen-es": "^2.12.0",
         "@google/genai": "^1.16.0",
         "@grammyjs/transformer-throttler": "^1.2.1",
         "@larksuiteoapi/node-sdk": "^1.58.0",
@@ -92,6 +91,7 @@
       },
       "devDependencies": {
         "@arco-design/web-react": "^2.66.1",
+        "@bufbuild/protoc-gen-es": "^2.12.0",
         "@codemirror/autocomplete": "^6.20.1",
         "@codemirror/commands": "^6.10.3",
         "@codemirror/lang-css": "^6.3.1",

@@ -127,7 +127,6 @@ files:
   - '!**/{npm-debug.log,yarn.lock,.yarn-metadata.json,yarn-error.log}'
   # Exclude large packages
   - '!**/node_modules/{@emnapi}/**'
-  - '!**/node_modules/@anthropic-ai/claude-code/vendor/**'
   - '!**/node_modules/@anthropic-ai/claude-agent-sdk/vendor/**'
   # Exclude JAR files and JNI libraries that cause notarization issues
   - '!**/*.jar'
@@ -191,17 +190,11 @@ extraResources:
   - from: resources/pwdLogin
     to: pwdLogin
   # CLI tools (bundled at build time via scripts/download-*.js)
-  # NOTE: claude-code.tgz is deliberately NOT bundled — users install Claude
-  # Code CLI separately (https://claude.com/code). At runtime, the Claude agent
-  # resolves `claude` from PATH via the ACP bridge (see acpConnectors.ts).
-  # Other agents (codex, gemini, sudocode, etc.) are unaffected.
   - from: resources/shareone.tgz
     to: shareone.tgz
   - from: resources/mcporter.tgz
     to: mcporter.tgz
-  # browser-panel MCP server bundle (esbuild output from
-  # scripts/build-browser-mcp.js). Claude Code launches this as a stdio MCP
-  # subprocess after sudowork registers it in ~/.claude.json at first run.
+  # browser-panel MCP server bundle (esbuild output from scripts/build-browser-mcp.js).
   - from: resources/browser-panel-mcp/index.js
     to: browser-panel-mcp/index.js
   # team-mcp server bundle (esbuild output from scripts/build-team-mcp.js).
@@ -238,9 +231,6 @@ win:
     # Node.js runtime for Windows (zip format)
     - from: resources/node-win32-${arch}.zip
       to: node-win32-${arch}.zip
-    # bdpan installer for Windows (bundled at build time)
-    - from: resources/bdpan-installer-windows-${arch}.exe
-      to: bdpan-installer-windows-${arch}.exe
     # Nexus binary for Windows - versioned
     - from: resources
       to: .
@@ -288,9 +278,6 @@ mac:
     # Node.js runtime for macOS (tar.gz format)
     - from: resources/node-darwin-${arch}.tar.gz
       to: node-darwin-${arch}.tar.gz
-    # bdpan installer for macOS (arch-specific binary, bundled at build time)
-    - from: resources/bdpan-installer-darwin-${arch}
-      to: bdpan-installer-darwin-${arch}
 
 linux:
   target:

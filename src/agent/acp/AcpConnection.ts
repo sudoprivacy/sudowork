@@ -18,7 +18,7 @@ import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
 import { StdioAcpTransport, GrpcAcpTransport } from './transport';
 import type { AcpTransport } from './transport';
-import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { ACP_PERF_LOG, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import type { SpawnResult } from './acpConnectors';
 import { readTextFile, writeTextFile } from './utils';
 
@@ -189,15 +189,19 @@ export class AcpConnection {
   }
 
   // 通用的后端连接方法
-  private async connectGenericBackend(backend: Exclude<AcpBackend, 'claude' | 'codebuddy' | 'codex'>, cliPath: string, workingDir: string, acpArgs?: string[], customEnv?: Record<string, string>): Promise<void> {
+  private async connectGenericBackend(backend: Exclude<AcpBackend, 'codebuddy' | 'codex'>, cliPath: string, workingDir: string, acpArgs?: string[], customEnv?: Record<string, string>): Promise<void> {
     const result = await spawnGenericBackend(backend, cliPath, workingDir, acpArgs, customEnv);
     await this.spawnAndSetup(result, backend);
   }
 
   /** Npx-based backends that may need npm cache recovery on version mismatch */
-  private static readonly NPX_BACKENDS: ReadonlySet<string> = new Set(['claude', 'codex', 'codebuddy']);
+  private static readonly NPX_BACKENDS: ReadonlySet<string> = new Set(['codex', 'codebuddy']);
 
   async connect(backend: AcpBackend, cliPath?: string, workingDir: string = process.cwd(), acpArgs?: string[], customEnv?: Record<string, string>): Promise<void> {
+    if ((backend as string) === 'claude') {
+      throw new Error('Claude Code backend has been removed. Use scode instead.');
+    }
+
     const connectStart = Date.now();
     if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: start backend=${backend}`);
 
@@ -205,8 +209,8 @@ export class AcpConnection {
       await this.doConnect(backend, cliPath, workingDir, acpArgs, customEnv);
     } catch (error) {
       // For npx-based backends, detect stale npm cache errors and auto-recover.
-      // When we upgrade a bridge package version (e.g., claude-agent-acp 0.17→0.18),
-      // users with the old version cached hit "notarget" because --prefer-offline
+      // When we upgrade a bridge package version, users with the old version cached
+      // can hit "notarget" because --prefer-offline
       // serves stale metadata. Cleaning the cache and retrying fixes this.
       const errMsg = error instanceof Error ? error.message : String(error);
       if (AcpConnection.NPX_BACKENDS.has(backend) && /notarget|no matching version/i.test(errMsg)) {
@@ -280,10 +284,6 @@ export class AcpConnection {
     };
 
     switch (backend) {
-      case 'claude':
-        await connectClaude(workingDir, npxHooks, customEnv);
-        break;
-
       case 'codebuddy':
         await connectCodebuddy(workingDir, npxHooks, customEnv);
         break;
@@ -750,8 +750,8 @@ export class AcpConnection {
     // Sending the absolute path again makes some CLIs treat it as a nested relative path.
     const normalizedCwd = this.normalizeCwdForAgent(cwd);
 
-    // Resume on session/new is only meaningful for 'meta-resume' backends (claude-agent-acp /
-    // codebuddy), which carry the prior session id in `_meta.claudeCode.options.resume`. Every
+    // Resume on session/new is only meaningful for CodeBuddy, which carries the prior
+    // session id in `_meta.claudeCode.options.resume`. Every
     // other backend resumes through the ACP-standard `session/load` (see getAcpResumeStrategy),
     // so we never attach a generic `resumeSessionId` here — that param had no consumer and made
     // scode silently mint a fresh, empty session instead of resuming.
@@ -769,7 +769,7 @@ export class AcpConnection {
     const response = await this.sendRequest<AcpResponse & { sessionId?: string }>('session/new', {
       cwd: normalizedCwd,
       mcpServers: mcpServers ?? ([] as unknown[]),
-      // meta-resume backends (claude/codebuddy) pass the resume id through _meta
+      // CodeBuddy passes the resume id through the compatible _meta wire key
       ...(meta && { _meta: meta }),
       ...(options?.forkSession && { forkSession: options.forkSession }),
     });
@@ -924,8 +924,8 @@ export class AcpConnection {
     }
 
     // Also update configOptions cache so getModelInfo() returns consistent data.
-    // The unstable_setSessionModel handler in claude-agent-acp will also send a
-    // config_option_update notification, but we update eagerly for immediate reads.
+    // The backend may also send a config_option_update notification, but we
+    // update eagerly for immediate reads.
     if (this.configOptions) {
       this.configOptions = this.configOptions.map((opt) => (opt.category === 'model' ? { ...opt, currentValue: modelId, selectedValue: modelId } : opt));
     }
