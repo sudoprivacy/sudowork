@@ -5,6 +5,10 @@
  */
 
 import { app } from 'electron';
+import { getChannelManager } from '@/channels';
+import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
+import { ExtensionRegistry } from '@/extensions';
+import initStorage, { ProcessConfig } from './initStorage';
 
 // Force node-gyp-build to skip build/ directory and use prebuilds/ only in production
 // This prevents loading wrong architecture binaries from development environment
@@ -12,15 +16,11 @@ import { app } from 'electron';
 if (app.isPackaged) {
   process.env.PREBUILDS_ONLY = '1';
 }
-import initStorage, { ProcessConfig } from './initStorage';
 // initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
 import { syncElectronPath } from './services/claudeCli/CliInstallService';
-import { getChannelManager } from '@/channels';
-import { ExtensionRegistry } from '@/extensions';
 import { mainLog, mainError, perfLog } from './utils/mainLogger';
 import { initializeSudoworkLogUploader } from './utils/sudoworkLogUploader';
-import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
 import { migrateLegacyScodeHomeOnce } from './services/scode/ScodeInstallService';
