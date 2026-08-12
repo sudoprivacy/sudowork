@@ -16,9 +16,6 @@ export function getAuthTypeFromPlatform(platform: string): AuthType {
   const platformLower = platform?.toLowerCase() || '';
 
   // Gemini 相关平台
-  if (platformLower.includes('gemini-with-google-auth')) {
-    return AuthType.LOGIN_WITH_GOOGLE;
-  }
   if (platformLower.includes('gemini-vertex-ai') || platformLower.includes('vertex-ai')) {
     return AuthType.USE_VERTEX_AI;
   }

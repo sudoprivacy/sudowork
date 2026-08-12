@@ -1167,14 +1167,14 @@ const initStorage = async () => {
 
   // 7. Migrate channel agent to scode (Sudo Code)
   // 渠道 agent 迁移到 scode (Sudo Code)
-  const CHANNEL_AGENT_MIGRATION_KEY = 'migration.channelAgentMigratedToScode';
+  const CHANNEL_AGENT_MIGRATION_KEY = 'migration.channelGeminiAgentMigratedToScode';
   const channelAgentMigrationDone = await configFile.get(CHANNEL_AGENT_MIGRATION_KEY).catch(() => false);
   if (!channelAgentMigrationDone) {
     try {
       const CHANNEL_AGENT_KEYS = ['assistant.telegram.agent', 'assistant.lark.agent', 'assistant.dingtalk.agent', 'assistant.wechat.agent', 'assistant.wecom.agent'] as const;
       for (const key of CHANNEL_AGENT_KEYS) {
         const saved = await configFile.get(key).catch((): undefined => undefined);
-        if (saved && typeof saved === 'object' && (saved as any).backend === 'openclaw-gateway') {
+        if (saved && typeof saved === 'object' && ['openclaw-gateway', 'gemini'].includes((saved as any).backend)) {
           (saved as any).backend = 'scode';
           (saved as any).name = 'Sudo Code';
           await configFile.set(key, saved);

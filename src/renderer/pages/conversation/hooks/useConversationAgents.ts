@@ -11,7 +11,7 @@ import type { AvailableAgent } from '@/renderer/shared/agents/types';
 import { AVAILABLE_AGENTS_SWR_KEY, filterAvailableAgentsForUi, splitConversationDropdownAgents } from '@/renderer/shared/agents/availableAgents';
 
 export type UseConversationAgentsResult = {
-  /** CLI Agents (non-custom, non-preset backends, excluding gemini-CLI) */
+  /** CLI Agents (non-custom, non-preset backends) */
   cliAgents: AvailableAgent[];
   /** Preset assistants (isPreset === true) */
   presetAssistants: AvailableAgent[];

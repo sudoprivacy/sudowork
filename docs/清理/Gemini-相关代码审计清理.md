@@ -2,6 +2,8 @@
 
 > 审计日期：2026-08-12
 >
+> 清理状态：已执行“移除 Google OAuth / Gemini 独立 Agent / 官方 Gemini CLI MCP，保留 Gemini 模型协议与 SudoRouter 模型”范围的代码清理。本文前半部分记录清理前审计事实，末尾记录当前实现状态。
+>
 > 本文记录 Sudowork 当前 Gemini 相关代码的实际用途、运行状态和清理边界。重点区分：
 >
 > 1. Gemini 作为独立 Agent；
@@ -627,3 +629,23 @@ bun run lint
 Gemini 仍作为 SudoRouter 默认模型、图片模型和外部 CLI MCP 能力存在；Google OAuth
 与原生 Gemini 协议代码仍在，但其当前生产调用链和实际可用性需要单独核验。
 ```
+
+## 15. 清理执行结果
+
+本次已移除：
+
+- Google OAuth IPC、主进程登录/状态/退出处理、Gemini 设置页和订阅状态查询；
+- Google Auth 虚拟 Provider、Guid/渠道模型选择 UI 及相关模式列表；
+- Gemini ACP backend 注册、CLI 启动分支、`.gemini/settings.json` 和 `GEMINI.md` 工作区写入；
+- 官方 Gemini CLI MCP 检测、安装、同步、删除，以及相关 MCP Adapter；
+- Gemini CLI 下载脚本、资源发布 Workflow、Agent Logo 映射和 OAuth/CLI 专属 i18n。
+
+本次保留：
+
+- `platform: 'gemini'` 的 API Provider、Gemini 模型 ID 和协议检测；
+- SudoRouter 默认文本/视觉/图片模型及图片生成 `generateContent` 链路；
+- 历史数据库 migration 中的 Gemini 字面量；
+- 对旧 `presetAgentType/backend='gemini'` 数据的运行时归一化到 `scode`；
+- `@office-ai/aioncli-core`，因为它仍被其他认证、MCP OAuth、Bedrock 和通用运行时能力使用。
+
+数据库版本已从 29 升至 30。v30 会将已迁移会话、Cron 和 Team 中遗留的 Gemini Agent 状态归一化到 Scode，并清除旧 CLI/session 字段。代码验证通过：`bunx tsc --noEmit`、`bun run i18n:types`、全量 `bun run test`（232 个测试文件通过，1 个跳过；2204 个测试通过，6 个跳过）。

@@ -88,8 +88,8 @@ beforeEach(() => {
 });
 
 describe('team migrations', () => {
-  it('CURRENT_DB_VERSION is 29', () => {
-    expect(CURRENT_DB_VERSION).toBe(29);
+  it('CURRENT_DB_VERSION is 30', () => {
+    expect(CURRENT_DB_VERSION).toBe(30);
   });
   it('ALL_MIGRATIONS includes v24 through v29', () => {
     expect(ALL_MIGRATIONS.some((m) => m.version === 24)).toBe(true);

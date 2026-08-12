@@ -5,11 +5,11 @@
  */
 
 import { app } from 'electron';
-import { safeExec } from '@process/utils/safeExec';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { safeExec } from '@process/utils/safeExec';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
 import { getEnhancedEnv, resolveNpxPath } from '@/process/utils/shellEnv';
 import type { IMcpServer } from '@/common/storage';
@@ -19,7 +19,7 @@ import type { AcpBackendAll } from '@/types/acpTypes';
 /**
  * MCP源类型 - 包括所有ACP后端和Sudowork内置
  */
-export type McpSource = AcpBackendAll | 'sudowork';
+export type McpSource = AcpBackendAll;
 
 /**
  * MCP操作结果接口

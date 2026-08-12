@@ -16,7 +16,6 @@ import AuggieLogo from '@/renderer/assets/logos/auggie.svg';
 import CodeBuddyLogo from '@/renderer/assets/logos/codebuddy.svg';
 import CodexLogo from '@/renderer/assets/logos/codex.svg';
 import DroidLogo from '@/renderer/assets/logos/droid.svg';
-import GeminiLogo from '@/renderer/assets/logos/gemini.svg';
 import GitHubLogo from '@/renderer/assets/logos/github.svg';
 import GooseLogo from '@/renderer/assets/logos/goose.svg';
 import IflowLogo from '@/renderer/assets/logos/iflow.svg';
@@ -37,7 +36,6 @@ const ScodeLogo = SudoworkLogo;
  * Note: keys are lowercase
  */
 const AGENT_LOGO_MAP = {
-  gemini: GeminiLogo,
   qwen: QwenLogo,
   iflow: IflowLogo,
   codex: CodexLogo,

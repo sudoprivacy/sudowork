@@ -138,9 +138,16 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
     case 'acp': {
       // Local ACP agent / 本地 ACP Agent
       const normalized = normalizeLegacyAcpConversationState(conversation.extra?.backend, conversation.extra?.acpSessionId);
-      if ((conversation.extra?.backend as string) === 'claude') {
+      const persistedBackend = conversation.extra?.backend as string | undefined;
+      if (persistedBackend === 'claude' || persistedBackend === 'gemini') {
         getDatabase().updateConversation(conversation.id, {
-          extra: { ...conversation.extra, backend: normalized.backend, acpSessionId: undefined },
+          extra: {
+            ...conversation.extra,
+            backend: normalized.backend,
+            cliPath: undefined,
+            acpSessionId: undefined,
+            acpSessionUpdatedAt: undefined,
+          },
         });
       }
       const task = new AcpAgent({

@@ -262,8 +262,7 @@ function fileExtname(filePath: string): string {
 // ===== AI Provider 相关常量 =====
 
 // Stable ID for the Google Auth virtual provider.
-// Shared between frontend (useModelProviderList) and backend (SystemActions).
-export const GOOGLE_AUTH_PROVIDER_ID = 'google-auth-gemini';
+// Shared between channel settings and backend system actions.
 
 /** 黑名单默认配置（空规则集） */
 export const DEFAULT_BLACKLIST_CONFIG: IBlacklistConfig = { rules: [] };

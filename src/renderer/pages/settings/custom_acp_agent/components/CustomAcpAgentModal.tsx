@@ -74,7 +74,7 @@ const CustomAcpAgentModal: React.FC<CustomAcpAgentModalProps> = ({ visible, agen
    * 加载已检测到的 CLI 列表
    * Load detected CLI list from backend
    * 过滤规则：排除内置后端（gemini, codex）和需要认证的后端，只显示第三方独立 CLI
-   * Filter rule: exclude built-in backends (gemini, codex) and auth-required backends, only show third-party CLIs
+   * Filter rule: exclude built-in backends and auth-required backends, only show third-party CLIs
    */
   const loadDetectedAgents = useCallback(async () => {
     setLoadingAgents(true);

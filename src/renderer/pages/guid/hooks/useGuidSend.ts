@@ -52,7 +52,6 @@ export type GuidSendDeps = {
   isMainAgentAvailable: (agentType: string) => boolean;
   getAvailableFallbackAgent: () => string | null;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
-  isGoogleAuth: boolean;
 
   // Mention state reset
   setMentionOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -263,9 +262,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
 
       try {
-        // For presets with a non-gemini backend, don't pass the UI's Gemini
-        // model. Let the backend resolve the model itself.
-        const isGeminiBackend = acpBackend === 'gemini';
         // Reject stale/ghost selectedAcpModel (not in available list); fall back to probe's current model.
         const acpAvailableModels = currentAcpCachedModelInfo?.availableModels;
         const selectedAcpModelInList = acpAvailableModels && selectedAcpModel ? acpAvailableModels.some((m) => m.id === selectedAcpModel) : false;
@@ -273,7 +269,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         const conversation = await ipcBridge.conversation.create.invoke({
           type: 'acp',
           name: input,
-          model: isGeminiBackend ? currentModel! : ({} as TProviderWithModel),
+          model: {} as TProviderWithModel,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,

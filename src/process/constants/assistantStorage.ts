@@ -71,11 +71,6 @@ export interface IAssistantMeta {
    * When set, direct ai-dev-browser CLI calls are redirected through this wrapper.
    */
   opsEntryPoint?: string;
-  /**
-   * Model config overrides (temperature, thinkingBudget, etc).
-   * Written to .gemini/settings.json in the conversation workspace before CLI starts.
-   */
-  modelConfigs?: Record<string, unknown>;
   /** Source filename for agent rules, e.g. 'copilot.md'. Used during init to produce AGENT.md. */
   ruleFile?: string;
   /** Source filename for skill rules. Used during init to produce SKILLS.md. */

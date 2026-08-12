@@ -15,18 +15,16 @@ import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import type { GeminiModelSelection, LoginPhase } from '../types';
+import type { LoginPhase } from '../types';
 import { WECHAT_GUIDE_URL } from '../utils';
-import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
 
 interface WeChatConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
-  modelSelection: GeminiModelSelection;
   onStatusChange?: (status: IChannelPluginStatus | null) => void;
 }
 
-const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
+const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, onStatusChange }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -169,7 +167,6 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
     };
   }, []);
 
-  const isGeminiAgent = selectedAgent.backend === 'gemini';
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   const renderQRCodeSection = () => {
@@ -289,13 +286,6 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
             </Dropdown>
           </PreferenceRow>
         </div>
-      )}
-
-      {/* Default Model Selection - hidden in enterprise mode */}
-      {!isEnterprise && (
-        <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.channels.wechat.defaultModelDesc', 'Used for Agent conversations')}>
-          <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
-        </PreferenceRow>
       )}
     </div>
   );

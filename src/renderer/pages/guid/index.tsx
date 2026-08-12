@@ -89,8 +89,6 @@ const GuidPage: React.FC = () => {
   const modelSelection = useGuidModelSelection();
 
   const agentSelection = useGuidAgentSelection({
-    modelList: modelSelection.modelList,
-    isGoogleAuth: modelSelection.isGoogleAuth,
     localeKey,
     assistantFromUrl: assistantParam,
   });
@@ -148,7 +146,6 @@ const GuidPage: React.FC = () => {
     isMainAgentAvailable: agentSelection.isMainAgentAvailable,
     getAvailableFallbackAgent: agentSelection.getAvailableFallbackAgent,
     currentEffectiveAgentInfo: agentSelection.currentEffectiveAgentInfo,
-    isGoogleAuth: modelSelection.isGoogleAuth,
 
     // Mention state reset
     setMentionOpen: mention.setMentionOpen,
@@ -553,20 +550,6 @@ const GuidPage: React.FC = () => {
 
   // Build the mention dropdown node
   const mentionDropdownNode = <MentionDropdown menuRef={mention.mentionMenuRef} options={mention.filteredMentionOptions} selectedKey={mention.mentionMenuSelectedKey} onSelect={mention.selectMentionAgent} />;
-
-  // Build the model selector node
-  // const modelSelectorNode = (
-  //   <GuidModelSelector
-  //     isGeminiMode={isGeminiMode}
-  //     modelList={modelSelection.modelList}
-  //     currentModel={modelSelection.currentModel}
-  //     setCurrentModel={modelSelection.setCurrentModel}
-  //     geminiModeLookup={modelSelection.geminiModeLookup}
-  //     currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
-  //     selectedAcpModel={agentSelection.selectedAcpModel}
-  //     setSelectedAcpModel={agentSelection.setSelectedAcpModel}
-  //   />
-  // );
 
   // Popover-button path: independent state, does NOT touch the input
 

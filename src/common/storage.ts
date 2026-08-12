@@ -23,18 +23,6 @@ export const ConfigStorage = storage.buildStorage<IConfigStorageRefer>('agent.co
 export const EnvStorage = storage.buildStorage<IEnvStorageRefer>('agent.env');
 
 export interface IConfigStorageRefer {
-  'gemini.config': {
-    authType: string;
-    proxy: string;
-    GOOGLE_GEMINI_BASE_URL?: string;
-    /** @deprecated Use accountProjects instead. Kept for backward compatibility migration. */
-    GOOGLE_CLOUD_PROJECT?: string;
-    /** 按 Google 账号存储的 GCP 项目 ID / GCP project IDs stored per Google account */
-    accountProjects?: Record<string, string>;
-    yoloMode?: boolean;
-    /** Preferred session mode for new conversations / 新会话的默认模式 */
-    preferredMode?: string;
-  };
   'codex.config'?: {
     cliPath?: string;
     yoloMode?: boolean;
@@ -94,6 +82,7 @@ export interface IConfigStorageRefer {
   'migration.skillSubdirectoriesMigrated'?: boolean;
   /** Migration flag: channel agent migrated to scode (Sudo Code) */
   'migration.channelAgentMigratedToScode'?: boolean;
+  'migration.channelGeminiAgentMigratedToScode'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
   // 每轮消息下方是否显示 token / 积分用量 / Whether to show per-turn token / points usage badges

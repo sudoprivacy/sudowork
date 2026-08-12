@@ -1454,7 +1454,7 @@ class TeamService {
       const lookupName = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
       const meta = await assistantManager.getAssistantMeta(lookupName);
       if (!meta) return { ok: false, error: `unknown assistant: ${assistantId}` };
-      const models = meta.modelConfigs ? Object.keys(meta.modelConfigs) : [];
+      const models: string[] = [];
       return { ok: true, data: { assistant_id: assistantId, models } };
     }
     return { ok: true, data: { models: [] } };

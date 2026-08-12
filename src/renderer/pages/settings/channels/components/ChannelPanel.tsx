@@ -11,7 +11,6 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
 import type { IChannelPluginStatus } from '@/channels/types';
-import { useChannelModelSelection } from '../hooks/useChannelModelSelection';
 import type { ChannelConfig, ExtensionFieldSchema, ExtensionFieldValues } from '../types';
 import { BUILTIN_CHANNEL_TYPES } from '../utils';
 import WeComConfigForm from './WeComConfigForm';
@@ -68,13 +67,6 @@ const ChannelPanel: React.FC = () => {
     wechat: true,
     wecom: true,
   });
-
-  // Model selection state — uses unified hook with ConfigStorage persistence
-  const telegramModelSelection = useChannelModelSelection('assistant.telegram.defaultModel');
-  const larkModelSelection = useChannelModelSelection('assistant.lark.defaultModel');
-  const dingtalkModelSelection = useChannelModelSelection('assistant.dingtalk.defaultModel');
-  const wechatModelSelection = useChannelModelSelection('assistant.wechat.defaultModel');
-  const wecomModelSelection = useChannelModelSelection('assistant.wecom.defaultModel');
 
   // Load plugin status
   const loadPluginStatus = useCallback(async () => {
@@ -601,11 +593,9 @@ const ChannelPanel: React.FC = () => {
       disabled: enableLoading,
       isConnected: pluginStatus?.connected || false,
       botUsername: pluginStatus?.botUsername,
-      defaultModel: telegramModelSelection.currentModel?.useModel,
       content: (
         <TelegramConfigForm
           pluginStatus={pluginStatus}
-          modelSelection={telegramModelSelection}
           onStatusChange={setPluginStatus}
           onTokenChange={(token) => {
             telegramTokenRef.current = token;
@@ -622,11 +612,9 @@ const ChannelPanel: React.FC = () => {
       enabled: larkPluginStatus?.enabled || false,
       disabled: larkEnableLoading,
       isConnected: larkPluginStatus?.connected || false,
-      defaultModel: larkModelSelection.currentModel?.useModel,
       content: (
         <LarkConfigForm
           pluginStatus={larkPluginStatus}
-          modelSelection={larkModelSelection}
           onStatusChange={setLarkPluginStatus}
           onCredentialsChange={(creds) => {
             larkCredentialsRef.current = creds;
@@ -643,11 +631,9 @@ const ChannelPanel: React.FC = () => {
       enabled: dingtalkPluginStatus?.enabled || false,
       disabled: dingtalkEnableLoading,
       isConnected: dingtalkPluginStatus?.connected || false,
-      defaultModel: dingtalkModelSelection.currentModel?.useModel,
       content: (
         <DingTalkConfigForm
           pluginStatus={dingtalkPluginStatus}
-          modelSelection={dingtalkModelSelection}
           onStatusChange={setDingtalkPluginStatus}
           onCredentialsChange={(creds) => {
             dingtalkCredentialsRef.current = creds;
@@ -663,8 +649,7 @@ const ChannelPanel: React.FC = () => {
       enabled: wechatPluginStatus?.enabled || false,
       disabled: wechatEnableLoading,
       isConnected: wechatPluginStatus?.connected || false,
-      defaultModel: wechatModelSelection.currentModel?.useModel,
-      content: <WeChatConfigForm pluginStatus={wechatPluginStatus} modelSelection={wechatModelSelection} onStatusChange={setWechatPluginStatus} />,
+      content: <WeChatConfigForm pluginStatus={wechatPluginStatus} onStatusChange={setWechatPluginStatus} />,
     };
 
     const wecomChannel: ChannelConfig = {
@@ -675,11 +660,9 @@ const ChannelPanel: React.FC = () => {
       enabled: wecomPluginStatus?.enabled || false,
       disabled: wecomEnableLoading,
       isConnected: wecomPluginStatus?.connected || false,
-      defaultModel: wecomModelSelection.currentModel?.useModel,
       content: (
         <WeComConfigForm
           pluginStatus={wecomPluginStatus}
-          modelSelection={wecomModelSelection}
           onStatusChange={setWecomPluginStatus}
           onCredentialsChange={(creds) => {
             wecomCredentialsRef.current = creds;
@@ -704,27 +687,7 @@ const ChannelPanel: React.FC = () => {
       }));
 
     return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, wecomChannel, ...extensionChannels];
-  }, [
-    pluginStatus,
-    larkPluginStatus,
-    dingtalkPluginStatus,
-    wechatPluginStatus,
-    wecomPluginStatus,
-    extensionStatuses,
-    extensionLoadingMap,
-    telegramModelSelection,
-    larkModelSelection,
-    dingtalkModelSelection,
-    wechatModelSelection,
-    wecomModelSelection,
-    wechatEnableLoading,
-    wecomEnableLoading,
-    enableLoading,
-    larkEnableLoading,
-    dingtalkEnableLoading,
-    renderExtensionConfigForm,
-    t,
-  ]);
+  }, [pluginStatus, larkPluginStatus, dingtalkPluginStatus, wechatPluginStatus, wecomPluginStatus, extensionStatuses, extensionLoadingMap, wechatEnableLoading, wecomEnableLoading, enableLoading, larkEnableLoading, dingtalkEnableLoading, renderExtensionConfigForm, t]);
 
   // Get toggle handler for each channel
   const getToggleHandler = (channelId: string) => {

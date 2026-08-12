@@ -7,7 +7,7 @@
 /**
  * Preset Runtime Applier — main-process-only side effects for preset configuration.
  *
- * Handles: env var injection, scripts/ discovery, modelConfigs file writing.
+ * Handles env var injection and scripts/ discovery.
  * For pure resolution logic, see common/presets/presetResolver.ts.
  */
 
@@ -115,11 +115,6 @@ export function applyPresetRuntimeFromMeta(meta: IAssistantMeta, ctx: PresetRunt
     result.contextAppendix += `\n\n## Ops Entry Point\n\n\`\`\`\npython "${absOpsPath}" --port ${ctx.cdpPort} --op <name> [args]\n\`\`\`\n`;
   }
 
-  // modelConfigs → .gemini/settings.json
-  if (ctx.backend === 'gemini' && meta.modelConfigs && ctx.workspace) {
-    writeGeminiConfig(meta.modelConfigs, ctx.workspace);
-  }
-
   return result;
 }
 
@@ -135,19 +130,4 @@ function discoverScripts(scriptsDir: string): string {
     // No scripts directory
   }
   return '';
-}
-
-/** Write modelConfigs to .gemini/settings.json for Gemini CLI. */
-function writeGeminiConfig(modelConfigs: Record<string, unknown>, workspace: string): void {
-  try {
-    const geminiDir = path.join(workspace, '.gemini');
-    if (!fs.existsSync(geminiDir)) {
-      fs.mkdirSync(geminiDir, { recursive: true });
-    }
-    const settingsPath = path.join(geminiDir, 'settings.json');
-    fs.writeFileSync(settingsPath, JSON.stringify({ modelConfigs }, null, 2));
-    mainLog('[PresetRuntime]', `Wrote Gemini model config to ${settingsPath}`);
-  } catch (error) {
-    mainWarn('[PresetRuntime]', 'Failed to write Gemini model config:', error);
-  }
 }

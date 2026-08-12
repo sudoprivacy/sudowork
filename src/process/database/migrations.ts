@@ -1470,6 +1470,41 @@ const migration_v29: IMigration = {
   },
 };
 
+const migration_v30: IMigration = {
+  version: 30,
+  name: 'Normalize legacy Gemini ACP state',
+  up: (db) => {
+    const rows = db.prepare(`SELECT id, extra FROM conversations WHERE type = 'acp'`).all() as Array<{ id: string; extra: string | null }>;
+    const updateConversation = db.prepare('UPDATE conversations SET extra = ? WHERE id = ?');
+    for (const row of rows) {
+      let extra: Record<string, unknown>;
+      try {
+        extra = row.extra ? JSON.parse(row.extra) : {};
+      } catch {
+        continue;
+      }
+      if (extra.backend !== 'gemini') continue;
+      extra.backend = 'scode';
+      delete extra.cliPath;
+      delete extra.acpSessionId;
+      delete extra.acpSessionUpdatedAt;
+      updateConversation.run(JSON.stringify(extra), row.id);
+    }
+
+    const tableExists = (table: string) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+    if (tableExists('cron_jobs')) db.exec("UPDATE cron_jobs SET agent_type = 'scode' WHERE agent_type = 'gemini'");
+    if (tableExists('team_members')) {
+      db.exec("UPDATE team_members SET backend = 'scode' WHERE backend = 'gemini'");
+      db.exec("UPDATE team_members SET preset_agent_type = 'scode' WHERE preset_agent_type = 'gemini'");
+    }
+    if (tableExists('assistant_sessions')) db.exec("UPDATE assistant_sessions SET agent_type = 'acp' WHERE agent_type = 'gemini'");
+    mainLog('Migration v30', 'Normalized legacy Gemini ACP state');
+  },
+  down: (_db) => {
+    mainLog('Migration v30', 'Rollback is a no-op; legacy Gemini runtime is removed');
+  },
+};
+
 /**
  * Migration v23 -> v24: Add team collaboration tables
  * teams / team_members / team_mailbox / team_tasks for multi-agent team collaboration.
@@ -1772,7 +1807,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
-  migration_v25, migration_v26, migration_v27, migration_v28, migration_v29,
+  migration_v25, migration_v26, migration_v27, migration_v28, migration_v29, migration_v30,
 ];
 
 /**

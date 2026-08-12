@@ -14,19 +14,16 @@ import { ConfigStorage } from '@/common/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import type { GeminiModelSelection } from '../types';
 import { WECOM_DEV_DOCS_URL } from '../utils';
-import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
 
 interface WeComConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
-  modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onCredentialsChange?: (credentials: { botId: string; secret: string }) => void;
 }
 
-const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
+const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -40,7 +37,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
 
   // Agent selection
   const [availableAgents, setAvailableAgents] = useState<Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isPreset?: boolean }>>([]);
-  const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: 'gemini' });
+  const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: CHANNEL_DEFAULT_AGENT_BACKEND });
 
   // Load saved credentials for backfill (when hasToken or when disabled but credentials exist)
   useEffect(() => {
@@ -198,7 +195,6 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
   // Lock credentials when plugin is enabled and has valid token
   // Unlock when disabled to allow reconfiguration
   const isCredentialsLocked = pluginStatus?.enabled && pluginStatus?.hasToken;
-  const isGeminiAgent = selectedAgent.backend === 'gemini';
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
@@ -371,13 +367,6 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
             </Dropdown>
           </PreferenceRow>
         </div>
-      )}
-
-      {/* Default Model Selection - hidden in enterprise mode */}
-      {!isEnterprise && (
-        <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.wecom.defaultModelDesc', 'Used for Agent conversations')}>
-          <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
-        </PreferenceRow>
       )}
 
       {/* Connection Status - always show when enabled */}

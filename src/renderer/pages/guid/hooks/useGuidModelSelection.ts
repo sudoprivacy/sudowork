@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
-import { useGeminiGoogleAuthModels } from '@/renderer/hooks/useGeminiGoogleAuthModels';
 import { useAvailableModels } from '@/renderer/hooks/useAvailableModels';
 
 /**
@@ -31,10 +30,6 @@ const isModelKeyAvailable = (key: string | null, providers?: IProvider[]) => {
 
 export type GuidModelSelectionResult = {
   modelList: IProvider[];
-  isGoogleAuth: boolean;
-  geminiModeOptions: ReturnType<typeof useGeminiGoogleAuthModels>['geminiModeOptions'];
-  geminiModeLookup: Map<string, ReturnType<typeof useGeminiGoogleAuthModels>['geminiModeOptions'][number]>;
-  formatGeminiModelLabel: (provider: { platform?: string } | undefined, modelName?: string) => string;
   currentModel: TProviderWithModel | undefined;
   setCurrentModel: (modelInfo: TProviderWithModel) => Promise<void>;
 };
@@ -43,26 +38,7 @@ export type GuidModelSelectionResult = {
  * Hook that manages Gemini model list and selection state for the Guid page.
  */
 export const useGuidModelSelection = (): GuidModelSelectionResult => {
-  const { geminiModeOptions, isGoogleAuth } = useGeminiGoogleAuthModels();
   const { modelList } = useAvailableModels();
-
-  const geminiModeLookup = useMemo(() => {
-    const lookup = new Map<string, (typeof geminiModeOptions)[number]>();
-    geminiModeOptions.forEach((option) => lookup.set(option.value, option));
-    return lookup;
-  }, [geminiModeOptions]);
-
-  const formatGeminiModelLabel = useCallback(
-    (provider: { platform?: string } | undefined, modelName?: string) => {
-      if (!modelName) return '';
-      const isGoogleProvider = provider?.platform?.toLowerCase().includes('gemini-with-google-auth');
-      if (isGoogleProvider) {
-        return geminiModeLookup.get(modelName)?.label || modelName;
-      }
-      return modelName;
-    },
-    [geminiModeLookup]
-  );
 
   const [currentModel, _setCurrentModel] = useState<TProviderWithModel>();
   const selectedModelKeyRef = useRef<string | null>(null);
@@ -127,10 +103,6 @@ export const useGuidModelSelection = (): GuidModelSelectionResult => {
   }, [modelList]);
   return {
     modelList,
-    isGoogleAuth,
-    geminiModeOptions,
-    geminiModeLookup,
-    formatGeminiModelLabel,
     currentModel,
     setCurrentModel,
   };

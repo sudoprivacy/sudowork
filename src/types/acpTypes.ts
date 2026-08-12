@@ -27,7 +27,7 @@ export const LEGACY_SUDOCLAW_PRESET_AGENT_TYPE = 'sudoclaw' as const;
  */
 export const CHANNEL_DEFAULT_AGENT_BACKEND = 'scode' as const;
 
-export type PresetAgentType = 'codebuddy' | 'opencode' | 'qwen' | 'gemini' | typeof DEFAULT_PRESET_AGENT_TYPE | typeof LEGACY_SUDOCLAW_PRESET_AGENT_TYPE;
+export type PresetAgentType = 'codebuddy' | 'opencode' | 'qwen' | typeof DEFAULT_PRESET_AGENT_TYPE | typeof LEGACY_SUDOCLAW_PRESET_AGENT_TYPE;
 
 /**
  * 使用 ACP 协议的预设 Agent 类型（需要通过 ACP 后端路由）
@@ -56,14 +56,14 @@ export function isAcpRoutedPresetType(type: PresetAgentType | undefined): boolea
  * Normalize legacy sudoclaw/claude preset types to scode so old metadata still works.
  */
 export function normalizePresetAgentType(type: string | undefined): string | undefined {
-  if (type === LEGACY_SUDOCLAW_PRESET_AGENT_TYPE || type === 'claude') {
+  if (type === LEGACY_SUDOCLAW_PRESET_AGENT_TYPE || type === 'claude' || type === 'gemini') {
     return DEFAULT_PRESET_AGENT_TYPE;
   }
   return type;
 }
 
 export function normalizeLegacyAcpConversationState(backend: string | undefined, acpSessionId?: string): { backend: AcpBackendAll | undefined; acpSessionId?: string } {
-  if (backend === 'claude') {
+  if (backend === 'claude' || backend === 'gemini') {
     return { backend: DEFAULT_PRESET_AGENT_TYPE };
   }
   return { backend: backend as AcpBackendAll | undefined, ...(acpSessionId ? { acpSessionId } : {}) };
@@ -88,8 +88,6 @@ export function getAgentPriority(backend: string): number {
       return -1;
     case 'scode':
       return 0;
-    case 'gemini':
-      return 3;
     case 'custom':
       return 4;
     default:
@@ -99,7 +97,6 @@ export function getAgentPriority(backend: string): number {
 
 // 全部后端类型定义 - 包括暂时不支持的 / All backend types - including temporarily unsupported ones
 export type AcpBackendAll =
-  | 'gemini' // Google Gemini ACP (backend, not agent type)
   | 'qwen' // Qwen Code ACP
   | 'iflow' // iFlow CLI ACP
   | 'codex' // OpenAI Codex ACP (via codex-acp bridge, not agent type)
@@ -147,17 +144,17 @@ export const SCODE_REASONING_ACP_ARGS = ['--reasoning-effort', 'high', 'acp'];
 
 /**
  * 从 ACP_BACKENDS_ALL 生成可检测的 CLI 列表
- * 仅包含有 cliCommand 且已启用的后端（排除 gemini 和 custom）
+ * 仅包含有 cliCommand 且已启用的后端（排除 custom）
  * Generate detectable CLI list from ACP_BACKENDS_ALL
- * Only includes enabled backends with cliCommand (excludes gemini and custom)
+ * Only includes enabled backends with cliCommand (excludes custom)
  */
 function generatePotentialAcpClis(): PotentialAcpCli[] {
   // 需要在 ACP_BACKENDS_ALL 定义之后调用，所以使用延迟初始化
   // Must be called after ACP_BACKENDS_ALL is defined, so use lazy initialization
   return Object.entries(ACP_BACKENDS_ALL)
     .filter(([id, config]) => {
-      // 排除没有 CLI 命令的后端（gemini 内置，custom 用户配置）
-      // Exclude backends without CLI command (gemini is built-in, custom is user-configured)
+      // 排除没有 CLI 命令的后端和用户配置的 custom 后端
+      // Exclude backends without CLI commands and user-configured custom backends.
       if (!config.cliCommand) return false;
       if (id === 'custom') return false;
       return config.enabled;
@@ -213,13 +210,13 @@ export type AcpResumeStrategy = 'session-load' | 'meta-resume';
 
 /**
  * ACP 后端 Agent 配置
- * 用于内置后端（gemini, qwen）和用户自定义 Agent
+ * 用于内置后端和用户自定义 Agent
  *
  * Configuration for an ACP backend agent.
- * Used for both built-in backends (gemini, qwen) and custom user agents.
+ * Used for both built-in backends and custom user agents.
  */
 export interface AcpBackendConfig {
-  /** 后端唯一标识符 / Unique identifier for the backend (e.g., 'scode', 'gemini', 'custom') */
+  /** 后端唯一标识符 / Unique identifier for the backend (e.g., 'scode', 'qwen', 'custom') */
   id: string;
 
   /** UI 显示名称 / Display name shown in the UI (e.g., 'Goose', 'Sudo Code') */
@@ -336,19 +333,17 @@ export interface AcpBackendConfig {
   /**
    * 此预设的主 Agent 类型（仅 isPreset=true 时生效）
    * 决定选择此预设时创建哪种类型的对话
-   * - 'gemini': 创建 Gemini 对话
    * - 'scode': 创建使用 Sudo Code 后端的 ACP 对话
    * - 'codex': 创建 Codex 对话
    * - 任意字符串: 扩展贡献的 ACP 适配器 ID（如 'ext-buddy'）
-   * 为向后兼容默认为 'gemini'
+   * 缺失时默认使用 'scode'
    *
    * The primary agent type for this preset (only applies when isPreset=true).
    * Determines which conversation type to create when selecting this preset.
-   * - 'gemini': Creates a Gemini conversation
    * - 'scode': Creates an ACP conversation with the Sudo Code backend
    * - 'codex': Creates a Codex conversation
    * - any string: Extension-contributed ACP adapter ID (e.g. 'ext-buddy')
-   * Defaults to 'gemini' for backward compatibility.
+   * Defaults to 'scode' when missing.
    */
   presetAgentType?: PresetAgentType | string;
 
@@ -392,14 +387,6 @@ export interface AcpBackendConfig {
 
 // 所有后端配置 - 包括暂时禁用的 / All backend configurations - including temporarily disabled ones
 export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
-  gemini: {
-    id: 'gemini',
-    name: 'Google CLI',
-    cliCommand: 'gemini',
-    authRequired: true,
-    enabled: false, // Gemini is accessed via model platform (API key), not as a standalone agent backend
-    supportsStreaming: true,
-  },
   qwen: {
     id: 'qwen',
     name: 'Qwen Code',

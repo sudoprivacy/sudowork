@@ -315,17 +315,6 @@ export const fileStream = {
   }>('file-stream-content-update'), // Agent 写入文件时的流式内容更新 / Streaming content update when agent writes file
 };
 
-export const googleAuth = {
-  login: bridge.buildProvider<IBridgeResponse<{ account: string }>, { proxy?: string }>('google.auth.login'),
-  logout: bridge.buildProvider<void, Record<string, never>>('google.auth.logout'),
-  status: bridge.buildProvider<IBridgeResponse<{ account: string }>, { proxy?: string }>('google.auth.status'),
-};
-
-// 订阅状态查询：用于动态决定是否展示 gemini-3.1-pro-preview / subscription check for Gemini models
-export const gemini = {
-  subscriptionStatus: bridge.buildProvider<IBridgeResponse<{ isSubscriber: boolean; tier?: string; lastChecked: number; message?: string }>, { proxy?: string }>('gemini.subscription-status'),
-};
-
 // AWS Bedrock 相关接口 / AWS Bedrock interfaces
 export const bedrock = {
   testConnection: bridge.buildProvider<IBridgeResponse<{ msg?: string }>, { bedrockConfig: { authMethod: 'accessKey' | 'profile'; region: string; accessKeyId?: string; secretAccessKey?: string; profile?: string } }>('bedrock.test-connection'),

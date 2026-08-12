@@ -13,18 +13,15 @@ import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import type { GeminiModelSelection } from '../types';
-import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
 
 interface TelegramConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
-  modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onTokenChange?: (token: string) => void;
 }
 
-const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onTokenChange }) => {
+const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, onStatusChange, onTokenChange }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -38,7 +35,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
 
   // Agent selection (used for Telegram conversations)
   const [availableAgents, setAvailableAgents] = useState<Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isPreset?: boolean; isExtension?: boolean }>>([]);
-  const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: 'gemini' });
+  const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: CHANNEL_DEFAULT_AGENT_BACKEND });
 
   // Load pending pairings
   const loadPendingPairings = useCallback(async () => {
@@ -291,7 +288,6 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
     return `${remaining} min`;
   };
 
-  const isGeminiAgent = selectedAgent.backend === 'gemini';
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
@@ -360,13 +356,6 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
             </Dropdown>
           </PreferenceRow>
         </div>
-      )}
-
-      {/* Default Model Selection - hidden in enterprise mode */}
-      {!isEnterprise && (
-        <PreferenceRow label={t('settings.assistant.defaultModel', '对话模型')} description={t('settings.assistant.defaultModelDesc', '用于Agent对话时调用')}>
-          <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', '自动跟随CLI运行时的模型') : undefined} variant='settings' />
-        </PreferenceRow>
       )}
 
       {/* Next Steps Guide - show when bot is enabled and no authorized users yet */}

@@ -11,7 +11,6 @@ import type { TProviderWithModel } from '@/common/storage';
 import { ProcessConfig } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
 import WorkerManage from '@/process/WorkerManage';
-import { GOOGLE_AUTH_PROVIDER_ID } from '@/common/constants';
 import { normalizePresetAgentType, type AcpBackend } from '@/types/acpTypes';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
 import { getChannelManager } from '../core/ChannelManager';
@@ -62,21 +61,8 @@ export async function getChannelDefaultModel(platform: PluginType): Promise<TPro
             ? await ProcessConfig.get('assistant.wecom.defaultModel')
             : await ProcessConfig.get('assistant.telegram.defaultModel');
     if (savedModel?.id && savedModel?.useModel) {
-      // Google Auth is frontend-only (OAuth browser flow), not usable in channels.
-      // Fall through to find a provider with a valid API key instead.
-      if (savedModel.id === GOOGLE_AUTH_PROVIDER_ID) {
-        console.warn(`[SystemActions] Google Auth is not supported in channel mode (${platform}), falling back to API key provider`);
-        // Try to find any Gemini provider with API key for the same model
-        const fallback = providerList.find((p) => p.platform === 'gemini' && p.apiKey && p.model?.includes(savedModel.useModel));
-        if (fallback) {
-          return { ...fallback, useModel: savedModel.useModel } as TProviderWithModel;
-        }
-        // Otherwise fall through to general fallback below
-      } else {
-        // For regular (API-key-based) providers, look up full config
-        const result = findProviderWithApiKey(savedModel.id, savedModel.useModel);
-        if (result) return result;
-      }
+      const result = findProviderWithApiKey(savedModel.id, savedModel.useModel);
+      if (result) return result;
     }
 
     // Fallback: try to get any Gemini provider with a valid API key

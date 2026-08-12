@@ -458,17 +458,6 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         yoloMode,
       };
 
-      // Write preset rules as GEMINI.md for Gemini backend system instruction
-      if (this.extra.backend === 'gemini' && this.extra.workspace && this.options.presetContext) {
-        try {
-          const geminiMdPath = nodePath.join(this.extra.workspace, 'GEMINI.md');
-          fs.writeFileSync(geminiMdPath, this.options.presetContext);
-          mainLog('[AcpAgent]', `Wrote GEMINI.md to ${geminiMdPath}`);
-        } catch (error) {
-          mainWarn('[AcpAgent]', 'Failed to write GEMINI.md:', error);
-        }
-      }
-
       // Connect
       await this.connect();
 

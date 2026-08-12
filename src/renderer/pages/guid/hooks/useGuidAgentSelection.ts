@@ -11,7 +11,6 @@ import { ipcBridge } from '@/common';
 import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
 import { getPresetById } from '@/common/presets/presetResolver';
 import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
-import type { IProvider } from '@/common/storage';
 import { ConfigStorage } from '@/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
@@ -139,10 +138,7 @@ function mergeAssistantConfigs(localAgents: AcpBackendConfig[], cloudAssistants:
 /** Save preferred mode to the agent's own config key */
 async function savePreferredMode(agentKey: string, mode: string): Promise<void> {
   try {
-    if (agentKey === 'gemini') {
-      const config = await ConfigStorage.get('gemini.config');
-      await ConfigStorage.set('gemini.config', { ...config, preferredMode: mode });
-    } else if (agentKey !== 'custom') {
+    if (agentKey !== 'custom') {
       const config = await ConfigStorage.get('acp.config');
       const backendConfig = config?.[agentKey as AcpBackend] || {};
       await ConfigStorage.set('acp.config', { ...config, [agentKey]: { ...backendConfig, preferredMode: mode } });
@@ -201,8 +197,6 @@ export type GuidAgentSelectionResult = {
 };
 
 type UseGuidAgentSelectionOptions = {
-  modelList: IProvider[];
-  isGoogleAuth: boolean;
   localeKey: string;
   /** URL query parameter for assistant name to pre-select */
   assistantFromUrl?: string | null;
@@ -273,7 +267,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
     _setSelectedAcpModel((prev) => {
       const newModelId = typeof modelId === 'function' ? modelId(prev) : modelId;
       const modelBackendKey = modelBackendKeyRef.current;
-      if (modelBackendKey && modelBackendKey !== 'gemini' && newModelId) {
+      if (modelBackendKey && newModelId) {
         // For remote-agent, save to Moss Server via IPC
         if (modelBackendKey === 'remote-agent') {
           ipcBridge.moss.setUserModel.invoke({ modelId: newModelId }).catch((error) => {
@@ -817,11 +811,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
         let preferred: string | undefined;
         let yoloMode = false;
 
-        if (selectedAgent === 'gemini') {
-          const config = await ConfigStorage.get('gemini.config');
-          preferred = config?.preferredMode;
-          yoloMode = config?.yoloMode ?? false;
-        } else if (selectedAgent !== 'custom') {
+        if (selectedAgent !== 'custom') {
           const config = await ConfigStorage.get('acp.config');
           const backendConfig = config?.[selectedAgent as AcpBackend];
           preferred = backendConfig?.preferredMode;
@@ -842,7 +832,6 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
         // 2. Fallback: legacy yoloMode
         if (yoloMode) {
           const yoloValues: Record<string, string> = {
-            gemini: 'yolo',
             codex: 'yolo',
             iflow: 'yolo',
             qwen: 'yolo',
@@ -1029,14 +1018,6 @@ This identity statement takes priority over the default identity in USER.md.
 
     return null;
   }, [modelBackendKey, acpCachedModels]);
-
-  // Auto-switch only for Gemini agent
-  useEffect(() => {
-    if (!availableAgents || availableAgents.length === 0) return;
-    if (selectedAgent === 'gemini' && !currentEffectiveAgentInfo.isAvailable) {
-      console.log('[Guid] Gemini is not configured. Will check for alternatives when sending.');
-    }
-  }, [availableAgents, currentEffectiveAgentInfo, selectedAgent]);
 
   const refreshCustomAgents = useCallback(async () => {
     try {

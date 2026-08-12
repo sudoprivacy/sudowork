@@ -14,19 +14,16 @@ import { ConfigStorage } from '@/common/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import type { GeminiModelSelection } from '../types';
 import { DINGTALK_DEV_DOCS_URL } from '../utils';
-import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
 
 interface DingTalkConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
-  modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onCredentialsChange?: (creds: { clientId: string; clientSecret: string }) => void;
 }
 
-const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
+const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, onStatusChange, onCredentialsChange }) => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -51,7 +48,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
 
   // Agent selection
   const [availableAgents, setAvailableAgents] = useState<Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isPreset?: boolean }>>([]);
-  const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: 'gemini' });
+  const [selectedAgent, setSelectedAgent] = useState<{ backend: AcpBackendAll; name?: string; customAgentId?: string }>({ backend: CHANNEL_DEFAULT_AGENT_BACKEND });
 
   // Load pending pairings
   const loadPendingPairings = useCallback(async () => {
@@ -328,7 +325,6 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
   };
 
   const hasExistingUsers = authorizedUsers.length > 0;
-  const isGeminiAgent = selectedAgent.backend === 'gemini';
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> = availableAgents.length > 0 ? availableAgents : [{ backend: CHANNEL_DEFAULT_AGENT_BACKEND, name: 'Sudo Code' }];
 
   return (
@@ -488,13 +484,6 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
             </Dropdown>
           </PreferenceRow>
         </div>
-      )}
-
-      {/* Default Model Selection - hidden in enterprise mode */}
-      {!isEnterprise && (
-        <PreferenceRow label={t('settings.assistant.defaultModel', 'Model')} description={t('settings.dingtalk.defaultModelDesc', 'Used for Agent conversations')}>
-          <GeminiModelSelector selection={isGeminiAgent ? modelSelection : undefined} disabled={!isGeminiAgent} label={!isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined} variant='settings' />
-        </PreferenceRow>
       )}
 
       {/* Connection Status */}

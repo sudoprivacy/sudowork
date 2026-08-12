@@ -18,7 +18,6 @@ import mcp from './mcp.json';
 import acp from './acp.json';
 import codex from './codex.json';
 import tools from './tools.json';
-import gemini from './gemini.json';
 import cron from './cron.json';
 import team from './team.json';
 import starOffice from './starOffice.json';
@@ -43,7 +42,6 @@ export default {
   acp,
   codex,
   tools,
-  gemini,
   cron,
   team,
   starOffice,

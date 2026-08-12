@@ -19,7 +19,6 @@ import { initDialogBridge } from './dialogBridge';
 import { initDocumentBridge } from './documentBridge';
 import { initFileWatchBridge } from './fileWatchBridge';
 import { initFsBridge } from './fsBridge';
-import { initGeminiBridge } from './geminiBridge';
 import { initMcpBridge } from './mcpBridge';
 import { initMcporterBridge } from './mcporterBridge';
 import { initModelBridge } from './modelBridge';
@@ -77,8 +76,6 @@ export function initAllBridges(): void {
   initFileWatchBridge();
   initConversationBridge();
   initApplicationBridge();
-  // 额外的 Gemini 辅助桥（订阅检测等）需要在对话桥初始化后可用 / extra helpers after core bridges
-  initGeminiBridge();
   initBedrockBridge();
   initAcpConversationBridge();
   initAuthBridge();
@@ -158,7 +155,6 @@ export {
   initDocumentBridge,
   initExtensionsBridge,
   initFsBridge,
-  initGeminiBridge,
   initMcpBridge,
   initModelBridge,
   initNexusBridge,

@@ -28,12 +28,6 @@ export type AssistantPreset = {
    */
   opsEntryPoint?: string;
   /**
-   * Gemini CLI model config overrides (temperature, thinkingBudget, etc).
-   * Written to .gemini/settings.json in the conversation workspace before CLI starts.
-   * See: node_modules/@office-ai/aioncli-core/dist/docs/cli/generation-settings.md
-   */
-  modelConfigs?: Record<string, unknown>;
-  /**
    * API Key fields for Settings UI. Values are injected as env vars when spawning.
    */
   apiKeyFields?: Array<{
@@ -227,19 +221,6 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     defaultEnabledSkills: ['browser'],
     defaultMode: 'yolo',
     opsEntryPoint: 'tests/e2e/run_op.py',
-    modelConfigs: {
-      overrides: [
-        {
-          match: {},
-          modelConfig: {
-            generateContentConfig: {
-              temperature: 0.2,
-              thinkingConfig: { thinkingBudget: 8192 },
-            },
-          },
-        },
-      ],
-    },
     nameI18n: {
       'en-US': 'Doctor',
       'zh-CN': '诊断医生',

@@ -27,19 +27,6 @@
   "defaultEnabledSkills": ["browser"],
   "defaultMode": "yolo",
   "opsEntryPoint": "tests/e2e/run_op.py",
-  "modelConfigs": {
-    "overrides": [
-      {
-        "match": {},
-        "modelConfig": {
-          "generateContentConfig": {
-            "temperature": 0.2,
-            "thinkingConfig": { "thinkingBudget": 8192 }
-          }
-        }
-      }
-    ]
-  },
   "is_builtin": true,
   "source_type": "builtin",
   "enabled": true

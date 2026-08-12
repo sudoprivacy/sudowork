@@ -23,7 +23,6 @@ const presetRegistry = new Map<string, IAssistantMeta>();
 // Backend-specific session mode mapping for yolo/auto-approve
 const YOLO_SESSION_MODES: Record<string, string> = {
   codebuddy: 'bypassPermissions',
-  gemini: 'yolo',
   codex: 'yolo',
   iflow: 'yolo',
   qwen: 'yolo',
