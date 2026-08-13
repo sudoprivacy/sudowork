@@ -17,7 +17,7 @@ import { app } from 'electron';
 import JSZip from 'jszip';
 import { serviceManager } from '@process/services/serviceManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, SKILL_SUBDIRS } from '@/process/initStorage';
+import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, ProcessConfig, SKILL_SUBDIRS } from '@/process/initStorage';
 import { skillManager, type ISkillInfo } from '@/process/SkillManager';
 import { AcpSkillManager } from '@/process/task/AcpSkillManager';
 import { ipcBridge } from '@/common';
@@ -28,6 +28,7 @@ import { SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/e
 import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
 import { tokenMissingResponse } from '@common/nexus/hubErrors';
+import { getDataPath } from '../utils';
 
 const VERSION_FILE_NAME = 'sudowork-version';
 /** Metadata file saved alongside installed hub skills. Prefixed to avoid conflicts with skill content. */
@@ -37,6 +38,8 @@ const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 const MISSING_ROOT_SKILL_MD_MESSAGE = 'The selected directory must contain a root-level SKILL.md file (case-insensitive)';
 const SKILL_HUB_UPLOAD_EXCLUDED_FILE_NAMES = new Set([SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE, '_sudowork_audit.json', '_sudowork_audit.md']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PERSONAL_AUTHOR_UUID_NAMESPACE = 'c6fc5db4-8cdb-4d5f-9a8c-fd3d4b2c5a6e';
+const CONSUMER_USER_ID_FILE = 'consumer_user_id.txt';
 const SKILL_HUB_UPLOAD_RESPONSE_BODY_LOG_LIMIT = 4000;
 const SKILL_HUB_UPLOAD_DNS_LOOKUP_TIMEOUT_MS = 3000;
 type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
@@ -690,6 +693,72 @@ function normalizeUploadAuthorId(authorId: string | null | undefined): string {
 
   mainWarn('SkillHub', `Skip non-UUID author_id when uploading custom skill: ${normalized}`);
   return '';
+}
+
+function normalizeScalarString(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return '';
+}
+
+function formatUuidFromBytes(bytes: Buffer): string {
+  const uuidBytes = Buffer.from(bytes.subarray(0, 16));
+  uuidBytes[6] = (uuidBytes[6] & 0x0f) | 0x50;
+  uuidBytes[8] = (uuidBytes[8] & 0x3f) | 0x80;
+  const hex = uuidBytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+function derivePersonalAuthorUuid(userId: string): string {
+  const digest = createHash('sha256').update(`${PERSONAL_AUTHOR_UUID_NAMESPACE}:consumer:${userId}`).digest();
+  return formatUuidFromBytes(digest);
+}
+
+async function resolveConsumerUserIdForUpload(): Promise<{ userId: string; source: 'consumer_user_info' | 'consumer_user_id_file' } | null> {
+  const consumerUserInfo = ProcessConfig.getSync('consumer.userInfo') as { id?: unknown } | undefined;
+  const userInfoId = normalizeScalarString(consumerUserInfo?.id);
+  if (userInfoId) {
+    return { userId: userInfoId, source: 'consumer_user_info' };
+  }
+
+  try {
+    const fileId = normalizeScalarString(await fs.readFile(path.join(getDataPath(), CONSUMER_USER_ID_FILE), 'utf-8'));
+    if (fileId) {
+      return { userId: fileId, source: 'consumer_user_id_file' };
+    }
+  } catch {
+    // Missing legacy user-id file is handled by the caller.
+  }
+
+  return null;
+}
+
+async function resolvePersonalUploadAuthorId(metaAuthorId: string | null | undefined): Promise<{ authorId: string; source: 'skill_meta' | 'consumer_user' | 'derived_consumer_user'; consumerUserId?: string; consumerUserIdSource?: string } | { error: string; consumerUserId?: string }> {
+  const normalizedMetaAuthorId = normalizeUploadAuthorId(metaAuthorId);
+  if (normalizedMetaAuthorId) {
+    return { authorId: normalizedMetaAuthorId, source: 'skill_meta' };
+  }
+
+  const consumerUser = await resolveConsumerUserIdForUpload();
+  if (!consumerUser) {
+    return { error: 'Current personal user ID is missing, cannot upload skill to SkillHub' };
+  }
+
+  const consumerUserId = consumerUser.userId;
+  if (UUID_PATTERN.test(consumerUserId)) {
+    return { authorId: consumerUserId, source: 'consumer_user', consumerUserId, consumerUserIdSource: consumerUser.source };
+  }
+
+  return {
+    authorId: derivePersonalAuthorUuid(consumerUserId),
+    source: 'derived_consumer_user',
+    consumerUserId,
+    consumerUserIdSource: consumerUser.source,
+  };
 }
 
 function getDefaultUrlPort(protocol: string): string {
@@ -1496,7 +1565,17 @@ export function initSkillHubBridge(): void {
       const displayName = importedMeta?.display_name?.trim() || manifest.displayName || buildSkillDisplayName(uploadSkillName);
       const version = normalizeInstalledSkillVersion(importedMeta?.installed_version) || manifest.version || (await readInstalledVersionFromDirectory(skillDir)) || '1.0.0';
       const categories = resolveUploadCategories(importedMeta, manifest);
-      const uploadAuthorId = normalizeUploadAuthorId(importedMeta?.author_id);
+      const resolvedAuthor = await resolvePersonalUploadAuthorId(importedMeta?.author_id);
+      if ('error' in resolvedAuthor) {
+        mainError('SkillHub', 'Personal custom skill upload missing valid author_id', {
+          skillName: uploadSkillName,
+          metaAuthorId: importedMeta?.author_id || null,
+          consumerUserId: resolvedAuthor.consumerUserId || null,
+          error: resolvedAuthor.error,
+        });
+        return { success: false, msg: resolvedAuthor.error };
+      }
+      const uploadAuthorId = resolvedAuthor.authorId;
 
       const zipBuffer = await createSkillHubUploadZip(skillDir);
       const formData = new FormData();
@@ -1551,6 +1630,12 @@ export function initSkillHubBridge(): void {
           emoji: importedMeta?.emoji || manifest.emoji || null,
           homepage: importedMeta?.homepage || manifest.homepage || null,
           author_id: uploadAuthorId || null,
+        },
+        author: {
+          source: resolvedAuthor.source,
+          consumerUserId: resolvedAuthor.consumerUserId || null,
+          consumerUserIdSource: resolvedAuthor.consumerUserIdSource || null,
+          authorId: uploadAuthorId,
         },
         fileFields: {
           skill_file: {
