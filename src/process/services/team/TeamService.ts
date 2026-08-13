@@ -11,7 +11,7 @@ import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
 import { assistantManager } from '@/process/AssistantManager';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
-import { ACP_BACKENDS_ALL, resolvePresetAgentBackend, type AcpBackendAll, type AcpModelInfo, type PresetAgentType } from '@/types/acpTypes';
+import { ACP_BACKENDS_ALL, isAcpBackendRuntimeEnabled, resolvePresetAgentBackend, type AcpBackendAll, type AcpModelInfo, type PresetAgentType } from '@/types/acpTypes';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import i18n, { i18nReady } from '@process/i18n';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -260,6 +260,12 @@ class TeamService {
     throw new Error(`Unknown team assistant or agent: ${assistantId}`);
   }
 
+  private assertBackendRuntimeEnabled(backend: AcpBackendAll): void {
+    if (!isAcpBackendRuntimeEnabled(backend)) {
+      throw new Error(`ACP backend ${backend} is disabled`);
+    }
+  }
+
   private async resolveAssistantMeta(selection: TeamAssistantSelection): Promise<IAssistantMeta | null> {
     if (selection.source !== 'assistant') return null;
     return await assistantManager.getAssistantMeta(selection.lookupName);
@@ -289,6 +295,9 @@ class TeamService {
     const normalizedMembers = this.normalizeCreateTeamMembers(members, name);
     const leaderInput = normalizedMembers.find((member) => member.role === 'lead');
     if (!leaderInput) throw new Error('Exactly one team member must be Leader');
+
+    const selections = await Promise.all(normalizedMembers.map((member) => this.resolveTeamAssistantSelection(member.assistant_id)));
+    for (const selection of selections) this.assertBackendRuntimeEnabled(selection.backend);
 
     const now = Date.now();
     const teamId = uuid();
@@ -348,6 +357,7 @@ class TeamService {
 
   private async provisionInitialMember(team: Team, params: ProvisionInitialMemberParams): Promise<TeamMember> {
     const selection = await this.resolveTeamAssistantSelection(params.assistant_id);
+    this.assertBackendRuntimeEnabled(selection.backend);
     const meta = await this.resolveAssistantMeta(selection);
     const backend = selection.backend;
     const presetAgentType = selection.presetAgentType;
@@ -424,6 +434,7 @@ class TeamService {
     if (role === 'lead' && existing.some((m) => m.role === 'lead')) throw new Error('Team already has a leader');
 
     const selection = await this.resolveTeamAssistantSelection(params.assistant_id);
+    this.assertBackendRuntimeEnabled(selection.backend);
     const meta = await this.resolveAssistantMeta(selection);
     const backend = selection.backend;
     const presetAgentType = selection.presetAgentType;
@@ -691,8 +702,9 @@ class TeamService {
   private async rebuildTeamRuntime(teamId: string): Promise<void> {
     ipcBridge.team.onSessionChanged.emit({ teamId, status: 'starting' });
     try {
-      const session = await this.ensureSession(teamId);
       const members = teamStore.listMembersByTeam(teamId);
+      for (const member of members) this.assertBackendRuntimeEnabled(member.backend);
+      const session = await this.ensureSession(teamId);
       for (const m of members) {
         if (!m.conversation_id) continue;
         const wasPending = m.status === 'pending';

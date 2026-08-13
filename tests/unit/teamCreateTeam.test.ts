@@ -315,6 +315,16 @@ describe('TeamService createTeam members', () => {
     expect(h.teams.size).toBe(0);
   });
 
+  it('rejects Codex members before inserting a team or creating conversations', async () => {
+    const service = await importService();
+
+    await expect(service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: 'codex', name: 'Leader', role: 'lead' }])).rejects.toThrow('ACP backend codex is disabled');
+
+    expect(h.teams.size).toBe(0);
+    expect(h.createConversation).not.toHaveBeenCalled();
+    expect(service.startTeamHttpServer).not.toHaveBeenCalled();
+  });
+
   it('allows duplicate assistants and more than eight members without runtime attach during create', async () => {
     const service = await importService();
     const members = [{ assistant_id: 'scode', name: 'Leader', role: 'lead' as const }, ...Array.from({ length: 8 }, (_, index) => ({ assistant_id: 'scode', name: `Worker ${index + 1}`, role: 'teammate' as const }))];
@@ -404,6 +414,56 @@ describe('TeamService createTeam members', () => {
       expect(h.members.get(member.id)?.status).toBe('idle');
       expect(h.emitAgentStatusChanged).toHaveBeenCalledWith({ team_id: team.id, slot_id: member.id, status: 'idle' });
     }
+  });
+
+  it('rejects a dynamic Codex member before starting the team session', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: 'scode', name: 'Leader', role: 'lead' }]);
+    h.createConversation.mockClear();
+
+    await expect(service.spawnMember(team.id, { assistant_id: 'codex', name: 'Worker', role: 'teammate' })).rejects.toThrow('ACP backend codex is disabled');
+
+    expect(h.createConversation).not.toHaveBeenCalled();
+    expect(service.startTeamHttpServer).not.toHaveBeenCalled();
+  });
+
+  it('rejects persisted Codex members before rebuilding the team session', async () => {
+    const service = await importService();
+    h.teams.set('team-1', {
+      id: 'team-1',
+      user_id: 'user-1',
+      name: 'Team',
+      workspace: '/workspace',
+      workspace_kind: 'custom',
+      leader_member_id: 'leader-1',
+      session_mode: null,
+      pinned: false,
+      pinned_at: null,
+      created_at: 1,
+      updated_at: 1,
+    });
+    h.members.set('leader-1', {
+      id: 'leader-1',
+      team_id: 'team-1',
+      role: 'lead',
+      name: 'Leader',
+      assistant_id: 'codex',
+      source: 'agent',
+      backend: 'codex',
+      preset_agent_type: null,
+      skills: [],
+      preset_context: null,
+      model: null,
+      avatar: null,
+      conversation_id: 'conv-1',
+      status: 'idle',
+      created_at: 1,
+    });
+
+    await expect(service.rebuildTeam('team-1')).rejects.toThrow('ACP backend codex is disabled');
+
+    expect(service.startTeamHttpServer).not.toHaveBeenCalled();
+    expect(h.buildConversation).not.toHaveBeenCalled();
   });
 
   it('bootstrap attach failure marks failed without waking leader and stops session', async () => {

@@ -5,7 +5,7 @@
  */
 
 import type { TChatConversation } from '@/common/storage';
-import { normalizeLegacyAcpConversationState } from '@/types/acpTypes';
+import { isAcpBackendRuntimeEnabled, normalizeLegacyAcpConversationState } from '@/types/acpTypes';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import AcpAgent from './task/AcpAgent';
 import RemoteAgent from './task/RemoteAgent';
@@ -137,6 +137,10 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
     }
     case 'acp': {
       // Local ACP agent / 本地 ACP Agent
+      if (!isAcpBackendRuntimeEnabled(conversation.extra?.backend)) {
+        mainError('WorkerManage', `ACP backend ${conversation.extra?.backend} is disabled for conversation ${conversation.id}`);
+        return null;
+      }
       const normalized = normalizeLegacyAcpConversationState(conversation.extra?.backend, conversation.extra?.acpSessionId);
       const persistedBackend = conversation.extra?.backend as string | undefined;
       if (persistedBackend === 'claude' || persistedBackend === 'gemini') {

@@ -20,6 +20,7 @@ import { mainLog, mainWarn } from '@/process/utils/mainLogger';
 import { isEnterpriseMode, getCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { getConversationProvider } from '@/process/providers';
 import type RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
+import { isAcpBackendRuntimeEnabled } from '@/types/acpTypes';
 import { ipcBridge } from '../../common';
 
 function getScodeConversationModelInfo(conversationId: string) {
@@ -128,6 +129,14 @@ export function initAcpConversationBridge(): void {
   // This is the most reliable way to verify an agent can actually respond
   ipcBridge.acpConversation.checkAgentHealth.provider(async ({ backend }) => {
     const startTime = Date.now();
+
+    if (!isAcpBackendRuntimeEnabled(backend)) {
+      return {
+        success: false,
+        msg: `ACP backend ${backend} is disabled`,
+        data: { available: false, error: 'Backend disabled' },
+      };
+    }
 
     // Step 1: Check if CLI is installed
     const agents = acpDetector.getDetectedAgents();
@@ -297,6 +306,10 @@ export function initAcpConversationBridge(): void {
   });
 
   ipcBridge.acpConversation.probeModelInfo.provider(async ({ backend }) => {
+    if (!isAcpBackendRuntimeEnabled(backend)) {
+      return { success: false, msg: `ACP backend ${backend} is disabled` };
+    }
+
     if (backend === 'scode') {
       return { success: true, data: { modelInfo: getScodeProxyModelInfoSync() } };
     }

@@ -16,7 +16,7 @@ import { getDataPath } from '@/process/utils';
 import { mainError } from '@/process/utils/mainLogger';
 import { ConversationService } from '@/process/services/conversationService';
 import { transcriptionService } from '@/process/services/transcription/TranscriptionService';
-import { normalizePresetAgentType, type AcpBackend } from '@/types/acpTypes';
+import { isAcpBackendRuntimeEnabled, normalizePresetAgentType, type AcpBackend } from '@/types/acpTypes';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
@@ -510,6 +510,13 @@ export class ActionExecutor {
 
       // Get or create session (scoped by chatId for per-chat isolation)
       let session = this.sessionManager.getSession(channelUser.id, chatId);
+      if (session?.conversationId) {
+        const conversationResult = getDatabase().getConversation(session.conversationId);
+        const backend = conversationResult.success ? conversationResult.data?.extra?.backend : undefined;
+        if (!isAcpBackendRuntimeEnabled(backend)) {
+          throw new Error(`ACP backend ${backend} is disabled`);
+        }
+      }
       if (!session || !session.conversationId) {
         const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : platform === 'wechat' ? 'wechat' : platform === 'wecom' ? 'wecom' : 'telegram';
 
@@ -529,6 +536,9 @@ export class ActionExecutor {
           // ignore
         }
         const backend = normalizePresetAgentType(savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string' ? (savedAgent as any).backend : undefined) || 'scode';
+        if (!isAcpBackendRuntimeEnabled(backend)) {
+          throw new Error(`ACP backend ${backend} is disabled`);
+        }
         const customAgentId = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).customAgentId as string | undefined) : undefined;
         const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 

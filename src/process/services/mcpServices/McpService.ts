@@ -5,6 +5,7 @@
  */
 
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { isAcpBackendRuntimeEnabled } from '../../../types/acpTypes';
 import type { AcpBackend } from '../../../types/acpTypes';
 import type { IMcpServer } from '../../../common/storage';
 import { CodebuddyMcpAgent } from './agents/CodebuddyMcpAgent';
@@ -35,15 +36,24 @@ export class McpService {
   }
 
   private getAgentForConfig(agent: { backend: AcpBackend; cliPath?: string }): IMcpProtocol | undefined {
+    if (!isAcpBackendRuntimeEnabled(agent.backend)) {
+      throw new Error(`ACP backend ${agent.backend} is disabled`);
+    }
     return this.agents.get(agent.backend);
   }
 
   getAgentMcpConfigs(agents: Array<{ backend: AcpBackend; name: string; cliPath?: string }>): Promise<DetectedMcpServer[]> {
+    for (const agent of agents) {
+      if (!isAcpBackendRuntimeEnabled(agent.backend)) {
+        return Promise.reject(new Error(`ACP backend ${agent.backend} is disabled`));
+      }
+    }
+
     return this.withServiceLock(async () => {
       const results = await Promise.all(
         agents.map(async (agent) => {
           try {
-            const agentInstance = this.agents.get(agent.backend);
+            const agentInstance = this.getAgentForConfig(agent);
             if (!agentInstance) {
               mainWarn('McpService', `No agent instance for backend: ${agent.backend}`);
               return null;
@@ -73,6 +83,12 @@ export class McpService {
   }
 
   syncMcpToAgents(mcpServers: IMcpServer[], agents: Array<{ backend: AcpBackend; name: string; cliPath?: string }>): Promise<McpSyncResult> {
+    const disabledAgent = agents.find((agent) => !isAcpBackendRuntimeEnabled(agent.backend));
+    if (disabledAgent) {
+      const error = `ACP backend ${disabledAgent.backend} is disabled`;
+      return Promise.resolve({ success: false, results: [{ agent: disabledAgent.name, success: false, error }] });
+    }
+
     const enabledServers = mcpServers.filter((server) => server.enabled);
     if (enabledServers.length === 0) return Promise.resolve({ success: true, results: [] });
 
@@ -113,7 +129,7 @@ export class McpService {
           }
         })
       );
-      return { success: true, results };
+      return { success: results.every((result) => result.success), results };
     });
   }
 }

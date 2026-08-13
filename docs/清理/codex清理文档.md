@@ -297,6 +297,21 @@ MCP 设置正常情况下使用 Detector 返回的 Agent，所以通常不会传
 
 从而执行 Codex CLI MCP 命令。
 
+### 4.5 模型 Probe 是独立的 ACP 启动旁路
+
+`probeModelInfo` 会先查询 Detector，但对 Codex 明确放宽 `cliPath` 检查：
+
+```text
+src/process/bridge/acpConversationBridge.ts
+└── probeModelInfo({ backend: 'codex' })
+    ├── Detector 中没有 Codex，也继续执行
+    ├── new AcpConnection()
+    ├── connection.connect('codex')
+    └── connection.newSession()
+```
+
+因此它会直接走默认 npx Connector，启动 `@zed-industries/codex-acp@0.9.5`。删除 Codex 时必须单独拒绝该 IPC 参数，不能依赖 Detector 或 UI 不再展示 Codex。
+
 ## 5. Codex CLI MCP 配置管理
 
 Codex MCP Adapter：
@@ -640,13 +655,21 @@ conversations.extra.currentModelId
 cron_jobs.agent_type
 team_members.backend
 team_members.preset_agent_type
-assistant_sessions.agent_type
 assistant.<channel>.agent.backend
 assistant metadata presetAgentType
 acp.config.codex
 acp.cachedModels.codex
 guid.lastSelectedAgent
 ```
+
+其中 `assistant_sessions.agent_type` 不是可靠的 Codex 标记。当前 Channel 创建统一使用：
+
+```text
+assistant_sessions.agent_type = acp
+实际 backend = 关联 Conversation 的 extra.backend
+```
+
+历史 schema 虽允许 `assistant_sessions.agent_type='codex'`，但当前运行路径不会再写入该值。新 migration 可以把遗留值归一化为 `acp`，但不能用它判断关联 Conversation 是否为 Codex。
 
 ### 11.3 完全移除 Codex Agent 时的两种策略
 
@@ -688,6 +711,66 @@ Assistant presetAgentType: codex → scode
 优点：历史语义更准确。
 
 缺点：需要新增明确的只读 Conversation 状态和 UI。
+
+### 11.4 推荐决策
+
+推荐采用策略 A，将仍可能触发执行的配置迁移到 Scode，同时保留历史 Message 的只读展示能力：
+
+```text
+运行身份：codex → scode
+历史消息：不改写，不丢弃
+OpenAI/Codex 模型 ID：保留
+```
+
+原因：
+
+- 当前产品没有通用的“只读 Conversation”状态；策略 B 会引入新的产品和状态机能力，范围明显大于清理任务；
+- Scode 已是默认本地 Agent，现有 Gemini migration 已采用同类归一化方式；
+- 历史 `codex_tool_call` 继续由兼容 Renderer 展示，不需要为下线运行时而破坏已存消息；
+- 旧 Codex ACP Session 无法迁移到 Scode，应明确清除 Session 字段，避免错误 Resume。
+
+### 11.5 持久化迁移矩阵
+
+新增 migration 必须放在 `ALL_MIGRATIONS` 末尾；`migration_v16` 等历史 migration 原样保留。建议矩阵如下：
+
+| 存储位置 | Codex 判定 | 迁移结果 | 备注 |
+|---|---|---|---|
+| `conversations` | `type='acp'` 且 JSON `extra.backend='codex'` | `extra.backend='scode'` | 保留 Conversation、Messages 和 workspace；模型字段按下一项处理 |
+| Conversation Session 字段 | 同上 | 删除 `cliPath`、`acpSessionId`、`acpSessionUpdatedAt`、`sessionMode` | 防止把 Codex Session 交给 Scode Resume；`currentModelId` 是否删除见下项 |
+| `conversations.model` / `extra.currentModelId` | Codex Conversation | 建议置空 | 避免把仅由 Codex ACP 宣告的模型强制传给 Scode；若已确认 Scode 支持，可另做白名单保留 |
+| `cron_jobs.agent_type` | `codex` | `scode` | `preset_assistant_id` 仍需按 Assistant 元数据处理 |
+| `team_members.backend` | `codex` | `scode` | 当前表确有该列 |
+| `team_members.preset_agent_type` | `codex` | `scode` 或 `NULL` | 推荐 `scode`，保持成员身份可解释 |
+| `assistant_sessions.agent_type` | 遗留值 `codex` | `acp` | 只归一化会话协议类型，不代表实际 backend |
+| `assistant.<channel>.agent` | JSON `backend='codex'` | `backend='scode'` | 属于 `ProcessConfig`，不是 SQLite migration；保留仍有效的 Assistant ID/name，仅清理明确指向已删除 Codex Agent 的标识 |
+| Assistant 元数据 | `presetAgentType='codex'` | `scode` | 覆盖 builtin/custom/upload/hub 的实际持久化来源；不要只改内存合并结果 |
+| `acp.config.codex` | key 存在 | 删除 key | 可留到 Connector 删除批次执行 |
+| `acp.cachedModels.codex` | key 存在 | 删除 key | 仅清除 Agent 探测缓存，不影响 Provider 模型配置 |
+| `guid.lastSelectedAgent` | `codex` | `scode` | 防止旧 Renderer 状态回灌 |
+| `messages.type` | `codex_tool_call` / `codex_permission` | 保留 | 继续走历史兼容渲染或显式忽略 |
+
+数据库 migration 的 `down` 不应伪造已丢失的 Codex Session ID。可将结构回滚定义为 no-op，或只回滚可逆的 backend 字段；发布前必须接受“运行身份迁移不可完整逆转”这一事实，并依赖数据库备份做数据级回滚。
+
+### 11.6 深层禁用门禁
+
+数据 migration 只能处理启动时已知数据，不能阻止旧扩展、旧 Assistant 元数据或直接 IPC 再次传入 Codex。删除运行时前应先建立统一门禁：
+
+1. 在 `src/types/acpTypes.ts` 提供独立的运行时执行策略，例如内置配置字段 `isRuntimeEnabled` 或等价 helper；Codex 设为不可执行。不要直接复用现有 `enabled`：它当前表示自动检测/UI 可见性，CodeBuddy 等 backend 也为 `false`，但仍有合法的 npx 直连路径。
+2. `ConversationService.createConversation()` 对 `type='acp'` 的 backend 做最终校验。这是 UI、Channel、Cron 和 Team 共用的创建边界。
+3. `WorkerManage.buildConversation()` 对持久化的禁用 backend 拒绝构造 Worker。这是已有 Conversation 恢复的最终边界，不能只依赖创建校验。
+4. `probeModelInfo`、`checkAgentHealth` 和 MCP Bridge 在启动外部 CLI 前使用同一判断。它们不一定经过 ConversationService。
+5. Team Assistant 列表和 `isKnownBackend()`、Cron/Channel 配置解析仍应提前过滤并给出领域内错误，便于定位旧数据；但这些不是最终安全边界。动态扩展/custom backend 应通过实际注册或解析结果判断，不能因不在静态表中而统一拒绝。
+
+门禁应满足：
+
+```text
+禁用 backend 可以作为历史标记被读取
+禁用 backend 不可创建 Conversation
+禁用 backend 不可恢复 Worker
+禁用 backend 不可通过 Probe / Health / MCP 启动进程
+```
+
+不要直接把 `normalizePresetAgentType('codex')` 改成 `scode` 作为唯一方案。该函数服务 Assistant、Channel 等预设选择，但无法覆盖直接构造 `extra.backend`、已持久化 Conversation、模型 Probe 和 MCP IPC。
 
 ## 12. 文件分类清单
 
@@ -747,86 +830,152 @@ CodexMcpAgent
 Codex 模型探测、缓存和选择 UI
 ```
 
-## 13. 建议清理顺序
+## 13. 分阶段清理计划
 
-若目标是“移除 Codex 独立 Agent，但保留 OpenAI/Codex 模型 ID”，建议：
+目标是“移除 Codex 独立 Agent 运行时，但保留 OpenAI/Codex 模型 ID 和历史消息可读性”。每个批次应为独立提交，前一批通过门禁后再进入下一批。
 
-1. **先清理旧原生 Codex 实现**
-   - 删除无生产构造入口的 `CodexAgent`、Handlers、Messaging 和旧 ApprovalStore；
-   - 删除孤儿 Tool Registry/Types；
-   - 保留 `CodexConnection`，直到健康检查处理完成。
+### 批次 1：建立禁用边界
 
-2. **修正健康检查架构**
-   - 确认 `checkAgentHealth` 是否仍有产品调用方；
-   - 无调用方则删除 Codex 特殊健康检查；
-   - 仍需要则改为使用 `AcpConnection/connectCodex`。
+改动：
 
-3. **中立化共享代码**
-   - 迁移 `CREDENTIAL_AUTOLOGIN`；
-   - 移动 `MessageFileChanges.tsx`；
-   - 拆分历史 Message Payload 类型。
+- 增加统一 backend 运行时可用性判断；
+- 在 ConversationService 和 WorkerManage 增加最终门禁；
+- Team、Cron、Channel 在各自入口拒绝或归一化 Codex；
+- `probeModelInfo`、`checkAgentHealth` 和 MCP Bridge 拒绝 Codex；
+- 补充 `conversationService.test.ts`、Team、Cron、Channel 和 Bridge 单元测试。
 
-4. **决定历史 Message 策略**
-   - 保留旧 `codex_tool_call` Renderer；或
-   - 增加 Message migration/hydration 转换；或
-   - 明确放弃历史工具详情。
+完成条件：任何新参数或旧持久化数据都不能启动 Codex/codex-acp 进程；历史 Conversation 和 Message 仍可读取。
 
-5. **收紧新创建边界**
-   - ConversationService；
-   - Team；
-   - Cron；
-   - Channel；
-   - MCP Bridge；
-   - Model Probe。
+回滚条件：Scode 或其他 `enabled: true` backend 无法创建/恢复；自定义 Agent 被误判为禁用；Channel/Team/Cron 正常路径回归。
 
-6. **决定旧 Codex Conversation 策略**
-   - 迁移到 Scode；或
-   - 只读保留。
+### 批次 2：迁移持久化运行身份
 
-7. **删除 Codex ACP 和 MCP 运行时**
-   - 删除 backend 配置、Connector、npx Bridge 常量；
-   - 删除 Codex 模型探测和 Agent UI；
-   - 根据产品决策删除 `CodexMcpAgent`。
+改动：
 
-8. **清理 UI、i18n 和配置残留**
-   - Codex Option、Logo、emoji；
-   - `codex.config`；
-   - Codex i18n 模块；
-   - 运行 i18n 类型生成。
+- 新增末尾数据库 migration，按 11.5 的矩阵迁移 Conversation、Cron、Team 和遗留 Channel Session 协议值；
+- 新增 `ProcessConfig` 一次性 migration，处理各 Channel Agent、ACP Codex 配置、缓存和 Guid 选择；
+- 迁移实际 Assistant 元数据中的 `presetAgentType='codex'`；
+- 不修改历史 Message 行和 `migration_v16`。
 
-## 14. 验证建议
+完成条件：升级后的数据库与配置中不存在可执行 Codex backend；旧 Conversation 可作为 Scode Conversation 打开并发送；旧工具消息保持可读。
 
-任何 Codex 清理至少应运行：
+回滚条件：migration 丢失 Message、workspace、Assistant 资源或 Team 关系；升级非幂等；从旧数据库启动失败。数据级回滚使用升级前数据库/配置备份，不依赖恢复 Codex Session 字段。
+
+### 批次 3：删除旧原生 Codex 实现
+
+改动：
+
+- 删除无生产构造入口的 `CodexAgent`、Handlers、Messaging 和 ApprovalStore；
+- 删除或改写 `checkAgentHealth` 的 Codex 特殊分支后，再删除 `CodexConnection`、`ErrorService` 和相关旧类型；
+- 删除只服务旧 Producer 的 Tool Registry、Event 类型和 Utils。
+
+完成条件：`src/agent/codex/` 无生产引用；ACP 通用健康检查不受影响；历史 Message Renderer 编译通过。
+
+回滚条件：仍有非测试调用依赖 `CodexConnection`；删除的 Common 类型仍参与历史 Message hydration。
+
+### 批次 4：中立化共享与历史兼容代码
+
+改动：
+
+- 把 `CREDENTIAL_AUTOLOGIN` 迁移到中立权限模块，保持值 `'credential_autologin'`；
+- 把 `MessageFileChanges.tsx` 移到通用 Message 目录并更新调用方；
+- 把历史 `codex_tool_call` 所需 Payload 类型移到明确的 legacy 模块；
+- 保留 `codex_tool_call` Renderer，保留对 `codex_permission` 的显式忽略。
+
+完成条件：通用 WriteFile UI 和密码自动登录不再依赖 `src/common/codex`；历史 Codex 工具详情仍可展示。
+
+回滚条件：历史消息无法反序列化或展示；文件变更汇总、工具组或自动登录权限出现回归。
+
+### 批次 5：删除 Codex ACP 与 MCP 运行时
+
+改动：
+
+- 删除 `ACP_BACKENDS_ALL.codex`、`AcpBackendAll` 的 Codex 成员和 Codex Resume 策略；
+- 删除 `connectCodex()`、`prepareCodex()`、`CODEX_ACP_*` 常量和依赖启动配置；
+- 删除 `CodexMcpAgent` 注册与实现；
+- 删除 Codex Agent 模型 Probe、缓存回退和 Guid 静态选项；
+- 保持 OpenAI-compatible Provider 的 `gpt-*-codex` 模型支持。
+
+完成条件：生产包中不存在 Codex CLI 或 `@zed-industries/codex-acp` 启动路径；MCP 设置不会调用 Codex CLI；Provider 模型配置仍可使用 Codex 命名模型。
+
+回滚条件：通用 ACP Connector 分支被误删；其他 Agent 的 Resume、模型列表或 MCP 同步失败。
+
+### 批次 6：清理命名与资源残留
+
+改动：
+
+- 删除 Codex Agent Logo、Option、emoji、`codex.config` 和无引用类型；
+- 删除 Codex i18n 调用后，再原子移除所有 Locale 的 `codex.json`、index 注册和 `i18n-config.json` 模块；
+- 仅在历史 Renderer 已迁移到 legacy/中立目录后删除空的 Codex 目录。
+
+完成条件：源码中的 `codex` 命中仅剩历史消息兼容、数据库历史 migration、OpenAI/Codex 模型 ID 和必要文档。
+
+回滚条件：历史 Conversation 图标/消息出现未知状态；i18n 类型生成或任一 Locale 构建失败。
+
+## 14. 验收门禁
+
+### 14.1 每批通用检查
 
 ```bash
-bun run i18n:types
+bunx eslint <本批改动的 .ts/.tsx 文件> --fix
 bunx tsc --noEmit
 bun run test
 ```
 
-重点验证：
+涉及 i18n 的批次额外执行：
 
-- Scode Conversation 创建、恢复和模型切换；
-- 旧 Codex Conversation 按选定策略处理；
-- 旧 `codex_tool_call` Message 能正确展示或迁移；
-- Team 不再创建 Codex Member；
-- Cron 不再执行或复用 Codex Conversation；
-- Channel 旧 Codex Agent 配置得到迁移；
-- MCP 设置不再调用 Codex CLI（如果决定移除）；
-- OpenAI-compatible Provider 中的 `gpt-*-codex` 模型仍可配置；
-- 通用 WriteFile 文件变更 UI 不受影响；
-- 数据库可以从 v15 及更早版本完整迁移。
+```bash
+bun run i18n:types
+```
 
-建议新增测试：
+### 14.2 必须新增或更新的测试
+
+| 测试层 | 场景 | 预期 |
+|---|---|---|
+| ConversationService | `type='acp', backend='codex'` | 创建失败，不写数据库，不注册 Worker |
+| WorkerManage | 已持久化 `extra.backend='codex'` | 不构造 `AcpAgent`，不启动 Connector |
+| Backend 判断 | Codex 运行时策略为禁用 | 可识别为历史值，不可执行；不误伤仅关闭自动检测的其他 backend |
+| Team | `assistantId='codex'` 或 Assistant 元数据为 Codex | 不创建 Member Conversation；migration 后使用 Scode |
+| Cron | `agent_type='codex'` 且无 preset Assistant | migration 前被门禁阻止，migration 后以 Scode 执行 |
+| Channel | 保存配置为 `backend='codex'` | migration 后创建 Scode Conversation，Session 类型仍为 `acp` |
+| Model Probe | `probeModelInfo('codex')` | 在构造 `AcpConnection` 前返回禁用错误 |
+| Health | `checkAgentHealth('codex')` | 不构造旧 `CodexConnection` |
+| MCP | 直接传入 Codex Agent | 不执行 `codex mcp ...` |
+| Database migration | v15 旧 `type='codex'` 数据升级到最新 | 先经 v16 转 ACP，再经新 migration 转 Scode；Message 数量不变 |
+| Database migration | 已是最新或重复启动 | migration 幂等，JSON 字段稳定 |
+| 历史消息 | `codex_tool_call` / `turn_diff` | hydration 和 Renderer 保持可读 |
+| 共享 UI | WriteFile / 文件汇总 | 移动 `MessageFileChanges` 后行为不变 |
+| Provider 模型 | `gpt-*-codex` 自定义模型 | 仍可保存、选择和发送 |
+
+### 14.3 发布前数据校验
+
+使用脱敏的旧版本数据库副本执行完整升级，并核对：
 
 ```text
-旧 acp + backend=codex Conversation migration
-cron_jobs.agent_type=codex migration
-team_members backend/preset_agent_type=codex migration
-Channel backend=codex 配置迁移
-历史 codex_tool_call/turn_diff 数据库 hydration 与渲染
-Codex MCP 不再被同步（若移除）
+Conversation 总数不变
+Message 总数不变
+extra.backend='codex' 数量 = 0
+cron_jobs.agent_type='codex' 数量 = 0
+team_members.backend='codex' 数量 = 0
+team_members.preset_agent_type='codex' 数量 = 0
+assistant_sessions.agent_type='codex' 数量 = 0
+旧 codex_tool_call 数量不变
 ```
+
+同时对用户配置做结构化读取校验，不用全文字符串替换 JSON：所有 Channel backend、Assistant `presetAgentType`、`guid.lastSelectedAgent` 均不再指向 Codex，`acp.config.codex` 和 `acp.cachedModels.codex` 已移除。
+
+### 14.4 进程级验收
+
+测试期间监听子进程启动，执行以下入口：旧 Conversation 打开/发送、Team 创建、Cron 执行、Channel 首条消息、Model Probe、Health Check、MCP 同步。任一入口都不得出现：
+
+```text
+codex
+codex mcp-server
+codex mcp serve
+npx @zed-industries/codex-acp
+```
+
+Scode Conversation 创建、恢复、模型切换和 MCP 同步必须保持正常。
 
 ## 15. 一句话理解
 

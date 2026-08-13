@@ -9,7 +9,7 @@ import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
-import { ACP_METHODS, getAcpResumeStrategy, JSONRPC_VERSION } from '@/types/acpTypes';
+import { ACP_METHODS, getAcpResumeStrategy, isAcpBackendRuntimeEnabled, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
 import { mainLog } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
@@ -198,6 +198,10 @@ export class AcpConnection {
   private static readonly NPX_BACKENDS: ReadonlySet<string> = new Set(['codex', 'codebuddy']);
 
   async connect(backend: AcpBackend, cliPath?: string, workingDir: string = process.cwd(), acpArgs?: string[], customEnv?: Record<string, string>): Promise<void> {
+    if (!isAcpBackendRuntimeEnabled(backend)) {
+      throw new Error(`ACP backend ${backend} is disabled`);
+    }
+
     if ((backend as string) === 'claude') {
       throw new Error('Claude Code backend has been removed. Use scode instead.');
     }

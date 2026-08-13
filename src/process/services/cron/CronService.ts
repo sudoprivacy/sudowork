@@ -11,7 +11,7 @@ import type { CronMessageMeta, TMessage } from '@/common/chatLib';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import { addMessage } from '@process/message';
-import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
+import { DEFAULT_PRESET_AGENT_TYPE, isAcpBackendRuntimeEnabled, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { readAssistantResource, ruleFilePattern } from '@process/utils/assistantResources';
 import { acpDetector } from '@/agent/acp/AcpDetector';
@@ -84,6 +84,9 @@ class CronService {
     // here, at the deepest choke point, so every creation path (agent text
     // commands, IPC/webui, channels) is covered.
     await assertClientCronEnabled();
+    if (!isAcpBackendRuntimeEnabled(params.agentType)) {
+      throw new Error(`ACP backend ${params.agentType} is disabled`);
+    }
     // Multiple scheduled tasks are allowed to bind the same conversation — each
     // job appears as its own group in the sidebar, and a shared conversation
     // shows up under every group it is bound to.
@@ -148,6 +151,11 @@ class CronService {
     const existing = cronStore.getById(jobId);
     if (!existing) {
       throw new Error(`Job not found: ${jobId}`);
+    }
+
+    const nextAgentType = updates.metadata?.agentType ?? existing.metadata.agentType;
+    if (!isAcpBackendRuntimeEnabled(nextAgentType) && updates.enabled !== false) {
+      throw new Error(`ACP backend ${nextAgentType} is disabled`);
     }
 
     // Stop existing timer
@@ -362,6 +370,16 @@ class CronService {
       return;
     }
 
+    if (!isAcpBackendRuntimeEnabled(job.metadata.agentType)) {
+      job.state.lastStatus = 'error';
+      job.state.lastError = `ACP backend ${job.metadata.agentType} is disabled`;
+      this.updateNextRunTime(job);
+      cronStore.update(job.id, { state: job.state });
+      ipcBridge.cron.onJobUpdated.emit(job);
+      mainError('CronService', `Job ${job.id} failed:`, new Error(job.state.lastError));
+      return;
+    }
+
     const { conversationId } = job.metadata;
     const conversationMode = job.metadata.conversationMode ?? 'new';
 
@@ -432,6 +450,9 @@ class CronService {
           // 4. Determine correct conversation type from presetAgentType
           const presetAgentType = meta?.presetAgentType || DEFAULT_PRESET_AGENT_TYPE;
           const presetBackend = resolvePresetAgentBackend(presetAgentType);
+          if (!isAcpBackendRuntimeEnabled(presetBackend)) {
+            throw new Error(`ACP backend ${presetBackend} is disabled`);
+          }
 
           // Check that the ACP backend CLI has actually been detected on this
           // machine. If not, fall back to scode so the job still runs instead
@@ -447,8 +468,15 @@ class CronService {
             convType = 'acp';
           }
         } catch (err) {
+          if (err instanceof Error && err.message.startsWith('ACP backend ')) {
+            throw err;
+          }
           mainWarn('CronService', `Failed to resolve preset assistant resources for ${presetAssistantId}:`, err);
         }
+      }
+
+      if (!isAcpBackendRuntimeEnabled(resolvedAgentType)) {
+        throw new Error(`ACP backend ${resolvedAgentType} is disabled`);
       }
 
       if (resolvedAgentType === 'scode') {

@@ -6,6 +6,7 @@
 
 import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { ConversationSource, TChatConversation } from '@/common/storage';
+import { isAcpBackendRuntimeEnabled } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { createAcpAgent } from '../initAgent';
@@ -69,6 +70,9 @@ export class ConversationService {
           source: source || 'sudowork',
         } as TChatConversation;
       } else if (type === 'acp') {
+        if (!isAcpBackendRuntimeEnabled(extra.backend)) {
+          return { success: false, error: `ACP backend ${extra.backend} is disabled` };
+        }
         conversation = await createAcpAgent(params);
       } else {
         return { success: false, error: `Invalid conversation type: ${type}` };

@@ -65,4 +65,20 @@ describe('ConversationService.createConversation', () => {
     expect(h.createConversation).toHaveBeenCalledWith(expect.objectContaining({ id: 'conv-1' }));
     expect(h.buildConversation).not.toHaveBeenCalled();
   });
+
+  it('rejects disabled ACP backends before creating or persisting a conversation', async () => {
+    const { ConversationService } = await import('@process/services/conversationService');
+
+    await expect(
+      ConversationService.createConversation({
+        type: 'acp',
+        name: 'Codex Conversation',
+        extra: { backend: 'codex', workspace: '/workspace' },
+      })
+    ).resolves.toEqual({ success: false, error: 'ACP backend codex is disabled' });
+
+    expect(h.createAcpAgent).not.toHaveBeenCalled();
+    expect(h.createConversation).not.toHaveBeenCalled();
+    expect(h.buildConversation).not.toHaveBeenCalled();
+  });
 });

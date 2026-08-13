@@ -581,6 +581,11 @@ export function isAcpBackendEnabled(backend: AcpBackendAll): boolean {
   return ACP_BACKENDS_ALL[backend]?.enabled ?? false;
 }
 
+/** Whether an ACP backend is allowed to start a runtime process. */
+export function isAcpBackendRuntimeEnabled(backend: string | null | undefined): boolean {
+  return backend !== 'codex';
+}
+
 /**
  * 获取后端的会话恢复策略（SSOT）。缺省 'session-load'（ACP 标准）。
  * Resolve a backend's session-resume strategy (single source of truth).

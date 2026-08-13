@@ -52,6 +52,15 @@ async function loadAcpConnection() {
 }
 
 describe('AcpConnection prompt response ordering', () => {
+  it('rejects Codex before invoking its connector', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const { connectCodex } = await import('@/agent/acp/acpConnectors');
+    const connection = new AcpConnection();
+
+    await expect(connection.connect('codex')).rejects.toThrow('ACP backend codex is disabled');
+    expect(connectCodex).not.toHaveBeenCalled();
+  });
+
   it('emits usage before end_turn for completed prompt responses', async () => {
     const { AcpConnection } = await loadAcpConnection();
     const connection = new AcpConnection();
