@@ -49,7 +49,9 @@
       }
     },
     "leaderNotFound": "Team Leader not found.",
-    "addMemberFailed": "Failed to add member. Please try again."
+    "addMemberFailed": "Failed to add member. Please try again.",
+    "loadError": "Failed to load team. Please retry.",
+    "retry": "Retry"
   },
   "status": {
     "pending": "Pending",

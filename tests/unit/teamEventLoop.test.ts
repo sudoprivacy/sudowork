@@ -118,7 +118,7 @@ const loops: EventLoop[] = [];
 
 type AgentLike = { sendMessage: (data: { content: string; msg_id: string }) => Promise<unknown>; getLastTurnProseText?: () => string };
 
-function buildLoop(member: TeamMember, agent: AgentLike): { loop: EventLoop; teamRun: TeamRunManager } {
+function buildLoop(member: TeamMember, agent: AgentLike, leaderSlotId: () => string | null = () => 'leader'): { loop: EventLoop; teamRun: TeamRunManager } {
   const wakeGate = new SlotWakeGate();
   const teamRun = new TeamRunManager('t1', wakeGate);
   const loop = new EventLoop({
@@ -128,7 +128,7 @@ function buildLoop(member: TeamMember, agent: AgentLike): { loop: EventLoop; tea
     getAgent: () => agent,
     wakeGate,
     teamRun,
-    leaderSlotId: () => 'leader',
+    leaderSlotId,
     onWakeSlot: h.onWakeSlot,
     lookupMember: (sid) => (sid === 'sender' ? { ...member, id: 'sender', name: 'Sender', role: 'teammate', conversation_id: 'c-sender' } : null),
   });
@@ -294,6 +294,45 @@ describe('EventLoop turn driving (附录 I.5)', () => {
 
     expect(insertMailWithType('idle_notification')).toHaveLength(0);
     expect(h.onWakeSlot).not.toHaveBeenCalled();
+  });
+
+  it('teammate skips idle_notification when leaderSlotId is null (no leader)', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate', name: 'Al' }), agent, () => null);
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ from_member_id: 'user', content: 'go' }));
+
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    expect(insertMailWithType('idle_notification')).toHaveLength(0);
+    expect(h.onWakeSlot).not.toHaveBeenCalled();
+    expect(h.emitStatus).toHaveBeenCalledWith(expect.objectContaining({ status: 'idle' }));
+  });
+
+  it('retries the turn after a sendMessage rejection via backoff self-wake', async () => {
+    vi.useFakeTimers();
+    try {
+      const agent: AgentLike = { sendMessage: h.agentSend };
+      const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+      h.agentSend.mockRejectedValueOnce(new Error('boom'));
+      seedWake(teamRun, 's1', 'teammate');
+      queue.push(row({ id: 'm-err', from_member_id: 'user', content: 'x' }));
+
+      loop.start();
+      loop.notifyWake();
+      await vi.advanceTimersByTimeAsync(20);
+
+      expect(h.agentSend).toHaveBeenCalledTimes(1);
+      expect(markReadCalls()).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(h.agentSend).toHaveBeenCalledTimes(2);
+      expect(markReadCalls()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

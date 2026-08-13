@@ -7,7 +7,7 @@
 import { Message, Spin } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
@@ -19,6 +19,7 @@ import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
 import ChatLayout from '@renderer/pages/conversation/ChatLayout';
 import ChatSider from '@renderer/pages/conversation/ChatSider';
 import AcpModelSelector from '@renderer/components/AcpModelSelector';
+import EmptyState from '@renderer/components/base/EmptyState';
 import { unwrapTeamResult } from './utils';
 import { useTeamSession } from './hooks/useTeamSession';
 import { useTeamRunView } from './hooks/useTeamRunView';
@@ -30,9 +31,8 @@ import { resolveTeamAssistantIcon, toChatLayoutAgentLogo } from './utils/teamAss
 
 function TeamDetailPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const { teamId = '' } = useParams<{ teamId: string }>();
-  const { team, statusMap, loading, addMember, renameMember, removeMember } = useTeamSession(teamId);
+  const { team, statusMap, loading, error, mutate, addMember, renameMember, removeMember } = useTeamSession(teamId);
   const teamRunView = useTeamRunView(teamId);
   const teamWarmup = useTeamWarmup(teamId);
   const [leaderConv, setLeaderConv] = useState<TChatConversation | undefined>(undefined);
@@ -117,10 +117,26 @@ function TeamDetailPage() {
     );
   }
 
-  if (!currentTeam || !leader || !leader.conversation_id) {
-    void navigate('/guid');
-    return null;
+  if (error) {
+    return (
+      <div className='flex items-center justify-center h-full'>
+        <EmptyState
+          simple
+          title={t('team.detail.loadError')}
+          actions={[
+            {
+              label: t('team.detail.retry'),
+              onClick: () => {
+                void mutate({ showLoading: true });
+              },
+            },
+          ]}
+        />
+      </div>
+    );
   }
+
+  if (!currentTeam || !leader || !leader.conversation_id) return <Navigate to='/guid' replace />;
 
   const memberTabNode = <TeamMemberListTab team={currentTeam} statusMap={statusMap} activeSlotIds={activeSlotIds} onAddMember={addMember} onRenameMember={renameMember} onRemoveMember={removeMember} />;
   const runStatus = teamRunView.activeRun?.status;

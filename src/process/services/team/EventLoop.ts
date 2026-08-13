@@ -73,6 +73,10 @@ export class EventLoop {
   // 本 turn 起始时 leader mailbox 的 MAX(created_at)（与去重查询同表的 watermark），
   // 供 finalizeTurn 区分"本 turn member 主动回传"与"上一 turn 的陈旧 mail"。
   private turnStartCreatedAt = 0;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryBackoff = 0;
+  private static readonly RETRY_BASE_MS = 1000;
+  private static readonly RETRY_MAX_MS = 30000;
 
   constructor(private deps: EventLoopDeps) {}
 
@@ -85,6 +89,7 @@ export class EventLoop {
   async stop(): Promise<void> {
     this.alive = false;
     this.notify.notifyOne();
+    this.resetRetry();
     if (this.loopPromise) {
       let timedOut = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
@@ -112,12 +117,18 @@ export class EventLoop {
     while (this.alive) {
       await this.notify.wait();
       while (this.alive) {
-        const input = this.computeWakeInput();
-        if (!input || !input.should_send) break;
-        const turn = await this.executeTurn(input.source, input.messages);
-        if (!turn) break;
-        if (!this.alive) break;
-        await this.finalizeTurn(turn);
+        try {
+          const input = this.computeWakeInput();
+          if (!input || !input.should_send) break;
+          const turn = await this.executeTurn(input.source, input.messages);
+          if (!turn) break;
+          if (!this.alive) break;
+          await this.finalizeTurn(turn);
+        } catch (e) {
+          mainWarn('EventLoop', `run iteration failed for ${this.deps.slotId}:`, e);
+          if (this.alive) this.scheduleRetry();
+          break;
+        }
       }
     }
   }
@@ -158,13 +169,13 @@ export class EventLoop {
       return null;
     }
     this.busy = true;
-    this.deps.crashRecovery?.armWakeTimeout(this.deps.slotId);
-    // I.7: mirror non-user unread into this member's conversation (left bubbles) before the turn.
-    mirrorUnreadToConversation(this.deps.member.team_id, this.deps.member, messages, this.deps.lookupMember);
-    teamStore.updateMember(this.deps.slotId, { status: 'working' });
-    ipcBridge.team.onAgentStatusChanged.emit({ team_id: this.deps.teamId, slot_id: this.deps.slotId, status: 'active' });
-    const turnId = uuid();
     try {
+      this.deps.crashRecovery?.armWakeTimeout(this.deps.slotId);
+      // I.7: mirror non-user unread into this member's conversation (left bubbles) before the turn.
+      mirrorUnreadToConversation(this.deps.member.team_id, this.deps.member, messages, this.deps.lookupMember);
+      teamStore.updateMember(this.deps.slotId, { status: 'working' });
+      ipcBridge.team.onAgentStatusChanged.emit({ team_id: this.deps.teamId, slot_id: this.deps.slotId, status: 'active' });
+      const turnId = uuid();
       const text = messages.map((m) => m.content).join('\n\n');
       const latestUserLanguage = this.deps.getLatestUserLanguage?.() ?? null;
       const hiddenPromptPrefix = latestUserLanguage ? buildTeamUserLanguageContract(latestUserLanguage) : undefined;
@@ -173,6 +184,7 @@ export class EventLoop {
       const watermarkLeaderId = this.deps.leaderSlotId();
       this.turnStartCreatedAt = watermarkLeaderId ? teamStore.getMailMaxCreatedAt(this.deps.teamId, watermarkLeaderId) : 0;
       await agent.sendMessage({ content: text, msg_id: turnId, hiddenPromptPrefix, suppressUserBubble: true });
+      this.resetRetry();
       if (!this.alive) return null;
       // Stage 2 → 3: starting_reservations → active_child_turns (turn has run).
       this.deps.teamRun.recordChildStarted(reservation, turnId, this.deps.member.conversation_id ?? '');
@@ -184,10 +196,15 @@ export class EventLoop {
       mainWarn('EventLoop', `turn failed for ${this.deps.slotId}:`, e);
       // Err → don't mark read; return the reservation to the pending queue head for the next wake.
       this.deps.teamRun.retryChildStartLater(reservation);
+      this.scheduleRetry();
       // Do not clobber a 'failed' status that crash recovery may have just set (when the stream
       // disconnected event arrives before this sendMessage rejection — 附录 I.3 race).
-      const current = this.deps.lookupMember(this.deps.slotId);
-      if (!current || current.status !== 'failed') this.markIdle();
+      try {
+        const current = this.deps.lookupMember(this.deps.slotId);
+        if (!current || current.status !== 'failed') this.markIdle();
+      } catch (me) {
+        mainWarn('EventLoop', `markIdle after failure failed for ${this.deps.slotId}:`, me);
+      }
       return null;
     } finally {
       this.deps.crashRecovery?.disarmWakeTimeout(this.deps.slotId);
@@ -197,65 +214,96 @@ export class EventLoop {
 
   private async finalizeTurn(turn: TurnResult): Promise<void> {
     const { teamId, slotId, member, wakeGate, teamRun } = this.deps;
-    this.markIdle();
+    try {
+      this.markIdle();
 
-    // Teammates notify the leader via an idle_notification mailbox message.
-    if (member.role === 'teammate') {
-      const leaderId = this.deps.leaderSlotId();
-      if (leaderId) {
-        // 兜底回传正文：member 本 turn 若未主动把正文发给 leader，把其内存正文（绕开 DB 落盘）
-        // 以 type=message 投进 leader mailbox。只投递、不单独唤醒（唤醒由下方 idle_notification 走闸门）。
-        // 必须同步、无 await，且在 idle_notification/onWakeSlot 之前——否则 leader 被 onWakeSlot 唤醒时
-        // 正文可能尚未入 mailbox，导致漏读。
-        try {
-          const prose = this.deps.getAgent()?.getLastTurnProseText() ?? '';
-          if (prose) {
-            const alreadyReplied = teamStore.getHistory(teamId, leaderId).some((m) => m.from_member_id === slotId && m.type === 'message' && m.created_at > this.turnStartCreatedAt);
-            if (!alreadyReplied) {
-              teamStore.insertMail({
-                id: uuid(),
-                team_id: teamId,
-                to_member_id: leaderId,
-                from_member_id: slotId,
-                type: 'message',
-                content: prose,
-                summary: null,
-                files: null,
-                read: false,
-                created_at: Date.now(),
-              });
+      // Teammates notify the leader via an idle_notification mailbox message.
+      if (member.role === 'teammate') {
+        const leaderId = this.deps.leaderSlotId();
+        if (leaderId) {
+          // 兜底回传正文：member 本 turn 若未主动把正文发给 leader，把其内存正文（绕开 DB 落盘）
+          // 以 type=message 投进 leader mailbox。只投递、不单独唤醒（唤醒由下方 idle_notification 走闸门）。
+          // 必须同步、无 await，且在 idle_notification/onWakeSlot 之前——否则 leader 被 onWakeSlot 唤醒时
+          // 正文可能尚未入 mailbox，导致漏读。
+          try {
+            const prose = this.deps.getAgent()?.getLastTurnProseText() ?? '';
+            if (prose) {
+              const alreadyReplied = teamStore.getHistory(teamId, leaderId).some((m) => m.from_member_id === slotId && m.type === 'message' && m.created_at > this.turnStartCreatedAt);
+              if (!alreadyReplied) {
+                teamStore.insertMail({
+                  id: uuid(),
+                  team_id: teamId,
+                  to_member_id: leaderId,
+                  from_member_id: slotId,
+                  type: 'message',
+                  content: prose,
+                  summary: null,
+                  files: null,
+                  read: false,
+                  created_at: Date.now(),
+                });
+              }
             }
+          } catch (e) {
+            mainWarn('EventLoop', `fallback prose reply failed for ${slotId}:`, e);
           }
-        } catch (e) {
-          mainWarn('EventLoop', `fallback prose reply failed for ${slotId}:`, e);
-        }
 
-        const mailId = uuid();
-        teamStore.insertMail({
-          id: mailId,
-          team_id: teamId,
-          to_member_id: leaderId,
-          from_member_id: slotId,
-          type: 'idle_notification',
-          content: `Teammate '${member.name}' finished a turn and is idle.`,
-          summary: null,
-          files: null,
-          read: false,
-          created_at: Date.now(),
-        });
-        this.deps.onWakeSlot(leaderId, 'idle_notification', mailId);
+          const mailId = uuid();
+          teamStore.insertMail({
+            id: mailId,
+            team_id: teamId,
+            to_member_id: leaderId,
+            from_member_id: slotId,
+            type: 'idle_notification',
+            content: `Teammate '${member.name}' finished a turn and is idle.`,
+            summary: null,
+            files: null,
+            read: false,
+            created_at: Date.now(),
+          });
+          this.deps.onWakeSlot(leaderId, 'idle_notification', mailId);
+        }
       }
+    } catch (e) {
+      mainWarn('EventLoop', `finalizeTurn pre-complete failed for ${slotId}:`, e);
     }
 
     // Stage 3 → ∅ + completion check.
-    teamRun.recordChildCompleted(slotId, turn);
-    teamRun.maybeComplete();
+    try {
+      teamRun.recordChildCompleted(slotId, turn);
+      teamRun.maybeComplete();
+    } catch (e) {
+      mainWarn('EventLoop', `recordChildCompleted failed for ${slotId}:`, e);
+    }
 
-    if (wakeGate.releaseSuppressedIfResumed(slotId)) this.notify.notifyOne();
+    try {
+      if (wakeGate.releaseSuppressedIfResumed(slotId)) this.notify.notifyOne();
+    } catch (e) {
+      mainWarn('EventLoop', `wake gate release failed for ${slotId}:`, e);
+    }
   }
 
   private markIdle(): void {
     teamStore.updateMember(this.deps.slotId, { status: 'idle' });
     ipcBridge.team.onAgentStatusChanged.emit({ team_id: this.deps.teamId, slot_id: this.deps.slotId, status: 'idle' });
+  }
+
+  private scheduleRetry(): void {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryBackoff = this.retryBackoff === 0 ? EventLoop.RETRY_BASE_MS : Math.min(this.retryBackoff * 2, EventLoop.RETRY_MAX_MS);
+    const timer = setTimeout(() => {
+      this.retryTimer = null;
+      this.notify.notifyOne();
+    }, this.retryBackoff);
+    timer.unref?.();
+    this.retryTimer = timer;
+  }
+
+  private resetRetry(): void {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.retryBackoff = 0;
   }
 }

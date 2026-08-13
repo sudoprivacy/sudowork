@@ -49,7 +49,9 @@
       }
     },
     "leaderNotFound": "未找到团队 Leader。",
-    "addMemberFailed": "添加成员失败，请重试。"
+    "addMemberFailed": "添加成员失败，请重试。",
+    "loadError": "加载团队失败，请重试。",
+    "retry": "重试"
   },
   "status": {
     "pending": "等待中",

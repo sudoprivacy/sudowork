@@ -33,6 +33,7 @@ export function useTeamSession(teamId: string) {
   const [team, setTeam] = useState<TTeam | null>(null);
   const [statusMap, setStatusMap] = useState<Map<string, TeammateStatus>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
   const requestSeqRef = useRef(0);
 
   const mutate = useCallback(
@@ -40,10 +41,14 @@ export function useTeamSession(teamId: string) {
       const { showLoading = false } = options;
       const requestSeq = ++requestSeqRef.current;
 
-      if (showLoading) setLoading(true);
+      if (showLoading) {
+        setError(null);
+        setLoading(true);
+      }
       try {
         const detail = await fetchTeamDetail(teamId);
         if (requestSeq !== requestSeqRef.current) return;
+        setError(null);
         setTeam(detail);
         if (detail) {
           setStatusMap((prev) => {
@@ -52,9 +57,9 @@ export function useTeamSession(teamId: string) {
             return next;
           });
         }
-      } catch {
+      } catch (err) {
         if (requestSeq !== requestSeqRef.current) return;
-        setTeam(null);
+        if (showLoading) setError(err);
       } finally {
         if (requestSeq === requestSeqRef.current) {
           setLoading(false);
@@ -144,5 +149,5 @@ export function useTeamSession(teamId: string) {
   const isTeamMismatch = !!team && team.id !== teamId;
   const currentLoading = loading || isTeamMismatch;
 
-  return { team: currentTeam, statusMap, loading: currentLoading, mutate, removeMember, addMember, renameMember };
+  return { team: currentTeam, statusMap, loading: currentLoading, error, mutate, removeMember, addMember, renameMember };
 }

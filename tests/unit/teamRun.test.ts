@@ -152,6 +152,15 @@ describe('TeamRun operation lease (附录 I.1)', () => {
     m.commitLease(lease.lease_id, { slot_id: 's1', role: 'lead', source: 'user_message', message_id: null });
     expect(m.getRecord()!.has_user_intervention).toBe(true);
   });
+
+  it('abortLease removes the lease from active_operation_leases (H3-e lease-release contract)', () => {
+    const m = newManager();
+    const { lease } = m.acquireWake('s1', 'lead', 'user_message');
+    expect(m.getRecord()!.active_operation_leases.size).toBe(1);
+    m.abortLease(lease.lease_id);
+    expect(m.getRecord()!.active_operation_leases.size).toBe(0);
+    expect(m.getRecord()!.active_operation_leases.has(lease.lease_id)).toBe(false);
+  });
 });
 
 describe('TeamRun three-level pipeline (附录 I.1)', () => {

@@ -9,6 +9,9 @@ const h = vi.hoisted(() => ({
   getTeam: vi.fn(),
   listMembersByTeam: vi.fn(),
   updateTeam: vi.fn(),
+  getMember: vi.fn(),
+  softDeleteMember: vi.fn(),
+  emitMemberRemoved: vi.fn(),
 }));
 
 vi.mock('electron', () => ({ app: { isPackaged: false, getAppPath: () => '', getPath: () => '' } }));
@@ -20,7 +23,7 @@ vi.mock('@/common', () => ({
       onSessionChanged: { emit: h.emitSessionChanged },
       onAgentStatusChanged: { emit: vi.fn() },
       onMemberRenamed: { emit: vi.fn() },
-      onMemberRemoved: { emit: vi.fn() },
+      onMemberRemoved: { emit: h.emitMemberRemoved },
     },
   },
 }));
@@ -43,6 +46,8 @@ vi.mock('@process/services/team/TeamStore', () => ({
     getTeam: h.getTeam,
     listMembersByTeam: h.listMembersByTeam,
     updateTeam: h.updateTeam,
+    getMember: h.getMember,
+    softDeleteMember: h.softDeleteMember,
   },
 }));
 
@@ -71,6 +76,9 @@ beforeEach(() => {
   h.getTeam.mockReset();
   h.listMembersByTeam.mockReset();
   h.updateTeam.mockReset();
+  h.getMember.mockReset();
+  h.softDeleteMember.mockReset();
+  h.emitMemberRemoved.mockReset();
   h.listMembersByTeam.mockReturnValue([]);
   vi.resetModules();
 });
@@ -172,5 +180,33 @@ describe('TeamService team history actions', () => {
     });
 
     await expect(teamService.answerQuestion('team-1', 'slot-1', 'conv-1', 'tool-1', [{ id: 'q1', value: 'yes' }])).rejects.toThrow('Member agent not available: slot-1');
+  });
+});
+
+describe('TeamService removeMember ownership + leader guard', () => {
+  it('throws on cross-team member (team_id mismatch) and performs no deletion', async () => {
+    const { teamService } = await import('@process/services/team/TeamService');
+    h.getMember.mockReturnValue({ id: 'slot-1', team_id: 'other-team', role: 'teammate', conversation_id: 'c1' });
+
+    await expect(teamService.removeMember('team-1', 'slot-1')).rejects.toThrow('Member not found: slot-1');
+    expect(h.softDeleteMember).not.toHaveBeenCalled();
+  });
+
+  it('throws when removing the team lead and performs no deletion', async () => {
+    const { teamService } = await import('@process/services/team/TeamService');
+    h.getMember.mockReturnValue({ id: 'leader-1', team_id: 'team-1', role: 'lead', conversation_id: 'c-lead' });
+
+    await expect(teamService.removeMember('team-1', 'leader-1')).rejects.toThrow('cannot remove the team lead');
+    expect(h.softDeleteMember).not.toHaveBeenCalled();
+  });
+
+  it('deletes a same-team teammate: soft-deletes and emits onMemberRemoved', async () => {
+    const { teamService } = await import('@process/services/team/TeamService');
+    h.getMember.mockReturnValue({ id: 'slot-1', team_id: 'team-1', role: 'teammate', conversation_id: 'c1' });
+
+    await teamService.removeMember('team-1', 'slot-1');
+
+    expect(h.softDeleteMember).toHaveBeenCalledWith('slot-1');
+    expect(h.emitMemberRemoved).toHaveBeenCalledWith({ team_id: 'team-1', slot_id: 'slot-1' });
   });
 });

@@ -49,7 +49,9 @@
       }
     },
     "leaderNotFound": "チーム Leader が見つかりません。",
-    "addMemberFailed": "メンバーの追加に失敗しました。再試行してください。"
+    "addMemberFailed": "メンバーの追加に失敗しました。再試行してください。",
+    "loadError": "チームの読み込みに失敗しました。再試行してください。",
+    "retry": "再試行"
   },
   "status": {
     "pending": "待機中",

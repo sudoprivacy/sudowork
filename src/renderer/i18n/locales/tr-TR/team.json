@@ -49,7 +49,9 @@
       }
     },
     "leaderNotFound": "Takım Leader bulunamadı.",
-    "addMemberFailed": "Üye eklenemedi. Lütfen tekrar deneyin."
+    "addMemberFailed": "Üye eklenemedi. Lütfen tekrar deneyin.",
+    "loadError": "Takım yüklenemedi. Lütfen tekrar deneyin.",
+    "retry": "Tekrar dene"
   },
   "status": {
     "pending": "Bekliyor",
