@@ -621,6 +621,8 @@ const AgentSettings: React.FC = () => {
         created_at: meta.installed_at || '',
         updated_at: meta.installed_at || '',
         defaultInitPrompt: meta.defaultInitPrompt || null,
+        promptsI18n: meta.promptsI18n,
+        prompts_i18n: meta.promptsI18n,
         visible_to: meta.visible_to || null,
         version: normalizeAssistantVersion(meta.installed_version),
       };
@@ -1316,6 +1318,9 @@ const AgentSettings: React.FC = () => {
       core_features: assistant._hubMeta?.core_features || null,
       created_at: assistant._hubMeta?.created_at || '',
       updated_at: assistant._hubMeta?.updated_at || '',
+      defaultInitPrompt: assistant._hubMeta?.defaultInitPrompt || assistant.defaultInitPrompt || null,
+      promptsI18n: assistant._hubMeta?.promptsI18n || assistant.promptsI18n,
+      prompts_i18n: assistant._hubMeta?.prompts_i18n || assistant._hubMeta?.promptsI18n || assistant.promptsI18n,
       version: assistant._installedVersion,
     }),
     [localeKey]

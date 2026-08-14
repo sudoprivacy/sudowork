@@ -17,25 +17,27 @@
  * 5. 写入 _sudowork_meta.json 元数据
  */
 
-import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir } from '@process/initStorage';
-import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
-import { getValidToken } from '@process/bridge/eeclawBridge';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import https from 'node:https';
 import http from 'node:http';
 import JSZip from 'jszip';
+import { getValidToken } from '@process/bridge/eeclawBridge';
+import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
+import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir } from '@process/initStorage';
 import { skillManager } from '@process/SkillManager';
 import { assistantManager } from '@process/AssistantManager';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { initEnterpriseDirs, getEnterpriseHubSkillsDir, getEnterpriseHubAssistantsDir, getEnterpriseTenantSkillsDir, getEnterpriseTenantAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName, getAssistantInstallDir, getSkillInstallDir } from '@/process/constants/enterpriseStorage';
 import { SKILL_HUB_META_FILE } from '@/process/constants/skillStorage';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
-import { ASSISTANT_META_FILE } from '@/process/constants/assistantStorage';
+import { ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE } from '@/process/constants/assistantStorage';
 import type { ISkillHubMeta } from '@/common/ipcBridge';
 
 // ============ 类型定义 ============
+
+type AssistantPromptsI18n = Record<string, string[]>;
 
 export type SyncResult = {
   installed: string[];
@@ -69,7 +71,14 @@ export type RemoteAssistantInfo = {
   isBuiltin?: boolean;
   tag?: string;
   sourceType?: string | null;
-  meta?: { source_type?: string | null; tag?: string | null } | null;
+  promptsI18n?: AssistantPromptsI18n;
+  prompts_i18n?: AssistantPromptsI18n;
+  meta?: {
+    source_type?: string | null;
+    tag?: string | null;
+    promptsI18n?: AssistantPromptsI18n;
+    prompts_i18n?: AssistantPromptsI18n;
+  } | null;
   visibleTo: { department_ids: string[] | null } | null;
   enabledSkills: string[];
 };
@@ -93,6 +102,52 @@ export type AssistantInstallDetail = {
 // ============ Mock 开关 ============
 
 const USE_MOCK = process.env.MOSS_SYNC_MOCK === 'true';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+function normalizeStringList(values: string[] | undefined): string[] {
+  const normalized = (values || []).map((value) => value.trim()).filter(Boolean);
+  return Array.from(new Set(normalized));
+}
+
+function normalizePromptsI18n(value: unknown): AssistantPromptsI18n | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const zhCN = normalizeStringList(stringArray(value['zh-CN']));
+  if (zhCN.length === 0) return undefined;
+
+  return { 'zh-CN': zhCN };
+}
+
+function firstPromptsI18n(...values: unknown[]): AssistantPromptsI18n | undefined {
+  for (const value of values) {
+    const normalized = normalizePromptsI18n(value);
+    if (normalized) return normalized;
+  }
+  return undefined;
+}
+
+async function readAssistantMetaWithFallback(assistantDir: string, primaryMetaFileName: string): Promise<IAssistantMeta | null> {
+  const metaFileNames = Array.from(new Set([primaryMetaFileName, ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE]));
+
+  for (const fileName of metaFileNames) {
+    try {
+      const content = await fs.readFile(path.join(assistantDir, fileName), 'utf-8');
+      return JSON.parse(content) as IAssistantMeta;
+    } catch {
+      // Try next metadata file variant
+    }
+  }
+
+  return null;
+}
 
 // ============ API 调用 ============
 
@@ -618,6 +673,8 @@ async function installAssistantToLocal(detail: AssistantInstallDetail): Promise<
   // Use mode-aware metadata file name
   const metaFileName = getAssistantMetaFileName();
   const metaFilePath = path.join(assistantDir, metaFileName);
+  const existingMeta = await readAssistantMetaWithFallback(assistantDir, metaFileName);
+  const promptsI18n = firstPromptsI18n(detail.meta.promptsI18n, detail.meta.prompts_i18n, existingMeta?.promptsI18n);
   const meta = {
     id: detail.meta.id || assistantName,
     name: assistantName,
@@ -638,6 +695,7 @@ async function installAssistantToLocal(detail: AssistantInstallDetail): Promise<
     is_builtin: false,
     enabled: true,
     defaultInitPrompt: detail.meta.defaultInitPrompt || null,
+    promptsI18n,
     installed_version: detail.version,
     installed_at: new Date().toISOString(),
     enabledSkills: detail.meta.enabledSkills || [],
@@ -785,13 +843,8 @@ async function installAssistantById(assistant: RemoteAssistantInfo, serverUrl: s
   const metaFileName = getAssistantMetaFileName();
   const metaFilePath = path.join(assistantDir, metaFileName);
 
-  let existingMeta: IAssistantMeta | null = null;
-  try {
-    const metaContent = await fs.readFile(metaFilePath, 'utf-8');
-    existingMeta = JSON.parse(metaContent) as IAssistantMeta;
-  } catch {
-    // Meta file doesn't exist in zip, will create new one
-  }
+  const existingMeta = await readAssistantMetaWithFallback(assistantDir, metaFileName);
+  const promptsI18n = firstPromptsI18n(assistant.promptsI18n, assistant.prompts_i18n, assistant.meta?.promptsI18n, assistant.meta?.prompts_i18n, existingMeta?.promptsI18n);
 
   // Merge existing meta with remote info
   const meta: IAssistantMeta = {
@@ -815,6 +868,7 @@ async function installAssistantById(assistant: RemoteAssistantInfo, serverUrl: s
     is_builtin: false,
     enabled: true,
     defaultInitPrompt: existingMeta?.defaultInitPrompt || null,
+    promptsI18n,
     installed_version: assistant.version || existingMeta?.installed_version || '1.0.0',
     installed_at: new Date().toISOString(),
     enabledSkills: existingMeta?.enabledSkills || assistant.enabledSkills || [],

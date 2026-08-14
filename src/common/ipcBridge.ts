@@ -1955,6 +1955,10 @@ export interface IAssistantHubSkill {
   updated_at: string;
   /** Default initial prompt to pre-fill input when selecting this assistant */
   defaultInitPrompt?: string | null;
+  /** Localized example prompts shown when selecting this assistant */
+  promptsI18n?: Record<string, string[]>;
+  /** API-compatible snake_case variant */
+  prompts_i18n?: Record<string, string[]>;
   /** Internal: download URL from API (mapped from sourceUrl) */
   _sourceUrl?: string;
   /** Enterprise mode: visibility configuration */
