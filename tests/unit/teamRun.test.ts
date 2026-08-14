@@ -224,7 +224,7 @@ describe('TeamRun cancel (附录 I.1 begin_cancel)', () => {
     m.commitLease(lease.lease_id, { slot_id: 's1', role: 'lead', source: 'mcp_send_message', message_id: null });
     expect(m.pendingWakeCount('s1')).toBe(1);
     m.beginCancel('user requested');
-    expect(m.getRecord()!.status).toBe('cancelling');
+    expect(m.getRecord()!.status).toBe('cancelled'); // H4-d: beginCancel 末尾 maybeComplete → 无工作直接 cancelled
     expect(m.pendingWakeCount('s1')).toBe(0); // pending cleared
     expect(emits.updated).toHaveBeenCalledTimes(1);
     m.maybeComplete();
@@ -244,9 +244,9 @@ describe('TeamRun handleSlotCrash (附录 I.1 / 事实 9)', () => {
     // A retried pending wake would otherwise strand the run; handleSlotCrash must clear it.
     m.pushPendingWake('t1', { slot_id: 't1', role: 'teammate', source: 'mcp_send_message', message_id: null });
     m.handleSlotCrash('t1', false);
-    expect(m.getRecord()!.status).toBe('failed'); // active child failed → run failed
+    expect(m.getRecord()!.status).toBe('completed'); // 决策1: teammate crash 不 failRun → maybeComplete → completed
     expect(m.pendingWakeCount('t1')).toBe(0); // pending cleared
-    expect(emits.failed).toHaveBeenCalledTimes(1);
+    expect(emits.failed).not.toHaveBeenCalled(); // teammate 不 failRun
   });
 
   it('leader crash (idle, no own child, run active via teammate) → run failed (事实 9)', () => {

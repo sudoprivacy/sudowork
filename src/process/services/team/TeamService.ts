@@ -26,7 +26,7 @@ import { EventLoop } from './EventLoop';
 import { TeamRunManager } from './TeamRun';
 import { RecoveryDrain } from './RecoveryDrain';
 import { TaskBoard } from './TaskBoard';
-import { CrashRecovery } from './CrashRecovery';
+import { CrashRecovery, type CrashReason } from './CrashRecovery';
 import { mergeTeamAssistants, type DetectedAgentLike, type InstalledAssistantLike } from './assistantMerger';
 import { SlotWakeGate } from './SlotWakeGate';
 import { detectTeamUserLanguage, type TeamUserLanguage } from './TeamLanguage';
@@ -148,8 +148,10 @@ class TeamService {
   }
 
   cleanup(): void {
+    this.initialized = false;
     this.streamUnsubscribe?.();
     this.streamUnsubscribe = null;
+    void Promise.allSettled([...this.pendingSessionCreates.values(), ...this.pendingRebuilds.values()]);
     for (const [, session] of this.sessions) {
       session.crashRecovery.dispose();
       for (const [, rt] of session.members) {
@@ -164,10 +166,18 @@ class TeamService {
     this.sessions.clear();
     this.pendingSessionCreates.clear();
     this.pendingRebuilds.clear();
-    this.initialized = false;
   }
 
   /** Route a responseStream event to the owning member's crash recovery (reset watchdog + detect). */
+  private terminateSlot(teamId: string, slotId: string, isLeader: boolean, reason: CrashReason): void {
+    const rt = this.sessions.get(teamId)?.members.get(slotId);
+    if (!rt) return;
+    const session = this.sessions.get(teamId)!;
+    session.teamRun.handleSlotCrash(slotId, isLeader);
+    session.crashRecovery.handleCrash(slotId, reason);
+    if (rt.eventLoop) void rt.eventLoop.stop();
+  }
+
   private handleResponseStream(msg: IResponseMessage): void {
     let found: { teamId: string; slotId: string } | null = null;
     let enteredCrashPath = false;
@@ -177,30 +187,43 @@ class TeamService {
       const session = this.sessions.get(found.teamId);
       if (!session) return;
       session.crashRecovery.resetWakeTimeout(found.slotId);
-      const streamErrorText = this.extractStreamErrorText(msg);
+      // 高2: track tool execution for 工具执行中不降级
+      if (msg.type === 'acp_tool_call') {
+        const update = (msg.data as { update?: { status?: string; toolCallId?: string } })?.update;
+        if (update?.toolCallId) {
+          if (update.status === 'pending' || update.status === 'in_progress') {
+            session.crashRecovery.trackToolStart(found.slotId, update.toolCallId);
+          } else if (update.status === 'completed' || update.status === 'failed') {
+            session.crashRecovery.trackToolFinish(found.slotId, update.toolCallId);
+          }
+        }
+      }
       const reason = session.crashRecovery.detectCrash({ type: msg.type, content: (msg.data as { status?: string; error?: string } | null) ?? undefined });
       const isLeader = session.members.get(found.slotId)?.member.role === 'lead';
       if (!reason) {
-        if (streamErrorText && session.crashRecovery.isRateLimited({ kind: 'Unknown', msg: streamErrorText })) {
-          teamStore.updateMember(found.slotId, { status: 'failed' });
-          ipcBridge.team.onAgentStatusChanged.emit({ team_id: found.teamId, slot_id: found.slotId, status: 'failed', last_message: 'rate limited' });
-          session.teamRun.handleSlotCrash(found.slotId, isLeader);
+        // H6: rate-limit 仅在 type==='error' 时判（唯一 rate-limit 文本载体）；其他正文不判
+        if (msg.type === 'error') {
+          const streamErrorText = this.extractStreamErrorText(msg);
+          if (streamErrorText && session.crashRecovery.isRateLimited({ kind: 'Unknown', msg: streamErrorText })) {
+            teamStore.updateMember(found.slotId, { status: 'failed' });
+            ipcBridge.team.onAgentStatusChanged.emit({ team_id: found.teamId, slot_id: found.slotId, status: 'failed', last_message: 'rate limited' });
+            session.crashRecovery.markCrashed(found.slotId);
+            session.teamRun.handleSlotCrash(found.slotId, isLeader);
+            enteredCrashPath = true;
+          }
         }
         return;
       }
       if (session.crashRecovery.isRateLimited(reason)) {
-        // 429 / quota → mark failed, no crash recovery (no testament / no kill).
         teamStore.updateMember(found.slotId, { status: 'failed' });
         ipcBridge.team.onAgentStatusChanged.emit({ team_id: found.teamId, slot_id: found.slotId, status: 'failed', last_message: 'rate limited' });
+        session.crashRecovery.markCrashed(found.slotId);
         session.teamRun.handleSlotCrash(found.slotId, isLeader);
+        enteredCrashPath = true;
         return;
       }
-      // Clean up TeamRun state (appendix I.1 / 事实 9): a crashed slot's pending wake would otherwise
-      // strand the run active; a leader crash must fail the run. Also stop the dead member's loop so
-      // it does not retry a crashed agent.
       enteredCrashPath = true;
-      session.teamRun.handleSlotCrash(found.slotId, isLeader);
-      session.crashRecovery.handleCrash(found.slotId, reason);
+      this.terminateSlot(found.teamId, found.slotId, isLeader, reason);
     } catch (e) {
       mainWarn('TeamService', `handleResponseStream failed for slot ${found?.slotId ?? 'unknown'}:`, e);
     } finally {
@@ -301,7 +324,7 @@ class TeamService {
     if (!leaderInput) throw new Error('Exactly one team member must be Leader');
 
     const now = Date.now();
-    const teamId = uuid();
+    const teamId = uuid(36);
     const workspaceKind: TeamWorkspaceKind | null = workspace ? 'custom' : null;
     const team: Team = {
       id: teamId,
@@ -402,7 +425,7 @@ class TeamService {
     }
     const conversationId = createResult.conversation.id;
     const member: TeamMember = {
-      id: uuid(),
+      id: uuid(36),
       team_id: team.id,
       role: params.role,
       name: params.name,
@@ -457,7 +480,7 @@ class TeamService {
     const governance = buildGovernancePrompt(role, team.name, params.name);
     const presetContext = [rulesText, governance].filter(Boolean).join('\n\n') || null;
 
-    const slotId = uuid();
+    const slotId = uuid(36);
 
     // Ensure the per-team HTTP loopback is up so we can hand the member its identity triple.
     const session = await this.ensureSession(teamId);
@@ -601,7 +624,7 @@ class TeamService {
       if (failureMode === 'dynamic') {
         const leaderId = this.leaderSlotOrNull(teamId);
         if (leaderId) {
-          const mailId = uuid();
+          const mailId = uuid(36);
           const { lease } = session.teamRun.acquireWake(leaderId, 'lead', 'spawn_attach_failure');
           try {
             teamStore.insertMail({
@@ -748,7 +771,7 @@ class TeamService {
     const session = this.sessions.get(teamId);
     if (!session) throw new Error(`Team session not active: ${teamId}`);
 
-    const mailId = msgId || uuid();
+    const mailId = msgId || uuid(36);
     const mail: TeamMail = {
       id: mailId,
       team_id: teamId,
@@ -799,7 +822,7 @@ class TeamService {
     if (!leaderId) throw new Error('Team has no leader');
     const session = this.sessions.get(teamId);
     if (!session) throw new Error(`Team session not active: ${teamId}`);
-    const mailId = uuid();
+    const mailId = uuid(36);
     const { lease } = session.teamRun.acquireWake(leaderId, 'lead', 'team_membership_changed');
     try {
       teamStore.insertMail({
@@ -985,16 +1008,58 @@ class TeamService {
   cancelRun(teamId: string, reason?: string): void {
     const session = this.sessions.get(teamId);
     if (!session) return;
-    session.teamRun.beginCancel(reason);
-    // Mark every member's unread mailbox read — cancelled work must not be re-delivered on restart.
-    for (const m of teamStore.listMembersByTeam(teamId)) {
-      const unread = teamStore.peekUnread(teamId, m.id);
-      if (unread.length > 0) teamStore.markReadBatch(unread.map((u) => u.id));
+    if (session.teamRun.getRecord()?.status === 'cancelling') return; // M-3 防重入
+    // B1: beginCancel 前快照 pending_wakes + starting_reservations 的 message_id，精准 markRead
+    const run = session.teamRun.getRecord();
+    const messageIds: string[] = [];
+    if (run) {
+      for (const queue of run.pending_wakes.values()) {
+        for (const wake of queue) {
+          if (wake.message_id) messageIds.push(wake.message_id);
+        }
+      }
+      for (const res of run.starting_reservations.values()) {
+        if (res.message_id) messageIds.push(res.message_id);
+      }
     }
-    // Cancel each in-flight child turn (stop the agent + record cancelled).
-    const activeSlots = [...(session.teamRun.getRecord()?.active_child_turns.keys() ?? [])];
-    for (const slotId of activeSlots) {
-      void this.cancelChildTurn(teamId, slotId);
+    session.teamRun.beginCancel(reason);
+    if (messageIds.length > 0) teamStore.markReadBatch(messageIds);
+    // 并发取消 active + starting slots
+    const workSlots = new Set<string>();
+    if (run) {
+      for (const slotId of run.active_child_turns.keys()) workSlots.add(slotId);
+      for (const res of run.starting_reservations.values()) workSlots.add(res.slot_id);
+    }
+    for (const slotId of workSlots) {
+      void this.cancelSlotWork(teamId, slotId);
+    }
+    // 20s 看门狗 stale 防护
+    const capturedSession = session;
+    const capturedRunId = run?.team_run_id;
+    const timer = setTimeout(() => {
+      const current = this.sessions.get(teamId);
+      if (current !== capturedSession) return;
+      const currentRun = current.teamRun.getRecord();
+      if (currentRun?.team_run_id !== capturedRunId || currentRun.status !== 'cancelling') return;
+      current.teamRun.forceCancel();
+    }, 20000);
+    timer.unref?.();
+  }
+
+  private async cancelSlotWork(teamId: string, slotId: string): Promise<void> {
+    const session = this.sessions.get(teamId);
+    if (!session) return;
+    const rt = session.members.get(slotId);
+    if (rt?.agent) {
+      try {
+        await Promise.race([rt.agent.stop(), new Promise<void>((resolve) => setTimeout(resolve, 15000))]);
+      } catch {
+        /* ignore */
+      }
+    }
+    const child = session.teamRun.getRecord()?.active_child_turns.get(slotId);
+    if (child) {
+      session.teamRun.recordChildCompleted(slotId, { turn_id: child.turn_id, status: 'cancelled' });
     }
   }
 
@@ -1066,51 +1131,69 @@ class TeamService {
 
   private async createSession(teamId: string): Promise<TeamSession> {
     const { server, port, token } = await this.startTeamHttpServer(teamId);
-    const wakeGate = new SlotWakeGate();
-    const crashRecovery = new CrashRecovery({
-      teamId,
-      getMember: (slot) => this.lookupMember(teamId, slot),
-      leaderSlotId: () => this.leaderSlotOrNull(teamId),
-      setStatus: (slot, status, lastMessage) => {
-        teamStore.updateMember(slot, { status });
-        ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: slot, status, last_message: lastMessage });
-      },
-      writeMail: (toMemberId, fromMemberId, type, content) => {
-        const id = uuid();
-        teamStore.insertMail({
-          id,
-          team_id: teamId,
-          to_member_id: toMemberId,
-          from_member_id: fromMemberId,
-          type,
-          content,
-          summary: null,
-          files: null,
-          read: false,
-          created_at: Date.now(),
-        });
-        return id;
-      },
-      notifyWake: (slot, source, messageId) => this.recordSystemWake(teamId, slot, source, messageId),
-    });
-    const latestUserMail = teamStore.getLatestUserMail(teamId);
-    const session: TeamSession = {
-      members: new Map(),
-      wakeGate,
-      teamRun: new TeamRunManager(teamId, wakeGate),
-      crashRecovery,
-      pendingShutdowns: new Map(),
-      latestUserLanguage: latestUserMail ? detectTeamUserLanguage(latestUserMail.content) : null,
-      httpServer: server,
-      port,
-      token,
-    };
-    this.sessions.set(teamId, session);
-    mainLog('TeamService', `team ${teamId} loopback on 127.0.0.1:${port}`);
-    return session;
+    try {
+      if (!this.initialized) {
+        server.close();
+        throw new Error('TeamService shutting down');
+      }
+      const wakeGate = new SlotWakeGate();
+      const crashRecovery = new CrashRecovery({
+        teamId,
+        getMember: (slot) => this.lookupMember(teamId, slot),
+        leaderSlotId: () => this.leaderSlotOrNull(teamId),
+        setStatus: (slot, status, lastMessage) => {
+          teamStore.updateMember(slot, { status });
+          ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: slot, status, last_message: lastMessage });
+        },
+        writeMail: (toMemberId, fromMemberId, type, content) => {
+          const id = uuid(36);
+          teamStore.insertMail({
+            id,
+            team_id: teamId,
+            to_member_id: toMemberId,
+            from_member_id: fromMemberId,
+            type,
+            content,
+            summary: null,
+            files: null,
+            read: false,
+            created_at: Date.now(),
+          });
+          return id;
+        },
+        notifyWake: (slot, source, messageId) => this.recordSystemWake(teamId, slot, source, messageId),
+        onInactiveTimeout: (slot) => this.terminateSlot(teamId, slot, this.lookupMember(teamId, slot)?.role === 'lead', { kind: 'Unknown', msg: 'inactive 60s' }),
+      });
+      const latestUserMail = teamStore.getLatestUserMail(teamId);
+      const session: TeamSession = {
+        members: new Map(),
+        wakeGate,
+        teamRun: new TeamRunManager(teamId, wakeGate),
+        crashRecovery,
+        pendingShutdowns: new Map(),
+        latestUserLanguage: latestUserMail ? detectTeamUserLanguage(latestUserMail.content) : null,
+        httpServer: server,
+        port,
+        token,
+      };
+      this.sessions.set(teamId, session);
+      mainLog('TeamService', `team ${teamId} loopback on 127.0.0.1:${port}`);
+      return session;
+    } catch (e) {
+      server.close();
+      throw e;
+    }
   }
 
   private async stopSession(teamId: string): Promise<void> {
+    const pending = this.pendingSessionCreates.get(teamId);
+    if (pending) {
+      try {
+        await pending;
+      } catch {
+        /* pending reject — cleanup below */
+      }
+    }
     const session = this.sessions.get(teamId);
     if (!session) return;
     const killPromises = [...session.members.values()].map((rt) =>
@@ -1141,6 +1224,7 @@ class TeamService {
         });
       });
     }
+    session.crashRecovery.dispose();
     this.sessions.delete(teamId);
   }
 
@@ -1302,7 +1386,7 @@ class TeamService {
       if (!recipient) continue;
       // Operation lease keeps the (already-active) run open until the recipient's wake is claimed.
       const { lease } = session.teamRun.acquireWake(targetId, recipient.role, wakeSource);
-      const mailId = uuid();
+      const mailId = uuid(36);
       const mail: TeamMail = {
         id: mailId,
         team_id: teamId,
@@ -1468,7 +1552,7 @@ class TeamService {
     session.pendingShutdowns.set(targetId, reason);
     // Lifecycle wake (mcp_shutdown_request bypasses pause): write shutdown_request + wake the target.
     const { lease } = session.teamRun.acquireWake(targetId, target.role, 'mcp_shutdown_request');
-    const mailId = uuid();
+    const mailId = uuid(36);
     try {
       teamStore.insertMail({
         id: mailId,
@@ -1476,7 +1560,9 @@ class TeamService {
         to_member_id: targetId,
         from_member_id: caller.id,
         type: 'shutdown_request',
-        content: reason ? `Lead requested shutdown: ${reason}` : 'Lead requested shutdown.',
+        content: reason
+          ? `Lead requested shutdown: ${reason}. To agree, reply via team_send_message with exactly: shutdown_approved. To refuse, reply with: shutdown_rejected: <your reason>.`
+          : 'Lead requested shutdown. To agree, reply via team_send_message with exactly: shutdown_approved. To refuse, reply with: shutdown_rejected: <your reason>.',
         summary: null,
         files: null,
         read: false,
@@ -1500,23 +1586,25 @@ class TeamService {
    */
   private interceptShutdownReply(teamId: string, caller: TeamMember, message: string, session: TeamSession): TeamToolResult | null {
     if (!session.pendingShutdowns.has(caller.id)) return null;
-    if (message === 'shutdown_approved') {
+    if (message.trim() === 'shutdown_approved') {
       session.pendingShutdowns.delete(caller.id);
       const targetId = caller.id;
-      // Delay 500ms so the MCP response reaches the agent before it is killed.
-      setTimeout(() => {
+      const capturedSession = session;
+      const handle = setTimeout(() => {
+        if (this.sessions.get(teamId) !== capturedSession) return;
         this.removeMember(teamId, targetId).catch((e) => mainWarn('TeamService', 'shutdown-triggered remove failed:', e));
       }, 500);
+      handle.unref?.();
       return { ok: true, data: { status: 'shutdown_approved_received', slot_id: targetId } };
     }
     const rejectedPrefix = 'shutdown_rejected:';
-    if (message.startsWith(rejectedPrefix)) {
-      const reason = message.slice(rejectedPrefix.length);
+    if (message.trim().startsWith(rejectedPrefix)) {
+      const reason = message.trim().slice(rejectedPrefix.length);
       session.pendingShutdowns.delete(caller.id);
       const leaderId = this.leaderSlotOrNull(teamId);
       if (leaderId) {
         const { lease } = session.teamRun.acquireWake(leaderId, 'lead', 'shutdown_rejected');
-        const mailId = uuid();
+        const mailId = uuid(36);
         try {
           teamStore.insertMail({
             id: mailId,

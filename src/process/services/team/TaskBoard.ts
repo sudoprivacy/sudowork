@@ -16,7 +16,7 @@ export class TaskBoard {
   constructor(private readonly teamId: string) {}
 
   createTask(params: { subject: string; description?: string | null; owner?: string | null; blocked_by?: string[] }): TeamTask {
-    const taskId = uuid();
+    const taskId = uuid(36);
     const blockedBy = dedupe(params.blocked_by ?? []);
     if (this.detectCycle(taskId, blockedBy)) throw new Error('task dependency cycle detected');
     const now = Date.now();

@@ -198,6 +198,7 @@ async function importService() {
     startTeamHttpServer: () => Promise<{ server: { close: (cb?: () => void) => void }; port: number; token: string }>;
   };
   service.startTeamHttpServer = vi.fn().mockResolvedValue({ server: { close: (cb?: () => void) => cb?.() }, port: 12345, token: 'token' });
+  await (service as { init: () => Promise<void> }).init();
   return service;
 }
 

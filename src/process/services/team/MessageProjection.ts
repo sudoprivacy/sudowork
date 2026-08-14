@@ -1,17 +1,12 @@
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chatLib';
-import { addMessage } from '@process/message';
 import { getDatabase } from '@process/database';
 import { uuid } from '@/common/utils';
+import { mainWarn } from '@process/utils/mainLogger';
 import type { TeamMail, TeamMember } from './TeamStore';
 
 function dedupeKey(teamId: string, mailboxMsgId: string, conversationId: string): string {
   return `team:${teamId}:mailbox:${mailboxMsgId}:conversation:${conversationId}`;
-}
-
-function messageExistsByMsgId(msgId: string): boolean {
-  const result = getDatabase().queryOne<{ id: string }>('SELECT id FROM messages WHERE msg_id = ? LIMIT 1', msgId);
-  return result.success ? Boolean(result.data) : false;
 }
 
 function stripSystemNotes(text: string): string {
@@ -38,7 +33,6 @@ export function projectMessage(teamId: string, mail: TeamMail, targetConversatio
   if (mail.type !== 'message') return;
   const isFromUser = mail.from_member_id === 'user';
   const key = dedupeKey(teamId, mail.id, targetConversationId);
-  if (messageExistsByMsgId(key)) return;
 
   const position = isFromUser ? 'right' : 'left';
   const content: { content: string } | TeammateMessageContent = isFromUser
@@ -52,7 +46,7 @@ export function projectMessage(teamId: string, mail: TeamMail, targetConversatio
       };
 
   const message = {
-    id: uuid(),
+    id: uuid(36),
     msg_id: key,
     conversation_id: targetConversationId,
     type: 'text' as const,
@@ -61,7 +55,12 @@ export function projectMessage(teamId: string, mail: TeamMail, targetConversatio
     status: 'finish' as const,
     createdAt: mail.created_at,
   };
-  addMessage(targetConversationId, message as TMessage);
+  const result = getDatabase().insertMessageIfNotExists(message as TMessage);
+  if (!result.success) {
+    mainWarn('MessageProjection', `projectMessage insert failed for ${key}: ${result.error}`);
+    return;
+  }
+  if (!result.inserted) return;
 
   if (isFromUser) {
     ipcBridge.acpConversation.responseStream.emit({

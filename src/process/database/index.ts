@@ -1149,6 +1149,25 @@ export class SudoworkDatabase {
     }
   }
 
+  insertMessageIfNotExists(message: TMessage): IQueryResult<TMessage> & { inserted: boolean } {
+    try {
+      const row = messageToRow(message);
+      const existing = this.db.prepare('SELECT id FROM messages WHERE conversation_id = ? AND msg_id = ? AND type = ? LIMIT 1').get(row.conversation_id, row.msg_id, row.type);
+      if (existing) return { success: true, data: message, inserted: false };
+      this.db
+        .prepare(
+          `
+        INSERT INTO messages (id, conversation_id, msg_id, type, content, position, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `
+        )
+        .run(row.id, row.conversation_id, row.msg_id, row.type, row.content, row.position, row.status, row.created_at);
+      return { success: true, data: message, inserted: true };
+    } catch (error: any) {
+      return { success: false, error: error.message, inserted: false };
+    }
+  }
+
   getConversationMessages(conversationId: string, page = 0, pageSize = 100, order = 'ASC'): IPaginatedResult<TMessage> {
     try {
       const countResult = this.db.prepare('SELECT COUNT(*) as count FROM messages WHERE conversation_id = ?').get(conversationId) as {

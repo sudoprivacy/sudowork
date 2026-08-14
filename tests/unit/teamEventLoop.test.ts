@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   queryOne: vi.fn(),
   runTransaction: vi.fn(),
   addMessage: vi.fn(),
+  insertMessageIfNotExists: vi.fn(() => ({ success: true, inserted: true })),
   emitStatus: vi.fn(),
   emitTeammate: vi.fn(),
   emitUserContent: vi.fn(),
@@ -19,7 +20,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@process/database', () => ({
-  getDatabase: () => ({ mutate: h.mutate, query: h.query, queryOne: h.queryOne, runTransaction: h.runTransaction }),
+  getDatabase: () => ({ mutate: h.mutate, query: h.query, queryOne: h.queryOne, runTransaction: h.runTransaction, insertMessageIfNotExists: h.insertMessageIfNotExists }),
 }));
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn(), mainError: vi.fn() }));
 vi.mock('@process/message', () => ({ addMessage: h.addMessage }));
@@ -161,6 +162,8 @@ beforeEach(() => {
   h.queryOne.mockReset();
   h.runTransaction.mockReset();
   h.addMessage.mockReset();
+  h.insertMessageIfNotExists.mockReset();
+  h.insertMessageIfNotExists.mockReturnValue({ success: true, inserted: true });
   h.emitStatus.mockReset();
   h.emitTeammate.mockReset();
   h.emitUserContent.mockReset();
@@ -243,8 +246,8 @@ describe('EventLoop turn driving (附录 I.5)', () => {
     loop.notifyWake();
     await flush();
 
-    expect(h.addMessage).toHaveBeenCalledTimes(1);
-    const [, projected] = h.addMessage.mock.calls[0] as [string, { position: string; content: { teammateMessage: boolean; content: string } }];
+    expect(h.insertMessageIfNotExists).toHaveBeenCalledTimes(1);
+    const [projected] = h.insertMessageIfNotExists.mock.calls[0] as [{ position: string; content: { teammateMessage: boolean; content: string } }];
     expect(projected.position).toBe('left');
     expect(projected.content.teammateMessage).toBe(true);
     expect(projected.content.content).toBe('please review');
@@ -260,8 +263,8 @@ describe('EventLoop turn driving (附录 I.5)', () => {
     loop.notifyWake();
     await flush();
 
-    expect(h.addMessage).toHaveBeenCalledTimes(1);
-    const [, projected] = h.addMessage.mock.calls[0] as [string, { position: string; msg_id: string; content: { content: string } }];
+    expect(h.insertMessageIfNotExists).toHaveBeenCalledTimes(1);
+    const [projected] = h.insertMessageIfNotExists.mock.calls[0] as [{ position: string; msg_id: string; content: { content: string } }];
     expect(projected.position).toBe('right');
     expect(projected.msg_id).toBe('team:t1:mailbox:m-user:conversation:c1');
     expect(projected.content.content).toBe('hello team');

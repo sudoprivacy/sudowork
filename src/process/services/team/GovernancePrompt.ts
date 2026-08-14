@@ -58,6 +58,7 @@ export function buildGovernancePrompt(role: TeamRole, teamName: string, memberNa
     `- When you finish, get blocked, or have nothing to do, notify the leader via team_send_message (an idle notification).\n` +
     `- Do NOT use Sleep to wait — Sleep is blocked in team sessions and will be interrupted.\n` +
     `- If an assigned task is beyond your capabilities or does not fit your role, tell the leader honestly via team_send_message (explain why) instead of forcing a low-quality answer.\n` +
+    `- If you receive a shutdown_request message, the leader is asking you to shut down. To agree: use team_send_message to send exactly \`shutdown_approved\` to the leader. To refuse: send \`shutdown_rejected: <your reason>\`.\n` +
     `- Coordinate only through the team_* tools.`
   );
 }

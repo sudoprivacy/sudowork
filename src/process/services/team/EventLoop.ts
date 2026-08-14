@@ -43,7 +43,7 @@ export interface EventLoopDeps {
   wakeGate: SlotWakeGate;
   teamRun: TeamRunManager;
   /** Crash recovery (watchdog arm/disarm). Optional so unit tests can omit it. */
-  crashRecovery?: { armWakeTimeout: (slot: string) => void; disarmWakeTimeout: (slot: string) => void } | null;
+  crashRecovery?: { armWakeTimeout: (slot: string) => void; disarmWakeTimeout: (slot: string) => void; clearToolInProgress: (slot: string) => void } | null;
   leaderSlotId: () => string | null;
   /** Wake another slot in the same team (e.g. leader after a teammate goes idle). */
   onWakeSlot: (slotId: string, source: WakeSource, messageId?: string | null) => void;
@@ -208,6 +208,7 @@ export class EventLoop {
       return null;
     } finally {
       this.deps.crashRecovery?.disarmWakeTimeout(this.deps.slotId);
+      this.deps.crashRecovery?.clearToolInProgress(this.deps.slotId);
       this.busy = false;
     }
   }
@@ -231,7 +232,7 @@ export class EventLoop {
               const alreadyReplied = teamStore.getHistory(teamId, leaderId).some((m) => m.from_member_id === slotId && m.type === 'message' && m.created_at > this.turnStartCreatedAt);
               if (!alreadyReplied) {
                 teamStore.insertMail({
-                  id: uuid(),
+                  id: uuid(36),
                   team_id: teamId,
                   to_member_id: leaderId,
                   from_member_id: slotId,
@@ -248,7 +249,7 @@ export class EventLoop {
             mainWarn('EventLoop', `fallback prose reply failed for ${slotId}:`, e);
           }
 
-          const mailId = uuid();
+          const mailId = uuid(36);
           teamStore.insertMail({
             id: mailId,
             team_id: teamId,
