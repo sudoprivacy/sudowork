@@ -43,8 +43,12 @@ export interface IAssistantInfo {
   enhancement?: IAssistantEnhancement;
 }
 
+type AssistantPromptsI18n = Record<string, string[]>;
+
 interface VisibleAssistantEntry {
   assistant_id: string;
+  promptsI18n?: AssistantPromptsI18n;
+  prompts_i18n?: AssistantPromptsI18n;
   enhancement?: {
     enabled?: boolean;
     mode?: 'agent-chat' | 'workflow' | 'rag-only';
@@ -52,10 +56,50 @@ interface VisibleAssistantEntry {
   };
 }
 
+interface VisibleAssistantOverlay {
+  enhancement: IAssistantEnhancement;
+  promptsI18n?: AssistantPromptsI18n;
+}
+
 interface VisibleResponse {
   success: boolean;
   data?: VisibleAssistantEntry[];
   msg?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+function normalizePromptsI18n(value: unknown): AssistantPromptsI18n | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const zhCN = Array.from(new Set((stringArray(value['zh-CN']) || []).map((item) => item.trim()).filter(Boolean)));
+  if (zhCN.length === 0) return undefined;
+
+  return { 'zh-CN': zhCN };
+}
+
+function firstPromptsI18n(...values: unknown[]): AssistantPromptsI18n | undefined {
+  for (const value of values) {
+    const normalized = normalizePromptsI18n(value);
+    if (normalized) return normalized;
+  }
+  return undefined;
+}
+
+function applyVisibleOverlay(item: IAssistantInfo, overlay: VisibleAssistantOverlay | undefined, fallbackEnhancement: IAssistantEnhancement): IAssistantInfo {
+  const promptsI18n = overlay?.promptsI18n;
+  return {
+    ...item,
+    meta: promptsI18n ? { ...item.meta, promptsI18n } : item.meta,
+    enhancement: overlay?.enhancement ?? fallbackEnhancement,
+  };
 }
 
 /**
@@ -232,7 +276,7 @@ export class AssistantManager {
     const installed = await this.getInstalledAssistants();
     if (!accessToken) return installed;
 
-    let visibleMap: Map<string, IAssistantEnhancement> | null = null;
+    let visibleMap: Map<string, VisibleAssistantOverlay> | null = null;
     try {
       const resp = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/agents/visible`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -245,9 +289,12 @@ export class AssistantManager {
           if (!entry.assistant_id) continue;
           const enh = entry.enhancement;
           visibleMap.set(entry.assistant_id, {
-            enabled: !!enh?.enabled,
-            mode: enh?.mode,
-            difyAppId: enh?.dify_app_id,
+            enhancement: {
+              enabled: !!enh?.enabled,
+              mode: enh?.mode,
+              difyAppId: enh?.dify_app_id,
+            },
+            promptsI18n: firstPromptsI18n(entry.promptsI18n, entry.prompts_i18n),
           });
         }
       }
@@ -264,8 +311,9 @@ export class AssistantManager {
     for (const item of installed) {
       const needsAclGate = item.category === 'tenant';
       const assistantId = item.meta.id ?? item.id;
+      const visibleOverlay = assistantId ? visibleMap.get(assistantId) : undefined;
       if (!needsAclGate) {
-        out.push({ ...item, enhancement: { enabled: false } });
+        out.push(applyVisibleOverlay(item, visibleOverlay, { enabled: false }));
         continue;
       }
       if (!assistantId) {
@@ -273,13 +321,12 @@ export class AssistantManager {
         out.push({ ...item, enhancement: { enabled: false } });
         continue;
       }
-      const enh = visibleMap.get(assistantId);
-      if (!enh) {
+      if (!visibleOverlay) {
         // not in visible list → admin revoked or assistant was deleted server-side
         mainLog('AssistantManager', `hiding hub assistant ${assistantId}: not in visible set`);
         continue;
       }
-      out.push({ ...item, enhancement: enh });
+      out.push(applyVisibleOverlay(item, visibleOverlay, { enabled: false }));
     }
     return out;
   }

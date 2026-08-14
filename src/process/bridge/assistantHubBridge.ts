@@ -32,6 +32,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 type AssistantHubMeta = import('@/process/constants/assistantStorage').IAssistantMeta;
 type AssistantHubPublishStatus = 'pending' | 'approved' | 'rejected';
+type AssistantPromptsI18n = Record<string, string[]>;
 
 interface AssistantHubUploadApiBody {
   status?: string;
@@ -339,6 +340,23 @@ function stringArray(value: unknown): string[] | undefined {
   return value.filter((item): item is string => typeof item === 'string');
 }
 
+function normalizePromptsI18n(value: unknown): AssistantPromptsI18n | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const zhCN = normalizeStringList(stringArray(value['zh-CN']));
+  if (zhCN.length === 0) return undefined;
+
+  return { 'zh-CN': zhCN };
+}
+
+function firstPromptsI18n(...values: unknown[]): AssistantPromptsI18n | undefined {
+  for (const value of values) {
+    const normalized = normalizePromptsI18n(value);
+    if (normalized) return normalized;
+  }
+  return undefined;
+}
+
 async function fetchVisibleAssistantOverlayMap(accessToken?: string): Promise<Map<string, VisibleAssistantOverlay> | null> {
   if (!accessToken?.trim()) return null;
 
@@ -388,6 +406,12 @@ function applyVisibleAssistantOverlay(raw: Record<string, unknown>, overlay?: Vi
   if (defaultInitPrompt !== undefined) {
     merged.defaultInitPrompt = defaultInitPrompt;
     merged.default_init_prompt = defaultInitPrompt;
+  }
+
+  const promptsI18n = firstPromptsI18n(overlay.promptsI18n, overlay.prompts_i18n);
+  if (promptsI18n) {
+    merged.promptsI18n = promptsI18n;
+    merged.prompts_i18n = promptsI18n;
   }
 
   const updatedAt = firstString(overlay.updatedAt, overlay.updated_at);
@@ -762,6 +786,8 @@ export function initAssistantHubBridge(): void {
                 if (!assistantCategories.includes(category)) continue;
               }
 
+              const promptsI18n = normalizePromptsI18n(meta.promptsI18n);
+
               assistants.push({
                 id: meta.id || assistantName,
                 name: assistantName,
@@ -782,6 +808,8 @@ export function initAssistantHubBridge(): void {
                 created_at: meta.installed_at || new Date().toISOString(),
                 updated_at: meta.installed_at || new Date().toISOString(),
                 defaultInitPrompt: meta.defaultInitPrompt || null,
+                promptsI18n,
+                prompts_i18n: promptsI18n,
                 visible_to: meta.visible_to || null,
                 version: meta.installed_version || '1.0.0',
               });
@@ -831,6 +859,7 @@ export function initAssistantHubBridge(): void {
         const latestVersion = (a.latestVersion as IAssistantHubVersionLike | undefined) || versions?.[0] || null;
         const version = [a.version, a.latest_version, latestVersion?.version, versions?.[0]?.version].find((value): value is string => typeof value === 'string' && value.length > 0);
         const sourceUrl = [a.sourceUrl, a.source_url, latestVersion?.source_url, versions?.[0]?.source_url].find((value): value is string => typeof value === 'string' && value.length > 0);
+        const promptsI18n = firstPromptsI18n(a.promptsI18n, a.prompts_i18n);
 
         return {
           id: a.id as string,
@@ -854,6 +883,8 @@ export function initAssistantHubBridge(): void {
           updated_at: a.updatedAt as string,
           // Default init prompt from API
           defaultInitPrompt: (a.defaultInitPrompt as string) || null,
+          promptsI18n,
+          prompts_i18n: promptsI18n,
           version,
           latestVersion,
           // Store sourceUrl for download (not in original type but needed for install)
@@ -940,6 +971,7 @@ export function initAssistantHubBridge(): void {
         }
 
         const meta = JSON.parse(metaResult.content) as AssistantHubMeta;
+        const promptsI18n = normalizePromptsI18n(meta.promptsI18n);
 
         const assistant: IAssistantHubSkill = {
           id: meta.id || assistantId,
@@ -961,6 +993,8 @@ export function initAssistantHubBridge(): void {
           created_at: meta.installed_at || new Date().toISOString(),
           updated_at: meta.installed_at || new Date().toISOString(),
           defaultInitPrompt: meta.defaultInitPrompt || null,
+          promptsI18n,
+          prompts_i18n: promptsI18n,
           visible_to: meta.visible_to || null,
           version: meta.installed_version || '1.0.0',
         };
@@ -1076,6 +1110,17 @@ export function initAssistantHubBridge(): void {
 
       // Scan for .md files and select ruleFile
       const ruleFile = await selectRuleFileFromDirectory(assistantDir, assistantName);
+
+      let extractedMeta: AssistantHubMeta | null = null;
+      const extractedMetaResult = await readAssistantMetaFileWithFallback(assistantDir);
+      if (extractedMetaResult) {
+        try {
+          extractedMeta = JSON.parse(extractedMetaResult.content) as AssistantHubMeta;
+        } catch {
+          mainWarn('AssistantHub', `Failed to parse extracted assistant meta for "${assistantName}"`);
+        }
+      }
+      const promptsI18n = firstPromptsI18n(assistantMeta.promptsI18n, assistantMeta.prompts_i18n, extractedMeta?.promptsI18n);
 
       // Install selected associated skills FIRST, collect skill IDs for meta
       const installedSkillNames: string[] = [];
@@ -1246,6 +1291,7 @@ export function initAssistantHubBridge(): void {
         is_builtin: assistantMeta.tag === 'system',
         enabled: true,
         defaultInitPrompt: assistantMeta.defaultInitPrompt || null,
+        promptsI18n,
         installed_version: version,
         installed_at: new Date().toISOString(),
         // enabledSkills: skill IDs that will be enabled for this assistant
