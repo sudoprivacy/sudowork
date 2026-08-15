@@ -1,3 +1,4 @@
+import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 import type { TChatConversation } from '@/common/storage';
@@ -12,7 +13,7 @@ describe('resolveWorkspaceSkillsDir', () => {
       },
     } as Pick<TChatConversation, 'type' | 'extra'>;
 
-    expect(resolveWorkspaceSkillsDir(conversation)).toBe('/tmp/workspace/skills');
+    expect(resolveWorkspaceSkillsDir(conversation)).toBe(path.join('/tmp/workspace', 'skills'));
   });
 
   it('uses workspace/.claude/skills for claude ACP conversations', () => {
@@ -24,7 +25,7 @@ describe('resolveWorkspaceSkillsDir', () => {
       },
     } as Pick<TChatConversation, 'type' | 'extra'>;
 
-    expect(resolveWorkspaceSkillsDir(conversation)).toBe('/tmp/workspace/.claude/skills');
+    expect(resolveWorkspaceSkillsDir(conversation)).toBe(path.join('/tmp/workspace', '.claude', 'skills'));
   });
 
   it('falls back to workspace/skills for non-claude ACP conversations', () => {
@@ -36,6 +37,6 @@ describe('resolveWorkspaceSkillsDir', () => {
       },
     } as Pick<TChatConversation, 'type' | 'extra'>;
 
-    expect(resolveWorkspaceSkillsDir(conversation)).toBe('/tmp/workspace/skills');
+    expect(resolveWorkspaceSkillsDir(conversation)).toBe(path.join('/tmp/workspace', 'skills'));
   });
 });

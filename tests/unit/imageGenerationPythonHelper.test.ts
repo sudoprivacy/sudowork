@@ -6,7 +6,26 @@ import { describe, expect, it } from 'vitest';
 
 const helperPath = path.resolve('skills/image-generation/scripts/generate_image.py');
 
-describe('image generation Python helper config resolution', () => {
+// Python's command name is not portable (`python3` on POSIX, `python`/`py` on
+// Windows). Resolve it so this real-Python integration test runs wherever an
+// interpreter exists and skips cleanly (rather than failing) where none does.
+function resolvePythonCmd(): string | null {
+  const candidates = process.platform === 'win32' ? ['python', 'py', 'python3'] : ['python3', 'python'];
+  for (const cmd of candidates) {
+    try {
+      execFileSync(cmd, ['--version'], { stdio: 'ignore' });
+      return cmd;
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+const PYTHON = resolvePythonCmd();
+const suite = PYTHON ? describe : describe.skip;
+
+suite('image generation Python helper config resolution', () => {
   it('prefers the latest readable config over stale injected env vars', () => {
     const tempDir = mkdtempSync(path.join(tmpdir(), 'sudowork-image-helper-'));
     const configPath = path.join(tempDir, 'sudocode.json');
@@ -26,7 +45,7 @@ describe('image generation Python helper config resolution', () => {
     );
 
     const output = execFileSync(
-      'python3',
+      PYTHON!,
       [
         '-c',
         `
@@ -51,12 +70,12 @@ print(config["api_key"])
       { encoding: 'utf-8' }
     );
 
-    expect(output.trim().split('\n')).toEqual(['gpt-image-1', 'https://new.example/v1', 'new-key']);
+    expect(output.trim().split(/\r?\n/)).toEqual(['gpt-image-1', 'https://new.example/v1', 'new-key']);
   });
 
   it('falls back to injected env vars when config is unreadable', () => {
     const output = execFileSync(
-      'python3',
+      PYTHON!,
       [
         '-c',
         `
@@ -81,6 +100,6 @@ print(config["api_key"])
       { encoding: 'utf-8' }
     );
 
-    expect(output.trim().split('\n')).toEqual(['gpt-image-2', 'https://old.example/v1', 'old-key']);
+    expect(output.trim().split(/\r?\n/)).toEqual(['gpt-image-2', 'https://old.example/v1', 'old-key']);
   });
 });

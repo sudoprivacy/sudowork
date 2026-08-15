@@ -5,6 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import path from 'path';
 
 // ── Mocks (must be before imports) ──
 
@@ -46,7 +47,7 @@ import { ensureBrowserPanelMcpRegistered } from '@process/services/mcpServices/S
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import type { IMcpServer } from '@/common/storage';
 
-const SCRIPT_PATH = '/mock/app/resources/browser-panel-mcp/index.js';
+const SCRIPT_PATH = path.join('/mock/app', 'resources', 'browser-panel-mcp', 'index.js');
 const NODE_PATH = '/mock/node/bin/node';
 
 function makeEntry(overrides: Partial<IMcpServer> = {}): IMcpServer {

@@ -48,7 +48,9 @@ describe('local KB skill CLI', () => {
   });
 
   async function runCli(args: string[]) {
-    return execFileAsync(process.execPath, [scriptPath, ...args], { env: { ...process.env, HOME: homeDir } });
+    // os.homedir() reads HOME on POSIX but USERPROFILE on Windows — override both
+    // so the CLI resolves the test's discovery dir on every platform.
+    return execFileAsync(process.execPath, [scriptPath, ...args], { env: { ...process.env, HOME: homeDir, USERPROFILE: homeDir } });
   }
 
   async function runCliExpectFailure(args: string[]) {
