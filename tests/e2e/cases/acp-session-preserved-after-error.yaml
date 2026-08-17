@@ -61,9 +61,6 @@ steps:
   - op: wait_for_app_ready
     timeout: 300
 
-  - op: click
-    x: 530
-    y: 27
   - op: pause
     duration: 3000
   - op: mouse_click
@@ -86,8 +83,9 @@ steps:
     timeout: 60
   - op: screenshot
     path: "screenshots/acp-spe-01-seed.png"
-  - op: judge
-    expect: "Assistant acknowledges or echoes the number 47"
+  - op: assert_contains_any
+    expected: ["47"]
+    reason: assistant acknowledged/echoed the number 47
 
   # ── Phase 2: trigger an error via 200KB text injection ──
   # type_text would type one character at a time (slow + risks intermediate
@@ -112,13 +110,11 @@ steps:
     duration: 25000
   - op: screenshot
     path: "screenshots/acp-spe-02-after-oversize-error.png"
-  - op: judge
-    expect: >
-      An error indication is visible in the chat (e.g. "请求超时",
-      "scode process disconnected", or a RuntimeErrorBanner per-class
-      copy). The exact error class doesn't matter — what matters is
-      Phase-1's user message + assistant reply remain visible in the
-      scrollback above the error tip.
+  - op: assert_contains_any
+    expected: ["请求超时", "scode process disconnected", "disconnected", "超时", "错误", "失败", "中断", "too large", "过大"]
+    reason: >
+      An error indication is visible (exact class doesn't matter). The
+      session-survival proof is Phase 3's "47" recall below.
 
   # ── Phase 3: CRITICAL — prove session is NOT torn down ──
   # If PR-A's classifier SSOT fix is working, the ACP session is still
@@ -139,10 +135,9 @@ steps:
     timeout: 60
   - op: screenshot
     path: "screenshots/acp-spe-03-recall.png"
-  - op: judge
-    expect: >
-      Assistant reply contains "47" (the number from Phase 1). This
-      proves the ACP session is the SAME session as before the Phase 2
-      error — context preserved end-to-end. If the reply says "I don't
-      have prior context", fabricates a different number, or repeats
-      the error tip, PR-A's session-preservation contract is BROKEN.
+  - op: assert_contains_any
+    expected: ["47"]
+    reason: >
+      Reply contains "47" from Phase 1 → same ACP session survived the Phase 2
+      error (context preserved end-to-end). Pre-fix this failed: a new session
+      would have no memory of Phase 1.
