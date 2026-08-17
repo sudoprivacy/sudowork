@@ -23,15 +23,13 @@ import { scodeEngineEnvOverrides } from '@process/services/scode/scodeEngineEnv'
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { isSafetyHookEnabled } from '@process/services/safety/SafetyPollingService';
+import { ACP_PERF_LOG } from './perf';
 
 const execFile = promisify(execFileCb);
 
 // Safety hooks are temporarily disabled because the current implementation is obsolete.
 // Keep the injection path intact for future restoration.
 const SAFETY_HOOKS_ENABLED = false;
-
-/** Enable ACP performance diagnostics via ACP_PERF=1 */
-export const ACP_PERF_LOG = process.env.ACP_PERF === '1';
 
 /**
  * Get path to hook.js for child process injection.
@@ -398,6 +396,19 @@ export function createGenericSpawnConfig(cliPath: string, workingDir: string, ac
 
 export type SpawnResult = { child: ChildProcess; isDetached: boolean };
 
+/**
+ * Portable spawn specification — what to run and with which env, independent of
+ * how stdio is wired. The SSOT consumed by both the local spawn path
+ * (spawnGenericBackend) and the nexus start_session path.
+ */
+export type GenericSpawnSpec = {
+  cmd: string;
+  args: string[];
+  env: Record<string, string | undefined>;
+  cwd: string;
+  shell: boolean;
+};
+
 /** Return type for npx backend prepare functions (prepareClaude, prepareCodex, prepareCodebuddy). */
 export type NpxPrepareResult = {
   cleanEnv: Record<string, string | undefined>;
@@ -583,12 +594,14 @@ function readAnthropicCredsFromSudoclaw(): { apiKey: string; baseUrl: string } |
 }
 
 /**
- * Spawn a generic ACP backend with clean env and Node version check.
- * Many generic backends are Node.js CLIs (#!/usr/bin/env node) that break
- * when Electron's inherited env resolves to an old Node version.
- * Safe for native binaries too — they ignore NODE_OPTIONS and Node version checks.
+ * Build the {cmd,args,env,cwd,shell} spec for a generic ACP backend without
+ * spawning — clean env, Node version check, and (for scode) credential/model
+ * resolution. Many generic backends are Node.js CLIs (#!/usr/bin/env node) that
+ * break when Electron's inherited env resolves to an old Node version; native
+ * binaries ignore NODE_OPTIONS and Node version checks. The returned spec is the
+ * SSOT shared by the local spawn path and the nexus start_session path.
  */
-export async function spawnGenericBackend(backend: string, cliPath: string, workingDir: string, acpArgs?: string[], customEnv?: Record<string, string>): Promise<SpawnResult> {
+export async function buildGenericSpawnSpec(backend: string, cliPath: string, workingDir: string, acpArgs?: string[], customEnv?: Record<string, string>): Promise<GenericSpawnSpec> {
   try {
     await fs.mkdir(workingDir, { recursive: true });
   } catch {
@@ -751,15 +764,29 @@ export async function spawnGenericBackend(backend: string, cliPath: string, work
 
   ensureMinNodeVersion(cleanEnv, 18, 17, `${backend} ACP`);
 
-  const spawnStart = Date.now();
   const effectiveAcpArgs = backend === 'scode' ? resolveScodeAcpArgs(cliPath, acpArgs, cleanEnv, scodeAuthMode) : acpArgs;
   if (backend === 'scode' && scodeAuthMode && effectiveAcpArgs !== acpArgs) {
     mainLog('[ACP scode]', `Using ${scodeAuthMode} auth mode for current model`);
   }
   const config = createGenericSpawnConfig(cliPath, workingDir, effectiveAcpArgs, undefined, cleanEnv as Record<string, string>);
-  const child = spawn(config.command, config.args, config.options);
-  if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: ${backend} process spawned ${Date.now() - spawnStart}ms`);
+  return {
+    cmd: config.command,
+    args: config.args,
+    env: config.options.env as Record<string, string | undefined>,
+    cwd: workingDir,
+    shell: Boolean(config.options.shell),
+  };
+}
 
+/**
+ * Spawn a generic ACP backend locally from its spawn spec (native binaries and
+ * Node CLIs alike; scode included). Wires stdio pipes for the stdio transport.
+ */
+export async function spawnGenericBackend(backend: string, cliPath: string, workingDir: string, acpArgs?: string[], customEnv?: Record<string, string>): Promise<SpawnResult> {
+  const spec = await buildGenericSpawnSpec(backend, cliPath, workingDir, acpArgs, customEnv);
+  const spawnStart = Date.now();
+  const child = spawn(spec.cmd, spec.args, { cwd: spec.cwd, stdio: ['pipe', 'pipe', 'pipe'], env: spec.env, shell: spec.shell });
+  if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: ${backend} process spawned ${Date.now() - spawnStart}ms`);
   return { child, isDetached: false };
 }
 

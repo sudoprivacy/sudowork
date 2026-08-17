@@ -284,6 +284,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.yoloMode = this.yoloMode || this.currentMode === 'yolo' || this.currentMode === 'bypassPermissions';
 
     this.connection = new AcpConnection();
+    this.connection.conversationId = data.conversation_id;
     this.adapter = new AcpAdapter(data.conversation_id, data.backend);
     this.extra = {
       workspace: data.workspace,
