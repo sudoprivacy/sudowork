@@ -1250,6 +1250,7 @@ export const team = {
   cancelRun: bridge.buildProvider<void, { teamId: string; reason?: string }>('team.cancel-run'),
   cancelChildTurn: bridge.buildProvider<void, { teamId: string; slotId: string; turnId?: string }>('team.cancel-child-turn'),
   pauseMember: bridge.buildProvider<void, { teamId: string; slotId: string }>('team.pause-member'),
+  retryMemberStart: bridge.buildProvider<void, { teamId: string; slotId: string }>('team.retry-member-start'),
   ensureSession: bridge.buildProvider<void, { teamId: string }>('team.ensure-session'),
   stopSession: bridge.buildProvider<void, { teamId: string }>('team.stop-session'),
   getRunState: bridge.buildProvider<ITeamRunState, { teamId: string }>('team.get-run-state'),

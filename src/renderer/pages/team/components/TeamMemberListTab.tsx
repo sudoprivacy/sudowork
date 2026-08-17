@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Modal } from '@arco-design/web-react';
-import { Pencil, UserPlus, X } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Message, Modal } from '@arco-design/web-react';
+import { Pencil, RotateCcw, UserPlus, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
@@ -15,6 +15,7 @@ import type { AcpBackend } from '@/types/acpTypes';
 import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
 import AcpModelSelector from '@renderer/components/AcpModelSelector';
 import type { TeamAssistant, TeammateStatus, TTeam } from '../types';
+import { unwrapTeamResult } from '../utils';
 import TeamAddMemberModal from './TeamAddMemberModal';
 
 const STATUS_COLOR: Record<TeammateStatus, string> = {
@@ -99,9 +100,33 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
   const teamSendMessage = useMemo(() => {
     if (!activeMember) return undefined;
     return async ({ input, files, msg_id }: { input: string; files?: string[]; msg_id?: string }) => {
-      await ipcBridge.team.sendMessageToMember.invoke({ teamId: team.id, memberId: activeMember.slot_id, input, files, msgId: msg_id });
+      unwrapTeamResult(await ipcBridge.team.sendMessageToMember.invoke({ teamId: team.id, memberId: activeMember.slot_id, input, files, msgId: msg_id }));
     };
   }, [team.id, activeMember]);
+
+  // Team stop: pauseMember interrupts the in-flight turn AND pauses scheduling. Team bridge
+  // failures arrive as a resolved { __error } envelope — unwrap turns it into a catchable throw.
+  const teamStop = useMemo(() => {
+    if (!activeMember) return undefined;
+    return async () => {
+      try {
+        unwrapTeamResult(await ipcBridge.team.pauseMember.invoke({ teamId: team.id, slotId: activeMember.slot_id }));
+      } catch {
+        Message.error(t('team.detail.stopMemberFailed'));
+      }
+    };
+  }, [team.id, activeMember, t]);
+
+  const retryMemberStart = useCallback(
+    async (slotId: string) => {
+      try {
+        unwrapTeamResult(await ipcBridge.team.retryMemberStart.invoke({ teamId: team.id, slotId }));
+      } catch {
+        Message.error(t('team.detail.retryStartFailed'));
+      }
+    },
+    [team.id, t]
+  );
 
   const onTeamAnswerQuestion = useMemo(() => {
     if (!activeMember) return undefined;
@@ -129,7 +154,19 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
             const hasActiveDisplayState = activeSlotIds?.has(a.slot_id) || (a.slot_id === activeSlotId && isSelectedChatProcessing);
             const status = baseStatus !== 'failed' && baseStatus !== 'pending' && hasActiveDisplayState ? 'active' : baseStatus;
             const isActive = a.slot_id === activeSlotId;
-            return <TeamMemberRow key={a.slot_id} member={a} status={status} isActive={isActive} statusLabel={t(`team.status.${status}`)} onSelect={() => setActiveSlotId(a.slot_id)} onRename={(name) => void onRenameMember?.(a.slot_id, name)} onRemove={() => void onRemoveMember?.(a.slot_id)} />;
+            return (
+              <TeamMemberRow
+                key={a.slot_id}
+                member={a}
+                status={status}
+                isActive={isActive}
+                statusLabel={t(`team.status.${status}`)}
+                onSelect={() => setActiveSlotId(a.slot_id)}
+                onRename={(name) => void onRenameMember?.(a.slot_id, name)}
+                onRemove={() => void onRemoveMember?.(a.slot_id)}
+                onRetry={() => void retryMemberStart(a.slot_id)}
+              />
+            );
           })
         )}
       </div>
@@ -145,6 +182,7 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
               onTeamAnswerQuestion={onTeamAnswerQuestion}
               teamAnswerQuestion={onTeamAnswerQuestion}
               teamSendMessage={teamSendMessage}
+              teamStop={teamStop}
               onProcessingChange={setIsSelectedChatProcessing}
             />
           ) : (
@@ -158,7 +196,7 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
   );
 }
 
-function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRename, onRemove }: ITeamMemberRowProps) {
+function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRename, onRemove, onRetry }: ITeamMemberRowProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const icon = resolveMemberIcon(member);
@@ -200,6 +238,11 @@ function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRena
       )}
       {!isEditing && (
         <div className='hidden shrink-0 items-center gap-4px group-hover/team-member:flex' onClick={(e) => e.stopPropagation()}>
+          {status === 'failed' && (
+            <button type='button' title={t('team.actions.retryStart')} className='inline-flex size-24px cursor-pointer items-center justify-center rounded-4px text-gray-400 hover:bg-fill-2 hover:text-foreground' onClick={() => onRetry()}>
+              <RotateCcw size={16} />
+            </button>
+          )}
           <button type='button' title={t('team.actions.rename')} className='inline-flex size-24px cursor-pointer items-center justify-center rounded-4px text-gray-400 hover:bg-fill-2 hover:text-foreground' onClick={() => setIsEditing(true)}>
             <Pencil size={16} />
           </button>
@@ -233,6 +276,7 @@ interface ITeamMemberRowProps {
   onSelect: () => void;
   onRename: (name: string) => void;
   onRemove: () => void;
+  onRetry: () => void;
 }
 
 interface ITeamMemberNameInputProps {

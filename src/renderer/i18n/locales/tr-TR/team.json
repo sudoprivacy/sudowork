@@ -51,7 +51,9 @@
     "leaderNotFound": "Takım Leader bulunamadı.",
     "addMemberFailed": "Üye eklenemedi. Lütfen tekrar deneyin.",
     "loadError": "Takım yüklenemedi. Lütfen tekrar deneyin.",
-    "retry": "Tekrar dene"
+    "retry": "Tekrar dene",
+    "stopMemberFailed": "Bu üye durdurulamadı. Lütfen tekrar deneyin.",
+    "retryStartFailed": "Bu üye yeniden başlatılamadı. Lütfen tekrar deneyin."
   },
   "status": {
     "pending": "Bekliyor",
@@ -70,7 +72,8 @@
     "rename": "Yeniden Adlandır",
     "remove": "Kaldır",
     "delete": "Sil",
-    "export": "Dışa Aktar"
+    "export": "Dışa Aktar",
+    "retryStart": "Yeniden başlat"
   },
   "rename": {
     "title": "Takımı Yeniden Adlandır",

@@ -6,7 +6,20 @@
  * paused slot; Background/SystemRecovery are suppressed while paused.
  */
 
-export type WakeSource = 'user_message' | 'user_intervention' | 'mcp_send_message' | 'idle_notification' | 'interrupted_notification' | 'team_membership_changed' | 'mcp_shutdown_request' | 'crash_notification' | 'inactivity_timeout' | 'spawn_attach_failure' | 'shutdown_rejected' | 'recovery_drain';
+export type WakeSource =
+  | 'user_message'
+  | 'user_intervention'
+  | 'mcp_send_message'
+  | 'idle_notification'
+  | 'interrupted_notification'
+  | 'team_membership_changed'
+  | 'mcp_shutdown_request'
+  | 'crash_notification'
+  | 'inactivity_timeout'
+  | 'spawn_attach_failure'
+  | 'member_interrupted'
+  | 'shutdown_rejected'
+  | 'recovery_drain';
 
 export type WakeClass = 'Foreground' | 'Background' | 'SystemRecovery' | 'Lifecycle';
 
@@ -27,6 +40,7 @@ export const WAKE_META: Record<WakeSource, WakeMeta> = {
   crash_notification: { class: 'SystemRecovery', resumes_paused: false, bypasses_pause: false },
   inactivity_timeout: { class: 'SystemRecovery', resumes_paused: false, bypasses_pause: false },
   spawn_attach_failure: { class: 'SystemRecovery', resumes_paused: false, bypasses_pause: false },
+  member_interrupted: { class: 'SystemRecovery', resumes_paused: false, bypasses_pause: false },
   shutdown_rejected: { class: 'SystemRecovery', resumes_paused: false, bypasses_pause: false },
   recovery_drain: { class: 'SystemRecovery', resumes_paused: false, bypasses_pause: false },
 };

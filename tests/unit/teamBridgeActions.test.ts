@@ -15,6 +15,7 @@ const h = vi.hoisted(() => {
     updateTeam: vi.fn(),
     renameTeam: vi.fn(),
     answerQuestion: vi.fn(),
+    retryMemberStart: vi.fn(),
   };
 });
 
@@ -42,6 +43,7 @@ vi.mock('@/common', () => ({
       ensureSession: h.makeProvider('ensureSession'),
       stopSession: h.makeProvider('stopSession'),
       pauseMember: h.makeProvider('pauseMember'),
+      retryMemberStart: h.makeProvider('retryMemberStart'),
       renameMember: h.makeProvider('renameMember'),
       reorderMembers: h.makeProvider('reorderMembers'),
     },
@@ -71,6 +73,7 @@ vi.mock('@process/services/team/TeamService', () => ({
     rebuildTeam: vi.fn(),
     stopTeamSession: vi.fn(),
     pauseMember: vi.fn(),
+    retryMemberStart: h.retryMemberStart,
     renameMember: vi.fn(),
   },
 }));
@@ -83,6 +86,7 @@ beforeEach(() => {
   h.updateTeam.mockReset();
   h.renameTeam.mockReset();
   h.answerQuestion.mockReset();
+  h.retryMemberStart.mockReset();
 });
 
 describe('teamBridge team history providers', () => {
@@ -135,5 +139,16 @@ describe('teamBridge team history providers', () => {
       })
     ).resolves.toEqual({ success: true });
     expect(h.answerQuestion).toHaveBeenCalledWith('team-1', 'slot-1', 'conv-1', 'tool-1', [{ id: 'q1', value: 'yes', label: 'Yes' }]);
+  });
+
+  it('wires retryMemberStart provider and returns an error envelope on failure', async () => {
+    h.retryMemberStart.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('retry failed'));
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(h.providers.get('retryMemberStart')?.({ teamId: 'team-1', slotId: 'slot-1' })).resolves.toBeUndefined();
+    expect(h.retryMemberStart).toHaveBeenCalledWith('team-1', 'slot-1');
+
+    await expect(h.providers.get('retryMemberStart')?.({ teamId: 'team-1', slotId: 'slot-1' })).resolves.toEqual({ __error: 'retry failed' });
   });
 });

@@ -6,10 +6,14 @@ import type { TTeam } from '../../src/renderer/pages/team/types';
 const mocks = vi.hoisted(() => ({
   sendMessageToMember: vi.fn(),
   answerQuestion: vi.fn(),
+  pauseMember: vi.fn(),
+  retryMemberStart: vi.fn(),
   acpChatProps: [] as Array<{
     conversation_id: string;
     onProcessingChange?: (isProcessing: boolean) => void;
     onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
+    teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+    teamStop?: () => Promise<void>;
   }>,
 }));
 
@@ -30,6 +34,8 @@ vi.mock('@/common', () => ({
     team: {
       sendMessageToMember: { invoke: (...args: unknown[]) => mocks.sendMessageToMember(...args) },
       answerQuestion: { invoke: (...args: unknown[]) => mocks.answerQuestion(...args) },
+      pauseMember: { invoke: (...args: unknown[]) => mocks.pauseMember(...args) },
+      retryMemberStart: { invoke: (...args: unknown[]) => mocks.retryMemberStart(...args) },
     },
   },
 }));
@@ -45,7 +51,13 @@ vi.mock('@/renderer/shared/agents/assistantAdapter', () => ({
 vi.mock('@renderer/pages/conversation/acp/AcpChat', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return {
-    default: (props: { conversation_id: string; onProcessingChange?: (isProcessing: boolean) => void; onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown> }) => {
+    default: (props: {
+      conversation_id: string;
+      onProcessingChange?: (isProcessing: boolean) => void;
+      onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
+      teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+      teamStop?: () => Promise<void>;
+    }) => {
       mocks.acpChatProps.push(props);
       return React.createElement('div', { 'data-testid': 'acp-chat', 'data-conversation-id': props.conversation_id });
     },
@@ -104,7 +116,11 @@ describe('TeamMemberListTab', () => {
     localStorage.clear();
     mocks.sendMessageToMember.mockReset();
     mocks.answerQuestion.mockReset();
+    mocks.pauseMember.mockReset();
+    mocks.retryMemberStart.mockReset();
     mocks.answerQuestion.mockResolvedValue({ success: true });
+    mocks.pauseMember.mockResolvedValue(undefined);
+    mocks.retryMemberStart.mockResolvedValue(undefined);
     mocks.acpChatProps = [];
   });
 
@@ -149,6 +165,15 @@ describe('TeamMemberListTab', () => {
     expect(screen.getByText('team.status.active')).toBeInTheDocument();
   });
 
+  it('unwraps the { __error } envelope on member teamSendMessage instead of swallowing it', async () => {
+    mocks.sendMessageToMember.mockResolvedValue({ __error: 'Member not found: member-slot' });
+    render(<TeamMemberListTab team={makeTeam([leader, teammate])} statusMap={new Map()} />);
+
+    await waitFor(() => expect(mocks.acpChatProps.at(-1)?.teamSendMessage).toBeTypeOf('function'));
+    await expect(mocks.acpChatProps.at(-1)?.teamSendMessage?.({ input: 'hello', files: undefined, msg_id: 'm-2' })).rejects.toThrow('Member not found: member-slot');
+    expect(mocks.sendMessageToMember).toHaveBeenCalledWith({ teamId: 'team-1', memberId: 'member-slot', input: 'hello', files: undefined, msgId: 'm-2' });
+  });
+
   it('uses selected chat processing to override an idle member row while processing', async () => {
     render(<TeamMemberListTab team={makeTeam([leader, teammate])} statusMap={new Map()} />);
 
@@ -180,5 +205,22 @@ describe('TeamMemberListTab', () => {
     rerender(<TeamMemberListTab team={makeTeam([leader, makeTeammate('pending')])} statusMap={new Map()} activeSlotIds={new Set(['member-slot'])} />);
 
     expect(screen.getByText('team.status.pending')).toBeInTheDocument();
+  });
+
+  it('passes teamStop to AcpChat and routes it to pauseMember', async () => {
+    render(<TeamMemberListTab team={makeTeam([leader, teammate])} statusMap={new Map()} />);
+
+    await waitFor(() => expect(mocks.acpChatProps.at(-1)?.teamStop).toBeTypeOf('function'));
+    await mocks.acpChatProps.at(-1)?.teamStop?.();
+
+    expect(mocks.pauseMember).toHaveBeenCalledWith({ teamId: 'team-1', slotId: 'member-slot' });
+  });
+
+  it('calls retryMemberStart from the failed member retry button', async () => {
+    render(<TeamMemberListTab team={makeTeam([leader, makeTeammate('failed')])} statusMap={new Map()} />);
+
+    screen.getByTitle('team.actions.retryStart').click();
+
+    await waitFor(() => expect(mocks.retryMemberStart).toHaveBeenCalledWith({ teamId: 'team-1', slotId: 'member-slot' }));
   });
 });

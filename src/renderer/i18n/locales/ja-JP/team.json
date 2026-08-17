@@ -51,7 +51,9 @@
     "leaderNotFound": "チーム Leader が見つかりません。",
     "addMemberFailed": "メンバーの追加に失敗しました。再試行してください。",
     "loadError": "チームの読み込みに失敗しました。再試行してください。",
-    "retry": "再試行"
+    "retry": "再試行",
+    "stopMemberFailed": "このメンバーの停止に失敗しました。もう一度お試しください。",
+    "retryStartFailed": "このメンバーの再起動に失敗しました。もう一度お試しください。"
   },
   "status": {
     "pending": "待機中",
@@ -70,7 +72,8 @@
     "rename": "名前変更",
     "remove": "削除",
     "delete": "削除",
-    "export": "エクスポート"
+    "export": "エクスポート",
+    "retryStart": "再起動"
   },
   "rename": {
     "title": "チーム名を変更",

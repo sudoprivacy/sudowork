@@ -215,8 +215,9 @@ describe('EventLoop turn driving (附录 I.5)', () => {
     seedWake(teamRun, 's1', 'teammate');
     queue.push(row({ id: 'm-err', from_member_id: 'user', content: 'x' }));
 
+    // start() alone drains the pre-start wake (startup self-check) — an explicit notifyWake here
+    // would add a second wake credit and re-attempt immediately instead of backing off.
     loop.start();
-    loop.notifyWake();
     await flush();
 
     expect(h.agentSend).toHaveBeenCalledTimes(1);
@@ -323,8 +324,8 @@ describe('EventLoop turn driving (附录 I.5)', () => {
       seedWake(teamRun, 's1', 'teammate');
       queue.push(row({ id: 'm-err', from_member_id: 'user', content: 'x' }));
 
+      // No explicit notifyWake — start()'s self-check drains the pre-start wake.
       loop.start();
-      loop.notifyWake();
       await vi.advanceTimersByTimeAsync(20);
 
       expect(h.agentSend).toHaveBeenCalledTimes(1);
@@ -504,5 +505,34 @@ describe('EventLoop fallback prose reply (finalizeTurn 兜底回传正文)', () 
     const mails = insertMails();
     expect(mails.some((m) => m.type === 'message')).toBe(false);
     expect(mails.some((m) => m.type === 'idle_notification')).toBe(true);
+  });
+});
+
+describe('EventLoop startup self-check (H13 spawn-window lost wake)', () => {
+  it('drains a wake committed before start() without any notifyWake call', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+    // Spawn window: mail + committed pending wake exist BEFORE the loop starts — notifyWake was
+    // a no-op at commit time (runtime not yet registered), so nothing else will wake this loop.
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ from_member_id: 'user', content: 'spawn-window message' }));
+
+    loop.start();
+    await flush();
+
+    expect(h.agentSend).toHaveBeenCalledTimes(1);
+    expect(markReadCalls()).toHaveLength(1);
+  });
+
+  it('unowned backlog does not self-signal (orphan guard mirrored, no spin)', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend };
+    const { loop } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+    // No active run, no pending wake → unowned backlog must not keep the loop spinning.
+    queue.push(row({ from_member_id: 'user', content: 'orphan' }));
+
+    loop.start();
+    await flush();
+
+    expect(h.agentSend).not.toHaveBeenCalled();
   });
 });

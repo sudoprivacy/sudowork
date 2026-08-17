@@ -178,6 +178,14 @@ function defaultCreateConversation() {
   });
 }
 
+async function importChannelEventBus() {
+  // vi.resetModules() in beforeEach re-keys the module registry, so the bus must come from
+  // the same dynamic import as TeamService — a static top-level import would hold a stale
+  // instance whose emissions never reach the service's subscription.
+  const { channelEventBus } = await import('@/channels/agent/ChannelEventBus');
+  return channelEventBus;
+}
+
 async function importService() {
   const mod = await import('@process/services/team/TeamService');
   const service = mod.teamService as unknown as {
@@ -186,13 +194,23 @@ async function importService() {
     removeMember: typeof mod.teamService.removeMember;
     ensureSession: (teamId: string) => Promise<unknown>;
     rebuildTeam: typeof mod.teamService.rebuildTeam;
-    dispatchTeamTool: (teamId: string, caller: TeamMember, tool: string, args: Record<string, unknown>) => Promise<{ ok: boolean; data?: { members: Array<Record<string, unknown>> } }>;
+    dispatchTeamTool: (teamId: string, caller: TeamMember, tool: string, args: Record<string, unknown>) => Promise<{ ok: boolean; data?: any; error?: string }>;
+    pauseMember: typeof mod.teamService.pauseMember;
+    retryMemberStart: typeof mod.teamService.retryMemberStart;
+    terminateSlot: (teamId: string, slotId: string, isLeader: boolean, reason: unknown) => void;
+    recordSystemWake: (teamId: string, slotId: string, source: string, messageId?: string | null) => void;
+    handleResponseStream: (msg: { conversation_id: string; type: string; data?: unknown }) => void;
     cleanup: () => void;
     sessions: Map<
       string,
       {
         members: Map<string, { member: TeamMember }>;
-        teamRun: { getRecord: () => { pending_wakes: Map<string, Array<{ source: string }>> } | null };
+        teamRun: {
+          acquireWake: (slotId: string, role: 'lead' | 'teammate', source: string) => { lease: { lease_id: string } };
+          commitLease: (leaseId: string, wake: { slot_id: string; role: 'lead' | 'teammate'; source: string; message_id: string | null }) => void;
+          clearSlot: (slotId: string) => void;
+          getRecord: () => { status: string; pending_wakes: Map<string, Array<{ source: string }>> } | null;
+        };
       }
     >;
     startTeamHttpServer: () => Promise<{ server: { close: (cb?: () => void) => void }; port: number; token: string }>;
@@ -696,6 +714,46 @@ describe('TeamService createTeam members', () => {
     }
   });
 
+  it('team_send_message excludes failed broadcast targets but keeps pending targets', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'FailedWorker', role: 'teammate' },
+      { assistant_id: 'claude', name: 'PendingWorker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const leader = leaderFor(team.id);
+    const teammates = [...h.members.values()].filter((m) => m.role === 'teammate');
+    const failed = teammates[0];
+    const pending = teammates[1];
+    h.members.set(failed.id, { ...failed, status: 'failed' });
+    h.members.set(pending.id, { ...pending, status: 'pending' });
+
+    const result = await service.dispatchTeamTool(team.id, leader, 'team_send_message', { to: '*', message: 'Heads up' });
+
+    expect(result).toMatchObject({ ok: true, data: { targets: [pending.id] } });
+    expect(h.mails.some((mail) => mail.to_member_id === failed.id)).toBe(false);
+    expect(h.mails.some((mail) => mail.to_member_id === pending.id)).toBe(true);
+  });
+
+  it('team_send_message and team_shutdown_agent reject failed direct targets', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'FailedWorker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const leader = leaderFor(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+    h.members.set(teammate.id, { ...teammate, status: 'failed' });
+
+    const send = await service.dispatchTeamTool(team.id, leader, 'team_send_message', { to: teammate.id, message: 'Ping' });
+    const shutdown = await service.dispatchTeamTool(team.id, leader, 'team_shutdown_agent', { slot_id: teammate.id });
+
+    expect(send).toMatchObject({ ok: false, error: expect.stringContaining('has failed') });
+    expect(shutdown).toMatchObject({ ok: false, error: expect.stringContaining('has failed') });
+  });
+
   it('team_spawn_agent is allowed regardless of pre-selected teammate state (gate removed)', async () => {
     vi.useFakeTimers();
     try {
@@ -747,6 +805,303 @@ describe('TeamService createTeam members', () => {
       });
       expect(second.ok).toBe(true);
       await vi.runOnlyPendingTimersAsync();
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('terminateSlot kills and unregisters a crashed teammate runtime', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+    const runtime = service.sessions.get(team.id)?.members.get(teammate.id) as { agent: { kill: ReturnType<typeof vi.fn> } };
+
+    service.terminateSlot(team.id, teammate.id, false, { kind: 'Unknown', msg: 'disconnected' });
+
+    expect(runtime.agent.kill).toHaveBeenCalledTimes(1);
+    expect(service.sessions.get(team.id)?.members.has(teammate.id)).toBe(false);
+    expect(h.members.get(teammate.id)?.status).toBe('failed');
+    expect(h.mails.some((mail) => mail.from_member_id === teammate.id && mail.to_member_id === leaderFor(team.id).id)).toBe(true);
+  });
+
+  it('rate-limit stream errors unregister the runtime instead of leaving a zombie member', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+    const runtime = service.sessions.get(team.id)?.members.get(teammate.id) as { agent: { kill: ReturnType<typeof vi.fn> } };
+
+    service.handleResponseStream({ conversation_id: teammate.conversation_id!, type: 'error', data: { error: '429 rate limit' } });
+
+    expect(runtime.agent.kill).toHaveBeenCalledTimes(1);
+    expect(service.sessions.get(team.id)?.members.has(teammate.id)).toBe(false);
+    expect(h.members.get(teammate.id)?.status).toBe('failed');
+  });
+
+  it('channelEventBus stream events reset the watchdog instead of letting it fire at arm+60s', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const channelEventBus = await importChannelEventBus();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+      const session = service.sessions.get(team.id) as unknown as {
+        crashRecovery: { armWakeTimeout: (slot: string) => void; disarmWakeTimeout: (slot: string) => void };
+        members: Map<string, { agent: { kill: ReturnType<typeof vi.fn> } }>;
+      };
+      const runtime = session.members.get(teammate.id)!;
+      runtime.agent.kill.mockClear();
+
+      session.crashRecovery.armWakeTimeout(teammate.id);
+      // A stream event arriving via channelEventBus (the in-main path AcpAgent dual-emits to)
+      // must reset the watchdog timer: advancing 60s after the event does NOT fire the timeout.
+      channelEventBus.emitAgentMessage(teammate.conversation_id!, { type: 'content', data: 'progress' });
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(runtime.agent.kill).not.toHaveBeenCalled();
+      expect(session.members.has(teammate.id)).toBe(true);
+
+      // Silence for a further 60s: watchdog fires but is log-only — no kill, no dispose.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(runtime.agent.kill).not.toHaveBeenCalled();
+      expect(session.members.has(teammate.id)).toBe(true);
+      expect(h.members.get(teammate.id)?.status).not.toBe('failed');
+      session.crashRecovery.disarmWakeTimeout(teammate.id);
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('channelEventBus disconnected events still terminate the crashed teammate (real crash path)', async () => {
+    const service = await importService();
+    const channelEventBus = await importChannelEventBus();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+    const leader = leaderFor(team.id);
+    const session = service.sessions.get(team.id) as unknown as { members: Map<string, { agent: { kill: ReturnType<typeof vi.fn> } }> };
+    const runtime = session.members.get(teammate.id)!;
+
+    channelEventBus.emitAgentMessage(teammate.conversation_id!, {
+      type: 'agent_status',
+      data: { status: 'disconnected', error: 'process exited code 1' },
+    });
+
+    expect(runtime.agent.kill).toHaveBeenCalledTimes(1);
+    expect(session.members.has(teammate.id)).toBe(false);
+    expect(h.members.get(teammate.id)?.status).toBe('failed');
+    expect(h.mails.some((mail) => mail.from_member_id === teammate.id && mail.to_member_id === leader.id)).toBe(true);
+  });
+
+  it('inactive 60s watchdog no longer kills the slot (log-only)', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [
+        { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+        { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+      ]);
+      await service.rebuildTeam(team.id);
+      const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+      const session = service.sessions.get(team.id) as unknown as {
+        crashRecovery: { armWakeTimeout: (slot: string) => void; disarmWakeTimeout: (slot: string) => void };
+        members: Map<string, { agent: { kill: ReturnType<typeof vi.fn> } }>;
+      };
+      const runtime = session.members.get(teammate.id)!;
+      runtime.agent.kill.mockClear();
+      h.mails.length = 0;
+
+      session.crashRecovery.armWakeTimeout(teammate.id);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(runtime.agent.kill).not.toHaveBeenCalled();
+      expect(session.members.has(teammate.id)).toBe(true);
+      expect(h.members.get(teammate.id)?.status).not.toBe('failed');
+      expect(h.mails.some((mail) => mail.from_member_id === teammate.id)).toBe(false);
+      session.crashRecovery.disarmWakeTimeout(teammate.id);
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('recordSystemWake skips failed targets without creating an unclaimable run', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: 'scode', name: 'Leader', role: 'lead' }]);
+    await service.rebuildTeam(team.id);
+    const leader = leaderFor(team.id);
+    h.members.set(leader.id, { ...leader, status: 'failed' });
+    h.notifyWake.mockClear();
+
+    service.recordSystemWake(team.id, leader.id, 'crash_notification', 'mail-1');
+
+    expect(service.sessions.get(team.id)?.teamRun.getRecord()).toBeNull();
+    expect(h.notifyWake).not.toHaveBeenCalled();
+  });
+
+  it('pauseMember requires a live session and skips slots without runtime', async () => {
+    const service = await importService();
+    await expect(service.pauseMember('missing-team', 'slot-1')).rejects.toThrow('Team session not active: missing-team');
+
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+    service.sessions.get(team.id)?.members.delete(teammate.id);
+    h.mails.length = 0;
+    h.notifyWake.mockClear();
+
+    await service.pauseMember(team.id, teammate.id);
+
+    expect(h.mails).toHaveLength(0);
+    expect(h.notifyWake).not.toHaveBeenCalled();
+  });
+
+  it('pauseMember notifies the leader for teammate interruption but not for leader interruption', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const leader = leaderFor(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+    h.mails.length = 0;
+    h.notifyWake.mockClear();
+
+    await service.pauseMember(team.id, teammate.id);
+
+    expect(h.mails).toHaveLength(1);
+    expect(h.mails[0]).toMatchObject({ to_member_id: leader.id, from_member_id: teammate.id });
+    expect(h.mails[0].content).toContain('was interrupted by the user');
+    expect(
+      service.sessions
+        .get(team.id)
+        ?.teamRun.getRecord()
+        ?.pending_wakes.get(leader.id)
+        ?.some((wake) => wake.source === 'member_interrupted')
+    ).toBe(true);
+    expect(h.notifyWake).toHaveBeenCalledTimes(1);
+
+    h.mails.length = 0;
+    h.notifyWake.mockClear();
+    await service.pauseMember(team.id, leader.id);
+
+    expect(h.mails).toHaveLength(0);
+    expect(h.notifyWake).not.toHaveBeenCalled();
+  });
+
+  it('retryMemberStart re-attaches a failed member and recovers unread backlog with no active run', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+    service.sessions.get(team.id)?.members.delete(teammate.id);
+    h.members.set(teammate.id, { ...teammate, status: 'failed' });
+    h.mails.push({ id: 'mail-1', team_id: team.id, to_member_id: teammate.id, from_member_id: 'user', type: 'message', content: 'retry this', summary: null, files: null, read: false, created_at: 1 });
+    h.buildConversation.mockClear();
+    h.notifyWake.mockClear();
+
+    await service.retryMemberStart(team.id, teammate.id);
+
+    expect(h.buildConversation).toHaveBeenCalledTimes(1);
+    expect(service.sessions.get(team.id)?.members.has(teammate.id)).toBe(true);
+    expect(h.members.get(teammate.id)?.status).toBe('idle');
+    expect(
+      service.sessions
+        .get(team.id)
+        ?.teamRun.getRecord()
+        ?.pending_wakes.get(teammate.id)
+        ?.some((wake) => wake.source === 'recovery_drain')
+    ).toBe(true);
+    expect(h.notifyWake).toHaveBeenCalledTimes(1);
+  });
+
+  it('retryMemberStart reseeds unread backlog when an active run already exists', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const leader = leaderFor(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+    const session = service.sessions.get(team.id)!;
+    const { lease } = session.teamRun.acquireWake(leader.id, 'lead', 'mcp_send_message');
+    session.teamRun.commitLease(lease.lease_id, { slot_id: leader.id, role: 'lead', source: 'mcp_send_message', message_id: 'leader-mail' });
+    session.members.delete(teammate.id);
+    h.members.set(teammate.id, { ...teammate, status: 'failed' });
+    h.mails.push({ id: 'mail-2', team_id: team.id, to_member_id: teammate.id, from_member_id: 'user', type: 'message', content: 'retry this too', summary: null, files: null, read: false, created_at: 2 });
+    h.notifyWake.mockClear();
+
+    await service.retryMemberStart(team.id, teammate.id);
+
+    expect(
+      session.teamRun
+        .getRecord()
+        ?.pending_wakes.get(teammate.id)
+        ?.some((wake) => wake.source === 'recovery_drain')
+    ).toBe(true);
+    expect(h.notifyWake).toHaveBeenCalledTimes(1);
+  });
+
+  it('retryMemberStart reports attach failure directly to the caller', async () => {
+    const service = await importService();
+    const team = await service.createTeam('user-1', 'Team', '/workspace', [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate' },
+    ]);
+    await service.rebuildTeam(team.id);
+    const teammate = [...h.members.values()].find((m) => m.role === 'teammate')!;
+    service.sessions.get(team.id)?.members.delete(teammate.id);
+    h.members.set(teammate.id, { ...teammate, status: 'failed' });
+    h.buildConversation.mockReturnValueOnce(null);
+
+    await expect(service.retryMemberStart(team.id, teammate.id)).rejects.toThrow('Failed to attach member runtime: Worker');
+  });
+
+  it('spawn runtime errors dispose runtime state and clear spawn-window pending wakes', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = await importService();
+      const team = await service.createTeam('user-1', 'Team', '/workspace', [{ assistant_id: 'scode', name: 'Leader', role: 'lead' }]);
+      await service.rebuildTeam(team.id);
+      h.buildConversation.mockImplementationOnce(() => {
+        throw new Error('spawn runtime exploded');
+      });
+
+      const teammate = await service.spawnMember(team.id, { assistant_id: 'claude', name: 'Worker', role: 'teammate', notifyLeaderOnSpawn: false });
+      const session = service.sessions.get(team.id)!;
+      const { lease } = session.teamRun.acquireWake(teammate.id, 'teammate', 'mcp_send_message');
+      session.teamRun.commitLease(lease.lease_id, { slot_id: teammate.id, role: 'teammate', source: 'mcp_send_message', message_id: 'spawn-window-mail' });
+      expect(session.teamRun.getRecord()?.pending_wakes.get(teammate.id)).toBeDefined();
+
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(h.members.get(teammate.id)?.status).toBe('failed');
+      expect(service.sessions.get(team.id)?.members.has(teammate.id)).toBe(false);
+      expect(session.teamRun.getRecord()?.pending_wakes.get(teammate.id)).toBeUndefined();
+      expect(session.teamRun.getRecord()?.status).toBe('completed');
     } finally {
       await vi.runOnlyPendingTimersAsync();
       vi.useRealTimers();

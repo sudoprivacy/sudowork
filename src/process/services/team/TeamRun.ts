@@ -312,6 +312,23 @@ export class TeamRunManager {
   }
 
   /**
+   * Emit the child-turn terminal event for an active child removed without a normal completion
+   * (crash / slot clear / force cancel). The renderer clears its per-slot child-turn entry only
+   * on this event (useTeamRunView.onChildTerminal) — skipping it strands a phantom "active" slot.
+   */
+  private emitChildCancelled(run: TeamRunRecord, child: ActiveChildTurn, status: 'failed' | 'cancelled'): void {
+    ipcBridge.team.onChildTurnCancelled.emit({
+      team_id: run.team_id,
+      team_run_id: run.team_run_id,
+      slot_id: child.slot_id,
+      role: child.role,
+      conversation_id: child.conversation_id,
+      turn_id: child.turn_id,
+      status,
+    });
+  }
+
+  /**
    * Handle a slot crash (附录 I.1 / 事实 9): clear the crashed slot's pending wakes + starting
    * reservations, fail its active child (→ run failed), and on a leader crash fail the run
    * outright. Without this, a crashed slot's retried pending wake strands the run active forever.
@@ -331,6 +348,8 @@ export class TeamRunManager {
   handleSlotCrash(slot: string, isLeader: boolean): void {
     const run = this.record;
     if (!run) return;
+    const child = run.active_child_turns.get(slot);
+    if (child) this.emitChildCancelled(run, child, 'failed');
     this.clearSlotOwnedState(run, slot);
     if (isLeader) this.failRun();
     else this.maybeComplete();
@@ -340,6 +359,8 @@ export class TeamRunManager {
   clearSlot(slot: string): void {
     const run = this.record;
     if (!run) return;
+    const child = run.active_child_turns.get(slot);
+    if (child) this.emitChildCancelled(run, child, 'cancelled');
     this.clearSlotOwnedState(run, slot);
     this.maybeComplete();
   }
@@ -361,6 +382,7 @@ export class TeamRunManager {
   forceCancel(): void {
     const run = this.record;
     if (!run || run.status !== 'cancelling') return;
+    for (const child of run.active_child_turns.values()) this.emitChildCancelled(run, child, 'cancelled');
     run.active_child_turns.clear();
     run.starting_reservations.clear();
     run.active_operation_leases.clear();

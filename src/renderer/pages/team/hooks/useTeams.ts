@@ -12,14 +12,11 @@ import type { TTeam } from '../types';
 import { unwrapTeamResult } from '../utils';
 
 async function fetchTeams(): Promise<TTeam[]> {
+  // No per-team listMembers here: the only consumer (TeamSiderSection) renders id/name/pinned,
+  // and one failing listMembers would reject the whole Promise.all and blank the sidebar. The
+  // export flow fetches members on demand instead (useTeamExport.buildTeamExportFiles).
   const teams = unwrapTeamResult(await ipcBridge.team.listTeams.invoke()) ?? [];
-  const withMembers = await Promise.all(
-    teams.map(async (t) => {
-      const members = unwrapTeamResult(await ipcBridge.team.listMembers.invoke({ teamId: t.id })) ?? [];
-      return fromBackendTeam(t, members);
-    })
-  );
-  return withMembers;
+  return teams.map((t) => fromBackendTeam(t, []));
 }
 
 /**

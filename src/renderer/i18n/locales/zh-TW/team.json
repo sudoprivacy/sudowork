@@ -51,7 +51,9 @@
     "leaderNotFound": "未找到團隊 Leader。",
     "addMemberFailed": "新增成員失敗，請重試。",
     "loadError": "載入團隊失敗，請重試。",
-    "retry": "重試"
+    "retry": "重試",
+    "stopMemberFailed": "停止該成員失敗，請稍後重試。",
+    "retryStartFailed": "重啟該成員失敗，請稍後重試。"
   },
   "status": {
     "pending": "等待中",
@@ -70,7 +72,8 @@
     "rename": "重新命名",
     "remove": "移除",
     "delete": "刪除",
-    "export": "匯出"
+    "export": "匯出",
+    "retryStart": "重試啟動"
   },
   "rename": {
     "title": "重新命名團隊",

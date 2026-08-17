@@ -12,11 +12,15 @@ const mocks = vi.hoisted(() => ({
   ensureSession: vi.fn(),
   sendMessage: vi.fn(),
   answerQuestion: vi.fn(),
+  pauseMember: vi.fn(),
+  retryMemberStart: vi.fn(),
   chatSiderProps: [] as Array<{ conversation?: { id?: string } }>,
   acpChatProps: [] as Array<{
     conversation_id: string;
     onProcessingChange?: (isProcessing: boolean) => void;
     onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
+    teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+    teamStop?: () => Promise<void>;
   }>,
 }));
 
@@ -39,6 +43,8 @@ vi.mock('@/common', () => ({
       ensureSession: { invoke: (...args: unknown[]) => mocks.ensureSession(...args) },
       sendMessage: { invoke: (...args: unknown[]) => mocks.sendMessage(...args) },
       answerQuestion: { invoke: (...args: unknown[]) => mocks.answerQuestion(...args) },
+      pauseMember: { invoke: (...args: unknown[]) => mocks.pauseMember(...args) },
+      retryMemberStart: { invoke: (...args: unknown[]) => mocks.retryMemberStart(...args) },
     },
     conversation: {
       get: { invoke: (...args: unknown[]) => mocks.getConversation(...args) },
@@ -80,7 +86,13 @@ vi.mock('@renderer/pages/conversation/ChatSider', async () => {
 vi.mock('@renderer/pages/conversation/acp/AcpChat', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return {
-    default: (props: { conversation_id: string; onProcessingChange?: (isProcessing: boolean) => void; onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown> }) => {
+    default: (props: {
+      conversation_id: string;
+      onProcessingChange?: (isProcessing: boolean) => void;
+      onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<unknown>;
+      teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+      teamStop?: () => Promise<void>;
+    }) => {
       mocks.acpChatProps.push(props);
       return React.createElement('div', { 'data-testid': 'acp-chat', 'data-conversation-id': props.conversation_id });
     },
@@ -147,7 +159,11 @@ describe('TeamDetailPage route safety', () => {
     mocks.sendMessage.mockReset();
     mocks.sendMessage.mockResolvedValue(undefined);
     mocks.answerQuestion.mockReset();
+    mocks.pauseMember.mockReset();
+    mocks.retryMemberStart.mockReset();
     mocks.answerQuestion.mockResolvedValue({ success: true });
+    mocks.pauseMember.mockResolvedValue(undefined);
+    mocks.retryMemberStart.mockResolvedValue(undefined);
     mocks.chatSiderProps = [];
     mocks.acpChatProps = [];
     mocks.useTeamRunView.mockReturnValue({ activeRun: null, childTurnsBySlot: {}, reconcile: vi.fn() });
@@ -183,6 +199,44 @@ describe('TeamDetailPage route safety', () => {
       toolCallId: 'tool-1',
       answers: [{ id: 'q1', value: 'yes', label: 'Yes' }],
     });
+  });
+
+  it('passes leader teamStop to AcpChat and routes it to pauseMember', async () => {
+    const team = makeTeam('team-1', 'leader-conv');
+    mocks.useTeamSession.mockReturnValue({ team, statusMap: new Map(), loading: false });
+    mocks.getConversation.mockResolvedValue({ id: 'leader-conv', name: 'Leader Conversation' });
+
+    render(<TeamDetailPage />);
+
+    await waitFor(() => expect(mocks.acpChatProps.at(-1)?.teamStop).toBeTypeOf('function'));
+    await mocks.acpChatProps.at(-1)?.teamStop?.();
+
+    expect(mocks.pauseMember).toHaveBeenCalledWith({ teamId: 'team-1', slotId: 'team-1-leader' });
+  });
+
+  it('unwraps the { __error } envelope on leader teamSendMessage instead of swallowing it', async () => {
+    const team = makeTeam('team-1', 'leader-conv');
+    mocks.useTeamSession.mockReturnValue({ team, statusMap: new Map(), loading: false });
+    mocks.getConversation.mockResolvedValue({ id: 'leader-conv', name: 'Leader Conversation' });
+    mocks.sendMessage.mockResolvedValue({ __error: 'Member not found: team-1-leader' });
+
+    render(<TeamDetailPage />);
+
+    await waitFor(() => expect(mocks.acpChatProps.at(-1)?.teamSendMessage).toBeTypeOf('function'));
+    await expect(mocks.acpChatProps.at(-1)?.teamSendMessage?.({ input: 'hello', files: ['a.txt'], msg_id: 'm-1' })).rejects.toThrow('Member not found: team-1-leader');
+    expect(mocks.sendMessage).toHaveBeenCalledWith({ teamId: 'team-1', input: 'hello', files: ['a.txt'], msgId: 'm-1' });
+  });
+
+  it('shows retry start for a failed leader and calls retryMemberStart', async () => {
+    const team = makeTeam('team-1', 'leader-conv');
+    mocks.useTeamSession.mockReturnValue({ team, statusMap: new Map([['team-1-leader', 'failed']]), loading: false });
+    mocks.getConversation.mockResolvedValue({ id: 'leader-conv', name: 'Leader Conversation' });
+
+    render(<TeamDetailPage />);
+
+    screen.getByTitle('team.actions.retryStart').click();
+
+    await waitFor(() => expect(mocks.retryMemberStart).toHaveBeenCalledWith({ teamId: 'team-1', slotId: 'team-1-leader' }));
   });
 
   it('syncs workspace skills before passing the leader conversation to ChatSider', async () => {

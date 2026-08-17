@@ -14,15 +14,16 @@ const ALL_SOURCES: WakeSource[] = [
   'spawn_attach_failure',
   'shutdown_rejected',
   'recovery_drain',
+  'member_interrupted',
 ];
 
 describe('WakeSource taxonomy (附录 I.2)', () => {
-  it('defines exactly the 12 wake sources', () => {
-    expect(ALL_SOURCES).toHaveLength(12);
+  it('defines exactly the 13 wake sources', () => {
+    expect(ALL_SOURCES).toHaveLength(13);
     for (const s of ALL_SOURCES) {
       expect(WAKE_META[s]).toBeDefined();
     }
-    expect(new Set(ALL_SOURCES).size).toBe(12);
+    expect(new Set(ALL_SOURCES).size).toBe(13);
   });
 
   it('Foreground (user_message/user_intervention) resumes + bypasses pause', () => {
@@ -50,7 +51,7 @@ describe('WakeSource taxonomy (附录 I.2)', () => {
   });
 
   it('SystemRecovery neither resumes nor bypasses pause', () => {
-    for (const s of ['crash_notification', 'inactivity_timeout', 'spawn_attach_failure', 'shutdown_rejected', 'recovery_drain'] as WakeSource[]) {
+    for (const s of ['crash_notification', 'inactivity_timeout', 'spawn_attach_failure', 'shutdown_rejected', 'recovery_drain', 'member_interrupted'] as WakeSource[]) {
       expect(wakeClass(s)).toBe('SystemRecovery');
       expect(resumesPausedSlot(s)).toBe(false);
       expect(bypassesPause(s)).toBe(false);

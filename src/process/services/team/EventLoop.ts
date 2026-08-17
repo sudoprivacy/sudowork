@@ -114,6 +114,11 @@ export class EventLoop {
   }
 
   private async run(): Promise<void> {
+    // One-shot startup self-check: a wake committed before this loop started (e.g. during the
+    // spawn attach window, where notifyWake is a no-op until the runtime is registered) is
+    // invisible to Notify — re-signal once so the first wait() drains it. Checked only once:
+    // per-iteration checks would busy-loop on paused / agent-less slots with unread backlog.
+    if (this.hasOwnPendingWork()) this.notify.notifyOne();
     while (this.alive) {
       await this.notify.wait();
       while (this.alive) {
@@ -155,6 +160,18 @@ export class EventLoop {
   private nextWakeSource(): WakeSource {
     const queue = this.deps.teamRun.getRecord()?.pending_wakes.get(this.deps.slotId);
     return queue && queue.length > 0 ? queue[0].source : 'mcp_send_message';
+  }
+
+  /**
+   * Ownership-mirroring unread check for the one-shot startup self-signal — same ownership rule
+   * as computeWakeInput (unowned backlog must NOT wake us), but WITHOUT calling computeWakeInput:
+   * its beforeWake has a side effect (suppressed_count increments on Suppress) that a paused slot
+   * would hit on every probe. Keep the two queries in sync if the guard changes.
+   */
+  private hasOwnPendingWork(): boolean {
+    const unread = teamStore.peekUnread(this.deps.teamId, this.deps.slotId).filter((m) => m.from_member_id !== this.deps.slotId);
+    if (unread.length === 0) return false;
+    return this.deps.teamRun.hasActiveRun() || this.deps.teamRun.hasPendingWake(this.deps.slotId);
   }
 
   private async executeTurn(source: WakeSource, messages: TeamMail[]): Promise<TurnResult | null> {

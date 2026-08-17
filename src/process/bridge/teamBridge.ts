@@ -187,6 +187,15 @@ export function initTeamBridge(): void {
     }
   });
 
+  ipcBridge.team.retryMemberStart.provider(async ({ teamId, slotId }) => {
+    try {
+      await teamService.retryMemberStart(teamId, slotId);
+    } catch (err) {
+      mainError('TeamBridge', 'retryMemberStart failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
   ipcBridge.team.renameMember.provider(async ({ memberId, name }) => {
     try {
       const member = teamStore.getMember(memberId);

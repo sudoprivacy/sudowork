@@ -21,7 +21,7 @@ export interface CrashRecoveryDeps {
   writeMail: (toMemberId: string, fromMemberId: string, type: TeamMailboxType, content: string) => string;
   /** Wake a slot (e.g. the leader after a teammate crash). */
   notifyWake: (slot: string, source: WakeSource, messageId?: string | null) => void;
-  /** 60s watchdog inactivity timeout — TeamService.terminateSlot handles degradation (H5-a). */
+  /** 60s watchdog inactivity timeout — log-only; crash recovery waits for a real stream disconnect. */
   onInactiveTimeout?: (slot: string) => void;
 }
 

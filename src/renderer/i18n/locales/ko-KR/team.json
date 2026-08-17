@@ -51,7 +51,9 @@
     "leaderNotFound": "팀 Leader를 찾을 수 없습니다.",
     "addMemberFailed": "멤버 추가에 실패했습니다. 다시 시도하세요.",
     "loadError": "팀을 불러오지 못했습니다. 다시 시도해 주세요.",
-    "retry": "다시 시도"
+    "retry": "다시 시도",
+    "stopMemberFailed": "이 멤버를 중지하지 못했습니다. 다시 시도해 주세요.",
+    "retryStartFailed": "이 멤버를 다시 시작하지 못했습니다. 다시 시도해 주세요."
   },
   "status": {
     "pending": "대기 중",
@@ -70,7 +72,8 @@
     "rename": "이름 변경",
     "remove": "제거",
     "delete": "삭제",
-    "export": "내보내기"
+    "export": "내보내기",
+    "retryStart": "다시 시작"
   },
   "rename": {
     "title": "팀 이름 변경",

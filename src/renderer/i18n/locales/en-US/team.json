@@ -51,7 +51,9 @@
     "leaderNotFound": "Team Leader not found.",
     "addMemberFailed": "Failed to add member. Please try again.",
     "loadError": "Failed to load team. Please retry.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "stopMemberFailed": "Failed to stop this member. Please try again.",
+    "retryStartFailed": "Failed to restart this member. Please try again."
   },
   "status": {
     "pending": "Pending",
@@ -70,7 +72,8 @@
     "rename": "Rename",
     "remove": "Remove",
     "delete": "Delete",
-    "export": "Export"
+    "export": "Export",
+    "retryStart": "Retry start"
   },
   "rename": {
     "title": "Rename Team",

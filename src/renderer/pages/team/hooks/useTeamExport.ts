@@ -14,6 +14,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { ExportZipFile } from '@/renderer/pages/conversation/grouped-history/types';
 import { appendWorkspaceFilesToZip, buildConversationJson, buildConversationMarkdown, EXPORT_IO_TIMEOUT_MS, formatTimestamp, joinFilePath, sanitizeFileName, withTimeout } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';
 import type { TeamAssistant, TTeam } from '../types';
+import { fromBackendTeam } from '../mapper';
 import { buildTeamFolderName, buildTeamManifestJson, buildTeamManifestMarkdown, buildTeamMemberConversationFolderName, type ITeamExportWarning } from '../utils/exportHelpers';
 import { unwrapTeamResult } from '../utils';
 
@@ -196,24 +197,29 @@ export function useTeamExport() {
   const buildTeamExportFiles = useCallback(
     async (team: TTeam): Promise<ExportZipFile[]> => {
       const warnings: ITeamExportWarning[] = [];
+      // useTeams no longer carries members (sidebar N+1 removal) — fetch them here, once per
+      // export, and derive the whole export from this single snapshot so conversations, leader
+      // lookup and the manifest can never disagree.
+      const members = unwrapTeamResult(await withTimeout(ipcBridge.team.listMembers.invoke({ teamId: team.id }), EXPORT_IO_TIMEOUT_MS, `listMembers:${team.id}`)) ?? [];
+      const teamWithMembers = fromBackendTeam(team, members);
       const teamFolderName = buildTeamFolderName(team);
       const conversationFiles: ExportZipFile[] = [];
 
-      for (const member of team.assistants) {
+      for (const member of teamWithMembers.assistants) {
         const memberFiles = await buildMemberConversationFiles(teamFolderName, member, warnings);
         conversationFiles.push(...memberFiles);
       }
 
-      const leaderConversationId = team.assistants.find((member) => member.role === 'leader')?.conversation_id ?? null;
+      const leaderConversationId = teamWithMembers.assistants.find((member) => member.role === 'leader')?.conversation_id ?? null;
       const workspaceTree = await fetchTeamWorkspaceTree(team, leaderConversationId, warnings);
       const files: ExportZipFile[] = [
         {
           name: `${teamFolderName}/team.json`,
-          content: buildTeamManifestJson(team, warnings),
+          content: buildTeamManifestJson(teamWithMembers, warnings),
         },
         {
           name: `${teamFolderName}/team.md`,
-          content: buildTeamManifestMarkdown(team, warnings),
+          content: buildTeamManifestMarkdown(teamWithMembers, warnings),
         },
         ...conversationFiles,
       ];

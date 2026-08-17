@@ -51,7 +51,9 @@
     "leaderNotFound": "未找到团队 Leader。",
     "addMemberFailed": "添加成员失败，请重试。",
     "loadError": "加载团队失败，请重试。",
-    "retry": "重试"
+    "retry": "重试",
+    "stopMemberFailed": "停止该成员失败，请稍后重试。",
+    "retryStartFailed": "重启该成员失败，请稍后重试。"
   },
   "status": {
     "pending": "等待中",
@@ -70,7 +72,8 @@
     "rename": "重命名",
     "remove": "移除",
     "delete": "删除",
-    "export": "导出"
+    "export": "导出",
+    "retryStart": "重试启动"
   },
   "rename": {
     "title": "重命名团队",

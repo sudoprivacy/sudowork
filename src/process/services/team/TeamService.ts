@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { ipcBridge } from '@/common';
+import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import type { ICreateTeamMemberParams, IResponseMessage, ITeam, ITeamAssistantCandidate, ITeamMember, ITeamRunAck, ITeamRunState } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
@@ -137,6 +138,7 @@ class TeamService {
   private pendingSessionCreates = new Map<string, Promise<TeamSession>>();
   private pendingRebuilds = new Map<string, Promise<void>>();
   private streamUnsubscribe: (() => void) | null = null;
+  private channelUnsubscribe: (() => void) | null = null;
 
   async init(): Promise<void> {
     if (this.initialized) return;
@@ -144,6 +146,10 @@ class TeamService {
     // Crash detection (附录 §1.6): subscribe to the shared responseStream — AcpAgent owns its
     // connection callbacks, so TeamService watches the emitted stream for disconnected/error.
     this.streamUnsubscribe = ipcBridge.acpConversation.responseStream.on((msg) => this.handleResponseStream(msg));
+    // The IPC emitter only broadcasts to renderer windows (never back to main), so in-main
+    // stream events must come from channelEventBus — AcpAgent dual-emits every stream
+    // message there (crash detection + watchdog reset; same pattern as ChannelMessageService).
+    this.channelUnsubscribe = channelEventBus.onAgentMessage((msg) => this.handleResponseStream(msg));
     mainLog('TeamService', 'initialized');
   }
 
@@ -151,6 +157,8 @@ class TeamService {
     this.initialized = false;
     this.streamUnsubscribe?.();
     this.streamUnsubscribe = null;
+    this.channelUnsubscribe?.();
+    this.channelUnsubscribe = null;
     void Promise.allSettled([...this.pendingSessionCreates.values(), ...this.pendingRebuilds.values()]);
     for (const [, session] of this.sessions) {
       session.crashRecovery.dispose();
@@ -175,7 +183,29 @@ class TeamService {
     const session = this.sessions.get(teamId)!;
     session.teamRun.handleSlotCrash(slotId, isLeader);
     session.crashRecovery.handleCrash(slotId, reason);
+    this.disposeSlotRuntime(session, slotId, rt);
+  }
+
+  /**
+   * Stop + kill + unregister a slot's runtime and its recovery state (crash / rate-limit /
+   * spawn-error termination). Without this, a crashed slot keeps a zombie agent process and a
+   * dead runtime that swallows messages (sendMessageToMember finds it, notifyWake hits a stopped
+   * loop → mail stays unread forever).
+   * crashRecovery.dispose is required: crashedSlots is only removed by dispose(slotId)
+   * (CrashRecovery.ts:95,108,171) — leaving it set would silently swallow a SECOND crash after
+   * the member is re-attached via retryMemberStart (no testament, no failed status). Precedent:
+   * removeMember (TeamService.ts:964). Ordering constraint: duplicate-testament protection after
+   * dispose is taken over by the members.delete above (findMemberByConversation can no longer
+   * resolve the slot) — do not call dispose before members.delete, nor outside this helper.
+   */
+  private disposeSlotRuntime(session: TeamSession, slotId: string, rt: MemberRuntime): void {
     if (rt.eventLoop) void rt.eventLoop.stop();
+    if (rt.agent)
+      rt.agent.kill().catch(() => {
+        /* ignore */
+      });
+    session.members.delete(slotId);
+    session.crashRecovery.dispose(slotId);
   }
 
   private handleResponseStream(msg: IResponseMessage): void {
@@ -209,6 +239,8 @@ class TeamService {
             ipcBridge.team.onAgentStatusChanged.emit({ team_id: found.teamId, slot_id: found.slotId, status: 'failed', last_message: 'rate limited' });
             session.crashRecovery.markCrashed(found.slotId);
             session.teamRun.handleSlotCrash(found.slotId, isLeader);
+            const rateLimitRt = session.members.get(found.slotId);
+            if (rateLimitRt) this.disposeSlotRuntime(session, found.slotId, rateLimitRt);
             enteredCrashPath = true;
           }
         }
@@ -219,6 +251,8 @@ class TeamService {
         ipcBridge.team.onAgentStatusChanged.emit({ team_id: found.teamId, slot_id: found.slotId, status: 'failed', last_message: 'rate limited' });
         session.crashRecovery.markCrashed(found.slotId);
         session.teamRun.handleSlotCrash(found.slotId, isLeader);
+        const rateLimitRt = session.members.get(found.slotId);
+        if (rateLimitRt) this.disposeSlotRuntime(session, found.slotId, rateLimitRt);
         enteredCrashPath = true;
         return;
       }
@@ -589,9 +623,15 @@ class TeamService {
   private handleSpawnedMemberRuntimeError(teamId: string, slotId: string, session: TeamSession, error: unknown): void {
     try {
       if (!this.isSpawnedMemberRuntimeCurrent(teamId, slotId, session)) return;
-      teamStore.updateMember(slotId, { status: 'failed' });
+      // Tear the runtime down (a failed-but-attached member would keep consuming wakes) and
+      // release this slot's run bookkeeping: a broadcast may already have seeded a pending wake
+      // for it during the spawn window (commitLease in toolSendMessage), and an unclaimed wake
+      // would strand the run active forever. The mail itself stays unread and is re-owned by
+      // retryMemberStart's drain/seeding when the user retries.
       const runtime = session.members.get(slotId);
-      if (runtime) runtime.member.status = 'failed';
+      if (runtime) this.disposeSlotRuntime(session, slotId, runtime);
+      session.teamRun.clearSlot(slotId);
+      teamStore.updateMember(slotId, { status: 'failed' });
       ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: slotId, status: 'failed', last_message: error instanceof Error ? error.message : String(error) });
       mainError('TeamService', `spawn member runtime failed for ${slotId}:`, error);
     } catch (compensationError) {
@@ -1090,9 +1130,90 @@ class TeamService {
   /** Pause a member (附录 II.9 stop button): gate its wakes + cancel its in-flight turn. */
   async pauseMember(teamId: string, slotId: string): Promise<void> {
     const session = this.sessions.get(teamId);
-    if (!session) return;
+    if (!session) throw new Error(`Team session not active: ${teamId}`);
+    // Nothing attached (e.g. the member just failed while the UI still showed it processing):
+    // pause would lazily create a gate entry that nothing can ever resume — user messages fail at
+    // sendMessageToMember before reaching a foreground wake — so idempotently skip.
+    const rt = session.members.get(slotId);
+    if (!rt) return;
     session.wakeGate.pause(slotId);
     await this.cancelChildTurn(teamId, slotId);
+    if (rt.member.role !== 'lead') {
+      this.notifyLeaderMemberInterrupted(teamId, session, rt.member);
+    }
+  }
+
+  /** Tell the leader one of its teammates was interrupted by the user, so it can re-plan instead
+   * of waiting forever for a reply that will never come (mirrors the crash-testament wiring). */
+  private notifyLeaderMemberInterrupted(teamId: string, session: TeamSession, member: TeamMember): void {
+    const leaderId = this.leaderSlotOrNull(teamId);
+    if (!leaderId) return;
+    const mailId = uuid(36);
+    const { lease } = session.teamRun.acquireWake(leaderId, 'lead', 'member_interrupted');
+    try {
+      teamStore.insertMail({
+        id: mailId,
+        team_id: teamId,
+        to_member_id: leaderId,
+        from_member_id: member.id,
+        type: 'message',
+        content: `Teammate '${member.name}' was interrupted by the user.`,
+        summary: null,
+        files: null,
+        read: false,
+        created_at: Date.now(),
+      });
+    } catch {
+      session.teamRun.abortLease(lease.lease_id);
+      return;
+    }
+    session.teamRun.commitLease(lease.lease_id, { slot_id: leaderId, role: 'lead', source: 'member_interrupted', message_id: mailId });
+    this.notifyWake(teamId, leaderId);
+  }
+
+  /**
+   * Re-attach a failed member's runtime and hand its mailbox backlog back to a run (user "retry
+   * start"). Only reachable because every failed path disposes the runtime: all 5 status:'failed'
+   * write points either run disposeSlotRuntime (rate-limit ×2, spawn runtime error, and
+   * CrashRecovery.handleCrash via its sole caller terminateSlot) or never registered a runtime at
+   * all (spawn attach failure). That handleCrash caller-uniqueness keeps failed ⟺ no-runtime
+   * bidirectional — a new handleCrash caller that skips dispose would break this retry (the
+   * idempotent guard below would return forever).
+   */
+  async retryMemberStart(teamId: string, slotId: string): Promise<void> {
+    const member = teamStore.getMember(slotId);
+    if (!member || member.team_id !== teamId) throw new Error(`Member not found: ${slotId}`);
+    const session = this.sessions.get(teamId);
+    if (!session) throw new Error(`Team session not active: ${teamId}`);
+    if (session.members.get(slotId)) return; // already attached — idempotent
+    if (!member.conversation_id) throw new Error(`Member has no conversation: ${slotId}`);
+    const convResult = getDatabase().getConversation(member.conversation_id);
+    if (!convResult.success || !convResult.data) throw new Error(`Failed to load member conversation: ${member.name}`);
+    // Refresh the MCP identity triple: a session rebuild rotates port/token and the stored
+    // conversation extra may still point at the previous loopback (same rewrite as rebuildTeam).
+    const teamMcpConfig = this.buildTeamMcpConfig(session, slotId);
+    const nextExtra = Object.assign({}, convResult.data.extra, { teamMcpConfig });
+    const updateResult = getDatabase().updateConversation(member.conversation_id, { extra: nextExtra } as Partial<TChatConversation>);
+    if (!updateResult.success) throw new Error(updateResult.error || `Failed to update team MCP config for ${member.name}`);
+    const updatedResult = getDatabase().getConversation(member.conversation_id);
+    if (!updatedResult.success || !updatedResult.data) throw new Error(`Failed to reload member conversation: ${member.name}`);
+    // 'bootstrap' failure mode: an attach failure returns false (no leader "spawn aborted" mail —
+    // the user is right at the button and receives this error via the bridge envelope instead).
+    const attached = await this.attachRuntime(teamId, member, updatedResult.data, session, 'bootstrap');
+    if (!attached) throw new Error(`Failed to attach member runtime: ${member.name}`);
+    teamStore.updateMember(slotId, { status: 'idle', conversation_id: member.conversation_id });
+    const rt = session.members.get(slotId);
+    if (rt) rt.member.status = 'idle';
+    ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: slotId, status: 'idle' });
+    // Hand the unread backlog back to a run. Both branches are required: with no run record
+    // pushPendingWake is a no-op, so only the drain can re-own the backlog; with an active run
+    // the drain returns immediately and the slot's pending wake was already cleared by
+    // handleSlotCrash — re-seed it so the loop has something to claim.
+    new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
+    if (session.teamRun.hasActiveRun() && !session.teamRun.hasPendingWake(slotId) && teamStore.hasUnread(teamId, slotId)) {
+      session.teamRun.pushPendingWake(slotId, { slot_id: slotId, role: member.role, source: 'recovery_drain', message_id: null });
+      this.notifyWake(teamId, slotId);
+    }
   }
 
   /** Rename a member (附录 II.4): update DB + runtime snapshot + event. Mirrors team_rename_agent. */
@@ -1162,7 +1283,12 @@ class TeamService {
           return id;
         },
         notifyWake: (slot, source, messageId) => this.recordSystemWake(teamId, slot, source, messageId),
-        onInactiveTimeout: (slot) => this.terminateSlot(teamId, slot, this.lookupMember(teamId, slot)?.role === 'lead', { kind: 'Unknown', msg: 'inactive 60s' }),
+        onInactiveTimeout: (slot) => {
+          // 60s of silence is suspicious, NOT a confirmed crash (no process-death evidence) —
+          // killing here severs healthy in-flight turns (misreported as "连接失败，请检查网络").
+          // Real crashes arrive via the disconnected stream event (detectCrash above).
+          mainWarn('TeamService', `slot ${slot} inactive for 60s; waiting for stream disconnect before crash recovery`);
+        },
       });
       const latestUserMail = teamStore.getLatestUserMail(teamId);
       const session: TeamSession = {
@@ -1371,13 +1497,17 @@ class TeamService {
     const wakeSource: WakeSource = 'mcp_send_message';
     let targets: string[];
     if (to === '*') {
+      // Skip failed members: their runtime is disposed (crash / rate-limit / spawn-error), so a
+      // seeded pending wake would never be claimed and would strand the run active. New spawns
+      // (status 'pending') stay targeted — the attach window must keep receiving broadcasts.
       targets = teamStore
         .listMembersByTeam(teamId)
-        .filter((m) => m.id !== caller.id)
+        .filter((m) => m.id !== caller.id && m.status !== 'failed')
         .map((m) => m.id);
     } else {
       const recipient = teamStore.getMember(to);
       if (!recipient || recipient.team_id !== teamId) return { ok: false, error: `unknown recipient: ${to}` };
+      if (recipient.status === 'failed') return { ok: false, error: `member '${recipient.name}' has failed and cannot receive messages` };
       targets = [to];
     }
     const now = Date.now();
@@ -1544,6 +1674,8 @@ class TeamService {
     const target = teamStore.getMember(targetId);
     if (!target || target.team_id !== teamId) return { ok: false, error: `unknown member: ${targetId}` };
     if (target.role === 'lead') return { ok: false, error: 'cannot shutdown the team lead' };
+    // Failed members have no live runtime — a shutdown wake for them would never be claimed.
+    if (target.status === 'failed') return { ok: false, error: `member '${target.name}' has failed and cannot be shut down` };
     const session = this.sessions.get(teamId);
     if (!session) return { ok: false, error: 'team session not active' };
     const reason = typeof args.reason === 'string' ? args.reason : null;
@@ -1641,6 +1773,12 @@ class TeamService {
     if (!session) return;
     const member = teamStore.getMember(slotId);
     if (!member || member.team_id !== teamId) return;
+    // Failed targets have no live runtime (failed ⟺ no-runtime invariant: every failed write
+    // disposes the runtime or never registered one). acquireWake would unconditionally create a
+    // new run for them whose pending wake nobody claims, stranding it active forever. This path
+    // writes no mail itself — the crash testament was already written by handleCrash — so
+    // skipping only drops an unconsumable wake, no message is lost.
+    if (member.status === 'failed') return;
     if (source === 'idle_notification' && member.role === 'lead' && !this.shouldWakeLeaderAfterIdle(teamId, slotId)) {
       return;
     }

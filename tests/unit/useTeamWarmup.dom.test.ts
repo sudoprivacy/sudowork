@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ensureSessionInvoke = vi.fn();
 let agentStatusChangedCallback: ((event: { team_id: string; slot_id: string; status: string; last_message?: string }) => void) | null = null;
@@ -33,12 +33,17 @@ import { useTeamWarmup } from '../../src/renderer/pages/team/hooks/useTeamWarmup
 
 describe('useTeamWarmup', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     ensureSessionInvoke.mockReset();
     ensureSessionInvoke.mockResolvedValue(undefined);
     onAgentStatusChanged.mockClear();
     onSessionChanged.mockClear();
     agentStatusChangedCallback = null;
     sessionChangedCallback = null;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('starts ensureSession and transitions to ready on success', async () => {
@@ -110,5 +115,26 @@ describe('useTeamWarmup', () => {
 
     await waitFor(() => expect(result.current.phase).toBe('error'));
     expect(result.current.error).toBe('failed to start');
+  });
+
+  it('times out a stuck ensureSession and lets a later ready event recover the phase', async () => {
+    vi.useFakeTimers();
+    ensureSessionInvoke.mockReturnValueOnce(new Promise(() => {}));
+
+    const { result } = renderHook(() => useTeamWarmup('team-1'));
+
+    expect(result.current.phase).toBe('warming');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(result.current.phase).toBe('error');
+    expect(result.current.error).toContain('team.ensureSession timeout');
+
+    act(() => {
+      sessionChangedCallback?.({ teamId: 'team-1', status: 'ready' });
+    });
+    expect(result.current.phase).toBe('ready');
+    expect(result.current.error).toBeUndefined();
   });
 });
