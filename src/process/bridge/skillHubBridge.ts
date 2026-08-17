@@ -46,6 +46,7 @@ type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
 type SkillHubSkill = import('@/common/ipcBridge').ISkillHubSkill;
 type SkillHubPublishStatus = 'pending' | 'approved' | 'rejected';
 type SkillHubUploadStatus = Extract<SkillHubPublishStatus, 'pending' | 'approved'>;
+type SkillHubRemoteStatus = SkillHubPublishStatus | 'deleted';
 
 interface SkillHubUploadApiBody {
   status?: string;
@@ -974,6 +975,22 @@ function normalizeSkillHubPublishStatus(status: unknown): SkillHubPublishStatus 
   return null;
 }
 
+function isHubDeletedMessage(...messages: unknown[]): boolean {
+  return messages.some((message) => {
+    if (typeof message !== 'string') return false;
+    const normalized = message.trim().toLowerCase();
+    return normalized.includes('not found') || normalized.includes('deleted') || normalized.includes('不存在') || normalized.includes('已删除');
+  });
+}
+
+async function readHubResponseJson(response: Response): Promise<unknown | null> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 function resolveSkillHubDetailPublishStatus(body: unknown): SkillHubPublishStatus | null {
   if (!isRecord(body)) {
     return null;
@@ -985,18 +1002,59 @@ function resolveSkillHubDetailPublishStatus(body: unknown): SkillHubPublishStatu
   return normalizeSkillHubPublishStatus(skill.status ?? data.status ?? body.status);
 }
 
-async function fetchUploadedSkillPublishStatus(skillId: string, token: string): Promise<SkillHubPublishStatus | null> {
+function isSkillHubDeletedDetailBody(body: unknown): boolean {
+  if (!isRecord(body)) {
+    return false;
+  }
+
+  if (body.data === null) {
+    if (body.success === false) {
+      return isHubDeletedMessage(body.message, body.msg);
+    }
+    return true;
+  }
+
+  const data = isRecord(body.data) ? body.data : null;
+  if (data && 'skill' in data && data.skill === null) {
+    if (body.success === false) {
+      return isHubDeletedMessage(body.message, body.msg, data.message, data.msg);
+    }
+    return true;
+  }
+
+  const error = isRecord(body.error) ? body.error : null;
+  return isHubDeletedMessage(body.message, body.msg, body.detail, data?.message, data?.msg, error?.message, error?.msg, error?.detail);
+}
+
+function isHubDeletedResponseStatus(status: number, body?: unknown): boolean {
+  return status === 404 || status === 410 || (status === 400 && isSkillHubDeletedDetailBody(body));
+}
+
+function resolveSkillHubDetailRemoteStatus(body: unknown): SkillHubRemoteStatus | null {
+  if (isSkillHubDeletedDetailBody(body)) {
+    return 'deleted';
+  }
+
+  return resolveSkillHubDetailPublishStatus(body);
+}
+
+async function fetchUploadedSkillPublishStatus(skillId: string, token: string): Promise<SkillHubRemoteStatus | null> {
   const response = await fetch(`${getSkillHubBaseUrl()}/api/skills/${encodeURIComponent(skillId)}`, {
     headers: { Authorization: token },
   });
 
   if (!response.ok) {
+    const body = await readHubResponseJson(response);
+    if (isHubDeletedResponseStatus(response.status, body)) {
+      mainLog('SkillHub', `Uploaded skill ${skillId} no longer exists on SkillHub: HTTP ${response.status}`);
+      return 'deleted';
+    }
     mainLog('SkillHub', `Skip uploaded skill status refresh for ${skillId}: HTTP ${response.status}`);
     return null;
   }
 
   const body = await response.json();
-  return resolveSkillHubDetailPublishStatus(body);
+  return resolveSkillHubDetailRemoteStatus(body);
 }
 
 function isUploadedCustomSkillStatusRefreshCandidate(skill: ISkillInfo): boolean {
@@ -1005,9 +1063,17 @@ function isUploadedCustomSkillStatusRefreshCandidate(skill: ISkillInfo): boolean
     return false;
   }
 
-  const isUploadedToSkillHub = meta.uploaded === true || Boolean(meta.publish_status);
-  const isAwaitingFinalStatus = meta.publish_status !== 'approved' && meta.publish_status !== 'rejected';
-  return isUploadedToSkillHub && isAwaitingFinalStatus;
+  const uploadPublishStatus = meta.publish_status || (meta.uploaded ? 'pending' : undefined);
+  return uploadPublishStatus === 'pending' || uploadPublishStatus === 'approved';
+}
+
+function clearSkillHubUploadStatus(meta: SkillHubMeta): SkillHubMeta {
+  const nextMeta: SkillHubMeta = { ...meta };
+  delete nextMeta.uploaded;
+  delete nextMeta.uploaded_at;
+  delete nextMeta.publish_status;
+  delete nextMeta.published_at;
+  return nextMeta;
 }
 
 async function refreshUploadedSkillStatusesFromSkillHub(token: string): Promise<{ checked: number; updated: number }> {
@@ -1030,6 +1096,14 @@ async function refreshUploadedSkillStatusesFromSkillHub(token: string): Promise<
       if (!currentMeta) continue;
 
       const currentStatus = currentMeta.publish_status || (currentMeta.uploaded ? 'pending' : undefined);
+      if (remoteStatus === 'deleted') {
+        const nextMeta = clearSkillHubUploadStatus(currentMeta);
+        await writeSkillMetaFile(skillDir, nextMeta);
+        updated += 1;
+        mainLog('SkillHub', `Cleared uploaded skill "${skill.name}" publish status because the remote record no longer exists`);
+        continue;
+      }
+
       if (currentStatus === remoteStatus) continue;
 
       const nextMeta: SkillHubMeta = {
