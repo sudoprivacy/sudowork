@@ -44,11 +44,11 @@
  * coverage is the kernel-team's local pre-tag E2E gate.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execSync, spawn, type ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const NEXUS_VFS_HOME = path.join(os.homedir(), '.nexus-vfs');
@@ -94,7 +94,13 @@ let clusterLog: string;
 let clusterProc: ChildProcess | undefined;
 let dataDir: string;
 
-describe('signed-plugin download + cluster startup', () => {
+// CI-only: beforeAll wipes ~/.nexus-vfs and re-downloads the cluster + plugins
+// from the live COS mirror (cold start). That is destructive and slow for local
+// dev, so it runs only under CI (its dedicated pr-integration-smoke job sets CI),
+// and skips cleanly in a local `vitest run`.
+const suite = process.env.CI ? describe : describe.skip;
+
+suite('signed-plugin download + cluster startup', () => {
   beforeAll(() => {
     // ── Step 1: download script populates bin + plugin-dir ─────────
     // Cold start so the script's full path (download cluster + each
@@ -185,7 +191,7 @@ describe('signed-plugin download + cluster startup', () => {
       {
         stdio: ['ignore', logFd, logFd],
         env: { ...process.env, RUST_LOG: 'info,kernel=debug' },
-      },
+      }
     );
 
     // Cluster boot to "plugins loaded" is fast on a warm cargo cache;
@@ -204,25 +210,17 @@ describe('signed-plugin download + cluster startup', () => {
     // (a) Verify path actually ran and accepted the vault sig against
     //     the kernel's embedded nexus-team.pub. This is the existing
     //     load-bearing assertion of the original 0→1; keep it as-is.
-    expect(
-      clusterLog,
-      `expected "plugin signature verified" in cluster log:\n${clusterLog}`,
-    ).toContain('plugin signature verified');
+    expect(clusterLog, `expected "plugin signature verified" in cluster log:\n${clusterLog}`).toContain('plugin signature verified');
 
     // (b) Vault loaded + registered. Pinned name from services::password_vault.
-    expect(clusterLog, `expected vault load:\n${clusterLog}`).toMatch(
-      /service plugin loaded \+ registered.*"password-vault"/,
-    );
+    expect(clusterLog, `expected vault load:\n${clusterLog}`).toMatch(/service plugin loaded \+ registered.*"password-vault"/);
 
     // (c) local-connector + fuse-plugin asserts. Enabled now that
     //     runtime-versions.json["nexus-vfs"] = 0.3.0 — the v0.3.0
     //     nexusd-cluster includes #58 (kernel-dogfood-v1.pub added to
     //     TRUSTED_KEY_FILES), so the cluster trusts the dogfood-signed
     //     local-connector + fuse-plugin and loads them on boot.
-    expect(
-      clusterLog,
-      `expected local-connector load:\n${clusterLog}`,
-    ).toMatch(/driver plugin loaded.*"local-connector"/);
+    expect(clusterLog, `expected local-connector load:\n${clusterLog}`).toMatch(/driver plugin loaded.*"local-connector"/);
     if (fuseDylib) {
       // The fuse plugin registers under the literal name "fuse" (matches
       // the `declare_service_plugin!("fuse", ...)` call in fuse-plugin's
@@ -230,10 +228,7 @@ describe('signed-plugin download + cluster startup', () => {
       // dylib lives at libnexus_fuse_plugin.{so,dylib,dll}, but the
       // logical plugin identity asserted on by the kernel loader is
       // just "fuse".
-      expect(
-        clusterLog,
-        `expected fuse plugin load:\n${clusterLog}`,
-      ).toMatch(/(driver|service) plugin loaded.*"fuse"/);
+      expect(clusterLog, `expected fuse plugin load:\n${clusterLog}`).toMatch(/(driver|service) plugin loaded.*"fuse"/);
     }
   }, 60_000);
 });

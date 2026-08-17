@@ -16,3 +16,6 @@ resources/
 docs/
 config/webpack/
 scripts/
+
+# Auto-generated (scripts/generate-i18n-types.js) — not hand-edited, don't format-gate
+src/renderer/i18n/i18n-keys.d.ts
