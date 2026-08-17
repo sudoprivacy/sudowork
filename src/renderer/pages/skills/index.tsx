@@ -192,6 +192,14 @@ const SkillSettings: React.FC = () => {
     }
   }, [isEnterprise]);
 
+  const refreshInstalledListWithUploadedStatuses = useCallback(
+    async (options?: { isSilent?: boolean }) => {
+      await refreshUploadedSkillStatuses();
+      await fetchInstalledList(options);
+    },
+    [fetchInstalledList, refreshUploadedSkillStatuses]
+  );
+
   // ---- Enterprise mode: Upload custom skill to Moss Server ----
   const handleUploadCustomSkill = useCallback(
     async (skill: IInstalledSkillInfo): Promise<{ success: boolean; msg?: string }> => {
@@ -649,8 +657,8 @@ const SkillSettings: React.FC = () => {
 
   // Refresh installed skills once when the page opens
   useEffect(() => {
-    void fetchInstalledList();
-  }, [fetchInstalledList]);
+    void refreshInstalledListWithUploadedStatuses();
+  }, [refreshInstalledListWithUploadedStatuses]);
 
   // Refresh installed skills after agent-created skill changes.
   useEffect(() => {
@@ -734,12 +742,29 @@ const SkillSettings: React.FC = () => {
   // Load installed list when switching to installed tab
   useEffect(() => {
     if (activeTab === 'installed') {
-      void (async () => {
-        await refreshUploadedSkillStatuses();
-        await fetchInstalledList({ isSilent: true });
-      })();
+      void refreshInstalledListWithUploadedStatuses({ isSilent: true });
     }
-  }, [activeTab, fetchInstalledList, refreshUploadedSkillStatuses]);
+  }, [activeTab, refreshInstalledListWithUploadedStatuses]);
+
+  useEffect(() => {
+    if (activeTab !== 'installed' || isEnterprise || !isElectronDesktop()) return;
+
+    const onRefreshVisibleInstalledSkills = () => {
+      void refreshInstalledListWithUploadedStatuses({ isSilent: true });
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        onRefreshVisibleInstalledSkills();
+      }
+    };
+
+    window.addEventListener('focus', onRefreshVisibleInstalledSkills);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onRefreshVisibleInstalledSkills);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [activeTab, isEnterprise, refreshInstalledListWithUploadedStatuses]);
 
   // Fetch latest hub versions for installed hub skills so we can detect updates
   // Only in personal mode (not enterprise) - enterprise mode doesn't interact with SkillHub
@@ -1174,7 +1199,7 @@ const SkillSettings: React.FC = () => {
             value={activeTab}
             onChange={(value) => {
               if (value === 'installed' && activeTab === 'installed') {
-                void fetchInstalledList();
+                void refreshInstalledListWithUploadedStatuses();
                 return;
               }
               setActiveTab(value as SkillStoreTab);

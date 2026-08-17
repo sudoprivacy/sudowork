@@ -674,10 +674,6 @@ const AgentSettings: React.FC = () => {
     }
   }, [assistantInfoToHubSkill, isEnterprise, normalizedExtensionAssistants, sortAssistants]);
 
-  useEffect(() => {
-    void loadAssistants();
-  }, [loadAssistants]);
-
   const refreshUploadedAssistantStatuses = useCallback(async () => {
     if (!isElectronDesktop() || isEnterprise) return;
     try {
@@ -687,14 +683,40 @@ const AgentSettings: React.FC = () => {
     }
   }, [isEnterprise]);
 
+  const loadAssistantsWithUploadedStatuses = useCallback(async () => {
+    await refreshUploadedAssistantStatuses();
+    await loadAssistants();
+  }, [loadAssistants, refreshUploadedAssistantStatuses]);
+
+  useEffect(() => {
+    void loadAssistantsWithUploadedStatuses();
+  }, [loadAssistantsWithUploadedStatuses]);
+
   useEffect(() => {
     if (activeTab === 'installed') {
-      void (async () => {
-        await refreshUploadedAssistantStatuses();
-        await loadAssistants();
-      })();
+      void loadAssistantsWithUploadedStatuses();
     }
-  }, [activeTab, loadAssistants, refreshUploadedAssistantStatuses]);
+  }, [activeTab, loadAssistantsWithUploadedStatuses]);
+
+  useEffect(() => {
+    if (activeTab !== 'installed' || isEnterprise || !isElectronDesktop()) return;
+
+    const onRefreshVisibleInstalledAssistants = () => {
+      void loadAssistantsWithUploadedStatuses();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        onRefreshVisibleInstalledAssistants();
+      }
+    };
+
+    window.addEventListener('focus', onRefreshVisibleInstalledAssistants);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onRefreshVisibleInstalledAssistants);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [activeTab, isEnterprise, loadAssistantsWithUploadedStatuses]);
 
   // Listen for sync completed event (enterprise mode)
   useEffect(() => {
@@ -1660,7 +1682,13 @@ const AgentSettings: React.FC = () => {
             variant='line'
             className='flex-shrink-0'
             value={activeTab}
-            onChange={(value) => setActiveTab(value as AssistantStoreTab)}
+            onChange={(value) => {
+              if (value === 'installed' && activeTab === 'installed') {
+                void loadAssistantsWithUploadedStatuses();
+                return;
+              }
+              setActiveTab(value as AssistantStoreTab);
+            }}
             items={[
               { value: 'store', label: t('settings.assistant.storeTab', '智能体库') },
               { value: 'exclusive', label: t('settings.assistant.exclusiveTab', '专属智能体') },

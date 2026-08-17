@@ -32,6 +32,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 type AssistantHubMeta = import('@/process/constants/assistantStorage').IAssistantMeta;
 type AssistantHubPublishStatus = 'pending' | 'approved' | 'rejected';
+type AssistantHubRemoteStatus = AssistantHubPublishStatus | 'deleted';
 type AssistantPromptsI18n = Record<string, string[]>;
 
 interface AssistantHubUploadApiBody {
@@ -219,6 +220,22 @@ function normalizeAssistantHubPublishStatus(status: unknown): AssistantHubPublis
   return null;
 }
 
+function isHubDeletedMessage(...messages: unknown[]): boolean {
+  return messages.some((message) => {
+    if (typeof message !== 'string') return false;
+    const normalized = message.trim().toLowerCase();
+    return normalized.includes('not found') || normalized.includes('deleted') || normalized.includes('不存在') || normalized.includes('已删除');
+  });
+}
+
+async function readHubResponseJson(response: Response): Promise<unknown | null> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 function resolveAssistantHubUploadId(body: AssistantHubUploadApiBody | null, fallbackId: string): string {
   return body?.data?.assistant?.id || body?.data?.agent?.id || body?.data?.id || body?.id || fallbackId;
 }
@@ -238,18 +255,59 @@ function resolveAssistantHubDetailPublishStatus(body: unknown): AssistantHubPubl
   return normalizeAssistantHubPublishStatus(assistant.status ?? data.status ?? body.status);
 }
 
-async function fetchUploadedAssistantPublishStatus(assistantId: string, token: string): Promise<AssistantHubPublishStatus | null> {
+function isAssistantHubDeletedDetailBody(body: unknown): boolean {
+  if (!isRecord(body)) {
+    return false;
+  }
+
+  if (body.data === null) {
+    if (body.success === false) {
+      return isHubDeletedMessage(body.message, body.msg);
+    }
+    return true;
+  }
+
+  const data = isRecord(body.data) ? body.data : null;
+  if (data && (('assistant' in data && data.assistant === null) || ('agent' in data && data.agent === null))) {
+    if (body.success === false) {
+      return isHubDeletedMessage(body.message, body.msg, data.message, data.msg);
+    }
+    return true;
+  }
+
+  const error = isRecord(body.error) ? body.error : null;
+  return isHubDeletedMessage(body.message, body.msg, body.detail, data?.message, data?.msg, error?.message, error?.msg, error?.detail);
+}
+
+function isHubDeletedResponseStatus(status: number, body?: unknown): boolean {
+  return status === 404 || status === 410 || (status === 400 && isAssistantHubDeletedDetailBody(body));
+}
+
+function resolveAssistantHubDetailRemoteStatus(body: unknown): AssistantHubRemoteStatus | null {
+  if (isAssistantHubDeletedDetailBody(body)) {
+    return 'deleted';
+  }
+
+  return resolveAssistantHubDetailPublishStatus(body);
+}
+
+async function fetchUploadedAssistantPublishStatus(assistantId: string, token: string): Promise<AssistantHubRemoteStatus | null> {
   const response = await fetch(`${getSkillHubBaseUrl()}/api/assistants/${encodeURIComponent(assistantId)}`, {
     headers: { Authorization: token },
   });
 
   if (!response.ok) {
+    const body = await readHubResponseJson(response);
+    if (isHubDeletedResponseStatus(response.status, body)) {
+      mainLog('AssistantHub', `Uploaded assistant ${assistantId} no longer exists on Assistant Hub: HTTP ${response.status}`);
+      return 'deleted';
+    }
     mainLog('AssistantHub', `Skip uploaded assistant status refresh for ${assistantId}: HTTP ${response.status}`);
     return null;
   }
 
   const body = await response.json();
-  return resolveAssistantHubDetailPublishStatus(body);
+  return resolveAssistantHubDetailRemoteStatus(body);
 }
 
 function isUploadedCustomAssistantStatusRefreshCandidate(assistant: IAssistantInfo): boolean {
@@ -258,9 +316,17 @@ function isUploadedCustomAssistantStatusRefreshCandidate(assistant: IAssistantIn
     return false;
   }
 
-  const isUploadedToHub = meta.uploaded === true || Boolean(meta.publish_status);
-  const isAwaitingFinalStatus = meta.publish_status !== 'approved' && meta.publish_status !== 'rejected';
-  return isUploadedToHub && isAwaitingFinalStatus;
+  const uploadPublishStatus = meta.publish_status || (meta.uploaded ? 'pending' : undefined);
+  return uploadPublishStatus === 'pending' || uploadPublishStatus === 'approved';
+}
+
+function clearAssistantHubUploadStatus(meta: AssistantHubMeta): AssistantHubMeta {
+  const nextMeta: AssistantHubMeta = { ...meta };
+  delete nextMeta.uploaded;
+  delete nextMeta.uploaded_at;
+  delete nextMeta.publish_status;
+  delete nextMeta.published_at;
+  return nextMeta;
 }
 
 async function refreshUploadedAssistantStatusesFromHub(token: string): Promise<{ checked: number; updated: number }> {
@@ -284,6 +350,14 @@ async function refreshUploadedAssistantStatusesFromHub(token: string): Promise<{
 
       const currentMeta = JSON.parse(metaResult.content) as AssistantHubMeta;
       const currentStatus = currentMeta.publish_status || (currentMeta.uploaded ? 'pending' : undefined);
+      if (remoteStatus === 'deleted') {
+        const nextMeta = clearAssistantHubUploadStatus(currentMeta);
+        await writeAssistantMetaFile(assistantDir, nextMeta);
+        updated += 1;
+        mainLog('AssistantHub', `Cleared uploaded assistant "${assistant.name}" publish status because the remote record no longer exists`);
+        continue;
+      }
+
       if (currentStatus === remoteStatus) continue;
 
       const nextMeta: AssistantHubMeta = {
