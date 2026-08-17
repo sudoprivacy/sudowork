@@ -140,9 +140,20 @@ vi.mock('@process/services/team/TeamStore', () => ({
     },
     getMember: (memberId: string) => h.members.get(memberId) ?? null,
     insertMail: (mail: TeamMail) => h.insertMail(mail),
-    hasUnread: (teamId: string, toMemberId: string) => h.mails.some((mail) => mail.team_id === teamId && mail.to_member_id === toMemberId && !mail.read),
+    peekUnread: (teamId: string, toMemberId: string) => h.mails.filter((mail) => mail.team_id === teamId && mail.to_member_id === toMemberId && !mail.read),
+    markReadBatch: (ids: string[]) => {
+      for (const mail of h.mails) {
+        if (ids.includes(mail.id)) mail.read = true;
+      }
+    },
+    hasUnread: (teamId: string, toMemberId: string) => h.mails.some((mail) => mail.team_id === teamId && mail.to_member_id === toMemberId && mail.from_member_id !== toMemberId && !mail.read),
     getLatestUserMail: () => null,
     softDeleteMember: (memberId: string) => h.members.delete(memberId),
+    hardDeleteMailboxByMember: (memberId: string) => {
+      for (let i = h.mails.length - 1; i >= 0; i -= 1) {
+        if (h.mails[i].to_member_id === memberId) h.mails.splice(i, 1);
+      }
+    },
     softDeleteMembersByTeam: (teamId: string) => {
       h.softDeletedMemberTeams.push(teamId);
       for (const [id, member] of h.members) {
@@ -463,15 +474,15 @@ describe('TeamService createTeam members', () => {
     ]);
     h.buildConversation.mockReturnValue(null);
 
-    await expect(service.rebuildTeam(team.id)).rejects.toThrow('Failed to attach team member: Leader');
+    await service.rebuildTeam(team.id);
 
     const leader = leaderFor(team.id);
     expect(h.members.get(leader.id)?.status).toBe('failed');
     expect(h.emitAgentStatusChanged).toHaveBeenCalledWith({ team_id: team.id, slot_id: leader.id, status: 'failed', last_message: 'attach failed' });
-    expect(h.emitSessionChanged).toHaveBeenCalledWith(expect.objectContaining({ teamId: team.id, status: 'failed' }));
+    expect(h.emitSessionChanged).toHaveBeenCalledWith(expect.objectContaining({ teamId: team.id, status: 'ready' }));
     expect(h.mails).toHaveLength(0);
     expect(h.notifyWake).not.toHaveBeenCalled();
-    expect(service.sessions.has(team.id)).toBe(false);
+    expect(service.sessions.has(team.id)).toBe(true);
   });
 
   it('bootstrap missing conversation fails warmup and stops session', async () => {
@@ -484,10 +495,11 @@ describe('TeamService createTeam members', () => {
     if (!leader.conversation_id) throw new Error('missing leader conversation');
     h.conversations.delete(leader.conversation_id);
 
-    await expect(service.rebuildTeam(team.id)).rejects.toThrow('Failed to load team member conversation: Leader');
+    await service.rebuildTeam(team.id);
 
-    expect(h.emitSessionChanged).toHaveBeenCalledWith(expect.objectContaining({ teamId: team.id, status: 'failed' }));
-    expect(service.sessions.has(team.id)).toBe(false);
+    expect(h.emitSessionChanged).toHaveBeenCalledWith(expect.objectContaining({ teamId: team.id, status: 'ready' }));
+    expect(h.members.get(leader.id)?.status).toBe('failed');
+    expect(service.sessions.has(team.id)).toBe(true);
   });
 
   it('spawnMember returns after pending persistence and completes runtime later', async () => {
@@ -1101,7 +1113,7 @@ describe('TeamService createTeam members', () => {
       expect(h.members.get(teammate.id)?.status).toBe('failed');
       expect(service.sessions.get(team.id)?.members.has(teammate.id)).toBe(false);
       expect(session.teamRun.getRecord()?.pending_wakes.get(teammate.id)).toBeUndefined();
-      expect(session.teamRun.getRecord()?.status).toBe('completed');
+      expect(session.teamRun.getRecord()?.status).toBe('cancelled');
     } finally {
       await vi.runOnlyPendingTimersAsync();
       vi.useRealTimers();

@@ -50,7 +50,7 @@ interface MailboxRow {
   team_id: string;
   to_member_id: string;
   from_member_id: string;
-  type: 'message' | 'idle_notification' | 'shutdown_request';
+  type: 'message' | 'idle_notification' | 'shutdown_request' | 'crash_testament';
   content: string;
   summary: string | null;
   files: string | null;
@@ -131,16 +131,20 @@ function buildLoop(member: TeamMember, agent: AgentLike, leaderSlotId: () => str
     teamRun,
     leaderSlotId,
     onWakeSlot: h.onWakeSlot,
-    lookupMember: (sid) => (sid === 'sender' ? { ...member, id: 'sender', name: 'Sender', role: 'teammate', conversation_id: 'c-sender' } : null),
+    lookupMember: (sid) => {
+      if (sid === member.id) return member;
+      if (sid === 'sender') return { ...member, id: 'sender', name: 'Sender', role: 'teammate', conversation_id: 'c-sender' };
+      return null;
+    },
   });
   loops.push(loop);
   return { loop, teamRun };
 }
 
 /** Seed an active run + pending wake for a slot (mirrors TeamService.sendMessage lease→commit). */
-function seedWake(teamRun: TeamRunManager, slotId: string, role: 'lead' | 'teammate', source: WakeSource = 'user_message'): void {
+function seedWake(teamRun: TeamRunManager, slotId: string, role: 'lead' | 'teammate', source: WakeSource = 'user_message', messageId: string | null = null): void {
   const { lease } = teamRun.acquireWake(slotId, role, source);
-  teamRun.commitLease(lease.lease_id, { slot_id: slotId, role, source, message_id: null });
+  teamRun.commitLease(lease.lease_id, { slot_id: slotId, role, source, message_id: messageId });
 }
 
 function markReadCalls(): unknown[][] {
@@ -341,6 +345,21 @@ describe('EventLoop turn driving (附录 I.5)', () => {
 });
 
 describe('EventLoop orphan guard + busy serialization', () => {
+  it('drops a stale crash testament pending wake even when no deliverable mail remains', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 'leader', role: 'lead' }), agent);
+    seedWake(teamRun, 'leader', 'lead', 'crash_notification', 'mail-stale');
+    queue.push(row({ id: 'mail-stale', to_member_id: 'leader', from_member_id: 'sender', type: 'crash_testament', content: 'Sender crashed' }));
+
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    expect(h.agentSend).not.toHaveBeenCalled();
+    expect(teamRun.pendingWakeCount('leader')).toBe(0);
+    expect(teamRun.getRecord()!.status).toBe('cancelled');
+  });
+
   it('orphan guard: unread backlog with no active run and no pending wake is not delivered', async () => {
     const agent: AgentLike = { sendMessage: h.agentSend };
     const { loop } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
@@ -376,7 +395,7 @@ describe('EventLoop orphan guard + busy serialization', () => {
     }
   });
 
-  it('does not mutate mailbox or run state when sendMessage resolves after stop', async () => {
+  it('records started turn and marks mail read when sendMessage resolves after stop', async () => {
     let resolveSend!: () => void;
     const sendPromise = new Promise<void>((resolve) => {
       resolveSend = resolve;
@@ -397,9 +416,10 @@ describe('EventLoop orphan guard + busy serialization', () => {
     await stopPromise;
     await flush();
 
-    expect(markReadCalls()).toHaveLength(0);
+    expect(markReadCalls()).toHaveLength(1);
     expect(insertMailWithType('idle_notification')).toHaveLength(0);
-    expect(teamRun.getRecord()?.active_child_turns.size ?? 0).toBe(0);
+    expect(teamRun.getRecord()?.starting_reservations.size ?? 0).toBe(0);
+    expect(teamRun.getRecord()?.active_child_turns.size ?? 0).toBe(1);
   });
 
   it('does not start a second concurrent turn while one is in flight', async () => {
@@ -460,6 +480,12 @@ describe('EventLoop fallback prose reply (finalizeTurn 兜底回传正文)', () 
   });
 
   it('已主动回传（leader mailbox 有 from member 的 message 且 created_at>watermark）则跳过兜底', async () => {
+    h.queryOne.mockImplementation((sql: string) => {
+      if (typeof sql === 'string' && sql.includes('MAX(created_at)')) return { success: true, data: { maxCreated: 1 } };
+      if (sql.includes('SELECT 1 FROM team_mailbox')) return { success: true, data: { 1: 1 } };
+      if (sql.includes('FROM team_members')) return { success: true, data: { ...MEMBER_ROW } };
+      return { success: true, data: null };
+    });
     const agent: AgentLike = { sendMessage: h.agentSend, getLastTurnProseText: () => '正文' };
     const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
     seedWake(teamRun, 's1', 'teammate');

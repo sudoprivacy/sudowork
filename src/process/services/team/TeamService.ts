@@ -353,6 +353,9 @@ class TeamService {
   }
 
   async createTeam(userId: string, name: string, workspace: string | null, members: ICreateTeamMemberParams[]): Promise<Team> {
+    const trimmedName = name.trim();
+    if (!trimmedName) throw new Error('Team name is required');
+    name = trimmedName;
     const normalizedMembers = this.normalizeCreateTeamMembers(members, name);
     const leaderInput = normalizedMembers.find((member) => member.role === 'lead');
     if (!leaderInput) throw new Error('Exactly one team member must be Leader');
@@ -490,9 +493,13 @@ class TeamService {
     const team = teamStore.getTeam(teamId);
     if (!team) throw new Error(`Team not found: ${teamId}`);
     const role = params.role || 'teammate';
+    const memberName = params.name.trim();
+    if (!memberName) throw new Error('Member name is required');
 
     const existing = teamStore.listMembersByTeam(teamId);
     if (role === 'lead' && existing.some((m) => m.role === 'lead')) throw new Error('Team already has a leader');
+    // Duplicate names confuse coordination (LLM addresses members by name) — reject them outright.
+    if (existing.some((m) => m.name === memberName)) throw new Error(`member name already exists: ${memberName}`);
 
     const selection = await this.resolveTeamAssistantSelection(params.assistant_id);
     const meta = await this.resolveAssistantMeta(selection);
@@ -511,7 +518,7 @@ class TeamService {
     // preserves the governance block across its per-message rules reload (see
     // extractGovernanceBlock) so it is not clobbered, and re-injects it on every
     // turn so the leader keeps its role across multi-turn conversations.
-    const governance = buildGovernancePrompt(role, team.name, params.name);
+    const governance = buildGovernancePrompt(role, team.name, memberName);
     const presetContext = [rulesText, governance].filter(Boolean).join('\n\n') || null;
 
     const slotId = uuid(36);
@@ -526,7 +533,7 @@ class TeamService {
 
     const createResult = await createConversation({
       type: 'acp',
-      name: params.conversationName || params.name,
+      name: params.conversationName || memberName,
       extra: {
         backend,
         workspace: team.workspace || undefined,
@@ -536,12 +543,10 @@ class TeamService {
         presetAssistantId: params.assistant_id,
         presetContext: presetContext || undefined,
         enabledSkills,
-        agentName: params.name,
+        agentName: memberName,
         isTeamMember: true,
         teamId,
         teamMcpConfig,
-        // Inherit the team's permission mode (new members adopt it; existing members are not retro-changed —
-        // AcpAgent exposes no public mode setter, so live propagation is left to a future AcpAgent API).
         sessionMode: team.session_mode ?? undefined,
       },
       skipWorkerRegistration: true,
@@ -555,7 +560,7 @@ class TeamService {
       id: slotId,
       team_id: teamId,
       role,
-      name: params.name,
+      name: memberName,
       assistant_id: params.assistant_id,
       source: selection.source,
       backend,
@@ -616,6 +621,16 @@ class TeamService {
         await this.notifyLeaderMemberAdded(teamId, storedMember);
       } catch (error) {
         mainWarn('TeamService', `Failed to notify leader after spawning member ${member.id}:`, error);
+        // One-shot retry after 5s: a missed spawn notice leaves the new member silently idle.
+        // Guarded by isSpawnedMemberRuntimeCurrent so a removed member / replaced session no-ops.
+        const timer = setTimeout(() => {
+          if (!this.isSpawnedMemberRuntimeCurrent(teamId, member.id, session)) return;
+          const retryMember = teamStore.getMember(member.id) ?? member;
+          this.notifyLeaderMemberAdded(teamId, retryMember).catch((retryError) => {
+            mainWarn('TeamService', `Leader-notify retry failed for member ${member.id}:`, retryError);
+          });
+        }, 5000);
+        timer.unref?.();
       }
     }
   }
@@ -738,23 +753,39 @@ class TeamService {
     try {
       const session = await this.ensureSession(teamId);
       const members = teamStore.listMembersByTeam(teamId);
+      let attachedCount = 0;
       for (const m of members) {
         if (!m.conversation_id) continue;
-        const convResult = getDatabase().getConversation(m.conversation_id);
-        if (!convResult.success || !convResult.data) throw new Error(`Failed to load team member conversation: ${m.name}`);
-        const teamMcpConfig = this.buildTeamMcpConfig(session, m.id);
-        const nextExtra = Object.assign({}, convResult.data.extra, { teamMcpConfig });
-        const updateResult = getDatabase().updateConversation(m.conversation_id, { extra: nextExtra } as Partial<TChatConversation>);
-        if (!updateResult.success) throw new Error(updateResult.error || `Failed to update team MCP config for ${m.name}`);
-        const updatedResult = getDatabase().getConversation(m.conversation_id);
-        if (!updatedResult.success || !updatedResult.data) throw new Error(`Failed to reload team member conversation: ${m.name}`);
-        const attached = await this.attachRuntime(teamId, m, updatedResult.data, session, 'bootstrap');
-        if (!attached) throw new Error(`Failed to attach team member: ${m.name}`);
-        teamStore.updateMember(m.id, { status: 'idle', conversation_id: m.conversation_id });
-        ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: m.id, status: 'idle' });
+        // Per-member failure: mark that member failed and continue — one broken member must not
+        // take the whole session down (the UI offers per-member retry-start). attachRuntime
+        // already marks failed on its own path; the extra write here is idempotent.
+        try {
+          const convResult = getDatabase().getConversation(m.conversation_id);
+          if (!convResult.success || !convResult.data) throw new Error(`Failed to load team member conversation: ${m.name}`);
+          const teamMcpConfig = this.buildTeamMcpConfig(session, m.id);
+          const nextExtra = Object.assign({}, convResult.data.extra, { teamMcpConfig });
+          const updateResult = getDatabase().updateConversation(m.conversation_id, { extra: nextExtra } as Partial<TChatConversation>);
+          if (!updateResult.success) throw new Error(updateResult.error || `Failed to update team MCP config for ${m.name}`);
+          const updatedResult = getDatabase().getConversation(m.conversation_id);
+          if (!updatedResult.success || !updatedResult.data) throw new Error(`Failed to reload team member conversation: ${m.name}`);
+          const attached = await this.attachRuntime(teamId, m, updatedResult.data, session, 'bootstrap');
+          if (!attached) throw new Error(`Failed to attach team member: ${m.name}`);
+          teamStore.updateMember(m.id, { status: 'idle', conversation_id: m.conversation_id });
+          ipcBridge.team.onAgentStatusChanged.emit({ team_id: teamId, slot_id: m.id, status: 'idle' });
+          attachedCount += 1;
+        } catch (memberError) {
+          mainWarn('TeamService', `rebuild skipped team member ${m.name} (${m.id}):`, memberError);
+          teamStore.updateMember(m.id, { status: 'failed' });
+          ipcBridge.team.onAgentStatusChanged.emit({
+            team_id: teamId,
+            slot_id: m.id,
+            status: 'failed',
+            last_message: memberError instanceof Error ? memberError.message : String(memberError),
+          });
+        }
       }
       new RecoveryDrain(teamId, session.teamRun, (sid) => this.notifyWake(teamId, sid)).drain();
-      mainLog('TeamService', `rebuilt team ${teamId} (${members.length} member(s))`);
+      mainLog('TeamService', `rebuilt team ${teamId} (${attachedCount}/${members.length} member(s) attached)`);
       ipcBridge.team.onSessionChanged.emit({ teamId, status: 'ready' });
     } catch (error) {
       ipcBridge.team.onSessionChanged.emit({ teamId, status: 'failed', error: error instanceof Error ? error.message : String(error) });
@@ -892,6 +923,8 @@ class TeamService {
 
   private async rollbackInsertedTeam(teamId: string): Promise<void> {
     try {
+      // Read the workspace BEFORE soft-delete — getTeam filters deleted=0 and returns null afterwards.
+      const workspace = teamStore.getTeam(teamId)?.workspace ?? null;
       await this.stopSession(teamId);
       for (const member of teamStore.listMembersByTeam(teamId)) {
         if (member.conversation_id) {
@@ -900,6 +933,16 @@ class TeamService {
       }
       teamStore.softDeleteMembersByTeam(teamId);
       teamStore.softDeleteTeam(teamId);
+      teamStore.hardDeleteMailboxByTeam(teamId);
+      teamStore.hardDeleteTasksByTeam(teamId);
+      if (workspace && isSafeAutoWorkspacePath(workspace)) {
+        try {
+          await fs.promises.rm(workspace, { recursive: true, force: true });
+        } catch (error) {
+          // Non-fatal: the boot orphan sweeper reclaims unreferenced `-temp-` dirs on next start.
+          mainWarn('TeamService', `Failed to delete team workspace during rollback: ${workspace}`, error);
+        }
+      }
     } catch (error) {
       mainWarn('TeamService', `Failed to rollback team ${teamId}:`, error);
     }
@@ -918,7 +961,17 @@ class TeamService {
     }
     teamStore.softDeleteMembersByTeam(teamId);
     teamStore.softDeleteTeam(teamId);
-    await this.removeTeamWorkspace(team, deleteWorkspace);
+    // Teams are soft-deleted, so FK CASCADE never fires — child rows must be removed explicitly.
+    teamStore.hardDeleteMailboxByTeam(teamId);
+    teamStore.hardDeleteTasksByTeam(teamId);
+    try {
+      await this.removeTeamWorkspace(team, deleteWorkspace);
+    } catch (error) {
+      // Non-fatal: the team row is already gone, so failing here would make the delete
+      // unretryable ("Team not found") while leaving a permanent orphan dir. The boot
+      // orphan sweeper reclaims unreferenced `-temp-` workspaces on the next start.
+      mainWarn('TeamService', `Failed to delete team workspace: ${team.workspace}`, error);
+    }
     ipcBridge.team.onListChanged.emit({ team_id: teamId, action: 'removed' });
   }
 
@@ -1009,6 +1062,8 @@ class TeamService {
       await reapConversation(member.conversation_id, { reason: 'user-delete', deleteWorkspace: false });
     }
     teamStore.softDeleteMember(slotId);
+    // The member's inbox dies with the member (mail they SENT stays in recipients' mailboxes).
+    teamStore.hardDeleteMailboxByMember(slotId);
     ipcBridge.team.onMemberRemoved.emit({ team_id: teamId, slot_id: slotId });
   }
 
@@ -1226,9 +1281,21 @@ class TeamService {
     ipcBridge.team.onMemberRenamed.emit({ team_id: teamId, slot_id: memberId, name });
   }
 
-  /** Set the team-level permission mode: persist + broadcast (new members inherit via spawnMember). */
-  setSessionMode(teamId: string, sessionMode: string): void {
+  /** Set the team-level permission mode: persist + propagate to live members + broadcast (new members inherit via spawnMember). */
+  async setSessionMode(teamId: string, sessionMode: string): Promise<void> {
     teamStore.updateTeam(teamId, { session_mode: sessionMode });
+    // Propagate to existing members: AcpAgent.setMode applies it live and persists it to each
+    // member's conversation (rebuild re-applies from there). Per-member failures don't block the rest.
+    const session = this.sessions.get(teamId);
+    if (session) {
+      for (const [, rt] of session.members) {
+        try {
+          if (rt.agent) await rt.agent.setMode(sessionMode);
+        } catch (error) {
+          mainWarn('TeamService', `setMode failed for member ${rt.member.id} during setSessionMode:`, error);
+        }
+      }
+    }
     ipcBridge.team.onSessionChanged.emit({ teamId });
   }
 
@@ -1505,12 +1572,15 @@ class TeamService {
         .filter((m) => m.id !== caller.id && m.status !== 'failed')
         .map((m) => m.id);
     } else {
+      if (to === caller.id) return { ok: false, error: 'cannot send a message to yourself' };
       const recipient = teamStore.getMember(to);
       if (!recipient || recipient.team_id !== teamId) return { ok: false, error: `unknown recipient: ${to}` };
       if (recipient.status === 'failed') return { ok: false, error: `member '${recipient.name}' has failed and cannot receive messages` };
       targets = [to];
     }
     const now = Date.now();
+    const deliveredTargets: string[] = [];
+    const failedTargets: string[] = [];
     for (const targetId of targets) {
       const recipient = teamStore.getMember(targetId);
       if (!recipient) continue;
@@ -1536,12 +1606,17 @@ class TeamService {
         }
       } catch {
         session.teamRun.abortLease(lease.lease_id);
+        failedTargets.push(targetId);
         continue;
       }
       session.teamRun.commitLease(lease.lease_id, { slot_id: targetId, role: recipient.role, source: wakeSource, message_id: mailId });
       this.notifyWake(teamId, targetId);
+      deliveredTargets.push(targetId);
     }
-    return { ok: true, data: { status: 'queued', targets } };
+    // failed_targets (present only on partial failure) tells the sender exactly who did NOT get the mail.
+    const data: { status: string; targets: string[]; failed_targets?: string[] } = { status: 'queued', targets: deliveredTargets };
+    if (failedTargets.length > 0) data.failed_targets = failedTargets;
+    return { ok: true, data };
   }
 
   /** team_spawn_agent: Lead-only — non-lead callers are rejected. */
@@ -1581,6 +1656,12 @@ class TeamService {
         case 'team_task_update': {
           const taskId = args.task_id;
           if (typeof taskId !== 'string') return { ok: false, error: 'team_task_update requires a string "task_id"' };
+          // 'deleted' is internal-only (matches the team-mcp tool schema enum); accepting it here
+          // would route the update through the dismantleEdges path with a status the caller never means.
+          const allowedStatuses = new Set(['pending', 'in_progress', 'completed', 'failed', 'cancelled']);
+          if (args.status !== undefined && (typeof args.status !== 'string' || !allowedStatuses.has(args.status))) {
+            return { ok: false, error: `invalid status: ${String(args.status)} (allowed: ${[...allowedStatuses].join(', ')})` };
+          }
           const updates: Record<string, unknown> = {};
           if (typeof args.status === 'string') updates.status = args.status;
           if (typeof args.description === 'string') updates.description = args.description;

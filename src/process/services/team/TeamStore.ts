@@ -6,7 +6,7 @@ const MARK_READ_BATCH_CHUNK = 500;
 export type TeamMemberRole = 'lead' | 'teammate';
 export type TeamMemberSource = 'agent' | 'assistant';
 export type TeamWorkspaceKind = 'custom' | 'temporary';
-export type TeamMailboxType = 'message' | 'idle_notification' | 'shutdown_request';
+export type TeamMailboxType = 'message' | 'idle_notification' | 'shutdown_request' | 'crash_testament';
 export type TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled' | 'deleted';
 
 export interface Team {
@@ -289,6 +289,13 @@ class TeamStore {
     return result.data.map(rowToTeam);
   }
 
+  /** Undeleted teams that never got a leader — createTeam interrupted mid-provision (startup sweep only). */
+  listLeaderlessTeams(): Team[] {
+    const result = getDatabase().query<TeamRow>(`SELECT * FROM teams WHERE deleted = 0 AND leader_member_id IS NULL`);
+    if (!result.success) throw new Error(result.error);
+    return result.data.map(rowToTeam);
+  }
+
   // ---- Member ----
 
   insertMember(member: TeamMember): void {
@@ -416,6 +423,13 @@ class TeamStore {
     return result.data.map(rowToMail);
   }
 
+  /** EXISTS check: does the recipient have any 'message' mail from the sender newer than `since` (finalizeTurn fallback-prose dedup). */
+  hasMailFromMemberSince(teamId: string, toMemberId: string, fromMemberId: string, since: number): boolean {
+    const result = getDatabase().queryOne<unknown>(`SELECT 1 FROM team_mailbox WHERE team_id = ? AND to_member_id = ? AND from_member_id = ? AND type = 'message' AND created_at > ? LIMIT 1`, teamId, toMemberId, fromMemberId, since);
+    if (!result.success) throw new Error(result.error);
+    return result.data != null;
+  }
+
   /**
    * Max created_at of a recipient's mailbox (同表 append-only watermark)。
    * 团队兜底回传去重用：取与去重查询同表（team_mailbox）的 leader mailbox 最大时间，
@@ -427,8 +441,9 @@ class TeamStore {
     return result.data?.maxCreated ?? 0;
   }
 
+  /** Deliverable unread check: unread mail from someone OTHER than the recipient (self-mail is never deliverable — self filter, I.4). */
   hasUnread(teamId: string, toMemberId: string): boolean {
-    const result = getDatabase().queryOne<{ count: number }>(`SELECT COUNT(*) as count FROM team_mailbox WHERE team_id = ? AND to_member_id = ? AND read = 0`, teamId, toMemberId);
+    const result = getDatabase().queryOne<{ count: number }>(`SELECT COUNT(*) as count FROM team_mailbox WHERE team_id = ? AND to_member_id = ? AND read = 0 AND from_member_id != ?`, teamId, toMemberId, toMemberId);
     if (!result.success) throw new Error(result.error);
     return (result.data?.count ?? 0) > 0;
   }
@@ -484,6 +499,23 @@ class TeamStore {
     const result = getDatabase().query<TeamTaskRow>(`SELECT * FROM team_tasks WHERE team_id = ? AND status != 'deleted' ORDER BY created_at ASC`, teamId);
     if (!result.success) throw new Error(result.error);
     return result.data.map(rowToTask);
+  }
+
+  // ---- hard delete (soft-deleted teams never trigger FK CASCADE — child rows must be deleted explicitly) ----
+
+  hardDeleteMailboxByTeam(teamId: string): void {
+    const result = getDatabase().mutate(`DELETE FROM team_mailbox WHERE team_id = ?`, teamId);
+    if (!result.success) throw new Error(result.error);
+  }
+
+  hardDeleteTasksByTeam(teamId: string): void {
+    const result = getDatabase().mutate(`DELETE FROM team_tasks WHERE team_id = ?`, teamId);
+    if (!result.success) throw new Error(result.error);
+  }
+
+  hardDeleteMailboxByMember(memberId: string): void {
+    const result = getDatabase().mutate(`DELETE FROM team_mailbox WHERE to_member_id = ?`, memberId);
+    if (!result.success) throw new Error(result.error);
   }
 }
 

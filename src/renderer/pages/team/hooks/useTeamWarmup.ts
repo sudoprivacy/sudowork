@@ -32,6 +32,26 @@ export function useTeamWarmup(teamId: string) {
   const [error, setError] = useState<string | undefined>(undefined);
   const [ensureAttempt, setEnsureAttempt] = useState(0);
 
+  const runEnsure = useCallback(
+    (isCancelled: () => boolean) => {
+      if (!teamId) return;
+      setPhase('warming');
+      setRuntimeStatus(new Map());
+      setError(undefined);
+      void withTimeout(ipcBridge.team.ensureSession.invoke({ teamId }), ENSURE_SESSION_TIMEOUT_MS, 'team.ensureSession')
+        .then((result) => {
+          unwrapTeamResult(result);
+          if (!isCancelled()) setPhase('ready');
+        })
+        .catch((err) => {
+          if (isCancelled()) return;
+          setError(err instanceof Error ? err.message : String(err));
+          setPhase('error');
+        });
+    },
+    [teamId]
+  );
+
   useEffect(() => {
     if (!teamId) {
       setPhase('ready');
@@ -68,32 +88,24 @@ export function useTeamWarmup(teamId: string) {
       }
     });
 
+    const unsubReconnect = ipcBridge.realtime.reconnected.on(() => runEnsure(() => isCancelled));
+
     return () => {
       isCancelled = true;
       unsubStatus();
       unsubSession();
+      unsubReconnect();
     };
-  }, [teamId]);
+  }, [teamId, runEnsure]);
 
   useEffect(() => {
     if (!teamId) return;
     let isCancelled = false;
-    setPhase('warming');
-    setError(undefined);
-    void withTimeout(ipcBridge.team.ensureSession.invoke({ teamId }), ENSURE_SESSION_TIMEOUT_MS, 'team.ensureSession')
-      .then((result) => {
-        unwrapTeamResult(result);
-        if (!isCancelled) setPhase('ready');
-      })
-      .catch((err) => {
-        if (isCancelled) return;
-        setError(err instanceof Error ? err.message : String(err));
-        setPhase('error');
-      });
+    runEnsure(() => isCancelled);
     return () => {
       isCancelled = true;
     };
-  }, [teamId, ensureAttempt]);
+  }, [teamId, ensureAttempt, runEnsure]);
 
   const onRetry = useCallback(() => {
     if (!teamId) return;

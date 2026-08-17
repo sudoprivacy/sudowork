@@ -1816,6 +1816,90 @@ const migration_v30: IMigration = {
 };
 
 /**
+ * Migration v30 -> v31: Team hardening batch.
+ * - mailbox dedup index for finalizeTurn watermark / EXISTS queries (M4)
+ * - partial unique index enforcing one active leader per team (M14), with
+ *   duplicate cleanup first (keep the earliest lead per team)
+ * - team_mailbox rebuild adding 'crash_testament' to the type CHECK (M22) —
+ *   rebuild follows the v30-down rollback-table pattern (CREATE + INSERT..SELECT
+ *   + DROP + RENAME), NOT the v24-down plain-drop pattern.
+ */
+const migration_v31: IMigration = {
+  version: 31,
+  name: 'Team hardening: mailbox index, single-lead index, crash_testament type',
+  up: (db) => {
+    // M14 cleanup: soft-delete duplicate active leads (keep MIN(id) per team) before the unique index.
+    db.exec(`
+      UPDATE team_members SET deleted = 1
+      WHERE role = 'lead' AND deleted = 0
+        AND id NOT IN (
+          SELECT MIN(id) FROM team_members WHERE role = 'lead' AND deleted = 0 GROUP BY team_id
+        );
+    `);
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_single_lead
+        ON team_members(team_id) WHERE role = 'lead' AND deleted = 0;
+    `);
+
+    // M22: rebuild team_mailbox with a four-value type CHECK (v30-down rollback-table pattern).
+    db.exec(`
+      CREATE TABLE team_mailbox_v31_rollback (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        to_member_id TEXT NOT NULL,
+        from_member_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('message', 'idle_notification', 'shutdown_request', 'crash_testament')),
+        content TEXT NOT NULL,
+        summary TEXT,
+        files TEXT,
+        read INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+      INSERT INTO team_mailbox_v31_rollback (id, team_id, to_member_id, from_member_id, type, content, summary, files, read, created_at)
+        SELECT id, team_id, to_member_id, from_member_id, type, content, summary, files, read, created_at FROM team_mailbox;
+      DROP TABLE team_mailbox;
+      ALTER TABLE team_mailbox_v31_rollback RENAME TO team_mailbox;
+      CREATE INDEX IF NOT EXISTS idx_team_mailbox_team_to_read ON team_mailbox(team_id, to_member_id, read);
+    `);
+
+    // M4: created_at index for the finalizeTurn watermark / EXISTS queries.
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_team_mailbox_team_created ON team_mailbox(team_id, to_member_id, created_at);
+    `);
+    mainLog('Migration v31', 'Team hardening: mailbox index, single-lead index, crash_testament type');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_team_mailbox_team_created;
+      DROP INDEX IF EXISTS idx_team_members_single_lead;
+      CREATE TABLE team_mailbox_v31_down (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        to_member_id TEXT NOT NULL,
+        from_member_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('message', 'idle_notification', 'shutdown_request')),
+        content TEXT NOT NULL,
+        summary TEXT,
+        files TEXT,
+        read INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+      INSERT INTO team_mailbox_v31_down (id, team_id, to_member_id, from_member_id, type, content, summary, files, read, created_at)
+        SELECT id, team_id, to_member_id, from_member_id,
+          CASE WHEN type = 'crash_testament' THEN 'message' ELSE type END,
+          content, summary, files, read, created_at
+        FROM team_mailbox;
+      DROP TABLE team_mailbox;
+      ALTER TABLE team_mailbox_v31_down RENAME TO team_mailbox;
+      CREATE INDEX IF NOT EXISTS idx_team_mailbox_team_to_read ON team_mailbox(team_id, to_member_id, read);
+    `);
+    mainLog('Migration v31', 'Rolled back: Team hardening batch');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1824,7 +1908,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
-  migration_v25, migration_v26, migration_v27, migration_v28, migration_v29, migration_v30,
+  migration_v25, migration_v26, migration_v27, migration_v28, migration_v29, migration_v30, migration_v31,
 ];
 
 /**

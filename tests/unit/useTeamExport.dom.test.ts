@@ -3,6 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExportZipFile } from '../../src/renderer/pages/conversation/grouped-history/types';
 import type { TTeam } from '../../src/renderer/pages/team/types';
 
+interface IDeferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+
+function deferred<T>(): IDeferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 const h = vi.hoisted(() => ({
   listMembers: vi.fn(),
   getConversation: vi.fn(),
@@ -98,6 +111,29 @@ describe('useTeamExport', () => {
     h.getConversationMessages.mockResolvedValue([]);
     h.getConversation.mockImplementation(({ id }: { id: string }) => Promise.resolve({ id, name: id, type: 'acp', extra: {}, createTime: 1, modifyTime: 1 }));
     h.createZip.mockResolvedValue(true);
+  });
+
+  it('cancels an old export generation when the modal is reopened', async () => {
+    const firstList = deferred<unknown[]>();
+    h.listMembers.mockReturnValueOnce(firstList.promise).mockResolvedValueOnce([]);
+    const { result } = renderHook(() => useTeamExport());
+
+    await act(async () => {
+      await result.current.onOpenExport(makeTeam());
+    });
+    await act(async () => {
+      void result.current.onConfirmExport();
+    });
+    expect(result.current.isExportLoading).toBe(true);
+
+    await act(async () => {
+      await result.current.onOpenExport({ ...makeTeam(), id: 'team-2', name: 'Team Two' });
+    });
+    firstList.resolve([]);
+    await waitFor(() => expect(h.messageWarning).toHaveBeenCalledWith('team.export.canceled'));
+
+    expect(h.createZip).not.toHaveBeenCalled();
+    expect(result.current.isExportLoading).toBe(true);
   });
 
   it('fetches members on export and uses that snapshot for files and manifests', async () => {

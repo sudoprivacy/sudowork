@@ -14,6 +14,7 @@ export function normalizeTeamStatus(status: string): TeammateStatus {
       return 'pending';
     case 'idle':
       return 'idle';
+    case 'active':
     case 'working':
     case 'thinking':
     case 'tool_use':

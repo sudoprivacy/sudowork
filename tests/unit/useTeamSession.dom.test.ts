@@ -20,12 +20,15 @@ function deferred<T>(): IDeferred<T> {
 const getTeamInvoke = vi.fn();
 const listMembersInvoke = vi.fn();
 const removeMemberInvoke = vi.fn();
+const addMemberInvoke = vi.fn();
+const renameMemberInvoke = vi.fn();
 
 let memberSpawnedCallback: ((event: { team_id: string; member: TestMember }) => void) | null = null;
 let _memberRemovedCallback: ((event: { team_id: string; slot_id: string }) => void) | null = null;
 let _memberRenamedCallback: ((event: { team_id: string }) => void) | null = null;
 let _agentStatusChangedCallback: ((event: { team_id: string; slot_id: string; status: string }) => void) | null = null;
 let _sessionChangedCallback: ((event: { teamId: string }) => void) | null = null;
+let reconnectedCallback: (() => void) | null = null;
 
 const onMemberSpawned = vi.fn((cb: (event: { team_id: string; member: TestMember }) => void) => {
   memberSpawnedCallback = cb;
@@ -57,6 +60,12 @@ const onSessionChanged = vi.fn((cb: (event: { teamId: string }) => void) => {
     _sessionChangedCallback = null;
   };
 });
+const onReconnected = vi.fn((cb: () => void) => {
+  reconnectedCallback = cb;
+  return () => {
+    reconnectedCallback = null;
+  };
+});
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -64,11 +73,16 @@ vi.mock('@/common', () => ({
       getTeam: { invoke: (...args: unknown[]) => getTeamInvoke(...args) },
       listMembers: { invoke: (...args: unknown[]) => listMembersInvoke(...args) },
       removeMember: { invoke: (...args: unknown[]) => removeMemberInvoke(...args) },
+      addMember: { invoke: (...args: unknown[]) => addMemberInvoke(...args) },
+      renameMember: { invoke: (...args: unknown[]) => renameMemberInvoke(...args) },
       onMemberSpawned: { on: (...args: unknown[]) => onMemberSpawned(...args) },
       onMemberRemoved: { on: (...args: unknown[]) => onMemberRemoved(...args) },
       onMemberRenamed: { on: (...args: unknown[]) => onMemberRenamed(...args) },
       onAgentStatusChanged: { on: (...args: unknown[]) => onAgentStatusChanged(...args) },
       onSessionChanged: { on: (...args: unknown[]) => onSessionChanged(...args) },
+    },
+    realtime: {
+      reconnected: { on: (...args: unknown[]) => onReconnected(...args) },
     },
   },
 }));
@@ -148,19 +162,25 @@ describe('useTeamSession', () => {
     getTeamInvoke.mockReset();
     listMembersInvoke.mockReset();
     removeMemberInvoke.mockReset();
+    addMemberInvoke.mockReset();
+    renameMemberInvoke.mockReset();
     getTeamInvoke.mockImplementation(({ teamId }: { teamId: string }) => teamResponses.get(teamId) ?? Promise.resolve(null));
     listMembersInvoke.mockImplementation(({ teamId }: { teamId: string }) => memberResponses.get(teamId) ?? Promise.resolve([]));
     removeMemberInvoke.mockResolvedValue(undefined);
+    addMemberInvoke.mockResolvedValue(undefined);
+    renameMemberInvoke.mockResolvedValue(undefined);
     onMemberSpawned.mockClear();
     onMemberRemoved.mockClear();
     onMemberRenamed.mockClear();
     onAgentStatusChanged.mockClear();
     onSessionChanged.mockClear();
+    onReconnected.mockClear();
     memberSpawnedCallback = null;
     _memberRemovedCallback = null;
     _memberRenamedCallback = null;
     _agentStatusChangedCallback = null;
     _sessionChangedCallback = null;
+    reconnectedCallback = null;
   });
 
   it('does not expose the previous team after teamId changes and treats the mismatch as loading', async () => {
@@ -258,6 +278,37 @@ describe('useTeamSession', () => {
     await resolveDeferredTeam(oldTeamResponse);
 
     expect(result.current.team?.id).toBe('new-team');
+  });
+
+  it('refetches team detail after realtime reconnect without foreground loading', async () => {
+    mockResolvedTeam('team-1', 'Team 1');
+
+    const { result } = renderHook(() => useTeamSession('team-1'));
+
+    await waitFor(() => expect(result.current.team?.id).toBe('team-1'));
+    const refreshResponse = mockDeferredTeam('team-1', 'Team 1');
+
+    act(() => {
+      reconnectedCallback?.();
+    });
+
+    expect(result.current.loading).toBe(false);
+    await resolveDeferredTeam(refreshResponse);
+    await waitFor(() => expect(result.current.team?.id).toBe('team-1'));
+  });
+
+  it('unwraps mutator error envelopes', async () => {
+    mockResolvedTeam('team-1', 'Team 1');
+    removeMemberInvoke.mockResolvedValueOnce({ __error: 'remove failed' });
+    addMemberInvoke.mockResolvedValueOnce({ __error: 'add failed' });
+    renameMemberInvoke.mockResolvedValueOnce({ __error: 'rename failed' });
+
+    const { result } = renderHook(() => useTeamSession('team-1'));
+
+    await waitFor(() => expect(result.current.team?.id).toBe('team-1'));
+    await expect(result.current.removeMember('slot-1')).rejects.toThrow('remove failed');
+    await expect(result.current.addMember({ assistant_id: 'scode', name: 'Worker' })).rejects.toThrow('add failed');
+    await expect(result.current.renameMember('slot-1', 'Renamed')).rejects.toThrow('rename failed');
   });
 
   it('clears foreground loading when superseded by a background refresh', async () => {

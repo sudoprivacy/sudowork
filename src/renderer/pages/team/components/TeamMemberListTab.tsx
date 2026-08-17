@@ -162,8 +162,10 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
                 isActive={isActive}
                 statusLabel={t(`team.status.${status}`)}
                 onSelect={() => setActiveSlotId(a.slot_id)}
-                onRename={(name) => void onRenameMember?.(a.slot_id, name)}
-                onRemove={() => void onRemoveMember?.(a.slot_id)}
+                onRename={(name) => {
+                  Promise.resolve(onRenameMember?.(a.slot_id, name)).catch(() => Message.error(t('team.detail.renameMemberFailed')));
+                }}
+                onRemove={() => onRemoveMember?.(a.slot_id)}
                 onRetry={() => void retryMemberStart(a.slot_id)}
               />
             );
@@ -191,7 +193,13 @@ function TeamMemberListTab({ team, statusMap, activeSlotIds, onAddMember, onRena
         </div>
       )}
 
-      <TeamAddMemberModal isVisible={isAddMemberVisible} onClose={() => setIsAddMemberVisible(false)} onAdded={async (params) => void onAddMember?.(params)} />
+      <TeamAddMemberModal
+        isVisible={isAddMemberVisible}
+        onClose={() => setIsAddMemberVisible(false)}
+        onAdded={async (params) => {
+          await onAddMember?.(params);
+        }}
+      />
     </div>
   );
 }
@@ -210,7 +218,9 @@ function TeamMemberRow({ member, status, statusLabel, isActive, onSelect, onRena
       okButtonProps: { status: 'warning' },
       alignCenter: true,
       getPopupContainer: () => document.body,
-      onOk: () => onRemove(),
+      onOk: () => {
+        Promise.resolve(onRemove()).catch(() => Message.error(t('team.detail.removeMemberFailed')));
+      },
     });
   };
 

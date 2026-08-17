@@ -140,7 +140,18 @@ describe('TeamRun operation lease (附录 I.1)', () => {
     m.maybeComplete();
     expect(m.getRecord()!.status).toBe('accepted'); // lease present → cannot complete
     m.abortLease(lease.lease_id);
-    expect(m.getRecord()!.status).toBe('completed'); // lease gone + all empty → completed
+    expect(m.getRecord()!.status).toBe('cancelled'); // lease gone + no child ever started → cancelled
+  });
+
+  it('dropPendingWake cancels an accepted run when the only wake is stale', () => {
+    const m = newManager();
+    const { lease } = m.acquireWake('lead', 'lead', 'crash_notification');
+    m.commitLease(lease.lease_id, { slot_id: 'lead', role: 'lead', source: 'crash_notification', message_id: 'stale-mail' });
+
+    m.dropPendingWake('lead', 'stale-mail');
+
+    expect(m.getRecord()!.status).toBe('cancelled');
+    expect(emits.cancelled).toHaveBeenCalledTimes(1);
   });
 
   it('commit converts a lease into a pending wake', () => {

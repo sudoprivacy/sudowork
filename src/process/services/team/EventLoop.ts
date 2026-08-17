@@ -75,8 +75,11 @@ export class EventLoop {
   private turnStartCreatedAt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private retryBackoff = 0;
+  private turnRetryCount = 0;
   private static readonly RETRY_BASE_MS = 1000;
   private static readonly RETRY_MAX_MS = 30000;
+  /** Max sendMessage-failure retries before abandoning the turn (aligns with CronService maxRetries). */
+  private static readonly TURN_RETRY_LIMIT = 3;
 
   constructor(private deps: EventLoopDeps) {}
 
@@ -143,7 +146,18 @@ export class EventLoop {
     const { teamId, slotId, wakeGate, teamRun } = this.deps;
     const unread = teamStore.peekUnread(teamId, slotId);
     if (unread.length === 0) return { should_send: false, source: 'mcp_send_message', messages: [] };
-    const filtered = unread.filter((m) => m.from_member_id !== slotId); // self filter (I.4)
+    // Stale crash testaments: the author is no longer failed (or is gone) — filter them out and
+    // drop their pending wakes, otherwise an undeliverable wake would strand the run active forever.
+    const staleTestamentIds = new Set<string>();
+    for (const mail of unread) {
+      if (mail.type !== 'crash_testament' || mail.from_member_id === slotId) continue;
+      const author = this.deps.lookupMember(mail.from_member_id);
+      if (!author || author.status !== 'failed') staleTestamentIds.add(mail.id);
+    }
+    const filtered = unread.filter((m) => m.from_member_id !== slotId && !staleTestamentIds.has(m.id)); // self filter (I.4) + stale testaments
+    // Drop the wakes owned by the filtered-out testaments (each carries the testament mail id), even
+    // when every unread item was stale; otherwise no turn claims the wake and the run stays active.
+    for (const mailId of staleTestamentIds) teamRun.dropPendingWake(slotId, mailId);
     if (filtered.length === 0) return { should_send: false, source: 'mcp_send_message', messages: [] };
     // Orphan guard (I.4): unread backlog with neither an active run nor a pending wake is unowned.
     if (!teamRun.hasActiveRun() && !teamRun.hasPendingWake(slotId)) {
@@ -202,16 +216,29 @@ export class EventLoop {
       this.turnStartCreatedAt = watermarkLeaderId ? teamStore.getMailMaxCreatedAt(this.deps.teamId, watermarkLeaderId) : 0;
       await agent.sendMessage({ content: text, msg_id: turnId, hiddenPromptPrefix, suppressUserBubble: true });
       this.resetRetry();
-      if (!this.alive) return null;
+      // The turn really ran — complete the reservation transition even if stop() raced us, so the
+      // reservation never strands in starting_reservations (M25). finalizeTurn is skipped below.
       // Stage 2 → 3: starting_reservations → active_child_turns (turn has run).
       this.deps.teamRun.recordChildStarted(reservation, turnId, this.deps.member.conversation_id ?? '');
       // Peek-then-mark: Ok + graceful-Failed both mark (agent resolved); Err (thrown) stays unread.
       teamStore.markReadBatch(messages.map((m) => m.id));
+      if (!this.alive) return null;
       return { turn_id: turnId, status: 'completed' };
     } catch (e) {
       if (!this.alive) return null;
       mainWarn('EventLoop', `turn failed for ${this.deps.slotId}:`, e);
-      // Err → don't mark read; return the reservation to the pending queue head for the next wake.
+      this.turnRetryCount += 1;
+      if (this.turnRetryCount >= EventLoop.TURN_RETRY_LIMIT) {
+        // Retry budget exhausted: abandon the reservation (no re-queue — re-delivering the same
+        // batch would repeat agent side effects) and tell the leader so it can re-plan. The count
+        // resets here: the next user-driven delivery is a fresh cycle, not a continuation.
+        this.deps.teamRun.abandonReservation(reservation);
+        this.turnRetryCount = 0;
+        this.notifyLeaderOfAbandon();
+        this.markIdle();
+        return null;
+      }
+      // Err → don't mark read; return the reservation to the pending queue for the next wake.
       this.deps.teamRun.retryChildStartLater(reservation);
       this.scheduleRetry();
       // Do not clobber a 'failed' status that crash recovery may have just set (when the stream
@@ -246,7 +273,7 @@ export class EventLoop {
           try {
             const prose = this.deps.getAgent()?.getLastTurnProseText() ?? '';
             if (prose) {
-              const alreadyReplied = teamStore.getHistory(teamId, leaderId).some((m) => m.from_member_id === slotId && m.type === 'message' && m.created_at > this.turnStartCreatedAt);
+              const alreadyReplied = teamStore.hasMailFromMemberSince(teamId, leaderId, slotId, this.turnStartCreatedAt);
               if (!alreadyReplied) {
                 teamStore.insertMail({
                   id: uuid(36),
@@ -306,6 +333,37 @@ export class EventLoop {
     ipcBridge.team.onAgentStatusChanged.emit({ team_id: this.deps.teamId, slot_id: this.deps.slotId, status: 'idle' });
   }
 
+  /**
+   * Tell the leader a teammate's turn was abandoned after exhausting its retry budget — as a plain
+   * 'message' (projected visible; NOT crash_testament, whose staleness filter would swallow it since
+   * this member is alive-but-failing). The member itself stays idle: marking it failed here would
+   * break the "failed ⟺ no-runtime" invariant retryMemberStart depends on. A leader's own abandon
+   * gets no mail (self-mail is never deliverable) — log only.
+   */
+  private notifyLeaderOfAbandon(): void {
+    if (this.deps.member.role !== 'teammate') return;
+    const leaderId = this.deps.leaderSlotId();
+    if (!leaderId) return;
+    try {
+      const mailId = uuid(36);
+      teamStore.insertMail({
+        id: mailId,
+        team_id: this.deps.teamId,
+        to_member_id: leaderId,
+        from_member_id: this.deps.slotId,
+        type: 'message',
+        content: `Teammate '${this.deps.member.name}' could not start a turn after repeated failures; the pending message was dropped. Re-send the task if still needed.`,
+        summary: null,
+        files: null,
+        read: false,
+        created_at: Date.now(),
+      });
+      this.deps.onWakeSlot(leaderId, 'crash_notification', mailId);
+    } catch (e) {
+      mainWarn('EventLoop', `notifyLeaderOfAbandon failed for ${this.deps.slotId}:`, e);
+    }
+  }
+
   private scheduleRetry(): void {
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryBackoff = this.retryBackoff === 0 ? EventLoop.RETRY_BASE_MS : Math.min(this.retryBackoff * 2, EventLoop.RETRY_MAX_MS);
@@ -323,5 +381,6 @@ export class EventLoop {
       this.retryTimer = null;
     }
     this.retryBackoff = 0;
+    this.turnRetryCount = 0;
   }
 }

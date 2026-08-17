@@ -99,7 +99,9 @@ export class CrashRecovery {
       const testament = reason.kind === 'Unknown' ? `Teammate '${member.name}' crashed during task (reason: ${reason.msg}). Last message: ${lastMessage ?? ''}.` : `Teammate '${member.name}' crashed (reason: ${reason.kind}).`;
       const leaderId = this.deps.leaderSlotId();
       if (leaderId) {
-        const messageId = this.deps.writeMail(leaderId, slot, 'message', testament);
+        // crash_testament (not 'message'): lets drain / computeWakeInput detect a stale testament
+        // (author no longer failed) and skip re-delivering it after restart + re-attach.
+        const messageId = this.deps.writeMail(leaderId, slot, 'crash_testament', testament);
         this.deps.notifyWake(leaderId, 'crash_notification', messageId);
       }
     }

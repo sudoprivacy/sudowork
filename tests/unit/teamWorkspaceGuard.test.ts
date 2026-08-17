@@ -59,6 +59,8 @@ vi.mock('@process/services/team/TeamStore', () => ({
     listMembersByTeam: () => [],
     softDeleteMembersByTeam: h.softDeleteMembersByTeam,
     softDeleteTeam: h.softDeleteTeam,
+    hardDeleteMailboxByTeam: vi.fn(),
+    hardDeleteTasksByTeam: vi.fn(),
   },
 }));
 // conversationReaper 顶层其余依赖（importOriginal 真实加载会拉起，须一并 mock）

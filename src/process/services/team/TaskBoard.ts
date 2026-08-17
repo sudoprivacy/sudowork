@@ -18,6 +18,7 @@ export class TaskBoard {
   createTask(params: { subject: string; description?: string | null; owner?: string | null; blocked_by?: string[] }): TeamTask {
     const taskId = uuid(36);
     const blockedBy = dedupe(params.blocked_by ?? []);
+    this.validateBlockedBy(blockedBy);
     if (this.detectCycle(taskId, blockedBy)) throw new Error('task dependency cycle detected');
     const now = Date.now();
     const task: TeamTask = {
@@ -43,20 +44,21 @@ export class TaskBoard {
     if (!existing || existing.team_id !== this.teamId) throw new Error(`Task not found: ${taskId}`);
 
     const oldBlockedBy = existing.blocked_by;
-    const newBlockedBy = updates.blocked_by != null ? dedupe(updates.blocked_by) : oldBlockedBy;
-    if (updates.blocked_by != null && this.detectCycle(taskId, newBlockedBy)) throw new Error('task dependency cycle detected');
+    const newStatus = updates.status ?? existing.status;
+    const isEnteringTerminal = updates.status != null && !TERMINAL_TASK_STATUSES.has(existing.status) && TERMINAL_TASK_STATUSES.has(newStatus);
+    const requestedBlockedBy = updates.blocked_by != null ? dedupe(updates.blocked_by) : oldBlockedBy;
+    if (updates.blocked_by != null) this.validateBlockedBy(requestedBlockedBy);
+    const newBlockedBy = isEnteringTerminal ? [] : requestedBlockedBy;
+    if (updates.blocked_by != null && !isEnteringTerminal && this.detectCycle(taskId, newBlockedBy)) throw new Error('task dependency cycle detected');
 
     // Adjust reverse edges when the dependency set changes.
-    if (updates.blocked_by != null) this.adjustReverseBlocks(taskId, oldBlockedBy, newBlockedBy);
+    if (updates.blocked_by != null || isEnteringTerminal) this.adjustReverseBlocks(taskId, oldBlockedBy, newBlockedBy);
 
-    teamStore.updateTask(taskId, { ...updates, blocked_by: newBlockedBy });
+    if (isEnteringTerminal) this.dismantleEdges(existing);
 
-    // Transitioning into a terminal status dismantles this task's edges.
-    const newStatus = updates.status ?? existing.status;
-    if (updates.status != null && !TERMINAL_TASK_STATUSES.has(existing.status) && TERMINAL_TASK_STATUSES.has(newStatus)) {
-      this.dismantleEdges(taskId);
-    }
-    return teamStore.getTask(taskId) ?? { ...existing, ...updates, blocked_by: newBlockedBy };
+    teamStore.updateTask(taskId, { ...updates, blocked_by: newBlockedBy, ...(isEnteringTerminal ? { blocks: [] } : {}) });
+
+    return teamStore.getTask(taskId) ?? { ...existing, ...updates, blocked_by: newBlockedBy, blocks: isEnteringTerminal ? [] : existing.blocks };
   }
 
   listTasks(): TeamTask[] {
@@ -69,6 +71,11 @@ export class TaskBoard {
   }
 
   // ---- cycle detection (DFS over blocked_by) ----
+
+  private validateBlockedBy(ids: string[]): void {
+    const invalidIds = ids.filter((id) => teamStore.getTask(id)?.team_id !== this.teamId);
+    if (invalidIds.length > 0) throw new Error(`Invalid blocked_by task id(s): ${invalidIds.join(', ')}`);
+  }
 
   private detectCycle(taskId: string, proposedBlockedBy: string[]): boolean {
     if (proposedBlockedBy.includes(taskId)) return true; // self-dependency
@@ -105,16 +112,13 @@ export class TaskBoard {
     }
   }
 
-  private dismantleEdges(taskId: string): void {
-    const task = teamStore.getTask(taskId);
-    if (!task) return;
+  private dismantleEdges(task: TeamTask): void {
     for (const dep of task.blocked_by) {
-      this.patchTask(dep, (t) => ({ ...t, blocks: t.blocks.filter((id) => id !== taskId) }));
+      this.patchTask(dep, (t) => ({ ...t, blocks: t.blocks.filter((id) => id !== task.id) }));
     }
     for (const blocker of task.blocks) {
-      this.patchTask(blocker, (t) => ({ ...t, blocked_by: t.blocked_by.filter((id) => id !== taskId) }));
+      this.patchTask(blocker, (t) => ({ ...t, blocked_by: t.blocked_by.filter((id) => id !== task.id) }));
     }
-    teamStore.updateTask(taskId, { blocked_by: [], blocks: [] });
   }
 
   private patchTask(taskId: string, fn: (t: TeamTask) => TeamTask): void {

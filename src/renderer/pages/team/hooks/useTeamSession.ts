@@ -112,18 +112,20 @@ export function useTeamSession(teamId: string) {
     const u5 = ipcBridge.team.onSessionChanged.on(({ teamId: changedTeamId }) => {
       if (changedTeamId === teamId) void mutate({ showLoading: false });
     });
+    const u6 = ipcBridge.realtime.reconnected.on(() => void mutate({ showLoading: false }));
     return () => {
       u1();
       u2();
       u3();
       u4();
       u5();
+      u6();
     };
   }, [teamId, mutate]);
 
   const removeMember = useCallback(
     async (slotId: string) => {
-      await ipcBridge.team.removeMember.invoke({ teamId, memberId: slotId });
+      unwrapTeamResult(await ipcBridge.team.removeMember.invoke({ teamId, memberId: slotId }));
       void mutate({ showLoading: false });
     },
     [teamId, mutate]
@@ -131,7 +133,7 @@ export function useTeamSession(teamId: string) {
 
   const addMember = useCallback(
     async (params: { assistant_id: string; name: string; model?: string; role?: 'lead' | 'teammate' }) => {
-      await ipcBridge.team.addMember.invoke({ team_id: teamId, ...params });
+      unwrapTeamResult(await ipcBridge.team.addMember.invoke({ team_id: teamId, ...params }));
       void mutate({ showLoading: false });
     },
     [teamId, mutate]
@@ -139,7 +141,7 @@ export function useTeamSession(teamId: string) {
 
   const renameMember = useCallback(
     async (slotId: string, name: string) => {
-      await ipcBridge.team.renameMember.invoke({ memberId: slotId, name });
+      unwrapTeamResult(await ipcBridge.team.renameMember.invoke({ memberId: slotId, name }));
       void mutate({ showLoading: false });
     },
     [mutate]

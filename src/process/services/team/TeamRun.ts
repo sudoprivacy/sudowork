@@ -297,7 +297,7 @@ export class TeamRunManager {
     if (this.isActive(run)) this.emitRun('team.runUpdated');
   }
 
-  /** reservation → pending_wakes head (retry on retryable start failure). */
+  /** reservation → pending_wakes (retry on retryable start failure). Foreground priority is preserved (no queue-jumping unshift). */
   retryChildStartLater(reservation: StartingChildReservation): void {
     const run = this.record;
     if (!run) return;
@@ -306,9 +306,38 @@ export class TeamRunManager {
       this.maybeComplete();
       return;
     }
-    const queue = run.pending_wakes.get(reservation.slot_id) ?? [];
-    queue.unshift({ slot_id: reservation.slot_id, role: reservation.role, source: reservation.wake_source, message_id: reservation.message_id });
-    run.pending_wakes.set(reservation.slot_id, queue);
+    this.pushPendingWakeInternal(run, reservation.slot_id, {
+      slot_id: reservation.slot_id,
+      role: reservation.role,
+      source: reservation.wake_source,
+      message_id: reservation.message_id,
+    });
+  }
+
+  /** Drop a starting reservation without re-queuing (turn retry budget exhausted — the caller notifies the leader). */
+  abandonReservation(reservation: StartingChildReservation): void {
+    const run = this.record;
+    if (!run) return;
+    run.starting_reservations.delete(reservation.reservation_id);
+    this.maybeComplete();
+  }
+
+  /**
+   * Remove a pending wake whose message_id matches a filtered-out mail (stale crash testament).
+   * Must trigger maybeComplete: every other completion trigger is event-driven, and this removal
+   * happens after the last one (the leader's recordChildCompleted) — without it the run would sit
+   * at running + empty queues until some unrelated event fires.
+   */
+  dropPendingWake(slot: string, messageId: string): void {
+    const run = this.record;
+    if (!run) return;
+    const queue = run.pending_wakes.get(slot);
+    if (!queue) return;
+    const next = queue.filter((w) => w.message_id !== messageId);
+    if (next.length === queue.length) return; // no match — idempotent no-op
+    if (next.length === 0) run.pending_wakes.delete(slot);
+    else run.pending_wakes.set(slot, next);
+    this.maybeComplete();
   }
 
   /**
@@ -405,6 +434,13 @@ export class TeamRunManager {
         : this.totalPendingWakeCount(run) === 0 && run.starting_reservations.size === 0 && run.active_child_turns.size === 0 && run.active_operation_leases.size === 0 && !run.slot_wake_gate.hasRetainedWork();
     if (!allEmpty) return;
     if (run.status === 'cancelling') {
+      run.status = 'cancelled';
+      run.cancelled_at = Date.now();
+      this.emitRun('team.runCancelled');
+    } else if (run.started_at == null) {
+      // Empty completion with no child ever started (lease abort before first wake, or a recovery
+      // run whose backlog was entirely stale testaments dropped by dropPendingWake): the run never
+      // truly began — cancelled is the honest terminal, and no runStarted/runCompleted pair is faked.
       run.status = 'cancelled';
       run.cancelled_at = Date.now();
       this.emitRun('team.runCancelled');

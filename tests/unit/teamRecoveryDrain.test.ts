@@ -8,6 +8,8 @@ const h = vi.hoisted(() => ({
   listMembersByTeam: vi.fn(),
   hasUnread: vi.fn(),
   notifyWake: vi.fn(),
+  peekUnread: vi.fn(),
+  markReadBatch: vi.fn(),
 }));
 
 vi.mock('@process/database', () => ({
@@ -45,6 +47,7 @@ function makeMember(id: string, role: 'lead' | 'teammate'): TeamMember {
     avatar: null,
     conversation_id: `c-${id}`,
     status: 'idle',
+    source: null,
     created_at: 1,
   };
 }
@@ -53,8 +56,13 @@ beforeEach(() => {
   h.listMembersByTeam.mockReset();
   h.hasUnread.mockReset();
   h.notifyWake.mockReset();
+  h.peekUnread.mockReset();
+  h.markReadBatch.mockReset();
+  h.peekUnread.mockReturnValue([]);
   vi.spyOn(teamStore, 'listMembersByTeam').mockImplementation(h.listMembersByTeam);
   vi.spyOn(teamStore, 'hasUnread').mockImplementation(h.hasUnread);
+  vi.spyOn(teamStore, 'peekUnread').mockImplementation(h.peekUnread);
+  vi.spyOn(teamStore, 'markReadBatch').mockImplementation(h.markReadBatch);
 });
 
 describe('RecoveryDrain (附录 I.4)', () => {
@@ -79,6 +87,29 @@ describe('RecoveryDrain (附录 I.4)', () => {
     expect(h.notifyWake).toHaveBeenCalledWith('t1');
     expect(h.notifyWake).toHaveBeenCalledWith('t2');
     expect(h.notifyWake).not.toHaveBeenCalledWith('lead');
+  });
+
+  it('skips failed members when seeding recovery wakes', () => {
+    const teamRun = new TeamRunManager('t1', new SlotWakeGate());
+    h.listMembersByTeam.mockReturnValue([makeMember('lead', 'lead'), { ...makeMember('t1', 'teammate'), status: 'failed' }]);
+    h.hasUnread.mockReturnValue(true);
+
+    new RecoveryDrain('t1', teamRun, h.notifyWake).drain();
+
+    expect(teamRun.hasPendingWake('t1')).toBe(false);
+    expect(h.notifyWake).not.toHaveBeenCalledWith('t1');
+  });
+
+  it('marks stale crash testaments read before recovery backlog detection', () => {
+    const teamRun = new TeamRunManager('t1', new SlotWakeGate());
+    h.listMembersByTeam.mockReturnValue([makeMember('lead', 'lead'), makeMember('t1', 'teammate')]);
+    h.peekUnread.mockImplementation((_teamId: string, slotId: string) => (slotId === 'lead' ? [{ id: 'mail-1', team_id: 't1', to_member_id: 'lead', from_member_id: 't1', type: 'crash_testament', content: 'crashed', summary: null, files: null, read: false, created_at: 1 }] : []));
+    h.hasUnread.mockReturnValue(false);
+
+    new RecoveryDrain('t1', teamRun, h.notifyWake).drain();
+
+    expect(h.markReadBatch).toHaveBeenCalledWith(['mail-1']);
+    expect(teamRun.hasActiveRun()).toBe(false);
   });
 
   it('no-op when a run is already active', () => {

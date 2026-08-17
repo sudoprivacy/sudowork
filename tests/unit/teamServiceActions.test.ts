@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   updateTeam: vi.fn(),
   getMember: vi.fn(),
   softDeleteMember: vi.fn(),
+  hardDeleteMailboxByMember: vi.fn(),
   emitMemberRemoved: vi.fn(),
 }));
 
@@ -48,6 +49,7 @@ vi.mock('@process/services/team/TeamStore', () => ({
     updateTeam: h.updateTeam,
     getMember: h.getMember,
     softDeleteMember: h.softDeleteMember,
+    hardDeleteMailboxByMember: h.hardDeleteMailboxByMember,
   },
 }));
 
@@ -78,6 +80,7 @@ beforeEach(() => {
   h.updateTeam.mockReset();
   h.getMember.mockReset();
   h.softDeleteMember.mockReset();
+  h.hardDeleteMailboxByMember.mockReset();
   h.emitMemberRemoved.mockReset();
   h.listMembersByTeam.mockReturnValue([]);
   vi.resetModules();
@@ -207,6 +210,7 @@ describe('TeamService removeMember ownership + leader guard', () => {
     await teamService.removeMember('team-1', 'slot-1');
 
     expect(h.softDeleteMember).toHaveBeenCalledWith('slot-1');
+    expect(h.hardDeleteMailboxByMember).toHaveBeenCalledWith('slot-1');
     expect(h.emitMemberRemoved).toHaveBeenCalledWith({ team_id: 'team-1', slot_id: 'slot-1' });
   });
 });
