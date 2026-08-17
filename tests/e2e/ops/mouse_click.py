@@ -23,6 +23,36 @@ would be the duplicate-API-at-one-level problem, so this op does one thing.
 """
 
 from ai_dev_browser.core.elements import click_by_text
+from ai_dev_browser.core.page import js_evaluate
+
+
+# DOM-structural fallback for when the accessible-name locator can't see a
+# target. React renders clickable rows/cards as a bare `<div class="cursor-
+# pointer">` with an onClick handler and NO role/aria/onclick attribute — e.g.
+# the "Sudo Code" agent card on /guid. Such a div is not in the accessibility
+# tree, so click_by_text (accessible-name) returns nothing even though the text
+# is plainly on screen. This finds the smallest visible element whose text
+# matches, walks up to the nearest clickable ancestor (button / role=button /
+# cursor:pointer / onclick), and dispatches a native click — which React's
+# root-level delegated listener picks up.
+_DOM_CLICK_JS = """(() => {
+    const target = %s;
+    const vis = (e) => e.offsetHeight > 0 && e.offsetWidth > 0;
+    const matches = Array.prototype.slice.call(document.querySelectorAll('*'))
+        .filter(e => vis(e) && (e.textContent || '').trim() === target);
+    if (!matches.length) return { clicked: false };
+    // Smallest match = the most specific (leaf) label, not an outer container.
+    matches.sort((a, b) => (a.textContent || '').length - (b.textContent || '').length);
+    let el = matches[0], click = el;
+    for (let i = 0; i < 6 && click; i++) {
+        const cs = getComputedStyle(click);
+        if (click.tagName === 'BUTTON' || click.getAttribute('role') === 'button'
+            || click.onclick || cs.cursor === 'pointer') break;
+        click = click.parentElement;
+    }
+    (click || el).click();
+    return { clicked: true, via: 'dom-fallback', tag: (click || el).tagName };
+})()"""
 
 
 async def mouse_click(tab, text: str = "", wait: float = 1) -> dict:
@@ -42,7 +72,14 @@ async def mouse_click(tab, text: str = "", wait: float = 1) -> dict:
         return {"error": "mouse_click requires `text` (use the `click` op for coordinates)"}
 
     result = await click_by_text(tab, text, timeout=max(wait, 1))
+    if result.get("clicked"):
+        return result
 
-    if not result.get("clicked"):
-        return {"error": f"Element not found: {text}"}
-    return result
+    # Accessible-name locator missed — try the DOM-structural fallback for
+    # React cursor-pointer divs the a11y tree doesn't expose.
+    r = await js_evaluate(tab, _DOM_CLICK_JS % repr(text))
+    fallback = r.get("result") if isinstance(r, dict) else None
+    if isinstance(fallback, dict) and fallback.get("clicked"):
+        return fallback
+
+    return {"error": f"Element not found: {text}"}

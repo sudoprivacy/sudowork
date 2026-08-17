@@ -22,9 +22,6 @@ steps:
     timeout: 300
 
   # -- Sudo Code backend --
-  - op: click
-    x: 530
-    y: 27
   - op: pause
     duration: 3000
   - op: mouse_click

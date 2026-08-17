@@ -10,9 +10,6 @@ steps:
     timeout: 300
 
   # ── Phase 1: Navigate to new conversation and select Sudo Code ──
-  - op: click
-    x: 530
-    y: 27
   - op: pause
     duration: 3000
   - op: mouse_click

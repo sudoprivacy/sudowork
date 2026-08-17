@@ -9,9 +9,6 @@ steps:
     timeout: 300
 
   # ── Phase 1: Start with Sudoclaw ──
-  - op: click
-    x: 530
-    y: 27
   - op: pause
     duration: 3000
   - op: mouse_click
@@ -31,9 +28,6 @@ steps:
     expect: "Sudoclaw"
 
   # ── Phase 2: Switch to Sudo Code in a new conversation ──
-  - op: click
-    x: 530
-    y: 27
   - op: pause
     duration: 3000
   - op: mouse_click
@@ -53,9 +47,6 @@ steps:
     expect: "Sudo Code"
 
   # ── Phase 3: Switch back to Sudoclaw, verify independent ──
-  - op: click
-    x: 530
-    y: 27
   - op: pause
     duration: 3000
   - op: mouse_click

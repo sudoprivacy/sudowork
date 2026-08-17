@@ -9,9 +9,6 @@ steps:
   - op: wait_for_app_ready
     timeout: 300
 
-  - op: click
-    x: 530
-    y: 27
   - op: pause
     duration: 3000
   - op: mouse_click
