@@ -24,7 +24,7 @@ import { createConversation } from '../conversationService';
 import { reapConversation, isSafeAutoWorkspacePath } from '../conversationReaper';
 import { teamStore, type Team, type TeamMail, type TeamMember, type TeamMemberSource, type TeamWorkspaceKind } from './TeamStore';
 import { buildGovernancePrompt } from './GovernancePrompt';
-import { EventLoop } from './EventLoop';
+import { EventLoop, AUTO_RETRY_HINT_PREFIXES } from './EventLoop';
 import { TeamRunManager } from './TeamRun';
 import { RecoveryDrain } from './RecoveryDrain';
 import { TaskBoard } from './TaskBoard';
@@ -40,6 +40,14 @@ const MAX_TEAM_MCP_BODY_BYTES = 64 * 1024 * 1024;
 const TEAM_MCP_PATH = '/team-mcp';
 const TEAM_MCP_SERVER_NAME = 'team-mcp';
 const TEAM_SESSION_CLOSE_TIMEOUT_MS = 3000;
+
+/** C：user turn 零产出自动重试提示的正文（前缀在回调内取 AUTO_RETRY_HINT_PREFIXES 拼接——
+ * 模块顶层不解引用该常量：部分测试的 vi.mock 工厂只导出 EventLoop，顶层求值会使其加载失败）。
+ * 必须跟随会话已检测语言投递：sendMessageToMember 内部会用 hint 文本覆写 session.latestUserLanguage，
+ * 且会话重建时也会从最新 user mail 重新检测语言——固定英文文案会把中文会话污染为 'en'，
+ * 导致下一轮向中文用户注入英文语言契约。 */
+const EMPTY_PROSE_RETRY_HINT_BODY_ZH = '你上一轮没有产生任何可见输出（可能是模型或网络服务的临时问题）。请继续处理并回复上面用户最新的消息。';
+const EMPTY_PROSE_RETRY_HINT_BODY_EN = "Your previous turn produced no visible output (possibly a transient model/provider issue). Please continue and respond to the user's latest message above.";
 
 type TeamToolResult = { ok: true; data: unknown } | { ok: false; error: string };
 
@@ -719,6 +727,12 @@ class TeamService {
       onWakeSlot: (targetSlot, source, messageId) => this.recordSystemWake(teamId, targetSlot, source, messageId),
       lookupMember: (sid) => this.lookupMember(teamId, sid),
       getLatestUserLanguage: () => session.latestUserLanguage,
+      onUserTurnEmptyProse: (slotId) => {
+        const hint = (this.sessions.get(teamId)?.latestUserLanguage ?? 'en') === 'zh' ? `${AUTO_RETRY_HINT_PREFIXES[1]} ${EMPTY_PROSE_RETRY_HINT_BODY_ZH}` : `${AUTO_RETRY_HINT_PREFIXES[0]} ${EMPTY_PROSE_RETRY_HINT_BODY_EN}`;
+        void this.sendMessageToMember(teamId, slotId, hint).catch((e) => {
+          mainWarn('TeamService', `empty-prose auto-retry mail failed for ${slotId}:`, e);
+        });
+      },
     });
     runtime.eventLoop = eventLoop;
     eventLoop.start();

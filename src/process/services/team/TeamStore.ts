@@ -423,11 +423,11 @@ class TeamStore {
     return result.data.map(rowToMail);
   }
 
-  /** EXISTS check: does the recipient have any 'message' mail from the sender newer than `since` (finalizeTurn fallback-prose dedup). */
-  hasMailFromMemberSince(teamId: string, toMemberId: string, fromMemberId: string, since: number): boolean {
-    const result = getDatabase().queryOne<unknown>(`SELECT 1 FROM team_mailbox WHERE team_id = ? AND to_member_id = ? AND from_member_id = ? AND type = 'message' AND created_at > ? LIMIT 1`, teamId, toMemberId, fromMemberId, since);
+  /** Sum of 'message' mail content length the recipient has from the sender newer than `since` (finalizeTurn fallback-prose dedup). */
+  getMemberMessageCharsSince(teamId: string, toMemberId: string, fromMemberId: string, since: number): number {
+    const result = getDatabase().queryOne<{ total: number | null }>(`SELECT SUM(LENGTH(content)) AS total FROM team_mailbox WHERE team_id = ? AND to_member_id = ? AND from_member_id = ? AND type = 'message' AND created_at > ?`, teamId, toMemberId, fromMemberId, since);
     if (!result.success) throw new Error(result.error);
-    return result.data != null;
+    return result.data?.total ?? 0;
   }
 
   /**

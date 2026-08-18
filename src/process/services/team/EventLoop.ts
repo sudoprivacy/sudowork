@@ -11,6 +11,13 @@ import type { WakeSource } from './WakeSource';
 
 const EVENT_LOOP_STOP_TIMEOUT_MS = 3000;
 
+/** 系统自动重试提示 mail 的内容前缀。检测时据此排除系统 hint 自身（hint 也是 from='user' mail，
+ * 若不排除，上游持续零产出时会形成 hint→零产出→hint 的无限重试链，违反"同一用户消息只重试一次"）。
+ * 已知边界：用户手打消息恰以该前缀开头时会被误判为 hint，仅丢失一次自动重试机会（等同无本机制
+ * 的现状，非行为退化），UI 投影不受影响（MessageProjection 按 from='user' 投右侧气泡，不看内容）。 */
+export const AUTO_RETRY_HINT_PREFIXES = ['[Auto-retry]', '[自动重试]'] as const;
+const isAutoRetryHint = (mail: TeamMail): boolean => AUTO_RETRY_HINT_PREFIXES.some((p) => mail.content.startsWith(p));
+
 /** Promise-based signal gate (附录 I.5 Notify) — non-polling wake. */
 export class Notify {
   private pending = 0;
@@ -50,6 +57,8 @@ export interface EventLoopDeps {
   /** Resolve a slot_id to its member (sender lookup for message projection). */
   lookupMember: (slotId: string) => TeamMember | null;
   getLatestUserLanguage?: () => TeamUserLanguage | null;
+  /** A user_message-driven turn completed with zero prose — auto-retry hook. */
+  onUserTurnEmptyProse?: (slotId: string) => void;
 }
 
 interface WakeInput {
@@ -223,6 +232,19 @@ export class EventLoop {
       // Peek-then-mark: Ok + graceful-Failed both mark (agent resolved); Err (thrown) stays unread.
       teamStore.markReadBatch(messages.map((m) => m.id));
       if (!this.alive) return null;
+      // user_message 唤醒的 turn 正常结束但零助手正文（如上游空流）：不干预则该成员静默 idle 且
+      // 无后续唤醒事件。补投一条 from='user' 提示走 user_message 唤醒（与用户手动再发消息等价）。
+      // isAutoRetryHint 排除系统 hint：hint 驱动的重试轮再次零产出时不再投递（一次上限）。
+      if (source === 'user_message') {
+        const userMail = messages.find((m) => m.from_member_id === 'user' && !isAutoRetryHint(m));
+        if (userMail && (agent.getLastTurnProseText?.() ?? '').trim() === '') {
+          try {
+            this.deps.onUserTurnEmptyProse?.(this.deps.slotId);
+          } catch (e) {
+            mainWarn('EventLoop', `empty-prose auto-retry failed for ${this.deps.slotId}:`, e);
+          }
+        }
+      }
       return { turn_id: turnId, status: 'completed' };
     } catch (e) {
       if (!this.alive) return null;
@@ -266,15 +288,16 @@ export class EventLoop {
       if (member.role === 'teammate') {
         const leaderId = this.deps.leaderSlotId();
         if (leaderId) {
-          // 兜底回传正文：member 本 turn 若未主动把正文发给 leader，把其内存正文（绕开 DB 落盘）
+          // 兜底回传正文：member 本 turn 若未把实质正文发给 leader（判据：已发 message 总字符数 ×2 ≥
+          // 本 turn 正文长度才视为已回传——只发"已完成"类短状态短语不算），把其内存正文（绕开 DB 落盘）
           // 以 type=message 投进 leader mailbox。只投递、不单独唤醒（唤醒由下方 idle_notification 走闸门）。
           // 必须同步、无 await，且在 idle_notification/onWakeSlot 之前——否则 leader 被 onWakeSlot 唤醒时
           // 正文可能尚未入 mailbox，导致漏读。
           try {
             const prose = this.deps.getAgent()?.getLastTurnProseText() ?? '';
             if (prose) {
-              const alreadyReplied = teamStore.hasMailFromMemberSince(teamId, leaderId, slotId, this.turnStartCreatedAt);
-              if (!alreadyReplied) {
+              const sentChars = teamStore.getMemberMessageCharsSince(teamId, leaderId, slotId, this.turnStartCreatedAt);
+              if (sentChars * 2 < prose.length) {
                 teamStore.insertMail({
                   id: uuid(36),
                   team_id: teamId,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventLoop } from '@process/services/team/EventLoop';
+import { EventLoop, type EventLoopDeps } from '@process/services/team/EventLoop';
 import { TeamRunManager } from '@process/services/team/TeamRun';
 import { SlotWakeGate } from '@process/services/team/SlotWakeGate';
 import type { TeamMember } from '@process/services/team/TeamStore';
@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   emitUserContent: vi.fn(),
   agentSend: vi.fn(),
   onWakeSlot: vi.fn(),
+  onEmptyProse: vi.fn(),
 }));
 
 vi.mock('@process/database', () => ({
@@ -119,7 +120,7 @@ const loops: EventLoop[] = [];
 
 type AgentLike = { sendMessage: (data: { content: string; msg_id: string }) => Promise<unknown>; getLastTurnProseText?: () => string };
 
-function buildLoop(member: TeamMember, agent: AgentLike, leaderSlotId: () => string | null = () => 'leader'): { loop: EventLoop; teamRun: TeamRunManager } {
+function buildLoop(member: TeamMember, agent: AgentLike, leaderSlotId: () => string | null = () => 'leader', extraDeps?: Partial<EventLoopDeps>): { loop: EventLoop; teamRun: TeamRunManager } {
   const wakeGate = new SlotWakeGate();
   const teamRun = new TeamRunManager('t1', wakeGate);
   const loop = new EventLoop({
@@ -136,6 +137,7 @@ function buildLoop(member: TeamMember, agent: AgentLike, leaderSlotId: () => str
       if (sid === 'sender') return { ...member, id: 'sender', name: 'Sender', role: 'teammate', conversation_id: 'c-sender' };
       return null;
     },
+    ...extraDeps,
   });
   loops.push(loop);
   return { loop, teamRun };
@@ -173,6 +175,7 @@ beforeEach(() => {
   h.emitUserContent.mockReset();
   h.agentSend.mockReset();
   h.onWakeSlot.mockReset();
+  h.onEmptyProse.mockReset();
 
   h.query.mockImplementation(() => ({ success: true, data: [...queue] }));
   h.queryOne.mockImplementation((sql: string) => {
@@ -546,10 +549,10 @@ describe('EventLoop fallback prose reply (finalizeTurn 兜底回传正文)', () 
     expect(msg?.from).toBe('s1');
   });
 
-  it('已主动回传（leader mailbox 有 from member 的 message 且 created_at>watermark）则跳过兜底', async () => {
+  it('已回传实质正文（长度≥正文一半）则跳过兜底', async () => {
     h.queryOne.mockImplementation((sql: string) => {
       if (typeof sql === 'string' && sql.includes('MAX(created_at)')) return { success: true, data: { maxCreated: 1 } };
-      if (sql.includes('SELECT 1 FROM team_mailbox')) return { success: true, data: { 1: 1 } };
+      if (sql.includes('SUM(LENGTH(content))')) return { success: true, data: { total: 9999 } };
       if (sql.includes('FROM team_members')) return { success: true, data: { ...MEMBER_ROW } };
       return { success: true, data: null };
     });
@@ -557,7 +560,6 @@ describe('EventLoop fallback prose reply (finalizeTurn 兜底回传正文)', () 
     const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
     seedWake(teamRun, 's1', 'teammate');
     queue.push(row({ from_member_id: 'user', content: '请立论' }));
-    queue.push(row({ id: 'reply', to_member_id: 'leader', from_member_id: 's1', type: 'message', content: '已主动回传', created_at: 50 }));
     loop.start();
     loop.notifyWake();
     await flush();
@@ -565,6 +567,29 @@ describe('EventLoop fallback prose reply (finalizeTurn 兜底回传正文)', () 
     const mails = insertMails();
     expect(mails.some((m) => m.type === 'message')).toBe(false);
     expect(mails.some((m) => m.type === 'idle_notification')).toBe(true);
+  });
+
+  it('仅回传短状态短语（长度不足正文一半）仍兜底投正文', async () => {
+    const prose = '我方观点是：AI不可以取代人类。'.repeat(40);
+    h.queryOne.mockImplementation((sql: string) => {
+      if (typeof sql === 'string' && sql.includes('MAX(created_at)')) return { success: true, data: { maxCreated: 1 } };
+      if (sql.includes('SUM(LENGTH(content))')) return { success: true, data: { total: 24 } };
+      if (sql.includes('FROM team_members')) return { success: true, data: { ...MEMBER_ROW } };
+      return { success: true, data: null };
+    });
+    const agent: AgentLike = { sendMessage: h.agentSend, getLastTurnProseText: () => prose };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent);
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ from_member_id: 'user', content: '请立论' }));
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    const mails = insertMails();
+    const msg = mails.find((m) => m.type === 'message');
+    expect(msg?.content).toBe(prose);
+    expect(msg?.to).toBe('leader');
+    expect(msg?.from).toBe('s1');
   });
 
   it('上一 turn 陈旧 mail（created_at ≤ watermark）不误命中，仍兜底投正文', async () => {
@@ -598,6 +623,64 @@ describe('EventLoop fallback prose reply (finalizeTurn 兜底回传正文)', () 
     const mails = insertMails();
     expect(mails.some((m) => m.type === 'message')).toBe(false);
     expect(mails.some((m) => m.type === 'idle_notification')).toBe(true);
+  });
+});
+
+describe('EventLoop empty-prose auto-retry (C: user turn 零产出自动重试)', () => {
+  it('user_message 源 + 零 prose → 回调恰调一次', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent, () => 'leader', { onUserTurnEmptyProse: h.onEmptyProse });
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ id: 'u1', from_member_id: 'user', content: '请立论' }));
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    expect(h.onEmptyProse).toHaveBeenCalledTimes(1);
+    expect(h.onEmptyProse).toHaveBeenCalledWith('s1');
+  });
+
+  it('prose 非空 → 不触发回调', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend, getLastTurnProseText: () => '正文' };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent, () => 'leader', { onUserTurnEmptyProse: h.onEmptyProse });
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ id: 'u1', from_member_id: 'user', content: '请立论' }));
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    expect(h.onEmptyProse).not.toHaveBeenCalled();
+  });
+
+  it('非 user_message 源（mcp_send_message）+ 零 prose → 不触发回调', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent, () => 'leader', { onUserTurnEmptyProse: h.onEmptyProse });
+    seedWake(teamRun, 's1', 'teammate', 'mcp_send_message');
+    queue.push(row({ id: 'u1', from_member_id: 'user', content: '请立论' }));
+    loop.start();
+    loop.notifyWake();
+    await flush();
+
+    expect(h.onEmptyProse).not.toHaveBeenCalled();
+  });
+
+  it('防重试链自触发：hint 驱动的重试轮再次零产出时不再投递', async () => {
+    const agent: AgentLike = { sendMessage: h.agentSend };
+    const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate' }), agent, () => 'leader', { onUserTurnEmptyProse: h.onEmptyProse });
+    // 第一轮：真实 user mail 零产出 → 触发一次自动重试。
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ id: 'u1', from_member_id: 'user', content: '请立论' }));
+    loop.start();
+    loop.notifyWake();
+    await flush();
+    expect(h.onEmptyProse).toHaveBeenCalledTimes(1);
+
+    // 第二轮：系统补投的 hint（前缀开头）驱动 turn 再次零产出 → 不得再触发（一次上限）。
+    seedWake(teamRun, 's1', 'teammate');
+    queue.push(row({ id: 'hint1', from_member_id: 'user', content: '[Auto-retry] Your previous turn produced no visible output. Please continue.' }));
+    loop.notifyWake();
+    await flush();
+    expect(h.onEmptyProse).toHaveBeenCalledTimes(1);
   });
 });
 
