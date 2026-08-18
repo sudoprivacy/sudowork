@@ -47,6 +47,10 @@ type AssistantPromptsI18n = Record<string, string[]>;
 
 interface VisibleAssistantEntry {
   assistant_id: string;
+  tenantId?: string | null;
+  tenantIds?: string[];
+  tenant_id?: string | null;
+  tenant_ids?: string[];
   promptsI18n?: AssistantPromptsI18n;
   prompts_i18n?: AssistantPromptsI18n;
   enhancement?: {
@@ -58,6 +62,8 @@ interface VisibleAssistantEntry {
 
 interface VisibleAssistantOverlay {
   enhancement: IAssistantEnhancement;
+  tenantId?: string | null;
+  tenantIds?: string[];
   promptsI18n?: AssistantPromptsI18n;
 }
 
@@ -74,6 +80,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function stringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return value.filter((item): item is string => typeof item === 'string');
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string') return value;
+  }
+  return undefined;
+}
+
+function firstStringArray(...values: unknown[]): string[] | undefined {
+  for (const value of values) {
+    const arrayValue = stringArray(value);
+    if (arrayValue) return arrayValue;
+  }
+  return undefined;
 }
 
 function normalizePromptsI18n(value: unknown): AssistantPromptsI18n | undefined {
@@ -95,9 +116,16 @@ function firstPromptsI18n(...values: unknown[]): AssistantPromptsI18n | undefine
 
 function applyVisibleOverlay(item: IAssistantInfo, overlay: VisibleAssistantOverlay | undefined, fallbackEnhancement: IAssistantEnhancement): IAssistantInfo {
   const promptsI18n = overlay?.promptsI18n;
+  const tenantPatch =
+    overlay && (overlay.tenantId !== undefined || overlay.tenantIds)
+      ? {
+          tenantId: overlay.tenantId ?? overlay.tenantIds?.[0] ?? null,
+          tenantIds: overlay.tenantIds ?? (overlay.tenantId ? [overlay.tenantId] : []),
+        }
+      : {};
   return {
     ...item,
-    meta: promptsI18n ? { ...item.meta, promptsI18n } : item.meta,
+    meta: promptsI18n || Object.keys(tenantPatch).length > 0 ? { ...item.meta, ...tenantPatch, ...(promptsI18n ? { promptsI18n } : {}) } : item.meta,
     enhancement: overlay?.enhancement ?? fallbackEnhancement,
   };
 }
@@ -294,6 +322,8 @@ export class AssistantManager {
               mode: enh?.mode,
               difyAppId: enh?.dify_app_id,
             },
+            tenantId: firstString(entry.tenantId, entry.tenant_id),
+            tenantIds: firstStringArray(entry.tenantIds, entry.tenant_ids),
             promptsI18n: firstPromptsI18n(entry.promptsI18n, entry.prompts_i18n),
           });
         }

@@ -382,6 +382,10 @@ async function refreshUploadedAssistantStatusesFromHub(token: string): Promise<{
 interface VisibleAssistantOverlay extends Record<string, unknown> {
   assistant_id?: string;
   id?: string;
+  tenantId?: string | null;
+  tenantIds?: string[];
+  tenant_id?: string | null;
+  tenant_ids?: string[];
 }
 
 interface VisibleAssistantsResponse {
@@ -412,6 +416,21 @@ function firstNonEmptyString(...values: unknown[]): string | undefined {
 function stringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return value.filter((item): item is string => typeof item === 'string');
+}
+
+function firstStringArray(...values: unknown[]): string[] | undefined {
+  for (const value of values) {
+    const arrayValue = stringArray(value);
+    if (arrayValue) return arrayValue;
+  }
+  return undefined;
+}
+
+function tenantIdsWithFallback(tenantIdsValue: unknown, tenantIdsSnakeValue: unknown, tenantIdValue: unknown, tenantIdSnakeValue: unknown): string[] {
+  const tenantIds = firstStringArray(tenantIdsValue, tenantIdsSnakeValue);
+  if (tenantIds) return tenantIds;
+  const tenantId = firstNonEmptyString(tenantIdValue, tenantIdSnakeValue);
+  return tenantId ? [tenantId] : [];
 }
 
 function normalizePromptsI18n(value: unknown): AssistantPromptsI18n | undefined {
@@ -466,6 +485,17 @@ function applyVisibleAssistantOverlay(raw: Record<string, unknown>, overlay?: Vi
 
   const description = firstString(overlay.description);
   if (description !== undefined) merged.description = description;
+
+  const tenantIds = tenantIdsWithFallback(overlay.tenantIds, overlay.tenant_ids, overlay.tenantId, overlay.tenant_id);
+  const tenantId = firstString(overlay.tenantId, overlay.tenant_id) ?? tenantIds[0];
+  if (tenantIds.length > 0) {
+    merged.tenantIds = tenantIds;
+    merged.tenant_ids = tenantIds;
+  }
+  if (tenantId !== undefined) {
+    merged.tenantId = tenantId;
+    merged.tenant_id = tenantId;
+  }
 
   const avatar = firstString(overlay.avatar);
   if (avatar !== undefined) merged.avatar = avatar;
@@ -884,6 +914,10 @@ export function initAssistantHubBridge(): void {
                 defaultInitPrompt: meta.defaultInitPrompt || null,
                 promptsI18n,
                 prompts_i18n: promptsI18n,
+                tenantId: meta.tenantId ?? null,
+                tenantIds: tenantIdsWithFallback(meta.tenantIds, undefined, meta.tenantId, undefined),
+                tenant_id: meta.tenantId ?? null,
+                tenant_ids: tenantIdsWithFallback(meta.tenantIds, undefined, meta.tenantId, undefined),
                 visible_to: meta.visible_to || null,
                 version: meta.installed_version || '1.0.0',
               });
@@ -934,6 +968,8 @@ export function initAssistantHubBridge(): void {
         const version = [a.version, a.latest_version, latestVersion?.version, versions?.[0]?.version].find((value): value is string => typeof value === 'string' && value.length > 0);
         const sourceUrl = [a.sourceUrl, a.source_url, latestVersion?.source_url, versions?.[0]?.source_url].find((value): value is string => typeof value === 'string' && value.length > 0);
         const promptsI18n = firstPromptsI18n(a.promptsI18n, a.prompts_i18n);
+        const tenantIds = tenantIdsWithFallback(a.tenantIds, a.tenant_ids, a.tenantId, a.tenant_id);
+        const tenantId = firstNonEmptyString(a.tenantId, a.tenant_id) || tenantIds[0] || null;
 
         return {
           id: a.id as string,
@@ -959,6 +995,10 @@ export function initAssistantHubBridge(): void {
           defaultInitPrompt: (a.defaultInitPrompt as string) || null,
           promptsI18n,
           prompts_i18n: promptsI18n,
+          tenantId,
+          tenantIds,
+          tenant_id: tenantId,
+          tenant_ids: tenantIds,
           version,
           latestVersion,
           // Store sourceUrl for download (not in original type but needed for install)
@@ -1069,6 +1109,10 @@ export function initAssistantHubBridge(): void {
           defaultInitPrompt: meta.defaultInitPrompt || null,
           promptsI18n,
           prompts_i18n: promptsI18n,
+          tenantId: meta.tenantId ?? null,
+          tenantIds: tenantIdsWithFallback(meta.tenantIds, undefined, meta.tenantId, undefined),
+          tenant_id: meta.tenantId ?? null,
+          tenant_ids: tenantIdsWithFallback(meta.tenantIds, undefined, meta.tenantId, undefined),
           visible_to: meta.visible_to || null,
           version: meta.installed_version || '1.0.0',
         };
@@ -1365,6 +1409,8 @@ export function initAssistantHubBridge(): void {
         is_builtin: assistantMeta.tag === 'system',
         enabled: true,
         defaultInitPrompt: assistantMeta.defaultInitPrompt || null,
+        tenantId: assistantMeta.tenantId ?? assistantMeta.tenant_id ?? null,
+        tenantIds: tenantIdsWithFallback(assistantMeta.tenantIds, assistantMeta.tenant_ids, assistantMeta.tenantId, assistantMeta.tenant_id),
         promptsI18n,
         installed_version: version,
         installed_at: new Date().toISOString(),
@@ -1515,6 +1561,7 @@ export function registerUploadAssistantToHubBridge() {
       }
 
       // TenantId (required)
+      formData.append('tenantIds', JSON.stringify([tenantId.trim()]));
       formData.append('tenant_id', tenantId.trim());
 
       // Prompt file (.md)

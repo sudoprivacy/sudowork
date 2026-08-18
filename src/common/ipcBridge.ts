@@ -1959,6 +1959,12 @@ export interface IAssistantHubSkill {
   promptsI18n?: Record<string, string[]>;
   /** API-compatible snake_case variant */
   prompts_i18n?: Record<string, string[]>;
+  /** Primary tenant code from Skill Hub, retained for compatibility. */
+  tenantId?: string | null;
+  /** Complete tenant visibility list from Skill Hub. */
+  tenantIds?: string[];
+  tenant_id?: string | null;
+  tenant_ids?: string[];
   /** Internal: download URL from API (mapped from sourceUrl) */
   _sourceUrl?: string;
   /** Enterprise mode: visibility configuration */

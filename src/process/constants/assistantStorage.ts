@@ -110,6 +110,10 @@ export interface IAssistantMeta {
   core_features?: string | null;
   /** Default initial prompt to pre-fill input when selecting this assistant */
   defaultInitPrompt?: string | null;
+  /** Primary tenant code from Assistant Hub, retained for compatibility. */
+  tenantId?: string | null;
+  /** Complete tenant visibility list from Assistant Hub. */
+  tenantIds?: string[];
   /** Visibility configuration for enterprise assistants (department_ids filter) */
   visible_to?: { department_ids: string[] | null } | null;
   /** Whether this assistant has been uploaded to Moss Server */
