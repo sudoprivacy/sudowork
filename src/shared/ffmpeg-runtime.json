@@ -1,0 +1,14 @@
+{
+  "_doc": "Pinned FFmpeg runtime — SSOT for scripts/download-ffmpeg.js (build-time bundling) and FfmpegRuntimeService (runtime extraction). Source: BtbN/FFmpeg-Builds GPL static builds (libx264 + libass, so `ffmpeg -vf subtitles=` subtitle burning works). 'tag' is an IMMUTABLE dated autobuild release (never 'latest', which rolls); 'version' is the git-describe shared by every asset name in that release; 'releaseSuffix' selects the FFmpeg release-branch build (n9.0) over the master snapshot. Per-platform 'sha256' is the SHA256 of the DOWNLOADED archive (BtbN's GitHub-published asset digest), verified after download — a mismatch aborts the build. To bump: pick a newer autobuild-* tag, set tag/version/releaseSuffix, and refresh every sha256 in one commit via `gh api repos/BtbN/FFmpeg-Builds/releases/tags/<tag> --jq '.assets[] | \"\\(.name) \\(.digest)\"'`. macOS: BtbN ships no macOS build — add an evermeet/osxexperts source before shipping mac (the script skips unconfigured platforms).",
+
+  "tag": "autobuild-2026-08-17-13-05",
+  "version": "n9.0.1-4-gb3ef323dd2",
+  "releaseSuffix": "9.0",
+
+  "platforms": {
+    "win32-x64": { "btbn": "win64", "archive": "zip", "sha256": "ae937d5807fa7a281a0b9fbbfe976bfe60423a75c0892c0e6dcd266f37de43d5" },
+    "win32-arm64": { "btbn": "winarm64", "archive": "zip", "sha256": "ee488b5d138bc24557203b4b81a6a5895ef9b9a3f3b906c9669de2c6b07f63ef" },
+    "linux-x64": { "btbn": "linux64", "archive": "tar.xz", "sha256": "25557a63e38bbf2c03c27b647a40e3d1eaad391b6f0adfce501d62665b7c443c" },
+    "linux-arm64": { "btbn": "linuxarm64", "archive": "tar.xz", "sha256": "d6b7e2952b324b4f8f04d828778ca393668a34b00abd1a445000fbf97ba3e350" }
+  }
+}

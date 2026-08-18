@@ -1,47 +1,54 @@
 #!/usr/bin/env node
 /**
- * Download a static FFmpeg build and bundle it with the app.
- * Run during the build: `bun run ffmpeg:download` (wired into build:win/mac/linux).
+ * Download a PINNED static FFmpeg build and bundle it with the app.
+ * Run during the build: `bun run ffmpeg:download` (wired into build:win/mac/linux
+ * and the reusable CI build). Pass a `<os>-<arch>` key (e.g. `win32-x64`) to
+ * fetch a specific platform; defaults to the current build host.
  *
  * Produces `resources/ffmpeg-<platform>-<arch>.tar.gz` containing the flat
  * `ffmpeg`(.exe) [+ `ffprobe`(.exe)] binaries at the archive root, which
  * FfmpegRuntimeService extracts to `<userData>/ffmpeg/` at runtime.
  *
- * By default it fetches the current build platform (matching how build:win /
- * build:mac / build:linux each run on their own OS). Pass a `<os>-<arch>` key
- * (e.g. `win32-x64`) to fetch a specific one.
- *
- * Uses GPL static builds (libx264 + libass) so subtitle burning
- * (`ffmpeg -vf subtitles=...`) works.
+ * The exact build (tag, version, per-platform SHA256) is pinned in
+ * `src/shared/ffmpeg-runtime.json` — the single source of truth. We download
+ * from BtbN's IMMUTABLE dated `autobuild-*` release (not the rolling `latest`
+ * tag) and verify the downloaded archive against the pinned SHA256 before
+ * trusting it, so a build is reproducible and tamper-evident. BtbN's GPL builds
+ * ship libx264 + libass, so subtitle burning (`ffmpeg -vf subtitles=...`) works.
  */
 
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const tar = require('tar');
 const yauzl = require('yauzl');
+const pinned = require('../src/shared/ffmpeg-runtime.json');
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 
-// BtbN provides consistent cross-platform GPL static builds; macOS is not built
-// by BtbN and needs a separate source (evermeet / osxexperts) — TODO before we
-// ship macOS. Pin `FFMPEG_BUILD` to a dated `autobuild-*` tag for reproducible
-// builds; `latest` is fine for local dev/testing.
-const FFMPEG_BUILD = process.env.FFMPEG_BUILD || 'latest';
-const BTBN = (name) => `https://github.com/BtbN/FFmpeg-Builds/releases/download/${FFMPEG_BUILD}/${name}`;
+const { tag: FFMPEG_TAG, version: FFMPEG_VERSION, releaseSuffix: FFMPEG_RELEASE, platforms: PLATFORMS } = pinned;
 
-const PLATFORMS = {
-  'win32-x64': { url: BTBN('ffmpeg-master-latest-win64-gpl.zip'), archive: 'zip', exe: '.exe' },
-  'win32-arm64': { url: BTBN('ffmpeg-master-latest-winarm64-gpl.zip'), archive: 'zip', exe: '.exe' },
-  'linux-x64': { url: BTBN('ffmpeg-master-latest-linux64-gpl.tar.xz'), archive: 'tar.xz', exe: '' },
-  'linux-arm64': { url: BTBN('ffmpeg-master-latest-linuxarm64-gpl.tar.xz'), archive: 'tar.xz', exe: '' },
-  // 'darwin-x64' / 'darwin-arm64': BtbN has no macOS build — configure evermeet/osxexperts before shipping mac.
-};
+/** Asset basename BtbN publishes under the pinned dated tag, e.g. `ffmpeg-n9.0.1-4-g...-win64-gpl-9.0.zip`. */
+function assetName(cfg) {
+  const ext = cfg.archive === 'zip' ? 'zip' : 'tar.xz';
+  return `ffmpeg-${FFMPEG_VERSION}-${cfg.btbn}-gpl-${FFMPEG_RELEASE}.${ext}`;
+}
+
+function assetUrl(cfg) {
+  return `https://github.com/BtbN/FFmpeg-Builds/releases/download/${FFMPEG_TAG}/${assetName(cfg)}`;
+}
 
 function currentKey() {
   return `${process.platform}-${process.arch}`;
+}
+
+function sha256OfFile(filePath) {
+  const hash = crypto.createHash('sha256');
+  hash.update(fs.readFileSync(filePath));
+  return hash.digest('hex');
 }
 
 function download(url, dest) {
@@ -119,12 +126,13 @@ async function main() {
   const key = explicitKey || currentKey();
   const cfg = PLATFORMS[key];
   if (!cfg) {
-    // No source for this platform (e.g. macOS — pending evermeet/osxexperts).
+    // No source pinned for this platform (e.g. macOS — pending evermeet/osxexperts).
     // Skip rather than fail the build; the app ships without bundled ffmpeg on
-    // this platform until a source is configured.
-    console.warn(`[ffmpeg:download] no FFmpeg source configured for '${key}' — skipping (configured: ${Object.keys(PLATFORMS).join(', ')})`);
+    // this platform until a source is configured in ffmpeg-runtime.json.
+    console.warn(`[ffmpeg:download] no pinned FFmpeg for '${key}' — skipping (pinned: ${Object.keys(PLATFORMS).join(', ')})`);
     return;
   }
+  const exe = key.startsWith('win32') ? '.exe' : '';
 
   fs.mkdirSync(RESOURCES_DIR, { recursive: true });
   const outResource = path.join(RESOURCES_DIR, `ffmpeg-${key}.tar.gz`);
@@ -136,7 +144,24 @@ async function main() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ffmpeg-dl-'));
   try {
     const archivePath = path.join(tmp, `src.${cfg.archive === 'zip' ? 'zip' : 'tar.xz'}`);
-    await download(cfg.url, archivePath);
+    try {
+      await download(assetUrl(cfg), archivePath);
+    } catch (err) {
+      if (/HTTP 404/.test(err.message)) {
+        throw new Error(
+          `${assetName(cfg)} is gone from BtbN tag ${FFMPEG_TAG} (old autobuilds get pruned). ` +
+            `Re-pin src/shared/ffmpeg-runtime.json to a current autobuild-* tag + refresh its SHA256s.`,
+        );
+      }
+      throw err;
+    }
+
+    // Integrity gate: the pinned SHA256 must match before we trust the bytes.
+    const actualSha = sha256OfFile(archivePath);
+    if (actualSha !== cfg.sha256) {
+      throw new Error(`SHA256 mismatch for ${assetName(cfg)}: expected ${cfg.sha256}, got ${actualSha}`);
+    }
+    console.log(`[ffmpeg:download] SHA256 verified: ${actualSha}`);
 
     const extractDir = path.join(tmp, 'extract');
     fs.mkdirSync(extractDir, { recursive: true });
@@ -149,11 +174,11 @@ async function main() {
 
     const flatDir = path.join(tmp, 'flat');
     fs.mkdirSync(flatDir, { recursive: true });
-    const wanted = [`ffmpeg${cfg.exe}`, `ffprobe${cfg.exe}`];
+    const wanted = [`ffmpeg${exe}`, `ffprobe${exe}`];
     for (const name of wanted) {
       const found = findBinary(extractDir, name);
       if (!found) {
-        if (name.startsWith('ffmpeg')) throw new Error(`ffmpeg binary not found in ${cfg.url}`);
+        if (name.startsWith('ffmpeg')) throw new Error(`ffmpeg binary not found in ${assetName(cfg)}`);
         console.warn(`[ffmpeg:download] optional ${name} not found — skipping`);
         continue;
       }
@@ -162,7 +187,9 @@ async function main() {
       if (!name.endsWith('.exe')) fs.chmodSync(dst, 0o755);
     }
 
-    await tar.create({ gzip: true, file: outResource, cwd: flatDir, portable: true }, fs.readdirSync(flatDir));
+    // Max gzip level: static ffmpeg binaries barely compress, but it's a free
+    // few MB off a ~114 MB archive and build CPU is not the bottleneck here.
+    await tar.create({ gzip: { level: 9 }, file: outResource, cwd: flatDir, portable: true }, fs.readdirSync(flatDir));
     console.log(`[ffmpeg:download] wrote ${outResource} (${(fs.statSync(outResource).size / 1e6).toFixed(1)} MB)`);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
