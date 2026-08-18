@@ -18,6 +18,7 @@ const h = vi.hoisted(() => {
     retryMemberStart: vi.fn(),
     sendMessage: vi.fn(),
     sendMessageToMember: vi.fn(),
+    setSessionMode: vi.fn(),
   };
 });
 
@@ -71,7 +72,7 @@ vi.mock('@process/services/team/TeamService', () => ({
     cancelRun: vi.fn(),
     cancelChildTurn: vi.fn(),
     renewActiveLease: vi.fn(),
-    setSessionMode: vi.fn(),
+    setSessionMode: h.setSessionMode,
     rebuildTeam: vi.fn(),
     stopTeamSession: vi.fn(),
     pauseMember: vi.fn(),
@@ -91,6 +92,7 @@ beforeEach(() => {
   h.retryMemberStart.mockReset();
   h.sendMessage.mockReset();
   h.sendMessageToMember.mockReset();
+  h.setSessionMode.mockReset();
 });
 
 describe('teamBridge team history providers', () => {
@@ -185,5 +187,21 @@ describe('teamBridge runtime shape validation (zod, M5)', () => {
 
     await expect(h.providers.get('sendMessage')?.({ teamId: 'team-1', input: 'hello', files: ['a.txt'] })).resolves.toEqual({ ok: true });
     expect(h.sendMessage).toHaveBeenCalledWith('team-1', 'hello', ['a.txt'], undefined);
+  });
+});
+
+describe('teamBridge setSessionMode await (M13)', () => {
+  it('invokes the service with parsed params and surfaces a service rejection as an error envelope', async () => {
+    h.setSessionMode.mockRejectedValueOnce(new Error('mode failed'));
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    // A rejection only reaches the envelope if the provider awaits the (async) service call.
+    await expect(h.providers.get('setSessionMode')?.({ teamId: 'team-1', sessionMode: 'acceptEdits' })).resolves.toEqual({ __error: 'mode failed' });
+    expect(h.setSessionMode).toHaveBeenCalledWith('team-1', 'acceptEdits');
+
+    h.setSessionMode.mockResolvedValueOnce(undefined);
+    await expect(h.providers.get('setSessionMode')?.({ teamId: 'team-1', sessionMode: 'default' })).resolves.toBeUndefined();
+    expect(h.setSessionMode).toHaveBeenCalledWith('team-1', 'default');
   });
 });
