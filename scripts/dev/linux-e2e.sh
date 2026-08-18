@@ -111,12 +111,30 @@ date -u
 echo "[vitest rc=$RC7]"
 echo ""
 
+echo "=== STEP 7.5: ACP tunnel e2e (gated on managed_agent capability) ==="
+date -u
+# The pinned nexusd-cluster only speaks managed_agent once runtime-versions.json
+# pins a build that enlists it. acp-tunnel-smoke is a dependency-free capability
+# probe (start_session over the tunnel): present → run the real GrpcAcpTransport
+# e2e hard; absent → skip cleanly until the pin bumps. No in-test skip-guard.
+if ACP_GRPC_ENDPOINT=127.0.0.1:2028 node scripts/dev/acp-tunnel-smoke.mjs; then
+  ACP_GRPC_ENDPOINT=127.0.0.1:2028 bunx vitest run tests/integration/acpTunnelTransport.integration.test.ts 2>&1 | tail -20
+  RC_ACP=$?
+else
+  echo "SKIP acp-tunnel e2e: pinned nexusd-cluster has no managed_agent yet"
+  RC_ACP=0
+fi
+date -u
+echo "[acp-tunnel rc=$RC_ACP]"
+echo ""
+
 echo "=== STEP 8: stop cluster ==="
 kill "$CLUSTER_PID" 2>/dev/null || true
 sleep 2
 echo ""
 
 echo "=== summary ==="
-echo "download:$RC4  build:native:$RC5  vitest:$RC7"
-[ "$RC4" -eq 0 ] && [ "$RC5" -eq 0 ] && [ "$RC7" -eq 0 ] && echo "ALL GREEN" || echo "FAILURES PRESENT"
-exit $RC7
+echo "download:$RC4  build:native:$RC5  vitest:$RC7  acp-tunnel:$RC_ACP"
+[ "$RC4" -eq 0 ] && [ "$RC5" -eq 0 ] && [ "$RC7" -eq 0 ] && [ "$RC_ACP" -eq 0 ] && echo "ALL GREEN" || echo "FAILURES PRESENT"
+[ "$RC7" -ne 0 ] && exit "$RC7"
+exit "$RC_ACP"

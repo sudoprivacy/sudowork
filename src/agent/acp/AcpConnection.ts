@@ -18,7 +18,8 @@ import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
 import { StdioAcpTransport, GrpcAcpTransport } from './transport';
 import type { AcpTransport } from './transport';
-import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { buildGenericSpawnSpec, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { ACP_PERF_LOG } from './perf';
 import type { SpawnResult } from './acpConnectors';
 import { readTextFile, writeTextFile } from './utils';
 
@@ -63,6 +64,8 @@ export class AcpConnection {
   private sessionId: string | null = null;
   private isInitialized = false;
   private backend: AcpBackend | null = null;
+  /** Owning conversation id (set by AcpAgent); anchors the tunnel agentId for traceability. */
+  public conversationId: string | null = null;
   private initializeResponse: AcpResponse | null = null;
   private workingDir: string = process.cwd();
 
@@ -279,6 +282,16 @@ export class AcpConnection {
       },
     };
 
+    // When a nexus agent-plane endpoint is configured, spawn the agent via
+    // nexus (ManagedAgentService) and tunnel its stdio over the VFS fd streams
+    // instead of spawning it locally. Covers the buildGenericSpawnSpec backends
+    // (scode + other generic CLIs); npx bridges keep the local spawn path.
+    const nexusEndpoint = customEnv?.ACP_GRPC_ENDPOINT;
+    if (nexusEndpoint && cliPath && !AcpConnection.NPX_BACKENDS.has(backend)) {
+      await this.connectViaNexusTunnel(backend, cliPath, workingDir, acpArgs, customEnv, nexusEndpoint);
+      return;
+    }
+
     switch (backend) {
       case 'claude':
         await connectClaude(workingDir, npxHooks, customEnv);
@@ -318,39 +331,55 @@ export class AcpConnection {
         await this.connectGenericBackend('custom', cliPath, workingDir, acpArgs, customEnv);
         break;
 
-      case 'grpc': {
-        // gRPC transport — connect to a remote ACP server endpoint.
-        // Endpoint comes from customEnv.ACP_GRPC_ENDPOINT or cliPath.
-        const endpoint = customEnv?.ACP_GRPC_ENDPOINT || cliPath;
-        if (!endpoint) {
-          throw new Error('gRPC endpoint is required (set ACP_GRPC_ENDPOINT or pass as cliPath)');
-        }
-        const grpcTransport = new GrpcAcpTransport({
-          endpoint,
-          authToken: this.proxyToken || '',
-          events: {
-            onMessage: (msg) => this.handleMessage(msg),
-            onClose: (info) => {
-              if (this.isSetupComplete) {
-                this.handleProcessExit(info.code, info.signal as NodeJS.Signals | null);
-              }
-            },
-            onSetupError: (error) => {
-              throw error;
-            },
-          },
-        });
-        await grpcTransport.connect();
-        this.transport = grpcTransport;
-        // Initialize protocol
-        await this.initialize();
-        this.isSetupComplete = true;
-        break;
-      }
-
       default:
         throw new Error(`Unsupported backend: ${backend}`);
     }
+  }
+
+  /**
+   * Connect through the nexus tunnel: nexus spawns + supervises the agent from
+   * sudowork's spawn-spec and exposes its stdio as VFS fd streams. Same protocol
+   * handling as the local path — only the transport (spawn) differs.
+   */
+  private async connectViaNexusTunnel(backend: AcpBackend, cliPath: string, workingDir: string, acpArgs: string[] | undefined, customEnv: Record<string, string> | undefined, endpoint: string): Promise<void> {
+    const spawnSpec = await buildGenericSpawnSpec(backend, cliPath, workingDir, acpArgs, customEnv);
+    const agentId = `${os.hostname()}-sudowork-${backend}-${this.conversationId ?? crypto.randomUUID().slice(0, 8)}`;
+
+    const transport = new GrpcAcpTransport({
+      endpoint,
+      authToken: this.proxyToken || '',
+      agentId,
+      spawnSpec,
+      events: {
+        onMessage: (msg) => this.handleMessage(msg),
+        onClose: (info) => {
+          if (this.isSetupComplete) {
+            this.handleProcessExit(info.code, info.signal as NodeJS.Signals | null);
+          } else {
+            // Tunnel closed during setup (agent exited before initialize returned):
+            // reject the pending initialize so connect() fails fast with a clear
+            // error instead of waiting out the request timeout.
+            this.failPendingRequests('ACP agent exited before initialize completed');
+          }
+        },
+        onSetupError: () => {
+          // connect() rethrows the setup error; nothing extra to do here.
+        },
+      },
+    });
+
+    await transport.connect();
+    this.transport = transport;
+
+    // auth-proxy is token-only: the token MUST be registered for the agent's
+    // proxied calls to pass isValidToken. os_pid is only the bookkeeping value
+    // for revoke-on-disconnect, so register even when nexus returns no pid.
+    if (this.proxyToken) {
+      registerToken(this.proxyToken, transport.pid ?? 0);
+    }
+
+    await this.initialize();
+    this.isSetupComplete = true;
   }
 
   /**
@@ -365,13 +394,7 @@ export class AcpConnection {
     }
 
     // 1. Reject all pending requests with clear error message
-    for (const [_id, request] of this.pendingRequests) {
-      if (request.timeoutId) {
-        clearTimeout(request.timeoutId);
-      }
-      request.reject(new Error(`ACP process exited unexpectedly (code: ${code}, signal: ${signal})`));
-    }
-    this.pendingRequests.clear();
+    this.failPendingRequests(`ACP process exited unexpectedly (code: ${code}, signal: ${signal})`);
 
     // 2. Clear connection state
     this.sessionId = null;
@@ -385,6 +408,17 @@ export class AcpConnection {
 
     // 3. Notify AcpAgent about disconnect
     this.onDisconnect({ code, signal });
+  }
+
+  /** Reject + clear every in-flight request (shared by the exit and setup-close paths). */
+  private failPendingRequests(reason: string): void {
+    for (const [, request] of this.pendingRequests) {
+      if (request.timeoutId) {
+        clearTimeout(request.timeoutId);
+      }
+      request.reject(new Error(reason));
+    }
+    this.pendingRequests.clear();
   }
 
   private sendRequest<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
