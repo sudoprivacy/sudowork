@@ -16,6 +16,8 @@ const h = vi.hoisted(() => {
     renameTeam: vi.fn(),
     answerQuestion: vi.fn(),
     retryMemberStart: vi.fn(),
+    sendMessage: vi.fn(),
+    sendMessageToMember: vi.fn(),
   };
 });
 
@@ -62,8 +64,8 @@ vi.mock('@process/services/team/TeamService', () => ({
     removeTeam: vi.fn(),
     spawnMember: vi.fn(),
     removeMember: vi.fn(),
-    sendMessage: vi.fn(),
-    sendMessageToMember: vi.fn(),
+    sendMessage: h.sendMessage,
+    sendMessageToMember: h.sendMessageToMember,
     answerQuestion: h.answerQuestion,
     getRunState: vi.fn(),
     cancelRun: vi.fn(),
@@ -87,6 +89,8 @@ beforeEach(() => {
   h.renameTeam.mockReset();
   h.answerQuestion.mockReset();
   h.retryMemberStart.mockReset();
+  h.sendMessage.mockReset();
+  h.sendMessageToMember.mockReset();
 });
 
 describe('teamBridge team history providers', () => {
@@ -150,5 +154,36 @@ describe('teamBridge team history providers', () => {
     expect(h.retryMemberStart).toHaveBeenCalledWith('team-1', 'slot-1');
 
     await expect(h.providers.get('retryMemberStart')?.({ teamId: 'team-1', slotId: 'slot-1' })).resolves.toEqual({ __error: 'retry failed' });
+  });
+});
+
+describe('teamBridge runtime shape validation (zod, M5)', () => {
+  it('rejects a createTeam payload whose name is blank before reaching the service', async () => {
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    const res = await h.providers.get('createTeam')?.({ name: '   ', members: [{ assistant_id: 'scode', name: 'L', role: 'lead' }] });
+
+    expect(res).toEqual({ __error: expect.stringContaining('name') });
+    expect(h.createTeam).not.toHaveBeenCalled();
+  });
+
+  it('rejects a sendMessage payload whose input exceeds the size cap before reaching the service', async () => {
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    const res = await h.providers.get('sendMessage')?.({ teamId: 'team-1', input: 'x'.repeat(256 * 1024 + 1) });
+
+    expect(res).toEqual({ __error: expect.any(String) });
+    expect(h.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('passes a valid sendMessage payload through to the service', async () => {
+    h.sendMessage.mockResolvedValue({ ok: true });
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(h.providers.get('sendMessage')?.({ teamId: 'team-1', input: 'hello', files: ['a.txt'] })).resolves.toEqual({ ok: true });
+    expect(h.sendMessage).toHaveBeenCalledWith('team-1', 'hello', ['a.txt'], undefined);
   });
 });

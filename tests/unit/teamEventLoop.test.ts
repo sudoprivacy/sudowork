@@ -342,6 +342,73 @@ describe('EventLoop turn driving (附录 I.5)', () => {
       vi.useRealTimers();
     }
   });
+
+  it('abandons the turn after three sendMessage failures and notifies the leader (retry budget, M1)', async () => {
+    vi.useFakeTimers();
+    try {
+      const agent: AgentLike = { sendMessage: h.agentSend };
+      const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate', name: 'Al' }), agent);
+      h.agentSend.mockRejectedValue(new Error('boom'));
+      seedWake(teamRun, 's1', 'teammate');
+      queue.push(row({ id: 'm-err', from_member_id: 'user', content: 'x' }));
+
+      // No explicit notifyWake — start()'s self-check drains the pre-start wake (1st failure at t≈0),
+      // then backoff retries at t=1000 (2nd) and t=3000 (3rd) exhaust the budget.
+      loop.start();
+      await vi.advanceTimersByTimeAsync(20);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(2000);
+      await vi.advanceTimersByTimeAsync(4000); // nothing more — the turn was abandoned, not retried
+
+      expect(h.agentSend).toHaveBeenCalledTimes(3);
+      // The leader gets a plain 'message' (projected visible; NOT crash_testament) about the drop.
+      const abandonMail = h.mutate.mock.calls.find((c) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO team_mailbox') && typeof c[6] === 'string' && (c[6] as string).includes('could not start a turn'));
+      expect(abandonMail).toBeTruthy();
+      expect(abandonMail![3]).toBe('leader'); // to_member_id
+      expect(abandonMail![4]).toBe('s1'); // from_member_id
+      expect(abandonMail![5]).toBe('message'); // type
+      expect(h.onWakeSlot).toHaveBeenCalledWith('leader', 'crash_notification', expect.any(String));
+      // Reservation abandoned: no pending wake, no starting reservation; the mail is dropped unread.
+      expect(teamRun.pendingWakeCount('s1')).toBe(0);
+      expect(teamRun.getRecord()!.starting_reservations.size).toBe(0);
+      expect(teamRun.getRecord()!.status).toBe('cancelled'); // never-started run ends cancelled (M26)
+      expect(markReadCalls()).toHaveLength(0);
+      expect(h.emitStatus).toHaveBeenCalledWith(expect.objectContaining({ status: 'idle' }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('resets the retry budget after an abandon — a fresh delivery cycle retries again (M1)', async () => {
+    vi.useFakeTimers();
+    try {
+      const agent: AgentLike = { sendMessage: h.agentSend };
+      const { loop, teamRun } = buildLoop(makeMember({ id: 's1', role: 'teammate', name: 'Al' }), agent);
+      h.agentSend.mockRejectedValueOnce(new Error('boom')).mockRejectedValueOnce(new Error('boom')).mockRejectedValueOnce(new Error('boom')).mockRejectedValueOnce(new Error('boom'));
+      seedWake(teamRun, 's1', 'teammate');
+      queue.push(row({ id: 'm-err', from_member_id: 'user', content: 'x' }));
+
+      loop.start();
+      await vi.advanceTimersByTimeAsync(20);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(h.agentSend).toHaveBeenCalledTimes(3); // budget exhausted → abandoned
+
+      // Fresh cycle (the user re-sends): the counter must have reset, so the 4th failure
+      // schedules a retry instead of abandoning again.
+      seedWake(teamRun, 's1', 'teammate');
+      loop.notifyWake();
+      await vi.advanceTimersByTimeAsync(20);
+      expect(h.agentSend).toHaveBeenCalledTimes(4);
+      expect(markReadCalls()).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(4000); // backoff (4s after the prior 2s step) → 5th attempt succeeds
+      expect(h.agentSend).toHaveBeenCalledTimes(5);
+      expect(markReadCalls()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('EventLoop orphan guard + busy serialization', () => {
