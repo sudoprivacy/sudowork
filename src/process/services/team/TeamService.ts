@@ -19,6 +19,7 @@ import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import type AcpAgent from '@process/task/AcpAgent';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
+import { getScodeProxyModelInfoSync } from '@process/services/scode/scodeProxyModels';
 import { createConversation } from '../conversationService';
 import { reapConversation, isSafeAutoWorkspacePath } from '../conversationReaper';
 import { teamStore, type Team, type TeamMail, type TeamMember, type TeamMemberSource, type TeamWorkspaceKind } from './TeamStore';
@@ -1722,9 +1723,23 @@ class TeamService {
     if (typeof assistantId === 'string') {
       const lookupName = assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
       const meta = await assistantManager.getAssistantMeta(lookupName);
-      if (!meta) return { ok: false, error: `unknown assistant: ${assistantId}` };
-      const models = meta.modelConfigs ? Object.keys(meta.modelConfigs) : [];
-      return { ok: true, data: { assistant_id: assistantId, models } };
+      if (meta?.modelConfigs) {
+        return { ok: true, data: { assistant_id: assistantId, models: Object.keys(meta.modelConfigs) } };
+      }
+      // Resolve the backend from the same candidates team_list_assistants returns: the meta lookup
+      // fails for ids that differ from their directory name, and bare agent entries have no assistant dir.
+      const candidate = (await this.listAvailableAssistantsForTeam()).find((item) => item.assistant_id === assistantId);
+      if (candidate?.backend === 'scode') {
+        const info = getScodeProxyModelInfoSync();
+        return { ok: true, data: { assistant_id: assistantId, models: info?.availableModels.map((m) => m.id) ?? [], default_model: info?.currentModelId ?? null } };
+      }
+      if (candidate?.backend === 'claude') {
+        // Claude's model list only exists on a live ACP connection (post-spawn); an empty list tells
+        // the leader to omit model so the member uses the CLI default.
+        return { ok: true, data: { assistant_id: assistantId, models: [], default_model: null } };
+      }
+      if (meta) return { ok: true, data: { assistant_id: assistantId, models: [] } };
+      return { ok: false, error: `unknown assistant: ${assistantId}` };
     }
     return { ok: true, data: { models: [] } };
   }
