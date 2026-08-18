@@ -46,7 +46,14 @@ export function getFfprobeBinaryPath(): string {
  * `ffprobe` invocations resolve to the bundled binaries.
  */
 export function getFfmpegBinDir(): string | null {
-  return isFfmpegInstalled() ? getFfmpegDir() : null;
+  // Best-effort: this runs while building the ACP spawn env, which may execute
+  // in contexts where the userData path can't be resolved (e.g. tests). Never
+  // throw — just skip the ffmpeg PATH injection when it can't be determined.
+  try {
+    return isFfmpegInstalled() ? getFfmpegDir() : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Whether the bundled FFmpeg has already been extracted. */
