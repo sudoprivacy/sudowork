@@ -12,15 +12,16 @@ import { app } from 'electron';
 if (app.isPackaged) {
   process.env.PREBUILDS_ONLY = '1';
 }
+import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
 import initStorage, { ProcessConfig } from './initStorage';
 // initBridge is dynamically imported in initializeProcess() to ensure correct initialization order
 import './i18n'; // Initialize i18n for main process
 import { syncElectronPath } from './services/claudeCli/CliInstallService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
-import { mainLog, mainError, perfLog } from './utils/mainLogger';
+import { mainLog, mainWarn, mainError, perfLog } from './utils/mainLogger';
+import { ensureFfmpegInstalled } from './services/ffmpeg/FfmpegRuntimeService';
 import { initializeSudoworkLogUploader } from './utils/sudoworkLogUploader';
-import { refreshEnterpriseCache } from '@/common/enterpriseDebugConfig';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
 import { migrateLegacyScodeHomeOnce } from './services/scode/ScodeInstallService';
@@ -78,6 +79,13 @@ export const initializeProcess = async () => {
     mainError('Process', 'Bridge initialization failed', error);
   }
   perfLog('initBridge', Date.now() - bridgeStart);
+
+  // Provision the bundled FFmpeg in the background so skills that shell out to
+  // `ffmpeg` (subtitle burning, transcode) work without a user install. Fire-
+  // and-forget: extraction must not block boot, and skills only need it later.
+  void ensureFfmpegInstalled().catch((error) => {
+    mainWarn('Process', 'FFmpeg provisioning failed (non-fatal)', error);
+  });
 
   // ExtensionRegistry is zero-coupled to serviceManager/ChannelManager (verified in source),
   // so it must be initialized in ALL modes to support themes, i18n, settings tabs, etc.

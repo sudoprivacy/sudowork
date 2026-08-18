@@ -23,6 +23,7 @@ import { scodeEngineEnvOverrides } from '@process/services/scode/scodeEngineEnv'
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { isSafetyHookEnabled } from '@process/services/safety/SafetyPollingService';
+import { getFfmpegBinDir, getFfmpegBinaryPath } from '@process/services/ffmpeg/FfmpegRuntimeService';
 import { ACP_PERF_LOG } from './perf';
 
 const execFile = promisify(execFileCb);
@@ -272,6 +273,18 @@ export function prepareCleanEnv({ injectSafetyHook = true }: PrepareCleanEnvOpti
   const prevPath = cleanEnv.PATH || '';
   if (existsSync(sudoclawBinDir) && !prevPath.includes(sudoclawBinDir)) {
     cleanEnv.PATH = `${sudoclawBinDir}${path.delimiter}${prevPath}`;
+  }
+
+  // Add the bundled FFmpeg to PATH + FFMPEG_PATH so skills that shell out to
+  // `ffmpeg` (e.g. the FFmpeg Video Editor skill's subtitle burning) resolve
+  // the provisioned binary instead of depending on a user install.
+  const ffmpegBinDir = getFfmpegBinDir();
+  if (ffmpegBinDir) {
+    const currentPath = cleanEnv.PATH || '';
+    if (!currentPath.includes(ffmpegBinDir)) {
+      cleanEnv.PATH = `${ffmpegBinDir}${path.delimiter}${currentPath}`;
+    }
+    if (!cleanEnv.FFMPEG_PATH) cleanEnv.FFMPEG_PATH = getFfmpegBinaryPath();
   }
 
   return cleanEnv;
