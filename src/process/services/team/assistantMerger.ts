@@ -59,15 +59,12 @@ export function mergeTeamAssistants(detected: DetectedAgentLike[], installed: In
   const seen = new Set<string>();
   const result: TeamAssistantEntry[] = [];
 
-  // Installed assistants are processed first so their resolved backend wins over detected custom tags;
-  // display order is controlled by the sort below.
-  const seenBackends = new Set<string>();
+  // Installed assistants first (resolved backend preferred over the 'custom' tag in detected).
   for (const info of installed) {
     const key = getInstalledAssistantKey(info);
     if (seen.has(key)) continue;
     seen.add(key);
     const backend = resolvePresetAgentBackend(info.meta.presetAgentType);
-    seenBackends.add(backend);
     result.push({
       assistant_id: key,
       name: getInstalledAssistantDisplayName(info),
@@ -84,7 +81,6 @@ export function mergeTeamAssistants(detected: DetectedAgentLike[], installed: In
   for (const d of detected) {
     if (d.backend === 'remote-agent') continue; // enterprise — not a C-end team member
     const key = d.customAgentId ?? d.backend;
-    if (!d.customAgentId && seenBackends.has(d.backend)) continue;
     if (seen.has(key)) continue;
     seen.add(key);
     result.push({

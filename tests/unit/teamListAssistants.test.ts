@@ -18,14 +18,15 @@ describe('mergeTeamAssistants (附录 A2 merge/dedup/sort)', () => {
     const assistants = mergeTeamAssistants(detected, installed);
     const ids = assistants.map((a) => a.assistant_id);
 
-    expect(ids).toEqual(['custom1', 'builtin-doctor']);
+    expect(ids).toEqual(['scode', 'claude', 'custom1', 'builtin-doctor']);
     expect(ids).not.toContain('remote-agent');
-    expect(assistants.map((a) => a.source)).toEqual(['assistant', 'assistant']);
+    expect(assistants.map((a) => a.source)).toEqual(['agent', 'agent', 'assistant', 'assistant']);
     const doctor = assistants.find((a) => a.assistant_id === 'builtin-doctor')!;
     expect(assistants.find((a) => a.assistant_id === 'custom1')?.name).toBe('Custom One');
     expect(doctor.backend).toBe('claude'); // resolved, not 'custom'
     expect(doctor.source).toBe('assistant');
-    // Priority order within the assistant group: scode(0) before claude(2).
+    // Priority order within each source group: scode(0) before claude(2).
+    expect(ids.indexOf('scode')).toBeLessThan(ids.indexOf('claude'));
     expect(ids.indexOf('custom1')).toBeLessThan(ids.indexOf('builtin-doctor'));
   });
 
@@ -35,7 +36,7 @@ describe('mergeTeamAssistants (附录 A2 merge/dedup/sort)', () => {
     expect(assistants.map((a) => a.assistant_id)).toEqual(['scode']);
   });
 
-  it('keeps detected custom agents even when installed assistants share the resolved backend', () => {
+  it('keeps bare preset agents alongside custom and installed entries sharing the backend', () => {
     const installed: InstalledAssistantLike[] = [{ isBuiltin: false, isHubInstalled: true, name: 'Installed Scode', meta: { id: 'installed-scode', presetAgentType: 'scode' } }];
     const detected: DetectedAgentLike[] = [
       { backend: 'scode', name: 'Sudo Code', presetAgentType: 'scode' },
@@ -44,7 +45,7 @@ describe('mergeTeamAssistants (附录 A2 merge/dedup/sort)', () => {
 
     const assistants = mergeTeamAssistants(detected, installed);
 
-    expect(assistants.map((a) => a.assistant_id)).toEqual(['custom-scode', 'installed-scode']);
+    expect(assistants.map((a) => a.assistant_id)).toEqual(['scode', 'custom-scode', 'installed-scode']);
   });
 
   it('keeps insertion order for same-priority entries (stable sort)', () => {
