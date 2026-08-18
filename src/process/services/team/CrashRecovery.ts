@@ -1,4 +1,4 @@
-import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { mainLog } from '@process/utils/mainLogger';
 import type { TeamMailboxType, TeamMember } from './TeamStore';
 import type { WakeSource } from './WakeSource';
 
@@ -21,6 +21,8 @@ export interface CrashRecoveryDeps {
   writeMail: (toMemberId: string, fromMemberId: string, type: TeamMailboxType, content: string) => string;
   /** Wake a slot (e.g. the leader after a teammate crash). */
   notifyWake: (slot: string, source: WakeSource, messageId?: string | null) => void;
+  /** 60s watchdog inactivity timeout — log-only; crash recovery waits for a real stream disconnect. */
+  onInactiveTimeout?: (slot: string) => void;
 }
 
 /**
@@ -40,6 +42,10 @@ export class CrashRecovery {
   private finalizeLastAt = new Map<string, number>();
   /** Per-slot watchdog timers. */
   private wakeTimeouts = new Map<string, NodeJS.Timeout>();
+  /** Per-slot in-progress toolCallIds (高2: 工具执行中不降级). */
+  private toolInProgressBySlot = new Map<string, Set<string>>();
+  /** Already-crashed slots (N1: 防重复遗嘱). */
+  private crashedSlots = new Set<string>();
 
   constructor(private readonly deps: CrashRecoveryDeps) {}
 
@@ -86,20 +92,46 @@ export class CrashRecovery {
    * (or null if the leader itself crashed — the run goes Failed and the team stalls for the user).
    */
   handleCrash(slot: string, reason: CrashReason, lastMessage?: string): string | null {
+    if (this.crashedSlots.has(slot)) return null;
     const member = this.deps.getMember(slot);
     if (!member) return null;
     if (member.role !== 'lead') {
       const testament = reason.kind === 'Unknown' ? `Teammate '${member.name}' crashed during task (reason: ${reason.msg}). Last message: ${lastMessage ?? ''}.` : `Teammate '${member.name}' crashed (reason: ${reason.kind}).`;
       const leaderId = this.deps.leaderSlotId();
       if (leaderId) {
-        const messageId = this.deps.writeMail(leaderId, slot, 'message', testament);
+        // crash_testament (not 'message'): lets drain / computeWakeInput detect a stale testament
+        // (author no longer failed) and skip re-delivering it after restart + re-attach.
+        const messageId = this.deps.writeMail(leaderId, slot, 'crash_testament', testament);
         this.deps.notifyWake(leaderId, 'crash_notification', messageId);
       }
     }
     this.deps.setStatus(slot, 'failed', reason.kind === 'Unknown' ? reason.msg : reason.kind);
     this.releaseWakeLock(slot);
+    this.crashedSlots.add(slot);
     mainLog('CrashRecovery', `slot ${slot} crashed (${reason.kind})`);
     return member.role === 'lead' ? null : (this.deps.leaderSlotId() ?? null);
+  }
+
+  markCrashed(slot: string): void {
+    this.crashedSlots.add(slot);
+  }
+
+  isCrashed(slot: string): boolean {
+    return this.crashedSlots.has(slot);
+  }
+
+  trackToolStart(slot: string, toolCallId: string): void {
+    const set = this.toolInProgressBySlot.get(slot);
+    if (set) set.add(toolCallId);
+    else this.toolInProgressBySlot.set(slot, new Set([toolCallId]));
+  }
+
+  trackToolFinish(slot: string, toolCallId: string): void {
+    this.toolInProgressBySlot.get(slot)?.delete(toolCallId);
+  }
+
+  clearToolInProgress(slot: string): void {
+    this.toolInProgressBySlot.delete(slot);
   }
 
   /**
@@ -110,7 +142,11 @@ export class CrashRecovery {
   armWakeTimeout(slot: string): void {
     this.disarmWakeTimeout(slot);
     const timer = setTimeout(() => {
-      mainWarn('CrashRecovery', `slot ${slot} inactive for ${WAKE_TIMEOUT_MS}ms — marking suspicious (no auto-retry)`);
+      if ((this.toolInProgressBySlot.get(slot)?.size ?? 0) > 0) {
+        this.armWakeTimeout(slot);
+      } else {
+        this.deps.onInactiveTimeout?.(slot);
+      }
     }, WAKE_TIMEOUT_MS);
     timer.unref?.();
     this.wakeTimeouts.set(slot, timer);
@@ -134,10 +170,14 @@ export class CrashRecovery {
     if (slot) {
       this.disarmWakeTimeout(slot);
       this.activeWakes.delete(slot);
+      this.crashedSlots.delete(slot);
+      this.toolInProgressBySlot.delete(slot);
     } else {
       for (const t of this.wakeTimeouts.values()) clearTimeout(t);
       this.wakeTimeouts.clear();
       this.activeWakes.clear();
+      this.crashedSlots.clear();
+      this.toolInProgressBySlot.clear();
     }
   }
 }

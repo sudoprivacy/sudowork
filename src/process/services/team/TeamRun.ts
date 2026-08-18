@@ -107,7 +107,7 @@ export class TeamRunManager {
   }
 
   isActive(run: TeamRunRecord | null): boolean {
-    return run != null && (run.status === 'accepted' || run.status === 'running');
+    return run != null && (run.status === 'accepted' || run.status === 'running' || run.status === 'cancelling');
   }
 
   /** →accepted: acquire (or reuse) a run for a user message; returns the write-mailbox lease. */
@@ -219,7 +219,7 @@ export class TeamRunManager {
   /** stage 1 → 2: pending_wakes → starting_reservations. Returns null if no active run or empty queue. */
   claimWakeForTurn(slot: string, source: WakeSource): StartingChildReservation | null {
     const run = this.record;
-    if (!run || !this.isActive(run)) return null;
+    if (!run || !this.isActive(run) || run.status === 'cancelling') return null;
     const queue = run.pending_wakes.get(slot);
     if (!queue || queue.length === 0) return null;
     const wake = queue.shift()!;
@@ -241,6 +241,11 @@ export class TeamRunManager {
   recordChildStarted(reservation: StartingChildReservation, turnId: string, conversationId: string): void {
     const run = this.record;
     if (!run) return;
+    if (reservation.team_run_id !== run.team_run_id || reservation.state === 'Cancelling') {
+      run.starting_reservations.delete(reservation.reservation_id);
+      this.maybeComplete();
+      return;
+    }
     run.starting_reservations.delete(reservation.reservation_id);
     const child: ActiveChildTurn = {
       team_run_id: run.team_run_id,
@@ -292,14 +297,64 @@ export class TeamRunManager {
     if (this.isActive(run)) this.emitRun('team.runUpdated');
   }
 
-  /** reservation → pending_wakes head (retry on retryable start failure). */
+  /** reservation → pending_wakes (retry on retryable start failure). Foreground priority is preserved (no queue-jumping unshift). */
   retryChildStartLater(reservation: StartingChildReservation): void {
     const run = this.record;
     if (!run) return;
     run.starting_reservations.delete(reservation.reservation_id);
-    const queue = run.pending_wakes.get(reservation.slot_id) ?? [];
-    queue.unshift({ slot_id: reservation.slot_id, role: reservation.role, source: reservation.wake_source, message_id: reservation.message_id });
-    run.pending_wakes.set(reservation.slot_id, queue);
+    if (run.status === 'cancelling' || reservation.state === 'Cancelling') {
+      this.maybeComplete();
+      return;
+    }
+    this.pushPendingWakeInternal(run, reservation.slot_id, {
+      slot_id: reservation.slot_id,
+      role: reservation.role,
+      source: reservation.wake_source,
+      message_id: reservation.message_id,
+    });
+  }
+
+  /** Drop a starting reservation without re-queuing (turn retry budget exhausted — the caller notifies the leader). */
+  abandonReservation(reservation: StartingChildReservation): void {
+    const run = this.record;
+    if (!run) return;
+    run.starting_reservations.delete(reservation.reservation_id);
+    this.maybeComplete();
+  }
+
+  /**
+   * Remove a pending wake whose message_id matches a filtered-out mail (stale crash testament).
+   * Must trigger maybeComplete: every other completion trigger is event-driven, and this removal
+   * happens after the last one (the leader's recordChildCompleted) — without it the run would sit
+   * at running + empty queues until some unrelated event fires.
+   */
+  dropPendingWake(slot: string, messageId: string): void {
+    const run = this.record;
+    if (!run) return;
+    const queue = run.pending_wakes.get(slot);
+    if (!queue) return;
+    const next = queue.filter((w) => w.message_id !== messageId);
+    if (next.length === queue.length) return; // no match — idempotent no-op
+    if (next.length === 0) run.pending_wakes.delete(slot);
+    else run.pending_wakes.set(slot, next);
+    this.maybeComplete();
+  }
+
+  /**
+   * Emit the child-turn terminal event for an active child removed without a normal completion
+   * (crash / slot clear / force cancel). The renderer clears its per-slot child-turn entry only
+   * on this event (useTeamRunView.onChildTerminal) — skipping it strands a phantom "active" slot.
+   */
+  private emitChildCancelled(run: TeamRunRecord, child: ActiveChildTurn, status: 'failed' | 'cancelled'): void {
+    ipcBridge.team.onChildTurnCancelled.emit({
+      team_id: run.team_id,
+      team_run_id: run.team_run_id,
+      slot_id: child.slot_id,
+      role: child.role,
+      conversation_id: child.conversation_id,
+      turn_id: child.turn_id,
+      status,
+    });
   }
 
   /**
@@ -307,27 +362,7 @@ export class TeamRunManager {
    * reservations, fail its active child (→ run failed), and on a leader crash fail the run
    * outright. Without this, a crashed slot's retried pending wake strands the run active forever.
    */
-  handleSlotCrash(slot: string, isLeader: boolean): void {
-    const run = this.record;
-    if (!run) return;
-    run.pending_wakes.delete(slot);
-    for (const [id, res] of run.starting_reservations) {
-      if (res.slot_id === slot) run.starting_reservations.delete(id);
-    }
-    const child = run.active_child_turns.get(slot);
-    if (child) {
-      run.active_child_turns.delete(slot);
-      this.failRun();
-      return;
-    }
-    if (isLeader) this.failRun();
-    else this.maybeComplete();
-  }
-
-  /** Clear all in-memory run state owned by a removed slot. */
-  clearSlot(slot: string): void {
-    const run = this.record;
-    if (!run) return;
+  private clearSlotOwnedState(run: TeamRunRecord, slot: string): void {
     run.pending_wakes.delete(slot);
     for (const [id, res] of run.starting_reservations) {
       if (res.slot_id === slot) run.starting_reservations.delete(id);
@@ -337,15 +372,54 @@ export class TeamRunManager {
       if (lease.slot_id === slot) run.active_operation_leases.delete(id);
     }
     run.slot_wake_gate.clear(slot);
+  }
+
+  handleSlotCrash(slot: string, isLeader: boolean): void {
+    const run = this.record;
+    if (!run) return;
+    const child = run.active_child_turns.get(slot);
+    if (child) this.emitChildCancelled(run, child, 'failed');
+    this.clearSlotOwnedState(run, slot);
+    if (isLeader) this.failRun();
+    else this.maybeComplete();
+  }
+
+  /** Clear all in-memory run state owned by a removed slot. */
+  clearSlot(slot: string): void {
+    const run = this.record;
+    if (!run) return;
+    const child = run.active_child_turns.get(slot);
+    if (child) this.emitChildCancelled(run, child, 'cancelled');
+    this.clearSlotOwnedState(run, slot);
     this.maybeComplete();
   }
 
   private failRun(): void {
     const run = this.record;
     if (!run || !this.isActive(run)) return;
+    if (run.status === 'cancelling') {
+      run.status = 'cancelled';
+      run.cancelled_at = Date.now();
+      this.emitRun('team.runCancelled');
+      return;
+    }
     run.status = 'failed';
     run.completed_at = Date.now();
     this.emitRun('team.runFailed');
+  }
+
+  forceCancel(): void {
+    const run = this.record;
+    if (!run || run.status !== 'cancelling') return;
+    for (const child of run.active_child_turns.values()) this.emitChildCancelled(run, child, 'cancelled');
+    run.active_child_turns.clear();
+    run.starting_reservations.clear();
+    run.active_operation_leases.clear();
+    run.pending_wakes.clear();
+    run.slot_wake_gate.clear();
+    run.status = 'cancelled';
+    run.cancelled_at = Date.now();
+    this.emitRun('team.runCancelled');
   }
 
   // ---- completion (附录 I.1 maybe_complete_locked) ----
@@ -354,9 +428,19 @@ export class TeamRunManager {
     const run = this.record;
     if (!run) return;
     if (run.status !== 'running' && run.status !== 'accepted' && run.status !== 'cancelling') return;
-    const allEmpty = this.totalPendingWakeCount(run) === 0 && run.starting_reservations.size === 0 && run.active_child_turns.size === 0 && run.active_operation_leases.size === 0 && !run.slot_wake_gate.hasRetainedWork();
+    const allEmpty =
+      run.status === 'cancelling'
+        ? run.starting_reservations.size === 0 && run.active_child_turns.size === 0 && run.active_operation_leases.size === 0
+        : this.totalPendingWakeCount(run) === 0 && run.starting_reservations.size === 0 && run.active_child_turns.size === 0 && run.active_operation_leases.size === 0 && !run.slot_wake_gate.hasRetainedWork();
     if (!allEmpty) return;
     if (run.status === 'cancelling') {
+      run.status = 'cancelled';
+      run.cancelled_at = Date.now();
+      this.emitRun('team.runCancelled');
+    } else if (run.started_at == null) {
+      // Empty completion with no child ever started (lease abort before first wake, or a recovery
+      // run whose backlog was entirely stale testaments dropped by dropPendingWake): the run never
+      // truly began — cancelled is the honest terminal, and no runStarted/runCompleted pair is faked.
       run.status = 'cancelled';
       run.cancelled_at = Date.now();
       this.emitRun('team.runCancelled');
@@ -373,12 +457,14 @@ export class TeamRunManager {
   beginCancel(reason?: string): void {
     const run = this.record;
     if (!run || !this.isActive(run)) return;
+    if (run.status === 'cancelling') return; // P2-2: 防重入
     run.status = 'cancelling';
     run.cancel_reason = reason ?? null;
     run.pending_wakes.clear();
     run.slot_wake_gate.clear();
     for (const res of run.starting_reservations.values()) res.state = 'Cancelling';
     this.emitRun('team.runUpdated');
+    this.maybeComplete();
   }
 
   // ---- pending wake queries ----

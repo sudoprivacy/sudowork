@@ -9,6 +9,9 @@ const emits = vi.hoisted(() => ({
   completed: vi.fn(),
   cancelled: vi.fn(),
   failed: vi.fn(),
+  childStarted: vi.fn(),
+  childCompleted: vi.fn(),
+  childCancelled: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -20,9 +23,9 @@ vi.mock('@/common', () => ({
       onRunCompleted: { emit: emits.completed },
       onRunCancelled: { emit: emits.cancelled },
       onRunFailed: { emit: emits.failed },
-      onChildTurnStarted: { emit: vi.fn() },
-      onChildTurnCompleted: { emit: vi.fn() },
-      onChildTurnCancelled: { emit: vi.fn() },
+      onChildTurnStarted: { emit: emits.childStarted },
+      onChildTurnCompleted: { emit: emits.childCompleted },
+      onChildTurnCancelled: { emit: emits.childCancelled },
     },
   },
 }));
@@ -39,6 +42,9 @@ beforeEach(() => {
   emits.completed.mockReset();
   emits.cancelled.mockReset();
   emits.failed.mockReset();
+  emits.childStarted.mockReset();
+  emits.childCompleted.mockReset();
+  emits.childCancelled.mockReset();
 });
 
 describe('TeamRun state transitions (附录 I.1)', () => {
@@ -134,7 +140,18 @@ describe('TeamRun operation lease (附录 I.1)', () => {
     m.maybeComplete();
     expect(m.getRecord()!.status).toBe('accepted'); // lease present → cannot complete
     m.abortLease(lease.lease_id);
-    expect(m.getRecord()!.status).toBe('completed'); // lease gone + all empty → completed
+    expect(m.getRecord()!.status).toBe('cancelled'); // lease gone + no child ever started → cancelled
+  });
+
+  it('dropPendingWake cancels an accepted run when the only wake is stale', () => {
+    const m = newManager();
+    const { lease } = m.acquireWake('lead', 'lead', 'crash_notification');
+    m.commitLease(lease.lease_id, { slot_id: 'lead', role: 'lead', source: 'crash_notification', message_id: 'stale-mail' });
+
+    m.dropPendingWake('lead', 'stale-mail');
+
+    expect(m.getRecord()!.status).toBe('cancelled');
+    expect(emits.cancelled).toHaveBeenCalledTimes(1);
   });
 
   it('commit converts a lease into a pending wake', () => {
@@ -151,6 +168,15 @@ describe('TeamRun operation lease (附录 I.1)', () => {
     const { lease } = m.acquireWake('s1', 'lead', 'user_message');
     m.commitLease(lease.lease_id, { slot_id: 's1', role: 'lead', source: 'user_message', message_id: null });
     expect(m.getRecord()!.has_user_intervention).toBe(true);
+  });
+
+  it('abortLease removes the lease from active_operation_leases (H3-e lease-release contract)', () => {
+    const m = newManager();
+    const { lease } = m.acquireWake('s1', 'lead', 'user_message');
+    expect(m.getRecord()!.active_operation_leases.size).toBe(1);
+    m.abortLease(lease.lease_id);
+    expect(m.getRecord()!.active_operation_leases.size).toBe(0);
+    expect(m.getRecord()!.active_operation_leases.has(lease.lease_id)).toBe(false);
   });
 });
 
@@ -215,7 +241,7 @@ describe('TeamRun cancel (附录 I.1 begin_cancel)', () => {
     m.commitLease(lease.lease_id, { slot_id: 's1', role: 'lead', source: 'mcp_send_message', message_id: null });
     expect(m.pendingWakeCount('s1')).toBe(1);
     m.beginCancel('user requested');
-    expect(m.getRecord()!.status).toBe('cancelling');
+    expect(m.getRecord()!.status).toBe('cancelled'); // H4-d: beginCancel 末尾 maybeComplete → 无工作直接 cancelled
     expect(m.pendingWakeCount('s1')).toBe(0); // pending cleared
     expect(emits.updated).toHaveBeenCalledTimes(1);
     m.maybeComplete();
@@ -235,9 +261,9 @@ describe('TeamRun handleSlotCrash (附录 I.1 / 事实 9)', () => {
     // A retried pending wake would otherwise strand the run; handleSlotCrash must clear it.
     m.pushPendingWake('t1', { slot_id: 't1', role: 'teammate', source: 'mcp_send_message', message_id: null });
     m.handleSlotCrash('t1', false);
-    expect(m.getRecord()!.status).toBe('failed'); // active child failed → run failed
+    expect(m.getRecord()!.status).toBe('completed'); // 决策1: teammate crash 不 failRun → maybeComplete → completed
     expect(m.pendingWakeCount('t1')).toBe(0); // pending cleared
-    expect(emits.failed).toHaveBeenCalledTimes(1);
+    expect(emits.failed).not.toHaveBeenCalled(); // teammate 不 failRun
   });
 
   it('leader crash (idle, no own child, run active via teammate) → run failed (事实 9)', () => {
@@ -331,5 +357,61 @@ describe('TeamRun slot runtime state + run event', () => {
     m.acquireWake('s1', 'lead', 'user_message');
     expect(m.toActiveRunEvent()).not.toBeNull();
     expect(m.toActiveRunEvent()!.status).toBe('accepted');
+  });
+});
+
+describe('child terminal events on non-completion removal paths (H11-a)', () => {
+  function startChild(m: TeamRunManager, slot = 's1', role: 'lead' | 'teammate' = 'teammate'): void {
+    const { lease } = m.acquireWake(slot, role, 'mcp_send_message');
+    m.commitLease(lease.lease_id, { slot_id: slot, role, source: 'mcp_send_message', message_id: null });
+    const reservation = m.claimWakeForTurn(slot, 'mcp_send_message')!;
+    m.recordChildStarted(reservation, `turn-${slot}`, 'conv-1');
+  }
+
+  it('handleSlotCrash emits onChildTurnCancelled(status:failed) for the crashed slot child', () => {
+    const m = newManager();
+    startChild(m, 's1', 'teammate');
+    m.handleSlotCrash('s1', false);
+    expect(emits.childCancelled).toHaveBeenCalledTimes(1);
+    expect(emits.childCancelled).toHaveBeenCalledWith(expect.objectContaining({ slot_id: 's1', turn_id: 'turn-s1', status: 'failed' }));
+    // Non-leader crash does not fail the run outright — it may complete when others finish.
+    expect(m.getRecord()!.status).not.toBe('failed');
+  });
+
+  it('clearSlot emits onChildTurnCancelled(status:cancelled) for the removed slot child', () => {
+    const m = newManager();
+    startChild(m, 's1', 'teammate');
+    m.clearSlot('s1');
+    expect(emits.childCancelled).toHaveBeenCalledTimes(1);
+    expect(emits.childCancelled).toHaveBeenCalledWith(expect.objectContaining({ slot_id: 's1', status: 'cancelled' }));
+    expect(m.getRecord()!.active_child_turns.has('s1')).toBe(false);
+  });
+
+  it('handleSlotCrash / clearSlot without an active child emit nothing', () => {
+    const m = newManager();
+    m.acquireWake('s2', 'teammate', 'mcp_send_message');
+    m.handleSlotCrash('s2', false);
+    m.clearSlot('s2');
+    expect(emits.childCancelled).not.toHaveBeenCalled();
+  });
+
+  it('forceCancel emits cancelled for every active child', () => {
+    const m = newManager();
+    startChild(m, 's1', 'teammate');
+    startChild(m, 's2', 'teammate');
+    m.beginCancel();
+    m.forceCancel();
+    expect(emits.childCancelled).toHaveBeenCalledTimes(2);
+    const statuses = emits.childCancelled.mock.calls.map((c) => c[0].status);
+    expect(statuses).toEqual(['cancelled', 'cancelled']);
+    expect(m.getRecord()!.status).toBe('cancelled');
+  });
+
+  it('normal recordChildCompleted paths still drive the renderer cleanup (cancelled emits)', () => {
+    const m = newManager();
+    startChild(m, 's1', 'teammate');
+    m.recordChildCompleted('s1', { turn_id: 'turn-s1', status: 'cancelled' });
+    expect(emits.childCancelled).toHaveBeenCalledTimes(1);
+    expect(emits.childCancelled).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }));
   });
 });

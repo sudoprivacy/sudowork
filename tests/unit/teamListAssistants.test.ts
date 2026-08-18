@@ -36,6 +36,18 @@ describe('mergeTeamAssistants (附录 A2 merge/dedup/sort)', () => {
     expect(assistants.map((a) => a.assistant_id)).toEqual(['scode']);
   });
 
+  it('keeps bare preset agents alongside custom and installed entries sharing the backend', () => {
+    const installed: InstalledAssistantLike[] = [{ isBuiltin: false, isHubInstalled: true, name: 'Installed Scode', meta: { id: 'installed-scode', presetAgentType: 'scode' } }];
+    const detected: DetectedAgentLike[] = [
+      { backend: 'scode', name: 'Sudo Code', presetAgentType: 'scode' },
+      { backend: 'scode', name: 'Custom Scode', customAgentId: 'custom-scode', presetAgentType: 'scode' },
+    ];
+
+    const assistants = mergeTeamAssistants(detected, installed);
+
+    expect(assistants.map((a) => a.assistant_id)).toEqual(['scode', 'custom-scode', 'installed-scode']);
+  });
+
   it('keeps insertion order for same-priority entries (stable sort)', () => {
     const installed: InstalledAssistantLike[] = [
       { isBuiltin: false, isHubInstalled: false, name: 'first', meta: { id: 'first', presetAgentType: 'scode' } },

@@ -1,4 +1,6 @@
+import { z } from 'zod';
 import { ipcBridge } from '@/common';
+import type { ICreateTeamMemberParams } from '@/common/ipcBridge';
 import { getDatabase } from '@process/database';
 import { teamService } from '@process/services/team/TeamService';
 import { teamStore } from '@process/services/team/TeamStore';
@@ -7,6 +9,70 @@ import { mainError } from '@process/utils/mainLogger';
 function errEnvelope(err: unknown): never {
   return { __error: err instanceof Error ? err.message : String(err) } as never;
 }
+
+/**
+ * Runtime shape validation for mutating providers. Params reach these handlers from the
+ * renderer over IPC and from WebUI clients over WebSocket — both paths erase TS types, so a
+ * malformed payload would otherwise flow straight into the service layer.
+ */
+const MAX_INPUT_CHARS = 256 * 1024; // zod counts UTF-16 code units, not bytes
+const MAX_NAME_CHARS = 128;
+
+const teamNameSchema = z.string().trim().min(1).max(MAX_NAME_CHARS);
+const memberNameSchema = z.string().trim().min(1).max(MAX_NAME_CHARS);
+
+const createTeamSchema = z.object({
+  name: teamNameSchema,
+  workspace: z.string().optional(),
+  members: z
+    .array(
+      z.object({
+        assistant_id: z.string().min(1),
+        name: memberNameSchema,
+        model: z.string().optional(),
+        role: z.enum(['lead', 'teammate']),
+      })
+    )
+    .min(1),
+});
+
+const addMemberSchema = z.object({
+  team_id: z.string().min(1),
+  assistant_id: z.string().min(1),
+  name: memberNameSchema,
+  model: z.string().optional(),
+  role: z.enum(['lead', 'teammate']).optional(),
+});
+
+const sendMessageSchema = z.object({
+  teamId: z.string().min(1),
+  input: z.string().min(1).max(MAX_INPUT_CHARS),
+  files: z.array(z.string()).optional(),
+  msgId: z.string().optional(),
+});
+
+const sendMessageToMemberSchema = sendMessageSchema.extend({
+  memberId: z.string().min(1),
+});
+
+const updateTeamSchema = z.object({
+  teamId: z.string().min(1),
+  updates: z.object({
+    name: teamNameSchema.optional(),
+    pinned: z.boolean().optional(),
+    pinned_at: z.number().optional(),
+  }),
+});
+
+const renameTeamSchema = z.object({
+  teamId: z.string().min(1),
+  name: teamNameSchema,
+});
+
+const setSessionModeSchema = z.object({
+  teamId: z.string().min(1),
+  sessionMode: z.string().trim().min(1).max(MAX_NAME_CHARS),
+});
 
 /**
  * Initialize team collaboration IPC bridge handlers.
@@ -52,7 +118,8 @@ export function initTeamBridge(): void {
 
   ipcBridge.team.createTeam.provider(async (params) => {
     try {
-      return await teamService.createTeam(getDatabase().getDefaultUserId(), params.name, params.workspace ?? null, params.members);
+      const parsed = createTeamSchema.parse(params);
+      return await teamService.createTeam(getDatabase().getDefaultUserId(), parsed.name, parsed.workspace ?? null, parsed.members as ICreateTeamMemberParams[]);
     } catch (err) {
       mainError('TeamBridge', 'createTeam failed:', err);
       return errEnvelope(err);
@@ -70,7 +137,8 @@ export function initTeamBridge(): void {
 
   ipcBridge.team.addMember.provider(async (params) => {
     try {
-      return await teamService.spawnMember(params.team_id, { assistant_id: params.assistant_id, name: params.name, model: params.model, role: params.role });
+      const parsed = addMemberSchema.parse(params);
+      return await teamService.spawnMember(parsed.team_id, { assistant_id: parsed.assistant_id, name: parsed.name, model: parsed.model, role: parsed.role });
     } catch (err) {
       mainError('TeamBridge', 'addMember failed:', err);
       return errEnvelope(err);
@@ -86,8 +154,9 @@ export function initTeamBridge(): void {
     }
   });
 
-  ipcBridge.team.sendMessage.provider(async ({ teamId, input, files, msgId }) => {
+  ipcBridge.team.sendMessage.provider(async (params) => {
     try {
+      const { teamId, input, files, msgId } = sendMessageSchema.parse(params);
       return await teamService.sendMessage(teamId, input, files, msgId);
     } catch (err) {
       mainError('TeamBridge', 'sendMessage failed:', err);
@@ -95,8 +164,9 @@ export function initTeamBridge(): void {
     }
   });
 
-  ipcBridge.team.sendMessageToMember.provider(async ({ teamId, memberId, input, files, msgId }) => {
+  ipcBridge.team.sendMessageToMember.provider(async (params) => {
     try {
+      const { teamId, memberId, input, files, msgId } = sendMessageToMemberSchema.parse(params);
       return await teamService.sendMessageToMember(teamId, memberId, input, files, msgId);
     } catch (err) {
       mainError('TeamBridge', 'sendMessageToMember failed:', err);
@@ -150,9 +220,10 @@ export function initTeamBridge(): void {
     }
   });
 
-  ipcBridge.team.setSessionMode.provider(async ({ teamId, sessionMode }) => {
+  ipcBridge.team.setSessionMode.provider(async (params) => {
     try {
-      teamService.setSessionMode(teamId, sessionMode);
+      const { teamId, sessionMode } = setSessionModeSchema.parse(params);
+      await teamService.setSessionMode(teamId, sessionMode);
     } catch (err) {
       mainError('TeamBridge', 'setSessionMode failed:', err);
       return errEnvelope(err);
@@ -187,6 +258,15 @@ export function initTeamBridge(): void {
     }
   });
 
+  ipcBridge.team.retryMemberStart.provider(async ({ teamId, slotId }) => {
+    try {
+      await teamService.retryMemberStart(teamId, slotId);
+    } catch (err) {
+      mainError('TeamBridge', 'retryMemberStart failed:', err);
+      return errEnvelope(err);
+    }
+  });
+
   ipcBridge.team.renameMember.provider(async ({ memberId, name }) => {
     try {
       const member = teamStore.getMember(memberId);
@@ -198,8 +278,9 @@ export function initTeamBridge(): void {
     }
   });
 
-  ipcBridge.team.updateTeam.provider(async ({ teamId, updates }) => {
+  ipcBridge.team.updateTeam.provider(async (params) => {
     try {
+      const { teamId, updates } = updateTeamSchema.parse(params);
       return teamService.updateTeam(teamId, updates);
     } catch (err) {
       mainError('TeamBridge', 'updateTeam failed:', err);
@@ -207,8 +288,9 @@ export function initTeamBridge(): void {
     }
   });
 
-  ipcBridge.team.renameTeam.provider(async ({ teamId, name }) => {
+  ipcBridge.team.renameTeam.provider(async (params) => {
     try {
+      const { teamId, name } = renameTeamSchema.parse(params);
       return teamService.renameTeam(teamId, name);
     } catch (err) {
       mainError('TeamBridge', 'renameTeam failed:', err);

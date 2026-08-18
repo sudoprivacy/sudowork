@@ -96,7 +96,7 @@ describe('CrashRecovery.handleCrash (附录 I.3)', () => {
     const cr = makeCr(makeMember('teammate', 'Al'));
     const result = cr.handleCrash('s1', { kind: 'ProcessExited', msg: 'process exited' });
     expect(result).toBe('leader');
-    expect(writeMail).toHaveBeenCalledWith('leader', 's1', 'message', expect.stringContaining('crashed (reason: ProcessExited)'));
+    expect(writeMail).toHaveBeenCalledWith('leader', 's1', 'crash_testament', expect.stringContaining('crashed (reason: ProcessExited)'));
     expect(setStatus).toHaveBeenCalledWith('s1', 'failed', 'ProcessExited');
     expect(notifyWake).toHaveBeenCalledWith('leader', 'crash_notification', 'mail-crash');
   });

@@ -29,6 +29,9 @@ export default function TeamAddMemberModal({ isVisible, onClose, onAdded }: ITea
       try {
         const list = unwrapTeamResult(await ipcBridge.team.listAssistants.invoke()) ?? [];
         if (!isCancelled) setAssistants(list);
+      } catch (error) {
+        console.error('[TeamAddMemberModal] load assistants failed:', error);
+        if (!isCancelled) Message.error(t('team.create.loadAssistantsFailed'));
       } finally {
         if (!isCancelled) setIsLoading(false);
       }
@@ -36,7 +39,7 @@ export default function TeamAddMemberModal({ isVisible, onClose, onAdded }: ITea
     return () => {
       isCancelled = true;
     };
-  }, [isVisible, setSearch]);
+  }, [isVisible, setSearch, t]);
 
   const handleSelect = async (candidate: ITeamAssistantCandidate) => {
     if (pendingId) return;

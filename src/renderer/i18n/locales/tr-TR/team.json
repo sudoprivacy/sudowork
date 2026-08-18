@@ -19,6 +19,7 @@
     "cancel": "İptal",
     "noAssistants": "Kullanılabilir asistan yok. Önce bir tane yükleyin.",
     "createFailed": "Ekip oluşturulamadı. Bilgileri kontrol edip tekrar deneyin.",
+    "loadAssistantsFailed": "Asistan listesi yüklenemedi. Lütfen tekrar deneyin.",
     "subtitle": "Takım için bir veya daha fazla ajan seçin ve birini Leader olarak belirleyin.",
     "searchPlaceholder": "Ajan adı veya açıklamasına göre ara",
     "allAssistantsCount": "Tüm ajanlar ({{count}})",
@@ -49,7 +50,13 @@
       }
     },
     "leaderNotFound": "Takım Leader bulunamadı.",
-    "addMemberFailed": "Üye eklenemedi. Lütfen tekrar deneyin."
+    "addMemberFailed": "Üye eklenemedi. Lütfen tekrar deneyin.",
+    "removeMemberFailed": "Üye kaldırılamadı. Lütfen tekrar deneyin.",
+    "renameMemberFailed": "Üye yeniden adlandırılamadı. Lütfen tekrar deneyin.",
+    "loadError": "Takım yüklenemedi. Lütfen tekrar deneyin.",
+    "retry": "Tekrar dene",
+    "stopMemberFailed": "Bu üye durdurulamadı. Lütfen tekrar deneyin.",
+    "retryStartFailed": "Bu üye yeniden başlatılamadı. Lütfen tekrar deneyin."
   },
   "status": {
     "pending": "Bekliyor",
@@ -68,7 +75,8 @@
     "rename": "Yeniden Adlandır",
     "remove": "Kaldır",
     "delete": "Sil",
-    "export": "Dışa Aktar"
+    "export": "Dışa Aktar",
+    "retryStart": "Yeniden başlat"
   },
   "rename": {
     "title": "Takımı Yeniden Adlandır",
@@ -93,7 +101,7 @@
   "confirm": {
     "deleteTeamTitle": "Takım silinsin mi?",
     "deleteTeam": "Bu takım silinsin mi? Üyeler kaldırılacak.",
-    "deleteTeamTemporary": "Bu takım silinsin mi? Üyeler kaldırılacak ve geçici takım çalışma alanı güvenli kurallara göre temizlenecek.",
+    "deleteTeamCustomHint": "Takım çalışma alanı özel bir dizindir; silinmeden korunur. Gerekirse elle temizleyin.",
     "deleteWorkspaceOption": "Çalışma alanı klasörünü de sil",
     "confirmDelete": "Sil",
     "cancelDelete": "İptal",

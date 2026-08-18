@@ -19,6 +19,7 @@
     "cancel": "取消",
     "noAssistants": "没有可用助手，请先安装一个。",
     "createFailed": "创建团队失败，请检查后重试。",
+    "loadAssistantsFailed": "加载助手列表失败，请重试。",
     "subtitle": "选择一个或多个智能体组成团队，并指定其中一个作为 Leader。",
     "searchPlaceholder": "搜索智能体名称或描述",
     "allAssistantsCount": "所有智能体（{{count}}）",
@@ -49,7 +50,13 @@
       }
     },
     "leaderNotFound": "未找到团队 Leader。",
-    "addMemberFailed": "添加成员失败，请重试。"
+    "addMemberFailed": "添加成员失败，请重试。",
+    "removeMemberFailed": "移除成员失败，请重试。",
+    "renameMemberFailed": "重命名成员失败，请重试。",
+    "loadError": "加载团队失败，请重试。",
+    "retry": "重试",
+    "stopMemberFailed": "停止该成员失败，请稍后重试。",
+    "retryStartFailed": "重启该成员失败，请稍后重试。"
   },
   "status": {
     "pending": "等待中",
@@ -68,7 +75,8 @@
     "rename": "重命名",
     "remove": "移除",
     "delete": "删除",
-    "export": "导出"
+    "export": "导出",
+    "retryStart": "重试启动"
   },
   "rename": {
     "title": "重命名团队",
@@ -93,7 +101,7 @@
   "confirm": {
     "deleteTeamTitle": "删除团队？",
     "deleteTeam": "删除该团队？成员将被移除。",
-    "deleteTeamTemporary": "删除该团队？成员将被移除，团队临时工作空间将按安全规则清理。",
+    "deleteTeamCustomHint": "团队工作区为自定义目录，将保留不删除；如需要可手动清理。",
     "deleteWorkspaceOption": "同时删除工作区文件夹",
     "confirmDelete": "删除",
     "cancelDelete": "取消",

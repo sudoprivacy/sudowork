@@ -51,6 +51,9 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
       try {
         const list = unwrapTeamResult(await ipcBridge.team.listAssistants.invoke()) ?? [];
         if (!isCancelled) setAssistants(list);
+      } catch (error) {
+        console.error('[TeamCreateModal] load assistants failed:', error);
+        if (!isCancelled) Message.error(t('team.create.loadAssistantsFailed'));
       } finally {
         if (!isCancelled) setIsLoading(false);
       }
@@ -58,7 +61,7 @@ export default function TeamCreateModal({ isVisible, onClose, onCreated }: ITeam
     return () => {
       isCancelled = true;
     };
-  }, [isVisible, setSearch]);
+  }, [isVisible, setSearch, t]);
 
   const workspaceName = useMemo(
     () =>

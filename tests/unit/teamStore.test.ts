@@ -103,6 +103,31 @@ describe('team migrations', () => {
     expect(typeof m.up).toBe('function');
     expect(typeof m.down).toBe('function');
   });
+  it('migration_v31 cleans duplicate leads, adds the single-lead index + mailbox created_at index, rebuilds the mailbox CHECK with crash_testament (M4/M14/M22)', () => {
+    const m = ALL_MIGRATIONS.find((x) => x.version === 31)!;
+    const execSql = (collector: string[]) => ({ exec: (sql: string) => collector.push(sql) });
+    const upSql: string[] = [];
+    m.up(execSql(upSql) as never);
+    const up = upSql.join('\n');
+    // M14: soft-delete duplicate active leads first (keep MIN(id)), then enforce one leader per team.
+    expect(up).toContain('UPDATE team_members SET deleted = 1');
+    expect(up).toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_single_lead');
+    expect(up).toContain("WHERE role = 'lead' AND deleted = 0");
+    // M4: created_at index for the finalizeTurn watermark / EXISTS queries.
+    expect(up).toContain('CREATE INDEX IF NOT EXISTS idx_team_mailbox_team_created');
+    // M22: mailbox rebuilt with a four-value type CHECK (rollback-table pattern, not plain drop).
+    expect(up).toContain("'crash_testament'");
+    expect(up).toContain('DROP TABLE team_mailbox');
+    expect(up).toContain('RENAME');
+    const downSql: string[] = [];
+    m.down(execSql(downSql) as never);
+    const down = downSql.join('\n');
+    expect(down).toContain('DROP INDEX IF EXISTS idx_team_members_single_lead');
+    expect(down).toContain('DROP INDEX IF EXISTS idx_team_mailbox_team_created');
+    // Rollback restores the three-value CHECK, folding crash_testament rows back to 'message'.
+    expect(down).toContain("CHECK(type IN ('message', 'idle_notification', 'shutdown_request'))");
+    expect(down).toContain("CASE WHEN type = 'crash_testament' THEN 'message'");
+  });
 });
 
 describe('TeamStore - team CRUD + soft delete', () => {
@@ -216,6 +241,8 @@ describe('TeamStore - mailbox peek-then-mark', () => {
     teamStore.hasUnread('team-1', 'slot-1');
     expect(h.queryOne.mock.calls[0][0]).toContain('COUNT');
     expect(h.queryOne.mock.calls[0][0]).toContain('read = 0');
+    expect(h.queryOne.mock.calls[0][0]).toContain('from_member_id !='); // M11: self-mail is never deliverable
+    expect(h.queryOne.mock.calls[0][3]).toBe('slot-1'); // toMemberId reused for the self filter
   });
   it('hasUnread returns true when count > 0', () => {
     h.queryOne.mockReturnValue({ success: true, data: { count: 3 } });

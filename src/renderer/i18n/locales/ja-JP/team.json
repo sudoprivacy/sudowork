@@ -19,6 +19,7 @@
     "cancel": "キャンセル",
     "noAssistants": "利用可能なアシスタントがありません。先にインストールしてください。",
     "createFailed": "チームの作成に失敗しました。入力内容を確認してから再試行してください。",
+    "loadAssistantsFailed": "アシスタント一覧の読み込みに失敗しました。再試行してください。",
     "subtitle": "チームに参加するエージェントを1つ以上選び、そのうち1つを Leader に指定します。",
     "searchPlaceholder": "エージェント名または説明で検索",
     "allAssistantsCount": "すべてのエージェント（{{count}}）",
@@ -49,7 +50,13 @@
       }
     },
     "leaderNotFound": "チーム Leader が見つかりません。",
-    "addMemberFailed": "メンバーの追加に失敗しました。再試行してください。"
+    "addMemberFailed": "メンバーの追加に失敗しました。再試行してください。",
+    "removeMemberFailed": "メンバーの削除に失敗しました。再試行してください。",
+    "renameMemberFailed": "メンバー名の変更に失敗しました。再試行してください。",
+    "loadError": "チームの読み込みに失敗しました。再試行してください。",
+    "retry": "再試行",
+    "stopMemberFailed": "このメンバーの停止に失敗しました。もう一度お試しください。",
+    "retryStartFailed": "このメンバーの再起動に失敗しました。もう一度お試しください。"
   },
   "status": {
     "pending": "待機中",
@@ -68,7 +75,8 @@
     "rename": "名前変更",
     "remove": "削除",
     "delete": "削除",
-    "export": "エクスポート"
+    "export": "エクスポート",
+    "retryStart": "再起動"
   },
   "rename": {
     "title": "チーム名を変更",
@@ -93,7 +101,7 @@
   "confirm": {
     "deleteTeamTitle": "チームを削除しますか？",
     "deleteTeam": "このチームを削除しますか？メンバーは削除されます。",
-    "deleteTeamTemporary": "このチームを削除しますか？メンバーは削除され、チーム一時ワークスペースは安全ルールに従ってクリーンアップされます。",
+    "deleteTeamCustomHint": "チームのワークスペースはカスタムディレクトリであるため削除されず保持されます。必要に応じて手動で削除してください。",
     "deleteWorkspaceOption": "ワークスペースフォルダーも削除する",
     "confirmDelete": "削除",
     "cancelDelete": "キャンセル",

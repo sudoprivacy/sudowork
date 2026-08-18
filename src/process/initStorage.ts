@@ -1151,6 +1151,13 @@ const initStorage = async () => {
         .catch((error) => {
           mainWarn('Sudowork', 'Orphan workspace sweep failed:', error);
         });
+      // Roll back leaderless half-teams left by a createTeam crash mid-provision.
+      // Fire-and-forget + dynamic import (same pattern as the sweeper above).
+      void import('./services/team/TeamStartupCleaner')
+        .then(({ sweepLeaderlessTeams }) => sweepLeaderlessTeams())
+        .catch((error) => {
+          mainWarn('Sudowork', 'Leaderless team sweep failed:', error);
+        });
     } catch (error) {
       mainError('InitStorage', 'Database initialization failed, falling back to file-based storage:', error);
       // The DB layer recovers from file corruption on its own, so reaching here means an

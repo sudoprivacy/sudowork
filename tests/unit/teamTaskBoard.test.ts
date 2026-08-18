@@ -79,9 +79,31 @@ describe('TaskBoard cycle detection', () => {
     const t3 = board.createTask({ subject: 'T3' });
     expect(() => board.createTask({ subject: 'T4', blocked_by: [t1.id, t2.id, t3.id] })).not.toThrow();
   });
+
+  it('rejects missing or cross-team blocked_by task ids', () => {
+    const board = new TaskBoard('t1');
+    const otherTeamTask: TeamTask = { ...board.createTask({ subject: 'T1' }), id: 'other-task', team_id: 'other-team' };
+    store.set(otherTeamTask.id, otherTeamTask);
+
+    expect(() => board.createTask({ subject: 'bad', blocked_by: ['missing-task'] })).toThrow(/Invalid blocked_by/);
+    expect(() => board.updateTask(otherTeamTask.id, { blocked_by: [] })).toThrow(/Task not found/);
+    expect(() => board.createTask({ subject: 'bad', blocked_by: [otherTeamTask.id] })).toThrow(/Invalid blocked_by/);
+  });
 });
 
 describe('TaskBoard completion dismantles edges', () => {
+  it('terminal update with new blocked_by leaves no forward or reverse edges', () => {
+    const board = new TaskBoard('t1');
+    const t1 = board.createTask({ subject: 'T1' });
+    const t2 = board.createTask({ subject: 'T2' });
+
+    board.updateTask(t2.id, { status: 'completed', blocked_by: [t1.id] });
+
+    expect(board.getTask(t1.id)!.blocks).toEqual([]);
+    expect(board.getTask(t2.id)!.blocked_by).toEqual([]);
+    expect(board.getTask(t2.id)!.blocks).toEqual([]);
+  });
+
   it('completing a task removes it from dependents and clears its own edges', () => {
     const board = new TaskBoard('t1');
     const t1 = board.createTask({ subject: 'T1' });

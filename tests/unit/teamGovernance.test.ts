@@ -33,6 +33,7 @@ describe('buildGovernancePrompt (A3 governance concatenation)', () => {
     expect(p).toContain('TEAMMATE');
     expect(p).toContain('"Worker"');
     expect(p).toContain('team_send_message');
+    expect(p).toContain('FULL deliverable text');
   });
 
   it('both roles enforce coordinating only through team_* tools (soft guidance)', () => {

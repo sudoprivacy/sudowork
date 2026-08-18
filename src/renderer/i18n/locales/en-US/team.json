@@ -19,6 +19,7 @@
     "cancel": "Cancel",
     "noAssistants": "No assistants available. Install one first.",
     "createFailed": "Failed to create team. Check the information and try again.",
+    "loadAssistantsFailed": "Failed to load assistants. Please try again.",
     "subtitle": "Select one or more agents for the team and choose one as Leader.",
     "searchPlaceholder": "Search agents by name or description",
     "allAssistantsCount": "All agents ({{count}})",
@@ -49,7 +50,13 @@
       }
     },
     "leaderNotFound": "Team Leader not found.",
-    "addMemberFailed": "Failed to add member. Please try again."
+    "addMemberFailed": "Failed to add member. Please try again.",
+    "removeMemberFailed": "Failed to remove member. Please try again.",
+    "renameMemberFailed": "Failed to rename member. Please try again.",
+    "loadError": "Failed to load team. Please retry.",
+    "retry": "Retry",
+    "stopMemberFailed": "Failed to stop this member. Please try again.",
+    "retryStartFailed": "Failed to restart this member. Please try again."
   },
   "status": {
     "pending": "Pending",
@@ -68,7 +75,8 @@
     "rename": "Rename",
     "remove": "Remove",
     "delete": "Delete",
-    "export": "Export"
+    "export": "Export",
+    "retryStart": "Retry start"
   },
   "rename": {
     "title": "Rename Team",
@@ -93,7 +101,7 @@
   "confirm": {
     "deleteTeamTitle": "Delete team?",
     "deleteTeam": "Delete this team? Members will be removed.",
-    "deleteTeamTemporary": "Delete this team? Members will be removed, and the temporary team workspace will be cleaned up safely.",
+    "deleteTeamCustomHint": "This team's workspace is a custom folder and will be kept. Remove it manually if needed.",
     "deleteWorkspaceOption": "Also delete workspace folder",
     "confirmDelete": "Delete",
     "cancelDelete": "Cancel",

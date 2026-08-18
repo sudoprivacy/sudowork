@@ -33,10 +33,20 @@ export function useTeamRunView(teamId: string) {
     void reconcile();
   }, [reconcile]);
 
+  // Route param change reuses this component instance (no remount), so stale per-slot entries
+  // from the previous team would survive — clear them on teamId change.
+  useEffect(() => {
+    setChildTurnsBySlot({});
+  }, [teamId]);
+
   useEffect(() => {
     const isOurs = (e: { team_id: string }) => e.team_id === teamId;
     const setRun = (e: ITeamRunEvent) => {
-      if (isOurs(e)) setActiveRun(TERMINAL.has(e.status) ? null : e);
+      if (!isOurs(e)) return;
+      setActiveRun(TERMINAL.has(e.status) ? null : e);
+      // Terminal run: no child of this run can still be active — clear stale entries (belt and
+      // braces for any backend path that removes children without a terminal child event).
+      if (TERMINAL.has(e.status)) setChildTurnsBySlot({});
     };
     const onChildStarted = (e: ITeamChildTurnEvent) => {
       if (!isOurs(e)) return;

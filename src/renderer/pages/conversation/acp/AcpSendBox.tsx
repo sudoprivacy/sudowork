@@ -595,13 +595,16 @@ const AcpSendBox: React.FC<{
   agentName?: string;
   /** Team override: when set, sends route through the team API instead of the single-chat ACP API (附录 II.8). */
   teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+  /** Team override: when set, the stop button routes through the team API (pauseMember) — team
+   * agents are built with skipCache and are invisible to conversation.stop. */
+  teamStop?: () => Promise<void>;
   teamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
   pendingQuestion?: IMessageAcpQuestion | null;
   pendingQuestionItems?: AcpQuestionItem[];
   isAwaitingUserInput?: boolean;
   onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
   onProcessingChange?: (isProcessing: boolean) => void;
-}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }) => {
+}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, teamStop, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }) => {
   const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const isProcessing = (running || aiProcessing) && !isAwaitingUserInput;
@@ -965,7 +968,10 @@ const AcpSendBox: React.FC<{
   const handleStop = async (): Promise<void> => {
     beginStop();
     try {
-      await ipcBridge.conversation.stop.invoke({ conversation_id });
+      // Team override: team agents are built with skipCache and are invisible to
+      // conversation.stop (WorkerManage.getTaskById finds nothing) — route through the team API.
+      if (teamStop) await teamStop();
+      else await ipcBridge.conversation.stop.invoke({ conversation_id });
     } finally {
       endStop();
     }

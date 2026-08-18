@@ -5,9 +5,10 @@
  */
 
 import { Message, Spin } from '@arco-design/web-react';
+import { RotateCcw } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
@@ -19,6 +20,7 @@ import AcpChat from '@renderer/pages/conversation/acp/AcpChat';
 import ChatLayout from '@renderer/pages/conversation/ChatLayout';
 import ChatSider from '@renderer/pages/conversation/ChatSider';
 import AcpModelSelector from '@renderer/components/AcpModelSelector';
+import EmptyState from '@renderer/components/base/EmptyState';
 import { unwrapTeamResult } from './utils';
 import { useTeamSession } from './hooks/useTeamSession';
 import { useTeamRunView } from './hooks/useTeamRunView';
@@ -30,9 +32,8 @@ import { resolveTeamAssistantIcon, toChatLayoutAgentLogo } from './utils/teamAss
 
 function TeamDetailPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const { teamId = '' } = useParams<{ teamId: string }>();
-  const { team, statusMap, loading, addMember, renameMember, removeMember } = useTeamSession(teamId);
+  const { team, statusMap, loading, error, mutate, addMember, renameMember, removeMember } = useTeamSession(teamId);
   const teamRunView = useTeamRunView(teamId);
   const teamWarmup = useTeamWarmup(teamId);
   const [leaderConv, setLeaderConv] = useState<TChatConversation | undefined>(undefined);
@@ -79,7 +80,7 @@ function TeamDetailPage() {
           Message.error(t('guid.modelNotConfigured', { defaultValue: '未配置可用模型，请在设置页添加模型' }));
           return;
         }
-        await ipcBridge.team.sendMessage.invoke({ teamId, input, files, msgId: msg_id });
+        unwrapTeamResult(await ipcBridge.team.sendMessage.invoke({ teamId, input, files, msgId: msg_id }));
       },
     [teamId, t, isGuest, hasModel, ready, leader?.assistant_backend]
   );
@@ -92,6 +93,29 @@ function TeamDetailPage() {
       },
     [teamId, leader?.slot_id, t]
   );
+
+  // Team stop for the leader chat: pauseMember interrupts the leader's in-flight turn and pauses
+  // its scheduling; the user resumes it by sending the next message (foreground wake). Errors
+  // arrive as a resolved { __error } envelope — unwrap turns it into a catchable throw.
+  const leaderTeamStop = useMemo(() => {
+    if (!leader?.slot_id) return undefined;
+    return async () => {
+      try {
+        unwrapTeamResult(await ipcBridge.team.pauseMember.invoke({ teamId, slotId: leader.slot_id! }));
+      } catch {
+        Message.error(t('team.detail.stopMemberFailed'));
+      }
+    };
+  }, [teamId, leader?.slot_id, t]);
+
+  const retryLeaderStart = useCallback(async () => {
+    if (!leader?.slot_id) return;
+    try {
+      unwrapTeamResult(await ipcBridge.team.retryMemberStart.invoke({ teamId, slotId: leader.slot_id }));
+    } catch {
+      Message.error(t('team.detail.retryStartFailed'));
+    }
+  }, [teamId, leader?.slot_id, t]);
 
   const onEmptyPromptClick = useCallback(
     (prompt: string) => {
@@ -117,16 +141,34 @@ function TeamDetailPage() {
     );
   }
 
-  if (!currentTeam || !leader || !leader.conversation_id) {
-    void navigate('/guid');
-    return null;
+  if (error) {
+    return (
+      <div className='flex items-center justify-center h-full'>
+        <EmptyState
+          simple
+          title={t('team.detail.loadError')}
+          actions={[
+            {
+              label: t('team.detail.retry'),
+              onClick: () => {
+                void mutate({ showLoading: true });
+              },
+            },
+          ]}
+        />
+      </div>
+    );
   }
+
+  if (!currentTeam || !leader || !leader.conversation_id) return <Navigate to='/guid' replace />;
 
   const memberTabNode = <TeamMemberListTab team={currentTeam} statusMap={statusMap} activeSlotIds={activeSlotIds} onAddMember={addMember} onRenameMember={renameMember} onRemoveMember={removeMember} />;
   const runStatus = teamRunView.activeRun?.status;
   const isRunActive = runStatus === 'accepted' || runStatus === 'running';
   const isHeaderActive = isRunActive || isLeaderChatProcessing;
   const isHeaderStatusVisible = Boolean(runStatus || isLeaderChatProcessing);
+  // A crashed leader stalls the whole team — offer the recovery entry right where its status lives.
+  const isLeaderFailed = Boolean(leader?.slot_id && statusMap.get(leader.slot_id) === 'failed');
   const isTeamMemberTabActive = activeRightPanelTab === 'team';
   const currentLeaderConv = leaderConv?.id === leader.conversation_id ? leaderConv : undefined;
   const leaderIcon = resolveTeamAssistantIcon({ assistantId: leader.assistant_id, source: leader.source, backend: leader.assistant_backend, avatar: leader.icon, name: leader.assistant_name });
@@ -143,7 +185,16 @@ function TeamDetailPage() {
       workspaceEnabled
       rightSiderWidthOverride={isTeamMemberTabActive ? { widthPx: 440 } : null}
       headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} />}
-      headerExtra={isHeaderStatusVisible ? <span className={`text-12px px-8px py-2px rounded-full ${isHeaderActive ? 'bg-green-500/10 text-green-600' : 'bg-gray-400/10 text-gray-500'}`}>{t(`team.status.${isHeaderActive ? 'active' : 'idle'}`)}</span> : null}
+      headerExtra={
+        isLeaderFailed ? (
+          <button type='button' title={t('team.actions.retryStart')} className='inline-flex cursor-pointer items-center gap-4px rounded-full bg-red-500/10 px-8px py-2px text-12px text-red-500 hover:bg-red-500/20' onClick={() => void retryLeaderStart()}>
+            <RotateCcw size={12} />
+            {t('team.actions.retryStart')}
+          </button>
+        ) : isHeaderStatusVisible ? (
+          <span className={`text-12px px-8px py-2px rounded-full ${isHeaderActive ? 'bg-green-500/10 text-green-600' : 'bg-gray-400/10 text-gray-500'}`}>{t(`team.status.${isHeaderActive ? 'active' : 'idle'}`)}</span>
+        ) : null
+      }
       sider={<ChatSider conversation={currentLeaderConv} teamId={teamId} extraTab={{ id: 'team', label: t('team.detail.memberTab'), node: memberTabNode }} isOverflowTabsEnabled onActiveTabChange={setActiveRightPanelTab} />}
     >
       <div className='relative flex min-h-0 flex-1 flex-col'>
@@ -155,6 +206,7 @@ function TeamDetailPage() {
           onTeamAnswerQuestion={onLeaderTeamAnswerQuestion}
           teamAnswerQuestion={onLeaderTeamAnswerQuestion}
           teamSendMessage={leaderTeamSendMessage}
+          teamStop={leaderTeamStop}
           showEmptyStateWhenNoMessages
           emptyState={<TeamLeaderEmptyState assistantName={leader.assistant_name} assistantAvatar={leader.icon} assistantBackend={leader.assistant_backend} assistantId={leader.assistant_id} source={leader.source} onPromptClick={onEmptyPromptClick} />}
           onProcessingChange={setIsLeaderChatProcessing}

@@ -19,6 +19,7 @@
     "cancel": "取消",
     "noAssistants": "沒有可用助手，請先安裝一個。",
     "createFailed": "建立團隊失敗，請檢查後重試。",
+    "loadAssistantsFailed": "載入助手列表失敗，請重試。",
     "subtitle": "選擇一個或多個智能體組成團隊，並指定其中一個作為 Leader。",
     "searchPlaceholder": "搜尋智能體名稱或描述",
     "allAssistantsCount": "所有智能體（{{count}}）",
@@ -49,7 +50,13 @@
       }
     },
     "leaderNotFound": "未找到團隊 Leader。",
-    "addMemberFailed": "新增成員失敗，請重試。"
+    "addMemberFailed": "新增成員失敗，請重試。",
+    "removeMemberFailed": "移除成員失敗，請重試。",
+    "renameMemberFailed": "重新命名成員失敗，請重試。",
+    "loadError": "載入團隊失敗，請重試。",
+    "retry": "重試",
+    "stopMemberFailed": "停止該成員失敗，請稍後重試。",
+    "retryStartFailed": "重啟該成員失敗，請稍後重試。"
   },
   "status": {
     "pending": "等待中",
@@ -68,7 +75,8 @@
     "rename": "重新命名",
     "remove": "移除",
     "delete": "刪除",
-    "export": "匯出"
+    "export": "匯出",
+    "retryStart": "重試啟動"
   },
   "rename": {
     "title": "重新命名團隊",
@@ -93,7 +101,7 @@
   "confirm": {
     "deleteTeamTitle": "刪除團隊？",
     "deleteTeam": "刪除該團隊？成員將被移除。",
-    "deleteTeamTemporary": "刪除該團隊？成員將被移除，團隊臨時工作空間將依安全規則清理。",
+    "deleteTeamCustomHint": "團隊工作區為自訂目錄，將保留不刪除；如需要可手動清理。",
     "deleteWorkspaceOption": "同時刪除工作區資料夾",
     "confirmDelete": "刪除",
     "cancelDelete": "取消",

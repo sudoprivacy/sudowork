@@ -14,6 +14,7 @@ import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { ExportZipFile } from '@/renderer/pages/conversation/grouped-history/types';
 import { appendWorkspaceFilesToZip, buildConversationJson, buildConversationMarkdown, EXPORT_IO_TIMEOUT_MS, formatTimestamp, joinFilePath, sanitizeFileName, withTimeout } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';
 import type { TeamAssistant, TTeam } from '../types';
+import { fromBackendTeam } from '../mapper';
 import { buildTeamFolderName, buildTeamManifestJson, buildTeamManifestMarkdown, buildTeamMemberConversationFolderName, type ITeamExportWarning } from '../utils/exportHelpers';
 import { unwrapTeamResult } from '../utils';
 
@@ -26,7 +27,7 @@ export function useTeamExport() {
   const [isExportFinished, setIsExportFinished] = useState(false);
   const [isDirectorySelectorVisible, setIsDirectorySelectorVisible] = useState(false);
   const [currentExportRequestId, setCurrentExportRequestId] = useState<string | null>(null);
-  const isExportCanceledRef = useRef(false);
+  const exportGenerationRef = useRef(0);
 
   const fileExists = useCallback(async (filePath: string): Promise<boolean> => {
     try {
@@ -68,7 +69,7 @@ export function useTeamExport() {
 
   const onOpenExport = useCallback(
     async (team: TTeam) => {
-      isExportCanceledRef.current = false;
+      exportGenerationRef.current += 1;
       setExportTeam(team);
       setIsExportVisible(true);
       setIsExportFinished(false);
@@ -79,9 +80,7 @@ export function useTeamExport() {
   );
 
   const onCloseExport = useCallback(() => {
-    if (isExportLoading) {
-      isExportCanceledRef.current = true;
-    }
+    exportGenerationRef.current += 1;
     if (isExportLoading && currentExportRequestId) {
       void ipcBridge.fs.cancelZip.invoke({ requestId: currentExportRequestId });
     }
@@ -196,24 +195,29 @@ export function useTeamExport() {
   const buildTeamExportFiles = useCallback(
     async (team: TTeam): Promise<ExportZipFile[]> => {
       const warnings: ITeamExportWarning[] = [];
+      // useTeams no longer carries members (sidebar N+1 removal) — fetch them here, once per
+      // export, and derive the whole export from this single snapshot so conversations, leader
+      // lookup and the manifest can never disagree.
+      const members = unwrapTeamResult(await withTimeout(ipcBridge.team.listMembers.invoke({ teamId: team.id }), EXPORT_IO_TIMEOUT_MS, `listMembers:${team.id}`)) ?? [];
+      const teamWithMembers = fromBackendTeam(team, members);
       const teamFolderName = buildTeamFolderName(team);
       const conversationFiles: ExportZipFile[] = [];
 
-      for (const member of team.assistants) {
+      for (const member of teamWithMembers.assistants) {
         const memberFiles = await buildMemberConversationFiles(teamFolderName, member, warnings);
         conversationFiles.push(...memberFiles);
       }
 
-      const leaderConversationId = team.assistants.find((member) => member.role === 'leader')?.conversation_id ?? null;
+      const leaderConversationId = teamWithMembers.assistants.find((member) => member.role === 'leader')?.conversation_id ?? null;
       const workspaceTree = await fetchTeamWorkspaceTree(team, leaderConversationId, warnings);
       const files: ExportZipFile[] = [
         {
           name: `${teamFolderName}/team.json`,
-          content: buildTeamManifestJson(team, warnings),
+          content: buildTeamManifestJson(teamWithMembers, warnings),
         },
         {
           name: `${teamFolderName}/team.md`,
-          content: buildTeamManifestMarkdown(team, warnings),
+          content: buildTeamManifestMarkdown(teamWithMembers, warnings),
         },
         ...conversationFiles,
       ];
@@ -241,13 +245,13 @@ export function useTeamExport() {
       return;
     }
 
+    const exportGeneration = ++exportGenerationRef.current;
     setIsExportLoading(true);
-    isExportCanceledRef.current = false;
     const requestId = `team-export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setCurrentExportRequestId(requestId);
 
     const throwIfCanceled = () => {
-      if (isExportCanceledRef.current) {
+      if (exportGenerationRef.current !== exportGeneration) {
         throw new Error('export canceled');
       }
     };
@@ -275,9 +279,10 @@ export function useTeamExport() {
         Message.error(t('team.export.failed'));
       }
     } finally {
-      setIsExportLoading(false);
-      setCurrentExportRequestId(null);
-      isExportCanceledRef.current = false;
+      if (exportGenerationRef.current === exportGeneration) {
+        setIsExportLoading(false);
+        setCurrentExportRequestId(null);
+      }
     }
   }, [buildTeamExportFiles, createUniqueFilePath, exportTargetPath, exportTeam, runCreateZip, t]);
 
