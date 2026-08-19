@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { getProxyAgent } from '@process/utils/proxyAgent';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import scodePlatforms from '@/shared/scode-platforms.json';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
@@ -305,6 +306,9 @@ async function extractArchive(archivePath: string, targetDir: string, strip: num
 async function downloadScode(url: string, destPath: string, onProgress?: (percent: number) => void): Promise<void> {
   const https = await import('https');
   const http = await import('http');
+  // Resolve the proxy agent once (all download URLs are https to GitHub/CDN);
+  // reused across redirects.
+  const proxyAgent = await getProxyAgent(url);
 
   return new Promise<void>((resolve, reject) => {
     let redirects = 0;
@@ -317,7 +321,9 @@ async function downloadScode(url: string, destPath: string, onProgress?: (percen
       }
 
       const mod = requestUrl.startsWith('https') ? https : http;
-      const req = mod.get(requestUrl, (response: import('http').IncomingMessage) => {
+      // Honor HTTP(S)_PROXY / NO_PROXY — Node's raw get() ignores them, so a
+      // direct GitHub connection fails TLS behind a VPN/corporate proxy.
+      const req = mod.get(requestUrl, { agent: proxyAgent }, (response: import('http').IncomingMessage) => {
         if ([301, 302, 307, 308].includes(response.statusCode!) && response.headers.location) {
           redirects++;
           mainLog(TAG, `Download redirect → ${response.headers.location}`);
