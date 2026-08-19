@@ -47,6 +47,8 @@ export interface IAssistantMeta {
   name?: string;
   /** Display name from API (may be snake_case) */
   display_name?: string;
+  /** Role/profession label from Assistant Hub package metadata */
+  profession?: string;
   nameI18n?: Record<string, string>;
   descriptionI18n?: Record<string, string>;
   promptsI18n?: Record<string, string[]>;

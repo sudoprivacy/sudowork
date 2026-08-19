@@ -426,6 +426,17 @@ function firstStringArray(...values: unknown[]): string[] | undefined {
   return undefined;
 }
 
+function stringRecord(value: unknown): Record<string, string> | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const entries = Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function hasRecordKey(value: unknown, key: string): value is Record<string, unknown> {
+  return isRecord(value) && Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function tenantIdsWithFallback(tenantIdsValue: unknown, tenantIdsSnakeValue: unknown, tenantIdValue: unknown, tenantIdSnakeValue: unknown): string[] {
   const tenantIds = firstStringArray(tenantIdsValue, tenantIdsSnakeValue);
   if (tenantIds) return tenantIds;
@@ -448,6 +459,11 @@ function firstPromptsI18n(...values: unknown[]): AssistantPromptsI18n | undefine
     if (normalized) return normalized;
   }
   return undefined;
+}
+
+function normalizePackagePromptsI18n(value: unknown): AssistantPromptsI18n | undefined {
+  if (!isRecord(value)) return undefined;
+  return { 'zh-CN': normalizeStringList(stringArray(value['zh-CN'])) };
 }
 
 async function fetchVisibleAssistantOverlayMap(accessToken?: string): Promise<Map<string, VisibleAssistantOverlay> | null> {
@@ -974,7 +990,7 @@ export function initAssistantHubBridge(): void {
         return {
           id: a.id as string,
           name: a.name as string,
-          display_name: (a.profession as string) || (a.name as string),
+          display_name: firstNonEmptyString(a.display_name, a.profession, a.name) || (a.name as string),
           description: a.description as string,
           avatar: a.avatar as string | null,
           emoji: null as string | null,
@@ -1189,7 +1205,6 @@ export function initAssistantHubBridge(): void {
   // Download and install assistant from Hub, optionally installing selected associated skills
   ipcBridge.assistantHub.downloadAndInstallAssistant.provider(async ({ assistantName, displayName, sourceUrl, version, checksum, assistantMeta, selectedSkillIds }) => {
     try {
-      console.log('displayName', displayName);
       const token = getSkillhubToken();
       if (!token) {
         mainError('AssistantHub', 'skillhub token not provisioned, skip downloadAndInstallAssistant');
@@ -1238,7 +1253,27 @@ export function initAssistantHubBridge(): void {
           mainWarn('AssistantHub', `Failed to parse extracted assistant meta for "${assistantName}"`);
         }
       }
-      const promptsI18n = firstPromptsI18n(assistantMeta.promptsI18n, assistantMeta.prompts_i18n, extractedMeta?.promptsI18n);
+      const extractedMetaRecord = extractedMeta as Record<string, unknown> | null;
+      const extractedNameI18n = stringRecord(extractedMeta?.nameI18n);
+      const extractedDescriptionI18n = stringRecord(extractedMeta?.descriptionI18n);
+      const extractedCategories = hasRecordKey(extractedMetaRecord, 'categories') ? (stringArray(extractedMetaRecord.categories) ?? []) : undefined;
+      const categories = extractedCategories ?? firstStringArray(assistantMeta.categories) ?? [];
+      const promptsI18n = hasRecordKey(extractedMetaRecord, 'promptsI18n') ? (normalizePackagePromptsI18n(extractedMetaRecord.promptsI18n) ?? { 'zh-CN': [] }) : firstPromptsI18n(assistantMeta.promptsI18n, assistantMeta.prompts_i18n);
+      const packageDisplayName = firstNonEmptyString(extractedMeta?.display_name, extractedNameI18n?.['zh-CN'], extractedNameI18n?.['en-US'], extractedMeta?.name);
+      const resolvedDisplayName = firstNonEmptyString(packageDisplayName, assistantMeta.display_name, displayName, assistantMeta.name, assistantName) || assistantName;
+      const resolvedName = firstNonEmptyString(extractedMeta?.name, assistantMeta.name, assistantName) || assistantName;
+      const nameI18n = extractedNameI18n ?? { 'zh-CN': resolvedDisplayName };
+      const assistantDescription = firstString(assistantMeta.description);
+      const descriptionI18n = hasRecordKey(extractedMetaRecord, 'descriptionI18n') ? (extractedDescriptionI18n ?? {}) : assistantDescription !== undefined ? { 'zh-CN': assistantDescription } : undefined;
+      const defaultInitPrompt = hasRecordKey(extractedMetaRecord, 'defaultInitPrompt') ? (firstString(extractedMetaRecord.defaultInitPrompt) ?? null) : (firstString(assistantMeta.defaultInitPrompt) ?? null);
+      const categoryId = firstNonEmptyString(extractedMeta?.category_id) ?? (extractedCategories !== undefined ? categories[0] || '' : firstNonEmptyString(assistantMeta.category, categories[0]) || '');
+      const packageTenantIds = tenantIdsWithFallback(extractedMeta?.tenantIds, extractedMetaRecord?.tenant_ids, extractedMeta?.tenantId, extractedMetaRecord?.tenant_id);
+      const tenantIds = packageTenantIds.length > 0 ? packageTenantIds : tenantIdsWithFallback(assistantMeta.tenantIds, assistantMeta.tenant_ids, assistantMeta.tenantId, assistantMeta.tenant_id);
+      const tenantId = firstString(extractedMeta?.tenantId, extractedMetaRecord?.tenant_id, assistantMeta.tenantId, assistantMeta.tenant_id) ?? tenantIds[0] ?? null;
+      const avatar = hasRecordKey(extractedMetaRecord, 'avatar') ? firstString(extractedMetaRecord.avatar) : firstString(assistantMeta.avatar, assistantMeta.emoji);
+      const emoji = hasRecordKey(extractedMetaRecord, 'emoji') ? (firstString(extractedMetaRecord.emoji) ?? null) : assistantMeta.emoji;
+      const profession = firstString(extractedMeta?.profession, assistantMeta.display_name, assistantMeta.name) ?? resolvedDisplayName;
+      const resolvedRuleFile = ruleFile || firstNonEmptyString(extractedMeta?.ruleFile);
 
       // Install selected associated skills FIRST, collect skill IDs for meta
       const installedSkillNames: string[] = [];
@@ -1390,34 +1425,36 @@ export function initAssistantHubBridge(): void {
       // Write assistant meta with skill IDs in enabledSkills
       const meta: AssistantHubMeta = {
         id: assistantMeta.id,
-        name: assistantMeta.name,
-        nameI18n: { 'zh-CN': assistantMeta.display_name },
-        descriptionI18n: assistantMeta.description ? { 'zh-CN': assistantMeta.description } : undefined,
-        avatar: assistantMeta.avatar || assistantMeta.emoji || undefined,
-        emoji: assistantMeta.emoji,
+        name: resolvedName,
+        display_name: resolvedDisplayName,
+        profession,
+        nameI18n,
+        descriptionI18n,
+        avatar,
+        emoji,
         presetAgentType: normalizePresetAgentType(assistantMeta.preset_agent_type) || DEFAULT_PRESET_AGENT_TYPE,
         source_type: assistantMeta.tag === 'system' ? 'builtin' : 'hub',
         tag: assistantMeta.tag || 'hub',
         // skills: store skill IDs (UUID format)
         skills: allAssociatedSkillIds,
-        category_id: assistantMeta.category,
-        categories: assistantMeta.categories,
+        category_id: categoryId,
+        categories,
         author_id: assistantMeta.author_id,
         homepage: assistantMeta.homepage,
         applicable_scenarios: assistantMeta.applicable_scenarios,
         core_features: assistantMeta.core_features,
         is_builtin: assistantMeta.tag === 'system',
         enabled: true,
-        defaultInitPrompt: assistantMeta.defaultInitPrompt || null,
-        tenantId: assistantMeta.tenantId ?? assistantMeta.tenant_id ?? null,
-        tenantIds: tenantIdsWithFallback(assistantMeta.tenantIds, assistantMeta.tenant_ids, assistantMeta.tenantId, assistantMeta.tenant_id),
+        defaultInitPrompt,
+        tenantId,
+        tenantIds,
         promptsI18n,
         installed_version: version,
         installed_at: new Date().toISOString(),
         // enabledSkills: skill IDs that will be enabled for this assistant
         enabledSkills: allAssociatedSkillIds,
         // Rule file for displaying assistant rules
-        ruleFile: ruleFile,
+        ruleFile: resolvedRuleFile,
       };
       await writeAssistantMetaFile(assistantDir, meta);
 
