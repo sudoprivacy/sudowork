@@ -31,7 +31,7 @@ async def run_case(tab, case_path: Path) -> dict:
     Returns:
         {"name": str, "passed": int, "failed": int, "results": list}
     """
-    with open(case_path) as f:
+    with open(case_path, encoding="utf-8") as f:
         case = yaml.safe_load(f)
 
     name = case.get("name", case_path.stem)
