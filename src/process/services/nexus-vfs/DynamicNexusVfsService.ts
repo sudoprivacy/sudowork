@@ -8,6 +8,7 @@ import { app } from 'electron';
 import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { getProxyAgent } from '@process/utils/proxyAgent';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import runtimeSha256 from '@/shared/runtime-sha256.json';
@@ -220,7 +221,9 @@ class DynamicNexusVfsService {
 
   // ── Download + install ───────────────────────────────────────────────────────
 
-  private downloadFile(url: string, destPath: string): Promise<void> {
+  private async downloadFile(url: string, destPath: string): Promise<void> {
+    // Resolve the proxy agent once (all download URLs are https); reused across redirects.
+    const proxyAgent = await getProxyAgent(url);
     return new Promise((resolve, reject) => {
       let redirects = 0;
 
@@ -231,8 +234,10 @@ class DynamicNexusVfsService {
         }
 
         const protocol = requestUrl.startsWith('https') ? https : http;
+        // Honor HTTP(S)_PROXY / NO_PROXY — Node's raw get() ignores them, so a
+        // direct connection fails TLS behind a VPN/corporate proxy.
         protocol
-          .get(requestUrl, (response) => {
+          .get(requestUrl, { agent: proxyAgent }, (response) => {
             const code = response.statusCode;
             if (code && [301, 302, 307, 308].includes(code) && response.headers.location) {
               response.resume();
