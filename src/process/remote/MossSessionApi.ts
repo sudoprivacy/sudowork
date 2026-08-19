@@ -711,14 +711,11 @@ export class MossSessionApi {
    * Existing chats keep whatever they were switched to in-chat via /agent.
    */
   async setChannelDefaultAgent(pluginId: string, agentName: string | null): Promise<void> {
-    const response = await this.fetchWithRetry(
-      `${this.serverUrl}/api/v1/channels/plugins/${pluginId}/agents/default`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentName }),
-      },
-    );
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/channels/plugins/${pluginId}/agents/default`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentName }),
+    });
 
     if (!response.ok) {
       const text = await response.text();
@@ -727,7 +724,9 @@ export class MossSessionApi {
       try {
         const parsed = JSON.parse(text);
         if (parsed?.message) message = parsed.message;
-      } catch { /* keep raw text */ }
+      } catch {
+        /* keep raw text */
+      }
       throw new Error(message || `Failed to set channel default agent: ${response.status}`);
     }
   }

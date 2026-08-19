@@ -84,13 +84,7 @@ const EnterpriseAgentSelector: React.FC<EnterpriseAgentSelectorProps> = ({ plugi
   const currentLabel = selected ? (agents.find((a) => a.name === selected)?.displayName ?? selected) : noneLabel;
 
   return (
-    <PreferenceRow
-      label={t('settings.channels.defaultAgent', '默认智能体')}
-      description={t(
-        'settings.channels.defaultAgentDesc',
-        '新会话将使用该智能体；已有会话保持各自在聊天中切换的结果。用户可在聊天中发送 /agents 查看、/agent <名称> 切换。',
-      )}
-    >
+    <PreferenceRow label={t('settings.channels.defaultAgent', '默认智能体')} description={t('settings.channels.defaultAgentDesc', '新会话将使用该智能体；已有会话保持各自在聊天中切换的结果。用户可在聊天中发送 /agents 查看、/agent <名称> 切换。')}>
       <Dropdown
         trigger='click'
         position='br'
@@ -107,12 +101,7 @@ const EnterpriseAgentSelector: React.FC<EnterpriseAgentSelectorProps> = ({ plugi
           </Menu>
         }
       >
-        <Button
-          type='secondary'
-          className='min-w-40'
-          disabled={saving || loading}
-          icon={saving || loading ? <IconLoading style={{ fontSize: 14 }} /> : <IconDown style={{ fontSize: 14 }} />}
-        >
+        <Button type='secondary' className='min-w-40' disabled={saving || loading} icon={saving || loading ? <IconLoading style={{ fontSize: 14 }} /> : <IconDown style={{ fontSize: 14 }} />}>
           {currentLabel}
         </Button>
       </Dropdown>
