@@ -19,6 +19,7 @@ import type { GeminiModelSelection, LoginPhase } from '../types';
 import { WECHAT_GUIDE_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
+import EnterpriseAgentSelector from './EnterpriseAgentSelector';
 
 interface WeChatConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -253,6 +254,10 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginStatus, model
       {renderQRCodeSection()}
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
+      {/* Enterprise mode: default agent lives on the moss server, which spawns the
+          sessions for this channel. Standalone mode uses the local picker below. */}
+      {isEnterprise && <EnterpriseAgentSelector pluginId='wechat_default' enabled={!!pluginStatus?.enabled} />}
+
       {!isEnterprise && (
         <div className='flex flex-col gap-2'>
           <PreferenceRow label={t('settings.channels.wechat.agent', 'Agent')} description={t('settings.channels.wechat.agentDesc', 'Used for WeChat conversations')}>

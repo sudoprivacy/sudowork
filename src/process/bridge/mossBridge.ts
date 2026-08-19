@@ -400,6 +400,38 @@ export function initMossBridge(): void {
     }
   });
 
+  // moss.get-channel-agents
+  ipcBridge.moss.getChannelAgents.provider(async ({ pluginId }) => {
+    try {
+      const api = await ensureMossApiInitialized();
+      if (!api) {
+        return { success: false, msg: 'Moss API not initialized. Please login first.' };
+      }
+
+      const data = await api.getChannelAgents(pluginId);
+      return { success: true, data };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return { success: false, msg };
+    }
+  });
+
+  // moss.set-channel-default-agent
+  ipcBridge.moss.setChannelDefaultAgent.provider(async ({ pluginId, agentName }) => {
+    try {
+      const api = await ensureMossApiInitialized();
+      if (!api) {
+        return { success: false, msg: 'Moss API not initialized. Please login first.' };
+      }
+
+      await api.setChannelDefaultAgent(pluginId, agentName);
+      return { success: true, data: undefined };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return { success: false, msg };
+    }
+  });
+
   // moss.set-model - Set model for current session via WebSocket
   ipcBridge.moss.setModel.provider(async ({ sessionId, modelId }) => {
     try {

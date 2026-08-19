@@ -18,6 +18,7 @@ import type { GeminiModelSelection } from '../types';
 import { DINGTALK_DEV_DOCS_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
+import EnterpriseAgentSelector from './EnterpriseAgentSelector';
 
 interface DingTalkConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -452,6 +453,10 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       )}
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
+      {/* Enterprise mode: default agent lives on the moss server, which spawns the
+          sessions for this channel. Standalone mode uses the local picker below. */}
+      {isEnterprise && <EnterpriseAgentSelector pluginId='dingtalk_default' enabled={!!pluginStatus?.enabled} />}
+
       {!isEnterprise && (
         <div className='flex flex-col gap-2'>
           <PreferenceRow label={t('settings.dingtalk.agent', 'Agent')} description={t('settings.dingtalk.agentDesc', 'Used for DingTalk conversations')}>

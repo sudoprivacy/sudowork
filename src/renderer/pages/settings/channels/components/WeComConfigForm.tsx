@@ -18,6 +18,7 @@ import type { GeminiModelSelection } from '../types';
 import { WECOM_DEV_DOCS_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
+import EnterpriseAgentSelector from './EnterpriseAgentSelector';
 
 interface WeComConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -334,7 +335,10 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
         </div>
       )}
 
-      {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
+      {/* Enterprise mode: default agent lives on the moss server, which spawns the
+          sessions for this channel. Standalone mode uses the local picker below. */}
+      {isEnterprise && <EnterpriseAgentSelector pluginId='wecom_default' enabled={!!pluginStatus?.enabled} />}
+
       {!isEnterprise && (
         <div className='flex flex-col gap-2'>
           <PreferenceRow label={t('settings.wecom.agent', 'Agent')} description={t('settings.wecom.agentDesc', 'Used for WeCom conversations')}>

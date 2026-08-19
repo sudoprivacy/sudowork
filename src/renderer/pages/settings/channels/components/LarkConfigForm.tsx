@@ -20,6 +20,7 @@ import type { GeminiModelSelection, LarkAuthPhase } from '../types';
 import { LARK_DEV_DOCS_URL } from '../utils';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
+import EnterpriseAgentSelector from './EnterpriseAgentSelector';
 
 interface LarkConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -512,6 +513,10 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
   return (
     <div className='flex flex-col gap-6'>
       {/* Consumer mode: QR Login (replaces manual App ID / App Secret entry) */}
+      {/* Enterprise mode: default agent lives on the moss server, which spawns the
+          sessions for this channel. Standalone mode uses the local picker below. */}
+      {isEnterprise && <EnterpriseAgentSelector pluginId='lark_default' enabled={!!pluginStatus?.enabled} />}
+
       {!isEnterprise && (
         <div className='flex flex-col gap-2'>
           <div className='flex items-center justify-between mb-3'>

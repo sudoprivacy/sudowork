@@ -681,6 +681,57 @@ export class MossSessionApi {
    */
   // 返回类型：用户偏好 + 系统默认模型
   // 保持返回类型声明不变，或者改成更完整的结构
+  /**
+   * Agents (智能体) this IM channel can use, plus the connection-level default.
+   * GET /api/v1/channels/plugins/{pluginId}/agents
+   *
+   * The roster is what the signed-in moss user can see, so it matches the moss admin UI.
+   */
+  async getChannelAgents(pluginId: string): Promise<{
+    agents: Array<{ name: string; displayName: string; description?: string }>;
+    defaultAgent: string | null;
+  }> {
+    const response = await this.fetchWithRetry(`${this.serverUrl}/api/v1/channels/plugins/${pluginId}/agents`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to get channel agents: ${response.status} ${text}`);
+    }
+
+    const res = await response.json();
+    return { agents: res.agents || [], defaultAgent: res.defaultAgent ?? null };
+  }
+
+  /**
+   * Set the agent new chats on this channel start with; pass null to clear it.
+   * PUT /api/v1/channels/plugins/{pluginId}/agents/default
+   *
+   * Existing chats keep whatever they were switched to in-chat via /agent.
+   */
+  async setChannelDefaultAgent(pluginId: string, agentName: string | null): Promise<void> {
+    const response = await this.fetchWithRetry(
+      `${this.serverUrl}/api/v1/channels/plugins/${pluginId}/agents/default`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentName }),
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      // The server answers 400 with a readable message (e.g. unknown agent); surface it.
+      let message = text;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed?.message) message = parsed.message;
+      } catch { /* keep raw text */ }
+      throw new Error(message || `Failed to set channel default agent: ${response.status}`);
+    }
+  }
+
   async getUserModelPreference(): Promise<{
     modelId: string;
     updatedAt: number;
