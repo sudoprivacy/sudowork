@@ -16,6 +16,7 @@ import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../types';
 import GeminiModelSelector from './GeminiModelSelector';
 import PreferenceRow from './PreferenceRow';
+import EnterpriseAgentSelector from './EnterpriseAgentSelector';
 
 interface TelegramConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
@@ -324,6 +325,10 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
       </PreferenceRow>
 
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
+      {/* Enterprise mode: default agent lives on the moss server, which spawns the
+          sessions for this channel. Standalone mode uses the local picker below. */}
+      {isEnterprise && <EnterpriseAgentSelector pluginId='telegram_default' enabled={!!pluginStatus?.enabled} />}
+
       {!isEnterprise && (
         <div className='flex flex-col gap-2'>
           <PreferenceRow label={t('settings.lark.agent', 'Agent')} description={t('settings.assistant.agentDescTelegram', 'Used for Telegram conversations')}>

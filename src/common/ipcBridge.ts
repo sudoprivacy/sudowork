@@ -472,6 +472,12 @@ export const moss = {
   getUserModel: bridge.buildProvider<IBridgeResponse<{ modelId: string; updatedAt: number; systemDefaultModel: string } | null>, void>('moss.get-user-model'),
   /** Set user's model preference */
   setUserModel: bridge.buildProvider<IBridgeResponse<{ modelId: string; updatedAt: number }>, { modelId: string }>('moss.set-user-model'),
+
+  /** Agents an IM channel can use + its current default (enterprise mode: served by moss). */
+  getChannelAgents: bridge.buildProvider<IBridgeResponse<{ agents: Array<{ name: string; displayName: string; description?: string }>; defaultAgent: string | null }>, { pluginId: string }>('moss.get-channel-agents'),
+
+  /** Set/clear the agent new chats on an IM channel start with. */
+  setChannelDefaultAgent: bridge.buildProvider<IBridgeResponse<void>, { pluginId: string; agentName: string | null }>('moss.set-channel-default-agent'),
   /** Set model for current session (via WebSocket) */
   setModel: bridge.buildProvider<IBridgeResponse, { sessionId: string; modelId: string }>('moss.set-model'),
   /** Model changed event (emitted when model switch completes) */
