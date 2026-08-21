@@ -97,7 +97,7 @@ function groupIntoDags(tasks: RegistryTask[]): Dag[] {
   // Convert each component to a Dag
   return components.map((comp) => {
     // Root task = task with no dependencies (or fewest)
-    const roots = comp.filter((t) => !(t.dependencies?.length));
+    const roots = comp.filter((t) => !t.dependencies?.length);
     const title = roots[0]?.subject ?? comp[0].subject;
     const statuses = comp.map((t) => t.status);
 
@@ -153,20 +153,17 @@ export function useTaskDags(_workspaceFiles: IDirOrFile[], workspace: string) {
 
   const tasksFilePath = workspace ? `${workspace}/${TASKS_FILENAME}` : '';
 
-  const loadAndParse = useCallback(
-    async (path: string): Promise<Dag[]> => {
-      try {
-        const content = await ipcBridge.fs.readFile.invoke({ path });
-        if (!content) return [];
-        const tasks: RegistryTask[] = JSON.parse(content);
-        if (!Array.isArray(tasks)) return [];
-        return groupIntoDags(tasks);
-      } catch {
-        return [];
-      }
-    },
-    []
-  );
+  const loadAndParse = useCallback(async (path: string): Promise<Dag[]> => {
+    try {
+      const content = await ipcBridge.fs.readFile.invoke({ path });
+      if (!content) return [];
+      const tasks: RegistryTask[] = JSON.parse(content);
+      if (!Array.isArray(tasks)) return [];
+      return groupIntoDags(tasks);
+    } catch {
+      return [];
+    }
+  }, []);
 
   // Reset when workspace changes
   useEffect(() => {
