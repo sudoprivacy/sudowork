@@ -1254,10 +1254,6 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
 
         {activeTab === 'files' && (
           <FlexFullContainer containerClassName='workspace-card__body overflow-y-auto'>
-            {/* TaskPanel temporarily hidden per product feedback — can restore later.
-             * <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
-             */}
-
             {/* Empty state or Tree */}
             {!hasOriginalFiles ? (
               <EmptyState
@@ -1406,6 +1402,10 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                 }}
               ></Tree>
             )}
+
+            {/* TaskPanel temporarily hidden per product feedback — can restore later.
+             * <TaskPanel workspaceFiles={treeHook.files} workspace={workspace} />
+             */}
           </FlexFullContainer>
         )}
 
