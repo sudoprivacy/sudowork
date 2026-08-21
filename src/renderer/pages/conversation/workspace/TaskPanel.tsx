@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { Tooltip } from '@arco-design/web-react';
 import type { IDirOrFile } from '@/common/ipcBridge';
 import { useTaskDags } from './hooks/useTaskDags';
 import { useTaskPanelHeader } from './TaskPanelHeaderContext';
@@ -205,19 +206,29 @@ const DOT_COLOR: Record<TaskStatus, string> = {
 const SingleDot: React.FC<{ task: SubTask; size?: number }> = ({ task, size = 10 }) => {
   const color = DOT_COLOR[task.status] ?? '#30363d';
   const isRunning = task.status === 'running';
+  const hitPad = Math.max(6, Math.round((24 - size) / 2));
   return (
-    <div
-      title={task.name}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        background: color,
-        flexShrink: 0,
-        boxShadow: isRunning ? `0 0 8px ${color}` : 'none',
-        animation: isRunning ? 'copilotPulse 2s ease-in-out infinite' : 'none',
-      }}
-    />
+    <Tooltip mini content={task.name}>
+      <div
+        style={{
+          padding: hitPad,
+          margin: -hitPad,
+          cursor: 'default',
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: size,
+            height: size,
+            borderRadius: '50%',
+            background: color,
+            boxShadow: isRunning ? `0 0 8px ${color}` : 'none',
+            animation: isRunning ? 'copilotPulse 2s ease-in-out infinite' : 'none',
+          }}
+        />
+      </div>
+    </Tooltip>
   );
 };
 
@@ -233,7 +244,17 @@ const PathDisplay: React.FC<{ tasks: SubTask[]; dotSize?: number }> = ({ tasks, 
             {colTasks.length === 1 ? (
               <SingleDot task={colTasks[0]} size={dotSize} />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  alignItems: 'center',
+                  border: '1px solid var(--bg-4, rgba(255,255,255,0.12))',
+                  borderRadius: 8,
+                  padding: '4px 5px',
+                }}
+              >
                 {colTasks.map((t) => (
                   <SingleDot key={t.task_id} task={t} size={dotSize} />
                 ))}
@@ -749,17 +770,18 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], workspace })
         className='task-panel'
         style={{
           padding: '8px 10px 10px',
-          borderBottom: '1px solid var(--bg-3, #e2e8f0)',
+          marginTop: 'auto',
+          borderTop: '1px solid var(--bg-3, #e2e8f0)',
           userSelect: 'none',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         }}
       >
-        {/* Scrollable card list - fixed height 100px, scroll to show tasks */}
-        {/* 可滚动的卡片列表 - 固定高度 100px，滚动展示任务 */}
+        {/* Scrollable card list — auto height, scroll when exceeding 240px */}
         <div style={{ position: 'relative' }}>
           <div
             ref={listRef}
-            className='task-panel__card-list max-h-100px overflow-auto'
+            className='task-panel__card-list'
+            style={{ maxHeight: 240, overflow: 'auto' } as React.CSSProperties}
             onScroll={checkScroll}
             style={{
               display: 'flex',
