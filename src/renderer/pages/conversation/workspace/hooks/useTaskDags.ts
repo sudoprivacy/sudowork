@@ -5,175 +5,240 @@
  */
 
 /**
- * useTaskDags — 从文件树数据中提取 .tasks/ DAG JSON 并读取内容
+ * useTaskDags — 从 .sudocode-tasks.json 读取 TaskRegistry 数据并按依赖关系分组为 DAG
  *
- * 直接复用 treeHook.files（文件树已加载的目录树），不额外发起任何目录扫描请求。
- * 找到 JSON 路径后用 readFile 读取内容，并通过 fileWatch 监听文件内容变更。
+ * 读取 workspace 根目录下的 .sudocode-tasks.json，解析为 Task 数组，
+ * 通过连通分量算法将有依赖关系的任务分组为 DAG，并通过 fileWatch 监听文件变更。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { ipcBridge } from '@/common';
 import type { IDirOrFile } from '@/common/ipcBridge';
-import type { Dag } from '../TaskPanel';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Dag, SubTask, TaskStatus, TaskType } from '../TaskPanel';
 
-/**
- * 在目录树中找出所有 .tasks/dag_xxx/dag_xxx.json 文件节点。
- *
- * .tasks/ 只会出现在 workspace 根目录（${workspacePath}/.tasks），所以只在
- * 顶层节点中查找，最多进入一层 wrapper 根节点（treeHook.files = [rootNode]）。
- * 不做深层递归，避免误命中子项目中的 .tasks/ 目录。
- */
-function findDagJsonNodes(nodes: IDirOrFile[]): IDirOrFile[] {
-  const extractFromTasksDir = (tasksNode: IDirOrFile): IDirOrFile[] => {
-    const results: IDirOrFile[] = [];
-    for (const dagDir of tasksNode.children ?? []) {
-      if (!dagDir.isDir || !dagDir.name.startsWith('dag_')) continue;
-      for (const file of dagDir.children ?? []) {
-        if (file.isFile && file.name.startsWith('dag_') && file.name.endsWith('.json')) {
-          results.push(file);
-        }
-      }
-    }
-    return results;
-  };
+// ─────────────────────────────────────────────────────────────────────────────
+// TaskRegistry types (from .sudocode-tasks.json)
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // 1. 在顶层节点中查找 .tasks/
-  for (const node of nodes) {
-    if (node.isDir && node.name === '.tasks') {
-      return extractFromTasksDir(node);
-    }
-  }
-
-  // 2. treeHook.files 通常是 [rootNode]（wrapper），检查其 children 一层
-  if (nodes.length === 1 && nodes[0].isDir && (nodes[0].children?.length ?? 0) > 0) {
-    for (const child of nodes[0].children!) {
-      if (child.isDir && child.name === '.tasks') {
-        return extractFromTasksDir(child);
-      }
-    }
-  }
-
-  return [];
+interface RegistryTask {
+  task_id: string;
+  subject: string;
+  prompt: string;
+  description?: string;
+  activeForm?: string;
+  task_packet?: unknown;
+  status: 'pending' | 'in_progress' | 'created' | 'running' | 'completed' | 'failed' | 'stopped';
+  created_at: number; // unix seconds
+  updated_at: number;
+  messages: Array<{ role: string; content: string; timestamp: number }>;
+  output: string;
+  dependencies?: string[]; // task_ids this task depends on
 }
 
-export function useTaskDags(workspaceFiles: IDirOrFile[], workspace: string) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Status mapping
+// ─────────────────────────────────────────────────────────────────────────────
+
+function mapStatus(status: RegistryTask['status']): TaskStatus {
+  switch (status) {
+    case 'pending':
+      return 'pending';
+    case 'in_progress':
+    case 'running':
+      return 'running';
+    case 'created':
+      return 'queued';
+    case 'completed':
+      return 'completed';
+    case 'failed':
+      return 'failed';
+    case 'stopped':
+      return 'skipped';
+    default:
+      return 'pending';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Connected component grouping
+// ─────────────────────────────────────────────────────────────────────────────
+
+function groupIntoDags(tasks: RegistryTask[]): Dag[] {
+  const taskMap = new Map(tasks.map((t) => [t.task_id, t]));
+  const visited = new Set<string>();
+  const components: RegistryTask[][] = [];
+
+  function dfs(id: string, component: RegistryTask[]) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const task = taskMap.get(id);
+    if (!task) return;
+    component.push(task);
+    // Follow dependencies (forward)
+    for (const dep of task.dependencies ?? []) {
+      dfs(dep, component);
+    }
+    // Follow reverse dependencies (find tasks that depend on this one)
+    for (const t of tasks) {
+      if ((t.dependencies ?? []).includes(id)) {
+        dfs(t.task_id, component);
+      }
+    }
+  }
+
+  for (const task of tasks) {
+    if (!visited.has(task.task_id)) {
+      const component: RegistryTask[] = [];
+      dfs(task.task_id, component);
+      components.push(component);
+    }
+  }
+
+  // Convert each component to a Dag
+  return components.map((comp) => {
+    // Root task = task with no dependencies (or fewest)
+    const roots = comp.filter((t) => !(t.dependencies?.length));
+    const title = roots[0]?.subject ?? comp[0].subject;
+    const statuses = comp.map((t) => t.status);
+
+    let dagStatus: TaskStatus = 'pending';
+    if (statuses.some((s) => s === 'running' || s === 'in_progress')) dagStatus = 'running';
+    else if (statuses.every((s) => s === 'completed')) dagStatus = 'completed';
+    else if (statuses.some((s) => s === 'failed')) dagStatus = 'failed';
+
+    const subtasks: SubTask[] = comp.map((t) => ({
+      task_id: t.task_id,
+      name: t.subject,
+      description: t.description ?? undefined,
+      type: 'custom' as TaskType,
+      dependencies: t.dependencies ?? [],
+      status: mapStatus(t.status),
+      metrics: { created_at: new Date(t.created_at * 1000).toISOString() },
+    }));
+
+    const completed = subtasks.filter((s) => s.status === 'completed').length;
+    const failed = subtasks.filter((s) => s.status === 'failed').length;
+    const running = subtasks.filter((s) => s.status === 'running').length;
+    const pending = subtasks.filter((s) => s.status === 'pending').length;
+
+    return {
+      dag_id: `group_${comp[0].task_id}`,
+      title,
+      status: dagStatus,
+      progress: {
+        total: comp.length,
+        completed,
+        failed,
+        skipped: subtasks.filter((s) => s.status === 'skipped').length,
+        running,
+        queued: subtasks.filter((s) => s.status === 'queued').length,
+        pending,
+      },
+      created_at: new Date(comp[0].created_at * 1000).toISOString(),
+      tasks: subtasks,
+    };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TASKS_FILENAME = '.sudocode-tasks.json';
+
+export function useTaskDags(_workspaceFiles: IDirOrFile[], workspace: string) {
   const [dags, setDags] = useState<Dag[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const watchedRef = useRef<Set<string>>(new Set());
+  const watchedRef = useRef<string | null>(null);
 
-  // Reset immediately when workspace identity changes — ensures the panel
-  // goes blank before the new file tree finishes loading, preventing stale
-  // DAGs from a previous workspace from being visible during the gap.
+  const tasksFilePath = workspace ? `${workspace}/${TASKS_FILENAME}` : '';
+
+  const loadAndParse = useCallback(
+    async (path: string): Promise<Dag[]> => {
+      try {
+        const content = await ipcBridge.fs.readFile.invoke({ path });
+        if (!content) return [];
+        const tasks: RegistryTask[] = JSON.parse(content);
+        if (!Array.isArray(tasks)) return [];
+        return groupIntoDags(tasks);
+      } catch {
+        return [];
+      }
+    },
+    []
+  );
+
+  // Reset when workspace changes
   useEffect(() => {
     setDags([]);
     setIsLoading(false);
-    for (const p of watchedRef.current) {
-      ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
+    if (watchedRef.current) {
+      ipcBridge.fileWatch.stopWatch.invoke({ filePath: watchedRef.current }).catch(() => {});
+      watchedRef.current = null;
     }
-    watchedRef.current.clear();
   }, [workspace]);
 
-  const loadDag = useCallback(async (path: string): Promise<Dag | null> => {
-    try {
-      const content = await ipcBridge.fs.readFile.invoke({ path });
-      if (!content) return null;
-      return JSON.parse(content) as Dag;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  // 文件树变化时，重新派生 dag 文件路径并读取内容
+  // Initial load + set up watcher
   useEffect(() => {
-    const jsonNodes = findDagJsonNodes(workspaceFiles);
-    if (jsonNodes.length === 0) {
-      setDags([]);
-      return;
-    }
+    if (!tasksFilePath) return;
 
     setIsLoading(true);
     let cancelled = false;
 
     void (async () => {
-      const results: Dag[] = [];
-      const activePaths: string[] = [];
-
-      for (const node of jsonNodes) {
-        const dag = await loadDag(node.fullPath);
-        if (dag) {
-          results.push(dag);
-          activePaths.push(node.fullPath);
-        }
-      }
-
+      const result = await loadAndParse(tasksFilePath);
       if (cancelled) return;
 
-      results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setDags(results);
+      setDags(result);
       setIsLoading(false);
 
-      // 同步 watcher（监听 JSON 内容变更，Worker 写入结果时实时刷新）
-      for (const p of activePaths) {
-        if (!watchedRef.current.has(p)) {
-          ipcBridge.fileWatch.startWatch.invoke({ filePath: p }).catch(() => {});
-          watchedRef.current.add(p);
+      // Start watching the file
+      if (watchedRef.current !== tasksFilePath) {
+        if (watchedRef.current) {
+          ipcBridge.fileWatch.stopWatch.invoke({ filePath: watchedRef.current }).catch(() => {});
         }
-      }
-      for (const p of watchedRef.current) {
-        if (!activePaths.includes(p)) {
-          ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
-          watchedRef.current.delete(p);
-        }
+        ipcBridge.fileWatch.startWatch.invoke({ filePath: tasksFilePath }).catch(() => {});
+        watchedRef.current = tasksFilePath;
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [workspaceFiles, loadDag]);
+  }, [tasksFilePath, loadAndParse]);
 
-  // 监听 JSON 文件内容变更（Worker 写入后实时更新对应 DAG）
+  // Listen for file changes
   useEffect(() => {
     const unsub = ipcBridge.fileWatch.fileChanged.on(async ({ filePath, eventType }) => {
-      if (!watchedRef.current.has(filePath)) return;
+      if (filePath !== watchedRef.current) return;
 
       if (eventType === 'unlink') {
+        setDags([]);
         ipcBridge.fileWatch.stopWatch.invoke({ filePath }).catch(() => {});
-        watchedRef.current.delete(filePath);
-        setDags((prev) => prev.filter((d) => !filePath.includes(d.dag_id)));
+        watchedRef.current = null;
         return;
       }
 
-      // rename = 原子写入完成，稍等 50ms 再读
       const read = async () => {
-        const updated = await loadDag(filePath);
-        if (!updated) return;
-        // rename 后 inode 变了，重新注册 watcher
+        const result = await loadAndParse(filePath);
+        setDags(result);
+        // Re-register watcher after rename (inode changed)
         if (eventType === 'rename') {
           ipcBridge.fileWatch.startWatch.invoke({ filePath }).catch(() => {});
         }
-        setDags((prev) => {
-          const idx = prev.findIndex((d) => d.dag_id === updated.dag_id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = updated;
-            return next;
-          }
-          return [updated, ...prev];
-        });
       };
 
       if (eventType === 'rename') setTimeout(() => void read(), 50);
       else void read();
     });
     return () => unsub();
-  }, [loadDag]);
+  }, [loadAndParse]);
 
-  // 卸载时清理
+  // Cleanup on unmount
   useEffect(
     () => () => {
-      for (const p of watchedRef.current) {
-        ipcBridge.fileWatch.stopWatch.invoke({ filePath: p }).catch(() => {});
+      if (watchedRef.current) {
+        ipcBridge.fileWatch.stopWatch.invoke({ filePath: watchedRef.current }).catch(() => {});
       }
     },
     []
