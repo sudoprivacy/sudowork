@@ -111,6 +111,9 @@ jobs:
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
 
+      - name: Ensure Electron binary is installed
+        run: node node_modules/electron/install.js
+
       - name: Rebuild native modules for Electron
         run: bunx electron-builder install-app-deps
         env:
