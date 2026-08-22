@@ -3,6 +3,29 @@
  * Global configuration for extension system tests
  */
 
+import { vi } from 'vitest';
+
+// Global mock for Electron — prevents "Electron failed to install correctly"
+// crashes when any test transitively imports `electron` (e.g. via mainLogger).
+// Individual tests can override with their own `vi.mock('electron', ...)`.
+vi.mock('electron', () => ({
+  app: {
+    isPackaged: false,
+    getAppPath: () => '',
+    getPath: (name: string) => `/tmp/sudowork-test-${name}`,
+    getName: () => 'sudowork-test',
+    getVersion: () => '0.0.0-test',
+    on: () => {},
+    once: () => {},
+    quit: () => {},
+  },
+  ipcMain: { on: () => {}, handle: () => {}, removeHandler: () => {} },
+  BrowserWindow: vi.fn(),
+  dialog: { showOpenDialog: vi.fn(), showSaveDialog: vi.fn() },
+  shell: { openExternal: vi.fn() },
+  nativeTheme: { shouldUseDarkColors: false, on: () => {} },
+}));
+
 // Make this a module
 export {};
 
