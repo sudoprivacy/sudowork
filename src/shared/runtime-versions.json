@@ -1,6 +1,7 @@
 {
   "nexus": "0.9.43",
   "nexus-vfs": "0.6.0",
+  "nexusd-cluster": "0.1.0",
   "nexus-vault": "0.4.0",
   "nexus-local-connector": "0.3.0",
   "nexus-fuse-plugin": "0.5.0",

@@ -38,15 +38,18 @@ const {
   getPluginSig,
 } = require('./plugin-naming.js');
 
-const VERSION = runtimeVersions['nexus-vfs'];
+// The daemon is now the nexus ASSEMBLY nexusd-cluster (VFS cluster + managed_agent),
+// pinned + published independently of nexus-vfs under the distinct COS prefix
+// `nexusd-cluster/`. Superset of the old pure-cluster pull.
+const VERSION = runtimeVersions['nexusd-cluster'];
 const VAULT_VERSION = runtimeVersions['nexus-vault'];
 const LOCAL_CONNECTOR_VERSION = runtimeVersions['nexus-local-connector'];
 const FUSE_PLUGIN_VERSION = runtimeVersions['nexus-fuse-plugin'];
 
 // Runtime bucket is primary; legacy bucket stays live as a fallback during deprecation.
 const COS_BASE_URLS = [
-  `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`,
-  `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`,
+  `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexusd-cluster/release/v${VERSION}`,
+  `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexusd-cluster/release/v${VERSION}`,
 ];
 
 // GitHub Release fallback for nexus-vfs cluster, mirroring the same pattern
@@ -56,7 +59,7 @@ const COS_BASE_URLS = [
 // release (`publish-github-release` step, `softprops/action-gh-release@v2`)
 // is unconditional on tag push, so the GH-release fallback is always
 // available even when the COS mirror is empty.
-const NEXUS_VFS_GITHUB_URL = `https://github.com/nexi-lab/nexus-vfs/releases/download/v${VERSION}`;
+const NEXUS_VFS_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/download/nexusd-cluster-v${VERSION}`;
 
 // Vault plugin is released from the nexus repo (separate from nexus-vfs).
 const VAULT_COS_BASE_URLS = [

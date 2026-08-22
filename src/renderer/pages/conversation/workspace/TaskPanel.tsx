@@ -781,14 +781,17 @@ const TaskPanel: React.FC<TaskPanelProps> = ({ workspaceFiles = [], workspace })
           <div
             ref={listRef}
             className='task-panel__card-list'
-            style={{ maxHeight: 240, overflow: 'auto' } as React.CSSProperties}
             onScroll={checkScroll}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              paddingRight: 1,
-            }}
+            style={
+              {
+                maxHeight: 240,
+                overflow: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                paddingRight: 1,
+              } as React.CSSProperties
+            }
           >
             {dags.map((d) => {
               const p = d.progress.total > 0 ? Math.round((d.progress.completed / d.progress.total) * 100) : 0;
