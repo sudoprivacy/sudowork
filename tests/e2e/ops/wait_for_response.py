@@ -129,7 +129,13 @@ async def _wait_db(timeout: float, idle_seconds: float,
         # agent finishes its turn, WorkerManage sets status='finished'.
         # Uses tab.evaluate with await_promise=True (js_evaluate doesn't
         # await Promises).
-        if tab and conv_id:
+        #
+        # Gate on `not in_progress`: right after a send, or between tool calls,
+        # task.status can still read 'finished' from the PREVIOUS turn before the
+        # new one registers — which returned mid-turn (judged while a tool_call
+        # was still running). If a tool_call is in_progress the turn is not done,
+        # whatever the status says, so don't accept 'finished' yet.
+        if tab and conv_id and not in_progress:
             try:
                 task_status = await tab.evaluate(f"""
                     (async function() {{

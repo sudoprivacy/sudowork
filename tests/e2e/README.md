@@ -75,6 +75,14 @@ python tests/e2e/runner.py --port 9230 --case model-command
 
 ## Running notes
 
+- **Native modules must match the app's Electron ABI.** When driving a local
+  dev app, `better-sqlite3` (and other `.node` modules) must be built for the
+  *current* Electron — do NOT copy a binding from a sibling worktree on a
+  different Electron version. A mismatched binding boots fine but **segfaults
+  the main process** on some paths (e.g. creating an scode conversation), which
+  reads as the app "crashing on send". Rebuild for the current version:
+  `bunx electron-builder install-app-deps` (or, with MSVC env sourced,
+  `npx electron-rebuild --only better-sqlite3 --force --electron-version <ver>`).
 - **UTF-8 is built in.** The runner reads YAML as UTF-8 and reconfigures
   stdout/stderr, so Chinese case names / labels / judge reasons work on a
   Windows GBK console with no `PYTHONUTF8=1` / `PYTHONIOENCODING` needed.

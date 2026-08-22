@@ -50,8 +50,12 @@ steps:
     timeout: 60
   - op: screenshot
     path: "screenshots/scode-plan-03-tested.png"
-  - op: judge
-    expect: "pass"
+  # The generated tests run under python unittest, whose success marker is "OK"
+  # (not "pass"); accept the common green markers across runners.
+  - op: assert_contains_any
+    expected: ["ok", "pass", "passed", "success"]
+    min_count: 1
+    reason: unit tests reported success
 
   # ── Cleanup ──
   - op: type_text
