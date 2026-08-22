@@ -47,8 +47,8 @@ const NEXUS_VFS_READY_MARKER = '.nexus-vfs-bin-ready';
 /** COS mirrors hosting the nexus-vfs artifacts. Runtime bucket is primary; the
  *  legacy bucket stays live as a fallback during deprecation. Both serve the same
  *  bytes (server-side copy), so the SHA256 check below holds for either source. */
-const NEXUS_VFS_RUNTIME_BASE_URL = `${COS_RUNTIME_BASE}/nexus-vfs/release`;
-const NEXUS_VFS_LEGACY_BASE_URL = `${COS_LEGACY_NEXUS_VFS_BASE}/nexus-vfs/release`;
+const NEXUS_VFS_RUNTIME_BASE_URL = `${COS_RUNTIME_BASE}/nexusd-cluster/release`;
+const NEXUS_VFS_LEGACY_BASE_URL = `${COS_LEGACY_NEXUS_VFS_BASE}/nexusd-cluster/release`;
 
 /** Node.js process.platform → artifact OS token. */
 const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows', linux: 'linux' };
@@ -143,7 +143,7 @@ class DynamicNexusVfsService {
   // ── Version / artifact resolution ────────────────────────────────────────────
 
   getBundledVersion(): string {
-    return (runtimeVersions as Record<string, string>)['nexus-vfs'];
+    return (runtimeVersions as Record<string, string>)['nexusd-cluster'];
   }
 
   private getArtifactName(): string {
