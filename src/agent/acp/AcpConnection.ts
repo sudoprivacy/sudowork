@@ -11,7 +11,7 @@ import os from 'os';
 import path from 'path';
 import { ACP_METHODS, getAcpResumeStrategy, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
-import { mainLog } from '@process/utils/mainLogger';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
 import { recordFirstToken } from '@process/telemetry';
 import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
@@ -288,8 +288,20 @@ export class AcpConnection {
     // (scode + other generic CLIs); npx bridges keep the local spawn path.
     const nexusEndpoint = customEnv?.ACP_GRPC_ENDPOINT;
     if (nexusEndpoint && cliPath && !AcpConnection.NPX_BACKENDS.has(backend)) {
-      await this.connectViaNexusTunnel(backend, cliPath, workingDir, acpArgs, customEnv, nexusEndpoint);
-      return;
+      try {
+        await this.connectViaNexusTunnel(backend, cliPath, workingDir, acpArgs, customEnv, nexusEndpoint);
+        return;
+      } catch (tunnelError) {
+        // The tunnel is an optimization, not a hard dependency: if nexus can't
+        // spawn/drive the agent (daemon missing managed_agent, start_session or
+        // initialize failed, …), degrade to a local spawn instead of failing the
+        // whole connection. close reaps any half-started managed_agent session
+        // (cancel_v1) + revokes the proxy token so the local retry starts clean.
+        mainWarn('[ACP]', `nexus tunnel connect failed for ${backend}, falling back to local spawn: ${tunnelError instanceof Error ? tunnelError.message : String(tunnelError)}`);
+        await this.closeTransport();
+        this.failPendingRequests('nexus tunnel unavailable; retrying via local spawn');
+        this.isSetupComplete = false;
+      }
     }
 
     switch (backend) {
