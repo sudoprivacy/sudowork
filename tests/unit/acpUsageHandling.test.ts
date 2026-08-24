@@ -145,24 +145,39 @@ describe('extractLatestScodeAssistantUsageFromJsonl', () => {
   });
 
   it('ignores compaction and tool entries without assistant message usage', () => {
-    const jsonl = [
-      JSON.stringify({ type: 'compaction', usage: { input_tokens: 1, output_tokens: 1 } }),
-      JSON.stringify({ message: { role: 'tool' }, type: 'message' }),
-    ].join('\n');
+    const jsonl = [JSON.stringify({ type: 'compaction', usage: { input_tokens: 1, output_tokens: 1 } }), JSON.stringify({ message: { role: 'tool' }, type: 'message' })].join('\n');
 
     expect(extractLatestScodeAssistantUsageFromJsonl(jsonl)).toBeNull();
   });
 });
 
 describe('findScodeSessionFile', () => {
-  it('finds nested SCode session files named after the ACP session id', async () => {
+  it('finds the legacy flat transcript under the workspace-fingerprint partition', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'scode-session-'));
     const sessionId = 'session-1781507199209-0';
-    const sessionDir = path.join(root, '.scode', 'sessions', 'f4975f5977d43141');
-    await mkdir(sessionDir, { recursive: true });
-    const sessionFile = path.join(sessionDir, `${sessionId}.jsonl`);
+    const partitionDir = path.join(root, '.scode', 'sessions', 'f4975f5977d43141');
+    await mkdir(partitionDir, { recursive: true });
+    const sessionFile = path.join(partitionDir, `${sessionId}.jsonl`);
     await writeFile(sessionFile, '{}\n');
 
     await expect(findScodeSessionFile(root, sessionId)).resolves.toBe(sessionFile);
+  });
+
+  it('finds the current per-session-directory transcript.jsonl under the partition', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'scode-session-'));
+    const sessionId = 'session-1781507199209-1';
+    const sessionDir = path.join(root, '.scode', 'sessions', 'f4975f5977d43141', sessionId);
+    await mkdir(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, 'transcript.jsonl');
+    await writeFile(sessionFile, '{}\n');
+
+    await expect(findScodeSessionFile(root, sessionId)).resolves.toBe(sessionFile);
+  });
+
+  it('returns null when no transcript exists for the session id', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'scode-session-'));
+    await mkdir(path.join(root, '.scode', 'sessions', 'f4975f5977d43141'), { recursive: true });
+
+    await expect(findScodeSessionFile(root, 'no-such-session')).resolves.toBeNull();
   });
 });

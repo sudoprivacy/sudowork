@@ -4,16 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TurnTokenUsage } from '@/common/chatLib';
-import type { AcpPromptResponseUsage } from '@/types/acpTypes';
 import type { Dirent } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as nodePath from 'node:path';
+import type { AcpPromptResponseUsage } from '@/types/acpTypes';
+import type { TurnTokenUsage } from '@/common/chatLib';
 
 type JsonRecord = Record<string, unknown>;
 
 const SCODE_SESSION_POLL_ATTEMPTS = 24;
 const SCODE_SESSION_POLL_INTERVAL_MS = 15_000;
+// SCode's per-session-directory transcript member (mirrors sudocode's
+// `TRANSCRIPT_FILE`). Older SCode builds wrote a flat `<session-id>.jsonl`.
+const SCODE_TRANSCRIPT_FILE = 'transcript.jsonl';
 
 function numberOrUndefined(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
@@ -131,45 +134,41 @@ export function extractLatestScodeAssistantUsageFromJsonl(content: string): Scod
   return null;
 }
 
+/**
+ * Resolve SCode's persisted transcript file for `sessionId` under
+ * `<workspace>/.scode/sessions/`.
+ *
+ * SCode partitions sessions by a workspace-fingerprint directory, so the
+ * transcript lives at either the current per-session-directory layout
+ * `<sessions>/<workspace-hash>/<sessionId>/transcript.jsonl` or the legacy flat
+ * layout `<sessions>/<workspace-hash>/<sessionId>.jsonl`. We deliberately do
+ * NOT reproduce SCode's fingerprint algorithm (that would duplicate engine-owned
+ * logic and drift): instead we probe the (usually single) partition dirs for
+ * both layouts. Bounded to two levels — no unbounded recursion.
+ */
 export async function findScodeSessionFile(workspace: string, sessionId: string): Promise<string | null> {
   const sessionsRoot = nodePath.join(workspace, '.scode', 'sessions');
-  const directCandidates = [nodePath.join(sessionsRoot, sessionId, 'session.jsonl'), nodePath.join(sessionsRoot, `${sessionId}.jsonl`)];
 
-  for (const candidate of directCandidates) {
-    try {
-      const stat = await fs.stat(candidate);
-      if (stat.isFile()) return candidate;
-    } catch {
-      // Try the next candidate.
+  // Probe both on-disk layouts directly under `root`.
+  const probe = async (root: string): Promise<string | null> => {
+    const candidates = [nodePath.join(root, sessionId, SCODE_TRANSCRIPT_FILE), nodePath.join(root, `${sessionId}.jsonl`)];
+    for (const candidate of candidates) {
+      const stat = await fs.stat(candidate).catch((): null => null);
+      if (stat?.isFile()) return candidate;
     }
-  }
-
-  let entries;
-  try {
-    entries = await fs.readdir(sessionsRoot, { withFileTypes: true });
-  } catch {
     return null;
-  }
+  };
 
-  const stack = entries.map((entry) => nodePath.join(sessionsRoot, entry.name));
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    let stat;
-    try {
-      stat = await fs.stat(current);
-    } catch {
-      continue;
-    }
+  // The transcript sits under a workspace-fingerprint partition dir; also probe
+  // the sessions root directly for robustness against an unpartitioned layout.
+  const direct = await probe(sessionsRoot);
+  if (direct) return direct;
 
-    if (stat.isDirectory()) {
-      const children = await fs.readdir(current, { withFileTypes: true }).catch((): Dirent[] => []);
-      for (const child of children) stack.push(nodePath.join(current, child.name));
-      continue;
-    }
-
-    if (stat.isFile() && nodePath.basename(current) === `${sessionId}.jsonl`) {
-      return current;
-    }
+  const partitions = await fs.readdir(sessionsRoot, { withFileTypes: true }).catch((): Dirent[] => []);
+  for (const entry of partitions) {
+    if (!entry.isDirectory()) continue;
+    const hit = await probe(nodePath.join(sessionsRoot, entry.name));
+    if (hit) return hit;
   }
 
   return null;
