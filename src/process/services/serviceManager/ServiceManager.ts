@@ -250,6 +250,12 @@ export class ServiceManager {
 
           initStatusManager.addLog(`↻ Nexus 启动失败，准备重试（第 ${attempt + 1}/${attempts} 次）...`);
           await dynamicNexusVfsService.stop().catch(() => {});
+          // Self-heal: purge stale plugins if the failure was a signature
+          // mismatch (binary upgraded but old plugins remained). The next
+          // iteration's install() will re-download matching versions.
+          if (dynamicNexusVfsService.tryHealStalePlugins()) {
+            initStatusManager.addLog('↻ 已清理过期插件，将重新下载匹配版本');
+          }
           await this.killProcessesOnPort(12022, 'Nexus');
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }

@@ -81,6 +81,8 @@ class DynamicNexusVfsService {
   private _stage: NexusVfsStage = 'idle';
   private _callbacks: NexusVfsCallback[] = [];
   private readonly isWindows = process.platform === 'win32';
+  /** Recent stderr from the last start() attempt — reset on each start(). */
+  private _lastStderr = '';
 
   get isRunning(): boolean {
     return this._running;
@@ -481,6 +483,7 @@ class DynamicNexusVfsService {
 
     fs.mkdirSync(this.getDaemonDataDir(), { recursive: true });
 
+    this._lastStderr = '';
     const spawnStart = Date.now();
     this.emit('starting', `Starting nexus-vfs on ${NEXUS_VFS_BIND_HOST}:${this._port}`);
     mainLog('NexusVfs', `Spawning: ${launchCommand.command} ${launchCommand.args.join(' ')}`);
@@ -504,6 +507,7 @@ class DynamicNexusVfsService {
     this.process.stderr?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();
       if (!msg) return;
+      this._lastStderr += msg + '\n';
       // nexusd-cluster writes structured tracing logs (INFO/WARN) to stderr;
       // only escalate genuine errors.
       if (/\b(ERROR|CRITICAL)\b/.test(msg)) {
@@ -558,6 +562,37 @@ class DynamicNexusVfsService {
     // Fallback: clear anything still bound to the port.
     await this.forceKillProcessesOnPort(this._port || NEXUS_VFS_DEFAULT_PORT);
     this.process = null;
+  }
+
+  /**
+   * Self-heal after a startup failure: if the last stderr indicates a plugin
+   * signature mismatch (stale plugin vs. upgraded binary), purge the offending
+   * plugin files so the next install() re-downloads matching versions.
+   *
+   * Returns true if stale plugins were cleaned (caller should retry).
+   */
+  tryHealStalePlugins(): boolean {
+    if (!/signature did not verify|plugin.*failed to load/.test(this._lastStderr)) {
+      return false;
+    }
+    const pluginDir = this.getPluginDir();
+    if (!fs.existsSync(pluginDir)) return false;
+
+    let cleaned = false;
+    try {
+      for (const entry of fs.readdirSync(pluginDir)) {
+        if (entry.endsWith('.dylib') || entry.endsWith('.so') || entry.endsWith('.dll') || entry.endsWith('.sig') || (entry.startsWith('.nexus-') && entry.endsWith('-ready'))) {
+          fs.unlinkSync(path.join(pluginDir, entry));
+          cleaned = true;
+        }
+      }
+      if (cleaned) {
+        mainWarn('NexusVfs', 'Purged stale plugins after signature mismatch — will re-download on next install');
+      }
+    } catch (err) {
+      mainWarn('NexusVfs', `Failed to purge stale plugins: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return cleaned;
   }
 
   async installAndStart(onSetupStatus?: NexusVfsCallback): Promise<void> {
