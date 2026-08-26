@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * SudoClaw Skill CLI - Search and install skills from SudoClaw skill hub
+ * Sudowork Skill CLI - Search and install skills from Sudowork skill hub
  *
  * Usage:
- *   sudoclaw-skill search <query>       - Search skills by keyword
- *   sudoclaw-skill install <skill-name> - Install a skill by name
- *   sudoclaw-skill list                 - List installed skills from hub
+ *   sudowork-skill search <query>       - Search skills by keyword
+ *   sudowork-skill install <skill-name> - Install a skill by name
+ *   sudowork-skill list                 - List installed skills from hub
  */
 
 import https from 'node:https';
@@ -302,17 +302,17 @@ async function main() {
   const command = args[0];
 
   if (!command) {
-    console.log('SudoClaw Skill CLI - Search and install skills from SudoClaw skill hub');
+    console.log('Sudowork Skill CLI - Search and install skills from Sudowork skill hub');
     console.log('');
     console.log('Usage:');
-    console.log('  sudoclaw-skill search <query>       - Search skills by keyword');
-    console.log('  sudoclaw-skill install <skill-name> - Install a skill');
-    console.log('  sudoclaw-skill list                 - List installed skills');
+    console.log('  sudowork-skill search <query>       - Search skills by keyword');
+    console.log('  sudowork-skill install <skill-name> - Install a skill');
+    console.log('  sudowork-skill list                 - List installed skills');
     console.log('');
     console.log('Examples:');
-    console.log('  sudoclaw-skill search "pdf"');
-    console.log('  sudoclaw-skill install shareone-skill');
-    console.log('  sudoclaw-skill install "ShareOne文件分享助手"');
+    console.log('  sudowork-skill search "pdf"');
+    console.log('  sudowork-skill install shareone-skill');
+    console.log('  sudowork-skill install "ShareOne文件分享助手"');
     return;
   }
 

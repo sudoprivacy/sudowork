@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Sudo Hub Skill installer CLI",
   "bin": {
-    "sudoclaw-skill": "./scripts/sudoclaw-skill.mjs"
+    "sudowork-skill": "./scripts/sudowork-skill.mjs"
   },
   "files": [
     "scripts/",
