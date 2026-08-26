@@ -83,6 +83,7 @@ export default defineConfig({
         'src/process/services/local-kb/LocalKnowledgeBaseService.ts',
         'src/process/services/poppler/PopplerRuntimeService.ts',
         'src/process/services/ffmpeg/FfmpegRuntimeService.ts',
+        'src/process/services/ffmpeg/ffmpegSkillGate.ts',
         'src/process/services/nexus-vfs/FusePluginClient.ts',
         'src/process/telemetry/SudoLogTelemetryReporter.ts',
         'src/process/bridge/updateBridge.ts',

@@ -5,6 +5,17 @@
   "version": "n9.0.1-4-gb3ef323dd2",
   "releaseSuffix": "9.0",
 
+  "_cos_doc": "Runtime download source. FfmpegRuntimeService downloads <cos.baseUrl>/ffmpeg/<tag>/ffmpeg-<key>.tar.gz on demand (China-reachable) when an ffmpeg-needing skill is installed, and verifies it against cos.sha256[key] (the SHA256 of the flat tar.gz produced+uploaded by .github/workflows/mirror-ffmpeg-to-cos.yml). Refresh these after re-running the mirror on a pin bump.",
+  "cos": {
+    "baseUrl": "https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com",
+    "sha256": {
+      "win32-x64": "",
+      "win32-arm64": "",
+      "linux-x64": "",
+      "linux-arm64": ""
+    }
+  },
+
   "platforms": {
     "win32-x64": { "btbn": "win64", "archive": "zip", "sha256": "ae937d5807fa7a281a0b9fbbfe976bfe60423a75c0892c0e6dcd266f37de43d5" },
     "win32-arm64": { "btbn": "winarm64", "archive": "zip", "sha256": "ee488b5d138bc24557203b4b81a6a5895ef9b9a3f3b906c9669de2c6b07f63ef" },

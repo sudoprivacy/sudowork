@@ -19,8 +19,8 @@ import './i18n'; // Initialize i18n for main process
 import { syncElectronPath } from './services/claudeCli/CliInstallService';
 import { getChannelManager } from '@/channels';
 import { ExtensionRegistry } from '@/extensions';
-import { mainLog, mainWarn, mainError, perfLog } from './utils/mainLogger';
-import { ensureFfmpegInstalled } from './services/ffmpeg/FfmpegRuntimeService';
+import { mainLog, mainError, perfLog } from './utils/mainLogger';
+import { reconcileFfmpegAtStartup } from './services/ffmpeg/ffmpegSkillGate';
 import { initializeSudoworkLogUploader } from './utils/sudoworkLogUploader';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
@@ -80,12 +80,10 @@ export const initializeProcess = async () => {
   }
   perfLog('initBridge', Date.now() - bridgeStart);
 
-  // Provision the bundled FFmpeg in the background so skills that shell out to
-  // `ffmpeg` (subtitle burning, transcode) work without a user install. Fire-
-  // and-forget: extraction must not block boot, and skills only need it later.
-  void ensureFfmpegInstalled().catch((error) => {
-    mainWarn('Process', 'FFmpeg provisioning failed (non-fatal)', error);
-  });
+  // ffmpeg is provisioned on demand when an ffmpeg-needing skill is installed
+  // (skill-gated, not shipped to everyone). At boot only re-provision if a prior
+  // install marked it needed but its dir was wiped — O(1) marker check otherwise.
+  reconcileFfmpegAtStartup();
 
   // ExtensionRegistry is zero-coupled to serviceManager/ChannelManager (verified in source),
   // so it must be initialized in ALL modes to support themes, i18n, settings tabs, etc.

@@ -8,6 +8,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { MOSS_SKILL_META_FILE, SKILL_HUB_META_FILE } from '@/process/constants/skillStorage';
 import { buildSkillDisplayName, findRootSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
+import { maybeProvisionFfmpegForSkill } from '@/process/services/ffmpeg/ffmpegSkillGate';
 
 export type TrackedWorkspaceFile = {
   path: string;
@@ -443,6 +444,8 @@ export async function installWorkspaceSkillsFromTrackedFiles(workspace: string, 
       inspected.meta.installed_at = deps.now ? deps.now().toISOString() : new Date().toISOString();
       inspected.meta.installed_version = inspected.installedVersion;
       await fs.writeFile(path.join(targetDir, inspected.metaFileName), JSON.stringify(inspected.meta, null, 2), 'utf-8');
+      // Provision ffmpeg on demand if this workspace-authored skill needs it.
+      maybeProvisionFfmpegForSkill(targetDir);
       results.push({
         status: 'installed',
         skillName: inspected.skillName,

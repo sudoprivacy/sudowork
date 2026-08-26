@@ -28,6 +28,7 @@ import { SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/e
 import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
 import { tokenMissingResponse } from '@common/nexus/hubErrors';
+import { maybeProvisionFfmpegForSkill } from '@process/services/ffmpeg/ffmpegSkillGate';
 import { getDataPath } from '../utils';
 
 const VERSION_FILE_NAME = 'sudowork-version';
@@ -545,6 +546,9 @@ async function installImportedSkillFromPreparedDirectory(skillDir: string, impor
     installed_at: installedAt,
   };
   await writeSkillMetaFile(customDir, meta);
+
+  // Provision ffmpeg on demand if this imported skill needs it (skill-gated).
+  maybeProvisionFfmpegForSkill(customDir);
 
   // Run security audit synchronously so the report is ready when the frontend opens the audit modal
   try {
@@ -1264,6 +1268,9 @@ export async function installHubSkillPackage(params: { skillName: string; displa
     await writeSkillMetaFile(skillDir, meta);
 
     mainLog('SkillHub', `Successfully installed skill "${trimmedSkillName}" v${version} to ${skillDir}`);
+
+    // Provision ffmpeg on demand if this skill needs it (skill-gated download).
+    maybeProvisionFfmpegForSkill(skillDir);
 
     // Reload Sudoclaw gateway to pick up new skills.
     // - On Unix: use SIGUSR1 for hot-reload (keeps sessions alive)

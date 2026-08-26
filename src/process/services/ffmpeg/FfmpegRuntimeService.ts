@@ -7,43 +7,53 @@
 /**
  * FFmpeg Runtime Service
  *
- * Extracts and manages a bundled FFmpeg binary so skills that shell out to
- * `ffmpeg` (e.g. the FFmpeg Video Editor skill, which burns subtitles via
- * `ffmpeg -vf subtitles=...`) work out of the box — no user install, no
- * runtime CDN download that half-completes on China networks and yields a
- * non-launchable binary (the "spawn UNKNOWN" teardown symptom).
+ * Provisions an ffmpeg/ffprobe binary for skills that shell out to `ffmpeg`
+ * (e.g. the FFmpeg Video Editor skill, which burns subtitles via
+ * `ffmpeg -vf subtitles=...`).
  *
- * FFmpeg is bundled at build time via `bun run ffmpeg:download`, mirroring
- * how Node.js is provisioned by NodeRuntimeService. The bundled per-platform
- * archive is normalized at build time to contain just the flat `ffmpeg`
- * (+ `ffprobe`) binaries, so extraction here is layout-agnostic.
+ * ffmpeg is NOT bundled in the installer (few users need it — provisioning is
+ * skill-gated). Instead it is downloaded ON DEMAND from the sudowork runtime
+ * COS mirror (Beijing — reachable in China, unlike the BtbN/GitHub source that
+ * half-completes on China networks and yields the "spawn UNKNOWN" symptom) the
+ * first time an ffmpeg-needing skill is installed/enabled. The exact build +
+ * per-platform SHA256 are pinned in `src/shared/ffmpeg-runtime.json`; the
+ * download is verified against that SHA before it is trusted. Mirror the pinned
+ * build to COS with `.github/workflows/mirror-ffmpeg-to-cos.yml`.
  */
 
-import { app } from 'electron';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { getDataPath } from '@process/utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import ffmpegRuntime from '@/shared/ffmpeg-runtime.json';
 import { extractTarGzWithProgress, type ArchiveProgressCallback } from '../archiveProgress';
+import { downloadArchive } from './downloadArchive';
 
-/** Directory the bundled FFmpeg is extracted into. */
+/** Directory the downloaded FFmpeg is extracted into. */
 const getFfmpegDir = (): string => path.join(getDataPath(), 'ffmpeg');
 
 const binaryName = (name: string): string => (process.platform === 'win32' ? `${name}.exe` : name);
 
-/** Absolute path to the bundled `ffmpeg` binary for the current platform. */
+/** `<os>-<arch>` key, matching the pin in ffmpeg-runtime.json. */
+const platformKey = (): string => `${process.platform}-${process.arch}`;
+
+/** Absolute path to the provisioned `ffmpeg` binary for the current platform. */
 export function getFfmpegBinaryPath(): string {
   return path.join(getFfmpegDir(), binaryName('ffmpeg'));
 }
 
-/** Absolute path to the bundled `ffprobe` binary (present when the build shipped it). */
+/** Absolute path to the provisioned `ffprobe` binary (present when the build shipped it). */
 export function getFfprobeBinaryPath(): string {
   return path.join(getFfmpegDir(), binaryName('ffprobe'));
 }
 
 /**
  * The directory to prepend to a child process's PATH so bare `ffmpeg` /
- * `ffprobe` invocations resolve to the bundled binaries.
+ * `ffprobe` invocations resolve to the provisioned binaries. Returns null when
+ * ffmpeg has not been provisioned (the common case — most users never install
+ * an ffmpeg-needing skill), so PATH injection self-disables.
  */
 export function getFfmpegBinDir(): string | null {
   // Best-effort: this runs while building the ACP spawn env, which may execute
@@ -56,61 +66,68 @@ export function getFfmpegBinDir(): string | null {
   }
 }
 
-/** Whether the bundled FFmpeg has already been extracted. */
+/** Whether ffmpeg has already been downloaded + extracted. */
 export function isFfmpegInstalled(): boolean {
   return fs.existsSync(getFfmpegBinaryPath());
 }
 
-/**
- * Locate the packaged per-platform archive produced by
- * `scripts/download-ffmpeg.js` (`resources/ffmpeg-<platform>-<arch>.<ext>`).
- */
-function getBundledResourcePath(): string | null {
-  // Single format across platforms — the `tar` lib packs/extracts .tar.gz on
-  // Windows too, so we avoid needing a separate zip creator at build time.
-  const resourceName = `ffmpeg-${process.platform}-${process.arch}.tar.gz`;
+function pinnedSha256(key: string): string | undefined {
+  const sha = (ffmpegRuntime.cos?.sha256 as Record<string, string> | undefined)?.[key];
+  return sha || undefined;
+}
 
-  if (app.isPackaged) {
-    const packaged = path.join(process.resourcesPath, resourceName);
-    if (fs.existsSync(packaged)) return packaged;
-  }
-  // Development: resources/ next to the app.
-  const dev = path.join(app.getAppPath(), 'resources', resourceName);
-  if (fs.existsSync(dev)) return dev;
+/** COS URL for the pinned flat tar.gz of `key`, or null if unpinned (e.g. macOS). */
+function cosArchiveUrl(key: string): string | null {
+  const baseUrl = ffmpegRuntime.cos?.baseUrl;
+  if (!baseUrl || !pinnedSha256(key)) return null;
+  return `${baseUrl}/ffmpeg/${ffmpegRuntime.tag}/ffmpeg-${key}.tar.gz`;
+}
 
-  return null;
+function sha256OfFile(filePath: string): string {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
 /**
- * Install the bundled FFmpeg from packaged resources.
- * The archive contains the flat binaries at its root, so extraction targets
- * `getFfmpegDir()` directly.
+ * Download + install ffmpeg from the runtime COS mirror. Verifies the download
+ * against the pinned SHA256 before extracting. No-op (returns true) if already
+ * installed; returns false (never throws) on any failure so callers can treat
+ * provisioning as best-effort.
  */
 export async function installFfmpeg(onProgress?: ArchiveProgressCallback): Promise<boolean> {
-  const ffmpegDir = getFfmpegDir();
-  const ffmpegPath = getFfmpegBinaryPath();
-
-  if (fs.existsSync(ffmpegPath)) {
-    mainLog('FfmpegRuntime', 'FFmpeg already installed at:', ffmpegPath);
+  if (isFfmpegInstalled()) {
+    mainLog('FfmpegRuntime', 'FFmpeg already installed at:', getFfmpegBinaryPath());
     return true;
   }
 
-  const resourcePath = getBundledResourcePath();
-  if (!resourcePath) {
-    mainWarn('FfmpegRuntime', 'Bundled FFmpeg resource not found; skills needing ffmpeg will not work');
+  const key = platformKey();
+  const url = cosArchiveUrl(key);
+  const expectedSha = pinnedSha256(key);
+  if (!url || !expectedSha) {
+    // No source pinned for this platform (e.g. macOS — pending evermeet/osxexperts).
+    mainWarn('FfmpegRuntime', `No FFmpeg source pinned for '${key}'; skills needing ffmpeg will not work`);
     return false;
   }
 
-  mainLog('FfmpegRuntime', `Installing FFmpeg from ${resourcePath} to ${ffmpegDir}`);
-  fs.mkdirSync(ffmpegDir, { recursive: true });
+  const ffmpegDir = getFfmpegDir();
+  const ffmpegPath = getFfmpegBinaryPath();
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ffmpeg-dl-'));
+  const archivePath = path.join(tmp, `ffmpeg-${key}.tar.gz`);
 
   try {
-    await extractTarGzWithProgress(resourcePath, ffmpegDir, onProgress);
+    mainLog('FfmpegRuntime', `Downloading FFmpeg from ${url}`);
+    await downloadArchive(url, archivePath, onProgress);
 
-    if (!fs.existsSync(ffmpegPath)) {
-      throw new Error(`FFmpeg binary not found at ${ffmpegPath} after extracting ${resourcePath}`);
+    const actualSha = sha256OfFile(archivePath);
+    if (actualSha !== expectedSha) {
+      throw new Error(`SHA256 mismatch for ffmpeg-${key}.tar.gz: expected ${expectedSha}, got ${actualSha}`);
     }
 
+    fs.mkdirSync(ffmpegDir, { recursive: true });
+    await extractTarGzWithProgress(archivePath, ffmpegDir, onProgress);
+
+    if (!fs.existsSync(ffmpegPath)) {
+      throw new Error(`FFmpeg binary not found at ${ffmpegPath} after extracting the download`);
+    }
     if (process.platform !== 'win32') {
       fs.chmodSync(ffmpegPath, 0o755);
       const ffprobePath = getFfprobeBinaryPath();
@@ -122,12 +139,14 @@ export async function installFfmpeg(onProgress?: ArchiveProgressCallback): Promi
   } catch (err) {
     mainError('FfmpegRuntime', 'FFmpeg installation failed:', err);
     return false;
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 }
 
 /**
- * Ensure FFmpeg is installed (extract if not). Call at app startup, alongside
- * `ensureNodeInstalled`.
+ * Ensure ffmpeg is provisioned (download if not). Call this when a skill that
+ * needs ffmpeg is installed/enabled — NOT unconditionally at boot.
  */
 export async function ensureFfmpegInstalled(onProgress?: ArchiveProgressCallback): Promise<boolean> {
   if (isFfmpegInstalled()) return true;

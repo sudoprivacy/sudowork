@@ -13,6 +13,7 @@ import { getSkillsDir, getSystemSkillsDir, getHubSkillsDir, getCustomSkillsDir }
 import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import { MOSS_SKILL_META_FILE } from './constants/skillStorage';
 import { getEnterpriseTenantSkillsDir } from './constants/enterpriseStorage';
+import { maybeProvisionFfmpegForSkill } from './services/ffmpeg/ffmpegSkillGate';
 
 const UPLOAD_SKILL_DEFAULT_ICON_FILE = 'upload_skill_default.svg';
 
@@ -606,6 +607,8 @@ export class SkillManager {
       }
 
       mainLog('SkillManager', `Enabled skill: ${skillName} (category: ${foundCategory})`);
+      // Provision ffmpeg on demand if the (re-)enabled skill needs it.
+      maybeProvisionFfmpegForSkill(destDir);
       return { success: true };
     } catch (error) {
       mainError('SkillManager', 'Failed to enable skill:', error);
