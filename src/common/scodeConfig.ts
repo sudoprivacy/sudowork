@@ -130,14 +130,25 @@ function isCustomApiKeyModelEntry(entry: ScodeModelEntry | undefined, providerId
 }
 
 export function buildSudorouterModelEntry(modelId: string, alias = modelId): ScodeModelEntry {
-  return {
+  // For proxy (sudorouter) models, omit the `api` field so scode dynamically
+  // resolves the API format from sudorouter's endpoint_type via model capabilities
+  // SSOT. Hardcoding `api: "openai-completions"` here previously forced all
+  // models through the OpenAI-compat provider — breaking Anthropic prompt
+  // caching (cache_creation_input_tokens / cache_read_input_tokens = 0).
+  const entry: ScodeModelEntry = {
     alias,
     name: alias,
     input: modelInputForModelId(modelId),
     providers: {
-      proxy: { provider: SUDOROUTER_PROVIDER_ID, model: modelId, api: getScodeModelApiType(modelId) },
+      proxy: { provider: SUDOROUTER_PROVIDER_ID, model: modelId },
     },
   };
+  // Only set explicit api for models that need a non-default wire format
+  // (e.g. gpt-5.x needs openai-responses instead of openai-completions).
+  if (shouldUseOpenAIResponsesApi(modelId)) {
+    entry.providers!.proxy!.api = OPENAI_RESPONSES_API;
+  }
+  return entry;
 }
 
 export function addScodeAutoModel(models: Record<string, ScodeModelEntry>, modelIds: string[], pricingItems?: SpecificPricingItem[], explicitAutoModelId?: string): string | null {
