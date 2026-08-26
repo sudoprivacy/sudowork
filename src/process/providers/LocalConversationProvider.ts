@@ -197,7 +197,7 @@ export class LocalConversationProvider implements IConversationProvider {
    * no session id/workspace, or no transcript on disk yet).
    */
   private async projectScodeTranscript(conversationId: string, db: ReturnType<typeof getDatabase>, page: number, pageSize: number): Promise<TMessage[] | null> {
-    if (WorkerManage.getTaskById(conversationId)) return null; // active turn → DB path (in-flight ids align; a live turn drops transcript history otherwise)
+    if (WorkerManage.getTaskById(conversationId)) return null; // active turn → DB path (live in-flight ids align)
     const extra = db.getConversation(conversationId).data?.extra as { backend?: string; workspace?: string; acpSessionId?: string } | undefined;
     if (extra?.backend !== 'scode' || !extra.workspace || !extra.acpSessionId) return null;
     const file = await findScodeSessionFile(extra.workspace, extra.acpSessionId);

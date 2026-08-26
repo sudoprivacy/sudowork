@@ -102,6 +102,30 @@ describe('transcriptToMessages', () => {
     expect(update.rawInput).toEqual({ input: 'not json' });
   });
 
+  it('projects a thinking block to a collapsible thought (header = first line)', () => {
+    const out = transcriptToMessages(jsonl({ type: 'message', message: { role: 'assistant', blocks: [{ type: 'thinking', thinking: 'first line of reasoning\nmore detail here' }] } }), 'c1');
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ type: 'thought', position: 'left', content: { subject: 'first line of reasoning', description: 'first line of reasoning\nmore detail here' } });
+  });
+
+  it('preserves order across a multi-block assistant turn (thinking, text, tool_use)', () => {
+    const out = transcriptToMessages(
+      jsonl({
+        type: 'message',
+        message: {
+          role: 'assistant',
+          blocks: [
+            { type: 'thinking', thinking: 'hmm' },
+            { type: 'text', text: 'the answer' },
+            { type: 'tool_use', id: 'z', name: 'ls', input: '{}' },
+          ],
+        },
+      }),
+      'c1'
+    );
+    expect(out.map((m) => m.type)).toEqual(['thought', 'text', 'acp_tool_call']);
+  });
+
   it('preserves order across a multi-block assistant turn (text then tool_use)', () => {
     const out = transcriptToMessages(
       jsonl({
@@ -133,5 +157,17 @@ describe('transcriptToMessages', () => {
 
   it('returns [] for an empty transcript', () => {
     expect(transcriptToMessages('', 'c1')).toEqual([]);
+  });
+
+  it('recovers the real user message from sudowork-injected prompt context', () => {
+    const wrapped = '<system-reminder>语言约定…</system-reminder>\n[Assistant Rules - You MUST follow these instructions]\n[File Intent Marking …]\n\n[User Request]\nwhat is 2+2?';
+    const out = transcriptToMessages(jsonl({ type: 'message', message: { role: 'user', blocks: [{ type: 'text', text: wrapped }] } }), 'c1');
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ type: 'text', position: 'right', content: { content: 'what is 2+2?' } });
+  });
+
+  it('drops a user block that is pure injected context (no real message)', () => {
+    const out = transcriptToMessages(jsonl({ type: 'message', message: { role: 'user', blocks: [{ type: 'text', text: '<system-reminder>Today is X</system-reminder>' }] } }), 'c1');
+    expect(out).toEqual([]);
   });
 });

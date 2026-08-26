@@ -20,8 +20,9 @@ import { normalizeScodeUsageForMessage } from '@/process/task/acpUsageReconcilia
  * `tool_use.input` is a full JSON string (verified lossless), so — exactly like
  * Claude Code — the rich rendering is DERIVED here from the structured
  * input/output rather than read back from a pre-computed copy: a str-replace
- * edit (`old_string`+`new_string`) becomes a `diff` content item, everything
- * else falls back to its raw input + text output (the generic tool view). Live
+ * edit (`old_string`+`new_string`) becomes a `diff` content item, a `thinking`
+ * block becomes a collapsible `thought`, everything else falls back to its raw
+ * input + text output (the generic tool view). Live
  * rendering is unchanged (it replays the ACP stream directly, not this
  * projection). The transcript carries no per-message id, so ids are synthesized
  * deterministically (stable across reloads of the same transcript).
@@ -43,6 +44,24 @@ function asRecord(value: unknown): JsonRecord | undefined {
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+/**
+ * Recover the user's actual words from a transcript text block. scode persists
+ * the whole prompt sudowork sent — sudowork wraps the message as
+ * `[Assistant Rules …]\n<instructions>\n\n[User Request]\n<message>` (see
+ * `agentUtils` build fns) and prepends `<system-reminder>` blocks — so a
+ * persisted "user message" is mostly sudowork's own injected context, not the
+ * user's words. Take everything after the last `[User Request]\n` marker
+ * (sudowork's own format, so it's reliable), then drop any `<system-reminder>`
+ * blocks. Assistant/tool text has neither marker and passes through unchanged.
+ * Empty result ⇒ the block was pure injected context and the message is dropped.
+ */
+const USER_REQUEST_MARKER = '[User Request]\n';
+function stripInjectedContext(text: string): string {
+  const at = text.lastIndexOf(USER_REQUEST_MARKER);
+  const body = at >= 0 ? text.slice(at + USER_REQUEST_MARKER.length) : text;
+  return body.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim();
 }
 
 /** scode stores tool_use.input as a string; surface parsed JSON when it is one. */
@@ -138,8 +157,8 @@ export function transcriptToMessages(jsonl: string, conversationId: string): TMe
       if (!block) continue;
 
       if (block.type === 'text') {
-        const text = asString(block.text);
-        if (!text) continue;
+        const text = stripInjectedContext(asString(block.text));
+        if (!text) continue; // block was pure injected <system-reminder> context
         messages.push({
           id: nextId(),
           type: 'text',
@@ -148,6 +167,21 @@ export function transcriptToMessages(jsonl: string, conversationId: string): TMe
           conversation_id: conversationId,
           ...stamp(),
           content: { content: text, ...(usage ? { tokenUsage: usage } : {}) },
+        });
+      } else if (block.type === 'thinking') {
+        // scode persists reasoning as `{ type:'thinking', thinking }`. Project it
+        // to the renderer's collapsible `thought` bubble (first line → header),
+        // so reconstructed history keeps the thinking the live stream showed.
+        const thinking = asString(block.thinking).trim();
+        if (!thinking) continue;
+        messages.push({
+          id: nextId(),
+          type: 'thought',
+          msg_id: nextId(),
+          position: 'left',
+          conversation_id: conversationId,
+          ...stamp(),
+          content: { subject: thinking.split('\n', 1)[0].slice(0, 60), description: thinking },
         });
       } else if (block.type === 'tool_use') {
         const toolCallId = asString(block.id) || nextId();
@@ -192,7 +226,7 @@ export function transcriptToMessages(jsonl: string, conversationId: string): TMe
           });
         }
       }
-      // unknown block types (thinking, images, …) are dropped from the historical view.
+      // unknown block types (images, …) are dropped from the historical view.
     }
   }
 
