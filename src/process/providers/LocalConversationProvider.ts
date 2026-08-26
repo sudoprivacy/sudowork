@@ -205,6 +205,7 @@ export class LocalConversationProvider implements IConversationProvider {
     const content = await fs.readFile(file, 'utf-8').catch((): null => null);
     if (content === null) return null;
     const all = transcriptToMessages(content, conversationId);
+    mainLog('LocalProvider', `scode transcript SSOT: projected ${all.length} message(s) for ${conversationId} (backend=scode)`);
     const start = page * pageSize;
     return all.slice(start, start + pageSize);
   }
