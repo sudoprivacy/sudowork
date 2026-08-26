@@ -45,13 +45,10 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install deps (tar, yauzl for download-ffmpeg.js)
-        run: bun install --frozen-lockfile
+        # download-ffmpeg.js only needs these two pure-JS libs — install just
+        # them (no --save, no native builds, no lockfile coupling).
+        run: npm install --no-save tar yauzl
 
       - name: Download + repack all pinned platforms
         run: |
