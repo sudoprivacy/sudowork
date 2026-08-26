@@ -97,10 +97,17 @@ export function transcriptToMessages(jsonl: string, conversationId: string): TMe
   let seq = 0;
   const nextId = (): string => `scode-${conversationId}-${seq++}`;
   let sessionId = conversationId;
+  // Reconstructed history is complete; the transcript has no per-message id or
+  // timestamp, so synthesize a monotonic `createdAt` + a terminal `status` so
+  // the renderer's list hook orders + keys these like DB rows (without them the
+  // list does not render). Base off `session_meta.created_at_ms` when present.
+  let createdBase = 0;
+  let order = 0;
+  const stamp = (): { status: 'finish'; createdAt: number } => ({ status: 'finish', createdAt: createdBase + order++ });
 
   const pushToolCall = (msgId: string, update: ToolCallUpdate): void => {
     toolUpdates.set(update.update.toolCallId, update);
-    messages.push({ id: nextId(), type: 'acp_tool_call', msg_id: msgId, position: 'left', conversation_id: conversationId, content: update });
+    messages.push({ id: nextId(), type: 'acp_tool_call', msg_id: msgId, position: 'left', conversation_id: conversationId, content: update, ...stamp() });
   };
 
   for (const line of jsonl.split('\n')) {
@@ -115,6 +122,7 @@ export function transcriptToMessages(jsonl: string, conversationId: string): TMe
     }
     if (entry.type === 'session_meta') {
       sessionId = asString(entry.session_id) || sessionId;
+      if (typeof entry.created_at_ms === 'number') createdBase = entry.created_at_ms;
       continue;
     }
 
@@ -138,6 +146,7 @@ export function transcriptToMessages(jsonl: string, conversationId: string): TMe
           msg_id: nextId(),
           position: role === 'user' ? 'right' : 'left',
           conversation_id: conversationId,
+          ...stamp(),
           content: { content: text, ...(usage ? { tokenUsage: usage } : {}) },
         });
       } else if (block.type === 'tool_use') {
