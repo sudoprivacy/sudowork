@@ -63,7 +63,20 @@ jobs:
           echo "== produced =="
           ls -lh resources/ffmpeg-*.tar.gz
 
-      - name: Upload to runtime COS + emit SHA256/URLs
+      - name: Emit SHA256 of each archive
+        run: |
+          set -euo pipefail
+          TAG=$(node -p "require('./src/shared/ffmpeg-runtime.json').tag")
+          echo "Pinned tag: $TAG"
+          echo "===== RECORD THESE INTO ffmpeg-runtime.json cos.sha256 ====="
+          for key in win32-x64 win32-arm64 linux-x64 linux-arm64; do
+            sha=$(sha256sum "resources/ffmpeg-$key.tar.gz" | cut -d' ' -f1)
+            echo "  $key : $sha"
+            echo "        https://$COS_BUCKET.cos.$COS_REGION.myqcloud.com/ffmpeg/$TAG/ffmpeg-$key.tar.gz"
+          done
+          echo "============================================================"
+
+      - name: Upload to runtime COS
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
@@ -73,18 +86,14 @@ jobs:
             echo "❌ TENCENT_SECRET_ID/KEY not set — cannot upload."; exit 1
           fi
           pip install coscmd >/dev/null
-          coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" -b "$COS_BUCKET" -r "$COS_REGION"
+          # Global acceleration endpoint — the regional (ap-beijing) endpoint is
+          # unusably slow (~50 kB/s, write timeouts) for a cross-border upload
+          # from a GitHub runner. The object still lands in the same bucket and is
+          # served fast to China users via the regional endpoint on download.
+          coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" -b "$COS_BUCKET" -e cos.accelerate.myqcloud.com
 
           TAG=$(node -p "require('./src/shared/ffmpeg-runtime.json').tag")
-          echo "Pinned tag: $TAG"
-          echo ""
-          echo "===== RECORD THESE INTO ffmpeg-runtime.json cos.sha256 ====="
           for key in win32-x64 win32-arm64 linux-x64 linux-arm64; do
-            f="resources/ffmpeg-$key.tar.gz"
-            dest="ffmpeg/$TAG/ffmpeg-$key.tar.gz"
-            coscmd upload "$f" "$dest"
-            sha=$(sha256sum "$f" | cut -d' ' -f1)
-            echo "  $key : $sha"
-            echo "        https://$COS_BUCKET.cos.$COS_REGION.myqcloud.com/$dest"
+            coscmd upload "resources/ffmpeg-$key.tar.gz" "ffmpeg/$TAG/ffmpeg-$key.tar.gz"
           done
           echo "============================================================"
