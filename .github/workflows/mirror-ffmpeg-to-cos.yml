@@ -1,0 +1,84 @@
+name: Mirror FFmpeg to COS
+
+# Mirrors the PINNED FFmpeg build (src/shared/ffmpeg-runtime.json) to the
+# sudowork runtime COS bucket, so FfmpegRuntimeService can download it on demand
+# (China-reachable) when a skill that needs ffmpeg is installed — instead of
+# bundling ~114 MB into every installer.
+#
+# Run this once whenever the pin in ffmpeg-runtime.json is bumped. It:
+#   1. downloads + repacks each platform's flat ffmpeg tar.gz (scripts/download-ffmpeg.js,
+#      which verifies the BtbN source archive against the pinned SHA256), then
+#   2. uploads each to  ffmpeg/<tag>/ffmpeg-<key>.tar.gz  in the runtime bucket, and
+#   3. prints the SHA256 + public URL of each uploaded object — copy the SHA256s
+#      into the `cos.sha256` map in ffmpeg-runtime.json so the client can verify.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  COS_BUCKET: sudowork-runtime-1309794936
+  COS_REGION: ap-beijing
+
+jobs:
+  mirror:
+    name: Mirror pinned FFmpeg to runtime COS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install deps (tar, yauzl for download-ffmpeg.js)
+        run: bun install --frozen-lockfile
+
+      - name: Download + repack all pinned platforms
+        run: |
+          set -euo pipefail
+          # download-ffmpeg.js runs on any OS — it just fetches the BtbN archive
+          # (verifying the pinned source SHA256) and repacks the flat binaries.
+          for key in win32-x64 win32-arm64 linux-x64 linux-arm64; do
+            echo "::group::$key"
+            node scripts/download-ffmpeg.js "$key" --force
+            echo "::endgroup::"
+          done
+          echo "== produced =="
+          ls -lh resources/ffmpeg-*.tar.gz
+
+      - name: Upload to runtime COS + emit SHA256/URLs
+        env:
+          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TENCENT_SECRET_ID:-}" ] || [ -z "${TENCENT_SECRET_KEY:-}" ]; then
+            echo "❌ TENCENT_SECRET_ID/KEY not set — cannot upload."; exit 1
+          fi
+          pip install coscmd >/dev/null
+          coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" -b "$COS_BUCKET" -r "$COS_REGION"
+
+          TAG=$(node -p "require('./src/shared/ffmpeg-runtime.json').tag")
+          echo "Pinned tag: $TAG"
+          echo ""
+          echo "===== RECORD THESE INTO ffmpeg-runtime.json cos.sha256 ====="
+          for key in win32-x64 win32-arm64 linux-x64 linux-arm64; do
+            f="resources/ffmpeg-$key.tar.gz"
+            dest="ffmpeg/$TAG/ffmpeg-$key.tar.gz"
+            coscmd upload "$f" "$dest"
+            sha=$(sha256sum "$f" | cut -d' ' -f1)
+            echo "  $key : $sha"
+            echo "        https://$COS_BUCKET.cos.$COS_REGION.myqcloud.com/$dest"
+          done
+          echo "============================================================"
