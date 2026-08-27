@@ -17,15 +17,6 @@ permissions:
 
 on:
   workflow_dispatch:
-  # Temporary: workflow_dispatch only works once the file is on the default
-  # branch. Until this lands, a paths-scoped push trigger lets us run the mirror
-  # from the feature branch. Remove this `push:` block before merge.
-  push:
-    branches: [refactor/ffmpeg-skill-gated-cos]
-    paths:
-      - .github/workflows/mirror-ffmpeg-to-cos.yml
-      - src/shared/ffmpeg-runtime.json
-      - scripts/download-ffmpeg.js
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'

@@ -9,10 +9,10 @@
   "cos": {
     "baseUrl": "https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com",
     "sha256": {
-      "win32-x64": "",
-      "win32-arm64": "",
-      "linux-x64": "",
-      "linux-arm64": ""
+      "win32-x64": "2f102c53dfd78e2cbfb0940bd24b1ac9cc5839cded4c9887a8bf88e786ac9005",
+      "win32-arm64": "f815e84b46e1c12854ab639d33ed39dfa8c6bdb3c4682f666d405d0709e37fae",
+      "linux-x64": "0fad1886ac731adbf24a41dc70174c89b665c1eaefc3f44d3ff9ab8023b44bac",
+      "linux-arm64": "1e181b09f0d83d4b47b17aaaa177d07342f6155150f3d54b154f120628bb4fce"
     }
   },
 
