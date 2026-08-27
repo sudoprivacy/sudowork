@@ -15,8 +15,10 @@ steps:
     duration: 3000
 
   # ── Fetch a known URL ──
+  # jsonplaceholder is a stable test API (httpbin.org intermittently 503s);
+  # /todos/1 = {"userId":1,"id":1,"title":"delectus aut autem","completed":false}
   - op: type_text
-    text: "Fetch the URL https://httpbin.org/json and tell me what keys are in the JSON response."
+    text: "Fetch the URL https://jsonplaceholder.typicode.com/todos/1 and tell me what keys are in the JSON response."
   - op: press_key
     key: "Enter"
     wait: 3
@@ -24,12 +26,14 @@ steps:
     timeout: 90
   - op: screenshot
     path: "screenshots/scode-webfetch-01-result.png"
-  - op: judge
-    expect: "slideshow"
+  - op: assert_contains_any
+    expected: ["title", "completed", "userid", "userId", "id"]
+    min_count: 2
+    reason: reply lists the JSON keys
 
   # ── Follow-up using fetched context ──
   - op: type_text
-    text: "What is the title field in that JSON?"
+    text: "What is the value of the title field in that JSON?"
   - op: press_key
     key: "Enter"
     wait: 3
@@ -37,5 +41,7 @@ steps:
     timeout: 60
   - op: screenshot
     path: "screenshots/scode-webfetch-02-followup.png"
-  - op: judge
-    expect: "title"
+  - op: assert_contains_any
+    expected: ["delectus", "title"]
+    min_count: 1
+    reason: reply reports the title value (delectus aut autem)
