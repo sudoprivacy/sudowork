@@ -14,6 +14,17 @@ steps:
   - op: pause
     duration: 3000
 
+  # Warm up: the FIRST message spawns the scode ACP agent (slow — ACP init +
+  # skill sync). Do it with a trivial prompt so the fetch turn below isn't also
+  # paying the spawn cost and its result renders within the wait_for_text budget.
+  - op: type_text
+    text: "Reply with just: ready"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 90
+
   # ── Fetch a known URL ──
   # jsonplaceholder is a stable test API (httpbin.org intermittently 503s);
   # /todos/1 = {"userId":1,"id":1,"title":"delectus aut autem","completed":false}
@@ -22,14 +33,21 @@ steps:
   - op: press_key
     key: "Enter"
     wait: 3
+  # The fetch runs over several tool-call steps and the model narrates between
+  # them ("I'll fetch it…") as separate text rows before the real answer, so
+  # expect_text holds the wait until THIS turn's reply actually contains the
+  # JSON keys — read from the DB (where the reply reliably lands), not the DOM
+  # (a live walk can miss it once the turn carries tool-call cards).
   - op: wait_for_response
-    timeout: 90
+    expect_text: ["title", "completed", "userid"]
+    expect_min_count: 1
+    timeout: 180
   - op: screenshot
     path: "screenshots/scode-webfetch-01-result.png"
-  - op: assert_contains_any
-    expected: ["title", "completed", "userid", "userId", "id"]
-    min_count: 2
-    reason: reply lists the JSON keys
+  - op: db_audit
+    assert_assistant_text_contains: ["title", "completed", "userid"]
+    assistant_min_count: 1
+    reason: "fetch reply reported the JSON keys"
 
   # ── Follow-up using fetched context ──
   - op: type_text
@@ -38,10 +56,12 @@ steps:
     key: "Enter"
     wait: 3
   - op: wait_for_response
-    timeout: 60
+    expect_text: ["delectus"]
+    expect_min_count: 1
+    timeout: 120
   - op: screenshot
     path: "screenshots/scode-webfetch-02-followup.png"
-  - op: assert_contains_any
-    expected: ["delectus", "title"]
-    min_count: 1
-    reason: reply reports the title value (delectus aut autem)
+  - op: db_audit
+    assert_assistant_text_contains: ["delectus"]
+    assistant_min_count: 1
+    reason: "follow-up recalled the title value from fetched context"

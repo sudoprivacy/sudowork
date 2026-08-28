@@ -53,10 +53,13 @@ def _extract_tool_output_text(content) -> str:
 def _count_metrics(rows):
     """rows: list of (id, type, content, status, created_at, position) tuples.
 
-    Returns (counts_dict, trace_lines, user_text_bodies).
+    Returns (counts_dict, trace_lines, user_text_bodies, assistant_text_bodies).
     `user_text_bodies` is the ordered list of user-typed text row bodies —
     exposed so tests can assert on content (e.g. batched-flush proving the
     LAST user_text row contains all three queued markers in ONE row).
+    `assistant_text_bodies` is the ordered list of assistant `text` reply
+    bodies (position='left') — the DB ground truth for "the model's answer
+    said X", robust where a DOM walker can miss a streamed/virtualized reply.
     """
     m = {
         "total_messages": 0,
@@ -85,6 +88,7 @@ def _count_metrics(rows):
     }
     trace_lines = []
     user_text_bodies: list[str] = []
+    assistant_text_bodies: list[str] = []
     for idx, (_id, rtype, content, status, _ts, position) in enumerate(rows):
         m["total_messages"] += 1
         if rtype != "acp_tool_call":
@@ -100,6 +104,14 @@ def _count_metrics(rows):
                 if len(body) > m["user_text_max_len"]:
                     m["user_text_max_len"] = len(body)
                 user_text_bodies.append(body)
+            # Assistant text reply (position='left', type='text') — DB ground
+            # truth for content assertions on the model's answer.
+            elif rtype == "text" and position == "left":
+                try:
+                    payload_ = json.loads(content or "{}")
+                    assistant_text_bodies.append(str(payload_.get("content", "") or ""))
+                except Exception:
+                    pass
             trace_lines.append(f"[#{idx} {rtype} {position}] {snip}")
             continue
         try:
@@ -165,7 +177,7 @@ def _count_metrics(rows):
         trace_lines.append(
             f"[#{idx} {title} {st}] CMD: {cmd_s[:120]} | OUT: {out_snip}"
         )
-    return m, trace_lines, user_text_bodies
+    return m, trace_lines, user_text_bodies, assistant_text_bodies
 
 
 def _check_rule(value: int, rule: str) -> tuple:
@@ -184,6 +196,9 @@ async def db_audit(
     max_tool_calls: int = None,
     assert_metrics: dict = None,
     assert_last_user_text_regex: str = None,
+    assert_assistant_text_contains=None,
+    assistant_min_count: int = 1,
+    reason: str = "",
     print_trace: bool = True,
     nexus_dir: str = None,
 ) -> dict:
@@ -203,6 +218,14 @@ async def db_audit(
             to prove that N queued messages merged into ONE user row containing
             ALL N markers — a shape assertion `user_text_messages == 2` alone
             passes even if the "batched" row is empty or contains one marker.
+        assert_assistant_text_contains: a substring or list of substrings that
+            must appear (case-insensitive) across the assistant `text` replies
+            in this window. The DB-ground-truth complement of assert_contains_any
+            (which reads the DOM): use it for content that reliably lands in the
+            DB but can be missed by a live DOM walk (streamed/virtualized reply).
+        assistant_min_count: minimum number of assert_assistant_text_contains
+            entries that must be present (default 1).
+        reason: human-readable note appended to the report line.
         print_trace: dump per-tool-call trace to stdout
         nexus_dir: override DB dir (default ~/.nexus)
 
@@ -248,7 +271,7 @@ async def db_audit(
     ).fetchall()
     con.close()
 
-    counts, trace_lines, user_text_bodies = _count_metrics(rows)
+    counts, trace_lines, user_text_bodies, assistant_text_bodies = _count_metrics(rows)
     counts["conversation_id"] = conv_id
     counts["cutoff_ms"] = cutoff_ms
 
@@ -279,6 +302,18 @@ async def db_audit(
                     f"assert_last_user_text_regex: pattern {assert_last_user_text_regex!r} "
                     f"did not match last user_text body {snip!r}"
                 )
+    if assert_assistant_text_contains is not None:
+        needles = ([assert_assistant_text_contains]
+                   if isinstance(assert_assistant_text_contains, str)
+                   else list(assert_assistant_text_contains))
+        hay = " ".join(assistant_text_bodies).lower()
+        hits = [n for n in needles if str(n).lower() in hay]
+        counts["assistant_text_messages"] = len(assistant_text_bodies)
+        if len(hits) < assistant_min_count:
+            failures.append(
+                f"assert_assistant_text_contains: only {len(hits)}/{len(needles)} present "
+                f"(need >={assistant_min_count}): {hits}"
+            )
 
     passed = len(failures) == 0
 
@@ -289,10 +324,12 @@ async def db_audit(
         print(f"--- counts: {json.dumps({k: v for k, v in counts.items() if k != 'conversation_id'})}")
         print(f"--- conversation: {conv_id}")
 
-    reason = "all assertions passed" if passed else "; ".join(failures)
+    reason_txt = "all assertions passed" if passed else "; ".join(failures)
+    if reason:
+        reason_txt = f"{reason_txt} — {reason}"
     return {
         "pass": passed,
-        "reason": reason,
+        "reason": reason_txt,
         "counts": counts,
         "trace": "\n".join(trace_lines),
     }
