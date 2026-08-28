@@ -4,13 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'node:fs/promises';
 import type { TChatConversation } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
 import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@/common/ipcBridge';
 import { getDatabase } from '@process/database';
-import { findScodeSessionFile } from '@process/task/acpUsageReconciliation';
-import { transcriptToMessages } from '@process/task/acp/transcriptProjection';
 import { ConversationService } from '@process/services/conversationService';
 import WorkerManage from '@process/WorkerManage';
 import { ProcessChat } from '@process/initStorage';
@@ -176,38 +173,12 @@ export class LocalConversationProvider implements IConversationProvider {
   async getMessages(conversationId: string, page = 0, pageSize = 10000): Promise<TMessage[]> {
     try {
       const db = getDatabase();
-      // For an INACTIVE scode conversation, scode's transcript is the SSOT — read
-      // history from it rather than the duplicate `messages` table (nexus-2 #84).
-      // An active turn keeps the DB path: this projection synthesizes ids that
-      // would not dedup against the live in-flight stream. Non-scode / no-session
-      // / no-transcript conversations fall through to the table unchanged.
-      const projected = await this.projectScodeTranscript(conversationId, db, page, pageSize);
-      if (projected) return projected;
       const result = db.getConversationMessages(conversationId, page, pageSize);
       return result.data || [];
     } catch (error) {
       mainError('LocalProvider', 'Failed to get messages:', error);
       return [];
     }
-  }
-
-  /**
-   * Rebuild an inactive scode conversation's messages from its transcript, or
-   * `null` to fall back to the `messages` table (active turn, non-scode backend,
-   * no session id/workspace, or no transcript on disk yet).
-   */
-  private async projectScodeTranscript(conversationId: string, db: ReturnType<typeof getDatabase>, page: number, pageSize: number): Promise<TMessage[] | null> {
-    if (WorkerManage.getTaskById(conversationId)) return null; // active turn → DB path (live in-flight ids align)
-    const extra = db.getConversation(conversationId).data?.extra as { backend?: string; workspace?: string; acpSessionId?: string } | undefined;
-    if (extra?.backend !== 'scode' || !extra.workspace || !extra.acpSessionId) return null;
-    const file = await findScodeSessionFile(extra.workspace, extra.acpSessionId);
-    if (!file) return null;
-    const content = await fs.readFile(file, 'utf-8').catch((): null => null);
-    if (content === null) return null;
-    const all = transcriptToMessages(content, conversationId);
-    mainLog('LocalProvider', `scode transcript SSOT: projected ${all.length} message(s) for ${conversationId} (backend=scode)`);
-    const start = page * pageSize;
-    return all.slice(start, start + pageSize);
   }
 
   async sendMessage(params: ISendMessageParams): Promise<IBridgeResponse> {
