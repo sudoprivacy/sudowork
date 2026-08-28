@@ -241,6 +241,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private readonly streamTextBuffer = new StreamTextBuffer();
   // Per-msg_id streaming think-tag filters (see getOrCreateThinkFilter / flushThinkFilters).
   private readonly thinkFilters = new Map<string, StreamingThinkFilter>();
+  // AcpAdapter emits the full accumulated text for native thought chunks. Keep
+  // the previous value here so the renderer receives only the new delta.
+  private readonly thoughtFullTextByMsgId = new Map<string, string>();
   private readonly cronAccumulator = new CronTextAccumulator();
 
   // Workspace file tracking for channel file_send messages
@@ -768,6 +771,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.hasReceivedUsageUpdate = false;
     this.lastAssistantTextMsgId = null;
     this.lastTurnProseText = '';
+    this.thoughtFullTextByMsgId.clear();
     this.pendingTokenUsage = null;
     this.turnHadVisibleAssistantContent = false;
     this.turnEventSequence = 0;
@@ -3856,9 +3860,13 @@ This identity statement takes priority over the default identity in USER.md.
       case 'tips': {
         const content = message.content as { type?: string; content: string };
         if (content.type === 'warning' && message.position === 'center') {
-          const subject = this.extractThoughtSubject(content.content);
-          responseMessage.type = 'thought';
-          responseMessage.data = { subject, description: content.content };
+          const thoughtMsgId = message.msg_id || message.id;
+          const full = content.content;
+          const previous = this.thoughtFullTextByMsgId.get(thoughtMsgId) || '';
+          const delta = full.startsWith(previous) ? full.slice(previous.length) : full;
+          this.thoughtFullTextByMsgId.set(thoughtMsgId, full);
+          this.emitThoughtMessage(thoughtMsgId, delta, full);
+          return;
         } else {
           responseMessage.type = 'error';
           responseMessage.data = content.content;
