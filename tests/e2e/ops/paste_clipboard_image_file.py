@@ -43,7 +43,7 @@ async def paste_clipboard_image_file(tab, path: str, wait: float = 2.0) -> dict:
       const blob = new Blob([bytes], {{ type: {mime!r} }});
       const file = new File([blob], {label!r}, {{ type: {mime!r} }});
       const ta = Array.from(document.querySelectorAll('textarea'))
-        .find(t => t.offsetHeight > 0 && (t.placeholder.includes('消息') || t.placeholder.includes('Sudo')));
+        .find(t => t.offsetHeight > 0 && t.offsetWidth > 0);
       if (!ta) return {{ pass: false, error: 'no visible chat textarea' }};
       ta.focus();
       const dt = new DataTransfer();

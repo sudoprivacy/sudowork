@@ -10,6 +10,17 @@ from pathlib import Path
 
 OPS_DIR = Path(__file__).parent
 
+# Hard-timeout backstop for a single op. An op is expected to honour its own
+# `timeout` (the wait_* family, restart_app), but a stalled CDP call can hang
+# *below* that limit and never return — which used to wedge the whole suite
+# with zero output. This ceiling is the one place that guarantees forward
+# progress: it is derived from the step's own `timeout` (SSOT — no competing
+# second number), plus a grace window for teardown/settle; ops with no declared
+# timeout get a flat default that comfortably exceeds any legitimate single-op
+# runtime (the longest non-wait op is a sub-second pause).
+HARD_TIMEOUT_GRACE = 30
+DEFAULT_HARD_TIMEOUT = 120
+
 
 def discover_ops() -> dict:
     """Scan ops/*.py and register each module's eponymous async function."""
@@ -52,7 +63,14 @@ async def invoke_op(tab, op_name: str, ops: dict, **kwargs) -> dict:
                      f"Tip: use screenshot first to determine coordinates."
         }
 
+    declared = valid_kwargs.get("timeout")
+    ceiling = (declared + HARD_TIMEOUT_GRACE) if isinstance(declared, (int, float)) else DEFAULT_HARD_TIMEOUT
+
     try:
-        return await fn(**valid_kwargs)
+        return await asyncio.wait_for(fn(**valid_kwargs), timeout=ceiling)
+    except asyncio.TimeoutError:
+        return {"error": f"{op_name}: hard timeout after {ceiling}s "
+                         "(op exceeded its own limit — likely a stalled CDP call; "
+                         "cancelled so the suite keeps moving)"}
     except Exception as e:
         return {"error": f"{op_name}: {e}"}

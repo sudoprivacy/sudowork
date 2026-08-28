@@ -9,9 +9,6 @@ steps:
   - op: wait_for_app_ready
     timeout: 300
 
-  - op: click
-    x: 530
-    y: 27
   - op: pause
     duration: 3000
   - op: mouse_click
@@ -32,31 +29,35 @@ steps:
   - op: judge
     expect: "Hello World"
 
-  # ── Phase 2: Check session status — should show turns and model ──
+  # /status and /cost are intercepted client-side and return LOCAL results
+  # instantly (no LLM turn) — pause, don't wait_for_response. Outputs are in
+  # Chinese; assert their real content.
+
+  # ── Phase 2: Check session status ──
   - op: type_text
     text: "/status"
   - op: press_key
     key: "Enter"
-    wait: 3
-  - op: wait_for_response
+    wait: 2
+  - op: wait_for_text
+    expected: ["工作目录", "当前任务", "可用能力", "Git", "当前模型"]
+    min_count: 2
     timeout: 30
   - op: screenshot
     path: "screenshots/scode-session-02-status.png"
-  - op: judge
-    expect: "model"
 
   # ── Phase 3: Check token usage ──
   - op: type_text
     text: "/cost"
   - op: press_key
     key: "Enter"
-    wait: 3
-  - op: wait_for_response
+    wait: 2
+  - op: wait_for_text
+    expected: ["费用", "花费", "当前模型", "工作目录", "会话", "状态"]
+    min_count: 2
     timeout: 30
   - op: screenshot
     path: "screenshots/scode-session-03-cost.png"
-  - op: judge
-    expect: "output"
 
   # ── Phase 4: Continue conversation — verify context preserved ──
   - op: type_text

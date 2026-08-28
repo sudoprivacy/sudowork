@@ -63,20 +63,32 @@ function generateI18nKeysDtsContent() {
   return buildI18nKeysDts(keys);
 }
 
-function writeOutputFile(content) {
+// Format through the repo's Prettier config so the generated file passes the
+// same format:check gate as hand-written source; otherwise every regen writes
+// output the PR Format Check then rejects.
+async function formatWithPrettier(content) {
+  const prettier = require('prettier');
+  const config = await prettier.resolveConfig(OUTPUT_FILE);
+  return prettier.format(content, { ...config, parser: 'typescript', filepath: OUTPUT_FILE });
+}
+
+async function writeOutputFile(content) {
+  const formatted = await formatWithPrettier(content);
   const current = fs.existsSync(OUTPUT_FILE) ? fs.readFileSync(OUTPUT_FILE, 'utf-8') : null;
-  if (current === content) {
+  if (current === formatted) {
     console.log(`✅ i18n key types are up to date: ${path.relative(process.cwd(), OUTPUT_FILE)}`);
     return;
   }
 
-  fs.writeFileSync(OUTPUT_FILE, content, 'utf-8');
+  fs.writeFileSync(OUTPUT_FILE, formatted, 'utf-8');
   console.log(`✅ i18n key types generated: ${path.relative(process.cwd(), OUTPUT_FILE)}`);
 }
 
 if (require.main === module) {
-  const content = generateI18nKeysDtsContent();
-  writeOutputFile(content);
+  writeOutputFile(generateI18nKeysDtsContent()).catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 }
 
 module.exports = {

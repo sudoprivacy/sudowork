@@ -1,4 +1,5 @@
 name: "lis8 verify patches"
+locale: zh-CN  # drives a Chinese-language business flow (新单录入 etc.)
 description: "Full lis8 flow: login (with captcha) → nav to 新单录入 → fill form. Same prompt the user has been running manually. Verifies post-patch behaviour end-to-end on a real flow with compound cmds, browser/exec/read/write tool calls, no canvas."
 
 steps:

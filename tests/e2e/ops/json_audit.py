@@ -59,7 +59,7 @@ async def json_audit(
 
     # Parse JSON
     try:
-        with open(filepath) as f:
+        with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, ValueError) as e:
         return {"pass": False, "reason": f"Invalid JSON: {e}", "details": details}

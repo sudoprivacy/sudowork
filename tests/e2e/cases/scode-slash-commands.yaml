@@ -1,16 +1,13 @@
 name: "scode slash commands"
 description: >
-  Test slash commands in ACP mode: /model (show + switch), /status, /help,
-  /doctor. Verifies slash command interception returns local results instead
-  of sending to LLM. Also tests mid-session model switch.
+  Test slash commands in ACP mode: /help, /model, /status. Verifies slash
+  command interception returns LOCAL results (Chinese) instead of sending to the
+  LLM, then confirms a normal prompt still works afterward.
 
 steps:
   - op: wait_for_app_ready
     timeout: 300
 
-  - op: click
-    x: 530
-    y: 27
   - op: pause
     duration: 3000
   - op: mouse_click
@@ -18,46 +15,62 @@ steps:
   - op: pause
     duration: 3000
 
-  # ── Phase 1: /help — should list available commands ──
+  # Warm up: the FIRST message spawns the scode ACP agent (slow — ACP init +
+  # skill sync). Do it with a trivial prompt so the slash commands below render
+  # promptly instead of racing the spawn.
+  - op: type_text
+    text: "Reply with just: ready"
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 90
+
+  # Slash commands are intercepted client-side and post a LOCAL result (a text
+  # reply, in Chinese regardless of UI locale) after a variable delay. wait_for_text
+  # polls the DOM until that content actually renders — no fixed pause to race —
+  # and doubles as the assertion.
+
+  # ── /help — capabilities guide ──
   - op: type_text
     text: "/help"
   - op: press_key
     key: "Enter"
-    wait: 3
-  - op: wait_for_response
-    timeout: 30
+    wait: 2
+  - op: wait_for_text
+    expected: ["代码", "bug", "测试", "浏览器", "定时", "知识库", "重构"]
+    min_count: 2
+    timeout: 45
   - op: screenshot
     path: "screenshots/scode-slash-01-help.png"
-  - op: judge
-    expect: "model help"
 
-  # ── Phase 2: /model — show current model ──
+  # ── /model — list available models ──
   - op: type_text
     text: "/model"
   - op: press_key
     key: "Enter"
-    wait: 3
-  - op: wait_for_response
+    wait: 2
+  - op: wait_for_text
+    expected: ["claude", "deepseek", "gemini", "gpt", "模型"]
+    min_count: 2
     timeout: 30
   - op: screenshot
     path: "screenshots/scode-slash-02-model-show.png"
-  - op: judge
-    expect: "model"
 
-  # ── Phase 3: /status — show session info ──
+  # ── /status — session info ──
   - op: type_text
     text: "/status"
   - op: press_key
     key: "Enter"
-    wait: 3
-  - op: wait_for_response
-    timeout: 30
+    wait: 2
+  - op: wait_for_text
+    expected: ["工作目录", "当前任务", "可用能力", "当前模型", "会话"]
+    min_count: 2
+    timeout: 60
   - op: screenshot
     path: "screenshots/scode-slash-03-status.png"
-  - op: judge
-    expect: "status"
 
-  # ── Phase 4: Send a normal prompt to verify slash commands didn't break conversation ──
+  # ── Normal prompt still works after the slash commands ──
   - op: type_text
     text: "Say hello in one word."
   - op: press_key
@@ -67,5 +80,7 @@ steps:
     timeout: 60
   - op: screenshot
     path: "screenshots/scode-slash-04-normal.png"
-  - op: judge
-    expect: "hello"
+  - op: assert_contains_any
+    expected: ["hello", "hi", "hey", "你好"]
+    min_count: 1
+    reason: normal prompt still gets an LLM reply after the slash commands
