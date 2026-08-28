@@ -203,8 +203,11 @@ async function main() {
       if (!name.endsWith('.exe')) fs.chmodSync(dst, 0o755);
     }
 
-    // Max gzip level: static ffmpeg binaries barely compress, but it's a free
-    // few MB off a ~114 MB archive and build CPU is not the bottleneck here.
+    // NOTE: node-tar's output is NOT byte-reproducible across runs, so every
+    // mirror run produces a fresh tar.gz with a NEW SHA256 — and a re-mirror
+    // re-uploads ALL platforms. After ANY mirror run, re-record EVERY
+    // cos.sha256 entry (the workflow prints them), not just the bumped one.
+    // gzip level 9 is a free few MB off the ~114 MB archive.
     await tar.create({ gzip: { level: 9 }, file: outResource, cwd: flatDir, portable: true }, fs.readdirSync(flatDir));
     console.log(`[ffmpeg:download] wrote ${outResource} (${(fs.statSync(outResource).size / 1e6).toFixed(1)} MB)`);
   } finally {

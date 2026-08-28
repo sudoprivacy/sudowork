@@ -5,16 +5,16 @@
   "version": "n9.0.1-4-gb3ef323dd2",
   "releaseSuffix": "9.0",
 
-  "_cos_doc": "Runtime download source. FfmpegRuntimeService downloads <cos.baseUrl>/ffmpeg/<tag>/ffmpeg-<key>.tar.gz on demand (China-reachable) when an ffmpeg-needing skill is installed, and verifies it against cos.sha256[key] (the SHA256 of the flat tar.gz produced+uploaded by .github/workflows/mirror-ffmpeg-to-cos.yml). Refresh these after re-running the mirror on a pin bump.",
+  "_cos_doc": "Runtime download source. FfmpegRuntimeService downloads <cos.baseUrl>/ffmpeg/<tag>/ffmpeg-<key>.tar.gz on demand (China-reachable) when an ffmpeg-needing skill is installed, and verifies it against cos.sha256[key] (the SHA256 of the flat tar.gz produced+uploaded by .github/workflows/mirror-ffmpeg-to-cos.yml). IMPORTANT: node-tar's repack is NOT byte-reproducible, so EVERY mirror run re-uploads ALL platforms with fresh SHA256s — after ANY mirror run, replace EVERY entry below with the values the workflow printed, not just the one you bumped.",
   "cos": {
     "baseUrl": "https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com",
     "sha256": {
-      "win32-x64": "2f102c53dfd78e2cbfb0940bd24b1ac9cc5839cded4c9887a8bf88e786ac9005",
-      "win32-arm64": "f815e84b46e1c12854ab639d33ed39dfa8c6bdb3c4682f666d405d0709e37fae",
-      "linux-x64": "0fad1886ac731adbf24a41dc70174c89b665c1eaefc3f44d3ff9ab8023b44bac",
-      "linux-arm64": "1e181b09f0d83d4b47b17aaaa177d07342f6155150f3d54b154f120628bb4fce",
-      "darwin-x64": "",
-      "darwin-arm64": ""
+      "win32-x64": "10085a07553767019a9d3d198f4fb7487dd9c3c1cfd9029008b16cf0464d1af6",
+      "win32-arm64": "a04d6d587c613408b7b1678e7ad00295edacab1ab8db4cb6971139782f5dbae9",
+      "linux-x64": "a31668e1fbb9df98ec2ba7e77a42064e3da5095f3aca7ec9cd2534adeb3c27bf",
+      "linux-arm64": "4771b40691cf6cdb4c4a589d64cff6d5f24d9c806d379f9f46fe2f30a027d480",
+      "darwin-x64": "d6ed0741dd4d231da40c0ae7c698c0b184b2dcb39abae1921930e7911fe3c6b1",
+      "darwin-arm64": "6df2b84c0b32853c11da6aee66d72aafdab13a6eb528337c7f594550bc4469fb"
     }
   },
 
