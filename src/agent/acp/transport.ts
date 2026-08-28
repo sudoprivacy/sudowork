@@ -237,15 +237,15 @@ export interface GrpcTransportOptions {
   /** What nexus spawns — sudowork owns this spec (SSOT). */
   spawnSpec: GenericSpawnSpec;
   events: AcpTransportEvents;
-  /** Idle re-read interval for the non-blocking stdout reader (ms). */
-  idlePollMs?: number;
+  /** Blocking long-poll timeout for the stdout reader (ms). Default 30_000. */
+  longPollMs?: number;
 }
 
 /**
  * ACP transport where nexus spawns + supervises the agent and exposes its
  * stdio as VFS fd streams. sudowork drives it over grpc-js:
  *   - start_session (Call) → session_id + os_pid; nexus spawns spawn_spec
- *   - reader: StreamReadAt (non-blocking) /proc/{sid}/fd/1 → NDJSON → onMessage
+ *   - reader: StreamReadAt (blocking long-poll) /proc/{sid}/fd/1 → NDJSON → onMessage
  *   - writer: StreamWriteNowait /proc/{sid}/fd/0 (agent stdin)
  *   - close:  cancel_v1
  * nexus never parses ACP; NDJSON framing stays here.
@@ -255,13 +255,13 @@ export class GrpcAcpTransport implements AcpTransport {
   private sessionId: string | null = null;
   private osPid: number | null = null;
   private readonly options: GrpcTransportOptions;
-  private readonly idlePollMs: number;
+  private readonly longPollMs: number;
   private _connected = false;
   private closing = false;
 
   constructor(options: GrpcTransportOptions) {
     this.options = options;
-    this.idlePollMs = options.idlePollMs ?? 30;
+    this.longPollMs = options.longPollMs ?? 30_000;
   }
 
   get connected(): boolean {
@@ -310,10 +310,14 @@ export class GrpcAcpTransport implements AcpTransport {
   }
 
   /**
-   * Non-blocking read loop over the agent's stdout stream. Per the DT_STREAM
-   * contract: data → deliver + advance offset + read again immediately;
-   * empty (eof=true) → "no data now", retry the SAME offset after a short wait;
-   * a rejection (is_error=true = stream closed+drained = agent exited) is the
+   * Blocking long-poll read loop over the agent's stdout stream. The daemon
+   * holds each StreamReadAt until a frame is ready or longPollMs expires, so
+   * there is no client-side idle poll — zero wakeups when the agent is quiet
+   * and zero added latency when it speaks (a frame wakes the read at once).
+   * Per the DT_STREAM contract: data → deliver + advance offset + read again;
+   * empty (eof=true, both "nothing ready" and a long-poll timeout) → "no frame
+   * yet", re-issue the read at the SAME offset (next_offset == offset); a
+   * rejection (is_error=true = stream closed+drained = agent exited) is the
    * real disconnect.
    */
   private async readStdout(): Promise<void> {
@@ -323,7 +327,7 @@ export class GrpcAcpTransport implements AcpTransport {
     while (this._connected && this.client) {
       let res;
       try {
-        res = await this.client.streamReadAt(stdoutPath, offset, { blocking: false });
+        res = await this.client.streamReadAt(stdoutPath, offset, { blocking: true, timeoutMs: this.longPollMs });
       } catch {
         this.handleClose();
         return;
@@ -333,10 +337,9 @@ export class GrpcAcpTransport implements AcpTransport {
           this.options.events.onMessage(message);
         }
         offset = res.nextOffset;
-        // immediate re-read (no wait) keeps streaming latency low
-      } else {
-        await delay(this.idlePollMs);
       }
+      // else: eof (no frame within the long-poll window) — re-issue immediately
+      // at the same offset; the blocking read is itself the wait.
     }
   }
 
@@ -369,8 +372,4 @@ function toStringEnv(env: Record<string, string | undefined>): Record<string, st
     if (typeof v === 'string') out[k] = v;
   }
   return out;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

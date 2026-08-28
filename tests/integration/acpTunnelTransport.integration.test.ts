@@ -55,7 +55,7 @@ suite('GrpcAcpTransport ↔ live nexusd-cluster', () => {
         },
         onSetupError: () => {},
       },
-      idlePollMs: 20,
+      longPollMs: 1000,
     });
 
     await transport.connect();
