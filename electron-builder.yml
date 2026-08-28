@@ -195,14 +195,8 @@ extraResources:
     to: shareone.tgz
   - from: resources/mcporter.tgz
     to: mcporter.tgz
-  # FFmpeg binary - bundled per-platform via scripts/download-ffmpeg.js. Only the
-  # build target's `ffmpeg-<platform>-<arch>.tar.gz` exists in resources/, so the
-  # filter includes exactly what was fetched. FfmpegRuntimeService extracts it to
-  # <userData>/ffmpeg/ at startup and acpConnectors puts it on the skill PATH.
-  - from: resources
-    to: .
-    filter:
-      - ffmpeg-*.tar.gz
+  # ffmpeg is NOT bundled — it is downloaded on demand from the runtime COS
+  # mirror only when an ffmpeg-needing skill is installed (FfmpegRuntimeService).
   # browser-panel MCP server bundle (esbuild output from
   # scripts/build-browser-mcp.js). Claude Code launches this as a stdio MCP
   # subprocess after sudowork registers it in ~/.claude.json at first run.
