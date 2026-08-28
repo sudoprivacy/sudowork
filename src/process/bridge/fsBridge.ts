@@ -18,6 +18,7 @@ import { ASSISTANT_SUBDIRS, ENTERPRISE_ASSISTANT_SUBDIRS, ASSISTANT_META_FILE } 
 import { readDirectoryRecursive } from '../utils';
 import { scanWorkspaceSkills } from '../utils/scanWorkspaceSkills';
 import { getSystemDir, getAssistantsDir, getSkillsDir } from '../initStorage';
+import { maybeProvisionFfmpegForSkill } from '../services/ffmpeg/ffmpegSkillGate';
 
 // CrashReporter imports for breadcrumb tracking
 import { fileBreadcrumbs } from '../telemetry/BreadcrumbTracker';
@@ -1153,6 +1154,9 @@ export function initFsBridge(): void {
 
       // 复制整个目录 / Copy entire directory
       await copyDirectory(skillPath, targetDir);
+
+      // Provision ffmpeg on demand if this imported skill needs it (skill-gated).
+      maybeProvisionFfmpegForSkill(targetDir);
 
       mainLog('fsBridge', `Successfully imported skill "${skillName}" to ${targetDir}`);
 
