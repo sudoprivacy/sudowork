@@ -121,6 +121,23 @@ function findBinary(dir, name) {
   return null;
 }
 
+/** Download `url` to a temp file, verify its SHA256, and extract into `extractDir`. */
+async function downloadVerifyExtract(url, expectedSha, isZip, extractDir, tmp, label) {
+  const archivePath = path.join(tmp, `${label}.${isZip ? 'zip' : 'tar.xz'}`);
+  await download(url, archivePath);
+  const actualSha = sha256OfFile(archivePath);
+  if (actualSha !== expectedSha) {
+    throw new Error(`SHA256 mismatch for ${label} (${url}): expected ${expectedSha}, got ${actualSha}`);
+  }
+  console.log(`[ffmpeg:download] SHA256 verified: ${actualSha} (${label})`);
+  if (isZip) {
+    await unzip(archivePath, extractDir);
+  } else {
+    // .tar.xz — rely on the build machine's `tar` (xz-capable on linux/mac).
+    execFileSync('tar', ['-xf', archivePath, '-C', extractDir], { stdio: 'inherit' });
+  }
+}
+
 async function main() {
   const explicitKey = process.argv.find((a) => /^[a-z0-9]+-[a-z0-9]+$/i.test(a));
   const key = explicitKey || currentKey();
@@ -143,33 +160,32 @@ async function main() {
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ffmpeg-dl-'));
   try {
-    const archivePath = path.join(tmp, `src.${cfg.archive === 'zip' ? 'zip' : 'tar.xz'}`);
-    try {
-      await download(assetUrl(cfg), archivePath);
-    } catch (err) {
-      if (/HTTP 404/.test(err.message)) {
-        throw new Error(
-          `${assetName(cfg)} is gone from BtbN tag ${FFMPEG_TAG} (old autobuilds get pruned). ` +
-            `Re-pin src/shared/ffmpeg-runtime.json to a current autobuild-* tag + refresh its SHA256s.`,
-        );
-      }
-      throw err;
-    }
-
-    // Integrity gate: the pinned SHA256 must match before we trust the bytes.
-    const actualSha = sha256OfFile(archivePath);
-    if (actualSha !== cfg.sha256) {
-      throw new Error(`SHA256 mismatch for ${assetName(cfg)}: expected ${cfg.sha256}, got ${actualSha}`);
-    }
-    console.log(`[ffmpeg:download] SHA256 verified: ${actualSha}`);
-
     const extractDir = path.join(tmp, 'extract');
     fs.mkdirSync(extractDir, { recursive: true });
-    if (cfg.archive === 'zip') {
-      await unzip(archivePath, extractDir);
+
+    if (cfg.ffmpeg) {
+      // macOS (martin-riedl): ffmpeg + ffprobe are SEPARATE zips at explicit,
+      // per-binary immutable URLs, each with its own pinned SHA256.
+      for (const [bin, entry] of [
+        ['ffmpeg', cfg.ffmpeg],
+        ['ffprobe', cfg.ffprobe],
+      ]) {
+        if (!entry) continue;
+        await downloadVerifyExtract(entry.url, entry.sha256, true, extractDir, tmp, bin);
+      }
     } else {
-      // .tar.xz — rely on the build machine's `tar` (xz-capable on linux/mac).
-      execFileSync('tar', ['-xf', archivePath, '-C', extractDir], { stdio: 'inherit' });
+      // BtbN (win/linux): one archive holding both binaries, derived URL + pinned SHA.
+      try {
+        await downloadVerifyExtract(assetUrl(cfg), cfg.sha256, cfg.archive === 'zip', extractDir, tmp, 'src');
+      } catch (err) {
+        if (/HTTP 404/.test(err.message)) {
+          throw new Error(
+            `${assetName(cfg)} is gone from BtbN tag ${FFMPEG_TAG} (old autobuilds get pruned). ` +
+              `Re-pin src/shared/ffmpeg-runtime.json to a current autobuild-* tag + refresh its SHA256s.`,
+          );
+        }
+        throw err;
+      }
     }
 
     const flatDir = path.join(tmp, 'flat');
@@ -178,7 +194,7 @@ async function main() {
     for (const name of wanted) {
       const found = findBinary(extractDir, name);
       if (!found) {
-        if (name.startsWith('ffmpeg')) throw new Error(`ffmpeg binary not found in ${assetName(cfg)}`);
+        if (name.startsWith('ffmpeg')) throw new Error(`ffmpeg binary not found for ${key}`);
         console.warn(`[ffmpeg:download] optional ${name} not found — skipping`);
         continue;
       }
