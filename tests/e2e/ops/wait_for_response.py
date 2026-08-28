@@ -120,6 +120,25 @@ async def _wait_db(timeout: float, idle_seconds: float,
                 "AND type = 'acp_tool_call' AND status = 'in_progress' LIMIT 1",
                 (conv_id,),
             ).fetchone()
+
+            # Has THIS turn produced an assistant reply yet? position 'right' =
+            # user, 'left' = assistant. A reasoning-heavy model (claude-opus via
+            # 'auto') emits `thought`/`acp_tool_call` rows for many seconds before
+            # its final `text` answer; meanwhile task.status can still read
+            # 'finished' from the PRIOR turn, which returned mid-think. Require a
+            # `text` assistant row at/after the latest user message before
+            # accepting completion.
+            last_user = cur.execute(
+                "SELECT MAX(created_at) FROM messages "
+                "WHERE conversation_id = ? AND position = 'right'",
+                (conv_id,),
+            ).fetchone()
+            last_user_ts = last_user[0] if last_user and last_user[0] else 0
+            saw_reply = cur.execute(
+                "SELECT 1 FROM messages WHERE conversation_id = ? AND type = 'text' "
+                "AND position = 'left' AND created_at >= ? LIMIT 1",
+                (conv_id, last_user_ts),
+            ).fetchone() is not None
             con.close()
         finally:
             shutil.rmtree(db_path.parent, ignore_errors=True)
@@ -135,7 +154,7 @@ async def _wait_db(timeout: float, idle_seconds: float,
         # new one registers — which returned mid-turn (judged while a tool_call
         # was still running). If a tool_call is in_progress the turn is not done,
         # whatever the status says, so don't accept 'finished' yet.
-        if tab and conv_id and not in_progress:
+        if tab and conv_id and not in_progress and saw_reply:
             try:
                 task_status = await tab.evaluate(f"""
                     (async function() {{
@@ -172,7 +191,7 @@ async def _wait_db(timeout: float, idle_seconds: float,
 
         if idle_start is None:
             idle_start = time.time()
-        elif time.time() - idle_start >= idle_seconds:
+        elif saw_reply and time.time() - idle_start >= idle_seconds:
             return {"done": True, "mode": "db", "conversation_id": conv_id,
                     "signal": "idle_timeout",
                     "idle_seconds": round(time.time() - idle_start, 1),
