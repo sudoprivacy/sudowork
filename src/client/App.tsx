@@ -1,7 +1,6 @@
-export function App() {
-  return (
-    <main>
-      <h1>Sudowork WebUI</h1>
-    </main>
-  )
+import React from 'react'
+import { AppRoutes } from './router'
+
+export function App(): React.ReactElement {
+  return <AppRoutes />
 }

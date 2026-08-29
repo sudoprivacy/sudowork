@@ -1,0 +1,21 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Styles Entry Point（摘取自 Sudowork，按 WebUI 顺序调整）
+ */
+
+/* Arco Design 组件样式（main.tsx 引入）；以下为 Sudowork 企业端覆盖与 token */
+
+/* 设计 token / Design tokens (single source of truth) */
+@import './variables.css';
+
+/* 基础与外观规则 / Base + chrome rules */
+@import './base.css';
+
+/* Markdown 主题规则 */
+@import './markdown.css';
+
+/* Arco 组件覆盖 / Arco component overrides */
+@import './arco-override.scss';

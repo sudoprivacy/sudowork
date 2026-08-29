@@ -25,13 +25,18 @@
     "migrate:test": "vitest run tests/integration/db.test.ts tests/integration/session.test.ts"
   },
   "dependencies": {
+    "@arco-design/web-react": "2.66.1",
+    "classnames": "^2.5.1",
     "express": "5.1.0",
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
+    "lucide-react": "^1.37.0",
     "pg": "^8.23.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-router-dom": "7.8.0",
     "swr": "2.3.6",
+    "unocss-preset-extra": "^1.0.0",
     "zod": "3.25.76"
   },
   "devDependencies": {
@@ -50,6 +55,7 @@
     "eslint": "^10.9.1",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
+    "sass": "^1.103.1",
     "supertest": "^7.2.2",
     "typescript": "5.8.3",
     "typescript-eslint": "^8.68.0",

@@ -1,9 +1,10 @@
 import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
+import UnoCss from 'unocss/vite'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [UnoCss(), react()],
   resolve: {
     alias: {
       '@client': fileURLToPath(new URL('./src/client', import.meta.url)),
