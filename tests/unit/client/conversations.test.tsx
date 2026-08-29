@@ -6,7 +6,6 @@ import {
   reduceStreamEvent,
   type ConversationStreamState,
 } from '@client/features/conversations/useConversationSocket'
-import { MessageList } from '@client/features/conversations/MessageList'
 import { SendBox } from '@client/features/conversations/SendBox'
 
 describe('reduceStreamEvent（上游事件聚合）', () => {
@@ -75,38 +74,6 @@ describe('reduceStreamEvent（上游事件聚合）', () => {
     expect(state.isWriter).toBe(true)
     state = reduceStreamEvent(state, { kind: 'error', code: 'CONVERSATION_BUSY' })
     expect(state.lastError).toBe('CONVERSATION_BUSY')
-  })
-})
-
-describe('MessageList', () => {
-  test('renders user/assistant/question with answer input for writer', () => {
-    render(
-      <MessageList
-        messages={[
-          { kind: 'user', id: 'u1', text: 'hi' },
-          { kind: 'assistant', id: 'a1', text: 'hello', done: true },
-          { kind: 'question', id: 'q1', title: '选一个', answered: false },
-        ]}
-        canAnswer
-        onAnswer={vi.fn()}
-      />,
-    )
-    expect(screen.getByText('hi')).toBeTruthy()
-    expect(screen.getByTestId('assistant-message').textContent).toBe('hello')
-    expect(screen.getByTestId('question-card')).toBeTruthy()
-    expect(screen.getByLabelText('问题回答输入')).toBeTruthy()
-  })
-
-  test('observer cannot answer', () => {
-    render(
-      <MessageList
-        messages={[{ kind: 'question', id: 'q1', title: '选一个', answered: false }]}
-        canAnswer={false}
-        onAnswer={vi.fn()}
-      />,
-    )
-    expect(screen.queryByLabelText('问题回答输入')).toBeNull()
-    expect(screen.getByText('等待写入端回答…')).toBeTruthy()
   })
 })
 

@@ -2,7 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, test, vi, beforeEach } from 'vitest'
 import { AppLayout } from '@client/layouts/AppLayout'
-import { PlaceholderPage } from '@client/components/PlaceholderPage'
+
+/** 测试专用路由出口（真实页面带数据依赖，不适合轻量导航断言） */
+function TestOutlet({ title }: { title: string }) {
+  return <div data-testid='test-outlet'>{title}</div>
+}
 
 vi.mock('@client/features/auth/useAuth', () => ({
   useSession: vi.fn(),
@@ -23,13 +27,13 @@ function renderShellAt(path: string): ReturnType<typeof render> {
           path='/'
           element={<AppLayout />}
         >
-          <Route path='guid' element={<PlaceholderPage title='新会话页' feature='test' />} />
-          <Route path='agents' element={<PlaceholderPage title='智能体页' feature='test' />} />
-          <Route path='skills' element={<PlaceholderPage title='技能库页' feature='test' />} />
-          <Route path='cron' element={<PlaceholderPage title='定时任务页' feature='test' />} />
+          <Route path='guid' element={<TestOutlet title='新会话页' />} />
+          <Route path='agents' element={<TestOutlet title='智能体页' />} />
+          <Route path='skills' element={<TestOutlet title='技能库页' />} />
+          <Route path='cron' element={<TestOutlet title='定时任务页' />} />
           <Route
             path='settings/profile'
-            element={<PlaceholderPage title='用户中心页' feature='test' />}
+            element={<TestOutlet title='用户中心页' />}
           />
         </Route>
       </Routes>
