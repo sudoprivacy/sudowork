@@ -30,6 +30,7 @@ export const MossMeSchema = z.object({
     .nullable(),
   scopes: z.array(z.string()),
   role: z.string(),
+  isSuperAdmin: z.boolean().optional(),
 })
 export type MossMe = z.infer<typeof MossMeSchema>
 

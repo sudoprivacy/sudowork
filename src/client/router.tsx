@@ -4,6 +4,8 @@ import { LoginPage } from './features/auth/LoginPage'
 import { useSession } from './features/auth/useAuth'
 import { ConversationPage } from './features/conversations/ConversationPage'
 import { NewConversationPage } from './features/conversations/NewConversationPage'
+import { AgentsPage } from './features/agents/AgentsPage'
+import { SkillsPage } from './features/skills/SkillsPage'
 import { AppLayout } from './layouts/AppLayout'
 import { PlaceholderPage } from './components/PlaceholderPage'
 
@@ -72,8 +74,8 @@ export function AppRoutes(): React.ReactElement {
         <Route index element={<Navigate to='/guid' replace />} />
         <Route path='guid' element={<NewConversationPage />} />
         <Route path='conversation/:id' element={<ConversationPage />} />
-        <Route path='agents' element={<PlaceholderPage title='智能体' feature='Task 6' />} />
-        <Route path='skills' element={<PlaceholderPage title='技能库' feature='Task 6' />} />
+        <Route path='agents' element={<AgentsPage />} />
+        <Route path='skills' element={<SkillsPage />} />
         <Route path='cron' element={<PlaceholderPage title='定时任务' feature='Task 7' />} />
         <Route
           path='settings/profile'

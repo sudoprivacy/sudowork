@@ -17,6 +17,10 @@ import {
 } from './features/auth/sessionMiddleware.js'
 import { ConversationCoordinator } from './features/conversations/ConversationCoordinator.js'
 import { createConversationRouter } from './features/conversations/conversationRoutes.js'
+import { createMossAgentPort, type MossAgentPort } from './moss/MossAgentClient.js'
+import { createMossSkillPort, type MossSkillPort } from './moss/MossSkillClient.js'
+import { createAgentRouter } from './features/agents/agentRoutes.js'
+import { createSkillRouter } from './features/skills/skillRoutes.js'
 
 /**
  * Express 应用工厂（计划 3.6 注册顺序）：
@@ -57,6 +61,10 @@ export interface ApiDeps {
   mossSession?: MossSessionPort
   /** 测试注入桩 */
   coordinator?: ConversationCoordinator
+  /** 测试注入桩 */
+  agents?: MossAgentPort
+  /** 测试注入桩 */
+  skills?: MossSkillPort
 }
 
 export interface ApiHandles {
@@ -72,22 +80,19 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   app.use('/api/auth', createAuthRouter({ pool, config, mossAuth: deps.mossAuth }))
 
   const mossFetch = deps.mossFetch ?? mossRequest
+  const auth = { pool, config, mossAuth: deps.mossAuth }
   const mossSession = deps.mossSession ?? createMossSessionPort(mossFetch, config.moss.baseUrl)
   const coordinator =
-    deps.coordinator ??
-    new ConversationCoordinator({ pool, config, auth: { pool, config, mossAuth: deps.mossAuth }, moss: mossSession })
+    deps.coordinator ?? new ConversationCoordinator({ pool, config, auth, moss: mossSession })
+  const agents = deps.agents ?? createMossAgentPort(mossFetch, config.moss.baseUrl)
+  const skills = deps.skills ?? createMossSkillPort(mossFetch, config.moss.baseUrl)
 
   app.use(
     '/api/conversations',
-    createConversationRouter({
-      pool,
-      config,
-      auth: { pool, config, mossAuth: deps.mossAuth },
-      moss: mossSession,
-      mossFetch,
-      coordinator,
-    }),
+    createConversationRouter({ pool, config, auth, moss: mossSession, mossFetch, coordinator }),
   )
+  app.use('/api/agents', createAgentRouter({ pool, config, auth, agents }))
+  app.use('/api/skills', createSkillRouter({ pool, config, auth, skills }))
 
   return { coordinator, mossSession }
 }
