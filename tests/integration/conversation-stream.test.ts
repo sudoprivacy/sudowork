@@ -87,7 +87,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   function browserWs(cookie: string): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/conversations/${SID}`, {
-        headers: { cookie, origin: 'http://localhost:5173' },
+        headers: { cookie, origin: 'http://localhost:5273' },
       })
       ws.once('open', () => resolve(ws))
       ws.once('error', reject)
@@ -150,7 +150,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     // ---- WebUI app ----
     const testConfig: AppConfig = {
       server: { host: '127.0.0.1', port: 0 },
-      publicOrigin: 'http://localhost:5173',
+      publicOrigin: 'http://localhost:5273',
       trustProxy: false,
       moss: { baseUrl: 'http://moss.test', wsBaseUrl: `ws://127.0.0.1:${upstreamPort}` },
       session: { ttlSeconds: 3600 },
@@ -304,7 +304,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       const res = await request(app)
         .post(`/api/conversations/${SID}/terminate`)
         .set('Cookie', cookie1)
-        .set('Origin', 'http://localhost:5173')
+        .set('Origin', 'http://localhost:5273')
       expect(res.status).toBe(200)
 
       await c.waitFor((e) => e.kind === 'error' && e.code === 'SESSION_TERMINATED')
@@ -328,7 +328,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     await expect(
       new Promise<WebSocket>((resolve, reject) => {
         const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/conversations/${SID}`, {
-          headers: { origin: 'http://localhost:5173' },
+          headers: { origin: 'http://localhost:5273' },
         })
         ws.once('open', () => resolve(ws))
         ws.once('error', (err) => reject(err))

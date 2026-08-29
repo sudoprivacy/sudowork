@@ -18,7 +18,7 @@ const AES_KEY = Buffer.alloc(32, 7)
 
 const testConfig: AppConfig = {
   server: { host: '127.0.0.1', port: 0 },
-  publicOrigin: 'http://localhost:5173',
+  publicOrigin: 'http://localhost:5273',
   trustProxy: false,
   moss: { baseUrl: 'http://moss.test', wsBaseUrl: 'ws://moss.test' },
   session: { ttlSeconds: 3600 },

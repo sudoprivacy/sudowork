@@ -26,11 +26,11 @@ cp .env.example .env
 # 4) 建表（幂等）
 bun run migrate
 
-# 5) 启动（server :26809 + vite :5173，/api 与 /ws 自动代理）
+# 5) 启动（server :26809 + vite :5273，/api 与 /ws 自动代理）
 bun run dev
 ```
 
-打开 http://localhost:5173，用 Moss 账户密码或 API Key 登录。
+打开 http://localhost:5273，用 Moss 账户密码或 API Key 登录。
 
 ## 环境变量
 

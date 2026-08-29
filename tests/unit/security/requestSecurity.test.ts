@@ -7,7 +7,7 @@ import {
   securityHeaders,
 } from '@server/security/requestSecurity'
 
-const PUBLIC_ORIGIN = 'http://localhost:5173'
+const PUBLIC_ORIGIN = 'http://localhost:5273'
 
 function buildApp(): Express {
   const app = express()
