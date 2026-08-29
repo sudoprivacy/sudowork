@@ -62,3 +62,18 @@ export function requireSession(req: Request, res: Response, next: NextFunction):
   }
   next()
 }
+
+/** WS upgrade 场景：直接从 Cookie header 解析活跃 Web Session。 */
+export async function findSessionByCookie(
+  pool: Pool,
+  cookieHeader: string | undefined,
+  hmacKey: Buffer,
+): Promise<WebSessionRow | null> {
+  const token = parseCookies(cookieHeader)[SESSION_COOKIE_NAME]
+  if (!token) return null
+  try {
+    return await findActiveSessionByDigest(pool, digestToken(token, hmacKey))
+  } catch {
+    return null
+  }
+}

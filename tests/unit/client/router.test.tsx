@@ -83,8 +83,7 @@ describe('route table scope (计划 Task 4)', () => {
       refresh: vi.fn(),
     })
     renderAt('/')
-    await waitFor(() => expect(screen.getByTestId('placeholder-page')).toBeTruthy())
-    expect(screen.getByTestId('placeholder-page')?.textContent).toContain('新会话')
+    await waitFor(() => expect(screen.getByTestId('new-conversation-page')).toBeTruthy())
   })
 
   test('each settings route renders its own placeholder', async () => {

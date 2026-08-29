@@ -37,6 +37,7 @@
     "react-router-dom": "7.8.0",
     "swr": "2.3.6",
     "unocss-preset-extra": "^1.0.0",
+    "ws": "8.18.3",
     "zod": "3.25.76"
   },
   "devDependencies": {
@@ -50,6 +51,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@types/supertest": "^7.2.1",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "4",
     "concurrently": "^10.0.5",
     "eslint": "^10.9.1",

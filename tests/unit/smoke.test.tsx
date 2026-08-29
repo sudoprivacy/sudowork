@@ -26,7 +26,7 @@ describe('App root', () => {
         <App />
       </MemoryRouter>,
     )
-    expect(screen.getByTestId('placeholder-page')).toBeTruthy()
+    expect(screen.getByTestId('new-conversation-page')).toBeTruthy()
     expect(screen.getByTestId('new-conversation')).toBeTruthy()
   })
 })

@@ -10,6 +10,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Dropdown, Menu, Tabs } from '@arco-design/web-react'
 import { useSession } from '@client/features/auth/useAuth'
 import { logout } from '@client/features/auth/authApi'
+import { ConversationHistory } from '@client/features/conversations/ConversationHistory'
 import SidebarNavItem from '@client/components/SidebarNavItem'
 import { SettingsSider } from './SettingsSider'
 
@@ -136,8 +137,8 @@ export function MainSider(): React.ReactElement {
             </Tabs>
           </div>
 
-          <div className='flex min-h-24 flex-1 flex-col' data-testid='history-list-placeholder'>
-            <div className='size-full f-center text-12px text-tertiary'>历史列表（Task 5）</div>
+          <div className='flex min-h-24 flex-1 flex-col' data-testid='history-list'>
+            <ConversationHistory isScheduled={activeTab === 'scheduled'} />
           </div>
         </div>
       </div>

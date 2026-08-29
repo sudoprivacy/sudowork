@@ -1,5 +1,5 @@
 import { Pool } from 'pg'
-import { createApp, registerApiRoutes } from './app.js'
+import { createApp, attachConversationWebSocket, registerApiRoutes } from './app.js'
 import { loadConfig } from './config.js'
 import { createMossAuthPort } from './moss/MossAuthClient.js'
 import { mossRequest } from './moss/MossHttpClient.js'
@@ -11,7 +11,7 @@ const app = createApp({ publicOrigin: config.publicOrigin })
 const pool: Pool = getPool(config.databaseUrl)
 const mossAuth = createMossAuthPort(mossRequest, config.moss.baseUrl)
 
-registerApiRoutes(app, { config, pool, mossAuth })
+const handles = registerApiRoutes(app, { config, pool, mossAuth })
 
 const server = app.listen({ port: config.server.port, host: config.server.host }, () => {
   console.log(
@@ -20,7 +20,12 @@ const server = app.listen({ port: config.server.port, host: config.server.host }
   )
 })
 
-// WebSocket upgrade（/ws）在 Task 5 注册。
+attachConversationWebSocket(server, { config, pool, coordinator: handles.coordinator })
+
+// 启动恢复：遗留 running 锁 → uncertain（计划 2.1）
+void handles.coordinator.startupRecovery(pool).catch((err: unknown) => {
+  console.error(`[sudowork-webui] startup recovery failed: ${(err as Error).message}`)
+})
 
 async function shutdown(): Promise<void> {
   server.close()

@@ -2,6 +2,8 @@ import React from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { LoginPage } from './features/auth/LoginPage'
 import { useSession } from './features/auth/useAuth'
+import { ConversationPage } from './features/conversations/ConversationPage'
+import { NewConversationPage } from './features/conversations/NewConversationPage'
 import { AppLayout } from './layouts/AppLayout'
 import { PlaceholderPage } from './components/PlaceholderPage'
 
@@ -68,11 +70,8 @@ export function AppRoutes(): React.ReactElement {
         }
       >
         <Route index element={<Navigate to='/guid' replace />} />
-        <Route path='guid' element={<PlaceholderPage title='新会话' feature='Task 5' />} />
-        <Route
-          path='conversation/:id'
-          element={<PlaceholderPage title='远程会话' feature='Task 5' />}
-        />
+        <Route path='guid' element={<NewConversationPage />} />
+        <Route path='conversation/:id' element={<ConversationPage />} />
         <Route path='agents' element={<PlaceholderPage title='智能体' feature='Task 6' />} />
         <Route path='skills' element={<PlaceholderPage title='技能库' feature='Task 6' />} />
         <Route path='cron' element={<PlaceholderPage title='定时任务' feature='Task 7' />} />
