@@ -20,9 +20,12 @@ import { createConversationRouter } from './features/conversations/conversationR
 import { createMossAgentPort, type MossAgentPort } from './moss/MossAgentClient.js'
 import { createMossSkillPort, type MossSkillPort } from './moss/MossSkillClient.js'
 import { createMossCronPort } from './moss/MossCronClient.js'
+import { createMossMcpPort, type MossMcpPort } from './moss/MossMcpClient.js'
 import { createAgentRouter } from './features/agents/agentRoutes.js'
 import { createSkillRouter } from './features/skills/skillRoutes.js'
 import { createCronRouter } from './features/cron/cronRoutes.js'
+import { createSettingsRouter } from './features/settings/settingsRoutes.js'
+import { createMcpRouter } from './features/mcp/mcpRoutes.js'
 
 /**
  * Express 应用工厂（计划 3.6 注册顺序）：
@@ -71,6 +74,8 @@ export interface ApiDeps {
   cron?: import('./moss/MossCronClient.js').MossCronPort
   /** 测试注入桩 */
   fetchVisibleAgentNames?: (accessToken: string) => Promise<Set<string>>
+  /** 测试注入桩 */
+  mcp?: MossMcpPort
 }
 
 export interface ApiHandles {
@@ -127,6 +132,10 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
       fetchVisibleAgentNames,
     }),
   )
+
+  const mcp = deps.mcp ?? createMossMcpPort(mossFetch, config.moss.baseUrl)
+  app.use('/api/settings', createSettingsRouter({ pool, config, auth, mcp }))
+  app.use('/api/mcp', createMcpRouter({ pool, config, auth, mcp }))
 
   return { coordinator, mossSession }
 }

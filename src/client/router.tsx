@@ -8,8 +8,11 @@ import { AgentsPage } from './features/agents/AgentsPage'
 import { SkillsPage } from './features/skills/SkillsPage'
 import { CronPage } from './features/cron/CronPage'
 import { CronJobDetailPage } from './features/cron/CronJobDetailPage'
+import { ProfilePage } from './features/settings/ProfilePage'
+import { DisplayPage } from './features/settings/DisplayPage'
+import { AboutPage } from './features/settings/AboutPage'
+import { McpSettingsPage } from './features/mcp/McpSettingsPage'
 import { AppLayout } from './layouts/AppLayout'
-import { PlaceholderPage } from './components/PlaceholderPage'
 
 /**
  * 路由表（计划 Task 4）：只注册
@@ -80,13 +83,10 @@ export function AppRoutes(): React.ReactElement {
         <Route path='skills' element={<SkillsPage />} />
         <Route path='cron' element={<CronPage />} />
         <Route path='cron/:id' element={<CronJobDetailPage />} />
-        <Route
-          path='settings/profile'
-          element={<PlaceholderPage title='用户中心' feature='Task 8' />}
-        />
-        <Route path='settings/mcp' element={<PlaceholderPage title='MCP 服务' feature='Task 8' />} />
-        <Route path='settings/display' element={<PlaceholderPage title='显示' feature='Task 8' />} />
-        <Route path='settings/about' element={<PlaceholderPage title='关于' feature='Task 8' />} />
+        <Route path='settings/profile' element={<ProfilePage />} />
+        <Route path='settings/mcp' element={<McpSettingsPage />} />
+        <Route path='settings/display' element={<DisplayPage />} />
+        <Route path='settings/about' element={<AboutPage />} />
       </Route>
       <Route path='*' element={<Navigate to='/guid' replace />} />
     </Routes>

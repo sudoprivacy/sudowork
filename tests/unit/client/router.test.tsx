@@ -86,7 +86,7 @@ describe('route table scope (计划 Task 4)', () => {
     await waitFor(() => expect(screen.getByTestId('new-conversation-page')).toBeTruthy())
   })
 
-  test('each settings route renders its own placeholder', async () => {
+  test('each settings route renders its real page', async () => {
     useSessionMock.mockReturnValue({
       session: {
         user: { id: 'u1', name: 'tester' },
@@ -100,17 +100,14 @@ describe('route table scope (计划 Task 4)', () => {
       unavailable: false,
       refresh: vi.fn(),
     })
-    for (const [path, title] of [
-      ['/settings/profile', '用户中心'],
-      ['/settings/mcp', 'MCP 服务'],
-      ['/settings/display', '显示'],
-      ['/settings/about', '关于'],
+    for (const [path, testid] of [
+      ['/settings/profile', 'profile-page'],
+      ['/settings/mcp', 'mcp-settings-page'],
+      ['/settings/display', 'display-page'],
+      ['/settings/about', 'about-page'],
     ] as const) {
       const { unmount } = renderAt(path)
-      await waitFor(() =>
-        // 标题同时出现在 SettingsSider 菜单与占位页，至少 2 处
-        expect(screen.getAllByText(title).length).toBeGreaterThanOrEqual(2),
-      )
+      await waitFor(() => expect(screen.getByTestId(testid)).toBeTruthy(), { timeout: 5000 })
       unmount()
     }
   })
