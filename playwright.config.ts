@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineConfig } from '@playwright/test'
 
-const PORT = Number(process.env.E2E_PORT ?? 25808)
+const PORT = Number(process.env.E2E_PORT ?? 26808)
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`
 
 // 使用本地已下载的完整 chromium（headless shell 变体缺失时绕过）

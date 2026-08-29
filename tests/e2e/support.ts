@@ -24,7 +24,7 @@ export function requireE2eEnv(): E2eEnv {
     return value as string
   }
   const env: E2eEnv = {
-    baseUrl: check('E2E_BASE_URL', process.env.E2E_BASE_URL ?? 'http://127.0.0.1:25808'),
+    baseUrl: check('E2E_BASE_URL', process.env.E2E_BASE_URL ?? 'http://127.0.0.1:26808'),
     mossUrl: check('MOSS_BASE_URL', process.env.MOSS_BASE_URL),
     userA: {
       username: check('E2E_USER_A_USERNAME', process.env.E2E_USER_A_USERNAME),

@@ -45,7 +45,7 @@ function createFakeMossAuth(): MossAuthPort {
 }
 
 const testConfig: AppConfig = {
-  server: { host: '127.0.0.1', port: 25809 },
+  server: { host: '127.0.0.1', port: 26809 },
   publicOrigin: 'http://localhost:5173',
   trustProxy: false,
   moss: { baseUrl: 'http://moss.test', wsBaseUrl: 'ws://moss.test' },

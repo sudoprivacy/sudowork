@@ -26,7 +26,7 @@ services:
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN}
       MOSS_BASE_URL: ${MOSS_BASE_URL}
       MOSS_WS_BASE_URL: ${MOSS_WS_BASE_URL}
-      PORT: '25808'
+      PORT: '26808'
       NODE_ENV: production
     depends_on:
       postgres:
@@ -37,14 +37,14 @@ services:
     build: .
     environment: *webui-env
     ports:
-      - '${WEBUI_PORT:-25808}:25808'
+      - '${WEBUI_PORT:-26808}:26808'
     depends_on:
       postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q -O- http://127.0.0.1:25808/health/live || exit 1']
+      test: ['CMD-SHELL', 'wget -q -O- http://127.0.0.1:26808/health/live || exit 1']
       interval: 10s
       timeout: 5s
       retries: 10

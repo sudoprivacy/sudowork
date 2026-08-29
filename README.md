@@ -26,7 +26,7 @@ cp .env.example .env
 # 4) 建表（幂等）
 bun run migrate
 
-# 5) 启动（server :25809 + vite :5173，/api 与 /ws 自动代理）
+# 5) 启动（server :26809 + vite :5173，/api 与 /ws 自动代理）
 bun run dev
 ```
 
@@ -41,7 +41,7 @@ bun run dev
 | `TOKEN_AES_KEY` | Moss access/refresh token 的 AES-256-GCM 密钥（32 字节，`openssl rand -base64 32`） |
 | `PUBLIC_ORIGIN` | 对外完整 Origin；生产必须 HTTPS（外部反向代理终结 TLS） |
 | `MOSS_BASE_URL` / `MOSS_WS_BASE_URL` | Moss 服务地址（只读访问，不由 WebUI 部署；两者主机必须一致） |
-| `PORT` | 服务端口（开发 25809，生产 25808） |
+| `PORT` | 服务端口（开发 26809，生产 26808） |
 
 配置文件（`config/sudowork-webui.json`，可 `CONFIG_PATH` 覆盖）提供 server/publicOrigin/
 trustProxy/moss/session/upload 段；环境变量优先。
@@ -80,7 +80,7 @@ bun run test:e2e           # 真实 Moss E2E（见下）
 E2E 只允许专用测试 Moss。必填环境变量（缺失即失败，不 skip）：
 
 ```
-E2E_BASE_URL=http://127.0.0.1:25808
+E2E_BASE_URL=http://127.0.0.1:26808
 E2E_USER_A_USERNAME / E2E_USER_A_PASSWORD
 E2E_USER_B_USERNAME / E2E_USER_B_PASSWORD
 E2E_USER_A_API_KEY

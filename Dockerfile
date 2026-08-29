@@ -22,5 +22,5 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/migrations ./migrations
 
-EXPOSE 25808
+EXPOSE 26808
 CMD ["node", "dist/server/index.js"]

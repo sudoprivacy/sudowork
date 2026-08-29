@@ -1,7 +1,7 @@
 {
   "server": {
     "host": "0.0.0.0",
-    "port": 25809
+    "port": 26809
   },
   "publicOrigin": "http://localhost:5173",
   "trustProxy": false,

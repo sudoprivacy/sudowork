@@ -12,7 +12,7 @@ import { z } from 'zod'
 const ConfigFileSchema = z.object({
   server: z.object({
     host: z.string().min(1).default('0.0.0.0'),
-    port: z.number().int().min(1).max(65535).default(25809),
+    port: z.number().int().min(1).max(65535).default(26809),
   }),
   publicOrigin: z.string().url(),
   trustProxy: z.boolean().default(false),
