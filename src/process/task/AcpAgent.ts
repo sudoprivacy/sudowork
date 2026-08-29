@@ -448,15 +448,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // ACP → nexus cutover (scode-first rollout). When the local nexusd-cluster
       // daemon is serving, route scode's spawn/drive through nexus managed_agent
       // by advertising its loopback endpoint; AcpConnection dials it and falls
-      // back to a local spawn if the tunnel is unavailable.
-      //   - Scoped to scode: the only backend proven end-to-end over the tunnel;
-      //     other backends stay local until validated.
-      //   - Skipped on Windows: nexus's raw agent spawner (managed_agent
-      //     subprocess-host) is unix-only (nexus services/src/acp/subprocess.rs
-      //     is #![cfg(unix)]), so a Windows daemon rejects spawn_spec. Advertising
-      //     there would burn a failed start_session RPC on every connect before
-      //     falling back — skip it and go straight to the local spawn.
-      if (data.backend === 'scode' && process.platform !== 'win32') {
+      // back to a local spawn if the tunnel is unavailable. All platforms:
+      // nexus's raw agent spawner (managed_agent subprocess-host) is cross-
+      // platform as of nexus-vfs#255 / nexusd-cluster 0.1.1. Scoped to scode —
+      // the only backend proven end-to-end over the tunnel; others stay local
+      // until validated.
+      if (data.backend === 'scode') {
         const tunnelEndpoint = dynamicNexusVfsService.acpTunnelEndpoint;
         if (tunnelEndpoint) {
           customEnv = { ...customEnv, ACP_GRPC_ENDPOINT: tunnelEndpoint };
