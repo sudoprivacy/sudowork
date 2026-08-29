@@ -23,6 +23,7 @@ export function AboutPage(): React.ReactElement {
           column={1}
           data={[
             { label: '应用', value: about.branding?.appName ?? 'Sudowork WebUI' },
+            { label: 'WebUI', value: about.webui?.name ?? 'sudowork-webui' },
             { label: 'WebUI 版本', value: about.webui?.version ?? '0.1.0' },
             { label: 'Node', value: about.webui?.node ?? '—' },
             { label: 'Moss 服务', value: about.mossBaseUrl ?? '—' },

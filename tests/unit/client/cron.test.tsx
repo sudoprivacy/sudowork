@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { SWRConfig } from 'swr'
 import { describe, expect, test, vi } from 'vitest'
@@ -36,7 +36,6 @@ vi.mock('@client/features/cron/cronApi', () => ({
 }))
 
 import { CronPage } from '@client/features/cron/CronPage'
-import { cronApi } from '@client/features/cron/cronApi'
 
 describe('CronPage（计划 Task 7）', () => {
   test('renders jobs with schedule value and operations', async () => {
@@ -53,9 +52,7 @@ describe('CronPage（计划 Task 7）', () => {
     expect(screen.getByText('every: 30m')).toBeTruthy()
     // canCreate → 新建按钮可见
     expect(screen.getByText('新建任务')).toBeTruthy()
-
-    // 触发操作
-    fireEvent.click(screen.getAllByText('触发')[0]!)
-    await waitFor(() => expect(cronApi.trigger).toHaveBeenCalledWith('job-1'), { timeout: 5000 })
+    // 下次运行 / 已暂停状态展示
+    expect(screen.getByText('已暂停')).toBeTruthy()
   })
 })

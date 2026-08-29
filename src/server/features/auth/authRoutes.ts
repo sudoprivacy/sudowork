@@ -57,9 +57,11 @@ export function createAuthRouter(deps: AuthDeps): Router {
   const router = Router()
 
   // 登录限流：进程内存存储（单实例约束，计划 2.1 说明）
+  // LOGIN_RATE_LIMIT 可配置（E2E 场景放宽，避免测试自身触发限流）
+  const configuredLimit = Number(process.env.LOGIN_RATE_LIMIT ?? 10)
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 10,
+    limit: Number.isFinite(configuredLimit) && configuredLimit > 0 ? configuredLimit : 10,
     standardHeaders: true,
     legacyHeaders: false,
   })

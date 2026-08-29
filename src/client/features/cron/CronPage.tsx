@@ -1,14 +1,14 @@
+/**
+ * 定时任务列表页（布局对齐 Sudowork cron 页）：PageWrapper 标题区 + 2 列卡片网格。
+ */
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
-import { Button, Message, Switch, Table } from '@arco-design/web-react'
+import { Button, Switch } from '@arco-design/web-react'
+import { AlarmClock, Plus } from 'lucide-react'
 import { cronApi, type CronJob } from './cronApi'
 import { CronJobFormDrawer } from './CronJobFormDrawer'
 
-/**
- * 定时任务列表（计划 Task 7）：
- * canCreate 投影；创建收到 CRON_DISABLED_BY_ORG 时降级隐藏创建入口。
- */
 export function CronPage(): React.ReactElement {
   const navigate = useNavigate()
   const { mutate } = useSWRConfig()
@@ -20,87 +20,90 @@ export function CronPage(): React.ReactElement {
   const canCreate = (data?.canCreate ?? false) && !cronDisabled
 
   async function handleToggle(job: CronJob, enabled: boolean): Promise<void> {
-    try {
-      await cronApi.update(job.id, { enabled })
-      void mutate('cron/jobs')
-    } catch {
-      Message.error('操作失败')
-    }
-  }
-
-  async function handleTrigger(job: CronJob): Promise<void> {
-    try {
-      await cronApi.trigger(job.id)
-      Message.success(`已触发 ${job.name}`)
-    } catch (err) {
-      Message.error(`触发失败：${(err as Error).message}`)
-    }
-  }
-
-  async function handleDelete(job: CronJob): Promise<void> {
-    try {
-      await cronApi.remove(job.id)
-      Message.success(`已删除 ${job.name}`)
-      void mutate('cron/jobs')
-    } catch {
-      Message.error('删除失败')
-    }
+    await cronApi.update(job.id, { enabled })
+    void mutate('cron/jobs')
   }
 
   return (
-    <div className='size-full overflow-y-auto p-5' data-testid='cron-page'>
-      <div className='max-w-5xl mx-auto flex flex-col gap-4'>
-        <div className='flex items-center justify-between'>
-          <h1 className='text-20px font-700 m-0'>定时任务</h1>
-          {canCreate ? <Button size='small' type='primary' onClick={() => setFormOpen(true)}>新建任务</Button> : null}
+    <div className='page-wrapper w-full min-h-full box-border overflow-y-auto px-10 pb-4' data-testid='cron-page'>
+      <div className='page-content mx-auto w-full max-w-240'>
+        {/* 头部（PageWrapper title/subtitle/actions） */}
+        <div className='flex items-start justify-between gap-4 mb-4'>
+          <div className='flex flex-col gap-0.5'>
+            <h2 className='text-24px font-600 text-foreground my-0'>定时任务</h2>
+            <div className='text-13px text-secondary'>设定定时任务，让 Agent 按计划自动执行</div>
+          </div>
+          <div className='shrink-0 flex items-center gap-2'>
+            {canCreate ? (
+              <Button
+                type='primary'
+                shape='round'
+                icon={<Plus size={13} />}
+                onClick={() => setFormOpen(true)}
+              >
+                新建任务
+              </Button>
+            ) : null}
+          </div>
         </div>
 
-        <Table
-          rowKey='id'
-          data={jobs}
-          pagination={false}
-          columns={[
-            { title: '名称', dataIndex: 'name', render: (_v, row: CronJob) => (
-              <span
-                className='cursor-pointer text-[var(--primary)]'
-                onClick={() => void navigate(`/cron/${row.id}`)}
+        {/* 任务网格（2 列卡片） */}
+        {jobs.length === 0 ? (
+          <div className='flex flex-col items-center justify-center py-10 px-5 text-center'>
+            <AlarmClock size={56} className='text-secondary' />
+            <div className='text-16px font-500 text-foreground mt-3'>暂无定时任务</div>
+            <div className='text-13px text-secondary mt-1'>创建自动执行的 Agent 任务</div>
+            {canCreate ? (
+              <Button
+                type='primary'
+                shape='round'
+                className='mt-4 px-5 min-w-25 hover:-translate-y-1px transition-transform'
+                onClick={() => setFormOpen(true)}
               >
-                {row.name}
-              </span>
-            ) },
-            {
-              title: '调度',
-              render: (_v, row: CronJob) =>
-                `${row.schedule?.kind ?? ''}: ${row.schedule?.value ?? ''}`,
-            },
-            { title: '模式', dataIndex: 'conversationMode', width: 90 },
-            {
-              title: '上次状态',
-              dataIndex: 'lastStatus',
-              width: 100,
-              render: (v: string | null) => v ?? '—',
-            },
-            {
-              title: '启用',
-              width: 80,
-              render: (_v, row: CronJob) => (
-                <Switch size='small' checked={row.enabled} onChange={(v) => void handleToggle(row, v)} />
-              ),
-            },
-            {
-              title: '操作',
-              width: 150,
-              render: (_v, row: CronJob) => (
-                <div className='flex gap-1'>
-                  <Button size='mini' onClick={() => void handleTrigger(row)}>触发</Button>
-                  <Button size='mini' status='danger' type='outline' onClick={() => void handleDelete(row)}>
-                    删除
-                  </Button>
+                新建任务
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <div className='space-y-4'>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+              {jobs.map((job) => (
+                <div
+                  key={job.id}
+                  className='card'
+                  onClick={() => void navigate(`/cron/${job.id}`)}
+                >
+                  <div className='flex items-start justify-between gap-2'>
+                    <div className='text-15px font-medium text-foreground mb-2 truncate'>{job.name}</div>
+                    <Switch
+                      size='small'
+                      checked={job.enabled}
+                      onChange={(v) => {
+                        void handleToggle(job, v)
+                      }}
+                      className={job.enabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''}
+                    />
+                  </div>
+                  <div className='text-13px text-secondary mb-2'>
+                    {job.schedule ? `${job.schedule.kind}: ${job.schedule.value}` : ''}
+                  </div>
+                  <div className='text-13px text-secondary'>
+                    {job.enabled ? (
+                      <>
+                        下次运行{' '}
+                        <span className='font-medium text-foreground'>
+                          {job.nextRunAt ? new Date(job.nextRunAt).toLocaleString() : '—'}
+                        </span>
+                      </>
+                    ) : (
+                      '已暂停'
+                    )}
+                  </div>
                 </div>
-              ),
-            },
-          ]}
-        />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <CronJobFormDrawer

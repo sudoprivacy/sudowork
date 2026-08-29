@@ -2,7 +2,6 @@
  * 摘取自 Sudowork uno.config.ts（Apache-2.0, Copyright 2026 SudoPrivacy），
  * 保持企业端视觉一致（计划 Task 4）；按 WebUI 目录结构调整 content 扫描。
  */
-import { resolve } from 'node:path'
 import {
   defineConfig,
   presetMini,
@@ -82,16 +81,6 @@ const componentColors = {
 export default defineConfig({
   presets: [presetMini(), presetExtra(), presetWind3()],
   transformers: [transformerVariantGroup(), transformerDirectives({ enforce: 'pre' })],
-  content: {
-    filesystem:
-      process.env.NODE_ENV === 'development'
-        ? [resolve(process.cwd(), 'src/client/**/*.{ts,tsx}')]
-        : [],
-    pipeline: {
-      include: [/\.[jt]sx?($|\?)/, /\.vue($|\?)/, /\.css($|\?)/],
-      exclude: [/[\\/]node_modules[\\/]/, /\.html($|\?)/],
-    },
-  },
   rules: [
     [/^text-([1-4])$/, (m) => ({ color: `var(--color-text-${m[1]})` })],
     [/^bg-text-([1-4])$/, (m) => ({ 'background-color': `var(--color-text-${m[1]})` })],

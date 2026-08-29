@@ -153,8 +153,10 @@ describe('NewConversationPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('agent-option-helper')).toBeTruthy(), { timeout: 5000 })
     fireEvent.click(screen.getByTestId('agent-option-helper'))
+    fireEvent.click(screen.getByText('技能'))
     fireEvent.click(screen.getByTestId('skill-option-pdf'))
-    fireEvent.click(screen.getByRole('button', { name: '开始会话' }))
+    fireEvent.change(screen.getByLabelText('消息输入框'), { target: { value: '你好' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
     await waitFor(() => expect(createConversationMock).toHaveBeenCalled(), { timeout: 5000 })
     expect(createConversationMock).toHaveBeenCalledWith({

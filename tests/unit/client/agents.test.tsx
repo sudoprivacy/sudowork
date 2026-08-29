@@ -40,15 +40,16 @@ describe('AgentsPage（计划 Task 6）', () => {
     expect(screen.getByText('助手')).toBeTruthy()
     // 普通用户（无 admin:settings）看不到创建/卸载
     expect(screen.queryByText('创建智能体')).toBeNull()
-    expect(screen.queryByText('卸载')).toBeNull()
+    expect(screen.queryByLabelText('卸载')).toBeNull()
   })
 
   test('uninstall button visible for admins', async () => {
     vi.mocked(agentApi.getScopes).mockResolvedValue({ scopes: ['admin:settings'] })
     renderIsolated(<AgentsPage />)
-    await waitFor(() => expect(screen.getAllByText('卸载').length).toBeGreaterThanOrEqual(1), {
-      timeout: 5000,
-    })
+    await waitFor(
+      () => expect(screen.getAllByLabelText('卸载').length).toBeGreaterThanOrEqual(1),
+      { timeout: 5000 },
+    )
     vi.mocked(agentApi.getScopes).mockResolvedValue({ scopes: ['store:read'] })
   })
 })

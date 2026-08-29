@@ -53,26 +53,18 @@ async function run<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-async function scopesOf(deps: CronDeps, accessToken: string): Promise<{ scopes: string[]; role: string }> {
-  const me = await run(() => deps.auth.mossAuth.me(accessToken))
-  return { scopes: Array.isArray(me.scopes) ? me.scopes : [], role: me.role }
-}
-
-/** 当前用户可见 job 列表（admin 能力时走 admin 端点后仍强制过滤本人）。 */
+/**
+ * 当前用户可见 job 列表。基线事实：普通 GET /api/v1/cron/jobs 默认 listByUser
+ * （仅本人），已满足 WebUI“只展示本人 job”的要求；无需 admin 端点（也少一次
+ * /auth/me 调用，降低上游压力）。
+ */
 async function visibleJobs(
   deps: CronDeps,
-  principal: Principal,
+  _principal: Principal,
   accessToken: string,
 ): Promise<Record<string, unknown>[]> {
-  const { scopes, role } = await scopesOf(deps, accessToken)
-  const isAdminCapable =
-    role === 'admin' || role === 'super_admin' || scopes.includes('admin:cron') || scopes.includes('cron:list:any')
-  const json = await run(() =>
-    isAdminCapable ? deps.cron.adminList(accessToken) : deps.cron.list(accessToken),
-  )
-  const rows = extractRows(json)
-  // 计划 3.3 精神：即使 admin 端点返回 org 全量，WebUI 也只展示本人 job
-  return rows.filter((row) => String(row.userId ?? '') === principal.mossUserId)
+  const json = await run(() => deps.cron.list(accessToken))
+  return extractRows(json)
 }
 
 function extractRows(json: unknown): Record<string, unknown>[] {
@@ -101,16 +93,9 @@ export async function listJobs(
   principal: Principal,
   accessToken: string,
 ): Promise<{ jobs: Record<string, unknown>[]; canCreate: boolean; canUseAdminList: boolean }> {
-  const { scopes, role } = await scopesOf(deps, accessToken)
   const jobs = await visibleJobs(deps, principal, accessToken)
-  const isAdmin = role === 'admin' || role === 'super_admin'
-  const canCreate = isAdmin || scopes.includes('cron:self') || scopes.includes('admin:cron')
-  return {
-    jobs,
-    canCreate,
-    canUseAdminList:
-      isAdmin || scopes.includes('admin:cron') || scopes.includes('cron:list:any'),
-  }
+  // canCreate 投影：默认乐观展示创建入口；被组织停用时由 CRON_DISABLED_BY_ORG 降级
+  return { jobs, canCreate: true, canUseAdminList: false }
 }
 
 export interface CronJobInput {

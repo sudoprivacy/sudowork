@@ -39,7 +39,10 @@ describe('SkillsPage（计划 Task 6）', () => {
     expect(switches).toHaveLength(2)
     expect((switches[0] as HTMLInputElement).className).toBeDefined()
 
-    fireEvent.click(screen.getAllByText('卸载')[0]!)
+    fireEvent.click(screen.getAllByLabelText('卸载')[0]!)
+    // 卸载按钮在 Popconfirm 内：先弹确认，再点确定
+    const confirmBtn = (await screen.findAllByText('确定'))[0]!
+    fireEvent.click(confirmBtn)
     await waitFor(() => expect(skillApi.uninstall).toHaveBeenCalledWith('pdf'), { timeout: 5000 })
   })
 })

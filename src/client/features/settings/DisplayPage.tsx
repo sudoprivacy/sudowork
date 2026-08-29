@@ -9,10 +9,15 @@ export function DisplayPage(): React.ReactElement {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    void settingsApi.getDisplay().then((s) => {
-      setSettings(s)
-      setLoaded(true)
-    })
+    void settingsApi
+      .getDisplay()
+      .then((s) => {
+        setSettings(s)
+      })
+      .catch(() => {
+        // 加载失败保持默认值
+      })
+      .finally(() => setLoaded(true))
   }, [])
 
   async function handleSave(): Promise<void> {

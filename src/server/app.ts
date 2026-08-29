@@ -1,5 +1,6 @@
 import express, { type Express } from 'express'
 import type { Server } from 'node:http'
+import { join } from 'node:path'
 import type { Pool } from 'pg'
 import { WebSocketServer } from 'ws'
 import type { AppConfig } from './config.js'
@@ -54,6 +55,18 @@ export function createApp(deps: AppDeps): Express {
   app.use(express.json({ limit: '1mb' }))
 
   return app
+}
+
+/** 生产模式静态 SPA（计划 3.6）：/health、/api、/ws 之外的非 GET fallback 到 index.html。 */
+export function registerStaticSpa(app: Express, distClientDir: string): void {
+  app.use(express.static(distClientDir, { index: false, fallthrough: true }))
+  app.use((req, _res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/ws')) {
+      next()
+      return
+    }
+    _res.sendFile(join(distClientDir, 'index.html'))
+  })
 }
 
 export interface ApiDeps {

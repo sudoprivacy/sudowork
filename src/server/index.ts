@@ -1,5 +1,12 @@
 import { Pool } from 'pg'
-import { createApp, attachConversationWebSocket, registerApiRoutes } from './app.js'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import {
+  createApp,
+  attachConversationWebSocket,
+  registerApiRoutes,
+  registerStaticSpa,
+} from './app.js'
 import { loadConfig } from './config.js'
 import { createMossAuthPort } from './moss/MossAuthClient.js'
 import { mossRequest } from './moss/MossHttpClient.js'
@@ -12,6 +19,12 @@ const pool: Pool = getPool(config.databaseUrl)
 const mossAuth = createMossAuthPort(mossRequest, config.moss.baseUrl)
 
 const handles = registerApiRoutes(app, { config, pool, mossAuth })
+
+// 生产 SPA 静态服务（dist/client 存在时启用；计划 3.6）
+const distClientDir = join(process.cwd(), 'dist', 'client')
+if (existsSync(join(distClientDir, 'index.html'))) {
+  registerStaticSpa(app, distClientDir)
+}
 
 const server = app.listen({ port: config.server.port, host: config.server.host }, () => {
   console.log(
