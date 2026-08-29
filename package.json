@@ -20,10 +20,15 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:contract": "vitest run tests/contract --passWithNoTests",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "migrate": "bun src/server/migrate.ts",
+    "migrate:test": "vitest run tests/integration/db.test.ts tests/integration/session.test.ts"
   },
   "dependencies": {
     "express": "5.1.0",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "pg": "^8.23.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "zod": "3.25.76"
@@ -35,6 +40,7 @@
     "@testing-library/react": "^16.3.3",
     "@types/express": "^5.0.6",
     "@types/node": "^26.4.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@types/supertest": "^7.2.1",

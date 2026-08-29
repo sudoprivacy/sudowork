@@ -1,0 +1,20 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 25809
+  },
+  "publicOrigin": "http://localhost:5173",
+  "trustProxy": false,
+  "moss": {
+    "baseUrl": "http://10.0.1.79:43127",
+    "wsBaseUrl": "ws://10.0.1.79:43127"
+  },
+  "session": {
+    "ttlSeconds": 604800
+  },
+  "upload": {
+    "maxFileBytes": 10485760,
+    "maxFilesPerRequest": 10,
+    "maxTotalBytes": 52428800
+  }
+}
