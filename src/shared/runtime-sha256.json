@@ -1,12 +1,12 @@
 {
   "_doc": "Canonical SHA256 sums for every downloadable nexus-vfs runtime artifact. Single source of truth — scripts/download-nexus-vfs.js (build/install-time), DynamicNexusVfsService.ts (runtime cluster re-installer), and VaultPluginInstaller.ts (runtime vault re-installer) all read from this file. Bump versions in runtime-versions.json AND update the matching entry here in one commit; do NOT inline a SHA back into any source file. Verified against the per-release SHA256SUMS.txt in the COS bucket.",
 
-  "nexusd-cluster-linux-aarch64.tar.gz": "f51d24ef84e8c7e5659eaf55b109e7ed28eb42dae121260378215bec339de1a2",
-  "nexusd-cluster-linux-x86_64.tar.gz": "8eeabeca9c40173df4954d5189ba9a0f1016b593d48c0da93372703f2d8f94d9",
-  "nexusd-cluster-macos-aarch64.tar.gz": "1abb9b395c7115279986bb309d024e2c3fc9e9b4808d29f971a9992898655606",
-  "nexusd-cluster-macos-x86_64.tar.gz": "330cd75ab143d11a8b1e529e87c3e4e6c4b1dc2d807ad28feb2adb59d4e5be62",
-  "nexusd-cluster-windows-aarch64.zip": "9004f997f8d44db8a0964999e32bc9670e5d8c99ca0f78b49dd0ee94155b7e3f",
-  "nexusd-cluster-windows-x86_64.zip": "4b7e0f5708d34c959e3169486ec4dce2ed8873283df0cb54293d33312e20aec1",
+  "nexusd-cluster-linux-aarch64.tar.gz": "7896bf2baabd62fd2e2cb4b35eed46a65ab2b68cc881ab3794d3a7f00fdafb32",
+  "nexusd-cluster-linux-x86_64.tar.gz": "d5c9887ebcde3d7f75cfca31fb6fa4cfc5a54d0f1bb3e77dbdc48aaab06391ed",
+  "nexusd-cluster-macos-aarch64.tar.gz": "c9af8542fdfe08925bb554253d2edb73537428d67900e38a34db6b2db2cb6c40",
+  "nexusd-cluster-macos-x86_64.tar.gz": "ce4609a4f3e4015a3538fc5f520da7cf94d23f3605425dc2916689477e2bcf7e",
+  "nexusd-cluster-windows-aarch64.zip": "88d8fe916cd6d2753666d6c8186af8af59e78a7edcff20859cfa4fa73ce2181d",
+  "nexusd-cluster-windows-x86_64.zip": "e4cf87c84a4ee60ea53614d630fbb75b4710367891d1edbd0b66dd7917ad9c75",
 
   "nexus-vault-linux-x86_64.tar.gz": "675c72efcff64557f69452625f2c312558e7f0b924e62bd84844165f716a7395",
   "nexus-vault-macos-arm64.tar.gz": "8ad59f175c9079709ced75dabea5b90fe89ea6d133c8cb37e5153f1ab0a0e67b",
