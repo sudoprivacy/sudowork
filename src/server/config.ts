@@ -83,12 +83,15 @@ export function loadConfig(configPath?: string): AppConfig {
     } catch (err) {
       throw new ConfigError(`invalid JSON in ${resolvedPath}: ${(err as Error).message}`)
     }
-    file = ConfigFileSchema.parse(parsed)
+    file = ConfigFileSchema.parse({ server: {}, session: {}, upload: {}, ...(parsed as object) })
   } else if (configPath || process.env.CONFIG_PATH) {
     throw new ConfigError(`config file not found: ${resolvedPath}`)
   } else {
-    // 未提供配置文件时允许全部来自环境变量默认值以外必须项报错
+    // 未提供配置文件时允许全部来自环境变量；各段用空对象触发内部默认值
     file = ConfigFileSchema.parse({
+      server: {},
+      session: {},
+      upload: {},
       publicOrigin: process.env.PUBLIC_ORIGIN,
       moss: {
         baseUrl: process.env.MOSS_BASE_URL,

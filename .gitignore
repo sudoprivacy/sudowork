@@ -11,3 +11,4 @@ peer-review-runs/
 bun.lockb
 .DS_Store
 *.log
+config/sudowork-webui.json
