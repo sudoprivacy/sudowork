@@ -19,8 +19,10 @@ import { ConversationCoordinator } from './features/conversations/ConversationCo
 import { createConversationRouter } from './features/conversations/conversationRoutes.js'
 import { createMossAgentPort, type MossAgentPort } from './moss/MossAgentClient.js'
 import { createMossSkillPort, type MossSkillPort } from './moss/MossSkillClient.js'
+import { createMossCronPort } from './moss/MossCronClient.js'
 import { createAgentRouter } from './features/agents/agentRoutes.js'
 import { createSkillRouter } from './features/skills/skillRoutes.js'
+import { createCronRouter } from './features/cron/cronRoutes.js'
 
 /**
  * Express 应用工厂（计划 3.6 注册顺序）：
@@ -65,6 +67,10 @@ export interface ApiDeps {
   agents?: MossAgentPort
   /** 测试注入桩 */
   skills?: MossSkillPort
+  /** 测试注入桩 */
+  cron?: import('./moss/MossCronClient.js').MossCronPort
+  /** 测试注入桩 */
+  fetchVisibleAgentNames?: (accessToken: string) => Promise<Set<string>>
 }
 
 export interface ApiHandles {
@@ -93,6 +99,34 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   )
   app.use('/api/agents', createAgentRouter({ pool, config, auth, agents }))
   app.use('/api/skills', createSkillRouter({ pool, config, auth, skills }))
+
+  const fetchVisibleAgentNames =
+    deps.fetchVisibleAgentNames ??
+    (async (accessToken: string): Promise<Set<string>> => {
+      const list = (await mossFetch(config.moss.baseUrl, {
+        method: 'GET',
+        path: '/api/v1/agents/installed',
+        accessToken,
+      })) as { name?: string }[]
+      const names = new Set<string>()
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          if (item && typeof item.name === 'string') names.add(item.name)
+        }
+      }
+      return names
+    })
+  app.use(
+    '/api/cron',
+    createCronRouter({
+      pool,
+      config,
+      auth,
+      cron: deps.cron ?? createMossCronPort(mossFetch, config.moss.baseUrl),
+      sessions: mossSession,
+      fetchVisibleAgentNames,
+    }),
+  )
 
   return { coordinator, mossSession }
 }

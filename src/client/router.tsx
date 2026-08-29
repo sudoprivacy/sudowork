@@ -6,6 +6,8 @@ import { ConversationPage } from './features/conversations/ConversationPage'
 import { NewConversationPage } from './features/conversations/NewConversationPage'
 import { AgentsPage } from './features/agents/AgentsPage'
 import { SkillsPage } from './features/skills/SkillsPage'
+import { CronPage } from './features/cron/CronPage'
+import { CronJobDetailPage } from './features/cron/CronJobDetailPage'
 import { AppLayout } from './layouts/AppLayout'
 import { PlaceholderPage } from './components/PlaceholderPage'
 
@@ -76,7 +78,8 @@ export function AppRoutes(): React.ReactElement {
         <Route path='conversation/:id' element={<ConversationPage />} />
         <Route path='agents' element={<AgentsPage />} />
         <Route path='skills' element={<SkillsPage />} />
-        <Route path='cron' element={<PlaceholderPage title='定时任务' feature='Task 7' />} />
+        <Route path='cron' element={<CronPage />} />
+        <Route path='cron/:id' element={<CronJobDetailPage />} />
         <Route
           path='settings/profile'
           element={<PlaceholderPage title='用户中心' feature='Task 8' />}
