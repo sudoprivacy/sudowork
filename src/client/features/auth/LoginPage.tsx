@@ -53,7 +53,7 @@ export function LoginPage({ onSuccess }: { onSuccess?: (result: { ok: true }) =>
   return (
     <main className="login-page">
       <form className="login-card" aria-label="登录表单" onSubmit={handleSubmit}>
-        <h1 className="login-title">Sudowork WebUI</h1>
+        <h1 className="login-title">SudoWork</h1>
 
         <div className="login-tabs" role="tablist" aria-label="登录方式">
           <button
