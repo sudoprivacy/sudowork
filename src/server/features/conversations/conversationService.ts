@@ -10,6 +10,14 @@ import type {
   CreateConversationRequest,
 } from '../../../shared/contracts/conversations.js'
 import type { ConversationCoordinator } from './ConversationCoordinator.js'
+import {
+  deleteConversationMeta as deleteConversationMetaRow,
+  getConversationMeta,
+  getConversationMetaMap,
+  reorderPinnedConversations as reorderPinnedRows,
+  updateConversationMeta as updateConversationMetaRow,
+  upsertConversationTitle,
+} from './conversationMetaRepository.js'
 
 /**
  * 会话服务（计划 3.3/3.10）：
@@ -34,6 +42,8 @@ export interface ConversationDeps {
   moss: MossSessionPort
   mossFetch: MossFetch
   coordinator: ConversationCoordinator
+  /** DELETE 会话时关闭该会话全部服务器 pty（app.ts 注入；测试可不传） */
+  closeTerminals?: (conversationId: string) => void
 }
 
 const NameListSchema = z.array(z.object({ name: z.string() }).passthrough())
@@ -76,10 +86,19 @@ export async function listConversations(
   accessToken: string,
 ): Promise<ConversationListItem[]> {
   const sessions = await mapMossErrors(() => deps.moss.list(accessToken))
-  // 强制过滤：即使 token 带 sessions:list:any 也只返回本人会话（计划 3.3）
-  return sessions
-    .filter((s) => s.userId === principal.mossUserId && s.orgId === principal.orgId)
-    .map((s) => ({
+  // 强制过滤：即使 token 带 sessions:list:any 也只返回本人会话（计划 3.3）；
+  // 并过滤 terminated（部署版实测 terminate 后 list 仍返回该会话，不过滤则用户视角「删除无效」）
+  const visible = sessions.filter(
+    (s) => s.userId === principal.mossUserId && s.orgId === principal.orgId && s.status !== 'terminated',
+  )
+  const metaMap = await getConversationMetaMap(
+    deps.pool,
+    principal.id,
+    visible.map((s) => s.sessionId),
+  )
+  return visible.map((s) => {
+    const meta = metaMap.get(s.sessionId)
+    return {
       id: s.sessionId,
       status: s.status,
       assistantName: s.assistantName ?? null,
@@ -87,7 +106,11 @@ export async function listConversations(
       lastActiveAt: typeof (s as { lastActiveAt?: unknown }).lastActiveAt === 'number'
         ? (s as { lastActiveAt?: number }).lastActiveAt!
         : null,
-    }))
+      title: meta?.title ?? null,
+      pinned: meta?.pinned ?? false,
+      pinnedAt: meta?.pinnedAt ?? null,
+    }
+  })
 }
 
 export async function createConversation(
@@ -108,7 +131,7 @@ export async function createConversation(
 }
 
 /** 计划 3.3：打开会话先重新查询该 Session 并校验归属。 */
-async function requireOwnSession(
+export async function requireOwnSession(
   deps: ConversationDeps,
   principal: Principal,
   sessionId: string,
@@ -126,21 +149,57 @@ export async function getContext(
   principal: Principal,
   sessionId: string,
   accessToken: string,
-): Promise<{ customTitle: string | null; messages: Record<string, unknown>[] }> {
+): Promise<{ customTitle: string | null; title: string | null; messages: Record<string, unknown>[] }> {
   await requireOwnSession(deps, principal, sessionId, accessToken)
+  const localTitle = async (): Promise<string | null> =>
+    (await getConversationMeta(deps.pool, principal.id, sessionId))?.title ?? null
   let parsed: unknown
   try {
     parsed = await deps.moss.context(accessToken, sessionId)
   } catch (err) {
     if (err instanceof MossHttpError && err.status === 404) {
       // 空 transcript（新会话）上游返回 404
-      return { customTitle: null, messages: [] }
+      return { customTitle: null, title: await localTitle(), messages: [] }
     }
     throw err
   }
   const ctx = (parsed as { context?: { customTitle?: string; messages?: unknown[] } }).context
   const messages = (ctx?.messages ?? []).map((raw) => sanitizeMessage(raw))
-  return { customTitle: ctx?.customTitle ?? null, messages }
+  await generateTitleIfMissing(deps, principal, sessionId, messages)
+  return { customTitle: ctx?.customTitle ?? null, title: await localTitle(), messages }
+}
+
+/**
+ * 标题自动生成（对齐 Sudowork useAutoTitle：首条 user 消息首行前 50 字符，剥 <think>）。
+ * 失败隔离：写库失败仅告警不影响 getContext 返回（context 接口 5s 轮询，抛错会让接口 500）。
+ */
+async function generateTitleIfMissing(
+  deps: ConversationDeps,
+  principal: Principal,
+  sessionId: string,
+  messages: Record<string, unknown>[],
+): Promise<void> {
+  try {
+    const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
+    if (meta?.title) return
+    const firstUser = messages.find((m) => m.type === 'user')
+    const raw =
+      typeof firstUser?.content === 'string'
+        ? firstUser.content
+        : Array.isArray(firstUser?.content)
+          ? (firstUser.content as { text?: string }[])
+              .map((b) => (typeof b?.text === 'string' ? b.text : ''))
+              .join('')
+          : ''
+    const stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+    if (!stripped) return
+    const firstLine = stripped.split('\n')[0] ?? ''
+    const title = firstLine.slice(0, 50).trim()
+    if (!title) return
+    await upsertConversationTitle(deps.pool, principal.id, sessionId, title)
+  } catch {
+    // 标题生成失败不影响 context 返回（对齐 Sudowork useAutoTitle 吞错处理）
+  }
 }
 
 const SENSITIVE_MESSAGE_KEYS = ['cwd', 'workDir', 'fullPath', 'work_dir']
@@ -165,10 +224,48 @@ export async function terminateConversation(
   await deps.coordinator.terminate(principal.id, sessionId)
 }
 
+/** meta 更新（重命名/置顶，写本地表；Moss 无对应 API） */
+export async function updateConversationMeta(
+  deps: ConversationDeps,
+  principal: Principal,
+  sessionId: string,
+  accessToken: string,
+  update: { title?: string; pinned?: boolean },
+): Promise<void> {
+  await requireOwnSession(deps, principal, sessionId, accessToken)
+  await updateConversationMetaRow(deps.pool, principal.id, sessionId, update)
+}
+
+/** 置顶区拖拽排序 */
+export async function reorderPinnedConversations(
+  deps: ConversationDeps,
+  principal: Principal,
+  orderedIds: string[],
+): Promise<void> {
+  await reorderPinnedRows(deps.pool, principal.id, orderedIds)
+}
+
+/**
+ * 删除会话（对齐 Sudowork 删除语义：本地元数据删除 + Moss terminate 尽力而为——
+ * reaper 注释确证 Sudowork 远程删除即 terminate）+ 关闭该会话全部 pty。
+ */
+export async function deleteConversation(
+  deps: ConversationDeps,
+  principal: Principal,
+  sessionId: string,
+  accessToken: string,
+): Promise<void> {
+  await requireOwnSession(deps, principal, sessionId, accessToken)
+  await mapMossErrors(() => deps.moss.terminate(accessToken, sessionId))
+  await deps.coordinator.terminate(principal.id, sessionId)
+  await deleteConversationMetaRow(deps.pool, principal.id, sessionId)
+  deps.closeTerminals?.(sessionId)
+}
+
 export interface ConversationOptions {
   models: { id: string; name: string }[]
-  agents: { name: string }[]
-  skills: { name: string }[]
+  agents: { name: string; displayName: string; emoji: string; description: string }[]
+  skills: { name: string; displayName: string; description: string; icon: string; emoji: string }[]
 }
 
 export async function getConversationOptions(
@@ -193,8 +290,25 @@ export async function getConversationOptions(
 
   return {
     models: models.data.map((m) => ({ id: m.id, name: m.name ?? m.id })),
-    agents: agents.map((a) => ({ name: a.name })),
-    skills: skills.map((s) => ({ name: s.name })),
+    agents: agents.map((a) => {
+      const extra = a as { displayName?: unknown; emoji?: unknown; description?: unknown }
+      return {
+        name: a.name,
+        displayName: typeof extra.displayName === 'string' ? extra.displayName : a.name,
+        emoji: typeof extra.emoji === 'string' ? extra.emoji : '',
+        description: typeof extra.description === 'string' ? extra.description : '',
+      }
+    }),
+    skills: skills.map((s) => {
+      const extra = s as { displayName?: unknown; description?: unknown; icon?: unknown; emoji?: unknown }
+      return {
+        name: s.name,
+        displayName: typeof extra.displayName === 'string' ? extra.displayName : s.name,
+        description: typeof extra.description === 'string' ? extra.description : '',
+        icon: typeof extra.icon === 'string' ? extra.icon : '',
+        emoji: typeof extra.emoji === 'string' ? extra.emoji : '',
+      }
+    }),
   }
 }
 
@@ -206,9 +320,10 @@ export async function getWorkspaceTree(
   sessionId: string,
   path: string,
   accessToken: string,
+  search = '',
 ): Promise<unknown> {
   await requireOwnSession(deps, principal, sessionId, accessToken)
-  const tree = await mapMossErrors(() => deps.moss.workspaceTree(accessToken, sessionId, path))
+  const tree = await mapMossErrors(() => deps.moss.workspaceTree(accessToken, sessionId, path, search))
   return sanitizeWorkspaceNode(tree)
 }
 

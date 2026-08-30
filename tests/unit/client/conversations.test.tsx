@@ -99,7 +99,10 @@ const createConversationMock = vi.hoisted(() => vi.fn().mockResolvedValue({ id: 
 vi.mock('@client/features/conversations/conversationApi', () => ({
   getConversationOptions: vi.fn().mockResolvedValue({
     models: [{ id: 'm1', name: 'M1' }],
-    agents: [{ name: 'helper' }, { name: 'writer' }],
+    agents: [
+      { name: 'helper', displayName: '帮助助手', emoji: '🤖', description: '帮你干活' },
+      { name: 'writer', displayName: '写作助手', emoji: '', description: '' },
+    ],
     skills: [{ name: 'pdf' }, { name: 'search' }],
   }),
   createConversation: createConversationMock,
@@ -111,15 +114,15 @@ vi.mock('@client/features/conversations/conversationApi', () => ({
 import { NewConversationPage } from '@client/features/conversations/NewConversationPage'
 
 describe('NewConversationPage', () => {
-  test('selects agent/skills and creates the conversation', async () => {
+  test('sends without selecting an agent (empty assistantName) with skills', async () => {
     render(
       <MemoryRouter initialEntries={['/guid']}>
         <NewConversationPage />
       </MemoryRouter>,
     )
 
-    await waitFor(() => expect(screen.getByTestId('agent-option-helper')).toBeTruthy(), { timeout: 5000 })
-    fireEvent.click(screen.getByTestId('agent-option-helper'))
+    // 新布局：胶囊条固定为 SudoCode，智能体列表为底部 chips（选中可选，不选直接发送）
+    await waitFor(() => expect(screen.getByText('Hi，今天有什么安排？')).toBeTruthy(), { timeout: 5000 })
     fireEvent.click(screen.getByText('技能'))
     fireEvent.click(screen.getByTestId('skill-option-pdf'))
     fireEvent.change(screen.getByLabelText('消息输入框'), { target: { value: '你好' } })
@@ -127,8 +130,30 @@ describe('NewConversationPage', () => {
 
     await waitFor(() => expect(createConversationMock).toHaveBeenCalled(), { timeout: 5000 })
     expect(createConversationMock).toHaveBeenCalledWith({
-      assistantName: 'helper',
+      assistantName: '',
       enabledSkills: ['pdf'],
+    })
+  })
+
+  test('selecting an agent chip switches to selected view and sends with its name', async () => {
+    render(
+      <MemoryRouter initialEntries={['/guid']}>
+        <NewConversationPage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('assistant-chip-helper')).toBeTruthy(), { timeout: 5000 })
+    fireEvent.click(screen.getByTestId('assistant-chip-helper'))
+    // 选中态视图：返回箭头 + 名称 + 描述卡（名称与 chip 同文本，用 getAllByText 断言出现两处）
+    await waitFor(() => expect(screen.getAllByText('帮助助手').length).toBeGreaterThanOrEqual(2), { timeout: 5000 })
+    expect(screen.getByText('帮你干活')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('消息输入框'), { target: { value: '帮我' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => expect(createConversationMock).toHaveBeenCalled(), { timeout: 5000 })
+    expect(createConversationMock).toHaveBeenCalledWith({
+      assistantName: 'helper',
+      enabledSkills: [],
     })
   })
 })

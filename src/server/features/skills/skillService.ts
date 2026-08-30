@@ -77,7 +77,19 @@ export async function hubList(
   accessToken: string,
   searchParams: Record<string, string>,
 ): Promise<unknown> {
-  return mapErr(() => deps.skills.hubList(accessToken, searchParams))
+  // moss 上游返回 { skills, next_cursor, has_more }（skillStore.ts fetchSkillHubSkills），
+  // 与 installFromHub 的兼容读取一致，统一归一化为 items 供前端消费
+  const hub = (await mapErr(() => deps.skills.hubList(accessToken, searchParams))) as {
+    items?: Record<string, unknown>[]
+    skills?: Record<string, unknown>[]
+    next_cursor?: unknown
+    has_more?: unknown
+  }
+  return {
+    items: hub?.items ?? hub?.skills ?? [],
+    next_cursor: typeof hub?.next_cursor === 'string' ? hub.next_cursor : null,
+    has_more: hub?.has_more === true,
+  }
 }
 
 export async function hubDetail(deps: SkillDeps, accessToken: string, id: string): Promise<unknown> {

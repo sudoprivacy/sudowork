@@ -1,0 +1,229 @@
+/* 右侧面板样式（对齐 Sudowork workspace-card.css 的 tab/栈/终端子 tab，Apache-2.0, Copyright 2026 SudoPrivacy） */
+
+/* ===== 外层 4-tab 条 ===== */
+.right-panel-tabs {
+  display: flex;
+  min-height: 40px;
+  padding: 6px 8px 0;
+  gap: 4px;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--color-border-2);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-fill-1) 72%, transparent),
+    transparent
+  );
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.right-panel-tabs::-webkit-scrollbar {
+  display: none;
+}
+.right-panel-tabs__item {
+  position: relative;
+  height: 34px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  border-radius: 10px 10px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-3);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s, background-color 0.2s;
+}
+.right-panel-tabs__item:hover {
+  color: var(--color-text-1);
+  background: var(--color-fill-1);
+}
+.right-panel-tabs__item--active {
+  color: var(--color-text-1);
+  background: color-mix(in srgb, var(--ui-accent-orange) 10%, transparent);
+}
+.right-panel-tabs__item--active::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ui-accent-orange);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent-orange) 24%, transparent);
+}
+
+/* ===== 内容栈（常驻挂载，display 切换） ===== */
+.right-panel-stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.right-panel-stack__pane {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+.right-panel-stack__pane--active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== 分割线拖拽把手 ===== */
+.right-panel-drag-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  z-index: 20;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.right-panel-drag-handle__line {
+  width: 2px;
+  height: 100%;
+  background: var(--border-light);
+  transition: width 0.15s ease;
+}
+.right-panel-drag-handle:hover .right-panel-drag-handle__line,
+.right-panel-drag-handle--active .right-panel-drag-handle__line {
+  width: 6px;
+  background: var(--ui-accent-orange);
+}
+
+/* ===== 收起态浮动展开箭头（Linux 形态） ===== */
+.right-panel-floating-expand {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  z-index: 10;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--bg-3);
+  border-radius: 6px;
+  background: var(--color-bg-2);
+  color: var(--color-text-2);
+  cursor: pointer;
+}
+.right-panel-floating-expand:hover {
+  background: var(--color-fill-2);
+}
+
+/* ===== 工作空间二级 tab（布局/三态对齐 Sudowork workspace-card.css:528-567） ===== */
+.workspace-card__tabs {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--bg-3);
+}
+.workspace-card__tab {
+  position: relative;
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--color-text-3);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+.workspace-card__tab:hover {
+  background: var(--color-fill-1);
+  color: var(--color-text-2);
+}
+.workspace-card__tab--active {
+  color: rgb(var(--primary-6));
+  background: color-mix(in srgb, rgb(var(--primary-6)) 10%, transparent);
+}
+.workspace-card__tab--active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgb(var(--primary-6));
+}
+
+/* ===== 终端子 tab ===== */
+.terminal-root__tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  min-height: 36px;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid var(--color-border-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.terminal-root__tabs::-webkit-scrollbar {
+  display: none;
+}
+.terminal-root__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  border-radius: 8px 8px 0 0;
+  font-size: 12px;
+  color: var(--color-text-3);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.terminal-root__tab:hover {
+  color: var(--color-text-1);
+  background: var(--color-fill-1);
+}
+.terminal-root__tab--active {
+  color: var(--color-text-1);
+  background: color-mix(in srgb, var(--ui-accent-orange) 10%, transparent);
+}
+/* 已结束（exit/断线）的终端：历史保留可查看，视觉弱化 */
+.terminal-root__tab--ended {
+  opacity: 0.55;
+}
+.terminal-root__tab--active::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ui-accent-orange);
+}
+.terminal-root__tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-4);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.terminal-root__tab-close:hover {
+  background: var(--color-fill-3);
+  color: var(--color-text-1);
+}

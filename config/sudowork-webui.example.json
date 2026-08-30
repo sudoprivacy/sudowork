@@ -3,7 +3,7 @@
     "host": "0.0.0.0",
     "port": 26809
   },
-  "publicOrigin": "http://localhost:5273",
+  "publicOrigin": "http://localhost:26808",
   "trustProxy": false,
   "moss": {
     "baseUrl": "http://10.0.1.79:43127",

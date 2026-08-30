@@ -41,6 +41,14 @@ export class MossUnavailableError extends Error {
   }
 }
 
+/** moss 侧判定登录态失效（刷新被 401/403 拒绝）——全局错误中间件映射为 401 引导重新登录。 */
+export class MossUnauthorizedError extends Error {
+  constructor(cause: unknown) {
+    super(`moss unauthorized: ${(cause as Error)?.message ?? String(cause)}`)
+    this.name = 'MossUnauthorizedError'
+  }
+}
+
 export interface LoginResult {
   cookieToken: string
   webSessionId: string
@@ -237,15 +245,22 @@ export async function logout(deps: AuthDeps, webSessionId: string): Promise<void
   await deleteWebSession(deps.pool, webSessionId)
 }
 
-/** 供 Conversation 等后续 feature 复用：按 session 行拿到可用 access token（必要时刷新）。 */
+/**
+ * 供 Conversation 等后续 feature 复用：按 session 行拿到可用 access token（必要时刷新）。
+ * 刷新失败不再静默回退旧 token：moss 拒绝刷新（401/403）说明登录态已失效，
+ * 抛 MossUnauthorizedError（→401 引导重新登录）；网络类错误原样上抛（→503，不误报登录过期）。
+ */
 export async function getAccessToken(deps: AuthDeps, session: WebSessionRow): Promise<string> {
   const stored = await decryptStored(deps, session)
   if (stored.expiresAt - Date.now() < 60_000) {
     try {
       const refreshed = await refreshTokensFor(deps, session)
       return refreshed.accessToken
-    } catch {
-      return stored.accessToken
+    } catch (err) {
+      if (err instanceof MossHttpError && (err.status === 401 || err.status === 403)) {
+        throw new MossUnauthorizedError(err)
+      }
+      throw err
     }
   }
   return stored.accessToken

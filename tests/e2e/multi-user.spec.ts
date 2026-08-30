@@ -36,7 +36,7 @@ test('user B cannot read user A session context', async ({ request }) => {
   expect(cross.status()).toBe(403)
 })
 
-test('two browser contexts of same user: single writer, observer read-only', async ({ browser }) => {
+test('two browser contexts of same user: observer takes over writer after turn ends', async ({ browser }) => {
   test.setTimeout(150_000)
   const ctxA = await browser.newContext()
   const pageA = await ctxA.newPage()
@@ -62,8 +62,11 @@ test('two browser contexts of same user: single writer, observer read-only', asy
   const obsReply = pageO.locator('[data-testid="assistant-message"]').first()
   await expect(obsReply).toBeVisible({ timeout: 120_000 })
 
-  // 观察者输入框为禁用（只读）
-  await expect(pageO.getByLabel('消息输入框')).toBeDisabled()
+  // 回合已结束（idle）：观察者输入框可用，发送消息抢占成为新 writer
+  await expect(pageO.getByLabel('消息输入框')).toBeEnabled()
+  await pageO.getByLabel('消息输入框').fill('请只回复两个字：好的')
+  await pageO.getByRole('button', { name: '发送' }).click()
+  await expect(pageO.locator('[data-testid="assistant-message"]').nth(1)).toBeVisible({ timeout: 120_000 })
 
   await ctxA.close()
   await ctxO.close()

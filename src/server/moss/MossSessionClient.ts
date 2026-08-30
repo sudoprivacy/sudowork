@@ -27,9 +27,11 @@ export interface MossSessionPort {
   context(accessToken: string, sessionId: string): Promise<unknown>
   resume(accessToken: string, sessionId: string): Promise<{ session: MossSessionSummary; wsUrl: string }>
   terminate(accessToken: string, sessionId: string): Promise<void>
-  workspaceTree(accessToken: string, sessionId: string, path: string): Promise<unknown>
+  workspaceTree(accessToken: string, sessionId: string, path: string, search?: string): Promise<unknown>
   workspaceFileGet(accessToken: string, sessionId: string, path: string): Promise<unknown>
   workspaceFilePost(accessToken: string, sessionId: string, path: string, contentBase64: string): Promise<unknown>
+  /** 会话级可用技能（部署版实测 GET /api/v1/sessions/:id/skills/available 200） */
+  sessionSkillsAvailable(accessToken: string, sessionId: string): Promise<unknown>
 }
 
 function encodeSegment(value: string): string {
@@ -101,12 +103,15 @@ export function createMossSessionPort(mossFetch: MossFetch, baseUrl: string): Mo
       })
     },
 
-    async workspaceTree(accessToken, sessionId, path) {
+    async workspaceTree(accessToken, sessionId, path, search = '') {
+      const searchParams: Record<string, string> = {}
+      if (path) searchParams.path = path
+      if (search) searchParams.search = search
       const json = await mossFetch(baseUrl, {
         method: 'GET',
         path: `/api/v1/sessions/${encodeSegment(sessionId)}/workspace/tree`,
         accessToken,
-        searchParams: path ? { path } : {},
+        searchParams,
       })
       const treeSchema = z.object({ root: MossWorkspaceNodeSchema })
       return safeParse(treeSchema, json)?.root ?? null
@@ -127,6 +132,14 @@ export function createMossSessionPort(mossFetch: MossFetch, baseUrl: string): Mo
         path: `/api/v1/sessions/${encodeSegment(sessionId)}/workspace/file`,
         accessToken,
         body: { path, content_base64: contentBase64 },
+      })
+    },
+
+    async sessionSkillsAvailable(accessToken, sessionId) {
+      return mossFetch(baseUrl, {
+        method: 'GET',
+        path: `/api/v1/sessions/${encodeSegment(sessionId)}/skills/available`,
+        accessToken,
       })
     },
   }

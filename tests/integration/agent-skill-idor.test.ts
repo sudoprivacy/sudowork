@@ -74,7 +74,8 @@ function createFakeAgents(): MossAgentPort {
       return []
     },
     async hubList() {
-      return { items: [{ id: 'h1', name: 'hub-agent' }] }
+      // moss 真实形状：{ assistants, next_cursor, has_more }（agentStore.ts fetchAgentHubAssistants）
+      return { assistants: [{ id: 'h1', name: 'hub-agent' }], next_cursor: null, has_more: false }
     },
     async hubDetail(_tk, id) {
       return { id, name: 'hub-agent' }
@@ -146,7 +147,8 @@ function createFakeSkills(): MossSkillPort {
       return []
     },
     async hubList() {
-      return { items: [{ id: 's1', name: 'hub-skill' }] }
+      // moss 真实形状：{ skills, next_cursor, has_more }（skillStore.ts fetchSkillHubSkills）
+      return { skills: [{ id: 's1', name: 'hub-skill' }], next_cursor: null, has_more: false }
     },
     async hubDetail(_tk, id) {
       return { id, name: 'hub-skill' }
@@ -242,6 +244,20 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
 
     const b = await request(app).get('/api/agents').set('Cookie', cookieB)
     expect(b.body.map((x: { name: string }) => x.name)).toEqual(['helper', 'writer'])
+  })
+
+  test('hub list normalizes moss assistants/skills shape to items', async () => {
+    const agents = await request(app).get('/api/agents/hub/list?limit=50').set('Cookie', cookieA)
+    expect(agents.status).toBe(200)
+    expect(agents.body.items.map((x: { name: string }) => x.name)).toEqual(['hub-agent'])
+    expect(agents.body.next_cursor).toBeNull()
+    expect(agents.body.has_more).toBe(false)
+
+    const skills = await request(app).get('/api/skills/hub/list?limit=50').set('Cookie', cookieA)
+    expect(skills.status).toBe(200)
+    expect(skills.body.items.map((x: { name: string }) => x.name)).toEqual(['hub-skill'])
+    expect(skills.body.next_cursor).toBeNull()
+    expect(skills.body.has_more).toBe(false)
   })
 
   test('admin-only mutation rejected for plain user (403), allowed for admin', async () => {

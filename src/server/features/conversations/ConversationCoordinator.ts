@@ -9,6 +9,7 @@ import { MossHttpError, MossNetworkError } from '../../moss/MossHttpClient.js'
 import {
   MossUpstreamSocket,
   buildAnswerQuestionMessage,
+  buildInterruptMessage,
   buildSetModelMessage,
   buildUserMessage,
 } from '../../moss/MossWebSocket.js'
@@ -99,6 +100,9 @@ export class ConversationCoordinator {
     })
     if (!lock) {
       this.broadcast(entry, { kind: 'lock', state: 'idle' })
+      for (const conn of entry.subscribers) {
+        this.sendTo(conn.ws, { kind: 'writer', isWriter: true })
+      }
       return
     }
     this.broadcast(entry, { kind: 'lock', state: lock.state })
@@ -107,7 +111,9 @@ export class ConversationCoordinator {
         conn.ws,
         {
           kind: 'writer',
-          isWriter: lock.writerWebSessionId === conn.webSession.id,
+          // idle（无进行中回合）乐观可写，首个发送者经 acquireWriteLock 的 idle 抢占成为 writer；
+          // running 仅 holder 可写；uncertain 恒只读
+          isWriter: lock.state === 'idle' || lock.writerWebSessionId === conn.webSession.id,
         },
       )
     }
@@ -171,15 +177,17 @@ export class ConversationCoordinator {
   private async ensureUpstream(entry: Entry, conn: BrowserConnection): Promise<void> {
     if (entry.upstream && !entry.upstream.isClosed) {
       if (entry.upstreamOwnerWebSessionId !== conn.webSession.id) {
-        // 计划 3.8：running 期间不切换 writer/token；仅 idle 由新 writer 重连
+        // 仅当前锁持有者可接管旧上游重建（send 路径 acquire 后 writer=conn；
+        // set_model/stop 路径调用前已校验 writer）。抑制 onClose：接管关闭不应
+        // 触发 handleUpstreamClose 把新 writer 刚置的 running 误转 uncertain
         const lock = await getLock(this.deps.pool, {
           principalId: entry.principalId,
           mossSessionId: entry.mossSessionId,
         })
-        if (lock?.state !== 'idle') {
+        if (lock?.writerWebSessionId !== conn.webSession.id) {
           throw new Error('UPSTREAM_OWNER_MISMATCH')
         }
-        entry.upstream.close()
+        entry.upstream.close(true)
         entry.upstream = null
       } else {
         return
@@ -305,6 +313,21 @@ export class ConversationCoordinator {
         }
         await this.ensureUpstream(entry, conn)
         if (!entry.upstream?.send(buildSetModelMessage(msg.modelId))) {
+          this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
+        }
+      }
+
+      if (msg.kind === 'stop') {
+        const lock = await getLock(this.deps.pool, {
+          principalId: conn.principalId,
+          mossSessionId: entry.mossSessionId,
+        })
+        if (lock?.writerWebSessionId !== conn.webSession.id) {
+          this.sendTo(conn.ws, { kind: 'error', code: 'NOT_WRITER' })
+          return
+        }
+        await this.ensureUpstream(entry, conn)
+        if (!entry.upstream?.send(buildInterruptMessage())) {
           this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
         }
       }

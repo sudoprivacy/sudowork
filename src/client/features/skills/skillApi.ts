@@ -32,11 +32,14 @@ export interface SkillItem {
   name: string
   description?: string
   enabled?: boolean
+  icon?: string
+  emoji?: string
   [key: string]: unknown
 }
 
 export const skillApi = {
   listInstalled: (): Promise<SkillItem[]> => api('/api/skills'),
+  hubCategories: (): Promise<string[]> => api('/api/skills/hub/categories'),
   hubList: (params: Record<string, string> = {}): Promise<{ items?: SkillItem[] } & Record<string, unknown>> => {
     const qs = new URLSearchParams(params).toString()
     return api(`/api/skills/hub/list${qs ? `?${qs}` : ''}`)

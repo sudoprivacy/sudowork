@@ -52,6 +52,7 @@ export interface MossUpstreamHandlers {
 export class MossUpstreamSocket {
   private ws: WebSocket
   private closed = false
+  private suppressOnClose = false
 
   constructor(
     wsUrl: string,
@@ -81,7 +82,8 @@ export class MossUpstreamSocket {
     })
     this.ws.on('close', (code, reason) => {
       this.closed = true
-      handlers.onClose(code, reason.toString('utf8'))
+      // suppressOnClose：接管方主动关闭旧连接时不视为异常断开（避免协调器误转 uncertain）
+      if (!this.suppressOnClose) handlers.onClose(code, reason.toString('utf8'))
     })
     this.ws.on('error', (err) => handlers.onError(err))
     this.ws.on('open', () => {
@@ -131,9 +133,10 @@ export class MossUpstreamSocket {
     return true
   }
 
-  close(): void {
+  close(suppressOnClose = false): void {
     if (!this.closed) {
       this.closed = true
+      this.suppressOnClose = suppressOnClose
       try {
         this.ws.close()
       } catch {
@@ -188,5 +191,14 @@ export function buildSetModelMessage(modelId: string): Record<string, unknown> {
     type: 'control_request',
     request_id: randomUUID(),
     request: { subtype: 'set_model', model_id: modelId },
+  }
+}
+
+/** 停止当前回复（与 Sudowork MossWsConnection.sendInterruptAndWait 的消息形状一致；回执忽略） */
+export function buildInterruptMessage(): Record<string, unknown> {
+  return {
+    type: 'control_request',
+    request_id: randomUUID(),
+    request: { subtype: 'interrupt' },
   }
 }

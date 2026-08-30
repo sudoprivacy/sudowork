@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { SWRConfig } from 'swr'
 import { describe, expect, test, vi } from 'vitest'
@@ -10,6 +10,7 @@ vi.mock('@client/features/agents/agentApi', () => ({
       { name: 'writer', description: '写作' },
     ]),
     getScopes: vi.fn().mockResolvedValue({ scopes: ['store:read'] }),
+    hubCategories: vi.fn().mockResolvedValue([]),
     hubList: vi.fn().mockResolvedValue({ items: [] }),
     install: vi.fn(),
     create: vi.fn(),
@@ -34,8 +35,17 @@ function renderIsolated(ui: React.ReactNode): ReturnType<typeof render> {
 }
 
 describe('AgentsPage（计划 Task 6）', () => {
+  test('renders three store tabs with 智能体库 default', () => {
+    renderIsolated(<AgentsPage />)
+    expect(screen.getByRole('button', { name: /智能体库/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /专属智能体/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /我的智能体/ })).toBeTruthy()
+  })
+
   test('renders installed agents and hides admin actions for plain users', async () => {
     renderIsolated(<AgentsPage />)
+    // 默认 tab 为"智能体库"，切到"我的智能体"后断言 installed 列表
+    fireEvent.click(screen.getByRole('button', { name: /我的智能体/ }))
     await waitFor(() => expect(screen.getAllByTestId('assistant-card')).toHaveLength(2), { timeout: 5000 })
     expect(screen.getByText('助手')).toBeTruthy()
     // 普通用户（无 admin:settings）看不到创建/卸载
@@ -46,6 +56,7 @@ describe('AgentsPage（计划 Task 6）', () => {
   test('uninstall button visible for admins', async () => {
     vi.mocked(agentApi.getScopes).mockResolvedValue({ scopes: ['admin:settings'] })
     renderIsolated(<AgentsPage />)
+    fireEvent.click(screen.getByRole('button', { name: /我的智能体/ }))
     await waitFor(
       () => expect(screen.getAllByLabelText('卸载').length).toBeGreaterThanOrEqual(1),
       { timeout: 5000 },

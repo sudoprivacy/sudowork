@@ -86,7 +86,8 @@ export const MossWorkspaceNodeSchema: z.ZodType<MossWorkspaceNode> = z.lazy(() =
 // ---------- 浏览器请求/响应 DTO（白名单） ----------
 
 export const CreateConversationRequestSchema = z.object({
-  assistantName: z.string().trim().min(1).max(255),
+  /** 空串 = 不指定智能体，由 Moss 走默认（部署版实测空 assistant_name 创建 200） */
+  assistantName: z.string().trim().max(255),
   enabledSkills: z.array(z.string().min(1).max(255)).max(50).default([]),
 })
 export type CreateConversationRequest = z.infer<typeof CreateConversationRequestSchema>
@@ -98,11 +99,32 @@ export const ConversationListItemSchema = z.object({
   source: z.string().nullable(),
   /** 上游 epoch 毫秒时间戳；未知时为 null */
   lastActiveAt: z.number().nullable(),
+  /** webui 本地元数据（Moss 无标题/置顶字段；无记录时 title=null / pinned=false） */
+  title: z.string().nullable(),
+  pinned: z.boolean(),
+  /** 置顶排序键（pinned_at，epoch 毫秒）；未置顶为 null */
+  pinnedAt: z.number().nullable(),
 })
 export type ConversationListItem = z.infer<typeof ConversationListItemSchema>
 
+export const UpdateConversationMetaRequestSchema = z.object({
+  /** 重命名（1-100 字符） */
+  title: z.string().trim().min(1).max(100).optional(),
+  /** 置顶/取消置顶 */
+  pinned: z.boolean().optional(),
+})
+export type UpdateConversationMetaRequest = z.infer<typeof UpdateConversationMetaRequestSchema>
+
+export const ReorderPinnedRequestSchema = z.object({
+  /** 置顶区拖拽后的顺序（moss session id 列表） */
+  orderedIds: z.array(z.string().min(1)).min(1).max(100),
+})
+export type ReorderPinnedRequest = z.infer<typeof ReorderPinnedRequestSchema>
+
 export const ConversationContextDtoSchema = z.object({
   customTitle: z.string().nullable(),
+  /** webui 本地标题（conversation_meta.title，与列表接口同源；Moss 上游无标题概念） */
+  title: z.string().nullable(),
   messages: z.array(z.record(z.string(), z.unknown())),
 })
 export type ConversationContextDto = z.infer<typeof ConversationContextDtoSchema>
@@ -133,6 +155,10 @@ export const ClientOutboundMessageSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('set_model'),
     modelId: z.string().min(1).max(255),
+  }),
+  z.object({
+    /** 停止当前回复（转发上游 control_request interrupt） */
+    kind: z.literal('stop'),
   }),
 ])
 export type ClientOutboundMessage = z.infer<typeof ClientOutboundMessageSchema>

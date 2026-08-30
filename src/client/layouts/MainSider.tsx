@@ -4,7 +4,7 @@
  * - 保留：新会话、Agent、Skill、Cron 菜单；对话/定时任务历史 Tab；用户设置/退出
  * - 移除：批量管理、本地知识库、安全中心、频道、团队、游客模式、command palette
  */
-import { AlarmClock, ArrowLeft, Bot, ChevronDown, LogOut, Plus, Settings, Sparkles } from 'lucide-react'
+import { AlarmClock, ArrowLeft, Bot, ChevronDown, LogOut, Plus, Sparkles } from 'lucide-react'
 import React, { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Dropdown, Menu, Tabs } from '@arco-design/web-react'
@@ -35,7 +35,7 @@ export function MainSider(): React.ReactElement {
 
   const menus = [
     { id: 'agent', label: '智能体', path: '/agents' },
-    { id: 'skills', label: '技能库', path: '/skills' },
+    { id: 'skills', label: '技能商店', path: '/skills' },
     { id: 'cron', label: '定时任务', path: '/cron' },
   ]
 
@@ -150,19 +150,11 @@ export function MainSider(): React.ReactElement {
             <Menu
               style={{ minWidth: 200 }}
               onClickMenuItem={(key) => {
-                if (key === 'settings') {
-                  void navigate('/settings/profile')
-                } else if (key === 'logout') {
+                if (key === 'logout') {
                   void handleLogout()
                 }
               }}
             >
-              <Menu.Item key='settings'>
-                <div className='flex items-center gap-2.5'>
-                  <Settings size={17} strokeWidth={1.8} className='text-secondary' />
-                  <span>设置</span>
-                </div>
-              </Menu.Item>
               <Menu.Item key='logout'>
                 <div className='flex items-center gap-2.5 text-danger'>
                   <LogOut size={17} strokeWidth={1.8} className='text-danger' />

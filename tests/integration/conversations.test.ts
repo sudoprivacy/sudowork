@@ -84,7 +84,10 @@ function createFakeMossSession(): MossSessionPort {
       return { kind: 'text', name: 'a.txt', relativePath: 'a.txt', content: 'abc' }
     },
     async workspaceFilePost() {
-      return { relativePath: 'a.txt', size: 3 }
+        return { relativePath: 'a.txt', size: 3 }
+    },
+    async sessionSkillsAvailable(): Promise<unknown> {
+        return { skills: [] }
     },
   }
 }
@@ -194,7 +197,7 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     expect(missing.status).toBe(404)
     const empty = await request(app).get('/api/conversations/sess-empty/context').set('Cookie', cookieA)
     expect(empty.status).toBe(200)
-    expect(empty.body).toEqual({ customTitle: null, messages: [] })
+    expect(empty.body).toEqual({ customTitle: null, title: null, messages: [] })
   })
 
   test('POST create validates agent/skill names against fresh visible lists', async () => {
@@ -247,8 +250,13 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
   test('options returns models/agents/skills name lists', async () => {
     const res = await request(await buildApp()).get('/api/conversations/options').set('Cookie', cookieA)
     expect(res.status).toBe(200)
-    expect(res.body.agents).toEqual([{ name: 'helper' }])
-    expect(res.body.skills).toEqual([{ name: 'known-skill' }])
+    // agents/skills 含列表展示所需字段（displayName/emoji/description/icon；fake 上游只提供 name，其余兜底）
+    expect(res.body.agents).toEqual([
+      { name: 'helper', displayName: 'helper', emoji: '', description: '' },
+    ])
+    expect(res.body.skills).toEqual([
+      { name: 'known-skill', displayName: 'known-skill', description: '', icon: '', emoji: '' },
+    ])
     expect(Array.isArray(res.body.models)).toBe(true)
   })
 

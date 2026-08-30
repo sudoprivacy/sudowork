@@ -8,6 +8,7 @@ vi.mock('@client/features/skills/skillApi', () => ({
       { name: 'pdf', description: 'PDF 处理', enabled: true },
       { name: 'search', description: '搜索', enabled: false },
     ]),
+    hubCategories: vi.fn().mockResolvedValue([]),
     hubList: vi.fn().mockResolvedValue({ items: [] }),
     install: vi.fn(),
     setEnabled: vi.fn().mockResolvedValue({ ok: true }),
@@ -25,12 +26,25 @@ import { SkillsPage } from '@client/features/skills/SkillsPage'
 import { skillApi } from '@client/features/skills/skillApi'
 
 describe('SkillsPage（计划 Task 6）', () => {
+  test('renders three store tabs with 技能库 default', () => {
+    render(
+      <MemoryRouter>
+        <SkillsPage />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('button', { name: /技能库/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /专属技能/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /我的技能/ })).toBeTruthy()
+  })
+
   test('renders installed skills; admin sees enable switch and uninstall', async () => {
     render(
       <MemoryRouter>
         <SkillsPage />
       </MemoryRouter>,
     )
+    // 默认 tab 为"技能库"，切到"我的技能"后断言 installed 列表
+    fireEvent.click(screen.getByRole('button', { name: /我的技能/ }))
     await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(2), { timeout: 5000 })
     expect(screen.getByText('pdf')).toBeTruthy()
     expect(screen.getByText('search')).toBeTruthy()

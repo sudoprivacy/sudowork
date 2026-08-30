@@ -5,6 +5,7 @@
 import { Layout as ArcoLayout } from '@arco-design/web-react'
 import React from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
+import sudoworkIcon from '@client/assets/sudowork-icon-dark.svg'
 import { MainSider } from './MainSider'
 
 const DEFAULT_SIDER_WIDTH = 260
@@ -34,18 +35,18 @@ export function AppLayout(): React.ReactElement {
               onClick={goToNewConversation}
               aria-label='新会话'
             >
-              <div
-                className='absolute inset-0 m-auto w-5 h-5 rd-2 f-center text-12px font-800 text-white bg-[var(--ui-accent-orange)]'
+              <img
+                src={sudoworkIcon}
+                alt='SudoWork'
+                className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130'
                 style={{ objectFit: 'contain' }}
-              >
-                S
-              </div>
+              />
             </div>
             <div
               className='flex-1 text-20px text-1 font-800 cursor-pointer'
               onClick={goToNewConversation}
             >
-              Sudowork
+              SudoWork
             </div>
           </ArcoLayout.Header>
           <ArcoLayout.Content className='p-2.5 layout-sider-content'>

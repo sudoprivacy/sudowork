@@ -11,7 +11,10 @@ test('agents page lists installed agents', async ({ page }) => {
   await loginViaUi(page, env)
   await page.goto('/agents')
   await page.waitForSelector('[data-testid="agents-page"]', { timeout: 20_000 })
+  // 默认 tab 为"智能体库"，切到"我的智能体"后断言 installed 列表
+  await page.getByRole('button', { name: /我的智能体/ }).click()
   const cards = page.locator('[data-testid="assistant-card"]')
+  await expect(cards.first()).toBeVisible({ timeout: 20_000 })
   expect(await cards.count()).toBeGreaterThanOrEqual(1)
 })
 
@@ -19,7 +22,10 @@ test('skills page lists installed skills', async ({ page }) => {
   await loginViaUi(page, env)
   await page.goto('/skills')
   await page.waitForSelector('[data-testid="skills-page"]', { timeout: 20_000 })
+  // 默认 tab 为"技能库"，切到"我的技能"后断言 installed 列表
+  await page.getByRole('button', { name: /我的技能/ }).click()
   const cards = page.locator('[data-testid="skill-card"]')
+  await expect(cards.first()).toBeVisible({ timeout: 20_000 })
   expect(await cards.count()).toBeGreaterThanOrEqual(1)
 })
 

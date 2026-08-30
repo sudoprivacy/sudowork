@@ -32,6 +32,8 @@ export interface AgentItem {
   name: string
   displayName?: string
   description?: string
+  avatar?: string
+  emoji?: string
   meta?: { feature?: string }
   [key: string]: unknown
 }

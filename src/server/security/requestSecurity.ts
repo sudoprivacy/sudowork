@@ -21,7 +21,7 @@ export function createOriginGuard(publicOrigin: string) {
 
     const origin = req.headers.origin
     if (typeof origin === 'string') {
-      if (origin === publicOrigin) {
+      if (isOriginAllowed(origin, publicOrigin)) {
         next()
         return
       }
@@ -40,6 +40,34 @@ export function createOriginGuard(publicOrigin: string) {
 
     res.status(403).json({ error: 'ORIGIN_REJECTED' })
   }
+}
+
+/** 回环主机名集合：localhost / 127.0.0.1 / [::1]（含 URL 解析后的 ::1 写法）互视为同源基础。 */
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
+
+/**
+ * Origin 放行判定：protocol 与 port 严格相等，且 hostname 相等或双方均为回环地址
+ * （浏览器无法伪造跨站请求的 Origin 头，回环等价仅影响本机不同回环写法的访问，
+ * 如 127.0.0.1 ↔ localhost，端口不一致仍拒绝）。畸形 Origin（URL 解析失败）一律拒绝。
+ */
+export function isOriginAllowed(origin: string, publicOrigin: string): boolean {
+  let originUrl: URL
+  let publicUrl: URL
+  try {
+    originUrl = new URL(origin)
+    publicUrl = new URL(publicOrigin)
+  } catch {
+    return false
+  }
+  if (originUrl.protocol !== publicUrl.protocol || originUrl.port !== publicUrl.port) {
+    return false
+  }
+  if (originUrl.hostname === publicUrl.hostname) {
+    return true
+  }
+  return (
+    LOOPBACK_HOSTNAMES.has(originUrl.hostname) && LOOPBACK_HOSTNAMES.has(publicUrl.hostname)
+  )
 }
 
 export function noStore(_req: Request, res: Response, next: NextFunction): void {

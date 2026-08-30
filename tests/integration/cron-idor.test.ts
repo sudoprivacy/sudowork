@@ -134,7 +134,10 @@ function createFakeSessions(): MossSessionPort {
       return null
     },
     async workspaceFilePost() {
-      return {}
+        return {}
+    },
+    async sessionSkillsAvailable(): Promise<unknown> {
+        return { skills: [] }
     },
   }
 }

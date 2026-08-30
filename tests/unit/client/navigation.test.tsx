@@ -70,7 +70,7 @@ describe('MainSider navigation (计划 Task 4)', () => {
     ).toContain('智能体')
     expect(
       document.querySelector('[data-menu-id="skills"]')?.textContent ?? '',
-    ).toContain('技能库')
+    ).toContain('技能商店')
     expect(
       document.querySelector('[data-menu-id="cron"]')?.textContent ?? '',
     ).toContain('定时任务')

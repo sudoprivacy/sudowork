@@ -19,3 +19,11 @@
 
 /* Arco 组件覆盖 / Arco component overrides */
 @import './arco-override.scss';
+
+/* 会话页右侧面板 / Conversation right panel */
+@import './right-panel.css';
+
+/* 发送箭头按钮禁用态（对齐 Sudowork 观感：无消息时整体变淡；限定作用域，不影响其他 primary 按钮） */
+.send-arrow-btn.arco-btn-disabled {
+  opacity: 0.5;
+}

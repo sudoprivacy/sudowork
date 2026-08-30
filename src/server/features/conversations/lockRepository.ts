@@ -2,8 +2,8 @@ import type { Pool } from 'pg'
 
 /**
  * conversation_locks 事务锁（计划 3.8）：
- * - 第一次发送：无 writer 或 writer=当前 → 原子取得写权并进入 running；否则 409
- * - 收到 result → idle（保留 writer 直到断开或主动离开）
+ * - 第一次发送：无 writer、idle 或 writer=当前 → 原子取得写权并进入 running；否则 409
+ * - 收到 result → idle（idle 期间任何订阅者可抢占写权，先发先得）
  * - writer 在 idle 断开 → 清空 writer
  * - writer 在 running 断开或 WebUI 重启 → uncertain 并清空 writer
  * - uncertain：只允许 terminate（成功后删除 lock）或新建会话
@@ -26,7 +26,8 @@ export async function acquireWriteLock(
      ON CONFLICT (principal_id, moss_session_id) DO UPDATE
        SET writer_web_session_id = $3, state = 'running', updated_at = now()
        WHERE conversation_locks.state <> 'uncertain'
-         AND (conversation_locks.writer_web_session_id IS NULL
+         AND (conversation_locks.state = 'idle'
+              OR conversation_locks.writer_web_session_id IS NULL
               OR conversation_locks.writer_web_session_id = $3)
      RETURNING state`,
     [input.principalId, input.mossSessionId, input.webSessionId],

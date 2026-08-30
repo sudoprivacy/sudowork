@@ -10,7 +10,7 @@ test.beforeAll(async () => {
 test('password login enters the app shell', async ({ page }) => {
   await loginViaUi(page, env)
   await expect(page.getByText('智能体').first()).toBeVisible()
-  await expect(page.getByText('技能库').first()).toBeVisible()
+  await expect(page.getByText('技能商店').first()).toBeVisible()
   await expect(page.getByText('定时任务').first()).toBeVisible()
 })
 

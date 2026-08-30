@@ -98,13 +98,13 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     pool = await createTestDatabase()
     principal = await upsertPrincipal(pool, { mossUserId: 'moss-a', orgId: 'org-1', username: 'user_a' })
 
-    const mkCookie = async (): Promise<string> => {
+    const mkCookie = async (accessToken: string): Promise<string> => {
       const token = generateSessionToken()
       await createWebSession(pool, {
         principalId: principal.id,
         tokenDigest: digestToken(token, HMAC_KEY),
         encrypted: encryptToken(
-          JSON.stringify({ accessToken: 'at-stream', refreshToken: 'rt', expiresAt: Date.now() + 3600_000 }),
+          JSON.stringify({ accessToken, refreshToken: 'rt', expiresAt: Date.now() + 3600_000 }),
           AES_KEY,
         ),
         accessExpiresAt: new Date(Date.now() + 3600_000),
@@ -112,8 +112,8 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       })
       return `sudowork_session=${token}`
     }
-    cookie1 = await mkCookie()
-    cookie2 = await mkCookie()
+    cookie1 = await mkCookie('at-stream')
+    cookie2 = await mkCookie('at-stream-2')
 
     // ---- fake upstream moss WS ----
     const upstreamWss = new WebSocketServer({ noServer: true })
@@ -203,7 +203,10 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         return null
       },
       async workspaceFilePost() {
-        return {}
+          return {}
+      },
+      async sessionSkillsAvailable(): Promise<unknown> {
+          return { skills: [] }
       },
     }
 
@@ -230,7 +233,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   })
 
   test(
-    'writer streams a full turn; observer receives output but cannot write',
+    'writer streams a full turn; observer receives output and takes over writer on idle',
     async () => {
       const ws1 = await browserWs(cookie1)
       const ws2 = await browserWs(cookie2)
@@ -250,17 +253,95 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       await c2.waitFor((e) => e.kind === 'upstream' && (e.event as { type?: string })?.type === 'assistant')
       await c2.waitFor((e) => e.kind === 'writer' && e.isWriter === false)
 
-      // observer 尝试写 → BUSY（idle 期间 writer 保留）
+      // observer 在 idle 期发送 → 抢占成为新 writer（idle 乐观可写，先发先得）
       ws2.send(JSON.stringify({ kind: 'send', text: 'hack', images: [] }))
-      await c2.waitFor((e) => e.kind === 'error' && e.code === 'CONVERSATION_BUSY')
+      await c2.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+      await c2.waitFor((e) => e.kind === 'writer' && e.isWriter === true)
+      // 旧 writer 被切为观察者
+      await c1.waitFor((e) => e.kind === 'writer' && e.isWriter === false)
 
-      // upstream 收到转换后的 Moss user 消息，且带 writer 的 Bearer
-      expect(upstreamReceived.at(-1)).toMatchObject({ type: 'user' })
-      expect(upstreamAuthHeaders.at(-1)).toBe('Bearer at-stream')
+      // upstream 收到抢占者的消息，且以新 writer 的 Bearer 重建连接
+      // （waitFor 的事件在 broadcastLockState 同步发出，而抢占接管需 resume+握手后
+      // 才 send——轮询等待 'hack' 真正到达 upstream 再断言）
+      const hackArrived = async (): Promise<boolean> => {
+        const received = upstreamReceived.some(
+          (m) =>
+            (m as { message?: { content?: { text?: string }[] } })?.message?.content?.some(
+              (c) => c?.text === 'hack',
+            ),
+        )
+        if (received) return true
+        await sleep(50)
+        return false
+      }
+      for (let i = 0; i < 100 && !(await hackArrived()); i++) {
+        // 轮询
+      }
+      expect(upstreamReceived.at(-1)).toMatchObject({
+        type: 'user',
+        message: { content: [{ type: 'text', text: 'hack' }] },
+      })
+      expect(upstreamAuthHeaders.at(-1)).toBe('Bearer at-stream-2')
 
       ws1.close()
       ws2.close()
       await sleep(150)
+    },
+    20_000,
+  )
+
+  test(
+    'stop (writer) forwards interrupt control_request to upstream; non-writer rejected',
+    async () => {
+      // 前置：清掉历史运行可能残留的 uncertain/running 锁，保证起点 idle
+      await request(app)
+        .post(`/api/conversations/${SID}/terminate`)
+        .set('Cookie', cookie1)
+        .set('Origin', 'http://localhost:5273')
+      await sleep(150)
+
+      upstreamMode = 'hold'
+      const ws1 = await browserWs(cookie1)
+      const ws2 = await browserWs(cookie2)
+      const c1 = collector(ws1)
+      const c2 = collector(ws2)
+      try {
+        await c1.waitFor((e) => e.kind === 'lock')
+        // ws1 成为 writer 并 running
+        ws1.send(JSON.stringify({ kind: 'send', text: 'long task', images: [] }))
+        await c1.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+        await c2.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+
+        // 非 writer 发 stop → NOT_WRITER
+        ws2.send(JSON.stringify({ kind: 'stop' }))
+        await c2.waitFor((e) => e.kind === 'error' && e.code === 'NOT_WRITER')
+
+        // writer 发 stop → 上游收到 interrupt control_request（request_id 存在且唯一）
+        const before = upstreamReceived.length
+        ws1.send(JSON.stringify({ kind: 'stop' }))
+        await sleep(300)
+        const interruptFrames = upstreamReceived
+          .slice(before)
+          .filter((e) => (e as { type?: string }).type === 'control_request')
+        expect(interruptFrames.length).toBe(1)
+        const frame = interruptFrames[0] as {
+          type: string
+          request_id: string
+          request: { subtype: string }
+        }
+        expect(frame.request_id).toBeTruthy()
+        expect(frame.request).toEqual({ subtype: 'interrupt' })
+      } finally {
+        ws1.close()
+        ws2.close()
+        upstreamMode = 'auto'
+        // 结束后清锁，避免 running 断线给后续用例留下 uncertain 残留
+        await request(app)
+          .post(`/api/conversations/${SID}/terminate`)
+          .set('Cookie', cookie1)
+          .set('Origin', 'http://localhost:5273')
+        await sleep(150)
+      }
     },
     20_000,
   )

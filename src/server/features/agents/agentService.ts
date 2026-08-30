@@ -95,7 +95,19 @@ export async function hubList(
   accessToken: string,
   searchParams: Record<string, string>,
 ): Promise<unknown> {
-  return mapErr(() => deps.agents.hubList(accessToken, searchParams))
+  // moss 上游返回 { assistants, next_cursor, has_more }（agentStore.ts fetchAgentHubAssistants），
+  // 与 installFromHub 的兼容读取一致，统一归一化为 items 供前端消费
+  const hub = (await mapErr(() => deps.agents.hubList(accessToken, searchParams))) as {
+    items?: Record<string, unknown>[]
+    assistants?: Record<string, unknown>[]
+    next_cursor?: unknown
+    has_more?: unknown
+  }
+  return {
+    items: hub?.items ?? hub?.assistants ?? [],
+    next_cursor: typeof hub?.next_cursor === 'string' ? hub.next_cursor : null,
+    has_more: hub?.has_more === true,
+  }
 }
 
 export async function hubDetail(deps: AgentDeps, accessToken: string, id: string): Promise<unknown> {
