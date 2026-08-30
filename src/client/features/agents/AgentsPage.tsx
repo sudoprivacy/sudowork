@@ -1,11 +1,13 @@
 /**
  * 智能体页（布局对齐 Sudowork agents 页，Apache-2.0, Copyright 2026 SudoPrivacy）。
  * PageWrapper(px-10/max-w-240) + 线型 Tabs + 搜索 + 分类 chips + 2 列卡片网格。
+ * 列表逻辑对齐 sudowork B 端：智能体库/专属智能体均取 moss installed（hub/tenant 类），
+ * 分类从当前 tab 列表的 categories 收集；我的智能体过滤 moss 系统内置并按 tag 分组。
  */
-import React, { useEffect, useMemo, useState } from 'react'
-import useSWR, { useSWRConfig } from 'swr'
+import React, { useMemo, useState } from 'react'
+import { useSWRConfig } from 'swr'
 import { Button, Input, Message, Popconfirm, Spin } from '@arco-design/web-react'
-import { Bot, Download, Search, Shield, SquarePen, Trash2 } from 'lucide-react'
+import { Bot, Search, Shield, SquarePen, Trash2 } from 'lucide-react'
 import { useAgents } from './useAgents'
 import { agentApi, type AgentItem } from './agentApi'
 import { AssistantDetailModal } from './AssistantDetailModal'
@@ -20,59 +22,33 @@ export function AgentsPage(): React.ReactElement {
   const [search, setSearch] = useState('')
   const [detail, setDetail] = useState<AgentItem | null>(null)
   const [formOpen, setFormOpen] = useState(false)
-  const [hubItems, setHubItems] = useState<AgentItem[]>([])
-  const [hubLoading, setHubLoading] = useState(false)
-  const [tenantItems, setTenantItems] = useState<AgentItem[]>([])
-  const [tenantLoading, setTenantLoading] = useState(false)
   const [category, setCategory] = useState('all')
 
-  const { data: categories } = useSWR('agents/hub/categories', agentApi.hubCategories)
-  const categoryList = Array.isArray(categories) ? (categories as string[]) : []
-
-  async function loadHub(): Promise<void> {
-    setHubLoading(true)
-    try {
-      const res = await agentApi.hubList({ limit: '50' })
-      setHubItems(res.items ?? [])
-    } catch {
-      Message.error('Hub 列表加载失败')
-    } finally {
-      setHubLoading(false)
-    }
-  }
-
-  async function loadTenant(): Promise<void> {
-    setTenantLoading(true)
-    try {
-      const rows = await agentApi.tenantList()
-      setTenantItems(rows as AgentItem[])
-    } catch {
-      Message.error('专属智能体加载失败')
-    } finally {
-      setTenantLoading(false)
-    }
-  }
-
-  // 默认 tab 即"智能体库"：挂载时触发首次加载（switchTab 不经过初始渲染）
-  useEffect(() => {
-    void loadHub()
-  }, [])
+  // 对齐 sudowork B 端：智能体库 = moss installed 中 hub 类；专属智能体 = tenant 类
+  const storeList = useMemo(
+    () => installed.filter((a) => a.tag === 'hub'),
+    [installed],
+  )
+  const exclusiveList = useMemo(
+    () => installed.filter((a) => a.tag === 'tenant'),
+    [installed],
+  )
+  // 分类从当前 tab 列表收集（每个分类都来自返回的智能体列表，点击必有结果）
+  const tabList = tab === 'exclusive' ? exclusiveList : storeList
+  const categoryList = useMemo(
+    () => Array.from(new Set(tabList.flatMap((a) => a.categories ?? []))),
+    [tabList],
+  )
+  // 对齐 sudowork：我的智能体过滤 moss 系统内置（isBuiltin）
+  const installedVisible = useMemo(
+    () => installed.filter((a) => a.isBuiltin !== true),
+    [installed],
+  )
 
   function switchTab(next: TabKey): void {
     setTab(next)
-    if (next === 'store' && hubItems.length === 0 && !hubLoading) void loadHub()
-    if (next === 'exclusive' && tenantItems.length === 0 && !tenantLoading) void loadTenant()
-  }
-
-  async function handleInstall(name: string): Promise<void> {
-    try {
-      await agentApi.install(name)
-      Message.success(`已安装 ${name}`)
-      void loadHub()
-      refresh()
-    } catch (err) {
-      Message.error(`安装失败：${(err as Error).message}`)
-    }
+    // 各 tab 分类集合不同，切换时重置，防止分类残留导致空列表
+    setCategory('all')
   }
 
   async function handleUninstall(name: string): Promise<void> {
@@ -85,30 +61,51 @@ export function AgentsPage(): React.ReactElement {
     }
   }
 
+  // 先过滤 isBuiltin，再应用搜索，最后按 tag 分组（顺序固定）
   const filteredInstalled = useMemo(
     () =>
-      installed.filter(
-        (a) => !search || String(a.displayName ?? a.name).toLowerCase().includes(search.toLowerCase()),
+      installedVisible.filter(
+        (a) =>
+          !search ||
+          String(a.displayName ?? a.display_name ?? a.name)
+            .toLowerCase()
+            .includes(search.toLowerCase()),
       ),
-    [installed, search],
+    [installedVisible, search],
+  )
+  const installedSections = useMemo(
+    () => [
+      { key: 'custom', label: '自定义智能体', items: filteredInstalled.filter((a) => a.tag === 'custom') },
+      { key: 'tenant', label: '专属智能体', items: filteredInstalled.filter((a) => a.tag === 'tenant') },
+      { key: 'hub', label: '智能体库', items: filteredInstalled.filter((a) => a.tag === 'hub') },
+    ] as const,
+    [filteredInstalled],
   )
 
   const filteredHub = useMemo(
     () =>
-      hubItems.filter(
+      storeList.filter(
         (a) =>
-          (category === 'all' || category === a.category) &&
-          (!search || String(a.display_name ?? a.name).toLowerCase().includes(search.toLowerCase())),
+          (category === 'all' || (a.categories ?? []).includes(category)) &&
+          (!search ||
+            String(a.displayName ?? a.display_name ?? a.name)
+              .toLowerCase()
+              .includes(search.toLowerCase())),
       ),
-    [hubItems, category, search],
+    [storeList, category, search],
   )
 
   const filteredTenant = useMemo(
     () =>
-      tenantItems.filter(
-        (a) => !search || String(a.display_name ?? a.name).toLowerCase().includes(search.toLowerCase()),
+      exclusiveList.filter(
+        (a) =>
+          (category === 'all' || (a.categories ?? []).includes(category)) &&
+          (!search ||
+            String(a.displayName ?? a.display_name ?? a.name)
+              .toLowerCase()
+              .includes(search.toLowerCase())),
       ),
-    [tenantItems, search],
+    [exclusiveList, category, search],
   )
 
   return (
@@ -121,7 +118,7 @@ export function AgentsPage(): React.ReactElement {
               [
                 { key: 'store', label: '智能体库' },
                 { key: 'exclusive', label: '专属智能体' },
-                { key: 'installed', label: '我的智能体', count: installed.length },
+                { key: 'installed', label: '我的智能体', count: installedVisible.length },
               ] as const
             ).map((t) => (
               <button
@@ -181,7 +178,7 @@ export function AgentsPage(): React.ReactElement {
         <div className='flex-1 min-h-0 overflow-y-auto'>
           {tab === 'store' ? (
             <>
-              {hubLoading ? (
+              {isLoading ? (
                 <div className='flex justify-center items-center py-12'>
                   <Spin size={28} />
                 </div>
@@ -193,28 +190,14 @@ export function AgentsPage(): React.ReactElement {
               ) : (
                 <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filteredHub.map((a) => (
-                    <AgentCard
-                      key={String(a.id ?? a.name)}
-                      agent={a}
-                      onDetail={() => setDetail(a)}
-                      right={
-                        canManage ? (
-                          <Button
-                            shape='circle'
-                            className='!size-7'
-                            icon={<Download size={13} />}
-                            onClick={() => void handleInstall(String(a.name))}
-                          />
-                        ) : null
-                      }
-                    />
+                    <AgentCard key={String(a.id ?? a.name)} agent={a} onDetail={() => setDetail(a)} />
                   ))}
                 </div>
               )}
             </>
           ) : tab === 'exclusive' ? (
             <>
-              {tenantLoading ? (
+              {isLoading ? (
                 <div className='flex justify-center items-center py-12'>
                   <Spin size={28} />
                 </div>
@@ -248,26 +231,45 @@ export function AgentsPage(): React.ReactElement {
                   ) : null}
                 </div>
               ) : (
-                <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                  {filteredInstalled.map((a) => (
-                    <AgentCard
-                      key={a.name}
-                      agent={a}
-                      onDetail={() => setDetail(a)}
-                      right={
-                        canManage ? (
-                          <Popconfirm title='确定卸载该智能体吗？' onOk={() => void handleUninstall(a.name)}>
-                            <Button
-                              shape='circle'
-                              status='danger'
-                              className='!size-7'
-                              icon={<Trash2 size={13} />}
-                              aria-label='卸载'
+                /* 对齐 sudowork installed tab：按 自定义/专属/智能体库 分组，空组显示占位 */
+                <div className='pb-4 space-y-5'>
+                  {installedSections.map((sec) => (
+                    <section key={sec.key}>
+                      <div className='flex items-center justify-between gap-2 mb-2.5'>
+                        <span className='text-13px font-medium text-foreground'>{sec.label}</span>
+                        <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>
+                          {sec.items.length}
+                        </span>
+                      </div>
+                      {sec.items.length > 0 ? (
+                        <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                          {sec.items.map((a) => (
+                            <AgentCard
+                              key={a.name}
+                              agent={a}
+                              onDetail={() => setDetail(a)}
+                              right={
+                                canManage ? (
+                                  <Popconfirm title='确定卸载该智能体吗？' onOk={() => void handleUninstall(a.name)}>
+                                    <Button
+                                      shape='circle'
+                                      status='danger'
+                                      className='!size-7'
+                                      icon={<Trash2 size={13} />}
+                                      aria-label='卸载'
+                                    />
+                                  </Popconfirm>
+                                ) : null
+                              }
                             />
-                          </Popconfirm>
-                        ) : null
-                      }
-                    />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary text-center'>
+                          暂无{sec.label}
+                        </div>
+                      )}
+                    </section>
                   ))}
                 </div>
               )}

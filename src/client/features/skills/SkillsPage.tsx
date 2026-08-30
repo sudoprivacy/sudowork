@@ -1,9 +1,10 @@
 /**
  * 技能商店页（布局对齐 Sudowork skills 页，Apache-2.0, Copyright 2026 SudoPrivacy）。
  * Tabs（技能库/专属技能/我的技能）+ 搜索 + 分类 chips + 2 列卡片网格。
+ * 列表逻辑对齐 sudowork B 端：技能库/专属技能均取 moss installed（hub/tenant 类），
+ * 分类从当前 tab 列表的 categories 收集（点击任何分类必有结果）。
  */
-import React, { useEffect, useMemo, useState } from 'react'
-import useSWR from 'swr'
+import React, { useMemo, useState } from 'react'
 import { Button, Input, Message, Popconfirm, Spin, Switch } from '@arco-design/web-react'
 import { Search, Shield, Trash2, Zap } from 'lucide-react'
 import { useSkills } from './useSkills'
@@ -19,59 +20,28 @@ export function SkillsPage(): React.ReactElement {
   const [tab, setTab] = useState<TabKey>('store')
   const [search, setSearch] = useState('')
   const [detail, setDetail] = useState<SkillItem | null>(null)
-  const [hubItems, setHubItems] = useState<SkillItem[]>([])
-  const [hubLoading, setHubLoading] = useState(false)
-  const [tenantItems, setTenantItems] = useState<SkillItem[]>([])
-  const [tenantLoading, setTenantLoading] = useState(false)
   const [category, setCategory] = useState('all')
 
-  const { data: categories } = useSWR('skills/hub/categories', skillApi.hubCategories)
-  const categoryList = Array.isArray(categories) ? (categories as string[]) : []
-
-  async function loadHub(): Promise<void> {
-    setHubLoading(true)
-    try {
-      const res = await skillApi.hubList({ limit: '50' })
-      setHubItems(res.items ?? [])
-    } catch {
-      Message.error('Hub 列表加载失败')
-    } finally {
-      setHubLoading(false)
-    }
-  }
-
-  async function loadTenant(): Promise<void> {
-    setTenantLoading(true)
-    try {
-      const rows = await skillApi.tenantList()
-      setTenantItems(rows as SkillItem[])
-    } catch {
-      Message.error('专属技能加载失败')
-    } finally {
-      setTenantLoading(false)
-    }
-  }
-
-  // 默认 tab 即"技能库"：挂载时触发首次加载（switchTab 不经过初始渲染）
-  useEffect(() => {
-    void loadHub()
-  }, [])
+  // 对齐 sudowork B 端：技能库 = moss installed 中 hub 类；专属技能 = tenant 类
+  const storeList = useMemo(
+    () => installed.filter((s) => s.isHubInstalled === true),
+    [installed],
+  )
+  const exclusiveList = useMemo(
+    () => installed.filter((s) => s.meta?.source_type === 'tenant'),
+    [installed],
+  )
+  // 分类从当前 tab 列表收集（每个分类都来自返回的技能列表，点击必有结果）
+  const tabList = tab === 'exclusive' ? exclusiveList : storeList
+  const categoryList = useMemo(
+    () => Array.from(new Set(tabList.flatMap((s) => s.categories ?? []))),
+    [tabList],
+  )
 
   function switchTab(next: TabKey): void {
     setTab(next)
-    if (next === 'store' && hubItems.length === 0 && !hubLoading) void loadHub()
-    if (next === 'exclusive' && tenantItems.length === 0 && !tenantLoading) void loadTenant()
-  }
-
-  async function handleInstall(name: string): Promise<void> {
-    try {
-      await skillApi.install(name)
-      Message.success(`已安装 ${name}`)
-      void loadHub()
-      refresh()
-    } catch (err) {
-      Message.error(`安装失败：${(err as Error).message}`)
-    }
+    // 各 tab 分类集合不同，切换时重置，防止分类残留导致空列表
+    setCategory('all')
   }
 
   async function handleToggle(skill: SkillItem, enabled: boolean): Promise<void> {
@@ -106,20 +76,28 @@ export function SkillsPage(): React.ReactElement {
 
   const filteredHub = useMemo(
     () =>
-      hubItems.filter(
+      storeList.filter(
         (s) =>
-          (category === 'all' || category === s.category) &&
-          (!search || String(s.display_name ?? s.name).toLowerCase().includes(search.toLowerCase())),
+          (category === 'all' || (s.categories ?? []).includes(category)) &&
+          (!search ||
+            String(s.displayName ?? s.display_name ?? s.name)
+              .toLowerCase()
+              .includes(search.toLowerCase())),
       ),
-    [hubItems, category, search],
+    [storeList, category, search],
   )
 
   const filteredTenant = useMemo(
     () =>
-      tenantItems.filter(
-        (s) => !search || String(s.display_name ?? s.name).toLowerCase().includes(search.toLowerCase()),
+      exclusiveList.filter(
+        (s) =>
+          (category === 'all' || (s.categories ?? []).includes(category)) &&
+          (!search ||
+            String(s.displayName ?? s.display_name ?? s.name)
+              .toLowerCase()
+              .includes(search.toLowerCase())),
       ),
-    [tenantItems, search],
+    [exclusiveList, category, search],
   )
 
   return (
@@ -164,7 +142,7 @@ export function SkillsPage(): React.ReactElement {
           />
         </div>
 
-        {/* 分类 chips（store / exclusive tab，首项"精选"对齐 sudowork） */}
+        {/* 分类 chips（store / exclusive tab，首项"全部分类"对齐 sudowork zh-CN 文案） */}
         {tab !== 'installed' && categoryList.length > 0 ? (
           <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
             {['all', ...categoryList].map((c) => (
@@ -173,7 +151,7 @@ export function SkillsPage(): React.ReactElement {
                 className={`category-chip ${category === c ? 'category-chip-active' : 'category-chip-idle'}`}
                 onClick={() => setCategory(c)}
               >
-                {c === 'all' ? '精选' : c}
+                {c === 'all' ? '全部分类' : c}
               </span>
             ))}
           </div>
@@ -183,7 +161,7 @@ export function SkillsPage(): React.ReactElement {
         <div className='flex-1 min-h-0 overflow-y-auto'>
           {tab === 'store' ? (
             <>
-              {hubLoading ? (
+              {isLoading ? (
                 <div className='flex justify-center items-center py-12'>
                   <Spin size={28} />
                 </div>
@@ -200,7 +178,6 @@ export function SkillsPage(): React.ReactElement {
                       skill={s}
                       canManage={canManage}
                       onDetail={() => setDetail(s)}
-                      onInstall={() => void handleInstall(String(s.name))}
                     />
                   ))}
                 </div>
@@ -208,7 +185,7 @@ export function SkillsPage(): React.ReactElement {
             </>
           ) : tab === 'exclusive' ? (
             <>
-              {tenantLoading ? (
+              {isLoading ? (
                 <div className='flex justify-center items-center py-12'>
                   <Spin size={28} />
                 </div>

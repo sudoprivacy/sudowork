@@ -35,6 +35,9 @@ export interface AgentItem {
   avatar?: string
   emoji?: string
   meta?: { feature?: string }
+  tag?: string
+  isBuiltin?: boolean
+  categories?: string[]
   [key: string]: unknown
 }
 

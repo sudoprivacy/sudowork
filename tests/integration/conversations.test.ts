@@ -120,7 +120,8 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     const auth = { pool, config: testConfig, mossAuth: fakeMossAuth }
     const coordinator = new ConversationCoordinator({ pool, config: testConfig, auth, moss })
     const mossFetch = async (_base: string, req: { path: string }): Promise<unknown> => {
-      if (req.path === '/api/v1/agents/installed') return [{ name: 'helper' }]
+      if (req.path === '/api/v1/agents/installed')
+        return [{ name: 'helper' }, { name: 'builtin-agent', isBuiltin: true }]
       if (req.path === '/api/v1/skills/installed') return [{ name: 'known-skill' }]
       if (req.path === '/api/v1/models/available') return { data: [{ id: 'm1', name: 'Model One' }] }
       throw new Error(`unexpected moss path in test: ${req.path}`)
@@ -250,7 +251,8 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
   test('options returns models/agents/skills name lists', async () => {
     const res = await request(await buildApp()).get('/api/conversations/options').set('Cookie', cookieA)
     expect(res.status).toBe(200)
-    // agents/skills 含列表展示所需字段（displayName/emoji/description/icon；fake 上游只提供 name，其余兜底）
+    // agents/skills 含列表展示所需字段（displayName/emoji/description/icon；fake 上游只提供 name，其余兜底）；
+    // fake 上游的 isBuiltin 条目（builtin-agent）应被过滤——与智能体页"我的智能体"一致
     expect(res.body.agents).toEqual([
       { name: 'helper', displayName: 'helper', emoji: '', description: '' },
     ])

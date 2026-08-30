@@ -34,6 +34,9 @@ export interface SkillItem {
   enabled?: boolean
   icon?: string
   emoji?: string
+  isHubInstalled?: boolean
+  categories?: string[]
+  meta?: { source_type?: string }
   [key: string]: unknown
 }
 

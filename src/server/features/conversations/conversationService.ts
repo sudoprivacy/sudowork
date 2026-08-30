@@ -285,7 +285,10 @@ export async function getConversationOptions(
     .object({ data: z.array(z.object({ id: z.string(), name: z.string().optional() }).passthrough()) })
     .passthrough()
     .parse(modelsJson)
-  const agents = NameListSchema.parse(agentsJson)
+  // 与智能体页"我的智能体"一致：过滤 moss 系统内置（isBuiltin），不作为会话可选项
+  const agents = NameListSchema.parse(agentsJson).filter(
+    (a) => (a as { isBuiltin?: unknown }).isBuiltin !== true,
+  )
   const skills = NameListSchema.parse(skillsJson)
 
   return {

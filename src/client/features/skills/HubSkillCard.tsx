@@ -29,7 +29,7 @@ export function HubSkillCard({
   skill: SkillItem
   canManage: boolean
   onDetail: () => void
-  onInstall: () => void
+  onInstall?: () => void
 }): React.ReactElement {
   const displayName = String(skill.display_name ?? skill.displayName ?? skill.name)
   const version = resolveVersionLabel(skill.latestVersion)
@@ -69,7 +69,7 @@ export function HubSkillCard({
           </div>
         </div>
       </div>
-      {canManage ? (
+      {canManage && onInstall ? (
         <div className='absolute top-1.5 right-2.5' onClick={(e) => e.stopPropagation()}>
           <Button
             shape='circle'
