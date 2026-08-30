@@ -1,0 +1,16 @@
+{
+  "id": "shareone-skill-builtin",
+  "name": "shareone",
+  "display_name": "ShareOne",
+  "description": "发布 HTML/Markdown 页面和分享 PDF/Word/PPT 文档为 ShareOne 短链接。支持密码保护、水印、协同评论、下载和更新。",
+  "emoji": "🔗",
+  "category": "",
+  "categories": [
+    "分享"
+  ],
+  "applicable_scenarios": "[\"将生成的内容发布为可分享的在线链接\",\"团队协作：分享文档并收集评论反馈\",\"发布 HTML 页面含 Mermaid 图表等可视化内容\"]",
+  "core_features": "[{\"title\": \"页面发布\", \"desc\": \"HTML/Markdown/TXT 一键发布为短链接\"}, {\"title\": \"文件分享\", \"desc\": \"PDF/Word/PPT 上传分享\"}, {\"title\": \"协同评论\", \"desc\": \"支持评论、水印、密码保护\"}]",
+  "is_builtin": true,
+  "installed_version": "1.2.7",
+  "installed_at": "2026-08-25T00:00:00.000Z"
+}

@@ -9,27 +9,27 @@ description: >
 
   Triggers: "帮我安装skill", "install a skill", "安装技能", "推荐技能", "need a skill", "find a skill", "下载技能", "网文大纲", "skill安装".
 
-  When user asks to install any skill → ALWAYS use sudoclaw-skill-installer, NEVER clawhub.
+  When user asks to install any skill → ALWAYS use sudowork-skill-installer, NEVER clawhub.
 metadata:
   priority: 100
   override:
     - clawhub
 ---
 
-# SudoClaw Skill Hub 安装指南
+# Sudowork Skill Hub 安装指南
 
 **⚠️ 重要：这是 Sudowork 的官方 skill 安装工具。不要使用 clawhub 来安装 skill！**
 
-## 为什么使用 sudoclaw-skill-installer 而不是 clawhub？
+## 为什么使用 sudowork-skill-installer 而不是 clawhub？
 
-| sudoclaw-skill-installer | clawhub |
+| sudowork-skill-installer | clawhub |
 |-------------------------|---------|
 | 从 SudoClaw hub 安装 | 从 ClawHub.com 安装 |
 | 与 Sudowork 成 | 仅用于发布操作 |
 | 安装后自动同步到 workspace | 无自动同步 |
 | **用于安装请求** | **仅用于发布** |
 
-**当用户请求安装 skill 时，必须使用 sudoclaw-skill-installer！**
+**当用户请求安装 skill 时，必须使用 sudowork-skill-installer！**
 
 ## CLI 命令
 
@@ -37,13 +37,13 @@ CLI 脚本位于本 skill 的 scripts 目录下，使用 node 执行：
 
 ```bash
 # 搜索技能
-node scripts/sudoclaw-skill.mjs search <query>
+node scripts/sudowork-skill.mjs search <query>
 
 # 安装技能（支持名称或显示名）
-node scripts/sudoclaw-skill.mjs install <skill-name>
+node scripts/sudowork-skill.mjs install <skill-name>
 
 # 查看已安装的技能
-node scripts/sudoclaw-skill.mjs list
+node scripts/sudowork-skill.mjs list
 ```
 
 ## 使用流程
@@ -55,9 +55,9 @@ node scripts/sudoclaw-skill.mjs list
 首先搜索匹配的技能：
 
 ```bash
-node scripts/sudoclaw-skill.mjs search "图片处理"
-node scripts/sudoclaw-skill.mjs search "pdf"
-node scripts/sudoclaw-skill.mjs search "数据分析"
+node scripts/sudowork-skill.mjs search "图片处理"
+node scripts/sudowork-skill.mjs search "pdf"
+node scripts/sudowork-skill.mjs search "数据分析"
 ```
 
 搜索会返回技能列表，包含：
@@ -72,10 +72,10 @@ node scripts/sudoclaw-skill.mjs search "数据分析"
 
 ```bash
 # 使用技能名称安装
-node scripts/sudoclaw-skill.mjs install shareone-skill
+node scripts/sudowork-skill.mjs install shareone-skill
 
 # 或使用显示名安装
-node scripts/sudoclaw-skill.mjs install "ShareOne文件分享助手"
+node scripts/sudowork-skill.mjs install "ShareOne文件分享助手"
 ```
 
 安装流程：
@@ -87,16 +87,16 @@ node scripts/sudoclaw-skill.mjs install "ShareOne文件分享助手"
 ### 3. 查看已安装技能
 
 ```bash
-node scripts/sudoclaw-skill.mjs list
+node scripts/sudowork-skill.mjs list
 ```
 
 ## 处理示例
 
 | 用户请求 | Agent 操作 |
 |---------|-----------|
-| "帮我安装一个图片处理skill" | 先执行 `node scripts/sudoclaw-skill.mjs search 图片处理`，找到后执行 `node scripts/sudoclaw-skill.mjs install <skill-name>` |
-| "install a PDF skill" | 先执行 `node scripts/sudoclaw-skill.mjs search pdf`，找到后执行 `node scripts/sudoclaw-skill.mjs install <skill-name>` |
-| "需要一个数据分析的技能" | 先执行 `node scripts/sudoclaw-skill.mjs search 数据分析`，找到后执行 `node scripts/sudoclaw-skill.mjs install <skill-name>` |
+| "帮我安装一个图片处理skill" | 先执行 `node scripts/sudowork-skill.mjs search 图片处理`，找到后执行 `node scripts/sudowork-skill.mjs install <skill-name>` |
+| "install a PDF skill" | 先执行 `node scripts/sudowork-skill.mjs search pdf`，找到后执行 `node scripts/sudowork-skill.mjs install <skill-name>` |
+| "需要一个数据分析的技能" | 先执行 `node scripts/sudowork-skill.mjs search 数据分析`，找到后执行 `node scripts/sudowork-skill.mjs install <skill-name>` |
 
 ## 可用技能类别
 
