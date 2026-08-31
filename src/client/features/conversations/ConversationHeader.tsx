@@ -7,7 +7,7 @@
 import React from 'react'
 import { Dropdown, Menu } from '@arco-design/web-react'
 import { PanelRight } from 'lucide-react'
-import sudoworkIcon from '@client/assets/sudowork-icon-dark.svg'
+import chinaTelecomLogo from '@client/assets/china-telecom-logo.svg'
 
 /** Sudowork AgentStatusBanner DOT_COLORS 的三态映射（webui socket 无 error 态） */
 const STATUS_DOT_COLORS: Record<'connecting' | 'open' | 'closed', string> = {
@@ -38,7 +38,7 @@ export function ConversationHeader({
     ?? (currentModel ? currentModel.replace(/^proxy\//, '') : (models[0]?.name ?? '模型'))
   return (
     <div className='h-9 flex items-center justify-between p-4 gap-4 !bg-1 chat-layout-header overflow-hidden shrink-0'>
-      <div className='flex items-center gap-3 shrink-0 min-w-0'>
+      <div className='flex flex-1 items-center gap-3 min-w-0'>
         {/* 模型选择 */}
         <Dropdown
           trigger='click'
@@ -81,8 +81,13 @@ export function ConversationHeader({
         />
         {/* SudoCode 标识（Sudowork 对应位置为 Remote Agent） */}
         <span className='inline-flex items-center gap-1 shrink-0'>
-          <img src={sudoworkIcon} alt='SudoCode' width={16} height={16} className='block object-contain' />
-          <span className='text-13px font-600 text-foreground'>SudoCode</span>
+          <img
+            src={chinaTelecomLogo}
+            alt='CTCode'
+            height={16}
+            className='block h-4 w-auto max-w-none object-contain'
+          />
+          <span className='text-13px font-600 text-foreground'>CTCode</span>
         </span>
         {/* 右侧面板开关 */}
         <button

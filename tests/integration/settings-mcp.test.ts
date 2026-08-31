@@ -178,7 +178,7 @@ describe('settings + mcp routes (real PostgreSQL + fake moss)', () => {
     const res = await request(app).get('/api/settings/about').set('Cookie', cookieA)
     expect(res.status).toBe(200)
     expect(res.body.branding.appName).toBe('Acme Moss')
-    expect(res.body.webui.name).toBe('sudowork-webui')
+    expect(res.body.webui.name).toBe('CTWork')
     expect(res.body.mossBaseUrl).toBe('http://moss.test')
   })
 

@@ -21,6 +21,15 @@ vi.mock('@client/features/skills/skillApi', () => ({
         categories: ['创作'],
       },
       {
+        id: '',
+        name: 'tenant-hub',
+        displayName: '租户专属技能',
+        enabled: true,
+        isHubInstalled: true,
+        meta: { source_type: 'tenant' },
+        categories: ['专属'],
+      },
+      {
         name: 'local',
         displayName: '本地技能',
         enabled: true,
@@ -61,7 +70,22 @@ describe('SkillsPage（列表逻辑对齐 sudowork B 端）', () => {
     await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(2), { timeout: 5000 })
     expect(screen.getByText('PDF 处理')).toBeTruthy()
     expect(screen.getByText('搜索')).toBeTruthy()
+    expect(screen.queryByText('租户专属技能')).toBeNull()
+    expect(screen.queryByText('专属')).toBeNull()
     expect(screen.queryByText('本地技能')).toBeNull()
+  })
+
+  test('专属技能切回技能库后不会混入技能库列表', async () => {
+    renderIsolated(<SkillsPage />)
+    fireEvent.click(screen.getByRole('button', { name: /专属技能/ }))
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(1), { timeout: 5000 })
+    expect(screen.getByText('租户专属技能')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /技能库/ }))
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(2), { timeout: 5000 })
+    expect(screen.queryByText('租户专属技能')).toBeNull()
+    expect(screen.getByText('PDF 处理')).toBeTruthy()
+    expect(screen.getByText('搜索')).toBeTruthy()
   })
 
   test('分类 chips 来自列表数据，逐个点击均有结果（无空分类回归）', async () => {
@@ -87,13 +111,13 @@ describe('SkillsPage（列表逻辑对齐 sudowork B 端）', () => {
     renderIsolated(<SkillsPage />)
     // 默认 tab 为"技能库"，切到"我的技能"后断言 installed 列表（不做 isHubInstalled 过滤）
     fireEvent.click(screen.getByRole('button', { name: /我的技能/ }))
-    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(3), { timeout: 5000 })
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(4), { timeout: 5000 })
     expect(screen.getByText('PDF 处理')).toBeTruthy()
     expect(screen.getByText('搜索')).toBeTruthy()
     expect(screen.getByText('本地技能')).toBeTruthy()
 
     const switches = screen.getAllByRole('switch')
-    expect(switches).toHaveLength(3)
+    expect(switches).toHaveLength(4)
     expect((switches[0] as HTMLInputElement).className).toBeDefined()
 
     fireEvent.click(screen.getAllByLabelText('卸载')[0]!)

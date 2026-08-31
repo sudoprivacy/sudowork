@@ -13,7 +13,7 @@ vi.mock('@client/features/settings/settingsApi', () => ({
     putDisplay: vi.fn().mockResolvedValue({ ok: true }),
     about: vi.fn().mockResolvedValue({
       branding: { appName: 'Acme' },
-      webui: { name: 'sudowork-webui', version: '0.1.0' },
+      webui: { name: 'CTWork', version: '0.1.0' },
       mossBaseUrl: 'http://moss.test',
     }),
   },
@@ -47,10 +47,18 @@ describe('settings pages（计划 Task 8：四项设置）', () => {
     expect(settingsApi.putDisplay).toHaveBeenCalledWith({ theme: 'dark', fontScale: 1 })
   })
 
-  test('AboutPage shows webui version and moss endpoint, no updater', async () => {
+  test('AboutPage keeps tenant app name and shows CTWork webui name', async () => {
     isolated(<AboutPage />)
     await waitFor(() => expect(screen.getByText('0.1.0')).toBeTruthy(), { timeout: 5000 })
+    expect(screen.getByText('Acme')).toBeTruthy()
+    expect(screen.getByText('CTWork')).toBeTruthy()
     expect(screen.getByText('http://moss.test')).toBeTruthy()
     expect(screen.queryByText('检查更新')).toBeNull()
+  })
+
+  test('AboutPage falls back to CTWork for missing branding and webui names', async () => {
+    vi.mocked(settingsApi.about).mockResolvedValueOnce({})
+    isolated(<AboutPage />)
+    await waitFor(() => expect(screen.getAllByText('CTWork')).toHaveLength(2), { timeout: 5000 })
   })
 })

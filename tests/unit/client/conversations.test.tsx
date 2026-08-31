@@ -121,8 +121,10 @@ describe('NewConversationPage', () => {
       </MemoryRouter>,
     )
 
-    // 新布局：胶囊条固定为 SudoCode，智能体列表为底部 chips（选中可选，不选直接发送）
     await waitFor(() => expect(screen.getByText('Hi，今天有什么安排？')).toBeTruthy(), { timeout: 5000 })
+    expect(screen.getByText('CTCode')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'CTCode' })).toBeTruthy()
+    expect(screen.getByLabelText('消息输入框').getAttribute('placeholder')).toMatch(/^CTCode, /)
     fireEvent.click(screen.getByText('技能'))
     fireEvent.click(screen.getByTestId('skill-option-pdf'))
     fireEvent.change(screen.getByLabelText('消息输入框'), { target: { value: '你好' } })
@@ -147,6 +149,7 @@ describe('NewConversationPage', () => {
     // 选中态视图：返回箭头 + 名称 + 描述卡（名称与 chip 同文本，用 getAllByText 断言出现两处）
     await waitFor(() => expect(screen.getAllByText('帮助助手').length).toBeGreaterThanOrEqual(2), { timeout: 5000 })
     expect(screen.getByText('帮你干活')).toBeTruthy()
+    expect(screen.getByLabelText('消息输入框').getAttribute('placeholder')).toMatch(/^帮助助手, /)
     fireEvent.change(screen.getByLabelText('消息输入框'), { target: { value: '帮我' } })
     fireEvent.click(screen.getByRole('button', { name: '发送' }))
 

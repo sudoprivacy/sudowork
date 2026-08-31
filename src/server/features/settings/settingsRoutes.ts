@@ -123,7 +123,7 @@ export function createSettingsRouter(deps: SettingsDeps): Router {
       return {
         branding,
         webui: {
-          name: 'sudowork-webui',
+          name: 'CTWork',
           version: process.env.WEBUI_VERSION ?? '0.1.0',
           node: process.version,
         },
