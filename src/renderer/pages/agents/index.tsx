@@ -79,6 +79,10 @@ const AgentSettings: React.FC = () => {
   const [hubSearchQuery, setHubSearchQuery] = useState('');
   const [hubLoading, setHubLoading] = useState(true);
   const [hubLoadingMore, setHubLoadingMore] = useState(false);
+  const hubLoadingRef = useRef(hubLoading);
+  hubLoadingRef.current = hubLoading;
+  const hubLoadingMoreRef = useRef(hubLoadingMore);
+  hubLoadingMoreRef.current = hubLoadingMore;
   // Typed error from the most recent hub fetch — null on success.
   // Drives the differentiated empty state (token-missing vs
   // network-failed vs actually-empty). See HubEmptyState component.
@@ -205,6 +209,7 @@ const AgentSettings: React.FC = () => {
   latestAssistantVersionsRef.current = latestAssistantVersions;
   const failedAssistantVersionFetchesRef = useRef<Map<string, number>>(new Map());
   const fetchingAssistantVersionIdsRef = useRef<Set<string>>(new Set());
+  const hubRequestIdRef = useRef(0);
 
   // Resolve tenant ID for exclusive tab
   const resolveAssistantTenantId = useCallback(
@@ -350,9 +355,22 @@ const AgentSettings: React.FC = () => {
   // Fetch Hub assistants list
   const fetchHubAssistants = useCallback(
     async (cursor?: string, append = false) => {
+      if (append && hubLoadingRef.current) return;
+      const requestId = append ? hubRequestIdRef.current : hubRequestIdRef.current + 1;
+      if (!append) {
+        hubRequestIdRef.current = requestId;
+      }
+      const isLatestHubRequest = () => requestId === hubRequestIdRef.current;
       try {
-        if (append) setHubLoadingMore(true);
-        else setHubLoading(true);
+        if (append) {
+          hubLoadingMoreRef.current = true;
+          setHubLoadingMore(true);
+        } else {
+          hubLoadingRef.current = true;
+          hubLoadingMoreRef.current = false;
+          setHubLoading(true);
+          setHubLoadingMore(false);
+        }
 
         const category = selectedHubCategoryRef.current === 'all' ? '' : selectedHubCategoryRef.current;
         const query = hubSearchQueryRef.current.trim();
@@ -373,6 +391,7 @@ const AgentSettings: React.FC = () => {
             accessToken: accessToken || undefined,
           });
           if (res.success && res.data) {
+            if (!isLatestHubRequest()) return;
             // Successful fetch — clear any prior typed error so the
             // empty-state UI falls back to the generic "暂无智能体"
             // case if the catalog is genuinely empty.
@@ -403,6 +422,7 @@ const AgentSettings: React.FC = () => {
               void fetchLatestAssistantVersions(newAssistants, append ? latestAssistantVersionsRef.current : undefined);
             }
           } else if (!res.success) {
+            if (!isLatestHubRequest()) return;
             // Bridge returned a typed failure — surface to the empty
             // state instead of silently showing "暂无智能体". Cast
             // is safe inside this !success branch; the bridge type
@@ -413,14 +433,24 @@ const AgentSettings: React.FC = () => {
           }
         }
       } catch (err) {
+        if (!isLatestHubRequest()) return;
         console.error('Failed to fetch Hub assistants:', err);
         // Caught exception path → coerce into FETCH_FAILED so the
         // empty-state UI offers a retry CTA.
         setHubError({ code: 'FETCH_FAILED', message: err instanceof Error ? err.message : String(err), retriable: true });
         Message.error(t('settings.assistant.fetchFailed', '获取助手失败'));
       } finally {
-        setHubLoading(false);
-        setHubLoadingMore(false);
+        if (isLatestHubRequest()) {
+          if (append) {
+            hubLoadingMoreRef.current = false;
+            setHubLoadingMore(false);
+          } else {
+            hubLoadingRef.current = false;
+            hubLoadingMoreRef.current = false;
+            setHubLoading(false);
+            setHubLoadingMore(false);
+          }
+        }
       }
     },
     [ensureValidToken, fetchLatestAssistantVersions, isEnterprise, t]
@@ -428,10 +458,10 @@ const AgentSettings: React.FC = () => {
 
   // Load more Hub assistants (infinite scroll)
   const loadMoreHubAssistants = useCallback(() => {
-    if (!hubLoadingMore && hubHasMore && hubNextCursor) {
+    if (!hubLoadingRef.current && !hubLoadingMoreRef.current && hubHasMore && hubNextCursor) {
       void fetchHubAssistants(hubNextCursor, true);
     }
-  }, [hubLoadingMore, hubHasMore, hubNextCursor, fetchHubAssistants]);
+  }, [hubHasMore, hubNextCursor, fetchHubAssistants]);
 
   const loadMoreRef = useRef(loadMoreHubAssistants);
   loadMoreRef.current = loadMoreHubAssistants;
@@ -1855,7 +1885,7 @@ const AgentSettings: React.FC = () => {
               )}
 
               {/* Loading skeleton cards */}
-              {hubLoadingMore && (
+              {activeTab === 'store' && hubLoadingMore && (
                 <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-3 flex items-start gap-3 animate-pulse'>
