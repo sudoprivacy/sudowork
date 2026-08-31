@@ -213,7 +213,7 @@ const ChannelPanel: React.FC = () => {
         }
 
         const result = await channel.enablePlugin.invoke({
-          pluginId: (pluginStatus?.id ?? 'telegram_default'),
+          pluginId: pluginStatus?.id ?? 'telegram_default',
           config: pendingToken ? { token: pendingToken } : {},
         });
 
@@ -224,7 +224,7 @@ const ChannelPanel: React.FC = () => {
           Message.error(result.msg || t('settings.assistant.enableFailed', 'Failed to enable plugin'));
         }
       } else {
-        const result = await channel.disablePlugin.invoke({ pluginId: (pluginStatus?.id ?? 'telegram_default') });
+        const result = await channel.disablePlugin.invoke({ pluginId: pluginStatus?.id ?? 'telegram_default' });
 
         if (result.success) {
           Message.success(t('settings.assistant.pluginDisabled', 'Telegram bot disabled'));
@@ -261,7 +261,7 @@ const ChannelPanel: React.FC = () => {
         const config = hasFormCreds ? { appId: pendingCreds.appId.trim(), appSecret: pendingCreds.appSecret.trim(), encryptKey: pendingCreds.encryptKey, verificationToken: pendingCreds.verificationToken } : {};
 
         const result = await channel.enablePlugin.invoke({
-          pluginId: (larkPluginStatus?.id ?? 'lark_default'),
+          pluginId: larkPluginStatus?.id ?? 'lark_default',
           config,
         });
 
@@ -279,7 +279,7 @@ const ChannelPanel: React.FC = () => {
     } else {
       setLarkEnableLoading(true);
       try {
-        const result = await channel.disablePlugin.invoke({ pluginId: (larkPluginStatus?.id ?? 'lark_default') });
+        const result = await channel.disablePlugin.invoke({ pluginId: larkPluginStatus?.id ?? 'lark_default' });
 
         if (result.success) {
           Message.success(t('settings.lark.pluginDisabled', 'Lark bot disabled'));
@@ -315,7 +315,7 @@ const ChannelPanel: React.FC = () => {
         const config = hasFormCreds ? { clientId: pendingCreds.clientId.trim(), clientSecret: pendingCreds.clientSecret.trim() } : {};
 
         const result = await channel.enablePlugin.invoke({
-          pluginId: (dingtalkPluginStatus?.id ?? 'dingtalk_default'),
+          pluginId: dingtalkPluginStatus?.id ?? 'dingtalk_default',
           config,
         });
 
@@ -333,7 +333,7 @@ const ChannelPanel: React.FC = () => {
     } else {
       setDingtalkEnableLoading(true);
       try {
-        const result = await channel.disablePlugin.invoke({ pluginId: (dingtalkPluginStatus?.id ?? 'dingtalk_default') });
+        const result = await channel.disablePlugin.invoke({ pluginId: dingtalkPluginStatus?.id ?? 'dingtalk_default' });
 
         if (result.success) {
           Message.success(t('settings.dingtalk.pluginDisabled', 'DingTalk bot disabled'));
@@ -363,7 +363,7 @@ const ChannelPanel: React.FC = () => {
       setWechatEnableLoading(true);
       try {
         const result = await channel.enablePlugin.invoke({
-          pluginId: (wechatPluginStatus?.id ?? 'wechat_default'),
+          pluginId: wechatPluginStatus?.id ?? 'wechat_default',
           config: {},
         });
         if (result.success) {
@@ -386,7 +386,7 @@ const ChannelPanel: React.FC = () => {
       // Disable
       setWechatEnableLoading(true);
       try {
-        const result = await channel.disablePlugin.invoke({ pluginId: (wechatPluginStatus?.id ?? 'wechat_default') });
+        const result = await channel.disablePlugin.invoke({ pluginId: wechatPluginStatus?.id ?? 'wechat_default' });
         if (result.success) {
           Message.success(t('settings.channels.wechat.disabled', 'WeChat disabled'));
           // Force immediate status re-fetch to ensure UI sync
@@ -417,11 +417,11 @@ const ChannelPanel: React.FC = () => {
 
         // If no pending credentials, try to get saved credentials from database
         if (!pendingBotId || !pendingSecret) {
-          const credResult = await channel.getPluginCredentials.invoke({ pluginId: (wecomPluginStatus?.id ?? 'wecom_default') });
+          const credResult = await channel.getPluginCredentials.invoke({ pluginId: wecomPluginStatus?.id ?? 'wecom_default' });
           if (credResult.success && credResult.data?.botId && credResult.data?.secret) {
             // Found saved credentials, use them
             const result = await channel.enablePlugin.invoke({
-              pluginId: (wecomPluginStatus?.id ?? 'wecom_default'),
+              pluginId: wecomPluginStatus?.id ?? 'wecom_default',
               config: {},
             });
 
@@ -442,7 +442,7 @@ const ChannelPanel: React.FC = () => {
 
         // Pass credentials from form input
         const result = await channel.enablePlugin.invoke({
-          pluginId: (wecomPluginStatus?.id ?? 'wecom_default'),
+          pluginId: wecomPluginStatus?.id ?? 'wecom_default',
           config: { botId: pendingBotId, secret: pendingSecret },
         });
 
@@ -453,7 +453,7 @@ const ChannelPanel: React.FC = () => {
           Message.error(result.msg || t('settings.wecom.enableFailed', 'Failed to enable WeCom plugin'));
         }
       } else {
-        const result = await channel.disablePlugin.invoke({ pluginId: (wecomPluginStatus?.id ?? 'wecom_default') });
+        const result = await channel.disablePlugin.invoke({ pluginId: wecomPluginStatus?.id ?? 'wecom_default' });
 
         if (result.success) {
           Message.success(t('settings.wecom.pluginDisabled', 'WeCom bot disabled'));
@@ -905,13 +905,7 @@ const ChannelPanel: React.FC = () => {
           <div className='text-13px text-foreground'>{t('settings.channels.addConnectionTitle', { defaultValue: 'Add another connection' })}</div>
           <div className='flex flex-wrap gap-2'>
             {ADDABLE_CHANNEL_TYPES.map((type) => (
-              <button
-                key={type}
-                type='button'
-                disabled={addingType === type}
-                onClick={() => void handleAddConnection(type)}
-                className='px-2.5 py-1.5 text-12px rd-md b-1 b-solid b-[var(--ui-border)] text-secondary hover:text-foreground disabled:opacity-50'
-              >
+              <button key={type} type='button' disabled={addingType === type} onClick={() => void handleAddConnection(type)} className='px-2.5 py-1.5 text-12px rd-md b-1 b-solid b-[var(--ui-border)] text-secondary hover:text-foreground disabled:opacity-50'>
                 {addingType === type ? t('settings.channels.adding', { defaultValue: 'Adding…' }) : `+ ${CHANNEL_TYPE_LABELS[type]}`}
               </button>
             ))}
