@@ -8,7 +8,75 @@ import helmet from 'helmet'
  * - 已认证响应 Cache-Control: no-store
  */
 
-export const securityHeaders = helmet()
+const CSP_IMAGE_ORIGINS_ENV = 'CSP_IMG_SRC_ORIGINS'
+const INVALID_CSP_HOST_CHARS = /[*;]/
+
+function containsInvalidCspSourceChar(value: string): boolean {
+  return [...value].some((char) => {
+    const codePoint = char.codePointAt(0) ?? 0
+    return /\s/u.test(char) || codePoint <= 0x1f || codePoint === 0x7f
+  })
+}
+
+export function parseCspImageOrigins(
+  raw: string | undefined,
+  warn: (message: string) => void = console.warn,
+): string[] {
+  if (!raw?.trim()) return []
+
+  const origins = new Set<string>()
+  raw.split(',').forEach((value, index) => {
+    const candidate = value.trim()
+    if (!candidate) return
+
+    let reason: string | undefined
+    let parsed: URL | undefined
+    if (containsInvalidCspSourceChar(candidate)) {
+      reason = 'contains whitespace or control characters'
+    } else {
+      try {
+        parsed = new URL(candidate)
+      } catch {
+        reason = 'is not a valid URL'
+      }
+    }
+
+    if (parsed) {
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        reason = 'must use http or https'
+      } else if (parsed.username || parsed.password) {
+        reason = 'must not include credentials'
+      } else if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
+        reason = 'must be an origin without path, query, or hash'
+      } else if (parsed.origin === 'null' || INVALID_CSP_HOST_CHARS.test(parsed.hostname)) {
+        reason = 'contains an invalid hostname'
+      }
+    }
+
+    if (reason || !parsed) {
+      warn(`${CSP_IMAGE_ORIGINS_ENV} entry ${index + 1} ignored: ${reason ?? 'invalid origin'}`)
+      return
+    }
+    origins.add(parsed.origin)
+  })
+  return [...origins]
+}
+
+export function createSecurityHeaders(
+  rawImageOrigins: string | undefined,
+  warn: (message: string) => void = console.warn,
+) {
+  const imageOrigins = parseCspImageOrigins(rawImageOrigins, warn)
+  return helmet({
+    contentSecurityPolicy: {
+      directives: {
+        imgSrc: ["'self'", 'data:', ...imageOrigins],
+      },
+    },
+  })
+}
+
+export const securityHeaders = createSecurityHeaders(process.env.CSP_IMG_SRC_ORIGINS)
 
 /** 状态变更请求的跨站防护：Origin 精确匹配，或 Fetch-Metadata 判定同源。 */
 export function createOriginGuard(publicOrigin: string) {

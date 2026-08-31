@@ -35,7 +35,9 @@ services:
 
   webui:
     build: .
-    environment: *webui-env
+    environment:
+      <<: *webui-env
+      CSP_IMG_SRC_ORIGINS: ${CSP_IMG_SRC_ORIGINS:-}
     ports:
       - '${WEBUI_PORT:-26808}:26808'
     depends_on:
