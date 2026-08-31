@@ -17,7 +17,7 @@ import { SkillSelectorMenu } from './SkillSelectorMenu'
 import { stripAtQuery, useSkillSelector } from './useSkillSelector'
 import { useTypewriterPlaceholder } from './useTypewriterPlaceholder'
 import type { PendingImage } from './SendBox'
-import sudoworkIcon from '@client/assets/sudowork-icon-dark.svg'
+import chinaTelecomLogo from '@client/assets/china-telecom-logo.svg'
 
 /** 后端错误码 → 用户可读文案（UNKNOWN 之类无信息量的兜底不再出现）。 */
 const SEND_ERROR_MESSAGES: Record<string, string> = {
@@ -226,10 +226,15 @@ export function NewConversationPage(): React.ReactElement {
               <div className='w-full flex justify-center mb-5'>
                 <div className='f-center p-1.5 rd-30px bg-guid-agent-bar w-fit max-w-full text-foreground'>
                   <div className='group relative flex items-center whitespace-nowrap px-3 py-2 rd-20px mx-0.5 bg-fill-0'>
-                    <span className='inline-flex h-5 w-5 shrink-0 items-center justify-center leading-none'>
-                      <img src={sudoworkIcon} alt='SudoCode' width={20} height={20} className='block object-contain' />
+                    <span className='inline-flex h-5 shrink-0 items-center justify-center leading-none'>
+                      <img
+                        src={chinaTelecomLogo}
+                        alt='CTCode'
+                        height={20}
+                        className='block h-5 w-auto max-w-none object-contain'
+                      />
                     </span>
-                    <span className='font-semibold text-14px ml-1 text-foreground'>SudoCode</span>
+                    <span className='font-semibold text-14px ml-1 text-foreground'>CTCode</span>
                   </div>
                 </div>
               </div>
@@ -320,7 +325,7 @@ export function NewConversationPage(): React.ReactElement {
               onKeyDown={(e) => {
                 if (skillSelector.onKeyDown(e)) return
               }}
-              placeholder={`${selectedAgent?.displayName ?? 'SudoCode'}, ${typewriter || '发消息、上传文件或打开文件夹...'}`}
+              placeholder={`${selectedAgent?.displayName ?? 'CTCode'}, ${typewriter || '发消息、上传文件或打开文件夹...'}`}
               className='text-16px rounded-xl !bg-transparent !b-none !resize-none !p-0'
               style={{ '--w-e-textarea-height': 'auto' } as React.CSSProperties}
             />

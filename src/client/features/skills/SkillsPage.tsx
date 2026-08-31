@@ -24,7 +24,7 @@ export function SkillsPage(): React.ReactElement {
 
   // 对齐 sudowork B 端：技能库 = moss installed 中 hub 类；专属技能 = tenant 类
   const storeList = useMemo(
-    () => installed.filter((s) => s.isHubInstalled === true),
+    () => installed.filter((s) => s.isHubInstalled === true && s.meta?.source_type !== 'tenant'),
     [installed],
   )
   const exclusiveList = useMemo(
@@ -174,7 +174,7 @@ export function SkillsPage(): React.ReactElement {
                 <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filteredHub.map((s) => (
                     <HubSkillCard
-                      key={String(s.id ?? s.name)}
+                      key={String(s.id || s.name)}
                       skill={s}
                       canManage={canManage}
                       onDetail={() => setDetail(s)}
@@ -198,7 +198,7 @@ export function SkillsPage(): React.ReactElement {
                 <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filteredTenant.map((s) => (
                     <SkillCardAligned
-                      key={String(s.id ?? s.name)}
+                      key={String(s.id || s.name)}
                       skill={s}
                       canManage={false}
                       onDetail={() => setDetail(s)}

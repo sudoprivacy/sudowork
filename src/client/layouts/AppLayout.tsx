@@ -5,7 +5,7 @@
 import { Layout as ArcoLayout } from '@arco-design/web-react'
 import React from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
-import sudoworkIcon from '@client/assets/sudowork-icon-dark.svg'
+import chinaTelecomLogo from '@client/assets/china-telecom-logo.svg'
 import { MainSider } from './MainSider'
 
 const DEFAULT_SIDER_WIDTH = 260
@@ -31,22 +31,21 @@ export function AppLayout(): React.ReactElement {
         >
           <ArcoLayout.Header className='flex items-center justify-start py-2 px-4 pl-4.5 gap-2.5 layout-sider-header'>
             <div
-              className='shrink-0 size-8.5 relative rd-0.5rem f-center cursor-pointer'
+              className='shrink-0 h-8.5 rd-0.5rem f-center cursor-pointer'
               onClick={goToNewConversation}
               aria-label='新会话'
             >
               <img
-                src={sudoworkIcon}
-                alt='SudoWork'
-                className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130'
-                style={{ objectFit: 'contain' }}
+                src={chinaTelecomLogo}
+                alt='CTWork'
+                className='block h-5 w-auto max-w-none object-contain'
               />
             </div>
             <div
               className='flex-1 text-20px text-1 font-800 cursor-pointer'
               onClick={goToNewConversation}
             >
-              SudoWork
+              CTWork
             </div>
           </ArcoLayout.Header>
           <ArcoLayout.Content className='p-2.5 layout-sider-content'>

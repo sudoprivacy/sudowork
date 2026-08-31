@@ -31,6 +31,8 @@ describe('LoginPage', () => {
 
   test('renders password fields by default; apiKey field after switching', () => {
     render(<LoginPage />)
+    expect(screen.getByRole('heading', { level: 1, name: 'CTWork' })).toBeTruthy()
+    expect(screen.queryByRole('img')).toBeNull()
     expect(screen.getByLabelText('用户名')).toBeTruthy()
     expect(screen.getByLabelText('密码')).toBeTruthy()
     expect(screen.queryByLabelText('API Key')).toBeNull()

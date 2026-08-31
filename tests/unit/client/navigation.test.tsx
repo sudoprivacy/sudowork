@@ -60,6 +60,8 @@ beforeEach(() => {
 describe('MainSider navigation (计划 Task 4)', () => {
   test('renders exactly Agent/Skill/Cron menu items plus new conversation', () => {
     renderShellAt('/guid')
+    expect(screen.getByText('CTWork')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'CTWork' })).toBeTruthy()
     expect(screen.getByTestId('new-conversation')).toBeTruthy()
     const ids = Array.from(document.querySelectorAll('[data-menu-id]')).map(
       (el) => el.getAttribute('data-menu-id') as string,
