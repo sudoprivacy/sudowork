@@ -532,6 +532,70 @@ describe('assistant Hub install metadata', () => {
     });
   });
 
+  it('filters tenant assistants after applying visible assistant category overlays', async () => {
+    h.fetch.mockImplementation(async (url: string) => {
+      if (url.startsWith('https://server.example/api/v1/agents/visible')) {
+        return {
+          ok: true,
+          json: vi.fn(async () => ({
+            success: true,
+            data: [
+              {
+                assistant_id: 'assistant-1',
+                display_name: 'R&D 协同 Agent',
+                categories: ['FDE'],
+              },
+            ],
+          })),
+        };
+      }
+
+      return {
+        json: vi.fn(async () => ({
+          data: {
+            assistants: [
+              {
+                id: 'assistant-1',
+                name: 'rnd-agent',
+                profession: 'R&D 协同 Agent',
+                description: 'desc',
+                avatar: null,
+                categories: ['工程技术'],
+                skills: [],
+                tag: 'hub',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        })),
+      };
+    });
+
+    const { initAssistantHubBridge } = await import('@/process/bridge/assistantHubBridge');
+    initAssistantHubBridge();
+
+    const result = await h.providers.get('assistantHub.fetchAssistants.provider')?.({
+      limit: 40,
+      category: 'FDE',
+      tenantId: 'tenant-a',
+      accessToken: 'user-token',
+    });
+
+    const hubRequestUrl = String(h.fetch.mock.calls.find(([url]) => String(url).startsWith('https://hub.example'))?.[0]);
+    expect(hubRequestUrl).toContain('/api/assistants/cursor?');
+    expect(hubRequestUrl).toContain('tenant_id=tenant-a');
+    expect(hubRequestUrl).not.toContain('category=FDE');
+    expect(result.success).toBe(true);
+    expect(result.data.assistants).toHaveLength(1);
+    expect(result.data.assistants[0]).toMatchObject({
+      id: 'assistant-1',
+      display_name: 'R&D 协同 Agent',
+      category: 'FDE',
+      categories: ['FDE'],
+    });
+  });
+
   it('uses package metadata over stale assistant list fields when installing a hub assistant update', async () => {
     const assistantName = '联想AI可信一体机销售专家';
     const description = '联想AI可信一体机的企业销售专家。';
