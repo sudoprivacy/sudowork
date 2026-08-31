@@ -543,6 +543,12 @@ function applyVisibleAssistantOverlay(raw: Record<string, unknown>, overlay?: Vi
   return merged;
 }
 
+function matchesAssistantCategory(assistant: IAssistantHubSkill, category: string): boolean {
+  const normalizedCategory = category.trim();
+  if (!normalizedCategory || normalizedCategory === 'all') return true;
+  return assistant.categories.some((assistantCategory) => assistantCategory.trim() === normalizedCategory);
+}
+
 // ==================== Helper Functions ====================
 
 /**
@@ -954,11 +960,14 @@ export function initAssistantHubBridge(): void {
 
       // 个人模式：从 SudoPrivacy Assistant Hub API 获取数据
       const params = new URLSearchParams();
+      const isTenantScopedAssistantList = typeof tenantId === 'string' && tenantId.trim().length > 0;
+      const visibleOverlayMap = isTenantScopedAssistantList ? await fetchVisibleAssistantOverlayMap(accessToken) : null;
+      const isOverlayCategoryFilter = Boolean(category && category !== 'all' && visibleOverlayMap);
       if (cursor) params.set('cursor', cursor);
       if (limit) params.set('limit', String(limit));
       if (query) params.set('query', query);
-      if (category) params.set('category', category);
-      if (typeof tenantId === 'string' && tenantId.trim()) params.set('tenant_id', tenantId.trim());
+      if (category && !isOverlayCategoryFilter) params.set('category', category);
+      if (isTenantScopedAssistantList) params.set('tenant_id', tenantId.trim());
 
       const token = getSkillhubToken();
       if (!token) {
@@ -973,54 +982,56 @@ export function initAssistantHubBridge(): void {
       // Map API response to our type structure
       // API returns: { data: { assistants: [{ id, name, profession, description, avatar, categories, sourceUrl, ... }] } }
       const rawAssistants = result.data?.assistants || [];
-      const visibleOverlayMap = typeof tenantId === 'string' && tenantId.trim() ? await fetchVisibleAssistantOverlayMap(accessToken) : null;
       const visibleAssistants = visibleOverlayMap ? rawAssistants.filter((a: Record<string, unknown>) => typeof a.id === 'string' && visibleOverlayMap.has(a.id)) : rawAssistants;
 
-      const mappedAssistants = visibleAssistants.map((raw: Record<string, unknown>): IAssistantHubSkill => {
-        const overlay = typeof raw.id === 'string' ? visibleOverlayMap?.get(raw.id) : undefined;
-        const a = applyVisibleAssistantOverlay(raw, overlay);
-        const versions = a.versions as IAssistantHubVersionLike[] | undefined;
-        const latestVersion = (a.latestVersion as IAssistantHubVersionLike | undefined) || versions?.[0] || null;
-        const version = [a.version, a.latest_version, latestVersion?.version, versions?.[0]?.version].find((value): value is string => typeof value === 'string' && value.length > 0);
-        const sourceUrl = [a.sourceUrl, a.source_url, latestVersion?.source_url, versions?.[0]?.source_url].find((value): value is string => typeof value === 'string' && value.length > 0);
-        const promptsI18n = firstPromptsI18n(a.promptsI18n, a.prompts_i18n);
-        const tenantIds = tenantIdsWithFallback(a.tenantIds, a.tenant_ids, a.tenantId, a.tenant_id);
-        const tenantId = firstNonEmptyString(a.tenantId, a.tenant_id) || tenantIds[0] || null;
+      const mappedAssistants: IAssistantHubSkill[] = visibleAssistants
+        .map((raw: Record<string, unknown>): IAssistantHubSkill => {
+          const overlay = typeof raw.id === 'string' ? visibleOverlayMap?.get(raw.id) : undefined;
+          const a = applyVisibleAssistantOverlay(raw, overlay);
+          const versions = a.versions as IAssistantHubVersionLike[] | undefined;
+          const latestVersion = (a.latestVersion as IAssistantHubVersionLike | undefined) || versions?.[0] || null;
+          const version = [a.version, a.latest_version, latestVersion?.version, versions?.[0]?.version].find((value): value is string => typeof value === 'string' && value.length > 0);
+          const sourceUrl = [a.sourceUrl, a.source_url, latestVersion?.source_url, versions?.[0]?.source_url].find((value): value is string => typeof value === 'string' && value.length > 0);
+          const promptsI18n = firstPromptsI18n(a.promptsI18n, a.prompts_i18n);
+          const tenantIds = tenantIdsWithFallback(a.tenantIds, a.tenant_ids, a.tenantId, a.tenant_id);
+          const tenantId = firstNonEmptyString(a.tenantId, a.tenant_id) || tenantIds[0] || null;
+          const categories = (a.categories as string[]) || [];
 
-        return {
-          id: a.id as string,
-          name: a.name as string,
-          display_name: firstNonEmptyString(a.display_name, a.profession, a.name) || (a.name as string),
-          description: a.description as string,
-          avatar: a.avatar as string | null,
-          emoji: null as string | null,
-          // Use categories array from API (may be null)
-          categories: (a.categories as string[]) || [],
-          category: ((a.categories as string[]) || [])[0] || '',
-          preset_agent_type: null as string | null,
-          skills: (a.skills as string[]) || ([] as string[]),
-          tag: 'hub' as const,
-          homepage: null as string | null,
-          author_id: '',
-          star_count: 0,
-          applicable_scenarios: null as string | null,
-          core_features: null as string | null,
-          created_at: a.createdAt as string,
-          updated_at: a.updatedAt as string,
-          // Default init prompt from API
-          defaultInitPrompt: (a.defaultInitPrompt as string) || null,
-          promptsI18n,
-          prompts_i18n: promptsI18n,
-          tenantId,
-          tenantIds,
-          tenant_id: tenantId,
-          tenant_ids: tenantIds,
-          version,
-          latestVersion,
-          // Store sourceUrl for download (not in original type but needed for install)
-          _sourceUrl: sourceUrl,
-        };
-      });
+          return {
+            id: a.id as string,
+            name: a.name as string,
+            display_name: firstNonEmptyString(a.display_name, a.profession, a.name) || (a.name as string),
+            description: a.description as string,
+            avatar: a.avatar as string | null,
+            emoji: null as string | null,
+            // Use categories array from API or visible assistant overlay.
+            categories,
+            category: categories[0] || '',
+            preset_agent_type: null as string | null,
+            skills: (a.skills as string[]) || ([] as string[]),
+            tag: 'hub' as const,
+            homepage: null as string | null,
+            author_id: '',
+            star_count: 0,
+            applicable_scenarios: null as string | null,
+            core_features: null as string | null,
+            created_at: a.createdAt as string,
+            updated_at: a.updatedAt as string,
+            // Default init prompt from API
+            defaultInitPrompt: (a.defaultInitPrompt as string) || null,
+            promptsI18n,
+            prompts_i18n: promptsI18n,
+            tenantId,
+            tenantIds,
+            tenant_id: tenantId,
+            tenant_ids: tenantIds,
+            version,
+            latestVersion,
+            // Store sourceUrl for download (not in original type but needed for install)
+            _sourceUrl: sourceUrl,
+          };
+        })
+        .filter((assistant: IAssistantHubSkill) => !isOverlayCategoryFilter || matchesAssistantCategory(assistant, category));
 
       const mappedData = {
         assistants: mappedAssistants,
