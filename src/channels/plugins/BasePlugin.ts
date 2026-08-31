@@ -9,7 +9,12 @@ import type { IChannelPluginConfig, IUnifiedIncomingMessage, IUnifiedOutgoingMes
 /**
  * Plugin event handler type
  */
-export type PluginMessageHandler = (message: IUnifiedIncomingMessage) => Promise<void>;
+/**
+ * `sourcePlugin` is the connection instance that received the message. With several
+ * connections of one type (e.g. two WeCom bots), the platform alone no longer identifies
+ * which bot to reply through or whose sessions to use.
+ */
+export type PluginMessageHandler = (message: IUnifiedIncomingMessage, sourcePlugin: BasePlugin) => Promise<void>;
 
 /**
  * Tool confirmation handler type
@@ -102,6 +107,15 @@ export abstract class BasePlugin {
   }
 
   /**
+   * Id of the connection this instance serves (e.g. "wecom_default", "wecom_a1b2c3d4").
+   * A type may have several connections; callers use this to keep their sessions,
+   * authorizations and agent bindings apart.
+   */
+  get pluginId(): string {
+    return this.config?.id ?? `${this.type}_default`;
+  }
+
+  /**
    * Initialize the plugin with configuration
    * @param config Plugin configuration from database
    */
@@ -179,7 +193,7 @@ export abstract class BasePlugin {
    */
   protected async emitMessage(message: IUnifiedIncomingMessage): Promise<void> {
     if (this.messageHandler) {
-      await this.messageHandler(message);
+      await this.messageHandler(message, this);
     } else {
       console.warn(`[${this.type}Plugin] No message handler registered, dropping message`);
     }

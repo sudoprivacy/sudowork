@@ -1562,9 +1562,16 @@ export class SudoworkDatabase {
   /**
    * Get assistant user by platform user ID
    */
-  getChannelUserByPlatform(platformUserId: string, platformType: PluginType): IQueryResult<IChannelUser | null> {
+  /**
+   * Look up an authorized user within ONE connection.
+   *
+   * `scope` is the connection scope (pluginScope): the bare platform for a type's first
+   * connection, the plugin id for any additional one. Matching on platform_type instead
+   * would let a user paired with one bot talk to every other bot of that type.
+   */
+  getChannelUserByPlatform(platformUserId: string, scope: PluginType): IQueryResult<IChannelUser | null> {
     try {
-      const row = this.db.prepare('SELECT * FROM assistant_users WHERE platform_user_id = ? AND platform_type = ?').get(platformUserId, platformType) as IChannelUserRow | undefined;
+      const row = this.db.prepare('SELECT * FROM assistant_users WHERE platform_user_id = ? AND plugin_scope = ?').get(platformUserId, scope) as IChannelUserRow | undefined;
 
       return { success: true, data: row ? rowToChannelUser(row) : null };
     } catch (error: any) {
@@ -1578,11 +1585,12 @@ export class SudoworkDatabase {
   createChannelUser(user: IChannelUser): IQueryResult<IChannelUser> {
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO assistant_users (id, platform_user_id, platform_type, display_name, authorized_at, last_active, session_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO assistant_users (id, platform_user_id, platform_type, plugin_scope, display_name, authorized_at, last_active, session_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      stmt.run(user.id, user.platformUserId, user.platformType, user.displayName ?? null, user.authorizedAt, user.lastActive ?? null, user.sessionId ?? null);
+      // Absent scope means the type's first connection, whose scope IS the platform.
+      stmt.run(user.id, user.platformUserId, user.platformType, user.pluginScope ?? user.platformType, user.displayName ?? null, user.authorizedAt, user.lastActive ?? null, user.sessionId ?? null);
 
       return { success: true, data: user };
     } catch (error: any) {
@@ -1619,12 +1627,14 @@ export class SudoworkDatabase {
    * Delete all channel users for a specific platform
    * Used when disabling a channel to clear all authorized users
    */
-  deleteChannelUsersByPlatform(platformType: string): IQueryResult<number> {
+  deleteChannelUsersByPlatform(scope: string): IQueryResult<number> {
     try {
-      // First delete sessions for users of this platform (foreign key constraint)
-      this.db.prepare('DELETE FROM assistant_sessions WHERE user_id IN (SELECT id FROM assistant_users WHERE platform_type = ?)').run(platformType);
+      // Scoped to ONE connection: disabling one bot must not deauthorize everyone paired
+      // with its siblings of the same type.
+      // First delete sessions for users of this connection (foreign key constraint)
+      this.db.prepare('DELETE FROM assistant_sessions WHERE user_id IN (SELECT id FROM assistant_users WHERE plugin_scope = ?)').run(scope);
       // Then delete the users
-      const result = this.db.prepare('DELETE FROM assistant_users WHERE platform_type = ?').run(platformType);
+      const result = this.db.prepare('DELETE FROM assistant_users WHERE plugin_scope = ?').run(scope);
       return { success: true, data: result.changes };
     } catch (error: any) {
       return { success: false, error: error.message, data: 0 };
@@ -1737,11 +1747,11 @@ export class SudoworkDatabase {
   createPairingRequest(request: IChannelPairingRequest): IQueryResult<IChannelPairingRequest> {
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO assistant_pairing_codes (code, platform_user_id, platform_type, display_name, requested_at, expires_at, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO assistant_pairing_codes (code, platform_user_id, platform_type, plugin_scope, display_name, requested_at, expires_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      stmt.run(request.code, request.platformUserId, request.platformType, request.displayName ?? null, request.requestedAt, request.expiresAt, request.status);
+      stmt.run(request.code, request.platformUserId, request.platformType, request.pluginScope ?? request.platformType, request.displayName ?? null, request.requestedAt, request.expiresAt, request.status);
 
       return { success: true, data: request };
     } catch (error: any) {

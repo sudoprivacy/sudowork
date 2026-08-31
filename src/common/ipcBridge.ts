@@ -2081,6 +2081,10 @@ export const channel = {
   getPluginCredentials: bridge.buildProvider<IBridgeResponse<IPluginCredentials | null>, { pluginId: string }>('channel.get-plugin-credentials'),
   enablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string; config: Record<string, unknown> }>('channel.enable-plugin'),
   disablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('channel.disable-plugin'),
+  /** Allocate an additional connection of a channel type; resolves with its plugin id. */
+  createPlugin: bridge.buildProvider<IBridgeResponse<{ pluginId: string } | null>, { type: string; name?: string }>('channel.create-plugin'),
+  /** Delete one connection, with the authorizations scoped to it. */
+  removePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('channel.remove-plugin'),
   testPlugin: bridge.buildProvider<IBridgeResponse<{ success: boolean; botUsername?: string; error?: string }>, { pluginId: string; token: string; extraConfig?: { appId?: string; appSecret?: string } }>('channel.test-plugin'),
 
   // Pairing Management

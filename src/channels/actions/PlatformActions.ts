@@ -5,6 +5,7 @@
  */
 
 import { getPairingService } from '../pairing/PairingService';
+import { pluginScope } from '../types';
 import { createPairingCodeKeyboard, createPairingStatusKeyboard, createMainMenuKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { createPairingCard, createPairingStatusCard, createMainMenuCard, createPairingHelpCard } from '../plugins/lark/LarkCards';
 import { createMainMenuCard as createDingTalkMainMenuCard, createPairingCard as createDingTalkPairingCard, createPairingStatusCard as createDingTalkPairingStatusCard, createPairingHelpCard as createDingTalkPairingHelpCard } from '../plugins/dingtalk/DingTalkCards';
@@ -79,9 +80,12 @@ function getPairingHelpMarkup(platform: string) {
 export const handlePairingShow: ActionHandler = async (context) => {
   const pairingService = getPairingService();
   const platform = context.platform;
+  // Pair against the CONNECTION that received the message: with several bots of one type,
+  // pairing with one must not authorize the others.
+  const scope = pluginScope(context.pluginId, platform);
 
   // Check if user is already authorized
-  if (pairingService.isUserAuthorized(context.userId, platform)) {
+  if (pairingService.isUserAuthorized(context.userId, scope)) {
     return createSuccessResponse({
       type: 'text',
       text: ['✅ <b>Authorized</b>', '', 'Your account is already paired and ready to use.', '', 'Send a message to start chatting, or use the buttons below.'].join('\n'),
@@ -92,7 +96,7 @@ export const handlePairingShow: ActionHandler = async (context) => {
 
   // Generate pairing code
   try {
-    const { code, expiresAt } = await pairingService.generatePairingCode(context.userId, platform, context.displayName);
+    const { code, expiresAt } = await pairingService.generatePairingCode(context.userId, platform, context.displayName, scope);
 
     const expiresInMinutes = Math.ceil((expiresAt - Date.now()) / 1000 / 60);
 
@@ -126,9 +130,10 @@ export const handlePairingShow: ActionHandler = async (context) => {
 export const handlePairingRefresh: ActionHandler = async (context) => {
   const pairingService = getPairingService();
   const platform = context.platform;
+  const scope = pluginScope(context.pluginId, platform);
 
   // Check if user is already authorized
-  if (pairingService.isUserAuthorized(context.userId, platform)) {
+  if (pairingService.isUserAuthorized(context.userId, scope)) {
     return createSuccessResponse({
       type: 'text',
       text: '✅ You are already paired. No need to refresh the pairing code.',
@@ -139,7 +144,7 @@ export const handlePairingRefresh: ActionHandler = async (context) => {
 
   // Generate new pairing code
   try {
-    const { code, expiresAt } = await pairingService.refreshPairingCode(context.userId, platform, context.displayName);
+    const { code, expiresAt } = await pairingService.refreshPairingCode(context.userId, platform, context.displayName, scope);
 
     const expiresInMinutes = Math.ceil((expiresAt - Date.now()) / 1000 / 60);
 
@@ -160,9 +165,10 @@ export const handlePairingRefresh: ActionHandler = async (context) => {
 export const handlePairingCheck: ActionHandler = async (context) => {
   const pairingService = getPairingService();
   const platform = context.platform;
+  const scope = pluginScope(context.pluginId, platform);
 
   // Check if user is already authorized
-  if (pairingService.isUserAuthorized(context.userId, platform)) {
+  if (pairingService.isUserAuthorized(context.userId, scope)) {
     return createSuccessResponse({
       type: 'text',
       text: ['✅ <b>Pairing Successful!</b>', '', 'Your account is now paired and ready to use.', '', 'Send a message to chat with the AI assistant.'].join('\n'),
@@ -172,7 +178,7 @@ export const handlePairingCheck: ActionHandler = async (context) => {
   }
 
   // Check for pending request
-  const pendingRequest = pairingService.getPendingRequestForUser(context.userId, platform);
+  const pendingRequest = pairingService.getPendingRequestForUser(context.userId, scope);
 
   if (pendingRequest) {
     const expiresInMinutes = Math.ceil((pendingRequest.expiresAt - Date.now()) / 1000 / 60);

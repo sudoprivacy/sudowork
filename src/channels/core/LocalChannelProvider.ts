@@ -11,6 +11,7 @@ import { LarkPlugin } from '../plugins/lark/LarkPlugin';
 import { DingTalkPlugin } from '../plugins/dingtalk/DingTalkPlugin';
 import { WeComPlugin } from '../plugins/wecom/WeComPlugin';
 import type { IChannelProvider } from './IChannelProvider';
+import { defaultPluginId, generatePluginId, pluginTypeFromId } from '../types';
 
 /**
  * LocalChannelProvider - Implementation of IChannelProvider using local SQLite database
@@ -39,6 +40,27 @@ export class LocalChannelProvider implements IChannelProvider {
   async updatePluginEnabled(pluginId: string, enabled: boolean, status: PluginStatus): Promise<boolean> {
     const result = getDatabase().updateChannelPluginEnabled(pluginId, enabled, status);
     return result.success;
+  }
+
+  /**
+   * Allocate an additional connection of a type. The first connection of a type keeps the
+   * legacy `<type>_default` id so existing sessions, authorizations and pairings keep
+   * resolving to it; later ones get a generated id.
+   */
+  async createPlugin(type: PluginType, name?: string): Promise<string | null> {
+    const existing = (await this.getPlugins()).filter((p) => pluginTypeFromId(p.id) === type);
+    const id = existing.some((p) => p.id === defaultPluginId(type)) ? generatePluginId(type) : defaultPluginId(type);
+    const now = Date.now();
+    const ok = await this.upsertPlugin({
+      id,
+      type,
+      name: name?.trim() || `${type} ${existing.length + 1}`,
+      enabled: false,
+      status: 'stopped',
+      createdAt: now,
+      updatedAt: now,
+    });
+    return ok ? id : null;
   }
 
   async deletePlugin(pluginId: string): Promise<boolean> {

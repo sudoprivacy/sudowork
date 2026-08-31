@@ -827,6 +827,76 @@ const migration_v14: IMigration = {
 };
 
 /**
+ * v32: scope channel authorizations and pairings to ONE connection.
+ *
+ * A channel type may now have several connections (e.g. two WeCom bots). Keyed on
+ * `platform_type` alone, a user paired with bot A was authorized on bot B as well, and the
+ * two bots shared one conversation. `plugin_scope` names the owning connection — the bare
+ * platform for a type's FIRST connection, so every existing row keeps resolving exactly as
+ * before, and the plugin id for any additional one.
+ */
+const migration_v32: IMigration = {
+  version: 32,
+  name: 'Scope assistant users and pairing codes to a single channel connection',
+  up: (db) => {
+    // assistant_users: UNIQUE(platform_user_id, platform_type) -> (platform_user_id, plugin_scope).
+    // SQLite cannot alter a constraint, so rebuild. Existing rows backfill plugin_scope
+    // from platform_type, which IS the scope of a type's first connection.
+    db.exec(`
+      CREATE TABLE assistant_users_v32 (
+        id TEXT PRIMARY KEY,
+        platform_user_id TEXT NOT NULL,
+        platform_type TEXT NOT NULL,
+        plugin_scope TEXT NOT NULL DEFAULT '',
+        display_name TEXT,
+        authorized_at INTEGER NOT NULL,
+        last_active INTEGER,
+        session_id TEXT,
+        UNIQUE(platform_user_id, plugin_scope)
+      );
+      INSERT OR IGNORE INTO assistant_users_v32 (id, platform_user_id, platform_type, plugin_scope, display_name, authorized_at, last_active, session_id)
+        SELECT id, platform_user_id, platform_type, platform_type, display_name, authorized_at, last_active, session_id FROM assistant_users;
+      DROP TABLE assistant_users;
+      ALTER TABLE assistant_users_v32 RENAME TO assistant_users;
+      CREATE INDEX IF NOT EXISTS idx_assistant_users_platform ON assistant_users(platform_type, platform_user_id);
+      CREATE INDEX IF NOT EXISTS idx_assistant_users_scope ON assistant_users(plugin_scope, platform_user_id);
+    `);
+
+    // assistant_pairing_codes: plain column add, no constraint change.
+    const pairingCols = db.prepare(`PRAGMA table_info(assistant_pairing_codes)`).all() as Array<{ name: string }>;
+    if (!pairingCols.some((c) => c.name === 'plugin_scope')) {
+      db.exec(`ALTER TABLE assistant_pairing_codes ADD COLUMN plugin_scope TEXT;`);
+      db.exec(`UPDATE assistant_pairing_codes SET plugin_scope = platform_type WHERE plugin_scope IS NULL;`);
+    }
+
+    mainLog('Migration v32', 'Scoped assistant users and pairing codes to a single connection');
+  },
+  down: (db) => {
+    // Collapse back to one connection per type: keep the earliest authorization per
+    // (platform_user_id, platform_type) since the old UNIQUE constraint allows only one.
+    db.exec(`
+      CREATE TABLE assistant_users_v32_down (
+        id TEXT PRIMARY KEY,
+        platform_user_id TEXT NOT NULL,
+        platform_type TEXT NOT NULL,
+        display_name TEXT,
+        authorized_at INTEGER NOT NULL,
+        last_active INTEGER,
+        session_id TEXT,
+        UNIQUE(platform_user_id, platform_type)
+      );
+      INSERT OR IGNORE INTO assistant_users_v32_down (id, platform_user_id, platform_type, display_name, authorized_at, last_active, session_id)
+        SELECT id, platform_user_id, platform_type, display_name, authorized_at, last_active, session_id
+          FROM assistant_users ORDER BY authorized_at ASC;
+      DROP TABLE assistant_users;
+      ALTER TABLE assistant_users_v32_down RENAME TO assistant_users;
+      CREATE INDEX IF NOT EXISTS idx_assistant_users_platform ON assistant_users(platform_type, platform_user_id);
+    `);
+    mainLog('Migration v32', 'Rolled back: assistant users scoped to platform only');
+  },
+};
+
+/**
  * All migrations in order
  */
 /**
@@ -1909,6 +1979,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
   migration_v19, migration_v20, migration_v21, migration_v22, migration_v23, migration_v24,
   migration_v25, migration_v26, migration_v27, migration_v28, migration_v29, migration_v30, migration_v31,
+  migration_v32,
 ];
 
 /**

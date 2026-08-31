@@ -128,6 +128,18 @@ export class RemoteChannelProvider implements IChannelProvider {
     return data.ok === true || data.success === true;
   }
 
+  /** Ask the server to allocate an additional connection; returns its plugin id. */
+  async createPlugin(type: PluginType, name?: string): Promise<string | null> {
+    const resp = await fetch(`${this.baseUrl}/plugins/create`, {
+      method: 'POST',
+      headers: { ...this.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, name }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data?.id ?? null;
+  }
+
   async deletePlugin(pluginId: string): Promise<boolean> {
     const resp = await fetch(`${this.baseUrl}/plugins/${pluginId}/disable`, {
       method: 'POST',

@@ -21,13 +21,21 @@ import PreferenceRow from './PreferenceRow';
 import EnterpriseAgentSelector from './EnterpriseAgentSelector';
 
 interface WeComConfigFormProps {
+  /**
+   * Connection this form configures. A type may have several connections; falls back
+   * to the status row's id, then the legacy id of a type's first connection.
+   */
+  pluginId?: string;
   pluginStatus: IChannelPluginStatus | null;
   modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onCredentialsChange?: (credentials: { botId: string; secret: string }) => void;
 }
 
-const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
+const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginId: pluginIdProp, pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
+  // Configure the connection actually being shown; fall back to the legacy id so a
+  // caller that has not been updated keeps its current behaviour.
+  const pluginId = pluginIdProp ?? pluginStatus?.id ?? 'wecom_default';
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -47,7 +55,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
   useEffect(() => {
     const loadCredentials = async () => {
       try {
-        const result = await channel.getPluginCredentials.invoke({ pluginId: 'wecom_default' });
+        const result = await channel.getPluginCredentials.invoke({ pluginId });
         if (result.success && result.data) {
           const loadedBotId = result.data.botId || '';
           const loadedSecret = result.data.secret || '';
@@ -131,7 +139,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
     setCredentialsTested(false);
     try {
       const result = await channel.testPlugin.invoke({
-        pluginId: 'wecom_default',
+        pluginId,
         token: '',
         extraConfig: {
           appId: botId.trim(),
@@ -159,7 +167,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
   const handleAutoEnable = async () => {
     try {
       const result = await channel.enablePlugin.invoke({
-        pluginId: 'wecom_default',
+        pluginId,
         config: {
           botId: botId.trim(),
           secret: secret.trim(),
@@ -337,7 +345,7 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginStatus, modelSe
 
       {/* Enterprise mode: default agent lives on the moss server, which spawns the
           sessions for this channel. Standalone mode uses the local picker below. */}
-      {isEnterprise && <EnterpriseAgentSelector pluginId='wecom_default' enabled={!!pluginStatus?.enabled} />}
+      {isEnterprise && <EnterpriseAgentSelector pluginId={pluginId} enabled={!!pluginStatus?.enabled} />}
 
       {!isEnterprise && (
         <div className='flex flex-col gap-2'>
