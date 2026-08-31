@@ -24,6 +24,17 @@ import ChannelItem from './ChannelItem';
 /**
  * Assistant Settings Content Component
  */
+/** Builtin types a user can add more connections of. */
+const ADDABLE_CHANNEL_TYPES = ['telegram', 'lark', 'dingtalk', 'wechat', 'wecom'] as const;
+
+const CHANNEL_TYPE_LABELS: Record<string, string> = {
+  telegram: 'Telegram',
+  lark: 'Lark / Feishu',
+  dingtalk: 'DingTalk',
+  wechat: 'WeChat',
+  wecom: 'WeCom',
+};
+
 const ChannelPanel: React.FC = () => {
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
@@ -76,6 +87,15 @@ const ChannelPanel: React.FC = () => {
   const wechatModelSelection = useChannelModelSelection('assistant.wechat.defaultModel');
   const wecomModelSelection = useChannelModelSelection('assistant.wecom.defaultModel');
 
+  /**
+   * Connections BEYOND the first of each builtin type. The five cards above each render a
+   * type's first connection (the one whose settings the legacy per-type config keys
+   * describe); these render every additional bot the user has added.
+   */
+  const [extraConnections, setExtraConnections] = useState<IChannelPluginStatus[]>([]);
+  const [extraLoadingMap, setExtraLoadingMap] = useState<Record<string, boolean>>({});
+  const [addingType, setAddingType] = useState<string | null>(null);
+
   // Load plugin status
   const loadPluginStatus = useCallback(async () => {
     try {
@@ -87,6 +107,9 @@ const ChannelPanel: React.FC = () => {
         const wechatPlugin = result.data.find((p) => p.type === 'wechat');
         const wecomPlugin = result.data.find((p) => p.type === 'wecom');
         const extensionPlugins = result.data.filter((p) => !BUILTIN_CHANNEL_TYPES.has(p.type) && p.type !== 'zentao');
+        // Everything after the first connection of each builtin type gets its own card.
+        const primaryIds = new Set([telegramPlugin?.id, larkPlugin?.id, dingtalkPlugin?.id, wechatPlugin?.id, wecomPlugin?.id].filter(Boolean) as string[]);
+        setExtraConnections(result.data.filter((p) => BUILTIN_CHANNEL_TYPES.has(p.type) && !primaryIds.has(p.id)));
 
         setPluginStatus(telegramPlugin || null);
         setLarkPluginStatus(larkPlugin || null);
@@ -190,7 +213,7 @@ const ChannelPanel: React.FC = () => {
         }
 
         const result = await channel.enablePlugin.invoke({
-          pluginId: 'telegram_default',
+          pluginId: pluginStatus?.id ?? 'telegram_default',
           config: pendingToken ? { token: pendingToken } : {},
         });
 
@@ -201,7 +224,7 @@ const ChannelPanel: React.FC = () => {
           Message.error(result.msg || t('settings.assistant.enableFailed', 'Failed to enable plugin'));
         }
       } else {
-        const result = await channel.disablePlugin.invoke({ pluginId: 'telegram_default' });
+        const result = await channel.disablePlugin.invoke({ pluginId: pluginStatus?.id ?? 'telegram_default' });
 
         if (result.success) {
           Message.success(t('settings.assistant.pluginDisabled', 'Telegram bot disabled'));
@@ -238,7 +261,7 @@ const ChannelPanel: React.FC = () => {
         const config = hasFormCreds ? { appId: pendingCreds.appId.trim(), appSecret: pendingCreds.appSecret.trim(), encryptKey: pendingCreds.encryptKey, verificationToken: pendingCreds.verificationToken } : {};
 
         const result = await channel.enablePlugin.invoke({
-          pluginId: 'lark_default',
+          pluginId: larkPluginStatus?.id ?? 'lark_default',
           config,
         });
 
@@ -256,7 +279,7 @@ const ChannelPanel: React.FC = () => {
     } else {
       setLarkEnableLoading(true);
       try {
-        const result = await channel.disablePlugin.invoke({ pluginId: 'lark_default' });
+        const result = await channel.disablePlugin.invoke({ pluginId: larkPluginStatus?.id ?? 'lark_default' });
 
         if (result.success) {
           Message.success(t('settings.lark.pluginDisabled', 'Lark bot disabled'));
@@ -292,7 +315,7 @@ const ChannelPanel: React.FC = () => {
         const config = hasFormCreds ? { clientId: pendingCreds.clientId.trim(), clientSecret: pendingCreds.clientSecret.trim() } : {};
 
         const result = await channel.enablePlugin.invoke({
-          pluginId: 'dingtalk_default',
+          pluginId: dingtalkPluginStatus?.id ?? 'dingtalk_default',
           config,
         });
 
@@ -310,7 +333,7 @@ const ChannelPanel: React.FC = () => {
     } else {
       setDingtalkEnableLoading(true);
       try {
-        const result = await channel.disablePlugin.invoke({ pluginId: 'dingtalk_default' });
+        const result = await channel.disablePlugin.invoke({ pluginId: dingtalkPluginStatus?.id ?? 'dingtalk_default' });
 
         if (result.success) {
           Message.success(t('settings.dingtalk.pluginDisabled', 'DingTalk bot disabled'));
@@ -340,7 +363,7 @@ const ChannelPanel: React.FC = () => {
       setWechatEnableLoading(true);
       try {
         const result = await channel.enablePlugin.invoke({
-          pluginId: 'wechat_default',
+          pluginId: wechatPluginStatus?.id ?? 'wechat_default',
           config: {},
         });
         if (result.success) {
@@ -363,7 +386,7 @@ const ChannelPanel: React.FC = () => {
       // Disable
       setWechatEnableLoading(true);
       try {
-        const result = await channel.disablePlugin.invoke({ pluginId: 'wechat_default' });
+        const result = await channel.disablePlugin.invoke({ pluginId: wechatPluginStatus?.id ?? 'wechat_default' });
         if (result.success) {
           Message.success(t('settings.channels.wechat.disabled', 'WeChat disabled'));
           // Force immediate status re-fetch to ensure UI sync
@@ -394,11 +417,11 @@ const ChannelPanel: React.FC = () => {
 
         // If no pending credentials, try to get saved credentials from database
         if (!pendingBotId || !pendingSecret) {
-          const credResult = await channel.getPluginCredentials.invoke({ pluginId: 'wecom_default' });
+          const credResult = await channel.getPluginCredentials.invoke({ pluginId: wecomPluginStatus?.id ?? 'wecom_default' });
           if (credResult.success && credResult.data?.botId && credResult.data?.secret) {
             // Found saved credentials, use them
             const result = await channel.enablePlugin.invoke({
-              pluginId: 'wecom_default',
+              pluginId: wecomPluginStatus?.id ?? 'wecom_default',
               config: {},
             });
 
@@ -419,7 +442,7 @@ const ChannelPanel: React.FC = () => {
 
         // Pass credentials from form input
         const result = await channel.enablePlugin.invoke({
-          pluginId: 'wecom_default',
+          pluginId: wecomPluginStatus?.id ?? 'wecom_default',
           config: { botId: pendingBotId, secret: pendingSecret },
         });
 
@@ -430,7 +453,7 @@ const ChannelPanel: React.FC = () => {
           Message.error(result.msg || t('settings.wecom.enableFailed', 'Failed to enable WeCom plugin'));
         }
       } else {
-        const result = await channel.disablePlugin.invoke({ pluginId: 'wecom_default' });
+        const result = await channel.disablePlugin.invoke({ pluginId: wecomPluginStatus?.id ?? 'wecom_default' });
 
         if (result.success) {
           Message.success(t('settings.wecom.pluginDisabled', 'WeCom bot disabled'));
@@ -590,6 +613,93 @@ const ChannelPanel: React.FC = () => {
     [extensionFieldValues, t, updateExtensionFieldValue, webuiStatus]
   );
 
+  /** Add another connection of a builtin type, then refresh so its card appears. */
+  const handleAddConnection = useCallback(
+    async (type: string) => {
+      setAddingType(type);
+      try {
+        const result = await channel.createPlugin.invoke({ type });
+        if (result.success) {
+          await loadPluginStatus();
+          Message.success(t('settings.channels.connectionAdded', { defaultValue: 'Connection added. Configure its credentials to enable it.' }));
+        } else {
+          Message.error(result.msg || t('settings.channels.connectionAddFailed', { defaultValue: 'Failed to add connection' }));
+        }
+      } catch (error: any) {
+        Message.error(error.message);
+      } finally {
+        setAddingType(null);
+      }
+    },
+    [loadPluginStatus, t]
+  );
+
+  /** Delete one connection along with the authorizations scoped to it. */
+  const handleRemoveConnection = useCallback(
+    async (pluginId: string) => {
+      setExtraLoadingMap((prev) => ({ ...prev, [pluginId]: true }));
+      try {
+        const result = await channel.removePlugin.invoke({ pluginId });
+        if (result.success) {
+          await loadPluginStatus();
+          Message.success(t('settings.channels.connectionRemoved', { defaultValue: 'Connection removed' }));
+        } else {
+          Message.error(result.msg || t('settings.channels.connectionRemoveFailed', { defaultValue: 'Failed to remove connection' }));
+        }
+      } catch (error: any) {
+        Message.error(error.message);
+      } finally {
+        setExtraLoadingMap((prev) => ({ ...prev, [pluginId]: false }));
+      }
+    },
+    [loadPluginStatus, t]
+  );
+
+  /** Enable/disable one of the additional connections. */
+  const handleToggleExtraConnection = useCallback(
+    async (status: IChannelPluginStatus, enabled: boolean) => {
+      setExtraLoadingMap((prev) => ({ ...prev, [status.id]: true }));
+      try {
+        const result = enabled ? await channel.enablePlugin.invoke({ pluginId: status.id, config: {} }) : await channel.disablePlugin.invoke({ pluginId: status.id });
+        if (result.success) {
+          await loadPluginStatus();
+        } else {
+          Message.error(result.msg || t('settings.assistant.enableFailed', 'Failed to enable plugin'));
+        }
+      } catch (error: any) {
+        Message.error(error.message);
+      } finally {
+        setExtraLoadingMap((prev) => ({ ...prev, [status.id]: false }));
+      }
+    },
+    [loadPluginStatus, t]
+  );
+
+  /** Config form for an additional connection, matching the type's dedicated form. */
+  const renderExtraConnectionForm = useCallback(
+    (status: IChannelPluginStatus) => {
+      const onStatusChange = (): void => {
+        void loadPluginStatus();
+      };
+      const common = { pluginId: status.id, pluginStatus: status, onStatusChange };
+      switch (status.type) {
+        case 'telegram':
+          return <TelegramConfigForm {...common} modelSelection={telegramModelSelection} />;
+        case 'lark':
+          return <LarkConfigForm {...common} modelSelection={larkModelSelection} />;
+        case 'dingtalk':
+          return <DingTalkConfigForm {...common} modelSelection={dingtalkModelSelection} />;
+        case 'wechat':
+          return <WeChatConfigForm {...common} modelSelection={wechatModelSelection} />;
+        case 'wecom':
+          return <WeComConfigForm {...common} modelSelection={wecomModelSelection} />;
+        default:
+          return null;
+      }
+    },
+    [loadPluginStatus, telegramModelSelection, larkModelSelection, dingtalkModelSelection, wechatModelSelection, wecomModelSelection]
+  );
+
   // Build channel configurations
   const channels: ChannelConfig[] = useMemo(() => {
     const telegramChannel: ChannelConfig = {
@@ -703,8 +813,24 @@ const ChannelPanel: React.FC = () => {
         content: renderExtensionConfigForm(status),
       }));
 
-    return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, wecomChannel, ...extensionChannels];
+    // Cards for every additional connection the user has added, beyond each type's first.
+    const extraChannels: ChannelConfig[] = extraConnections.map((status) => ({
+      id: status.id,
+      title: status.name || status.type,
+      description: t('settings.channels.additionalConnection', { defaultValue: 'Additional connection' }),
+      status: 'active',
+      enabled: status.enabled || false,
+      disabled: extraLoadingMap[status.id] || false,
+      isConnected: status.connected || false,
+      botUsername: status.botUsername,
+      content: renderExtraConnectionForm(status),
+    }));
+
+    return [telegramChannel, larkChannel, dingtalkChannel, wechatChannel, wecomChannel, ...extraChannels, ...extensionChannels];
   }, [
+    extraConnections,
+    extraLoadingMap,
+    renderExtraConnectionForm,
     pluginStatus,
     larkPluginStatus,
     dingtalkPluginStatus,
@@ -738,6 +864,12 @@ const ChannelPanel: React.FC = () => {
         void handleToggleExtensionPlugin(channelId, enabled);
       };
     }
+    const extra = extraConnections.find((c) => c.id === channelId);
+    if (extra) {
+      return (enabled: boolean) => {
+        void handleToggleExtraConnection(extra, enabled);
+      };
+    }
     return undefined;
   };
   const channelGuideText = t('settings.webui.featureChannelsDesc', {
@@ -765,6 +897,19 @@ const ChannelPanel: React.FC = () => {
           {channels.map((channelConfig) => (
             <ChannelItem key={channelConfig.id} channel={channelConfig} isCollapsed={collapseKeys[channelConfig.id] || false} onToggleCollapse={() => handleToggleCollapse(channelConfig.id)} onToggleEnabled={getToggleHandler(channelConfig.id)} />
           ))}
+        </div>
+
+        {/* Add another bot of a type. Each connection keeps its own credentials, authorized
+            users, sessions and agent, so two bots never share a conversation. */}
+        <div className='mt-4 space-y-2'>
+          <div className='text-13px text-foreground'>{t('settings.channels.addConnectionTitle', { defaultValue: 'Add another connection' })}</div>
+          <div className='flex flex-wrap gap-2'>
+            {ADDABLE_CHANNEL_TYPES.map((type) => (
+              <button key={type} type='button' disabled={addingType === type} onClick={() => void handleAddConnection(type)} className='px-2.5 py-1.5 text-12px rd-md b-1 b-solid b-[var(--ui-border)] text-secondary hover:text-foreground disabled:opacity-50'>
+                {addingType === type ? t('settings.channels.adding', { defaultValue: 'Adding…' }) : `+ ${CHANNEL_TYPE_LABELS[type]}`}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </AionScrollArea>

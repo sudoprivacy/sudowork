@@ -14,6 +14,7 @@ import { GOOGLE_AUTH_PROVIDER_ID } from '@/common/constants';
 import type { AcpBackend } from '@/types/acpTypes';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
 import { getChannelManager } from '../core/ChannelManager';
+import { getConnectionAgent, getConnectionModel } from '../channelConnectionConfig';
 import type { AgentDisplayInfo } from '../plugins/telegram/TelegramKeyboards';
 import { createAgentSelectionKeyboard, createHelpKeyboard, createMainMenuKeyboard, createSessionControlKeyboard } from '../plugins/telegram/TelegramKeyboards';
 import { getChannelConversationName, resolveChannelConvType } from '../types';
@@ -37,7 +38,7 @@ import { SystemActionNames, createErrorResponse, createSuccessResponse } from '.
  * Reads from saved config or falls back to default Gemini model
  */
 
-export async function getChannelDefaultModel(platform: PluginType): Promise<TProviderWithModel> {
+export async function getChannelDefaultModel(platform: PluginType, pluginId?: string): Promise<TProviderWithModel> {
   try {
     const providers = await ProcessConfig.get('model.config');
     const providerList = providers && Array.isArray(providers) ? providers : [];
@@ -51,15 +52,8 @@ export async function getChannelDefaultModel(platform: PluginType): Promise<TPro
       return null;
     };
 
-    // Try to get saved model selection
-    const savedModel =
-      platform === 'lark'
-        ? await ProcessConfig.get('assistant.lark.defaultModel')
-        : platform === 'dingtalk'
-          ? await ProcessConfig.get('assistant.dingtalk.defaultModel')
-          : platform === 'wecom'
-            ? await ProcessConfig.get('assistant.wecom.defaultModel')
-            : await ProcessConfig.get('assistant.telegram.defaultModel');
+    // Model for THIS connection, falling back to the type-wide setting.
+    const savedModel = await getConnectionModel(pluginId, platform);
     if (savedModel?.id && savedModel?.useModel) {
       // Google Auth is frontend-only (OAuth browser flow), not usable in channels.
       // Fall through to find a provider with a valid API key instead.
@@ -155,10 +149,10 @@ export const handleSessionNew: ActionHandler = async (context) => {
   const platform = context.platform;
   const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : 'telegram';
 
-  // Selected agent (defaults to claude)
+  // Agent for THIS connection, falling back to the type-wide setting.
   let savedAgent: unknown = undefined;
   try {
-    savedAgent = await (platform === 'lark' ? ProcessConfig.get('assistant.lark.agent') : platform === 'dingtalk' ? ProcessConfig.get('assistant.dingtalk.agent') : platform === 'wecom' ? ProcessConfig.get('assistant.wecom.agent') : ProcessConfig.get('assistant.telegram.agent'));
+    savedAgent = await getConnectionAgent(context.pluginId, platform);
   } catch {
     // ignore
   }
@@ -167,7 +161,7 @@ export const handleSessionNew: ActionHandler = async (context) => {
   const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 
   // Provider model is required by typing; ACP will ignore it.
-  const model = await getChannelDefaultModel(platform);
+  const model = await getChannelDefaultModel(platform, context.pluginId);
 
   // Always create a NEW conversation for "session.new" (scoped by chatId)
   const channelChatId = context.chatId;

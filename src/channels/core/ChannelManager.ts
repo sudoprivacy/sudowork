@@ -17,7 +17,7 @@ import { TelegramPlugin } from '../plugins/telegram/TelegramPlugin';
 import { WeChatPlugin } from '../plugins/wechat/WeChatPlugin';
 import { WeComPlugin } from '../plugins/wecom/WeComPlugin';
 import { ZentaoPlugin } from '../plugins/zentao/ZentaoPlugin';
-import { resolveChannelConvType } from '../types';
+import { resolveChannelConvType, pluginScope } from '../types';
 import type { ChannelPlatform, IChannelPluginConfig, IPluginCredentials, PluginType } from '../types';
 import { SessionManager } from './SessionManager';
 import { LocalChannelProvider } from './LocalChannelProvider';
@@ -453,6 +453,43 @@ export class ChannelManager {
   }
 
   /**
+   * Allocate an additional connection of a channel type. Works in both modes: locally it
+   * writes a new row, in enterprise mode the server allocates the id.
+   */
+  async createPlugin(type: PluginType, name?: string): Promise<{ success: boolean; pluginId?: string; error?: string }> {
+    const provider = this.getProvider();
+    if (!provider.createPlugin) {
+      return { success: false, error: 'Provider does not support additional connections' };
+    }
+    try {
+      const pluginId = await provider.createPlugin(type, name);
+      if (!pluginId) return { success: false, error: 'Failed to create connection' };
+      return { success: true, pluginId };
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  /**
+   * Delete a connection outright: stop it, drop the authorizations scoped to it, then
+   * remove the row. Sibling connections of the same type are untouched.
+   */
+  async removePlugin(pluginId: string): Promise<{ success: boolean; error?: string }> {
+    const provider = this.getProvider();
+    try {
+      const existing = await provider.getPlugin(pluginId);
+      await this.disablePlugin(pluginId);
+      if (existing) {
+        await provider.deleteUsersByPlatform(pluginScope(pluginId, existing.type));
+      }
+      const ok = await provider.deletePlugin(pluginId);
+      return ok ? { success: true } : { success: false, error: 'Failed to delete connection' };
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  /**
    * Disable and stop a plugin
    */
   async disablePlugin(pluginId: string): Promise<{ success: boolean; error?: string }> {
@@ -493,9 +530,11 @@ export class ChannelManager {
         // Note: We keep credentials so user can re-enable without re-entering
         const pluginType = existing.type;
         if (pluginType === 'wecom' || pluginType === 'wechat') {
-          console.log(`[ChannelManager] Clearing all users and sessions for ${pluginType} on disable`);
-          // Delete all channel users for this platform
-          await provider.deleteUsersByPlatform(pluginType);
+          // Scoped to THIS connection: a type may have several, and clearing by platform
+          // would deauthorize everyone paired with the sibling bots too.
+          const scope = pluginScope(pluginId, pluginType);
+          console.log(`[ChannelManager] Clearing users and sessions for connection ${scope} on disable`);
+          await provider.deleteUsersByPlatform(scope);
           // Note: We keep credentials so user can re-enable without re-entering
         }
       }

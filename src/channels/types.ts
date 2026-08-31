@@ -162,6 +162,11 @@ export interface IChannelUser {
   id: string;
   platformUserId: string;
   platformType: PluginType;
+  /**
+   * Connection this authorization belongs to (see pluginScope): the bare platform for a
+   * type's first connection, the plugin id for any additional one. Absent means the first.
+   */
+  pluginScope?: string;
   displayName?: string;
   authorizedAt: number;
   lastActive?: number;
@@ -175,6 +180,7 @@ export interface IChannelUserRow {
   id: string;
   platform_user_id: string;
   platform_type: string;
+  plugin_scope?: string | null;
   display_name: string | null;
   authorized_at: number;
   last_active: number | null;
@@ -233,6 +239,8 @@ export interface IChannelPairingRequest {
   code: string;
   platformUserId: string;
   platformType: PluginType;
+  /** Connection the code was issued for; see IChannelUser.pluginScope. */
+  pluginScope?: string;
   displayName?: string;
   requestedAt: number;
   expiresAt: number;
@@ -246,6 +254,7 @@ export interface IChannelPairingCodeRow {
   code: string;
   platform_user_id: string;
   platform_type: string;
+  plugin_scope?: string | null;
   display_name: string | null;
   requested_at: number;
   expires_at: number;
@@ -450,6 +459,7 @@ export function rowToChannelUser(row: IChannelUserRow): IChannelUser {
     id: row.id,
     platformUserId: row.platform_user_id,
     platformType: row.platform_type as PluginType,
+    pluginScope: row.plugin_scope ?? row.platform_type,
     displayName: row.display_name ?? undefined,
     authorizedAt: row.authorized_at,
     lastActive: row.last_active ?? undefined,
@@ -465,6 +475,7 @@ export function channelUserToRow(user: IChannelUser): IChannelUserRow {
     id: user.id,
     platform_user_id: user.platformUserId,
     platform_type: user.platformType,
+    plugin_scope: user.pluginScope ?? user.platformType,
     display_name: user.displayName ?? null,
     authorized_at: user.authorizedAt,
     last_active: user.lastActive ?? null,
@@ -512,6 +523,7 @@ export function rowToPairingRequest(row: IChannelPairingCodeRow): IChannelPairin
     code: row.code,
     platformUserId: row.platform_user_id,
     platformType: row.platform_type as PluginType,
+    pluginScope: row.plugin_scope ?? row.platform_type,
     displayName: row.display_name ?? undefined,
     requestedAt: row.requested_at,
     expiresAt: row.expires_at,
@@ -527,6 +539,7 @@ export function pairingRequestToRow(request: IChannelPairingRequest): IChannelPa
     code: request.code,
     platform_user_id: request.platformUserId,
     platform_type: request.platformType,
+    plugin_scope: request.pluginScope ?? request.platformType,
     display_name: request.displayName ?? null,
     requested_at: request.requestedAt,
     expires_at: request.expiresAt,
@@ -582,4 +595,77 @@ export function getChannelConversationName(platform: ChannelPlatform | PluginTyp
   if (type === 'acp' && backend) parts.push(backend);
   if (chatId) parts.push(chatId.slice(0, 8));
   return parts.join('-');
+}
+
+// ==================== Plugin Instance Identity ====================
+
+/**
+ * Known built-in channel types, in one place so ID parsing and UI listing stay in sync.
+ */
+export const KNOWN_CHANNEL_TYPES: readonly string[] = ['telegram', 'lark', 'dingtalk', 'wechat', 'wecom', 'zentao'];
+
+/**
+ * The plugin id every channel type used before multiple connections were supported.
+ *
+ * Still the id of the first connection of each type, so existing rows — and the sessions,
+ * authorizations and pairings that reference them — keep working untouched after upgrade.
+ */
+export function defaultPluginId(type: PluginType): string {
+  return `${type}_default`;
+}
+
+/** Build the id for an additional connection of a type: `<type>_<suffix>`. */
+export function buildPluginId(type: PluginType, suffix: string): string {
+  return `${type}_${suffix}`;
+}
+
+/**
+ * Generate a fresh plugin id for a new connection of this type.
+ * Random rather than sequential: connections can be deleted, and reusing an index would
+ * hand a new bot the sessions and authorizations of the deleted one.
+ */
+export function generatePluginId(type: PluginType): string {
+  const suffix = Math.random().toString(36).slice(2, 10);
+  return buildPluginId(type, suffix);
+}
+
+/**
+ * Extract the channel type from a plugin id (e.g. "wecom_a1b2c3d4" -> "wecom").
+ * Falls back to the whole id, which is how extension plugins name themselves.
+ */
+export function pluginTypeFromId(pluginId: string): PluginType {
+  for (const type of KNOWN_CHANNEL_TYPES) {
+    if (pluginId === type || pluginId.startsWith(`${type}_`)) return type;
+  }
+  return pluginId;
+}
+
+/**
+ * Scope key identifying ONE connection for session, authorization and agent-binding
+ * lookups. Two bots of the same type must never share a conversation, an authorization
+ * or an agent binding, so everything that used to key on the bare platform keys on this.
+ *
+ * The first connection of a type keeps the bare platform as its scope, so rows written
+ * before multiple connections existed still resolve to it.
+ */
+export function pluginScope(pluginId: string | undefined, platform: PluginType): string {
+  if (!pluginId) return platform;
+  const type = pluginTypeFromId(pluginId);
+  return pluginId === defaultPluginId(type) || pluginId === type ? type : pluginId;
+}
+
+/**
+ * Chat key that is unique across connections of the same type.
+ *
+ * Platform chat ids only identify a chat WITHIN one bot — a DM is keyed by the platform
+ * user — so the same person messaging two of your bots yields the same raw chatId. Session
+ * lookup and the per-chat agent binding key on this instead, so two bots never share one
+ * conversation.
+ *
+ * A type's first connection keeps the raw chatId, so chats that predate multiple
+ * connections keep resolving to their existing session.
+ */
+export function scopedChatId(pluginId: string | undefined, platform: PluginType, chatId: string): string {
+  const scope = pluginScope(pluginId, platform);
+  return scope === platform ? chatId : `${scope}#${chatId}`;
 }

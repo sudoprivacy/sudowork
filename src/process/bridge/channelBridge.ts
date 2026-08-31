@@ -10,7 +10,7 @@ import { getChannelManager } from '@/channels/core/ChannelManager';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ExtensionRegistry } from '@/extensions';
 import { toAssetUrl } from '@/extensions/assetProtocol';
-import type { IChannelPluginStatus } from '@/channels/types';
+import type { IChannelPluginStatus, PluginType } from '@/channels/types';
 import { hasPluginCredentials } from '@/channels/types';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 
@@ -213,6 +213,40 @@ export function initChannelBridge(): void {
       return { success: true };
     } catch (error: any) {
       mainError('ChannelBridge', 'disablePlugin error:', error);
+      return { success: false, msg: error.message };
+    }
+  });
+
+  /**
+   * Allocate an additional connection of a channel type
+   */
+  channel.createPlugin.provider(async ({ type, name }) => {
+    try {
+      const manager = getChannelManager();
+      const result = await manager.createPlugin(type as PluginType, name);
+      if (!result.success || !result.pluginId) {
+        return { success: false, msg: result.error };
+      }
+      return { success: true, data: { pluginId: result.pluginId } };
+    } catch (error: any) {
+      mainError('ChannelBridge', 'createPlugin error:', error);
+      return { success: false, msg: error.message };
+    }
+  });
+
+  /**
+   * Delete one connection entirely
+   */
+  channel.removePlugin.provider(async ({ pluginId }) => {
+    try {
+      const manager = getChannelManager();
+      const result = await manager.removePlugin(pluginId);
+      if (!result.success) {
+        return { success: false, msg: result.error };
+      }
+      return { success: true };
+    } catch (error: any) {
+      mainError('ChannelBridge', 'removePlugin error:', error);
       return { success: false, msg: error.message };
     }
   });

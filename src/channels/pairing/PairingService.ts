@@ -39,13 +39,15 @@ export class PairingService {
   /**
    * Generate a new pairing code for a user
    */
-  async generatePairingCode(platformUserId: string, platformType: PluginType, displayName?: string): Promise<{ code: string; expiresAt: number }> {
+  async generatePairingCode(platformUserId: string, platformType: PluginType, displayName?: string, scope?: string): Promise<{ code: string; expiresAt: number }> {
     const db = getDatabase();
+    // Codes belong to ONE connection; a type's first connection uses the bare platform.
+    const effectiveScope = scope || platformType;
 
     // Check for existing pending request
     const existingResult = db.getPendingPairingRequests();
     if (existingResult.success && existingResult.data) {
-      const existing = existingResult.data.find((r) => r.platformUserId === platformUserId && r.platformType === platformType && r.status === 'pending');
+      const existing = existingResult.data.find((r) => r.platformUserId === platformUserId && (r.pluginScope ?? r.platformType) === effectiveScope && r.status === 'pending');
 
       // Return existing code if not expired
       if (existing && existing.expiresAt > Date.now()) {
@@ -66,6 +68,7 @@ export class PairingService {
       code,
       platformUserId,
       platformType,
+      pluginScope: effectiveScope,
       displayName,
       requestedAt: now,
       expiresAt,
@@ -86,29 +89,36 @@ export class PairingService {
   /**
    * Refresh pairing code for a user (generate new one)
    */
-  async refreshPairingCode(platformUserId: string, platformType: PluginType, displayName?: string): Promise<{ code: string; expiresAt: number }> {
+  async refreshPairingCode(platformUserId: string, platformType: PluginType, displayName?: string, scope?: string): Promise<{ code: string; expiresAt: number }> {
     const db = getDatabase();
+    const effectiveScope = scope || platformType;
 
-    // Expire any existing pending codes
+    // Expire any existing pending codes for THIS connection
     const existingResult = db.getPendingPairingRequests();
     if (existingResult.success && existingResult.data) {
       for (const request of existingResult.data) {
-        if (request.platformUserId === platformUserId && request.platformType === platformType && request.status === 'pending') {
+        if (request.platformUserId === platformUserId && (request.pluginScope ?? request.platformType) === effectiveScope && request.status === 'pending') {
           db.updatePairingRequestStatus(request.code, 'expired');
         }
       }
     }
 
     // Generate new code
-    return this.generatePairingCode(platformUserId, platformType, displayName);
+    return this.generatePairingCode(platformUserId, platformType, displayName, effectiveScope);
   }
 
   /**
    * Check if a user is already authorized
    */
-  isUserAuthorized(platformUserId: string, platformType: PluginType): boolean {
+  /**
+   * Whether this IM user is authorized on ONE connection.
+   *
+   * `scope` is the connection scope, not the platform: with several bots of a type
+   * connected, checking the platform would let anyone paired with one bot use them all.
+   */
+  isUserAuthorized(platformUserId: string, scope: PluginType): boolean {
     const db = getDatabase();
-    const result = db.getChannelUserByPlatform(platformUserId, platformType);
+    const result = db.getChannelUserByPlatform(platformUserId, scope);
     return result.success && result.data !== null;
   }
 
@@ -124,7 +134,7 @@ export class PairingService {
   /**
    * Get pending pairing request for a user
    */
-  getPendingRequestForUser(platformUserId: string, platformType: PluginType): IChannelPairingRequest | null {
+  getPendingRequestForUser(platformUserId: string, scope: PluginType): IChannelPairingRequest | null {
     const db = getDatabase();
     const result = db.getPendingPairingRequests();
 
@@ -132,7 +142,7 @@ export class PairingService {
       return null;
     }
 
-    return result.data.find((r) => r.platformUserId === platformUserId && r.platformType === platformType && r.status === 'pending' && r.expiresAt > Date.now()) ?? null;
+    return result.data.find((r) => r.platformUserId === platformUserId && (r.pluginScope ?? r.platformType) === scope && r.status === 'pending' && r.expiresAt > Date.now()) ?? null;
   }
 
   /**
@@ -156,7 +166,7 @@ export class PairingService {
     // Check if already processed
     if (request.status === 'approved') {
       // Already approved - get the user and return success
-      const existingUser = db.getChannelUserByPlatform(request.platformUserId, request.platformType);
+      const existingUser = db.getChannelUserByPlatform(request.platformUserId, (request.pluginScope ?? request.platformType) as PluginType);
       if (existingUser.success && existingUser.data) {
         return { success: true, user: existingUser.data };
       }
@@ -173,7 +183,7 @@ export class PairingService {
     }
 
     // Check if user already exists
-    const existingUser = db.getChannelUserByPlatform(request.platformUserId, request.platformType);
+    const existingUser = db.getChannelUserByPlatform(request.platformUserId, (request.pluginScope ?? request.platformType) as PluginType);
     if (existingUser.success && existingUser.data) {
       db.updatePairingRequestStatus(code, 'approved');
       return { success: true, user: existingUser.data };
@@ -185,6 +195,8 @@ export class PairingService {
       id: userId,
       platformUserId: request.platformUserId,
       platformType: request.platformType,
+      // Authorize on the connection the code was issued for, not the whole platform.
+      pluginScope: request.pluginScope ?? request.platformType,
       displayName: request.displayName,
       authorizedAt: Date.now(),
     };

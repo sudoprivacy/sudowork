@@ -239,7 +239,7 @@ export class TelegramPlugin extends BasePlugin {
       unifiedMessage.content.type = 'command';
       unifiedMessage.content.text = '/start';
       // Don't await - process in background
-      void this.messageHandler(unifiedMessage).catch((error) => console.error(`[TelegramPlugin] Error handling start command:`, error));
+      void this.messageHandler(unifiedMessage, this).catch((error) => console.error(`[TelegramPlugin] Error handling start command:`, error));
     }
   }
 
@@ -269,7 +269,7 @@ export class TelegramPlugin extends BasePlugin {
         // would prevent subsequent messages from being received
         // 重要：不要 await - 在后台处理以避免阻塞轮询循环
         // grammY 的简单轮询是顺序处理的，阻塞这里会导致后续消息无法接收
-        void this.messageHandler(unifiedMessage).catch((error) => {
+        void this.messageHandler(unifiedMessage, this).catch((error) => {
           console.error(`[TelegramPlugin] Message handler failed for: ${text?.slice(0, 20)}...`, error);
         });
       } else {
@@ -309,7 +309,7 @@ export class TelegramPlugin extends BasePlugin {
         name: buttonAction.action,
       };
       // Don't await - process in background
-      void this.messageHandler(unifiedMessage).catch((error) => console.error(`[TelegramPlugin] Error handling button command:`, error));
+      void this.messageHandler(unifiedMessage, this).catch((error) => console.error(`[TelegramPlugin] Error handling button command:`, error));
       return true;
     }
 
@@ -330,7 +330,7 @@ export class TelegramPlugin extends BasePlugin {
     const unifiedMessage = toUnifiedIncomingMessage(ctx);
     if (unifiedMessage && this.messageHandler) {
       // Don't await - process in background
-      void this.messageHandler(unifiedMessage).catch((error) => console.error(`[TelegramPlugin] Error handling media message:`, error));
+      void this.messageHandler(unifiedMessage, this).catch((error) => console.error(`[TelegramPlugin] Error handling media message:`, error));
     }
   }
 
@@ -398,7 +398,7 @@ export class TelegramPlugin extends BasePlugin {
           params: { agentType },
         };
         // Don't await - process in background
-        void this.messageHandler(unifiedMessage)
+        void this.messageHandler(unifiedMessage, this)
           .then(async () => {
             // Remove inline keyboard after selection
             try {
@@ -429,7 +429,7 @@ export class TelegramPlugin extends BasePlugin {
       };
 
       // Don't await - process in background
-      void this.messageHandler(unifiedMessage).catch((error) => console.error(`[TelegramPlugin] Error handling callback query:`, error));
+      void this.messageHandler(unifiedMessage, this).catch((error) => console.error(`[TelegramPlugin] Error handling callback query:`, error));
     }
   }
 

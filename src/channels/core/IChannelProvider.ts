@@ -18,6 +18,11 @@ export interface IChannelProvider {
   updatePluginStatus(pluginId: string, status: PluginStatus, lastConnected?: number): Promise<boolean>;
   updatePluginEnabled(pluginId: string, enabled: boolean, status: PluginStatus): Promise<boolean>;
   deletePlugin(pluginId: string): Promise<boolean>;
+  /**
+   * Allocate an additional connection of a channel type and return its plugin id.
+   * The connection starts disabled and credential-less.
+   */
+  createPlugin?(type: PluginType, name?: string): Promise<string | null>;
 
   // User management
   getUsers(): Promise<IChannelUser[]>;
