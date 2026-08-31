@@ -19,13 +19,21 @@ import PreferenceRow from './PreferenceRow';
 import EnterpriseAgentSelector from './EnterpriseAgentSelector';
 
 interface TelegramConfigFormProps {
+  /**
+   * Connection this form configures. A type may have several connections; falls back
+   * to the status row's id, then the legacy id of a type's first connection.
+   */
+  pluginId?: string;
   pluginStatus: IChannelPluginStatus | null;
   modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onTokenChange?: (token: string) => void;
 }
 
-const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onTokenChange }) => {
+const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginId: pluginIdProp, pluginStatus, modelSelection, onStatusChange, onTokenChange }) => {
+  // Configure the connection actually being shown; fall back to the legacy id so a
+  // caller that has not been updated keeps its current behaviour.
+  const pluginId = pluginIdProp ?? pluginStatus?.id ?? 'telegram_default';
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -95,7 +103,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
 
     const loadCredentials = async () => {
       try {
-        const result = await channel.getPluginCredentials.invoke({ pluginId: 'telegram_default' });
+        const result = await channel.getPluginCredentials.invoke({ pluginId });
         if (result.success && result.data?.token) {
           setTelegramToken(result.data.token);
         }
@@ -183,7 +191,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
 
     try {
       const result = await channel.testPlugin.invoke({
-        pluginId: 'telegram_default',
+        pluginId,
         token: telegramToken.trim(),
       });
 
@@ -206,7 +214,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
   const handleAutoEnable = async () => {
     try {
       const result = await channel.enablePlugin.invoke({
-        pluginId: 'telegram_default',
+        pluginId,
         config: { token: telegramToken.trim() },
       });
 
@@ -327,7 +335,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, m
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {/* Enterprise mode: default agent lives on the moss server, which spawns the
           sessions for this channel. Standalone mode uses the local picker below. */}
-      {isEnterprise && <EnterpriseAgentSelector pluginId='telegram_default' enabled={!!pluginStatus?.enabled} />}
+      {isEnterprise && <EnterpriseAgentSelector pluginId={pluginId} enabled={!!pluginStatus?.enabled} />}
 
       {!isEnterprise && (
         <div className='flex flex-col gap-2'>

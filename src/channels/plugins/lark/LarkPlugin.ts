@@ -461,7 +461,7 @@ export class LarkPlugin extends BasePlugin {
         }
 
         // Process in background to avoid blocking
-        void this.messageHandler(unifiedMessage).catch((error) => console.error(`[LarkPlugin] Error handling message:`, error));
+        void this.messageHandler(unifiedMessage, this).catch((error) => console.error(`[LarkPlugin] Error handling message:`, error));
       }
     } catch (error) {
       console.error('[LarkPlugin] Error processing message event:', error);
@@ -691,7 +691,7 @@ export class LarkPlugin extends BasePlugin {
       };
 
       if (this.messageHandler) {
-        void this.messageHandler(unifiedMessage).catch((error) => console.error(`[LarkPlugin] Error handling bot menu action:`, error));
+        void this.messageHandler(unifiedMessage, this).catch((error) => console.error(`[LarkPlugin] Error handling bot menu action:`, error));
       }
     } catch (error) {
       console.error('[LarkPlugin] Error processing bot menu event:', error);
@@ -733,7 +733,7 @@ export class LarkPlugin extends BasePlugin {
       // Convert to unified message with action
       const unifiedMessage = toUnifiedIncomingMessage(event, actionInfo);
       if (unifiedMessage && this.messageHandler) {
-        void this.messageHandler(unifiedMessage).catch((error) => console.error(`[LarkPlugin] Error handling card action:`, error));
+        void this.messageHandler(unifiedMessage, this).catch((error) => console.error(`[LarkPlugin] Error handling card action:`, error));
       }
     } catch (error) {
       console.error('[LarkPlugin] Error processing card action:', error);

@@ -21,13 +21,21 @@ import PreferenceRow from './PreferenceRow';
 import EnterpriseAgentSelector from './EnterpriseAgentSelector';
 
 interface DingTalkConfigFormProps {
+  /**
+   * Connection this form configures. A type may have several connections; falls back
+   * to the status row's id, then the legacy id of a type's first connection.
+   */
+  pluginId?: string;
   pluginStatus: IChannelPluginStatus | null;
   modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onCredentialsChange?: (creds: { clientId: string; clientSecret: string }) => void;
 }
 
-const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
+const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginId: pluginIdProp, pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
+  // Configure the connection actually being shown; fall back to the legacy id so a
+  // caller that has not been updated keeps its current behaviour.
+  const pluginId = pluginIdProp ?? pluginStatus?.id ?? 'dingtalk_default';
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -112,7 +120,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
 
     const loadCredentials = async () => {
       try {
-        const result = await channel.getPluginCredentials.invoke({ pluginId: 'dingtalk_default' });
+        const result = await channel.getPluginCredentials.invoke({ pluginId });
         if (result.success && result.data) {
           if (result.data.clientId) setClientId(result.data.clientId);
           if (result.data.clientSecret) setClientSecret(result.data.clientSecret);
@@ -205,7 +213,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
     setCredentialsTested(false);
     try {
       const result = await channel.testPlugin.invoke({
-        pluginId: 'dingtalk_default',
+        pluginId,
         token: '',
         extraConfig: {
           appId: clientId.trim(),
@@ -236,7 +244,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
   const handleAutoEnable = async () => {
     try {
       const result = await channel.enablePlugin.invoke({
-        pluginId: 'dingtalk_default',
+        pluginId,
         config: {
           clientId: clientId.trim(),
           clientSecret: clientSecret.trim(),
@@ -455,7 +463,7 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       {/* Agent Selection - hidden in enterprise mode (uses Moss remote agent) */}
       {/* Enterprise mode: default agent lives on the moss server, which spawns the
           sessions for this channel. Standalone mode uses the local picker below. */}
-      {isEnterprise && <EnterpriseAgentSelector pluginId='dingtalk_default' enabled={!!pluginStatus?.enabled} />}
+      {isEnterprise && <EnterpriseAgentSelector pluginId={pluginId} enabled={!!pluginStatus?.enabled} />}
 
       {!isEnterprise && (
         <div className='flex flex-col gap-2'>

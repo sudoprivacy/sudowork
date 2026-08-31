@@ -312,13 +312,14 @@ export class PluginManager {
    * Handle incoming message from a plugin
    * Routes to the appropriate action handler
    */
-  private async handleIncomingMessage(message: IUnifiedIncomingMessage): Promise<void> {
+  private async handleIncomingMessage(message: IUnifiedIncomingMessage, sourcePlugin: BasePlugin): Promise<void> {
     // Update user activity
     this.sessionManager.updateSessionActivity(message.user.id);
 
-    // Forward to message handler (ActionRouter)
+    // Forward to message handler (ActionRouter), carrying the connection the message
+    // arrived on so it replies through the right bot.
     if (this.messageHandler) {
-      await this.messageHandler(message);
+      await this.messageHandler(message, sourcePlugin);
     }
   }
 

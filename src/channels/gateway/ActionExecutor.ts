@@ -21,13 +21,14 @@ import { acpDetector } from '@/agent/acp/AcpDetector';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';
 import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
+import { getConnectionAgent } from '../channelConnectionConfig';
 import type { IActionContext, IRegisteredAction } from '../actions/types';
 import { getChannelMessageService, type PendingAnswerResult } from '../agent/ChannelMessageService';
 import type { SessionManager } from '../core/SessionManager';
 import type { PairingService } from '../pairing/PairingService';
-import type { PluginMessageHandler } from '../plugins/BasePlugin';
+import type { PluginMessageHandler, BasePlugin } from '../plugins/BasePlugin';
 import type { IChannelUser, ChannelAgentType, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType } from '../types';
-import { resolveChannelConvType } from '../types';
+import { resolveChannelConvType, pluginScope, scopedChatId } from '../types';
 import { createMainMenuCard, createErrorRecoveryCard, createToolConfirmationCard } from '../plugins/lark/LarkCards';
 import { convertHtmlToLarkMarkdown } from '../plugins/lark/LarkAdapter';
 import { createMainMenuCard as createDingTalkMainMenuCard, createErrorRecoveryCard as createDingTalkErrorRecoveryCard, createResponseActionsCard as createDingTalkResponseActionsCard, createToolConfirmationCard as createDingTalkToolConfirmationCard } from '../plugins/dingtalk/DingTalkCards';
@@ -401,20 +402,28 @@ export class ActionExecutor {
   /**
    * Handle incoming message from plugin
    */
-  private async handleIncomingMessage(message: IUnifiedIncomingMessage): Promise<void> {
+  private async handleIncomingMessage(message: IUnifiedIncomingMessage, sourcePlugin?: BasePlugin): Promise<void> {
     const { platform, chatId, user, content, action } = message;
 
-    // Get plugin for sending responses
-    const plugin = this.getPluginForMessage(message);
+    // Reply through the connection that RECEIVED the message. Falling back to "first
+    // plugin of this type" would answer from the wrong bot once a type has more than one
+    // connection configured.
+    const plugin = sourcePlugin ?? this.getPluginForMessage(message);
     if (!plugin) {
       console.error(`[ActionExecutor] No plugin found for platform: ${platform}`);
       return;
     }
 
+    const pluginId = plugin.pluginId;
+    // Scope authorizations and sessions to this connection so two bots of one type never
+    // share a conversation or an authorization.
+    const scope = pluginScope(pluginId, platform);
+    const sChatId = scopedChatId(pluginId, platform, chatId);
+
     // Build action context
     const context: IActionContext = {
       platform,
-      pluginId: `${platform}_default`, // TODO: Get actual plugin ID
+      pluginId,
       userId: user.id,
       chatId,
       displayName: user.displayName,
@@ -427,7 +436,7 @@ export class ActionExecutor {
 
     try {
       // Check if user is authorized
-      const isAuthorized = this.pairingService.isUserAuthorized(user.id, platform);
+      const isAuthorized = this.pairingService.isUserAuthorized(user.id, scope);
       console.log(`[ActionExecutor] processMessage: platform=${platform}, userId=${user.id}, chatId=${chatId}, isAuthorized=${isAuthorized}`);
 
       // Handle /start command
@@ -455,11 +464,12 @@ export class ActionExecutor {
         if (platform === 'wechat' || platform === 'wecom') {
           const db = getDatabase();
           const now = Date.now();
-          const newUserId = `${platform}_${user.id}_${now}`;
+          const newUserId = `${scope}_${user.id}_${now}`;
           const channelUser: IChannelUser = {
             id: newUserId,
             platformUserId: user.id,
             platformType: platform,
+            pluginScope: scope,
             displayName: user.displayName || user.id,
             authorizedAt: now,
           };
@@ -490,7 +500,7 @@ export class ActionExecutor {
       // User is authorized - look up the assistant user if not already set
       if (!context.channelUser) {
         const db = getDatabase();
-        const userResult = db.getChannelUserByPlatform(user.id, platform);
+        const userResult = db.getChannelUserByPlatform(user.id, scope);
         const channelUser = userResult.data;
 
         if (!channelUser) {
@@ -508,22 +518,14 @@ export class ActionExecutor {
       const channelUser = context.channelUser;
 
       // Get or create session (scoped by chatId for per-chat isolation)
-      let session = this.sessionManager.getSession(channelUser.id, chatId);
+      let session = this.sessionManager.getSession(channelUser.id, sChatId);
       if (!session || !session.conversationId) {
         const source = platform === 'lark' ? 'lark' : platform === 'dingtalk' ? 'dingtalk' : platform === 'wechat' ? 'wechat' : platform === 'wecom' ? 'wecom' : 'telegram';
 
-        // Read selected agent for this platform (defaults to claude)
+        // Agent for THIS connection, falling back to the type-wide setting.
         let savedAgent: unknown = undefined;
         try {
-          savedAgent = await (platform === 'lark'
-            ? ProcessConfig.get('assistant.lark.agent')
-            : platform === 'dingtalk'
-              ? ProcessConfig.get('assistant.dingtalk.agent')
-              : platform === 'wechat'
-                ? ProcessConfig.get('assistant.wechat.agent')
-                : platform === 'wecom'
-                  ? ProcessConfig.get('assistant.wecom.agent')
-                  : ProcessConfig.get('assistant.telegram.agent'));
+          savedAgent = await getConnectionAgent(pluginId, platform);
         } catch {
           // ignore
         }
@@ -532,7 +534,7 @@ export class ActionExecutor {
         const agentName = savedAgent && typeof savedAgent === 'object' ? ((savedAgent as any).name as string | undefined) : undefined;
 
         // Always resolve a provider model (required by ICreateConversationParams typing; ignored by ACP)
-        const model = await getChannelDefaultModel(platform);
+        const model = await getChannelDefaultModel(platform, pluginId);
 
         // Map backend to conversation type for lookup
         const { convType, convBackend } = resolveChannelConvType(backend);
@@ -548,7 +550,7 @@ export class ActionExecutor {
 
         // Lookup existing conversation by source + chatId + type + backend (per-chat isolation)
         const db2 = getDatabase();
-        const latest = db2.findChannelConversation(source, chatId, convType, convBackend);
+        const latest = db2.findChannelConversation(source, sChatId, convType, convBackend);
         const existing = latest.success ? latest.data : null;
 
         const result = existing
@@ -558,7 +560,7 @@ export class ActionExecutor {
               model,
               name: conversationName,
               source,
-              channelChatId: chatId,
+              channelChatId: sChatId,
               extra: {
                 backend: backend as AcpBackend,
                 cliPath,
@@ -570,7 +572,7 @@ export class ActionExecutor {
 
         if (result.success && result.conversation) {
           const { convType: agentType } = resolveChannelConvType(backend);
-          session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id, agentType as ChannelAgentType, getChannelWorkspacePath(source), chatId);
+          session = this.sessionManager.createSessionWithConversation(channelUser, result.conversation.id, agentType as ChannelAgentType, getChannelWorkspacePath(source), sChatId);
 
           // 通知渲染进程刷新对话列表（仅新建对话时）
           if (!existing) {
@@ -1428,8 +1430,12 @@ export class ActionExecutor {
   /**
    * Get plugin instance for a message
    */
+  /**
+   * Fallback only, for callers with no source plugin. Returns the FIRST connection of the
+   * type, which is ambiguous once several are configured — prefer the source plugin the
+   * message arrived on.
+   */
   private getPluginForMessage(message: IUnifiedIncomingMessage) {
-    // For now, get the first plugin of the matching type
     const plugins = this.pluginManager.getAllPlugins();
     return plugins.find((p) => p.type === message.platform);
   }

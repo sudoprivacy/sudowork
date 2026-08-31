@@ -23,13 +23,21 @@ import PreferenceRow from './PreferenceRow';
 import EnterpriseAgentSelector from './EnterpriseAgentSelector';
 
 interface LarkConfigFormProps {
+  /**
+   * Connection this form configures. A type may have several connections; falls back
+   * to the status row's id, then the legacy id of a type's first connection.
+   */
+  pluginId?: string;
   pluginStatus: IChannelPluginStatus | null;
   modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onCredentialsChange?: (creds: { appId: string; appSecret: string; encryptKey?: string; verificationToken?: string }) => void;
 }
 
-const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
+const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginId: pluginIdProp, pluginStatus, modelSelection, onStatusChange, onCredentialsChange }) => {
+  // Configure the connection actually being shown; fall back to the legacy id so a
+  // caller that has not been updated keeps its current behaviour.
+  const pluginId = pluginIdProp ?? pluginStatus?.id ?? 'lark_default';
   const { t } = useTranslation();
   const { isEnterprise } = useAppMode();
 
@@ -119,7 +127,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
 
     const loadCredentials = async () => {
       try {
-        const result = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
+        const result = await channel.getPluginCredentials.invoke({ pluginId });
         if (result.success && result.data) {
           if (result.data.appId) setAppId(result.data.appId);
           if (result.data.appSecret) setAppSecret(result.data.appSecret);
@@ -200,7 +208,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     let cancelled = false;
     void (async () => {
       try {
-        const result = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
+        const result = await channel.getPluginCredentials.invoke({ pluginId });
         if (cancelled || !result.success || !result.data) return;
         const creds = result.data as { larkUserName?: string; larkLoggedInAt?: number };
         if (creds.larkUserName) {
@@ -221,7 +229,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     async (payload: { user?: { id?: string; name?: string }; appId?: string; appSecret?: string; brand?: 'feishu' | 'lark'; token?: { accessToken: string; refreshToken?: string; expiresAt?: number; refreshExpiresAt?: number; scope?: string } }) => {
       let existing: IPluginCredentials = {};
       try {
-        const cur = await channel.getPluginCredentials.invoke({ pluginId: 'lark_default' });
+        const cur = await channel.getPluginCredentials.invoke({ pluginId });
         if (cur.success && cur.data) existing = cur.data;
       } catch {
         // best-effort; missing previous creds is fine
@@ -240,7 +248,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
         larkLoggedInAt: Date.now(),
       };
       try {
-        const result = await channel.enablePlugin.invoke({ pluginId: 'lark_default', config });
+        const result = await channel.enablePlugin.invoke({ pluginId, config });
         if (!result.success) {
           console.error('[LarkConfig] persistLarkAuthLogin enablePlugin failed:', result.msg);
           Message.error(result.msg || 'Failed to persist login');
@@ -394,7 +402,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
     setCredentialsTested(false);
     try {
       const result = await channel.testPlugin.invoke({
-        pluginId: 'lark_default',
+        pluginId,
         token: '',
         extraConfig: {
           appId: appId.trim(),
@@ -421,7 +429,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
   const handleAutoEnable = async () => {
     try {
       const result = await channel.enablePlugin.invoke({
-        pluginId: 'lark_default',
+        pluginId,
         config: {
           appId: appId.trim(),
           appSecret: appSecret.trim(),
@@ -515,7 +523,7 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       {/* Consumer mode: QR Login (replaces manual App ID / App Secret entry) */}
       {/* Enterprise mode: default agent lives on the moss server, which spawns the
           sessions for this channel. Standalone mode uses the local picker below. */}
-      {isEnterprise && <EnterpriseAgentSelector pluginId='lark_default' enabled={!!pluginStatus?.enabled} />}
+      {isEnterprise && <EnterpriseAgentSelector pluginId={pluginId} enabled={!!pluginStatus?.enabled} />}
 
       {!isEnterprise && (
         <div className='flex flex-col gap-2'>

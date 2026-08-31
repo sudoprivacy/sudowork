@@ -806,7 +806,7 @@ export class WeChatPlugin extends BasePlugin {
         // Process merged message
         const unified = toUnifiedIncomingMessage(mergedMsg);
         if (unified && this.messageHandler) {
-          void this.messageHandler(unified).catch((error) => {
+          void this.messageHandler(unified, this).catch((error) => {
             console.error(`[WeChatPlugin] Message handler failed for merged message:`, error);
           });
         }
@@ -845,7 +845,7 @@ export class WeChatPlugin extends BasePlugin {
 
     // Forward to message handler
     if (this.messageHandler) {
-      void this.messageHandler(unified).catch((error) => {
+      void this.messageHandler(unified, this).catch((error) => {
         console.error(`[WeChatPlugin] Message handler failed for ${msg.message_id}:`, error);
       });
     }
