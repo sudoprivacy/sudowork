@@ -168,6 +168,28 @@ files:
     expect(result?.assets).toHaveLength(2);
   });
 
+  it('should build a release from a private HTTP feed without appending the public COS path', () => {
+    const metadata = parseCOSYmlText(`
+version: 1.0.1
+files:
+  - url: Sudowork-1.0.1-win-x64.exe
+    sha512: ${SHA512}
+    size: 100
+`);
+    expect(metadata).not.toBeNull();
+
+    const result = buildReleaseInfoFromCOS(metadata!, { platform: 'win32', arch: 'x64' }, 'http://10.0.1.79:8080/downloads/');
+
+    expect(result?.assets).toEqual([
+      {
+        name: 'Sudowork-1.0.1-win-x64.exe',
+        url: 'http://10.0.1.79:8080/downloads/Sudowork-1.0.1-win-x64.exe',
+        size: 100,
+        sha512: SHA512,
+      },
+    ]);
+  });
+
   it('should reject assets outside the configured COS feed', () => {
     const metadata = parseCOSYmlText(`
 version: 1.2.3
@@ -179,6 +201,21 @@ files:
     expect(metadata).not.toBeNull();
 
     const result = buildReleaseInfoFromCOS(metadata!, { platform: 'win32', arch: 'x64' }, 'https://download.example.com/sudowork/release/latest');
+
+    expect(result).toBeNull();
+  });
+
+  it('should reject private HTTP assets outside the configured feed path', () => {
+    const metadata = parseCOSYmlText(`
+version: 1.0.1
+files:
+  - url: http://10.0.1.79:8080/other/Sudowork-1.0.1-win-x64.exe
+    sha512: ${SHA512}
+    size: 123
+`);
+    expect(metadata).not.toBeNull();
+
+    const result = buildReleaseInfoFromCOS(metadata!, { platform: 'win32', arch: 'x64' }, 'http://10.0.1.79:8080/downloads');
 
     expect(result).toBeNull();
   });

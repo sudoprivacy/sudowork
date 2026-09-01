@@ -2575,10 +2575,12 @@ export type I18nKey =
   | 'update.noCompatibleAssetManual'
   | 'update.noReleaseNotes'
   | 'update.openFile'
+  | 'update.privateFeedNotConfigured'
   | 'update.readyToInstall'
   | 'update.readyToInstallDesc'
   | 'update.showInFolder'
-  | 'update.upToDateTitle';
+  | 'update.upToDateTitle'
+  | 'update.versionUpdateDisabledByServer';
 
 export type I18nModule =
   | 'common'

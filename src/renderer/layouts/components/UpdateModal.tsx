@@ -10,6 +10,7 @@ import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
 import { CircleCheck, CircleX, Download, FolderOpen, HardDriveDownload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import { PRIVATE_UPDATE_FEED_NOT_CONFIGURED, VERSION_UPDATE_DISABLED_BY_SERVER } from '@/common/systemConfig';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/updateTypes';
 import { isNightlyBuild, buildVersion } from '@/common/buildInfo';
@@ -48,6 +49,19 @@ const UpdateModal: React.FC = () => {
 
   const includePrerelease = localStorage.getItem('update.includePrerelease') === 'true';
   const hasCompatibleManualAsset = Boolean(updateInfo?.recommendedAsset);
+
+  const formatUpdateError = useCallback(
+    (msg: string) => {
+      if (msg === PRIVATE_UPDATE_FEED_NOT_CONFIGURED) {
+        return t('update.privateFeedNotConfigured');
+      }
+      if (msg === VERSION_UPDATE_DISABLED_BY_SERVER) {
+        return t('update.versionUpdateDisabledByServer');
+      }
+      return msg;
+    },
+    [t]
+  );
 
   const openReleasePage = () => {
     if (!releasePageUrl) return;
@@ -141,7 +155,7 @@ const UpdateModal: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('Update check failed:', err);
-      setErrorMsg(msg);
+      setErrorMsg(formatUpdateError(msg));
       setStatus('error');
     }
   };
@@ -161,7 +175,7 @@ const UpdateModal: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('Download failed:', err);
-      setErrorMsg(msg);
+      setErrorMsg(formatUpdateError(msg));
       setStatus('error');
     }
   };
@@ -197,7 +211,7 @@ const UpdateModal: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('Manual download failed:', err);
-      setErrorMsg(msg);
+      setErrorMsg(formatUpdateError(msg));
       setStatus('error');
     }
   };
@@ -282,7 +296,7 @@ const UpdateModal: React.FC = () => {
           break;
         case 'error':
           setStatus('error');
-          setErrorMsg(evt.error || t('update.downloadFailed'));
+          setErrorMsg(evt.error ? formatUpdateError(evt.error) : t('update.downloadFailed'));
           break;
       }
     });
@@ -290,7 +304,7 @@ const UpdateModal: React.FC = () => {
     return () => {
       removeListener();
     };
-  }, [t]);
+  }, [formatUpdateError, t]);
 
   useEffect(() => {
     const removeProgressListener = ipcBridge.update.downloadProgress.on((evt: UpdateDownloadProgressEvent) => {
@@ -311,14 +325,14 @@ const UpdateModal: React.FC = () => {
         }
       } else if (evt.status === 'error' || evt.status === 'cancelled') {
         setStatus('error');
-        setErrorMsg(evt.error || t('update.downloadFailed'));
+        setErrorMsg(evt.error ? formatUpdateError(evt.error) : t('update.downloadFailed'));
       }
     });
 
     return () => {
       removeProgressListener();
     };
-  }, [downloadId, t]);
+  }, [downloadId, formatUpdateError, t]);
 
   // 下载过程中不允许关闭弹窗（只能通过关闭按钮关闭）
   // Prevent accidental dismissal during active download

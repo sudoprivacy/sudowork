@@ -11,6 +11,8 @@
   "downloadAndInstall": "ダウンロードしてインストール",
   "downloadStartFailed": "ダウンロードを開始できませんでした",
   "downloadFailed": "ダウンロードに失敗しました",
+  "privateFeedNotConfigured": "プライベート更新ソースが設定されていません",
+  "versionUpdateDisabledByServer": "バージョン更新はサーバーによって無効化されています",
   "noCompatibleAsset": "このプラットフォームに対応するファイルが見つかりません",
   "noCompatibleAssetManual": "現在のシステムアーキテクチャに対応するパッケージがありません。Release ページから手動でダウンロードしてください。",
   "goToRelease": "Release を開く",

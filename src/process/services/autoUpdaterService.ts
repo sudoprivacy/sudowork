@@ -8,10 +8,13 @@ import { EventEmitter } from 'events';
 import { autoUpdater } from 'electron-updater';
 import type { ProgressInfo, UpdateInfo } from 'electron-updater';
 import log from 'electron-log';
-import { getCosReleaseBase, isVersionUpdateEnabled } from '@/common/systemConfig';
+import { getPrivateUpdateFeedBaseUrl, PRIVATE_UPDATE_FEED_NOT_CONFIGURED, VERSION_UPDATE_DISABLED_BY_SERVER, isVersionUpdateEnabled } from '@/common/systemConfig';
 
-/** COS mirror base URL for Chinese users (release bucket, server-driven cos_domain) */
-const getCosMirrorBase = (): string => `${getCosReleaseBase()}/sudowork/release/latest`;
+const getPrivateUpdateFeedBaseOrThrow = (): string => {
+  const base = getPrivateUpdateFeedBaseUrl();
+  if (!base) throw new Error(PRIVATE_UPDATE_FEED_NOT_CONFIGURED);
+  return base;
+};
 
 /** Mirror source status */
 interface MirrorStatus {
@@ -81,7 +84,7 @@ class AutoUpdaterService extends EventEmitter {
   private _statusBroadcastCallback: StatusBroadcastCallback | null = null;
   /** Stores registered autoUpdater event handlers for cleanup and test access */
   private readonly _autoUpdaterHandlers = new Map<string, (...args: unknown[]) => void>();
-  /** Current mirror source status */
+  /** Current private update source status */
   private _mirrorStatus: MirrorStatus = { useMirror: false, reason: 'auto' };
 
   constructor() {
@@ -218,19 +221,19 @@ class AutoUpdaterService extends EventEmitter {
   }
 
   /**
-   * Switch to COS mirror source.
+   * Switch to the private update feed.
    */
   async switchToMirror(reason: MirrorStatus['reason'] = 'auto'): Promise<void> {
+    const feedBase = getPrivateUpdateFeedBaseOrThrow();
     autoUpdater.setFeedURL({
       provider: 'generic',
-      url: getCosMirrorBase(),
-      // Tencent COS supports single byte ranges but does not return the
-      // multipart/byteranges response expected by electron-updater.
+      url: feedBase,
+      // Keep single-range requests for generic HTTP/static-file servers.
       useMultipleRangeRequest: false,
     });
 
     this._mirrorStatus = { useMirror: true, reason };
-    log.info(`Switched to COS mirror (${reason}): ${getCosMirrorBase()}/${this.getYmlFileName()}`);
+    log.info(`Switched to private update feed (${reason}): ${feedBase}/${this.getYmlFileName()}`);
   }
 
   private setupEventHandlers(): void {
@@ -306,15 +309,14 @@ class AutoUpdaterService extends EventEmitter {
 
   async checkForUpdates(): Promise<{ success: boolean; updateInfo?: UpdateInfo; error?: string }> {
     if (!isVersionUpdateEnabled()) {
-      return { success: false, error: 'version_update disabled by server config' };
+      return { success: false, error: VERSION_UPDATE_DISABLED_BY_SERVER };
     }
     try {
       if (!this._isInitialized) {
         throw new Error('AutoUpdaterService not initialized');
       }
 
-      // For stable releases: always use COS mirror directly
-      // This ensures Chinese users can update without accessing GitHub
+      // Stable releases always use the configured private update feed.
       await this.switchToMirror();
 
       const result = await autoUpdater.checkForUpdates();
@@ -337,7 +339,7 @@ class AutoUpdaterService extends EventEmitter {
 
   async downloadUpdate(): Promise<{ success: boolean; error?: string }> {
     if (!isVersionUpdateEnabled()) {
-      return { success: false, error: 'version_update disabled by server config' };
+      return { success: false, error: VERSION_UPDATE_DISABLED_BY_SERVER };
     }
     try {
       if (!this._isInitialized) {
@@ -381,9 +383,8 @@ class AutoUpdaterService extends EventEmitter {
     try {
       // Ensure clean state: prevent stale allowDowngrade=true from prior setAllowPrerelease(true) calls
       autoUpdater.allowDowngrade = false;
-      // Force COS mirror so the startup notification and the in-app "check for updates"
-      // share the same source of truth (otherwise: startup reads GitHub via bundled
-      // app-update.yml, in-app reads COS — the two can disagree during rollouts).
+      // Force the private feed so startup notification and the in-app check share
+      // the same source of truth.
       await this.switchToMirror();
       await autoUpdater.checkForUpdatesAndNotify();
     } catch (error) {

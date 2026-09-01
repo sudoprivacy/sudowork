@@ -84,6 +84,7 @@ export default defineConfig(({ mode }) => {
     __SKILLHUB_BASE_URL__: JSON.stringify(process.env.BUILD_SKILLHUB_BASE_URL ?? ''),
     __LOG_REPORT_BASE_URL__: JSON.stringify(process.env.BUILD_LOG_REPORT_BASE_URL ?? ''),
     __COS_RELEASE_BASE__: JSON.stringify(process.env.BUILD_COS_RELEASE_BASE ?? ''),
+    __PRIVATE_UPDATE_BASE_URL__: JSON.stringify(process.env.BUILD_PRIVATE_UPDATE_BASE_URL ?? ''),
   };
 
   return {
@@ -210,7 +211,28 @@ export default defineConfig(({ mode }) => {
       },
       optimizeDeps: {
         exclude: ['electron'],
-        include: ['react', 'react-dom', 'react-router-dom', 'react-i18next', 'i18next', '@arco-design/web-react', '@icon-park/react', 'react-markdown', 'react-syntax-highlighter', 'react-virtuoso', 'classnames', 'swr', 'eventemitter3', 'katex', 'diff2html', 'remark-gfm', 'remark-math', 'remark-breaks', 'rehype-raw', 'rehype-katex'],
+        include: [
+          'react',
+          'react-dom',
+          'react-router-dom',
+          'react-i18next',
+          'i18next',
+          '@arco-design/web-react',
+          '@icon-park/react',
+          'react-markdown',
+          'react-syntax-highlighter',
+          'react-virtuoso',
+          'classnames',
+          'swr',
+          'eventemitter3',
+          'katex',
+          'diff2html',
+          'remark-gfm',
+          'remark-math',
+          'remark-breaks',
+          'rehype-raw',
+          'rehype-katex',
+        ],
       },
     },
   };

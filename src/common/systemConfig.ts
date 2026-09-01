@@ -31,6 +31,7 @@ declare const __SUDOROUTER_BASE_URL__: string | undefined;
 declare const __SKILLHUB_BASE_URL__: string | undefined;
 declare const __LOG_REPORT_BASE_URL__: string | undefined;
 declare const __COS_RELEASE_BASE__: string | undefined;
+declare const __PRIVATE_UPDATE_BASE_URL__: string | undefined;
 
 /** Hardcoded fallbacks (the historical production addresses). */
 export const FALLBACK_SUDOROUTER_BASE_URL = 'https://hk.sudorouter.ai';
@@ -43,6 +44,10 @@ export const BUILD_SUDOROUTER_BASE_URL: string = (typeof __SUDOROUTER_BASE_URL__
 export const BUILD_SKILLHUB_BASE_URL: string = (typeof __SKILLHUB_BASE_URL__ !== 'undefined' && __SKILLHUB_BASE_URL__) || FALLBACK_SKILLHUB_BASE_URL;
 export const BUILD_LOG_REPORT_BASE_URL: string = (typeof __LOG_REPORT_BASE_URL__ !== 'undefined' && __LOG_REPORT_BASE_URL__) || FALLBACK_LOG_REPORT_BASE_URL;
 export const BUILD_COS_RELEASE_BASE: string = (typeof __COS_RELEASE_BASE__ !== 'undefined' && __COS_RELEASE_BASE__) || COS_RELEASE_BASE;
+export const BUILD_PRIVATE_UPDATE_BASE_URL: string = (typeof __PRIVATE_UPDATE_BASE_URL__ !== 'undefined' && __PRIVATE_UPDATE_BASE_URL__) || '';
+
+export const PRIVATE_UPDATE_FEED_NOT_CONFIGURED = '私有更新源未配置';
+export const VERSION_UPDATE_DISABLED_BY_SERVER = '版本更新已被服务端禁用';
 
 // ---- typed system-config shape (interface doc 1.4) ----
 export type RechargeMode = 'pay' | 'approve' | 'disabled';
@@ -197,6 +202,34 @@ export function getCosReleaseBase(): string {
   // fetch()/setFeedURL() it directly. Without this the URL fails to parse and update checks silently no-op.
   const base = resolve(getSystemConfigCache()?.version_update?.cos_domain, BUILD_COS_RELEASE_BASE);
   return /^https?:\/\//i.test(base) ? base : `https://${base}`;
+}
+
+export function normalizePrivateUpdateFeedBaseUrl(raw: string | null | undefined): string | null {
+  const normalized = normalizeSudoworkServerUrl(raw);
+  if (!normalized) return null;
+  try {
+    const parsed = new URL(normalized);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getPrivateUpdateFeedBaseUrl(): string | null {
+  return normalizePrivateUpdateFeedBaseUrl(getSystemConfigCache()?.version_update?.cos_domain) ?? normalizePrivateUpdateFeedBaseUrl(BUILD_PRIVATE_UPDATE_BASE_URL);
+}
+
+export function isUrlWithinPrivateUpdateFeed(rawUrl: string): boolean {
+  const base = getPrivateUpdateFeedBaseUrl();
+  if (!base) return false;
+
+  try {
+    const parsed = new URL(rawUrl);
+    const parsedBase = new URL(`${base}/`);
+    return parsed.origin === parsedBase.origin && parsed.pathname.startsWith(parsedBase.pathname);
+  } catch {
+    return false;
+  }
 }
 
 // ---- feature-switch helpers (fail-open: cache empty => keep current behavior) ----

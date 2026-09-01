@@ -67,6 +67,13 @@ describe('AutoUpdaterService', () => {
     // Import the service (after mocks are set up)
     const module = await import('@/process/services/autoUpdaterService');
     autoUpdaterService = module.autoUpdaterService;
+    const { setSystemConfigCache } = await import('@/common/systemConfig');
+    setSystemConfigCache({
+      version_update: {
+        enabled: 1,
+        cos_domain: 'https://updates.example.internal/downloads',
+      },
+    });
   });
 
   afterEach(() => {
@@ -119,15 +126,48 @@ describe('AutoUpdaterService', () => {
       expect(autoUpdater.disableDifferentialDownload).toBe(false);
     });
 
-    it('should configure the COS feed for single range requests', async () => {
+    it('should fail when the private update feed is not configured', async () => {
+      const { setSystemConfigCache } = await import('@/common/systemConfig');
+      setSystemConfigCache({ version_update: { enabled: 1 } });
+
+      await expect(autoUpdaterService.switchToMirror('fallback')).rejects.toThrow('私有更新源未配置');
+    });
+
+    it('should configure the private update feed for single range requests', async () => {
+      const { setSystemConfigCache } = await import('@/common/systemConfig');
+      setSystemConfigCache({
+        version_update: {
+          enabled: 1,
+          cos_domain: 'https://updates.example.internal/downloads',
+        },
+      });
+
       await autoUpdaterService.switchToMirror('fallback');
 
       expect(autoUpdater.setFeedURL).toHaveBeenCalledWith({
         provider: 'generic',
-        url: expect.stringContaining('/sudowork/release/latest'),
+        url: 'https://updates.example.internal/downloads',
         useMultipleRangeRequest: false,
       });
       expect(autoUpdaterService.getMirrorStatus()).toEqual({ useMirror: true, reason: 'fallback' });
+    });
+
+    it('should configure the private update feed from the server cos_domain without appending a public COS path', async () => {
+      const { setSystemConfigCache } = await import('@/common/systemConfig');
+      setSystemConfigCache({
+        version_update: {
+          enabled: 1,
+          cos_domain: 'http://10.0.1.79:8080/downloads/',
+        },
+      });
+
+      await autoUpdaterService.switchToMirror('fallback');
+
+      expect(autoUpdater.setFeedURL).toHaveBeenCalledWith({
+        provider: 'generic',
+        url: 'http://10.0.1.79:8080/downloads',
+        useMultipleRangeRequest: false,
+      });
     });
   });
 

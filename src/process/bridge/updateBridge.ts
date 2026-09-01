@@ -16,7 +16,7 @@ import { uuid } from '@/common/utils';
 import type { UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, UpdateReleaseInfo, GitHubReleaseAsset } from '@/common/updateTypes';
 import { ipcBridge } from '@/common';
 import { isNightlyBuild, buildDate, buildCommit, isNightlyTag, parseNightlyDate, parseNightlyCommit } from '@/common/buildInfo';
-import { getCosReleaseBase } from '@/common/systemConfig';
+import { getPrivateUpdateFeedBaseUrl, isUrlWithinPrivateUpdateFeed, PRIVATE_UPDATE_FEED_NOT_CONFIGURED, VERSION_UPDATE_DISABLED_BY_SERVER, isVersionUpdateEnabled } from '@/common/systemConfig';
 import { autoUpdaterService } from '../services/autoUpdaterService';
 
 type GitHubReleaseApiAsset = {
@@ -46,32 +46,19 @@ interface AutoUpdateCheckParams {
 const DEFAULT_REPO = 'sudoprivacy/sudowork';
 const DEFAULT_USER_AGENT = 'Sudowork';
 const ALLOWED_ASSET_EXTS = ['.exe', '.msi', '.dmg', '.zip', '.AppImage', '.deb', '.rpm'];
-const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
-  'github.com',
-  'objects.githubusercontent.com',
-  'github-releases.githubusercontent.com',
-  'release-assets.githubusercontent.com',
-  // COS release mirror for Chinese users (role-based bucket; primary)
-  'sudowork-release-1309794936.cos.ap-beijing.myqcloud.com',
-  'sudowork-release-1309794936.cos.accelerate.myqcloud.com',
-  // Legacy COS mirror (kept live as fallback during deprecation)
-  'sudowork-download-1309794936.cos.ap-beijing.myqcloud.com',
-  'sudowork-download-1309794936.cos.accelerate.myqcloud.com',
-]);
 const MAX_REDIRECTS = 8;
 const SHA512_BASE64_PATTERN = /^[A-Za-z0-9+/]{86}==$/;
 
-/** COS mirror base URL (release bucket; server-driven cos_domain). */
-const getCosMirrorBase = (): string => `${getCosReleaseBase()}/sudowork/release/latest`;
+const getPrivateUpdateFeedBaseOrThrow = (): string => {
+  const base = getPrivateUpdateFeedBaseUrl();
+  if (!base) throw new Error(PRIVATE_UPDATE_FEED_NOT_CONFIGURED);
+  return base;
+};
 
-/** Whether a download host is allowlisted: the static set, or the server-dispatched cos release host (§4.4). */
-const isAllowedDownloadHost = (hostname: string): boolean => {
-  if (ALLOWED_DOWNLOAD_HOSTS.has(hostname)) return true;
-  try {
-    return new URL(getCosReleaseBase()).host === hostname;
-  } catch {
-    return false;
-  }
+const getPrivateFeedBase = (): string => getPrivateUpdateFeedBaseOrThrow();
+
+const isAllowedDownloadUrl = (rawUrl: string): boolean => {
+  return isUrlWithinPrivateUpdateFeed(rawUrl);
 };
 
 const cosYmlFileSchema = z.object({
@@ -105,7 +92,7 @@ export const parseCOSYmlText = (text: string): COSYmlInfo | null => {
 };
 
 /**
- * Parse and validate electron-updater metadata from COS.
+ * Parse and validate electron-updater metadata from the private update feed.
  */
 const parseCOSYml = async (ymlUrl: string): Promise<COSYmlInfo | null> => {
   try {
@@ -133,9 +120,9 @@ export const getCOSYmlFileName = (runtime: RuntimePlatformInfo = { platform: pro
 };
 
 /**
- * Build UpdateReleaseInfo from COS yml data.
+ * Build UpdateReleaseInfo from private update metadata.
  */
-export const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo, runtime: RuntimePlatformInfo = { platform: process.platform, arch: process.arch }, mirrorBase = getCosMirrorBase()): UpdateReleaseInfo | null => {
+export const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo, runtime: RuntimePlatformInfo = { platform: process.platform, arch: process.arch }, mirrorBase = getPrivateFeedBase()): UpdateReleaseInfo | null => {
   const baseUrl = new URL(`${mirrorBase.replace(/\/+$/, '')}/`);
   const basePath = baseUrl.pathname;
   const assets = ymlInfo.files.flatMap((file): GitHubReleaseAsset[] => {
@@ -166,7 +153,7 @@ export const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo, runtime: RuntimePla
   return {
     tagName: `v${ymlInfo.version}`,
     version: ymlInfo.version,
-    htmlUrl: `https://github.com/sudoprivacy/sudowork/releases/tag/v${ymlInfo.version}`,
+    htmlUrl: baseUrl.toString(),
     publishedAt: ymlInfo.releaseDate,
     prerelease: false,
     draft: false,
@@ -176,21 +163,21 @@ export const buildReleaseInfoFromCOS = (ymlInfo: COSYmlInfo, runtime: RuntimePla
 };
 
 /**
- * Check for updates from COS mirror (fallback when GitHub unreachable).
+ * Check for updates from the private update feed.
  */
 const checkUpdateFromCOS = async (): Promise<UpdateReleaseInfo | null> => {
   const ymlFileName = getCOSYmlFileName();
-  const ymlUrl = `${getCosMirrorBase()}/${ymlFileName}`;
+  const ymlUrl = `${getPrivateFeedBase()}/${ymlFileName}`;
 
-  mainLog('Update', `Checking update from COS mirror: ${ymlUrl}`);
+  mainLog('Update', `Checking update from private feed: ${ymlUrl}`);
 
   const ymlInfo = await parseCOSYml(ymlUrl);
   if (!ymlInfo) {
-    mainLog('Update', 'Failed to parse COS yml');
+    mainLog('Update', 'Failed to parse private update metadata');
     return null;
   }
 
-  mainLog('Update', `COS version: ${ymlInfo.version}`);
+  mainLog('Update', `Private feed version: ${ymlInfo.version}`);
   return buildReleaseInfoFromCOS(ymlInfo);
 };
 
@@ -296,28 +283,28 @@ const resolveRepo = (requestRepo?: string): string => {
 /**
  * Select best download source based on build channel.
  *
- * Stable releases → force COS mirror (consistent with checkForUpdates path, avoids the
- * "薛定谔的最新版" scenario where startup notification reads GitHub and the download URL
- * points to a GitHub asset that Chinese users can't reach).
+ * Stable releases → force the private update feed so auto-check and manual download
+ * share the same source of truth.
  *
- * Nightly builds → keep the original GitHub asset URL. COS has no nightly index.
+ * Nightly builds → keep the original asset URL; the allowlist below still blocks
+ * anything outside the configured private update feed.
  */
 const selectDownloadSource = async (originalUrl: string, originalName: string): Promise<string> => {
   if (isNightlyBuild) {
     return originalUrl;
   }
 
-  const mirrorBase = `${getCosMirrorBase().replace(/\/+$/, '')}/`;
+  const mirrorBase = `${getPrivateFeedBase().replace(/\/+$/, '')}/`;
   const sourceUrl = new URL(originalUrl);
   const mirrorUrl = new URL(mirrorBase);
-  const isVersionedCosAsset = sourceUrl.origin === mirrorUrl.origin && sourceUrl.pathname.startsWith(mirrorUrl.pathname);
-  if (isVersionedCosAsset) {
+  const isVersionedPrivateFeedAsset = sourceUrl.origin === mirrorUrl.origin && sourceUrl.pathname.startsWith(mirrorUrl.pathname);
+  if (isVersionedPrivateFeedAsset) {
     return sourceUrl.toString();
   }
 
-  const cosUrl = new URL(path.basename(originalName), mirrorUrl).toString();
-  mainLog('Update', `Stable release, forcing COS download source: ${cosUrl}`);
-  return cosUrl;
+  const privateFeedUrl = new URL(path.basename(originalName), mirrorUrl).toString();
+  mainLog('Update', `Stable release, forcing private feed download source: ${privateFeedUrl}`);
+  return privateFeedUrl;
 };
 
 const assertAllowedUrl = (rawUrl: string) => {
@@ -328,10 +315,7 @@ const assertAllowedUrl = (rawUrl: string) => {
     throw new Error('Invalid download URL');
   }
 
-  if (parsed.protocol !== 'https:') {
-    throw new Error('Only https download URLs are allowed');
-  }
-  if (!isAllowedDownloadHost(parsed.hostname)) {
+  if (!isAllowedDownloadUrl(parsed.toString())) {
     throw new Error(`Download host not allowed: ${parsed.hostname}`);
   }
 };
@@ -680,6 +664,9 @@ export function initUpdateBridge(): void {
     try {
       const repo = resolveRepo(params?.repo);
       const currentVersion = app.getVersion();
+      if (!isVersionUpdateEnabled()) {
+        return { success: false, msg: VERSION_UPDATE_DISABLED_BY_SERVER };
+      }
 
       // Nightly builds: use GitHub API for date-based comparison
       if (isNightlyBuild) {
@@ -688,21 +675,21 @@ export function initUpdateBridge(): void {
         return { success: true, data: result };
       }
 
-      // Stable releases: use COS mirror directly for Chinese users
-      mainLog('Update', 'Stable release, checking update from COS mirror');
+      // Stable releases: use the private update feed directly.
+      mainLog('Update', 'Stable release, checking update from private feed');
       const currentSemver = semver.valid(currentVersion) || semver.coerce(currentVersion)?.version;
       if (!currentSemver) {
         return { success: true, data: { currentVersion, updateAvailable: false } };
       }
 
-      // Get version info from COS yml
+      // Get version info from private update metadata.
       const cosRelease = await checkUpdateFromCOS();
       if (!cosRelease) {
         return { success: true, data: { currentVersion, updateAvailable: false } };
       }
 
       const updateAvailable = semver.gt(cosRelease.version, currentSemver);
-      mainLog('Update', `COS version: ${cosRelease.version}, current: ${currentSemver}, update available: ${updateAvailable}`);
+      mainLog('Update', `Private feed version: ${cosRelease.version}, current: ${currentSemver}, update available: ${updateAvailable}`);
 
       return {
         success: true,
@@ -726,9 +713,7 @@ export function initUpdateBridge(): void {
         return { success: false, msg: 'invalid sha512' };
       }
 
-      // Defense-in-depth: do not allow arbitrary downloads from renderer.
-      // EN: We only allow GitHub release hosts (and follow redirects manually with per-hop allowlist checks).
-      // 中文：仅允许 GitHub 相关下载域名，并手动处理重定向（每一跳都校验白名单）。
+      // Defense-in-depth: only allow downloads within the configured private update feed.
       assertAllowedUrl(params.url);
 
       const downloadsDir = app.getPath('downloads');
@@ -755,10 +740,10 @@ export function initUpdateBridge(): void {
       const uniquePath = ensureUniquePath(targetPath);
       downloads.set(downloadId, { abortController, filePath: uniquePath });
 
-      // Select best download source (auto-switch to COS mirror if GitHub unreachable)
+      // Select the normalized private feed download source.
       selectDownloadSource(params.url, baseName)
         .then((downloadUrl) => {
-          // Validate the selected URL (COS mirror URLs should pass since we added it to ALLOWED_DOWNLOAD_HOSTS)
+          // Validate the selected URL again after normalization.
           assertAllowedUrl(downloadUrl);
           // Start background download
           void startDownloadInBackground(downloadId, downloadUrl, uniquePath, abortController, params.sha512);

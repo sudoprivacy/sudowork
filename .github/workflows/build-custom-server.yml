@@ -2,8 +2,8 @@ name: Build with Custom sudowork-server URL
 
 # Manually-triggered build pipeline that injects a user-supplied sudowork-server
 # base URL into the bundle via Vite `define` (__SUDOWORK_SERVER_BASE_URL__).
-# Produces the SAME platforms/artifact types as the standard dev-manual build
-# in build-and-release.yml (mac-arm64, mac-x64, windows-x64, windows-arm64).
+# Produces the COMAC private deployment targets and a flat private update feed
+# archive for customer-side deployment.
 #
 # Use this when you need a build pointing at a different sudowork-server
 # (staging, customer-specific, on-prem, etc.). The standard release / nightly
@@ -18,6 +18,10 @@ on:
     inputs:
       server_base_url:
         description: 'sudowork-server base URL to inject (REQUIRED, e.g. https://sudowork-staging.example.com)'
+        required: true
+        type: string
+      private_update_base_url:
+        description: 'Private update feed base URL to inject (REQUIRED, e.g. http://10.0.1.79:8080/downloads)'
         required: true
         type: string
       ref:
@@ -36,7 +40,7 @@ env:
 
 jobs:
   prepare-matrix:
-    name: Prepare Build Matrix (all 4 platforms)
+    name: Prepare Build Matrix (COMAC private targets)
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -46,13 +50,10 @@ jobs:
         id: set-matrix
         shell: bash
         run: |
-          # Same 4 platforms as the IS_MANUAL_DEV branch in build-and-release.yml
           MACOS_ARM64='{"platform":"macos-arm64","os":"macos-14","command":"node scripts/build-with-builder.js arm64 --mac --arm64","artifact-name":"macos-build-arm64","arch":"arm64"}'
-          MACOS_X64='{"platform":"macos-x64","os":"macos-15-intel","command":"node scripts/build-with-builder.js x64 --mac --x64","artifact-name":"macos-build-x64","arch":"x64"}'
           WINDOWS_X64='{"platform":"windows-x64","os":"windows-2022","command":"node scripts/build-with-builder.js x64 --win --x64","artifact-name":"windows-build-x64","arch":"x64"}'
-          WINDOWS_ARM64='{"platform":"windows-arm64","os":"windows-2022","command":"node scripts/build-with-builder.js arm64 --win --arm64","artifact-name":"windows-build-arm64","arch":"arm64"}'
 
-          MATRIX="{\"include\":[$MACOS_ARM64,$MACOS_X64,$WINDOWS_X64,$WINDOWS_ARM64]}"
+          MATRIX="{\"include\":[$MACOS_ARM64,$WINDOWS_X64]}"
 
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
           echo "Generated matrix:"
@@ -62,6 +63,7 @@ jobs:
         shell: bash
         run: |
           echo "::notice title=Custom sudowork-server URL::Will inject: ${{ inputs.server_base_url }}"
+          echo "::notice title=Private update feed URL::Will inject: ${{ inputs.private_update_base_url }}"
 
   build-pipeline:
     name: Build Pipeline
@@ -72,4 +74,34 @@ jobs:
       ref: ${{ inputs.ref }}
       skip_code_quality: ${{ inputs.skip_code_quality }}
       server_base_url: ${{ inputs.server_base_url }}
+      private_update_base_url: ${{ inputs.private_update_base_url }}
     secrets: inherit
+
+  package-update-feed:
+    name: Package Private Update Feed
+    runs-on: ubuntu-latest
+    needs: build-pipeline
+    if: ${{ success() }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: build-artifacts
+
+      - name: Create private update assets archive
+        shell: bash
+        run: bash scripts/prepare-private-update-assets.sh build-artifacts private-update-assets private-update-assets.zip
+
+      - name: Upload private update assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: private-update-assets
+          path: private-update-assets.zip
+          if-no-files-found: error
+          retention-days: 7

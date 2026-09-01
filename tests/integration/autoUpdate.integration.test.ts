@@ -190,9 +190,17 @@ describe('Auto-Update IPC Bridge Integration', () => {
   });
 
   describe('Service Integration', () => {
-    it('should configure COS for differential downloads with single ranges', async () => {
+    it('should configure the private update feed for differential downloads with single ranges', async () => {
       const { autoUpdaterService } = await import('@/process/services/autoUpdaterService');
       const { autoUpdater } = await import('electron-updater');
+      const { setSystemConfigCache } = await import('@/common/systemConfig');
+
+      setSystemConfigCache({
+        version_update: {
+          enabled: 1,
+          cos_domain: 'http://10.0.1.79:8080/downloads/',
+        },
+      });
 
       await autoUpdaterService.switchToMirror('fallback');
 
@@ -200,6 +208,7 @@ describe('Auto-Update IPC Bridge Integration', () => {
       expect(autoUpdater.setFeedURL).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'generic',
+          url: 'http://10.0.1.79:8080/downloads',
           useMultipleRangeRequest: false,
         })
       );

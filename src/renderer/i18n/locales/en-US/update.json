@@ -11,6 +11,8 @@
   "downloadAndInstall": "Download & Install",
   "downloadStartFailed": "Failed to start download",
   "downloadFailed": "Download failed",
+  "privateFeedNotConfigured": "Private update feed is not configured",
+  "versionUpdateDisabledByServer": "Version updates have been disabled by the server",
   "noCompatibleAsset": "No compatible download found for this platform",
   "noCompatibleAssetManual": "No package matches your current system architecture. Please download the correct installer from Releases.",
   "goToRelease": "Open Releases",
