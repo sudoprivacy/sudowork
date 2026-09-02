@@ -76,9 +76,7 @@ const conversation: TChatConversation = {
   name: 'My Conversation',
   type: 'gemini',
   extra: { workspace: '/path/to/workspace' },
-  model: {
-    /* provider info */
-  },
+  model: {/* provider info */},
   createTime: Date.now(),
   modifyTime: Date.now(),
 };

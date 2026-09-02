@@ -7,19 +7,7 @@
  */
 
 export type WakeSource =
-  | 'user_message'
-  | 'user_intervention'
-  | 'mcp_send_message'
-  | 'idle_notification'
-  | 'interrupted_notification'
-  | 'team_membership_changed'
-  | 'mcp_shutdown_request'
-  | 'crash_notification'
-  | 'inactivity_timeout'
-  | 'spawn_attach_failure'
-  | 'member_interrupted'
-  | 'shutdown_rejected'
-  | 'recovery_drain';
+  'user_message' | 'user_intervention' | 'mcp_send_message' | 'idle_notification' | 'interrupted_notification' | 'team_membership_changed' | 'mcp_shutdown_request' | 'crash_notification' | 'inactivity_timeout' | 'spawn_attach_failure' | 'member_interrupted' | 'shutdown_rejected' | 'recovery_drain';
 
 export type WakeClass = 'Foreground' | 'Background' | 'SystemRecovery' | 'Lifecycle';
 

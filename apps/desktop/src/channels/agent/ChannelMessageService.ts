@@ -108,11 +108,7 @@ interface IPendingQuestion {
  * - no_match: 文本不匹配任何选项 → 调用方按普通用户消息处理
  */
 export type PendingAnswerResult =
-  | { kind: 'item_done'; displayLabel: string; currentIndex: number; totalItems: number }
-  | { kind: 'multi_select_accumulate'; displayLabel: string }
-  | { kind: 'all_done'; displayLabel: string }
-  | { kind: 'stale'; staleQuestionIndex: number; currentIndex: number }
-  | { kind: 'no_match' };
+  { kind: 'item_done'; displayLabel: string; currentIndex: number; totalItems: number } | { kind: 'multi_select_accumulate'; displayLabel: string } | { kind: 'all_done'; displayLabel: string } | { kind: 'stale'; staleQuestionIndex: number; currentIndex: number } | { kind: 'no_match' };
 
 /** multi_select 提交哨兵（与 dtmd 提交按钮 content 一致）/ submit sentinel */
 const QA_SUBMIT_SENTINEL = '__qa_submit__';

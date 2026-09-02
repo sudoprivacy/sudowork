@@ -407,20 +407,7 @@ export type IMessageFileSend = IMessage<'file_send', IFileSendData>;
 
 // eslint-disable-next-line max-len
 export type TMessage =
-  | IMessageText
-  | IMessageTips
-  | IMessageThought
-  | IMessageToolCall
-  | IMessageToolGroup
-  | IMessageAgentStatus
-  | IMessageAcpPermission
-  | IMessageAcpQuestion
-  | IMessageAcpToolCall
-  | IMessageCodexPermission
-  | IMessageCodexToolCall
-  | IMessagePlan
-  | IMessageAvailableCommands
-  | IMessageFileSend;
+  IMessageText | IMessageTips | IMessageThought | IMessageToolCall | IMessageToolGroup | IMessageAgentStatus | IMessageAcpPermission | IMessageAcpQuestion | IMessageAcpToolCall | IMessageCodexPermission | IMessageCodexToolCall | IMessagePlan | IMessageAvailableCommands | IMessageFileSend;
 
 // 统一所有需要用户交互的用户类型
 export interface IConfirmation<Option = any> {

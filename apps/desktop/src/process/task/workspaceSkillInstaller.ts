@@ -370,11 +370,9 @@ export async function installWorkspaceSkillsFromTrackedFiles(workspace: string, 
   await fs.mkdir(customSkillsDir, { recursive: true });
 
   for (const sourceDir of candidateRoots) {
-    const inspected = await inspectCandidateSkill(sourceDir).catch(
-      (error: unknown): InspectedWorkspaceSkill => ({
-        reason: error instanceof Error ? error.message : String(error),
-      })
-    );
+    const inspected = await inspectCandidateSkill(sourceDir).catch((error: unknown): InspectedWorkspaceSkill => ({
+      reason: error instanceof Error ? error.message : String(error),
+    }));
 
     if ('reason' in inspected) {
       const registered = await inspectInstalledTargetForSource(customSkillsDir, sourceDir, deps.existingCustomSkillNames);
