@@ -1,0 +1,38 @@
+# Desktop-app build artifacts. These mirror the anchored rules that lived at
+# the repo root before the Electron app moved under apps/desktop/ (root-anchored
+# patterns like `resources/…` no longer match this subtree).
+
+# Downloaded runtime binaries (fetched at build time, not committed)
+resources/nexus.tar.gz
+resources/nexusd
+resources/nexusd.exe
+resources/v*-nexusd-cluster-*
+resources/v*-nexus-vault-*
+resources/claude-code.tgz
+resources/gemini-cli.tgz
+resources/node-*.tar.gz
+resources/node-win32-*.zip
+resources/bdpan-installer-*
+resources/mcporter.tgz
+resources/browser-panel-mcp/index.js
+resources/team-mcp/index.js
+resources/.dev-runtime-versions.json
+resources/openclaw.manifest.json
+resources/v*-sudoclaw-*.manifest.json
+resources/installerSidebar.bmp
+resources/installerHeader.bmp
+
+# Rust build artifacts (nexus-napi)
+native/nexus-napi/target/
+native/nexus-napi/*.node
+
+# hook/node sub-project uses pnpm (hook/node/pnpm-lock.yaml is tracked)
+hook/**/bun.lock
+
+# E2E test artifacts
+tests/e2e/screenshots/
+tests/e2e/results/
+tests/e2e/report/
+tests/e2e/output/
+tests/e2e/__pycache__/
+tests/e2e/ops/__pycache__/

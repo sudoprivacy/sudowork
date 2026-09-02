@@ -133,6 +133,13 @@ jobs:
         # binaries it would fall through to a slower error path.
         run: bun run nexus-vfs:download
 
+      - name: Build dev prereqs (hook + team-mcp) outside the CDP wait window
+        # `start` chains hook:build + team-mcp:build, which take several minutes
+        # on a cold runner and were consuming the smoke's CDP wait window before
+        # electron-vite dev even launched. Build them here so the wait below
+        # covers only the Electron boot.
+        run: bun run hook:build && bun run team-mcp:build
+
       - name: Cold-start + dev-shim smoke (Linux)
         if: matrix.platform == 'linux-x64'
         shell: bash
@@ -156,10 +163,10 @@ jobs:
           # is no GPU to initialize — without these three Electron
           # silently aborts before opening CDP.
           xvfb-run -a --server-args='-screen 0 1280x1024x24' \
-            bun run start -- --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            node scripts/launch-dev.js start --no-sandbox --disable-gpu --disable-dev-shm-usage \
             > "$LOG" 2>&1 &
           DEV_PID=$!
-          echo "started bun run start as PID=$DEV_PID"
+          echo "started launch-dev as PID=$DEV_PID"
 
           # Smoke driver has its own CDP wait window — keeps polling
           # for up to --wait-seconds before failing.
