@@ -151,8 +151,10 @@ export class MossUpstreamSocket {
 export interface OutgoingUserMessage {
   sessionId: string
   text: string
-  images: { mediaType: 'image/png' | 'image/jpeg' | 'image/webp'; data: string }[]
+  images: { mediaType: string; data: string }[]
   parentToolUseId: string | null
+  /** Optional caller-supplied message id; falls back to a random UUID. */
+  uuid?: string
 }
 
 export function buildUserMessage(msg: OutgoingUserMessage): Record<string, unknown> {
@@ -172,37 +174,38 @@ export function buildUserMessage(msg: OutgoingUserMessage): Record<string, unkno
     message: { role: 'user', content },
     parent_tool_use_id: msg.parentToolUseId,
     session_id: msg.sessionId,
-    uuid: randomUUID(),
+    uuid: msg.uuid ?? randomUUID(),
   }
 }
 
 export function buildAnswerQuestionMessage(
   sessionId: string,
-  parentToolUseId: string,
+  parentToolUseId: string | null,
   text: string,
+  uuid?: string,
 ): Record<string, unknown> {
   return {
     type: 'user',
     message: { role: 'user', content: [{ type: 'text', text }] },
     parent_tool_use_id: parentToolUseId,
     session_id: sessionId,
-    uuid: randomUUID(),
+    uuid: uuid ?? randomUUID(),
   }
 }
 
-export function buildSetModelMessage(modelId: string): Record<string, unknown> {
+export function buildSetModelMessage(modelId: string, requestId?: string): Record<string, unknown> {
   return {
     type: 'control_request',
-    request_id: randomUUID(),
+    request_id: requestId ?? randomUUID(),
     request: { subtype: 'set_model', model_id: modelId },
   }
 }
 
 /** 停止当前回复（与 Sudowork MossWsConnection.sendInterruptAndWait 的消息形状一致；回执忽略） */
-export function buildInterruptMessage(): Record<string, unknown> {
+export function buildInterruptMessage(requestId?: string): Record<string, unknown> {
   return {
     type: 'control_request',
-    request_id: randomUUID(),
+    request_id: requestId ?? randomUUID(),
     request: { subtype: 'interrupt' },
   }
 }
