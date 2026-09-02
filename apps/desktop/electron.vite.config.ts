@@ -36,6 +36,12 @@ const mainAliases = {
   '@process': resolve('src/process'),
   '@worker': resolve('src/worker'),
   '@xterm/headless': resolve('src/shims/xterm-headless.ts'),
+  // Bundle the shared workspace packages from source (see externalizeDepsPlugin
+  // exclude below) so the packaged/dev main process never depends on a prior
+  // `dist` build of them.
+  '@sudowork/moss-client': resolve('../../packages/moss-client/src/index.ts'),
+  '@sudowork/contracts/auth': resolve('../../packages/contracts/src/auth.ts'),
+  '@sudowork/contracts/conversations': resolve('../../packages/contracts/src/conversations.ts'),
 };
 
 /**
@@ -93,7 +99,9 @@ export default defineConfig(({ mode }) => {
         // 'fix-path' excluded so it gets bundled inline (only 3KB).
         // 'v8-compile-cache' excluded so it can cache all subsequent requires (reduces startup 40-60%).
         externalizeDepsPlugin({
-          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx'],
+          // @sudowork/* are workspace packages bundled from source (aliased above)
+          // so the main process has no runtime dependency on their dist build.
+          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts'],
           include: ['nexus-napi'],
         }),
         ...(!isDevelopment
