@@ -156,13 +156,17 @@ export interface OutgoingUserMessage {
 }
 
 export function buildUserMessage(msg: OutgoingUserMessage): Record<string, unknown> {
-  const content: Record<string, unknown>[] = [{ type: 'text', text: msg.text }]
+  // Image blocks precede the text so the agent treats them as vision input,
+  // matching the desktop vision fix (inline image attachments as vision blocks).
+  // Text-first would risk the model hallucinating instead of analysing the image.
+  const content: Record<string, unknown>[] = []
   for (const img of msg.images) {
     content.push({
       type: 'image',
       source: { type: 'base64', media_type: img.mediaType, data: img.data },
     })
   }
+  content.push({ type: 'text', text: msg.text })
   return {
     type: 'user',
     message: { role: 'user', content },
