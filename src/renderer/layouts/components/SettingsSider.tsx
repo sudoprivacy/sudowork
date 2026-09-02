@@ -16,7 +16,7 @@ import { fetchSystemConfig, normalizeRechargeMode, type RechargeMode } from '@/c
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { getSiderTooltipProps } from '@/renderer/utils/siderTooltip';
-import SidebarNavItem from '@/renderer/layouts/components/SidebarNavItem';
+import SidebarNavItem from '@sudowork/ui/components/SidebarNavItem';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
 const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'display', 'channels', 'runtime', 'system', 'about'] as const; // 隐藏'copilot'；'cron'已移至左侧边栏

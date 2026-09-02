@@ -20,7 +20,7 @@ import { useCronAccess } from '@renderer/hooks/useCronAccess';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
 import { maskPhone } from '@renderer/utils';
-import SidebarNavItem from '@/renderer/layouts/components/SidebarNavItem';
+import SidebarNavItem from '@sudowork/ui/components/SidebarNavItem';
 import SettingsSider from './SettingsSider';
 import TeamSiderSection from './TeamSiderSection';
 

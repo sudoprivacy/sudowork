@@ -5,7 +5,7 @@
 import { Cable, Info, Monitor, User } from 'lucide-react'
 import React from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import SidebarNavItem from '@client/components/SidebarNavItem'
+import SidebarNavItem from '@sudowork/ui/components/SidebarNavItem'
 
 const SETTINGS_ITEMS = [
   { id: 'profile', label: '用户中心', path: 'profile', Icon: User },

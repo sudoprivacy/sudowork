@@ -11,7 +11,7 @@ import { Dropdown, Menu, Tabs } from '@arco-design/web-react'
 import { useSession } from '@client/features/auth/useAuth'
 import { logout } from '@client/features/auth/authApi'
 import { ConversationHistory } from '@client/features/conversations/ConversationHistory'
-import SidebarNavItem from '@client/components/SidebarNavItem'
+import SidebarNavItem from '@sudowork/ui/components/SidebarNavItem'
 import { SettingsSider } from './SettingsSider'
 
 const SIDER_TAB_STORAGE_KEY = 'sudowork_sider_tab'

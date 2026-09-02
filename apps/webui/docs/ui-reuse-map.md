@@ -22,12 +22,14 @@ _（`SidebarNavItem.tsx` 两端已发散，暂不共享；layouts/pages 属数�
 
 ## 组件
 
-| WebUI 文件 | Sudowork 来源 | 摘取方式 |
+| WebUI 文件 | Sudowork 来源 | 现状 |
 |---|---|---|
-| `src/client/components/SidebarNavItem.tsx` | `sudowork/src/renderer/layouts/components/SidebarNavItem.tsx` | 原样（无 Electron 依赖） |
-| `src/client/layouts/AppLayout.tsx` | `sudowork/src/renderer/layouts/layout.tsx` | 裁剪：移除 Titlebar/UpdateModal/DebugPanel/DeepLink/目录选择/ipcBridge 日志桥/租户 logo（首版静态"Sudowork"标识） |
-| `src/client/layouts/MainSider.tsx` | `sudowork/src/renderer/layouts/components/Sider.tsx` | 裁剪：保留新会话/Agent/Skill/Cron 菜单与对话-定时任务 Tab、用户区；移除批量管理、本地知识库、安全中心、频道、团队、游客模式；历史列表区为 Task 5 占位 |
-| `src/client/layouts/SettingsSider.tsx` | `sudowork/src/renderer/layouts/components/SettingsSider.tsx` | 重写为固定四项：用户中心/MCP 服务/显示/关于；移除扩展 Tab、充值、成员、模型等全部范围外项 |
+| ~~`src/client/components/SidebarNavItem.tsx`~~ | — | ✅ **已抽成共享包** `@sudowork/ui/components/SidebarNavItem`（纯展示、无 Electron；两端 import，webui 副本已删） |
+| `src/client/layouts/AppLayout.tsx` | `sudowork/src/renderer/layouts/layout.tsx` | **App 专属（非重复）**：webui 裁剪版（移除 Titlebar/UpdateModal/DebugPanel/DeepLink/目录选择/ipcBridge 日志桥/租户 logo）。与桌面布局是**有意的不同产品面**，不共享——真要共享得先做数据端口抽象（见下）。 |
+| `src/client/layouts/MainSider.tsx` | `sudowork/src/renderer/layouts/components/Sider.tsx` | **App 专属（非重复）**：webui 裁剪版（保留新会话/Agent/Skill/Cron，移除批量管理/本地知识库/安全中心/频道/团队/游客等桌面独有项）。同上。 |
+| `src/client/layouts/SettingsSider.tsx` | `sudowork/src/renderer/layouts/components/SettingsSider.tsx` | **App 专属（非重复）**：webui 重写为固定四项（用户中心/MCP/显示/关于）。同上。 |
+
+> **Stage 3 结论**：真正的逐字节重复只有「样式 + SidebarNavItem」，均已抽进 `@sudowork/ui`。布局是两端**有意分化的产品面**（不是拷贝），要共享它们（及数据耦合的 pages）需要**数据端口抽象**（renderer 只依赖一个 port，桌面注 Electron-IPC adapter / web 注 HTTP adapter）——那是独立的大重构（桌面渲染层 ~822 处 `ipcBridge` 调用），不属"消拷贝"范畴。新的共享展示型组件应从 `@sudowork/ui` 起步、不再拷贝。
 
 ## 后续 Task 计划摘取（占位，实施时更新本表）
 
