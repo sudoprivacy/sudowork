@@ -5,6 +5,7 @@
  */
 
 import WebSocket from 'ws';
+import { buildUserMessage, buildAnswerQuestionMessage, buildInterruptMessage, buildSetModelMessage } from '@sudowork/moss-client';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '@/process/utils/mainLogger';
@@ -697,30 +698,15 @@ export class MossWsConnection {
     }
 
     try {
-      // Image content blocks precede the text so the remote agent (scode) sees
-      // them as vision input. moss's acpBridge forwards these to scode's
-      // push_images path. Uses the Anthropic base64 source shape moss expects.
-      const contentBlocks: Array<Record<string, unknown>> = [];
-      if (payload.images && payload.images.length > 0) {
-        for (const img of payload.images) {
-          contentBlocks.push({
-            type: 'image',
-            source: { type: 'base64', media_type: img.mimeType, data: img.data },
-          });
-        }
-      }
-      contentBlocks.push({ type: 'text', text: payload.content });
-
-      const mossMessage = {
-        type: 'user',
-        message: {
-          role: 'user',
-          content: contentBlocks,
-        },
-        parent_tool_use_id: null as string | null,
-        session_id: this.sessionId || '',
-        uuid: payload.msg_id || uuid(36),
-      };
+      // Shared builder owns the moss user-message shape (image blocks precede
+      // text as vision input; see @sudowork/moss-client buildUserMessage).
+      const mossMessage = buildUserMessage({
+        sessionId: this.sessionId || '',
+        text: payload.content,
+        images: (payload.images ?? []).map((img) => ({ mediaType: img.mimeType, data: img.data })),
+        parentToolUseId: null,
+        uuid: payload.msg_id,
+      });
 
       this.ws.send(JSON.stringify(mossMessage));
       return { success: true };
@@ -735,18 +721,7 @@ export class MossWsConnection {
     }
 
     try {
-      this.ws.send(
-        JSON.stringify({
-          type: 'user',
-          message: {
-            role: 'user',
-            content: [{ type: 'text', text: answer }],
-          },
-          parent_tool_use_id: parentToolUseId || null,
-          session_id: this.sessionId || '',
-          uuid: uuid(36),
-        })
-      );
+      this.ws.send(JSON.stringify(buildAnswerQuestionMessage(this.sessionId || '', parentToolUseId ?? null, answer)));
       return { success: true };
     } catch (err) {
       return { success: false, msg: String(err) };
@@ -755,13 +730,7 @@ export class MossWsConnection {
 
   sendInterrupt(): void {
     if (this.state !== 'connected' || !this.ws) return;
-    this.ws.send(
-      JSON.stringify({
-        type: 'control_request',
-        request_id: uuid(36),
-        request: { subtype: 'interrupt' },
-      })
-    );
+    this.ws.send(JSON.stringify(buildInterruptMessage()));
   }
 
   /**
@@ -793,13 +762,7 @@ export class MossWsConnection {
       });
 
       // Send interrupt request
-      this.ws!.send(
-        JSON.stringify({
-          type: 'control_request',
-          request_id: requestId,
-          request: { subtype: 'interrupt' },
-        })
-      );
+      this.ws!.send(JSON.stringify(buildInterruptMessage(requestId)));
 
       mainLog('MossWsConnection', `Sent interrupt request ${requestId}, waiting for confirmation`);
     });
@@ -839,14 +802,7 @@ export class MossWsConnection {
     }
 
     const requestId = uuid(36);
-    const payload = JSON.stringify({
-      type: 'control_request',
-      request_id: requestId,
-      request: {
-        subtype: 'set_model',
-        model_id: modelId,
-      },
-    });
+    const payload = JSON.stringify(buildSetModelMessage(modelId, requestId));
 
     try {
       this.ws.send(payload);
