@@ -53,6 +53,9 @@ jobs:
     if: github.event.action != 'edited'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/desktop
     strategy:
       fail-fast: false
       matrix:
@@ -103,8 +106,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            native/nexus-napi/target
-          key: ${{ runner.os }}-cargo-napi-${{ hashFiles('native/nexus-napi/**/Cargo.lock') }}
+            apps/desktop/native/nexus-napi/target
+          key: ${{ runner.os }}-cargo-napi-${{ hashFiles('apps/desktop/native/nexus-napi/**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-napi-
 
