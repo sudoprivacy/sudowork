@@ -4,6 +4,10 @@
   "version": "0.2.17",
   "description": "新一代企业AI应用平台--AgentOPS|办公专家",
   "main": "./out/main/index.js",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {
     "node": ">=22 <26"
   },
