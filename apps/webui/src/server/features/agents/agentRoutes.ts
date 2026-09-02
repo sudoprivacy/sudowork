@@ -2,7 +2,7 @@ import { Router, type NextFunction, type Response } from 'express'
 import { ZodError } from 'zod'
 import { getAccessToken } from '../auth/authService.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
-import { MossHttpError } from '../../moss/MossHttpClient.js'
+import { MossHttpError } from '@sudowork/moss-client'
 import {
   CreateAgentRequestSchema,
   HubListQuerySchema,

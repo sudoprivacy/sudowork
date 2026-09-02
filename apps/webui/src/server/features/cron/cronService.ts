@@ -2,9 +2,9 @@ import type { AppConfig } from '../../config.js'
 import type { Pool } from 'pg'
 import type { AuthDeps } from '../auth/authService.js'
 import type { Principal } from '../auth/principalRepository.js'
-import type { MossCronPort } from '../../moss/MossCronClient.js'
-import type { MossSessionPort } from '../../moss/MossSessionClient.js'
-import { MossHttpError, MossNetworkError } from '../../moss/MossHttpClient.js'
+import type { MossCronPort } from '@sudowork/moss-client'
+import type { MossSessionPort } from '@sudowork/moss-client'
+import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 
 /**
  * Cron 服务（计划 3.9 修订版）：

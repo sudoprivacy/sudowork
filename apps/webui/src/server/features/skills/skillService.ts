@@ -1,8 +1,8 @@
 import type { AppConfig } from '../../config.js'
 import type { Pool } from 'pg'
 import type { AuthDeps } from '../auth/authService.js'
-import type { MossSkillPort } from '../../moss/MossSkillClient.js'
-import { MossHttpError, MossNetworkError } from '../../moss/MossHttpClient.js'
+import type { MossSkillPort } from '@sudowork/moss-client'
+import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 
 /**
  * Skill 服务（计划 3.4/3.9 修订版）：与 agentService 对称；

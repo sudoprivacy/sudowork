@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { createMossCronPort } from '@server/moss/MossCronClient'
+import { createMossCronPort } from '@sudowork/moss-client'
 
 const BASE = 'http://moss.test'
 const TK = 'tk'

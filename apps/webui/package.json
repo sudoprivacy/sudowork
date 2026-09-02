@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@sudowork/contracts": "workspace:*",
+    "@sudowork/moss-client": "workspace:*",
     "@arco-design/web-react": "2.66.1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",

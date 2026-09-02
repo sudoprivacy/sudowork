@@ -3,8 +3,8 @@ import type { Pool } from 'pg'
 import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
 import type { Principal } from '../auth/principalRepository.js'
-import type { MossSessionPort } from '../../moss/MossSessionClient.js'
-import { type MossFetch, MossHttpError, MossNetworkError } from '../../moss/MossHttpClient.js'
+import type { MossSessionPort } from '@sudowork/moss-client'
+import { type MossFetch, MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 import type {
   ConversationListItem,
   CreateConversationRequest,

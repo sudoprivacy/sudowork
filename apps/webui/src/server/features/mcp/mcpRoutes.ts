@@ -5,8 +5,8 @@ import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
 import { getAccessToken } from '../auth/authService.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
-import type { MossMcpPort } from '../../moss/MossMcpClient.js'
-import { MossHttpError, MossNetworkError } from '../../moss/MossHttpClient.js'
+import type { MossMcpPort } from '@sudowork/moss-client'
+import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 
 /**
  * MCP 路由（计划 3.9 修订版）：

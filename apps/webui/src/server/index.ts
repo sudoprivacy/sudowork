@@ -8,8 +8,8 @@ import {
   registerStaticSpa,
 } from './app.js'
 import { loadConfig } from './config.js'
-import { createMossAuthPort } from './moss/MossAuthClient.js'
-import { mossRequest } from './moss/MossHttpClient.js'
+import { createMossAuthPort } from '@sudowork/moss-client'
+import { mossRequest } from '@sudowork/moss-client'
 import { closePool, getPool } from './db.js'
 
 const config = loadConfig()

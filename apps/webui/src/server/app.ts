@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import type { Pool } from 'pg'
 import { WebSocketServer } from 'ws'
 import type { AppConfig } from './config.js'
-import type { MossAuthPort } from './moss/MossAuthClient.js'
-import { createMossSessionPort, type MossSessionPort } from './moss/MossSessionClient.js'
-import { type MossFetch, MossHttpError, MossNetworkError, mossRequest } from './moss/MossHttpClient.js'
+import type { MossAuthPort } from '@sudowork/moss-client'
+import { createMossSessionPort, type MossSessionPort } from '@sudowork/moss-client'
+import { type MossFetch, MossHttpError, MossNetworkError, mossRequest } from '@sudowork/moss-client'
 import { createOriginGuard, isOriginAllowed, noStore, securityHeaders } from './security/requestSecurity.js'
 import { createAuthRouter } from './features/auth/authRoutes.js'
 import { MossUnauthorizedError } from './features/auth/authService.js'
@@ -19,10 +19,10 @@ import {
 } from './features/auth/sessionMiddleware.js'
 import { ConversationCoordinator } from './features/conversations/ConversationCoordinator.js'
 import { createConversationRouter } from './features/conversations/conversationRoutes.js'
-import { createMossAgentPort, type MossAgentPort } from './moss/MossAgentClient.js'
-import { createMossSkillPort, type MossSkillPort } from './moss/MossSkillClient.js'
-import { createMossCronPort } from './moss/MossCronClient.js'
-import { createMossMcpPort, type MossMcpPort } from './moss/MossMcpClient.js'
+import { createMossAgentPort, type MossAgentPort } from '@sudowork/moss-client'
+import { createMossSkillPort, type MossSkillPort } from '@sudowork/moss-client'
+import { createMossCronPort } from '@sudowork/moss-client'
+import { createMossMcpPort, type MossMcpPort } from '@sudowork/moss-client'
 import { createAgentRouter } from './features/agents/agentRoutes.js'
 import { createSkillRouter } from './features/skills/skillRoutes.js'
 import { createCronRouter } from './features/cron/cronRoutes.js'
@@ -103,7 +103,7 @@ export interface ApiDeps {
   /** 测试注入桩 */
   skills?: MossSkillPort
   /** 测试注入桩 */
-  cron?: import('./moss/MossCronClient.js').MossCronPort
+  cron?: import('@sudowork/moss-client').MossCronPort
   /** 测试注入桩 */
   fetchVisibleAgentNames?: (accessToken: string) => Promise<Set<string>>
   /** 测试注入桩 */

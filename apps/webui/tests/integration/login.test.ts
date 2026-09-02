@@ -4,8 +4,8 @@ import type { Express } from 'express'
 import { Pool } from 'pg'
 import { createApp, registerApiRoutes } from '@server/app'
 import type { AppConfig } from '@server/config'
-import type { MossAuthPort } from '@server/moss/MossAuthClient'
-import { MossHttpError } from '@server/moss/MossHttpClient'
+import type { MossAuthPort } from '@sudowork/moss-client'
+import { MossHttpError } from '@sudowork/moss-client'
 import { createTestDatabase, destroyTestDatabase } from './helpers'
 
 const TOKENS_A = { access_token: 'at-a', refresh_token: 'rt-a', token_type: 'Bearer' as const, expires_in: 3600 }

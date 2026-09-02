@@ -4,15 +4,15 @@ import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
 import { getAccessToken } from '../auth/authService.js'
 import type { WebSessionRow } from '../auth/sessionRepository.js'
-import type { MossSessionPort } from '../../moss/MossSessionClient.js'
-import { MossHttpError, MossNetworkError } from '../../moss/MossHttpClient.js'
+import type { MossSessionPort } from '@sudowork/moss-client'
+import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 import {
   MossUpstreamSocket,
   buildAnswerQuestionMessage,
   buildInterruptMessage,
   buildSetModelMessage,
   buildUserMessage,
-} from '../../moss/MossWebSocket.js'
+} from '@sudowork/moss-client'
 import {
   UPSTREAM_EVENT_TYPES,
   ClientOutboundMessageSchema,

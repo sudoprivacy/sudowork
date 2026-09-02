@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
-import { createMossAuthPort } from '@server/moss/MossAuthClient'
-import { MossHttpError, MossNetworkError, mossRequest } from '@server/moss/MossHttpClient'
+import { createMossAuthPort } from '@sudowork/moss-client'
+import { MossHttpError, MossNetworkError, mossRequest } from '@sudowork/moss-client'
 
 const BASE = 'http://moss.test'
 

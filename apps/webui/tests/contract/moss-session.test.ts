@@ -1,12 +1,12 @@
 import { describe, expect, test, vi } from 'vitest'
-import { createMossSessionPort } from '@server/moss/MossSessionClient'
+import { createMossSessionPort } from '@sudowork/moss-client'
 import {
   buildAnswerQuestionMessage,
   buildSetModelMessage,
   buildUserMessage,
   validateMossWsUrl,
   MossWsValidationError,
-} from '@server/moss/MossWebSocket'
+} from '@sudowork/moss-client'
 
 const BASE = 'http://moss.test'
 

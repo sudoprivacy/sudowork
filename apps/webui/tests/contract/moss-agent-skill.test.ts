@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
-import { createMossAgentPort } from '@server/moss/MossAgentClient'
-import { createMossSkillPort } from '@server/moss/MossSkillClient'
+import { createMossAgentPort } from '@sudowork/moss-client'
+import { createMossSkillPort } from '@sudowork/moss-client'
 
 const BASE = 'http://moss.test'
 const TK = 'tk'
