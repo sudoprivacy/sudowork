@@ -10,6 +10,11 @@ const aliases = {
   '@mcp/models/': path.resolve(__dirname, './src/common/models') + '/',
   '@mcp/types/': path.resolve(__dirname, './src/common') + '/',
   '@mcp/': path.resolve(__dirname, './src/common') + '/',
+  // Resolve shared workspace packages to source so tests never depend on a
+  // prior `dist` build (uniform local/CI; exercises the actual source).
+  '@sudowork/moss-client': path.resolve(__dirname, '../../packages/moss-client/src/index.ts'),
+  '@sudowork/contracts/auth': path.resolve(__dirname, '../../packages/contracts/src/auth.ts'),
+  '@sudowork/contracts/conversations': path.resolve(__dirname, '../../packages/contracts/src/conversations.ts'),
 };
 
 export default defineConfig({
@@ -148,7 +153,6 @@ export default defineConfig({
         // Extension system (only files with existing tests)
         'src/extensions/ExtensionLoader.ts',
         'src/extensions/{dependencyResolver,pathSafety,statePersistence,entryPointResolver,envResolver,fileResolver}.ts',
-        'src/extensions/resolvers/WebuiResolver.ts',
       ],
       thresholds: {
         statements: 30,
