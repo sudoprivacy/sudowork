@@ -210,6 +210,7 @@
     "fix-path": "^4.0.0",
     "grammy": "^1.39.3",
     "html-to-text": "^9.0.5",
+    "http-proxy-agent": "^7.0.2",
     "https-proxy-agent": "^8.0.0",
     "i18next": "^23.7.16",
     "jsonrepair": "^3.13.0",
