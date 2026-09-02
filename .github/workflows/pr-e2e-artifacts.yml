@@ -29,6 +29,9 @@ jobs:
     name: E2E Artifacts (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/desktop
 
     steps:
       - name: Checkout code
