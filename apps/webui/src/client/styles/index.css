@@ -9,16 +9,16 @@
 /* Arco Design 组件样式（main.tsx 引入）；以下为 Sudowork 企业端覆盖与 token */
 
 /* 设计 token / Design tokens (single source of truth) */
-@import './variables.css';
+@import '@sudowork/ui/styles/variables.css';
 
 /* 基础与外观规则 / Base + chrome rules */
-@import './base.css';
+@import '@sudowork/ui/styles/base.css';
 
 /* Markdown 主题规则 */
-@import './markdown.css';
+@import '@sudowork/ui/styles/markdown.css';
 
 /* Arco 组件覆盖 / Arco component overrides */
-@import './arco-override.scss';
+@import '@sudowork/ui/styles/arco-override.scss';
 
 /* 会话页右侧面板 / Conversation right panel */
 @import './right-panel.css';

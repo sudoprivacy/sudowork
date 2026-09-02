@@ -3,15 +3,16 @@
 依据计划 Task 4："从 Sudowork 摘取 Design tokens、Arco 覆盖、侧栏和通用容器，保留 Apache license header"。
 所有摘取文件保留原 `Copyright 2026 SudoPrivacy / SPDX-License-Identifier: Apache-2.0` 头部。
 
-## 样式（全量摘取）
+## 样式 —— 已抽成共享包 `@sudowork/ui`（不再拷贝）
 
-| WebUI 文件 | Sudowork 来源 | 说明 |
-|---|---|---|
-| `src/client/styles/variables.css` | `sudowork/src/renderer/styles/variables.css` | Design tokens 唯一来源（亮/暗主题 CSS 变量），原样 |
-| `src/client/styles/base.css` | `sudowork/src/renderer/styles/base.css` | 基础与 chrome 规则，原样 |
-| `src/client/styles/markdown.css` | `sudowork/src/renderer/styles/markdown.css` | Markdown 主题，原样（Task 5 会话消息使用） |
-| `src/client/styles/arco-override.scss` | `sudowork/src/renderer/styles/arco-override.scss` | Arco 组件覆盖，原样 |
-| `src/client/styles/index.css` | `sudowork/src/renderer/styles/index.css` | 入口顺序调整为 arco.css → variables → base → markdown → arco-override |
+Stage 3 已将 4 个逐字节相同的样式抽进 monorepo 共享包 `packages/ui`，桌面与 webui **共同 import**、不再各存一份：
+
+| 文件 | 现状 |
+|---|---|
+| `variables.css` / `base.css` / `markdown.css` / `arco-override.scss` | 移到 `packages/ui/src/styles/`，两端 `@import '@sudowork/ui/styles/*'`（桌面另含 `Markdown.tsx` 的 `?raw` 注入、`index.ts` 的 scss 引入，均已重指）。webui 旧副本已删。 |
+| `src/client/styles/index.css` | 保留为 webui 专属入口（各 app 入口顺序不同，从共享包 import 上述 4 个） |
+
+_（`SidebarNavItem.tsx` 两端已发散，暂不共享；layouts/pages 属数据耦合，走后续端口抽象。）_
 
 ## 配置
 

@@ -27,7 +27,7 @@ import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { copyText } from '@/renderer/utils/clipboard';
-import markdownThemeCss from '../styles/markdown.css?raw';
+import markdownThemeCss from '@sudowork/ui/styles/markdown.css?raw';
 import { convertLatexDelimiters } from '../utils/latexDelimiters';
 import LocalImageView from './LocalImageView';
 

@@ -34,7 +34,7 @@ import { InitProvider } from '@renderer/context/InitContext';
 import '@renderer/i18n';
 import HOC from '@renderer/utils/HOC';
 import '@renderer/styles/index.css';
-import './styles/arco-override.scss';
+import '@sudowork/ui/styles/arco-override.scss';
 
 // One-time migration of legacy 'aionui_*' localStorage keys to 'sudowork_*'
 migrateLocalStorageKeys();

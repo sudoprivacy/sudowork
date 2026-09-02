@@ -171,6 +171,7 @@
   },
   "dependencies": {
     "@sudowork/moss-client": "workspace:*",
+    "@sudowork/ui": "workspace:*",
     "@anthropic-ai/sdk": "^0.71.2",
     "@aws-sdk/client-bedrock": "^3.987.0",
     "@bufbuild/protobuf": "^2.12.0",

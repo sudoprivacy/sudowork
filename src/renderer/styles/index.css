@@ -7,10 +7,10 @@
 /* Styles Entry Point */
 
 /* 设计 token / Design tokens (single source of truth) */
-@import './variables.css';
+@import '@sudowork/ui/styles/variables.css';
 
 /* 基础与外观规则 / Base + chrome rules */
-@import './base.css';
+@import '@sudowork/ui/styles/base.css';
 
 /* Markdown 主题规则（同时被 Markdown.tsx 以 ?raw 注入 Shadow DOM） */
-@import './markdown.css';
+@import '@sudowork/ui/styles/markdown.css';
