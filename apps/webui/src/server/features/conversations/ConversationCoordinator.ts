@@ -17,7 +17,7 @@ import {
   UPSTREAM_EVENT_TYPES,
   ClientOutboundMessageSchema,
   type ServerInboundEvent,
-} from '../../../shared/contracts/conversations.js'
+} from '@sudowork/contracts/conversations'
 import {
   acquireWriteLock,
   clearWriterIfIdle,

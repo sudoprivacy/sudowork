@@ -3,7 +3,7 @@ import {
   MossTokenSetSchema,
   type MossMe,
   type MossTokenSet,
-} from '../../shared/contracts/auth.js'
+} from '@sudowork/contracts/auth'
 import { type MossFetch } from './MossHttpClient.js'
 
 /**

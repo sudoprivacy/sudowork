@@ -7,7 +7,7 @@ import React, { useState } from 'react'
 import { Dropdown, Menu, Modal, Input, Message as ArcoMessage } from '@arco-design/web-react'
 import { MessageOne } from '@icon-park/react'
 import { Pin } from 'lucide-react'
-import type { ConversationListItem } from '@shared/contracts/conversations'
+import type { ConversationListItem } from '@sudowork/contracts/conversations'
 
 export function ConversationRow({
   item,

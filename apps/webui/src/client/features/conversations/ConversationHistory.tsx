@@ -21,7 +21,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown } from 'lucide-react'
-import type { ConversationListItem } from '@shared/contracts/conversations'
+import type { ConversationListItem } from '@sudowork/contracts/conversations'
 import {
   deleteConversation,
   getConversationOptions,

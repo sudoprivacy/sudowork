@@ -8,7 +8,7 @@ import {
   CreateConversationRequestSchema,
   ReorderPinnedRequestSchema,
   UpdateConversationMetaRequestSchema,
-} from '../../../shared/contracts/conversations.js'
+} from '@sudowork/contracts/conversations'
 import {
   InvalidSelectionError,
   MossUnavailableError,

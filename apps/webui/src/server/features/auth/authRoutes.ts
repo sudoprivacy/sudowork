@@ -2,7 +2,7 @@ import { Router, type Response, type NextFunction } from 'express'
 import rateLimit from 'express-rate-limit'
 import { ZodError } from 'zod'
 import type { AppConfig } from '../../config.js'
-import { LoginApiKeyRequestSchema, LoginPasswordRequestSchema } from '../../../shared/contracts/auth.js'
+import { LoginApiKeyRequestSchema, LoginPasswordRequestSchema } from '@sudowork/contracts/auth'
 import {
   InvalidCredentialsError,
   MossUnavailableError,

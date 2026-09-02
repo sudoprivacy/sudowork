@@ -7,7 +7,7 @@ import {
   MossSessionSummarySchema,
   MossWorkspaceNodeSchema,
   type MossSessionSummary,
-} from '../../shared/contracts/conversations.js'
+} from '@sudowork/contracts/conversations'
 import { type MossFetch } from './MossHttpClient.js'
 
 /**

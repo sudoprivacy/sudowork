@@ -1,4 +1,4 @@
-import type { SessionResponse } from '@shared/contracts/auth'
+import type { SessionResponse } from '@sudowork/contracts/auth'
 
 /**
  * WebUI 后端 API 客户端：同源 fetch + HttpOnly Cookie（计划 3.2）。

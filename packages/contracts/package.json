@@ -1,0 +1,13 @@
+{
+  "name": "@sudowork/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./auth": "./src/auth.ts",
+    "./conversations": "./src/conversations.ts"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  }
+}

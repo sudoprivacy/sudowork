@@ -188,6 +188,7 @@
         "@dnd-kit/utilities": "^3.2.2",
         "@icon-park/react": "^1.4.2",
         "@lydell/node-pty": "^1.1.0",
+        "@sudowork/contracts": "workspace:*",
         "@xterm/addon-fit": "^0.11.0",
         "classnames": "^2.5.1",
         "express": "5.1.0",
@@ -228,6 +229,13 @@
         "unocss": "66.3.3",
         "vite": "6.4.1",
         "vitest": "4.0.18",
+      },
+    },
+    "packages/contracts": {
+      "name": "@sudowork/contracts",
+      "version": "0.0.0",
+      "dependencies": {
+        "zod": "3.25.76",
       },
     },
   },
@@ -1446,6 +1454,8 @@
     "@smithy/uuid": ["@smithy/uuid@1.1.0", "https://registry.npmmirror.com/@smithy/uuid/-/uuid-1.1.0.tgz", { "dependencies": { "tslib": "^2.6.2" } }, "sha512-4aUIteuyxtBUhVdiQqcDhKFitwfd9hqoSDYY2KRXiWtgoWJ9Bmise+KfEPDiVHWeJepvF8xJO9/9+WDIciMFFw=="],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "https://registry.npmmirror.com/@standard-schema/spec/-/spec-1.1.0.tgz", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
+
+    "@sudowork/contracts": ["@sudowork/contracts@workspace:packages/contracts"],
 
     "@swc/core": ["@swc/core@1.15.11", "https://registry.npmmirror.com/@swc/core/-/core-1.15.11.tgz", { "dependencies": { "@swc/counter": "^0.1.3", "@swc/types": "^0.1.25" }, "optionalDependencies": { "@swc/core-darwin-arm64": "1.15.11", "@swc/core-darwin-x64": "1.15.11", "@swc/core-linux-arm-gnueabihf": "1.15.11", "@swc/core-linux-arm64-gnu": "1.15.11", "@swc/core-linux-arm64-musl": "1.15.11", "@swc/core-linux-x64-gnu": "1.15.11", "@swc/core-linux-x64-musl": "1.15.11", "@swc/core-win32-arm64-msvc": "1.15.11", "@swc/core-win32-ia32-msvc": "1.15.11", "@swc/core-win32-x64-msvc": "1.15.11" }, "peerDependencies": { "@swc/helpers": ">=0.5.17" }, "optionalPeers": ["@swc/helpers"] }, "sha512-iLmLTodbYxU39HhMPaMUooPwO/zqJWvsqkrXv1ZI38rMb048p6N7qtAtTp37sw9NzSrvH6oli8EdDygo09IZ/w=="],
 

@@ -8,7 +8,7 @@ import { type MossFetch, MossHttpError, MossNetworkError } from '../../moss/Moss
 import type {
   ConversationListItem,
   CreateConversationRequest,
-} from '../../../shared/contracts/conversations.js'
+} from '@sudowork/contracts/conversations'
 import type { ConversationCoordinator } from './ConversationCoordinator.js'
 import {
   deleteConversationMeta as deleteConversationMetaRow,

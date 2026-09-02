@@ -1,4 +1,4 @@
-import type { ConversationContextDto, ConversationListItem } from '@shared/contracts/conversations'
+import type { ConversationContextDto, ConversationListItem } from '@sudowork/contracts/conversations'
 import { ApiError } from '@client/features/auth/authApi'
 
 export interface ConversationOptions {

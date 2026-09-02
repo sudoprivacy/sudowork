@@ -4,7 +4,7 @@ import type { MossAuthPort } from '../../moss/MossAuthClient.js'
 import { MossHttpError, MossNetworkError } from '../../moss/MossHttpClient.js'
 import { digestToken, generateSessionToken } from '../../security/sessionToken.js'
 import { decryptToken, encryptToken } from '../../security/tokenCipher.js'
-import type { MossMe, MossTokenSet } from '../../../shared/contracts/auth.js'
+import type { MossMe, MossTokenSet } from '@sudowork/contracts/auth'
 import { findPrincipalById, upsertPrincipal, type Principal } from './principalRepository.js'
 import {
   createWebSession,

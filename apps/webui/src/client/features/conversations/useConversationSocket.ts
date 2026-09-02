@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ServerInboundEvent } from '@shared/contracts/conversations'
+import type { ServerInboundEvent } from '@sudowork/contracts/conversations'
 
 /**
  * 浏览器 ⇄ WebUI 会话 WS。
