@@ -13,7 +13,6 @@ import { resolveAssistants, resolveAgents } from './resolvers/AssistantResolver'
 import { resolveSkills } from './resolvers/SkillResolver';
 import { resolveThemes } from './resolvers/ThemeResolver';
 import { resolveChannelPlugins } from './resolvers/ChannelPluginResolver';
-import { resolveWebuiContributions, type WebuiContribution } from './resolvers/WebuiResolver';
 import { resolveSettingsTabs, type ResolvedSettingsTab } from './resolvers/SettingsTabResolver';
 import { resolveExtensionI18n, getExtI18nForLocale, type AggregatedExtI18n } from './resolvers/I18nResolver';
 import { resolveModelProviders, type ResolvedModelProvider } from './resolvers/ModelProviderResolver';
@@ -44,7 +43,6 @@ export class ExtensionRegistry {
   private _skills: Array<{ name: string; description: string; location: string }> = [];
   private _themes: ICssTheme[] = [];
   private _channelPlugins = new Map<string, { constructor: unknown; meta: unknown }>();
-  private _webuiContributions: WebuiContribution[] = [];
   private _settingsTabs: ResolvedSettingsTab[] = [];
   private _modelProviders: ResolvedModelProvider[] = [];
   private _extI18n: AggregatedExtI18n = {};
@@ -165,7 +163,6 @@ export class ExtensionRegistry {
           `${this._skills.length} skill(s), ` +
           `${this._themes.length} theme(s), ` +
           `${this._channelPlugins.size} channel plugin(s), ` +
-          `${this._webuiContributions.length} webui contribution(s), ` +
           `${this._settingsTabs.length} settings tab(s), ` +
           `${this._modelProviders.length} model provider(s), ` +
           `${Object.keys(this._extI18n).length} i18n locale(s)`
@@ -315,7 +312,6 @@ export class ExtensionRegistry {
     this._skills = resolveSkills(enabledExtensions);
     this._themes = resolveThemes(enabledExtensions);
     this._channelPlugins = resolveChannelPlugins(enabledExtensions) as Map<string, { constructor: unknown; meta: unknown }>;
-    this._webuiContributions = resolveWebuiContributions(enabledExtensions);
     this._settingsTabs = resolveSettingsTabs(enabledExtensions);
     this._modelProviders = resolveModelProviders(enabledExtensions);
 
@@ -370,11 +366,6 @@ export class ExtensionRegistry {
   /** Get metadata for a specific channel plugin type */
   getChannelPluginMeta(type: string): unknown {
     return this._channelPlugins.get(type)?.meta;
-  }
-
-  /** Get all extension-contributed WebUI configurations */
-  getWebuiContributions(): WebuiContribution[] {
-    return this._webuiContributions;
   }
 
   /** Get all extension-contributed settings tabs (sorted by order) */

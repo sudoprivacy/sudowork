@@ -255,41 +255,6 @@ export const ExtChannelPluginSchema = z.object({
   configFields: z.array(ExtFieldSchema).optional(),
 });
 
-// ============ WebUI Schema ============
-
-export const ExtApiRouteSchema = z.object({
-  path: z.string().min(1, 'WebUI route path is required'),
-  entryPoint: z.string(),
-  description: z.string().optional(),
-  auth: z.boolean().default(true),
-});
-
-export const ExtWsHandlerSchema = z.object({
-  namespace: z.string(),
-  entryPoint: z.string(),
-  description: z.string().optional(),
-});
-
-export const ExtMiddlewareSchema = z.object({
-  entryPoint: z.string(),
-  description: z.string().optional(),
-  applyTo: z.string().default('/**'),
-  order: z.enum(['before', 'after']).default('before'),
-});
-
-export const ExtStaticAssetSchema = z.object({
-  urlPrefix: z.string().min(1, 'WebUI static asset urlPrefix is required'),
-  directory: z.string(),
-  description: z.string().optional(),
-});
-
-export const ExtWebuiSchema = z.object({
-  apiRoutes: z.array(ExtApiRouteSchema).optional(),
-  wsHandlers: z.array(ExtWsHandlerSchema).optional(),
-  middleware: z.array(ExtMiddlewareSchema).optional(),
-  staticAssets: z.array(ExtStaticAssetSchema).optional(),
-});
-
 // ============ Theme Schema ============
 
 export const ExtThemeSchema = z.object({
@@ -419,27 +384,6 @@ function validateContributeIds(contributes: z.infer<typeof ExtContributesSchemaB
       return `Duplicate settings tab IDs: ${[...new Set(duplicates)].join(', ')}`;
     }
   }
-  if (contributes.webui?.apiRoutes) {
-    const paths = contributes.webui.apiRoutes.map((r) => r.path);
-    const duplicates = paths.filter((p, idx) => paths.indexOf(p) !== idx);
-    if (duplicates.length > 0) {
-      return `Duplicate WebUI API route paths: ${[...new Set(duplicates)].join(', ')}`;
-    }
-  }
-  if (contributes.webui?.wsHandlers) {
-    const namespaces = contributes.webui.wsHandlers.map((h) => h.namespace);
-    const duplicates = namespaces.filter((ns, idx) => namespaces.indexOf(ns) !== idx);
-    if (duplicates.length > 0) {
-      return `Duplicate WebUI WS namespaces: ${[...new Set(duplicates)].join(', ')}`;
-    }
-  }
-  if (contributes.webui?.staticAssets) {
-    const prefixes = contributes.webui.staticAssets.map((a) => a.urlPrefix);
-    const duplicates = prefixes.filter((p, idx) => prefixes.indexOf(p) !== idx);
-    if (duplicates.length > 0) {
-      return `Duplicate WebUI static asset prefixes: ${[...new Set(duplicates)].join(', ')}`;
-    }
-  }
   if (contributes.modelProviders) {
     const ids = contributes.modelProviders.map((p) => p.id);
     const duplicates = ids.filter((id, idx) => ids.indexOf(id) !== idx);
@@ -458,7 +402,6 @@ const ExtContributesSchemaBase = z.object({
   agents: z.array(ExtAssistantSchema).optional(),
   skills: z.array(ExtSkillSchema).optional(),
   channelPlugins: z.array(ExtChannelPluginSchema).optional(),
-  webui: ExtWebuiSchema.optional(),
   themes: z.array(ExtThemeSchema).optional(),
   settingsTabs: z.array(ExtSettingsTabSchema).optional(),
   /** Model providers contributed by this extension */
@@ -487,7 +430,6 @@ export type ExtAgent = z.infer<typeof ExtAssistantSchema>;
 export type ExtSkill = z.infer<typeof ExtSkillSchema>;
 export type ExtChannelPlugin = z.infer<typeof ExtChannelPluginSchema>;
 export type ExtTheme = z.infer<typeof ExtThemeSchema>;
-export type ExtWebui = z.infer<typeof ExtWebuiSchema>;
 export type ExtSettingsTab = z.infer<typeof ExtSettingsTabSchema>;
 export type ExtModelProvider = z.infer<typeof ExtModelProviderSchema>;
 

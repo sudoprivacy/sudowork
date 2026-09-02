@@ -40,29 +40,6 @@
           }
         ]
       }
-    ],
-    "webui": {
-      "apiRoutes": [
-        {
-          "path": "/ext-feishu/collect",
-          "entryPoint": "webui/collector.js",
-          "description": "Collect extension telemetry events",
-          "auth": true
-        },
-        {
-          "path": "/ext-feishu/stats",
-          "entryPoint": "webui/collector.js",
-          "description": "Read extension telemetry stats",
-          "auth": true
-        }
-      ],
-      "staticAssets": [
-        {
-          "urlPrefix": "/ext-feishu/assets",
-          "directory": "assets",
-          "description": "Static assets for ext-feishu example"
-        }
-      ]
-    }
+    ]
   }
 }

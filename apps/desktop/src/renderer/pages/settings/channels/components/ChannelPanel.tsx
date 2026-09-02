@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { channel, webui, type IWebUIStatus } from '@/common/ipcBridge';
+import { channel } from '@/common/ipcBridge';
 import type { IChannelPluginStatus } from '@/channels/types';
 import { useChannelModelSelection } from '../hooks/useChannelModelSelection';
 import type { ChannelConfig, ExtensionFieldSchema, ExtensionFieldValues } from '../types';
@@ -49,7 +49,6 @@ const ChannelPanel: React.FC = () => {
   const [extensionStatuses, setExtensionStatuses] = useState<Record<string, IChannelPluginStatus>>({});
   const [extensionLoadingMap, setExtensionLoadingMap] = useState<Record<string, boolean>>({});
   const [extensionFieldValues, setExtensionFieldValues] = useState<ExtensionFieldValues>({});
-  const [webuiStatus, setWebuiStatus] = useState<IWebUIStatus | null>(null);
 
   // WeChat plugin state
   const [wechatPluginStatus, setWechatPluginStatus] = useState<IChannelPluginStatus | null>(null);
@@ -149,20 +148,6 @@ const ChannelPanel: React.FC = () => {
   useEffect(() => {
     void loadPluginStatus();
   }, [loadPluginStatus]);
-
-  useEffect(() => {
-    const loadWebuiStatus = async () => {
-      try {
-        const result = await webui.getStatus.invoke();
-        if (result?.success && result.data) {
-          setWebuiStatus(result.data);
-        }
-      } catch {
-        // Best-effort only: channel settings should not fail if webui status is unavailable.
-      }
-    };
-    void loadWebuiStatus();
-  }, []);
 
   // Listen for plugin status changes
   useEffect(() => {
@@ -540,11 +525,6 @@ const ChannelPanel: React.FC = () => {
       const pluginType = status.type;
       const fields = [...((status.extensionMeta?.credentialFields || []) as ExtensionFieldSchema[]), ...((status.extensionMeta?.configFields || []) as ExtensionFieldSchema[])];
       const values = extensionFieldValues[pluginType] || {};
-      const callbackPath = '/ext-wecom-bot/webhook';
-      const localCallbackUrl = webuiStatus?.localUrl ? `${webuiStatus.localUrl}${callbackPath}` : `http://localhost:25808${callbackPath}`;
-      const lanCallbackUrl = webuiStatus?.networkUrl ? `${webuiStatus.networkUrl}${callbackPath}` : null;
-      const publicBaseUrl = typeof values.publicBaseUrl === 'string' ? values.publicBaseUrl.trim().replace(/\/+$/, '') : '';
-      const publicCallbackUrl = publicBaseUrl ? `${publicBaseUrl}${callbackPath}` : null;
 
       if (fields.length === 0) {
         return <div className='text-14px text-secondary py-3'>{status.extensionMeta?.description || t('settings.channels.extension.noConfig', { defaultValue: 'No extra configuration required.' })}</div>;
@@ -553,16 +533,6 @@ const ChannelPanel: React.FC = () => {
       return (
         <div className='space-y-2.5 py-1'>
           {status.extensionMeta?.description && <div className='text-13px text-secondary leading-relaxed'>{status.extensionMeta.description}</div>}
-          {pluginType === 'ext-wecom-bot' && (
-            <div className='text-12px leading-relaxed p-2.5 rd-8px bg-warning-soft border border-warning-line text-secondary'>
-              <div className='font-500 text-foreground mb-1.5'>{t('settings.channels.extension.wecomCallbackTitle', '企微回调地址说明')}</div>
-              <div>{t('settings.channels.extension.localCallbackUrl', { url: localCallbackUrl, defaultValue: '本机 Callback URL: {{url}}' })}</div>
-              {lanCallbackUrl ? <div>{t('settings.channels.extension.lanCallbackUrl', { url: lanCallbackUrl, defaultValue: '局域网 Callback URL: {{url}}' })}</div> : null}
-              {publicCallbackUrl ? <div>{t('settings.channels.extension.publicCallbackUrl', { url: publicCallbackUrl, defaultValue: '公网 Callback URL(配置值): {{url}}' })}</div> : null}
-              <div className='mt-1.5'>{t('settings.channels.extension.wecomCallbackRemoteHint', '仅开启 WebUI 远程访问（LAN）通常不能直接通过企微回调。企微服务器需要可访问的公网 HTTPS 地址。')}</div>
-              <div>{t('settings.channels.extension.wecomCallbackSuggestion', '建议：使用反向代理 + 证书，或 Cloudflare Tunnel / ngrok 映射到本机。')}</div>
-            </div>
-          )}
           {fields.map((field) => {
             const rawValue = values[field.key];
             const label = `${field.label}${field.required ? ' *' : ''}`;
@@ -610,7 +580,7 @@ const ChannelPanel: React.FC = () => {
         </div>
       );
     },
-    [extensionFieldValues, t, updateExtensionFieldValue, webuiStatus]
+    [extensionFieldValues, t, updateExtensionFieldValue]
   );
 
   /** Add another connection of a builtin type, then refresh so its card appears. */

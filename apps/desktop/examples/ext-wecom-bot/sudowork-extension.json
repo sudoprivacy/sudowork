@@ -36,23 +36,6 @@
           }
         ]
       }
-    ],
-    "webui": {
-      "apiRoutes": [
-        {
-          "path": "/ext-wecom-bot/webhook",
-          "entryPoint": "webui/webhook.js",
-          "description": "WeCom bot webhook endpoint",
-          "auth": false
-        }
-      ],
-      "staticAssets": [
-        {
-          "urlPrefix": "/ext-wecom-bot/assets",
-          "directory": "assets",
-          "description": "Static assets for ext-wecom-bot"
-        }
-      ]
-    }
+    ]
   }
 }

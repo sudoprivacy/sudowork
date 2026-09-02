@@ -49,4 +49,4 @@ export type { ExtUIMessage, ExtUIResponse, ExtUIMessageHandler } from './uiProto
 
 export { RESERVED_NAME_PREFIXES, PRESET_AGENT_TYPES } from './types';
 
-export type { ExtensionManifest, ExtContributes, ExtAcpAdapter, ExtMcpServer, ExtAssistant, ExtAgent, ExtSkill, ExtChannelPlugin, ExtTheme, ExtModelProvider, ExtWebui, ExtensionSource, LoadedExtension, ExtensionState } from './types';
+export type { ExtensionManifest, ExtContributes, ExtAcpAdapter, ExtMcpServer, ExtAssistant, ExtAgent, ExtSkill, ExtChannelPlugin, ExtTheme, ExtModelProvider, ExtensionSource, LoadedExtension, ExtensionState } from './types';
