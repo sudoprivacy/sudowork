@@ -12,6 +12,7 @@
     "node": ">=22 <26"
   },
   "scripts": {
+    "build:packages": "bun run --filter='@sudowork/contracts' build && bun run --filter='@sudowork/moss-client' build",
     "hook:build": "node scripts/build-hook.js",
     "start": "bun run hook:build && bun run team-mcp:build && node scripts/launch-dev.js start",
     "cli": "bun run hook:build && node scripts/launch-dev.js start",
