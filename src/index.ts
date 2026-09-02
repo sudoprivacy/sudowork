@@ -35,8 +35,6 @@ import { registerWindowMaximizeListeners } from './process/bridge/windowControls
 import { onAvatarEnabledChanged, onCloseToTrayChanged, onLanguageChanged } from './process/bridge/systemSettingsBridge';
 import WorkerManage from './process/WorkerManage';
 import { setupApplicationMenu } from './utils/appMenu';
-import { startWebServer } from './webserver';
-import { SERVER_CONFIG } from './webserver/config/constants';
 import { applyZoomToWindow } from './process/utils/zoom';
 import i18n from '@process/i18n';
 import { mainLog, mainError } from './process/utils/mainLogger';
@@ -155,10 +153,6 @@ if (!gotTheLock) {
       handleDeepLinkUrl(deepLinkUrl);
     }
     // Focus existing window or recreate one if needed.
-    if (isWebUIMode || isResetPasswordMode) {
-      return;
-    }
-
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -262,102 +256,9 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   });
 }
 
-const hasSwitch = (flag: string) => process.argv.includes(`--${flag}`) || app.commandLine.hasSwitch(flag);
-const getSwitchValue = (flag: string): string | undefined => {
-  const withEqualsPrefix = `--${flag}=`;
-  const equalsArg = process.argv.find((arg) => arg.startsWith(withEqualsPrefix));
-  if (equalsArg) {
-    return equalsArg.slice(withEqualsPrefix.length);
-  }
-
-  const argIndex = process.argv.indexOf(`--${flag}`);
-  if (argIndex !== -1) {
-    const nextArg = process.argv[argIndex + 1];
-    if (nextArg && !nextArg.startsWith('--')) {
-      return nextArg;
-    }
-  }
-
-  const cliValue = app.commandLine.getSwitchValue(flag);
-  return cliValue || undefined;
-};
 const hasCommand = (cmd: string) => process.argv.includes(cmd);
 
-const WEBUI_CONFIG_FILE = 'webui.config.json';
-
-type WebUIUserConfig = {
-  port?: number | string;
-  allowRemote?: boolean;
-};
-
-const parsePortValue = (value: unknown, _sourceLabel: string): number | null => {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-
-  const portNumber = typeof value === 'number' ? value : parseInt(String(value), 10);
-  if (!Number.isFinite(portNumber) || portNumber < 1 || portNumber > 65535) {
-    return null;
-  }
-  return portNumber;
-};
-
-const loadUserWebUIConfig = (): { config: WebUIUserConfig; path: string | null; exists: boolean } => {
-  try {
-    const userDataPath = app.getPath('userData');
-    const configPath = path.join(userDataPath, WEBUI_CONFIG_FILE);
-    if (!fs.existsSync(configPath)) {
-      return { config: {}, path: configPath, exists: false };
-    }
-
-    const raw = fs.readFileSync(configPath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      return { config: {}, path: configPath, exists: false };
-    }
-    return { config: parsed as WebUIUserConfig, path: configPath, exists: true };
-  } catch (error) {
-    return { config: {}, path: null, exists: false };
-  }
-};
-
-const resolveWebUIPort = (config: WebUIUserConfig): number => {
-  const cliPort = parsePortValue(getSwitchValue('port') ?? getSwitchValue('webui-port'), 'CLI (--port)');
-  if (cliPort) return cliPort;
-
-  const envPort = parsePortValue(process.env.NEXUS_PORT ?? process.env.PORT, 'environment variable (NEXUS_PORT/PORT)');
-  if (envPort) return envPort;
-
-  const configPort = parsePortValue(config.port, 'webui.config.json');
-  if (configPort) return configPort;
-
-  return SERVER_CONFIG.DEFAULT_PORT;
-};
-
-const parseBooleanEnv = (value?: string): boolean | null => {
-  if (!value) return null;
-  const normalized = value.trim().toLowerCase();
-  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
-  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
-  return null;
-};
-
-const resolveRemoteAccess = (config: WebUIUserConfig): boolean => {
-  const envRemote = parseBooleanEnv(process.env.NEXUS_ALLOW_REMOTE || process.env.NEXUS_REMOTE);
-  const hostHint = process.env.NEXUS_HOST?.trim();
-  const hostRequestsRemote = hostHint ? ['0.0.0.0', '::', '::0'].includes(hostHint) : false;
-  const configRemote = config.allowRemote === true;
-
-  return isRemoteMode || hostRequestsRemote || envRemote === true || configRemote;
-};
-
-const isWebUIMode = hasSwitch('webui');
-const isRemoteMode = hasSwitch('remote');
-const isResetPasswordMode = hasCommand('--resetpass');
 const isVersionMode = hasCommand('--version') || hasCommand('-v');
-
-// Flag to distinguish intentional quit from unexpected exit in WebUI mode
-let isExplicitQuit = false;
 
 let mainWindow: BrowserWindow;
 let avatarWindow: BrowserWindow | null = null;
@@ -858,62 +759,7 @@ const handleAppReady = async (): Promise<void> => {
     }
   }
 
-  if (isResetPasswordMode) {
-    // Password reset and WebUI modes need initializeProcess() before proceeding
-    try {
-      await initializeProcess();
-    } catch (error) {
-      console.error('Failed to initialize process:', error);
-      app.exit(1);
-      return;
-    }
-
-    // Handle password reset without creating window
-    try {
-      // Get username argument, filtering out flags (--xxx)
-      // 获取用户名参数，过滤掉标志（--xxx）
-      const resetPasswordIndex = process.argv.indexOf('--resetpass');
-      const argsAfterCommand = process.argv.slice(resetPasswordIndex + 1);
-      const username = argsAfterCommand.find((arg) => !arg.startsWith('--')) || 'admin';
-
-      // Import resetpass logic
-      const { resetPasswordCLI } = await import('./utils/resetPasswordCLI');
-      await resetPasswordCLI(username);
-
-      app.quit();
-    } catch (error) {
-      app.exit(1);
-    }
-  } else if (isWebUIMode) {
-    try {
-      await initializeProcess();
-    } catch (error) {
-      console.error('Failed to initialize process:', error);
-      app.exit(1);
-      return;
-    }
-
-    await ensureMainSystemConfig();
-
-    const userConfigInfo = loadUserWebUIConfig();
-    if (userConfigInfo.exists && userConfigInfo.path) {
-      // Config file loaded from user directory
-    }
-    const resolvedPort = resolveWebUIPort(userConfigInfo.config);
-    const allowRemote = resolveRemoteAccess(userConfigInfo.config);
-    await startWebServer(resolvedPort, allowRemote);
-
-    // Keep the process alive in WebUI mode by preventing default quit behavior.
-    // On Linux headless (systemd), Electron may attempt to quit when no windows exist.
-    app.on('will-quit', (event) => {
-      // Only prevent quit if this is an unexpected exit (server still running).
-      // Explicit app.exit() calls bypass will-quit, so they are unaffected.
-      if (!isExplicitQuit) {
-        event.preventDefault();
-        console.warn('[WebUI] Prevented unexpected quit - server is still running');
-      }
-    });
-  } else {
+  {
     // PERF: Create window FIRST so user sees the InitLoading UI immediately (~200ms),
     // then initialize backend in parallel. The renderer's InitContext uses exponential
     // backoff retry for IPC calls, so it gracefully handles bridges not being ready yet.
@@ -1008,27 +854,20 @@ const handleAppReady = async (): Promise<void> => {
     }
   }
 
-  // WebUI mode also needs ACP detection for remote agent access
-  if (isWebUIMode) {
-    await initializeAcpDetector();
-  }
-
-  if (!isResetPasswordMode) {
-    // Preload shell environment and apply it to process.env so workers forked
-    // later inherit the complete PATH (nvm, npm globals, .zshrc paths, etc.)
-    // This ensures custom skills that depend on globally installed tools work correctly.
-    void loadShellEnvironmentAsync().then((shellEnv) => {
-      if (shellEnv.PATH) {
-        process.env.PATH = mergePaths(process.env.PATH, shellEnv.PATH);
+  // Preload shell environment and apply it to process.env so workers forked
+  // later inherit the complete PATH (nvm, npm globals, .zshrc paths, etc.)
+  // This ensures custom skills that depend on globally installed tools work correctly.
+  void loadShellEnvironmentAsync().then((shellEnv) => {
+    if (shellEnv.PATH) {
+      process.env.PATH = mergePaths(process.env.PATH, shellEnv.PATH);
+    }
+    // Apply other shell env vars (SSL certs, auth tokens) that may be missing
+    for (const [key, value] of Object.entries(shellEnv)) {
+      if (key !== 'PATH' && !process.env[key]) {
+        process.env[key] = value;
       }
-      // Apply other shell env vars (SSL certs, auth tokens) that may be missing
-      for (const [key, value] of Object.entries(shellEnv)) {
-        if (key !== 'PATH' && !process.env[key]) {
-          process.env[key] = value;
-        }
-      }
-    });
-  }
+    }
+  });
 
   // Verify CDP is ready and log status
   const { cdpPort, verifyCdpReady } = await import('./utils/configureChromium');
@@ -1097,8 +936,7 @@ app.on('window-all-closed', () => {
   if (closeToTrayEnabled) {
     return;
   }
-  // In WebUI mode, don't quit when windows are closed since we're running a web server
-  if (!isWebUIMode && process.platform !== 'darwin') {
+  if (process.platform !== 'darwin') {
     app.quit();
   }
 });
@@ -1106,7 +944,7 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
-  if (!isWebUIMode && app.isReady()) {
+  if (app.isReady()) {
     if (mainWindow && !mainWindow.isDestroyed()) {
       // 从托盘恢复隐藏的窗口 / Restore hidden window from tray
       mainWindow.show();
@@ -1134,7 +972,6 @@ app.on('before-quit', (event) => {
   quitCleanupInProgress = true;
   console.log('[Sudowork] before-quit');
   isQuitting = true;
-  isExplicitQuit = true;
   destroyTray();
   quitCleanupTimeout = setTimeout(() => {
     console.error(`[Sudowork] Quit cleanup timed out after ${QUIT_CLEANUP_TIMEOUT_MS}ms, forcing exit`);

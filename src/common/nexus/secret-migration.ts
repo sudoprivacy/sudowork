@@ -15,7 +15,6 @@
 
 import { decryptCredentials } from '@/channels/utils/credentialCrypto';
 import { getDatabase } from '@process/database/export';
-import { UserRepository } from '@/webserver/auth/repository/UserRepository';
 import { ProcessConfig } from '@process/initStorage';
 import { secretCache, markMigrated } from './secret-cache';
 import type { NexusSecretClient } from './nexus-secret-client';
@@ -119,7 +118,7 @@ export class SecretMigrationCoordinator {
     await this.loadMigrationMap();
 
     // Step 4: Migrate each secret type
-    const migrateFunctions = [this.migrateChannelCredentials.bind(this), this.migrateAIPlatformCredentials.bind(this), this.migrateACPAuthTokens.bind(this), this.migrateJWTSecrets.bind(this)];
+    const migrateFunctions = [this.migrateChannelCredentials.bind(this), this.migrateAIPlatformCredentials.bind(this), this.migrateACPAuthTokens.bind(this)];
 
     for (const migrateFn of migrateFunctions) {
       try {
@@ -442,39 +441,6 @@ export class SecretMigrationCoordinator {
     }
 
     console.log(`[SecretMigration] ACP auth tokens migration complete: ${migrated} migrated, ${failed} failed`);
-    return migrated;
-  }
-
-  /**
-   * Migrate JWT secrets from SQLite users table.
-   */
-  private async migrateJWTSecrets(): Promise<number> {
-    console.log('[SecretMigration] Migrating JWT secrets...');
-    let migrated = 0;
-    let failed = 0;
-
-    try {
-      const users = UserRepository.listUsers();
-
-      for (const user of users) {
-        if (user.jwt_secret && typeof user.jwt_secret === 'string') {
-          const namespace = 'auth:jwt';
-          const key = user.id === 'system_default_user' ? 'webui_secret' : `webui_secret:${user.id}`;
-          try {
-            await this.migrateSecret(namespace, key, user.jwt_secret);
-            migrated++;
-          } catch {
-            failed++;
-          }
-        }
-      }
-
-      await this.saveMigrationMap();
-    } catch (error) {
-      console.error('[SecretMigration] Error migrating JWT secrets:', error);
-    }
-
-    console.log(`[SecretMigration] JWT secrets migration complete: ${migrated} migrated, ${failed} failed`);
     return migrated;
   }
 }

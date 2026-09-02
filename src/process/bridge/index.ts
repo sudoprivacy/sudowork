@@ -27,7 +27,6 @@ import { initPreviewHistoryBridge } from './previewHistoryBridge';
 import { initShellBridge } from './shellBridge';
 import { initStarOfficeBridge } from './starOfficeBridge';
 import { initUpdateBridge } from './updateBridge';
-import { initWebuiBridge } from './webuiBridge';
 import { initSystemSettingsBridge } from './systemSettingsBridge';
 import { initLogsBridge } from './logsBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
@@ -92,7 +91,6 @@ export function initAllBridges(): void {
   initDocumentBridge();
   initWindowControlsBridge();
   initUpdateBridge();
-  initWebuiBridge();
   initChannelBridge();
   initCronBridge();
   initTeamBridge();
@@ -173,7 +171,6 @@ export {
   initSudoclawBridge,
   initSystemSettingsBridge,
   initUpdateBridge,
-  initWebuiBridge,
   initWindowControlsBridge,
 };
 

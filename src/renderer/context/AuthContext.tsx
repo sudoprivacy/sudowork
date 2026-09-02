@@ -9,7 +9,6 @@ import { ipcBridge } from '@/common';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
 import { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } from '@/common/imageGenerationModelConfig';
-import { withCsrfToken } from '@/webserver/middleware/csrfClient';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 import { buildScodeConfigFromLoginPayload, extractImageModelsFromScodeConfig, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
@@ -1596,7 +1595,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(withCsrfToken({})),
+        body: JSON.stringify({}),
       });
     } catch (error) {
       console.error('Logout request failed:', error);
