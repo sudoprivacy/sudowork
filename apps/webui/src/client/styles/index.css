@@ -1,0 +1,29 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Styles Entry Point（摘取自 Sudowork，按 WebUI 顺序调整）
+ */
+
+/* Arco Design 组件样式（main.tsx 引入）；以下为 Sudowork 企业端覆盖与 token */
+
+/* 设计 token / Design tokens (single source of truth) */
+@import '@sudowork/ui/styles/variables.css';
+
+/* 基础与外观规则 / Base + chrome rules */
+@import '@sudowork/ui/styles/base.css';
+
+/* Markdown 主题规则 */
+@import '@sudowork/ui/styles/markdown.css';
+
+/* Arco 组件覆盖 / Arco component overrides */
+@import '@sudowork/ui/styles/arco-override.scss';
+
+/* 会话页右侧面板 / Conversation right panel */
+@import './right-panel.css';
+
+/* 发送箭头按钮禁用态（对齐 Sudowork 观感：无消息时整体变淡；限定作用域，不影响其他 primary 按钮） */
+.send-arrow-btn.arco-btn-disabled {
+  opacity: 0.5;
+}
