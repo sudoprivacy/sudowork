@@ -15,14 +15,5 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
-  },
-  "dependencies": {
-    "@sudowork/contracts": "workspace:*"
-  },
-  "peerDependencies": {
-    "react": ">=19"
-  },
-  "devDependencies": {
-    "@types/react": "^19.1.6"
   }
 }
