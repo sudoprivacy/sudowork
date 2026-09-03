@@ -79,6 +79,11 @@ const componentColors = {
 }
 
 export default defineConfig({
+  // Scan the shared renderer source (hosted by the additive shared-renderer entry)
+  // alongside the module-graph default, so its atomic classes are generated too.
+  content: {
+    filesystem: ['../../packages/renderer/src/**/*.{ts,tsx}'],
+  },
   presets: [presetMini(), presetExtra(), presetWind3()],
   transformers: [transformerVariantGroup(), transformerDirectives({ enforce: 'pre' })],
   rules: [
