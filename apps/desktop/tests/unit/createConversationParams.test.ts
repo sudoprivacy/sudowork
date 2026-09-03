@@ -5,7 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveLocaleKey } from '../../src/common/utils';
+import { resolveLocaleKey } from '@common/utils';
 
 const loadPresetAssistantResources = vi.fn();
 const configGet = vi.fn();

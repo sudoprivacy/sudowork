@@ -45,7 +45,7 @@ function commonAliasEntries() {
   const entries: { find: RegExp; replacement: string }[] = [];
   entries.push({ find: /^@\/?common$/, replacement: deskCommon });
   for (const m of [...DESKTOP_ONLY_COMMON, ...DESKTOP_ONLY_COMMON_DIRS]) {
-    entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '$'), replacement: `${deskCommon}/${m}` });
+    entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '(?:\\.js)?$'), replacement: `${deskCommon}/${m}` });
   }
   entries.push({ find: /^@\/?common\/(.*)$/, replacement: `${pkg}/$1` });
   entries.push({ find: /^@sudowork\/common\/(.*)$/, replacement: `${pkg}/$1` });

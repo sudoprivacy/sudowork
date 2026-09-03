@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { parseHubError, tokenMissingResponse, fetchFailedResponse, type HubError } from '../../src/common/nexus/hubErrors';
+import { parseHubError, tokenMissingResponse, fetchFailedResponse, type HubError } from '@common/nexus/hubErrors';
 
 describe('parseHubError', () => {
   it('maps {errorCode: TOKEN_MISSING} → non-retriable HubError', () => {
