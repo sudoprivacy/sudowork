@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import { mainWarn } from '@process/utils/mainLogger';
 import WorkerManage from '@/process/WorkerManage';
 import { turnInputCoordinator, type QueuedTurn } from '@/process/task/turnInputCoordinator';
@@ -12,9 +13,8 @@ import { getDatabase } from '@/process/database';
 import type BaseAgent from '@/process/task/BaseAgent';
 import { queueConversationWorkspaceSkillSync } from '@/process/bridge/conversationBridge';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
-import { composeMessage, transformMessage, type TMessage, type AcpQuestionData } from '../../common/chatLib';
 import { uuid } from '@common/utils';
-import type { IResponseMessage } from '../../common/ipcBridge';
+import { composeMessage, transformMessage, type TMessage, type AcpQuestionData } from '../../common/chatLib';
 import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 
 /**

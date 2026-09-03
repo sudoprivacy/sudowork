@@ -5,8 +5,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { acpConversation } from '@sudowork/host-bridge/ipcBridge';
 import type { IMcpServer } from '@/common/storage';
-import { acpConversation } from '@/common/ipcBridge';
 import type { McpImportMode } from '../types';
 import JsonImportModal from './JsonImportModal';
 import OneClickImportModal from './OneClickImportModal';

@@ -11,9 +11,9 @@
  * 通过连通分量算法将有依赖关系的任务分组为 DAG，并通过 fileWatch 监听文件变更。
  */
 
-import { ipcBridge } from '@/common';
-import type { IDirOrFile } from '@/common/ipcBridge';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ipcBridge } from '@/common';
 import type { Dag, SubTask, TaskStatus, TaskType } from '../TaskPanel';
 
 // ─────────────────────────────────────────────────────────────────────────────

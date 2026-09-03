@@ -8,10 +8,10 @@ import React, { useState, useEffect } from 'react';
 import { Button, Modal, Radio, Message, Dropdown, Menu, List, Spin, Empty, Typography, Input } from '@arco-design/web-react';
 import { Magic, FolderOpen, Lightning } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import type { TMessage } from '@/common/chatLib';
-import type { IDirOrFile } from '@/common/ipcBridge';
 
 interface SkillRuleGeneratorProps {
   conversationId: string;

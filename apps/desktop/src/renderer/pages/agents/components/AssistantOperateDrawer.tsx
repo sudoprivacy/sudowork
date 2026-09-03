@@ -8,7 +8,7 @@ import { Avatar, Button, Collapse, Drawer, Input, Select, Typography } from '@ar
 import { Bot } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { IInstalledSkillInfo } from '@/common/ipcBridge';
+import type { IInstalledSkillInfo } from '@sudowork/host-bridge/ipcBridge';
 import { DEFAULT_PRESET_AGENT_TYPE } from '@/types/acpTypes';
 import EmojiPicker from '@/renderer/components/base/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';

@@ -8,7 +8,6 @@ import { Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
-import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import {
   nexus as nexusIpc,
   claudeCli as claudeCliIpc,
@@ -20,8 +19,9 @@ import {
   shareoneCli,
   localKnowledgeBase as localKnowledgeBaseIpc,
   popplerRuntime as popplerRuntimeIpc,
-} from '@/common/ipcBridge';
-import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+} from '@sudowork/host-bridge/ipcBridge';
+import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@sudowork/host-bridge/ipcBridge';
+import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import RuntimeToolRow from './components/RuntimeToolRow';

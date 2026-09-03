@@ -11,9 +11,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { mutate } from 'swr';
+import { skillHub } from '@sudowork/host-bridge/ipcBridge';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { skillHub } from '@/common/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { ipcBridge } from '@/common';
 import { resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';

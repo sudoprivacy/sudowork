@@ -11,8 +11,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME, isReservedDraftsDirName } from '@/common/constants';
 import { STORAGE_KEYS } from '@/common/storageKeys';
 import { showShareLoading, updateShareSuccess, updateShareError } from '@/renderer/utils/shareNotify';

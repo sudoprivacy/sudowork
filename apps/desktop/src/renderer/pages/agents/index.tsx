@@ -11,11 +11,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import useSWR, { mutate } from 'swr';
 import { useNavigate } from 'react-router-dom';
+import { eeclaw } from '@sudowork/host-bridge/ipcBridge';
+import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge, skillHub, assistantHub } from '@/common';
 import { parseHubError, type HubError } from '@common/nexus/hubErrors';
 import HubEmptyState from '@renderer/components/HubEmptyState';
-import { eeclaw } from '@/common/ipcBridge';
-import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike } from '@/common/ipcBridge';
 import { toBackendConfig, resolveAssistantName } from '@/renderer/shared/agents/assistantAdapter';
 import Tabs from '@renderer/components/ui/Tabs';
 import type { IAssistantInfo } from '@/process/AssistantManager';

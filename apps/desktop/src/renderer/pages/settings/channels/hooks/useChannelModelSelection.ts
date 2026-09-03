@@ -7,7 +7,7 @@
 import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { channel } from '@/common/ipcBridge';
+import { channel } from '@sudowork/host-bridge/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import type { IProvider, TProviderWithModel } from '@/common/storage';
 import type { ChannelModelConfigKey, GeminiModelSelection } from '../types';

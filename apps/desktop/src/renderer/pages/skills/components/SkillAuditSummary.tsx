@@ -9,7 +9,7 @@ import { Button, Spin } from '@arco-design/web-react';
 import { IconFolder } from '@arco-design/web-react/icon';
 import { Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { skillHub, shell } from '@/common/ipcBridge';
+import { skillHub, shell } from '@sudowork/host-bridge/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { SkillAuditReport, AuditCategorySummary } from '@/common/skillAuditTypes';
 

@@ -1,5 +1,5 @@
+import type { ITeamRunEvent, ITeamSlotWork } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { ITeamRunEvent, ITeamSlotWork } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { mainLog } from '@process/utils/mainLogger';
 import type { SlotWakeGate } from './SlotWakeGate';

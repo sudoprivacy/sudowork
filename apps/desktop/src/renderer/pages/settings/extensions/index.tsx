@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/ipcBridge';
+import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@sudowork/host-bridge/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/useExtI18n';
 import WebviewHost from '@/renderer/components/WebviewHost';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';

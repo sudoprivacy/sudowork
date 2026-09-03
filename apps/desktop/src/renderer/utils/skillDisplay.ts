@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IInstalledSkillInfo } from '@/common/ipcBridge';
+import type { IInstalledSkillInfo } from '@sudowork/host-bridge/ipcBridge';
 import defaultSkillIcon from '@/renderer/assets/icon-catalogue.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { COS_HUB_BASE, COS_LEGACY_HUB_BASE } from '@/shared/cos';

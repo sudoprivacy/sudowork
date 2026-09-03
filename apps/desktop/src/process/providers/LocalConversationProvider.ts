@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
-import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@/common/ipcBridge';
 import { getDatabase } from '@process/database';
 import { ConversationService } from '@process/services/conversationService';
 import WorkerManage from '@process/WorkerManage';

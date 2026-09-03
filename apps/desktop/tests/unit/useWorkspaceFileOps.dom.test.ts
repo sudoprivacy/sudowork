@@ -6,7 +6,7 @@
 
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { IDirOrFile } from '@/common/ipcBridge';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 
 const encodeBase64 = (content: string): string => {
   const bytes = new TextEncoder().encode(content);

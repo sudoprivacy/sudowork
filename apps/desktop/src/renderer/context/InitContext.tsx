@@ -5,7 +5,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { init, type InitStatus } from '@/common/ipcBridge';
+import { init, type InitStatus } from '@sudowork/host-bridge/ipcBridge';
 
 interface InitContextValue {
   status: InitStatus;

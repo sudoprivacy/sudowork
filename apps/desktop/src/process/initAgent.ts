@@ -7,7 +7,7 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import type { ICreateConversationParams } from '@/common/ipcBridge';
+import type { ICreateConversationParams } from '@sudowork/host-bridge/ipcBridge';
 import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';

@@ -6,8 +6,8 @@
 
 import { useCallback, useState } from 'react';
 import { Message } from '@arco-design/web-react';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { IDirOrFile } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { usePasteService } from '@/renderer/hooks/usePasteService';
 import type { PasteConfirmState, SelectedNodeRef } from '../types';

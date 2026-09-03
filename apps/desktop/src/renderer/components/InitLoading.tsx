@@ -7,7 +7,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { init } from '@/common/ipcBridge';
+import { init } from '@sudowork/host-bridge/ipcBridge';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { useInit } from '../context/InitContext';
 import WindowControls from './WindowControls';

@@ -11,7 +11,7 @@ import React from 'react';
 const mockSendMessage = vi.fn().mockResolvedValue({ success: true });
 const mockAnswerQuestion = vi.fn().mockResolvedValue({ success: true });
 
-vi.mock('@/common/ipcBridge', () => ({
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   acpConversation: {
     sendMessage: {
       invoke: (...args: unknown[]) => mockSendMessage(...args),

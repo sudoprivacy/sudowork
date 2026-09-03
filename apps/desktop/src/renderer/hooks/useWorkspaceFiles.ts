@@ -5,8 +5,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { IDirOrFile } from '@/common/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { useAddEventListener } from '@/renderer/utils/emitter';

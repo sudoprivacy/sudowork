@@ -8,7 +8,7 @@ import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
 import { IconDown, IconLoading } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { moss } from '@/common/ipcBridge';
+import { moss } from '@sudowork/host-bridge/ipcBridge';
 import PreferenceRow from './PreferenceRow';
 
 /**

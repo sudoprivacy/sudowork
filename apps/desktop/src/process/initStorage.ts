@@ -8,12 +8,12 @@ import { mkdirSync as _mkdirSync, existsSync, lstatSync, readdirSync, readFileSy
 import fs from 'fs/promises';
 import path from 'path';
 import { app } from 'electron';
+import { application } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 import { ASSISTANT_PRESETS } from '@/common/presets/assistantPresets';
 import type { TMessage } from '@/common/chatLib';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { BUILD_SUDOWORK_SERVER_BASE_URL, normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
-import { application } from '../common/ipcBridge';
 import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer, IMcpServer } from '../common/storage';
 import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '../common/storage';
 import { copyDirectoryRecursively, ensureDirectory, getConfigPath, getDataPath, getTempPath, verifyDirectoryFiles } from './utils';

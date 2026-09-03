@@ -7,7 +7,7 @@
 import { Button, Input, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { channel } from '@/common/ipcBridge';
+import { channel } from '@sudowork/host-bridge/ipcBridge';
 import type { IChannelPluginStatus } from '@/channels/types';
 import type { ChannelConfig } from '../types';
 import ChannelItem from './ChannelItem';

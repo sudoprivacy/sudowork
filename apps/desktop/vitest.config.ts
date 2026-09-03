@@ -13,7 +13,6 @@ const DESKTOP_ONLY_COMMON = [
   'imageGenerationModelConfig',
   'imagePricingSource',
   'index',
-  'ipcBridge',
   'navigation/NavigationInterceptor',
   'navigation/index',
   'nexus/generated/nexus/secrets/v1/secrets_pb',
@@ -65,6 +64,8 @@ const aliases = [
   { find: '@sudowork/moss-client', replacement: path.resolve(__dirname, '../../packages/moss-client/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: path.resolve(__dirname, '../../packages/contracts/src/auth.ts') },
   { find: '@sudowork/contracts/conversations', replacement: path.resolve(__dirname, '../../packages/contracts/src/conversations.ts') },
+  { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/host-bridge/src') + '/$1' },
+  { find: /^@sudowork\/host-bridge$/, replacement: path.resolve(__dirname, '../../packages/host-bridge/src/index.ts') },
   { find: /^@\//, replacement: path.resolve(__dirname, './src') + '/' },
 ];
 

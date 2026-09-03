@@ -28,6 +28,7 @@
         "@office-ai/aioncli-core": "^0.30.0",
         "@office-ai/platform": "^0.3.16",
         "@sudowork/common": "workspace:*",
+        "@sudowork/host-bridge": "workspace:*",
         "@sudowork/moss-client": "workspace:*",
         "@types/bcryptjs": "^2.4.6",
         "@types/jsonwebtoken": "^9.0.10",
@@ -284,13 +285,8 @@
       "name": "@sudowork/host-bridge",
       "version": "0.0.0",
       "dependencies": {
-        "@sudowork/contracts": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/react": "^19.1.6",
-      },
-      "peerDependencies": {
-        "react": ">=19",
+        "@office-ai/platform": "^0.3.16",
+        "@sudowork/common": "workspace:*",
       },
     },
     "packages/moss-client": {

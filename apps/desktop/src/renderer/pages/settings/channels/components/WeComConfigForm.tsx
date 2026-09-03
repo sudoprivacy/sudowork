@@ -8,8 +8,8 @@ import { Button, Dropdown, Input, Menu, Message, Tooltip } from '@arco-design/we
 import { IconDown } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { acpConversation, channel } from '@sudowork/host-bridge/ipcBridge';
 import type { IChannelPluginStatus } from '@/channels/types';
-import { acpConversation, channel } from '@/common/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';

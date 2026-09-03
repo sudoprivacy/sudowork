@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IDirOrFile } from '@/common/ipcBridge';
 import { app } from 'electron';
 import { existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync, unlinkSync } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
 export const getTempPath = () => {
   const rootPath = app.getPath('temp');

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITeamChildTurnEvent, ITeamRunAck, ITeamRunEvent, ITeamRunState, ITeamSlotWork, ITeamWorkspaceKind } from '@/common/ipcBridge';
+import type { ITeamChildTurnEvent, ITeamRunAck, ITeamRunEvent, ITeamRunState, ITeamSlotWork, ITeamWorkspaceKind } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpBackendAll } from '@/types/acpTypes';
 
 /** Frontend team member role (附录 II.11; backend uses 'lead', the mapper translates). */

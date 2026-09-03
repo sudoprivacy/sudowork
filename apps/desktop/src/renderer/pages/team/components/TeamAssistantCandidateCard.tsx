@@ -6,7 +6,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ITeamAssistantCandidate } from '@/common/ipcBridge';
+import type { ITeamAssistantCandidate } from '@sudowork/host-bridge/ipcBridge';
 import { renderTeamAssistantIcon } from '../utils/teamAssistantIcon';
 
 type TFunc = ReturnType<typeof useTranslation>['t'];

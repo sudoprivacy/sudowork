@@ -1,4 +1,4 @@
-import type { ITeamAssistantCandidate } from '@/common/ipcBridge';
+import type { ITeamAssistantCandidate } from '@sudowork/host-bridge/ipcBridge';
 import { getAgentPriority, resolvePresetAgentBackend } from '@/types/acpTypes';
 
 /** Structural input shapes (DetectedAgent is not exported from AcpDetector; IAssistantInfo is). */

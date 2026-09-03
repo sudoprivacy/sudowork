@@ -19,13 +19,13 @@
  * fire-and-forget off the startup critical path; throttled in-memory so repeated
  * triggers (startup + hub-open) never hammer the hub.
  */
+import type { ISkillHubDetail } from '@sudowork/host-bridge/ipcBridge';
 import { skillManager } from '@process/SkillManager';
 import { installHubSkillPackage } from '@process/bridge/skillHubBridge';
 import { ProcessConfig } from '@process/initStorage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
-import type { ISkillHubDetail } from '@/common/ipcBridge';
 import { isNewerVersion } from './version';
 
 /** Config key for the auto-update toggle. Default ON (VSCode-style: silent, opt-out). */

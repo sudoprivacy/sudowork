@@ -19,10 +19,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import JSZip from 'jszip';
+import type { ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
 import { initEnterpriseDirs, getEnterpriseTenantSkillsDir, getEnterpriseTenantAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName } from '@/process/constants/enterpriseStorage';
-import type { ISkillHubMeta } from '@/common/ipcBridge';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import { downloadFileWithAuth } from './remoteToLocalSync';
 

@@ -27,10 +27,10 @@ import { tmpdir } from 'node:os';
 import { join as joinPath, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
+import { dify } from '@sudowork/host-bridge/ipcBridge';
+import type { IBridgeResponse, IDifyAgent, IDifyChatChunk, IDifyChatStreamStart, IDifyConversation, IDifyConversationList, IDifyFileUploadResult, IDifyMessageList, IDifyMeta, IDifyParameters } from '@sudowork/host-bridge/ipcBridge';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { bindSession as orchestratorBind, unbindSession as orchestratorUnbind } from '@process/services/dify/enhancementOrchestrator';
-import { dify } from '@/common/ipcBridge';
-import type { IBridgeResponse, IDifyAgent, IDifyChatChunk, IDifyChatStreamStart, IDifyConversation, IDifyConversationList, IDifyFileUploadResult, IDifyMessageList, IDifyMeta, IDifyParameters } from '@/common/ipcBridge';
 import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
 
 function apiBase(): string {

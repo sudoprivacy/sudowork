@@ -7,8 +7,8 @@
 import { Form, Select, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { scode } from '@sudowork/host-bridge/ipcBridge';
 import { migrateImageGenerationModelConfig, pickDefaultImageModelFromPricing, pickImageGenerationModelId } from '@/common/imageGenerationModelConfig';
-import { scode } from '@/common/ipcBridge';
 import { extractImageModelsFromScodeConfig } from '@/common/scodeConfig';
 import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
 import AionScrollArea from '@renderer/components/base/AionScrollArea';

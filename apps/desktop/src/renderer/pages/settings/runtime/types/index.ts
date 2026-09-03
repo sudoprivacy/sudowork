@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, NexusInstallPhase } from '@/common/ipcBridge';
+import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, NexusInstallPhase } from '@sudowork/host-bridge/ipcBridge';
 import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 
 export type LoadState = 'idle' | 'loading' | 'installing';

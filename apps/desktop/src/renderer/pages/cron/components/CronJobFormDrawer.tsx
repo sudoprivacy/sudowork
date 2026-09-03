@@ -8,8 +8,8 @@ import { Button, Drawer, Form, Input, Message, Select } from '@arco-design/web-r
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { ICronJob } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';

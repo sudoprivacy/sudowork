@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ISkillHubDetail } from '@/common/ipcBridge';
+import type { ISkillHubDetail } from '@sudowork/host-bridge/ipcBridge';
 
 export interface IBridgeResponse<D = unknown> {
   success: boolean;

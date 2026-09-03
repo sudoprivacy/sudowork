@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ISkillHubSkill, IInstalledSkillInfo, ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@/renderer/utils/skillDisplay';
-import type { ISkillHubSkill, IInstalledSkillInfo, ISkillHubMeta } from '@/common/ipcBridge';
 import type { SkillDetailResponse, SkillStoreTab, LocalSkillImportSource, LocalSkillImportDialogOptions } from '../types';
 
 /** Cache expiration time in milliseconds (5 minutes) */

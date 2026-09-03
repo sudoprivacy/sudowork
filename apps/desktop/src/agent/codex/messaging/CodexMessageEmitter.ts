@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IResponseMessage } from '@/common/ipcBridge';
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { TMessage, IConfirmation } from '@/common/chatLib';
 
 /**

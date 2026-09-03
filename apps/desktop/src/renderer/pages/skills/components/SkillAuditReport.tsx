@@ -16,8 +16,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Spin, Message } from '@arco-design/web-react';
 import { X, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { skillHub } from '@sudowork/host-bridge/ipcBridge';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { skillHub } from '@/common/ipcBridge';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { AUDIT_CATEGORY_CONFIG, type SkillAuditReport, type AuditFinding, type AuditCategory } from '@/common/skillAuditTypes';
 

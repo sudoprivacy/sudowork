@@ -8,7 +8,7 @@ import { Button, Input, Message, Modal, Spin } from '@arco-design/web-react';
 import { FileDisplayOne, FolderOpen, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { BdpanFileEntry } from '@/common/ipcBridge';
+import type { BdpanFileEntry } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
 
 type Step = 'checking' | 'getting_auth_url' | 'enter_code' | 'submitting_code' | 'file_browser' | 'error';

@@ -33,6 +33,12 @@
       "@sudowork/common/*": [
         "../../packages/common/src/*"
       ],
+      "@sudowork/host-bridge/*": [
+        "../../packages/host-bridge/src/*"
+      ],
+      "@sudowork/host-bridge": [
+        "../../packages/host-bridge/src/index.ts"
+      ],
       "@common": [
         "./src/common/index.ts"
       ],
@@ -92,12 +98,6 @@
       ],
       "@/common/index": [
         "./src/common/index"
-      ],
-      "@common/ipcBridge": [
-        "./src/common/ipcBridge"
-      ],
-      "@/common/ipcBridge": [
-        "./src/common/ipcBridge"
       ],
       "@common/navigation/NavigationInterceptor": [
         "./src/common/navigation/NavigationInterceptor"

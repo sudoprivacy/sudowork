@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ICreateConversationParams } from '@sudowork/host-bridge/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
-import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { TProviderWithModel } from '@/common/storage';
 import { resolveLocaleKey } from '@/common/utils';
 import { loadPresetAssistantResources } from '@/renderer/shared/agents/presetAssistantResources';

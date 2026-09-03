@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { MossSessionAvailableSkill } from '@/common/ipcBridge';
+import type { MossSessionAvailableSkill } from '@sudowork/host-bridge/ipcBridge';
 import { filterEnabledSkillNames, filterRemoteAvailableSkills, type EnabledSkillFilterDeps } from '@/process/utils/enabledSkillFilter';
 
 function createDeps(skills: Awaited<ReturnType<EnabledSkillFilterDeps['getInstalledSkills']>>): EnabledSkillFilterDeps {

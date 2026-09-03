@@ -9,10 +9,10 @@ import { IconDelete, IconEdit, IconPlayArrow } from '@arco-design/web-react/icon
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
+import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { emitter } from '@renderer/utils/emitter';
 import { ipcBridge } from '@/common';
-import type { ICronJob } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import CronJobFormDrawer from '@/renderer/pages/cron/components/CronJobFormDrawer';

@@ -176,6 +176,7 @@
     "@office-ai/aioncli-core": "^0.30.0",
     "@office-ai/platform": "^0.3.16",
     "@sudowork/common": "workspace:*",
+    "@sudowork/host-bridge": "workspace:*",
     "@sudowork/moss-client": "workspace:*",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",

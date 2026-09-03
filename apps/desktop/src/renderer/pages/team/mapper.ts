@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ITeam, ITeamMember } from '@/common/ipcBridge';
+import type { ITeam, ITeamMember } from '@sudowork/host-bridge/ipcBridge';
 import type { TeamAssistant, TeammateRole, TeammateStatus, TTeam } from './types';
 
 /** Normalize a backend member status into the 5-state frontend status (附录 II.10). */

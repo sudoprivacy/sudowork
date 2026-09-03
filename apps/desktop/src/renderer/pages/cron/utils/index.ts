@@ -6,7 +6,7 @@
 
 import dayjs from 'dayjs';
 import type { TFunction } from 'i18next';
-import type { ICronJob, ICronSchedule } from '@/common/ipcBridge';
+import type { ICronJob, ICronSchedule } from '@sudowork/host-bridge/ipcBridge';
 import type { FrequencyPreset, IFrequencyScheduleOptions, IScheduleFrequency } from '@/renderer/pages/cron/types';
 
 export function formatNextRunRelative(t: TFunction, nextRunAtMs?: number): string {

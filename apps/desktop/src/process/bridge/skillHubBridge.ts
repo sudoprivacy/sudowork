@@ -43,8 +43,8 @@ const PERSONAL_AUTHOR_UUID_NAMESPACE = 'c6fc5db4-8cdb-4d5f-9a8c-fd3d4b2c5a6e';
 const CONSUMER_USER_ID_FILE = 'consumer_user_id.txt';
 const SKILL_HUB_UPLOAD_RESPONSE_BODY_LOG_LIMIT = 4000;
 const SKILL_HUB_UPLOAD_DNS_LOOKUP_TIMEOUT_MS = 3000;
-type SkillHubMeta = import('@/common/ipcBridge').ISkillHubMeta;
-type SkillHubSkill = import('@/common/ipcBridge').ISkillHubSkill;
+type SkillHubMeta = import('@sudowork/host-bridge/ipcBridge').ISkillHubMeta;
+type SkillHubSkill = import('@sudowork/host-bridge/ipcBridge').ISkillHubSkill;
 type SkillHubPublishStatus = 'pending' | 'approved' | 'rejected';
 type SkillHubUploadStatus = Extract<SkillHubPublishStatus, 'pending' | 'approved'>;
 type SkillHubRemoteStatus = SkillHubPublishStatus | 'deleted';
@@ -277,7 +277,7 @@ async function resolveInstalledSkillDirAllSubdirs(userSkillsDir: string, skillNa
         const metaResult = await readSkillMetaFileWithFallback(skillDir);
         if (metaResult) {
           try {
-            const meta = JSON.parse(metaResult.content) as import('@/common/ipcBridge').ISkillHubMeta;
+            const meta = JSON.parse(metaResult.content) as import('@sudowork/host-bridge/ipcBridge').ISkillHubMeta;
             if (meta.name === skillName || meta.display_name === skillName) {
               return skillDir;
             }
@@ -1316,7 +1316,7 @@ export function initSkillHubBridge(): void {
         mainLog('SkillHub', `Enterprise mode: loading skills from ${skillsDir}`);
 
         // 读取本地目录中的技能
-        const skills: import('@/common/ipcBridge').ISkillHubSkill[] = [];
+        const skills: import('@sudowork/host-bridge/ipcBridge').ISkillHubSkill[] = [];
 
         if (existsSync(skillsDir)) {
           const entries = await fs.readdir(skillsDir, { withFileTypes: true });
@@ -1854,7 +1854,7 @@ export function initSkillHubBridge(): void {
     try {
       const skills = await skillManager.getInstalledSkills();
       // 转换为前端需要的格式，补充 ISkillHubMeta 需要的必填字段
-      const result: import('@/common/ipcBridge').IInstalledSkillInfo[] = skills.map((skill) => ({
+      const result: import('@sudowork/host-bridge/ipcBridge').IInstalledSkillInfo[] = skills.map((skill) => ({
         name: skill.name,
         version: skill.version,
         isBuiltin: skill.isBuiltin,

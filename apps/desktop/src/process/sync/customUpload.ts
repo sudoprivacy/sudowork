@@ -21,11 +21,11 @@ import path from 'path';
 import os from 'os';
 import { existsSync, mkdirSync } from 'fs';
 import JSZip from 'jszip';
+import type { ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { isEnterpriseMode, getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
 import { getSkillInstallDir, getAssistantInstallDir, initEnterpriseDirs, getEnterpriseCustomSkillsDir, getEnterpriseCustomAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName, SourceType } from '@/process/constants/enterpriseStorage';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
-import type { ISkillHubMeta } from '@/common/ipcBridge';
 
 // ============ 类型定义 ============
 

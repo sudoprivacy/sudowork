@@ -6,7 +6,7 @@
 
 import WebSocket from 'ws';
 import { buildUserMessage, buildAnswerQuestionMessage, buildInterruptMessage, buildSetModelMessage } from '@sudowork/moss-client';
-import type { IResponseMessage } from '@/common/ipcBridge';
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '@/process/utils/mainLogger';
 import { ProcessConfig } from '@/process/initStorage';

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@sudowork/host-bridge/ipcBridge';
 import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
 import { initMossApi, type MossSessionApi } from '@process/remote/MossSessionApi';
@@ -11,7 +12,6 @@ import { mainLog, mainError } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@process/initStorage';
 import type { TChatConversation } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
-import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@/common/ipcBridge';
 import type { AcpModelInfo } from '@/types/acpTypes';
 import { uuid } from '@/common/utils';
 import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';

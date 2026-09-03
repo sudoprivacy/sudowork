@@ -5,7 +5,7 @@
  */
 
 import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
-import type { IDirOrFile } from '@/common/ipcBridge';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
 
 /**

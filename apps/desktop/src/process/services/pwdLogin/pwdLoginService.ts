@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { app } from 'electron';
-import type { IPwdLoginParams, IPwdLoginResult } from '@/common/ipcBridge';
+import type { IPwdLoginParams, IPwdLoginResult } from '@sudowork/host-bridge/ipcBridge';
 import { BaseApprovalStore, type IApprovalKey } from '@/common/approval/ApprovalStore';
 import { PermissionType } from '@/common/codex/types/permissionTypes';
 import { getNexusSecretClient } from '@/common/nexus/nexus-secret-client';

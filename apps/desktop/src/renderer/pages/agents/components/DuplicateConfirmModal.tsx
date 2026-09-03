@@ -8,7 +8,7 @@ import { Avatar, Modal } from '@arco-design/web-react';
 import { Bot } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { IAssistantHubSkill } from '@/common/ipcBridge';
+import type { IAssistantHubSkill } from '@sudowork/host-bridge/ipcBridge';
 import type { AssistantListItem } from '../types';
 import { resolveAvatarImageSrc } from '../utils';
 

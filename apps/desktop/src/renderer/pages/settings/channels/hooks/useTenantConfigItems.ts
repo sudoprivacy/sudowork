@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { secret, authProxy } from '@/common/ipcBridge';
+import { secret, authProxy } from '@sudowork/host-bridge/ipcBridge';
 import { buildNamespace } from '@/common/nexus/namespace';
 import { MossSecretClient } from '@/common/nexus/moss-secret-client';
 import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';

@@ -14,8 +14,8 @@
  * this handler, the CrashReporter backfill naturally covers both (decision D8 + §6.3).
  */
 
+import { systemConfig } from '@sudowork/host-bridge/ipcBridge';
 import { mainError } from '@process/utils/mainLogger';
-import { systemConfig } from '@/common/ipcBridge';
 import { decryptCredentials, setSystemConfigCache } from '@/common/systemConfig';
 import { setCredentialsCache } from '@/process/credentialsCache';
 import { flushCrashReporter } from '@/process/telemetry/CrashReporter';

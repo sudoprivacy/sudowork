@@ -5,8 +5,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { acpConversation, mcpService } from '@sudowork/host-bridge/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
-import { acpConversation, mcpService } from '@/common/ipcBridge';
 import type { IMcpServer } from '@/common/storage';
 
 /**

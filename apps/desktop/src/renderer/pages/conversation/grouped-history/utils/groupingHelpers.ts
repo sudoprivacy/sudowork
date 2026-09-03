@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ICronJob } from '@/common/ipcBridge';
+import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { getActivityTime, getTimelineLabel } from '@/renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@/renderer/utils/workspace';

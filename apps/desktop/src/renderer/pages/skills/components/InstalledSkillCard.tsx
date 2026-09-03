@@ -9,8 +9,8 @@ import { Button, Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-reac
 import { Trash2, Shield, Zap, Download, Upload } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
+import type { IInstalledSkillInfo } from '@sudowork/host-bridge/ipcBridge';
 import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@/renderer/utils/skillDisplay';
-import type { IInstalledSkillInfo } from '@/common/ipcBridge';
 
 export default function InstalledSkillCard({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating, onUpload, uploading, uploadStatus, enterprisePublishButton, hideUninstall }: IInstalledSkillCardProps) {
   const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);

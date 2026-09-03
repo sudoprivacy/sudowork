@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import type { ICreateTeamMemberParams } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { ICreateTeamMemberParams } from '@/common/ipcBridge';
 import { getDatabase } from '@process/database';
 import { teamService } from '@process/services/team/TeamService';
 import { teamStore } from '@process/services/team/TeamStore';

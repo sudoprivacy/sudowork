@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor, NAVIGATION_TOOLS, type PreviewOpenData, type NavigationToolData, type NavigationToolName } from '@/common/navigation';
 
 // Re-export from NavigationInterceptor for backward compatibility

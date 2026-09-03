@@ -8,8 +8,8 @@ import { Input, Message, Modal, Spin } from '@arco-design/web-react';
 import { Search } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ITeamAssistantCandidate } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { ITeamAssistantCandidate } from '@/common/ipcBridge';
 import { unwrapTeamResult } from '../utils';
 import TeamAssistantCandidateCard, { useFilteredCandidates } from './TeamAssistantCandidateCard';
 

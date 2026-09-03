@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { IAssistantHubSkill } from '@sudowork/host-bridge/ipcBridge';
 import type { AssistantCategory } from '@/process/AssistantManager';
-import type { IAssistantHubSkill } from '@/common/ipcBridge';
 import type { AcpBackendConfig } from '@/types/acpTypes';
 
 export type AssistantListItem = AcpBackendConfig & {

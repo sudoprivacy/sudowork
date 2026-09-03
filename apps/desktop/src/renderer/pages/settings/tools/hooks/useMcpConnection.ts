@@ -7,7 +7,7 @@
 import { Message } from '@arco-design/web-react';
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { mcpService } from '@/common/ipcBridge';
+import { mcpService } from '@sudowork/host-bridge/ipcBridge';
 import type { IMcpServer } from '@/common/storage';
 import { truncateErrorMessage } from '../utils';
 import { globalMessageQueue } from '../utils/messageQueue';

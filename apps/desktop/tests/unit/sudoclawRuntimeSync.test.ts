@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildClaudeSettings, buildRuntimeAgentAuthFiles, syncSudoclawRuntimeState } from '@/process/services/sudoclaw/sudoclawRuntimeSync';
-import type { SudoclawConfig } from '@/common/ipcBridge';
+import type { SudoclawConfig } from '@sudowork/host-bridge/ipcBridge';
 
 const tempDirs: string[] = [];
 

@@ -4,5 +4,5 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * as ipcBridge from './ipcBridge';
-export { conversation, skillHub, assistantHub } from './ipcBridge';
+export * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+export { conversation, skillHub, assistantHub } from '@sudowork/host-bridge/ipcBridge';

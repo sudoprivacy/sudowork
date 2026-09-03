@@ -8,7 +8,7 @@ import React from 'react';
 import { Progress, Tooltip } from '@arco-design/web-react';
 import { Bot, Copy, Download, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { IAssistantHubSkill } from '@/common/ipcBridge';
+import type { IAssistantHubSkill } from '@sudowork/host-bridge/ipcBridge';
 
 const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstalled, installing, installProgress, onInstall, onUpdate, onDuplicate, onClick, hasUpdate, updating, latestVersion }) => {
   const { t } = useTranslation();

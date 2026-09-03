@@ -8,8 +8,8 @@ import { Button, Checkbox, Form, Input, InputNumber, Message, Modal, Select, Spi
 import { IconDownload, IconEraser, IconEye, IconSelectAll } from '@arco-design/web-react/icon';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ScodeConfig } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { ScodeConfig } from '@/common/ipcBridge';
 import { buildCustomModelAlias, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import { buildEditableModelFromFormValues, buildProviderEditModels, editableModelFromEntry, findModelEntry, normalizeModelIds, presetValueForProvider, sanitizeProviderId, PROVIDER_PRESETS } from '../utils';
 import type { EditingModelTarget } from '../types';

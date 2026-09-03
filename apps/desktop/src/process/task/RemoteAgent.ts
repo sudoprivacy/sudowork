@@ -6,9 +6,9 @@
 
 import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
-import type { IResponseMessage } from '@/common/ipcBridge';
 import type { AcpQuestionAnswerItem, TMessage } from '@/common/chatLib';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import type { TChatConversation } from '@/common/storage';

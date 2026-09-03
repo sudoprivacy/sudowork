@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { IAssistantHubSkill, IAssistantHubVersionLike, IInstalledSkillInfo } from '@sudowork/host-bridge/ipcBridge';
 import { normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import coworkSvg from '@/renderer/assets/cowork.svg';
-import type { IAssistantHubSkill, IAssistantHubVersionLike, IInstalledSkillInfo } from '@/common/ipcBridge';
 import type { AssistantLatestVersion } from '../types';
 
 const AVATAR_IMAGE_MAP: Record<string, string> = {

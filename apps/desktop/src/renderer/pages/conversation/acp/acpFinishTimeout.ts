@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IResponseMessage } from '@/common/ipcBridge';
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 
 const ACP_FINISH_TIMEOUT_ACTIVITY_TYPES = new Set<IResponseMessage['type']>(['thought', 'start', 'content', 'acp_permission', 'acp_tool_call', 'plan']);
 

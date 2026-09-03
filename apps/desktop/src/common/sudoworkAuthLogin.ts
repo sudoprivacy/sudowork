@@ -72,7 +72,7 @@ export function extractLoginSudoclawPayload(payload: unknown): LoginSudoclawPayl
  * Build sudocode.json config from SudoclawConfig (CopilotModalContent settings save).
  * Extracts sudorouter provider credentials and model list from sudoclaw format.
  */
-export function buildScodeConfigFromSudoclawConfig(config: import('./ipcBridge').SudoclawConfig): import('./ipcBridge').ScodeConfig | null {
+export function buildScodeConfigFromSudoclawConfig(config: import('@sudowork/host-bridge/ipcBridge').SudoclawConfig): import('@sudowork/host-bridge/ipcBridge').ScodeConfig | null {
   const providers = config?.models?.providers;
   if (!providers || typeof providers !== 'object') return null;
 

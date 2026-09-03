@@ -18,8 +18,8 @@ import { promisify } from 'util';
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { ICliStatus } from '@sudowork/host-bridge/ipcBridge';
 import { getDataPath } from '@process/utils';
-import type { ICliStatus } from '@/common/ipcBridge';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { extractTarGzWithProgress, extractZipWithProgress, type ArchiveProgressCallback } from '../archiveProgress';
 

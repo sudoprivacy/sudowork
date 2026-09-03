@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { AgentActivityState, IExtensionAgentActivityEvent, IExtensionAgentActivityItem, IExtensionAgentActivitySnapshot } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { AgentActivityState, IExtensionAgentActivityEvent, IExtensionAgentActivityItem, IExtensionAgentActivitySnapshot } from '@/common/ipcBridge';
 import type { TMessage } from '@/common/chatLib';
 import type { TChatConversation } from '@/common/storage';
 import { ExtensionRegistry } from '@/extensions';

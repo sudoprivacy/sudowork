@@ -5,7 +5,7 @@
  */
 
 import * as path from 'path';
-import { channel } from '@/common/ipcBridge';
+import { channel } from '@sudowork/host-bridge/ipcBridge';
 import { getChannelManager } from '@/channels/core/ChannelManager';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ExtensionRegistry } from '@/extensions';

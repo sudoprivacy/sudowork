@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { TMessage } from '@/common/chatLib';
 import type { AcpBackend } from '@/types/acpTypes';
 import { addOrUpdateMessage } from '@process/message';
 import { stripThinkTags } from '@process/task/ThinkTagDetector';
-import type { IResponseMessage } from '@/common/ipcBridge';
 
 // ========== Buffered Stream Text Messages ==========
 

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { SudoclawConfig, SudoclawProvider } from '@/common/ipcBridge';
+import type { SudoclawConfig, SudoclawProvider } from '@sudowork/host-bridge/ipcBridge';
 import { cachePut } from '@/common/nexus/secret-cache';
 import { getSudorouterBaseUrl } from '@/common/systemConfig';
 

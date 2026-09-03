@@ -8,8 +8,8 @@ import { Button, Message, Popconfirm, Space, Spin, Tag, Typography } from '@arco
 import { IconCloud, IconDelete, IconEdit, IconPlus, IconRefresh, IconSettings } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ScodeConfig } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { ScodeConfig } from '@/common/ipcBridge';
 import { extractCustomProvidersFromScodeConfig, IMAGE_GENERATION_MODEL_PATTERN, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { GUEST_USER_ID, useAuth } from '@/renderer/context/AuthContext';

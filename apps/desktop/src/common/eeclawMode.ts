@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { eeclaw } from '@sudowork/host-bridge/ipcBridge';
 import { ConfigStorage } from './storage';
-import { eeclaw } from './ipcBridge';
 
 // Check if running in renderer process (has electronAPI)
 const isRenderer = typeof window !== 'undefined' && Boolean(window.electronAPI);

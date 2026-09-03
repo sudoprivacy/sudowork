@@ -59,7 +59,7 @@ vi.mock('@/common', () => ({
   },
 }));
 
-vi.mock('@/common/ipcBridge', () => ({
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   libreOffice: {
     install: {
       invoke: mocks.install,

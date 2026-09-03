@@ -9,9 +9,9 @@ import { IconPlus, IconEdit, IconDelete } from '@arco-design/web-react/icon';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mutate } from 'swr';
+import { acpConversation } from '@sudowork/host-bridge/ipcBridge';
 import { ConfigStorage } from '@/common/storage';
 import type { AcpBackendConfig } from '@/types/acpTypes';
-import { acpConversation } from '@/common/ipcBridge';
 import CustomAcpAgentModal from './components/CustomAcpAgentModal';
 
 const CustomAcpAgent: React.FC = () => {

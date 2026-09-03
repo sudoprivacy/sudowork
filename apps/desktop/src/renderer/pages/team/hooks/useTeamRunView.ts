@@ -5,8 +5,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import type { ITeamChildTurnEvent, ITeamRunEvent } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { ITeamChildTurnEvent, ITeamRunEvent } from '@/common/ipcBridge';
 import { unwrapTeamResult } from '../utils';
 
 const TERMINAL = new Set(['completed', 'cancelled', 'failed']);

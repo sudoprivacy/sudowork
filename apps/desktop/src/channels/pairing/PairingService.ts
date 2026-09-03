@@ -5,7 +5,7 @@
  */
 
 import * as crypto from 'crypto';
-import { channel as channelBridge } from '@/common/ipcBridge';
+import { channel as channelBridge } from '@sudowork/host-bridge/ipcBridge';
 import { getDatabase } from '@/process/database';
 import type { IChannelPairingRequest, IChannelUser, PluginType } from '../types';
 

@@ -10,6 +10,7 @@ import { spawn } from 'child_process';
 import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 import { app } from 'electron';
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
@@ -24,7 +25,6 @@ import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
 import { DRAFTS_DIR_NAME, NEXUS_FILES_MARKER } from '@/common/constants';
 import { appendNexusFilesMarker } from '@/common/nexusFiles';
-import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor, type NavigationToolData } from '@/common/navigation';
 import { parseError, uuid } from '@/common/utils';
 import type {

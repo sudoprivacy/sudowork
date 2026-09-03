@@ -30,7 +30,7 @@ vi.mock('@/renderer/context/AuthContext', () => ({
   }),
 }));
 
-vi.mock('@/common/ipcBridge', () => ({
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   secret: {
     get: { invoke: (...args: unknown[]) => mockSecretGet(...args) },
     put: { invoke: (...args: unknown[]) => mockSecretPut(...args) },

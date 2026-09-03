@@ -29,7 +29,7 @@ const mockEnablePlugin = vi.fn().mockResolvedValue({ success: true, msg: '' });
 const mockGetPluginCredentials = vi.fn().mockResolvedValue({ success: true, data: null });
 const mockGetPluginStatus = vi.fn().mockResolvedValue({ success: true, data: [] });
 
-vi.mock('@/common/ipcBridge', () => ({
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   channel: {
     testPlugin: { invoke: (...args: unknown[]) => mockTestPlugin(...args) },
     enablePlugin: { invoke: (...args: unknown[]) => mockEnablePlugin(...args) },

@@ -5,7 +5,7 @@
  */
 
 import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
-import type { IDirOrFile } from '@/common/ipcBridge';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 
 /**
  * Workspace 组件的 Props 定义

@@ -13,7 +13,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Tooltip } from '@arco-design/web-react';
-import type { IDirOrFile } from '@/common/ipcBridge';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { useTaskDags } from './hooks/useTaskDags';
 import { useTaskPanelHeader } from './TaskPanelHeaderContext';
 

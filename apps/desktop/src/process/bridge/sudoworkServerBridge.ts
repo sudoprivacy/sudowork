@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { sudoworkServer } from '@sudowork/host-bridge/ipcBridge';
 import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
-import { sudoworkServer } from '@/common/ipcBridge';
 
 export function initSudoworkServerBridge(): void {
   sudoworkServer.getConfig.provider(async () => {

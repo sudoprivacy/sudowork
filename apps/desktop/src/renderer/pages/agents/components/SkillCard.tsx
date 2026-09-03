@@ -7,7 +7,7 @@
 import React from 'react';
 import { Checkbox } from '@arco-design/web-react';
 import { Shield, Zap } from 'lucide-react';
-import type { IInstalledSkillInfo } from '@/common/ipcBridge';
+import type { IInstalledSkillInfo } from '@sudowork/host-bridge/ipcBridge';
 import { getInstalledSkillDisplay, normalizeSkillVersion } from '@/renderer/utils/skillDisplay';
 
 interface SkillCardProps {

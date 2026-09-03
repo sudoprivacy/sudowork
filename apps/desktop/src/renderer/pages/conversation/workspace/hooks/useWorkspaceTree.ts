@@ -5,8 +5,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { IDirOrFile } from '@/common/ipcBridge';
 import { emitter } from '@/renderer/utils/emitter';
 import { dispatchWorkspaceHasFilesEvent } from '@/renderer/utils/workspaceEvents';
 import { ensureDraftsDirectoryNode, filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys, getLimitedDepthKeys } from '../utils/treeHelpers';

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { database as databaseBridge } from '@sudowork/host-bridge/ipcBridge';
 import { acpDetector } from '@/agent/acp/AcpDetector';
-import { database as databaseBridge } from '@/common/ipcBridge';
 import type { TProviderWithModel } from '@/common/storage';
 import { ProcessConfig } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';

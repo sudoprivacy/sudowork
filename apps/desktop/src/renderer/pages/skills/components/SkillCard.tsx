@@ -8,8 +8,8 @@ import React from 'react';
 import { Button, Progress, Tooltip } from '@arco-design/web-react';
 import { Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { ISkillHubSkill } from '@sudowork/host-bridge/ipcBridge';
 import { handleSkillIconError } from '@/renderer/utils/skillDisplay';
-import type { ISkillHubSkill } from '@/common/ipcBridge';
 
 export default function SkillCard({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion }: ISkillCardProps) {
   const { t } = useTranslation();

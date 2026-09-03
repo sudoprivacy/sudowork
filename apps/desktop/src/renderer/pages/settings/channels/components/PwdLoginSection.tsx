@@ -17,7 +17,7 @@
 import { Button, Collapse, Input, Message, Tag } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { pwdLogin, type IPwdLoginEntryStatus } from '@/common/ipcBridge';
+import { pwdLogin, type IPwdLoginEntryStatus } from '@sudowork/host-bridge/ipcBridge';
 
 const CredentialRow: React.FC<{ entry: IPwdLoginEntryStatus; onSaved: () => void }> = ({ entry, onSaved }) => {
   const { t } = useTranslation();

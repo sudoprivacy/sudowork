@@ -8,8 +8,8 @@ import { Button, Dropdown, Menu } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpBackend, AcpSessionConfigOption } from '@/types/acpTypes';
-import type { IResponseMessage } from '@/common/ipcBridge';
 import { ipcBridge } from '@/common';
 
 /**

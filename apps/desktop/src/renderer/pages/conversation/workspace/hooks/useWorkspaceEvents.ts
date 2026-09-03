@@ -5,8 +5,8 @@
  */
 
 import { useEffect, useRef } from 'react';
+import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import type { IDirOrFile } from '@/common/ipcBridge';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { getAllDirKeys } from '../utils/treeHelpers';
 import type { ContextMenuState } from '../types';

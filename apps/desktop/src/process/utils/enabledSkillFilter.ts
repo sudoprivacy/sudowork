@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { MossSessionAvailableSkill } from '@/common/ipcBridge';
 import path from 'node:path';
+import type { MossSessionAvailableSkill } from '@sudowork/host-bridge/ipcBridge';
 import { normalizeSkillNames } from './conversationAssistantSkills';
 
 type InstalledSkillLike = {

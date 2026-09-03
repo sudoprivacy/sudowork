@@ -1,16 +1,16 @@
 import { app, BrowserWindow, dialog, Notification } from 'electron';
-import { ipcBridge } from '@/common';
-import type { ICliStatus } from '@/common/ipcBridge';
 import { execFile, exec } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
+import type { ICliStatus } from '@sudowork/host-bridge/ipcBridge';
+import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@/process/initStorage';
 import { getDataPath } from '@process/utils';
-import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { extractTarGzWithProgress } from '../archiveProgress';
+import { getNodeBinaryPath, ensureNodeInstalled } from './NodeRuntimeService';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);

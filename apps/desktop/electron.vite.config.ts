@@ -43,7 +43,6 @@ const DESKTOP_ONLY_COMMON = [
   'imageGenerationModelConfig',
   'imagePricingSource',
   'index',
-  'ipcBridge',
   'navigation/NavigationInterceptor',
   'navigation/index',
   'nexus/generated/nexus/secrets/v1/secrets_pb',
@@ -102,6 +101,8 @@ const mainAliases = [
   { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
   { find: '@sudowork/contracts/conversations', replacement: resolve('../../packages/contracts/src/conversations.ts') },
+  { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
+  { find: /^@sudowork\/host-bridge$/, replacement: resolve('../../packages/host-bridge/src/index.ts') },
   { find: '@', replacement: resolve('src') },
 ];
 
@@ -162,7 +163,7 @@ export default defineConfig(({ mode }) => {
         externalizeDepsPlugin({
           // @sudowork/* are workspace packages bundled from source (aliased above)
           // so the main process has no runtime dependency on their dist build.
-          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts', '@sudowork/common'],
+          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts', '@sudowork/common', '@sudowork/host-bridge'],
           include: ['nexus-napi'],
         }),
         ...(!isDevelopment
@@ -237,6 +238,8 @@ export default defineConfig(({ mode }) => {
           { find: '@worker', replacement: resolve('src/worker') },
           // Force ESM version of streamdown
           { find: 'streamdown', replacement: resolve('node_modules/streamdown/dist/index.js') },
+          { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
+          { find: /^@sudowork\/host-bridge$/, replacement: resolve('../../packages/host-bridge/src/index.ts') },
           { find: '@', replacement: resolve('src') },
         ],
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.css'],

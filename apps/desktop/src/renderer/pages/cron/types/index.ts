@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ICronJob } from '@/common/ipcBridge';
+import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 
 export type FrequencyPreset = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly';
 

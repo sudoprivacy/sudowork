@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import WebSocket from 'ws';
+import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
-import WebSocket from 'ws';
 import { uuid } from '@/common/utils';
 import { ipcBridge } from '@/common';
-import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@/common/ipcBridge';
 
 /**
  * Moss Server Session API client

@@ -10,11 +10,11 @@ import { useTranslation } from 'react-i18next';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { Check } from 'lucide-react';
+import { acpConversation } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpBackendConfig, AcpBackend } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 import { uuid } from '@/common/utils';
-import { acpConversation } from '@/common/ipcBridge';
 
 // CLI Logo 导入 / CLI Logo imports
 import CodeBuddyLogo from '@/renderer/assets/logos/codebuddy.svg';

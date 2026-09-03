@@ -7,7 +7,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InitStatus } from '../../src/common/ipcBridge';
+import type { InitStatus } from '@sudowork/host-bridge/ipcBridge';
 import Main from '../../src/renderer/main';
 
 const mockUseAuth = vi.fn();

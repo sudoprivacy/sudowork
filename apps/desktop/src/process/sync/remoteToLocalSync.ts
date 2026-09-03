@@ -23,6 +23,8 @@ import path from 'path';
 import https from 'node:https';
 import http from 'node:http';
 import JSZip from 'jszip';
+import type { ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
+import type { SyncAllResult, SyncResult } from '@sudowork/common/syncTypes';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
 import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir } from '@process/initStorage';
@@ -33,8 +35,6 @@ import { initEnterpriseDirs, getEnterpriseHubSkillsDir, getEnterpriseHubAssistan
 import { SKILL_HUB_META_FILE } from '@/process/constants/skillStorage';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import { ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE } from '@/process/constants/assistantStorage';
-import type { ISkillHubMeta } from '@/common/ipcBridge';
-import type { SyncAllResult, SyncResult } from '@sudowork/common/syncTypes';
 
 // ============ 类型定义 ============
 

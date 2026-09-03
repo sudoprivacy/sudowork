@@ -22,7 +22,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ── Mocks ──
 
-vi.mock('@/common/ipcBridge', () => ({
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   acpConversation: { getAvailableAgents: { invoke: vi.fn() } },
   mcpService: { syncMcpToAgents: { invoke: vi.fn() }, removeMcpFromAgents: { invoke: vi.fn() } },
 }));
