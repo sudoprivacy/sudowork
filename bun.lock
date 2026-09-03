@@ -254,6 +254,19 @@
         "zod": "3.25.76",
       },
     },
+    "packages/host-bridge": {
+      "name": "@sudowork/host-bridge",
+      "version": "0.0.0",
+      "dependencies": {
+        "@sudowork/contracts": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/react": "^19.1.6",
+      },
+      "peerDependencies": {
+        "react": ">=19",
+      },
+    },
     "packages/moss-client": {
       "name": "@sudowork/moss-client",
       "version": "0.0.0",
@@ -1497,6 +1510,8 @@
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "https://registry.npmmirror.com/@standard-schema/spec/-/spec-1.1.0.tgz", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
     "@sudowork/contracts": ["@sudowork/contracts@workspace:packages/contracts"],
+
+    "@sudowork/host-bridge": ["@sudowork/host-bridge@workspace:packages/host-bridge"],
 
     "@sudowork/moss-client": ["@sudowork/moss-client@workspace:packages/moss-client"],
 

@@ -12,7 +12,7 @@
   },
   "scripts": {
     "prepare": "husky",
-    "build:packages": "bun run --filter='@sudowork/contracts' build && bun run --filter='@sudowork/moss-client' build",
+    "build:packages": "bun run --filter='@sudowork/contracts' build && bun run --filter='@sudowork/moss-client' build && bun run --filter='@sudowork/host-bridge' build",
     "start": "bun run --filter sudowork start",
     "package": "bun run --filter sudowork package",
     "lint": "bun run --filter sudowork lint",
