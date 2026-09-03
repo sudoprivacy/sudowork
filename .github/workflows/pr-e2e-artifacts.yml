@@ -99,6 +99,12 @@ jobs:
       - name: Install node dependencies
         run: bun install --no-frozen-lockfile
 
+      - name: Ensure Electron binary is installed
+        # bun does not run electron's postinstall (binary download) by default,
+        # so electron-vite's getElectronPath throws "Electron uninstall" when
+        # restart_electron.py launches the dev app. Force the download.
+        run: node node_modules/electron/install.js
+
       - name: Run postinstall
         run: npm run postinstall || true
 
