@@ -391,8 +391,14 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
 // ---------------------------------------------------------------------------
 
 function handleInvoke(channel: string, id: string, req: unknown): void {
+  // Defer to a microtask: `invoke()` emits the request and THEN registers the
+  // callback listener, both synchronously. A synchronous deliver (the
+  // localStorage-backed storage ops) would fire the callback before that
+  // listener exists → the invoke hangs (this stuck the app-mode prime). The
+  // async-mapped handlers already resolve on a later tick; deferring uniformly
+  // guarantees the listener is registered first for every branch.
   const deliver = (result: unknown): void => {
-    emitterRef?.emit('subscribe.callback-' + channel + id, result)
+    queueMicrotask(() => emitterRef?.emit('subscribe.callback-' + channel + id, result))
   }
 
   const storageMatch = STORAGE_RE.exec(channel)
