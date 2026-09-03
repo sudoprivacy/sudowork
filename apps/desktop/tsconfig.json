@@ -25,7 +25,7 @@
         "./src/process/*"
       ],
       "@renderer/*": [
-        "./src/renderer/*"
+        "../../packages/renderer/src/*"
       ],
       "@worker/*": [
         "./src/worker/*"
@@ -180,6 +180,6 @@
     "src/**/*",
     "uno.config.ts",
     "electron.vite.config.ts",
-    "src/renderer/types.d.ts"
+    "../../packages/renderer/src/types.d.ts"
   ]
 }

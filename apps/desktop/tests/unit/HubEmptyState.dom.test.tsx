@@ -12,7 +12,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key }),
 }));
 
-import HubEmptyState from '../../src/renderer/components/HubEmptyState';
+import HubEmptyState from '@renderer/components/HubEmptyState';
 
 describe('HubEmptyState', () => {
   it('renders nothing when error is null (falls through to caller default)', () => {

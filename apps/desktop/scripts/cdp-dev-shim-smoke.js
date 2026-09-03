@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * CDP-driven smoke for the renderer dev-trigger shim
- * (`src/renderer/bootstrap/devTriggers.ts`, landed in PR #921).
+ * (`packages/renderer/src/bootstrap/devTriggers.ts`, landed in PR #921).
  *
  * Connects to a running Electron dev instance's CDP, finds the renderer
  * page target, waits for the shim to install on `window.__sudoworkDebug`,

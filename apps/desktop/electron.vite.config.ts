@@ -78,7 +78,7 @@ function commonAliasEntries() {
 // Common path aliases for main process and workers
 const mainAliases = [
   ...commonAliasEntries(),
-  { find: '@renderer', replacement: resolve('src/renderer') },
+  { find: '@renderer', replacement: resolve('../../packages/renderer/src') },
   { find: '@process', replacement: resolve('src/process') },
   { find: '@worker', replacement: resolve('src/worker') },
   { find: '@xterm/headless', replacement: resolve('src/shims/xterm-headless.ts') },
@@ -161,7 +161,7 @@ export default defineConfig(({ mode }) => {
                   { src: 'skills/**', dest: 'skills' },
                   { src: 'rules/**', dest: 'rules' },
                   { src: 'assistant/**', dest: 'assistant' },
-                  { src: 'src/renderer/assets/logos/**', dest: 'static/images' },
+                  { src: '../../packages/renderer/src/assets/logos/**', dest: 'static/images' },
                 ],
               }),
             ]
@@ -205,6 +205,10 @@ export default defineConfig(({ mode }) => {
 
     renderer: {
       base: './',
+      // Renderer sources now live in packages/renderer; point Vite's root there so
+      // the multi-page HTML inputs (index.html, avatar/index.html) are inside root
+      // and emit clean relative fileNames.
+      root: resolve('../../packages/renderer/src'),
       server: {
         // Port for Vite dev server. On Windows, WinNAT/Hyper-V can reserve ports
         // causing EACCES. launch-dev.js probes for a free port and passes it via
@@ -220,7 +224,7 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: [
           ...commonAliasEntries(),
-          { find: '@renderer', replacement: resolve('src/renderer') },
+          { find: '@renderer', replacement: resolve('../../packages/renderer/src') },
           { find: '@process', replacement: resolve('src/process') },
           { find: '@worker', replacement: resolve('src/worker') },
           // Force ESM version of streamdown
@@ -242,8 +246,8 @@ export default defineConfig(({ mode }) => {
         cssCodeSplit: true,
         rollupOptions: {
           input: {
-            index: resolve('src/renderer/index.html'),
-            avatar: resolve('src/renderer/avatar/index.html'),
+            index: resolve('../../packages/renderer/src/index.html'),
+            avatar: resolve('../../packages/renderer/src/avatar/index.html'),
           },
           external: ['node:crypto', 'crypto'],
           output: {
@@ -269,7 +273,28 @@ export default defineConfig(({ mode }) => {
       },
       optimizeDeps: {
         exclude: ['electron'],
-        include: ['react', 'react-dom', 'react-router-dom', 'react-i18next', 'i18next', '@arco-design/web-react', '@icon-park/react', 'react-markdown', 'react-syntax-highlighter', 'react-virtuoso', 'classnames', 'swr', 'eventemitter3', 'katex', 'diff2html', 'remark-gfm', 'remark-math', 'remark-breaks', 'rehype-raw', 'rehype-katex'],
+        include: [
+          'react',
+          'react-dom',
+          'react-router-dom',
+          'react-i18next',
+          'i18next',
+          '@arco-design/web-react',
+          '@icon-park/react',
+          'react-markdown',
+          'react-syntax-highlighter',
+          'react-virtuoso',
+          'classnames',
+          'swr',
+          'eventemitter3',
+          'katex',
+          'diff2html',
+          'remark-gfm',
+          'remark-math',
+          'remark-breaks',
+          'rehype-raw',
+          'rehype-katex',
+        ],
       },
     },
   };

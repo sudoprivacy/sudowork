@@ -11,9 +11,9 @@ const path = require('path');
 const { REQUIRED_MODULES, collectReferenceKeys, getAllKeys } = require('./generate-i18n-types');
 const i18nConfig = require('../../../packages/common/src/i18n-config.json');
 
-const LOCALES_DIR = path.resolve(__dirname, '../src/renderer/i18n/locales');
-const I18N_KEYS_DTS = path.resolve(__dirname, '../src/renderer/i18n/i18n-keys.d.ts');
-const RENDERER_DIR = path.resolve(__dirname, '../src/renderer');
+const LOCALES_DIR = path.resolve(__dirname, '../../../packages/renderer/src/i18n/locales');
+const I18N_KEYS_DTS = path.resolve(__dirname, '../../../packages/renderer/src/i18n/i18n-keys.d.ts');
+const RENDERER_DIR = path.resolve(__dirname, '../../../packages/renderer/src');
 const SUPPORTED_LANGUAGES = i18nConfig.supportedLanguages;
 const REFERENCE_LANGUAGE = i18nConfig.referenceLanguage;
 
@@ -357,10 +357,10 @@ function checkLiteralKeyUsages() {
 function checkIndexConfig() {
   console.log('\n⚙️  Checking i18n configuration...\n');
 
-  const indexFile = path.join(__dirname, '../src/renderer/i18n/index.ts');
+  const indexFile = path.join(__dirname, '../../../packages/renderer/src/i18n/index.ts');
 
   if (!fs.existsSync(indexFile)) {
-    logError('Missing i18n config file: src/renderer/i18n/index.ts');
+    logError('Missing i18n config file: packages/renderer/src/i18n/index.ts');
     return;
   }
 

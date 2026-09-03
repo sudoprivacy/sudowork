@@ -23,7 +23,7 @@ const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPu
 }));
 
 // --- Module mocks ---
-vi.mock('@/renderer/context/AuthContext', () => ({
+vi.mock('@renderer/context/AuthContext', () => ({
   useAuth: () => ({
     ensureValidToken: mockEnsureValidToken,
     forceRefreshToken: mockForceRefreshToken,
@@ -54,7 +54,7 @@ vi.mock('@sudowork/common/storage', () => ({
 vi.stubGlobal('fetch', mockFetch);
 
 // Import the hook after mocks are set up
-import { useTenantConfigItems } from '@/renderer/pages/settings/channels/hooks/useTenantConfigItems';
+import { useTenantConfigItems } from '@renderer/pages/settings/channels/hooks/useTenantConfigItems';
 
 const defaultApiResponse = {
   success: true,

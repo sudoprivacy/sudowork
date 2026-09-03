@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveWorkspaceSkillRoot } from '@/renderer/pages/conversation/workspace/skillRoots';
+import { resolveWorkspaceSkillRoot } from '@renderer/pages/conversation/workspace/skillRoots';
 
 describe('resolveWorkspaceSkillRoot', () => {
   it('uses workspace skills for openclaw conversations', () => {

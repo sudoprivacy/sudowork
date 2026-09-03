@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mergeCustomProviderIntoScodeConfig } from '@/common/scodeConfig';
-import { buildProviderEditModels } from '@/renderer/pages/settings/models/utils';
+import { buildProviderEditModels } from '@renderer/pages/settings/models/utils';
 
 describe('sudocode model settings utils', () => {
   it('preserves existing model settings and applies defaults only to newly selected provider models', () => {

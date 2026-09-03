@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { emitter } from '@/renderer/utils/emitter';
+import { emitter } from '@renderer/utils/emitter';
 
 describe('skills.changed event', () => {
   let listener: () => void;

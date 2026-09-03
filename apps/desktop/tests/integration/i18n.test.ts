@@ -7,7 +7,7 @@ import * as path from 'path';
 import i18nConfig from '../../../../packages/common/src/i18n-config.json';
 
 // Test constants using __dirname-relative paths
-const LOCALES_DIR = path.resolve(__dirname, '../../src/renderer/i18n/locales');
+const LOCALES_DIR = path.resolve(__dirname, '../../../../packages/renderer/src/i18n/locales');
 const SUPPORTED_LANGUAGES = i18nConfig.supportedLanguages;
 const REQUIRED_MODULES = i18nConfig.modules;
 
@@ -124,12 +124,12 @@ describe('i18n Modular Structure Tests', () => {
 
 describe('i18n Configuration Tests', () => {
   it('index.ts should exist', () => {
-    const indexFile = path.resolve(__dirname, '../../src/renderer/i18n/index.ts');
+    const indexFile = path.resolve(__dirname, '../../../../packages/renderer/src/i18n/index.ts');
     expect(fs.existsSync(indexFile)).toBe(true);
   });
 
   it('index.ts should use shared i18n module and re-export supportedLanguages', () => {
-    const indexFile = path.resolve(__dirname, '../../src/renderer/i18n/index.ts');
+    const indexFile = path.resolve(__dirname, '../../../../packages/renderer/src/i18n/index.ts');
     const content = fs.readFileSync(indexFile, 'utf-8');
 
     // Config is now consumed via @/common/i18n (single source of truth)
@@ -138,7 +138,7 @@ describe('i18n Configuration Tests', () => {
   });
 
   it('index.ts should export changeLanguage function', () => {
-    const indexFile = path.resolve(__dirname, '../../src/renderer/i18n/index.ts');
+    const indexFile = path.resolve(__dirname, '../../../../packages/renderer/src/i18n/index.ts');
     const content = fs.readFileSync(indexFile, 'utf-8');
 
     expect(content).toContain('export async function changeLanguage');
@@ -147,7 +147,7 @@ describe('i18n Configuration Tests', () => {
 
 describe('i18n Build Safety Tests', () => {
   const mainI18nFile = path.resolve(__dirname, '../../src/process/i18n/index.ts');
-  const rendererI18nFile = path.resolve(__dirname, '../../src/renderer/i18n/index.ts');
+  const rendererI18nFile = path.resolve(__dirname, '../../../../packages/renderer/src/i18n/index.ts');
 
   it('main process i18n should NOT use fs.readFile for locale loading', () => {
     const content = fs.readFileSync(mainI18nFile, 'utf-8');
@@ -226,7 +226,11 @@ describe('i18n Build Safety Tests', () => {
 
   it('hardcoded English strings should not exist in TSX component files', () => {
     // Check known files that previously had hardcoded strings
-    const filesToCheck = [path.resolve(__dirname, '../../src/renderer/components/SettingsModal/contents/ModelModalContent.tsx'), path.resolve(__dirname, '../../src/renderer/pages/conversation/preview/components/viewers/URLViewer.tsx'), path.resolve(__dirname, '../../src/renderer/pages/conversation/workspace/index.tsx')];
+    const filesToCheck = [
+      path.resolve(__dirname, '../../../../packages/renderer/src/components/SettingsModal/contents/ModelModalContent.tsx'),
+      path.resolve(__dirname, '../../../../packages/renderer/src/pages/conversation/preview/components/viewers/URLViewer.tsx'),
+      path.resolve(__dirname, '../../../../packages/renderer/src/pages/conversation/workspace/index.tsx'),
+    ];
 
     const hardcodedPatterns = [/\{'Health status cleared'\}/, /\{'Clear status'\}/, /\{'Latency'\}/, /\{'Health Check'\}/, /title=\{'Forward'\}/, /aria-label=\{'More'\}/];
 

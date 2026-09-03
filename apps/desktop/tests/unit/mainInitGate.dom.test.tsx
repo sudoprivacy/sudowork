@@ -8,18 +8,18 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InitStatus } from '@sudowork/host-bridge/ipcBridge';
-import Main from '../../src/renderer/main';
+import Main from '@renderer/main';
 
 const mockUseAuth = vi.fn();
 const mockUseInit = vi.fn();
 const mockUseAppMode = vi.fn();
 const mockIsModeResolved = vi.fn();
 
-vi.mock('../../src/renderer/context/AuthContext', () => ({
+vi.mock('@renderer/context/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-vi.mock('../../src/renderer/context/InitContext', () => ({
+vi.mock('@renderer/context/InitContext', () => ({
   useInit: () => mockUseInit(),
 }));
 
@@ -38,7 +38,7 @@ vi.mock('@renderer/pages/setup/ModeSetup', () => ({
   default: () => <div data-testid='mode-setup'>mode-setup</div>,
 }));
 
-vi.mock('../../src/renderer/components/InitLoading', () => ({
+vi.mock('@renderer/components/InitLoading', () => ({
   default: ({ variant }: { variant?: string }) => <div data-testid='init-loading'>{variant ?? 'full'}</div>,
 }));
 
@@ -46,11 +46,11 @@ vi.mock('@renderer/layouts/layout', () => ({
   default: ({ children }: React.PropsWithChildren) => <div data-testid='layout'>{children}</div>,
 }));
 
-vi.mock('../../src/renderer/router', () => ({
+vi.mock('@renderer/router', () => ({
   default: () => <div data-testid='router'>router</div>,
 }));
 
-vi.mock('../../src/renderer/sider', () => ({
+vi.mock('@renderer/sider', () => ({
   default: () => <div data-testid='sider'>sider</div>,
 }));
 

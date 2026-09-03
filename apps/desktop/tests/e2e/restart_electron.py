@@ -96,7 +96,7 @@ async def _seed_renderer_localstorage_async(port: int) -> str:
     ConfigStorage (main-process persistence, seeded synchronously by
     `set_enterprise_auth_config`) is read for token refresh in the main
     process, but `AuthContext` in the renderer gates the login screen on
-    `localStorage['eeclaw_auth_v1']` (see src/renderer/context/AuthContext.tsx:199
+    `localStorage['eeclaw_auth_v1']` (see packages/renderer/src/context/AuthContext.tsx:199
     + :758). A fresh CI Chrome profile has no localStorage history, so the
     app lands on the login page even with valid ConfigStorage. Seeding the
     same blob via CDP + reloading takes the app straight to the main UI.

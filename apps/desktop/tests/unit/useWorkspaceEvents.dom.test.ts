@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from '@testing-library/react';
-import { emitter } from '../../src/renderer/utils/emitter';
+import { emitter } from '@renderer/utils/emitter';
 
 // Mock ipcBridge
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({

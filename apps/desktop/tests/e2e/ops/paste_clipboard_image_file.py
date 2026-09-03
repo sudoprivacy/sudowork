@@ -5,7 +5,7 @@ note. Uses the same technique proven interactively 2026-07-01 via
 ai-dev-browser: read the image from disk on the harness side, base64 it,
 reconstruct as a `File` in the renderer, wrap in a `DataTransfer`, and
 dispatch `paste` on the focused chat textarea. Sudowork's PasteService
-(`src/renderer/services/PasteService.ts`) picks up `event.clipboardData.files`
+(`packages/renderer/src/services/PasteService.ts`) picks up `event.clipboardData.files`
 and drives the same IPC path a human paste triggers.
 
 Rejects `type="file"` <input> approach: sudowork's chat textarea has no such

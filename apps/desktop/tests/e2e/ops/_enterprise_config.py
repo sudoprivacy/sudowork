@@ -156,7 +156,7 @@ def set_enterprise_auth_config(access_token: str = MOCK_ACCESS_TOKEN,
 def build_enterprise_localstorage_blob() -> dict:
     """Build the EeclawAuthStorage blob the renderer's AuthContext expects.
 
-    Structure matches src/renderer/context/AuthContext.tsx:44-53 exactly.
+    Structure matches packages/renderer/src/context/AuthContext.tsx:44-53 exactly.
     Consumed by restart_electron.py's post-launch CDP seed.
     """
     return {

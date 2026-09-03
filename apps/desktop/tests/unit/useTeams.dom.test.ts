@@ -15,7 +15,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
-import { useTeams } from '../../src/renderer/pages/team/hooks/useTeams';
+import { useTeams } from '@renderer/pages/team/hooks/useTeams';
 
 function makeBackendTeam(id: string) {
   return {

@@ -22,7 +22,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-import TeamLeaderEmptyState from '../../src/renderer/pages/team/components/TeamLeaderEmptyState';
+import TeamLeaderEmptyState from '@renderer/pages/team/components/TeamLeaderEmptyState';
 
 describe('TeamLeaderEmptyState', () => {
   it('renders assistant identity and team scenario prompts', () => {

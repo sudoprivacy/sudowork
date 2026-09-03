@@ -24,7 +24,7 @@ async def connect(port: int = 9232):
 
     The CDP target list on sudowork's Electron can contain more than just the
     main renderer — conversations that previously referenced an external URL
-    spawn `<webview>` preview panes (via `src/renderer/.../URLViewer.tsx` and
+    spawn `<webview>` preview panes (via `packages/renderer/src/.../URLViewer.tsx` and
     `WebviewHost.tsx`) that each attach as their own `page` target. Those
     previews commonly end up FIRST in `browser.tabs`, so a naive "grab the
     first tab" fallback drives the wrong DOM — we observed this causing

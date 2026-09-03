@@ -7,7 +7,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { PreviewToolbar } from '@/renderer/pages/conversation/preview/components/PreviewPanel';
+import { PreviewToolbar } from '@renderer/pages/conversation/preview/components/PreviewPanel';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

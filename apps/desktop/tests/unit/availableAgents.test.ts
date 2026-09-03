@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { AVAILABLE_AGENTS_SWR_KEY, filterAvailableAgentsForUi, splitConversationDropdownAgents } from '../../src/renderer/shared/agents/availableAgents';
-import type { AvailableAgent } from '../../src/renderer/shared/agents/types';
+import { AVAILABLE_AGENTS_SWR_KEY, filterAvailableAgentsForUi, splitConversationDropdownAgents } from '@renderer/shared/agents/availableAgents';
+import type { AvailableAgent } from '@renderer/shared/agents/types';
 
 describe('availableAgents helpers', () => {
   const agents: AvailableAgent[] = [
@@ -33,9 +33,7 @@ describe('availableAgents helpers', () => {
 
   it('splits conversation dropdown agents into cli and preset groups', () => {
     expect(splitConversationDropdownAgents(filterAvailableAgentsForUi(agents))).toEqual({
-      cliAgents: [
-        { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
-      ],
+      cliAgents: [{ backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' }],
       presetAssistants: [
         { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
         { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },

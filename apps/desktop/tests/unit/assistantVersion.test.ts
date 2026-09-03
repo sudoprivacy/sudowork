@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAssistantVersionNewer } from '@/renderer/pages/agents/utils';
+import { isAssistantVersionNewer } from '@renderer/pages/agents/utils';
 
 describe('assistant version comparison', () => {
   it('does not treat equal semantic versions as updates', () => {

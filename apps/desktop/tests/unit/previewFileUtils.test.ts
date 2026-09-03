@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getContentTypeByExtension } from '@/renderer/pages/conversation/preview/utils/fileUtils';
+import { getContentTypeByExtension } from '@renderer/pages/conversation/preview/utils/fileUtils';
 
 describe('preview fileUtils', () => {
   it('maps csv files to excel preview type for table rendering', () => {

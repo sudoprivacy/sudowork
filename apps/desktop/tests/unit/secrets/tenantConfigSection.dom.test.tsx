@@ -20,7 +20,7 @@ const { mockEnsureValidToken, mockForceRefreshToken, mockSecretGet, mockSecretPu
   mockFetch: vi.fn(),
 }));
 
-vi.mock('@/renderer/context/AuthContext', () => ({
+vi.mock('@renderer/context/AuthContext', () => ({
   useAuth: () => ({
     ensureValidToken: mockEnsureValidToken,
     forceRefreshToken: mockForceRefreshToken,
@@ -64,11 +64,11 @@ vi.mock('@arco-design/web-react', async () => {
   };
 });
 
-vi.mock('@/renderer/pages/settings/channels/components/TenantConfigItemGroup', () => ({
+vi.mock('@renderer/pages/settings/channels/components/TenantConfigItemGroup', () => ({
   default: ({ configItem }: { configItem: { id: number; name: string } }) => <div data-testid={`config-item-${configItem.id}`}>{configItem.name}</div>,
 }));
 
-import TenantConfigSection from '@/renderer/pages/settings/channels/components/TenantConfigSection';
+import TenantConfigSection from '@renderer/pages/settings/channels/components/TenantConfigSection';
 
 const defaultApiResponse = {
   success: true,

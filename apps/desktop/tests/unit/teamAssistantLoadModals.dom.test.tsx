@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import TeamCreateModal from '../../src/renderer/pages/team/components/TeamCreateModal';
-import TeamAddMemberModal from '../../src/renderer/pages/team/components/TeamAddMemberModal';
+import TeamCreateModal from '@renderer/pages/team/components/TeamCreateModal';
+import TeamAddMemberModal from '@renderer/pages/team/components/TeamAddMemberModal';
 
 const mocks = vi.hoisted(() => ({
   listAssistants: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
 // Stub the candidate card (svg/asset deps are irrelevant to the load-failure tests), but keep
 // useFilteredCandidates/getCandidateDescription/renderCandidateIcon — the modals import them
 // from the same module. setSearch is module-stable so the load effect does not re-fire per render.
-vi.mock('../../src/renderer/pages/team/components/TeamAssistantCandidateCard', async () => {
+vi.mock('@renderer/pages/team/components/TeamAssistantCandidateCard', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   const setSearch = vi.fn();
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveGuidModelBackendKey } from '../../src/renderer/pages/guid/utils/modelBackendKey';
+import { resolveGuidModelBackendKey } from '@renderer/pages/guid/utils/modelBackendKey';
 
 describe('resolveGuidModelBackendKey', () => {
   it('uses remote-agent for enterprise remote assistant selections', () => {

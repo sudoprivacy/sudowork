@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ExportZipFile } from '../../src/renderer/pages/conversation/grouped-history/types';
-import type { TTeam } from '../../src/renderer/pages/team/types';
+import type { ExportZipFile } from '@renderer/pages/conversation/grouped-history/types';
+import type { TTeam } from '@renderer/pages/team/types';
 
 interface IDeferred<T> {
   promise: Promise<T>;
@@ -43,7 +43,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@/renderer/utils/platform', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isElectronDesktop: () => true,
 }));
 
@@ -71,7 +71,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
-import { useTeamExport } from '../../src/renderer/pages/team/hooks/useTeamExport';
+import { useTeamExport } from '@renderer/pages/team/hooks/useTeamExport';
 
 function makeTeam(): TTeam {
   return {

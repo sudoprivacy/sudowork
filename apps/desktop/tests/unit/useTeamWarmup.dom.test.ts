@@ -38,7 +38,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
-import { useTeamWarmup } from '../../src/renderer/pages/team/hooks/useTeamWarmup';
+import { useTeamWarmup } from '@renderer/pages/team/hooks/useTeamWarmup';
 
 describe('useTeamWarmup', () => {
   beforeEach(() => {

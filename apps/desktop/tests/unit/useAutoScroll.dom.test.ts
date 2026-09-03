@@ -6,8 +6,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { BOTTOM_BUFFER_PX, useAutoScroll } from '../../src/renderer/messages/useAutoScroll';
 import type { TMessage, IMessageText, IMessageToolGroup } from '@sudowork/common/chatLib';
+import { BOTTOM_BUFFER_PX, useAutoScroll } from '@renderer/messages/useAutoScroll';
 
 // Mock VirtuosoHandle
 const createMockVirtuosoHandle = () => ({

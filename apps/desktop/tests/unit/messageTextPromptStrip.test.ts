@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stripInjectedUserPrompt } from '@/renderer/messages/MessagetText';
+import { stripInjectedUserPrompt } from '@renderer/messages/MessagetText';
 
 describe('stripInjectedUserPrompt', () => {
   it('removes injected assistant rules and cron skill blocks from user prompts', () => {

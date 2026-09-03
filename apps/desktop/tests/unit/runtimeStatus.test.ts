@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getRuntimeActionDescriptors, getStatusInfo, resolveRuntimeStatus } from '../../src/renderer/pages/settings/runtime/utils';
-import type { ToolRow } from '../../src/renderer/pages/settings/runtime/types';
+import { getRuntimeActionDescriptors, getStatusInfo, resolveRuntimeStatus } from '@renderer/pages/settings/runtime/utils';
+import type { ToolRow } from '@renderer/pages/settings/runtime/types';
 
 const t = (key: string, opts?: Record<string, unknown>): string => {
   if (key === 'settings.runtimeSettings.status.running') {

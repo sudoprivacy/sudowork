@@ -128,7 +128,7 @@ describe('FUSE-T — lazy install contract', () => {
     // Together these mean a Mac-smoke debug session never gets a
     // second route to the supervisor that bypasses
     // `bridge.buildProvider`.
-    const shim = fs.readFileSync(path.join(REPO_ROOT, 'src/renderer/bootstrap/devTriggers.ts'), 'utf-8');
+    const shim = fs.readFileSync(path.join(REPO_ROOT, '../../packages/renderer/src/bootstrap/devTriggers.ts'), 'utf-8');
     expect(shim).toMatch(/import\.meta\.env\.DEV/);
     expect(shim).toMatch(/ipcBridge\.fuseT\.runLazyInstallProbe\.invoke/);
     expect(shim).not.toMatch(/ipcRenderer/);
@@ -137,7 +137,7 @@ describe('FUSE-T — lazy install contract', () => {
     expect(shim).not.toMatch(/['"]subscribe-/);
     // And the renderer entrypoint must actually import it; an
     // orphan shim ships dead code but solves nothing.
-    const entry = fs.readFileSync(path.join(REPO_ROOT, 'src/renderer/index.ts'), 'utf-8');
+    const entry = fs.readFileSync(path.join(REPO_ROOT, '../../packages/renderer/src/index.ts'), 'utf-8');
     expect(entry).toMatch(/['"]\.\/bootstrap\/devTriggers['"]/);
   });
 });

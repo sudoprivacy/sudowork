@@ -130,8 +130,8 @@ export function createAvatarWindow(): BrowserWindow {
   });
 
   // Load the avatar renderer. electron-vite sets the renderer's vite root
-  // to `src/renderer/`, so URLs are relative to that root: the dev server
-  // serves `src/renderer/avatar/index.html` at /avatar/index.html, and the
+  // to `packages/renderer/src/`, so URLs are relative to that root: the dev server
+  // serves `packages/renderer/src/avatar/index.html` at /avatar/index.html, and the
   // production build emits to out/renderer/avatar/index.html.
   const rendererUrl = process.env['ELECTRON_RENDERER_URL'];
   if (!app.isPackaged && rendererUrl) {

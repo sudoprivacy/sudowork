@@ -47,7 +47,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
-const { useWorkspaceFileOps } = await import('@/renderer/pages/conversation/workspace/hooks/useWorkspaceFileOps');
+const { useWorkspaceFileOps } = await import('@renderer/pages/conversation/workspace/hooks/useWorkspaceFileOps');
 
 function createFile(name: string): IDirOrFile {
   return {

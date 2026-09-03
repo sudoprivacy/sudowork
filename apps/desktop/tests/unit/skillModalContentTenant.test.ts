@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { resolveSkillTenantId } from '@/renderer/pages/skills/utils';
+import { resolveSkillTenantId } from '@renderer/pages/skills/utils';
 
 describe('resolveSkillTenantId', () => {
   it('returns enterprise code only for the exclusive tab', () => {

@@ -37,7 +37,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
-import { useTeamRunView } from '../../src/renderer/pages/team/hooks/useTeamRunView';
+import { useTeamRunView } from '@renderer/pages/team/hooks/useTeamRunView';
 
 const childEvent = {
   team_id: 'team-1',

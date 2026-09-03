@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDisplayMessage } from '@/renderer/utils/messageFiles';
+import { buildDisplayMessage } from '@renderer/utils/messageFiles';
 
 const WORKSPACE = '/Users/test/.nexus/sudoclaw/workspace/proj-123';
 

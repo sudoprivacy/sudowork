@@ -85,7 +85,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
-import { useTeamSession } from '../../src/renderer/pages/team/hooks/useTeamSession';
+import { useTeamSession } from '@renderer/pages/team/hooks/useTeamSession';
 
 type TestTeam = ReturnType<typeof makeTeam>;
 type TestMember = ReturnType<typeof makeMember>;

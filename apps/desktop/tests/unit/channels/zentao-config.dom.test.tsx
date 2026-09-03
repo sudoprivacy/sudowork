@@ -47,7 +47,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 // Import after mocks
-import ZentaoConfigForm from '@/renderer/pages/settings/channels/components/ZentaoConfigForm';
+import ZentaoConfigForm from '@renderer/pages/settings/channels/components/ZentaoConfigForm';
 
 describe('ZentaoConfigForm', () => {
   beforeEach(() => {

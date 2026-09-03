@@ -29,7 +29,7 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mocks.navigate,
 }));
 
-vi.mock('@/renderer/context/AuthContext', () => ({
+vi.mock('@renderer/context/AuthContext', () => ({
   useAuth: () => ({ isGuest: false }),
 }));
 
@@ -51,15 +51,15 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
-vi.mock('../../src/renderer/pages/team/hooks/useTeamSession', () => ({
+vi.mock('@renderer/pages/team/hooks/useTeamSession', () => ({
   useTeamSession: (...args: unknown[]) => mocks.useTeamSession(...args),
 }));
 
-vi.mock('../../src/renderer/pages/team/hooks/useTeamRunView', () => ({
+vi.mock('@renderer/pages/team/hooks/useTeamRunView', () => ({
   useTeamRunView: (...args: unknown[]) => mocks.useTeamRunView(...args),
 }));
 
-vi.mock('../../src/renderer/pages/team/hooks/useTeamWarmup', () => ({
+vi.mock('@renderer/pages/team/hooks/useTeamWarmup', () => ({
   useTeamWarmup: () => ({ phase: 'ready', runtimeStatus: new Map(), error: undefined, onRetry: () => undefined }),
 }));
 
@@ -102,17 +102,17 @@ vi.mock('@renderer/components/AcpModelSelector', async () => {
   return { default: () => React.createElement('div', { 'data-testid': 'model-selector' }) };
 });
 
-vi.mock('../../src/renderer/pages/team/components/TeamMemberListTab', async () => {
+vi.mock('@renderer/pages/team/components/TeamMemberListTab', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return { default: () => React.createElement('div', { 'data-testid': 'team-member-list' }) };
 });
 
-vi.mock('../../src/renderer/pages/team/components/TeamLeaderEmptyState', async () => {
+vi.mock('@renderer/pages/team/components/TeamLeaderEmptyState', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return { default: () => React.createElement('div', { 'data-testid': 'team-leader-empty' }) };
 });
 
-import TeamDetailPage from '../../src/renderer/pages/team/detail';
+import TeamDetailPage from '@renderer/pages/team/detail';
 
 function makeTeam(id: string, leaderConversationId: string) {
   return {

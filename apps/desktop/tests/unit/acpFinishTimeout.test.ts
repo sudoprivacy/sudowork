@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shouldCancelAcpFinishTimeout } from '@/renderer/pages/conversation/acp/acpFinishTimeout';
+import { shouldCancelAcpFinishTimeout } from '@renderer/pages/conversation/acp/acpFinishTimeout';
 
 describe('shouldCancelAcpFinishTimeout', () => {
   it('keeps finish cleanup pending for metadata-only messages', () => {

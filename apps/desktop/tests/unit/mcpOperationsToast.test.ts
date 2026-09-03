@@ -32,7 +32,7 @@ vi.mock('@sudowork/common/storage', () => ({
 }));
 
 // Mock the message queue to execute synchronously
-vi.mock('@/renderer/pages/settings/tools/utils/messageQueue', async () => {
+vi.mock('@renderer/pages/settings/tools/utils/messageQueue', async () => {
   return {
     globalMessageQueue: {
       add: async (fn: () => void) => fn(),
@@ -75,7 +75,7 @@ describe('MCP operations toast feedback', () => {
   async function callHandleMcpOperationResult(response: { success: boolean; data?: { results: Array<{ agent: string; success: boolean; error?: string }> }; msg?: string }, operation: 'sync' | 'remove', successMessage?: string) {
     // Re-implement the core logic from useMcpOperations.handleMcpOperationResult
     // to test it in isolation (the hook requires React context)
-    const { globalMessageQueue } = await import('@/renderer/pages/settings/tools/utils/messageQueue');
+    const { globalMessageQueue } = await import('@renderer/pages/settings/tools/utils/messageQueue');
 
     if (response.success && response.data) {
       const failedAgents = response.data.results.filter((r) => !r.success);

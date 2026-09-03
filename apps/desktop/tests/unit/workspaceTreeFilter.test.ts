@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 
-const { filterHiddenWorkspaceDirs } = await import('@/renderer/pages/conversation/workspace/hooks/useWorkspaceTree');
-const { ensureDraftsDirectoryNode, updateTreeNodeChildren } = await import('@/renderer/pages/conversation/workspace/utils/treeHelpers');
+const { filterHiddenWorkspaceDirs } = await import('@renderer/pages/conversation/workspace/hooks/useWorkspaceTree');
+const { ensureDraftsDirectoryNode, updateTreeNodeChildren } = await import('@renderer/pages/conversation/workspace/utils/treeHelpers');
 
 function dir(name: string, children?: IDirOrFile[]): IDirOrFile {
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getContentTypeFromExt } from '@/renderer/messages/MessageFileSend';
+import { getContentTypeFromExt } from '@renderer/messages/MessageFileSend';
 
 // --- getContentTypeFromExt 纯函数测试 ---
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import ExcelViewer from '@/renderer/pages/conversation/preview/components/viewers/ExcelViewer';
+import ExcelViewer from '@renderer/pages/conversation/preview/components/viewers/ExcelViewer';
 
 const mocks = vi.hoisted(() => ({
   convert: vi.fn(),

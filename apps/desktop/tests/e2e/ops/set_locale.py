@@ -10,7 +10,7 @@ the case drives the UI.
 Two writes, because language lives in two places:
 
   1. ConfigStorage key `language` — the single source of truth the renderer
-     reads on boot (src/renderer/i18n/index.ts initLanguage). Persisted to
+     reads on boot (packages/renderer/src/i18n/index.ts initLanguage). Persisted to
      disk here so a mid-case `restart_app` comes back in the same language;
      the main-process `system-settings:change-language` handler does NOT
      persist (it only broadcasts + updates main i18n).

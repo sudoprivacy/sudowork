@@ -29,7 +29,7 @@ vi.mock('@office-ai/platform', () => ({
   theme: { Color: { FunctionalColor: { error: '#f00' } } },
 }));
 
-import RuntimeErrorBanner from '@/renderer/messages/RuntimeErrorBanner';
+import RuntimeErrorBanner from '@renderer/messages/RuntimeErrorBanner';
 
 describe('RuntimeErrorBanner', () => {
   it('renders differentiated banner with data-testid per class (regression: lets e2e select by class)', () => {

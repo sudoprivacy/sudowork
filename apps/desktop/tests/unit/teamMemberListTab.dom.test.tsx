@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TTeam } from '../../src/renderer/pages/team/types';
+import type { TTeam } from '@renderer/pages/team/types';
 
 const mocks = vi.hoisted(() => ({
   sendMessageToMember: vi.fn(),
@@ -50,15 +50,15 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
-vi.mock('@/renderer/utils/agentLogo', () => ({
+vi.mock('@renderer/utils/agentLogo', () => ({
   getAgentLogo: () => null,
 }));
 
-vi.mock('@/renderer/shared/agents/assistantAdapter', () => ({
+vi.mock('@renderer/shared/agents/assistantAdapter', () => ({
   resolveAssistantName: (name: string) => name,
 }));
 
-vi.mock('../../src/renderer/pages/team/components/TeamAddMemberModal', async () => {
+vi.mock('@renderer/pages/team/components/TeamAddMemberModal', async () => {
   const React = await vi.importActual<typeof import('react')>('react');
   return {
     default: (props: { onAdded: (params: { assistant_id: string; name: string; model?: string; role?: 'lead' | 'teammate' }) => Promise<void> }) => {
@@ -84,7 +84,7 @@ vi.mock('@renderer/pages/conversation/acp/AcpChat', async () => {
   };
 });
 
-import TeamMemberListTab from '../../src/renderer/pages/team/components/TeamMemberListTab';
+import TeamMemberListTab from '@renderer/pages/team/components/TeamMemberListTab';
 
 function makeTeam(assistants: TTeam['assistants']): TTeam {
   return {
