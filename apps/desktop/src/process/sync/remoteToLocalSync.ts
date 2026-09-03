@@ -34,22 +34,16 @@ import { SKILL_HUB_META_FILE } from '@/process/constants/skillStorage';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 import { ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE } from '@/process/constants/assistantStorage';
 import type { ISkillHubMeta } from '@/common/ipcBridge';
+import type { SyncAllResult, SyncResult } from '@sudowork/common/syncTypes';
 
 // ============ 类型定义 ============
 
 type AssistantPromptsI18n = Record<string, string[]>;
 
-export type SyncResult = {
-  installed: string[];
-  skipped: string[];
-  deleted: string[];
-  failed: Array<{ id: string; name: string; error: string }>;
-};
-
-export type SyncAllResult = {
-  skills: { hub: SyncResult; tenant: SyncResult };
-  assistants: { hub: SyncResult; tenant: SyncResult };
-};
+// SyncResult / SyncAllResult are pure result shapes and now live in
+// @sudowork/common so the IPC bridge can reference them without this sync
+// runtime. Re-exported here so existing importers keep resolving unchanged.
+export type { SyncAllResult, SyncResult };
 
 export type RemoteSkillInfo = {
   id: string;

@@ -4,25 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { OpenDialogOptions } from 'electron';
 import { bridge } from '@office-ai/platform';
-import type { IConfirmation } from '@/common/chatLib';
+import type { IConfirmation } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
-import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
-import type { ISafetyStatus, IBlacklistConfig } from '@common/types/security';
-import type { AuthProxyRule } from '@/common/types/authProxy';
-import type { SystemConfig } from '@/common/systemConfig';
-import type { McpSource } from '../process/services/mcpServices/McpProtocol';
-import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
-import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
-import type { ScodeCustomModelProvider, SpecificImagePricingItem, SpecificPricingItem } from './scodeConfig';
-import type { SlashCommandItem } from '@common/slash/types';
-import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from './storage';
-import type { SecretMetadata } from './nexus/nexus-secret-client';
-import type { FusePluginStatus } from '@common/nexus/fuse-plugin-status';
-import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@common/types/preview';
-import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from '@common/updateTypes';
-import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '@common/utils/protocolDetector';
+import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@sudowork/common/channelTypes';
+import type { ISafetyStatus, IBlacklistConfig } from '@sudowork/common/types/security';
+import type { AuthProxyRule } from '@sudowork/common/types/authProxy';
+import type { SystemConfig } from '@sudowork/common/systemConfigTypes';
+import type { McpSource } from '@sudowork/common/mcpTypes';
+import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '@sudowork/common/acpTypes';
+import type { SyncAllResult } from '@sudowork/common/syncTypes';
+import type { ScodeCustomModelProvider, SpecificImagePricingItem, SpecificPricingItem } from '@sudowork/common/scodeTypes';
+import type { SlashCommandItem } from '@sudowork/common/slash/types';
+import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from '@sudowork/common/storageTypes';
+import type { SecretMetadata } from '@sudowork/common/secretTypes';
+import type { FusePluginStatus } from '@sudowork/common/nexus/fuse-plugin-status';
+import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@sudowork/common/types/preview';
+import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from '@sudowork/common/updateTypes';
+import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '@sudowork/common/utils/protocolDetector';
 import type {
   ILocalKbAddFilesInput,
   ILocalKbBuildJob,
@@ -38,7 +37,7 @@ import type {
   ILocalKbSetDirectoryInput,
   ILocalKbSpace,
   ILocalKbUpdateSpaceInput,
-} from '@common/types/localKnowledgeBase';
+} from '@sudowork/common/types/localKnowledgeBase';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -122,7 +121,7 @@ export const conversation = {
   // Flush all pending messages to database immediately (used before reading from DB)
   flushPendingMessages: bridge.buildProvider<void, { conversation_id: string }>('conversation.flush-pending-messages'),
   // Add a single message to the database (used for saving pending messages before unmount)
-  addMessage: bridge.buildProvider<void, { conversation_id: string; message: import('@/common/chatLib').TMessage }>('conversation.add-message'),
+  addMessage: bridge.buildProvider<void, { conversation_id: string; message: import('@sudowork/common/chatTypes').TMessage }>('conversation.add-message'),
   // Sync messages from Moss Server to local DB (enterprise mode, triggered on conversation click)
   syncMessages: bridge.buildProvider<IBridgeResponse<{ syncedCount: number; nameUpdated: boolean; conversationStatus?: string }>, { conversation_id: string }>('conversation.sync-messages'),
   confirmation: {
@@ -227,8 +226,18 @@ export interface IOpenDialogResult {
   filePaths: string[];
 }
 
+/** Open-dialog `properties` values — mirrors Electron's `OpenDialogOptions['properties']`
+ *  element type so this bridge no longer depends on the `electron` module. */
+export type OpenDialogProperty = 'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory' | 'dontAddToRecent';
+
+/** File type filter — mirrors Electron's `FileFilter`. */
+export interface IOpenDialogFileFilter {
+  name: string;
+  extensions: string[];
+}
+
 export const dialog = {
-  showOpen: bridge.buildProvider<IBridgeResponse<IOpenDialogResult>, { defaultPath?: string; properties?: OpenDialogOptions['properties']; filters?: OpenDialogOptions['filters'] } | undefined>('show-open'), // 打开文件/文件夹选择窗口
+  showOpen: bridge.buildProvider<IBridgeResponse<IOpenDialogResult>, { defaultPath?: string; properties?: OpenDialogProperty[]; filters?: IOpenDialogFileFilter[] } | undefined>('show-open'), // 打开文件/文件夹选择窗口
 };
 
 export interface BdpanFileEntry {
@@ -547,10 +556,10 @@ export const acpConversation = {
   setModel: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null }>, { conversationId: string; modelId: string }>('acp.set-model'),
   // Get non-model config options for ACP agents (e.g., reasoning effort)
   // 获取 ACP 代理的非模型配置选项（如推理级别）
-  getConfigOptions: bridge.buildProvider<IBridgeResponse<{ configOptions: import('../types/acpTypes').AcpSessionConfigOption[] }>, { conversationId: string }>('acp.get-config-options'),
+  getConfigOptions: bridge.buildProvider<IBridgeResponse<{ configOptions: import('@sudowork/common/acpTypes').AcpSessionConfigOption[] }>, { conversationId: string }>('acp.get-config-options'),
   // Set a config option value for ACP agents (e.g., reasoning effort)
   // 设置 ACP 代理的配置选项值（如推理级别）
-  setConfigOption: bridge.buildProvider<IBridgeResponse<{ configOptions: import('../types/acpTypes').AcpSessionConfigOption[] }>, { conversationId: string; configId: string; value: string }>('acp.set-config-option'),
+  setConfigOption: bridge.buildProvider<IBridgeResponse<{ configOptions: import('@sudowork/common/acpTypes').AcpSessionConfigOption[] }>, { conversationId: string; configId: string; value: string }>('acp.set-config-option'),
 };
 
 // MCP 服务相关接口
@@ -587,8 +596,8 @@ export const mcporterService = {
 
 // Database operations
 export const database = {
-  getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
-  getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number; sessionMode?: 'remote' | 'local' }>('database.get-user-conversations'),
+  getConversationMessages: bridge.buildProvider<import('@sudowork/common/chatTypes').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
+  getUserConversations: bridge.buildProvider<import('@sudowork/common/storageTypes').TChatConversation[], { page?: number; pageSize?: number; sessionMode?: 'remote' | 'local' }>('database.get-user-conversations'),
   /** 渠道对话创建/更新/删除时，主进程通知渲染进程刷新对话列表 */
   conversationChanged: bridge.buildEmitter<{
     conversationId: string;
@@ -608,7 +617,7 @@ export const preview = {
   // Agent 触发打开预览（如 ai-dev-browser page_goto 导航到 URL）/ Agent triggers open preview (e.g., ai-dev-browser page_goto)
   open: bridge.buildEmitter<{
     content: string; // URL 或内容 / URL or content
-    contentType: import('@common/types/preview').PreviewContentType; // 内容类型 / Content type
+    contentType: import('@sudowork/common/types/preview').PreviewContentType; // 内容类型 / Content type
     metadata?: {
       title?: string;
       fileName?: string;
@@ -664,7 +673,7 @@ export const deliverables = {
 };
 
 export const document = {
-  convert: bridge.buildProvider<import('@common/types/conversion').DocumentConversionResponse, import('@common/types/conversion').DocumentConversionRequest>('document.convert'),
+  convert: bridge.buildProvider<import('@sudowork/common/types/conversion').DocumentConversionResponse, import('@sudowork/common/types/conversion').DocumentConversionRequest>('document.convert'),
   /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */
   saveAsDocx: bridge.buildProvider<IBridgeResponse<string>, { markdown: string; conversationId: string; fileName?: string }>('document.save-as-docx'),
   libreOffice: {
@@ -785,7 +794,7 @@ export type IFuseTLazyInstallOutcome = 'already-mounted' | 'unmounted-no-prereq-
 // (via `@process/services/nexus-vfs/FusePluginClient`) both consume
 // the SAME literal set — no parallel `IFusePluginStatus` drifting
 // against `FusePluginStatus`.
-export type { FusePluginStatus } from '@common/nexus/fuse-plugin-status';
+export type { FusePluginStatus } from '@sudowork/common/nexus/fuse-plugin-status';
 
 export interface IFuseTLazyInstallResult {
   outcome: IFuseTLazyInstallOutcome;
@@ -1888,9 +1897,9 @@ export const skillHub = {
   /** Uninstall a hub-installed skill by directory name (builtin skills are rejected). Optionally specify category to disambiguate skills with same name in different directories. */
   uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('skill-hub.uninstall-skill'),
   /** Get security audit report for a skill */
-  getSkillAuditReport: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.get-skill-audit-report'),
+  getSkillAuditReport: bridge.buildProvider<IBridgeResponse<import('@sudowork/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.get-skill-audit-report'),
   /** Run security audit for a skill (re-scan) */
-  runSkillAudit: bridge.buildProvider<IBridgeResponse<import('@/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.run-skill-audit'),
+  runSkillAudit: bridge.buildProvider<IBridgeResponse<import('@sudowork/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.run-skill-audit'),
 };
 
 // ==================== Assistant Hub API ====================

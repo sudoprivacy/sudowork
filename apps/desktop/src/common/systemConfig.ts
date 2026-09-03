@@ -25,6 +25,7 @@
 
 import { getSudoworkServerBaseUrl, normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
 import { COS_RELEASE_BASE } from '@/shared/cos';
+import type { RechargeMode, SystemConfig } from '@sudowork/common/systemConfigTypes';
 
 // ---- build-time injected base URLs (Vite `define`; empty string = not injected) ----
 declare const __SUDOROUTER_BASE_URL__: string | undefined;
@@ -44,49 +45,12 @@ export const BUILD_SKILLHUB_BASE_URL: string = (typeof __SKILLHUB_BASE_URL__ !==
 export const BUILD_LOG_REPORT_BASE_URL: string = (typeof __LOG_REPORT_BASE_URL__ !== 'undefined' && __LOG_REPORT_BASE_URL__) || FALLBACK_LOG_REPORT_BASE_URL;
 export const BUILD_COS_RELEASE_BASE: string = (typeof __COS_RELEASE_BASE__ !== 'undefined' && __COS_RELEASE_BASE__) || COS_RELEASE_BASE;
 
-// ---- typed system-config shape (interface doc 1.4) ----
-export type RechargeMode = 'pay' | 'approve' | 'disabled';
-
-export interface ICreditApplicationConfig {
-  min_points: number;
-  max_points: number;
-  allow_duplicate_pending: boolean;
-}
-
-export interface SystemConfig {
-  login_method?: number;
-  third_party_auth?: ThirdPartyAuthConfig;
-  log_report?: { enabled: number; baseurl?: string };
-  version_update?: { enabled: number; cos_domain?: string };
-  product_improvement?: { enabled: number; encryption_required?: boolean };
-  sudorouter_baseurl?: string;
-  skillhub_baseurl?: string;
-  scode_auto_model?: string;
-  recharge_mode?: RechargeMode;
-  credit_application?: ICreditApplicationConfig;
-}
-
-export interface ThirdPartyAuthProvider {
-  id: string;
-  name: string;
-  type: 'cas';
-  cas_url: string;
-  login_path?: string;
-  validate_path?: string;
-  logout_path?: string;
-  logout_service_url?: string;
-  service_param?: string;
-  service_encode_mode?: 'component' | 'raw';
-  callback_mode?: 'direct_app' | 'server_callback';
-  server_callback_url?: string;
-  app_callback_url?: string;
-}
-
-export interface ThirdPartyAuthConfig {
-  enabled?: boolean;
-  default_provider?: string;
-  providers?: ThirdPartyAuthProvider[];
-}
+// The pure system-config type surface (SystemConfig, ThirdPartyAuthConfig,
+// ThirdPartyAuthProvider, RechargeMode, ICreditApplicationConfig) now lives in
+// @sudowork/common so the renderer and a future shared renderer package can
+// consume it without this fetch/decrypt runtime. Re-exported here so every
+// existing `@/common/systemConfig` type import keeps resolving unchanged.
+export * from '@sudowork/common/systemConfigTypes';
 
 /** Decrypted credentials plaintext (interface doc 2.4.3 — fields are conditional). */
 export interface DecryptedCredentials {

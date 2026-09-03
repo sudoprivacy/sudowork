@@ -1,6 +1,13 @@
 import { modelInputForModelId } from '@common/imageUtils';
 import type { ScodeConfig, ScodeModelEntry } from './ipcBridge';
 import { FALLBACK_SCODE_AUTO_MODEL_ID, getSudorouterBaseUrl } from './systemConfig';
+import type { ScodeCustomModelProvider, SpecificImagePricingItem, SpecificPricingItem } from '@sudowork/common/scodeTypes';
+
+// ScodeCustomModelProvider / SpecificPricingItem / SpecificImagePricingItem are pure
+// value types and now live in @sudowork/common so the renderer and a future shared
+// renderer package can consume them without this runtime. Re-exported here so every
+// existing `@/common/scodeConfig` type import keeps resolving unchanged.
+export type { ScodeCustomModelProvider, SpecificImagePricingItem, SpecificPricingItem };
 
 export type LoginSudoclawPayload = {
   sudorouterKey?: string;
@@ -9,39 +16,11 @@ export type LoginSudoclawPayload = {
   scodeAutoModel?: string;
 };
 
-export type ScodeCustomModelProvider = {
-  providerId: string;
-  baseUrl: string;
-  apiKey: string;
-  models: Array<{
-    id: string;
-    name?: string;
-    api?: string;
-    input?: string[];
-    supportsTools?: boolean;
-    supportsReasoning?: boolean;
-    supportsImageGeneration?: boolean;
-    inputContext?: number;
-    outputContext?: number;
-  }>;
-};
-
 const SUDOROUTER_PROVIDER_ID = 'sudorouter';
 const OPENAI_COMPAT_API = 'openai-completions';
 const OPENAI_RESPONSES_API = 'openai-responses';
 export const SCODE_AUTO_MODEL_ALIAS = 'auto';
 export const SCODE_AUTO_ROUTER_MODEL_ID = FALLBACK_SCODE_AUTO_MODEL_ID;
-
-export type SpecificPricingItem = {
-  model_id: string;
-  model_ratio?: number;
-};
-
-export type SpecificImagePricingItem = {
-  model_id: string;
-  model_ratio?: number;
-  extra?: Record<string, unknown>;
-};
 
 export const IMAGE_GENERATION_MODEL_PATTERN = /flux|diffusion|dall|imagen|cogview|janus|midjourney|mj-|stabilityai|sd-/i;
 

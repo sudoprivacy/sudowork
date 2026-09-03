@@ -30,17 +30,11 @@ import {
   UpdateSecretDescriptionResponseSchema,
 } from './generated/nexus/secrets/v1/secrets_pb.js';
 import type { SecretMetadata as ProtoSecretMetadata, SecretVersion } from './generated/nexus/secrets/v1/secrets_pb.js';
+import type { SecretMetadata } from '@sudowork/common/secretTypes';
 
-// Re-export compatible types for callers
-export interface SecretMetadata {
-  namespace: string;
-  key: string;
-  description?: string;
-  currentVersion: number;
-  deleted: boolean;
-  createdAt?: number;
-  updatedAt?: number;
-}
+// SecretMetadata (SSOT for the secret.* IPC wire format) lives in @sudowork/common.
+// Re-exported here so importers (nexus-secret-resilient, the IPC bridge) resolve it.
+export type { SecretMetadata };
 
 export interface VersionMetadata {
   version: number;

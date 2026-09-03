@@ -14,12 +14,11 @@ import { mainWarn, mainError } from '@process/utils/mainLogger';
 import { getEnhancedEnv, resolveNpxPath } from '@/process/utils/shellEnv';
 import type { IMcpServer } from '@/common/storage';
 import { JSONRPC_VERSION } from '@/types/acpTypes';
-import type { AcpBackendAll } from '@/types/acpTypes';
+import type { McpSource } from '@sudowork/common/mcpTypes';
 
-/**
- * MCP源类型 - 包括所有ACP后端和Sudowork内置
- */
-export type McpSource = AcpBackendAll | 'sudowork';
+// McpSource (a pure ACP-backend union) lives in @sudowork/common. Re-exported here
+// so `./McpProtocol` importers (McpService, the IPC bridge) resolve it.
+export type { McpSource };
 
 /**
  * MCP操作结果接口
