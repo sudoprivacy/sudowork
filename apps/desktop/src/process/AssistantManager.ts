@@ -16,32 +16,12 @@ import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import type { IAssistantMeta } from './constants/assistantStorage';
 import { getEnterpriseTenantAssistantsDir } from './constants/enterpriseStorage';
 
-export type AssistantCategory = 'custom' | 'hub' | 'system' | 'tenant';
-
-export interface IAssistantEnhancement {
-  enabled: boolean;
-  mode?: 'agent-chat' | 'workflow' | 'rag-only';
-  /** Surfaced for debugging; client code should not call Dify directly with it. */
-  difyAppId?: string;
-}
-
-export interface IAssistantInfo {
-  /** Unique identifier from server */
-  id?: string;
-  /** Directory name (used as lookup key) */
-  name: string;
-  isBuiltin: boolean;
-  isHubInstalled: boolean;
-  enabled: boolean;
-  category: AssistantCategory;
-  meta: IAssistantMeta;
-  /**
-   * Filled in when `getInstalledAssistantsWithVisibility(accessToken)` is
-   * called. `undefined` means we haven't checked / can't check (offline);
-   * `{enabled: false}` is the explicit "no enhancement" answer.
-   */
-  enhancement?: IAssistantEnhancement;
-}
+// Pure assistant types now live in @sudowork/common so the renderer (and a
+// future shared renderer package) can consume them without importing a
+// main-process module. Imported for local use and re-exported for
+// backward-compatible `@/process/AssistantManager` import paths.
+import type { AssistantCategory, IAssistantEnhancement, IAssistantInfo } from '@sudowork/common/assistantTypes';
+export type { AssistantCategory, IAssistantEnhancement, IAssistantInfo };
 
 type AssistantPromptsI18n = Record<string, string[]>;
 

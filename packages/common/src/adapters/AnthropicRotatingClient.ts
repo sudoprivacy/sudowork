@@ -6,9 +6,9 @@
 
 import Anthropic, { type ClientOptions as AnthropicClientOptions_ } from '@anthropic-ai/sdk';
 import { AuthType } from '@office-ai/aioncli-core';
-import type { RotatingApiClientOptions } from '../RotatingApiClient';
-import { RotatingApiClient } from '../RotatingApiClient';
-import { OpenAI2AnthropicConverter, type OpenAIChatCompletionParams, type OpenAIChatCompletionResponse } from './OpenAI2AnthropicConverter';
+import type { RotatingApiClientOptions } from '../RotatingApiClient.js';
+import { RotatingApiClient } from '../RotatingApiClient.js';
+import { OpenAI2AnthropicConverter, type OpenAIChatCompletionParams, type OpenAIChatCompletionResponse } from './OpenAI2AnthropicConverter.js';
 
 export interface AnthropicClientConfig {
   model?: string;

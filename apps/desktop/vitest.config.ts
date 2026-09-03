@@ -1,21 +1,72 @@
 import path from 'path';
 import { defineConfig } from 'vitest/config';
 
-const aliases = {
-  '@/': path.resolve(__dirname, './src') + '/',
-  '@common/': path.resolve(__dirname, './src/common') + '/',
-  '@process/': path.resolve(__dirname, './src/process') + '/',
-  '@renderer/': path.resolve(__dirname, './src/renderer') + '/',
-  '@worker/': path.resolve(__dirname, './src/worker') + '/',
-  '@mcp/models/': path.resolve(__dirname, './src/common/models') + '/',
-  '@mcp/types/': path.resolve(__dirname, './src/common') + '/',
-  '@mcp/': path.resolve(__dirname, './src/common') + '/',
+// Modules that stay in apps/desktop/src/common (main-only or transitively so);
+// everything else under @common / @/common now lives in @sudowork/common.
+const DESKTOP_ONLY_COMMON = [
+  'ClientFactory',
+  'adapters/index',
+  'chatLib',
+  'eeclawMode',
+  'enterpriseDebugConfig',
+  'i18n',
+  'imageGenerationModelConfig',
+  'imagePricingSource',
+  'index',
+  'ipcBridge',
+  'navigation/NavigationInterceptor',
+  'navigation/index',
+  'nexus/generated/nexus/secrets/v1/secrets_pb',
+  'nexus/index',
+  'nexus/moss-secret-client-factory',
+  'nexus/nexus-secret-client',
+  'nexus/nexus-secret-resilient',
+  'nexus/nexus-vfs-client',
+  'nexus/nexusVfsGrpcClient',
+  'nexus/secret-cache',
+  'nexus/secret-migration',
+  'presets/assistantPresets',
+  'presets/presetResolver',
+  'scodeConfig',
+  'storage',
+  'sudoclawModelConfig',
+  'sudoworkAuthLogin',
+  'sudoworkServer',
+  'systemConfig',
+  'thirdPartyAuthConfig',
+  'utils/workspaceSkillSync',
+];
+const DESKTOP_ONLY_COMMON_DIRS = ['nexus', 'navigation', 'adapters'];
+
+function commonAliasEntries() {
+  const pkg = path.resolve(__dirname, '../../packages/common/src').replace(/\\/g, '/');
+  const deskCommon = path.resolve(__dirname, './src/common').replace(/\\/g, '/');
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const entries: { find: RegExp; replacement: string }[] = [];
+  entries.push({ find: /^@\/?common$/, replacement: deskCommon });
+  for (const m of [...DESKTOP_ONLY_COMMON, ...DESKTOP_ONLY_COMMON_DIRS]) {
+    entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '$'), replacement: `${deskCommon}/${m}` });
+  }
+  entries.push({ find: /^@\/?common\/(.*)$/, replacement: `${pkg}/$1` });
+  entries.push({ find: /^@sudowork\/common\/(.*)$/, replacement: `${pkg}/$1` });
+  return entries;
+}
+
+const aliases = [
+  ...commonAliasEntries(),
+  { find: /^@process\//, replacement: path.resolve(__dirname, './src/process') + '/' },
+  { find: /^@renderer\//, replacement: path.resolve(__dirname, './src/renderer') + '/' },
+  { find: /^@worker\//, replacement: path.resolve(__dirname, './src/worker') + '/' },
+  { find: /^@mcp\/models\//, replacement: path.resolve(__dirname, './src/common/models') + '/' },
+  { find: /^@mcp\/types\//, replacement: path.resolve(__dirname, './src/common') + '/' },
+  { find: /^@mcp\//, replacement: path.resolve(__dirname, './src/common') + '/' },
   // Resolve shared workspace packages to source so tests never depend on a
   // prior `dist` build (uniform local/CI; exercises the actual source).
-  '@sudowork/moss-client': path.resolve(__dirname, '../../packages/moss-client/src/index.ts'),
-  '@sudowork/contracts/auth': path.resolve(__dirname, '../../packages/contracts/src/auth.ts'),
-  '@sudowork/contracts/conversations': path.resolve(__dirname, '../../packages/contracts/src/conversations.ts'),
-};
+  { find: '@sudowork/moss-client', replacement: path.resolve(__dirname, '../../packages/moss-client/src/index.ts') },
+  { find: '@sudowork/contracts/auth', replacement: path.resolve(__dirname, '../../packages/contracts/src/auth.ts') },
+  { find: '@sudowork/contracts/conversations', replacement: path.resolve(__dirname, '../../packages/contracts/src/conversations.ts') },
+  { find: /^@\//, replacement: path.resolve(__dirname, './src') + '/' },
+];
 
 export default defineConfig({
   resolve: {

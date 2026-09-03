@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { AuthType } from '@office-ai/aioncli-core';
-import type { RotatingApiClientOptions } from '../RotatingApiClient';
-import { RotatingApiClient } from '../RotatingApiClient';
+import type { RotatingApiClientOptions } from '../RotatingApiClient.js';
+import { RotatingApiClient } from '../RotatingApiClient.js';
 
 export interface OpenAIClientConfig {
   baseURL?: string;

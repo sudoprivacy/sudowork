@@ -28,21 +28,82 @@ function iconParkPlugin() {
   };
 }
 
+// Modules that stay in apps/desktop/src/common (main-only, or transitively so:
+// they reach @process / electron / node fs / grpc / native, or a src/types|src/shared
+// module). Everything else under @common / @/common has moved to @sudowork/common
+// (packages/common). commonAliasEntries() routes the stayed modules back to the
+// desktop tree via exact-match regex, and routes the rest to the package source.
+const DESKTOP_ONLY_COMMON = [
+  'ClientFactory',
+  'adapters/index',
+  'chatLib',
+  'eeclawMode',
+  'enterpriseDebugConfig',
+  'i18n',
+  'imageGenerationModelConfig',
+  'imagePricingSource',
+  'index',
+  'ipcBridge',
+  'navigation/NavigationInterceptor',
+  'navigation/index',
+  'nexus/generated/nexus/secrets/v1/secrets_pb',
+  'nexus/index',
+  'nexus/moss-secret-client-factory',
+  'nexus/nexus-secret-client',
+  'nexus/nexus-secret-resilient',
+  'nexus/nexus-vfs-client',
+  'nexus/nexusVfsGrpcClient',
+  'nexus/secret-cache',
+  'nexus/secret-migration',
+  'presets/assistantPresets',
+  'presets/presetResolver',
+  'scodeConfig',
+  'storage',
+  'sudoclawModelConfig',
+  'sudoworkAuthLogin',
+  'sudoworkServer',
+  'systemConfig',
+  'thirdPartyAuthConfig',
+  'utils/workspaceSkillSync',
+];
+// Split directories whose barrel index stays in the desktop tree (siblings moved).
+const DESKTOP_ONLY_COMMON_DIRS = ['nexus', 'navigation', 'adapters'];
+
+// Alias entries (regex, evaluated first-match-wins) shared by main/preload/renderer
+// so both `@common/*` and `@/common/*` resolve correctly across the split.
+function commonAliasEntries() {
+  const pkg = resolve('../../packages/common/src').replace(/\\/g, '/');
+  const deskCommon = resolve('src/common').replace(/\\/g, '/');
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const entries: { find: RegExp; replacement: string }[] = [];
+  // Bare barrel (`@common` / `@/common`) -> desktop index.ts
+  entries.push({ find: /^@\/?common$/, replacement: deskCommon });
+  // Stayed modules + split-dir barrels (exact match) -> desktop tree
+  for (const m of [...DESKTOP_ONLY_COMMON, ...DESKTOP_ONLY_COMMON_DIRS]) {
+    entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '$'), replacement: `${deskCommon}/${m}` });
+  }
+  // Everything else under @common / @/common -> @sudowork/common package source
+  entries.push({ find: /^@\/?common\/(.*)$/, replacement: `${pkg}/$1` });
+  // @sudowork/common subpaths -> package source (bundle from source, no dist dep)
+  entries.push({ find: /^@sudowork\/common\/(.*)$/, replacement: `${pkg}/$1` });
+  return entries;
+}
+
 // Common path aliases for main process and workers
-const mainAliases = {
-  '@': resolve('src'),
-  '@common': resolve('src/common'),
-  '@renderer': resolve('src/renderer'),
-  '@process': resolve('src/process'),
-  '@worker': resolve('src/worker'),
-  '@xterm/headless': resolve('src/shims/xterm-headless.ts'),
+const mainAliases = [
+  ...commonAliasEntries(),
+  { find: '@renderer', replacement: resolve('src/renderer') },
+  { find: '@process', replacement: resolve('src/process') },
+  { find: '@worker', replacement: resolve('src/worker') },
+  { find: '@xterm/headless', replacement: resolve('src/shims/xterm-headless.ts') },
   // Bundle the shared workspace packages from source (see externalizeDepsPlugin
   // exclude below) so the packaged/dev main process never depends on a prior
   // `dist` build of them.
-  '@sudowork/moss-client': resolve('../../packages/moss-client/src/index.ts'),
-  '@sudowork/contracts/auth': resolve('../../packages/contracts/src/auth.ts'),
-  '@sudowork/contracts/conversations': resolve('../../packages/contracts/src/conversations.ts'),
-};
+  { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
+  { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
+  { find: '@sudowork/contracts/conversations', replacement: resolve('../../packages/contracts/src/conversations.ts') },
+  { find: '@', replacement: resolve('src') },
+];
 
 /**
  * Resolve build-time metadata.
@@ -101,7 +162,7 @@ export default defineConfig(({ mode }) => {
         externalizeDepsPlugin({
           // @sudowork/* are workspace packages bundled from source (aliased above)
           // so the main process has no runtime dependency on their dist build.
-          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts'],
+          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts', '@sudowork/common'],
           include: ['nexus-napi'],
         }),
         ...(!isDevelopment
@@ -139,7 +200,7 @@ export default defineConfig(({ mode }) => {
     preload: {
       plugins: [externalizeDepsPlugin()],
       resolve: {
-        alias: { '@': resolve('src'), '@common': resolve('src/common') },
+        alias: [...commonAliasEntries(), { find: '@', replacement: resolve('src') }],
         extensions: ['.ts', '.tsx', '.js', '.json'],
       },
       build: {
@@ -169,15 +230,15 @@ export default defineConfig(({ mode }) => {
         },
       },
       resolve: {
-        alias: {
-          '@': resolve('src'),
-          '@common': resolve('src/common'),
-          '@renderer': resolve('src/renderer'),
-          '@process': resolve('src/process'),
-          '@worker': resolve('src/worker'),
+        alias: [
+          ...commonAliasEntries(),
+          { find: '@renderer', replacement: resolve('src/renderer') },
+          { find: '@process', replacement: resolve('src/process') },
+          { find: '@worker', replacement: resolve('src/worker') },
           // Force ESM version of streamdown
-          streamdown: resolve('node_modules/streamdown/dist/index.js'),
-        },
+          { find: 'streamdown', replacement: resolve('node_modules/streamdown/dist/index.js') },
+          { find: '@', replacement: resolve('src') },
+        ],
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.css'],
         dedupe: ['react', 'react-dom', 'react-router-dom', '@codemirror/state', '@codemirror/view', '@codemirror/language'],
       },

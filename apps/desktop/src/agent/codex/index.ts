@@ -7,7 +7,7 @@
 // Core Layer (CodexAgentManager removed — legacy Codex conversation type deleted)
 export { CodexAgent, type CodexAgentConfig } from './core/CodexAgent';
 // Export the app configuration function for use in main process
-export { setAppConfig as setCodexAgentAppConfig } from '../../common/utils/appConfig';
+export { setAppConfig as setCodexAgentAppConfig } from '@common/utils/appConfig';
 
 // Connection Layer
 export { CodexConnection, type CodexEventEnvelope, type NetworkError } from './connection/CodexConnection';

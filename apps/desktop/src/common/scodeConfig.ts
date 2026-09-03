@@ -1,4 +1,4 @@
-import { modelInputForModelId } from './imageUtils';
+import { modelInputForModelId } from '@common/imageUtils';
 import type { ScodeConfig, ScodeModelEntry } from './ipcBridge';
 import { FALLBACK_SCODE_AUTO_MODEL_ID, getSudorouterBaseUrl } from './systemConfig';
 

@@ -9,7 +9,7 @@ import fsSync from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { getSudorouterBaseUrl, isSudorouterBaseUrl } from '../../common/systemConfig';
-import { detectImageMimeType, IMAGE_TARGET_RAW_SIZE } from '../../common/imageUtils';
+import { detectImageMimeType, IMAGE_TARGET_RAW_SIZE } from '@common/imageUtils';
 import { parseCustomImageModelRef } from '../../common/scodeConfig';
 import { ipcBridge } from '../../common';
 import type { IBridgeResponse, ScodeConfig } from '../../common/ipcBridge';

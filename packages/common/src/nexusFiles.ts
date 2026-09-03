@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { NEXUS_FILES_MARKER } from './constants';
+import { NEXUS_FILES_MARKER } from './constants.js';
 
 /**
  * Parse the `[[NEXUS_FILES]]` marker from a message and extract file paths.

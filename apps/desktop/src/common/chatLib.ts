@@ -7,7 +7,7 @@
 import type { CodexPermissionRequest } from '@/common/codex/types';
 import type { ExecCommandBeginData, ExecCommandEndData, ExecCommandOutputDeltaData, McpToolCallBeginData, McpToolCallEndData, PatchApplyBeginData, PatchApplyEndData, TurnDiffData, WebSearchBeginData, WebSearchEndData } from '@/common/codex/types/eventData';
 import type { AcpBackend, AcpPermissionRequest, PlanUpdate, ToolCallUpdate } from '@/types/acpTypes';
-import { uuid } from './utils';
+import { uuid } from '@common/utils';
 import type { IResponseMessage } from './ipcBridge';
 
 /**

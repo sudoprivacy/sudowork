@@ -14,23 +14,23 @@
  */
 
 // Client
-export { FetchClient } from './fetch-client.js';
+export { FetchClient } from '@common/nexus/fetch-client';
 
 // SSE
-export { SseClient, RingBuffer } from './sse-client.js';
-export type { SseClientOptions, SseEventHandler, SseErrorHandler, SseReconnectHandler } from './sse-client.js';
+export { SseClient, RingBuffer } from '@common/nexus/sse-client';
+export type { SseClientOptions, SseEventHandler, SseErrorHandler, SseReconnectHandler } from '@common/nexus/sse-client';
 
 // Config
-export { resolveConfig } from './config.js';
+export { resolveConfig } from '@common/nexus/config';
 
 // Errors
-export { NexusApiError, AuthenticationError, ForbiddenError, NotFoundError, ConflictError, RateLimitError, ServerError, NetworkError, TimeoutError, AbortError } from './errors.js';
+export { NexusApiError, AuthenticationError, ForbiddenError, NotFoundError, ConflictError, RateLimitError, ServerError, NetworkError, TimeoutError, AbortError } from '@common/nexus/errors';
 
 // Types
-export type { NexusClientOptions, RequestOptions, ApiErrorResponse, PaginatedResponse, SseEvent, AspectEnvelope, AspectListResponse, DatasetSchema, CatalogSchemaResponse, ColumnSearchResult, ColumnSearchResponse, ReplayRecord, ReplayResponse } from './types.js';
+export type { NexusClientOptions, RequestOptions, ApiErrorResponse, PaginatedResponse, SseEvent, AspectEnvelope, AspectListResponse, DatasetSchema, CatalogSchemaResponse, ColumnSearchResult, ColumnSearchResponse, ReplayRecord, ReplayResponse } from '@common/nexus/types';
 
 // Case transform utilities
-export { snakeToCamel, camelToSnake, transformKeys, snakeToCamelKeys, camelToSnakeKeys } from './case-transform.js';
+export { snakeToCamel, camelToSnake, transformKeys, snakeToCamelKeys, camelToSnakeKeys } from '@common/nexus/case-transform';
 
 // Nexus VFS Client (gRPC via nexus-napi)
 export { Nexus, NexusError, getNexusRpcClient } from './nexus-vfs-client.js';

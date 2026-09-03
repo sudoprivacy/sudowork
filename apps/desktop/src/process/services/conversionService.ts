@@ -314,7 +314,7 @@ class ConversionService {
       const name = fileName || `AI_Response_${Date.now()}.docx`;
       const targetPath = path.join(exportsDir, name);
 
-      const { documentConverter } = await import('../../common/document/DocumentConverter');
+      const { documentConverter } = await import('@common/document/DocumentConverter');
       const arrayBuffer = await documentConverter.markdownToWord(markdown);
       await fs.writeFile(targetPath, Buffer.from(arrayBuffer));
 
@@ -333,7 +333,7 @@ class ConversionService {
    */
   public async markdownToWord(markdown: string, targetPath: string): Promise<ConversionResult<void>> {
     try {
-      const { documentConverter } = await import('../../common/document/DocumentConverter');
+      const { documentConverter } = await import('@common/document/DocumentConverter');
       const arrayBuffer = await documentConverter.markdownToWord(markdown);
       await fs.writeFile(targetPath, Buffer.from(arrayBuffer));
       return { success: true };

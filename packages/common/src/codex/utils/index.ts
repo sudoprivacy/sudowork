@@ -5,10 +5,10 @@
  */
 
 // Re-export all permission utilities
-export * from './permissionUtils';
+export * from './permissionUtils.js';
 
 // Re-export tool utilities
-export * from './toolUtils';
+export * from './toolUtils.js';
 
 // Future Codex utility modules can be exported here
 // export * from './messageUtils';

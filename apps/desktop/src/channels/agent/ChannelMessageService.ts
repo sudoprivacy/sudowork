@@ -13,7 +13,7 @@ import type BaseAgent from '@/process/task/BaseAgent';
 import { queueConversationWorkspaceSkillSync } from '@/process/bridge/conversationBridge';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import { composeMessage, transformMessage, type TMessage, type AcpQuestionData } from '../../common/chatLib';
-import { uuid } from '../../common/utils';
+import { uuid } from '@common/utils';
 import type { IResponseMessage } from '../../common/ipcBridge';
 import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 

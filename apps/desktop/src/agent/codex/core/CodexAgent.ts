@@ -12,7 +12,7 @@ import type { FileChange, CodexEventParams, CodexJsonRpcEvent } from '@/common/c
 import type { CodexEventHandler } from '@/agent/codex/handlers/CodexEventHandler';
 import type { CodexSessionManager } from '@/agent/codex/handlers/CodexSessionManager';
 import type { CodexFileOperationHandler } from '@/agent/codex/handlers/CodexFileOperationHandler';
-import { getConfiguredAppClientName, getConfiguredAppClientVersion, getConfiguredCodexMcpProtocolVersion } from '../../../common/utils/appConfig';
+import { getConfiguredAppClientName, getConfiguredAppClientVersion, getConfiguredCodexMcpProtocolVersion } from '@common/utils/appConfig';
 import { ApprovalStore, createExecApprovalKey, createPatchApprovalKey } from './ApprovalStore';
 import type { ReviewDecision } from './ApprovalStore';
 

@@ -7,8 +7,7 @@
 import type { OpenDialogOptions } from 'electron';
 import { bridge } from '@office-ai/platform';
 import type { IConfirmation } from '@/common/chatLib';
-import type { IAssistantMeta } from '@/process/constants/assistantStorage';
-import type { IAssistantInfo } from '@/process/AssistantManager';
+import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@/channels/types';
 import type { ISafetyStatus, IBlacklistConfig } from '@common/types/security';
 import type { AuthProxyRule } from '@/common/types/authProxy';
@@ -17,13 +16,13 @@ import type { McpSource } from '../process/services/mcpServices/McpProtocol';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
 import type { SyncAllResult } from '../process/sync/remoteToLocalSync';
 import type { ScodeCustomModelProvider, SpecificImagePricingItem, SpecificPricingItem } from './scodeConfig';
-import type { SlashCommandItem } from './slash/types';
+import type { SlashCommandItem } from '@common/slash/types';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from './storage';
 import type { SecretMetadata } from './nexus/nexus-secret-client';
-import type { FusePluginStatus } from './nexus/fuse-plugin-status';
-import type { PreviewHistoryTarget, PreviewSnapshotInfo } from './types/preview';
-import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from './updateTypes';
-import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
+import type { FusePluginStatus } from '@common/nexus/fuse-plugin-status';
+import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@common/types/preview';
+import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from '@common/updateTypes';
+import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '@common/utils/protocolDetector';
 import type {
   ILocalKbAddFilesInput,
   ILocalKbBuildJob,
@@ -39,7 +38,7 @@ import type {
   ILocalKbSetDirectoryInput,
   ILocalKbSpace,
   ILocalKbUpdateSpaceInput,
-} from './types/localKnowledgeBase';
+} from '@common/types/localKnowledgeBase';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -609,7 +608,7 @@ export const preview = {
   // Agent 触发打开预览（如 ai-dev-browser page_goto 导航到 URL）/ Agent triggers open preview (e.g., ai-dev-browser page_goto)
   open: bridge.buildEmitter<{
     content: string; // URL 或内容 / URL or content
-    contentType: import('./types/preview').PreviewContentType; // 内容类型 / Content type
+    contentType: import('@common/types/preview').PreviewContentType; // 内容类型 / Content type
     metadata?: {
       title?: string;
       fileName?: string;
@@ -665,7 +664,7 @@ export const deliverables = {
 };
 
 export const document = {
-  convert: bridge.buildProvider<import('./types/conversion').DocumentConversionResponse, import('./types/conversion').DocumentConversionRequest>('document.convert'),
+  convert: bridge.buildProvider<import('@common/types/conversion').DocumentConversionResponse, import('@common/types/conversion').DocumentConversionRequest>('document.convert'),
   /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */
   saveAsDocx: bridge.buildProvider<IBridgeResponse<string>, { markdown: string; conversationId: string; fileName?: string }>('document.save-as-docx'),
   libreOffice: {
@@ -786,7 +785,7 @@ export type IFuseTLazyInstallOutcome = 'already-mounted' | 'unmounted-no-prereq-
 // (via `@process/services/nexus-vfs/FusePluginClient`) both consume
 // the SAME literal set — no parallel `IFusePluginStatus` drifting
 // against `FusePluginStatus`.
-export type { FusePluginStatus } from './nexus/fuse-plugin-status';
+export type { FusePluginStatus } from '@common/nexus/fuse-plugin-status';
 
 export interface IFuseTLazyInstallResult {
   outcome: IFuseTLazyInstallOutcome;

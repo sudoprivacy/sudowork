@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SlashCommandItem } from './types';
+import type { SlashCommandItem } from './types.js';
 
 const ACP_LITERAL_SLASH_PREFIX = '\u200C';
 const LEADING_SLASH_RE = /^(\s*)\/(\S*)/;

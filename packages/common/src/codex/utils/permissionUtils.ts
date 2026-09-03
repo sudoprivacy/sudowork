@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CodexPermissionOption } from '../types/permissionTypes';
-import { PermissionType, PermissionSeverity, PERMISSION_DECISION_MAP } from '../types/permissionTypes';
+import type { CodexPermissionOption } from '../types/permissionTypes.js';
+import { PermissionType, PermissionSeverity, PERMISSION_DECISION_MAP } from '../types/permissionTypes.js';
 
 /**
  * 基础权限选项配置

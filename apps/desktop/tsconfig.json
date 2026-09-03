@@ -1,6 +1,12 @@
 {
   "compilerOptions": {
     "target": "ES6",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable",
+      "ScriptHost"
+    ],
     "allowJs": true,
     "module": "esnext",
     "moduleResolution": "bundler",
@@ -15,12 +21,243 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@common/*": ["./src/common/*"],
-      "@process/*": ["./src/process/*"],
-      "@renderer/*": ["./src/renderer/*"],
-      "@worker/*": ["./src/worker/*"]
+      "@process/*": [
+        "./src/process/*"
+      ],
+      "@renderer/*": [
+        "./src/renderer/*"
+      ],
+      "@worker/*": [
+        "./src/worker/*"
+      ],
+      "@sudowork/common/*": [
+        "../../packages/common/src/*"
+      ],
+      "@common": [
+        "./src/common/index.ts"
+      ],
+      "@/common": [
+        "./src/common/index.ts"
+      ],
+      "@common/ClientFactory": [
+        "./src/common/ClientFactory"
+      ],
+      "@/common/ClientFactory": [
+        "./src/common/ClientFactory"
+      ],
+      "@common/adapters/index": [
+        "./src/common/adapters/index"
+      ],
+      "@/common/adapters/index": [
+        "./src/common/adapters/index"
+      ],
+      "@common/chatLib": [
+        "./src/common/chatLib"
+      ],
+      "@/common/chatLib": [
+        "./src/common/chatLib"
+      ],
+      "@common/eeclawMode": [
+        "./src/common/eeclawMode"
+      ],
+      "@/common/eeclawMode": [
+        "./src/common/eeclawMode"
+      ],
+      "@common/enterpriseDebugConfig": [
+        "./src/common/enterpriseDebugConfig"
+      ],
+      "@/common/enterpriseDebugConfig": [
+        "./src/common/enterpriseDebugConfig"
+      ],
+      "@common/i18n": [
+        "./src/common/i18n"
+      ],
+      "@/common/i18n": [
+        "./src/common/i18n"
+      ],
+      "@common/imageGenerationModelConfig": [
+        "./src/common/imageGenerationModelConfig"
+      ],
+      "@/common/imageGenerationModelConfig": [
+        "./src/common/imageGenerationModelConfig"
+      ],
+      "@common/imagePricingSource": [
+        "./src/common/imagePricingSource"
+      ],
+      "@/common/imagePricingSource": [
+        "./src/common/imagePricingSource"
+      ],
+      "@common/index": [
+        "./src/common/index"
+      ],
+      "@/common/index": [
+        "./src/common/index"
+      ],
+      "@common/ipcBridge": [
+        "./src/common/ipcBridge"
+      ],
+      "@/common/ipcBridge": [
+        "./src/common/ipcBridge"
+      ],
+      "@common/navigation/NavigationInterceptor": [
+        "./src/common/navigation/NavigationInterceptor"
+      ],
+      "@/common/navigation/NavigationInterceptor": [
+        "./src/common/navigation/NavigationInterceptor"
+      ],
+      "@common/navigation/index": [
+        "./src/common/navigation/index"
+      ],
+      "@/common/navigation/index": [
+        "./src/common/navigation/index"
+      ],
+      "@common/nexus/generated/nexus/secrets/v1/secrets_pb": [
+        "./src/common/nexus/generated/nexus/secrets/v1/secrets_pb"
+      ],
+      "@/common/nexus/generated/nexus/secrets/v1/secrets_pb": [
+        "./src/common/nexus/generated/nexus/secrets/v1/secrets_pb"
+      ],
+      "@common/nexus/index": [
+        "./src/common/nexus/index"
+      ],
+      "@/common/nexus/index": [
+        "./src/common/nexus/index"
+      ],
+      "@common/nexus/moss-secret-client-factory": [
+        "./src/common/nexus/moss-secret-client-factory"
+      ],
+      "@/common/nexus/moss-secret-client-factory": [
+        "./src/common/nexus/moss-secret-client-factory"
+      ],
+      "@common/nexus/nexus-secret-client": [
+        "./src/common/nexus/nexus-secret-client"
+      ],
+      "@/common/nexus/nexus-secret-client": [
+        "./src/common/nexus/nexus-secret-client"
+      ],
+      "@common/nexus/nexus-secret-resilient": [
+        "./src/common/nexus/nexus-secret-resilient"
+      ],
+      "@/common/nexus/nexus-secret-resilient": [
+        "./src/common/nexus/nexus-secret-resilient"
+      ],
+      "@common/nexus/nexus-vfs-client": [
+        "./src/common/nexus/nexus-vfs-client"
+      ],
+      "@/common/nexus/nexus-vfs-client": [
+        "./src/common/nexus/nexus-vfs-client"
+      ],
+      "@common/nexus/nexusVfsGrpcClient": [
+        "./src/common/nexus/nexusVfsGrpcClient"
+      ],
+      "@/common/nexus/nexusVfsGrpcClient": [
+        "./src/common/nexus/nexusVfsGrpcClient"
+      ],
+      "@common/nexus/secret-cache": [
+        "./src/common/nexus/secret-cache"
+      ],
+      "@/common/nexus/secret-cache": [
+        "./src/common/nexus/secret-cache"
+      ],
+      "@common/nexus/secret-migration": [
+        "./src/common/nexus/secret-migration"
+      ],
+      "@/common/nexus/secret-migration": [
+        "./src/common/nexus/secret-migration"
+      ],
+      "@common/presets/assistantPresets": [
+        "./src/common/presets/assistantPresets"
+      ],
+      "@/common/presets/assistantPresets": [
+        "./src/common/presets/assistantPresets"
+      ],
+      "@common/presets/presetResolver": [
+        "./src/common/presets/presetResolver"
+      ],
+      "@/common/presets/presetResolver": [
+        "./src/common/presets/presetResolver"
+      ],
+      "@common/scodeConfig": [
+        "./src/common/scodeConfig"
+      ],
+      "@/common/scodeConfig": [
+        "./src/common/scodeConfig"
+      ],
+      "@common/storage": [
+        "./src/common/storage"
+      ],
+      "@/common/storage": [
+        "./src/common/storage"
+      ],
+      "@common/sudoclawModelConfig": [
+        "./src/common/sudoclawModelConfig"
+      ],
+      "@/common/sudoclawModelConfig": [
+        "./src/common/sudoclawModelConfig"
+      ],
+      "@common/sudoworkAuthLogin": [
+        "./src/common/sudoworkAuthLogin"
+      ],
+      "@/common/sudoworkAuthLogin": [
+        "./src/common/sudoworkAuthLogin"
+      ],
+      "@common/sudoworkServer": [
+        "./src/common/sudoworkServer"
+      ],
+      "@/common/sudoworkServer": [
+        "./src/common/sudoworkServer"
+      ],
+      "@common/systemConfig": [
+        "./src/common/systemConfig"
+      ],
+      "@/common/systemConfig": [
+        "./src/common/systemConfig"
+      ],
+      "@common/thirdPartyAuthConfig": [
+        "./src/common/thirdPartyAuthConfig"
+      ],
+      "@/common/thirdPartyAuthConfig": [
+        "./src/common/thirdPartyAuthConfig"
+      ],
+      "@common/utils/workspaceSkillSync": [
+        "./src/common/utils/workspaceSkillSync"
+      ],
+      "@/common/utils/workspaceSkillSync": [
+        "./src/common/utils/workspaceSkillSync"
+      ],
+      "@common/nexus": [
+        "./src/common/nexus/index.ts"
+      ],
+      "@/common/nexus": [
+        "./src/common/nexus/index.ts"
+      ],
+      "@common/navigation": [
+        "./src/common/navigation/index.ts"
+      ],
+      "@/common/navigation": [
+        "./src/common/navigation/index.ts"
+      ],
+      "@common/adapters": [
+        "./src/common/adapters/index.ts"
+      ],
+      "@/common/adapters": [
+        "./src/common/adapters/index.ts"
+      ],
+      "@common/*": [
+        "../../packages/common/src/*"
+      ],
+      "@/common/*": [
+        "../../packages/common/src/*"
+      ],
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["src/**/*", "uno.config.ts", "electron.vite.config.ts", "src/renderer/types.d.ts"]
+  "include": [
+    "src/**/*",
+    "uno.config.ts",
+    "electron.vite.config.ts",
+    "src/renderer/types.d.ts"
+  ]
 }

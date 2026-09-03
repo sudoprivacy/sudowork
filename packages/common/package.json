@@ -1,0 +1,40 @@
+{
+  "name": "@sudowork/common",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": {
+      "bun": "./src/*.ts",
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@google/genai": "^1.16.0",
+    "@office-ai/aioncli-core": "^0.30.0",
+    "docx": "^9.5.1",
+    "mammoth": "^1.11.0",
+    "openai": "^5.12.2",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "semver": "^7.7.2",
+    "sharp": "^0.34.3",
+    "turndown": "^7.2.2",
+    "turndown-plugin-gfm": "^1.0.2",
+    "unified": "^11.0.5",
+    "xlsx-republish": "^0.20.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "@types/semver": "^7.7.1",
+    "@types/turndown": "^5.0.6"
+  }
+}

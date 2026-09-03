@@ -5,7 +5,7 @@
  */
 
 import { AuthType } from '@office-ai/aioncli-core';
-import { isNewApiPlatform } from './platformConstants';
+import { isNewApiPlatform } from './platformConstants.js';
 
 /**
  * 根据平台名称获取对应的认证类型

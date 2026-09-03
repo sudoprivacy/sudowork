@@ -5,7 +5,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
-import { AVATAR_BRIDGE_CHANNEL, type AvatarBridgeMessage } from './common/avatarBridge';
+import { AVATAR_BRIDGE_CHANNEL, type AvatarBridgeMessage } from '@common/avatarBridge';
 
 /**
  * Avatar window preload — minimal capability surface.

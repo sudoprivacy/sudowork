@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ExecApprovalRequestData, ApplyPatchApprovalRequestData } from './eventData';
+import type { ExecApprovalRequestData, ApplyPatchApprovalRequestData } from './eventData.js';
 
 // ===== UI-facing permission request payloads for Codex =====
 

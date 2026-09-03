@@ -17,7 +17,7 @@
 
 import { app } from 'electron';
 import crypto from 'crypto';
-import { buildVersion } from '../../common/buildInfo';
+import { buildVersion } from '@common/buildInfo';
 import { getTelemetryReporter } from './TelemetryBatchReporter';
 import type { InstallStatus, InstallType, InstallData } from '../../shared/types/telemetry';
 import { mainLog, mainWarn } from '../utils/mainLogger';

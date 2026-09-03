@@ -19,7 +19,7 @@ import { ProcessConfig } from '@process/initStorage';
 import { secretCache, markMigrated } from './secret-cache';
 import type { NexusSecretClient } from './nexus-secret-client';
 import { getNexusSecretClient } from './nexus-secret-client';
-import { resolveConfig } from './config';
+import { resolveConfig } from '@common/nexus/config';
 
 // ============================================================================
 // Types

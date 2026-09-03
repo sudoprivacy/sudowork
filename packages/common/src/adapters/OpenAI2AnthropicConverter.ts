@@ -5,7 +5,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { ProtocolConverter, ConverterConfig } from './ProtocolConverter';
+import type { ProtocolConverter, ConverterConfig } from './ProtocolConverter.js';
 
 // OpenAI types - compatible with actual OpenAI SDK types
 export interface OpenAIChatCompletionParams {

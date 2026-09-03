@@ -8,7 +8,7 @@
 // Using explicit re-exports to avoid Rollup resolution issues
 
 // From eventTypes.ts
-export { CodexAgentEventType } from './eventTypes';
+export { CodexAgentEventType } from './eventTypes.js';
 
 // From eventData.ts - export types normally (not with 'export type') to allow re-exporting
 export {
@@ -53,15 +53,15 @@ export {
   type CodexAgentManagerData,
   type ElicitationCreateData,
   type EventDataMap,
-} from './eventData';
+} from './eventData.js';
 
 // From permissionTypes.ts
-export { PermissionType, PermissionSeverity, PERMISSION_DECISION_MAP } from './permissionTypes';
-export { type CodexPermissionOption, type CodexToolCallRawInput, type CodexToolCall, type BaseCodexPermissionRequest, type CodexPermissionRequest } from './permissionTypes';
+export { PermissionType, PermissionSeverity, PERMISSION_DECISION_MAP } from './permissionTypes.js';
+export { type CodexPermissionOption, type CodexToolCallRawInput, type CodexToolCall, type BaseCodexPermissionRequest, type CodexPermissionRequest } from './permissionTypes.js';
 
 // From toolTypes.ts
-export { ToolCategory, OutputFormat, RendererType } from './toolTypes';
-export { type ToolAvailability, type ToolCapabilities, type ToolRenderer, type ToolDefinition, type McpToolInfo } from './toolTypes';
+export { ToolCategory, OutputFormat, RendererType } from './toolTypes.js';
+export { type ToolAvailability, type ToolCapabilities, type ToolRenderer, type ToolDefinition, type McpToolInfo } from './toolTypes.js';
 
 // From errorTypes.ts
-export * from './errorTypes';
+export * from './errorTypes.js';

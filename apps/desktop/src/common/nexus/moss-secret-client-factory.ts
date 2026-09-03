@@ -5,7 +5,7 @@
  */
 
 import { getAuthToken, getMossServerUrl, getUserId } from '../enterpriseDebugConfig';
-import { MossSecretClient } from './moss-secret-client';
+import { MossSecretClient } from '@common/nexus/moss-secret-client';
 
 let mossClientInstance: MossSecretClient | null = null;
 let lastToken: string = '';

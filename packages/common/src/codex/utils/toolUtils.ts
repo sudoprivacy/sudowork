@@ -5,9 +5,9 @@
  */
 
 // Import values (enums) and types separately
-import { CodexAgentEventType } from '../types/eventTypes';
-import { ToolCategory, OutputFormat, RendererType } from '../types/toolTypes';
-import type { EventDataMap, McpInvocation, McpToolInfo, ToolAvailability, ToolCapabilities, ToolDefinition, ToolRenderer } from '../types';
+import { CodexAgentEventType } from '../types/eventTypes.js';
+import { ToolCategory, OutputFormat, RendererType } from '../types/toolTypes.js';
+import type { EventDataMap, McpInvocation, McpToolInfo, ToolAvailability, ToolCapabilities, ToolDefinition, ToolRenderer } from '../types/index.js';
 
 /** Translation function type, injected by the consumer (e.g. renderer) to avoid coupling common layer to renderer i18n */
 export type TranslateFn = (key: string, params?: Record<string, string>) => string;

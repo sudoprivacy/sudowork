@@ -16,7 +16,7 @@ import type { TChatConversation } from '@/common/storage';
 import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { ipcBridge } from '../../common';
-import { uuid } from '../../common/utils';
+import { uuid } from '@common/utils';
 import { shouldSyncWorkspaceSkills } from '../../common/utils/workspaceSkillSync';
 import { getSkillsDir, ProcessChat, ProcessConfig } from '../initStorage';
 import type AcpAgent from '../task/AcpAgent';

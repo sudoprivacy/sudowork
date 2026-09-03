@@ -5,7 +5,7 @@
  */
 
 import type { BrowserWindow } from 'electron';
-import { AVATAR_BRIDGE_CHANNEL } from '../common/avatarBridge';
+import { AVATAR_BRIDGE_CHANNEL } from '@common/avatarBridge';
 
 /**
  * Bridge message names that are allowed to flow from the main bridge into
