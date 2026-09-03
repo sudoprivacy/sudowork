@@ -28,16 +28,12 @@
  */
 
 import { bridge } from '@office-ai/platform'
+// Canonical wire shape — one definition shared with the renderer + main, not a
+// parallel copy.
+import type { IBridgeResponse } from '@sudowork/host-bridge/ipcBridge'
 
 interface BridgeEmitter {
   emit: (name: string, data: unknown) => void
-}
-
-/** Renderer-side IBridgeResponse shape (see packages/host-bridge/src/ipcBridge.ts). */
-interface IBridgeResponse<D = unknown> {
-  success: boolean
-  data?: D
-  msg?: string
 }
 
 type AnyReq = Record<string, any>
@@ -65,6 +61,13 @@ const unmappedLogged = new Set<string>()
 
 const STORAGE_PREFIX = 'sw.web-bridge'
 const STORAGE_RE = /^(.+)\.storage\.(get|set|remove|clear)$/
+
+// Only durable renderer CONFIG is browser-persisted on web. The chat/message
+// groups (agent.chat / agent.chat.message) are SERVER-OWNED — moss is their
+// single source of truth — so we never shadow them in localStorage (that would
+// persist ephemeral server state and create a second source). Their reads fall
+// through to undefined; the renderer's data comes from the moss channels below.
+const DURABLE_STORAGE_GROUPS = new Set(['agent.config', 'agent.env'])
 
 function storageKey(group: string, key: string): string {
   return `${STORAGE_PREFIX}:${group}:${key}`
@@ -121,6 +124,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   })
+  // A successful mutation to the conversation collection invalidates the cache.
+  if (res.ok && (init?.method ?? 'GET').toUpperCase() !== 'GET' && path.startsWith('/api/conversations')) {
+    invalidateConversations()
+  }
   const text = await res.text()
   let body: unknown = null
   if (text) {
@@ -259,8 +266,20 @@ function toMossSession(item: ConversationListItem): Record<string, unknown> {
   }
 }
 
+// The list is read by get-conversation / moss.get-session / list-all, so an
+// uncached impl re-fetches the whole collection on the critical open path.
+// Short TTL + invalidation on any conversation mutation (see apiFetch).
+let convCache: { at: number; items: ConversationListItem[] } | null = null
+const CONV_CACHE_MS = 3000
+
+function invalidateConversations(): void {
+  convCache = null
+}
+
 async function listConversations(): Promise<ConversationListItem[]> {
+  if (convCache && Date.now() - convCache.at < CONV_CACHE_MS) return convCache.items
   const { conversations } = await apiFetch<{ conversations: ConversationListItem[] }>('/api/conversations')
+  convCache = { at: Date.now(), items: conversations }
   return conversations
 }
 
@@ -405,6 +424,12 @@ function handleInvoke(channel: string, id: string, req: unknown): void {
   if (storageMatch) {
     const group = storageMatch[1] as string
     const op = storageMatch[2] as string
+    if (!DURABLE_STORAGE_GROUPS.has(group)) {
+      // Server-owned group (chat/messages): don't browser-persist. get -> no
+      // local cache; set/remove/clear -> no-op. moss is the SSOT for this data.
+      deliver(undefined)
+      return
+    }
     try {
       if (op === 'get') {
         deliver(storageGet(group, String(req ?? '')))
