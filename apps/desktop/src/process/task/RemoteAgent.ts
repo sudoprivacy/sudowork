@@ -7,11 +7,11 @@
 import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
+import type { AcpQuestionAnswerItem, TMessage } from '@sudowork/common/chatLib';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
-import type { AcpQuestionAnswerItem, TMessage } from '@/common/chatLib';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
-import type { TChatConversation } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 import { mainLog, mainError, mainWarn } from '../utils/mainLogger';
@@ -1317,7 +1317,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
    * Convert stream IResponseMessage to TMessage for local DB persistence
    * 将流式 IResponseMessage 转换为 TMessage 用于本地数据库持久化
    */
-  private streamMsgToTMessage(msg: IResponseMessage): import('@/common/chatLib').TMessage | null {
+  private streamMsgToTMessage(msg: IResponseMessage): import('@sudowork/common/chatLib').TMessage | null {
     switch (msg.type) {
       case 'content':
         return {

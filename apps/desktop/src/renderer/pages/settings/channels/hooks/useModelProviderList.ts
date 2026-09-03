@@ -6,9 +6,9 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import useSWR from 'swr';
-import { ipcBridge } from '@/common';
-import { GOOGLE_AUTH_PROVIDER_ID } from '@/common/constants';
-import type { IProvider } from '@/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { GOOGLE_AUTH_PROVIDER_ID } from '@sudowork/common/constants';
+import type { IProvider } from '@sudowork/common/storage';
 import { hasSpecificModelCapability } from '@/renderer/utils/modelCapabilities';
 import { useGeminiGoogleAuthModels } from '@/renderer/hooks/useGeminiGoogleAuthModels';
 import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';

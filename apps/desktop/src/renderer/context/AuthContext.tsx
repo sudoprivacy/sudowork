@@ -5,16 +5,16 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ipcBridge } from '@/common';
-import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
-import { ConfigStorage, type IConfigStorageRefer } from '@/common/storage';
-import { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } from '@/common/imageGenerationModelConfig';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
+import { ConfigStorage, type IConfigStorageRefer } from '@sudowork/common/storage';
+import { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } from '@sudowork/common/imageGenerationModelConfig';
+import { fetchSystemConfig } from '@sudowork/common/systemConfig';
+import { buildCasLogoutServiceUrl, buildCasLogoutUrl, resolveThirdPartyAuthConfig } from '@sudowork/common/thirdPartyAuthConfig';
+import type { AcpModelInfo } from '@sudowork/common/acpTypes';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
 import { buildScodeConfigFromLoginPayload, extractImageModelsFromScodeConfig, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
-import { fetchSystemConfig } from '@/common/systemConfig';
-import { buildCasLogoutServiceUrl, buildCasLogoutUrl, resolveThirdPartyAuthConfig } from '@/common/thirdPartyAuthConfig';
-import type { AcpModelInfo } from '@/types/acpTypes';
 
 type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated' | 'guest';
 

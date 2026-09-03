@@ -5,9 +5,9 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import type { TChatConversation } from '@/common/storage';
-import { STORAGE_KEYS } from '@/common/storageKeys';
-import { ipcBridge } from '@/common';
+import type { TChatConversation } from '@sudowork/common/storage';
+import { STORAGE_KEYS } from '@sudowork/common/storageKeys';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { addEventListener } from '@/renderer/utils/emitter';
 
 /** 会话 Tab 数据结构 / Conversation Tab data structure */

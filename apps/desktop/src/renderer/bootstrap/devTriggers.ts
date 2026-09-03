@@ -56,7 +56,7 @@
  * never reach for the rejected paths above as a "faster" workaround.
  */
 
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 declare global {
   interface Window {

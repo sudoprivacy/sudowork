@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AcpQuestionData, AcpQuestionItem, AcpQuestionItemKind, AcpQuestionItemOption, IMessageAcpQuestion, IMessageAcpToolCall, IMessagePlan, IMessageText, TMessage } from '@/common/chatLib';
+import type { AcpQuestionData, AcpQuestionItem, AcpQuestionItemKind, AcpQuestionItemOption, IMessageAcpQuestion, IMessageAcpToolCall, IMessagePlan, IMessageText, TMessage } from '@sudowork/common/chatLib';
 import { uuid } from '@/common/utils';
 import type { AcpBackend, AcpSessionUpdate, AgentMessageChunkUpdate, AgentThoughtChunkUpdate, PlanUpdate, ToolCallUpdate, ToolCallUpdateStatus } from '@/types/acpTypes';
 

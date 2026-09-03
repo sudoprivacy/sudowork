@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { SudoclawConfig, SudoclawProvider } from '@sudowork/host-bridge/ipcBridge';
+import { getSudorouterBaseUrl } from '@sudowork/common/systemConfig';
 import { cachePut } from '@/common/nexus/secret-cache';
-import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 type RuntimeAgentModelsFile = {
   providers?: Record<string, Record<string, unknown> & { models?: Array<Record<string, unknown>> }>;

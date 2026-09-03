@@ -7,9 +7,9 @@
 import { Message } from '@arco-design/web-react';
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
-import type { TMessage } from '@/common/chatLib';
-import type { TChatConversation } from '@/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { TMessage } from '@sudowork/common/chatLib';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { ExportZipFile } from '@/renderer/pages/conversation/grouped-history/types';
 import { appendWorkspaceFilesToZip, buildConversationJson, buildConversationMarkdown, EXPORT_IO_TIMEOUT_MS, formatTimestamp, joinFilePath, sanitizeFileName, withTimeout } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';

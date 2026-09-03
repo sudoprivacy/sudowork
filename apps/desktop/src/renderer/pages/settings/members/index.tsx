@@ -9,7 +9,7 @@ import { Table, Button, Tabs, Tag, Space, Message, Modal, Badge } from '@arco-de
 import { IconDelete } from '@arco-design/web-react/icon';
 import { User, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 

@@ -7,13 +7,11 @@ const h = vi.hoisted(() => ({
   onListChanged: vi.fn(() => () => undefined),
 }));
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    team: {
-      listTeams: { invoke: (...args: unknown[]) => h.listTeams(...args) },
-      listMembers: { invoke: (...args: unknown[]) => h.listMembers(...args) },
-      onListChanged: { on: (...args: unknown[]) => h.onListChanged(...args) },
-    },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  team: {
+    listTeams: { invoke: (...args: unknown[]) => h.listTeams(...args) },
+    listMembers: { invoke: (...args: unknown[]) => h.listMembers(...args) },
+    onListChanged: { on: (...args: unknown[]) => h.onListChanged(...args) },
   },
 }));
 

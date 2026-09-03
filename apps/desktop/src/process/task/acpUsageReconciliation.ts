@@ -7,8 +7,8 @@
 import type { Dirent } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as nodePath from 'node:path';
+import type { TurnTokenUsage } from '@sudowork/common/chatLib';
 import type { AcpPromptResponseUsage } from '@/types/acpTypes';
-import type { TurnTokenUsage } from '@/common/chatLib';
 
 type JsonRecord = Record<string, unknown>;
 

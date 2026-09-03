@@ -5,7 +5,7 @@
  */
 
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { getActivityTime, getTimelineLabel } from '@/renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@/renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@/renderer/utils/workspaceHistory';

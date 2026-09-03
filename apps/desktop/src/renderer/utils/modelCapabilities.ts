@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IProvider, ModelType } from '@/common/storage';
+import type { IProvider, ModelType } from '@sudowork/common/storage';
 
 /**
  * 能力匹配的正则表达式 - 参考 Cherry Studio 的做法

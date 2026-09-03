@@ -8,8 +8,8 @@ import { Message } from '@arco-design/web-react';
 import type React from 'react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfigStorage } from '@/common/storage';
-import type { IMcpServer } from '@/common/storage';
+import { ConfigStorage } from '@sudowork/common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 
 /**
  * MCP服务器CRUD操作Hook

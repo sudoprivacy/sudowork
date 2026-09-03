@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getSudorouterBaseUrl } from './systemConfig';
-import { pickDefaultImageModelFromPricing } from './imageGenerationModelConfig';
+import { getSudorouterBaseUrl } from '@sudowork/common/systemConfig';
+import { pickDefaultImageModelFromPricing } from '@sudowork/common/imageGenerationModelConfig';
 import type { SpecificImagePricingItem } from './scodeConfig';
 
 /**

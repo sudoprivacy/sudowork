@@ -37,19 +37,17 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    team: {
-      ensureSession: { invoke: (...args: unknown[]) => mocks.ensureSession(...args) },
-      sendMessage: { invoke: (...args: unknown[]) => mocks.sendMessage(...args) },
-      answerQuestion: { invoke: (...args: unknown[]) => mocks.answerQuestion(...args) },
-      pauseMember: { invoke: (...args: unknown[]) => mocks.pauseMember(...args) },
-      retryMemberStart: { invoke: (...args: unknown[]) => mocks.retryMemberStart(...args) },
-    },
-    conversation: {
-      get: { invoke: (...args: unknown[]) => mocks.getConversation(...args) },
-      syncWorkspaceSkills: { invoke: (...args: unknown[]) => mocks.syncWorkspaceSkills(...args) },
-    },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  team: {
+    ensureSession: { invoke: (...args: unknown[]) => mocks.ensureSession(...args) },
+    sendMessage: { invoke: (...args: unknown[]) => mocks.sendMessage(...args) },
+    answerQuestion: { invoke: (...args: unknown[]) => mocks.answerQuestion(...args) },
+    pauseMember: { invoke: (...args: unknown[]) => mocks.pauseMember(...args) },
+    retryMemberStart: { invoke: (...args: unknown[]) => mocks.retryMemberStart(...args) },
+  },
+  conversation: {
+    get: { invoke: (...args: unknown[]) => mocks.getConversation(...args) },
+    syncWorkspaceSkills: { invoke: (...args: unknown[]) => mocks.syncWorkspaceSkills(...args) },
   },
 }));
 

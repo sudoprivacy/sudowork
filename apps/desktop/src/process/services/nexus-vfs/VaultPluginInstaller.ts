@@ -4,10 +4,10 @@ import * as https from 'https';
 import * as http from 'http';
 import * as crypto from 'crypto';
 import { app } from 'electron';
+import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@sudowork/common/cos';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import runtimeSha256 from '@/shared/runtime-sha256.json';
-import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@/shared/cos';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import type { NexusVfsStage } from './DynamicNexusVfsService';
 

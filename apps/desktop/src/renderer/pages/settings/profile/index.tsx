@@ -9,8 +9,8 @@ import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-re
 import { IconEdit, IconLock, IconMobile, IconUser } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import type { UserProfileData } from '@sudowork/host-bridge/ipcBridge';
-import { formatUsagePoints } from '@/common/tokenUsage';
-import { ipcBridge } from '@/common';
+import { formatUsagePoints } from '@sudowork/common/tokenUsage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useDashboardStats } from '@renderer/context/DashboardStatsContext';

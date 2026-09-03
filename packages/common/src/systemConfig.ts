@@ -23,9 +23,9 @@
  * the main process only (`src/process/`) and never enters this module or the renderer.
  */
 
-import { getSudoworkServerBaseUrl, normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
-import { COS_RELEASE_BASE } from '@/shared/cos';
-import type { RechargeMode, SystemConfig } from '@sudowork/common/systemConfigTypes';
+import { getSudoworkServerBaseUrl, normalizeSudoworkServerUrl } from './sudoworkServer.js';
+import { COS_RELEASE_BASE } from './cos.js';
+import type { RechargeMode, SystemConfig } from './systemConfigTypes.js';
 
 // ---- build-time injected base URLs (Vite `define`; empty string = not injected) ----
 declare const __SUDOROUTER_BASE_URL__: string | undefined;

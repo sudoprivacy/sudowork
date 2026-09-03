@@ -11,10 +11,10 @@ import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { Check } from 'lucide-react';
 import { acpConversation } from '@sudowork/host-bridge/ipcBridge';
-import type { AcpBackendConfig, AcpBackend } from '@/types/acpTypes';
-import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
+import type { AcpBackendConfig, AcpBackend } from '@sudowork/common/acpTypes';
+import { ACP_BACKENDS_ALL } from '@sudowork/common/acpTypes';
+import { uuid } from '@sudowork/common/utils';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
-import { uuid } from '@/common/utils';
 
 // CLI Logo 导入 / CLI Logo imports
 import CodeBuddyLogo from '@/renderer/assets/logos/codebuddy.svg';

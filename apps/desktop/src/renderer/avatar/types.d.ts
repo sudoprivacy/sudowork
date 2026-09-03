@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AvatarBridgeMessage } from '@/common/avatarBridge';
+import type { AvatarBridgeMessage } from '@sudowork/common/avatarBridge';
 
 declare global {
   interface Window {

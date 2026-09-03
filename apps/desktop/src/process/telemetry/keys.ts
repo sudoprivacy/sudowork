@@ -10,7 +10,7 @@
  * 使用 RSA-2048 + AES-256-GCM 混合加密方案
  */
 
-import { getSystemConfigCache } from '@/common/systemConfig';
+import { getSystemConfigCache } from '@sudowork/common/systemConfig';
 import { getProductImprovementPublicKey } from '@/process/credentialsCache';
 
 // ============================================================

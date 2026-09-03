@@ -5,9 +5,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { isSlashCommandListEnabled } from '@/common/slash/availability';
-import type { SlashCommandItem } from '@/common/slash/types';
-import { ipcBridge } from '@/common';
+import { isSlashCommandListEnabled } from '@sudowork/common/slash/availability';
+import type { SlashCommandItem } from '@sudowork/common/slash/types';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 interface CacheEntry {
   commands: SlashCommandItem[];

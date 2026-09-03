@@ -5,9 +5,9 @@
  */
 
 import { useCallback, useState } from 'react';
-import { ipcBridge } from '@/common';
-import { joinPath } from '@/common/chatLib';
-import type { PreviewContentType } from '@/common/types/preview';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { joinPath } from '@sudowork/common/chatLib';
+import type { PreviewContentType } from '@sudowork/common/types/preview';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { LARGE_TEXT_PREVIEW_MAX_LENGTH, LARGE_TEXT_PREVIEW_THRESHOLD } from '@/renderer/pages/conversation/preview/constants';

@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import type { ConversationItem } from '../types';
 
 export const useBatchSelection = (batchMode: boolean, conversations: ConversationItem[]) => {

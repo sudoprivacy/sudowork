@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 const counts = new Map<string, number>();
 const listeners = new Set<(convId: string, count: number) => void>();

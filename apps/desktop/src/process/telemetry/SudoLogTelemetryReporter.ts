@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
-import { isLogReportEnabled } from '@/common/systemConfig';
+import { isLogReportEnabled } from '@sudowork/common/systemConfig';
 import { getLogReportKey } from '@/process/credentialsCache';
 import type { CrashEvent } from '../../shared/types/crash';
 import type { ConversationData, InstallData, PerfData, StepData, TelemetryEvent, TurnData } from '../../shared/types/telemetry';

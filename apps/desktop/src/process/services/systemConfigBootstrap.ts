@@ -26,8 +26,8 @@
  *   - Idempotent: safe to call multiple times (each call replaces the module cache).
  */
 
+import { fetchSystemConfig } from '@sudowork/common/systemConfig';
 import { mainLog, mainError } from '@process/utils/mainLogger';
-import { fetchSystemConfig } from '@/common/systemConfig';
 import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
 
 export async function ensureMainSystemConfig(): Promise<void> {

@@ -5,7 +5,7 @@
  */
 
 import { eeclaw } from '@sudowork/host-bridge/ipcBridge';
-import { ConfigStorage } from './storage';
+import { ConfigStorage } from '@sudowork/common/storage';
 
 // Check if running in renderer process (has electronAPI)
 const isRenderer = typeof window !== 'undefined' && Boolean(window.electronAPI);

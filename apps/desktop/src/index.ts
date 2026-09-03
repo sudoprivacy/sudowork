@@ -586,7 +586,7 @@ const createWindow = (): void => {
   const isCiRuntime = process.env.CI === 'true' || process.env.CI === '1' || process.env.GITHUB_ACTIONS === 'true';
   const disableAutoUpdater = process.env.NEXUS_DISABLE_AUTO_UPDATE === '1' || process.env.NEXUS_E2E_TEST === '1' || isCiRuntime;
   if (!disableAutoUpdater) {
-    Promise.all([import('./process/services/autoUpdaterService'), import('./process/bridge/updateBridge'), import('./common/systemConfig')])
+    Promise.all([import('./process/services/autoUpdaterService'), import('./process/bridge/updateBridge'), import('@sudowork/common/systemConfig')])
       .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }, { fetchSystemConfig, isVersionUpdateEnabled }]) => {
         // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
         const statusBroadcast = createAutoUpdateStatusBroadcast();

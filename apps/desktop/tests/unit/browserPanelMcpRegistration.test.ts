@@ -45,7 +45,7 @@ vi.mock('@process/utils/mainLogger', () => ({
 import { existsSync } from 'fs';
 import { ensureBrowserPanelMcpRegistered } from '@process/services/mcpServices/SudoworkBuiltinMcpRegistration';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import type { IMcpServer } from '@/common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 
 const SCRIPT_PATH = path.join('/mock/app', 'resources', 'browser-panel-mcp', 'index.js');
 const NODE_PATH = '/mock/node/bin/node';

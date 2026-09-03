@@ -13,7 +13,7 @@ export const removeStack = (...args: Array<() => void>) => {
   };
 };
 
-export { uuid } from '@/common/utils';
+export { uuid } from '@sudowork/common/utils';
 
 export function maskPhone(phone: string): string {
   if (!phone) return '';

@@ -5,9 +5,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { ConfigStorage } from '@/common/storage';
-import type { IMcpServer } from '@/common/storage';
-import { ipcBridge } from '@/common';
+import { ConfigStorage } from '@sudowork/common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 /**
  * MCP服务器状态管理Hook

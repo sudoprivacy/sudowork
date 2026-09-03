@@ -6,7 +6,7 @@
 
 // hooks/useTheme.ts
 import { useCallback, useEffect, useState } from 'react';
-import { ConfigStorage } from '@/common/storage';
+import { ConfigStorage } from '@sudowork/common/storage';
 
 export type Theme = 'light' | 'dark';
 export type ThemePreference = 'light' | 'dark' | 'system';

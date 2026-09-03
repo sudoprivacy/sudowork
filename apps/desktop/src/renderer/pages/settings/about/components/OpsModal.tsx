@@ -8,7 +8,7 @@ import { Button, Input, Message, Modal, Tooltip, Typography } from '@arco-design
 import { IconEdit } from '@arco-design/web-react/icon';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 const { Text } = Typography;
 

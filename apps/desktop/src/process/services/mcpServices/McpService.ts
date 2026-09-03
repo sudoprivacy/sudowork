@@ -5,9 +5,9 @@
  */
 
 import { execSync } from 'child_process';
+import type { IMcpServer } from '@sudowork/common/storage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import type { AcpBackend } from '../../../types/acpTypes';
-import type { IMcpServer } from '../../../common/storage';
 import { ClaudeMcpAgent } from './agents/ClaudeMcpAgent';
 import { CodebuddyMcpAgent } from './agents/CodebuddyMcpAgent';
 import { QwenMcpAgent } from './agents/QwenMcpAgent';

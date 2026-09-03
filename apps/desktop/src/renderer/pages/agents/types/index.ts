@@ -5,8 +5,8 @@
  */
 
 import type { IAssistantHubSkill } from '@sudowork/host-bridge/ipcBridge';
-import type { AssistantCategory } from '@/process/AssistantManager';
-import type { AcpBackendConfig } from '@/types/acpTypes';
+import type { AssistantCategory } from '@sudowork/common/assistantTypes';
+import type { AcpBackendConfig } from '@sudowork/common/acpTypes';
 
 export type AssistantListItem = AcpBackendConfig & {
   _source?: string;

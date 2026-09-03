@@ -8,7 +8,7 @@ import { EventEmitter } from 'events';
 import { autoUpdater } from 'electron-updater';
 import type { ProgressInfo, UpdateInfo } from 'electron-updater';
 import log from 'electron-log';
-import { getCosReleaseBase, isVersionUpdateEnabled } from '@/common/systemConfig';
+import { getCosReleaseBase, isVersionUpdateEnabled } from '@sudowork/common/systemConfig';
 
 /** COS mirror base URL for Chinese users (release bucket, server-driven cos_domain) */
 const getCosMirrorBase = (): string => `${getCosReleaseBase()}/sudowork/release/latest`;

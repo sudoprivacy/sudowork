@@ -27,16 +27,14 @@ const onReconnected = vi.fn((cb: () => void) => {
   };
 });
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    team: {
-      ensureSession: { invoke: (...args: unknown[]) => ensureSessionInvoke(...args) },
-      onAgentStatusChanged: { on: (...args: unknown[]) => onAgentStatusChanged(...args) },
-      onSessionChanged: { on: (...args: unknown[]) => onSessionChanged(...args) },
-    },
-    realtime: {
-      reconnected: { on: (...args: unknown[]) => onReconnected(...args) },
-    },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  team: {
+    ensureSession: { invoke: (...args: unknown[]) => ensureSessionInvoke(...args) },
+    onAgentStatusChanged: { on: (...args: unknown[]) => onAgentStatusChanged(...args) },
+    onSessionChanged: { on: (...args: unknown[]) => onSessionChanged(...args) },
+  },
+  realtime: {
+    reconnected: { on: (...args: unknown[]) => onReconnected(...args) },
   },
 }));
 

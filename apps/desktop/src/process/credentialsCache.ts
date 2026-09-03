@@ -18,7 +18,7 @@
  * never silently falling back to a hardcoded key.
  */
 
-import type { DecryptedCredentials } from '@/common/systemConfig';
+import type { DecryptedCredentials } from '@sudowork/common/systemConfig';
 
 let cached: DecryptedCredentials | null = null;
 

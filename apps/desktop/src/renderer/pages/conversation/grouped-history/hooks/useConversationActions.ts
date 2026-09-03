@@ -9,9 +9,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
+import type { TChatConversation } from '@sudowork/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { emitter } from '@/renderer/utils/emitter';
-import type { TChatConversation } from '@/common/storage';
-import { ipcBridge } from '@/common';
 import { useConversationTabs } from '../../context/ConversationTabsContext';
 import type { SidebarTabKey } from '../types';
 import { isConversationPinned } from '../utils/groupingHelpers';

@@ -4,26 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { powerSaveBlocker, app } from 'electron';
+import type { CronMessageMeta, TMessage } from '@sudowork/common/chatLib';
+import { Cron } from 'croner';
 import { ipcBridge } from '@/common';
-import type { CronMessageMeta, TMessage } from '@/common/chatLib';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
 import { ProcessConfig } from '@process/initStorage';
 import { addMessage } from '@process/message';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
-import { powerSaveBlocker, app } from 'electron';
-import { Cron } from 'croner';
-import WorkerManage from '../../WorkerManage';
-import { copyFilesToDirectory } from '../../utils';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { readAssistantResource, ruleFilePattern, skillFilePattern } from '@process/utils/assistantResources';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { assistantManager } from '@/process/AssistantManager';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
+import WorkerManage from '../../WorkerManage';
+import { copyFilesToDirectory } from '../../utils';
+import { createConversation } from '../conversationService';
 import { cronBusyGuard } from './CronBusyGuard';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
 import { assertClientCronEnabled, getClientCronEnabled } from './cronPolicy';
-import { createConversation } from '../conversationService';
 
 /**
  * Parameters for creating a new cron job

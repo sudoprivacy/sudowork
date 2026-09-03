@@ -7,7 +7,7 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mcpService } from '@sudowork/host-bridge/ipcBridge';
-import type { IMcpServer } from '@/common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 import type { IMcpOAuthStatus } from '../types';
 
 /**

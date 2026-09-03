@@ -9,7 +9,7 @@ import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
-import type { IMcpServer, IMcpServerTransport, IMcpTool } from '@/common/storage';
+import type { IMcpServer, IMcpServerTransport, IMcpTool } from '@sudowork/common/storage';
 import { useThemeContext } from '@/renderer/context/ThemeContext';
 import type { IValidationResult } from '../types';
 

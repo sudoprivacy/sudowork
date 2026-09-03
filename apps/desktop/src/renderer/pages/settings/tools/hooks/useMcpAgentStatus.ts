@@ -6,8 +6,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { acpConversation, mcpService } from '@sudowork/host-bridge/ipcBridge';
-import { ConfigStorage } from '@/common/storage';
-import type { IMcpServer } from '@/common/storage';
+import { ConfigStorage } from '@sudowork/common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 
 /**
  * MCP Agent安装状态管理Hook

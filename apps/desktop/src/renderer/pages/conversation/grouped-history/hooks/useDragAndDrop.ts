@@ -8,8 +8,8 @@ import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { useCallback, useRef, useState } from 'react';
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { emitter } from '@/renderer/utils/emitter';
 import { assignInitialSortOrders, computeSortOrder, getConversationSortOrder, needsReindex, reindexSortOrders } from '../utils/sortOrderHelpers';
 

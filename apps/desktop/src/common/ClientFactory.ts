@@ -5,8 +5,8 @@
  */
 
 import { AuthType } from '@office-ai/aioncli-core';
+import type { TProviderWithModel } from '@sudowork/common/storage';
 import { resolveSecret } from '@common/nexus/secret-cache';
-import type { TProviderWithModel } from './storage';
 import { OpenAIRotatingClient, type OpenAIClientConfig } from '@common/adapters/OpenAIRotatingClient';
 import { GeminiRotatingClient, type GeminiClientConfig } from '@common/adapters/GeminiRotatingClient';
 import { AnthropicRotatingClient, type AnthropicClientConfig } from '@common/adapters/AnthropicRotatingClient';

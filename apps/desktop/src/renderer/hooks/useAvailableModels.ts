@@ -6,9 +6,9 @@
 
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { ipcBridge } from '@/common';
-import { uuid } from '@/common/utils';
-import type { IProvider } from '@/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { uuid } from '@sudowork/common/utils';
+import type { IProvider } from '@sudowork/common/storage';
 import { useGeminiGoogleAuthModels } from '@/renderer/hooks/useGeminiGoogleAuthModels';
 import { hasAvailableModels } from '@/renderer/pages/guid/utils/modelUtils';
 

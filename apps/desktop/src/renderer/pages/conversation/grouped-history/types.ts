@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import type { CronJobStatusEnums } from '@/renderer/utils/enum';
 
 /**

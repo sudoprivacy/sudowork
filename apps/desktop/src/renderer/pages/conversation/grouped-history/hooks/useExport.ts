@@ -7,8 +7,8 @@
 import { Message } from '@arco-design/web-react';
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 
 import type { ExportTask, ExportZipFile } from '../types';

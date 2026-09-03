@@ -6,7 +6,7 @@
 
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { AvailableAgent } from '@/renderer/shared/agents/types';
 import { AVAILABLE_AGENTS_SWR_KEY, filterAvailableAgentsForUi, splitConversationDropdownAgents } from '@/renderer/shared/agents/availableAgents';
 

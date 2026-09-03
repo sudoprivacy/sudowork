@@ -5,12 +5,12 @@
  */
 
 import type { ICreateConversationParams } from '@sudowork/host-bridge/ipcBridge';
-import { ConfigStorage } from '@/common/storage';
-import type { TProviderWithModel } from '@/common/storage';
-import { resolveLocaleKey } from '@/common/utils';
+import { ConfigStorage } from '@sudowork/common/storage';
+import type { TProviderWithModel } from '@sudowork/common/storage';
+import { resolveLocaleKey } from '@sudowork/common/utils';
+import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@sudowork/common/acpTypes';
 import { loadPresetAssistantResources } from '@/renderer/shared/agents/presetAssistantResources';
 import type { AvailableAgent } from '@/renderer/shared/agents/types';
-import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend, type AcpBackendAll } from '@/types/acpTypes';
 
 /**
  * Get the default Gemini model configuration from user settings.

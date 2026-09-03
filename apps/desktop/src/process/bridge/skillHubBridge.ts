@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { app } from 'electron';
 import JSZip from 'jszip';
+import { getSkillHubBaseUrl } from '@sudowork/common/systemConfig';
 import { serviceManager } from '@process/services/serviceManager';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { clearSkillsCache, getSkillsDir, getHubSkillsDir, getCustomSkillsDir, getBuiltinSkillsDir, ProcessConfig, SKILL_SUBDIRS } from '@/process/initStorage';
@@ -25,7 +26,6 @@ import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMark
 import { scanSkillDirectory, readAuditReport } from '@/process/services/safety/SkillAuditScanner';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/enterpriseStorage';
-import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
 import { tokenMissingResponse } from '@common/nexus/hubErrors';
 import { maybeProvisionFfmpegForSkill } from '@process/services/ffmpeg/ffmpegSkillGate';

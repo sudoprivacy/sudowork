@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ITeamMember } from '@sudowork/host-bridge/ipcBridge';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { fromBackendAssistant, fromBackendTeam, normalizeTeamStatus } from '../mapper';
 import type { TeamAssistant, TeammateStatus, TTeam } from '../types';
 import { unwrapTeamResult } from '../utils';

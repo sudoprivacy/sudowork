@@ -7,10 +7,10 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { IMcpServer } from '@sudowork/common/storage';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@process/initStorage';
-import type { IMcpServer } from '@/common/storage';
 
 /**
  * Register the browser-panel MCP server into Sudowork's unified MCP config

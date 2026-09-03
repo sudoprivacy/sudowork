@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage';
-import { LEGACY_DEFAULT_IMAGE_GENERATION_MODEL, migrateImageGenerationModelConfig, pickImageGenerationModelId, resolveImageModelWithAvailability, resolveLoginImageModelId, type ImageGenerationModelConfig } from '@/common/imageGenerationModelConfig';
+import { DEFAULT_IMAGE_GENERATION_MODEL } from '@sudowork/common/storage';
+import { LEGACY_DEFAULT_IMAGE_GENERATION_MODEL, migrateImageGenerationModelConfig, pickImageGenerationModelId, resolveImageModelWithAvailability, resolveLoginImageModelId, type ImageGenerationModelConfig } from '@sudowork/common/imageGenerationModelConfig';
 
 const cfg = (over: Partial<ImageGenerationModelConfig>): ImageGenerationModelConfig => ({ switch: true, useModel: 'gemini-3-pro-image', ...over }) as ImageGenerationModelConfig;
 

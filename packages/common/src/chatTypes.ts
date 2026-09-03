@@ -24,6 +24,18 @@ import type {
   WebSearchEndData,
 } from './codex/types/eventData.js';
 
+/**
+ * Raw backend response envelope streamed to the renderer. Home of this type is
+ * here (lowest-level, no runtime deps) so chatLib's transform runtime and the
+ * host-bridge ipcBridge can share one definition without a package cycle.
+ */
+export interface IResponseMessage {
+  type: string;
+  data: unknown;
+  msg_id: string;
+  conversation_id: string;
+}
+
 type TMessageType = 'text' | 'tips' | 'thought' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_question' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands' | 'file_send';
 
 interface IMessage<T extends TMessageType, Content extends Record<string, any>> {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 
 const h = vi.hoisted(() => {
   const conversation: TChatConversation = {

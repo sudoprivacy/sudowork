@@ -8,8 +8,8 @@ import { Message, Modal, Tooltip } from '@arco-design/web-react';
 import { Add, Close, Delete } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
-import { BROWSER_PANEL_PARTITION, DEFAULT_BROWSER_PANEL_HOMEPAGE, normalizeBrowserUrl } from '@/common/browserPanelUrl';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { BROWSER_PANEL_PARTITION, DEFAULT_BROWSER_PANEL_HOMEPAGE, normalizeBrowserUrl } from '@sudowork/common/browserPanelUrl';
 import WebviewHost from '@/renderer/components/WebviewHost';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 

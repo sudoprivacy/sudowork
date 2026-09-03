@@ -6,7 +6,7 @@
 
 import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
 import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
-import { DRAFTS_DIR_NAME } from '@/common/constants';
+import { DRAFTS_DIR_NAME } from '@sudowork/common/constants';
 
 /**
  * 递归排序树节点：文件夹优先，然后按文件名正序排列

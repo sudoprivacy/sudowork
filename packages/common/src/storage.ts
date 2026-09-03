@@ -5,7 +5,7 @@
  */
 
 import { storage } from '@office-ai/platform';
-import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer } from '@sudowork/common/storageTypes';
+import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer } from './storageTypes.js';
 
 // The pure storage/config/model/MCP type surface (TChatConversation, IProvider,
 // IMcpServer, TProviderWithModel, ICssTheme, …) and the default-model consts now

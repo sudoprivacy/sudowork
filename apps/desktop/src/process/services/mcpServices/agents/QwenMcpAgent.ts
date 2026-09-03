@@ -7,12 +7,12 @@
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import type { McpOperationResult } from '../McpProtocol';
-import { AbstractMcpAgent } from '../McpProtocol';
-import type { IMcpServer } from '../../../../common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { safeExec } from '@process/utils/safeExec';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { AbstractMcpAgent } from '../McpProtocol';
+import type { McpOperationResult } from '../McpProtocol';
 
 /** Env options for exec calls — ensures CLI is found from Finder/launchd launches */
 const getExecEnv = () => ({ env: { ...getEnhancedEnv(), NODE_OPTIONS: '', TERM: 'dumb', NO_COLOR: '1' } as NodeJS.ProcessEnv });

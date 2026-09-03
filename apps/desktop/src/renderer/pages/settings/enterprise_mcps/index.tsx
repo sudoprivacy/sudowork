@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Tabs, Message, Spin } from '@arco-design/web-react';
-import { ConfigStorage } from '@/common/storage';
+import { ConfigStorage } from '@sudowork/common/storage';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import EnterpriseMcpTab from './tabs/EnterpriseMcpTab';
 import McpLibraryTab from './tabs/McpLibraryTab';

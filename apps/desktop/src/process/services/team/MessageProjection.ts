@@ -1,5 +1,5 @@
+import type { TMessage } from '@sudowork/common/chatLib';
 import { ipcBridge } from '@/common';
-import type { TMessage } from '@/common/chatLib';
 import { getDatabase } from '@process/database';
 import { uuid } from '@/common/utils';
 import { mainWarn } from '@process/utils/mainLogger';

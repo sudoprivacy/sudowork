@@ -7,7 +7,7 @@
 import { Checkbox, Message, Modal } from '@arco-design/web-react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TTeam } from '../types';
 import { unwrapTeamResult } from '../utils';
 

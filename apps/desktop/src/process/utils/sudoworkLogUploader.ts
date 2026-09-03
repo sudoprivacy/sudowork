@@ -8,8 +8,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
+import { getLogReportBaseUrl, isLogReportEnabled } from '@sudowork/common/systemConfig';
 import { buildVersion } from '@/common/buildInfo';
-import { getLogReportBaseUrl, isLogReportEnabled } from '@/common/systemConfig';
 import { getLogReportKey } from '@/process/credentialsCache';
 import { mapElectronArch } from '@/shared/types/telemetry';
 

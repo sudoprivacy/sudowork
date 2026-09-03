@@ -18,9 +18,9 @@
 import { app } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { isProductImprovementEnabled } from '@/common/systemConfig';
-import { ProcessConfig, getSudoworkServerBaseUrlSync } from '../initStorage';
+import { isProductImprovementEnabled } from '@sudowork/common/systemConfig';
 import { buildVersion } from '@common/buildInfo';
+import { ProcessConfig, getSudoworkServerBaseUrlSync } from '../initStorage';
 import type { NativeCrashEvent, RendererCrashEvent, JsExceptionEvent, Breadcrumb, CrashContext, CrashEventBase, CrashBatchRequest, CrashBatchResponse, StoredCrashEvent, CrashReporterConfig, CrashProcessType, CrashReason } from '../../shared/types/crash';
 import { DEFAULT_CRASH_REPORTER_CONFIG } from '../../shared/types/crash';
 import { mapElectronArch } from '../../shared/types/telemetry';

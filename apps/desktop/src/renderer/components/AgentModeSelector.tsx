@@ -9,7 +9,7 @@ import { Down, Robot } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';

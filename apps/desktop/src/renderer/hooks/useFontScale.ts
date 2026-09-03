@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 const UI_SCALE_DEFAULT = 1;
 const UI_SCALE_MIN = 0.8;

@@ -5,8 +5,8 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ipcBridge } from '@/common';
-import type { PreviewContentType } from '@/common/types/preview';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { PreviewContentType } from '@sudowork/common/types/preview';
 import { emitter } from '@/renderer/utils/emitter';
 
 /** DOM 片段数据结构 / DOM snippet data structure */

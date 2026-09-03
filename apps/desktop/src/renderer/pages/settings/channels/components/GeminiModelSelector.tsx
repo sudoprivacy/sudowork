@@ -10,10 +10,10 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import useSWR from 'swr';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { IProvider } from '@sudowork/common/storage';
 import { getModelDisplayLabel } from '@/renderer/utils/agentUiDisplay';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
-import { ipcBridge } from '@/common';
-import type { IProvider } from '@/common/storage';
 import type { GeminiModelSelection } from '../types';
 
 // Unified model dropdown for chat header, send box, and channel settings

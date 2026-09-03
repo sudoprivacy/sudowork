@@ -7,8 +7,8 @@
 import { useCallback } from 'react';
 import { Message } from '@arco-design/web-react';
 import type { IDirOrFile, MossWorkspaceFilePreview } from '@sudowork/host-bridge/ipcBridge';
-import { ipcBridge } from '@/common';
-import type { PreviewContentType } from '@/common/types/preview';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { PreviewContentType } from '@sudowork/common/types/preview';
 import { emitter } from '@/renderer/utils/emitter';
 import { LARGE_TEXT_PREVIEW_MAX_LENGTH, LARGE_TEXT_PREVIEW_THRESHOLD } from '@/renderer/pages/conversation/preview/constants';
 import { removeWorkspaceEntry, renameWorkspaceEntry } from '@/renderer/utils/workspaceFs';

@@ -9,7 +9,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check } from 'lucide-react';
 import { acpConversation, mcpService } from '@sudowork/host-bridge/ipcBridge';
-import type { IMcpServer, IMcpTool } from '@/common/storage';
+import type { IMcpServer, IMcpTool } from '@sudowork/common/storage';
 import type { IDetectedAgent } from '../types';
 
 interface OneClickImportModalProps {

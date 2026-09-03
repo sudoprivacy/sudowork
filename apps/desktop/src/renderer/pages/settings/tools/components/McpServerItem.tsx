@@ -6,7 +6,7 @@
 
 import { Collapse } from '@arco-design/web-react';
 import React from 'react';
-import type { IMcpServer } from '@/common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 import type { IMcpOAuthStatus } from '../types';
 import McpServerHeader from './McpServerHeader';
 import McpServerToolsList from './McpServerToolsList';

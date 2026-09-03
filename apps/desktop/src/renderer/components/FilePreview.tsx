@@ -7,9 +7,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { IconClose } from '@arco-design/web-react/icon';
 import { Button, Image } from '@arco-design/web-react';
-import type { PreviewContentType } from '@/common/types/preview';
+import type { PreviewContentType } from '@sudowork/common/types/preview';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { getFileExtension } from '@/renderer/services/FileService';
-import { ipcBridge } from '@/common';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 

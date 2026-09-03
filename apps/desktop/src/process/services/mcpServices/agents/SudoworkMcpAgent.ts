@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { IMcpServer } from '@sudowork/common/storage';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import type { McpOperationResult } from '../McpProtocol';
 import { AbstractMcpAgent } from '../McpProtocol';
-import type { IMcpServer } from '../../../../common/storage';
 import { ProcessConfig } from '../../../initStorage';
 
 /**

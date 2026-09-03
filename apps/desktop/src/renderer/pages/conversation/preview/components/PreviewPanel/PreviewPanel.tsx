@@ -7,8 +7,8 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { Message } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useResizableSplit } from '@/renderer/hooks/useResizableSplit';
-import { ipcBridge } from '@/common';
 import { PreviewToolbarExtrasProvider, type PreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { usePreviewContext } from '../../context/PreviewContext';
 import AudioPreview from '../viewers/AudioViewer';

@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import profileBoy from '@/renderer/assets/profile_boy.jpg';
 import profileGirl from '@/renderer/assets/profile_girl.jpg';
 import type { UserAvatarRecord } from '../types';

@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { withTimeout } from '@renderer/pages/conversation/grouped-history/utils/exportHelpers';
 import { normalizeTeamStatus } from '../mapper';
 import { unwrapTeamResult } from '../utils';

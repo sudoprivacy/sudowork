@@ -3,7 +3,7 @@ import fsSync from 'fs';
 import http from 'http';
 import https from 'https';
 import path from 'path';
-import { COS_LEGACY_HUB_BASE, COS_RUNTIME_BASE } from '@/shared/cos';
+import { COS_LEGACY_HUB_BASE, COS_RUNTIME_BASE } from '@sudowork/common/cos';
 import type { ILocalKbInstallEmbeddingModelInput, LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 import { extractZipWithProgress } from '@process/services/archiveProgress';
 import { getLocalKbModelsDir, getLocalKbRootDir } from './paths';

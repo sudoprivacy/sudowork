@@ -5,7 +5,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useTypingAnimation } from '@/renderer/hooks/useTypingAnimation';
 import { useScrollSyncTarget } from '../../hooks/useScrollSyncHelpers';
 import { generateInspectScript } from './htmlInspectScript';

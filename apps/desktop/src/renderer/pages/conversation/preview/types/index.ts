@@ -14,7 +14,7 @@
 
 // 重新导出 common 中的类型，方便模块内使用
 // Re-export types from common for convenience within module
-export type { PreviewContentType, PreviewHistoryTarget, PreviewSnapshotInfo, RemoteImageFetchRequest } from '@/common/types/preview';
+export type { PreviewContentType, PreviewHistoryTarget, PreviewSnapshotInfo, RemoteImageFetchRequest } from '@sudowork/common/types/preview';
 
 /**
  * 视图模式

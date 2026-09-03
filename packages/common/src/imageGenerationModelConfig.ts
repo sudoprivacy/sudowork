@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer } from './storage';
-import type { SpecificImagePricingItem } from './scodeConfig';
+import { DEFAULT_IMAGE_GENERATION_MODEL, type IConfigStorageRefer } from './storageTypes.js';
+import type { SpecificImagePricingItem } from './scodeTypes.js';
 
 /**
  * Old builds hardcoded this as the default image generation model. It is still a

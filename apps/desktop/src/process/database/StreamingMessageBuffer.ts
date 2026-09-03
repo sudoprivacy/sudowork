@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TMessage } from '@/common/chatLib';
-import { getDatabase } from './index';
+import type { TMessage } from '@sudowork/common/chatLib';
 import { mainError } from '@process/utils/mainLogger';
+import { getDatabase } from './index';
 
 /**
  * 流式消息缓冲管理器

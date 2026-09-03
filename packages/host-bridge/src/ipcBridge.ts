@@ -5,7 +5,7 @@
  */
 
 import { bridge } from '@office-ai/platform';
-import type { IConfirmation } from '@sudowork/common/chatTypes';
+import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@sudowork/common/channelTypes';
 import type { ISafetyStatus, IBlacklistConfig } from '@sudowork/common/types/security';
@@ -1636,12 +1636,9 @@ export interface IFileMetadata {
   isDirectory?: boolean;
 }
 
-export interface IResponseMessage {
-  type: string;
-  data: unknown;
-  msg_id: string;
-  conversation_id: string;
-}
+// IResponseMessage's canonical definition lives in @sudowork/common/chatTypes
+// (lowest-level, no deps); re-exported here so existing importers keep resolving.
+export type { IResponseMessage };
 
 export interface IBridgeResponse<D = Record<string, never>> {
   success: boolean;

@@ -8,7 +8,7 @@ import { Button, Form, Tooltip } from '@arco-design/web-react';
 import { FolderOpen } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 /**
  * 目录选择输入组件 / Directory selection input component

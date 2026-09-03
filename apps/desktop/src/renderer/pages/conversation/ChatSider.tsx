@@ -7,10 +7,10 @@
 import React from 'react';
 import { Dropdown, Menu } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { STORAGE_KEYS } from '@sudowork/common/storageKeys';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { useAddEventListener } from '@/renderer/utils/emitter';
-import { ipcBridge } from '@/common';
-import { STORAGE_KEYS } from '@/common/storageKeys';
-import type { TChatConversation } from '@/common/storage';
 import ChatWorkspace from './workspace';
 import BrowserPanel from './right-panel/BrowserPanel';
 import DeliverablesPanel from './right-panel/DeliverablesPanel';

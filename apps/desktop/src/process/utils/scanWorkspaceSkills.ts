@@ -7,8 +7,8 @@
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
+import { COS_HUB_BASE } from '@sudowork/common/cos';
 import { toAssetUrl } from '@/extensions/assetProtocol';
-import { COS_HUB_BASE } from '@/shared/cos';
 
 /** COS base URL for Hub skill icons (role-based hub bucket; primary). */
 const HUB_SKILL_ICON_COS_BASE = `${COS_HUB_BASE}/`;

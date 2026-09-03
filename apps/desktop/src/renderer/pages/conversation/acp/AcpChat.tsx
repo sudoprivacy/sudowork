@@ -5,14 +5,14 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import type { AcpBackend } from '@sudowork/common/acpTypes';
+import type { IMessageAcpQuestion, TMessage } from '@sudowork/common/chatLib';
 import { ConversationProvider } from '@/renderer/context/ConversationContext';
-import type { AcpBackend } from '@/types/acpTypes';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import MessageList from '@renderer/messages/MessageList';
 import { MessageListProvider, useMessageList, useMessageLstCache } from '@renderer/messages/hooks';
 import HOC from '@renderer/utils/HOC';
 import LocalImageView from '@renderer/components/LocalImageView';
-import type { IMessageAcpQuestion, TMessage } from '@/common/chatLib';
 import ConversationChatConfirm from '../components/ConversationChatConfirm';
 import SafetyChatConfirm from '../SafetyChatConfirm';
 import AcpSendBox from './AcpSendBox';

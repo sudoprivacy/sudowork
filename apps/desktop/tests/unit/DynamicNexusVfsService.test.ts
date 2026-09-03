@@ -82,7 +82,7 @@ vi.mock('@/shared/runtime-sha256.json', () => ({
   default: {},
 }));
 
-vi.mock('@/shared/cos', () => ({
+vi.mock('@sudowork/common/cos', () => ({
   COS_RUNTIME_BASE: 'https://runtime.invalid',
   COS_LEGACY_NEXUS_VFS_BASE: 'https://legacy.invalid',
 }));

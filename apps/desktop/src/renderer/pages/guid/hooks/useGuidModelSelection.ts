@@ -5,8 +5,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { IProvider, TProviderWithModel } from '@/common/storage';
-import { ConfigStorage } from '@/common/storage';
+import type { IProvider, TProviderWithModel } from '@sudowork/common/storage';
+import { ConfigStorage } from '@sudowork/common/storage';
 import { useGeminiGoogleAuthModels } from '@/renderer/hooks/useGeminiGoogleAuthModels';
 import { useAvailableModels } from '@/renderer/hooks/useAvailableModels';
 

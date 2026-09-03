@@ -7,7 +7,7 @@
 import { Tag } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CodexToolCallUpdate } from '@/common/chatLib';
+import type { CodexToolCallUpdate } from '@sudowork/common/chatLib';
 import BaseToolCallDisplay from './BaseToolCallDisplay';
 
 type ExecCommandUpdate = Extract<CodexToolCallUpdate, { subtype: 'exec_command_begin' | 'exec_command_output_delta' | 'exec_command_end' }>;

@@ -7,9 +7,9 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
-import { getPresetById } from '@/common/presets/presetResolver';
-import type { TChatConversation } from '@/common/storage';
-import { ipcBridge } from '@/common';
+import { getPresetById } from '@sudowork/common/presets/presetResolver';
+import type { TChatConversation } from '@sudowork/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import CoworkLogo from '@/renderer/assets/cowork.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';

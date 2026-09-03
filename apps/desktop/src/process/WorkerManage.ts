@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
+import { mainLog, mainError } from '@process/utils/mainLogger';
 import AcpAgent from './task/AcpAgent';
 import RemoteAgent from './task/RemoteAgent';
 import { ProcessChat, ProcessConfig } from './initStorage';
 import type AgentBaseTask from './task/BaseAgent';
 import { getDatabase } from './database/export';
-import { mainLog, mainError } from '@process/utils/mainLogger';
 
 const taskList: {
   id: string;

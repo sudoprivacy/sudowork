@@ -8,8 +8,8 @@ import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
 import { Connection, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TChatConversation } from '@/common/storage';
-import { ipcBridge } from '@/common';
+import type { TChatConversation } from '@sudowork/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 
 const DOT_COLORS: Record<string, string> = {

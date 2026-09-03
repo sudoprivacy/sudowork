@@ -47,7 +47,7 @@ vi.mock('@/process/SkillManager', () => ({ skillManager: {} }));
 vi.mock('@/types/acpTypes', () => ({ DEFAULT_PRESET_AGENT_TYPE: 'scode', normalizePresetAgentType: (v: unknown) => v }));
 vi.mock('@/common/enterpriseDebugConfig', () => ({ isEnterpriseMode: () => false }));
 vi.mock('@/process/constants/enterpriseStorage', () => ({ ASSISTANTS_ROOT_DIR: 'assistants', ENTERPRISE_ASSISTANT_SUBDIRS: {} }));
-vi.mock('@/common/systemConfig', () => ({ getSkillHubBaseUrl: () => 'https://hub.example' }));
+vi.mock('@sudowork/common/systemConfig', () => ({ getSkillHubBaseUrl: () => 'https://hub.example' }));
 vi.mock('@/process/credentialsCache', () => ({ getSkillhubToken: () => '' }));
 vi.mock('@common/nexus/hubErrors', () => ({ tokenMissingResponse: () => ({ success: false }) }));
 

@@ -6,8 +6,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useAppMode } from '@renderer/hooks/useAppMode';
-import { ipcBridge } from '@/common';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { CronJobStatusEnums } from '@/renderer/utils/enum';
 import type { ICronJobActionsResult, ICronJobEventHandlers } from '@/renderer/pages/cron/types';

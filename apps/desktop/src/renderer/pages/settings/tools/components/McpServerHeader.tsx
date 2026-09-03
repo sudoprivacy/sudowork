@@ -9,7 +9,7 @@ import { IconRefresh, IconSettings } from '@arco-design/web-react/icon';
 import { Check, Loader2, LogIn, Pencil, Trash2, X } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { IMcpServer } from '@/common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 import type { IMcpOAuthStatus } from '../types';
 import McpAgentStatusDisplay from './McpAgentStatusDisplay';
 

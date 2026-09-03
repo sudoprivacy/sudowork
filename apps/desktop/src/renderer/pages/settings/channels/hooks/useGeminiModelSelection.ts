@@ -7,7 +7,7 @@
 import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { IProvider, TProviderWithModel } from '@/common/storage';
+import type { IProvider, TProviderWithModel } from '@sudowork/common/storage';
 import type { GeminiModelSelection } from '../types';
 import { useModelProviderList } from './useModelProviderList';
 

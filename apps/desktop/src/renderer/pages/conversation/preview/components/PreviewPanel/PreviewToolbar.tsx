@@ -7,7 +7,7 @@
 import { Dropdown } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PreviewHistoryTarget } from '@/common/types/preview';
+import type { PreviewHistoryTarget } from '@sudowork/common/types/preview';
 
 /**
  * PreviewToolbar 组件属性

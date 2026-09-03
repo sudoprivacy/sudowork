@@ -10,7 +10,7 @@ import { Bot, Folder, User } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ISudoclawStatus } from '@sudowork/host-bridge/ipcBridge';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import StatusCard from '@/renderer/pages/settings/copilot/components/StatusCard';
 import PageWrapper from '@renderer/components/base/PageWrapper';

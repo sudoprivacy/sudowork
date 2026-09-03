@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import type { Team, TeamMail, TeamMember, TeamTask } from '@process/services/team/TeamStore';
 
 const h = vi.hoisted(() => {

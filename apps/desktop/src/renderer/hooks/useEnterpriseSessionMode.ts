@@ -5,8 +5,8 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { ConfigStorage } from '@/common/storage';
-import { ipcBridge } from '@/common';
+import { ConfigStorage } from '@sudowork/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
 import { getRendererSessionMode, setRendererSessionMode } from '@/renderer/pages/guid/hooks/useGuidAgentSelection';
 

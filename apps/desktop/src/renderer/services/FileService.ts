@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 // Simple formatBytes implementation moved from deleted updateConfig
 function formatBytes(bytes: number, decimals = 2): string {
   if (bytes === 0) return '0 Bytes';
@@ -59,7 +59,7 @@ export function getFileExtension(fileName: string): string {
   return lastDotIndex > -1 ? fileName.substring(lastDotIndex).toLowerCase() : '';
 }
 
-import { NEXUS_TIMESTAMP_REGEX } from '@/common/constants';
+import { NEXUS_TIMESTAMP_REGEX } from '@sudowork/common/constants';
 
 // 清理Nexus时间戳后缀，返回原始文件名。
 // 循环去除：历史文件可能带有多个累积的后缀（修复前会产生

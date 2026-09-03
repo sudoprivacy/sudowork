@@ -24,26 +24,24 @@ const mocks = vi.hoisted(() => ({
   isLibreOfficeAvailable: vi.fn(),
 }));
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    conversation: {
-      previewRemoteWorkspaceFile: {
-        invoke: mocks.previewRemoteWorkspaceFile,
-      },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  conversation: {
+    previewRemoteWorkspaceFile: {
+      invoke: mocks.previewRemoteWorkspaceFile,
     },
-    fs: {
-      createTempFile: {
-        invoke: mocks.createTempFile,
-      },
-      writeFile: {
-        invoke: mocks.writeFile,
-      },
+  },
+  fs: {
+    createTempFile: {
+      invoke: mocks.createTempFile,
     },
-    document: {
-      libreOffice: {
-        isAvailable: {
-          invoke: mocks.isLibreOfficeAvailable,
-        },
+    writeFile: {
+      invoke: mocks.writeFile,
+    },
+  },
+  document: {
+    libreOffice: {
+      isAvailable: {
+        invoke: mocks.isLibreOfficeAvailable,
       },
     },
   },

@@ -41,14 +41,12 @@ vi.mock('@renderer/components/AcpModelSelector', async () => {
   return { default: () => React.createElement('div', { 'data-testid': 'model-selector' }) };
 });
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    team: {
-      sendMessageToMember: { invoke: (...args: unknown[]) => mocks.sendMessageToMember(...args) },
-      answerQuestion: { invoke: (...args: unknown[]) => mocks.answerQuestion(...args) },
-      pauseMember: { invoke: (...args: unknown[]) => mocks.pauseMember(...args) },
-      retryMemberStart: { invoke: (...args: unknown[]) => mocks.retryMemberStart(...args) },
-    },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  team: {
+    sendMessageToMember: { invoke: (...args: unknown[]) => mocks.sendMessageToMember(...args) },
+    answerQuestion: { invoke: (...args: unknown[]) => mocks.answerQuestion(...args) },
+    pauseMember: { invoke: (...args: unknown[]) => mocks.pauseMember(...args) },
+    retryMemberStart: { invoke: (...args: unknown[]) => mocks.retryMemberStart(...args) },
   },
 }));
 

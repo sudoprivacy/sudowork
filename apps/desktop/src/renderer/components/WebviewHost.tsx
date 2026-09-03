@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Left, Right, Refresh, Loading } from '@icon-park/react';
-import { normalizeBrowserUrl } from '@/common/browserPanelUrl';
+import { normalizeBrowserUrl } from '@sudowork/common/browserPanelUrl';
 
 export interface WebviewHostProps {
   /** URL to display */

@@ -5,9 +5,9 @@
  */
 
 import type { AgentActivityState, IExtensionAgentActivityEvent, IExtensionAgentActivityItem, IExtensionAgentActivitySnapshot } from '@sudowork/host-bridge/ipcBridge';
+import type { TMessage } from '@sudowork/common/chatLib';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { ipcBridge } from '@/common';
-import type { TMessage } from '@/common/chatLib';
-import type { TChatConversation } from '@/common/storage';
 import { ExtensionRegistry } from '@/extensions';
 import { getDatabase } from '@process/database';
 import { mainError } from '@process/utils/mainLogger';

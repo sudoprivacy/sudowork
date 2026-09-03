@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRechargeMode } from '@/common/systemConfig';
+import { normalizeRechargeMode } from '@sudowork/common/systemConfig';
 
 describe('credit application system config', () => {
   it('keeps the legacy payment mode when recharge mode is missing or invalid', () => {

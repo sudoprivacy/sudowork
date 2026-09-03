@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeAll } from 'vitest';
 // 永不 resolve、新建团队卡在"正在启动团队成员"。
 // 若有人改回 ConfigStorage.get，下方 mock 使其永不 resolve → 本测试超时失败。
 
-vi.mock('@/common/storage', () => ({
+vi.mock('@sudowork/common/storage', () => ({
   ConfigStorage: {
     // 永不 resolve（模拟主进程自调的 pending 行为）
     get: () => new Promise<void>(() => {}),

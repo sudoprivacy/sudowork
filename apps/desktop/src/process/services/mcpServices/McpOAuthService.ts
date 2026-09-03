@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { EventEmitter } from 'node:events';
 import { MCPOAuthProvider, OAUTH_DISPLAY_MESSAGE_EVENT } from '@office-ai/aioncli-core/dist/src/mcp/oauth-provider.js';
 import { MCPOAuthTokenStorage } from '@office-ai/aioncli-core/dist/src/mcp/oauth-token-storage.js';
 import type { MCPOAuthConfig } from '@office-ai/aioncli-core/dist/src/mcp/oauth-provider.js';
-import { EventEmitter } from 'node:events';
-import type { IMcpServer } from '../../../common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
 export interface OAuthStatus {

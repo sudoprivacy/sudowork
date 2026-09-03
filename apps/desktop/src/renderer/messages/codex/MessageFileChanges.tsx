@@ -6,7 +6,7 @@
 
 import React, { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CodexToolCallUpdate } from '@/common/chatLib';
+import type { CodexToolCallUpdate } from '@sudowork/common/chatLib';
 import FileChangesPanel, { type FileChangeItem } from '@/renderer/components/base/FileChangesPanel';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 import { extractContentFromDiff, parseDiff, type FileChangeInfo } from '@/renderer/utils/diffUtils';

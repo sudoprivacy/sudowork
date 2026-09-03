@@ -21,11 +21,11 @@ import * as fs from 'fs';
 import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
+import { getSudorouterBaseUrl } from '@sudowork/common/systemConfig';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { extractTarGzWithProgress } from '../archiveProgress';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import { buildVersion } from '@/common/buildInfo';
-import { getSudorouterBaseUrl } from '@/common/systemConfig';
+import { extractTarGzWithProgress } from '../archiveProgress';
 
 type SudoclawInstallResult = {
   installed: boolean;

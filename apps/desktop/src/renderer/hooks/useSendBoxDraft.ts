@@ -7,7 +7,7 @@
 import { useCallback } from 'react';
 import useSWR from 'swr';
 import useSWRMutation from 'swr/mutation';
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import type { FileOrFolderItem } from '@/renderer/types/files';
 export type { FileOrFolderItem } from '@/renderer/types/files';
 

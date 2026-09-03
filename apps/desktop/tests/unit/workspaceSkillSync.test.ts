@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { shouldSyncWorkspaceSkills, isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 
 describe('workspace skill sync gating', () => {

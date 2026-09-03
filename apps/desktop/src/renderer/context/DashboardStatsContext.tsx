@@ -5,7 +5,7 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useAuth } from './AuthContext';
 
 interface ConsumerUsageToday {

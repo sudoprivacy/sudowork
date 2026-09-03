@@ -8,9 +8,9 @@ import { Divider, Typography } from '@arco-design/web-react';
 import type { PropsWithChildren } from 'react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { IConfirmation } from '@sudowork/common/chatLib';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
-import type { IConfirmation } from '@/common/chatLib';
-import { ipcBridge } from '@/common';
 import { removeStack } from '../../../utils';
 
 const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: string }>> = ({ conversation_id, children }) => {

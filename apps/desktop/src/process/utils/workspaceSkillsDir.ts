@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TChatConversation } from '@/common/storage';
 import path from 'path';
+import type { TChatConversation } from '@sudowork/common/storage';
 
 export function resolveWorkspaceSkillsDir(conversation: Pick<TChatConversation, 'type' | 'extra'> | undefined): string | undefined {
   const workspace = conversation?.extra?.workspace;

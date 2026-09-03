@@ -11,12 +11,12 @@ import * as path from 'path';
 import semver from 'semver';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
+import { getCosReleaseBase } from '@sudowork/common/systemConfig';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { uuid } from '@/common/utils';
 import type { UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, UpdateReleaseInfo, GitHubReleaseAsset } from '@/common/updateTypes';
 import { ipcBridge } from '@/common';
 import { isNightlyBuild, buildDate, buildCommit, isNightlyTag, parseNightlyDate, parseNightlyCommit } from '@/common/buildInfo';
-import { getCosReleaseBase } from '@/common/systemConfig';
 import { autoUpdaterService } from '../services/autoUpdaterService';
 
 type GitHubReleaseApiAsset = {

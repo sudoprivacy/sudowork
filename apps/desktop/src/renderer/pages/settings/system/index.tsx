@@ -8,9 +8,9 @@ import { Alert, Button, Form, Input, InputNumber, Message, Modal, Switch } from 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
-import { ipcBridge } from '@/common';
-import { ConfigStorage } from '@/common/storage';
-import { isProductImprovementEnabled } from '@/common/systemConfig';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { ConfigStorage } from '@sudowork/common/storage';
+import { isProductImprovementEnabled } from '@sudowork/common/systemConfig';
 import OptInDialog from '@/renderer/pages/settings/system/components/OptInDialog';
 import { formatTimestamp, joinFilePath } from '@/renderer/pages/conversation/grouped-history/utils/exportHelpers';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';

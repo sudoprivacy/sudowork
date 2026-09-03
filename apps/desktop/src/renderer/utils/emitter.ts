@@ -7,8 +7,8 @@
 import EventEmitter from 'eventemitter3';
 import type { DependencyList } from 'react';
 import { useEffect } from 'react';
+import type { PreviewContentType } from '@sudowork/common/types/preview';
 import type { FileOrFolderItem } from '@/renderer/types/files';
-import type { PreviewContentType } from '@/common/types/preview';
 
 interface EventTypes {
   'gemini.selected.file': [Array<string | FileOrFolderItem>];

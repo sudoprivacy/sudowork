@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { areSkillSelectionsEqual, resolveConversationAssistantId, resolveLatestConversationEnabledSkills } from '@/process/utils/conversationAssistantSkills';
 
 describe('conversationAssistantSkills', () => {

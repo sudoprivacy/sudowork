@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { AcpQuestionData } from '@sudowork/common/chatLib';
 import type { IMessageAction, IUnifiedIncomingMessage, IUnifiedMessageContent, IUnifiedOutgoingMessage, IUnifiedUser } from '../../types';
-import type { AcpQuestionData } from '../../../common/chatLib';
 
 /**
  * DingTalkAdapter - Converts between DingTalk and Unified message formats

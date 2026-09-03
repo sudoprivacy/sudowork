@@ -5,7 +5,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { app } from 'electron';
 import { promisify } from 'util';
-import { COS_RUNTIME_BASE, COS_LEGACY_HUB_BASE } from '@/shared/cos';
+import { COS_RUNTIME_BASE, COS_LEGACY_HUB_BASE } from '@sudowork/common/cos';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);

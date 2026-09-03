@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IProvider } from '@/common/storage';
+import type { IProvider } from '@sudowork/common/storage';
 
 export type ModelGroupOption = {
   id: string;

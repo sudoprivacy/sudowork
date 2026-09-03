@@ -11,9 +11,9 @@ import classNames from 'classnames';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import type { IMessageText, TMessage } from '@sudowork/common/chatLib';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { dispatchChatMessageJump } from '@/renderer/utils/chatMinimapEvents';
-import type { IMessageText, TMessage } from '@/common/chatLib';
-import { ipcBridge } from '@/common';
 
 interface ConversationTitleMinimapProps {
   title?: React.ReactNode;

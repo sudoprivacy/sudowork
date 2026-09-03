@@ -9,9 +9,9 @@ import { Button, Message, Select } from '@arco-design/web-react';
 import { PeopleSafe, Link } from '@icon-park/react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
-import type { SystemConfig, ThirdPartyAuthProvider } from '@/common/systemConfig';
-import { buildCasLoginUrl, buildCasServiceUrl, parseCasCallbackAction, resolveThirdPartyAuthConfig } from '@/common/thirdPartyAuthConfig';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { SystemConfig, ThirdPartyAuthProvider } from '@sudowork/common/systemConfig';
+import { buildCasLoginUrl, buildCasServiceUrl, parseCasCallbackAction, resolveThirdPartyAuthConfig } from '@sudowork/common/thirdPartyAuthConfig';
 import { useAuth } from '../../context/AuthContext';
 import './LoginPage.css';
 

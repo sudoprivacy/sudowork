@@ -8,8 +8,8 @@ import { Alert, Button, Image, Message, Radio, Tag, Tooltip } from '@arco-design
 import { Copy, Download, LoadingOne } from '@icon-park/react';
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { IMessageToolGroup } from '@/common/chatLib';
-import { ipcBridge } from '@/common';
+import type { IMessageToolGroup } from '@sudowork/common/chatLib';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import FileChangesPanel from '@/renderer/components/base/FileChangesPanel';
 import { useDiffPreviewHandlers } from '@/renderer/hooks/useDiffPreviewHandlers';
 import { parseDiff } from '@/renderer/utils/diffUtils';

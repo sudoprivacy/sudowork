@@ -20,11 +20,11 @@
  * triggers (startup + hub-open) never hammer the hub.
  */
 import type { ISkillHubDetail } from '@sudowork/host-bridge/ipcBridge';
+import { getSkillHubBaseUrl } from '@sudowork/common/systemConfig';
 import { skillManager } from '@process/SkillManager';
 import { installHubSkillPackage } from '@process/bridge/skillHubBridge';
 import { ProcessConfig } from '@process/initStorage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
-import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
 import { isNewerVersion } from './version';
 

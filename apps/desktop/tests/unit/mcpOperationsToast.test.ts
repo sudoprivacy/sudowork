@@ -27,7 +27,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   mcpService: { syncMcpToAgents: { invoke: vi.fn() }, removeMcpFromAgents: { invoke: vi.fn() } },
 }));
 
-vi.mock('@/common/storage', () => ({
+vi.mock('@sudowork/common/storage', () => ({
   ConfigStorage: { get: vi.fn(), set: vi.fn() },
 }));
 

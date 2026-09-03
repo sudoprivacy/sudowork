@@ -8,7 +8,7 @@ import { Button, Card, Radio, Typography } from '@arco-design/web-react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { conversation } from '@sudowork/host-bridge/ipcBridge';
-import type { IMessageAcpPermission } from '@/common/chatLib';
+import type { IMessageAcpPermission } from '@sudowork/common/chatLib';
 
 const { Text } = Typography;
 

@@ -6,7 +6,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadPresetAssistantResources, type PresetAssistantResourceDeps } from '../../src/renderer/shared/agents/presetAssistantResources';
-import { registerAssistantMetas } from '../../src/common/presets/presetResolver';
+import { registerAssistantMetas } from '@sudowork/common/presets/presetResolver';
 
 // Builtin presets are resolved through a runtime-populated registry (filesystem-driven
 // assistants). Register the preset under test so getPresetById('cowork') resolves and

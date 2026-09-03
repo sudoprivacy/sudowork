@@ -2,7 +2,7 @@ import { Button, Form, Input, InputNumber, Message, Spin, Tag } from '@arco-desi
 import { RefreshCw, Send } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import type { CreditApplication, CreditApplicationStatus } from '../types';
 

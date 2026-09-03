@@ -8,7 +8,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../../src/process/utils/workspaceSkillTargets';
 
 const createdDirs: string[] = [];

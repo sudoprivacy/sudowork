@@ -21,8 +21,8 @@ import {
   popplerRuntime as popplerRuntimeIpc,
 } from '@sudowork/host-bridge/ipcBridge';
 import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, IPythonInstallPhase, NexusInstallPhase } from '@sudowork/host-bridge/ipcBridge';
+import type { LocalKbInstallPhase } from '@sudowork/common/types/localKnowledgeBase';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import RuntimeToolRow from './components/RuntimeToolRow';
 import type { LoadState, ToolRow } from './types';

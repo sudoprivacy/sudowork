@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@/common/types/preview';
+import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@sudowork/common/types/preview';
 
 /**
  * PreviewHistoryDropdown 组件属性

@@ -20,6 +20,7 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@google/genai": "^1.16.0",
     "@office-ai/aioncli-core": "^0.30.0",
+    "@office-ai/platform": "^0.3.16",
     "docx": "^9.5.1",
     "mammoth": "^1.11.0",
     "openai": "^5.12.2",

@@ -57,12 +57,6 @@
       "@/common/adapters/index": [
         "./src/common/adapters/index"
       ],
-      "@common/chatLib": [
-        "./src/common/chatLib"
-      ],
-      "@/common/chatLib": [
-        "./src/common/chatLib"
-      ],
       "@common/eeclawMode": [
         "./src/common/eeclawMode"
       ],
@@ -80,12 +74,6 @@
       ],
       "@/common/i18n": [
         "./src/common/i18n"
-      ],
-      "@common/imageGenerationModelConfig": [
-        "./src/common/imageGenerationModelConfig"
-      ],
-      "@/common/imageGenerationModelConfig": [
-        "./src/common/imageGenerationModelConfig"
       ],
       "@common/imagePricingSource": [
         "./src/common/imagePricingSource"
@@ -171,23 +159,11 @@
       "@/common/presets/assistantPresets": [
         "./src/common/presets/assistantPresets"
       ],
-      "@common/presets/presetResolver": [
-        "./src/common/presets/presetResolver"
-      ],
-      "@/common/presets/presetResolver": [
-        "./src/common/presets/presetResolver"
-      ],
       "@common/scodeConfig": [
         "./src/common/scodeConfig"
       ],
       "@/common/scodeConfig": [
         "./src/common/scodeConfig"
-      ],
-      "@common/storage": [
-        "./src/common/storage"
-      ],
-      "@/common/storage": [
-        "./src/common/storage"
       ],
       "@common/sudoclawModelConfig": [
         "./src/common/sudoclawModelConfig"
@@ -200,24 +176,6 @@
       ],
       "@/common/sudoworkAuthLogin": [
         "./src/common/sudoworkAuthLogin"
-      ],
-      "@common/sudoworkServer": [
-        "./src/common/sudoworkServer"
-      ],
-      "@/common/sudoworkServer": [
-        "./src/common/sudoworkServer"
-      ],
-      "@common/systemConfig": [
-        "./src/common/systemConfig"
-      ],
-      "@/common/systemConfig": [
-        "./src/common/systemConfig"
-      ],
-      "@common/thirdPartyAuthConfig": [
-        "./src/common/thirdPartyAuthConfig"
-      ],
-      "@/common/thirdPartyAuthConfig": [
-        "./src/common/thirdPartyAuthConfig"
       ],
       "@common/utils/workspaceSkillSync": [
         "./src/common/utils/workspaceSkillSync"

@@ -9,8 +9,8 @@ import { Down } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
-import type { AcpBackend, AcpSessionConfigOption } from '@/types/acpTypes';
-import { ipcBridge } from '@/common';
+import type { AcpBackend, AcpSessionConfigOption } from '@sudowork/common/acpTypes';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 /**
  * Backends that currently support ACP configOptions (e.g., thought_level).

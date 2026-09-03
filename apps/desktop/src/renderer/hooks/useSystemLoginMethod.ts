@@ -5,9 +5,9 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ipcBridge } from '@/common';
-import { fetchSystemConfig, type SystemConfig } from '@/common/systemConfig';
-import { THIRD_PARTY_LOGIN_METHOD } from '@/common/thirdPartyAuthConfig';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { fetchSystemConfig, type SystemConfig } from '@sudowork/common/systemConfig';
+import { THIRD_PARTY_LOGIN_METHOD } from '@sudowork/common/thirdPartyAuthConfig';
 
 /** 0 = 手机验证码；1 = 用户名密码；2 = 三方认证登录 */
 export type LoginMethod = 0 | 1 | 2;

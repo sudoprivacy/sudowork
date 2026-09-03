@@ -1,7 +1,7 @@
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { resolveWorkspaceSkillsDir } from '@/process/utils/workspaceSkillsDir';
 
 describe('resolveWorkspaceSkillsDir', () => {

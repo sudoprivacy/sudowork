@@ -19,7 +19,7 @@
  * doesn't need to know the enhancement mode — it just binds and forgets.
  */
 
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 const CONSUMER_AUTH_KEY = 'sudowork_auth_v2';
 const ENTERPRISE_AUTH_KEY = 'eeclaw_auth_v1';

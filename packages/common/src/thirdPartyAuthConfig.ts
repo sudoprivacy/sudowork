@@ -1,4 +1,4 @@
-import type { SystemConfig, ThirdPartyAuthConfig, ThirdPartyAuthProvider } from '@/common/systemConfig';
+import type { SystemConfig, ThirdPartyAuthConfig, ThirdPartyAuthProvider } from './systemConfigTypes.js';
 
 export const THIRD_PARTY_LOGIN_METHOD = 2;
 

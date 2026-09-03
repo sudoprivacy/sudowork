@@ -7,7 +7,7 @@
 import { IconDown, IconRight } from '@arco-design/web-react/icon';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { IMessageThought } from '@/common/chatLib';
+import type { IMessageThought } from '@sudowork/common/chatLib';
 import MarkdownView from '../components/Markdown';
 
 export default function MessageThought({ message }: IMessageThoughtProps) {

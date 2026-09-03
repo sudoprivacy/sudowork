@@ -8,7 +8,7 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Tooltip } from '@arco-design/web-react';
-import type { TokenUsageData } from '@/common/storage';
+import type { TokenUsageData } from '@sudowork/common/storage';
 
 // 默认上下文限制
 import { DEFAULT_CONTEXT_LIMIT } from '@/renderer/utils/constants';

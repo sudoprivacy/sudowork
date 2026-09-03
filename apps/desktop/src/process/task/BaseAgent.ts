@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { IConfirmation } from '@sudowork/common/chatLib';
 import { ipcBridge } from '../../common';
-import type { IConfirmation } from '../../common/chatLib';
 
 type AgentType = 'acp' | 'remote-agent';
 

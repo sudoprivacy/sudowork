@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import type { IMessageCodexToolCall, CodexToolCallUpdate } from '@/common/chatLib';
+import type { IMessageCodexToolCall, CodexToolCallUpdate } from '@sudowork/common/chatLib';
 import ExecCommandDisplay from './ToolCallComponent/ExecCommandDisplay';
 import WebSearchDisplay from './ToolCallComponent/WebSearchDisplay';
 import PatchDisplay from './ToolCallComponent/PatchDisplay';

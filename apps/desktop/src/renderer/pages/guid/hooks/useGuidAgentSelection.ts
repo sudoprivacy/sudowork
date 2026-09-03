@@ -6,13 +6,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR, { mutate } from 'swr';
-import { ipcBridge } from '@/common';
-import { resolvePreferredAcpModelId } from '@/common/acp/defaultModels';
-import { getPresetById } from '@/common/presets/presetResolver';
-import { DEFAULT_CODEX_MODELS } from '@/common/codex/codexModels';
-import type { IProvider } from '@/common/storage';
-import { ConfigStorage } from '@/common/storage';
-import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@/types/acpTypes';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { resolvePreferredAcpModelId } from '@sudowork/common/acp/defaultModels';
+import { getPresetById } from '@sudowork/common/presets/presetResolver';
+import { DEFAULT_CODEX_MODELS } from '@sudowork/common/codex/codexModels';
+import type { IProvider } from '@sudowork/common/storage';
+import { ConfigStorage } from '@sudowork/common/storage';
+import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@sudowork/common/acpTypes';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@/renderer/utils/agentModes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';

@@ -5,6 +5,7 @@
  */
 
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
+import { composeMessage, transformMessage, type TMessage, type AcpQuestionData } from '@sudowork/common/chatLib';
 import { mainWarn } from '@process/utils/mainLogger';
 import WorkerManage from '@/process/WorkerManage';
 import { turnInputCoordinator, type QueuedTurn } from '@/process/task/turnInputCoordinator';
@@ -14,7 +15,6 @@ import type BaseAgent from '@/process/task/BaseAgent';
 import { queueConversationWorkspaceSkillSync } from '@/process/bridge/conversationBridge';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import { uuid } from '@common/utils';
-import { composeMessage, transformMessage, type TMessage, type AcpQuestionData } from '../../common/chatLib';
 import { channelEventBus, type IAgentMessageEvent } from './ChannelEventBus';
 
 /**

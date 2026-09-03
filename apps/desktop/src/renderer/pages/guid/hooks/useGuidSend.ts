@@ -8,12 +8,12 @@ import { Message } from '@arco-design/web-react';
 import { useCallback } from 'react';
 import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
-import { ipcBridge } from '@/common';
-import type { TProviderWithModel } from '@/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { TProviderWithModel } from '@sudowork/common/storage';
+import { isAcpRoutedPresetType, type AcpModelInfo, type PresetAgentType } from '@sudowork/common/acpTypes';
+import { getPresetByAgentId, resolveSessionMode } from '@sudowork/common/presets/presetResolver';
 import { emitter } from '@/renderer/utils/emitter';
 import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
-import { isAcpRoutedPresetType, type AcpModelInfo, type PresetAgentType } from '@/types/acpTypes';
-import { getPresetByAgentId, resolveSessionMode } from '@/common/presets/presetResolver';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useHasAvailableModel } from '@/renderer/hooks/useHasAvailableModel';
 import { useAuth } from '@/renderer/context/AuthContext';
@@ -283,7 +283,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             defaultFiles: files,
             workspace: finalWorkspace,
             customWorkspace: isCustomWorkspace,
-            backend: acpBackend as import('@/types/acpTypes').AcpBackendAll | undefined,
+            backend: acpBackend as import('@sudowork/common/acpTypes').AcpBackendAll | undefined,
             cliPath: acpAgentInfo?.cliPath,
             agentName: acpAgentInfo?.name,
             customAgentId: acpAgentInfo?.customAgentId,

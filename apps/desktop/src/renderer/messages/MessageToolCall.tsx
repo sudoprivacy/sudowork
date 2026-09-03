@@ -8,7 +8,7 @@ import { Alert } from '@arco-design/web-react';
 import { MessageSearch } from '@icon-park/react';
 import { createTwoFilesPatch } from 'diff';
 import React, { useMemo } from 'react';
-import type { IMessageToolCall } from '@/common/chatLib';
+import type { IMessageToolCall } from '@sudowork/common/chatLib';
 import FileChangesPanel from '@/renderer/components/base/FileChangesPanel';
 import { useDiffPreviewHandlers } from '@/renderer/hooks/useDiffPreviewHandlers';
 import { parseDiff } from '@/renderer/utils/diffUtils';

@@ -8,7 +8,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { Message } from '@arco-design/web-react';
 import type { TFunction } from 'i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { FileService } from '@/renderer/services/FileService';
 
 interface UseWorkspaceDragImportOptions {

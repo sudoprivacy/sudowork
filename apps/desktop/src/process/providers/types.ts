@@ -5,8 +5,8 @@
  */
 
 import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@sudowork/host-bridge/ipcBridge';
-import type { TChatConversation } from '@/common/storage';
-import type { TMessage } from '@/common/chatLib';
+import type { TChatConversation } from '@sudowork/common/storage';
+import type { TMessage } from '@sudowork/common/chatLib';
 
 /**
  * Conversation Provider interface

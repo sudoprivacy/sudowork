@@ -7,8 +7,8 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
-import { ConfigStorage } from '@/common/storage';
-import { ipcBridge } from '@/common';
+import { ConfigStorage } from '@sudowork/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { getGeminiModeList, type GeminiModeOption } from './useModeModeList';
 
 export interface GeminiGoogleAuthModelResult {

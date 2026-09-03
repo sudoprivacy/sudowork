@@ -36,11 +36,9 @@ function iconParkPlugin() {
 const DESKTOP_ONLY_COMMON = [
   'ClientFactory',
   'adapters/index',
-  'chatLib',
   'eeclawMode',
   'enterpriseDebugConfig',
   'i18n',
-  'imageGenerationModelConfig',
   'imagePricingSource',
   'index',
   'navigation/NavigationInterceptor',
@@ -55,14 +53,9 @@ const DESKTOP_ONLY_COMMON = [
   'nexus/secret-cache',
   'nexus/secret-migration',
   'presets/assistantPresets',
-  'presets/presetResolver',
   'scodeConfig',
-  'storage',
   'sudoclawModelConfig',
   'sudoworkAuthLogin',
-  'sudoworkServer',
-  'systemConfig',
-  'thirdPartyAuthConfig',
   'utils/workspaceSkillSync',
 ];
 // Split directories whose barrel index stays in the desktop tree (siblings moved).

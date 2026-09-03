@@ -5,6 +5,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { fetchSystemConfig, isProductImprovementEnabled, type SystemConfig } from '@sudowork/common/systemConfig';
 import AppLoader from '@renderer/components/AppLoader';
 import InitLoading from '@renderer/components/InitLoading';
 import OptInDialog from '@/renderer/pages/settings/system/components/OptInDialog';
@@ -15,8 +17,6 @@ import { useAppMode, isModeResolved } from '@renderer/hooks/useAppMode';
 import Layout from '@renderer/layouts/layout';
 import Router from '@renderer/router';
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary';
-import { ipcBridge } from '@/common';
-import { fetchSystemConfig, isProductImprovementEnabled, type SystemConfig } from '@/common/systemConfig';
 import { dropSlashCommandCache } from '@renderer/hooks/useSlashCommands';
 
 /**

@@ -7,7 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import { database as databaseBridge } from '@sudowork/host-bridge/ipcBridge';
-import type { TMessage, AcpQuestionData } from '@/common/chatLib';
+import type { TMessage, AcpQuestionData } from '@sudowork/common/chatLib';
 import { parseNexusFilesMarker } from '@/common/nexusFiles';
 import { stripGeneratedFilesMarker } from '@/common/generatedFiles';
 import { getDatabase } from '@/process/database';

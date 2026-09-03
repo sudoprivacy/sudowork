@@ -7,8 +7,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useAllCronJobs } from '@/renderer/pages/cron/hooks/useCronJobs';
 import { getRendererSessionMode } from '@/renderer/pages/guid/hooks/useGuidAgentSelection';

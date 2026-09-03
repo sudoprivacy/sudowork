@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { TMessage } from '@/common/chatLib';
+import type { TMessage } from '@sudowork/common/chatLib';
 import { buildMessageIndex, composeMessageWithIndex } from '@/renderer/messages/hooks';
 
 type ThoughtMessage = Extract<TMessage, { type: 'thought' }>;

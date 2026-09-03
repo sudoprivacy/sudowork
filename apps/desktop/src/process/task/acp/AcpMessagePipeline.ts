@@ -5,7 +5,7 @@
  */
 
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
-import type { TMessage } from '@/common/chatLib';
+import type { TMessage } from '@sudowork/common/chatLib';
 import type { AcpBackend } from '@/types/acpTypes';
 import { addOrUpdateMessage } from '@process/message';
 import { stripThinkTags } from '@process/task/ThinkTagDetector';

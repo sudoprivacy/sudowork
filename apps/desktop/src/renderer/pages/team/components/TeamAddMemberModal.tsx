@@ -9,7 +9,7 @@ import { Search } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ITeamAssistantCandidate } from '@sudowork/host-bridge/ipcBridge';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { unwrapTeamResult } from '../utils';
 import TeamAssistantCandidateCard, { useFilteredCandidates } from './TeamAssistantCandidateCard';
 

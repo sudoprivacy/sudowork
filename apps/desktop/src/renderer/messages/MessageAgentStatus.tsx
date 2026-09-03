@@ -7,8 +7,8 @@
 import { Badge, Typography } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
-import type { IMessageAgentStatus } from '@/common/chatLib';
+import { ACP_BACKENDS_ALL } from '@sudowork/common/acpTypes';
+import type { IMessageAgentStatus } from '@sudowork/common/chatLib';
 
 const { Text } = Typography;
 

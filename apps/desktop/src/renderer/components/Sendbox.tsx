@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { IconPaste } from '@arco-design/web-react/icon';
 import type { IInstalledSkillInfo } from '@sudowork/host-bridge/ipcBridge';
 import { skillHub } from '@sudowork/host-bridge/ipcBridge';
+import type { SlashCommandItem } from '@sudowork/common/slash/types';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/SlashCommandMenu';
 import { useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
@@ -18,7 +19,6 @@ import SkillSelectorPopover from '@/renderer/pages/guid/components/SkillSelector
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, replaceAtQuery } from '@/renderer/pages/guid/hooks/useSkillSelectorController';
 import type { WorkspaceFileItem } from '@/renderer/hooks/useWorkspaceFiles';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
-import type { SlashCommandItem } from '@/common/slash/types';
 import ContextMenu, { type ContextMenuItem } from '@/renderer/components/ContextMenu';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import { isElectronDesktop } from '@/renderer/utils/platform';

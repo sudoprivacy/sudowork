@@ -7,7 +7,7 @@
 import { Card, Tag } from '@arco-design/web-react';
 import { createTwoFilesPatch } from 'diff';
 import React, { useMemo } from 'react';
-import type { IMessageAcpToolCall } from '@/common/chatLib';
+import type { IMessageAcpToolCall } from '@sudowork/common/chatLib';
 import FileChangesPanel from '@/renderer/components/base/FileChangesPanel';
 import { useDiffPreviewHandlers } from '@/renderer/hooks/useDiffPreviewHandlers';
 import { parseDiff } from '@/renderer/utils/diffUtils';

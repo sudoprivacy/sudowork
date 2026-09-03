@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { TChatConversation } from '@sudowork/common/storage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
-import type { TChatConversation } from '@/common/storage';
 import { getChannelManager } from '../core/ChannelManager';
 import { channelEventBus } from './ChannelEventBus';
 

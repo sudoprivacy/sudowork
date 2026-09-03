@@ -5,16 +5,16 @@
  */
 
 import { app } from 'electron';
-import { safeExec } from '@process/utils/safeExec';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { IMcpServer } from '@sudowork/common/storage';
+import type { McpSource } from '@sudowork/common/mcpTypes';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
 import { getEnhancedEnv, resolveNpxPath } from '@/process/utils/shellEnv';
-import type { IMcpServer } from '@/common/storage';
 import { JSONRPC_VERSION } from '@/types/acpTypes';
-import type { McpSource } from '@sudowork/common/mcpTypes';
+import { safeExec } from '@process/utils/safeExec';
 
 // McpSource (a pure ACP-backend union) lives in @sudowork/common. Re-exported here
 // so `./McpProtocol` importers (McpService, the IPC bridge) resolve it.

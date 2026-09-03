@@ -9,10 +9,10 @@ import { IconCheckCircle, IconCloseCircle, IconCopy, IconDelete, IconDown, IconR
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { acpConversation, channel } from '@sudowork/host-bridge/ipcBridge';
-import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/channels/types';
-import { ConfigStorage } from '@/common/storage';
+import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@sudowork/common/channelTypes';
+import { ConfigStorage } from '@sudowork/common/storage';
+import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@sudowork/common/acpTypes';
 import { openExternalUrl } from '@/renderer/utils/platform';
-import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../types';
 import { DINGTALK_DEV_DOCS_URL } from '../utils';

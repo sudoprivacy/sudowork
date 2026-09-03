@@ -15,7 +15,7 @@
  * - Renderer: after assistantHub.getInstalledAssistants via registerAssistantMetas()
  */
 
-import type { IAssistantMeta } from '@/process/constants/assistantStorage';
+import type { IAssistantMeta } from '../assistantTypes.js';
 
 // Runtime-populated registry — replaces the old ASSISTANT_PRESETS constant
 const presetRegistry = new Map<string, IAssistantMeta>();

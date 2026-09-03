@@ -14,8 +14,8 @@ vi.mock('@/common', () => ({
   ipcBridge: {},
 }));
 
-vi.mock('@/common/storage', async () => {
-  const actual = await vi.importActual<typeof import('../../src/common/storage')>('../../src/common/storage');
+vi.mock('@sudowork/common/storage', async () => {
+  const actual = await vi.importActual<typeof import('@sudowork/common/storage')>('@sudowork/common/storage');
   return {
     ...actual,
     ConfigStorage: {

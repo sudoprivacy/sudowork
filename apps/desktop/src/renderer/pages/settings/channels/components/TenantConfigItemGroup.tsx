@@ -7,9 +7,9 @@
 import { Button, Collapse, Input, Message, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ConfigStorage } from '@sudowork/common/storage';
+import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
-import { ConfigStorage } from '@/common/storage';
-import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
 import type { TenantConfigItem, TenantConfigValues } from '../types';
 import { resolveConfigItemIconUrl, shouldBlockEnableUntilConfigured } from '../utils';
 import PreferenceRow from './PreferenceRow';

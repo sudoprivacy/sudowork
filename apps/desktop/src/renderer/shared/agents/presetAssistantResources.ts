@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { getPresetById } from '@/common/presets/presetResolver';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { getPresetById } from '@sudowork/common/presets/presetResolver';
 
 export type PresetAssistantResourceDeps = {
   readAssistantRule: (args: { assistantId: string; locale: string }) => Promise<string>;

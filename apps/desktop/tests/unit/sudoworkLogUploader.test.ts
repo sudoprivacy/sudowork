@@ -67,7 +67,7 @@ describe('Sudowork Log personal error upload sink', () => {
         },
       },
     }));
-    vi.doMock('@/common/systemConfig', () => ({
+    vi.doMock('@sudowork/common/systemConfig', () => ({
       getLogReportBaseUrl: vi.fn(() => 'https://sudolog.sudoprivacy.com'),
       isLogReportEnabled: vi.fn(() => true),
     }));
@@ -89,7 +89,7 @@ describe('Sudowork Log personal error upload sink', () => {
     uploader.resetSudoworkLogUploaderForTest();
     consoleInfoSpy.mockRestore();
     vi.unstubAllGlobals();
-    vi.unmock('@/common/systemConfig');
+    vi.unmock('@sudowork/common/systemConfig');
     vi.unmock('@/process/credentialsCache');
     delete process.env.SUDOWORK_LOG_BATCH_URL;
     delete process.env.SUDOWORK_LOG_BASE_URL;

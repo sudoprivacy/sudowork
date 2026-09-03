@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 /**
  * Deep link event payload from main process

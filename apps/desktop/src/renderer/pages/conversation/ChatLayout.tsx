@@ -11,8 +11,9 @@ import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import useSWR from 'swr';
 import classNames from 'classnames';
+import { STORAGE_KEYS } from '@sudowork/common/storageKeys';
+import { ACP_BACKENDS_ALL } from '@sudowork/common/acpTypes';
 import { fetchAssistantsAsConfigs } from '@/renderer/shared/agents/assistantAdapter';
-import { STORAGE_KEYS } from '@/common/storageKeys';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import FlexFullContainer from '@/renderer/components/FlexFullContainer';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
@@ -21,7 +22,6 @@ import ConversationTabs from '@/renderer/pages/conversation/ConversationTabs';
 import { PreviewPanel, usePreviewContext } from '@/renderer/pages/conversation/preview';
 import ConversationTitleMinimap from '@/renderer/pages/conversation/components/ConversationTitleMinimap';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@/renderer/utils/workspaceEvents';
-import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 
 const MIN_CHAT_RATIO = 25;
 const MIN_WORKSPACE_RATIO = 12;

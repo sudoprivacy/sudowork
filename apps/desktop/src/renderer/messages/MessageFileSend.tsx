@@ -6,8 +6,8 @@
 
 import { Picture } from '@icon-park/react';
 import React, { useCallback } from 'react';
-import type { IMessageFileSend } from '@/common/chatLib';
-import type { PreviewContentType } from '@/common/types/preview';
+import type { IMessageFileSend } from '@sudowork/common/chatLib';
+import type { PreviewContentType } from '@sudowork/common/types/preview';
 import { usePreviewLauncher } from '@/renderer/hooks/usePreviewLauncher';
 import { resolveFileIcon } from '@/renderer/utils/fileIcon';
 

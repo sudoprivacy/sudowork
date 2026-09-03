@@ -7,11 +7,11 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message } from '@arco-design/web-react';
-import { ipcBridge } from '@/common';
-import { ConfigStorage } from '@/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { ConfigStorage } from '@sudowork/common/storage';
+import { normalizeSudoworkServerUrl } from '@sudowork/common/sudoworkServer';
+import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
 import { setAppMode } from '@/common/eeclawMode';
-import { normalizeSudoworkServerUrl } from '@/common/sudoworkServer';
-import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '@/renderer/components/WindowControls';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';

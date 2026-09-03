@@ -6,10 +6,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { secret, authProxy } from '@sudowork/host-bridge/ipcBridge';
-import { buildNamespace } from '@/common/nexus/namespace';
-import { MossSecretClient } from '@/common/nexus/moss-secret-client';
-import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
-import { ConfigStorage } from '@/common/storage';
+import { buildNamespace } from '@sudowork/common/nexus/namespace';
+import { MossSecretClient } from '@sudowork/common/nexus/moss-secret-client';
+import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
+import { ConfigStorage } from '@sudowork/common/storage';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useAuth } from '@/renderer/context/AuthContext';
 import type { TenantConfigEntry, TenantConfigItem, TenantConfigValues } from '../types';

@@ -5,7 +5,7 @@
  */
 
 import { useCallback } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 interface UseOpenFileSelectorOptions {
   onFilesSelected: (files: string[]) => void;

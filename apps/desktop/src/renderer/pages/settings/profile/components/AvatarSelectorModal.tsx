@@ -9,7 +9,7 @@ import { Button, Divider, Input, Message, Modal } from '@arco-design/web-react';
 import { IconCheck } from '@arco-design/web-react/icon';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import profileBoy from '@/renderer/assets/profile_boy.jpg';
 import profileGirl from '@/renderer/assets/profile_girl.jpg';
 import avatarLoadingSvg from '@/renderer/assets/avatar_loading.svg';

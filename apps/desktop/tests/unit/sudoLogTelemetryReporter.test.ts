@@ -46,7 +46,7 @@ describe('SudoLogTelemetryReporter', () => {
         }),
       },
     }));
-    vi.doMock('@/common/systemConfig', () => ({
+    vi.doMock('@sudowork/common/systemConfig', () => ({
       getLogReportBaseUrl: vi.fn(() => 'https://sudolog.sudoprivacy.com'),
       isLogReportEnabled: vi.fn(() => true),
     }));
@@ -70,7 +70,7 @@ describe('SudoLogTelemetryReporter', () => {
     vi.unmock('electron');
     vi.unmock('@/common/buildInfo');
     vi.unmock('@/process/initStorage');
-    vi.unmock('@/common/systemConfig');
+    vi.unmock('@sudowork/common/systemConfig');
     vi.unmock('@/process/credentialsCache');
     delete process.env.SUDOWORK_LOG_BATCH_URL;
     rmSync(userDataDir, { recursive: true, force: true });

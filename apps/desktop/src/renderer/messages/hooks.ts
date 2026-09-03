@@ -5,9 +5,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ipcBridge } from '@/common';
-import type { TMessage } from '@/common/chatLib';
-import { composeMessage } from '@/common/chatLib';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { TMessage } from '@sudowork/common/chatLib';
+import { composeMessage } from '@sudowork/common/chatLib';
 import { createContext } from '../utils/createContext';
 
 const [useMessageList, MessageListProvider, useUpdateMessageList] = createContext([] as TMessage[]);

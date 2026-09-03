@@ -12,7 +12,7 @@
 import { Check, Down, Robot } from '@icon-park/react';
 import { Popover } from '@arco-design/web-react';
 import React, { useMemo, useState } from 'react';
-import { normalizePresetAgentType, type AcpBackend } from '@/types/acpTypes';
+import { normalizePresetAgentType, type AcpBackend } from '@sudowork/common/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import type { AvailableAgent } from '../types';

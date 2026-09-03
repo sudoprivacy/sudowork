@@ -5,7 +5,7 @@
  */
 
 import type { ICliStatus, ILibreOfficeInstallPhase, IPopplerInstallPhase, NexusInstallPhase } from '@sudowork/host-bridge/ipcBridge';
-import type { LocalKbInstallPhase } from '@/common/types/localKnowledgeBase';
+import type { LocalKbInstallPhase } from '@sudowork/common/types/localKnowledgeBase';
 
 export type LoadState = 'idle' | 'loading' | 'installing';
 

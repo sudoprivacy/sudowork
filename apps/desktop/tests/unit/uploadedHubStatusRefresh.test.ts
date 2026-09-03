@@ -124,7 +124,7 @@ vi.mock('@/process/constants/enterpriseStorage', () => ({
   ENTERPRISE_SKILL_SUBDIRS: { hub: 'hub', custom: 'custom', tenant: 'tenant', system: 'system' },
   ENTERPRISE_ASSISTANT_SUBDIRS: { hub: 'hub', custom: 'custom', tenant: 'tenant', system: 'system' },
 }));
-vi.mock('@/common/systemConfig', () => ({
+vi.mock('@sudowork/common/systemConfig', () => ({
   getSkillHubBaseUrl: () => 'https://hub.example',
 }));
 vi.mock('@/process/credentialsCache', () => ({

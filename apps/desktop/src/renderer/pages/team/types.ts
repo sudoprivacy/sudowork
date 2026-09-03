@@ -5,7 +5,7 @@
  */
 
 import type { ITeamChildTurnEvent, ITeamRunAck, ITeamRunEvent, ITeamRunState, ITeamSlotWork, ITeamWorkspaceKind } from '@sudowork/host-bridge/ipcBridge';
-import type { AcpBackendAll } from '@/types/acpTypes';
+import type { AcpBackendAll } from '@sudowork/common/acpTypes';
 
 /** Frontend team member role (附录 II.11; backend uses 'lead', the mapper translates). */
 export type TeammateRole = 'leader' | 'teammate';

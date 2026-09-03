@@ -5,7 +5,7 @@
  */
 
 import type { ReactNode } from 'react';
-import type { IProvider, TProviderWithModel } from '@/common/storage';
+import type { IProvider, TProviderWithModel } from '@sudowork/common/storage';
 import type { GeminiModeOption } from '@/renderer/hooks/useModeModeList';
 
 export type ChannelStatus = 'active' | 'coming_soon';

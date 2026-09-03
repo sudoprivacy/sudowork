@@ -5,7 +5,7 @@
  */
 
 import useSWR from 'swr';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 export interface GeminiModeOption {
   label: string;

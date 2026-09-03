@@ -17,7 +17,7 @@
  *  - 401: server returns { error: "Unauthorized" } (no success field) — handled.
  */
 
-import { ConfigStorage } from '@/common/storage';
+import { ConfigStorage } from '@sudowork/common/storage';
 import type { EnterpriseMcpApiError } from '../types';
 
 export type TokenProvider = (forceRefresh?: boolean) => Promise<string | null>;

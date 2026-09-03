@@ -10,11 +10,11 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync
 import { app } from 'electron';
 import path from 'path';
 import os from 'os';
-import type { IMcpServer } from '@/common/storage';
-import { convertToMcporterConfig, type McporterConfig } from './mcporterConfig';
+import type { IMcpServer } from '@sudowork/common/storage';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { safeExec } from '@process/utils/safeExec';
 import { getNodeBinaryPath, ensureNodeInstalled, isNodeInstalled } from '@process/services/claudeCli/NodeRuntimeService';
+import { convertToMcporterConfig, type McporterConfig } from './mcporterConfig';
 
 /**
  * mcporter daemon 状态

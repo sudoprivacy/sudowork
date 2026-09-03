@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IMcpServer } from '@/common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 
 /**
  * mcporter 配置格式

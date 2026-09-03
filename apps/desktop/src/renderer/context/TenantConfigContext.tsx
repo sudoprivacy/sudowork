@@ -5,11 +5,11 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ipcBridge } from '@/common';
-import { getSudoworkServerBaseUrl } from '@/common/sudoworkServer';
-import { ConfigStorage } from '@/common/storage';
-import type { TenantConfig, TenantConfigResponse } from '@/common/types/tenantConfig';
-import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
+import { ConfigStorage } from '@sudowork/common/storage';
+import type { TenantConfig, TenantConfigResponse } from '@sudowork/common/types/tenantConfig';
+import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useAuth } from './AuthContext';
 

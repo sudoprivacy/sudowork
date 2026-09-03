@@ -7,8 +7,8 @@
 import { FileCabinet } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
-import type { GeneratedFileEntry } from '@/common/generatedFiles';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { GeneratedFileEntry } from '@sudowork/common/generatedFiles';
 import GeneratedFileCards from '@/renderer/messages/GeneratedFileCard';
 
 interface DeliverablesPanelProps {

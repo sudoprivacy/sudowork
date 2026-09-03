@@ -8,8 +8,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, Empty, Form, Input, List, Message, Modal, Progress, Space, Spin, Tag, Typography } from '@arco-design/web-react';
 import { BookOpen, Edit3, FileText, Folder, Play, Plus, RefreshCw, Search, Settings, Trash2 } from 'lucide-react';
-import { ipcBridge } from '@/common';
-import type { ILocalKbBuildJob, ILocalKbDependencyStatus, ILocalKbDocument, ILocalKbInstallProgress, ILocalKbSearchHit, ILocalKbSpace } from '@/common/types/localKnowledgeBase';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { ILocalKbBuildJob, ILocalKbDependencyStatus, ILocalKbDocument, ILocalKbInstallProgress, ILocalKbSearchHit, ILocalKbSpace } from '@sudowork/common/types/localKnowledgeBase';
 
 const DOCUMENT_PAGE_SIZE = 6;
 const LOCAL_KB_PANEL_CARD_CLASS = 'flex h-[420px] min-h-0 min-w-0 flex-col overflow-hidden [&_.arco-card-body]:h-0 [&_.arco-card-body]:flex-1';

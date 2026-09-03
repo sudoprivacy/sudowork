@@ -24,10 +24,10 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { getDatabase } from '@process/database';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
 import WorkerManage from '../WorkerManage';
 import { closeTerminalsByConversation } from '../bridge/terminalBridge';
 import { closeBrowserTabsByConversation } from '../bridge/browserPanelBridge';

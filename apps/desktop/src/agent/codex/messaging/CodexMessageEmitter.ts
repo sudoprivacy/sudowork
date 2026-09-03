@@ -5,7 +5,7 @@
  */
 
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
-import type { TMessage, IConfirmation } from '@/common/chatLib';
+import type { TMessage, IConfirmation } from '@sudowork/common/chatLib';
 
 /**
  * 消息发送回调接口

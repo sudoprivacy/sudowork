@@ -6,7 +6,7 @@
 
 import { useEffect } from 'react';
 import useSWR from 'swr';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { fromBackendTeam } from '../mapper';
 import type { TTeam } from '../types';
 import { unwrapTeamResult } from '../utils';

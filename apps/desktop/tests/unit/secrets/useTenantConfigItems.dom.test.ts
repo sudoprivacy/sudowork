@@ -43,7 +43,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
-vi.mock('@/common/storage', () => ({
+vi.mock('@sudowork/common/storage', () => ({
   ConfigStorage: {
     get: (...args: unknown[]) => mockConfigStorageGet(...args),
     set: (...args: unknown[]) => mockConfigStorageSet(...args),

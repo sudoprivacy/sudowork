@@ -9,9 +9,9 @@ import { IconCheckCircle, IconCloseCircle, IconCopy, IconDelete, IconDown, IconR
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { acpConversation, channel } from '@sudowork/host-bridge/ipcBridge';
-import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/channels/types';
-import { ConfigStorage } from '@/common/storage';
-import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@/types/acpTypes';
+import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@sudowork/common/channelTypes';
+import { ConfigStorage } from '@sudowork/common/storage';
+import { CHANNEL_DEFAULT_AGENT_BACKEND, type AcpBackendAll } from '@sudowork/common/acpTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import type { GeminiModelSelection } from '../types';
 import GeminiModelSelector from './GeminiModelSelector';

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TChatConversation } from '@/common/storage';
-import { SKILL_SUBDIRS } from '@/process/constants/skillStorage';
-import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import fs from 'fs/promises';
 import path from 'path';
+import type { TChatConversation } from '@sudowork/common/storage';
+import { SKILL_SUBDIRS } from '@/process/constants/skillStorage';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { normalizeSkillNames } from './conversationAssistantSkills';
 
 const SKILL_HUB_META_FILE = '_sudowork_meta.json';

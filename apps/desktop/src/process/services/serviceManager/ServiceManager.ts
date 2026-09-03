@@ -7,8 +7,8 @@
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
+import { getSkillHubBaseUrl } from '@sudowork/common/systemConfig';
 import { mainLog, mainError, mainWarn } from '@process/utils/mainLogger';
-import { getSkillHubBaseUrl } from '@/common/systemConfig';
 import { getSkillhubToken } from '@/process/credentialsCache';
 import { initStatusManager } from '../initStatus';
 import { isSudoclawHealthPayload, SUDOCLAW_HEALTH_TIMEOUT_MS, type SudoclawHealthPayload } from '../sudoclaw/sudoclawHealth';
@@ -640,7 +640,7 @@ export class ServiceManager {
 
   private async syncImageModelToSudoclaw(sudoclawConfigPath: string): Promise<void> {
     try {
-      const { DEFAULT_IMAGE_PARSING_MODEL } = await import('@/common/storage');
+      const { DEFAULT_IMAGE_PARSING_MODEL } = await import('@sudowork/common/storage');
 
       const fs = await import('fs');
       if (!fs.existsSync(sudoclawConfigPath)) return;

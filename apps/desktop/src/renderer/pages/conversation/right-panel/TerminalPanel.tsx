@@ -10,7 +10,7 @@ import { Add, Close } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Terminal } from 'xterm';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import 'xterm/css/xterm.css';
 
 type TerminalTab = {

@@ -15,8 +15,8 @@
  */
 
 import { systemConfig } from '@sudowork/host-bridge/ipcBridge';
+import { decryptCredentials, setSystemConfigCache } from '@sudowork/common/systemConfig';
 import { mainError } from '@process/utils/mainLogger';
-import { decryptCredentials, setSystemConfigCache } from '@/common/systemConfig';
 import { setCredentialsCache } from '@/process/credentialsCache';
 import { flushCrashReporter } from '@/process/telemetry/CrashReporter';
 import { reinitTelemetryEncryptor } from '@/process/telemetry/TelemetryEncryptor';

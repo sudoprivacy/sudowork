@@ -11,9 +11,9 @@
  * This adapter bridges the new IPC data source to the existing renderer types.
  */
 
-import { ipcBridge } from '@/common';
-import type { IAssistantInfo } from '@/process/AssistantManager';
-import type { AcpBackendConfig } from '@/types/acpTypes';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { IAssistantInfo } from '@sudowork/common/assistantTypes';
+import type { AcpBackendConfig } from '@sudowork/common/acpTypes';
 
 /** Convert a single IAssistantInfo to AcpBackendConfig for renderer consumption. */
 export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {

@@ -8,7 +8,7 @@ import { Attention } from '@icon-park/react';
 import { theme } from '@office-ai/platform';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { bodyKey, ctaKey, formatBytes, showsBytes, titleKey, toRuntimeErrorClass, type RuntimeErrorClass } from '@/common/runtime-errors';
+import { bodyKey, ctaKey, formatBytes, showsBytes, titleKey, toRuntimeErrorClass, type RuntimeErrorClass } from '@sudowork/common/runtime-errors';
 
 export default function RuntimeErrorBanner({ errorClass, errorBytes, fallbackContent, onCtaClick }: IRuntimeErrorBannerProps) {
   const { t } = useTranslation();

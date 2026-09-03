@@ -7,7 +7,7 @@
 import { Image } from '@arco-design/web-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 interface ImagePreviewProps {
   filePath?: string;

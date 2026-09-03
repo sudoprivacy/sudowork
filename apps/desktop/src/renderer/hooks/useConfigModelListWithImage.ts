@@ -6,9 +6,9 @@
 
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { DEFAULT_IMAGE_GENERATION_MODEL } from '@/common/storage';
+import { DEFAULT_IMAGE_GENERATION_MODEL } from '@sudowork/common/storage';
+import { isSudorouterBaseUrl } from '@sudowork/common/systemConfig';
 import { ipcBridge } from '../../common';
-import { isSudorouterBaseUrl } from '@/common/systemConfig';
 
 const useConfigModelListWithImage = () => {
   const { data } = useSWR('configModelListWithImage', () => {

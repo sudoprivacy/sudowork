@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Cable } from 'lucide-react';
-import { ConfigStorage } from '@/common/storage';
+import { ConfigStorage } from '@sudowork/common/storage';
 
 interface McpIconProps {
   icon: string | null | undefined;

@@ -17,7 +17,7 @@
  * on the next call without any reload/relaunch.
  */
 
-import { ConfigStorage } from '@/common/storage';
+import { ConfigStorage } from './storage.js';
 
 // Vite `define` injects this as a string literal at build time.
 // Empty string when the env var BUILD_SERVER_BASE_URL was not set during build.

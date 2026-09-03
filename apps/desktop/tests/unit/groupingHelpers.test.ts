@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import type { TChatConversation } from '@/common/storage';
+import type { TChatConversation } from '@sudowork/common/storage';
 import { groupConversationsByTimelineAndWorkspace } from '@/renderer/pages/conversation/grouped-history/utils/groupingHelpers';
 
 vi.stubGlobal('localStorage', {

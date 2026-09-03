@@ -31,11 +31,9 @@ vi.mock('@arco-design/web-react', async () => {
   };
 });
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    team: {
-      listAssistants: { invoke: (...args: unknown[]) => mocks.listAssistants(...args) },
-    },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  team: {
+    listAssistants: { invoke: (...args: unknown[]) => mocks.listAssistants(...args) },
   },
 }));
 

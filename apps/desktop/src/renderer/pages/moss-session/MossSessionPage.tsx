@@ -9,13 +9,13 @@ import { SendOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
-import { ipcBridge } from '@/common';
-import { uuid } from '@/common/utils';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { uuid } from '@sudowork/common/utils';
+import type { TMessage } from '@sudowork/common/chatLib';
 import { useAddEventListener } from '@/renderer/utils/emitter';
 import MessageList from '@/renderer/messages/MessageList';
 import { MessageListProvider, useUpdateMessageList } from '@/renderer/messages/hooks';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
-import type { TMessage } from '@/common/chatLib';
 import HOC from '@/renderer/utils/HOC';
 
 /**

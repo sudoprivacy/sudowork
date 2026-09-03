@@ -14,6 +14,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { ScodeConfig } from '@sudowork/host-bridge/ipcBridge';
+import { getSudorouterBaseUrl } from '@sudowork/common/systemConfig';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import { syncUserKeyFromScodeConfig } from '@process/services/authProxy/userKeySync';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
@@ -24,7 +25,6 @@ import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerati
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 import { extractImageModelsFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, normalizeScodeModelApiTypesInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
-import { getSudorouterBaseUrl } from '@/common/systemConfig';
 
 const TAG = 'ScodeBridge';
 const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
@@ -140,8 +140,8 @@ export async function fetchSpecificPricingItems(): Promise<SpecificPricingItem[]
 export async function resolveImageModelForMainSync(): Promise<{ modelId: string | null }> {
   const { ProcessConfig } = await import('@process/initStorage');
   const { fetchSpecificImagePricingItems } = await import('@/common/imagePricingSource');
-  const { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } = await import('@/common/imageGenerationModelConfig');
-  const { getSystemConfigCache } = await import('@/common/systemConfig');
+  const { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } = await import('@sudowork/common/imageGenerationModelConfig');
+  const { getSystemConfigCache } = await import('@sudowork/common/systemConfig');
 
   // 冷启动竞态修复：syncImageModelOnStartup 可能在 ensureMainSystemConfig（填充 systemConfigCache）
   // 之前触发，此时 getSudorouterBaseUrl() 会 fallback 到 build 硬编码而非服务器 dispatch 的真实

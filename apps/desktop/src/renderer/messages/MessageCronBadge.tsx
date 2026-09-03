@@ -7,7 +7,7 @@
 import { AlarmClock } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CronMessageMeta } from '@/common/chatLib';
+import type { CronMessageMeta } from '@sudowork/common/chatLib';
 
 type MessageCronBadgeProps = {
   meta: CronMessageMeta;

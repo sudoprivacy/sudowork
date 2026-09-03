@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import { useTenantConfig } from '@/renderer/context/TenantConfigContext';
 

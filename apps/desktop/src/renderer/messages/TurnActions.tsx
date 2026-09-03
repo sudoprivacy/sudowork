@@ -8,10 +8,10 @@ import { Alert, Message, Tooltip } from '@arco-design/web-react';
 import { Copy, FileWord, ShareOne } from '@icon-park/react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TurnTokenUsage } from '@/common/chatLib';
-import { costToUsagePoints, formatUsagePoints, resolveUsagePoints } from '@/common/tokenUsage';
+import type { TurnTokenUsage } from '@sudowork/common/chatLib';
+import { costToUsagePoints, formatUsagePoints, resolveUsagePoints } from '@sudowork/common/tokenUsage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { copyText } from '@/renderer/utils/clipboard';
-import { ipcBridge } from '@/common';
 import { emitter } from '@/renderer/utils/emitter';
 import { showShareLoading, updateShareSuccess, updateShareError } from '@/renderer/utils/shareNotify';
 

@@ -5,8 +5,8 @@
  */
 
 import { database as databaseBridge } from '@sudowork/host-bridge/ipcBridge';
+import type { TProviderWithModel } from '@sudowork/common/storage';
 import { acpDetector } from '@/agent/acp/AcpDetector';
-import type { TProviderWithModel } from '@/common/storage';
 import { ProcessConfig } from '@/process/initStorage';
 import { ConversationService } from '@/process/services/conversationService';
 import WorkerManage from '@/process/WorkerManage';

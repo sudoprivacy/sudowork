@@ -10,8 +10,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
+import { costToUsagePoints, formatUsagePoints } from '@sudowork/common/tokenUsage';
 import { useModelUsageStats } from '@/renderer/hooks/useModelUsageStats';
-import { costToUsagePoints, formatUsagePoints } from '@/common/tokenUsage';
 import type { IModelUsageChartData, IEChartsTooltipParam } from '../types';
 
 const { RangePicker } = DatePicker;

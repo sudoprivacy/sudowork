@@ -46,8 +46,8 @@ vi.mock('react-i18next', () => ({
 }));
 
 import MessageAcpQuestion from '@/renderer/messages/acp/MessageAcpQuestion';
-import type { IMessageAcpQuestion } from '@/common/chatLib';
-import { transformMessage } from '@/common/chatLib';
+import type { IMessageAcpQuestion } from '@sudowork/common/chatLib';
+import { transformMessage } from '@sudowork/common/chatLib';
 
 describe('MessageAcpQuestion', () => {
   it('should preserve answer hydration after transformMessage recovery', () => {

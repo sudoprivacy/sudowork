@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildCasLoginUrl, buildCasLogoutServiceUrl, buildCasLogoutUrl, buildCasServiceUrl, COMAC_CAS_PROVIDER_ID, DEFAULT_COMAC_CAS_PROVIDER, parseCasCallbackAction, resolveThirdPartyAuthConfig } from '@/common/thirdPartyAuthConfig';
-import type { SystemConfig } from '@/common/systemConfig';
+import { buildCasLoginUrl, buildCasLogoutServiceUrl, buildCasLogoutUrl, buildCasServiceUrl, COMAC_CAS_PROVIDER_ID, DEFAULT_COMAC_CAS_PROVIDER, parseCasCallbackAction, resolveThirdPartyAuthConfig } from '@sudowork/common/thirdPartyAuthConfig';
+import type { SystemConfig } from '@sudowork/common/systemConfig';
 
 describe('thirdPartyAuthConfig', () => {
   it('returns null when third-party login method is not enabled', () => {

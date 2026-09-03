@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { McpOperationResult } from '../McpProtocol';
-import { AbstractMcpAgent } from '../McpProtocol';
-import type { IMcpServer } from '@/common/storage';
-import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import fs from 'fs';
 import path from 'path';
+import type { IMcpServer } from '@sudowork/common/storage';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
+import { AbstractMcpAgent } from '../McpProtocol';
+import type { McpOperationResult } from '../McpProtocol';
 
 const TAG = 'ScodeMcpAgent';
 // scode's settings.json — single source of truth in scodePaths.ts; re-exported for existing importers.

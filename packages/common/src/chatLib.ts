@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
-import type { IFileSendData, TMessage } from '@sudowork/common/chatTypes';
-import { uuid } from '@common/utils';
+import type { IFileSendData, IResponseMessage, TMessage } from './chatTypes.js';
+import { uuid } from './utils.js';
 
 // The pure message/confirmation type surface (TMessage and its whole union tree,
 // IConfirmation, AcpQuestionData, CodexToolCallUpdate, …) lives in @sudowork/common

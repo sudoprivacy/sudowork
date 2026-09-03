@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { TMessage } from '@sudowork/common/chatLib';
 import { uuid } from '@/common/utils';
-import type { TMessage } from '@/common/chatLib';
 import type { CodexEventMsg } from '@/common/codex/types';
 import type { ICodexMessageEmitter } from '@/agent/codex/messaging/CodexMessageEmitter';
 import { translateLLMError } from '@process/utils/llmErrorTranslation';

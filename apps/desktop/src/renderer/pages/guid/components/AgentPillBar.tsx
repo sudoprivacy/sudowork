@@ -6,10 +6,10 @@
 
 import { Robot } from '@icon-park/react';
 import React from 'react';
+import { getAgentPriority } from '@sudowork/common/acpTypes';
+import type { AcpBackendAll } from '@sudowork/common/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { getAgentPriority } from '@/types/acpTypes';
-import type { AcpBackendAll } from '@/types/acpTypes';
 import type { AvailableAgent } from '../types';
 
 type AgentPillBarProps = {

@@ -7,9 +7,9 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { Building2, CheckCircle, XCircle } from 'lucide-react';
-import { ConfigStorage } from '@/common/storage';
-import { ipcBridge } from '@/common';
-import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@/common/types/tenantConfig';
+import { ConfigStorage } from '@sudowork/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
 import { useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 

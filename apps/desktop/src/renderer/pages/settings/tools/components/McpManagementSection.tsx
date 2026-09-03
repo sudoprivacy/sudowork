@@ -9,7 +9,7 @@ import { IconPlus } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { acpConversation } from '@sudowork/host-bridge/ipcBridge';
-import type { IMcpServer } from '@/common/storage';
+import type { IMcpServer } from '@sudowork/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useMcpServers, useMcpAgentStatus, useMcpOperations, useMcpConnection, useMcpModal, useMcpServerCRUD, useMcpOAuth } from '../hooks';
 import type { IDetectedAgent, McpImportMode } from '../types';

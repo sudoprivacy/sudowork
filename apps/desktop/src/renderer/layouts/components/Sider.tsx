@@ -10,11 +10,11 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dropdown, Menu, Message, Popover, Tabs } from '@arco-design/web-react';
+import { ConfigStorage } from '@sudowork/common/storage';
 import type { BatchHistoryApi } from '@renderer/pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { useAuth } from '@renderer/context/AuthContext';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
-import { ConfigStorage } from '@common/storage';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useCronAccess } from '@renderer/hooks/useCronAccess';
 

@@ -67,23 +67,21 @@ const onReconnected = vi.fn((cb: () => void) => {
   };
 });
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    team: {
-      getTeam: { invoke: (...args: unknown[]) => getTeamInvoke(...args) },
-      listMembers: { invoke: (...args: unknown[]) => listMembersInvoke(...args) },
-      removeMember: { invoke: (...args: unknown[]) => removeMemberInvoke(...args) },
-      addMember: { invoke: (...args: unknown[]) => addMemberInvoke(...args) },
-      renameMember: { invoke: (...args: unknown[]) => renameMemberInvoke(...args) },
-      onMemberSpawned: { on: (...args: unknown[]) => onMemberSpawned(...args) },
-      onMemberRemoved: { on: (...args: unknown[]) => onMemberRemoved(...args) },
-      onMemberRenamed: { on: (...args: unknown[]) => onMemberRenamed(...args) },
-      onAgentStatusChanged: { on: (...args: unknown[]) => onAgentStatusChanged(...args) },
-      onSessionChanged: { on: (...args: unknown[]) => onSessionChanged(...args) },
-    },
-    realtime: {
-      reconnected: { on: (...args: unknown[]) => onReconnected(...args) },
-    },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  team: {
+    getTeam: { invoke: (...args: unknown[]) => getTeamInvoke(...args) },
+    listMembers: { invoke: (...args: unknown[]) => listMembersInvoke(...args) },
+    removeMember: { invoke: (...args: unknown[]) => removeMemberInvoke(...args) },
+    addMember: { invoke: (...args: unknown[]) => addMemberInvoke(...args) },
+    renameMember: { invoke: (...args: unknown[]) => renameMemberInvoke(...args) },
+    onMemberSpawned: { on: (...args: unknown[]) => onMemberSpawned(...args) },
+    onMemberRemoved: { on: (...args: unknown[]) => onMemberRemoved(...args) },
+    onMemberRenamed: { on: (...args: unknown[]) => onMemberRenamed(...args) },
+    onAgentStatusChanged: { on: (...args: unknown[]) => onAgentStatusChanged(...args) },
+    onSessionChanged: { on: (...args: unknown[]) => onSessionChanged(...args) },
+  },
+  realtime: {
+    reconnected: { on: (...args: unknown[]) => onReconnected(...args) },
   },
 }));
 

@@ -10,8 +10,8 @@ import { IconFolder } from '@arco-design/web-react/icon';
 import { Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { skillHub, shell } from '@sudowork/host-bridge/ipcBridge';
+import type { SkillAuditReport, AuditCategorySummary } from '@sudowork/common/skillAuditTypes';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import type { SkillAuditReport, AuditCategorySummary } from '@/common/skillAuditTypes';
 
 /**
  * Displays a summary of the audit results, similar to the screenshot:

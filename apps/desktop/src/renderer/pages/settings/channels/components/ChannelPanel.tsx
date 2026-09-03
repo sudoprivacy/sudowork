@@ -8,9 +8,9 @@ import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-re
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { channel } from '@sudowork/host-bridge/ipcBridge';
+import type { IChannelPluginStatus } from '@sudowork/common/channelTypes';
 import { useAppMode } from '@/renderer/hooks/useAppMode';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import type { IChannelPluginStatus } from '@/channels/types';
 import { useChannelModelSelection } from '../hooks/useChannelModelSelection';
 import type { ChannelConfig, ExtensionFieldSchema, ExtensionFieldValues } from '../types';
 import { BUILTIN_CHANNEL_TYPES } from '../utils';

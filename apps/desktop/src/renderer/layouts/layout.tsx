@@ -9,6 +9,8 @@ import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { ConfigStorage } from '@sudowork/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { LayoutContext } from '@renderer/context/LayoutContext';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { useDeepLink } from '@renderer/hooks/useDeepLink';
@@ -21,8 +23,6 @@ import UpdateModal from '@renderer/layouts/components/UpdateModal';
 import DebugPanel from '@renderer/layouts/components/DebugPanel';
 import Sider from '@/renderer/layouts/components/Sider';
 import Titlebar from '@/renderer/layouts/components/TitleBar';
-import { ConfigStorage } from '@/common/storage';
-import { ipcBridge } from '@/common';
 
 const useDebug = () => {
   const [count, setCount] = useState(0);

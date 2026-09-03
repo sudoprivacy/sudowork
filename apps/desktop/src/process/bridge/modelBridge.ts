@@ -5,7 +5,7 @@
  */
 
 import { BedrockClient, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
-import type { IProvider } from '@/common/storage';
+import type { IProvider } from '@sudowork/common/storage';
 import { uuid } from '@/common/utils';
 import { type ProtocolDetectionRequest, type ProtocolDetectionResponse, type ProtocolType, type MultiKeyTestResult, parseApiKeys, maskApiKey, normalizeBaseUrl, removeApiPathSuffix, guessProtocolFromUrl, guessProtocolFromKey, getProtocolDisplayName } from '@/common/utils/protocolDetector';
 import { isGoogleApisHost } from '@/common/utils/urlValidation';

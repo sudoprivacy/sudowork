@@ -8,8 +8,8 @@ import { Button, Card, Input, Message, Tag, Typography } from '@arco-design/web-
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { acpConversation } from '@sudowork/host-bridge/ipcBridge';
-import type { AcpQuestionAnswerItem, AcpQuestionItem, AcpQuestionItemOption, IMessageAcpQuestion } from '@/common/chatLib';
-import { uuid } from '@/common/utils';
+import type { AcpQuestionAnswerItem, AcpQuestionItem, AcpQuestionItemOption, IMessageAcpQuestion } from '@sudowork/common/chatLib';
+import { uuid } from '@sudowork/common/utils';
 
 const { Text } = Typography;
 const TextArea = Input.TextArea;

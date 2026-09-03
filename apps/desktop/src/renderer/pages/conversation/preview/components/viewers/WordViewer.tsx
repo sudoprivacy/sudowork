@@ -9,7 +9,7 @@ import { IconRefresh } from '@arco-design/web-react/icon';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { libreOffice as libreOfficeIpc } from '@sudowork/host-bridge/ipcBridge';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import LibreOfficeInstallPrompt from '../LibreOfficeInstallPrompt';
 import PDFViewer from './PDFViewer';

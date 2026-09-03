@@ -7,7 +7,7 @@
 import { Collapse, Input, Tooltip } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfigStorage } from '@/common/storage';
+import { ConfigStorage } from '@sudowork/common/storage';
 import { useAuth } from '@/renderer/context/AuthContext';
 import type { TenantConfigItem } from '../types';
 import { resolveEnterpriseConfigItemIconUrl } from '../utils';

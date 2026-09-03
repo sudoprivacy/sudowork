@@ -9,9 +9,9 @@ import { Button, Modal, Radio, Message, Dropdown, Menu, List, Spin, Empty, Typog
 import { Magic, FolderOpen, Lightning } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
-import { ipcBridge } from '@/common';
-import { uuid } from '@/common/utils';
-import type { TMessage } from '@/common/chatLib';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { uuid } from '@sudowork/common/utils';
+import type { TMessage } from '@sudowork/common/chatLib';
 
 interface SkillRuleGeneratorProps {
   conversationId: string;

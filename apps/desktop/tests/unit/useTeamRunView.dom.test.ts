@@ -18,24 +18,22 @@ const h = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    team: {
-      getRunState: { invoke: (...args: unknown[]) => h.getRunState(...args) },
-      onRunAccepted: h.makeEmitter('onRunAccepted'),
-      onRunStarted: h.makeEmitter('onRunStarted'),
-      onRunUpdated: h.makeEmitter('onRunUpdated'),
-      onRunCompleted: h.makeEmitter('onRunCompleted'),
-      onRunCancelled: h.makeEmitter('onRunCancelled'),
-      onRunFailed: h.makeEmitter('onRunFailed'),
-      onChildTurnStarted: h.makeEmitter('onChildTurnStarted'),
-      onChildTurnCompleted: h.makeEmitter('onChildTurnCompleted'),
-      onChildTurnCancelled: h.makeEmitter('onChildTurnCancelled'),
-      onListChanged: h.makeEmitter('onListChanged'),
-    },
-    realtime: {
-      reconnected: h.makeEmitter('reconnected'),
-    },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  team: {
+    getRunState: { invoke: (...args: unknown[]) => h.getRunState(...args) },
+    onRunAccepted: h.makeEmitter('onRunAccepted'),
+    onRunStarted: h.makeEmitter('onRunStarted'),
+    onRunUpdated: h.makeEmitter('onRunUpdated'),
+    onRunCompleted: h.makeEmitter('onRunCompleted'),
+    onRunCancelled: h.makeEmitter('onRunCancelled'),
+    onRunFailed: h.makeEmitter('onRunFailed'),
+    onChildTurnStarted: h.makeEmitter('onChildTurnStarted'),
+    onChildTurnCompleted: h.makeEmitter('onChildTurnCompleted'),
+    onChildTurnCancelled: h.makeEmitter('onChildTurnCancelled'),
+    onListChanged: h.makeEmitter('onListChanged'),
+  },
+  realtime: {
+    reconnected: h.makeEmitter('reconnected'),
   },
 }));
 

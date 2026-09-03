@@ -23,8 +23,8 @@ import * as https from 'https';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { COS_RUNTIME_BASE, COS_LEGACY_HUB_BASE } from '@sudowork/common/cos';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { COS_RUNTIME_BASE, COS_LEGACY_HUB_BASE } from '@/shared/cos';
 
 const execAsync = promisify(exec);
 const TAG = 'GitInstall';

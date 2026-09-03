@@ -47,29 +47,27 @@ vi.mock('@/renderer/utils/platform', () => ({
   isElectronDesktop: () => true,
 }));
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    team: {
-      listMembers: { invoke: (...args: unknown[]) => h.listMembers(...args) },
-    },
-    conversation: {
-      get: { invoke: (...args: unknown[]) => h.getConversation(...args) },
-      getWorkspace: { invoke: (...args: unknown[]) => h.getWorkspace(...args) },
-    },
-    database: {
-      getConversationMessages: { invoke: (...args: unknown[]) => h.getConversationMessages(...args) },
-    },
-    application: {
-      getPath: { invoke: (...args: unknown[]) => h.getPath(...args) },
-    },
-    fs: {
-      getFileMetadata: { invoke: (...args: unknown[]) => h.getFileMetadata(...args) },
-      createZip: { invoke: (...args: unknown[]) => h.createZip(...args) },
-      cancelZip: { invoke: (...args: unknown[]) => h.cancelZip(...args) },
-    },
-    dialog: {
-      showOpen: { invoke: (...args: unknown[]) => h.showOpen(...args) },
-    },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  team: {
+    listMembers: { invoke: (...args: unknown[]) => h.listMembers(...args) },
+  },
+  conversation: {
+    get: { invoke: (...args: unknown[]) => h.getConversation(...args) },
+    getWorkspace: { invoke: (...args: unknown[]) => h.getWorkspace(...args) },
+  },
+  database: {
+    getConversationMessages: { invoke: (...args: unknown[]) => h.getConversationMessages(...args) },
+  },
+  application: {
+    getPath: { invoke: (...args: unknown[]) => h.getPath(...args) },
+  },
+  fs: {
+    getFileMetadata: { invoke: (...args: unknown[]) => h.getFileMetadata(...args) },
+    createZip: { invoke: (...args: unknown[]) => h.createZip(...args) },
+    cancelZip: { invoke: (...args: unknown[]) => h.cancelZip(...args) },
+  },
+  dialog: {
+    showOpen: { invoke: (...args: unknown[]) => h.showOpen(...args) },
   },
 }));
 

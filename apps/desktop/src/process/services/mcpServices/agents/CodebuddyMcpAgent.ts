@@ -7,11 +7,11 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { IMcpServer } from '../../../../common/storage';
-import type { McpOperationResult } from '../McpProtocol';
-import { AbstractMcpAgent } from '../McpProtocol';
+import type { IMcpServer } from '@sudowork/common/storage';
 import { safeExecFile } from '@process/utils/safeExec';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import type { McpOperationResult } from '../McpProtocol';
+import { AbstractMcpAgent } from '../McpProtocol';
 
 /**
  * CodeBuddy MCP server entry in ~/.codebuddy/mcp.json

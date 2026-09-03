@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BUILD_SUDOWORK_SERVER_BASE_URL } from '@/common/sudoworkServer';
+import { BUILD_SUDOWORK_SERVER_BASE_URL } from '@sudowork/common/sudoworkServer';
 import ChannelDingTalkLogo from '@/renderer/assets/channel-logos/dingtalk.svg';
 import ChannelLarkLogo from '@/renderer/assets/channel-logos/lark.svg';
 import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';

@@ -13,7 +13,7 @@
 
 import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { Dag, SubTask, TaskStatus, TaskType } from '../TaskPanel';
 
 // ─────────────────────────────────────────────────────────────────────────────

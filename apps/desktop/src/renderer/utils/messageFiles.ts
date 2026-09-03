@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { NEXUS_FILES_MARKER } from '@/common/constants';
+import { NEXUS_FILES_MARKER } from '@sudowork/common/constants';
 import type { FileOrFolderItem } from '@/renderer/types/files';
 import { isTemporaryWorkspace } from '@/renderer/utils/workspace';
 

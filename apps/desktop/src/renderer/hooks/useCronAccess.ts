@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useCronEnabled } from '@/renderer/hooks/useCronEnabled';
 

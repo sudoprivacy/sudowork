@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CodexToolCallUpdate } from '@/common/chatLib';
+import type { CodexToolCallUpdate } from '@sudowork/common/chatLib';
 import BaseToolCallDisplay from './BaseToolCallDisplay';
 
 type WebSearchUpdate = Extract<CodexToolCallUpdate, { subtype: 'web_search_begin' | 'web_search_end' }>;

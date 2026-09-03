@@ -36,30 +36,25 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    document: {
-      convert: {
-        invoke: mocks.convert,
-      },
-      getFileMtime: {
-        invoke: mocks.getFileMtime,
-      },
-      libreOffice: {
-        isAvailable: {
-          invoke: mocks.isLibreOfficeAvailable,
-        },
-      },
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  document: {
+    convert: {
+      invoke: mocks.convert,
     },
-    shell: {
-      openFile: {
-        invoke: mocks.openFile,
+    getFileMtime: {
+      invoke: mocks.getFileMtime,
+    },
+    libreOffice: {
+      isAvailable: {
+        invoke: mocks.isLibreOfficeAvailable,
       },
     },
   },
-}));
-
-vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  shell: {
+    openFile: {
+      invoke: mocks.openFile,
+    },
+  },
   libreOffice: {
     install: {
       invoke: mocks.install,

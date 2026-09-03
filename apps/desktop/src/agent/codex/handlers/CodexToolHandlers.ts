@@ -5,7 +5,7 @@
  */
 
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
-import type { CodexToolCallUpdate } from '@/common/chatLib';
+import type { CodexToolCallUpdate } from '@sudowork/common/chatLib';
 import { uuid } from '@/common/utils';
 import type { FileChange, McpInvocation, CodexEventMsg } from '@/common/codex/types';
 import { ToolRegistry } from '@/common/codex/utils';

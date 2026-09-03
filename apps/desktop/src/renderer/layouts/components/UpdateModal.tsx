@@ -9,10 +9,10 @@ import { Button, Modal, Progress, Switch, Message } from '@arco-design/web-react
 import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
 import { CircleCheck, CircleX, Download, FolderOpen, HardDriveDownload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@sudowork/common/updateTypes';
+import { isNightlyBuild, buildVersion } from '@sudowork/common/buildInfo';
 import MarkdownView from '@/renderer/components/Markdown';
-import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/updateTypes';
-import { isNightlyBuild, buildVersion } from '@/common/buildInfo';
 
 type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'downloaded' | 'success' | 'error';
 

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TMessage } from '@/common/chatLib';
-import { composeMessage } from '@/common/chatLib';
+import type { TMessage } from '@sudowork/common/chatLib';
+import { composeMessage } from '@sudowork/common/chatLib';
 import type { AcpBackend } from '@/types/acpTypes';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
 import { getDatabase } from './database/export';

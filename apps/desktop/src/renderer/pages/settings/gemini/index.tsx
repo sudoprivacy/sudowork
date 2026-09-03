@@ -7,8 +7,8 @@
 import { Button, Divider, Form, Input, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
-import { ConfigStorage } from '@/common/storage';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { ConfigStorage } from '@sudowork/common/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 

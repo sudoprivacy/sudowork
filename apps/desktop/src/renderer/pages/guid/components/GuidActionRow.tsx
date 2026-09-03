@@ -8,7 +8,7 @@ import { Button, Dropdown } from '@arco-design/web-react';
 import { ArrowUp, FolderOpen, Plus, Shield, Upload } from 'lucide-react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import AgentModeSelector from '@/renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/agentModes';
 import BdpanLogo from '@/renderer/assets/logos/bdpan.png';

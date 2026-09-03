@@ -9,7 +9,7 @@ import { FileDisplayOne, FolderOpen, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BdpanFileEntry } from '@sudowork/host-bridge/ipcBridge';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 
 type Step = 'checking' | 'getting_auth_url' | 'enter_code' | 'submitting_code' | 'file_browser' | 'error';
 

@@ -7,7 +7,7 @@
 import { IconDown } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { useMemo, useRef, useCallback, useEffect } from 'react';
-import type { IMessageAcpToolCall, IMessageToolGroup } from '../../common/chatLib';
+import type { IMessageAcpToolCall, IMessageToolGroup } from '@sudowork/common/chatLib';
 import './MessageToolGroupSummary.css';
 
 type ToolStatus = 'success' | 'error' | 'running' | 'default';

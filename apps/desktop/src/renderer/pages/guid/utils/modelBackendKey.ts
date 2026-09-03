@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { resolvePresetAgentBackend } from '@/types/acpTypes';
-import type { AcpBackendAll, AcpBackendConfig } from '@/types/acpTypes';
+import { resolvePresetAgentBackend } from '@sudowork/common/acpTypes';
+import type { AcpBackendAll, AcpBackendConfig } from '@sudowork/common/acpTypes';
 import type { AvailableAgent } from '../types';
 
 export function resolveGuidModelBackendKey({ isEnterprise, sessionMode, selectedAgentKey, selectedAgentInfo, customAgents }: IResolveGuidModelBackendKeyOptions): AcpBackendAll {

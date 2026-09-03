@@ -10,9 +10,9 @@ import { Card, Tag, Switch, Button, Modal, Table, Space, Popconfirm, Message, To
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { nanoid } from 'nanoid';
-import { ipcBridge } from '@/common';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { DEFAULT_BLACKLIST_CONFIG } from '@sudowork/common/constants';
 import type { IBlacklistConfig, IBlacklistRule, IBlacklistMatchType } from '@common/types/security';
-import { DEFAULT_BLACKLIST_CONFIG } from '@/common/constants';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import SecurityItem from './components/SecurityItem';
 import RuleModal from './components/RuleModal';

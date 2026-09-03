@@ -5,7 +5,7 @@
  */
 
 import type { ICreateConversationParams } from '@sudowork/host-bridge/ipcBridge';
-import type { ConversationSource, TChatConversation } from '@/common/storage';
+import type { ConversationSource, TChatConversation } from '@sudowork/common/storage';
 import { getDatabase } from '@process/database';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { createAcpAgent } from '../initAgent';

@@ -7,8 +7,8 @@
 import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@/common/types/preview';
-import { ipcBridge } from '@/common';
+import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@sudowork/common/types/preview';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { SNAPSHOT_DEBOUNCE_TIME } from '../constants';
 
 /**
@@ -118,7 +118,7 @@ export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistor
     const meta = activeTab.metadata;
     const fallbackName = meta?.fileName || meta?.title || activeTab.title;
     return {
-      contentType: activeTab.contentType as import('@/common/types/preview').PreviewContentType,
+      contentType: activeTab.contentType as import('@sudowork/common/types/preview').PreviewContentType,
       filePath: meta?.filePath,
       workspace: meta?.workspace,
       fileName: fallbackName,

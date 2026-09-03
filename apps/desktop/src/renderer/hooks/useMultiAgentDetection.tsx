@@ -11,8 +11,8 @@
 import { Message } from '@arco-design/web-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { filterAvailableAgentsForUi } from '@/renderer/shared/agents/availableAgents';
-import { ipcBridge } from '@/common';
 
 export const useMultiAgentDetection = () => {
   const { t } = useTranslation();

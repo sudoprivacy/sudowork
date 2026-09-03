@@ -4,7 +4,7 @@ import http from 'http';
 import https from 'https';
 import path from 'path';
 import { promisify } from 'util';
-import { COS_RUNTIME_BASE } from '@/shared/cos';
+import { COS_RUNTIME_BASE } from '@sudowork/common/cos';
 import { extractTarGzWithProgress } from '@process/services/archiveProgress';
 import { getDataPath } from '@process/utils';
 
