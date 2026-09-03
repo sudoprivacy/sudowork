@@ -6,7 +6,7 @@
 
 import { getSudorouterBaseUrl } from '@sudowork/common/systemConfig';
 import { pickDefaultImageModelFromPricing } from '@sudowork/common/imageGenerationModelConfig';
-import type { SpecificImagePricingItem } from './scodeConfig';
+import type { SpecificImagePricingItem } from '@sudowork/common/scodeConfig';
 
 /**
  * Fetch sudorouter specific_image_pricing items (the live image-model list + ratios).

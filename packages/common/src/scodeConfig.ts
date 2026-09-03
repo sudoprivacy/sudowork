@@ -1,7 +1,7 @@
-import type { ScodeConfig, ScodeModelEntry } from '@sudowork/host-bridge/ipcBridge';
-import type { ScodeCustomModelProvider, SpecificImagePricingItem, SpecificPricingItem } from '@sudowork/common/scodeTypes';
-import { FALLBACK_SCODE_AUTO_MODEL_ID, getSudorouterBaseUrl } from '@sudowork/common/systemConfig';
-import { modelInputForModelId } from '@common/imageUtils';
+import type { ScodeConfig, ScodeModelEntry } from './scodeTypes.js';
+import type { ScodeCustomModelProvider, SpecificImagePricingItem, SpecificPricingItem } from './scodeTypes.js';
+import { FALLBACK_SCODE_AUTO_MODEL_ID, getSudorouterBaseUrl } from './systemConfig.js';
+import { modelInputForModelId } from './imageUtils.js';
 
 // ScodeCustomModelProvider / SpecificPricingItem / SpecificImagePricingItem are pure
 // value types and now live in @sudowork/common so the renderer and a future shared

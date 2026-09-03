@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { eeclaw } from '@sudowork/host-bridge/ipcBridge';
+import { eeclaw } from './ipcBridge.js';
 import { ConfigStorage } from '@sudowork/common/storage';
 
-// Check if running in renderer process (has electronAPI)
-const isRenderer = typeof window !== 'undefined' && Boolean(window.electronAPI);
+// Check if running in renderer process (has electronAPI).
+// This package compiles without the app-side `Window.electronAPI` augmentation,
+// so read the property through a local cast (behavior is unchanged: only the
+// renderer preload exposes electronAPI).
+const isRenderer = typeof window !== 'undefined' && Boolean((window as { electronAPI?: unknown }).electronAPI);
 
 /**
  * Get the current app mode.

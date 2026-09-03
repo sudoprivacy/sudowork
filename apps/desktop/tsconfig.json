@@ -57,23 +57,11 @@
       "@/common/adapters/index": [
         "./src/common/adapters/index"
       ],
-      "@common/eeclawMode": [
-        "./src/common/eeclawMode"
-      ],
-      "@/common/eeclawMode": [
-        "./src/common/eeclawMode"
-      ],
       "@common/enterpriseDebugConfig": [
         "./src/common/enterpriseDebugConfig"
       ],
       "@/common/enterpriseDebugConfig": [
         "./src/common/enterpriseDebugConfig"
-      ],
-      "@common/i18n": [
-        "./src/common/i18n"
-      ],
-      "@/common/i18n": [
-        "./src/common/i18n"
       ],
       "@common/imagePricingSource": [
         "./src/common/imagePricingSource"
@@ -158,30 +146,6 @@
       ],
       "@/common/presets/assistantPresets": [
         "./src/common/presets/assistantPresets"
-      ],
-      "@common/scodeConfig": [
-        "./src/common/scodeConfig"
-      ],
-      "@/common/scodeConfig": [
-        "./src/common/scodeConfig"
-      ],
-      "@common/sudoclawModelConfig": [
-        "./src/common/sudoclawModelConfig"
-      ],
-      "@/common/sudoclawModelConfig": [
-        "./src/common/sudoclawModelConfig"
-      ],
-      "@common/sudoworkAuthLogin": [
-        "./src/common/sudoworkAuthLogin"
-      ],
-      "@/common/sudoworkAuthLogin": [
-        "./src/common/sudoworkAuthLogin"
-      ],
-      "@common/utils/workspaceSkillSync": [
-        "./src/common/utils/workspaceSkillSync"
-      ],
-      "@/common/utils/workspaceSkillSync": [
-        "./src/common/utils/workspaceSkillSync"
       ],
       "@common/nexus": [
         "./src/common/nexus/index.ts"

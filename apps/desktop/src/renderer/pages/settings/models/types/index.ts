@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ScodeCustomModelProvider } from '@/common/scodeConfig';
+import type { ScodeCustomModelProvider } from '@sudowork/common/scodeConfig';
 
 export type ProviderRow = {
   id: string;

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isEnterpriseMode as eeclawIsEnterpriseMode } from './eeclawMode';
+import { isEnterpriseMode as eeclawIsEnterpriseMode } from '@sudowork/host-bridge/eeclawMode';
 
 /**
  * Enterprise Configuration for Production Environment

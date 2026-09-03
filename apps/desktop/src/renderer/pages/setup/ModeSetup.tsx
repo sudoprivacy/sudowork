@@ -11,7 +11,7 @@ import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { ConfigStorage } from '@sudowork/common/storage';
 import { normalizeSudoworkServerUrl } from '@sudowork/common/sudoworkServer';
 import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
-import { setAppMode } from '@/common/eeclawMode';
+import { setAppMode } from '@sudowork/host-bridge/eeclawMode';
 import SudoworkIcon from '@/renderer/assets/sudowork-icon-dark.svg';
 import WindowControls from '@/renderer/components/WindowControls';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';

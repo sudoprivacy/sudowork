@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { scode } from '@sudowork/host-bridge/ipcBridge';
 import { migrateImageGenerationModelConfig, pickDefaultImageModelFromPricing, pickImageGenerationModelId } from '@sudowork/common/imageGenerationModelConfig';
 import { ConfigStorage, type IConfigStorageRefer } from '@sudowork/common/storage';
-import { extractImageModelsFromScodeConfig } from '@/common/scodeConfig';
+import { extractImageModelsFromScodeConfig } from '@sudowork/common/scodeConfig';
 import AionScrollArea from '@renderer/components/base/AionScrollArea';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import McpManagementSection from './components/McpManagementSection';

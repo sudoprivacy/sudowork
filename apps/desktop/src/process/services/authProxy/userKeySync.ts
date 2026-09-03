@@ -12,11 +12,11 @@
 
 import fs from 'fs';
 import path from 'path';
+import { extractSudorouterCreds } from '@sudowork/common/scodeConfig';
 import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
 import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
 import { SCODE_DIR } from '@process/services/scode/ScodeInstallService';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
-import { extractSudorouterCreds } from '@/common/scodeConfig';
 
 const TAG = 'UserKeySync';
 

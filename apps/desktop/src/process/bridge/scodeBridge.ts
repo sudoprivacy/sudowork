@@ -15,6 +15,7 @@ import fs from 'fs';
 import path from 'path';
 import type { ScodeConfig } from '@sudowork/host-bridge/ipcBridge';
 import { getSudorouterBaseUrl } from '@sudowork/common/systemConfig';
+import { extractImageModelsFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, normalizeScodeModelApiTypesInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@sudowork/common/scodeConfig';
 import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
 import { syncUserKeyFromScodeConfig } from '@process/services/authProxy/userKeySync';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
@@ -24,7 +25,6 @@ import { SUDOCLAW_DIR } from '@process/services/sudoclaw/SudoclawInstallService'
 import { writeSudoclawImageGenerationModel } from '@process/bridge/imageGenerationModelSync';
 import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
-import { extractImageModelsFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, normalizeScodeModelApiTypesInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@/common/scodeConfig';
 
 const TAG = 'ScodeBridge';
 const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');

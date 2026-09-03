@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const { REQUIRED_MODULES, collectReferenceKeys, getAllKeys } = require('./generate-i18n-types');
-const i18nConfig = require('../src/shared/i18n-config.json');
+const i18nConfig = require('../../../packages/common/src/i18n-config.json');
 
 const LOCALES_DIR = path.resolve(__dirname, '../src/renderer/i18n/locales');
 const I18N_KEYS_DTS = path.resolve(__dirname, '../src/renderer/i18n/i18n-keys.d.ts');
@@ -367,7 +367,7 @@ function checkIndexConfig() {
   const content = fs.readFileSync(indexFile, 'utf-8');
 
   if (!content.includes('i18n-config.json')) {
-    logError('i18n config should load shared constants from src/shared/i18n-config.json');
+    logError('i18n config should load shared constants from @sudowork/common/i18n-config.json');
   }
 
   if (!content.includes('export const supportedLanguages')) {

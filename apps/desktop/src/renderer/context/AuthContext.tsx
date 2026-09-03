@@ -12,9 +12,9 @@ import { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveIm
 import { fetchSystemConfig } from '@sudowork/common/systemConfig';
 import { buildCasLogoutServiceUrl, buildCasLogoutUrl, resolveThirdPartyAuthConfig } from '@sudowork/common/thirdPartyAuthConfig';
 import type { AcpModelInfo } from '@sudowork/common/acpTypes';
-import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@/common/sudoclawModelConfig';
-import { buildScodeConfigFromLoginPayload, extractImageModelsFromScodeConfig, SCODE_AUTO_MODEL_ALIAS } from '@/common/scodeConfig';
-import { extractLoginSudoclawPayload, mergeLoginUserData } from '@/common/sudoworkAuthLogin';
+import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@sudowork/common/sudoclawModelConfig';
+import { buildScodeConfigFromLoginPayload, extractImageModelsFromScodeConfig, SCODE_AUTO_MODEL_ALIAS } from '@sudowork/common/scodeConfig';
+import { extractLoginSudoclawPayload, mergeLoginUserData } from '@sudowork/common/sudoworkAuthLogin';
 
 type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated' | 'guest';
 

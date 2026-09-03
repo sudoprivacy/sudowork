@@ -6,9 +6,7 @@ import { defineConfig } from 'vitest/config';
 const DESKTOP_ONLY_COMMON = [
   'ClientFactory',
   'adapters/index',
-  'eeclawMode',
   'enterpriseDebugConfig',
-  'i18n',
   'imagePricingSource',
   'index',
   'navigation/NavigationInterceptor',
@@ -23,10 +21,6 @@ const DESKTOP_ONLY_COMMON = [
   'nexus/secret-cache',
   'nexus/secret-migration',
   'presets/assistantPresets',
-  'scodeConfig',
-  'sudoclawModelConfig',
-  'sudoworkAuthLogin',
-  'utils/workspaceSkillSync',
 ];
 const DESKTOP_ONLY_COMMON_DIRS = ['nexus', 'navigation', 'adapters'];
 

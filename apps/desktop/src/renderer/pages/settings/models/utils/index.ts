@@ -5,7 +5,7 @@
  */
 
 import type { ScodeConfig, ScodeModelEntry } from '@sudowork/host-bridge/ipcBridge';
-import { IMAGE_GENERATION_MODEL_PATTERN } from '@/common/scodeConfig';
+import { IMAGE_GENERATION_MODEL_PATTERN } from '@sudowork/common/scodeConfig';
 import type { EditableModel, ProviderRow } from '../types';
 
 /** 添加/编辑模型对话框中内置的提供商预设列表 */

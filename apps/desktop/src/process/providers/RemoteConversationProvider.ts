@@ -7,6 +7,7 @@
 import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import type { TMessage } from '@sudowork/common/chatLib';
+import { isRemoteContainerPath } from '@sudowork/common/utils/workspaceSkillSync';
 import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
 import { initMossApi, type MossSessionApi } from '@process/remote/MossSessionApi';
@@ -14,7 +15,6 @@ import { mainLog, mainError } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@process/initStorage';
 import type { AcpModelInfo } from '@/types/acpTypes';
 import { uuid } from '@/common/utils';
-import { isRemoteContainerPath } from '@/common/utils/workspaceSkillSync';
 import type { IConversationProvider, IProviderConfig } from './types';
 
 const HIDDEN_CRON_SESSIONS_KEY = 'remote.hiddenCronSessionIds';

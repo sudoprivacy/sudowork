@@ -1,5 +1,5 @@
-import type { SudoclawConfig, SudoclawProvider, SudoclawProviderModel } from '@sudowork/host-bridge/ipcBridge';
-import { getSudorouterBaseUrl } from '@sudowork/common/systemConfig';
+import type { SudoclawConfig, SudoclawProvider, SudoclawProviderModel } from './sudoclawTypes.js';
+import { getSudorouterBaseUrl } from './systemConfig.js';
 
 const DEFAULT_PRIMARY_MODEL = 'gemini-3.5-flash';
 

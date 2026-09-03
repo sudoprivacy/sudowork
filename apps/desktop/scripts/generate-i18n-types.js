@@ -11,7 +11,7 @@ const path = require('path');
 
 const LOCALES_DIR = path.resolve(__dirname, '../src/renderer/i18n/locales');
 const OUTPUT_FILE = path.resolve(__dirname, '../src/renderer/i18n/i18n-keys.d.ts');
-const i18nConfig = require('../src/shared/i18n-config.json');
+const i18nConfig = require('../../../packages/common/src/i18n-config.json');
 const REFERENCE_LANGUAGE = i18nConfig.referenceLanguage;
 const REQUIRED_MODULES = i18nConfig.modules;
 

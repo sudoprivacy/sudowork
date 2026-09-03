@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ScodeConfig } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { extractCustomProvidersFromScodeConfig, IMAGE_GENERATION_MODEL_PATTERN, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@/common/scodeConfig';
+import { extractCustomProvidersFromScodeConfig, IMAGE_GENERATION_MODEL_PATTERN, mergeCustomProviderIntoScodeConfig, removeCustomProviderFromScodeConfig, type ScodeCustomModelProvider } from '@sudowork/common/scodeConfig';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { GUEST_USER_ID, useAuth } from '@/renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';

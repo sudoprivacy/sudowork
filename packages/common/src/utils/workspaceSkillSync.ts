@@ -1,4 +1,4 @@
-import type { TChatConversation } from '@sudowork/common/storage';
+import type { TChatConversation } from '../storageTypes.js';
 
 /**
  * Check if a workspace path is a remote container path (Moss/Sudorouter).

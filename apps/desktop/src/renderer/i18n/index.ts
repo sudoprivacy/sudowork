@@ -10,8 +10,8 @@ import { initReactI18next } from 'react-i18next';
 // Static imports for all locales to ensure packaged app can always switch language.
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { ConfigStorage } from '@sudowork/common/storage';
-import { DEFAULT_LANGUAGE, normalizeLanguageCode, mergeWithFallback, ensureAndSwitch, type LocaleData } from '@/common/i18n';
-import i18nConfig from '@/shared/i18n-config.json';
+import { DEFAULT_LANGUAGE, normalizeLanguageCode, mergeWithFallback, ensureAndSwitch, type LocaleData } from '@sudowork/common/i18n';
+import i18nConfig from '@sudowork/common/i18n-config.json';
 import enUS from './locales/en-US/index';
 import zhCN from './locales/zh-CN/index';
 import jaJP from './locales/ja-JP/index';
@@ -22,8 +22,8 @@ import trTR from './locales/tr-TR/index';
 export type { I18nKey, I18nModule } from './i18n-keys';
 
 // Re-exports
-export { normalizeLanguageCode } from '@/common/i18n';
-export type { SupportedLanguage } from '@/common/i18n';
+export { normalizeLanguageCode } from '@sudowork/common/i18n';
+export type { SupportedLanguage } from '@sudowork/common/i18n';
 
 export const supportedLanguages = i18nConfig.supportedLanguages;
 

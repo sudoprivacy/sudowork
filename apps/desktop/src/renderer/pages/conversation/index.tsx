@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import useSWR from 'swr';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
+import { shouldSyncWorkspaceSkills } from '@sudowork/common/utils/workspaceSkillSync';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { addEventListener, emitter } from '@/renderer/utils/emitter';
 import { useAppMode } from '@/renderer/hooks/useAppMode';

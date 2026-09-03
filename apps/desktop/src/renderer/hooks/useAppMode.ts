@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { getAppMode, setAppMode } from '@/common/eeclawMode';
+import { getAppMode, setAppMode } from '@sudowork/host-bridge/eeclawMode';
 
 // Pre-initialize app mode on module load (avoids first-frame flash)
 // Follows the same early-initialization pattern as useTheme.ts

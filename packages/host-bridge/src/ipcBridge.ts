@@ -14,7 +14,12 @@ import type { SystemConfig } from '@sudowork/common/systemConfigTypes';
 import type { McpSource } from '@sudowork/common/mcpTypes';
 import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '@sudowork/common/acpTypes';
 import type { SyncAllResult } from '@sudowork/common/syncTypes';
-import type { ScodeCustomModelProvider, SpecificImagePricingItem, SpecificPricingItem } from '@sudowork/common/scodeTypes';
+import type { ScodeConfig, ScodeCustomModelProvider, ScodeModelEntry, ScodeModelProvider, SpecificImagePricingItem, SpecificPricingItem } from '@sudowork/common/scodeTypes';
+import type { ISudoclawStatus, SudoclawConfig, SudoclawProvider, SudoclawProviderModel, SudoclawTestGatewayResult } from '@sudowork/common/sudoclawTypes';
+// Re-exported so existing `@sudowork/host-bridge/ipcBridge` type importers keep
+// resolving after these pure value types moved to @sudowork/common.
+export type { ScodeConfig, ScodeModelEntry, ScodeModelProvider };
+export type { ISudoclawStatus, SudoclawConfig, SudoclawProvider, SudoclawProviderModel, SudoclawTestGatewayResult };
 import type { SlashCommandItem } from '@sudowork/common/slash/types';
 import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from '@sudowork/common/storageTypes';
 import type { SecretMetadata } from '@sudowork/common/secretTypes';
@@ -854,51 +859,9 @@ export const popplerRuntime = {
 };
 
 // Sudoclaw config (~/.nexus/sudoclaw) / Sudoclaw 配置
-// Matches sudoclaw.json schema: models.providers, agents.defaults, etc.
-export type SudoclawProviderModel = { id: string; name?: string; input?: string[] };
-export type SudoclawProvider = {
-  baseUrl?: string;
-  apiKey?: string;
-  api?: string; // e.g. openai, anthropic, google-generative-ai
-  models?: SudoclawProviderModel[];
-};
-export type SudoclawConfig = {
-  lastRunMode?: string;
-  agents?: { defaults?: { model?: { primary?: string; fallbacks?: string[] }; imageModel?: string; imageAnalysisModel?: string; imageGenerationModel?: string; models?: Record<string, { alias?: string }> } };
-  models?: {
-    mode?: 'merge' | 'replace';
-    providers?: Record<string, SudoclawProvider>;
-  };
-  env?: { vars?: Record<string, string> };
-  plugins?: { entries?: Record<string, { enabled?: boolean; config?: Record<string, unknown> }> };
-};
-
-export type SudoclawTestGatewayResult = {
-  success: boolean;
-  port?: number;
-  error?: string;
-  stdout?: string;
-  stderr?: string;
-};
-
-export interface ISudoclawStatus {
-  installed: boolean;
-  configPath: string;
-  gatewayRunning?: boolean;
-  gatewayPort?: number;
-  gatewayHost?: string;
-  gatewayUrl?: string;
-  isConnected?: boolean;
-  hasActiveSession?: boolean;
-  sessionKey?: string | null;
-  workspace?: string;
-  agentName?: string;
-  model?: string;
-  cliPath?: string;
-  version?: string;
-  error?: string;
-}
-
+// Types (SudoclawConfig / SudoclawProvider / SudoclawProviderModel /
+// SudoclawTestGatewayResult / ISudoclawStatus) live in @sudowork/common/sudoclawTypes
+// and are imported + re-exported at the top of this file.
 export const sudoclaw = {
   /** Get Sudoclaw config from ~/.nexus/sudoclaw/sudoclaw.json */
   getConfig: bridge.buildProvider<IBridgeResponse<SudoclawConfig | null>, void>('sudoclaw.get-config'),
@@ -932,44 +895,8 @@ export const sudoclaw = {
 };
 
 // Scode config (~/.nexus/sudowork/sudocode/sudocode.json)
-// Matches sudocode.json schema: auth_modes, models, default_model
-export type ScodeModelProvider = {
-  provider?: string;
-  model?: string;
-  api?: string;
-};
-export type ScodeModelEntry = {
-  alias?: string;
-  name?: string;
-  input?: string[];
-  supports_tools?: boolean;
-  supports_reasoning?: boolean;
-  supports_image_generation?: boolean;
-  context?: {
-    input?: number;
-    output?: number;
-  };
-  providers?: {
-    subscription?: ScodeModelProvider;
-    proxy?: ScodeModelProvider;
-    'api-key'?: ScodeModelProvider;
-  };
-};
-export type ScodeConfig = {
-  auth_modes?: {
-    subscription?: Record<string, { baseUrl?: string; token?: string; authFile?: string }>;
-    proxy?: Record<string, { baseUrl?: string; apiKey?: string }>;
-    'api-key'?: Record<string, { baseUrl?: string; apiKey?: string }>;
-  };
-  default_model?: string;
-  models?: Record<string, ScodeModelEntry>;
-  web_search?: {
-    provider?: string;
-    apiUrl?: string;
-    apiKey?: string;
-  };
-};
-
+// Types (ScodeConfig / ScodeModelEntry / ScodeModelProvider) live in
+// @sudowork/common/scodeTypes and are imported + re-exported at the top of this file.
 export const scode = {
   /** Read scode config from ~/.nexus/sudowork/sudocode/sudocode.json */
   getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>('scode.get-config'),

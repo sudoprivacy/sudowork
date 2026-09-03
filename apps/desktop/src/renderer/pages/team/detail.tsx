@@ -12,7 +12,7 @@ import { Navigate, useParams } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import type { AcpBackend } from '@sudowork/common/acpTypes';
-import { shouldSyncWorkspaceSkills } from '@/common/utils/workspaceSkillSync';
+import { shouldSyncWorkspaceSkills } from '@sudowork/common/utils/workspaceSkillSync';
 import { emitter } from '@/renderer/utils/emitter';
 import { useAuth } from '@/renderer/context/AuthContext';
 import { useHasAvailableModel } from '@/renderer/hooks/useHasAvailableModel';
