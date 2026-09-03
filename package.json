@@ -16,7 +16,7 @@
     "start": "bun run --filter sudowork start",
     "package": "bun run --filter sudowork package",
     "lint": "bun run --filter sudowork lint",
-    "type:check": "bun run --filter sudowork type:check",
+    "type:check": "bun run --filter sudowork type:check && bun run --filter '@sudowork/renderer' type:check",
     "format": "bun run --filter sudowork format",
     "format:check": "bun run --filter sudowork format:check",
     "test": "bun run --filter sudowork test"

@@ -135,6 +135,40 @@ jobs:
       - name: Check Prettier formatting
         run: bun run format:check
 
+  # Job 2b3: TypeScript type-check gate for the whole monorepo. The shared
+  # renderer now lives in packages/renderer (outside apps/desktop's tsconfig),
+  # so the SSOT `type:check` script checks BOTH apps/desktop AND
+  # @sudowork/renderer. Previously PR CI had no tsc gate at all.
+  type-check:
+    name: Type Check
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      # Emit dist types for the workspace packages so apps/desktop's tsc can
+      # resolve them via their `types` condition.
+      - name: Build shared packages
+        run: bun run build:packages
+
+      - name: Type check (apps/desktop + packages/renderer)
+        run: bun run type:check
+
   # Job 2c: Conversation resource reaper regression tests
   unit-tests-conversation-reaper:
     name: Conversation Reaper Unit Tests

@@ -9,6 +9,9 @@
       "default": "./src/*"
     }
   },
+  "scripts": {
+    "type:check": "tsc --noEmit -p tsconfig.json"
+  },
   "dependencies": {
     "@arco-design/web-react": "^2.66.1",
     "@codemirror/autocomplete": "^6.20.1",
