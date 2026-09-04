@@ -105,10 +105,15 @@ export async function updateConversationMeta(
   mossSessionId: string,
   update: MetaUpdate,
 ): Promise<void> {
-  const sets: string[] = ['updated_at = now()']
+  // INSERT 列须随 title 动态补齐：行不存在时走 INSERT，若 title 不进列则新行标题恒为 NULL
+  const insertCols = ['principal_id', 'moss_session_id', 'updated_at']
+  const insertVals = ['$1', '$2', 'now()']
   const params: unknown[] = [principalId, mossSessionId]
+  const sets: string[] = ['updated_at = now()']
   if (update.title !== undefined) {
     params.push(update.title)
+    insertCols.push('title')
+    insertVals.push(`$${params.length}`)
     sets.push(`title = $${params.length}`)
   }
   if (update.pinned !== undefined) {
@@ -118,8 +123,8 @@ export async function updateConversationMeta(
     else sets.push('pinned_at = NULL')
   }
   await pool.query(
-    `INSERT INTO conversation_meta (principal_id, moss_session_id, updated_at)
-     VALUES ($1, $2, now())
+    `INSERT INTO conversation_meta (${insertCols.join(', ')})
+     VALUES (${insertVals.join(', ')})
      ON CONFLICT (principal_id, moss_session_id) DO UPDATE SET ${sets.join(', ')}`,
     params,
   )
