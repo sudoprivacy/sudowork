@@ -1,0 +1,301 @@
+import { resolve } from 'path';
+import { execSync } from 'child_process';
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
+import react from '@vitejs/plugin-react';
+import UnoCSS from 'unocss/vite';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
+import unoConfig from './uno.config.ts';
+
+// Icon Park transform plugin (replaces webpack icon-park-loader)
+function iconParkPlugin() {
+  return {
+    name: 'vite-plugin-icon-park',
+    enforce: 'pre' as const,
+    transform(source: string, id: string) {
+      if (!id.endsWith('.tsx') || id.includes('node_modules')) return null;
+      if (!source.includes('@icon-park/react')) return null;
+      const transformedSource = source.replace(/import\s+\{\s+([a-zA-Z, ]*)\s+\}\s+from\s+['"]@icon-park\/react['"](;?)/g, function (str, match) {
+        if (!match) return str;
+        const components = match.split(',');
+        const importComponent = str.replace(match, components.map((key: string) => `${key} as _${key.trim()}`).join(', '));
+        const hoc = `import IconParkHOC from '@renderer/components/IconParkHOC';
+          ${components.map((key: string) => `const ${key.trim()} = IconParkHOC(_${key.trim()})`).join(';\n')}`;
+        return importComponent + ';' + hoc;
+      });
+      if (transformedSource !== source) return { code: transformedSource, map: null } as { code: string; map: null };
+      return null;
+    },
+  };
+}
+
+// Modules that stay in apps/desktop/src/common (main-only, or transitively so:
+// they reach @process / electron / node fs / grpc / native, or a src/types|src/shared
+// module). Everything else under @common / @/common has moved to @sudowork/common
+// (packages/common). commonAliasEntries() routes the stayed modules back to the
+// desktop tree via exact-match regex, and routes the rest to the package source.
+const DESKTOP_ONLY_COMMON = [
+  'ClientFactory',
+  'adapters/index',
+  'enterpriseDebugConfig',
+  'imagePricingSource',
+  'index',
+  'navigation/NavigationInterceptor',
+  'navigation/index',
+  'nexus/generated/nexus/secrets/v1/secrets_pb',
+  'nexus/index',
+  'nexus/moss-secret-client-factory',
+  'nexus/nexus-secret-client',
+  'nexus/nexus-secret-resilient',
+  'nexus/nexus-vfs-client',
+  'nexus/nexusVfsGrpcClient',
+  'nexus/secret-cache',
+  'nexus/secret-migration',
+  'presets/assistantPresets',
+];
+// Split directories whose barrel index stays in the desktop tree (siblings moved).
+const DESKTOP_ONLY_COMMON_DIRS = ['nexus', 'navigation', 'adapters'];
+
+// Alias entries (regex, evaluated first-match-wins) shared by main/preload/renderer
+// so both `@common/*` and `@/common/*` resolve correctly across the split.
+function commonAliasEntries() {
+  const pkg = resolve('../../packages/common/src').replace(/\\/g, '/');
+  const deskCommon = resolve('src/common').replace(/\\/g, '/');
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const entries: { find: RegExp; replacement: string }[] = [];
+  // Bare barrel (`@common` / `@/common`) -> desktop index.ts
+  entries.push({ find: /^@\/?common$/, replacement: deskCommon });
+  // Stayed modules + split-dir barrels (exact match) -> desktop tree
+  for (const m of [...DESKTOP_ONLY_COMMON, ...DESKTOP_ONLY_COMMON_DIRS]) {
+    entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '$'), replacement: `${deskCommon}/${m}` });
+  }
+  // Everything else under @common / @/common -> @sudowork/common package source
+  entries.push({ find: /^@\/?common\/(.*)$/, replacement: `${pkg}/$1` });
+  // @sudowork/common subpaths -> package source (bundle from source, no dist dep)
+  entries.push({ find: /^@sudowork\/common\/(.*)$/, replacement: `${pkg}/$1` });
+  return entries;
+}
+
+// Common path aliases for main process and workers
+const mainAliases = [
+  ...commonAliasEntries(),
+  { find: '@renderer', replacement: resolve('../../packages/renderer/src') },
+  { find: '@process', replacement: resolve('src/process') },
+  { find: '@worker', replacement: resolve('src/worker') },
+  { find: '@xterm/headless', replacement: resolve('src/shims/xterm-headless.ts') },
+  // Bundle the shared workspace packages from source (see externalizeDepsPlugin
+  // exclude below) so the packaged/dev main process never depends on a prior
+  // `dist` build of them.
+  { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
+  { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
+  { find: '@sudowork/contracts/conversations', replacement: resolve('../../packages/contracts/src/conversations.ts') },
+  { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
+  { find: /^@sudowork\/host-bridge$/, replacement: resolve('../../packages/host-bridge/src/index.ts') },
+  { find: '@', replacement: resolve('src') },
+];
+
+/**
+ * Resolve build-time metadata.
+ * CI can override via environment variables; locally we fall back to git.
+ */
+function getBuildMetadata() {
+  const gitExec = (cmd: string, fallback: string): string => {
+    try {
+      return execSync(cmd, { encoding: 'utf-8' }).trim() || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const date = process.env.BUILD_DATE || gitExec('git log -1 --format=%cs', new Date().toISOString().slice(0, 10));
+  const commit = process.env.BUILD_COMMIT || gitExec('git rev-parse --short HEAD', 'unknown');
+  const tag = gitExec('git describe --tags --exact-match', '');
+  // Use injected tag directly; fall back to date-commit for untagged (temporary) builds
+  const version = process.env.BUILD_VERSION || tag || `${date}-${commit}`;
+
+  // Detect nightly: explicit env var, or tag starting with "nightly-"
+  let isNightly = process.env.BUILD_IS_NIGHTLY === 'true';
+  if (!isNightly) {
+    if (/^nightly-/i.test(tag)) isNightly = true;
+  }
+
+  return { version, date, commit, isNightly };
+}
+
+export default defineConfig(({ mode }) => {
+  const isDevelopment = mode === 'development';
+  const buildMeta = getBuildMetadata();
+
+  // Shared define constants for build-time injection
+  const buildDefines = {
+    __BUILD_VERSION__: JSON.stringify(buildMeta.version),
+    __BUILD_DATE__: JSON.stringify(buildMeta.date),
+    __BUILD_COMMIT__: JSON.stringify(buildMeta.commit),
+    __BUILD_IS_NIGHTLY__: JSON.stringify(buildMeta.isNightly),
+    // Optional sudowork-server base URL injection. Empty string means "not injected"
+    // so the runtime helper falls back to the literal default.
+    __SUDOWORK_SERVER_BASE_URL__: JSON.stringify(process.env.BUILD_SERVER_BASE_URL ?? ''),
+    // Server-driven endpoint base URLs (system-config). Same convention: empty = not injected.
+    __SUDOROUTER_BASE_URL__: JSON.stringify(process.env.BUILD_SUDOROUTER_BASE_URL ?? ''),
+    __SKILLHUB_BASE_URL__: JSON.stringify(process.env.BUILD_SKILLHUB_BASE_URL ?? ''),
+    __LOG_REPORT_BASE_URL__: JSON.stringify(process.env.BUILD_LOG_REPORT_BASE_URL ?? ''),
+    __COS_RELEASE_BASE__: JSON.stringify(process.env.BUILD_COS_RELEASE_BASE ?? ''),
+  };
+
+  return {
+    main: {
+      plugins: [
+        // externalizeDepsPlugin replaces our custom getExternalDeps() + pluginExternalizeDynamicImports.
+        // 'fix-path' excluded so it gets bundled inline (only 3KB).
+        // 'v8-compile-cache' excluded so it can cache all subsequent requires (reduces startup 40-60%).
+        externalizeDepsPlugin({
+          // @sudowork/* are workspace packages bundled from source (aliased above)
+          // so the main process has no runtime dependency on their dist build.
+          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts', '@sudowork/common', '@sudowork/host-bridge'],
+          include: ['nexus-napi'],
+        }),
+        ...(!isDevelopment
+          ? [
+              viteStaticCopy({
+                structured: false,
+                targets: [
+                  { src: 'skills/**', dest: 'skills' },
+                  { src: 'rules/**', dest: 'rules' },
+                  { src: 'assistant/**', dest: 'assistant' },
+                  { src: '../../packages/renderer/src/assets/logos/**', dest: 'static/images' },
+                ],
+              }),
+            ]
+          : []),
+      ],
+      resolve: { alias: mainAliases, extensions: ['.ts', '.tsx', '.js', '.json'] },
+      build: {
+        sourcemap: false,
+        reportCompressedSize: false,
+        rollupOptions: {
+          input: {
+            index: resolve('src/index.ts'),
+          },
+          external: ['@lydell/node-pty'],
+          onwarn(warning, warn) {
+            if (warning.code === 'EVAL') return;
+            warn(warning);
+          },
+        },
+      },
+      define: { 'process.env.env': JSON.stringify(process.env.env), ...buildDefines },
+    },
+
+    preload: {
+      plugins: [externalizeDepsPlugin()],
+      resolve: {
+        alias: [...commonAliasEntries(), { find: '@', replacement: resolve('src') }],
+        extensions: ['.ts', '.tsx', '.js', '.json'],
+      },
+      build: {
+        sourcemap: false,
+        reportCompressedSize: false,
+        rollupOptions: {
+          input: {
+            index: resolve('src/preload.ts'),
+            avatar: resolve('src/preload-avatar.ts'),
+          },
+        },
+      },
+    },
+
+    renderer: {
+      base: './',
+      // Renderer sources now live in packages/renderer; point Vite's root there so
+      // the multi-page HTML inputs (index.html, avatar/index.html) are inside root
+      // and emit clean relative fileNames.
+      root: resolve('../../packages/renderer/src'),
+      server: {
+        // Port for Vite dev server. On Windows, WinNAT/Hyper-V can reserve ports
+        // causing EACCES. launch-dev.js probes for a free port and passes it via
+        // VITE_DEV_SERVER_PORT. electron-vite sets ELECTRON_RENDERER_URL to the
+        // actual URL, so Electron main process loads the correct origin.
+        port: parseInt(process.env.VITE_DEV_SERVER_PORT || '5173', 10),
+        // Explicit HMR config so Vite client connects directly to the Vite dev server,
+        // not to the WebUI proxy server (which would reject the WebSocket and cause infinite reload)
+        hmr: {
+          host: 'localhost',
+        },
+      },
+      resolve: {
+        alias: [
+          ...commonAliasEntries(),
+          { find: '@renderer', replacement: resolve('../../packages/renderer/src') },
+          { find: '@process', replacement: resolve('src/process') },
+          { find: '@worker', replacement: resolve('src/worker') },
+          // Force ESM version of streamdown
+          { find: 'streamdown', replacement: resolve('node_modules/streamdown/dist/index.js') },
+          { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
+          { find: /^@sudowork\/host-bridge$/, replacement: resolve('../../packages/host-bridge/src/index.ts') },
+          { find: '@', replacement: resolve('src') },
+        ],
+        extensions: ['.ts', '.tsx', '.js', '.jsx', '.css'],
+        dedupe: ['react', 'react-dom', 'react-router-dom', '@codemirror/state', '@codemirror/view', '@codemirror/language'],
+      },
+      plugins: [react(), UnoCSS(unoConfig), iconParkPlugin()],
+      build: {
+        target: 'es2022',
+        sourcemap: isDevelopment,
+        minify: !isDevelopment,
+        reportCompressedSize: false,
+        chunkSizeWarningLimit: 1500,
+        cssCodeSplit: true,
+        rollupOptions: {
+          input: {
+            index: resolve('../../packages/renderer/src/index.html'),
+            avatar: resolve('../../packages/renderer/src/avatar/index.html'),
+          },
+          external: ['node:crypto', 'crypto'],
+          output: {
+            manualChunks(id: string) {
+              if (!id.includes('node_modules')) return undefined;
+              if (id.includes('/react-dom/') || id.includes('/react/')) return 'vendor-react';
+              if (id.includes('/@arco-design/')) return 'vendor-arco';
+              if (id.includes('/react-markdown/') || id.includes('/remark-') || id.includes('/rehype-') || id.includes('/unified/') || id.includes('/mdast-') || id.includes('/hast-') || id.includes('/micromark')) return 'vendor-markdown';
+              if (id.includes('/react-syntax-highlighter/') || id.includes('/refractor/') || id.includes('/highlight.js/')) return 'vendor-highlight';
+              if (id.includes('/monaco-editor/') || id.includes('/@monaco-editor/') || id.includes('/codemirror/') || id.includes('/@codemirror/')) return 'vendor-editor';
+              if (id.includes('/katex/')) return 'vendor-katex';
+              if (id.includes('/@icon-park/')) return 'vendor-icons';
+              if (id.includes('/diff2html/')) return 'vendor-diff';
+              return undefined;
+            },
+          },
+        },
+      },
+      define: {
+        'process.env.env': JSON.stringify(process.env.env),
+        global: 'globalThis',
+        ...buildDefines,
+      },
+      optimizeDeps: {
+        exclude: ['electron'],
+        include: [
+          'react',
+          'react-dom',
+          'react-router-dom',
+          'react-i18next',
+          'i18next',
+          '@arco-design/web-react',
+          '@icon-park/react',
+          'react-markdown',
+          'react-syntax-highlighter',
+          'react-virtuoso',
+          'classnames',
+          'swr',
+          'eventemitter3',
+          'katex',
+          'diff2html',
+          'remark-gfm',
+          'remark-math',
+          'remark-breaks',
+          'rehype-raw',
+          'rehype-katex',
+        ],
+      },
+    },
+  };
+});

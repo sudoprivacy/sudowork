@@ -1,0 +1,185 @@
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable",
+      "ScriptHost"
+    ],
+    "allowJs": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "resolveJsonModule": true,
+    "jsx": "react",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@process/*": [
+        "./src/process/*"
+      ],
+      "@renderer/*": [
+        "../../packages/renderer/src/*"
+      ],
+      "@worker/*": [
+        "./src/worker/*"
+      ],
+      "@sudowork/common/*": [
+        "../../packages/common/src/*"
+      ],
+      "@sudowork/host-bridge/*": [
+        "../../packages/host-bridge/src/*"
+      ],
+      "@sudowork/host-bridge": [
+        "../../packages/host-bridge/src/index.ts"
+      ],
+      "@common": [
+        "./src/common/index.ts"
+      ],
+      "@/common": [
+        "./src/common/index.ts"
+      ],
+      "@common/ClientFactory": [
+        "./src/common/ClientFactory"
+      ],
+      "@/common/ClientFactory": [
+        "./src/common/ClientFactory"
+      ],
+      "@common/adapters/index": [
+        "./src/common/adapters/index"
+      ],
+      "@/common/adapters/index": [
+        "./src/common/adapters/index"
+      ],
+      "@common/enterpriseDebugConfig": [
+        "./src/common/enterpriseDebugConfig"
+      ],
+      "@/common/enterpriseDebugConfig": [
+        "./src/common/enterpriseDebugConfig"
+      ],
+      "@common/imagePricingSource": [
+        "./src/common/imagePricingSource"
+      ],
+      "@/common/imagePricingSource": [
+        "./src/common/imagePricingSource"
+      ],
+      "@common/index": [
+        "./src/common/index"
+      ],
+      "@/common/index": [
+        "./src/common/index"
+      ],
+      "@common/navigation/NavigationInterceptor": [
+        "./src/common/navigation/NavigationInterceptor"
+      ],
+      "@/common/navigation/NavigationInterceptor": [
+        "./src/common/navigation/NavigationInterceptor"
+      ],
+      "@common/navigation/index": [
+        "./src/common/navigation/index"
+      ],
+      "@/common/navigation/index": [
+        "./src/common/navigation/index"
+      ],
+      "@common/nexus/generated/nexus/secrets/v1/secrets_pb": [
+        "./src/common/nexus/generated/nexus/secrets/v1/secrets_pb"
+      ],
+      "@/common/nexus/generated/nexus/secrets/v1/secrets_pb": [
+        "./src/common/nexus/generated/nexus/secrets/v1/secrets_pb"
+      ],
+      "@common/nexus/index": [
+        "./src/common/nexus/index"
+      ],
+      "@/common/nexus/index": [
+        "./src/common/nexus/index"
+      ],
+      "@common/nexus/moss-secret-client-factory": [
+        "./src/common/nexus/moss-secret-client-factory"
+      ],
+      "@/common/nexus/moss-secret-client-factory": [
+        "./src/common/nexus/moss-secret-client-factory"
+      ],
+      "@common/nexus/nexus-secret-client": [
+        "./src/common/nexus/nexus-secret-client"
+      ],
+      "@/common/nexus/nexus-secret-client": [
+        "./src/common/nexus/nexus-secret-client"
+      ],
+      "@common/nexus/nexus-secret-resilient": [
+        "./src/common/nexus/nexus-secret-resilient"
+      ],
+      "@/common/nexus/nexus-secret-resilient": [
+        "./src/common/nexus/nexus-secret-resilient"
+      ],
+      "@common/nexus/nexus-vfs-client": [
+        "./src/common/nexus/nexus-vfs-client"
+      ],
+      "@/common/nexus/nexus-vfs-client": [
+        "./src/common/nexus/nexus-vfs-client"
+      ],
+      "@common/nexus/nexusVfsGrpcClient": [
+        "./src/common/nexus/nexusVfsGrpcClient"
+      ],
+      "@/common/nexus/nexusVfsGrpcClient": [
+        "./src/common/nexus/nexusVfsGrpcClient"
+      ],
+      "@common/nexus/secret-cache": [
+        "./src/common/nexus/secret-cache"
+      ],
+      "@/common/nexus/secret-cache": [
+        "./src/common/nexus/secret-cache"
+      ],
+      "@common/nexus/secret-migration": [
+        "./src/common/nexus/secret-migration"
+      ],
+      "@/common/nexus/secret-migration": [
+        "./src/common/nexus/secret-migration"
+      ],
+      "@common/presets/assistantPresets": [
+        "./src/common/presets/assistantPresets"
+      ],
+      "@/common/presets/assistantPresets": [
+        "./src/common/presets/assistantPresets"
+      ],
+      "@common/nexus": [
+        "./src/common/nexus/index.ts"
+      ],
+      "@/common/nexus": [
+        "./src/common/nexus/index.ts"
+      ],
+      "@common/navigation": [
+        "./src/common/navigation/index.ts"
+      ],
+      "@/common/navigation": [
+        "./src/common/navigation/index.ts"
+      ],
+      "@common/adapters": [
+        "./src/common/adapters/index.ts"
+      ],
+      "@/common/adapters": [
+        "./src/common/adapters/index.ts"
+      ],
+      "@common/*": [
+        "../../packages/common/src/*"
+      ],
+      "@/common/*": [
+        "../../packages/common/src/*"
+      ],
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "uno.config.ts",
+    "electron.vite.config.ts",
+    "../../packages/renderer/src/types.d.ts"
+  ]
+}

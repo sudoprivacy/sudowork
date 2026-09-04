@@ -1,0 +1,179 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Button, Message } from '@arco-design/web-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
+
+interface PDFPreviewProps {
+  /**
+   * PDF file path (absolute path on disk)
+   * PDF 文件路径（磁盘上的绝对路径）
+   */
+  filePath?: string;
+  /**
+   * PDF content as base64 or blob URL
+   * PDF 内容（base64 或 blob URL）
+   */
+  content?: string;
+  hideToolbar?: boolean;
+}
+
+// Electron webview 元素的类型定义 / Type definition for Electron webview element
+interface ElectronWebView extends HTMLElement {
+  src: string;
+}
+
+const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar = false }) => {
+  const { t } = useTranslation();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const webviewRef = useRef<ElectronWebView>(null);
+  const toolbarExtrasContext = usePreviewToolbarExtras();
+  const usePortalToolbar = Boolean(toolbarExtrasContext) && !hideToolbar;
+
+  const handleOpenInSystem = useCallback(async () => {
+    if (!filePath) {
+      Message.error(t('preview.errors.openWithoutPath'));
+      return;
+    }
+
+    try {
+      await ipcBridge.shell.openFile.invoke(filePath);
+      Message.success(t('preview.openInSystemSuccess'));
+    } catch {
+      Message.error(t('preview.openInSystemFailed'));
+    }
+  }, [filePath, t]);
+
+  useEffect(() => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!filePath && !content) {
+        setError(t('preview.pdf.pathMissing'));
+        setLoading(false);
+        return;
+      }
+
+      // webview 加载成功后隐藏 loading
+      // Hide loading after webview finishes loading
+      const webview = webviewRef.current;
+      if (webview) {
+        const handleLoad = () => {
+          console.log('[PDFViewer] WebView did-finish-load:', filePath);
+          setLoading(false);
+        };
+        const handleError = (event: any) => {
+          console.error('[PDFViewer] WebView did-fail-load:', event);
+          setError(`${t('preview.pdf.loadFailed')}: ${event?.description || 'Unknown error'}`);
+          setLoading(false);
+        };
+
+        // Timeout to detect if webview doesn't respond
+        const timeoutId = setTimeout(() => {
+          if (loading) {
+            console.warn('[PDFViewer] WebView loading timeout, forcing hide');
+            setLoading(false);
+          }
+        }, 10000); // 10 second timeout
+
+        webview.addEventListener('did-finish-load', handleLoad);
+        webview.addEventListener('did-fail-load', handleError);
+
+        return () => {
+          clearTimeout(timeoutId);
+          webview.removeEventListener('did-finish-load', handleLoad);
+          webview.removeEventListener('did-fail-load', handleError);
+        };
+      } else {
+        setLoading(false);
+      }
+    } catch (err) {
+      setError(`${t('preview.pdf.loadFailed')}: ${err instanceof Error ? err.message : String(err)}`);
+      setLoading(false);
+    }
+  }, [filePath, content]); // 移除 t 依赖，避免不必要的重渲染
+
+  // 设置工具栏扩展（必须在所有条件返回之前调用）
+  // Set toolbar extras (must be called before any conditional returns)
+  useEffect(() => {
+    if (!usePortalToolbar || !toolbarExtrasContext || loading || error) return;
+    toolbarExtrasContext.setExtras({
+      left: (
+        <div className='flex items-center gap-8px'>
+          <span className='text-13px text-secondary'>📄 {t('preview.pdf.title')}</span>
+          <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
+        </div>
+      ),
+      right: null,
+    });
+    return () => toolbarExtrasContext.setExtras(null);
+  }, [usePortalToolbar, toolbarExtrasContext, t, loading, error]);
+
+  // 使用 Electron webview 加载本地 PDF 文件
+  // Use Electron webview to load local PDF files
+  const pdfSrc = filePath ? `file://${filePath}#navpanes=0` : content ? `${content}#navpanes=0` : '';
+  // 设置 webview 的 webPreferences 以允许加载本地文件
+  // Set webview webPreferences to allow loading local files
+  const webPreferences = {
+    webviewtag: true,
+    allowRunningInsecureContent: false,
+    webSecurity: true,
+  };
+
+  if (error) {
+    return (
+      <div className='flex items-center justify-center h-full'>
+        <div className='text-center'>
+          <div className='text-16px text-danger mb-8px'>❌ {error}</div>
+          <div className='text-12px text-secondary'>{t('preview.pdf.unableDisplay')}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className='flex items-center justify-center h-full'>
+        <div className='text-14px text-secondary'>{t('preview.loading')}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className='h-full w-full flex flex-col'>
+      {!usePortalToolbar && !hideToolbar && (
+        <div className='flex items-center justify-between h-40px px-12px flex-shrink-0'>
+          <div className='flex items-center gap-8px'>
+            <span className='text-13px text-secondary'>📄 {t('preview.pdf.title')}</span>
+            <span className='text-11px text-tertiary'>{t('preview.readOnlyLabel')}</span>
+          </div>
+          {filePath && (
+            <Button size='mini' type='text' onClick={handleOpenInSystem} title={t('preview.openInSystemApp')}>
+              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'>
+                <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
+                <polyline points='15 3 21 3 21 9' />
+                <line x1='10' y1='14' x2='21' y2='3' />
+              </svg>
+              <span>{t('preview.openInSystemApp')}</span>
+            </Button>
+          )}
+        </div>
+      )}
+      {/* PDF 内容区域 / PDF content area */}
+      <div className='flex-1 overflow-hidden'>
+        {/* key 确保文件路径改变时 webview 重新挂载 / key ensures webview remounts when file path changes */}
+        <webview key={pdfSrc} ref={webviewRef} src={pdfSrc} className='w-full h-full' style={{ display: 'inline-flex' }} webpreferences={JSON.stringify(webPreferences)} allowpopups={true} />
+      </div>
+    </div>
+  );
+};
+
+export default PDFPreview;

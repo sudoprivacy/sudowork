@@ -1,0 +1,43 @@
+/**
+ * @license
+ * Copyright 2025 Sudowork (sudowork.ai)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { describe, expect, it } from 'vitest';
+import { AVAILABLE_AGENTS_SWR_KEY, filterAvailableAgentsForUi, splitConversationDropdownAgents } from '@renderer/shared/agents/availableAgents';
+import type { AvailableAgent } from '@renderer/shared/agents/types';
+
+describe('availableAgents helpers', () => {
+  const agents: AvailableAgent[] = [
+    { backend: 'gemini', name: 'Gemini' },
+    { backend: 'gemini', name: 'Gemini CLI', cliPath: '/usr/local/bin/gemini' },
+    { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
+    { backend: 'custom', name: 'Custom Agent', customAgentId: 'custom-1' },
+    { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
+    { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },
+  ];
+
+  it('uses the shared SWR key for available agents', () => {
+    expect(AVAILABLE_AGENTS_SWR_KEY).toBe('acp.agents.available');
+  });
+
+  it('filters out gemini agents from UI', () => {
+    expect(filterAvailableAgentsForUi(agents)).toEqual([
+      { backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' },
+      { backend: 'custom', name: 'Custom Agent', customAgentId: 'custom-1' },
+      { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
+      { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },
+    ]);
+  });
+
+  it('splits conversation dropdown agents into cli and preset groups', () => {
+    expect(splitConversationDropdownAgents(filterAvailableAgentsForUi(agents))).toEqual({
+      cliAgents: [{ backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' }],
+      presetAssistants: [
+        { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
+        { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },
+      ],
+    });
+  });
+});

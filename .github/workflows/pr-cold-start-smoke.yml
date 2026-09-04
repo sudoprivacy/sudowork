@@ -56,6 +56,9 @@ jobs:
     # bun-install cache above cuts the dependency fetch; this gives Windows
     # headroom for the runtime/toolchain setup the cache does not cover.
     timeout-minutes: ${{ matrix.timeout || 10 }}
+    defaults:
+      run:
+        working-directory: apps/desktop
     strategy:
       fail-fast: false
       matrix:

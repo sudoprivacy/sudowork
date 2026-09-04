@@ -16,6 +16,9 @@ jobs:
     name: Browser Port Isolation
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
 
     steps:
       - name: Checkout code
@@ -42,6 +45,9 @@ jobs:
     name: Browser-Panel MCP Server
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
 
     steps:
       - name: Checkout code
@@ -77,6 +83,9 @@ jobs:
     name: AuthProxy /secrets HTTP E2E
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -101,6 +110,9 @@ jobs:
     name: Vault Signed Download
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
 
     steps:
       - name: Checkout code
@@ -145,6 +157,9 @@ jobs:
     name: Vault Secrets gRPC E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/desktop
 
     steps:
       - name: Checkout code
@@ -174,8 +189,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            native/nexus-napi/target
-          key: ${{ runner.os }}-cargo-napi-${{ hashFiles('native/nexus-napi/**/Cargo.lock') }}
+            apps/desktop/native/nexus-napi/target
+          key: ${{ runner.os }}-cargo-napi-${{ hashFiles('apps/desktop/native/nexus-napi/**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-napi-
 
@@ -247,6 +262,9 @@ jobs:
     name: Scode Config-Home Isolation
     runs-on: windows-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
 
     steps:
       - name: Checkout code
