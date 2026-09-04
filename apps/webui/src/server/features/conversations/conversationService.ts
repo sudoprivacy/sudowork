@@ -16,6 +16,7 @@ import {
   getConversationMetaMap,
   reorderPinnedConversations as reorderPinnedRows,
   updateConversationMeta as updateConversationMetaRow,
+  upsertConversationModel,
   upsertConversationTitle,
 } from './conversationMetaRepository.js'
 
@@ -30,7 +31,7 @@ export class SessionNotFoundError extends Error {}
 export class SessionForbiddenError extends Error {}
 export class MossUnavailableError extends Error {}
 export class InvalidSelectionError extends Error {
-  constructor(readonly field: 'assistantName' | 'enabledSkills', readonly value: string) {
+  constructor(readonly field: 'assistantName' | 'enabledSkills' | 'modelId', readonly value: string) {
     super(`${field} not in current visible list: ${value}`)
   }
 }
@@ -49,6 +50,10 @@ export interface ConversationDeps {
 }
 
 const NameListSchema = z.array(z.object({ name: z.string() }).passthrough())
+
+const AvailableModelsSchema = z
+  .object({ data: z.array(z.object({ id: z.string(), name: z.string().optional() }).passthrough()) })
+  .passthrough()
 
 async function fetchVisibleNames(
   deps: ConversationDeps,
@@ -79,6 +84,19 @@ async function assertSelectionVisible(
         throw new InvalidSelectionError('enabledSkills', skill)
       }
     }
+  }
+}
+
+/** 建会话选模型时：核验 modelId 在当前用户可用模型列表中（不接受浏览器自造）。 */
+async function assertModelAvailable(deps: ConversationDeps, modelId: string, accessToken: string): Promise<void> {
+  const json = await deps.mossFetch(deps.config.moss.baseUrl, {
+    method: 'GET',
+    path: '/api/v1/models/available',
+    accessToken,
+  })
+  const models = AvailableModelsSchema.parse(json)
+  if (!models.data.some((model) => model.id === modelId)) {
+    throw new InvalidSelectionError('modelId', modelId)
   }
 }
 
@@ -117,17 +135,28 @@ export async function listConversations(
 
 export async function createConversation(
   deps: ConversationDeps,
-  _principal: Principal,
+  principal: Principal,
   input: CreateConversationRequest,
   accessToken: string,
 ): Promise<{ id: string }> {
   await assertSelectionVisible(deps, input, accessToken)
+  // 模型：先校验可用（不通过则 400，不建会话）→ setUserModel（Moss 用户级），使新会话采用该模型
+  if (input.modelId) {
+    await assertModelAvailable(deps, input.modelId, accessToken)
+    await mapMossErrors(() => deps.moss.setUserModel(accessToken, input.modelId!))
+  }
   const created = await mapMossErrors(() =>
     deps.moss.create(accessToken, {
       assistantName: input.assistantName,
       enabledSkills: input.enabledSkills,
     }),
   )
+  // 本地记录会话所选模型（重开会话时回读显示）。吞错防孤儿：会话已在 Moss 建立，抛错会造孤儿会话
+  if (input.modelId) {
+    await upsertConversationModel(deps.pool, principal.id, created.sessionId, input.modelId).catch((err: unknown) => {
+      console.warn(`[conversations] persist modelId failed (session=${created.sessionId}): ${(err as Error).message}`)
+    })
+  }
   // ws_url 只留在服务端（协调器 resume 时使用）
   return { id: created.sessionId }
 }
@@ -151,24 +180,28 @@ export async function getContext(
   principal: Principal,
   sessionId: string,
   accessToken: string,
-): Promise<{ customTitle: string | null; title: string | null; messages: Record<string, unknown>[] }> {
+): Promise<{ customTitle: string | null; title: string | null; modelId: string | null; messages: Record<string, unknown>[] }> {
   await requireOwnSession(deps, principal, sessionId, accessToken)
-  const localTitle = async (): Promise<string | null> =>
-    (await getConversationMeta(deps.pool, principal.id, sessionId))?.title ?? null
+  const localMeta = async (): Promise<{ title: string | null; modelId: string | null }> => {
+    const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
+    return { title: meta?.title ?? null, modelId: meta?.modelId ?? null }
+  }
   let parsed: unknown
   try {
     parsed = await deps.moss.context(accessToken, sessionId)
   } catch (err) {
     if (err instanceof MossHttpError && err.status === 404) {
       // 空 transcript（新会话）上游返回 404
-      return { customTitle: null, title: await localTitle(), messages: [] }
+      const meta = await localMeta()
+      return { customTitle: null, title: meta.title, modelId: meta.modelId, messages: [] }
     }
     throw err
   }
   const ctx = (parsed as { context?: { customTitle?: string; messages?: unknown[] } }).context
   const messages = (ctx?.messages ?? []).map((raw) => sanitizeMessage(raw))
   await generateTitleIfMissing(deps, principal, sessionId, messages)
-  return { customTitle: ctx?.customTitle ?? null, title: await localTitle(), messages }
+  const meta = await localMeta()
+  return { customTitle: ctx?.customTitle ?? null, title: meta.title, modelId: meta.modelId, messages }
 }
 
 /**
@@ -310,10 +343,7 @@ export async function getConversationOptions(
     ].map((p) => mapMossErrors(() => p)),
   )
 
-  const models = z
-    .object({ data: z.array(z.object({ id: z.string(), name: z.string().optional() }).passthrough()) })
-    .passthrough()
-    .parse(modelsJson)
+  const models = AvailableModelsSchema.parse(modelsJson)
   // 与智能体页"我的智能体"一致：过滤 moss 系统内置（isBuiltin），不作为会话可选项
   const agents = NameListSchema.parse(agentsJson).filter(
     (a) => (a as { isBuiltin?: unknown }).isBuiltin !== true,

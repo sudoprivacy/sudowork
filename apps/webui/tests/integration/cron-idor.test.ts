@@ -120,6 +120,7 @@ function createFakeSessions(): MossSessionPort {
     async create() {
       return { sessionId: 'x', wsUrl: '' }
     },
+    async setUserModel() {},
     async context() {
       return { context: { messages: [] } }
     },

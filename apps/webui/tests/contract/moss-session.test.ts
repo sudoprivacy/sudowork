@@ -35,6 +35,18 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     })
   })
 
+  test('setUserModel puts /api/v1/users/me/model with { modelId }', async () => {
+    const mock = vi.fn().mockResolvedValue({ data: { modelId: 'gpt-4', updatedAt: 1 } })
+    const port = createMossSessionPort(mock, BASE)
+    await port.setUserModel('tk', 'gpt-4')
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'PUT',
+      path: '/api/v1/users/me/model',
+      accessToken: 'tk',
+      body: { modelId: 'gpt-4' },
+    })
+  })
+
   test('context/resume/terminate/workspace paths match baseline routes', async () => {
     const mock = vi.fn().mockImplementation((_base: string, req: { method: string; path: string }) =>
       Promise.resolve(

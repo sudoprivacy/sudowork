@@ -89,6 +89,8 @@ export const CreateConversationRequestSchema = z.object({
   /** 空串 = 不指定智能体，由 Moss 走默认（部署版实测空 assistant_name 创建 200） */
   assistantName: z.string().trim().max(255),
   enabledSkills: z.array(z.string().min(1).max(255)).max(50).default([]),
+  /** 建会话时所选模型（可选）；服务端校验可用后 setUserModel + 本地持久化 */
+  modelId: z.string().trim().min(1).max(255).optional(),
 })
 export type CreateConversationRequest = z.infer<typeof CreateConversationRequestSchema>
 
@@ -125,6 +127,8 @@ export const ConversationContextDtoSchema = z.object({
   customTitle: z.string().nullable(),
   /** webui 本地标题（conversation_meta.title，与列表接口同源；Moss 上游无标题概念） */
   title: z.string().nullable(),
+  /** webui 本地记录的会话模型（conversation_meta.model_id；未指定过为 null），用于重开回读显示 */
+  modelId: z.string().nullable(),
   messages: z.array(z.record(z.string(), z.unknown())),
 })
 export type ConversationContextDto = z.infer<typeof ConversationContextDtoSchema>

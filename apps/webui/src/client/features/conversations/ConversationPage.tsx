@@ -40,7 +40,20 @@ const FOCUS_RING = {
 interface InitialState {
   initialMessage?: string
   initialImages?: PendingImage[]
+  /** guid 携带的所选模型：仅作会话头显示种子（模型已在建会话时服务端生效），不触发 set_model */
   initialModel?: string
+}
+
+/** 模型切换失败 code → 会话头可读文案（含本地 SET_MODEL_TIMEOUT） */
+const MODEL_ERROR_TEXT: Record<string, string> = {
+  LOCK_UNCERTAIN: '会话状态不确定，暂无法切换模型',
+  CONVERSATION_BUSY: '会话忙（另一设备正在输入），暂无法切换',
+  UPSTREAM_NOT_CONNECTED: '连接未就绪，请稍后重试',
+  UPSTREAM_FAILED: '上游连接失败，请稍后重试',
+  UPSTREAM_OWNER_MISMATCH: '会话被其他连接占用，切换失败',
+  SESSION_NOT_FOUND: '会话不存在或已结束',
+  MOSS_UNAVAILABLE: '服务暂不可用，请稍后重试',
+  SET_MODEL_TIMEOUT: '模型切换超时，请稍后重试',
 }
 
 export function ConversationPage(): React.ReactElement {
@@ -56,7 +69,7 @@ export function ConversationPage(): React.ReactElement {
     // 轻量轮询：中途打开的观察者在 turn 完成后也能看到完整历史
     { refreshInterval: turnActive ? 0 : 5_000 },
   )
-  const socket = useConversationSocket(id)
+  const socket = useConversationSocket(id, initial?.initialModel ?? null)
   const { data: options } = useSWR('conversation-options', getConversationOptions)
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
@@ -111,16 +124,21 @@ export function ConversationPage(): React.ReactElement {
     }
   }, [socket.state.lockState, socket.state.lastError, socket.status])
 
-  // guid 跳转携带的首条消息：WS 就绪后（可选切模型）自动发送
+  // guid 跳转携带的首条消息：WS 就绪后自动发送（模型已在建会话时服务端 setUserModel + 持久化，
+  // initialModel 仅作显示种子，不再前端 setModel）
   useEffect(() => {
     if (!id || initialSent || socket.status !== 'open' || !initial?.initialMessage) return
     setInitialSent(true)
     setTurnActive(true)
-    if (initial.initialModel) socket.setModel(initial.initialModel)
     socket.appendLocalUser(initial.initialMessage, initial.initialImages ?? [])
     socket.send(initial.initialMessage, initial.initialImages ?? [])
     void navigate(location.pathname, { replace: true, state: null })
   }, [id, initialSent, socket, initial, navigate, location.pathname])
+
+  // 重开会话回读：用本地持久化的 modelId 种子化模型显示（不触发 set_model）
+  useEffect(() => {
+    if (context?.modelId) socket.hydrateModel(context.modelId)
+  }, [context?.modelId, socket, id])
 
   // 新消息自动滚动到底
   useEffect(() => {
@@ -226,10 +244,15 @@ export function ConversationPage(): React.ReactElement {
           title={context?.customTitle ?? context?.title ?? `会话 ${id?.slice(0, 8) ?? ''}`}
           socketStatus={socket.status}
           models={options?.models ?? []}
-          currentModel={socket.state.currentModel}
+          currentModel={socket.state.currentModel ?? socket.state.hydratedModel}
           onSetModel={(modelId) => socket.setModel(modelId)}
           onTogglePanel={toggleRightPanel}
           statusHint={uncertain ? '状态不确定（写入端中断）' : busyByOther ? '只读（另一设备正在输入）' : null}
+          modelError={
+            socket.state.modelSwitchError
+              ? (MODEL_ERROR_TEXT[socket.state.modelSwitchError] ?? '模型切换失败，请稍后重试')
+              : null
+          }
         />
 
         {uncertain ? (

@@ -50,6 +50,7 @@ function createFakeMossSession(): MossSessionPort {
     async create(_accessToken, input) {
       return { sessionId: `created-${input.assistantName}`, wsUrl: 'ws://moss.test/ws/sessions/x' }
     },
+    async setUserModel() {},
     async context(_tk, sessionId) {
       if (sessionId === 'sess-empty') throw new MossHttpError(404, '', '')
       return {

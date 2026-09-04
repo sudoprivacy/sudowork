@@ -76,6 +76,36 @@ describe('reduceStreamEvent（上游事件聚合）', () => {
     state = reduceStreamEvent(state, { kind: 'error', code: 'CONVERSATION_BUSY' })
     expect(state.lastError).toBe('CONVERSATION_BUSY')
   })
+
+  test('error with pending model switch + whitelist code sets modelSwitchError, clears pending', () => {
+    const pending: ConversationStreamState = { ...initialStreamState, modelSwitchPending: 'gpt-4' }
+    const next = reduceStreamEvent(pending, { kind: 'error', code: 'CONVERSATION_BUSY' })
+    expect(next.modelSwitchError).toBe('CONVERSATION_BUSY')
+    expect(next.modelSwitchPending).toBeNull()
+  })
+
+  test('error without pending switch does not set modelSwitchError', () => {
+    const next = reduceStreamEvent(initialStreamState, { kind: 'error', code: 'CONVERSATION_BUSY' })
+    expect(next.modelSwitchError).toBeNull()
+    expect(next.lastError).toBe('CONVERSATION_BUSY')
+  })
+
+  test('model_changed confirms pending switch: clears pending/error, updates currentModel, drops hydrated', () => {
+    const pending: ConversationStreamState = {
+      ...initialStreamState,
+      modelSwitchPending: 'gpt-4',
+      modelSwitchError: 'X',
+      hydratedModel: 'seed',
+    }
+    const next = reduceStreamEvent(pending, {
+      kind: 'upstream',
+      event: { type: 'system', subtype: 'model_changed', model: 'proxy/gpt-4' },
+    })
+    expect(next.currentModel).toBe('proxy/gpt-4')
+    expect(next.modelSwitchPending).toBeNull()
+    expect(next.modelSwitchError).toBeNull()
+    expect(next.hydratedModel).toBeNull()
+  })
 })
 
 describe('useConversationSocket 切换会话重置（防消息泄漏）', () => {
@@ -105,6 +135,26 @@ describe('useConversationSocket 切换会话重置（防消息泄漏）', () => 
       expect(result.current.state.messages).toHaveLength(0)
       expect(result.current.state.lockState).toBeNull()
       expect(result.current.state.isWriter).toBe(false)
+    } finally {
+      globalThis.WebSocket = original
+    }
+  })
+
+  test('hydrateModel seeds hydratedModel; setModel while socket not open reports UPSTREAM_NOT_CONNECTED', () => {
+    const original = globalThis.WebSocket
+    globalThis.WebSocket = StubWebSocket as unknown as typeof WebSocket
+    try {
+      const { result } = renderHook(({ id }: { id: string }) => useConversationSocket(id), {
+        initialProps: { id: 'conv-a' },
+      })
+
+      act(() => result.current.hydrateModel('gpt-4'))
+      expect(result.current.state.hydratedModel).toBe('gpt-4')
+
+      // StubWebSocket.readyState=0（非 OPEN）→ setModel 立即置错，不进入 pending
+      act(() => result.current.setModel('gpt-5'))
+      expect(result.current.state.modelSwitchError).toBe('UPSTREAM_NOT_CONNECTED')
+      expect(result.current.state.modelSwitchPending).toBeNull()
     } finally {
       globalThis.WebSocket = original
     }

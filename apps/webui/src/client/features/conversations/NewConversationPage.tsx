@@ -27,7 +27,7 @@ const SEND_ERROR_MESSAGES: Record<string, string> = {
   MOSS_ERROR: 'Moss 服务错误，请稍后重试',
   INTERNAL: '服务器内部错误，请稍后重试',
   INVALID_REQUEST: '请求参数无效',
-  SELECTION_NOT_AVAILABLE: '所选智能体或技能当前不可用',
+  SELECTION_NOT_AVAILABLE: '所选模型、智能体或技能当前不可用',
 }
 
 /** 提示词模板分类（文案与图标逐字对齐 Sudowork guid.json / DEFAULT_PROMPT_CATEGORIES）：
@@ -157,6 +157,7 @@ export function NewConversationPage(): React.ReactElement {
       const created = await createConversation({
         assistantName: selectedAgent?.name ?? '',
         enabledSkills: selectedSkills,
+        ...(selectedModel ? { modelId: selectedModel } : {}),
       })
       void navigate(`/conversation/${created.id}`, {
         state: { initialMessage: input.trim(), initialImages: images, initialModel: selectedModel || undefined },

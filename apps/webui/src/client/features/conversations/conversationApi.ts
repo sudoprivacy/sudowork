@@ -69,6 +69,7 @@ export function deleteConversation(id: string): Promise<{ ok: true }> {
 export function createConversation(input: {
   assistantName: string
   enabledSkills: string[]
+  modelId?: string
 }): Promise<{ id: string }> {
   return api('/api/conversations', { method: 'POST', body: JSON.stringify(input) })
 }

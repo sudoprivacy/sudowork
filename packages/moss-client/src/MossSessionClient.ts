@@ -24,6 +24,8 @@ export interface MossSessionPort {
     accessToken: string,
     input: { assistantName: string; enabledSkills: string[] },
   ): Promise<{ sessionId: string; wsUrl: string }>
+  /** 用户级模型偏好（Moss 无会话级模型接口，PUT /api/v1/users/me/model）；建会话前设置使新会话采用该模型 */
+  setUserModel(accessToken: string, modelId: string): Promise<void>
   context(accessToken: string, sessionId: string): Promise<unknown>
   resume(accessToken: string, sessionId: string): Promise<{ session: MossSessionSummary; wsUrl: string }>
   terminate(accessToken: string, sessionId: string): Promise<void>
@@ -74,6 +76,16 @@ export function createMossSessionPort(mossFetch: MossFetch, baseUrl: string): Mo
       })
       const parsed = MossCreateSessionResponseSchema.parse(json)
       return { sessionId: parsed.session_id, wsUrl: parsed.ws_url }
+    },
+
+    async setUserModel(accessToken, modelId) {
+      // body 键名与桌面端 MossSessionApi.setUserModelPreference 一致（camelCase modelId）
+      await mossFetch(baseUrl, {
+        method: 'PUT',
+        path: '/api/v1/users/me/model',
+        accessToken,
+        body: { modelId },
+      })
     },
 
     async context(accessToken, sessionId) {
