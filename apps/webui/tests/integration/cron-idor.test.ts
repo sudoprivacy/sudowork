@@ -63,7 +63,7 @@ function createFakeCron(): MossCronPort {
   const store = new Map<string, Record<string, unknown>>()
   return {
     async list(tk) {
-      return { jobs: JOBS[tk] ?? [] }
+      return { jobs: JOBS[tk.accessToken] ?? [] }
     },
     async adminList() {
       return { jobs: [...JOBS['at-a']!, ...JOBS['at-b']!] }
@@ -120,6 +120,7 @@ function createFakeSessions(): MossSessionPort {
     async create() {
       return { sessionId: 'x', wsUrl: '' }
     },
+    async setUserModel() {},
     async context() {
       return { context: { messages: [] } }
     },

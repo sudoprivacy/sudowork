@@ -3,8 +3,8 @@ import type { Pool } from 'pg'
 import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
 import type { Principal } from '../auth/principalRepository.js'
-import type { MossSessionPort } from '@sudowork/moss-client'
-import { type MossFetch, MossHttpError, MossNetworkError } from '@sudowork/moss-client'
+import type { MossCallContext, MossSessionPort } from '@sudowork/moss-client'
+import { type MossAsset, type MossFetch, MossHttpError, MossNetworkError, mossFetchAsset } from '@sudowork/moss-client'
 import type {
   ConversationListItem,
   CreateConversationRequest,
@@ -16,6 +16,7 @@ import {
   getConversationMetaMap,
   reorderPinnedConversations as reorderPinnedRows,
   updateConversationMeta as updateConversationMetaRow,
+  upsertConversationModel,
   upsertConversationTitle,
 } from './conversationMetaRepository.js'
 
@@ -30,7 +31,7 @@ export class SessionNotFoundError extends Error {}
 export class SessionForbiddenError extends Error {}
 export class MossUnavailableError extends Error {}
 export class InvalidSelectionError extends Error {
-  constructor(readonly field: 'assistantName' | 'enabledSkills', readonly value: string) {
+  constructor(readonly field: 'assistantName' | 'enabledSkills' | 'modelId', readonly value: string) {
     super(`${field} not in current visible list: ${value}`)
   }
 }
@@ -41,6 +42,8 @@ export interface ConversationDeps {
   auth: AuthDeps
   moss: MossSessionPort
   mossFetch: MossFetch
+  /** 拉取 moss 静态资源（tenant 头像代理）；app.ts 注入，缺省用真实 mossFetchAsset */
+  mossFetchAsset?: typeof mossFetchAsset
   coordinator: ConversationCoordinator
   /** DELETE 会话时关闭该会话全部服务器 pty（app.ts 注入；测试可不传） */
   closeTerminals?: (conversationId: string) => void
@@ -48,12 +51,16 @@ export interface ConversationDeps {
 
 const NameListSchema = z.array(z.object({ name: z.string() }).passthrough())
 
+const AvailableModelsSchema = z
+  .object({ data: z.array(z.object({ id: z.string(), name: z.string().optional() }).passthrough()) })
+  .passthrough()
+
 async function fetchVisibleNames(
   deps: ConversationDeps,
   path: '/api/v1/agents/installed' | '/api/v1/skills/installed',
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<Set<string>> {
-  const json = await deps.mossFetch(deps.config.moss.baseUrl, { method: 'GET', path, accessToken })
+  const json = await deps.mossFetch(ctx.baseUrl, { method: 'GET', path, accessToken: ctx.accessToken })
   const parsed = NameListSchema.parse(json)
   return new Set(parsed.map((item) => item.name))
 }
@@ -62,16 +69,16 @@ async function fetchVisibleNames(
 async function assertSelectionVisible(
   deps: ConversationDeps,
   input: CreateConversationRequest,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<void> {
   if (input.assistantName) {
-    const names = await fetchVisibleNames(deps, '/api/v1/agents/installed', accessToken)
+    const names = await fetchVisibleNames(deps, '/api/v1/agents/installed', ctx)
     if (!names.has(input.assistantName)) {
       throw new InvalidSelectionError('assistantName', input.assistantName)
     }
   }
   if (input.enabledSkills.length > 0) {
-    const names = await fetchVisibleNames(deps, '/api/v1/skills/installed', accessToken)
+    const names = await fetchVisibleNames(deps, '/api/v1/skills/installed', ctx)
     for (const skill of input.enabledSkills) {
       if (!names.has(skill)) {
         throw new InvalidSelectionError('enabledSkills', skill)
@@ -80,12 +87,25 @@ async function assertSelectionVisible(
   }
 }
 
+/** 建会话选模型时：核验 modelId 在当前用户可用模型列表中（不接受浏览器自造）。 */
+async function assertModelAvailable(deps: ConversationDeps, modelId: string, ctx: MossCallContext): Promise<void> {
+  const json = await deps.mossFetch(ctx.baseUrl, {
+    method: 'GET',
+    path: '/api/v1/models/available',
+    accessToken: ctx.accessToken,
+  })
+  const models = AvailableModelsSchema.parse(json)
+  if (!models.data.some((model) => model.id === modelId)) {
+    throw new InvalidSelectionError('modelId', modelId)
+  }
+}
+
 export async function listConversations(
   deps: ConversationDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<ConversationListItem[]> {
-  const sessions = await mapMossErrors(() => deps.moss.list(accessToken))
+  const sessions = await mapMossErrors(() => deps.moss.list(ctx))
   // 强制过滤：即使 token 带 sessions:list:any 也只返回本人会话（计划 3.3）；
   // 并过滤 terminated（部署版实测 terminate 后 list 仍返回该会话，不过滤则用户视角「删除无效」）
   const visible = sessions.filter(
@@ -115,17 +135,28 @@ export async function listConversations(
 
 export async function createConversation(
   deps: ConversationDeps,
-  _principal: Principal,
+  principal: Principal,
   input: CreateConversationRequest,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<{ id: string }> {
-  await assertSelectionVisible(deps, input, accessToken)
+  await assertSelectionVisible(deps, input, ctx)
+  // 模型：先校验可用（不通过则 400，不建会话）→ setUserModel（Moss 用户级），使新会话采用该模型
+  if (input.modelId) {
+    await assertModelAvailable(deps, input.modelId, ctx)
+    await mapMossErrors(() => deps.moss.setUserModel(ctx, input.modelId!))
+  }
   const created = await mapMossErrors(() =>
-    deps.moss.create(accessToken, {
+    deps.moss.create(ctx, {
       assistantName: input.assistantName,
       enabledSkills: input.enabledSkills,
     }),
   )
+  // 本地记录会话所选模型（重开会话时回读显示）。吞错防孤儿：会话已在 Moss 建立，抛错会造孤儿会话
+  if (input.modelId) {
+    await upsertConversationModel(deps.pool, principal.id, created.sessionId, input.modelId).catch((err: unknown) => {
+      console.warn(`[conversations] persist modelId failed (session=${created.sessionId}): ${(err as Error).message}`)
+    })
+  }
   // ws_url 只留在服务端（协调器 resume 时使用）
   return { id: created.sessionId }
 }
@@ -135,9 +166,9 @@ export async function requireOwnSession(
   deps: ConversationDeps,
   principal: Principal,
   sessionId: string,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<void> {
-  const session = await mapMossErrors(() => deps.moss.get(accessToken, sessionId))
+  const session = await mapMossErrors(() => deps.moss.get(ctx, sessionId))
   if (!session) throw new SessionNotFoundError()
   if (session.userId !== principal.mossUserId || session.orgId !== principal.orgId) {
     throw new SessionForbiddenError()
@@ -148,25 +179,29 @@ export async function getContext(
   deps: ConversationDeps,
   principal: Principal,
   sessionId: string,
-  accessToken: string,
-): Promise<{ customTitle: string | null; title: string | null; messages: Record<string, unknown>[] }> {
-  await requireOwnSession(deps, principal, sessionId, accessToken)
-  const localTitle = async (): Promise<string | null> =>
-    (await getConversationMeta(deps.pool, principal.id, sessionId))?.title ?? null
+  ctx: MossCallContext,
+): Promise<{ customTitle: string | null; title: string | null; modelId: string | null; messages: Record<string, unknown>[] }> {
+  await requireOwnSession(deps, principal, sessionId, ctx)
+  const localMeta = async (): Promise<{ title: string | null; modelId: string | null }> => {
+    const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
+    return { title: meta?.title ?? null, modelId: meta?.modelId ?? null }
+  }
   let parsed: unknown
   try {
-    parsed = await deps.moss.context(accessToken, sessionId)
+    parsed = await deps.moss.context(ctx, sessionId)
   } catch (err) {
     if (err instanceof MossHttpError && err.status === 404) {
       // 空 transcript（新会话）上游返回 404
-      return { customTitle: null, title: await localTitle(), messages: [] }
+      const meta = await localMeta()
+      return { customTitle: null, title: meta.title, modelId: meta.modelId, messages: [] }
     }
     throw err
   }
-  const ctx = (parsed as { context?: { customTitle?: string; messages?: unknown[] } }).context
-  const messages = (ctx?.messages ?? []).map((raw) => sanitizeMessage(raw))
+  const mossContext = (parsed as { context?: { customTitle?: string; messages?: unknown[] } }).context
+  const messages = (mossContext?.messages ?? []).map((raw) => sanitizeMessage(raw))
   await generateTitleIfMissing(deps, principal, sessionId, messages)
-  return { customTitle: ctx?.customTitle ?? null, title: await localTitle(), messages }
+  const meta = await localMeta()
+  return { customTitle: mossContext?.customTitle ?? null, title: meta.title, modelId: meta.modelId, messages }
 }
 
 /**
@@ -217,10 +252,10 @@ export async function terminateConversation(
   deps: ConversationDeps,
   principal: Principal,
   sessionId: string,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<void> {
-  await requireOwnSession(deps, principal, sessionId, accessToken)
-  await mapMossErrors(() => deps.moss.terminate(accessToken, sessionId))
+  await requireOwnSession(deps, principal, sessionId, ctx)
+  await mapMossErrors(() => deps.moss.terminate(ctx, sessionId))
   await deps.coordinator.terminate(principal.id, sessionId)
 }
 
@@ -229,10 +264,10 @@ export async function updateConversationMeta(
   deps: ConversationDeps,
   principal: Principal,
   sessionId: string,
-  accessToken: string,
+  ctx: MossCallContext,
   update: { title?: string; pinned?: boolean },
 ): Promise<void> {
-  await requireOwnSession(deps, principal, sessionId, accessToken)
+  await requireOwnSession(deps, principal, sessionId, ctx)
   await updateConversationMetaRow(deps.pool, principal.id, sessionId, update)
 }
 
@@ -253,10 +288,10 @@ export async function deleteConversation(
   deps: ConversationDeps,
   principal: Principal,
   sessionId: string,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<void> {
-  await requireOwnSession(deps, principal, sessionId, accessToken)
-  await mapMossErrors(() => deps.moss.terminate(accessToken, sessionId))
+  await requireOwnSession(deps, principal, sessionId, ctx)
+  await mapMossErrors(() => deps.moss.terminate(ctx, sessionId))
   await deps.coordinator.terminate(principal.id, sessionId)
   await deleteConversationMetaRow(deps.pool, principal.id, sessionId)
   deps.closeTerminals?.(sessionId)
@@ -264,27 +299,51 @@ export async function deleteConversation(
 
 export interface ConversationOptions {
   models: { id: string; name: string }[]
-  agents: { name: string; displayName: string; emoji: string; description: string }[]
+  agents: {
+    name: string
+    displayName: string
+    emoji: string
+    description: string
+    avatar: string
+    defaultInitPrompt: string
+    promptsI18n: { 'zh-CN': string[] }
+  }[]
   skills: { name: string; displayName: string; description: string; icon: string; emoji: string }[]
+}
+
+/** moss 智能体元数据字段命名不统一（camelCase / snake_case / 嵌 meta），统一取第一个非空字符串 */
+function pickString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value) return value
+  }
+  return ''
+}
+
+/** 从 moss agent 元数据抽取 zh-CN 案例提示词（兼容 promptsI18n / prompts_i18n / meta 嵌套） */
+function pickZhCnPrompts(sources: unknown[]): string[] {
+  for (const source of sources) {
+    if (source && typeof source === 'object' && !Array.isArray(source)) {
+      const zh = (source as { 'zh-CN'?: unknown })['zh-CN']
+      if (Array.isArray(zh)) return zh.filter((item): item is string => typeof item === 'string')
+    }
+  }
+  return []
 }
 
 export async function getConversationOptions(
   deps: ConversationDeps,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<ConversationOptions> {
-  const baseUrl = deps.config.moss.baseUrl
+  const baseUrl = ctx.baseUrl
   const [modelsJson, agentsJson, skillsJson] = await Promise.all(
     [
-      deps.mossFetch(baseUrl, { method: 'GET', path: '/api/v1/models/available', accessToken }),
-      deps.mossFetch(baseUrl, { method: 'GET', path: '/api/v1/agents/installed', accessToken }),
-      deps.mossFetch(baseUrl, { method: 'GET', path: '/api/v1/skills/installed', accessToken }),
+      deps.mossFetch(baseUrl, { method: 'GET', path: '/api/v1/models/available', accessToken: ctx.accessToken }),
+      deps.mossFetch(baseUrl, { method: 'GET', path: '/api/v1/agents/installed', accessToken: ctx.accessToken }),
+      deps.mossFetch(baseUrl, { method: 'GET', path: '/api/v1/skills/installed', accessToken: ctx.accessToken }),
     ].map((p) => mapMossErrors(() => p)),
   )
 
-  const models = z
-    .object({ data: z.array(z.object({ id: z.string(), name: z.string().optional() }).passthrough()) })
-    .passthrough()
-    .parse(modelsJson)
+  const models = AvailableModelsSchema.parse(modelsJson)
   // 与智能体页"我的智能体"一致：过滤 moss 系统内置（isBuiltin），不作为会话可选项
   const agents = NameListSchema.parse(agentsJson).filter(
     (a) => (a as { isBuiltin?: unknown }).isBuiltin !== true,
@@ -294,12 +353,42 @@ export async function getConversationOptions(
   return {
     models: models.data.map((m) => ({ id: m.id, name: m.name ?? m.id })),
     agents: agents.map((a) => {
-      const extra = a as { displayName?: unknown; emoji?: unknown; description?: unknown }
+      const extra = a as {
+        displayName?: unknown
+        emoji?: unknown
+        description?: unknown
+        avatar?: unknown
+        defaultInitPrompt?: unknown
+        default_init_prompt?: unknown
+        promptsI18n?: unknown
+        prompts_i18n?: unknown
+        meta?: {
+          defaultInitPrompt?: unknown
+          default_init_prompt?: unknown
+          promptsI18n?: unknown
+          prompts_i18n?: unknown
+        }
+      }
       return {
         name: a.name,
         displayName: typeof extra.displayName === 'string' ? extra.displayName : a.name,
         emoji: typeof extra.emoji === 'string' ? extra.emoji : '',
         description: typeof extra.description === 'string' ? extra.description : '',
+        avatar: typeof extra.avatar === 'string' ? extra.avatar : '',
+        defaultInitPrompt: pickString(
+          extra.defaultInitPrompt,
+          extra.default_init_prompt,
+          extra.meta?.defaultInitPrompt,
+          extra.meta?.default_init_prompt,
+        ),
+        promptsI18n: {
+          'zh-CN': pickZhCnPrompts([
+            extra.promptsI18n,
+            extra.prompts_i18n,
+            extra.meta?.promptsI18n,
+            extra.meta?.prompts_i18n,
+          ]),
+        },
       }
     }),
     skills: skills.map((s) => {
@@ -315,6 +404,15 @@ export async function getConversationOptions(
   }
 }
 
+/**
+ * tenant 头像同源代理：从 moss 拉取头像二进制交由 webui 转发（moss 静态资源，无需鉴权）。
+ * 调用方（conversationRoutes）已用 zod 白名单限制 path 仅 /uploads/tenant-assistant-avatars/<file>。
+ */
+export async function proxyAgentAvatar(deps: ConversationDeps, ctx: MossCallContext, path: string): Promise<MossAsset> {
+  // 用会话生效地址：自定义 moss 会话的 tenant 头像在其自定义 moss 上
+  return (deps.mossFetchAsset ?? mossFetchAsset)(ctx.baseUrl, path)
+}
+
 // ---------- workspace（DTO 白名单：node 去 fullPath，计划 3.10） ----------
 
 export async function getWorkspaceTree(
@@ -322,11 +420,11 @@ export async function getWorkspaceTree(
   principal: Principal,
   sessionId: string,
   path: string,
-  accessToken: string,
+  ctx: MossCallContext,
   search = '',
 ): Promise<unknown> {
-  await requireOwnSession(deps, principal, sessionId, accessToken)
-  const tree = await mapMossErrors(() => deps.moss.workspaceTree(accessToken, sessionId, path, search))
+  await requireOwnSession(deps, principal, sessionId, ctx)
+  const tree = await mapMossErrors(() => deps.moss.workspaceTree(ctx, sessionId, path, search))
   return sanitizeWorkspaceNode(tree)
 }
 
@@ -345,10 +443,10 @@ export async function getWorkspaceFile(
   principal: Principal,
   sessionId: string,
   path: string,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<unknown> {
-  await requireOwnSession(deps, principal, sessionId, accessToken)
-  return mapMossErrors(() => deps.moss.workspaceFileGet(accessToken, sessionId, path))
+  await requireOwnSession(deps, principal, sessionId, ctx)
+  return mapMossErrors(() => deps.moss.workspaceFileGet(ctx, sessionId, path))
 }
 
 export async function uploadWorkspaceFile(
@@ -357,14 +455,14 @@ export async function uploadWorkspaceFile(
   sessionId: string,
   path: string,
   contentBase64: string,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<unknown> {
-  await requireOwnSession(deps, principal, sessionId, accessToken)
+  await requireOwnSession(deps, principal, sessionId, ctx)
   const decodedBytes = Math.floor((contentBase64.length * 3) / 4)
   if (decodedBytes > deps.config.upload.maxFileBytes) {
     throw new Error('FILE_TOO_LARGE')
   }
-  return mapMossErrors(() => deps.moss.workspaceFilePost(accessToken, sessionId, path, contentBase64))
+  return mapMossErrors(() => deps.moss.workspaceFilePost(ctx, sessionId, path, contentBase64))
 }
 
 function mapMossErrors<T>(fn: () => Promise<T>): Promise<T> {

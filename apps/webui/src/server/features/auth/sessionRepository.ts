@@ -17,6 +17,8 @@ export interface WebSessionRow {
   tokenAuthTag: Buffer
   accessExpiresAt: Date
   expiresAt: Date
+  /** 该会话生效的自定义 Moss 地址（默认地址为 null）；getMossContext 据此路由所有 moss 调用 */
+  mossBaseUrl: string | null
   createdAt: Date
   lastSeenAt: Date
 }
@@ -24,7 +26,7 @@ export interface WebSessionRow {
 const SESSION_COLUMNS = `id, principal_id AS "principalId", token_digest AS "tokenDigest",
   encrypted_moss_tokens AS "encryptedMossTokens", token_iv AS "tokenIv",
   token_auth_tag AS "tokenAuthTag", access_expires_at AS "accessExpiresAt",
-  expires_at AS "expiresAt", created_at AS "createdAt", last_seen_at AS "lastSeenAt"`
+  expires_at AS "expiresAt", moss_base_url AS "mossBaseUrl", created_at AS "createdAt", last_seen_at AS "lastSeenAt"`
 
 export interface CreateWebSessionInput {
   principalId: string
@@ -32,6 +34,7 @@ export interface CreateWebSessionInput {
   encrypted: EncryptedToken
   accessExpiresAt: Date
   expiresAt: Date
+  mossBaseUrl?: string | null
 }
 
 export async function createWebSession(
@@ -41,8 +44,8 @@ export async function createWebSession(
   const { rows } = await pool.query<WebSessionRow>(
     `INSERT INTO web_sessions
        (id, token_digest, principal_id, encrypted_moss_tokens, token_iv, token_auth_tag,
-        access_expires_at, expires_at, created_at, last_seen_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())
+        access_expires_at, expires_at, moss_base_url, created_at, last_seen_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
      RETURNING ${SESSION_COLUMNS}`,
     [
       randomUUID(),
@@ -53,6 +56,7 @@ export async function createWebSession(
       input.encrypted.authTag,
       input.accessExpiresAt,
       input.expiresAt,
+      input.mossBaseUrl ?? null,
     ],
   )
   const row = rows[0]

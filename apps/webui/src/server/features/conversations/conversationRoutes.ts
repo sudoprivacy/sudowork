@@ -1,9 +1,9 @@
 import { Router, type NextFunction, type Response } from 'express'
 import { z, ZodError } from 'zod'
-import { getAccessToken } from '../auth/authService.js'
+import { getMossContext } from '../auth/authService.js'
 import { findPrincipalById, type Principal } from '../auth/principalRepository.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
-import { MossHttpError } from '@sudowork/moss-client'
+import { MossHttpError, type MossCallContext } from '@sudowork/moss-client'
 import {
   CreateConversationRequestSchema,
   ReorderPinnedRequestSchema,
@@ -21,6 +21,7 @@ import {
   getWorkspaceFile,
   getWorkspaceTree,
   listConversations,
+  proxyAgentAvatar,
   reorderPinnedConversations,
   terminateConversation,
   updateConversationMeta,
@@ -41,9 +42,9 @@ export function createConversationRouter(deps: ConversationDeps): Router {
     return findPrincipalById(deps.pool, req.webSession!.principalId)
   }
 
-  /** 当前 Web Session 自己的 Moss access token（计划 3.2）。 */
-  async function resolveToken(req: AuthedRequest): Promise<string> {
-    return getAccessToken(deps.auth, req.webSession!)
+  /** 当前 Web Session 的 Moss 调用上下文（access token + 会话生效地址）。 */
+  async function resolveCtx(req: AuthedRequest): Promise<MossCallContext> {
+    return getMossContext(deps.auth, req.webSession!)
   }
 
   function convErrorHandler(err: unknown, res: Response, next: NextFunction): void {
@@ -78,8 +79,8 @@ export function createConversationRouter(deps: ConversationDeps): Router {
     void (async () => {
       const principal = await resolvePrincipal(req as AuthedRequest)
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
-      const token = await resolveToken(req as AuthedRequest)
-      res.status(200).json({ conversations: await listConversations(deps, principal, token) })
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json({ conversations: await listConversations(deps, principal, ctx) })
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
@@ -88,15 +89,32 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const principal = await resolvePrincipal(req as AuthedRequest)
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const input = CreateConversationRequestSchema.parse(req.body)
-      const token = await resolveToken(req as AuthedRequest)
-      res.status(201).json(await createConversation(deps, principal, input, token))
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(201).json(await createConversation(deps, principal, input, ctx))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
   router.get('/options', requireSession, (req, res, next) => {
     void (async () => {
-      const token = await resolveToken(req as AuthedRequest)
-      res.status(200).json(await getConversationOptions(deps, token))
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json(await getConversationOptions(deps, ctx))
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  // tenant 头像同源代理：白名单仅放行 /uploads/tenant-assistant-avatars/<单层文件名>，防 SSRF/路径穿越。
+  // 单段 GET 路径，与 /options 并列，不与 DELETE /:id、两段 /:id/* 冲突。
+  router.get('/agent-avatar', requireSession, (req, res, next) => {
+    void (async () => {
+      const path = z
+        .string()
+        .min(1)
+        .max(512)
+        .regex(/^\/uploads\/tenant-assistant-avatars\/[A-Za-z0-9][\w.-]*$/)
+        .parse(req.query.path)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      const asset = await proxyAgentAvatar(deps, ctx, path)
+      res.set('Content-Type', asset.contentType ?? 'application/octet-stream')
+      res.send(Buffer.from(asset.buffer))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
@@ -105,8 +123,8 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const principal = await resolvePrincipal(req as AuthedRequest)
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const id = z.string().min(1).parse(req.params.id)
-      const token = await resolveToken(req as AuthedRequest)
-      res.status(200).json(await getContext(deps, principal, id, token))
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json(await getContext(deps, principal, id, ctx))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
@@ -115,8 +133,8 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const principal = await resolvePrincipal(req as AuthedRequest)
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const id = z.string().min(1).parse(req.params.id)
-      const token = await resolveToken(req as AuthedRequest)
-      await terminateConversation(deps, principal, id, token)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      await terminateConversation(deps, principal, id, ctx)
       res.status(200).json({ ok: true })
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
@@ -128,8 +146,8 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const id = z.string().min(1).parse(req.params.id)
       const path = typeof req.query.path === 'string' ? req.query.path : ''
       const search = typeof req.query.search === 'string' ? req.query.search : ''
-      const token = await resolveToken(req as AuthedRequest)
-      res.status(200).json(await getWorkspaceTree(deps, principal, id, path, token, search))
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json(await getWorkspaceTree(deps, principal, id, path, ctx, search))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
@@ -139,8 +157,8 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const id = z.string().min(1).parse(req.params.id)
       const path = z.string().min(1).parse(req.query.path)
-      const token = await resolveToken(req as AuthedRequest)
-      res.status(200).json(await getWorkspaceFile(deps, principal, id, path, token))
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json(await getWorkspaceFile(deps, principal, id, path, ctx))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
@@ -152,11 +170,11 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const body = z
         .object({ path: z.string().min(1).max(1024), content_base64: z.string().min(1) })
         .parse(req.body)
-      const token = await resolveToken(req as AuthedRequest)
+      const ctx = await resolveCtx(req as AuthedRequest)
       res
         .status(200)
         .json(
-        await uploadWorkspaceFile(deps, principal, id, body.path, body.content_base64, token),
+        await uploadWorkspaceFile(deps, principal, id, body.path, body.content_base64, ctx),
       )
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
@@ -167,8 +185,8 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const principal = await resolvePrincipal(req as AuthedRequest)
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const id = z.string().min(1).parse(req.params.id)
-      const token = await resolveToken(req as AuthedRequest)
-      const json = (await deps.moss.sessionSkillsAvailable(token, id)) as {
+      const ctx = await resolveCtx(req as AuthedRequest)
+      const json = (await deps.moss.sessionSkillsAvailable(ctx, id)) as {
         skills?: {
           name?: unknown
           displayName?: unknown
@@ -200,8 +218,8 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const principal = await resolvePrincipal(req as AuthedRequest)
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const id = z.string().min(1).parse(req.params.id)
-      const token = await resolveToken(req as AuthedRequest)
-      res.status(200).json(await getDeliverables(deps, principal, id, token))
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json(await getDeliverables(deps, principal, id, ctx))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
@@ -212,8 +230,8 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const id = z.string().min(1).parse(req.params.id)
       const body = UpdateConversationMetaRequestSchema.parse(req.body)
-      const token = await resolveToken(req as AuthedRequest)
-      await updateConversationMeta(deps, principal, id, token, body)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      await updateConversationMeta(deps, principal, id, ctx, body)
       res.status(200).json({ ok: true })
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
@@ -235,8 +253,8 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const principal = await resolvePrincipal(req as AuthedRequest)
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const id = z.string().min(1).parse(req.params.id)
-      const token = await resolveToken(req as AuthedRequest)
-      await deleteConversation(deps, principal, id, token)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      await deleteConversation(deps, principal, id, ctx)
       res.status(200).json({ ok: true })
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })

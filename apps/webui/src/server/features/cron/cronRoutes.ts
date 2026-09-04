@@ -1,6 +1,7 @@
 import { Router, type NextFunction, type Response } from 'express'
 import { z, ZodError } from 'zod'
-import { getAccessToken } from '../auth/authService.js'
+import { getMossContext } from '../auth/authService.js'
+import type { MossCallContext } from '@sudowork/moss-client'
 import { findPrincipalById, type Principal } from '../auth/principalRepository.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
 import { MossHttpError } from '@sudowork/moss-client'
@@ -54,8 +55,8 @@ export function createCronRouter(deps: CronDeps): Router {
     return findPrincipalById(deps.pool, req.webSession!.principalId)
   }
 
-  async function token(req: AuthedRequest): Promise<string> {
-    return getAccessToken(deps.auth, req.webSession!)
+  async function token(req: AuthedRequest): Promise<MossCallContext> {
+    return getMossContext(deps.auth, req.webSession!)
   }
 
   function handle(err: unknown, res: Response, next: NextFunction): void {

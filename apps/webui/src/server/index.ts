@@ -16,7 +16,7 @@ const config = loadConfig()
 
 const app = createApp({ publicOrigin: config.publicOrigin })
 const pool: Pool = getPool(config.databaseUrl)
-const mossAuth = createMossAuthPort(mossRequest, config.moss.baseUrl)
+const mossAuth = createMossAuthPort(mossRequest)
 
 const handles = registerApiRoutes(app, { config, pool, mossAuth })
 

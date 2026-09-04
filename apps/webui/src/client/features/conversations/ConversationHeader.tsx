@@ -24,6 +24,7 @@ export function ConversationHeader({
   onSetModel,
   onTogglePanel,
   statusHint,
+  modelError,
 }: {
   title: string
   socketStatus: 'connecting' | 'open' | 'closed'
@@ -32,6 +33,7 @@ export function ConversationHeader({
   onSetModel: (modelId: string) => void
   onTogglePanel: () => void
   statusHint: string | null
+  modelError: string | null
 }): React.ReactElement {
   const currentName =
     models.find((m) => m.id === currentModel || m.id === currentModel?.replace(/^proxy\//, ''))?.name
@@ -71,6 +73,7 @@ export function ConversationHeader({
         <div className='min-w-0 truncate text-14px font-600 text-foreground'>{title}</div>
       </div>
       <div className='flex items-center gap-3 shrink-0'>
+        {modelError ? <span className='text-12px text-warning'>{modelError}</span> : null}
         {statusHint ? <span className='text-12px text-warning'>{statusHint}</span> : null}
         {/* 连接状态点 */}
         <span

@@ -186,6 +186,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       async create(_input) {
         return { sessionId: 'new', wsUrl: '' }
       },
+      async setUserModel() {},
       async context() {
         return { context: { messages: [] } }
       },

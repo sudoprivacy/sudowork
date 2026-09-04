@@ -3,18 +3,19 @@ import { createMossCronPort } from '@sudowork/moss-client'
 
 const BASE = 'http://moss.test'
 const TK = 'tk'
+const CTX = { accessToken: TK, baseUrl: BASE }
 
 describe('MossCronPort request shapes（修订版 3.9）', () => {
   test('CRUD/trigger/runs paths match baseline routes', async () => {
     const mock = vi.fn().mockResolvedValue({ jobs: [] })
-    const port = createMossCronPort(mock, BASE)
-    await port.list(TK)
-    await port.get(TK, 'j1')
-    await port.create(TK, { name: 'n', schedule: { kind: 'cron', value: '0 9 * * *' } })
-    await port.update(TK, 'j1', { enabled: false })
-    await port.remove(TK, 'j1')
-    await port.trigger(TK, 'j1')
-    await port.runs(TK, 'j1', 20)
+    const port = createMossCronPort(mock)
+    await port.list(CTX)
+    await port.get(CTX, 'j1')
+    await port.create(CTX, { name: 'n', schedule: { kind: 'cron', value: '0 9 * * *' } })
+    await port.update(CTX, 'j1', { enabled: false })
+    await port.remove(CTX, 'j1')
+    await port.trigger(CTX, 'j1')
+    await port.runs(CTX, 'j1', 20)
 
     const calls = mock.mock.calls.map(
       (c) =>
@@ -34,8 +35,8 @@ describe('MossCronPort request shapes（修订版 3.9）', () => {
 
   test('admin list uses /api/v1/admin/cron/jobs', async () => {
     const mock = vi.fn().mockResolvedValue({ data: [] })
-    const port = createMossCronPort(mock, BASE)
-    await port.adminList(TK)
+    const port = createMossCronPort(mock)
+    await port.adminList(CTX)
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'GET',
       path: '/api/v1/admin/cron/jobs',
@@ -45,14 +46,14 @@ describe('MossCronPort request shapes（修订版 3.9）', () => {
 
   test('schedule body uses value field (never expr)', async () => {
     const mock = vi.fn().mockResolvedValue({ ok: true })
-    const port = createMossCronPort(mock, BASE)
+    const port = createMossCronPort(mock)
     const body = {
       name: 'daily',
       schedule: { kind: 'every' as const, value: '30m', tz: 'Asia/Shanghai' },
       conversationMode: 'new' as const,
       assistantName: 'helper',
     }
-    await port.create(TK, body)
+    await port.create(CTX, body)
     const sent = mock.mock.calls[0]![1] as { body: Record<string, unknown> }
     expect(sent.body).toEqual(body)
     expect(JSON.stringify(sent.body)).not.toContain('expr')

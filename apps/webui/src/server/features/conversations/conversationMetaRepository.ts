@@ -9,6 +9,8 @@ export interface ConversationMeta {
   title: string | null
   pinned: boolean
   pinnedAt: number | null
+  /** 会话所选模型（getConversationMetaMap 的列表场景不提供该字段） */
+  modelId?: string | null
 }
 
 export async function getConversationMeta(
@@ -16,14 +18,24 @@ export async function getConversationMeta(
   principalId: string,
   mossSessionId: string,
 ): Promise<ConversationMeta | null> {
-  const { rows } = await pool.query<{ title: string | null; pinned: boolean; pinned_at: string | null }>(
-    `SELECT title, pinned, pinned_at FROM conversation_meta
+  const { rows } = await pool.query<{
+    title: string | null
+    pinned: boolean
+    pinned_at: string | null
+    model_id: string | null
+  }>(
+    `SELECT title, pinned, pinned_at, model_id FROM conversation_meta
      WHERE principal_id = $1 AND moss_session_id = $2`,
     [principalId, mossSessionId],
   )
   const row = rows[0]
   if (!row) return null
-  return { title: row.title, pinned: row.pinned, pinnedAt: row.pinned_at === null ? null : Number(row.pinned_at) }
+  return {
+    title: row.title,
+    pinned: row.pinned,
+    pinnedAt: row.pinned_at === null ? null : Number(row.pinned_at),
+    modelId: row.model_id,
+  }
 }
 
 /** 批量取（列表合并用），一次查询 */
@@ -47,6 +59,22 @@ export async function getConversationMetaMap(
     })
   }
   return map
+}
+
+/** 会话模型写入（不存在则插入；不覆盖标题/置顶字段） */
+export async function upsertConversationModel(
+  pool: Pool,
+  principalId: string,
+  mossSessionId: string,
+  modelId: string,
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO conversation_meta (principal_id, moss_session_id, model_id, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (principal_id, moss_session_id) DO UPDATE
+       SET model_id = $3, updated_at = now()`,
+    [principalId, mossSessionId, modelId],
+  )
 }
 
 /** 标题写入（不存在则插入；不覆盖置顶字段） */

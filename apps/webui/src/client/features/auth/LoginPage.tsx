@@ -3,8 +3,8 @@ import { ApiError, loginApiKey, loginPassword } from './authApi'
 import './LoginPage.css'
 
 /**
- * 登录页（计划 Task 3）：只显示密码/API Key 两种方式；
- * 不显示模式选择、OAuth、注册和 Moss 地址。
+ * 登录页（计划 Task 3）：密码/API Key 两种方式；
+ * 自定义 Moss 地址默认折叠、永不自动展开，展开填写后该会话所有 moss 调用走此地址。
  * 视觉在 Task 4 摘取 Sudowork design tokens 后统一替换。
  */
 
@@ -21,6 +21,8 @@ export function LoginPage({ onSuccess }: { onSuccess?: (result: { ok: true }) =>
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [apiKey, setApiKey] = useState('')
+  const [mossUrl, setMossUrl] = useState<string>(() => localStorage.getItem('login.mossBaseUrl') ?? '')
+  const [customUrlExpanded, setCustomUrlExpanded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -32,12 +34,32 @@ export function LoginPage({ onSuccess }: { onSuccess?: (result: { ok: true }) =>
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault()
     setError(null)
+
+    // 自定义地址：仅展开时生效。非空须为 http(s) 完整 URL 并记忆；展开且清空则移除记忆。
+    let mossBaseUrl: string | undefined
+    if (customUrlExpanded) {
+      const trimmed = mossUrl.trim()
+      if (trimmed) {
+        try {
+          const parsed = new URL(trimmed)
+          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('scheme')
+        } catch {
+          setError('地址必须是以 http:// 或 https:// 开头的完整 URL')
+          return
+        }
+        mossBaseUrl = trimmed
+        localStorage.setItem('login.mossBaseUrl', trimmed)
+      } else {
+        localStorage.removeItem('login.mossBaseUrl')
+      }
+    }
+
     setLoading(true)
     try {
       const result =
         mode === 'password'
-          ? await loginPassword({ username, password })
-          : await loginApiKey(apiKey)
+          ? await loginPassword({ username, password, ...(mossBaseUrl ? { mossBaseUrl } : {}) })
+          : await loginApiKey(apiKey, mossBaseUrl)
       onSuccess?.(result)
     } catch (err) {
       if (err instanceof ApiError) {
@@ -103,6 +125,22 @@ export function LoginPage({ onSuccess }: { onSuccess?: (result: { ok: true }) =>
             API Key
             <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} required />
           </label>
+        )}
+
+        {customUrlExpanded ? (
+          <label className="login-field">
+            Moss 服务器地址
+            <input
+              value={mossUrl}
+              onChange={(e) => setMossUrl(e.target.value)}
+              autoComplete="off"
+              inputMode="url"
+            />
+          </label>
+        ) : (
+          <button type="button" className="login-custom-toggle" onClick={() => setCustomUrlExpanded(true)}>
+            使用自定义服务器地址
+          </button>
         )}
 
         {error ? (

@@ -2,10 +2,10 @@ import type { Pool } from 'pg'
 import type WebSocket from 'ws'
 import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
-import { getAccessToken } from '../auth/authService.js'
+import { getMossContext } from '../auth/authService.js'
 import type { WebSessionRow } from '../auth/sessionRepository.js'
 import type { MossSessionPort } from '@sudowork/moss-client'
-import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
+import { MossHttpError, MossNetworkError, deriveWsBaseUrl } from '@sudowork/moss-client'
 import {
   MossUpstreamSocket,
   buildAnswerQuestionMessage,
@@ -25,7 +25,9 @@ import {
   getLock,
   markUncertain,
   releaseToIdle,
+  releaseToIdleIfHeld,
 } from './lockRepository.js'
+import { upsertConversationModel } from './conversationMetaRepository.js'
 
 /**
  * 会话协调器（计划 3.3/3.8）：
@@ -194,8 +196,8 @@ export class ConversationCoordinator {
       }
     }
 
-    const accessToken = await getAccessToken(this.deps.auth, conn.webSession)
-    const resumed = await this.deps.moss.resume(accessToken, entry.mossSessionId).catch((err: unknown) => {
+    const ctx = await getMossContext(this.deps.auth, conn.webSession)
+    const resumed = await this.deps.moss.resume(ctx, entry.mossSessionId).catch((err: unknown) => {
       if (err instanceof MossHttpError && err.status === 404) {
         throw new Error('SESSION_NOT_FOUND')
       }
@@ -207,9 +209,10 @@ export class ConversationCoordinator {
 
     entry.upstream = new MossUpstreamSocket(
       resumed.wsUrl,
-      accessToken,
+      ctx.accessToken,
       entry.mossSessionId,
-      this.deps.config.moss.wsBaseUrl,
+      // WS 校验基准用会话生效地址（自定义 moss 会话的 ws 在其自定义 host）
+      deriveWsBaseUrl(ctx.baseUrl),
       {
         onEvent: (event) => void this.handleUpstreamEvent(entry, event),
         onClose: () => void this.handleUpstreamClose(entry),
@@ -230,6 +233,25 @@ export class ConversationCoordinator {
       return // 白名单外事件不透传
     }
     this.broadcast(entry, { kind: 'upstream', event })
+
+    // 会话内切模型：本地持久化（重开会话时回读显示）。失败隔离：写库失败不影响事件转发
+    // （对齐 generateTitleIfMissing 吞错模式）。上游 model 带 proxy/ 前缀，剥离后落库。
+    if (type === 'system') {
+      const subtype = (event as { subtype?: unknown }).subtype
+      const model = (event as { model?: unknown }).model
+      if (subtype === 'model_changed' && typeof model === 'string' && model) {
+        await upsertConversationModel(
+          this.deps.pool,
+          entry.principalId,
+          entry.mossSessionId,
+          model.replace(/^proxy\//, ''),
+        ).catch((err: unknown) =>
+          console.warn(
+            `[coordinator] persist model failed (session=${entry.mossSessionId.slice(0, 8)}): ${(err as Error).message}`,
+          ),
+        )
+      }
+    }
 
     if (type === 'result') {
       await releaseToIdle(this.deps.pool, {
@@ -307,13 +329,48 @@ export class ConversationCoordinator {
           principalId: conn.principalId,
           mossSessionId: entry.mossSessionId,
         })
-        if (lock?.writerWebSessionId !== conn.webSession.id) {
-          this.sendTo(conn.ws, { kind: 'error', code: 'NOT_WRITER' })
+        if (lock?.state === 'uncertain') {
+          this.sendTo(conn.ws, { kind: 'error', code: 'LOCK_UNCERTAIN' })
           return
         }
-        await this.ensureUpstream(entry, conn)
-        if (!entry.upstream?.send(buildSetModelMessage(msg.modelId))) {
-          this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
+        // 有进行中回合且 writer 是他人：拒绝（不打断对方回合）
+        if (lock?.state === 'running' && lock.writerWebSessionId !== conn.webSession.id) {
+          this.sendTo(conn.ws, { kind: 'error', code: 'CONVERSATION_BUSY' })
+          return
+        }
+        // idle 期任意订阅者可切模型：非 writer 先经 idle 抢占成为 writer，切完守卫回收
+        const isWriter = lock?.writerWebSessionId === conn.webSession.id
+        if (!isWriter) {
+          const acquired = await acquireWriteLock(this.deps.pool, {
+            principalId: conn.principalId,
+            mossSessionId: entry.mossSessionId,
+            webSessionId: conn.webSession.id,
+          })
+          if (!acquired.ok) {
+            const code = acquired.reason === 'UNCERTAIN' ? 'LOCK_UNCERTAIN' : 'CONVERSATION_BUSY'
+            this.sendTo(conn.ws, { kind: 'error', code })
+            return
+          }
+        }
+        try {
+          if (!isWriter) await this.broadcastLockState(entry)
+          await this.ensureUpstream(entry, conn)
+          if (!entry.upstream?.send(buildSetModelMessage(msg.modelId))) {
+            this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
+          }
+        } finally {
+          if (!isWriter) {
+            const released = await releaseToIdleIfHeld(this.deps.pool, {
+              principalId: conn.principalId,
+              mossSessionId: entry.mossSessionId,
+              webSessionId: conn.webSession.id,
+            })
+            if (released) {
+              await this.broadcastLockState(entry).catch((err: unknown) =>
+                console.warn(`[coordinator] broadcast after set_model release failed: ${(err as Error).message}`),
+              )
+            }
+          }
         }
       }
 

@@ -1,93 +1,103 @@
-import { type MossFetch } from './MossHttpClient.js'
+import { type MossCallContext, type MossFetch } from './MossHttpClient.js'
 
 /**
  * Moss MCP 端口（计划 3.9 修订版）：
  * - own personal 判定：响应无 owner 字段，用 scope === 'user'（服务端 SQL 保证本人）
  * - 列表仅含 status === 'enabled' 的服务器（pending/error 个人 MCP 不出现）
  * - template install 精确发送 config_values / auth_credentials / display_name
+ * 每次调用传入 MossCallContext（access token + 会话生效的 moss 地址）。
  */
 
 export interface MossMcpPort {
-  servers(accessToken: string): Promise<unknown>
-  templates(accessToken: string): Promise<unknown>
+  servers(ctx: MossCallContext): Promise<unknown>
+  templates(ctx: MossCallContext): Promise<unknown>
   installTemplate(
-    accessToken: string,
+    ctx: MossCallContext,
     templateId: string,
     body: { config_values?: Record<string, string>; auth_credentials?: Record<string, string>; display_name?: string },
   ): Promise<unknown>
-  installJson(accessToken: string, body: { json_config: string; name?: string }): Promise<unknown>
-  createServer(accessToken: string, body: unknown): Promise<unknown>
-  setEnabled(accessToken: string, id: string, enabled: boolean): Promise<unknown>
-  test(accessToken: string, id: string): Promise<unknown>
-  getUserConfig(accessToken: string, id: string): Promise<unknown>
-  putUserConfig(accessToken: string, id: string, body: { config_values: Record<string, string> }): Promise<unknown>
-  updateServer(accessToken: string, id: string, body: unknown): Promise<unknown>
-  deleteServer(accessToken: string, id: string): Promise<unknown>
-  policy(accessToken: string): Promise<unknown>
-  userProfile(accessToken: string): Promise<unknown>
-  tenantConfig(accessToken: string): Promise<unknown>
+  installJson(ctx: MossCallContext, body: { json_config: string; name?: string }): Promise<unknown>
+  createServer(ctx: MossCallContext, body: unknown): Promise<unknown>
+  setEnabled(ctx: MossCallContext, id: string, enabled: boolean): Promise<unknown>
+  test(ctx: MossCallContext, id: string): Promise<unknown>
+  getUserConfig(ctx: MossCallContext, id: string): Promise<unknown>
+  putUserConfig(ctx: MossCallContext, id: string, body: { config_values: Record<string, string> }): Promise<unknown>
+  updateServer(ctx: MossCallContext, id: string, body: unknown): Promise<unknown>
+  deleteServer(ctx: MossCallContext, id: string): Promise<unknown>
+  policy(ctx: MossCallContext): Promise<unknown>
+  userProfile(ctx: MossCallContext): Promise<unknown>
+  tenantConfig(ctx: MossCallContext): Promise<unknown>
 }
 
 function seg(value: string): string {
   return encodeURIComponent(value)
 }
 
-export function createMossMcpPort(mossFetch: MossFetch, baseUrl: string): MossMcpPort {
+export function createMossMcpPort(mossFetch: MossFetch): MossMcpPort {
   return {
-    servers: (tk) => mossFetch(baseUrl, { method: 'GET', path: '/api/v1/me/mcp-servers', accessToken: tk }),
-    templates: (tk) => mossFetch(baseUrl, { method: 'GET', path: '/api/v1/me/mcp-templates', accessToken: tk }),
-    installTemplate: (tk, templateId, body) =>
-      mossFetch(baseUrl, {
+    servers: (ctx) =>
+      mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/me/mcp-servers', accessToken: ctx.accessToken }),
+    templates: (ctx) =>
+      mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/me/mcp-templates', accessToken: ctx.accessToken }),
+    installTemplate: (ctx, templateId, body) =>
+      mossFetch(ctx.baseUrl, {
         method: 'POST',
         path: `/api/v1/me/mcp-templates/${seg(templateId)}/install`,
-        accessToken: tk,
+        accessToken: ctx.accessToken,
         body,
       }),
-    installJson: (tk, body) =>
-      mossFetch(baseUrl, {
+    installJson: (ctx, body) =>
+      mossFetch(ctx.baseUrl, {
         method: 'POST',
         path: '/api/v1/me/mcp-servers/install-json',
-        accessToken: tk,
+        accessToken: ctx.accessToken,
         body,
       }),
-    createServer: (tk, body) =>
-      mossFetch(baseUrl, { method: 'POST', path: '/api/v1/me/mcp-servers', accessToken: tk, body }),
-    setEnabled: (tk, id, enabled) =>
-      mossFetch(baseUrl, {
+    createServer: (ctx, body) =>
+      mossFetch(ctx.baseUrl, { method: 'POST', path: '/api/v1/me/mcp-servers', accessToken: ctx.accessToken, body }),
+    setEnabled: (ctx, id, enabled) =>
+      mossFetch(ctx.baseUrl, {
         method: 'PUT',
         path: `/api/v1/me/mcp-servers/${seg(id)}/${enabled ? 'enable' : 'disable'}`,
-        accessToken: tk,
+        accessToken: ctx.accessToken,
       }),
-    test: (tk, id) =>
-      mossFetch(baseUrl, { method: 'POST', path: `/api/v1/me/mcp-servers/${seg(id)}/test`, accessToken: tk }),
-    getUserConfig: (tk, id) =>
-      mossFetch(baseUrl, {
+    test: (ctx, id) =>
+      mossFetch(ctx.baseUrl, {
+        method: 'POST',
+        path: `/api/v1/me/mcp-servers/${seg(id)}/test`,
+        accessToken: ctx.accessToken,
+      }),
+    getUserConfig: (ctx, id) =>
+      mossFetch(ctx.baseUrl, {
         method: 'GET',
         path: `/api/v1/me/mcp-servers/${seg(id)}/user-config`,
-        accessToken: tk,
+        accessToken: ctx.accessToken,
       }),
-    putUserConfig: (tk, id, body) =>
-      mossFetch(baseUrl, {
+    putUserConfig: (ctx, id, body) =>
+      mossFetch(ctx.baseUrl, {
         method: 'PUT',
         path: `/api/v1/me/mcp-servers/${seg(id)}/user-config`,
-        accessToken: tk,
+        accessToken: ctx.accessToken,
         body,
       }),
-    updateServer: (tk, id, body) =>
-      mossFetch(baseUrl, {
+    updateServer: (ctx, id, body) =>
+      mossFetch(ctx.baseUrl, {
         method: 'PATCH',
         path: `/api/v1/me/mcp-servers/${seg(id)}`,
-        accessToken: tk,
+        accessToken: ctx.accessToken,
         body,
       }),
-    deleteServer: (tk, id) =>
-      mossFetch(baseUrl, {
+    deleteServer: (ctx, id) =>
+      mossFetch(ctx.baseUrl, {
         method: 'DELETE',
         path: `/api/v1/me/mcp-servers/${seg(id)}`,
-        accessToken: tk,
+        accessToken: ctx.accessToken,
       }),
-    policy: (tk) => mossFetch(baseUrl, { method: 'GET', path: '/api/v1/tenant/mcp-policy', accessToken: tk }),
-    userProfile: (tk) => mossFetch(baseUrl, { method: 'GET', path: '/api/v1/user/profile', accessToken: tk }),
-    tenantConfig: (tk) => mossFetch(baseUrl, { method: 'GET', path: '/api/v1/tenant/config', accessToken: tk }),
+    policy: (ctx) =>
+      mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/tenant/mcp-policy', accessToken: ctx.accessToken }),
+    userProfile: (ctx) =>
+      mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/user/profile', accessToken: ctx.accessToken }),
+    tenantConfig: (ctx) =>
+      mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/tenant/config', accessToken: ctx.accessToken }),
   }
 }

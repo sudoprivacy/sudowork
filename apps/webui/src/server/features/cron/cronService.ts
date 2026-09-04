@@ -2,7 +2,7 @@ import type { AppConfig } from '../../config.js'
 import type { Pool } from 'pg'
 import type { AuthDeps } from '../auth/authService.js'
 import type { Principal } from '../auth/principalRepository.js'
-import type { MossCronPort } from '@sudowork/moss-client'
+import type { MossCallContext, MossCronPort } from '@sudowork/moss-client'
 import type { MossSessionPort } from '@sudowork/moss-client'
 import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 
@@ -32,7 +32,7 @@ export interface CronDeps {
   cron: MossCronPort
   sessions: MossSessionPort
   /** 从 fresh agents/installed 列表取当前可见名字集合（由 routes 注入） */
-  fetchVisibleAgentNames: (accessToken: string) => Promise<Set<string>>
+  fetchVisibleAgentNames: (ctx: MossCallContext) => Promise<Set<string>>
 }
 
 function mapErr(err: unknown): Error {
@@ -61,9 +61,9 @@ async function run<T>(fn: () => Promise<T>): Promise<T> {
 async function visibleJobs(
   deps: CronDeps,
   _principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<Record<string, unknown>[]> {
-  const json = await run(() => deps.cron.list(accessToken))
+  const json = await run(() => deps.cron.list(ctx))
   return extractRows(json)
 }
 
@@ -81,19 +81,19 @@ function extractRows(json: unknown): Record<string, unknown>[] {
 async function requireVisibleJob(
   deps: CronDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
   jobId: string,
 ): Promise<void> {
-  const jobs = await visibleJobs(deps, principal, accessToken)
+  const jobs = await visibleJobs(deps, principal, ctx)
   if (!jobs.some((j) => String(j.id) === jobId)) throw new NotFoundError()
 }
 
 export async function listJobs(
   deps: CronDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<{ jobs: Record<string, unknown>[]; canCreate: boolean; canUseAdminList: boolean }> {
-  const jobs = await visibleJobs(deps, principal, accessToken)
+  const jobs = await visibleJobs(deps, principal, ctx)
   // canCreate 投影：默认乐观展示创建入口；被组织停用时由 CRON_DISABLED_BY_ORG 降级
   return { jobs, canCreate: true, canUseAdminList: false }
 }
@@ -112,7 +112,7 @@ export interface CronJobInput {
 async function buildMossBody(
   deps: CronDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
   input: CronJobInput,
   opts: { requireFull: boolean },
 ): Promise<Record<string, unknown>> {
@@ -133,7 +133,7 @@ async function buildMossBody(
 
   if (input.boundSessionId !== undefined && input.boundSessionId !== null) {
     // 计划 Task 7：boundSessionId 归属校验（当前用户 + 同 org）
-    const session = await run(() => deps.sessions.get(accessToken, input.boundSessionId!))
+    const session = await run(() => deps.sessions.get(ctx, input.boundSessionId!))
     if (!session) throw new NotFoundError()
     if (session.userId !== principal.mossUserId || session.orgId !== principal.orgId) {
       throw new ForbiddenError()
@@ -158,73 +158,73 @@ async function buildMossBody(
 export async function createJob(
   deps: CronDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
   input: CronJobInput & { name: string; schedule: NonNullable<CronJobInput['schedule']> },
 ): Promise<unknown> {
-  const body = await buildMossBody(deps, principal, accessToken, input, { requireFull: true })
-  return run(() => deps.cron.create(accessToken, body))
+  const body = await buildMossBody(deps, principal, ctx, input, { requireFull: true })
+  return run(() => deps.cron.create(ctx, body))
 }
 
 export async function getJob(
   deps: CronDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
   jobId: string,
 ): Promise<unknown> {
-  await requireVisibleJob(deps, principal, accessToken, jobId)
-  return run(() => deps.cron.get(accessToken, jobId))
+  await requireVisibleJob(deps, principal, ctx, jobId)
+  return run(() => deps.cron.get(ctx, jobId))
 }
 
 export async function updateJob(
   deps: CronDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
   jobId: string,
   input: CronJobInput,
 ): Promise<unknown> {
-  await requireVisibleJob(deps, principal, accessToken, jobId)
-  const body = await buildMossBody(deps, principal, accessToken, input, { requireFull: false })
-  return run(() => deps.cron.update(accessToken, jobId, body))
+  await requireVisibleJob(deps, principal, ctx, jobId)
+  const body = await buildMossBody(deps, principal, ctx, input, { requireFull: false })
+  return run(() => deps.cron.update(ctx, jobId, body))
 }
 
 export async function deleteJob(
   deps: CronDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
   jobId: string,
 ): Promise<unknown> {
-  await requireVisibleJob(deps, principal, accessToken, jobId)
-  return run(() => deps.cron.remove(accessToken, jobId))
+  await requireVisibleJob(deps, principal, ctx, jobId)
+  return run(() => deps.cron.remove(ctx, jobId))
 }
 
 export async function triggerJob(
   deps: CronDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
   jobId: string,
 ): Promise<unknown> {
   // 手动触发：点击者必须是绑定会话 owner（requireVisibleJob 已保证本人可见）
-  await requireVisibleJob(deps, principal, accessToken, jobId)
-  return run(() => deps.cron.trigger(accessToken, jobId))
+  await requireVisibleJob(deps, principal, ctx, jobId)
+  return run(() => deps.cron.trigger(ctx, jobId))
 }
 
 export async function listRuns(
   deps: CronDeps,
   principal: Principal,
-  accessToken: string,
+  ctx: MossCallContext,
   jobId: string,
   limit: number,
 ): Promise<unknown> {
-  await requireVisibleJob(deps, principal, accessToken, jobId)
-  return run(() => deps.cron.runs(accessToken, jobId, limit))
+  await requireVisibleJob(deps, principal, ctx, jobId)
+  return run(() => deps.cron.runs(ctx, jobId, limit))
 }
 
 /** 计划 Task 7：assistantName 必须来自当前 fresh 可见列表（不接收浏览器自造 name）。 */
 export async function assertAssistantName(
   deps: CronDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   assistantName: string,
 ): Promise<void> {
-  const names = await deps.fetchVisibleAgentNames(accessToken)
+  const names = await deps.fetchVisibleAgentNames(ctx)
   if (!names.has(assistantName)) throw new InvalidSelectionError(assistantName)
 }

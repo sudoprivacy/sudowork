@@ -47,17 +47,21 @@ export function fetchSession(): Promise<SessionResponse> {
   return apiRequest<SessionResponse>('/api/auth/session')
 }
 
-export function loginPassword(input: { username: string; password: string }): Promise<{ ok: true }> {
+export function loginPassword(input: {
+  username: string
+  password: string
+  mossBaseUrl?: string
+}): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>('/api/auth/login/password', {
     method: 'POST',
     body: JSON.stringify(input),
   })
 }
 
-export function loginApiKey(apiKey: string): Promise<{ ok: true }> {
+export function loginApiKey(apiKey: string, mossBaseUrl?: string): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>('/api/auth/login/api-key', {
     method: 'POST',
-    body: JSON.stringify({ apiKey }),
+    body: JSON.stringify(mossBaseUrl ? { apiKey, mossBaseUrl } : { apiKey }),
   })
 }
 

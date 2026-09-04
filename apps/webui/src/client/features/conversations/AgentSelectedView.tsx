@@ -5,12 +5,15 @@
  */
 import React from 'react'
 import { ArrowLeft, Bot } from 'lucide-react'
+import { resolveAgentAvatar } from '@client/components/agentAvatar'
 
 export interface SelectedAgentInfo {
   name: string
   displayName: string
   emoji: string
   description: string
+  avatar: string
+  promptsI18n: { 'zh-CN': string[] }
 }
 
 export function AgentSelectedView({
@@ -32,11 +35,22 @@ export function AgentSelectedView({
           <ArrowLeft size={18} color='var(--color-text-2)' />
         </div>
         <div className='flex-shrink-0'>
-          {agent.emoji ? (
-            <span style={{ fontSize: 24, lineHeight: '28px' }}>{agent.emoji}</span>
-          ) : (
-            <Bot size={24} />
-          )}
+          {(() => {
+            const resolved = resolveAgentAvatar(agent.avatar)
+            if (resolved?.kind === 'image') {
+              return (
+                <img src={resolved.value} alt={agent.displayName} className='w-24px h-24px rd-full object-cover' />
+              )
+            }
+            if (resolved?.kind === 'emoji') {
+              return <span style={{ fontSize: 24, lineHeight: '28px' }}>{resolved.value}</span>
+            }
+            return agent.emoji ? (
+              <span style={{ fontSize: 24, lineHeight: '28px' }}>{agent.emoji}</span>
+            ) : (
+              <Bot size={24} />
+            )
+          })()}
         </div>
         <span className='text-xl font-semibold text-foreground truncate'>{agent.displayName}</span>
       </div>

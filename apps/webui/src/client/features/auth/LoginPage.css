@@ -55,7 +55,22 @@
   border: 1px solid var(--border-default, #e5e6eb);
   border-radius: 4px;
   font-size: 14px;
-  line-height: 18px;
+  /* 20px（非 18px）：100% 缩放下原生 input overflow:clip 会裁掉用户名下划线字形 */
+  line-height: 20px;
+}
+
+.login-custom-toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #86909c);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.login-custom-toggle:hover {
+  color: var(--primary, #165dff);
 }
 
 .login-error {

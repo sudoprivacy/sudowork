@@ -57,6 +57,23 @@ export async function releaseToIdle(
   )
 }
 
+/**
+ * set_model 抢占路径专用：仅当锁仍为本次设置的 running + 本 writer 时回收为 idle（保留 writer）。
+ * 带守卫（区别于 releaseToIdle）：与断线 markUncertain / REST terminate 交错时不误回收。返回是否回收。
+ */
+export async function releaseToIdleIfHeld(
+  pool: Pool,
+  input: { principalId: string; mossSessionId: string; webSessionId: string },
+): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE conversation_locks SET state = 'idle', updated_at = now()
+     WHERE principal_id = $1 AND moss_session_id = $2
+       AND state = 'running' AND writer_web_session_id = $3`,
+    [input.principalId, input.mossSessionId, input.webSessionId],
+  )
+  return (rowCount ?? 0) > 0
+}
+
 /** writer 在 idle 断开：立即清空 writer（会话可被其他设备接管）。 */
 export async function clearWriterIfIdle(
   pool: Pool,

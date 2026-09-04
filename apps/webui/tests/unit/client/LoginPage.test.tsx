@@ -27,6 +27,7 @@ describe('LoginPage', () => {
   beforeEach(() => {
     loginPasswordMock.mockReset()
     loginApiKeyMock.mockReset()
+    localStorage.clear()
   })
 
   test('renders password fields by default; apiKey field after switching', () => {
@@ -65,7 +66,42 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith({ ok: true }))
-    expect(loginApiKeyMock).toHaveBeenCalledWith('moss_sk_x')
+    expect(loginApiKeyMock).toHaveBeenCalledWith('moss_sk_x', undefined)
+  })
+
+  test('custom moss url: collapsed by default; expand + valid url passes mossBaseUrl and persists', async () => {
+    loginPasswordMock.mockResolvedValue({ ok: true })
+    render(<LoginPage />)
+
+    // 默认折叠：只见 toggle，无地址输入框
+    expect(screen.queryByLabelText('Moss 服务器地址')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '使用自定义服务器地址' }))
+
+    fireEvent.change(screen.getByLabelText('用户名'), { target: { value: 'u' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'p' } })
+    fireEvent.change(screen.getByLabelText('Moss 服务器地址'), { target: { value: 'https://custom.moss:9443' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+
+    await waitFor(() =>
+      expect(loginPasswordMock).toHaveBeenCalledWith({
+        username: 'u',
+        password: 'p',
+        mossBaseUrl: 'https://custom.moss:9443',
+      }),
+    )
+    expect(localStorage.getItem('login.mossBaseUrl')).toBe('https://custom.moss:9443')
+  })
+
+  test('custom moss url: invalid url blocks submit with an error', async () => {
+    render(<LoginPage />)
+    fireEvent.click(screen.getByRole('button', { name: '使用自定义服务器地址' }))
+    fireEvent.change(screen.getByLabelText('用户名'), { target: { value: 'u' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'p' } })
+    fireEvent.change(screen.getByLabelText('Moss 服务器地址'), { target: { value: 'ftp://bad' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+    expect(loginPasswordMock).not.toHaveBeenCalled()
   })
 
   test('shows a friendly message for INVALID_CREDENTIALS', async () => {

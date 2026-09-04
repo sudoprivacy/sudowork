@@ -78,7 +78,7 @@ export function createAuthRouter(deps: AuthDeps): Router {
   router.post('/login/api-key', loginLimiter, (req, res, next) => {
     void (async () => {
       const input = LoginApiKeyRequestSchema.parse(req.body)
-      const result = await loginWithApiKey(deps, input.apiKey)
+      const result = await loginWithApiKey(deps, input.apiKey, input.mossBaseUrl)
       setSessionCookie(res, deps.config, result.cookieToken)
       res.status(200).json({ ok: true })
     })().catch((err: unknown) => authErrorHandler(err, res, next))

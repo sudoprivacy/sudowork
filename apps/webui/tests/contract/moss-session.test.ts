@@ -9,12 +9,13 @@ import {
 } from '@sudowork/moss-client'
 
 const BASE = 'http://moss.test'
+const CTX = { accessToken: 'tk', baseUrl: BASE }
 
 describe('MossSessionPort request shapes (contract vs baseline)', () => {
   test('list calls GET /api/v1/sessions', async () => {
     const mock = vi.fn().mockResolvedValue({ sessions: [] })
-    const port = createMossSessionPort(mock, BASE)
-    await port.list('tk')
+    const port = createMossSessionPort(mock)
+    await port.list(CTX)
     expect(mock).toHaveBeenCalledWith(BASE, { method: 'GET', path: '/api/v1/sessions', accessToken: 'tk' })
   })
 
@@ -24,14 +25,26 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
       ws_url: 'ws://moss.test/ws/sessions/s1',
       work_dir: '/home/x',
     })
-    const port = createMossSessionPort(mock, BASE)
-    const created = await port.create('tk', { assistantName: 'helper', enabledSkills: ['a', 'b'] })
+    const port = createMossSessionPort(mock)
+    const created = await port.create(CTX, { assistantName: 'helper', enabledSkills: ['a', 'b'] })
     expect(created).toEqual({ sessionId: 's1', wsUrl: 'ws://moss.test/ws/sessions/s1' })
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'POST',
       path: '/api/v1/sessions',
       accessToken: 'tk',
       body: { assistant_name: 'helper', enabled_skills: ['a', 'b'] },
+    })
+  })
+
+  test('setUserModel puts /api/v1/users/me/model with { modelId }', async () => {
+    const mock = vi.fn().mockResolvedValue({ data: { modelId: 'gpt-4', updatedAt: 1 } })
+    const port = createMossSessionPort(mock)
+    await port.setUserModel(CTX, 'gpt-4')
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'PUT',
+      path: '/api/v1/users/me/model',
+      accessToken: 'tk',
+      body: { modelId: 'gpt-4' },
     })
   })
 
@@ -47,30 +60,30 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
               : { ok: true },
       ),
     )
-    const port = createMossSessionPort(mock, BASE)
+    const port = createMossSessionPort(mock)
 
-    await port.context('tk', 's1')
+    await port.context(CTX, 's1')
     expect(mock).toHaveBeenLastCalledWith(BASE, {
       method: 'GET',
       path: '/api/v1/sessions/s1/context',
       accessToken: 'tk',
     })
 
-    await port.resume('tk', 's1')
+    await port.resume(CTX, 's1')
     expect(mock).toHaveBeenLastCalledWith(BASE, {
       method: 'POST',
       path: '/api/v1/sessions/s1/resume',
       accessToken: 'tk',
     })
 
-    await port.terminate('tk', 's1')
+    await port.terminate(CTX, 's1')
     expect(mock).toHaveBeenLastCalledWith(BASE, {
       method: 'POST',
       path: '/api/v1/sessions/s1/terminate',
       accessToken: 'tk',
     })
 
-    await port.workspaceTree('tk', 's1', '')
+    await port.workspaceTree(CTX, 's1', '')
     expect(mock).toHaveBeenLastCalledWith(BASE, {
       method: 'GET',
       path: '/api/v1/sessions/s1/workspace/tree',
@@ -81,8 +94,8 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
 
   test('session ids are uri-encoded once', async () => {
     const mock = vi.fn().mockResolvedValue({ ok: true })
-    const port = createMossSessionPort(mock, BASE)
-    await port.context('tk', 'id with space/slash')
+    const port = createMossSessionPort(mock)
+    await port.context(CTX, 'id with space/slash')
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'GET',
       path: '/api/v1/sessions/id%20with%20space%2Fslash/context',
