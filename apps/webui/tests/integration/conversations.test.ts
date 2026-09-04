@@ -263,6 +263,23 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     expect(Array.isArray(res.body.models)).toBe(true)
   })
 
+  test('PATCH meta writes title even when no meta row exists yet', async () => {
+    const app = await buildApp()
+    // sess-a1 从未写过 meta 行（未选模型的新建会话场景）：PATCH title 须建行写入而非静默丢失
+    const patched = await request(app)
+      .patch('/api/conversations/sess-a1/meta')
+      .set('Cookie', cookieA)
+      .set('Origin', testConfig.publicOrigin)
+      .send({ title: 'hello world' })
+    expect(patched.status).toBe(200)
+    expect(patched.body).toEqual({ ok: true })
+
+    const list = await request(app).get('/api/conversations').set('Cookie', cookieA)
+    expect(list.status).toBe(200)
+    const a1 = (list.body.conversations as { id: string; title: string | null }[]).find((c) => c.id === 'sess-a1')!
+    expect(a1.title).toBe('hello world')
+  })
+
   test('unauthenticated requests are rejected', async () => {
     const app = await buildApp()
     expect((await request(app).get('/api/conversations')).status).toBe(401)

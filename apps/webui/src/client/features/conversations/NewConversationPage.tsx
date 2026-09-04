@@ -6,13 +6,13 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import useSWR from 'swr'
+import useSWR, { useSWRConfig } from 'swr'
 import { Button, Dropdown, Input, Menu, Message, Popover, Tag } from '@arco-design/web-react'
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input/textarea'
 import { ArrowUp, AtSign, Bot, Brain, Plus, Zap } from 'lucide-react'
 import { ApiError } from '../auth/authApi'
 import { resolveAgentAvatar } from '@client/components/agentAvatar'
-import { createConversation, getConversationOptions } from './conversationApi'
+import { createConversation, getConversationOptions, updateConversationMeta } from './conversationApi'
 import { AgentSelectedView, type SelectedAgentInfo } from './AgentSelectedView'
 import { SkillSelectorMenu } from './SkillSelectorMenu'
 import { stripAtQuery, useSkillSelector } from './useSkillSelector'
@@ -102,8 +102,16 @@ const FOCUS_RING = {
   dark: { border: '#4D4B87', shadow: '0 2px 20px rgba(77,75,135,.45)' },
 }
 
+/** 从首条用户输入派生会话标题（与服务端 generateTitleIfMissing 同规则：剥 <think> → 首行 → 前 50 字）。 */
+function deriveConversationTitle(text: string): string {
+  const stripped = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+  const firstLine = stripped.split('\n')[0] ?? ''
+  return firstLine.slice(0, 50).trim()
+}
+
 export function NewConversationPage(): React.ReactElement {
   const navigate = useNavigate()
+  const { mutate } = useSWRConfig()
   const { data: options } = useSWR('conversation-options', getConversationOptions)
 
   const [selectedAgent, setSelectedAgent] = useState<SelectedAgentInfo | null>(null)
@@ -159,6 +167,19 @@ export function NewConversationPage(): React.ReactElement {
         enabledSkills: selectedSkills,
         ...(selectedModel ? { modelId: selectedModel } : {}),
       })
+      // 建成即派生标题写库并失效侧栏，使新会话立即出现且直接显示正确标题（否则要等 30s 轮询、
+      // 且标题要等服务端 turn 结束后才生成）；只在写库后失效一次，避免先占位再变正确。
+      const title = deriveConversationTitle(input.trim())
+      const revalidate = (): void => {
+        void mutate('conversations')
+      }
+      if (title) {
+        void updateConversationMeta(created.id, { title })
+          .catch(() => {})
+          .finally(revalidate)
+      } else {
+        revalidate()
+      }
       void navigate(`/conversation/${created.id}`, {
         state: { initialMessage: input.trim(), initialImages: images, initialModel: selectedModel || undefined },
       })
