@@ -17,7 +17,9 @@ services:
     restart: unless-stopped
 
   migrate:
-    build: .
+    build: &webui-build
+      context: ../..
+      dockerfile: apps/webui/Dockerfile
     command: ['node', 'dist/server/migrate.js']
     environment: &webui-env
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sudowork_webui}
@@ -34,7 +36,7 @@ services:
     restart: 'no'
 
   webui:
-    build: .
+    build: *webui-build
     environment:
       <<: *webui-env
       CSP_IMG_SRC_ORIGINS: ${CSP_IMG_SRC_ORIGINS:-}
@@ -46,7 +48,7 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q -O- http://127.0.0.1:26808/health/live || exit 1']
+      test: ['CMD-SHELL', 'node -e "require(''http'').get(''http://127.0.0.1:26808/health/live'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"']
       interval: 10s
       timeout: 5s
       retries: 10
