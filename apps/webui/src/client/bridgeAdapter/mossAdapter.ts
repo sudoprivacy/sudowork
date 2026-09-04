@@ -156,6 +156,48 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 const openStreams = new Map<string, WebSocket>()
 
+let __mid = 0
+function nextMsgId(): string {
+  __mid += 1
+  return `web-${__mid}-${Math.random().toString(16).slice(2, 8)}`
+}
+
+/**
+ * Translate an anthropic-style moss stream message into renderer
+ * IResponseMessage(s). Mirrors the core of the desktop MossWsConnection mapping
+ * (assistant text → content, thinking → thought, finish). One moss message can
+ * produce several IResponseMessages (one per content block).
+ */
+function mossEventToResponses(event: any, conversationId: string): any[] {
+  const out: any[] = []
+  if (!event || typeof event !== 'object') return out
+  const mid = event.uuid || nextMsgId()
+  if (event.type === 'assistant') {
+    if (event.error || event.isApiErrorMessage) {
+      out.push({ type: 'error', msg_id: mid, conversation_id: conversationId, data: String(event.error || 'assistant error') })
+      return out
+    }
+    const content = event.message?.content
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+          out.push({ type: 'content', msg_id: mid, conversation_id: conversationId, data: block.text })
+        } else if (block?.type === 'thinking') {
+          const th = block.thinking || block.text || ''
+          if (th && String(th).trim()) out.push({ type: 'thought', msg_id: `${mid}-t`, conversation_id: conversationId, data: { subject: 'Thinking', description: th } })
+        }
+      }
+    } else if (typeof content === 'string' && content.trim()) {
+      out.push({ type: 'content', msg_id: mid, conversation_id: conversationId, data: content })
+    }
+  } else if (event.type === 'result' || event.type === 'finish') {
+    out.push({ type: 'finish', msg_id: mid, conversation_id: conversationId, data: {} })
+  }
+  // 'user' echoes / system frames: ignored — the renderer already shows the
+  // user's own message locally on send.
+  return out
+}
+
 function wsUrlFor(sessionId: string): string {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${location.host}/ws/conversations/${encodeURIComponent(sessionId)}`
@@ -168,14 +210,23 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
   const ws = new WebSocket(wsUrlFor(sessionId))
   openStreams.set(sessionId, ws)
   ws.addEventListener('message', (ev) => {
-    let frame: unknown
+    let frame: any
     try {
       frame = JSON.parse(String(ev.data))
     } catch {
       return
     }
-    emitterRef?.emit('chat.response.stream', frame)
-    emitterRef?.emit('moss.response-stream', frame)
+    // The server wraps the moss stream in { kind: 'upstream', event }, where
+    // `event` is an anthropic-style moss message. The renderer expects
+    // IResponseMessage, so translate (mirrors the desktop MossWsConnection).
+    if (frame && frame.kind === 'upstream' && frame.event) {
+      for (const msg of mossEventToResponses(frame.event, sessionId)) {
+        emitterRef?.emit('chat.response.stream', msg)
+        emitterRef?.emit('moss.response-stream', msg)
+      }
+    } else if (frame && frame.kind === 'error') {
+      emitterRef?.emit('chat.response.stream', { type: 'error', msg_id: nextMsgId(), conversation_id: sessionId, data: String(frame.code ?? 'error') })
+    }
   })
   ws.addEventListener('close', () => openStreams.delete(sessionId))
   ws.addEventListener('error', () => {
@@ -312,15 +363,16 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
 
   // --- create / update / delete ---
   'create-conversation': async (req) => {
+    // The renderer's enterprise agent label (e.g. "Remote Agent") is a UI name,
+    // not a moss agent — passing it yields SELECTION_NOT_AVAILABLE. Let moss pick
+    // its default agent (empty assistantName) unless a real moss agent id is given.
+    const agent = typeof req?.assistantName === 'string' && req.assistantName && req.assistantName !== 'Remote Agent' ? req.assistantName : ''
     const created = await apiFetch<{ id: string }>('/api/conversations', {
       method: 'POST',
-      body: JSON.stringify({
-        assistantName: req?.extra?.agentName ?? req?.assistantName ?? '',
-        enabledSkills: req?.extra?.enabledSkills ?? req?.enabledSkills ?? [],
-      }),
+      body: JSON.stringify({ assistantName: agent, enabledSkills: req?.extra?.enabledSkills ?? req?.enabledSkills ?? [] }),
     })
     ensureSessionStream(created.id)
-    return toChatConversation({ id: created.id, assistantName: req?.extra?.agentName ?? null })
+    return toChatConversation({ id: created.id, assistantName: agent || null })
   },
   'moss.create-session': async (req) => {
     const created = await apiFetch<{ id: string }>('/api/conversations', {
@@ -403,6 +455,19 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
 
   // --- misc surfaces the enterprise chat page touches early ---
   'conversation.get-slash-commands': async () => ok({ commands: [] }),
+
+  // --- desktop-only surfaces reached on load (e.g. the sidebar's cron access
+  //     probe). These return RAW arrays, so the default-reject object would
+  //     crash array consumers (`jobs.filter is not a function`). The features
+  //     are gated/absent on web, so answer with safe empties. ---
+  'cron.list-jobs': async () => [],
+  'cron.list-jobs-by-conversation': async () => [],
+  // The conversation view loads these on open; they return RAW arrays, so the
+  // default-reject object breaks array consumers ("data is not iterable").
+  'confirmation.list': async () => [],
+  'approval.check': async () => false,
+  'acp.get-mode': async () => ok({ mode: 'default', initialized: true }),
+  'conversation.flush-pending-messages': async () => undefined,
 }
 
 // ---------------------------------------------------------------------------
