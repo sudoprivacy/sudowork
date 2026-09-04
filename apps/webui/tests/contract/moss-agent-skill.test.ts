@@ -4,14 +4,15 @@ import { createMossSkillPort } from '@sudowork/moss-client'
 
 const BASE = 'http://moss.test'
 const TK = 'tk'
+const CTX = { accessToken: TK, baseUrl: BASE }
 
 describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', () => {
   test('hub endpoints use /api/v1/agent-hub/* prefix', async () => {
     const mock = vi.fn().mockResolvedValue({})
-    const port = createMossAgentPort(mock, BASE)
-    await port.hubCategories(TK)
-    await port.hubList(TK, { limit: '20' })
-    await port.hubDetail(TK, 'a1')
+    const port = createMossAgentPort(mock)
+    await port.hubCategories(CTX)
+    await port.hubList(CTX, { limit: '20' })
+    await port.hubDetail(CTX, 'a1')
     expect(mock).toHaveBeenNthCalledWith(1, BASE, {
       method: 'GET',
       path: '/api/v1/agent-hub/categories',
@@ -32,8 +33,8 @@ describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', (
 
   test('rules uses installed/:name/rules (not tenant/:id/rules)', async () => {
     const mock = vi.fn().mockResolvedValue({ rules: 'x' })
-    const port = createMossAgentPort(mock, BASE)
-    await port.installedRules(TK, 'helper')
+    const port = createMossAgentPort(mock)
+    await port.installedRules(CTX, 'helper')
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'GET',
       path: '/api/v1/agents/installed/helper/rules',
@@ -43,8 +44,8 @@ describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', (
 
   test('uninstall posts assistantName only (no client sourcePath)', async () => {
     const mock = vi.fn().mockResolvedValue({ ok: true })
-    const port = createMossAgentPort(mock, BASE)
-    await port.uninstall(TK, { assistantName: 'helper' })
+    const port = createMossAgentPort(mock)
+    await port.uninstall(CTX, { assistantName: 'helper' })
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'POST',
       path: '/api/v1/agents/uninstall',
@@ -55,13 +56,13 @@ describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', (
 
   test('tenant endpoints', async () => {
     const mock = vi.fn().mockResolvedValue([])
-    const port = createMossAgentPort(mock, BASE)
-    await port.tenantList(TK)
-    await port.tenantCreate(TK, { name: 'n' })
-    await port.tenantUpdate(TK, 't1', { description: 'd' })
-    await port.tenantDelete(TK, 't1')
-    await port.tenantDownload(TK, 't1')
-    await port.tenantPublish(TK, { assistantName: 'helper' })
+    const port = createMossAgentPort(mock)
+    await port.tenantList(CTX)
+    await port.tenantCreate(CTX, { name: 'n' })
+    await port.tenantUpdate(CTX, 't1', { description: 'd' })
+    await port.tenantDelete(CTX, 't1')
+    await port.tenantDownload(CTX, 't1')
+    await port.tenantPublish(CTX, { assistantName: 'helper' })
     const paths = mock.mock.calls.map((c) => (c[1] as { method: string; path: string }).method + ' ' + (c[1] as { path: string }).path)
     expect(paths).toEqual([
       'GET /api/v1/agents/tenant',
@@ -77,10 +78,10 @@ describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', (
 describe('MossSkillPort request shapes（修订版 3.9：skill-hub 前缀、enabled 单对象）', () => {
   test('hub endpoints use /api/v1/skill-hub/* prefix', async () => {
     const mock = vi.fn().mockResolvedValue({})
-    const port = createMossSkillPort(mock, BASE)
-    await port.hubCategories(TK)
-    await port.hubList(TK, {})
-    await port.hubDetail(TK, 's1')
+    const port = createMossSkillPort(mock)
+    await port.hubCategories(CTX)
+    await port.hubList(CTX, {})
+    await port.hubDetail(CTX, 's1')
     expect(mock).toHaveBeenNthCalledWith(1, BASE, {
       method: 'GET',
       path: '/api/v1/skill-hub/categories',
@@ -101,8 +102,8 @@ describe('MossSkillPort request shapes（修订版 3.9：skill-hub 前缀、enab
 
   test('enabled sends single {skillName, enabled} object（基线事实，非数组）', async () => {
     const mock = vi.fn().mockResolvedValue({ ok: true })
-    const port = createMossSkillPort(mock, BASE)
-    await port.setEnabled(TK, { skillName: 'pdf', enabled: true })
+    const port = createMossSkillPort(mock)
+    await port.setEnabled(CTX, { skillName: 'pdf', enabled: true })
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'PATCH',
       path: '/api/v1/skills/enabled',
@@ -113,8 +114,8 @@ describe('MossSkillPort request shapes（修订版 3.9：skill-hub 前缀、enab
 
   test('tenant upload uses /tenant/upload (not /tenant/create)', async () => {
     const mock = vi.fn().mockResolvedValue({})
-    const port = createMossSkillPort(mock, BASE)
-    await port.tenantUpload(TK, { archiveBase64: 'eA==' })
+    const port = createMossSkillPort(mock)
+    await port.tenantUpload(CTX, { archiveBase64: 'eA==' })
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'POST',
       path: '/api/v1/skills/tenant/upload',

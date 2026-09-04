@@ -1,7 +1,7 @@
 import type { AppConfig } from '../../config.js'
 import type { Pool } from 'pg'
 import type { AuthDeps } from '../auth/authService.js'
-import type { MossAgentPort } from '@sudowork/moss-client'
+import type { MossAgentPort, MossCallContext } from '@sudowork/moss-client'
 import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 
 /**
@@ -36,10 +36,10 @@ async function mapErr<T>(fn: () => Promise<T>): Promise<T> {
 /** 校验当前 token 具备任一 scope；不具备抛 ForbiddenError。 */
 export async function requireAnyScope(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   scopes: string[],
 ): Promise<void> {
-  const me = await mapErr(() => deps.auth.mossAuth.me(accessToken))
+  const me = await mapErr(() => deps.auth.mossAuth.me(ctx.accessToken, ctx.baseUrl))
   const owned: string[] = Array.isArray(me.scopes) ? me.scopes : []
   const isAdmin = me.role === 'admin' || me.role === 'super_admin' || me.isSuperAdmin === true
   if (isAdmin) return
@@ -48,8 +48,8 @@ export async function requireAnyScope(
   }
 }
 
-export async function getScopes(deps: AgentDeps, accessToken: string): Promise<string[]> {
-  const me = await mapErr(() => deps.auth.mossAuth.me(accessToken))
+export async function getScopes(deps: AgentDeps, ctx: MossCallContext): Promise<string[]> {
+  const me = await mapErr(() => deps.auth.mossAuth.me(ctx.accessToken, ctx.baseUrl))
   return Array.isArray(me.scopes) ? me.scopes : []
 }
 
@@ -57,8 +57,8 @@ interface InstalledItem {
   name?: unknown
 }
 
-async function installedNames(deps: AgentDeps, accessToken: string): Promise<Map<string, Record<string, unknown>>> {
-  const list = (await mapErr(() => deps.agents.installed(accessToken))) as InstalledItem[]
+async function installedNames(deps: AgentDeps, ctx: MossCallContext): Promise<Map<string, Record<string, unknown>>> {
+  const list = (await mapErr(() => deps.agents.installed(ctx))) as InstalledItem[]
   const map = new Map<string, Record<string, unknown>>()
   if (Array.isArray(list)) {
     for (const item of list) {
@@ -73,31 +73,31 @@ async function installedNames(deps: AgentDeps, accessToken: string): Promise<Map
 /** fresh 核验：目标 name 必须在当前用户可见 installed 列表（IDOR 防线，计划 3.4）。 */
 async function requireVisibleAgent(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   name: string,
 ): Promise<void> {
-  const names = await installedNames(deps, accessToken)
+  const names = await installedNames(deps, ctx)
   if (!names.has(name)) throw new NotFoundError()
 }
 
 // ---------- 查询 ----------
 
-export async function listInstalled(deps: AgentDeps, accessToken: string): Promise<unknown> {
-  return mapErr(() => deps.agents.installed(accessToken))
+export async function listInstalled(deps: AgentDeps, ctx: MossCallContext): Promise<unknown> {
+  return mapErr(() => deps.agents.installed(ctx))
 }
 
-export async function hubCategories(deps: AgentDeps, accessToken: string): Promise<unknown> {
-  return mapErr(() => deps.agents.hubCategories(accessToken))
+export async function hubCategories(deps: AgentDeps, ctx: MossCallContext): Promise<unknown> {
+  return mapErr(() => deps.agents.hubCategories(ctx))
 }
 
 export async function hubList(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   searchParams: Record<string, string>,
 ): Promise<unknown> {
   // moss 上游返回 { assistants, next_cursor, has_more }（agentStore.ts fetchAgentHubAssistants），
   // 与 installFromHub 的兼容读取一致，统一归一化为 items 供前端消费
-  const hub = (await mapErr(() => deps.agents.hubList(accessToken, searchParams))) as {
+  const hub = (await mapErr(() => deps.agents.hubList(ctx, searchParams))) as {
     items?: Record<string, unknown>[]
     assistants?: Record<string, unknown>[]
     next_cursor?: unknown
@@ -110,30 +110,30 @@ export async function hubList(
   }
 }
 
-export async function hubDetail(deps: AgentDeps, accessToken: string, id: string): Promise<unknown> {
-  return mapErr(() => deps.agents.hubDetail(accessToken, id))
+export async function hubDetail(deps: AgentDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+  return mapErr(() => deps.agents.hubDetail(ctx, id))
 }
 
-export async function syncStatus(deps: AgentDeps, accessToken: string): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
-  return mapErr(() => deps.agents.syncStatus(accessToken))
+export async function syncStatus(deps: AgentDeps, ctx: MossCallContext): Promise<unknown> {
+  await requireAnyScope(deps, ctx, ['admin:settings'])
+  return mapErr(() => deps.agents.syncStatus(ctx))
 }
 
-export async function tenantList(deps: AgentDeps, accessToken: string): Promise<unknown> {
-  return mapErr(() => deps.agents.tenantList(accessToken))
+export async function tenantList(deps: AgentDeps, ctx: MossCallContext): Promise<unknown> {
+  return mapErr(() => deps.agents.tenantList(ctx))
 }
 
 // ---------- 变更 ----------
 
 export async function installFromHub(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   name: string,
 ): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
+  await requireAnyScope(deps, ctx, ['admin:settings'])
   // assistantMeta 由后端从 fresh hub 列表解析（不信任浏览器提交）
   const hub = (await mapErr(() =>
-    deps.agents.hubList(accessToken, { limit: '100' }),
+    deps.agents.hubList(ctx, { limit: '100' }),
   )) as { items?: Record<string, unknown>[]; assistants?: Record<string, unknown>[] }
   const items = hub?.items ?? hub?.assistants ?? []
   const meta = items.find(
@@ -141,108 +141,108 @@ export async function installFromHub(
   )
   if (!meta) throw new NotFoundError()
   return mapErr(() =>
-    deps.agents.install(accessToken, { assistantMeta: meta, selectedSkillIds: [] }),
+    deps.agents.install(ctx, { assistantMeta: meta, selectedSkillIds: [] }),
   )
 }
 
 export async function createAgent(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   body: Record<string, unknown>,
 ): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
-  return mapErr(() => deps.agents.create(accessToken, body))
+  await requireAnyScope(deps, ctx, ['admin:settings'])
+  return mapErr(() => deps.agents.create(ctx, body))
 }
 
 export async function uploadCustom(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   file: string,
 ): Promise<unknown> {
-  return mapErr(() => deps.agents.uploadCustom(accessToken, { file }))
+  return mapErr(() => deps.agents.uploadCustom(ctx, { file }))
 }
 
 export async function updateMeta(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   name: string,
   updates: Record<string, unknown>,
 ): Promise<unknown> {
-  await requireVisibleAgent(deps, accessToken, name)
-  return mapErr(() => deps.agents.updateMeta(accessToken, { assistantName: name, updates }))
+  await requireVisibleAgent(deps, ctx, name)
+  return mapErr(() => deps.agents.updateMeta(ctx, { assistantName: name, updates }))
 }
 
 export async function uninstall(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   name: string,
 ): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
-  await requireVisibleAgent(deps, accessToken, name)
-  return mapErr(() => deps.agents.uninstall(accessToken, { assistantName: name }))
+  await requireAnyScope(deps, ctx, ['admin:settings'])
+  await requireVisibleAgent(deps, ctx, name)
+  return mapErr(() => deps.agents.uninstall(ctx, { assistantName: name }))
 }
 
-export async function syncFromHub(deps: AgentDeps, accessToken: string): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
-  return mapErr(() => deps.agents.syncFromHub(accessToken))
+export async function syncFromHub(deps: AgentDeps, ctx: MossCallContext): Promise<unknown> {
+  await requireAnyScope(deps, ctx, ['admin:settings'])
+  return mapErr(() => deps.agents.syncFromHub(ctx))
 }
 
 export async function installedRules(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   name: string,
 ): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
-  await requireVisibleAgent(deps, accessToken, name)
-  return mapErr(() => deps.agents.installedRules(accessToken, name))
+  await requireAnyScope(deps, ctx, ['admin:settings'])
+  await requireVisibleAgent(deps, ctx, name)
+  return mapErr(() => deps.agents.installedRules(ctx, name))
 }
 
 export async function tenantCreate(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   body: Record<string, unknown>,
 ): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings', 'store:tenant:write'])
-  return mapErr(() => deps.agents.tenantCreate(accessToken, body))
+  await requireAnyScope(deps, ctx, ['admin:settings', 'store:tenant:write'])
+  return mapErr(() => deps.agents.tenantCreate(ctx, body))
 }
 
 export async function tenantUpdate(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   id: string,
   body: Record<string, unknown>,
 ): Promise<unknown> {
-  await requireTenantVisible(deps, accessToken, id)
-  return mapErr(() => deps.agents.tenantUpdate(accessToken, id, body))
+  await requireTenantVisible(deps, ctx, id)
+  return mapErr(() => deps.agents.tenantUpdate(ctx, id, body))
 }
 
-export async function tenantDelete(deps: AgentDeps, accessToken: string, id: string): Promise<unknown> {
-  await requireTenantVisible(deps, accessToken, id)
-  return mapErr(() => deps.agents.tenantDelete(accessToken, id))
+export async function tenantDelete(deps: AgentDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+  await requireTenantVisible(deps, ctx, id)
+  return mapErr(() => deps.agents.tenantDelete(ctx, id))
 }
 
-export async function tenantDownload(deps: AgentDeps, accessToken: string, id: string): Promise<unknown> {
-  return mapErr(() => deps.agents.tenantDownload(accessToken, id))
+export async function tenantDownload(deps: AgentDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+  return mapErr(() => deps.agents.tenantDownload(ctx, id))
 }
 
 export async function tenantPublish(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   sourceName: string,
 ): Promise<unknown> {
-  await requireVisibleAgent(deps, accessToken, sourceName)
+  await requireVisibleAgent(deps, ctx, sourceName)
   return mapErr(() =>
-    deps.agents.tenantPublish(accessToken, { assistantName: sourceName }),
+    deps.agents.tenantPublish(ctx, { assistantName: sourceName }),
   )
 }
 
 /** tenant 目标必须来自当前 fresh tenant 列表（can_manage 之上的 WebUI 防线）。 */
 async function requireTenantVisible(
   deps: AgentDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   id: string,
 ): Promise<void> {
-  const list = (await mapErr(() => deps.agents.tenantList(accessToken))) as Record<string, unknown>[]
+  const list = (await mapErr(() => deps.agents.tenantList(ctx))) as Record<string, unknown>[]
   const row = Array.isArray(list) ? list.find((it) => it && it.id === id) : undefined
   if (!row) throw new NotFoundError()
   if (row.can_manage === false) throw new ForbiddenError()

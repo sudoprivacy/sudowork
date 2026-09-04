@@ -11,6 +11,11 @@ import WebSocket from 'ws'
 
 export class MossWsValidationError extends Error {}
 
+/** 由会话生效的 http(s) moss 地址推导同 host 的 ws 地址（http→ws、https→wss）。 */
+export function deriveWsBaseUrl(httpBaseUrl: string): string {
+  return httpBaseUrl.replace(/^http/i, 'ws')
+}
+
 export function validateMossWsUrl(
   wsUrl: string,
   expectedSessionId: string,

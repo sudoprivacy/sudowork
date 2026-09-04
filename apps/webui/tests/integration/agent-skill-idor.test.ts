@@ -81,7 +81,7 @@ function createFakeAgents(): MossAgentPort {
       return { id, name: 'hub-agent' }
     },
     async installed(tk) {
-      return installedByToken[tk] ?? []
+      return installedByToken[tk.accessToken] ?? []
     },
     async install() {
       return { ok: true }
@@ -154,7 +154,7 @@ function createFakeSkills(): MossSkillPort {
       return { id, name: 'hub-skill' }
     },
     async installed(tk) {
-      return installedByToken[tk] ?? []
+      return installedByToken[tk.accessToken] ?? []
     },
     async install() {
       return { ok: true }

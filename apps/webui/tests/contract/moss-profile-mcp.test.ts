@@ -3,16 +3,17 @@ import { createMossMcpPort } from '@sudowork/moss-client'
 
 const BASE = 'http://moss.test'
 const TK = 'tk'
+const CTX = { accessToken: TK, baseUrl: BASE }
 
 describe('MossMcpPort request shapes（修订版 3.9）', () => {
   test('server/template/policy endpoints', async () => {
     const mock = vi.fn().mockResolvedValue([])
-    const port = createMossMcpPort(mock, BASE)
-    await port.servers(TK)
-    await port.templates(TK)
-    await port.policy(TK)
-    await port.userProfile(TK)
-    await port.tenantConfig(TK)
+    const port = createMossMcpPort(mock)
+    await port.servers(CTX)
+    await port.templates(CTX)
+    await port.policy(CTX)
+    await port.userProfile(CTX)
+    await port.tenantConfig(CTX)
     const paths = mock.mock.calls.map((c) => (c[1] as { path: string }).path)
     expect(paths).toEqual([
       '/api/v1/me/mcp-servers',
@@ -25,8 +26,8 @@ describe('MossMcpPort request shapes（修订版 3.9）', () => {
 
   test('template install sends config_values/auth_credentials/display_name precisely', async () => {
     const mock = vi.fn().mockResolvedValue({})
-    const port = createMossMcpPort(mock, BASE)
-    await port.installTemplate(TK, 'tpl-1', {
+    const port = createMossMcpPort(mock)
+    await port.installTemplate(CTX, 'tpl-1', {
       config_values: { url: 'https://x' },
       auth_credentials: { token: 'secret' },
       display_name: '我的 MCP',
@@ -45,14 +46,14 @@ describe('MossMcpPort request shapes（修订版 3.9）', () => {
 
   test('enable/disable are PUT; test/user-config/patch/delete paths', async () => {
     const mock = vi.fn().mockResolvedValue({})
-    const port = createMossMcpPort(mock, BASE)
-    await port.setEnabled(TK, 's1', true)
-    await port.setEnabled(TK, 's1', false)
-    await port.test(TK, 's1')
-    await port.getUserConfig(TK, 's1')
-    await port.putUserConfig(TK, 's1', { config_values: { a: '1' } })
-    await port.updateServer(TK, 's1', { display_name: 'x' })
-    await port.deleteServer(TK, 's1')
+    const port = createMossMcpPort(mock)
+    await port.setEnabled(CTX, 's1', true)
+    await port.setEnabled(CTX, 's1', false)
+    await port.test(CTX, 's1')
+    await port.getUserConfig(CTX, 's1')
+    await port.putUserConfig(CTX, 's1', { config_values: { a: '1' } })
+    await port.updateServer(CTX, 's1', { display_name: 'x' })
+    await port.deleteServer(CTX, 's1')
     const calls = mock.mock.calls.map((c) => c[1] as { method: string; path: string })
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
       'PUT /api/v1/me/mcp-servers/s1/enable',

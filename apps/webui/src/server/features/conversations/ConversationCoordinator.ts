@@ -2,10 +2,10 @@ import type { Pool } from 'pg'
 import type WebSocket from 'ws'
 import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
-import { getAccessToken } from '../auth/authService.js'
+import { getMossContext } from '../auth/authService.js'
 import type { WebSessionRow } from '../auth/sessionRepository.js'
 import type { MossSessionPort } from '@sudowork/moss-client'
-import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
+import { MossHttpError, MossNetworkError, deriveWsBaseUrl } from '@sudowork/moss-client'
 import {
   MossUpstreamSocket,
   buildAnswerQuestionMessage,
@@ -196,8 +196,8 @@ export class ConversationCoordinator {
       }
     }
 
-    const accessToken = await getAccessToken(this.deps.auth, conn.webSession)
-    const resumed = await this.deps.moss.resume(accessToken, entry.mossSessionId).catch((err: unknown) => {
+    const ctx = await getMossContext(this.deps.auth, conn.webSession)
+    const resumed = await this.deps.moss.resume(ctx, entry.mossSessionId).catch((err: unknown) => {
       if (err instanceof MossHttpError && err.status === 404) {
         throw new Error('SESSION_NOT_FOUND')
       }
@@ -209,9 +209,10 @@ export class ConversationCoordinator {
 
     entry.upstream = new MossUpstreamSocket(
       resumed.wsUrl,
-      accessToken,
+      ctx.accessToken,
       entry.mossSessionId,
-      this.deps.config.moss.wsBaseUrl,
+      // WS 校验基准用会话生效地址（自定义 moss 会话的 ws 在其自定义 host）
+      deriveWsBaseUrl(ctx.baseUrl),
       {
         onEvent: (event) => void this.handleUpstreamEvent(entry, event),
         onClose: () => void this.handleUpstreamClose(entry),

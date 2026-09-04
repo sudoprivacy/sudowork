@@ -3,7 +3,8 @@ import { z, ZodError } from 'zod'
 import type { Pool } from 'pg'
 import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
-import { getAccessToken } from '../auth/authService.js'
+import { getMossContext } from '../auth/authService.js'
+import type { MossCallContext } from '@sudowork/moss-client'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
 import type { MossMcpPort } from '@sudowork/moss-client'
 import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
@@ -40,10 +41,10 @@ async function mapErr<T>(fn: () => Promise<T>): Promise<T> {
 /** 从 fresh 列表找 server 行；返回其 scope（own personal 判定依据）。 */
 async function findServerRow(
   deps: McpDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   id: string,
 ): Promise<Record<string, unknown> | null> {
-  const list = (await mapErr(() => deps.mcp.servers(accessToken))) as Record<string, unknown>[]
+  const list = (await mapErr(() => deps.mcp.servers(ctx))) as Record<string, unknown>[]
   if (!Array.isArray(list)) return null
   return list.find((row) => row && row.id === id) ?? null
 }
@@ -105,7 +106,7 @@ export function createMcpRouter(deps: McpDeps): Router {
     }
   }
 
-  const tk = (req: AuthedRequest) => getAccessToken(deps.auth, req.webSession!)
+  const tk = (req: AuthedRequest) => getMossContext(deps.auth, req.webSession!)
 
   router.get(
     '/servers',

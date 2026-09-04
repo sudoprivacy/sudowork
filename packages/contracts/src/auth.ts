@@ -34,14 +34,19 @@ export const MossMeSchema = z.object({
 })
 export type MossMe = z.infer<typeof MossMeSchema>
 
+/** 自定义 Moss 服务器地址（可选）：仅 http(s) 完整 URL，登录时该会话所有 moss 调用走此地址 */
+const MossBaseUrlSchema = z.string().trim().url().regex(/^https?:\/\//i).max(2048).optional()
+
 export const LoginPasswordRequestSchema = z.object({
   username: z.string().trim().min(1).max(255),
   password: z.string().min(1).max(1024),
+  mossBaseUrl: MossBaseUrlSchema,
 })
 export type LoginPasswordRequest = z.infer<typeof LoginPasswordRequestSchema>
 
 export const LoginApiKeyRequestSchema = z.object({
   apiKey: z.string().trim().min(1).max(512),
+  mossBaseUrl: MossBaseUrlSchema,
 })
 export type LoginApiKeyRequest = z.infer<typeof LoginApiKeyRequestSchema>
 

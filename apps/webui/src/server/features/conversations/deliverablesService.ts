@@ -5,6 +5,7 @@
  * （input 是 JSON 字符串，兼容对象形态）取 .path → kind 映射（写入→create / 编辑→edit）
  * → timestamp 作 createdAt → size/mime 从 workspace tree 匹配补齐。
  */
+import type { MossCallContext } from '@sudowork/moss-client'
 import type { ConversationDeps } from './conversationService.js'
 import { requireOwnSession } from './conversationService.js'
 
@@ -75,13 +76,13 @@ export async function getDeliverables(
   deps: ConversationDeps,
   principal: Parameters<typeof requireOwnSession>[1],
   sessionId: string,
-  accessToken: string,
+  ctx: MossCallContext,
 ): Promise<{ items: DeliverableItem[] }> {
-  await requireOwnSession(deps, principal, sessionId, accessToken)
+  await requireOwnSession(deps, principal, sessionId, ctx)
 
   const [contextJson, treeJson] = await Promise.all([
-    deps.moss.context(accessToken, sessionId),
-    deps.moss.workspaceTree(accessToken, sessionId, '').catch(() => null),
+    deps.moss.context(ctx, sessionId),
+    deps.moss.workspaceTree(ctx, sessionId, '').catch(() => null),
   ])
 
   const files: { relativePath: string; size?: number }[] = []

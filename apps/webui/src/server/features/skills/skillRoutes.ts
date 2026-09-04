@@ -1,6 +1,7 @@
 import { Router, type NextFunction, type Response } from 'express'
 import { ZodError } from 'zod'
-import { getAccessToken } from '../auth/authService.js'
+import { getMossContext } from '../auth/authService.js'
+import type { MossCallContext } from '@sudowork/moss-client'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
 import { MossHttpError } from '@sudowork/moss-client'
 import {
@@ -37,8 +38,8 @@ import {
 export function createSkillRouter(deps: SkillDeps): Router {
   const router = Router()
 
-  async function token(req: AuthedRequest): Promise<string> {
-    return getAccessToken(deps.auth, req.webSession!)
+  async function token(req: AuthedRequest): Promise<MossCallContext> {
+    return getMossContext(deps.auth, req.webSession!)
   }
 
   function handle(err: unknown, res: Response, next: NextFunction): void {

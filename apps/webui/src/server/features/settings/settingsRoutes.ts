@@ -3,7 +3,7 @@ import { z, ZodError } from 'zod'
 import type { Pool } from 'pg'
 import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
-import { getAccessToken } from '../auth/authService.js'
+import { getMossContext } from '../auth/authService.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
 import type { MossMcpPort } from '@sudowork/moss-client'
 import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
@@ -66,7 +66,7 @@ export function createSettingsRouter(deps: SettingsDeps): Router {
     '/profile',
     requireSession,
     wrap(async (req) => {
-      const tk = await getAccessToken(deps.auth, req.webSession!)
+      const tk = await getMossContext(deps.auth, req.webSession!)
       try {
         return await deps.mcp.userProfile(tk)
       } catch (err) {
@@ -109,7 +109,7 @@ export function createSettingsRouter(deps: SettingsDeps): Router {
     '/about',
     requireSession,
     wrap(async (req) => {
-      const tk = await getAccessToken(deps.auth, req.webSession!)
+      const tk = await getMossContext(deps.auth, req.webSession!)
       let branding: Record<string, unknown>
       try {
         const config = (await deps.mcp.tenantConfig(tk)) as Record<string, unknown>

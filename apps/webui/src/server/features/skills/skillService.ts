@@ -1,7 +1,7 @@
 import type { AppConfig } from '../../config.js'
 import type { Pool } from 'pg'
 import type { AuthDeps } from '../auth/authService.js'
-import type { MossSkillPort } from '@sudowork/moss-client'
+import type { MossCallContext, MossSkillPort } from '@sudowork/moss-client'
 import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 
 /**
@@ -33,10 +33,10 @@ async function mapErr<T>(fn: () => Promise<T>): Promise<T> {
 
 export async function requireAnyScope(
   deps: SkillDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   scopes: string[],
 ): Promise<void> {
-  const me = await mapErr(() => deps.auth.mossAuth.me(accessToken))
+  const me = await mapErr(() => deps.auth.mossAuth.me(ctx.accessToken, ctx.baseUrl))
   const owned: string[] = Array.isArray(me.scopes) ? me.scopes : []
   const isAdmin = me.role === 'admin' || me.role === 'super_admin' || me.isSuperAdmin === true
   if (isAdmin) return
@@ -49,8 +49,8 @@ interface InstalledItem {
   name?: unknown
 }
 
-async function installedNames(deps: SkillDeps, accessToken: string): Promise<Set<string>> {
-  const list = (await mapErr(() => deps.skills.installed(accessToken))) as InstalledItem[]
+async function installedNames(deps: SkillDeps, ctx: MossCallContext): Promise<Set<string>> {
+  const list = (await mapErr(() => deps.skills.installed(ctx))) as InstalledItem[]
   const names = new Set<string>()
   if (Array.isArray(list)) {
     for (const item of list) {
@@ -60,26 +60,26 @@ async function installedNames(deps: SkillDeps, accessToken: string): Promise<Set
   return names
 }
 
-async function requireVisibleSkill(deps: SkillDeps, accessToken: string, name: string): Promise<void> {
-  if (!(await installedNames(deps, accessToken)).has(name)) throw new NotFoundError()
+async function requireVisibleSkill(deps: SkillDeps, ctx: MossCallContext, name: string): Promise<void> {
+  if (!(await installedNames(deps, ctx)).has(name)) throw new NotFoundError()
 }
 
-export async function listInstalled(deps: SkillDeps, accessToken: string): Promise<unknown> {
-  return mapErr(() => deps.skills.installed(accessToken))
+export async function listInstalled(deps: SkillDeps, ctx: MossCallContext): Promise<unknown> {
+  return mapErr(() => deps.skills.installed(ctx))
 }
 
-export async function hubCategories(deps: SkillDeps, accessToken: string): Promise<unknown> {
-  return mapErr(() => deps.skills.hubCategories(accessToken))
+export async function hubCategories(deps: SkillDeps, ctx: MossCallContext): Promise<unknown> {
+  return mapErr(() => deps.skills.hubCategories(ctx))
 }
 
 export async function hubList(
   deps: SkillDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   searchParams: Record<string, string>,
 ): Promise<unknown> {
   // moss 上游返回 { skills, next_cursor, has_more }（skillStore.ts fetchSkillHubSkills），
   // 与 installFromHub 的兼容读取一致，统一归一化为 items 供前端消费
-  const hub = (await mapErr(() => deps.skills.hubList(accessToken, searchParams))) as {
+  const hub = (await mapErr(() => deps.skills.hubList(ctx, searchParams))) as {
     items?: Record<string, unknown>[]
     skills?: Record<string, unknown>[]
     next_cursor?: unknown
@@ -92,80 +92,80 @@ export async function hubList(
   }
 }
 
-export async function hubDetail(deps: SkillDeps, accessToken: string, id: string): Promise<unknown> {
-  return mapErr(() => deps.skills.hubDetail(accessToken, id))
+export async function hubDetail(deps: SkillDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+  return mapErr(() => deps.skills.hubDetail(ctx, id))
 }
 
-export async function syncStatus(deps: SkillDeps, accessToken: string): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
-  return mapErr(() => deps.skills.syncStatus(accessToken))
+export async function syncStatus(deps: SkillDeps, ctx: MossCallContext): Promise<unknown> {
+  await requireAnyScope(deps, ctx, ['admin:settings'])
+  return mapErr(() => deps.skills.syncStatus(ctx))
 }
 
-export async function tenantList(deps: SkillDeps, accessToken: string): Promise<unknown> {
-  return mapErr(() => deps.skills.tenantList(accessToken))
+export async function tenantList(deps: SkillDeps, ctx: MossCallContext): Promise<unknown> {
+  return mapErr(() => deps.skills.tenantList(ctx))
 }
 
 export async function installFromHub(
   deps: SkillDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   name: string,
 ): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
+  await requireAnyScope(deps, ctx, ['admin:settings'])
   const hub = (await mapErr(() =>
-    deps.skills.hubList(accessToken, { limit: '100' }),
+    deps.skills.hubList(ctx, { limit: '100' }),
   )) as { items?: Record<string, unknown>[]; skills?: Record<string, unknown>[] }
   const items = hub?.items ?? hub?.skills ?? []
   const meta = items.find((it) => it && (it.name === name || it.id === name))
   if (!meta) throw new NotFoundError()
-  return mapErr(() => deps.skills.install(accessToken, { skillMeta: meta }))
+  return mapErr(() => deps.skills.install(ctx, { skillMeta: meta }))
 }
 
 export async function setEnabled(
   deps: SkillDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   name: string,
   enabled: boolean,
 ): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
-  await requireVisibleSkill(deps, accessToken, name)
+  await requireAnyScope(deps, ctx, ['admin:settings'])
+  await requireVisibleSkill(deps, ctx, name)
   // 基线请求体是单个对象；不传 sourcePath（WebUI 不透传浏览器路径）
-  return mapErr(() => deps.skills.setEnabled(accessToken, { skillName: name, enabled }))
+  return mapErr(() => deps.skills.setEnabled(ctx, { skillName: name, enabled }))
 }
 
 export async function uploadCustom(
   deps: SkillDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   file: string,
 ): Promise<unknown> {
-  return mapErr(() => deps.skills.uploadCustom(accessToken, { file }))
+  return mapErr(() => deps.skills.uploadCustom(ctx, { file }))
 }
 
 export async function uninstall(
   deps: SkillDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   name: string,
 ): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
-  await requireVisibleSkill(deps, accessToken, name)
-  return mapErr(() => deps.skills.uninstall(accessToken, { skillName: name }))
+  await requireAnyScope(deps, ctx, ['admin:settings'])
+  await requireVisibleSkill(deps, ctx, name)
+  return mapErr(() => deps.skills.uninstall(ctx, { skillName: name }))
 }
 
-export async function syncFromHub(deps: SkillDeps, accessToken: string): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings'])
-  return mapErr(() => deps.skills.syncFromHub(accessToken))
+export async function syncFromHub(deps: SkillDeps, ctx: MossCallContext): Promise<unknown> {
+  await requireAnyScope(deps, ctx, ['admin:settings'])
+  return mapErr(() => deps.skills.syncFromHub(ctx))
 }
 
 export async function tenantUpload(
   deps: SkillDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   body: Record<string, unknown>,
 ): Promise<unknown> {
-  await requireAnyScope(deps, accessToken, ['admin:settings', 'store:tenant:write'])
-  return mapErr(() => deps.skills.tenantUpload(accessToken, body))
+  await requireAnyScope(deps, ctx, ['admin:settings', 'store:tenant:write'])
+  return mapErr(() => deps.skills.tenantUpload(ctx, body))
 }
 
-async function requireTenantVisible(deps: SkillDeps, accessToken: string, id: string): Promise<void> {
-  const list = (await mapErr(() => deps.skills.tenantList(accessToken))) as Record<string, unknown>[]
+async function requireTenantVisible(deps: SkillDeps, ctx: MossCallContext, id: string): Promise<void> {
+  const list = (await mapErr(() => deps.skills.tenantList(ctx))) as Record<string, unknown>[]
   const row = Array.isArray(list) ? list.find((it) => it && it.id === id) : undefined
   if (!row) throw new NotFoundError()
   if (row.can_manage === false) throw new ForbiddenError()
@@ -173,28 +173,28 @@ async function requireTenantVisible(deps: SkillDeps, accessToken: string, id: st
 
 export async function tenantUpdate(
   deps: SkillDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   id: string,
   body: Record<string, unknown>,
 ): Promise<unknown> {
-  await requireTenantVisible(deps, accessToken, id)
-  return mapErr(() => deps.skills.tenantUpdate(accessToken, id, body))
+  await requireTenantVisible(deps, ctx, id)
+  return mapErr(() => deps.skills.tenantUpdate(ctx, id, body))
 }
 
-export async function tenantDelete(deps: SkillDeps, accessToken: string, id: string): Promise<unknown> {
-  await requireTenantVisible(deps, accessToken, id)
-  return mapErr(() => deps.skills.tenantDelete(accessToken, id))
+export async function tenantDelete(deps: SkillDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+  await requireTenantVisible(deps, ctx, id)
+  return mapErr(() => deps.skills.tenantDelete(ctx, id))
 }
 
-export async function tenantDownload(deps: SkillDeps, accessToken: string, id: string): Promise<unknown> {
-  return mapErr(() => deps.skills.tenantDownload(accessToken, id))
+export async function tenantDownload(deps: SkillDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+  return mapErr(() => deps.skills.tenantDownload(ctx, id))
 }
 
 export async function tenantPublish(
   deps: SkillDeps,
-  accessToken: string,
+  ctx: MossCallContext,
   sourceName: string,
 ): Promise<unknown> {
-  await requireVisibleSkill(deps, accessToken, sourceName)
-  return mapErr(() => deps.skills.tenantPublish(accessToken, { skillName: sourceName }))
+  await requireVisibleSkill(deps, ctx, sourceName)
+  return mapErr(() => deps.skills.tenantPublish(ctx, { skillName: sourceName }))
 }

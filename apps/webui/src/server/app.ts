@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws'
 import type { AppConfig } from './config.js'
 import type { MossAuthPort } from '@sudowork/moss-client'
 import { createMossSessionPort, type MossSessionPort } from '@sudowork/moss-client'
-import { type MossFetch, MossHttpError, MossNetworkError, mossFetchAsset, mossRequest } from '@sudowork/moss-client'
+import { type MossCallContext, type MossFetch, MossHttpError, MossNetworkError, mossFetchAsset, mossRequest } from '@sudowork/moss-client'
 import { createOriginGuard, isOriginAllowed, noStore, securityHeaders } from './security/requestSecurity.js'
 import { createAuthRouter } from './features/auth/authRoutes.js'
 import { MossUnauthorizedError } from './features/auth/authService.js'
@@ -107,7 +107,7 @@ export interface ApiDeps {
   /** 测试注入桩 */
   cron?: import('@sudowork/moss-client').MossCronPort
   /** 测试注入桩 */
-  fetchVisibleAgentNames?: (accessToken: string) => Promise<Set<string>>
+  fetchVisibleAgentNames?: (ctx: MossCallContext) => Promise<Set<string>>
   /** 测试注入桩 */
   mcp?: MossMcpPort
 }
@@ -126,11 +126,11 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
 
   const mossFetch = deps.mossFetch ?? mossRequest
   const auth = { pool, config, mossAuth: deps.mossAuth }
-  const mossSession = deps.mossSession ?? createMossSessionPort(mossFetch, config.moss.baseUrl)
+  const mossSession = deps.mossSession ?? createMossSessionPort(mossFetch)
   const coordinator =
     deps.coordinator ?? new ConversationCoordinator({ pool, config, auth, moss: mossSession })
-  const agents = deps.agents ?? createMossAgentPort(mossFetch, config.moss.baseUrl)
-  const skills = deps.skills ?? createMossSkillPort(mossFetch, config.moss.baseUrl)
+  const agents = deps.agents ?? createMossAgentPort(mossFetch)
+  const skills = deps.skills ?? createMossSkillPort(mossFetch)
 
   app.use(
     '/api/conversations',
@@ -150,11 +150,11 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
 
   const fetchVisibleAgentNames =
     deps.fetchVisibleAgentNames ??
-    (async (accessToken: string): Promise<Set<string>> => {
-      const list = (await mossFetch(config.moss.baseUrl, {
+    (async (ctx: MossCallContext): Promise<Set<string>> => {
+      const list = (await mossFetch(ctx.baseUrl, {
         method: 'GET',
         path: '/api/v1/agents/installed',
-        accessToken,
+        accessToken: ctx.accessToken,
       })) as { name?: string }[]
       const names = new Set<string>()
       if (Array.isArray(list)) {
@@ -170,13 +170,13 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
       pool,
       config,
       auth,
-      cron: deps.cron ?? createMossCronPort(mossFetch, config.moss.baseUrl),
+      cron: deps.cron ?? createMossCronPort(mossFetch),
       sessions: mossSession,
       fetchVisibleAgentNames,
     }),
   )
 
-  const mcp = deps.mcp ?? createMossMcpPort(mossFetch, config.moss.baseUrl)
+  const mcp = deps.mcp ?? createMossMcpPort(mossFetch)
   app.use('/api/settings', createSettingsRouter({ pool, config, auth, mcp }))
   app.use('/api/mcp', createMcpRouter({ pool, config, auth, mcp }))
 

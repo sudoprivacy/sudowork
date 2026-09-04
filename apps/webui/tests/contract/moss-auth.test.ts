@@ -11,9 +11,9 @@ function okTokenSet() {
 describe('MossAuthPort request shapes (contract vs baseline)', () => {
   test('password login posts grant_type=password to /api/v1/auth/login', async () => {
     const mock = vi.fn().mockResolvedValue(okTokenSet())
-    const port = createMossAuthPort(mock, BASE)
+    const port = createMossAuthPort(mock)
 
-    const tokens = await port.loginWithPassword({ username: 'u1', password: 'p1' })
+    const tokens = await port.loginWithPassword({ username: 'u1', password: 'p1' }, BASE)
 
     expect(tokens.access_token).toBe('at-1')
     expect(mock).toHaveBeenCalledWith(
@@ -28,9 +28,9 @@ describe('MossAuthPort request shapes (contract vs baseline)', () => {
 
   test('api key login posts grant_type=api_key', async () => {
     const mock = vi.fn().mockResolvedValue(okTokenSet())
-    const port = createMossAuthPort(mock, BASE)
+    const port = createMossAuthPort(mock)
 
-    await port.loginWithApiKey('sk-xyz')
+    await port.loginWithApiKey('sk-xyz', BASE)
 
     expect(mock).toHaveBeenCalledWith(
       BASE,
@@ -44,9 +44,9 @@ describe('MossAuthPort request shapes (contract vs baseline)', () => {
 
   test('refresh posts grant_type=refresh_token to /api/v1/auth/token', async () => {
     const mock = vi.fn().mockResolvedValue(okTokenSet())
-    const port = createMossAuthPort(mock, BASE)
+    const port = createMossAuthPort(mock)
 
-    await port.refresh('rt-old')
+    await port.refresh('rt-old', BASE)
 
     expect(mock).toHaveBeenCalledWith(
       BASE,
@@ -65,9 +65,9 @@ describe('MossAuthPort request shapes (contract vs baseline)', () => {
       scopes: ['s'],
       role: 'user',
     })
-    const port = createMossAuthPort(mock, BASE)
+    const port = createMossAuthPort(mock)
 
-    const me = await port.me('at-9')
+    const me = await port.me('at-9', BASE)
     expect(me.user.id).toBe('u')
 
     expect(mock).toHaveBeenCalledWith(
@@ -78,8 +78,8 @@ describe('MossAuthPort request shapes (contract vs baseline)', () => {
 
   test('token set missing required fields is rejected', async () => {
     const mock = vi.fn().mockResolvedValue({ access_token: 'at' })
-    const port = createMossAuthPort(mock, BASE)
-    await expect(port.loginWithApiKey('sk')).rejects.toThrow()
+    const port = createMossAuthPort(mock)
+    await expect(port.loginWithApiKey('sk', BASE)).rejects.toThrow()
   })
 })
 

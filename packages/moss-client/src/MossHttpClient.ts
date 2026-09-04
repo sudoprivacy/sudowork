@@ -38,6 +38,15 @@ export interface MossRequest {
 
 export type MossFetch = (baseUrl: string, req: MossRequest, timeoutMs?: number) => Promise<unknown>
 
+/**
+ * 每次 moss 调用的上下文：access token + 该会话生效的 moss 地址。
+ * 支持登录页自定义 Moss 地址——地址随 token 逐调用同链路传递，而非烘焙进端口构造。
+ */
+export interface MossCallContext {
+  accessToken: string
+  baseUrl: string
+}
+
 export const DEFAULT_MOSS_TIMEOUT_MS = 15_000
 
 export async function mossRequest(
