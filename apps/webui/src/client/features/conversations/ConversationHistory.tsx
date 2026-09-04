@@ -59,9 +59,9 @@ export function ConversationHistory({ isScheduled }: { isScheduled: boolean }): 
   )
   const [confirmDelete, setConfirmDelete] = useState<ConversationListItem | null>(null)
 
-  const emojiByName = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const a of options?.agents ?? []) map.set(a.displayName, a.emoji)
+  const agentIconByName = useMemo(() => {
+    const map = new Map<string, { emoji: string; avatar: string }>()
+    for (const a of options?.agents ?? []) map.set(a.displayName, { emoji: a.emoji, avatar: a.avatar })
     return map
   }, [options])
 
@@ -154,7 +154,8 @@ export function ConversationHistory({ isScheduled }: { isScheduled: boolean }): 
                     key={c.id}
                     item={c}
                     active={pathname === `/conversation/${c.id}`}
-                    emoji={c.assistantName ? (emojiByName.get(c.assistantName) ?? '') : ''}
+                    emoji={c.assistantName ? (agentIconByName.get(c.assistantName)?.emoji ?? '') : ''}
+                    avatar={c.assistantName ? (agentIconByName.get(c.assistantName)?.avatar ?? '') : ''}
                     onOpen={() => handleOpen(c.id)}
                     onPin={() => handlePin(c)}
                     onRename={(t) => handleRename(c, t)}
@@ -173,7 +174,7 @@ export function ConversationHistory({ isScheduled }: { isScheduled: boolean }): 
     items={items}
     pathname={pathname}
     collapsed={collapsed}
-    emojiByName={emojiByName}
+    agentIconByName={agentIconByName}
     onToggle={toggleSection}
     onOpen={handleOpen}
     onPin={handlePin}
@@ -214,7 +215,7 @@ function TimelineHistory({
   items,
   pathname,
   collapsed,
-  emojiByName,
+  agentIconByName,
   onToggle,
   onOpen,
   onPin,
@@ -226,7 +227,7 @@ function TimelineHistory({
   items: ConversationListItem[]
   pathname: string
   collapsed: Set<string>
-  emojiByName: Map<string, string>
+  agentIconByName: Map<string, { emoji: string; avatar: string }>
   onToggle: (label: string) => void
   onOpen: (id: string) => void
   onPin: (item: ConversationListItem) => void
@@ -277,7 +278,8 @@ function TimelineHistory({
                   key={c.id}
                   item={c}
                   active={pathname === `/conversation/${c.id}`}
-                  emoji={c.assistantName ? (emojiByName.get(c.assistantName) ?? '') : ''}
+                  emoji={c.assistantName ? (agentIconByName.get(c.assistantName)?.emoji ?? '') : ''}
+                  avatar={c.assistantName ? (agentIconByName.get(c.assistantName)?.avatar ?? '') : ''}
                   onOpen={() => onOpen(c.id)}
                   onPin={() => onPin(c)}
                   onRename={(t) => onRename(c, t)}
@@ -304,7 +306,8 @@ function TimelineHistory({
                   key={c.id}
                   item={c}
                   active={pathname === `/conversation/${c.id}`}
-                  emoji={c.assistantName ? (emojiByName.get(c.assistantName) ?? '') : ''}
+                  emoji={c.assistantName ? (agentIconByName.get(c.assistantName)?.emoji ?? '') : ''}
+                  avatar={c.assistantName ? (agentIconByName.get(c.assistantName)?.avatar ?? '') : ''}
                   onOpen={() => onOpen(c.id)}
                   onPin={() => onPin(c)}
                   onRename={(t) => onRename(c, t)}

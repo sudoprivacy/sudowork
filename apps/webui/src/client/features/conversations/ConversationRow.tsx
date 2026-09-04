@@ -8,11 +8,13 @@ import { Dropdown, Menu, Modal, Input, Message as ArcoMessage } from '@arco-desi
 import { MessageOne } from '@icon-park/react'
 import { Pin } from 'lucide-react'
 import type { ConversationListItem } from '@sudowork/contracts/conversations'
+import { resolveAgentAvatar } from '@client/components/agentAvatar'
 
 export function ConversationRow({
   item,
   active,
   emoji,
+  avatar,
   onOpen,
   onPin,
   onRename,
@@ -21,6 +23,7 @@ export function ConversationRow({
   item: ConversationListItem
   active: boolean
   emoji: string | null
+  avatar: string | null
   onOpen: () => void
   onPin: () => void
   onRename: (title: string) => void
@@ -40,13 +43,22 @@ export function ConversationRow({
         }`}
         onClick={onOpen}
       >
-        {/* 前置图标：智能体 emoji / 兜底 MessageOne（对齐 Sudowork ConversationRow 兜底图标） */}
+        {/* 前置图标：头像（tenant 走同源代理）/ emoji / 兜底 MessageOne（对齐 Sudowork ConversationRow） */}
         <span className='mr-2 inline-flex size-20px shrink-0 items-center justify-center overflow-hidden'>
-          {emoji ? (
-            <span className='text-14px leading-none'>{emoji}</span>
-          ) : (
-            <MessageOne theme='outline' size='20' className='line-height-0 flex-shrink-0' />
-          )}
+          {(() => {
+            const resolved = resolveAgentAvatar(avatar)
+            if (resolved?.kind === 'image') {
+              return <img src={resolved.value} alt='' className='h-20px w-20px object-contain' />
+            }
+            if (resolved?.kind === 'emoji') {
+              return <span className='text-14px leading-none'>{resolved.value}</span>
+            }
+            return emoji ? (
+              <span className='text-14px leading-none'>{emoji}</span>
+            ) : (
+              <MessageOne theme='outline' size='20' className='line-height-0 flex-shrink-0' />
+            )
+          })()}
         </span>
         {/* 标题（单行截断；不显示时间戳，对齐 Sudowork） */}
         <span

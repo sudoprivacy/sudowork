@@ -21,6 +21,7 @@ import {
   getWorkspaceFile,
   getWorkspaceTree,
   listConversations,
+  proxyAgentAvatar,
   reorderPinnedConversations,
   terminateConversation,
   updateConversationMeta,
@@ -97,6 +98,22 @@ export function createConversationRouter(deps: ConversationDeps): Router {
     void (async () => {
       const token = await resolveToken(req as AuthedRequest)
       res.status(200).json(await getConversationOptions(deps, token))
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  // tenant 头像同源代理：白名单仅放行 /uploads/tenant-assistant-avatars/<单层文件名>，防 SSRF/路径穿越。
+  // 单段 GET 路径，与 /options 并列，不与 DELETE /:id、两段 /:id/* 冲突。
+  router.get('/agent-avatar', requireSession, (req, res, next) => {
+    void (async () => {
+      const path = z
+        .string()
+        .min(1)
+        .max(512)
+        .regex(/^\/uploads\/tenant-assistant-avatars\/[A-Za-z0-9][\w.-]*$/)
+        .parse(req.query.path)
+      const asset = await proxyAgentAvatar(deps, path)
+      res.set('Content-Type', asset.contentType ?? 'application/octet-stream')
+      res.send(Buffer.from(asset.buffer))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

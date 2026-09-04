@@ -4,7 +4,7 @@ import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
 import type { Principal } from '../auth/principalRepository.js'
 import type { MossSessionPort } from '@sudowork/moss-client'
-import { type MossFetch, MossHttpError, MossNetworkError } from '@sudowork/moss-client'
+import { type MossAsset, type MossFetch, MossHttpError, MossNetworkError, mossFetchAsset } from '@sudowork/moss-client'
 import type {
   ConversationListItem,
   CreateConversationRequest,
@@ -41,6 +41,8 @@ export interface ConversationDeps {
   auth: AuthDeps
   moss: MossSessionPort
   mossFetch: MossFetch
+  /** 拉取 moss 静态资源（tenant 头像代理）；app.ts 注入，缺省用真实 mossFetchAsset */
+  mossFetchAsset?: typeof mossFetchAsset
   coordinator: ConversationCoordinator
   /** DELETE 会话时关闭该会话全部服务器 pty（app.ts 注入；测试可不传） */
   closeTerminals?: (conversationId: string) => void
@@ -264,8 +266,35 @@ export async function deleteConversation(
 
 export interface ConversationOptions {
   models: { id: string; name: string }[]
-  agents: { name: string; displayName: string; emoji: string; description: string }[]
+  agents: {
+    name: string
+    displayName: string
+    emoji: string
+    description: string
+    avatar: string
+    defaultInitPrompt: string
+    promptsI18n: { 'zh-CN': string[] }
+  }[]
   skills: { name: string; displayName: string; description: string; icon: string; emoji: string }[]
+}
+
+/** moss 智能体元数据字段命名不统一（camelCase / snake_case / 嵌 meta），统一取第一个非空字符串 */
+function pickString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value) return value
+  }
+  return ''
+}
+
+/** 从 moss agent 元数据抽取 zh-CN 案例提示词（兼容 promptsI18n / prompts_i18n / meta 嵌套） */
+function pickZhCnPrompts(sources: unknown[]): string[] {
+  for (const source of sources) {
+    if (source && typeof source === 'object' && !Array.isArray(source)) {
+      const zh = (source as { 'zh-CN'?: unknown })['zh-CN']
+      if (Array.isArray(zh)) return zh.filter((item): item is string => typeof item === 'string')
+    }
+  }
+  return []
 }
 
 export async function getConversationOptions(
@@ -294,12 +323,42 @@ export async function getConversationOptions(
   return {
     models: models.data.map((m) => ({ id: m.id, name: m.name ?? m.id })),
     agents: agents.map((a) => {
-      const extra = a as { displayName?: unknown; emoji?: unknown; description?: unknown }
+      const extra = a as {
+        displayName?: unknown
+        emoji?: unknown
+        description?: unknown
+        avatar?: unknown
+        defaultInitPrompt?: unknown
+        default_init_prompt?: unknown
+        promptsI18n?: unknown
+        prompts_i18n?: unknown
+        meta?: {
+          defaultInitPrompt?: unknown
+          default_init_prompt?: unknown
+          promptsI18n?: unknown
+          prompts_i18n?: unknown
+        }
+      }
       return {
         name: a.name,
         displayName: typeof extra.displayName === 'string' ? extra.displayName : a.name,
         emoji: typeof extra.emoji === 'string' ? extra.emoji : '',
         description: typeof extra.description === 'string' ? extra.description : '',
+        avatar: typeof extra.avatar === 'string' ? extra.avatar : '',
+        defaultInitPrompt: pickString(
+          extra.defaultInitPrompt,
+          extra.default_init_prompt,
+          extra.meta?.defaultInitPrompt,
+          extra.meta?.default_init_prompt,
+        ),
+        promptsI18n: {
+          'zh-CN': pickZhCnPrompts([
+            extra.promptsI18n,
+            extra.prompts_i18n,
+            extra.meta?.promptsI18n,
+            extra.meta?.prompts_i18n,
+          ]),
+        },
       }
     }),
     skills: skills.map((s) => {
@@ -313,6 +372,14 @@ export async function getConversationOptions(
       }
     }),
   }
+}
+
+/**
+ * tenant 头像同源代理：从 moss 拉取头像二进制交由 webui 转发（moss 静态资源，无需鉴权）。
+ * 调用方（conversationRoutes）已用 zod 白名单限制 path 仅 /uploads/tenant-assistant-avatars/<file>。
+ */
+export async function proxyAgentAvatar(deps: ConversationDeps, path: string): Promise<MossAsset> {
+  return (deps.mossFetchAsset ?? mossFetchAsset)(deps.config.moss.baseUrl, path)
 }
 
 // ---------- workspace（DTO 白名单：node 去 fullPath，计划 3.10） ----------

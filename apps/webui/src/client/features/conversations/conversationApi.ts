@@ -3,7 +3,15 @@ import { ApiError } from '@client/features/auth/authApi'
 
 export interface ConversationOptions {
   models: { id: string; name: string }[]
-  agents: { name: string; displayName: string; emoji: string; description: string }[]
+  agents: {
+    name: string
+    displayName: string
+    emoji: string
+    description: string
+    avatar: string
+    defaultInitPrompt: string
+    promptsI18n: { 'zh-CN': string[] }
+  }[]
   skills: { name: string; displayName: string; description: string; icon: string; emoji: string }[]
 }
 

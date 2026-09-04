@@ -11,6 +11,7 @@ import { Button, Dropdown, Input, Menu, Message, Popover, Tag } from '@arco-desi
 import type { RefTextAreaType } from '@arco-design/web-react/es/Input/textarea'
 import { ArrowUp, AtSign, Bot, Brain, Plus, Zap } from 'lucide-react'
 import { ApiError } from '../auth/authApi'
+import { resolveAgentAvatar } from '@client/components/agentAvatar'
 import { createConversation, getConversationOptions } from './conversationApi'
 import { AgentSelectedView, type SelectedAgentInfo } from './AgentSelectedView'
 import { SkillSelectorMenu } from './SkillSelectorMenu'
@@ -123,6 +124,8 @@ export function NewConversationPage(): React.ReactElement {
   const agents = options?.agents ?? []
   const skills = options?.skills ?? []
   const models = options?.models ?? []
+  // 选中 agent 的 zh-CN 案例提示词（moss 未返回该字段时为空，案例块不渲染）
+  const agentExamplePrompts = (selectedAgent?.promptsI18n['zh-CN'] ?? []).filter((prompt) => prompt.trim())
 
   // @ 触发控制器（对齐 Sudowork useSkillSelectorController）
   const skillSelector = useSkillSelector({
@@ -451,8 +454,24 @@ export function NewConversationPage(): React.ReactElement {
             </div>
           </div>
 
-          {/* 底部智能体列表（对齐 Sudowork AssistantSelectionArea：空列表整块不渲染） */}
-          {agents.length > 0 ? (
+          {/* 底部（对齐 Sudowork AssistantSelectionArea）：已选中且有案例→案例提示词；未选中→智能体列表；否则不渲染 */}
+          {selectedAgent && agentExamplePrompts.length > 0 ? (
+            <div className='mt-16px w-full' data-testid='agent-example-prompts'>
+              <div className='flex flex-col gap-2'>
+                {agentExamplePrompts.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type='button'
+                    className='text-left text-14px text-2 hover:text-1 px-16px py-8px rd-12px b-1 b-solid cursor-pointer bg-fill-0 hover:bg-fill-1'
+                    style={{ borderColor: 'var(--bg-3)' }}
+                    onClick={() => setInput(prompt)}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : !selectedAgent && agents.length > 0 ? (
             <div className='mt-16px w-full' data-testid='assistant-list'>
               <div className='f-center flex-wrap gap-2'>
                 {agents.map((a) => (
@@ -461,16 +480,30 @@ export function NewConversationPage(): React.ReactElement {
                     data-testid={`assistant-chip-${a.name}`}
                     className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
                     style={{ borderWidth: 1, borderColor: 'var(--bg-3)' }}
-                    onClick={() =>
-                      setSelectedAgent(
-                        selectedAgent?.name === a.name
-                          ? null
-                          : { name: a.name, displayName: a.displayName, emoji: a.emoji, description: a.description },
-                      )
-                    }
+                    onClick={() => {
+                      setSelectedAgent({
+                        name: a.name,
+                        displayName: a.displayName,
+                        emoji: a.emoji,
+                        description: a.description,
+                        avatar: a.avatar,
+                        promptsI18n: a.promptsI18n,
+                      })
+                      const prompt = a.defaultInitPrompt.trim()
+                      if (prompt) setInput(prompt)
+                    }}
                   >
                     <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
-                      {a.emoji ? <span className='text-16px leading-none'>{a.emoji}</span> : <Bot size={16} />}
+                      {(() => {
+                        const resolved = resolveAgentAvatar(a.avatar)
+                        if (resolved?.kind === 'image') {
+                          return <img src={resolved.value} alt={a.displayName} className='h-16px w-16px object-contain' />
+                        }
+                        if (resolved?.kind === 'emoji') {
+                          return <span className='text-16px leading-none'>{resolved.value}</span>
+                        }
+                        return a.emoji ? <span className='text-16px leading-none'>{a.emoji}</span> : <Bot size={16} />
+                      })()}
                     </span>
                     <span className='text-14px text-2 hover:text-1'>{a.displayName}</span>
                   </div>

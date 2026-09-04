@@ -87,3 +87,35 @@ export async function mossRequest(
     clearTimeout(timer)
   }
 }
+
+export interface MossAsset {
+  buffer: ArrayBuffer
+  contentType: string | null
+}
+
+/**
+ * 拉取 moss 静态二进制资源（如 tenant 头像）。与 mossRequest 不同：不解析 JSON、返回原始字节 +
+ * Content-Type，供 webui 同源代理转发。非 2xx 抛 MossHttpError（不读 body），不可达抛 MossNetworkError。
+ */
+export async function mossFetchAsset(
+  baseUrl: string,
+  path: string,
+  timeoutMs = DEFAULT_MOSS_TIMEOUT_MS,
+): Promise<MossAsset> {
+  const url = new URL(path, baseUrl)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { method: 'GET', signal: controller.signal })
+    if (!res.ok) {
+      throw new MossHttpError(res.status, '', path)
+    }
+    const buffer = await res.arrayBuffer()
+    return { buffer, contentType: res.headers.get('content-type') }
+  } catch (err) {
+    if (err instanceof MossHttpError) throw err
+    throw new MossNetworkError(path, err)
+  } finally {
+    clearTimeout(timer)
+  }
+}

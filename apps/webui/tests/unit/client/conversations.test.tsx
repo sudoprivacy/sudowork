@@ -134,8 +134,17 @@ vi.mock('@client/features/conversations/conversationApi', () => ({
   getConversationOptions: vi.fn().mockResolvedValue({
     models: [{ id: 'm1', name: 'M1' }],
     agents: [
-      { name: 'helper', displayName: '帮助助手', emoji: '🤖', description: '帮你干活' },
-      { name: 'writer', displayName: '写作助手', emoji: '', description: '' },
+      { name: 'helper', displayName: '帮助助手', emoji: '🤖', description: '帮你干活', avatar: '', defaultInitPrompt: '', promptsI18n: { 'zh-CN': [] } },
+      { name: 'writer', displayName: '写作助手', emoji: '', description: '', avatar: '', defaultInitPrompt: '', promptsI18n: { 'zh-CN': [] } },
+      {
+        name: 'guide',
+        displayName: '上手向导',
+        emoji: '🧭',
+        description: '带你快速上手',
+        avatar: '',
+        defaultInitPrompt: '请帮我从零开始',
+        promptsI18n: { 'zh-CN': ['案例一：生成周报', '案例二：整理表格'] },
+      },
     ],
     skills: [{ name: 'pdf' }, { name: 'search' }],
   }),
@@ -180,9 +189,9 @@ describe('NewConversationPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('assistant-chip-helper')).toBeTruthy(), { timeout: 5000 })
     fireEvent.click(screen.getByTestId('assistant-chip-helper'))
-    // 选中态视图：返回箭头 + 名称 + 描述卡（名称与 chip 同文本，用 getAllByText 断言出现两处）
-    await waitFor(() => expect(screen.getAllByText('帮助助手').length).toBeGreaterThanOrEqual(2), { timeout: 5000 })
-    expect(screen.getByText('帮你干活')).toBeTruthy()
+    // 选中后 chip 列表隐藏（helper 无案例提示词，底部整块不渲染），名称仅出现在选中态视图
+    await waitFor(() => expect(screen.getByText('帮你干活')).toBeTruthy(), { timeout: 5000 })
+    expect(screen.getByText('帮助助手')).toBeTruthy()
     expect(screen.getByLabelText('消息输入框').getAttribute('placeholder')).toMatch(/^帮助助手, /)
     fireEvent.change(screen.getByLabelText('消息输入框'), { target: { value: '帮我' } })
     fireEvent.click(screen.getByRole('button', { name: '发送' }))
@@ -192,5 +201,25 @@ describe('NewConversationPage', () => {
       assistantName: 'helper',
       enabledSkills: [],
     })
+  })
+
+  test('selecting an agent with prompts prefills input and renders clickable examples', async () => {
+    render(
+      <MemoryRouter initialEntries={['/guid']}>
+        <NewConversationPage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('assistant-chip-guide')).toBeTruthy(), { timeout: 5000 })
+    fireEvent.click(screen.getByTestId('assistant-chip-guide'))
+
+    // 行为A：defaultInitPrompt 预填输入框
+    const box = (await waitFor(() => screen.getByLabelText('消息输入框'), { timeout: 5000 })) as HTMLTextAreaElement
+    await waitFor(() => expect(box.value).toBe('请帮我从零开始'), { timeout: 5000 })
+
+    // 行为A：promptsI18n['zh-CN'] 案例可点击，点击写入输入框
+    expect(screen.getByTestId('agent-example-prompts')).toBeTruthy()
+    fireEvent.click(screen.getByText('案例二：整理表格'))
+    expect(box.value).toBe('案例二：整理表格')
   })
 })

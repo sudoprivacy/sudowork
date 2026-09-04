@@ -8,6 +8,7 @@ import React, { useMemo, useState } from 'react'
 import { useSWRConfig } from 'swr'
 import { Button, Input, Message, Popconfirm, Spin } from '@arco-design/web-react'
 import { Bot, Search, Shield, SquarePen, Trash2 } from 'lucide-react'
+import { resolveAgentAvatar } from '@client/components/agentAvatar'
 import { useAgents } from './useAgents'
 import { agentApi, type AgentItem } from './agentApi'
 import { AssistantDetailModal } from './AssistantDetailModal'
@@ -316,21 +317,16 @@ function AgentCard({
 }): React.ReactElement {
   const displayName = String(agent.displayName ?? agent.display_name ?? agent.name ?? '')
   const version = resolveVersionLabel((agent as { latestVersion?: unknown }).latestVersion)
-  // 图标链对齐 sudowork HubAssistantCard：avatar（emoji 正则判断）→ emoji 字段 → Bot 兜底
-  const resolvedAvatar = typeof agent.avatar === 'string' ? agent.avatar.trim() : ''
-  const emojiRegex =
-    /^(?:\p{Emoji_Presentation}|\p{Emoji}️)(?:‍(?:\p{Emoji_Presentation}|\p{Emoji}️))*$/u
-  const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar))
+  // 图标链对齐 sudowork HubAssistantCard：avatar（resolveAgentAvatar：emoji/图片，tenant 相对路径走同源代理）→ emoji 字段 → Bot 兜底
+  const resolvedAvatar = resolveAgentAvatar(agent.avatar)
   return (
     <div className='card group flex items-start gap-3 relative overflow-hidden' data-testid='assistant-card' onClick={onDetail}>
       <div className='w-48px flex-shrink-0'>
         <div className='size-12 rd-8px overflow-hidden bg-control f-center'>
-          {resolvedAvatar ? (
-            hasEmojiAvatar ? (
-              <div className='w-full h-full f-center text-22px'>{resolvedAvatar}</div>
-            ) : (
-              <img src={resolvedAvatar} alt={displayName} className='w-full h-full object-cover' />
-            )
+          {resolvedAvatar?.kind === 'image' ? (
+            <img src={resolvedAvatar.value} alt={displayName} className='w-full h-full object-cover' />
+          ) : resolvedAvatar?.kind === 'emoji' ? (
+            <div className='w-full h-full f-center text-22px'>{resolvedAvatar.value}</div>
           ) : agent.emoji ? (
             <div className='w-full h-full f-center text-22px'>{agent.emoji}</div>
           ) : (

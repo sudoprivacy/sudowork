@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws'
 import type { AppConfig } from './config.js'
 import type { MossAuthPort } from '@sudowork/moss-client'
 import { createMossSessionPort, type MossSessionPort } from '@sudowork/moss-client'
-import { type MossFetch, MossHttpError, MossNetworkError, mossRequest } from '@sudowork/moss-client'
+import { type MossFetch, MossHttpError, MossNetworkError, mossFetchAsset, mossRequest } from '@sudowork/moss-client'
 import { createOriginGuard, isOriginAllowed, noStore, securityHeaders } from './security/requestSecurity.js'
 import { createAuthRouter } from './features/auth/authRoutes.js'
 import { MossUnauthorizedError } from './features/auth/authService.js'
@@ -94,6 +94,8 @@ export interface ApiDeps {
   mossAuth: MossAuthPort
   /** 测试注入桩；缺省用真实 mossRequest */
   mossFetch?: MossFetch
+  /** 测试注入桩；缺省用真实 mossFetchAsset（tenant 头像代理） */
+  mossFetchAsset?: typeof mossFetchAsset
   /** 测试注入桩；缺省用真实 MossSessionPort */
   mossSession?: MossSessionPort
   /** 测试注入桩 */
@@ -138,6 +140,7 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
       auth,
       moss: mossSession,
       mossFetch,
+      mossFetchAsset: deps.mossFetchAsset,
       coordinator,
       closeTerminals: (conversationId) => globalTerminalManager.closeByConversation(conversationId),
     }),
