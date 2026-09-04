@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ServerInboundEvent } from '@sudowork/contracts/conversations'
 
 /**
@@ -182,11 +182,16 @@ export function useConversationSocket(conversationId: string | undefined): Conve
   const [state, setState] = useState<ConversationStreamState>(initialStreamState)
   const wsRef = useRef<WebSocket | null>(null)
 
-  useEffect(() => {
+  // useLayoutEffect（非 useEffect）：会话切换的整体重置须在 paint 前 flush——passive effect
+  // 在 paint 后运行，id 变化的首帧仍持旧会话 messages，会把上一会话消息泄漏渲染到新会话底部。
+  useLayoutEffect(() => {
     if (!conversationId) return
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const ws = new WebSocket(`${proto}://${window.location.host}/ws/conversations/${conversationId}`)
     wsRef.current = ws
+    // 会话切换：整体重置（messages/lockState/isWriter/lastError/isStopping/currentModel 不得跨会话
+    // 继承——lock/writer 由服务端连接即推重建，模型由后续 model_changed 回填）
+    setState(initialStreamState)
     setStatus('connecting')
 
     ws.onopen = () => setStatus('open')

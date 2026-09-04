@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, test, vi } from 'vitest'
 import {
   initialStreamState,
   reduceStreamEvent,
+  useConversationSocket,
   type ConversationStreamState,
 } from '@client/features/conversations/useConversationSocket'
 import { SendBox } from '@client/features/conversations/SendBox'
@@ -74,6 +75,39 @@ describe('reduceStreamEvent（上游事件聚合）', () => {
     expect(state.isWriter).toBe(true)
     state = reduceStreamEvent(state, { kind: 'error', code: 'CONVERSATION_BUSY' })
     expect(state.lastError).toBe('CONVERSATION_BUSY')
+  })
+})
+
+describe('useConversationSocket 切换会话重置（防消息泄漏）', () => {
+  // 极简 WebSocket 桩：hook 的连接 effect 需要构造 WebSocket，但本用例只验证切换重置、不依赖 WS 消息
+  class StubWebSocket {
+    onopen: (() => void) | null = null
+    onclose: (() => void) | null = null
+    onerror: (() => void) | null = null
+    onmessage: ((ev: { data: string }) => void) | null = null
+    readyState = 0
+    send(): void {}
+    close(): void {}
+  }
+
+  test('切换 conversationId 后，上一会话的本地消息与控制态不残留', () => {
+    const original = globalThis.WebSocket
+    globalThis.WebSocket = StubWebSocket as unknown as typeof WebSocket
+    try {
+      const { result, rerender } = renderHook(({ id }: { id: string }) => useConversationSocket(id), {
+        initialProps: { id: 'conv-a' },
+      })
+
+      act(() => result.current.appendLocalUser('会话A的本地消息'))
+      expect(result.current.state.messages).toHaveLength(1)
+
+      rerender({ id: 'conv-b' })
+      expect(result.current.state.messages).toHaveLength(0)
+      expect(result.current.state.lockState).toBeNull()
+      expect(result.current.state.isWriter).toBe(false)
+    } finally {
+      globalThis.WebSocket = original
+    }
   })
 })
 
