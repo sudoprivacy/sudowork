@@ -31,6 +31,9 @@ import { bridge } from '@office-ai/platform'
 // Canonical wire shape — one definition shared with the renderer + main, not a
 // parallel copy.
 import type { IBridgeResponse } from '@sudowork/host-bridge/ipcBridge'
+// The moss-frame → IResponseMessage mapping is the SAME implementation the desktop
+// MossWsConnection uses (shared leaf module, full stateless-frame coverage).
+import { mossFrameToResponses } from '@sudowork/common/mossResponse'
 
 interface BridgeEmitter {
   emit: (name: string, data: unknown) => void
@@ -162,42 +165,6 @@ function nextMsgId(): string {
   return `web-${__mid}-${Math.random().toString(16).slice(2, 8)}`
 }
 
-/**
- * Translate an anthropic-style moss stream message into renderer
- * IResponseMessage(s). Mirrors the core of the desktop MossWsConnection mapping
- * (assistant text → content, thinking → thought, finish). One moss message can
- * produce several IResponseMessages (one per content block).
- */
-function mossEventToResponses(event: any, conversationId: string): any[] {
-  const out: any[] = []
-  if (!event || typeof event !== 'object') return out
-  const mid = event.uuid || nextMsgId()
-  if (event.type === 'assistant') {
-    if (event.error || event.isApiErrorMessage) {
-      out.push({ type: 'error', msg_id: mid, conversation_id: conversationId, data: String(event.error || 'assistant error') })
-      return out
-    }
-    const content = event.message?.content
-    if (Array.isArray(content)) {
-      for (const block of content) {
-        if (block?.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
-          out.push({ type: 'content', msg_id: mid, conversation_id: conversationId, data: block.text })
-        } else if (block?.type === 'thinking') {
-          const th = block.thinking || block.text || ''
-          if (th && String(th).trim()) out.push({ type: 'thought', msg_id: `${mid}-t`, conversation_id: conversationId, data: { subject: 'Thinking', description: th } })
-        }
-      }
-    } else if (typeof content === 'string' && content.trim()) {
-      out.push({ type: 'content', msg_id: mid, conversation_id: conversationId, data: content })
-    }
-  } else if (event.type === 'result' || event.type === 'finish') {
-    out.push({ type: 'finish', msg_id: mid, conversation_id: conversationId, data: {} })
-  }
-  // 'user' echoes / system frames: ignored — the renderer already shows the
-  // user's own message locally on send.
-  return out
-}
-
 function wsUrlFor(sessionId: string): string {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${location.host}/ws/conversations/${encodeURIComponent(sessionId)}`
@@ -220,7 +187,11 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
     // `event` is an anthropic-style moss message. The renderer expects
     // IResponseMessage, so translate (mirrors the desktop MossWsConnection).
     if (frame && frame.kind === 'upstream' && frame.event) {
-      for (const msg of mossEventToResponses(frame.event, sessionId)) {
+      for (const msg of mossFrameToResponses(frame.event, {
+        sessionId,
+        conversationId: sessionId,
+        nextMsgId,
+      })) {
         emitterRef?.emit('chat.response.stream', msg)
         emitterRef?.emit('moss.response-stream', msg)
       }

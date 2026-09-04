@@ -25,7 +25,9 @@
     "migrate:test": "vitest run tests/integration/db.test.ts tests/integration/session.test.ts"
   },
   "dependencies": {
+    "@sudowork/common": "workspace:*",
     "@sudowork/contracts": "workspace:*",
+    "@sudowork/host-bridge": "workspace:*",
     "@sudowork/moss-client": "workspace:*",
     "@sudowork/ui": "workspace:*",
     "@arco-design/web-react": "2.66.1",

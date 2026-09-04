@@ -7,6 +7,7 @@
 import WebSocket from 'ws';
 import { buildUserMessage, buildAnswerQuestionMessage, buildInterruptMessage, buildSetModelMessage } from '@sudowork/moss-client';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
+import { mossFrameToResponses, isUserAbortError, extractTextFromContent } from '@sudowork/common/mossResponse';
 import { uuid } from '@/common/utils';
 import { mainLog, mainError } from '@/process/utils/mainLogger';
 import { ProcessConfig } from '@/process/initStorage';
@@ -344,78 +345,26 @@ export class MossWsConnection {
       return;
     }
 
+    // Stateless frame mapping (result / system / tool_use / assistant) is owned by
+    // the shared @sudowork/common/mossResponse mapper so the desktop and the webui
+    // render moss frames identically (DRY). The stateful bits that depend on this
+    // connection's lifecycle (user-abort tracking, session id capture, interrupt /
+    // permission control frames, plain-text fallback) stay inline below.
     if (msg.type === 'result') {
-      const isUserAbort = this.isUserAbortError(msg);
-      if (isUserAbort) {
+      // A user-abort result suppresses trailing assistant frames for the rest of
+      // this connection; that flag lives on the connection, so track it here.
+      if (isUserAbortError(msg)) {
         this.isUserAbortSession = true;
       }
-
-      if ((msg.is_error || msg.subtype?.startsWith('error_')) && !isUserAbort) {
-        const errorMsg = msg.errors?.join('\n') || msg.result || 'Session ended with error';
-        mainError('MossWsConnection', `Session error: ${errorMsg}`);
-        this.callbacks.onMessage({
-          type: 'error',
-          msg_id: msg.uuid || uuid(36),
-          conversation_id: '',
-          data: errorMsg,
-        });
+      for (const m of mossFrameToResponses(msg, { sessionId: this.sessionId || '', nextMsgId: () => uuid(36) })) {
+        this.callbacks.onMessage(m);
       }
-
-      mainLog('MossWsConnection', `Session ended: ${msg.subtype || 'completed'}`);
-      this.callbacks.onMessage({
-        type: 'finish',
-        msg_id: msg.uuid || uuid(36),
-        conversation_id: '',
-        data: {
-          subtype: msg.subtype,
-          duration_ms: msg.duration_ms,
-          total_cost_usd: msg.total_cost_usd,
-          usage: msg.usage,
-          num_turns: msg.num_turns,
-          isUserAbort,
-        },
-      });
       return;
     }
 
     if (msg.type === 'system') {
-      if (msg.subtype === 'init') {
-        const modelName = msg.model || 'unknown';
-        // Remove proxy/ prefix for display
-        // 移除 proxy/ 前缀用于显示
-        const displayLabel = modelName.startsWith('proxy/') ? modelName.slice(6) : modelName;
-        this.callbacks.onMessage({
-          type: 'acp_model_info',
-          msg_id: uuid(36),
-          conversation_id: '',
-          data: {
-            source: 'models',
-            currentModelId: modelName,
-            currentModelLabel: displayLabel,
-            canSwitch: false,
-            availableModels: [],
-          },
-        });
-      } else if (msg.subtype === 'model_changed') {
-        // Handle model change confirmation from server
-        // 处理服务器返回的模型切换确认
-        const modelName = msg.model || 'unknown';
-        mainLog('MossWsConnection', `Model changed to: ${modelName}`);
-        // Remove proxy/ prefix for display
-        // 移除 proxy/ 前缀用于显示
-        const displayLabel = modelName.startsWith('proxy/') ? modelName.slice(6) : modelName;
-        this.callbacks.onMessage({
-          type: 'acp_model_info',
-          msg_id: uuid(36),
-          conversation_id: '',
-          data: {
-            source: 'models',
-            currentModelId: modelName,
-            currentModelLabel: displayLabel,
-            canSwitch: false,
-            availableModels: [],
-          },
-        });
+      for (const m of mossFrameToResponses(msg, { sessionId: this.sessionId || '', nextMsgId: () => uuid(36) })) {
+        this.callbacks.onMessage(m);
       }
       return;
     }
@@ -426,146 +375,16 @@ export class MossWsConnection {
     }
 
     if (msg.type === 'tool_use') {
-      const toolName = msg.name || msg.tool_name || '';
-      const toolUseId = msg.tool_use_id || msg.id || msg.uuid || uuid(36);
-      const responseToolUseId = msg.uuid || toolUseId;
-      const rawInput = this.parseToolInput(msg.input);
-      // For AskUserQuestion, we need the _request_id to send RPC response
-      const requestId = msg._request_id;
-      // Check if this is a completion status update
-      const toolStatus = msg.status;
-
-      if (toolName === 'AskUserQuestion') {
-        const question = typeof rawInput.question === 'string' ? rawInput.question : '';
-        const description = typeof rawInput.description === 'string' ? rawInput.description : undefined;
-        const options = Array.isArray(rawInput.options) ? rawInput.options.filter((option): option is string => typeof option === 'string') : [];
-
-        this.callbacks.onMessage({
-          type: 'acp_question',
-          msg_id: toolUseId,
-          conversation_id: '',
-          data: {
-            question: question || description || 'Question',
-            intro: description,
-            options,
-            conversationId: '',
-            toolCallId: toolUseId,
-            responseToolCallId: responseToolUseId,
-            answered: false,
-            // Pass requestId so the answer can be sent as RPC response
-            _request_id: requestId,
-          },
-        });
-        return;
+      for (const m of mossFrameToResponses(msg, { sessionId: this.sessionId || '', nextMsgId: () => uuid(36) })) {
+        this.callbacks.onMessage(m);
       }
-
-      // If status is 'completed', send as tool_call_update to mark tool as complete
-      if (toolStatus === 'completed') {
-        this.callbacks.onMessage({
-          type: 'acp_tool_call',
-          msg_id: toolUseId,
-          conversation_id: '',
-          data: {
-            sessionId: this.sessionId || '',
-            update: {
-              sessionUpdate: 'tool_call_update',
-              toolCallId: toolUseId,
-              status: 'completed',
-              content: [],
-            },
-          },
-        });
-        return;
-      }
-
-      this.callbacks.onMessage({
-        type: 'acp_tool_call',
-        msg_id: toolUseId,
-        conversation_id: '',
-        data: {
-          sessionId: this.sessionId || '',
-          update: {
-            sessionUpdate: 'tool_call',
-            toolCallId: toolUseId,
-            status: 'pending',
-            title: toolName || 'Tool',
-            kind: 'execute',
-            rawInput,
-            content: [],
-          },
-        },
-      });
       return;
     }
 
     if (msg.type === 'assistant') {
       if (this.isUserAbortSession) return;
-
-      if (msg.error || msg.isApiErrorMessage) {
-        const errorMsg = this.extractTextFromContent(msg.message?.content) || msg.error || 'Unknown error';
-        mainError('MossWsConnection', `Assistant error: ${errorMsg}`);
-        this.callbacks.onMessage({
-          type: 'error',
-          msg_id: msg.uuid || uuid(36),
-          conversation_id: '',
-          data: errorMsg,
-        });
-        return;
-      }
-
-      const contentArray = msg.message?.content;
-      if (Array.isArray(contentArray)) {
-        for (const block of contentArray) {
-          if (block?.type === 'thinking') {
-            const thinkingContent = block.thinking || block.text || '';
-            if (thinkingContent && thinkingContent.trim()) {
-              this.callbacks.onMessage({
-                type: 'thought',
-                msg_id: `${msg.uuid || uuid(36)}-thought`,
-                conversation_id: '',
-                data: { subject: 'Thinking', description: thinkingContent },
-              });
-            }
-          } else if (block?.type === 'text') {
-            const textContent = block.text || '';
-            if (textContent && textContent.trim() && !this.isAbortRelatedText(textContent)) {
-              this.callbacks.onMessage({
-                type: 'content',
-                msg_id: msg.uuid || uuid(36),
-                conversation_id: '',
-                data: textContent,
-              });
-            }
-          } else if (block?.type === 'tool_use') {
-            this.callbacks.onMessage({
-              type: 'acp_tool_call',
-              msg_id: block.id || uuid(36),
-              conversation_id: '',
-              data: {
-                sessionId: this.sessionId || '',
-                update: {
-                  sessionUpdate: 'tool_call',
-                  toolCallId: block.id || uuid(36),
-                  status: 'pending',
-                  title: block.name,
-                  kind: 'execute',
-                  rawInput: block.input,
-                  content: [],
-                },
-              },
-            });
-          }
-        }
-      } else {
-        const content = this.extractTextFromContent(contentArray);
-        if (content && content.trim() && !this.isAbortRelatedText(content)) {
-          this.callbacks.onMessage({
-            type: 'content',
-            msg_id: msg.uuid || uuid(36),
-            conversation_id: '',
-            data: content,
-          });
-        }
+      for (const m of mossFrameToResponses(msg, { sessionId: this.sessionId || '', nextMsgId: () => uuid(36) })) {
+        this.callbacks.onMessage(m);
       }
       return;
     }
@@ -658,7 +477,7 @@ export class MossWsConnection {
     }
 
     if (msg.message?.content) {
-      const content = this.extractTextFromContent(msg.message.content);
+      const content = extractTextFromContent(msg.message.content);
       if (content && content.trim()) {
         this.callbacks.onMessage({
           type: 'content',
@@ -668,28 +487,6 @@ export class MossWsConnection {
         });
       }
     }
-  }
-
-  private extractTextFromContent(content: any): string {
-    if (typeof content === 'string') return content;
-    if (!Array.isArray(content)) return '';
-    return content
-      .filter((item: any) => item?.type === 'text')
-      .map((item: any) => item.text || '')
-      .join('');
-  }
-
-  private parseToolInput(input: unknown): Record<string, unknown> {
-    if (!input) return {};
-    if (typeof input === 'string') {
-      try {
-        const parsed = JSON.parse(input);
-        return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
-      } catch {
-        return { input };
-      }
-    }
-    return typeof input === 'object' ? (input as Record<string, unknown>) : { input };
   }
 
   sendMessage(payload: { content: string; files?: string[]; msg_id?: string; images?: Array<{ type: 'image'; data: string; mimeType: string }> }): { success: boolean; msg?: string } {
@@ -876,19 +673,6 @@ export class MossWsConnection {
     this.state = 'closed';
     this.ws?.close();
     this.ws = null;
-  }
-
-  private isUserAbortError(msg: any): boolean {
-    if (msg.result_type === 'user') return true;
-    const errorMsg = msg.errors?.join('\n') || msg.result || '';
-    if (errorMsg.includes('Request was aborted') || errorMsg.includes('AbortError') || errorMsg.includes('aborted by user') || errorMsg.includes('user abort')) return true;
-    if (msg.stop_reason === 'abort' || msg.stop_reason === 'user_abort') return true;
-    return false;
-  }
-
-  private isAbortRelatedText(text: string): boolean {
-    const lowerText = text.toLowerCase();
-    return lowerText.includes('request interrupted by user') || lowerText.includes('request was aborted') || lowerText.includes('no response requested') || lowerText.includes('aborted by user') || lowerText.includes('interrupted by user');
   }
 
   isConnected(): boolean {
