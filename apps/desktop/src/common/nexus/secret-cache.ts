@@ -58,7 +58,7 @@ class SecretCacheImpl {
     }
 
     try {
-      const secrets = this.client.listSecrets();
+      const secrets = await this.client.listSecrets();
       console.log('[SecretCache] listSecrets returned:', secrets.length, 'secrets');
       for (const secret of secrets) {
         if (secret.deleted) {
@@ -66,7 +66,7 @@ class SecretCacheImpl {
         }
         console.log('[SecretCache] Getting secret:', secret.namespace, secret.key);
         try {
-          const value = this.client.getSecret(secret.namespace, secret.key);
+          const value = await this.client.getSecret(secret.namespace, secret.key);
           this.cache.set(`${secret.namespace}:${secret.key}`, value);
           this.migrated.add(`${secret.namespace}:${secret.key}`);
         } catch (err) {
@@ -100,15 +100,15 @@ class SecretCacheImpl {
    * Synchronous update of cache entry.
    * Also writes to Nexus via fire-and-forget.
    */
-  put(namespace: string, key: string, value: string): void {
+  async put(namespace: string, key: string, value: string): Promise<void> {
     const ref = `${namespace}:${key}`;
     this.cache.set(ref, value);
     this.migrated.add(ref);
 
-    // Fire-and-forget write to Nexus (putSecret is synchronous — use try/catch, not .catch())
+    // Fire-and-forget write to Nexus.
     if (this.client) {
       try {
-        this.client.putSecret(namespace, key, value);
+        await this.client.putSecret(namespace, key, value);
       } catch (error) {
         console.error(`[SecretCache] Failed to write secret ${ref} to Nexus:`, error);
       }
@@ -132,7 +132,7 @@ class SecretCacheImpl {
     if (!this.client) {
       throw new Error('SecretCache not initialized. Call initialize() first.');
     }
-    this.client.putSecret(namespace, key, value);
+    await this.client.putSecret(namespace, key, value);
   }
 
   /**
@@ -194,18 +194,19 @@ export function resolveSecret(namespace: string, key: string, fallback: string):
 }
 
 /**
- * Synchronous update of cache + sync write to Nexus.
+ * Update the cache and start the write to Nexus. The cache is updated before
+ * this returns; the write is fire-and-forget (it logs its own failures).
  * Use this in write path interceptors.
  */
 export function cachePut(namespace: string, key: string, value: string): void {
-  secretCache.put(namespace, key, value);
+  void secretCache.put(namespace, key, value);
 }
 
 /**
- * Async write to Nexus (fire-and-forget, non-blocking).
+ * Write to Nexus (fire-and-forget, non-blocking).
  */
 export function putSecretToNexus(namespace: string, key: string, value: string): void {
-  secretCache.put(namespace, key, value);
+  void secretCache.put(namespace, key, value);
 }
 
 /**

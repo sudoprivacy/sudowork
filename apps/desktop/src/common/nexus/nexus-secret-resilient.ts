@@ -40,7 +40,7 @@ import { getNexusSecretClient, type SecretMetadata } from './nexus-secret-client
 
 /**
  * Recognise the gRPC "method not found" / UNIMPLEMENTED error class.
- * Both wordings have been observed in nexus-napi error messages
+ * Both wordings have been observed in the client's error messages
  * depending on plugin-loader state: `UNIMPLEMENTED` when the cluster
  * accepted the plugin but the method handler is absent; `method not
  * found` when it's a routing-table miss. Match both case-insensitively.
@@ -60,13 +60,13 @@ export function isVaultMethodMissing(err: unknown): boolean {
  * fallback is semantically equivalent. Returns the metadata of the
  * stored secret (either path).
  */
-export function putSecretResilient(namespace: string, key: string, value: string, description?: string): SecretMetadata {
+export async function putSecretResilient(namespace: string, key: string, value: string, description?: string): Promise<SecretMetadata> {
   const client = getNexusSecretClient();
   try {
-    return client.putSecret(namespace, key, value, description);
+    return await client.putSecret(namespace, key, value, description);
   } catch (err) {
     if (!isVaultMethodMissing(err)) throw err;
-    const results = client.batchPut([{ namespace, key, value, description }]);
+    const results = await client.batchPut([{ namespace, key, value, description }]);
     if (!results.length) {
       // batch_put returning empty for a 1-item input is a vault impl
       // bug — surface it loudly rather than papering over it.
@@ -82,13 +82,13 @@ export function putSecretResilient(namespace: string, key: string, value: string
  * missing keys (single-key call would throw `NotFound` instead — we
  * normalise to the batch shape for consistency in fallback path).
  */
-export function getSecretResilient(namespace: string, key: string): string {
+export async function getSecretResilient(namespace: string, key: string): Promise<string> {
   const client = getNexusSecretClient();
   try {
-    return client.getSecret(namespace, key);
+    return await client.getSecret(namespace, key);
   } catch (err) {
     if (!isVaultMethodMissing(err)) throw err;
-    const result = client.batchGet([{ namespace, key }]);
+    const result = await client.batchGet([{ namespace, key }]);
     const values = Object.values(result);
     return values.length ? values[0] : '';
   }

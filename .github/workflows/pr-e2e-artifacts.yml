@@ -203,11 +203,9 @@ jobs:
         # the CDP endpoint until ready. Runs in its OWN step so its stdout/stderr
         # show up in the CI log if it fails.
         #
-        # SUDOWORK_SKIP_PREREQ_CHECK=1 bypasses launch-dev.js's `validatePrereqs`
-        # which insists on native/nexus-napi/nexus-napi.node existing. Building the
-        # NAPI binding needs the napi-rs CLI + Rust toolchain — that is scope for
-        # a heavier smoke tier; the interrupt+queue case doesn't touch VFS so it
-        # runs fine without the native binding. Documented bypass, not a hack.
+        # SUDOWORK_SKIP_PREREQ_CHECK=1 bypasses launch-dev.js's `validatePrereqs`,
+        # which also checks runtime downloads this case does not need. Documented
+        # bypass, not a hack.
         run: |
           set -euo pipefail
           echo "=== env sanity ==="

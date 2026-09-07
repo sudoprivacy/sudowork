@@ -32,6 +32,6 @@ export type { NexusClientOptions, RequestOptions, ApiErrorResponse, PaginatedRes
 // Case transform utilities
 export { snakeToCamel, camelToSnake, transformKeys, snakeToCamelKeys, camelToSnakeKeys } from '@common/nexus/case-transform';
 
-// Nexus VFS Client (gRPC via nexus-napi)
+// Nexus VFS Client (gRPC via @nexus-ai-fs/vfs-client)
 export { Nexus, NexusError, getNexusRpcClient } from './nexus-vfs-client.js';
 export type { NexusRpcOptions, NexusListItem } from './nexus-vfs-client.js';

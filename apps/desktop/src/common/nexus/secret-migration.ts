@@ -16,10 +16,10 @@
 import { decryptCredentials } from '@/channels/utils/credentialCrypto';
 import { getDatabase } from '@process/database/export';
 import { ProcessConfig } from '@process/initStorage';
+import { resolveConfig } from '@common/nexus/config';
 import { secretCache, markMigrated } from './secret-cache';
 import type { NexusSecretClient } from './nexus-secret-client';
 import { getNexusSecretClient } from './nexus-secret-client';
-import { resolveConfig } from '@common/nexus/config';
 
 // ============================================================================
 // Types
@@ -245,10 +245,10 @@ export class SecretMigrationCoordinator {
 
     try {
       // Step 1: Write secret to Nexus
-      this.client.putSecret(namespace, key, value);
+      await this.client.putSecret(namespace, key, value);
 
       // Step 2: Read back to verify - ensure secret was stored correctly
-      const storedValue = this.client.getSecret(namespace, key);
+      const storedValue = await this.client.getSecret(namespace, key);
 
       // Step 3: Data integrity check
       if (storedValue !== value) {

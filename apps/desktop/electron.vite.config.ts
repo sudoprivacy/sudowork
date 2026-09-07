@@ -151,7 +151,6 @@ export default defineConfig(({ mode }) => {
           // @sudowork/* are workspace packages bundled from source (aliased above)
           // so the main process has no runtime dependency on their dist build.
           exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts', '@sudowork/common', '@sudowork/host-bridge'],
-          include: ['nexus-napi'],
         }),
         ...(!isDevelopment
           ? [

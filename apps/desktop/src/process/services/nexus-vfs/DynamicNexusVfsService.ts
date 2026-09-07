@@ -647,7 +647,7 @@ class DynamicNexusVfsService {
 
     while (Date.now() < deadline) {
       try {
-        getNexusSecretClient().listSecrets('__sudowork_startup_probe__', false);
+        await getNexusSecretClient().listSecrets('__sudowork_startup_probe__', false);
         return;
       } catch (err) {
         lastReason = err instanceof Error ? err.message : String(err);

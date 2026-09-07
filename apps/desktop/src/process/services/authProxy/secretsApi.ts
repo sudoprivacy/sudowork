@@ -78,7 +78,7 @@ async function applyEnableSideEffect(namespace: string, intentEnable: boolean): 
       // Check if all entries' secrets are gone before disabling
       try {
         const client = getNexusSecretClient();
-        const activeSecrets = client.listSecrets(namespace, false);
+        const activeSecrets = await client.listSecrets(namespace, false);
         const hasActiveEntry = configItem.entries.some((entry) => activeSecrets.some((s) => s.key === entry.config_key));
         if (!hasActiveEntry) {
           map[configItem.id] = false;
@@ -110,7 +110,7 @@ async function handleList(req: IncomingMessage, res: ServerResponse, parsedUrl: 
   try {
     const namespace = parsedUrl.searchParams.get('namespace') ?? undefined;
     const client = getNexusSecretClient();
-    const secrets = client.listSecrets(namespace, false);
+    const secrets = await client.listSecrets(namespace, false);
     const metadata = secrets.map((s) => ({
       namespace: s.namespace,
       key: s.key,
@@ -160,14 +160,14 @@ async function handlePut(req: IncomingMessage, res: ServerResponse, namespace: s
     // bug class (API key won't persist → 500 → skill falls back to local
     // file → user keeps falling back to credits) could recur in any
     // future release that pins a vault dylib build missing secret_put.
-    const result = putSecretResilient(namespace, key, value, description as string | undefined);
+    const result = await putSecretResilient(namespace, key, value, description as string | undefined);
 
     // PUT on a previously soft-deleted secret creates a new version but keeps deleted state.
     // restoreSecret clears deleted state, making the secret active again.
     // For non-deleted or first-create secrets, restoreSecret returns error which we ignore.
     // (No resilient wrapper here — restore has no batch variant upstream.)
     try {
-      getNexusSecretClient().restoreSecret(namespace, key);
+      await getNexusSecretClient().restoreSecret(namespace, key);
     } catch {
       // Intentional: restoreSecret throws on non-deleted secrets (the
       // common path for first-time PUT). The throw isn't a failure.
@@ -187,7 +187,7 @@ async function handlePut(req: IncomingMessage, res: ServerResponse, namespace: s
 async function handleDelete(req: IncomingMessage, res: ServerResponse, namespace: string, key: string): Promise<void> {
   try {
     const client = getNexusSecretClient();
-    const result = client.deleteSecret(namespace, key);
+    const result = await client.deleteSecret(namespace, key);
     cacheDelete(namespace, key);
 
     // Enable side effect: await to guarantee rulesCache is updated before 200

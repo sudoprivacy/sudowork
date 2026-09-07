@@ -119,15 +119,13 @@ async function stop() {
 // runtime crash deep inside main-process bootstrap if missing. Detect up
 // front and print a single copy-pasteable fix instead.
 //
-//   (a) napi binding (native/nexus-napi/nexus-napi.node) — built by
-//       `bun run build:native`, requires Rust toolchain.
-//   (b) Electron-ABI-matched native modules (better-sqlite3, node-pty).
+//   (a) Electron-ABI-matched native modules (better-sqlite3, node-pty).
 //       Rebuilt by `bunx electron-builder install-app-deps`. The crash
 //       this prevents is `Could not locate the bindings file ...
 //       better_sqlite3.node` after a fresh `bun install` skipped
 //       postinstall on a slow link.
-//   (c) On Windows, MSVC env (vcvars64.bat sourced). Only required when
-//       (a) or (b) need rebuilding; an already-built tree boots fine
+//   (b) On Windows, MSVC env (vcvars64.bat sourced). Only required when
+//       (a) needs rebuilding; an already-built tree boots fine
 //       without it. Skipped via SUDOWORK_SKIP_PREREQ_CHECK=1 for the
 //       rare case where you know the local tree is good and the
 //       detector is being overcautious.
@@ -135,15 +133,6 @@ function validatePrereqs() {
   if (process.env.SUDOWORK_SKIP_PREREQ_CHECK === '1') return;
 
   const missing = [];
-
-  const napiPath = path.join(REPO_ROOT, 'native', 'nexus-napi', 'nexus-napi.node');
-  if (!fs.existsSync(napiPath)) {
-    missing.push({
-      what: 'napi binding',
-      detail: `${path.relative(REPO_ROOT, napiPath)} not found`,
-      fix: 'bun run build:native',
-    });
-  }
 
   // Electron-ABI native modules: the only reliable existence signal is
   // the rebuilt `.node` file. Don't compare mtimes against electron's
