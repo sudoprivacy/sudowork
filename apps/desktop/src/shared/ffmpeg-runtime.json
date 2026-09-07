@@ -9,12 +9,12 @@
   "cos": {
     "baseUrl": "https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com",
     "sha256": {
-      "win32-x64": "10085a07553767019a9d3d198f4fb7487dd9c3c1cfd9029008b16cf0464d1af6",
-      "win32-arm64": "a04d6d587c613408b7b1678e7ad00295edacab1ab8db4cb6971139782f5dbae9",
-      "linux-x64": "a31668e1fbb9df98ec2ba7e77a42064e3da5095f3aca7ec9cd2534adeb3c27bf",
-      "linux-arm64": "4771b40691cf6cdb4c4a589d64cff6d5f24d9c806d379f9f46fe2f30a027d480",
-      "darwin-x64": "d6ed0741dd4d231da40c0ae7c698c0b184b2dcb39abae1921930e7911fe3c6b1",
-      "darwin-arm64": "6df2b84c0b32853c11da6aee66d72aafdab13a6eb528337c7f594550bc4469fb"
+      "win32-x64": "730264bebacaeb872108d5683197f6cd20e120472731f3cf3f3e6240696c6fb0",
+      "win32-arm64": "f77ac3364cb13bbcfc39f3f718d437480672a0b27f4d9b96b3142ebbe32fc9c1",
+      "linux-x64": "7a5a2ebcdf7d896e2960a995d3a0089970acad3cc269a721dc8ca856a5c8c83b",
+      "linux-arm64": "0b9f4d2175540f9f16705e7041c7f5a758ab106762388a9a96c4af3e008cf6f2",
+      "darwin-x64": "09152ccd2558fa34662682ee50010f924784a211b2bae3b8bffe300f7cfd3c03",
+      "darwin-arm64": "e1414711b6399d0852493538e5f8b476044bc45dbd46973913f7a60b0e7f68ea"
     }
   },
 
