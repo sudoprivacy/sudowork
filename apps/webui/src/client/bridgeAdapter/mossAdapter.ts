@@ -31,9 +31,14 @@ import { bridge } from '@office-ai/platform'
 // Canonical wire shape — one definition shared with the renderer + main, not a
 // parallel copy.
 import type { IBridgeResponse } from '@sudowork/host-bridge/ipcBridge'
+import type { IConfirmation } from '@sudowork/common/chatLib'
 // The moss-frame → IResponseMessage mapping is the SAME implementation the desktop
 // MossWsConnection uses (shared leaf module, full stateless-frame coverage).
-import { mossFrameToResponses } from '@sudowork/common/mossResponse'
+import {
+  isUserAbortError,
+  mossControlRequestToConfirmation,
+  mossFrameToResponses,
+} from '@sudowork/common/mossResponse'
 
 interface BridgeEmitter {
   emit: (name: string, data: unknown) => void
@@ -166,6 +171,21 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 const openStreams = new Map<string, WebSocket>()
 
+// Per-session interactive state (browser memory, mirrors the desktop main-process
+// maps; cleared with the session WS on close).
+// - pending permission prompts shown through the renderer's confirmation UI
+const pendingConfirmations = new Map<string, IConfirmation[]>()
+// - pending AskUserQuestion cards keyed by toolCallId AND responseToolCallId
+//   (mirrors desktop RemoteAgent.pendingQuestions double-keying)
+const pendingQuestions = new Map<
+  string,
+  Map<string, { msgId: string; responseToolUseId?: string; toolCallId: string }>
+>()
+// - sessions whose last result was a user abort: trailing assistant frames are
+//   suppressed until the user sends again (desktop models this as the connection
+//   lifecycle; here the reset point is the next outbound send)
+const abortedSessions = new Set<string>()
+
 let __mid = 0
 function nextMsgId(): string {
   __mid += 1
@@ -194,11 +214,72 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
     // `event` is an anthropic-style moss message. The renderer expects
     // IResponseMessage, so translate (mirrors the desktop MossWsConnection).
     if (frame && frame.kind === 'upstream' && frame.event) {
-      for (const msg of mossFrameToResponses(frame.event, {
+      // moss frame shapes are open-ended; narrow to the fields the branches below touch
+      const event = frame.event as {
+        type?: string
+        request?: unknown
+        request_id?: string
+      }
+
+      // Permission prompt → renderer confirmation card (mirrors desktop
+      // RemoteAgent.handlePermissionRequest via the shared converter).
+      if (event.type === 'control_request' && typeof event.request_id === 'string') {
+        const confirmation: IConfirmation & { conversation_id: string } = {
+          ...mossControlRequestToConfirmation(event.request, event.request_id),
+          conversation_id: sessionId,
+        }
+        const list = pendingConfirmations.get(sessionId) ?? []
+        list.push(confirmation)
+        pendingConfirmations.set(sessionId, list)
+        emitterRef?.emit('confirmation.add', confirmation)
+        return
+      }
+
+      // User-abort tracking: suppress trailing assistant frames until the next send.
+      if (event.type === 'result' && isUserAbortError(event)) {
+        abortedSessions.add(sessionId)
+      }
+      if (event.type === 'assistant' && abortedSessions.has(sessionId)) {
+        return
+      }
+
+      for (const msg of mossFrameToResponses(event, {
         sessionId,
         conversationId: sessionId,
         nextMsgId,
       })) {
+        // Register pending question cards under BOTH ids (mirrors desktop
+        // RemoteAgent.pendingQuestions double-keying) so the answer handler can
+        // resolve the original msg_id for the "answered" update.
+        if (msg.type === 'acp_question') {
+          const data = msg.data as { toolCallId?: string; responseToolCallId?: string }
+          if (data?.toolCallId) {
+            const pending = {
+              msgId: msg.msg_id,
+              responseToolUseId: data.responseToolCallId,
+              toolCallId: data.toolCallId,
+            }
+            const map =
+              pendingQuestions.get(sessionId) ??
+              new Map<string, { msgId: string; responseToolUseId?: string; toolCallId: string }>()
+            map.set(data.toolCallId, pending)
+            if (data.responseToolCallId) map.set(data.responseToolCallId, pending)
+            pendingQuestions.set(sessionId, map)
+          }
+        }
+        // The upstream acp_model_info only carries the current model (empty
+        // availableModels); merge the cached list so a model_changed confirmation
+        // does not flip the selector back to read-only.
+        if (msg.type === 'acp_model_info' && cachedModels && cachedModels.length > 0) {
+          const modelInfoData = msg.data as { availableModels?: unknown[] } | undefined
+          if (!modelInfoData?.availableModels?.length) {
+            msg.data = {
+              ...modelInfoData,
+              availableModels: cachedModels,
+              canSwitch: cachedModels.length > 1,
+            }
+          }
+        }
         emitterRef?.emit('chat.response.stream', msg)
         emitterRef?.emit('moss.response-stream', msg)
       }
@@ -211,7 +292,12 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
       })
     }
   })
-  ws.addEventListener('close', () => openStreams.delete(sessionId))
+  ws.addEventListener('close', () => {
+    openStreams.delete(sessionId)
+    pendingConfirmations.delete(sessionId)
+    pendingQuestions.delete(sessionId)
+    abortedSessions.delete(sessionId)
+  })
   ws.addEventListener('error', () => {
     try {
       ws.close()
@@ -251,6 +337,52 @@ function extractText(req: AnyReq): string {
     return req.content.map((p: AnyReq) => (typeof p?.text === 'string' ? p.text : '')).join('')
   }
   return ''
+}
+
+// ---------------------------------------------------------------------------
+// Model surface for the renderer's AcpModelSelector (web conversations project
+// backend 'scode', so the selector's standard path consumes these channels).
+// The upstream acp_model_info stream only carries the CURRENT model (empty list),
+// so this side owns the available-models cache and merges it into stream frames
+// to keep the selector switchable after a model_changed confirmation.
+// ---------------------------------------------------------------------------
+
+let cachedModels: Array<{ id: string; label: string }> | null = null
+
+async function fetchAvailableModels(): Promise<Array<{ id: string; label: string }>> {
+  const opts = await apiFetch<{ models: { id: string; name: string }[] }>(
+    '/api/conversations/options',
+  )
+  const models = opts.models.map((m) => ({ id: m.id, label: m.name || m.id }))
+  cachedModels = models
+  return models
+}
+
+/** Current model with a three-level fallback mirroring the renderer's fetchMossModelInfo:
+ *  conversation model → user preference → first available. */
+async function resolveCurrentModelId(sessionId?: string): Promise<string> {
+  if (sessionId) {
+    const conv = await apiFetch<{ modelId: string | null }>(
+      `/api/conversations/${encodeURIComponent(sessionId)}/model`,
+    ).catch(() => null)
+    if (conv?.modelId) return conv.modelId
+  }
+  const user = await apiFetch<{ modelId: string | null }>('/api/conversations/user-model').catch(
+    () => null,
+  )
+  if (user?.modelId) return user.modelId
+  return cachedModels?.[0]?.id ?? ''
+}
+
+function makeModelInfo(models: Array<{ id: string; label: string }>, currentModelId: string) {
+  const match = models.find((m) => m.id === currentModelId)
+  return {
+    source: 'models',
+    currentModelId,
+    currentModelLabel: match?.label || currentModelId,
+    canSwitch: models.length > 1,
+    availableModels: models,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -339,7 +471,15 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   'get-conversation': async (req) => {
     const found = (await listConversations()).find((c) => c.id === req?.id)
-    return found ? toChatConversation(found) : undefined
+    if (!found) return undefined
+    const conv = toChatConversation(found)
+    // 会话模型回读：conversation_meta.model_id（renderer 以 extra.currentModelId 作 initialModelId）
+    const model = await apiFetch<{ modelId: string | null }>(
+      `/api/conversations/${encodeURIComponent(String(req?.id ?? ''))}/model`,
+    ).catch(() => null)
+    if (model?.modelId)
+      conv.extra = { ...(conv.extra as Record<string, unknown>), currentModelId: model.modelId }
+    return conv
   },
   'database.get-conversation-messages': async (req) => {
     const id = String(req?.conversation_id ?? '')
@@ -436,20 +576,31 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     )
     return ok(opts.models.map((m) => ({ id: m.id, name: m.name, ratio: 1 })))
   },
-  'moss.get-user-model': async () => ok(null),
-  'moss.set-user-model': async (req) =>
-    ok({ modelId: String(req?.modelId ?? ''), updatedAt: Date.now() }),
+  'moss.get-user-model': async () => {
+    const data = await apiFetch<{ modelId: string | null }>('/api/conversations/user-model')
+    return ok(data ?? { modelId: null })
+  },
+  'moss.set-user-model': async (req) => {
+    const modelId = String(req?.modelId ?? '')
+    await apiFetch('/api/conversations/user-model', {
+      method: 'PUT',
+      body: JSON.stringify({ modelId }),
+    })
+    return ok({ modelId, updatedAt: Date.now() })
+  },
 
   // --- chat send / control (over the session WS) ---
   'chat.send.message': async (req) => {
     const sessionId = String(req?.conversation_id ?? req?.sessionId ?? '')
     if (!sessionId) return fail('NO_SESSION')
+    abortedSessions.delete(sessionId)
     sendOverStream(sessionId, { kind: 'send', text: extractText(req) })
     return ok()
   },
   'moss.send-message': async (req) => {
     const sessionId = String(req?.sessionId ?? '')
     if (!sessionId) return fail('NO_SESSION')
+    abortedSessions.delete(sessionId)
     sendOverStream(sessionId, { kind: 'send', text: String(req?.content ?? '') })
     return ok()
   },
@@ -469,6 +620,108 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok()
   },
 
+  // --- in-session model switch (renderer AcpModelSelector, non-remote-agent branch) ---
+  'acp.set-model': async (req) => {
+    const sessionId = String(req?.conversationId ?? '')
+    const modelId = String(req?.modelId ?? '')
+    if (!sessionId || !modelId) return fail('Invalid conversationId or modelId')
+    if (!sendOverStream(sessionId, { kind: 'set_model', modelId })) return fail('NO_SESSION')
+    return ok()
+  },
+
+  // --- AskUserQuestion answer loop (server already forwards answer_question) ---
+  'acp.answer-question': async (req) => {
+    const sessionId = String(req?.conversationId ?? '')
+    if (!sessionId || typeof sessionId !== 'string') return fail('Invalid conversationId')
+    const toolCallId = String(req?.toolCallId ?? '')
+    if (!toolCallId) return fail('Invalid toolCallId')
+    const answers = Array.isArray(req?.answers) ? req.answers : []
+    if (answers.length === 0) return fail('answers must be a non-empty array')
+    const text = answers
+      .map((a: { value?: unknown }) => (typeof a?.value === 'string' ? a.value : ''))
+      .filter(Boolean)
+      .join('\n')
+    if (!text) return fail('answers must contain non-empty values')
+    if (!sendOverStream(sessionId, { kind: 'answer_question', parentToolUseId: toolCallId, text }))
+      return fail('NO_SESSION')
+    abortedSessions.delete(sessionId)
+
+    // Flip the pending card to answered (mirrors desktop emitQuestionAnswered).
+    // Without a registration (e.g. after a page refresh) the answer is still sent;
+    // there is just no local card to update.
+    const pending = pendingQuestions.get(sessionId)?.get(toolCallId)
+    if (pending) {
+      const map = pendingQuestions.get(sessionId)!
+      map.delete(pending.toolCallId)
+      if (pending.responseToolUseId) map.delete(pending.responseToolUseId)
+      const answerItems = answers.map(
+        (a: { id?: unknown; value?: unknown; label?: unknown }, index: number) => ({
+          id: typeof a?.id === 'string' ? a.id : String(index + 1),
+          index: index + 1,
+          submissionValue: typeof a?.value === 'string' ? a.value : '',
+          displayValue:
+            (typeof a?.label === 'string' && a.label) ||
+            (typeof a?.value === 'string' && a.value) ||
+            '',
+          skipped: a?.value === '[skipped]',
+        }),
+      )
+      const selectedAnswer = answerItems
+        .map((a) => `${a.index}. ${a.skipped ? '[skipped]' : a.displayValue}`)
+        .join('\n')
+      const answered = {
+        type: 'acp_question',
+        msg_id: pending.msgId,
+        conversation_id: sessionId,
+        data: { answered: true, selectedAnswer, answerItems },
+      }
+      emitterRef?.emit('chat.response.stream', answered)
+      emitterRef?.emit('moss.response-stream', answered)
+    }
+    return ok()
+  },
+
+  // --- permission approval loop (renderer confirmation card) ---
+  'confirmation.confirm': async (req) => {
+    const sessionId = String(req?.conversation_id ?? '')
+    if (
+      !sendOverStream(sessionId, {
+        kind: 'control_response',
+        requestId: String(req?.callId ?? ''),
+        optionId: String(req?.data ?? ''),
+      })
+    ) {
+      return fail('NO_SESSION')
+    }
+    const list = pendingConfirmations.get(sessionId)
+    if (list)
+      pendingConfirmations.set(
+        sessionId,
+        list.filter((c) => c.id !== req?.msg_id),
+      )
+    emitterRef?.emit('confirmation.remove', {
+      conversation_id: sessionId,
+      id: String(req?.msg_id ?? ''),
+    })
+    return ok()
+  },
+
+  // --- model surface for the renderer's AcpModelSelector (scode projection path) ---
+  'acp.get-model-info': async (req) => {
+    const models = await fetchAvailableModels()
+    if (models.length === 0) return ok({ modelInfo: null })
+    const currentModelId = await resolveCurrentModelId(String(req?.conversationId ?? ''))
+    return ok({ modelInfo: makeModelInfo(models, currentModelId) })
+  },
+
+  'scode.refresh-models': async () => {
+    const models = await fetchAvailableModels()
+    const currentModelId = await resolveCurrentModelId()
+    // data is checked by the renderer (result.success && result.data) — must be a
+    // real AcpModelInfo, never a bare ok().
+    return ok({ modelInfo: makeModelInfo(models, currentModelId) })
+  },
+
   // --- misc surfaces the enterprise chat page touches early ---
   'conversation.get-slash-commands': async () => ok({ commands: [] }),
 
@@ -480,7 +733,8 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   'cron.list-jobs-by-conversation': async () => [],
   // The conversation view loads these on open; they return RAW arrays, so the
   // default-reject object breaks array consumers ("data is not iterable").
-  'confirmation.list': async () => [],
+  'confirmation.list': async (req) =>
+    pendingConfirmations.get(String(req?.conversation_id ?? '')) ?? [],
   'approval.check': async () => false,
   'acp.get-mode': async () => ok({ mode: 'default', initialized: true }),
   'conversation.flush-pending-messages': async () => undefined,

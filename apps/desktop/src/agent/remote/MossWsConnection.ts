@@ -391,53 +391,12 @@ export class MossWsConnection {
 
     if (msg.type === 'user') return;
 
-    if (msg.type === 'tool_progress') {
-      this.callbacks.onMessage({
-        type: 'acp_tool_call',
-        msg_id: msg.tool_use_id || uuid(36),
-        conversation_id: '',
-        data: {
-          sessionId: this.sessionId || '',
-          update: {
-            sessionUpdate: 'tool_call_update',
-            toolCallId: msg.tool_use_id || uuid(36),
-            status: 'in_progress',
-            content: [{ type: 'content', content: { type: 'text', text: `Executing... (${msg.elapsed_time_seconds}s)` } }],
-          },
-        },
-      });
-      return;
-    }
-
-    if (msg.type === 'tool_use_summary') {
-      this.callbacks.onMessage({
-        type: 'content',
-        msg_id: msg.uuid || uuid(36),
-        conversation_id: '',
-        data: `[Tool Summary] ${msg.summary}`,
-      });
-      return;
-    }
-
-    if (msg.type === 'streamlined_text') {
-      if (msg.text && msg.text.trim()) {
-        this.callbacks.onMessage({
-          type: 'content',
-          msg_id: msg.uuid || uuid(36),
-          conversation_id: '',
-          data: msg.text,
-        });
+    // Stateless frame mapping (tool_progress / tool_use_summary / streamlined_*)
+    // is owned by the shared @sudowork/common/mossResponse mapper (DRY with web).
+    if (msg.type === 'tool_progress' || msg.type === 'tool_use_summary' || msg.type === 'streamlined_text' || msg.type === 'streamlined_tool_use_summary') {
+      for (const m of mossFrameToResponses(msg, { sessionId: this.sessionId || '', nextMsgId: () => uuid(36) })) {
+        this.callbacks.onMessage(m);
       }
-      return;
-    }
-
-    if (msg.type === 'streamlined_tool_use_summary') {
-      this.callbacks.onMessage({
-        type: 'content',
-        msg_id: msg.uuid || uuid(36),
-        conversation_id: '',
-        data: `[Tool Summary] ${msg.tool_summary}`,
-      });
       return;
     }
 

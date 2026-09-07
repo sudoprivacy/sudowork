@@ -26,6 +26,8 @@ export interface MossSessionPort {
   ): Promise<{ sessionId: string; wsUrl: string }>
   /** 用户级模型偏好（Moss 无会话级模型接口，PUT /api/v1/users/me/model）；建会话前设置使新会话采用该模型 */
   setUserModel(ctx: MossCallContext, modelId: string): Promise<void>
+  /** 用户级模型偏好读取（GET /api/v1/users/me/model）；未设偏好时 null。上游无该端点等错误由调用方 catch */
+  getUserModel(ctx: MossCallContext): Promise<string | null>
   context(ctx: MossCallContext, sessionId: string): Promise<unknown>
   resume(ctx: MossCallContext, sessionId: string): Promise<{ session: MossSessionSummary; wsUrl: string }>
   terminate(ctx: MossCallContext, sessionId: string): Promise<void>
@@ -72,6 +74,9 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
         body: {
           assistant_name: input.assistantName,
           enabled_skills: input.enabledSkills,
+          // 对齐桌面端 MossWsConnection 默认（false）：工具执行走 control_request 审批，
+          // 而非跳过权限。moss 服务端缺省值不可考，显式传递以确定行为。
+          dangerously_skip_permissions: false,
         },
       })
       const parsed = MossCreateSessionResponseSchema.parse(json)
@@ -86,6 +91,17 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
         accessToken: ctx.accessToken,
         body: { modelId },
       })
+    },
+
+    async getUserModel(ctx) {
+      const json = await mossFetch(ctx.baseUrl, {
+        method: 'GET',
+        path: '/api/v1/users/me/model',
+        accessToken: ctx.accessToken,
+      })
+      // 上游响应形状未在仓库内可考（camelCase 与 snake_case 兼容读取），未设偏好返回 null
+      const parsed = safeParse(z.object({ modelId: z.string().nullable().optional(), model_id: z.string().nullable().optional() }).passthrough(), json)
+      return parsed?.modelId ?? parsed?.model_id ?? null
     },
 
     async context(ctx, sessionId) {

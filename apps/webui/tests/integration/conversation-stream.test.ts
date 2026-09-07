@@ -105,23 +105,6 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       username: 'user_a',
     })
 
-    const mkCookie = async (accessToken: string): Promise<string> => {
-      const token = generateSessionToken()
-      await createWebSession(pool, {
-        principalId: principal.id,
-        tokenDigest: digestToken(token, HMAC_KEY),
-        encrypted: encryptToken(
-          JSON.stringify({ accessToken, refreshToken: 'rt', expiresAt: Date.now() + 3600_000 }),
-          AES_KEY,
-        ),
-        accessExpiresAt: new Date(Date.now() + 3600_000),
-        expiresAt: new Date(Date.now() + 86400_000),
-      })
-      return `sudowork_session=${token}`
-    }
-    cookie1 = await mkCookie('at-stream')
-    cookie2 = await mkCookie('at-stream-2')
-
     // ---- fake upstream moss WS ----
     const upstreamWss = new WebSocketServer({ noServer: true })
     upstreamServer = createServer()
@@ -158,6 +141,27 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       })
     })
     upstreamPort = await listen(upstreamServer)
+
+    // cookies 在上游端口确定后创建（mossBaseUrl 需指向 fake 上游的实际 host）
+    const mkCookie = async (accessToken: string): Promise<string> => {
+      const token = generateSessionToken()
+      await createWebSession(pool, {
+        principalId: principal.id,
+        tokenDigest: digestToken(token, HMAC_KEY),
+        encrypted: encryptToken(
+          JSON.stringify({ accessToken, refreshToken: 'rt', expiresAt: Date.now() + 3600_000 }),
+          AES_KEY,
+        ),
+        accessExpiresAt: new Date(Date.now() + 3600_000),
+        expiresAt: new Date(Date.now() + 86400_000),
+        // WS 校验基准用会话生效地址（deriveWsBaseUrl(ctx.baseUrl)）：
+        // 指向 fake 上游的实际 host，否则 resume 返回的 wsUrl 过不了 validateMossWsUrl
+        mossBaseUrl: `http://127.0.0.1:${upstreamPort}`,
+      })
+      return `sudowork_session=${token}`
+    }
+    cookie1 = await mkCookie('at-stream')
+    cookie2 = await mkCookie('at-stream-2')
 
     // ---- WebUI app ----
     const testConfig: AppConfig = {
@@ -199,6 +203,9 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         return { sessionId: 'new', wsUrl: '' }
       },
       async setUserModel() {},
+      async getUserModel() {
+        return null
+      },
       async context() {
         return { context: { messages: [] } }
       },
@@ -355,6 +362,56 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       ws2.close()
       upstreamMode = 'auto'
       // 结束后清锁，避免 running 断线给后续用例留下 uncertain 残留
+      await request(app)
+        .post(`/api/conversations/${SID}/terminate`)
+        .set('Cookie', cookie1)
+        .set('Origin', 'http://localhost:5273')
+      await sleep(150)
+    }
+  }, 20_000)
+
+  test('control_response (permission answer) forwards to upstream; no writer lock required', async () => {
+    // 前置：清掉历史残留锁，保证起点 idle
+    await request(app)
+      .post(`/api/conversations/${SID}/terminate`)
+      .set('Cookie', cookie1)
+      .set('Origin', 'http://localhost:5273')
+    await sleep(150)
+
+    upstreamMode = 'hold'
+    const ws1 = await browserWs(cookie1)
+    const ws2 = await browserWs(cookie2)
+    const c1 = collector(ws1)
+    try {
+      await c1.waitFor((e) => e.kind === 'lock')
+      // ws1 成为 writer 并 running；ws2 为非 writer 观察者
+      ws1.send(JSON.stringify({ kind: 'send', text: 'needs approval', images: [] }))
+      await c1.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+
+      // 审批回批不做 writer 校验（回批者必为会话拥有者；审批可能跨越锁边界）——
+      // 非 writer 的 ws2 发 control_response 也能转发；上游收到与桌面端
+      // respondToPermissionRequest 同形状的帧
+      const before = upstreamReceived.length
+      ws2.send(
+        JSON.stringify({ kind: 'control_response', requestId: 'perm-1', optionId: 'allow_once' }),
+      )
+      await sleep(300)
+      const frames = upstreamReceived
+        .slice(before)
+        .filter((e) => (e as { type?: string }).type === 'control_response')
+      expect(frames.length).toBe(1)
+      expect(frames[0]).toEqual({
+        type: 'control_response',
+        response: {
+          subtype: 'success',
+          request_id: 'perm-1',
+          response: { behavior: 'allow_once' },
+        },
+      })
+    } finally {
+      ws1.close()
+      ws2.close()
+      upstreamMode = 'auto'
       await request(app)
         .post(`/api/conversations/${SID}/terminate`)
         .set('Cookie', cookie1)

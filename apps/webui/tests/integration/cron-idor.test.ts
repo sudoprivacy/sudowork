@@ -139,6 +139,9 @@ function createFakeSessions(): MossSessionPort {
       return { sessionId: 'x', wsUrl: '' }
     },
     async setUserModel() {},
+    async getUserModel() {
+      return null
+    },
     async context() {
       return { context: { messages: [] } }
     },

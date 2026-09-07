@@ -214,3 +214,15 @@ export function buildInterruptMessage(requestId?: string): Record<string, unknow
     request: { subtype: 'interrupt' },
   }
 }
+
+/** 权限审批回批（与桌面端 MossWsConnection.respondToPermissionRequest 的消息形状一致） */
+export function buildControlResponseMessage(requestId: string, optionId: string): Record<string, unknown> {
+  return {
+    type: 'control_response',
+    response: {
+      subtype: 'success',
+      request_id: requestId,
+      response: { behavior: optionId },
+    },
+  }
+}

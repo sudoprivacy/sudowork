@@ -13,14 +13,17 @@
  * no app / `@sudowork/host-bridge` / node / electron / `@/` runtime dependency, so
  * it builds cleanly under `bun run build:packages`.
  *
- * Scope is the STATELESS frame types (result / system / tool_use / assistant). The
- * stateful / effectful frames (`hello` session capture, `control_response`
- * interrupt confirmation, `control_request` permission prompt) and the
- * unparseable-line text fallback are the CALLER's responsibility — `hello`,
- * `control_response` and `control_request` return `[]` here on purpose.
+ * Scope is the STATELESS frame types (result / system / tool_use / assistant /
+ * tool_progress / tool_use_summary / streamlined_*). The stateful / effectful
+ * frames (`hello` session capture, `control_response` interrupt confirmation,
+ * `control_request` permission prompt) and the unparseable-line text fallback
+ * are the CALLER's responsibility — `hello`, `control_response` and
+ * `control_request` return `[]` here on purpose. `control_request` still has a
+ * shared pure HELPER (`mossControlRequestToConfirmation`) converting its
+ * request payload into an `IConfirmation`; routing/effect stays caller-side.
  */
 
-import type { IResponseMessage } from './chatTypes.js';
+import type { IConfirmation, IResponseMessage } from './chatTypes.js';
 
 export interface MossResponseCtx {
   /** moss session id, stamped onto emitted `acp_tool_call` updates as `sessionId`. */
@@ -159,7 +162,7 @@ export function mossFrameToResponses(frame: any, ctx: MossResponseCtx): IRespons
           question: question || description || 'Question',
           intro: description,
           options,
-          conversationId: '',
+          conversationId: ctx.conversationId ?? '',
           toolCallId: toolUseId,
           responseToolCallId: responseToolUseId,
           answered: false,
@@ -278,7 +281,82 @@ export function mossFrameToResponses(frame: any, ctx: MossResponseCtx): IRespons
     return out;
   }
 
-  // Any other frame type (user / tool_progress / streamlined_* / stream_event /
-  // unknown / plain-text fallback) is handled by the caller.
+  if (frame.type === 'tool_progress') {
+    out.push({
+      type: 'acp_tool_call',
+      msg_id: frame.tool_use_id || ctx.nextMsgId(),
+      conversation_id: conversationId,
+      data: {
+        sessionId: ctx.sessionId,
+        update: {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: frame.tool_use_id || ctx.nextMsgId(),
+          status: 'in_progress',
+          content: [{ type: 'content', content: { type: 'text', text: `Executing... (${frame.elapsed_time_seconds}s)` } }],
+        },
+      },
+    });
+    return out;
+  }
+
+  if (frame.type === 'tool_use_summary') {
+    out.push({
+      type: 'content',
+      msg_id: frame.uuid || ctx.nextMsgId(),
+      conversation_id: conversationId,
+      data: `[Tool Summary] ${frame.summary}`,
+    });
+    return out;
+  }
+
+  if (frame.type === 'streamlined_text') {
+    if (frame.text && frame.text.trim()) {
+      out.push({
+        type: 'content',
+        msg_id: frame.uuid || ctx.nextMsgId(),
+        conversation_id: conversationId,
+        data: frame.text,
+      });
+    }
+    return out;
+  }
+
+  if (frame.type === 'streamlined_tool_use_summary') {
+    out.push({
+      type: 'content',
+      msg_id: frame.uuid || ctx.nextMsgId(),
+      conversation_id: conversationId,
+      data: `[Tool Summary] ${frame.tool_summary}`,
+    });
+    return out;
+  }
+
+  // Any other frame type (user / stream_event / rate_limit_event / auth_status /
+  // prompt_suggestion / unknown / plain-text fallback) is handled by the caller.
   return out;
+}
+
+/**
+ * Convert a moss `control_request` permission prompt into the shared
+ * `IConfirmation` shape. Faithfully mirrors the desktop `RemoteAgent
+ * .handlePermissionRequest` mapping (title/description/options + the
+ * allow_once/allow_always/reject_once fallback). Routing the confirmation to
+ * the UI and answering it back over the WS stay caller-side.
+ */
+export function mossControlRequestToConfirmation(request: any, requestId: string): IConfirmation {
+  return {
+    id: requestId,
+    callId: requestId,
+    title: request.title || request.tool_name || 'Permission Required',
+    description: JSON.stringify(request.rawInput || request.input || {}),
+    options:
+      request.options?.map((opt: any) => ({
+        label: opt.name || opt,
+        value: opt.optionId || opt,
+      })) || [
+        { label: 'Allow', value: 'allow_once' },
+        { label: 'Always Allow', value: 'allow_always' },
+        { label: 'Reject', value: 'reject_once' },
+      ],
+  };
 }

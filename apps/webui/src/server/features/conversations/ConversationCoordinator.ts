@@ -9,6 +9,7 @@ import { MossHttpError, MossNetworkError, deriveWsBaseUrl } from '@sudowork/moss
 import {
   MossUpstreamSocket,
   buildAnswerQuestionMessage,
+  buildControlResponseMessage,
   buildInterruptMessage,
   buildSetModelMessage,
   buildUserMessage,
@@ -371,6 +372,21 @@ export class ConversationCoordinator {
             }
           }
         }
+      }
+
+      if (msg.kind === 'control_response') {
+        // 权限审批回批：转发上游。WS 连接已按 (principalId, mossSessionId) 隔离，回批者必为
+        // 会话拥有者；审批可能跨越写锁的 uncertain 边界，故不做 writer 锁校验。审批请求来自
+        // 当前活跃的上游连接（活着才有请求）——不 ensureUpstream 重建（非 writer 连接会被
+        // UPSTREAM_OWNER_MISMATCH 拒绝，且失联的请求本就无需回批）。
+        if (
+          !entry.upstream ||
+          entry.upstream.isClosed ||
+          !entry.upstream.send(buildControlResponseMessage(msg.requestId, msg.optionId))
+        ) {
+          this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
+        }
+        return
       }
 
       if (msg.kind === 'stop') {
