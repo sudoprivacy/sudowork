@@ -13,7 +13,9 @@ import {
 } from '@sudowork/moss-client'
 import type {
   ConversationListItem,
+  ConversationModelResponse,
   CreateConversationRequest,
+  UserModelResponse,
 } from '@sudowork/contracts/conversations'
 import type { ConversationCoordinator } from './ConversationCoordinator.js'
 import {
@@ -198,6 +200,41 @@ export async function requireOwnSession(
   if (session.userId !== principal.mossUserId || session.orgId !== principal.orgId) {
     throw new SessionForbiddenError()
   }
+}
+
+/** 用户级模型偏好读取；上游无该端点（404）/未设偏好 → null（renderer 侧三级 fallback 已兜底）。 */
+export async function getUserModel(
+  deps: ConversationDeps,
+  ctx: MossCallContext,
+): Promise<UserModelResponse> {
+  try {
+    return { modelId: await deps.moss.getUserModel(ctx) }
+  } catch (err) {
+    if (err instanceof MossHttpError || err instanceof MossNetworkError) return { modelId: null }
+    throw err
+  }
+}
+
+/** 用户级模型偏好写入；先校验可用（不接受浏览器自造 modelId，对齐建会话路径）。 */
+export async function setUserModel(
+  deps: ConversationDeps,
+  modelId: string,
+  ctx: MossCallContext,
+): Promise<void> {
+  await assertModelAvailable(deps, modelId, ctx)
+  await mapMossErrors(() => deps.moss.setUserModel(ctx, modelId))
+}
+
+/** 会话级模型回读（conversation_meta.model_id，本地读）；归属校验与 /context 同模式防 IDOR。 */
+export async function getConversationModel(
+  deps: ConversationDeps,
+  principal: Principal,
+  sessionId: string,
+  ctx: MossCallContext,
+): Promise<ConversationModelResponse> {
+  await requireOwnSession(deps, principal, sessionId, ctx)
+  const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
+  return { modelId: meta?.modelId ?? null }
 }
 
 export async function getContext(

@@ -8,6 +8,7 @@ import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpQuestionAnswerItem, TMessage } from '@sudowork/common/chatLib';
+import { mossControlRequestToConfirmation } from '@sudowork/common/mossResponse';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { isRemoteContainerPath } from '@sudowork/common/utils/workspaceSkillSync';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
@@ -1398,20 +1399,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     // wait for the user. Without this, a long-thought permission dialog could
     // outlive the idle detach window.
     this.cancelIdleDetachTimer();
-    this.addConfirmation({
-      id: requestId,
-      callId: requestId,
-      title: req.title || req.tool_name || 'Permission Required',
-      description: JSON.stringify(req.rawInput || req.input || {}),
-      options: req.options?.map((opt: any) => ({
-        label: opt.name || opt,
-        value: opt.optionId || opt,
-      })) || [
-        { label: 'Allow', value: 'allow_once' },
-        { label: 'Always Allow', value: 'allow_always' },
-        { label: 'Reject', value: 'reject_once' },
-      ],
-    });
+    this.addConfirmation(mossControlRequestToConfirmation(req, requestId));
   }
 
   private emitQuestionAnswered(msgId: string, answers: AcpQuestionResponseAnswer[]): void {

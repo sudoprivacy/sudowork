@@ -94,6 +94,24 @@ export const CreateConversationRequestSchema = z.object({
 })
 export type CreateConversationRequest = z.infer<typeof CreateConversationRequestSchema>
 
+/** 用户级模型偏好（Moss 用户偏好 GET/PUT /api/v1/users/me/model 的 webui 代理 DTO） */
+export const SetUserModelRequestSchema = z.object({
+  modelId: z.string().trim().min(1).max(255),
+})
+export type SetUserModelRequest = z.infer<typeof SetUserModelRequestSchema>
+
+export const UserModelResponseSchema = z.object({
+  /** 未设偏好 / 上游不可用时为 null */
+  modelId: z.string().nullable(),
+})
+export type UserModelResponse = z.infer<typeof UserModelResponseSchema>
+
+/** 会话级模型回读（conversation_meta.model_id；未指定过为 null） */
+export const ConversationModelResponseSchema = z.object({
+  modelId: z.string().nullable(),
+})
+export type ConversationModelResponse = z.infer<typeof ConversationModelResponseSchema>
+
 export const ConversationListItemSchema = z.object({
   id: z.string(),
   status: z.string(),
@@ -161,6 +179,12 @@ export const ClientOutboundMessageSchema = z.discriminatedUnion('kind', [
     modelId: z.string().min(1).max(255),
   }),
   z.object({
+    /** 权限审批回批（转发上游 control_response；requestId/optionId 对应 request_id/behavior） */
+    kind: z.literal('control_response'),
+    requestId: z.string().min(1).max(255),
+    optionId: z.string().min(1).max(255),
+  }),
+  z.object({
     /** 停止当前回复（转发上游 control_request interrupt） */
     kind: z.literal('stop'),
   }),
@@ -184,4 +208,10 @@ export const UPSTREAM_EVENT_TYPES = new Set([
   'result',
   'system',
   'thinking', // 当前上游不发射；保留兼容位，未来上游支持即生效
+  // full-chat 产品化：权限审批（renderer 的 confirmation UI 消费）与工具进度/摘要/流式文本
+  'control_request',
+  'tool_progress',
+  'tool_use_summary',
+  'streamlined_text',
+  'streamlined_tool_use_summary',
 ])

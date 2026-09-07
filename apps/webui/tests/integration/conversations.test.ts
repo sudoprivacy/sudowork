@@ -8,6 +8,7 @@ import type { MossAuthPort } from '@sudowork/moss-client'
 import type { MossSessionPort } from '@sudowork/moss-client'
 import { MossHttpError } from '@sudowork/moss-client'
 import { ConversationCoordinator } from '@server/features/conversations/ConversationCoordinator'
+import { upsertConversationModel } from '@server/features/conversations/conversationMetaRepository'
 import { upsertPrincipal, type Principal } from '@server/features/auth/principalRepository'
 import { createWebSession } from '@server/features/auth/sessionRepository'
 import { digestToken, generateSessionToken } from '@server/security/sessionToken'
@@ -71,6 +72,10 @@ const SESSIONS = [
   },
 ]
 
+/** user-model 读桩：默认模拟上游无该端点（404 → service 兜底 null）。 */
+let fakeUserModelId: string | null = null
+let fakeUserModelError: unknown = new MossHttpError(404, '', '')
+
 function createFakeMossSession(): MossSessionPort {
   return {
     async list() {
@@ -83,6 +88,10 @@ function createFakeMossSession(): MossSessionPort {
       return { sessionId: `created-${input.assistantName}`, wsUrl: 'ws://moss.test/ws/sessions/x' }
     },
     async setUserModel() {},
+    async getUserModel() {
+      if (fakeUserModelError) throw fakeUserModelError
+      return fakeUserModelId
+    },
     async context(_tk, sessionId) {
       if (sessionId === 'sess-empty') throw new MossHttpError(404, '', '')
       return {
@@ -309,6 +318,68 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
     expect(cross.status).toBe(403)
+  })
+
+  test('GET /user-model falls back to null on upstream 404 and proxies the preference', async () => {
+    const app = await buildApp()
+    // 默认桩抛 404（上游无该端点）→ 读不阻塞 UI，返回 null
+    const unset = await request(app).get('/api/conversations/user-model').set('Cookie', cookieA)
+    expect(unset.status).toBe(200)
+    expect(unset.body).toEqual({ modelId: null })
+
+    fakeUserModelError = null
+    fakeUserModelId = 'm1'
+    try {
+      const set = await request(app).get('/api/conversations/user-model').set('Cookie', cookieA)
+      expect(set.status).toBe(200)
+      expect(set.body).toEqual({ modelId: 'm1' })
+    } finally {
+      fakeUserModelError = new MossHttpError(404, '', '')
+      fakeUserModelId = null
+    }
+  })
+
+  test('PUT /user-model validates modelId against available models', async () => {
+    const app = await buildApp()
+    const ok = await request(app)
+      .put('/api/conversations/user-model')
+      .set('Cookie', cookieA)
+      .set('Origin', testConfig.publicOrigin)
+      .send({ modelId: 'm1' })
+    expect(ok.status).toBe(200)
+    expect(ok.body).toEqual({ modelId: 'm1' })
+
+    // 浏览器自造 modelId → 400（对齐建会话路径的 assertModelAvailable）
+    const ghost = await request(app)
+      .put('/api/conversations/user-model')
+      .set('Cookie', cookieA)
+      .set('Origin', testConfig.publicOrigin)
+      .send({ modelId: 'ghost' })
+    expect(ghost.status).toBe(400)
+    expect(ghost.body.error).toBe('SELECTION_NOT_AVAILABLE')
+    expect(ghost.body.field).toBe('modelId')
+  })
+
+  test('GET /:id/model reads conversation_meta with ownership (403/404/missing)', async () => {
+    const app = await buildApp()
+    // 直接为既有会话落 conversation_meta.model_id（fake 桩的 get 只认 SESSIONS，
+    // 动态创建的 id 过不了 requireOwnSession，故用 repository 写入而非 POST 创建）
+    await upsertConversationModel(pool, principalA.id, 'sess-a2', 'm1')
+
+    const hit = await request(app).get('/api/conversations/sess-a2/model').set('Cookie', cookieA)
+    expect(hit.status).toBe(200)
+    expect(hit.body).toEqual({ modelId: 'm1' })
+
+    // 未落模型的会话 → null；他人会话 → 403；不存在 → 404
+    const missing = await request(app)
+      .get('/api/conversations/sess-a1/model')
+      .set('Cookie', cookieA)
+    expect(missing.status).toBe(200)
+    expect(missing.body).toEqual({ modelId: null })
+    const cross = await request(app).get('/api/conversations/sess-a2/model').set('Cookie', cookieB)
+    expect(cross.status).toBe(403)
+    const notFound = await request(app).get('/api/conversations/nope/model').set('Cookie', cookieA)
+    expect(notFound.status).toBe(404)
   })
 
   test('workspace tree strips fullPath from nodes', async () => {

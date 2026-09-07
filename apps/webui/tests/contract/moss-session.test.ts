@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest'
 import { createMossSessionPort } from '@sudowork/moss-client'
 import {
   buildAnswerQuestionMessage,
+  buildControlResponseMessage,
   buildSetModelMessage,
   buildUserMessage,
   validateMossWsUrl,
@@ -23,7 +24,7 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     })
   })
 
-  test('create posts assistant_name + enabled_skills, never cwd/runtime', async () => {
+  test('create posts assistant_name + enabled_skills + explicit skip_permissions=false, never cwd/runtime', async () => {
     const mock = vi.fn().mockResolvedValue({
       session_id: 's1',
       ws_url: 'ws://moss.test/ws/sessions/s1',
@@ -36,7 +37,11 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
       method: 'POST',
       path: '/api/v1/sessions',
       accessToken: 'tk',
-      body: { assistant_name: 'helper', enabled_skills: ['a', 'b'] },
+      body: {
+        assistant_name: 'helper',
+        enabled_skills: ['a', 'b'],
+        dangerously_skip_permissions: false,
+      },
     })
   })
 
@@ -50,6 +55,23 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
       accessToken: 'tk',
       body: { modelId: 'gpt-4' },
     })
+  })
+
+  test('getUserModel gets /api/v1/users/me/model and reads modelId (camel/snake compatible)', async () => {
+    const mock = vi.fn().mockResolvedValue({ modelId: 'gpt-4' })
+    const port = createMossSessionPort(mock)
+    await expect(port.getUserModel(CTX)).resolves.toBe('gpt-4')
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'GET',
+      path: '/api/v1/users/me/model',
+      accessToken: 'tk',
+    })
+
+    const snakeMock = vi.fn().mockResolvedValue({ model_id: 'claude-x' })
+    await expect(createMossSessionPort(snakeMock).getUserModel(CTX)).resolves.toBe('claude-x')
+
+    const unsetMock = vi.fn().mockResolvedValue({})
+    await expect(createMossSessionPort(unsetMock).getUserModel(CTX)).resolves.toBeNull()
   })
 
   test('context/resume/terminate/workspace paths match baseline routes', async () => {
@@ -182,5 +204,17 @@ describe('protocol builders (browser message -> moss acp wire format)', () => {
       request: { subtype: 'set_model', model_id: 'gpt-x' },
     })
     expect(typeof msg.request_id).toBe('string')
+  })
+
+  test('buildControlResponseMessage mirrors the desktop permission-answer shape', () => {
+    const msg = buildControlResponseMessage('req-1', 'allow_once')
+    expect(msg).toEqual({
+      type: 'control_response',
+      response: {
+        subtype: 'success',
+        request_id: 'req-1',
+        response: { behavior: 'allow_once' },
+      },
+    })
   })
 })

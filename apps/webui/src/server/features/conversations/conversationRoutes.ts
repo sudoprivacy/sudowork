@@ -7,6 +7,7 @@ import { MossHttpError, type MossCallContext } from '@sudowork/moss-client'
 import {
   CreateConversationRequestSchema,
   ReorderPinnedRequestSchema,
+  SetUserModelRequestSchema,
   UpdateConversationMetaRequestSchema,
 } from '@sudowork/contracts/conversations'
 import {
@@ -16,13 +17,16 @@ import {
   SessionNotFoundError,
   createConversation,
   deleteConversation,
-  getContext,
+  getConversationModel,
   getConversationOptions,
+  getUserModel,
+  getContext,
   getWorkspaceFile,
   getWorkspaceTree,
   listConversations,
   proxyAgentAvatar,
   reorderPinnedConversations,
+  setUserModel,
   terminateConversation,
   updateConversationMeta,
   uploadWorkspaceFile,
@@ -104,6 +108,23 @@ export function createConversationRouter(deps: ConversationDeps): Router {
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
+  // 用户级模型偏好（shared-renderer 的 moss.get/set-user-model 通道代理；单段路径先于 /:id/* 注册）
+  router.get('/user-model', requireSession, (req, res, next) => {
+    void (async () => {
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json(await getUserModel(deps, ctx))
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.put('/user-model', requireSession, (req, res, next) => {
+    void (async () => {
+      const input = SetUserModelRequestSchema.parse(req.body)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      await setUserModel(deps, input.modelId, ctx)
+      res.status(200).json({ modelId: input.modelId })
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
   // tenant 头像同源代理：白名单仅放行 /uploads/tenant-assistant-avatars/<单层文件名>，防 SSRF/路径穿越。
   // 单段 GET 路径，与 /options 并列，不与 DELETE /:id、两段 /:id/* 冲突。
   router.get('/agent-avatar', requireSession, (req, res, next) => {
@@ -128,6 +149,17 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const id = z.string().min(1).parse(req.params.id)
       const ctx = await resolveCtx(req as AuthedRequest)
       res.status(200).json(await getContext(deps, principal, id, ctx))
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  // 会话级模型回读（conversation_meta.model_id，本地读；避免为取 modelId 拉取完整 context）
+  router.get('/:id/model', requireSession, (req, res, next) => {
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const id = z.string().min(1).parse(req.params.id)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json(await getConversationModel(deps, principal, id, ctx))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
