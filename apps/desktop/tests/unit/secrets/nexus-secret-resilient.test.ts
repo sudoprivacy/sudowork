@@ -27,23 +27,23 @@ beforeEach(() => {
 });
 
 describe('isVaultMethodMissing', () => {
-  it('matches "method not found" case-insensitively', () => {
+  it('matches "method not found" case-insensitively', async () => {
     expect(isVaultMethodMissing(new Error('Method Not Found'))).toBe(true);
     expect(isVaultMethodMissing(new Error('rpc error: method not found'))).toBe(true);
   });
 
-  it('matches "UNIMPLEMENTED"', () => {
+  it('matches "UNIMPLEMENTED"', async () => {
     expect(isVaultMethodMissing(new Error('StatusCode.UNIMPLEMENTED'))).toBe(true);
     expect(isVaultMethodMissing(new Error('14 UNIMPLEMENTED: ...'))).toBe(true);
   });
 
-  it('does NOT match other error classes', () => {
+  it('does NOT match other error classes', async () => {
     expect(isVaultMethodMissing(new Error('Network error'))).toBe(false);
     expect(isVaultMethodMissing(new Error('SHA mismatch'))).toBe(false);
     expect(isVaultMethodMissing(new Error('plugin API version mismatch: plugin=3, kernel=5'))).toBe(false);
   });
 
-  it('does NOT match non-Error inputs', () => {
+  it('does NOT match non-Error inputs', async () => {
     expect(isVaultMethodMissing('method not found')).toBe(false);
     expect(isVaultMethodMissing(null)).toBe(false);
     expect(isVaultMethodMissing(undefined)).toBe(false);
@@ -53,82 +53,82 @@ describe('isVaultMethodMissing', () => {
 describe('putSecretResilient', () => {
   const meta = { namespace: 'svc:pwdlogin', key: 'demo', currentVersion: 1, deleted: false };
 
-  it('returns putSecret metadata on the happy path (single-secret dispatch present)', () => {
+  it('returns putSecret metadata on the happy path (single-secret dispatch present)', async () => {
     mockClient.putSecret.mockReturnValueOnce(meta);
-    const result = putSecretResilient('svc:pwdlogin', 'demo', 'value', 'desc');
+    const result = await putSecretResilient('svc:pwdlogin', 'demo', 'value', 'desc');
     expect(result).toEqual(meta);
     expect(mockClient.putSecret).toHaveBeenCalledWith('svc:pwdlogin', 'demo', 'value', 'desc');
     expect(mockClient.batchPut).not.toHaveBeenCalled();
   });
 
-  it('falls back to batchPut when single-secret dispatch is missing', () => {
+  it('falls back to batchPut when single-secret dispatch is missing', async () => {
     // This is the 进二-bug-class: deployed vault dylib lacks secret_put.
     mockClient.putSecret.mockImplementationOnce(() => {
       throw new Error('rpc method not found: secret_put');
     });
     mockClient.batchPut.mockReturnValueOnce([meta]);
-    const result = putSecretResilient('svc:pwdlogin', 'demo', 'value', 'desc');
+    const result = await putSecretResilient('svc:pwdlogin', 'demo', 'value', 'desc');
     expect(result).toEqual(meta);
     expect(mockClient.batchPut).toHaveBeenCalledWith([{ namespace: 'svc:pwdlogin', key: 'demo', value: 'value', description: 'desc' }]);
   });
 
-  it('falls back on UNIMPLEMENTED too (alternate error wording)', () => {
+  it('falls back on UNIMPLEMENTED too (alternate error wording)', async () => {
     mockClient.putSecret.mockImplementationOnce(() => {
       throw new Error('StatusCode.UNIMPLEMENTED');
     });
     mockClient.batchPut.mockReturnValueOnce([meta]);
-    expect(putSecretResilient('ns', 'k', 'v')).toEqual(meta);
+    expect(await putSecretResilient('ns', 'k', 'v')).toEqual(meta);
     expect(mockClient.batchPut).toHaveBeenCalled();
   });
 
-  it('does NOT swallow non-method-missing errors', () => {
+  it('does NOT swallow non-method-missing errors', async () => {
     // ABI mismatch / network / signature failures must propagate, not be
     // masked as "fall back to batch".
     mockClient.putSecret.mockImplementationOnce(() => {
       throw new Error('plugin API version mismatch: plugin=3, kernel=5');
     });
-    expect(() => putSecretResilient('ns', 'k', 'v')).toThrow(/version mismatch/);
+    await expect(putSecretResilient('ns', 'k', 'v')).rejects.toThrow(/version mismatch/);
     expect(mockClient.batchPut).not.toHaveBeenCalled();
   });
 
-  it('surfaces empty-batch-result loudly (vault impl bug, not silent success)', () => {
+  it('surfaces empty-batch-result loudly (vault impl bug, not silent success)', async () => {
     mockClient.putSecret.mockImplementationOnce(() => {
       throw new Error('method not found');
     });
     mockClient.batchPut.mockReturnValueOnce([]);
-    expect(() => putSecretResilient('ns', 'k', 'v')).toThrow(/batch_put fallback returned empty/);
+    await expect(putSecretResilient('ns', 'k', 'v')).rejects.toThrow(/batch_put fallback returned empty/);
   });
 });
 
 describe('getSecretResilient', () => {
-  it('returns the value on the happy path', () => {
+  it('returns the value on the happy path', async () => {
     mockClient.getSecret.mockReturnValueOnce('the-value');
-    expect(getSecretResilient('ns', 'k')).toBe('the-value');
+    expect(await getSecretResilient('ns', 'k')).toBe('the-value');
     expect(mockClient.batchGet).not.toHaveBeenCalled();
   });
 
-  it('falls back to batchGet when single dispatch is missing', () => {
+  it('falls back to batchGet when single dispatch is missing', async () => {
     mockClient.getSecret.mockImplementationOnce(() => {
       throw new Error('method not found');
     });
     mockClient.batchGet.mockReturnValueOnce({ k: 'the-value' });
-    expect(getSecretResilient('ns', 'k')).toBe('the-value');
+    expect(await getSecretResilient('ns', 'k')).toBe('the-value');
     expect(mockClient.batchGet).toHaveBeenCalledWith([{ namespace: 'ns', key: 'k' }]);
   });
 
-  it("returns '' when fallback batchGet has no matching key (vault sentinel)", () => {
+  it("returns '' when fallback batchGet has no matching key (vault sentinel)", async () => {
     mockClient.getSecret.mockImplementationOnce(() => {
       throw new Error('UNIMPLEMENTED');
     });
     mockClient.batchGet.mockReturnValueOnce({});
-    expect(getSecretResilient('ns', 'k')).toBe('');
+    expect(await getSecretResilient('ns', 'k')).toBe('');
   });
 
-  it('does NOT swallow non-method-missing errors', () => {
+  it('does NOT swallow non-method-missing errors', async () => {
     mockClient.getSecret.mockImplementationOnce(() => {
       throw new Error('Not found: ns/k');
     });
-    expect(() => getSecretResilient('ns', 'k')).toThrow(/Not found/);
+    await expect(getSecretResilient('ns', 'k')).rejects.toThrow(/Not found/);
     expect(mockClient.batchGet).not.toHaveBeenCalled();
   });
 });
