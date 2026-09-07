@@ -137,13 +137,13 @@ export function reduceStreamEvent(
       if (type === 'tool_use') {
         // completed 事件（uuid=原始事件的 tool_use_id，无 input，不落库）：更新已有消息状态
         if (event.status === 'completed' && event.uuid) {
-          const target = state.messages.find(
-            (m) => m.kind === 'tool' && m.toolUseId === event.uuid,
-          )
+          const target = state.messages.find((m) => m.kind === 'tool' && m.toolUseId === event.uuid)
           if (target) {
             return {
               ...state,
-              messages: state.messages.map((m) => (m === target ? { ...m, status: 'completed' } : m)),
+              messages: state.messages.map((m) =>
+                m === target ? { ...m, status: 'completed' } : m,
+              ),
             }
           }
           return state
@@ -157,7 +157,13 @@ export function reduceStreamEvent(
               ...state,
               messages: [
                 ...state.messages,
-                { kind: 'question', id: uuid, title: q.title, description: q.description, answered: false },
+                {
+                  kind: 'question',
+                  id: uuid,
+                  title: q.title,
+                  description: q.description,
+                  answered: false,
+                },
               ],
             }
           }
@@ -221,7 +227,9 @@ export function useConversationSocket(
   initialModel: string | null = null,
 ): ConversationSocket {
   const [status, setStatus] = useState<'connecting' | 'open' | 'closed'>('connecting')
-  const [state, setState] = useState<ConversationStreamState>(() => createInitialStreamState(initialModel))
+  const [state, setState] = useState<ConversationStreamState>(() =>
+    createInitialStreamState(initialModel),
+  )
   const modelSwitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
 
@@ -230,7 +238,9 @@ export function useConversationSocket(
   useLayoutEffect(() => {
     if (!conversationId) return
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws/conversations/${conversationId}`)
+    const ws = new WebSocket(
+      `${proto}://${window.location.host}/ws/conversations/${conversationId}`,
+    )
     wsRef.current = ws
     // 会话切换：整体重置（messages/lockState/isWriter/lastError/isStopping/模型态 不得跨会话继承——
     // lock/writer 由服务端连接即推重建，currentModel 由 initialModel 种子 + 后续 model_changed 回填）
@@ -287,7 +297,11 @@ export function useConversationSocket(
   const setModel = useCallback((modelId: string): void => {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      setState((prev) => ({ ...prev, modelSwitchError: 'UPSTREAM_NOT_CONNECTED', modelSwitchPending: null }))
+      setState((prev) => ({
+        ...prev,
+        modelSwitchError: 'UPSTREAM_NOT_CONNECTED',
+        modelSwitchPending: null,
+      }))
       return
     }
     ws.send(JSON.stringify({ kind: 'set_model', modelId }))
@@ -305,7 +319,9 @@ export function useConversationSocket(
 
   const hydrateModel = useCallback((modelId: string): void => {
     // 重开会话回读：仅写显示种子（不发 set_model）；真实 model_changed 到达后 reducer 会清零
-    setState((prev) => (prev.hydratedModel === modelId ? prev : { ...prev, hydratedModel: modelId }))
+    setState((prev) =>
+      prev.hydratedModel === modelId ? prev : { ...prev, hydratedModel: modelId },
+    )
   }, [])
 
   const stop = useCallback((): void => {
@@ -321,10 +337,7 @@ export function useConversationSocket(
     (text: string, images?: { mediaType: string; data: string }[]): void => {
       setState((prev) => ({
         ...prev,
-        messages: [
-          ...prev.messages,
-          { kind: 'user', id: `local-${Date.now()}`, text, images },
-        ],
+        messages: [...prev.messages, { kind: 'user', id: `local-${Date.now()}`, text, images }],
       }))
     },
     [],

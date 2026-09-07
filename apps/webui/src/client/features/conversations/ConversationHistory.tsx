@@ -18,7 +18,12 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown } from 'lucide-react'
 import type { ConversationListItem } from '@sudowork/contracts/conversations'
@@ -61,13 +66,16 @@ export function ConversationHistory({ isScheduled }: { isScheduled: boolean }): 
 
   const agentIconByName = useMemo(() => {
     const map = new Map<string, { emoji: string; avatar: string }>()
-    for (const a of options?.agents ?? []) map.set(a.displayName, { emoji: a.emoji, avatar: a.avatar })
+    for (const a of options?.agents ?? [])
+      map.set(a.displayName, { emoji: a.emoji, avatar: a.avatar })
     return map
   }, [options])
 
   const all = data?.conversations ?? []
   // cron 过滤在前端做（两个 tab 共用同一接口，服务端排除会让定时任务 tab 无数据）
-  const items = all.filter((c) => (isScheduled ? isCronConversation(c.source) : !isCronConversation(c.source)))
+  const items = all.filter((c) =>
+    isScheduled ? isCronConversation(c.source) : !isCronConversation(c.source),
+  )
 
   const toggleSection = (label: string): void => {
     setCollapsed((prev) => {
@@ -109,7 +117,7 @@ export function ConversationHistory({ isScheduled }: { isScheduled: boolean }): 
 
   if (items.length === 0) {
     return (
-      <div className='size-full f-center' data-testid='conversation-history'>
+      <div className="size-full f-center" data-testid="conversation-history">
         <Empty description={isScheduled ? '暂无执行记录' : '暂无对话历史'} />
       </div>
     )
@@ -126,14 +134,14 @@ export function ConversationHistory({ isScheduled }: { isScheduled: boolean }): 
     }
     return (
       <div
-        className='size-full overflow-y-auto scrollbar-hide flex flex-col gap-0.5 px-1'
-        data-testid='conversation-history'
+        className="size-full overflow-y-auto scrollbar-hide flex flex-col gap-0.5 px-1"
+        data-testid="conversation-history"
       >
         {[...groups.entries()].map(([name, list]) => (
           <section key={name}>
             <button
-              type='button'
-              className='flex w-full items-center gap-1 px-3 py-2 text-13px text-secondary font-bold border-none bg-transparent cursor-pointer'
+              type="button"
+              className="flex w-full items-center gap-1 px-3 py-2 text-13px text-secondary font-bold border-none bg-transparent cursor-pointer"
               onClick={() => {
                 setScheduledCollapsed((v) => {
                   localStorage.setItem(SCHEDULED_EXPANSION_KEY, v ? 'true' : 'false')
@@ -145,8 +153,8 @@ export function ConversationHistory({ isScheduled }: { isScheduled: boolean }): 
                 size={12}
                 className={`transition-transform ${scheduledCollapsed ? '-rotate-90' : ''}`}
               />
-              <span className='truncate'>{name}</span>
-              <span className='text-11px font-normal'>{list.length}</span>
+              <span className="truncate">{name}</span>
+              <span className="text-11px font-normal">{list.length}</span>
             </button>
             {!scheduledCollapsed
               ? list.map((c) => (
@@ -154,8 +162,12 @@ export function ConversationHistory({ isScheduled }: { isScheduled: boolean }): 
                     key={c.id}
                     item={c}
                     active={pathname === `/conversation/${c.id}`}
-                    emoji={c.assistantName ? (agentIconByName.get(c.assistantName)?.emoji ?? '') : ''}
-                    avatar={c.assistantName ? (agentIconByName.get(c.assistantName)?.avatar ?? '') : ''}
+                    emoji={
+                      c.assistantName ? (agentIconByName.get(c.assistantName)?.emoji ?? '') : ''
+                    }
+                    avatar={
+                      c.assistantName ? (agentIconByName.get(c.assistantName)?.avatar ?? '') : ''
+                    }
                     onOpen={() => handleOpen(c.id)}
                     onPin={() => handlePin(c)}
                     onRename={(t) => handleRename(c, t)}
@@ -165,25 +177,35 @@ export function ConversationHistory({ isScheduled }: { isScheduled: boolean }): 
               : null}
           </section>
         ))}
-        <DeleteConfirmModal visible={confirmDelete !== null} onOk={handleDelete} onCancel={() => setConfirmDelete(null)} />
+        <DeleteConfirmModal
+          visible={confirmDelete !== null}
+          onOk={handleDelete}
+          onCancel={() => setConfirmDelete(null)}
+        />
       </div>
     )
   }
 
-  return <TimelineHistory
-    items={items}
-    pathname={pathname}
-    collapsed={collapsed}
-    agentIconByName={agentIconByName}
-    onToggle={toggleSection}
-    onOpen={handleOpen}
-    onPin={handlePin}
-    onRename={handleRename}
-    onDelete={setConfirmDelete}
-    onRefresh={() => void mutate()}
-  >
-    <DeleteConfirmModal visible={confirmDelete !== null} onOk={handleDelete} onCancel={() => setConfirmDelete(null)} />
-  </TimelineHistory>
+  return (
+    <TimelineHistory
+      items={items}
+      pathname={pathname}
+      collapsed={collapsed}
+      agentIconByName={agentIconByName}
+      onToggle={toggleSection}
+      onOpen={handleOpen}
+      onPin={handlePin}
+      onRename={handleRename}
+      onDelete={setConfirmDelete}
+      onRefresh={() => void mutate()}
+    >
+      <DeleteConfirmModal
+        visible={confirmDelete !== null}
+        onOk={handleDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
+    </TimelineHistory>
+  )
 }
 
 function DeleteConfirmModal({
@@ -197,12 +219,12 @@ function DeleteConfirmModal({
 }): React.ReactElement {
   return (
     <Modal
-      title='删除会话'
+      title="删除会话"
       visible={visible}
       onCancel={onCancel}
       onOk={onOk}
-      okText='删除'
-      cancelText='取消'
+      okText="删除"
+      cancelText="取消"
       okButtonProps={{ status: 'danger' }}
     >
       删除后将终止该会话，且不可恢复。确定删除吗？
@@ -246,7 +268,9 @@ function TimelineHistory({
   const orderedPinned = useMemo(() => {
     if (!pinnedOrder) return pinned
     const map = new Map(pinned.map((c) => [c.id, c]))
-    const ordered = pinnedOrder.map((id) => map.get(id)).filter((c): c is ConversationListItem => Boolean(c))
+    const ordered = pinnedOrder
+      .map((id) => map.get(id))
+      .filter((c): c is ConversationListItem => Boolean(c))
     // 新置顶（不在旧序里）的追加到末尾
     for (const c of pinned) if (!pinnedOrder.includes(c.id)) ordered.push(c)
     return ordered
@@ -267,19 +291,27 @@ function TimelineHistory({
   }
 
   return (
-    <div className='size-full overflow-y-auto scrollbar-hide flex flex-col gap-0.5 px-1' data-testid='conversation-history'>
+    <div
+      className="size-full overflow-y-auto scrollbar-hide flex flex-col gap-0.5 px-1"
+      data-testid="conversation-history"
+    >
       {orderedPinned.length > 0 ? (
         <section>
-          <div className='px-3 py-2 text-13px text-secondary font-bold'>置顶</div>
+          <div className="px-3 py-2 text-13px text-secondary font-bold">置顶</div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <SortableContext items={orderedPinned.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext
+              items={orderedPinned.map((c) => c.id)}
+              strategy={verticalListSortingStrategy}
+            >
               {orderedPinned.map((c) => (
                 <SortableRow
                   key={c.id}
                   item={c}
                   active={pathname === `/conversation/${c.id}`}
                   emoji={c.assistantName ? (agentIconByName.get(c.assistantName)?.emoji ?? '') : ''}
-                  avatar={c.assistantName ? (agentIconByName.get(c.assistantName)?.avatar ?? '') : ''}
+                  avatar={
+                    c.assistantName ? (agentIconByName.get(c.assistantName)?.avatar ?? '') : ''
+                  }
                   onOpen={() => onOpen(c.id)}
                   onPin={() => onPin(c)}
                   onRename={(t) => onRename(c, t)}
@@ -290,33 +322,42 @@ function TimelineHistory({
           </DndContext>
         </section>
       ) : null}
-      {groups.map(({ label, items: list }: { label: TimelineLabel; items: ConversationListItem[] }) => (
-        <section key={label}>
-          <button
-            type='button'
-            className='flex w-full items-center gap-1 px-3 py-2 text-13px text-secondary font-bold border-none bg-transparent cursor-pointer'
-            onClick={() => onToggle(label)}
-          >
-            <ChevronDown size={12} className={`transition-transform ${collapsed.has(label) ? '-rotate-90' : ''}`} />
-            {label}
-          </button>
-          {!collapsed.has(label)
-            ? list.map((c) => (
-                <ConversationRow
-                  key={c.id}
-                  item={c}
-                  active={pathname === `/conversation/${c.id}`}
-                  emoji={c.assistantName ? (agentIconByName.get(c.assistantName)?.emoji ?? '') : ''}
-                  avatar={c.assistantName ? (agentIconByName.get(c.assistantName)?.avatar ?? '') : ''}
-                  onOpen={() => onOpen(c.id)}
-                  onPin={() => onPin(c)}
-                  onRename={(t) => onRename(c, t)}
-                  onDelete={() => onDelete(c)}
-                />
-              ))
-            : null}
-        </section>
-      ))}
+      {groups.map(
+        ({ label, items: list }: { label: TimelineLabel; items: ConversationListItem[] }) => (
+          <section key={label}>
+            <button
+              type="button"
+              className="flex w-full items-center gap-1 px-3 py-2 text-13px text-secondary font-bold border-none bg-transparent cursor-pointer"
+              onClick={() => onToggle(label)}
+            >
+              <ChevronDown
+                size={12}
+                className={`transition-transform ${collapsed.has(label) ? '-rotate-90' : ''}`}
+              />
+              {label}
+            </button>
+            {!collapsed.has(label)
+              ? list.map((c) => (
+                  <ConversationRow
+                    key={c.id}
+                    item={c}
+                    active={pathname === `/conversation/${c.id}`}
+                    emoji={
+                      c.assistantName ? (agentIconByName.get(c.assistantName)?.emoji ?? '') : ''
+                    }
+                    avatar={
+                      c.assistantName ? (agentIconByName.get(c.assistantName)?.avatar ?? '') : ''
+                    }
+                    onOpen={() => onOpen(c.id)}
+                    onPin={() => onPin(c)}
+                    onRename={(t) => onRename(c, t)}
+                    onDelete={() => onDelete(c)}
+                  />
+                ))
+              : null}
+          </section>
+        ),
+      )}
       {children}
     </div>
   )

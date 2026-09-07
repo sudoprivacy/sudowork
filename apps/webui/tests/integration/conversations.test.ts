@@ -33,10 +33,42 @@ const testConfig: AppConfig = {
 
 /** Moss session 桩：A 用户两个会话 + B 用户一个会话（测强制过滤）。 */
 const SESSIONS = [
-  { sessionId: 'sess-a1', userId: 'moss-a', orgId: 'org-1', status: 'detached', assistantName: 'helper', source: null, lastActiveAt: 1700000001000 },
-  { sessionId: 'sess-a2', userId: 'moss-a', orgId: 'org-1', status: 'active', assistantName: null, source: '{"source":"cron"}', lastActiveAt: 1700000002000 },
-  { sessionId: 'sess-empty', userId: 'moss-a', orgId: 'org-1', status: 'active', assistantName: null, source: null, lastActiveAt: 1700000004000 },
-  { sessionId: 'sess-b1', userId: 'moss-b', orgId: 'org-1', status: 'active', assistantName: null, source: null, lastActiveAt: 1700000003000 },
+  {
+    sessionId: 'sess-a1',
+    userId: 'moss-a',
+    orgId: 'org-1',
+    status: 'detached',
+    assistantName: 'helper',
+    source: null,
+    lastActiveAt: 1700000001000,
+  },
+  {
+    sessionId: 'sess-a2',
+    userId: 'moss-a',
+    orgId: 'org-1',
+    status: 'active',
+    assistantName: null,
+    source: '{"source":"cron"}',
+    lastActiveAt: 1700000002000,
+  },
+  {
+    sessionId: 'sess-empty',
+    userId: 'moss-a',
+    orgId: 'org-1',
+    status: 'active',
+    assistantName: null,
+    source: null,
+    lastActiveAt: 1700000004000,
+  },
+  {
+    sessionId: 'sess-b1',
+    userId: 'moss-b',
+    orgId: 'org-1',
+    status: 'active',
+    assistantName: null,
+    source: null,
+    lastActiveAt: 1700000003000,
+  },
 ]
 
 function createFakeMossSession(): MossSessionPort {
@@ -78,17 +110,25 @@ function createFakeMossSession(): MossSessionPort {
         isFile: false,
         isDir: true,
         fullPath: '/home/secret/root',
-        children: [{ name: 'a.txt', relativePath: 'a.txt', isFile: true, isDir: false, fullPath: '/home/secret/a.txt' }],
+        children: [
+          {
+            name: 'a.txt',
+            relativePath: 'a.txt',
+            isFile: true,
+            isDir: false,
+            fullPath: '/home/secret/a.txt',
+          },
+        ],
       }
     },
     async workspaceFileGet() {
       return { kind: 'text', name: 'a.txt', relativePath: 'a.txt', content: 'abc' }
     },
     async workspaceFilePost() {
-        return { relativePath: 'a.txt', size: 3 }
+      return { relativePath: 'a.txt', size: 3 }
     },
     async sessionSkillsAvailable(): Promise<unknown> {
-        return { skills: [] }
+      return { skills: [] }
     },
   }
 }
@@ -124,7 +164,8 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       if (req.path === '/api/v1/agents/installed')
         return [{ name: 'helper' }, { name: 'builtin-agent', isBuiltin: true }]
       if (req.path === '/api/v1/skills/installed') return [{ name: 'known-skill' }]
-      if (req.path === '/api/v1/models/available') return { data: [{ id: 'm1', name: 'Model One' }] }
+      if (req.path === '/api/v1/models/available')
+        return { data: [{ id: 'm1', name: 'Model One' }] }
       throw new Error(`unexpected moss path in test: ${req.path}`)
     }
     registerApiRoutes(app, {
@@ -140,15 +181,30 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
 
   beforeAll(async () => {
     pool = await createTestDatabase()
-    principalA = await upsertPrincipal(pool, { mossUserId: 'moss-a', orgId: 'org-1', username: 'user_a' })
-    principalB = await upsertPrincipal(pool, { mossUserId: 'moss-b', orgId: 'org-1', username: 'user_b' })
+    principalA = await upsertPrincipal(pool, {
+      mossUserId: 'moss-a',
+      orgId: 'org-1',
+      username: 'user_a',
+    })
+    principalB = await upsertPrincipal(pool, {
+      mossUserId: 'moss-b',
+      orgId: 'org-1',
+      username: 'user_b',
+    })
 
     const mkCookie = async (principalId: string): Promise<string> => {
       const token = generateSessionToken()
       await createWebSession(pool, {
         principalId,
         tokenDigest: digestToken(token, HMAC_KEY),
-        encrypted: encryptToken(JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000 }), AES_KEY),
+        encrypted: encryptToken(
+          JSON.stringify({
+            accessToken: 'at',
+            refreshToken: 'rt',
+            expiresAt: Date.now() + 3600_000,
+          }),
+          AES_KEY,
+        ),
         accessExpiresAt: new Date(Date.now() + 3600_000),
         expiresAt: new Date(Date.now() + 86400_000),
       })
@@ -163,16 +219,22 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
   })
 
   test('GET /api/conversations forces userId filter (A sees only own sessions)', async () => {
-    const res = await request(await buildApp()).get('/api/conversations').set('Cookie', cookieA)
+    const res = await request(await buildApp())
+      .get('/api/conversations')
+      .set('Cookie', cookieA)
     expect(res.status).toBe(200)
     const ids = (res.body.conversations as { id: string }[]).map((c) => c.id)
     expect(ids.sort()).toEqual(['sess-a1', 'sess-a2', 'sess-empty'])
-    const a2 = (res.body.conversations as { id: string; source: string | null }[]).find((c) => c.id === 'sess-a2')!
+    const a2 = (res.body.conversations as { id: string; source: string | null }[]).find(
+      (c) => c.id === 'sess-a2',
+    )!
     expect(a2.source).toBe('{"source":"cron"}')
   })
 
   test('GET /api/conversations for user B sees only B sessions', async () => {
-    const res = await request(await buildApp()).get('/api/conversations').set('Cookie', cookieB)
+    const res = await request(await buildApp())
+      .get('/api/conversations')
+      .set('Cookie', cookieB)
     expect(res.status).toBe(200)
     expect((res.body.conversations as { id: string }[]).map((c) => c.id)).toEqual(['sess-b1'])
   })
@@ -190,14 +252,18 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     }
 
     // B 访问 A 的会话 → 403（即使同 org）
-    const cross = await request(app).get('/api/conversations/sess-a1/context').set('Cookie', cookieB)
+    const cross = await request(app)
+      .get('/api/conversations/sess-a1/context')
+      .set('Cookie', cookieB)
     expect(cross.status).toBe(403)
     expect(cross.body).toEqual({ error: 'SESSION_FORBIDDEN' })
 
     // 不存在的会话 → 404；空 transcript → 空消息
     const missing = await request(app).get('/api/conversations/nope/context').set('Cookie', cookieA)
     expect(missing.status).toBe(404)
-    const empty = await request(app).get('/api/conversations/sess-empty/context').set('Cookie', cookieA)
+    const empty = await request(app)
+      .get('/api/conversations/sess-empty/context')
+      .set('Cookie', cookieA)
     expect(empty.status).toBe(200)
     expect(empty.body).toEqual({ customTitle: null, title: null, messages: [] })
   })
@@ -231,11 +297,17 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
 
   test('terminate enforces ownership and returns ok', async () => {
     const app = await buildApp()
-    const ok = await request(app).post('/api/conversations/sess-a2/terminate').set('Cookie', cookieA).set('Origin', testConfig.publicOrigin)
+    const ok = await request(app)
+      .post('/api/conversations/sess-a2/terminate')
+      .set('Cookie', cookieA)
+      .set('Origin', testConfig.publicOrigin)
     expect(ok.status).toBe(200)
     expect(ok.body).toEqual({ ok: true })
 
-    const cross = await request(app).post('/api/conversations/sess-a2/terminate').set('Cookie', cookieB).set('Origin', testConfig.publicOrigin)
+    const cross = await request(app)
+      .post('/api/conversations/sess-a2/terminate')
+      .set('Cookie', cookieB)
+      .set('Origin', testConfig.publicOrigin)
     expect(cross.status).toBe(403)
   })
 
@@ -250,7 +322,9 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
   })
 
   test('options returns models/agents/skills name lists', async () => {
-    const res = await request(await buildApp()).get('/api/conversations/options').set('Cookie', cookieA)
+    const res = await request(await buildApp())
+      .get('/api/conversations/options')
+      .set('Cookie', cookieA)
     expect(res.status).toBe(200)
     // agents/skills 含列表展示所需字段（displayName/emoji/description/icon；fake 上游只提供 name，其余兜底）；
     // fake 上游的 isBuiltin 条目（builtin-agent）应被过滤——与智能体页"我的智能体"一致
@@ -276,7 +350,9 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
 
     const list = await request(app).get('/api/conversations').set('Cookie', cookieA)
     expect(list.status).toBe(200)
-    const a1 = (list.body.conversations as { id: string; title: string | null }[]).find((c) => c.id === 'sess-a1')!
+    const a1 = (list.body.conversations as { id: string; title: string | null }[]).find(
+      (c) => c.id === 'sess-a1',
+    )!
     expect(a1.title).toBe('hello world')
   })
 

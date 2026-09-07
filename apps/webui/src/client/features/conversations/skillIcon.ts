@@ -72,7 +72,13 @@ const hexToRgb = (hex: string): string | undefined => {
   const m = hex.trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i)
   const h = m?.[1]
   if (!h) return undefined
-  const expanded = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+  const expanded =
+    h.length === 3
+      ? h
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : h
   const r = parseInt(expanded.slice(0, 2), 16)
   const g = parseInt(expanded.slice(2, 4), 16)
   const b = parseInt(expanded.slice(4, 6), 16)
@@ -111,7 +117,9 @@ const hashString = (s: string): number => {
 }
 
 export const pickFallbackAccent = (name: string): string =>
-  FALLBACK_ACCENTS[hashString(name) % FALLBACK_ACCENTS.length] ?? FALLBACK_ACCENTS[0] ?? 'rgb(96, 165, 250)'
+  FALLBACK_ACCENTS[hashString(name) % FALLBACK_ACCENTS.length] ??
+  FALLBACK_ACCENTS[0] ??
+  'rgb(96, 165, 250)'
 
 export const withAlpha = (rgb: string, alpha: number): string => {
   const t = toRgbTuple(rgb)

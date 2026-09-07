@@ -7,7 +7,10 @@ test.beforeAll(async () => {
   await mossHealthCheck(env)
 })
 
-test('create a remote conversation (no agent selected), stream one reply without duplication', async ({ page, request }) => {
+test('create a remote conversation (no agent selected), stream one reply without duplication', async ({
+  page,
+  request,
+}) => {
   test.setTimeout(180_000)
   await loginViaUi(page, env)
 
@@ -40,7 +43,10 @@ test('create a remote conversation (no agent selected), stream one reply without
   await page.waitForTimeout(500)
 })
 
-test('conversation header shows model selector / SudoCode / status dot / panel toggle', async ({ page, request }) => {
+test('conversation header shows model selector / SudoCode / status dot / panel toggle', async ({
+  page,
+  request,
+}) => {
   await loginViaUi(page, env)
   await page.getByLabel('消息输入框').fill('回复：好')
   await page.getByRole('button', { name: '发送' }).click()

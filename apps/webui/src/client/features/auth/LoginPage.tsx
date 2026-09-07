@@ -21,7 +21,9 @@ export function LoginPage({ onSuccess }: { onSuccess?: (result: { ok: true }) =>
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [apiKey, setApiKey] = useState('')
-  const [mossUrl, setMossUrl] = useState<string>(() => localStorage.getItem('login.mossBaseUrl') ?? '')
+  const [mossUrl, setMossUrl] = useState<string>(
+    () => localStorage.getItem('login.mossBaseUrl') ?? '',
+  )
   const [customUrlExpanded, setCustomUrlExpanded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -138,7 +140,11 @@ export function LoginPage({ onSuccess }: { onSuccess?: (result: { ok: true }) =>
             />
           </label>
         ) : (
-          <button type="button" className="login-custom-toggle" onClick={() => setCustomUrlExpanded(true)}>
+          <button
+            type="button"
+            className="login-custom-toggle"
+            onClick={() => setCustomUrlExpanded(true)}
+          >
             使用自定义服务器地址
           </button>
         )}

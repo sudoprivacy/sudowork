@@ -5,7 +5,7 @@ import { AppLayout } from '@client/layouts/AppLayout'
 
 /** 测试专用路由出口（真实页面带数据依赖，不适合轻量导航断言） */
 function TestOutlet({ title }: { title: string }) {
-  return <div data-testid='test-outlet'>{title}</div>
+  return <div data-testid="test-outlet">{title}</div>
 }
 
 vi.mock('@client/features/auth/useAuth', () => ({
@@ -23,18 +23,12 @@ function renderShellAt(path: string): ReturnType<typeof render> {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route
-          path='/'
-          element={<AppLayout />}
-        >
-          <Route path='guid' element={<TestOutlet title='新会话页' />} />
-          <Route path='agents' element={<TestOutlet title='智能体页' />} />
-          <Route path='skills' element={<TestOutlet title='技能库页' />} />
-          <Route path='cron' element={<TestOutlet title='定时任务页' />} />
-          <Route
-            path='settings/profile'
-            element={<TestOutlet title='用户中心页' />}
-          />
+        <Route path="/" element={<AppLayout />}>
+          <Route path="guid" element={<TestOutlet title="新会话页" />} />
+          <Route path="agents" element={<TestOutlet title="智能体页" />} />
+          <Route path="skills" element={<TestOutlet title="技能库页" />} />
+          <Route path="cron" element={<TestOutlet title="定时任务页" />} />
+          <Route path="settings/profile" element={<TestOutlet title="用户中心页" />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -67,15 +61,11 @@ describe('MainSider navigation (计划 Task 4)', () => {
       (el) => el.getAttribute('data-menu-id') as string,
     )
     expect(ids.sort()).toEqual(['agent', 'cron', 'skills'])
-    expect(
-      document.querySelector('[data-menu-id="agent"]')?.textContent ?? '',
-    ).toContain('智能体')
-    expect(
-      document.querySelector('[data-menu-id="skills"]')?.textContent ?? '',
-    ).toContain('技能商店')
-    expect(
-      document.querySelector('[data-menu-id="cron"]')?.textContent ?? '',
-    ).toContain('定时任务')
+    expect(document.querySelector('[data-menu-id="agent"]')?.textContent ?? '').toContain('智能体')
+    expect(document.querySelector('[data-menu-id="skills"]')?.textContent ?? '').toContain(
+      '技能商店',
+    )
+    expect(document.querySelector('[data-menu-id="cron"]')?.textContent ?? '').toContain('定时任务')
     expect(screen.queryByText('本地知识库')).toBeNull()
     expect(screen.queryByText('安全中心')).toBeNull()
     expect(screen.queryByText('团队')).toBeNull()

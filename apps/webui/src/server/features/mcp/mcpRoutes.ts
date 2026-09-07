@@ -64,9 +64,7 @@ const InstallJsonSchema = z
   })
   .strip()
 
-const UserConfigSchema = z
-  .object({ config_values: z.record(z.string(), z.string()) })
-  .strip()
+const UserConfigSchema = z.object({ config_values: z.record(z.string(), z.string()) }).strip()
 
 export function createMcpRouter(deps: McpDeps): Router {
   const router = Router()
@@ -151,18 +149,25 @@ export function createMcpRouter(deps: McpDeps): Router {
   router.post(
     '/servers',
     requireSession,
-    wrap(async (req) => mapErr(async () => deps.mcp.createServer(await tk(req), req.body ?? {})), 201),
+    wrap(
+      async (req) => mapErr(async () => deps.mcp.createServer(await tk(req), req.body ?? {})),
+      201,
+    ),
   )
 
   router.put(
     '/servers/:id/enable',
     requireSession,
-    wrap(async (req) => mapErr(async () => deps.mcp.setEnabled(await tk(req), String(req.params.id), true))),
+    wrap(async (req) =>
+      mapErr(async () => deps.mcp.setEnabled(await tk(req), String(req.params.id), true)),
+    ),
   )
   router.put(
     '/servers/:id/disable',
     requireSession,
-    wrap(async (req) => mapErr(async () => deps.mcp.setEnabled(await tk(req), String(req.params.id), false))),
+    wrap(async (req) =>
+      mapErr(async () => deps.mcp.setEnabled(await tk(req), String(req.params.id), false)),
+    ),
   )
 
   router.post(
@@ -209,7 +214,9 @@ export function createMcpRouter(deps: McpDeps): Router {
       const row = await findServerRow(deps, accessToken, String(req.params.id))
       if (!row) throw new NotFoundError()
       if (row.scope !== 'user') throw new ForbiddenError()
-      return mapErr(async () => deps.mcp.updateServer(accessToken, String(req.params.id), req.body ?? {}))
+      return mapErr(async () =>
+        deps.mcp.updateServer(accessToken, String(req.params.id), req.body ?? {}),
+      )
     }),
   )
 

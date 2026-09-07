@@ -7,7 +7,10 @@ const config = { moss: { baseUrl: 'https://moss.default.com' } } as AppConfig
 
 describe('resolveLoginMoss（登录期 moss 地址归一化）', () => {
   test('无自定义地址 → 配置默认，身份地址为 null', () => {
-    expect(resolveLoginMoss(config)).toEqual({ baseUrl: 'https://moss.default.com', identityBaseUrl: null })
+    expect(resolveLoginMoss(config)).toEqual({
+      baseUrl: 'https://moss.default.com',
+      identityBaseUrl: null,
+    })
   })
 
   test('自定义地址与配置同 origin → 视为未自定义，身份地址为 null', () => {

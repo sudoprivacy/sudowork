@@ -1,0 +1,69 @@
+# PR gate for apps/webui: typecheck / lint / format:check / unit / contract tests.
+# Mirrors pr-checks.yml conventions (trigger, concurrency, edited-skip, minimal deps).
+# build:packages is a DUAL prerequisite: tsc resolves the shared packages through
+# their `types` exports condition (dist/*.d.ts) AND vitest resolves them at runtime
+# through the `default` condition (dist/*.js) — without it the tests cannot even
+# import the packages.
+
+name: '✓PR WebUI Checks'
+
+on:
+  pull_request:
+    types: [opened, synchronize, edited]
+    branches: [main, dev]
+
+concurrency:
+  group: pr-webui-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+
+jobs:
+  webui-checks:
+    name: WebUI Checks
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Build shared packages
+        run: bun run build:packages
+
+      - name: Type check
+        working-directory: apps/webui
+        run: bun run typecheck
+
+      - name: Lint
+        working-directory: apps/webui
+        run: bun run lint
+
+      - name: Check Prettier formatting
+        working-directory: apps/webui
+        run: bun run format:check
+
+      - name: Unit tests
+        working-directory: apps/webui
+        run: bun run test:unit
+
+      - name: Contract tests
+        working-directory: apps/webui
+        run: bun run test:contract

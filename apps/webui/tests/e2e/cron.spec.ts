@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test'
-import { apiLogin, cleanupCronByPrefix, loginViaUi, mossHealthCheck, requireE2eEnv } from './support'
+import {
+  apiLogin,
+  cleanupCronByPrefix,
+  loginViaUi,
+  mossHealthCheck,
+  requireE2eEnv,
+} from './support'
 
 const env = requireE2eEnv()
 
@@ -38,7 +44,9 @@ test('cron CRUD with prefix and runs endpoint', async ({ request }) => {
     expect(jobs.some((j) => j.name === name)).toBe(true)
 
     // 详情
-    const detail = await request.get(`/api/cron/${encodeURIComponent(jobId!)}`, { headers: { cookie } })
+    const detail = await request.get(`/api/cron/${encodeURIComponent(jobId!)}`, {
+      headers: { cookie },
+    })
     expect([200, 201]).toContain(detail.status())
 
     // runs

@@ -33,26 +33,26 @@ export function DisplayPage(): React.ReactElement {
   }
 
   return (
-    <div className='size-full overflow-y-auto p-6' data-testid='display-page'>
-      <div className='max-w-xl mx-auto flex flex-col gap-5'>
-        <h1 className='text-20px font-700 m-0'>显示</h1>
+    <div className="size-full overflow-y-auto p-6" data-testid="display-page">
+      <div className="max-w-xl mx-auto flex flex-col gap-5">
+        <h1 className="text-20px font-700 m-0">显示</h1>
 
-        <section className='flex flex-col gap-2'>
-          <div className='text-14px font-600'>主题</div>
+        <section className="flex flex-col gap-2">
+          <div className="text-14px font-600">主题</div>
           <Radio.Group
-            type='button'
+            type="button"
             value={settings.theme}
             onChange={(v) => setSettings((s) => ({ ...s, theme: v as DisplaySettings['theme'] }))}
             disabled={!loaded}
           >
-            <Radio value='system'>跟随系统</Radio>
-            <Radio value='light'>浅色</Radio>
-            <Radio value='dark'>深色</Radio>
+            <Radio value="system">跟随系统</Radio>
+            <Radio value="light">浅色</Radio>
+            <Radio value="dark">深色</Radio>
           </Radio.Group>
         </section>
 
-        <section className='flex flex-col gap-2'>
-          <div className='text-14px font-600'>字号缩放（{settings.fontScale.toFixed(2)}x）</div>
+        <section className="flex flex-col gap-2">
+          <div className="text-14px font-600">字号缩放（{settings.fontScale.toFixed(2)}x）</div>
           <Slider
             min={0.75}
             max={1.5}
@@ -64,7 +64,13 @@ export function DisplayPage(): React.ReactElement {
         </section>
 
         <div>
-          <Button type='primary' size='small' loading={saving} disabled={!loaded} onClick={() => void handleSave()}>
+          <Button
+            type="primary"
+            size="small"
+            loading={saving}
+            disabled={!loaded}
+            onClick={() => void handleSave()}
+          >
             保存
           </Button>
         </div>

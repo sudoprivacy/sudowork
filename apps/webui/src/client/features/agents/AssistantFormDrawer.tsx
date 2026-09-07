@@ -46,33 +46,38 @@ export function AssistantFormDrawer({
 
   return (
     <Drawer
-      title='创建智能体'
+      title="创建智能体"
       width={420}
       visible={visible}
       footer={
-        <div className='flex justify-end gap-2'>
-          <Button size='small' onClick={onClose}>
+        <div className="flex justify-end gap-2">
+          <Button size="small" onClick={onClose}>
             取消
           </Button>
-          <Button size='small' type='primary' loading={creating} onClick={() => void handleCreate()}>
+          <Button
+            size="small"
+            type="primary"
+            loading={creating}
+            onClick={() => void handleCreate()}
+          >
             创建
           </Button>
         </div>
       }
       onCancel={onClose}
-      data-testid='assistant-form-drawer'
+      data-testid="assistant-form-drawer"
     >
-      <Form layout='vertical' size='small'>
-        <Form.Item label='标识名（name）' required>
-          <Input value={name} onChange={setName} placeholder='如 data-analyst' />
+      <Form layout="vertical" size="small">
+        <Form.Item label="标识名（name）" required>
+          <Input value={name} onChange={setName} placeholder="如 data-analyst" />
         </Form.Item>
-        <Form.Item label='显示名' required>
-          <Input value={displayName} onChange={setDisplayName} placeholder='如 数据分析助手' />
+        <Form.Item label="显示名" required>
+          <Input value={displayName} onChange={setDisplayName} placeholder="如 数据分析助手" />
         </Form.Item>
-        <Form.Item label='描述'>
+        <Form.Item label="描述">
           <Input.TextArea value={description} onChange={setDescription} rows={2} />
         </Form.Item>
-        <Form.Item label='系统提示词'>
+        <Form.Item label="系统提示词">
           <Input.TextArea value={prompt} onChange={setPrompt} rows={6} />
         </Form.Item>
       </Form>

@@ -186,10 +186,7 @@ export function createCronRouter(deps: CronDeps): Router {
     wrap(async (req) => {
       const p = await principal(req)
       if (!p) throw new ForbiddenError('SESSION_REQUIRED')
-      const limit = Math.min(
-        Math.max(Number(req.query.limit ?? 20) || 20, 1),
-        100,
-      )
+      const limit = Math.min(Math.max(Number(req.query.limit ?? 20) || 20, 1), 100)
       return listRuns(deps, p, await token(req), String(req.params.id), limit)
     }),
   )

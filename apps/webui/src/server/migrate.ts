@@ -24,7 +24,9 @@ export class MigrationError extends Error {}
 export function listMigrationFiles(migrationsDir: string): MigrationFile[] {
   let names: string[]
   try {
-    names = readdirSync(migrationsDir).filter((n) => n.endsWith('.sql')).sort()
+    names = readdirSync(migrationsDir)
+      .filter((n) => n.endsWith('.sql'))
+      .sort()
   } catch {
     throw new MigrationError(`cannot read migrations directory: ${migrationsDir}`)
   }
@@ -56,9 +58,11 @@ export async function runMigrations(
   await pool.query(SCHEMA_TABLE_SQL)
 
   const existing = new Map(
-    (await pool.query<{ version: string; checksum: string }>(
-      'SELECT version, checksum FROM schema_migrations',
-    )).rows.map((row) => [row.version, row.checksum]),
+    (
+      await pool.query<{ version: string; checksum: string }>(
+        'SELECT version, checksum FROM schema_migrations',
+      )
+    ).rows.map((row) => [row.version, row.checksum]),
   )
 
   const files = listMigrationFiles(migrationsDir)
@@ -102,8 +106,7 @@ export async function runMigrations(
 }
 
 async function main(): Promise<void> {
-  const migrationsDir =
-    process.env.MIGRATIONS_DIR ?? join(process.cwd(), 'migrations')
+  const migrationsDir = process.env.MIGRATIONS_DIR ?? join(process.cwd(), 'migrations')
   const connectionString = process.env.DATABASE_URL
   if (!connectionString) {
     throw new Error('DATABASE_URL is required for migrations')

@@ -45,7 +45,9 @@ export const agentApi = {
   listInstalled: (): Promise<AgentItem[]> => api('/api/agents'),
   getScopes: (): Promise<{ scopes: string[] }> => api('/api/agents/scopes'),
   hubCategories: (): Promise<unknown> => api('/api/agents/hub/categories'),
-  hubList: (params: Record<string, string> = {}): Promise<{ items?: AgentItem[] } & Record<string, unknown>> => {
+  hubList: (
+    params: Record<string, string> = {},
+  ): Promise<{ items?: AgentItem[] } & Record<string, unknown>> => {
     const qs = new URLSearchParams(params).toString()
     return api(`/api/agents/hub/list${qs ? `?${qs}` : ''}`)
   },

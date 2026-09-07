@@ -14,20 +14,40 @@ describe('reduceStreamEvent（上游事件聚合）', () => {
     let state: ConversationStreamState = initialStreamState
     state = reduceStreamEvent(state, {
       kind: 'upstream',
-      event: { type: 'assistant', uuid: 't1', delta: true, message: { content: [{ type: 'text', text: '你' }] } },
+      event: {
+        type: 'assistant',
+        uuid: 't1',
+        delta: true,
+        message: { content: [{ type: 'text', text: '你' }] },
+      },
     })
     state = reduceStreamEvent(state, {
       kind: 'upstream',
-      event: { type: 'assistant', uuid: 't1', delta: true, message: { content: [{ type: 'text', text: '好' }] } },
+      event: {
+        type: 'assistant',
+        uuid: 't1',
+        delta: true,
+        message: { content: [{ type: 'text', text: '好' }] },
+      },
     })
     expect(state.messages).toHaveLength(1)
-    expect(state.messages[0]).toMatchObject({ kind: 'assistant', id: 't1', text: '你好', done: false })
+    expect(state.messages[0]).toMatchObject({
+      kind: 'assistant',
+      id: 't1',
+      text: '你好',
+      done: false,
+    })
   })
 
   test('result marks assistant done', () => {
     let state: ConversationStreamState = reduceStreamEvent(initialStreamState, {
       kind: 'upstream',
-      event: { type: 'assistant', uuid: 't1', delta: true, message: { content: [{ type: 'text', text: 'hi' }] } },
+      event: {
+        type: 'assistant',
+        uuid: 't1',
+        delta: true,
+        message: { content: [{ type: 'text', text: 'hi' }] },
+      },
     })
     state = reduceStreamEvent(state, {
       kind: 'upstream',
@@ -124,9 +144,12 @@ describe('useConversationSocket 切换会话重置（防消息泄漏）', () => 
     const original = globalThis.WebSocket
     globalThis.WebSocket = StubWebSocket as unknown as typeof WebSocket
     try {
-      const { result, rerender } = renderHook(({ id }: { id: string }) => useConversationSocket(id), {
-        initialProps: { id: 'conv-a' },
-      })
+      const { result, rerender } = renderHook(
+        ({ id }: { id: string }) => useConversationSocket(id),
+        {
+          initialProps: { id: 'conv-a' },
+        },
+      )
 
       act(() => result.current.appendLocalUser('会话A的本地消息'))
       expect(result.current.state.messages).toHaveLength(1)
@@ -184,8 +207,24 @@ vi.mock('@client/features/conversations/conversationApi', () => ({
   getConversationOptions: vi.fn().mockResolvedValue({
     models: [{ id: 'm1', name: 'M1' }],
     agents: [
-      { name: 'helper', displayName: '帮助助手', emoji: '🤖', description: '帮你干活', avatar: '', defaultInitPrompt: '', promptsI18n: { 'zh-CN': [] } },
-      { name: 'writer', displayName: '写作助手', emoji: '', description: '', avatar: '', defaultInitPrompt: '', promptsI18n: { 'zh-CN': [] } },
+      {
+        name: 'helper',
+        displayName: '帮助助手',
+        emoji: '🤖',
+        description: '帮你干活',
+        avatar: '',
+        defaultInitPrompt: '',
+        promptsI18n: { 'zh-CN': [] },
+      },
+      {
+        name: 'writer',
+        displayName: '写作助手',
+        emoji: '',
+        description: '',
+        avatar: '',
+        defaultInitPrompt: '',
+        promptsI18n: { 'zh-CN': [] },
+      },
       {
         name: 'guide',
         displayName: '上手向导',
@@ -214,7 +253,9 @@ describe('NewConversationPage', () => {
       </MemoryRouter>,
     )
 
-    await waitFor(() => expect(screen.getByText('Hi，今天有什么安排？')).toBeTruthy(), { timeout: 5000 })
+    await waitFor(() => expect(screen.getByText('Hi，今天有什么安排？')).toBeTruthy(), {
+      timeout: 5000,
+    })
     expect(screen.getByText('CTCode')).toBeTruthy()
     expect(screen.getByRole('img', { name: 'CTCode' })).toBeTruthy()
     expect(screen.getByLabelText('消息输入框').getAttribute('placeholder')).toMatch(/^CTCode, /)
@@ -237,7 +278,9 @@ describe('NewConversationPage', () => {
       </MemoryRouter>,
     )
 
-    await waitFor(() => expect(screen.getByTestId('assistant-chip-helper')).toBeTruthy(), { timeout: 5000 })
+    await waitFor(() => expect(screen.getByTestId('assistant-chip-helper')).toBeTruthy(), {
+      timeout: 5000,
+    })
     fireEvent.click(screen.getByTestId('assistant-chip-helper'))
     // 选中后 chip 列表隐藏（helper 无案例提示词，底部整块不渲染），名称仅出现在选中态视图
     await waitFor(() => expect(screen.getByText('帮你干活')).toBeTruthy(), { timeout: 5000 })
@@ -260,11 +303,15 @@ describe('NewConversationPage', () => {
       </MemoryRouter>,
     )
 
-    await waitFor(() => expect(screen.getByTestId('assistant-chip-guide')).toBeTruthy(), { timeout: 5000 })
+    await waitFor(() => expect(screen.getByTestId('assistant-chip-guide')).toBeTruthy(), {
+      timeout: 5000,
+    })
     fireEvent.click(screen.getByTestId('assistant-chip-guide'))
 
     // 行为A：defaultInitPrompt 预填输入框
-    const box = (await waitFor(() => screen.getByLabelText('消息输入框'), { timeout: 5000 })) as HTMLTextAreaElement
+    const box = (await waitFor(() => screen.getByLabelText('消息输入框'), {
+      timeout: 5000,
+    })) as HTMLTextAreaElement
     await waitFor(() => expect(box.value).toBe('请帮我从零开始'), { timeout: 5000 })
 
     // 行为A：promptsI18n['zh-CN'] 案例可点击，点击写入输入框

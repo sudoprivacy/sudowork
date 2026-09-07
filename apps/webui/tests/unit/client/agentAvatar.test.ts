@@ -1,8 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import {
-  AGENT_AVATAR_PROXY_PATH,
-  resolveAgentAvatar,
-} from '@client/components/agentAvatar'
+import { AGENT_AVATAR_PROXY_PATH, resolveAgentAvatar } from '@client/components/agentAvatar'
 
 describe('resolveAgentAvatar', () => {
   test('空/null/undefined 返回 null', () => {

@@ -81,7 +81,9 @@ export function ConversationPage(): React.ReactElement {
   const [cursorPosition, setCursorPosition] = useState<number | undefined>(undefined)
   const textareaRef = useRef<RefTextAreaType | null>(null)
   // 右面板默认收起（对齐 Sudowork sudowork_workspace_panel_collapsed 语义：无值即折叠）
-  const [rightPanelOpen, setRightPanelOpen] = useState(() => localStorage.getItem('sudowork_workspace_panel_collapsed') !== 'false')
+  const [rightPanelOpen, setRightPanelOpen] = useState(
+    () => localStorage.getItem('sudowork_workspace_panel_collapsed') !== 'false',
+  )
   // turn 完成计数（running→idle 递增）：驱动右面板工作空间/交付物刷新
   const [turnFinishedAt, setTurnFinishedAt] = useState(0)
   // 会话进行中刷新信号：tool 消息计数变化 300ms 防抖递增（Sudowork 用 agent_status=session_active
@@ -236,290 +238,314 @@ export function ConversationPage(): React.ReactElement {
   const ring = isDark ? FOCUS_RING.dark : FOCUS_RING.light
 
   return (
-    <div className='size-full flex flex-col bg-1 overflow-hidden' data-testid='conversation-page'>
+    <div className="size-full flex flex-col bg-1 overflow-hidden" data-testid="conversation-page">
       {/* 左右并列（对齐 Sudowork ChatLayout 默认布局）：header 只覆盖左列，右侧面板通顶全高 */}
-      <div className='flex-1 flex min-h-0 overflow-hidden'>
-        <div className='flex-1 flex flex-col min-h-0 min-w-0'>
-        <ConversationHeader
-          title={context?.customTitle ?? context?.title ?? `会话 ${id?.slice(0, 8) ?? ''}`}
-          socketStatus={socket.status}
-          models={options?.models ?? []}
-          currentModel={socket.state.currentModel ?? socket.state.hydratedModel}
-          onSetModel={(modelId) => socket.setModel(modelId)}
-          onTogglePanel={toggleRightPanel}
-          statusHint={uncertain ? '状态不确定（写入端中断）' : busyByOther ? '只读（另一设备正在输入）' : null}
-          modelError={
-            socket.state.modelSwitchError
-              ? (MODEL_ERROR_TEXT[socket.state.modelSwitchError] ?? '模型切换失败，请稍后重试')
-              : null
-          }
-        />
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <ConversationHeader
+            title={context?.customTitle ?? context?.title ?? `会话 ${id?.slice(0, 8) ?? ''}`}
+            socketStatus={socket.status}
+            models={options?.models ?? []}
+            currentModel={socket.state.currentModel ?? socket.state.hydratedModel}
+            onSetModel={(modelId) => socket.setModel(modelId)}
+            onTogglePanel={toggleRightPanel}
+            statusHint={
+              uncertain
+                ? '状态不确定（写入端中断）'
+                : busyByOther
+                  ? '只读（另一设备正在输入）'
+                  : null
+            }
+            modelError={
+              socket.state.modelSwitchError
+                ? (MODEL_ERROR_TEXT[socket.state.modelSwitchError] ?? '模型切换失败，请稍后重试')
+                : null
+            }
+          />
 
-        {uncertain ? (
-          <div className='shrink-0 bg-[var(--warning-soft)] text-13px text-foreground px-4 py-2 border-b border-[var(--warning-line)]'>
-            该会话写入端意外中断，已转为只读。请新建会话继续。
-          </div>
-        ) : null}
-
-        {/* 消息区 + 输入区（保留 20px 内边距；header 贴列边不缩进，对齐 Sudowork 满列宽 header） */}
-        <div className='flex-1 flex flex-col px-20px min-h-0'>
-        <div className='flex-1 relative min-h-0'>
-          <div
-            ref={scrollRef}
-            className='absolute size-full overflow-y-auto'
-            data-testid='message-list'
-          >
-            {/* 历史消息（context） */}
-            {(context?.messages ?? []).map((msg, i) => (
-              <HistoryBubble key={i} msg={msg} />
-            ))}
-            {/* 实时流（收敛过滤后） */}
-            {visibleStreamMessages.map((msg) => {
-              if (msg.kind === 'user') {
-                return (
-                  <MessageShell key={msg.id} align='right'>
-                    <div
-                      className='min-w-0 box-border overflow-hidden p-8px border border-solid transition-colors duration-200 w-fit max-w-full'
-                      style={{
-                        borderRadius: '16px',
-                        background: 'var(--message-user-bg)',
-                        color: 'var(--message-user-text)',
-                        borderColor: 'var(--message-user-border)',
-                      }}
-                    >
-                      <div className='text-14px whitespace-pre-wrap break-words'>{msg.text}</div>
-                    </div>
-                  </MessageShell>
-                )
-              }
-              if (msg.kind === 'assistant') {
-                return (
-                  <MessageShell key={msg.id} align='left'>
-                    <div
-                      className='min-w-0 box-border overflow-hidden p-8px border border-solid transition-colors duration-200 w-fit max-w-full'
-                      style={{
-                        borderRadius: '16px',
-                        background: 'var(--message-assistant-bg)',
-                        color: 'var(--message-assistant-text)',
-                        borderColor: 'var(--message-assistant-border)',
-                      }}
-                      data-testid='assistant-message'
-                    >
-                      <div className='text-14px whitespace-pre-wrap break-words'>
-                        {msg.text || '…'}
-                        {!msg.done ? <span className='animate-pulse'>▍</span> : null}
-                      </div>
-                    </div>
-                  </MessageShell>
-                )
-              }
-              if (msg.kind === 'tool') {
-                return (
-                  <MessageShell key={msg.id} align='left'>
-                    <div className='inline-flex items-center gap-4px px-12px py-2px rounded-full text-secondary bg-fill-2 text-12px'>
-                      🛠 {msg.name}
-                      {msg.status === 'completed' ? ' ✓' : ''}
-                    </div>
-                  </MessageShell>
-                )
-              }
-              return (
-                <MessageShell key={msg.id} align='left'>
-                  <div className='bg-message-tips rd-8px p-x-12px p-y-8px text-13px' data-testid='question-card'>
-                    <div className='font-600 text-foreground'>❓ {msg.title}</div>
-                    {msg.description ? (
-                      <div className='text-12px text-secondary mt-1'>{msg.description}</div>
-                    ) : null}
-                    {canSend ? (
-                      <QuestionAnswer
-                        onAnswer={(answer) => {
-                          socket.answerQuestion(msg.id, answer)
-                          void navigate(location.pathname, { state: null })
-                        }}
-                      />
-                    ) : (
-                      <div className='text-12px text-tertiary mt-1'>等待写入端回答…</div>
-                    )}
-                  </div>
-                </MessageShell>
-              )
-            })}
-            {visibleStreamMessages.length === 0 && (context?.messages ?? []).length === 0 ? (
-              <div className='text-13px text-tertiary f-center py-8'>发送第一条消息开始对话</div>
-            ) : null}
-          </div>
-        </div>
-
-        {/* SendBox（max-w-800px 居中 + mb-16px） */}
-        <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px shrink-0'>
-          {images.length > 0 ? (
-            <div className='flex flex-wrap items-center gap-3 mb-2'>
-              {images.map((img, i) => (
-                <Tag key={i} closable onClose={() => setImages((prev) => prev.filter((_, j) => j !== i))}>
-                  🖼 {img.mediaType}
-                </Tag>
-              ))}
+          {uncertain ? (
+            <div className="shrink-0 bg-[var(--warning-soft)] text-13px text-foreground px-4 py-2 border-b border-[var(--warning-line)]">
+              该会话写入端意外中断，已转为只读。请新建会话继续。
             </div>
           ) : null}
-          <div
-            className='relative p-16px b b-solid flex flex-col z-10'
-            style={{
-              borderRadius: '20px',
-              borderWidth: 1,
-              backgroundColor: 'var(--color-fill-1)',
-              borderColor: focused ? ring.border : 'var(--border-default, #e5e6eb)',
-              boxShadow: focused ? ring.shadow : 'none',
-              transition: 'box-shadow .25s ease, border-color .25s ease',
-            }}
-          >
-            {/* 已选技能（对齐初始页"当前使用技能"区） */}
-            {selectedSkills.length > 0 ? (
-              <div className='flex flex-col gap-6px mb-8px'>
-                <div className='flex items-center gap-4px text-11px text-secondary'>
-                  <Zap size={12} /> 当前使用技能
-                </div>
-                <div className='flex flex-wrap gap-6px'>
-                  {selectedSkills.map((s) => (
+
+          {/* 消息区 + 输入区（保留 20px 内边距；header 贴列边不缩进，对齐 Sudowork 满列宽 header） */}
+          <div className="flex-1 flex flex-col px-20px min-h-0">
+            <div className="flex-1 relative min-h-0">
+              <div
+                ref={scrollRef}
+                className="absolute size-full overflow-y-auto"
+                data-testid="message-list"
+              >
+                {/* 历史消息（context） */}
+                {(context?.messages ?? []).map((msg, i) => (
+                  <HistoryBubble key={i} msg={msg} />
+                ))}
+                {/* 实时流（收敛过滤后） */}
+                {visibleStreamMessages.map((msg) => {
+                  if (msg.kind === 'user') {
+                    return (
+                      <MessageShell key={msg.id} align="right">
+                        <div
+                          className="min-w-0 box-border overflow-hidden p-8px border border-solid transition-colors duration-200 w-fit max-w-full"
+                          style={{
+                            borderRadius: '16px',
+                            background: 'var(--message-user-bg)',
+                            color: 'var(--message-user-text)',
+                            borderColor: 'var(--message-user-border)',
+                          }}
+                        >
+                          <div className="text-14px whitespace-pre-wrap break-words">
+                            {msg.text}
+                          </div>
+                        </div>
+                      </MessageShell>
+                    )
+                  }
+                  if (msg.kind === 'assistant') {
+                    return (
+                      <MessageShell key={msg.id} align="left">
+                        <div
+                          className="min-w-0 box-border overflow-hidden p-8px border border-solid transition-colors duration-200 w-fit max-w-full"
+                          style={{
+                            borderRadius: '16px',
+                            background: 'var(--message-assistant-bg)',
+                            color: 'var(--message-assistant-text)',
+                            borderColor: 'var(--message-assistant-border)',
+                          }}
+                          data-testid="assistant-message"
+                        >
+                          <div className="text-14px whitespace-pre-wrap break-words">
+                            {msg.text || '…'}
+                            {!msg.done ? <span className="animate-pulse">▍</span> : null}
+                          </div>
+                        </div>
+                      </MessageShell>
+                    )
+                  }
+                  if (msg.kind === 'tool') {
+                    return (
+                      <MessageShell key={msg.id} align="left">
+                        <div className="inline-flex items-center gap-4px px-12px py-2px rounded-full text-secondary bg-fill-2 text-12px">
+                          🛠 {msg.name}
+                          {msg.status === 'completed' ? ' ✓' : ''}
+                        </div>
+                      </MessageShell>
+                    )
+                  }
+                  return (
+                    <MessageShell key={msg.id} align="left">
+                      <div
+                        className="bg-message-tips rd-8px p-x-12px p-y-8px text-13px"
+                        data-testid="question-card"
+                      >
+                        <div className="font-600 text-foreground">❓ {msg.title}</div>
+                        {msg.description ? (
+                          <div className="text-12px text-secondary mt-1">{msg.description}</div>
+                        ) : null}
+                        {canSend ? (
+                          <QuestionAnswer
+                            onAnswer={(answer) => {
+                              socket.answerQuestion(msg.id, answer)
+                              void navigate(location.pathname, { state: null })
+                            }}
+                          />
+                        ) : (
+                          <div className="text-12px text-tertiary mt-1">等待写入端回答…</div>
+                        )}
+                      </div>
+                    </MessageShell>
+                  )
+                })}
+                {visibleStreamMessages.length === 0 && (context?.messages ?? []).length === 0 ? (
+                  <div className="text-13px text-tertiary f-center py-8">
+                    发送第一条消息开始对话
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {/* SendBox（max-w-800px 居中 + mb-16px） */}
+            <div className="max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px shrink-0">
+              {images.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-3 mb-2">
+                  {images.map((img, i) => (
                     <Tag
-                      key={s}
+                      key={i}
                       closable
-                      className='text-12px rd-full'
-                      onClose={() => setSelectedSkills((prev) => prev.filter((x) => x !== s))}
+                      onClose={() => setImages((prev) => prev.filter((_, j) => j !== i))}
                     >
-                      {s}
+                      🖼 {img.mediaType}
                     </Tag>
                   ))}
                 </div>
-              </div>
-            ) : null}
-            <Input.TextArea
-              ref={textareaRef}
-              aria-label='消息输入框'
-              autoSize={{ minRows: 2, maxRows: 5 }}
-              value={text}
-              onChange={(value, e) => {
-                setText(value)
-                setCursorPosition((e?.target as HTMLTextAreaElement | undefined)?.selectionStart)
-              }}
-              onSelect={(e) => {
-                setCursorPosition((e.target as HTMLTextAreaElement).selectionStart)
-              }}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              onPressEnter={handlePressEnter}
-              onKeyDown={(e) => {
-                if (skillSelector.onKeyDown(e)) return
-              }}
-              placeholder={
-                canSend
-                  ? '发送消息…'
-                  : socket.status === 'closed'
-                    ? '连接已断开'
-                    : uncertain
-                      ? '会话状态不确定（只读）'
-                      : busyByOther
-                        ? '只读观察模式'
-                        : '连接中…'
-              }
-              disabled={!canSend}
-              className='pl-0 pr-0 !b-none focus:shadow-none m-0 !bg-transparent lh-[20px] !resize-none text-14px'
-            />
-            <div className='flex items-center justify-between gap-2 w-full mt-2'>
-              <div className='flex items-center gap-3'>
-                <span className='relative'>
-                  <Button
-                    shape='circle'
-                    type='secondary'
-                    icon={<Plus size={16} color='var(--text-secondary)' />}
-                    onClick={() => fileRef.current?.click()}
-                    disabled={!canSend}
-                    aria-label='添加图片'
-                  />
-                  {images.length > 0 ? (
-                    <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-white font-600'>
-                      {images.length}
-                    </span>
-                  ) : null}
-                  <input
-                    ref={fileRef}
-                    type='file'
-                    accept='image/png,image/jpeg,image/webp'
-                    multiple
-                    className='hidden'
-                    onChange={(e) => void handleFiles(e)}
-                  />
-                </span>
-                {/* @技能（与初始页对齐：受控弹层复用 SkillSelectorMenu；数据源为全局已安装技能） */}
-                <Popover
-                  trigger={[]}
-                  position='tl'
-                  popupVisible={skillPopoverOpen}
-                  onVisibleChange={(visible) => {
-                    if (!visible) closeSkillSelector()
+              ) : null}
+              <div
+                className="relative p-16px b b-solid flex flex-col z-10"
+                style={{
+                  borderRadius: '20px',
+                  borderWidth: 1,
+                  backgroundColor: 'var(--color-fill-1)',
+                  borderColor: focused ? ring.border : 'var(--border-default, #e5e6eb)',
+                  boxShadow: focused ? ring.shadow : 'none',
+                  transition: 'box-shadow .25s ease, border-color .25s ease',
+                }}
+              >
+                {/* 已选技能（对齐初始页"当前使用技能"区） */}
+                {selectedSkills.length > 0 ? (
+                  <div className="flex flex-col gap-6px mb-8px">
+                    <div className="flex items-center gap-4px text-11px text-secondary">
+                      <Zap size={12} /> 当前使用技能
+                    </div>
+                    <div className="flex flex-wrap gap-6px">
+                      {selectedSkills.map((s) => (
+                        <Tag
+                          key={s}
+                          closable
+                          className="text-12px rd-full"
+                          onClose={() => setSelectedSkills((prev) => prev.filter((x) => x !== s))}
+                        >
+                          {s}
+                        </Tag>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <Input.TextArea
+                  ref={textareaRef}
+                  aria-label="消息输入框"
+                  autoSize={{ minRows: 2, maxRows: 5 }}
+                  value={text}
+                  onChange={(value, e) => {
+                    setText(value)
+                    setCursorPosition(
+                      (e?.target as HTMLTextAreaElement | undefined)?.selectionStart,
+                    )
                   }}
-                  content={
-                    <SkillSelectorMenu
-                      skills={options?.skills ?? []}
-                      selectedSkills={selectedSkills}
-                      loading={options === undefined}
-                      popupVisible={skillPopoverOpen}
-                      onSelectItem={(skill) => {
-                        setSelectedSkills((prev) =>
-                          prev.includes(skill.name) ? prev : [...prev, skill.name],
-                        )
-                        closeSkillSelector()
-                      }}
-                      onDismiss={closeSkillSelector}
-                    />
+                  onSelect={(e) => {
+                    setCursorPosition((e.target as HTMLTextAreaElement).selectionStart)
+                  }}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  onPressEnter={handlePressEnter}
+                  onKeyDown={(e) => {
+                    if (skillSelector.onKeyDown(e)) return
+                  }}
+                  placeholder={
+                    canSend
+                      ? '发送消息…'
+                      : socket.status === 'closed'
+                        ? '连接已断开'
+                        : uncertain
+                          ? '会话状态不确定（只读）'
+                          : busyByOther
+                            ? '只读观察模式'
+                            : '连接中…'
                   }
-                >
-                  <button
-                    type='button'
-                    className='inline-flex h-7 min-w-0 items-center gap-2 rd-full border px-3 text-13px font-500 transition-colors bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground'
-                    disabled={!canSend}
-                    onClick={() => setSkillPopoverOpen(true)}
-                  >
-                    <span className='text-14px font-700 leading-none shrink-0'>@</span>
-                    <span className='min-w-0 truncate'>
-                      {selectedSkills.length > 0 ? `技能 · ${selectedSkills.length}` : '技能'}
+                  disabled={!canSend}
+                  className="pl-0 pr-0 !b-none focus:shadow-none m-0 !bg-transparent lh-[20px] !resize-none text-14px"
+                />
+                <div className="flex items-center justify-between gap-2 w-full mt-2">
+                  <div className="flex items-center gap-3">
+                    <span className="relative">
+                      <Button
+                        shape="circle"
+                        type="secondary"
+                        icon={<Plus size={16} color="var(--text-secondary)" />}
+                        onClick={() => fileRef.current?.click()}
+                        disabled={!canSend}
+                        aria-label="添加图片"
+                      />
+                      {images.length > 0 ? (
+                        <span className="absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-white font-600">
+                          {images.length}
+                        </span>
+                      ) : null}
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => void handleFiles(e)}
+                      />
                     </span>
-                  </button>
-                </Popover>
+                    {/* @技能（与初始页对齐：受控弹层复用 SkillSelectorMenu；数据源为全局已安装技能） */}
+                    <Popover
+                      trigger={[]}
+                      position="tl"
+                      popupVisible={skillPopoverOpen}
+                      onVisibleChange={(visible) => {
+                        if (!visible) closeSkillSelector()
+                      }}
+                      content={
+                        <SkillSelectorMenu
+                          skills={options?.skills ?? []}
+                          selectedSkills={selectedSkills}
+                          loading={options === undefined}
+                          popupVisible={skillPopoverOpen}
+                          onSelectItem={(skill) => {
+                            setSelectedSkills((prev) =>
+                              prev.includes(skill.name) ? prev : [...prev, skill.name],
+                            )
+                            closeSkillSelector()
+                          }}
+                          onDismiss={closeSkillSelector}
+                        />
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="inline-flex h-7 min-w-0 items-center gap-2 rd-full border px-3 text-13px font-500 transition-colors bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground"
+                        disabled={!canSend}
+                        onClick={() => setSkillPopoverOpen(true)}
+                      >
+                        <span className="text-14px font-700 leading-none shrink-0">@</span>
+                        <span className="min-w-0 truncate">
+                          {selectedSkills.length > 0 ? `技能 · ${selectedSkills.length}` : '技能'}
+                        </span>
+                      </button>
+                    </Popover>
+                  </div>
+                  {socket.state.lockState === 'running' && isWriter ? (
+                    /* 运行中：箭头变停止方块（对齐 Sudowork Sendbox），点击终止当前回复 */
+                    <Button
+                      shape="circle"
+                      type="secondary"
+                      className="bg-animate"
+                      disabled={socket.state.isStopping}
+                      icon={<div className="mx-auto size-12px bg-6" />}
+                      onClick={() => socket.stop()}
+                      aria-label="停止"
+                      data-testid="stop-button"
+                    />
+                  ) : (
+                    <Button
+                      shape="circle"
+                      type="primary"
+                      className="send-arrow-btn"
+                      disabled={!canSend || !text.trim()}
+                      icon={<ArrowUp size={16} color="#fff" />}
+                      onClick={handleSend}
+                      aria-label="发送"
+                    />
+                  )}
+                </div>
               </div>
-              {socket.state.lockState === 'running' && isWriter ? (
-                /* 运行中：箭头变停止方块（对齐 Sudowork Sendbox），点击终止当前回复 */
-                <Button
-                  shape='circle'
-                  type='secondary'
-                  className='bg-animate'
-                  disabled={socket.state.isStopping}
-                  icon={<div className='mx-auto size-12px bg-6' />}
-                  onClick={() => socket.stop()}
-                  aria-label='停止'
-                  data-testid='stop-button'
-                />
-              ) : (
-                <Button
-                  shape='circle'
-                  type='primary'
-                  className='send-arrow-btn'
-                  disabled={!canSend || !text.trim()}
-                  icon={<ArrowUp size={16} color='#fff' />}
-                  onClick={handleSend}
-                  aria-label='发送'
-                />
-              )}
             </div>
           </div>
-        </div>
-        </div>
         </div>
         {/* 右侧面板（工作空间/终端/交付物）与收起态浮动展开箭头（与左列并列，通顶全高） */}
         {id ? (
           rightPanelOpen ? (
-            <RightPanel conversationId={id} open turnFinishedAt={turnFinishedAt} workspaceRefreshKey={workspaceRefreshKey} />
+            <RightPanel
+              conversationId={id}
+              open
+              turnFinishedAt={turnFinishedAt}
+              workspaceRefreshKey={workspaceRefreshKey}
+            />
           ) : (
-            <div className='relative w-0'>
+            <div className="relative w-0">
               <RightPanelFloatingExpand onExpand={() => setRightPanelOpen(true)} />
             </div>
           )
@@ -542,7 +568,9 @@ function historyTextOf(content: unknown): string {
   if (Array.isArray(content)) {
     return content
       .map((b) =>
-        typeof b === 'object' && b && 'text' in b ? String((b as { text?: string }).text ?? '') : '',
+        typeof b === 'object' && b && 'text' in b
+          ? String((b as { text?: string }).text ?? '')
+          : '',
       )
       .join('')
   }
@@ -590,8 +618,10 @@ function MessageShell({
   const justify =
     align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'
   return (
-    <div className={`min-w-0 flex w-full box-border m-t-10px max-w-full md:max-w-800px mx-auto items-start ${justify}`}>
-      <div className='min-w-0'>{children}</div>
+    <div
+      className={`min-w-0 flex w-full box-border m-t-10px max-w-full md:max-w-800px mx-auto items-start ${justify}`}
+    >
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }
@@ -599,15 +629,20 @@ function MessageShell({
 function QuestionAnswer({ onAnswer }: { onAnswer: (text: string) => void }): React.ReactElement {
   const [value, setValue] = useState('')
   return (
-    <div className='flex gap-2 mt-2'>
+    <div className="flex gap-2 mt-2">
       <Input
-        size='small'
+        size="small"
         value={value}
         onChange={setValue}
-        placeholder='输入你的回答'
-        aria-label='问题回答输入'
+        placeholder="输入你的回答"
+        aria-label="问题回答输入"
       />
-      <Button size='mini' type='primary' disabled={!value.trim()} onClick={() => onAnswer(value.trim())}>
+      <Button
+        size="mini"
+        type="primary"
+        disabled={!value.trim()}
+        onClick={() => onAnswer(value.trim())}
+      >
         回答
       </Button>
     </div>
@@ -623,7 +658,9 @@ function HistoryBubble({ msg }: { msg: Record<string, unknown> }): React.ReactEl
     if (Array.isArray(content)) {
       return content
         .map((b) =>
-          typeof b === 'object' && b && 'text' in b ? String((b as { text?: string }).text ?? '') : '',
+          typeof b === 'object' && b && 'text' in b
+            ? String((b as { text?: string }).text ?? '')
+            : '',
         )
         .join('')
     }
@@ -631,9 +668,9 @@ function HistoryBubble({ msg }: { msg: Record<string, unknown> }): React.ReactEl
   }
   if (type === 'user') {
     return (
-      <MessageShell align='right'>
+      <MessageShell align="right">
         <div
-          className='min-w-0 box-border overflow-hidden p-8px border border-solid w-fit max-w-full'
+          className="min-w-0 box-border overflow-hidden p-8px border border-solid w-fit max-w-full"
           style={{
             borderRadius: '16px',
             background: 'var(--message-user-bg)',
@@ -641,16 +678,18 @@ function HistoryBubble({ msg }: { msg: Record<string, unknown> }): React.ReactEl
             borderColor: 'var(--message-user-border)',
           }}
         >
-          <div className='text-14px whitespace-pre-wrap break-words'>{stripCommandNameTags(extractText())}</div>
+          <div className="text-14px whitespace-pre-wrap break-words">
+            {stripCommandNameTags(extractText())}
+          </div>
         </div>
       </MessageShell>
     )
   }
   if (type === 'assistant') {
     return (
-      <MessageShell align='left'>
+      <MessageShell align="left">
         <div
-          className='min-w-0 box-border overflow-hidden p-8px border border-solid w-fit max-w-full'
+          className="min-w-0 box-border overflow-hidden p-8px border border-solid w-fit max-w-full"
           style={{
             borderRadius: '16px',
             background: 'var(--message-assistant-bg)',
@@ -658,15 +697,15 @@ function HistoryBubble({ msg }: { msg: Record<string, unknown> }): React.ReactEl
             borderColor: 'var(--message-assistant-border)',
           }}
         >
-          <div className='text-14px whitespace-pre-wrap break-words'>{extractText()}</div>
+          <div className="text-14px whitespace-pre-wrap break-words">{extractText()}</div>
         </div>
       </MessageShell>
     )
   }
   if (type === 'tool_use') {
     return (
-      <MessageShell align='left'>
-        <div className='inline-flex items-center gap-4px px-12px py-2px rounded-full text-secondary bg-fill-2 text-12px'>
+      <MessageShell align="left">
+        <div className="inline-flex items-center gap-4px px-12px py-2px rounded-full text-secondary bg-fill-2 text-12px">
           🛠 {String(msg.name ?? 'tool')}
         </div>
       </MessageShell>

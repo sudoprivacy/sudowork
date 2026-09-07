@@ -75,7 +75,11 @@ function createFakeMcp(): MossMcpPort {
       return { allow_personal_mcp: true }
     },
     async userProfile() {
-      return { user: { id: 'u', name: 'tester', role: 'user' }, totalTokens: 12345, sessionCount: 6 }
+      return {
+        user: { id: 'u', name: 'tester', role: 'user' },
+        totalTokens: 12345,
+        sessionCount: 6,
+      }
     },
     async tenantConfig() {
       return { app_name: 'Acme Moss', logo: null }
@@ -110,8 +114,16 @@ describe('settings + mcp routes (real PostgreSQL + fake moss)', () => {
 
   beforeAll(async () => {
     pool = await createTestDatabase()
-    principalA = await upsertPrincipal(pool, { mossUserId: 'moss-a', orgId: 'org-1', username: 'a' })
-    principalB = await upsertPrincipal(pool, { mossUserId: 'moss-b', orgId: 'org-1', username: 'b' })
+    principalA = await upsertPrincipal(pool, {
+      mossUserId: 'moss-a',
+      orgId: 'org-1',
+      username: 'a',
+    })
+    principalB = await upsertPrincipal(pool, {
+      mossUserId: 'moss-b',
+      orgId: 'org-1',
+      username: 'b',
+    })
 
     const mkCookie = async (principalId: string): Promise<string> => {
       const token = generateSessionToken()
@@ -119,7 +131,11 @@ describe('settings + mcp routes (real PostgreSQL + fake moss)', () => {
         principalId,
         tokenDigest: digestToken(token, HMAC_KEY),
         encrypted: encryptToken(
-          JSON.stringify({ accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000 }),
+          JSON.stringify({
+            accessToken: 'at',
+            refreshToken: 'rt',
+            expiresAt: Date.now() + 3600_000,
+          }),
           AES_KEY,
         ),
         accessExpiresAt: new Date(Date.now() + 3600_000),
@@ -191,28 +207,48 @@ describe('settings + mcp routes (real PostgreSQL + fake moss)', () => {
   test('own-personal-only operations enforced (scope check)', async () => {
     // 个人 MCP：测试/删除允许
     expect(
-      (await request(app).post('/api/mcp/servers/s-personal/test').set('Cookie', cookieA).set('Origin', ORIGIN))
-        .status,
+      (
+        await request(app)
+          .post('/api/mcp/servers/s-personal/test')
+          .set('Cookie', cookieA)
+          .set('Origin', ORIGIN)
+      ).status,
     ).toBe(200)
     expect(
-      (await request(app).delete('/api/mcp/servers/s-personal').set('Cookie', cookieA).set('Origin', ORIGIN))
-        .status,
+      (
+        await request(app)
+          .delete('/api/mcp/servers/s-personal')
+          .set('Cookie', cookieA)
+          .set('Origin', ORIGIN)
+      ).status,
     ).toBe(200)
 
     // 组织级 MCP：测试/删除 → 403（scope !== 'user'）
     expect(
-      (await request(app).post('/api/mcp/servers/s-org/test').set('Cookie', cookieA).set('Origin', ORIGIN))
-        .status,
+      (
+        await request(app)
+          .post('/api/mcp/servers/s-org/test')
+          .set('Cookie', cookieA)
+          .set('Origin', ORIGIN)
+      ).status,
     ).toBe(403)
     expect(
-      (await request(app).delete('/api/mcp/servers/s-org').set('Cookie', cookieA).set('Origin', ORIGIN))
-        .status,
+      (
+        await request(app)
+          .delete('/api/mcp/servers/s-org')
+          .set('Cookie', cookieA)
+          .set('Origin', ORIGIN)
+      ).status,
     ).toBe(403)
 
     // 未知 MCP → 404
     expect(
-      (await request(app).post('/api/mcp/servers/s-ghost/test').set('Cookie', cookieA).set('Origin', ORIGIN))
-        .status,
+      (
+        await request(app)
+          .post('/api/mcp/servers/s-ghost/test')
+          .set('Cookie', cookieA)
+          .set('Origin', ORIGIN)
+      ).status,
     ).toBe(404)
   })
 

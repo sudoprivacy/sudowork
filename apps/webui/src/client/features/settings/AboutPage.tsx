@@ -7,7 +7,12 @@ import { settingsApi } from './settingsApi'
 export function AboutPage(): React.ReactElement {
   const { data, isLoading } = useSWR('settings/about', settingsApi.about)
 
-  if (isLoading) return <div className='size-full f-center'><Spin /></div>
+  if (isLoading)
+    return (
+      <div className="size-full f-center">
+        <Spin />
+      </div>
+    )
 
   const about = (data ?? {}) as {
     branding?: { appName?: string; logo?: string }
@@ -16,9 +21,9 @@ export function AboutPage(): React.ReactElement {
   }
 
   return (
-    <div className='size-full overflow-y-auto p-6' data-testid='about-page'>
-      <div className='max-w-xl mx-auto flex flex-col gap-4'>
-        <h1 className='text-20px font-700 m-0'>关于</h1>
+    <div className="size-full overflow-y-auto p-6" data-testid="about-page">
+      <div className="max-w-xl mx-auto flex flex-col gap-4">
+        <h1 className="text-20px font-700 m-0">关于</h1>
         <Descriptions
           column={1}
           data={[
@@ -29,7 +34,7 @@ export function AboutPage(): React.ReactElement {
             { label: 'Moss 服务', value: about.mossBaseUrl ?? '—' },
           ]}
         />
-        <div className='text-12px text-tertiary'>
+        <div className="text-12px text-tertiary">
           本服务不修改 Moss；会话与业务数据均以 Moss 为唯一来源。
         </div>
       </div>

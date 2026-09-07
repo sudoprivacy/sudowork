@@ -80,7 +80,11 @@ export function createAgentRouter(deps: AgentDeps): Router {
     }
   }
 
-  router.get('/', requireSession, wrap(async (req) => listInstalled(deps, await token(req))))
+  router.get(
+    '/',
+    requireSession,
+    wrap(async (req) => listInstalled(deps, await token(req))),
+  )
   router.get(
     '/scopes',
     requireSession,

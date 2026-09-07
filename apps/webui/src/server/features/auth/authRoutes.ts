@@ -12,11 +12,7 @@ import {
   resolveSession,
   type AuthDeps,
 } from './authService.js'
-import {
-  SESSION_COOKIE_NAME,
-  requireSession,
-  type AuthedRequest,
-} from './sessionMiddleware.js'
+import { SESSION_COOKIE_NAME, requireSession, type AuthedRequest } from './sessionMiddleware.js'
 
 /**
  * 认证路由（计划 3.7 固定接口）：

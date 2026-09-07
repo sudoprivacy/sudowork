@@ -31,7 +31,9 @@
   color: var(--color-text-3);
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.2s, background-color 0.2s;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
 }
 .right-panel-tabs__item:hover {
   color: var(--color-text-1);

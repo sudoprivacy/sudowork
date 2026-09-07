@@ -98,7 +98,10 @@ describe('web sessions', () => {
     expect(viaB!.id).not.toBe(sessionA.id)
 
     // 未知 digest 查不到任何 Session
-    const unknown = await findActiveSessionByDigest(pool, digestToken(generateSessionToken(), HMAC_KEY))
+    const unknown = await findActiveSessionByDigest(
+      pool,
+      digestToken(generateSessionToken(), HMAC_KEY),
+    )
     expect(unknown).toBeNull()
   })
 

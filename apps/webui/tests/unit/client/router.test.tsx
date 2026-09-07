@@ -65,7 +65,7 @@ describe('route table scope (计划 Task 4)', () => {
       refresh: vi.fn(),
     })
     renderAt('/')
-    await waitFor(() => expect(screen.getByRole('heading', { name: /sudowork webui/i })).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('heading', { name: /CTWork/i })).toBeTruthy())
   })
 
   test('authenticated visit to / redirects to /guid placeholder', async () => {

@@ -64,7 +64,10 @@ interface StoredTokens {
 const refreshInFlight = new Map<string, Promise<StoredTokens>>()
 
 function mapLoginError(err: unknown): Error {
-  if (err instanceof MossHttpError && (err.status === 400 || err.status === 401 || err.status === 403)) {
+  if (
+    err instanceof MossHttpError &&
+    (err.status === 400 || err.status === 401 || err.status === 403)
+  ) {
     return new InvalidCredentialsError()
   }
   if (err instanceof MossNetworkError) {
@@ -79,7 +82,10 @@ function mapLoginError(err: unknown): Error {
  * - identityBaseUrl：落库到 principal/session 的身份地址（与配置同 origin→null，视为未自定义，
  *   避免同一 moss 下身份分裂）；仅真正自定义（异 origin）时非 null
  */
-export function resolveLoginMoss(config: AppConfig, mossBaseUrl?: string): { baseUrl: string; identityBaseUrl: string | null } {
+export function resolveLoginMoss(
+  config: AppConfig,
+  mossBaseUrl?: string,
+): { baseUrl: string; identityBaseUrl: string | null } {
   if (!mossBaseUrl) return { baseUrl: config.moss.baseUrl, identityBaseUrl: null }
   const configuredOrigin = new URL(config.moss.baseUrl).origin
   const origin = new URL(mossBaseUrl).origin
@@ -164,7 +170,10 @@ export async function loginWithPassword(
   const { baseUrl, identityBaseUrl } = resolveLoginMoss(deps.config, input.mossBaseUrl)
   let tokens: MossTokenSet
   try {
-    tokens = await deps.mossAuth.loginWithPassword({ username: input.username, password: input.password }, baseUrl)
+    tokens = await deps.mossAuth.loginWithPassword(
+      { username: input.username, password: input.password },
+      baseUrl,
+    )
   } catch (err) {
     throw mapLoginError(err)
   }
@@ -173,7 +182,11 @@ export async function loginWithPassword(
   return performLogin(deps, tokens, me, identityBaseUrl)
 }
 
-export async function loginWithApiKey(deps: AuthDeps, apiKey: string, mossBaseUrl?: string): Promise<LoginResult> {
+export async function loginWithApiKey(
+  deps: AuthDeps,
+  apiKey: string,
+  mossBaseUrl?: string,
+): Promise<LoginResult> {
   const { baseUrl, identityBaseUrl } = resolveLoginMoss(deps.config, mossBaseUrl)
   let tokens: MossTokenSet
   try {
@@ -192,7 +205,10 @@ async function refreshTokensFor(deps: AuthDeps, session: WebSessionRow): Promise
 
   const task = (async () => {
     const stored = await decryptStored(deps, session)
-    const tokens = await deps.mossAuth.refresh(stored.refreshToken, session.mossBaseUrl ?? deps.config.moss.baseUrl)
+    const tokens = await deps.mossAuth.refresh(
+      stored.refreshToken,
+      session.mossBaseUrl ?? deps.config.moss.baseUrl,
+    )
     const next = serializeTokens(tokens)
     await replaceSessionTokens(
       deps.pool,
@@ -276,7 +292,10 @@ export async function logout(deps: AuthDeps, webSessionId: string): Promise<void
  * 刷新失败不再静默回退旧 token：moss 拒绝刷新（401/403）说明登录态已失效，
  * 抛 MossUnauthorizedError（→401 引导重新登录）；网络类错误原样上抛（→503，不误报登录过期）。
  */
-export async function getMossContext(deps: AuthDeps, session: WebSessionRow): Promise<MossCallContext> {
+export async function getMossContext(
+  deps: AuthDeps,
+  session: WebSessionRow,
+): Promise<MossCallContext> {
   const baseUrl = session.mossBaseUrl ?? deps.config.moss.baseUrl
   const stored = await decryptStored(deps, session)
   if (stored.expiresAt - Date.now() < 60_000) {

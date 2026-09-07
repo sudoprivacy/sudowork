@@ -18,10 +18,14 @@ describe('MossCronPort request shapes（修订版 3.9）', () => {
     await port.runs(CTX, 'j1', 20)
 
     const calls = mock.mock.calls.map(
-      (c) =>
-        (c[1] as { method: string; path: string; searchParams?: Record<string, string> }),
+      (c) => c[1] as { method: string; path: string; searchParams?: Record<string, string> },
     )
-    expect(calls.map((c) => `${c.method} ${c.path}${c.searchParams ? `?${new URLSearchParams(c.searchParams)}` : ''}`)).toEqual([
+    expect(
+      calls.map(
+        (c) =>
+          `${c.method} ${c.path}${c.searchParams ? `?${new URLSearchParams(c.searchParams)}` : ''}`,
+      ),
+    ).toEqual([
       'GET /api/v1/cron/jobs',
       'GET /api/v1/cron/jobs/j1',
       'POST /api/v1/cron/jobs',
@@ -30,7 +34,9 @@ describe('MossCronPort request shapes（修订版 3.9）', () => {
       'POST /api/v1/cron/jobs/j1/trigger',
       'GET /api/v1/cron/jobs/j1/runs?limit=20',
     ])
-    expect(mock.mock.calls.every((c) => (c[1] as { accessToken?: string }).accessToken === TK)).toBe(true)
+    expect(
+      mock.mock.calls.every((c) => (c[1] as { accessToken?: string }).accessToken === TK),
+    ).toBe(true)
   })
 
   test('admin list uses /api/v1/admin/cron/jobs', async () => {

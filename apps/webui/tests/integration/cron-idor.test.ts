@@ -33,8 +33,24 @@ const testConfig: AppConfig = {
 
 /** A 的 job：job-a1；B 的 job：job-b1（同一 org）。 */
 const JOBS: Record<string, Record<string, unknown>[]> = {
-  'at-a': [{ id: 'job-a1', userId: 'moss-a', name: 'A 任务', enabled: true, schedule: { kind: 'every', value: '10m' } }],
-  'at-b': [{ id: 'job-b1', userId: 'moss-b', name: 'B 任务', enabled: true, schedule: { kind: 'cron', value: '0 9 * * *' } }],
+  'at-a': [
+    {
+      id: 'job-a1',
+      userId: 'moss-a',
+      name: 'A 任务',
+      enabled: true,
+      schedule: { kind: 'every', value: '10m' },
+    },
+  ],
+  'at-b': [
+    {
+      id: 'job-b1',
+      userId: 'moss-b',
+      name: 'B 任务',
+      enabled: true,
+      schedule: { kind: 'cron', value: '0 9 * * *' },
+    },
+  ],
 }
 
 function createFakeAuth(): MossAuthPort {
@@ -113,8 +129,10 @@ function createFakeSessions(): MossSessionPort {
       return []
     },
     async get(_tk, id) {
-      if (id === 'sess-a1') return { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' }
-      if (id === 'sess-b1') return { sessionId: id, userId: 'moss-b', orgId: 'org-1', status: 'active' }
+      if (id === 'sess-a1')
+        return { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' }
+      if (id === 'sess-b1')
+        return { sessionId: id, userId: 'moss-b', orgId: 'org-1', status: 'active' }
       return null
     },
     async create() {
@@ -125,7 +143,10 @@ function createFakeSessions(): MossSessionPort {
       return { context: { messages: [] } }
     },
     async resume(_tk, id) {
-      return { session: { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' }, wsUrl: '' }
+      return {
+        session: { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' },
+        wsUrl: '',
+      }
     },
     async terminate() {},
     async workspaceTree() {
@@ -135,10 +156,10 @@ function createFakeSessions(): MossSessionPort {
       return null
     },
     async workspaceFilePost() {
-        return {}
+      return {}
     },
     async sessionSkillsAvailable(): Promise<unknown> {
-        return { skills: [] }
+      return { skills: [] }
     },
   }
 }
@@ -153,8 +174,16 @@ describe('cron routes (real PostgreSQL + fake moss)', () => {
 
   beforeAll(async () => {
     pool = await createTestDatabase()
-    principalA = await upsertPrincipal(pool, { mossUserId: 'moss-a', orgId: 'org-1', username: 'a' })
-    principalB = await upsertPrincipal(pool, { mossUserId: 'moss-b', orgId: 'org-1', username: 'b' })
+    principalA = await upsertPrincipal(pool, {
+      mossUserId: 'moss-a',
+      orgId: 'org-1',
+      username: 'a',
+    })
+    principalB = await upsertPrincipal(pool, {
+      mossUserId: 'moss-b',
+      orgId: 'org-1',
+      username: 'b',
+    })
 
     const mkCookie = async (principalId: string, accessToken: string): Promise<string> => {
       const token = generateSessionToken()

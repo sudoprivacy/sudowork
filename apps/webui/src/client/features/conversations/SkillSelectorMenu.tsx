@@ -11,7 +11,13 @@ import type { RefInputType } from '@arco-design/web-react/es/Input/interface'
 import { IconSearch } from '@arco-design/web-react/icon'
 import { Zap } from 'lucide-react'
 import type { SkillSelectorItem } from './useSkillSelector'
-import { pickFallbackAccent, pickIconByName, pickIconByHeuristic, resolveColor, withAlpha } from './skillIcon'
+import {
+  pickFallbackAccent,
+  pickIconByName,
+  pickIconByHeuristic,
+  resolveColor,
+  withAlpha,
+} from './skillIcon'
 import skillDefaultIcon from '@client/assets/skill-default.svg'
 
 export function SkillIconGraphic({ skill }: { skill: SkillSelectorItem }): React.ReactElement {
@@ -24,19 +30,19 @@ export function SkillIconGraphic({ skill }: { skill: SkillSelectorItem }): React
       <img
         src={imgSrc}
         alt={skill.displayName || skill.name}
-        className='w-full h-full object-cover'
+        className="w-full h-full object-cover"
         onError={() => setImgFailed(true)}
       />
     )
   }
   if (skill.emoji) {
-    return <span className='text-16px leading-none'>{skill.emoji}</span>
+    return <span className="text-16px leading-none">{skill.emoji}</span>
   }
   const Icon = pickIconByName(icon) ?? pickIconByHeuristic(skill.name)
   if (Icon) {
-    return <Icon theme='outline' size='18' fill={accent} />
+    return <Icon theme="outline" size="18" fill={accent} />
   }
-  return <img src={skillDefaultIcon} alt='' className='w-18px h-18px object-contain' />
+  return <img src={skillDefaultIcon} alt="" className="w-18px h-18px object-contain" />
 }
 
 export function SkillSelectorMenu({
@@ -71,10 +77,11 @@ export function SkillSelectorMenu({
     const result = skills.filter((s) => (s.enabled ?? true) !== false)
     const keyword = debouncedSearch.trim().toLowerCase()
     if (!keyword) return result
-    return result.filter((s) =>
-      s.name.toLowerCase().includes(keyword) ||
-      (s.displayName ?? '').toLowerCase().includes(keyword) ||
-      (s.description ?? '').toLowerCase().includes(keyword),
+    return result.filter(
+      (s) =>
+        s.name.toLowerCase().includes(keyword) ||
+        (s.displayName ?? '').toLowerCase().includes(keyword) ||
+        (s.description ?? '').toLowerCase().includes(keyword),
     )
   }, [skills, debouncedSearch])
 
@@ -130,15 +137,15 @@ export function SkillSelectorMenu({
   }, [popupVisible, filteredSkills, activeIndex, onSelectItem, onDismiss, searchQuery])
 
   return (
-    <div className='w-72 flex flex-col'>
+    <div className="w-72 flex flex-col">
       {/* Search box */}
       <Input
         ref={searchInputRef}
-        className='my-2'
-        size='small'
+        className="my-2"
+        size="small"
         prefix={<IconSearch />}
         allowClear
-        placeholder='搜索技能...'
+        placeholder="搜索技能..."
         value={searchQuery}
         onChange={setSearchQuery}
         onKeyDown={(e) => {
@@ -146,12 +153,16 @@ export function SkillSelectorMenu({
         }}
       />
       {/* Content area */}
-      <div role='listbox' aria-busy={loading} className='overflow-y-auto h-260px flex flex-col gap-0.5 p-1'>
+      <div
+        role="listbox"
+        aria-busy={loading}
+        className="overflow-y-auto h-260px flex flex-col gap-0.5 p-1"
+      >
         {loading && filteredSkills.length === 0 ? (
-          <div className='px-2.5 py-3 text-13px text-secondary'>技能加载中…</div>
+          <div className="px-2.5 py-3 text-13px text-secondary">技能加载中…</div>
         ) : null}
         {!loading && filteredSkills.length === 0 ? (
-          <div className='px-2.5 py-3 text-13px text-secondary'>
+          <div className="px-2.5 py-3 text-13px text-secondary">
             {searchQuery ? '未找到匹配结果' : '暂无可选技能'}
           </div>
         ) : null}
@@ -160,8 +171,8 @@ export function SkillSelectorMenu({
           return (
             <button
               key={skill.name}
-              type='button'
-              role='option'
+              type="button"
+              role="option"
               aria-selected={on}
               data-testid={`skill-option-${skill.name}`}
               ref={(node) => {
@@ -175,18 +186,28 @@ export function SkillSelectorMenu({
               onClick={() => onSelectItem(skill)}
             >
               <span
-                className='inline-flex size-8 shrink-0 items-center justify-center rd-6px overflow-hidden bg-fill-2'
-                style={{ backgroundColor: withAlpha(resolveColor((skill as { color?: string }).color) ?? pickFallbackAccent(skill.name), 0.12) }}
+                className="inline-flex size-8 shrink-0 items-center justify-center rd-6px overflow-hidden bg-fill-2"
+                style={{
+                  backgroundColor: withAlpha(
+                    resolveColor((skill as { color?: string }).color) ??
+                      pickFallbackAccent(skill.name),
+                    0.12,
+                  ),
+                }}
               >
                 <SkillIconGraphic skill={skill} />
               </span>
-              <div className='min-w-0 flex-1'>
-                <div className='flex items-center gap-1.5 min-w-0'>
-                  <span className='text-14px truncate text-foreground font-medium'>{skill.displayName || skill.name}</span>
-                  {on ? <Zap size={12} color='var(--ui-accent-orange)' className='shrink-0' /> : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-14px truncate text-foreground font-medium">
+                    {skill.displayName || skill.name}
+                  </span>
+                  {on ? (
+                    <Zap size={12} color="var(--ui-accent-orange)" className="shrink-0" />
+                  ) : null}
                 </div>
                 {skill.description ? (
-                  <div className='text-11px text-secondary truncate'>{skill.description}</div>
+                  <div className="text-11px text-secondary truncate">{skill.description}</div>
                 ) : null}
               </div>
             </button>

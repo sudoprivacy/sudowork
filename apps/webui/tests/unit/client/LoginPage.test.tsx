@@ -79,7 +79,9 @@ describe('LoginPage', () => {
 
     fireEvent.change(screen.getByLabelText('用户名'), { target: { value: 'u' } })
     fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'p' } })
-    fireEvent.change(screen.getByLabelText('Moss 服务器地址'), { target: { value: 'https://custom.moss:9443' } })
+    fireEvent.change(screen.getByLabelText('Moss 服务器地址'), {
+      target: { value: 'https://custom.moss:9443' },
+    })
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
 
     await waitFor(() =>

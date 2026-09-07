@@ -16,7 +16,13 @@ import {
   uploadWorkspaceFile,
   type WorkspaceNode,
 } from '../conversationApi'
-import { pickFallbackAccent, pickIconByName, pickIconByHeuristic, resolveColor, withAlpha } from '../skillIcon'
+import {
+  pickFallbackAccent,
+  pickIconByName,
+  pickIconByHeuristic,
+  resolveColor,
+  withAlpha,
+} from '../skillIcon'
 import type { SkillSelectorItem } from '../useSkillSelector'
 import skillDefaultIcon from '@client/assets/skill-default.svg'
 
@@ -49,7 +55,7 @@ function toTreeNodes(node: WorkspaceNode): TreeDataType[] {
         // .drafts 本地化显示（对齐 Sudowork 草稿箱文案）
         title: isDrafts ? '草稿箱' : node.name,
         // 草稿箱目录图标（对齐 Sudowork workspace/index.tsx:44,476 的 FolderOpen 琥珀色）
-        ...(isDrafts ? { icon: <FolderOpen theme='outline' size='16' fill='#f59e0b' /> } : {}),
+        ...(isDrafts ? { icon: <FolderOpen theme="outline" size="16" fill="#f59e0b" /> } : {}),
         isLeaf: false,
         children: Array.isArray(node.children)
           ? node.children.flatMap((c) => (c.isDir ? toTreeNodes(c) : toTreeNodes(c)))
@@ -68,13 +74,17 @@ function isHiddenEntry(name: string): boolean {
 
 /** 渲染层递归过滤隐藏条目（不动 root 状态，loadMore 增量合并不受影响） */
 function filterHiddenNodes(nodes: WorkspaceNode[]): WorkspaceNode[] {
-  return nodes.filter((n) => !isHiddenEntry(n.name)).map((n) => (
-    Array.isArray(n.children) ? { ...n, children: filterHiddenNodes(n.children) } : n
-  ))
+  return nodes
+    .filter((n) => !isHiddenEntry(n.name))
+    .map((n) => (Array.isArray(n.children) ? { ...n, children: filterHiddenNodes(n.children) } : n))
 }
 
 /** 把 loadMore 拉回的子树合并进本地树中 path 对应的目录节点 */
-function mergeSubtree(root: WorkspaceNode, path: string, subtree: WorkspaceNode | null): WorkspaceNode {
+function mergeSubtree(
+  root: WorkspaceNode,
+  path: string,
+  subtree: WorkspaceNode | null,
+): WorkspaceNode {
   if (!subtree) return root
   if (root.relativePath === path) {
     return { ...root, children: subtree.children ?? [] }
@@ -96,19 +106,19 @@ function SkillIconGraphic({ skill }: { skill: PanelSkill }): React.ReactElement 
       <img
         src={imgSrc}
         alt={skill.displayName || skill.name}
-        className='size-full object-cover'
+        className="size-full object-cover"
         onError={() => setImgFailed(true)}
       />
     )
   }
   if (skill.emoji) {
-    return <span className='text-16px leading-none'>{skill.emoji}</span>
+    return <span className="text-16px leading-none">{skill.emoji}</span>
   }
   const Icon = pickIconByName(skill.icon) ?? pickIconByHeuristic(skill.name)
   if (Icon) {
-    return <Icon theme='outline' size='18' fill={accent} />
+    return <Icon theme="outline" size="18" fill={accent} />
   }
-  return <img src={skillDefaultIcon} alt='' className='size-18px object-contain' />
+  return <img src={skillDefaultIcon} alt="" className="size-18px object-contain" />
 }
 
 export function WorkspaceTab({
@@ -131,7 +141,9 @@ export function WorkspaceTab({
   const [root, setRoot] = useState<WorkspaceNode | null>(null)
   const [loading, setLoading] = useState(false)
   const [expandedKeys, setExpandedKeys] = useState<string[]>(() => readExpandedKeys(conversationId))
-  const [preview, setPreview] = useState<{ name: string; mime: string; content: string } | null>(null)
+  const [preview, setPreview] = useState<{ name: string; mime: string; content: string } | null>(
+    null,
+  )
   const [previewLoading, setPreviewLoading] = useState(false)
   const [, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -272,7 +284,7 @@ export function WorkspaceTab({
 
   return (
     <div
-      className='w-full h-full min-h-0 flex flex-col'
+      className="w-full h-full min-h-0 flex flex-col"
       onDrop={onDrop}
       onDragOver={(e) => {
         e.preventDefault()
@@ -282,50 +294,58 @@ export function WorkspaceTab({
       onPaste={onPaste}
     >
       {/* 二级 tab（图标与参数对齐 Sudowork workspace/index.tsx:1185-1192） */}
-      <div className='workspace-card__tabs shrink-0'>
+      <div className="workspace-card__tabs shrink-0">
         <button
-          type='button'
+          type="button"
           className={`workspace-card__tab${subTab === 'files' ? ' workspace-card__tab--active' : ''}`}
           onClick={() => setSubTab('files')}
         >
-          <Cloudy theme='outline' size='14' fill={subTab === 'files' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'} />
+          <Cloudy
+            theme="outline"
+            size="14"
+            fill={subTab === 'files' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'}
+          />
           <span>临时空间</span>
         </button>
         <button
-          type='button'
+          type="button"
           className={`workspace-card__tab${subTab === 'skills' ? ' workspace-card__tab--active' : ''}`}
           onClick={() => setSubTab('skills')}
         >
-          <Magic theme='outline' size='14' fill={subTab === 'skills' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'} />
+          <Magic
+            theme="outline"
+            size="14"
+            fill={subTab === 'skills' ? 'rgb(var(--primary-6))' : 'var(--text-secondary)'}
+          />
           <span>可用技能</span>
         </button>
       </div>
       {/* 工具栏 */}
-      <div className='flex items-center gap-2 px-4 py-2 shrink-0'>
+      <div className="flex items-center gap-2 px-4 py-2 shrink-0">
         <Input
-          size='small'
+          size="small"
           value={search}
           onChange={setSearch}
           placeholder={subTab === 'files' ? '搜索文件…' : '搜索技能…'}
-          aria-label='搜索工作空间'
+          aria-label="搜索工作空间"
           allowClear
         />
         <button
-          type='button'
-          aria-label='刷新'
-          className='inline-flex items-center justify-center size-6 rd-4 border-none bg-transparent text-secondary cursor-pointer hover:bg-fill-2 transition-colors'
+          type="button"
+          aria-label="刷新"
+          className="inline-flex items-center justify-center size-6 rd-4 border-none bg-transparent text-secondary cursor-pointer hover:bg-fill-2 transition-colors"
           onClick={() => void refreshTree(debouncedSearch)}
         >
           <RefreshCw size={13} className={loading ? 'animate-spin' : undefined} />
         </button>
       </div>
       {/* 内容 */}
-      <div className='flex-1 min-h-0 overflow-y-auto' ref={treeScrollRef}>
+      <div className="flex-1 min-h-0 overflow-y-auto" ref={treeScrollRef}>
         {subTab === 'files' ? (
           <>
             {treeData.length > 0 ? (
               <Tree
-                className='!pl-8px !pr-16px workspace-tree'
+                className="!pl-8px !pr-16px workspace-tree"
                 treeData={treeData}
                 selectedKeys={[]}
                 expandedKeys={expandedKeys}
@@ -333,8 +353,7 @@ export function WorkspaceTab({
                 loadMore={loadMore}
                 onSelect={(_, extra) => {
                   const node = extra?.node as
-                    | { props?: { isLeaf?: boolean }; key?: string | null }
-                    | undefined
+                    { props?: { isLeaf?: boolean }; key?: string | null } | undefined
                   const key = node?.key
                   if (typeof key !== 'string') return
                   if (node?.props?.isLeaf) {
@@ -350,13 +369,15 @@ export function WorkspaceTab({
               />
             ) : (
               <Empty
-                description={loading ? '加载中…' : debouncedSearch ? '未找到匹配文件' : '暂无工作区文件'}
-                className='mt-8'
+                description={
+                  loading ? '加载中…' : debouncedSearch ? '未找到匹配文件' : '暂无工作区文件'
+                }
+                className="mt-8"
               />
             )}
           </>
         ) : skillList.length > 0 ? (
-          <div className='flex flex-col gap-2 p-3'>
+          <div className="flex flex-col gap-2 p-3">
             {skillList
               .filter((s) => {
                 const keyword = search.trim().toLowerCase()
@@ -372,18 +393,20 @@ export function WorkspaceTab({
                 return (
                   <div
                     key={s.name}
-                    className='flex items-start gap-8px px-10px py-8px rd-8px border b-solid border-[var(--border-light)] bg-[var(--color-bg-2)]'
+                    className="flex items-start gap-8px px-10px py-8px rd-8px border b-solid border-[var(--border-light)] bg-[var(--color-bg-2)]"
                   >
                     <span
-                      className='inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rd-6px'
+                      className="inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rd-6px"
                       style={{ backgroundColor: withAlpha(accent, 0.12) }}
                     >
                       <SkillIconGraphic skill={s} />
                     </span>
-                    <div className='min-w-0 flex flex-col gap-2px'>
-                      <span className='text-13px text-1 font-500 truncate'>{s.displayName || s.name}</span>
+                    <div className="min-w-0 flex flex-col gap-2px">
+                      <span className="text-13px text-1 font-500 truncate">
+                        {s.displayName || s.name}
+                      </span>
                       {s.description ? (
-                        <span className='text-12px text-3 line-clamp-2'>{s.description}</span>
+                        <span className="text-12px text-3 line-clamp-2">{s.description}</span>
                       ) : null}
                     </div>
                   </div>
@@ -391,7 +414,7 @@ export function WorkspaceTab({
               })}
           </div>
         ) : (
-          <Empty description='暂无已安装的技能' className='mt-8' />
+          <Empty description="暂无已安装的技能" className="mt-8" />
         )}
       </div>
       {/* 文件预览（复用交付物 tab 的预览形态） */}
@@ -403,12 +426,16 @@ export function WorkspaceTab({
         style={{ width: 680, maxHeight: '80vh' }}
       >
         {previewLoading ? (
-          <div className='py-8 text-center text-13px text-tertiary'>加载中…</div>
+          <div className="py-8 text-center text-13px text-tertiary">加载中…</div>
         ) : preview ? (
           preview.mime.startsWith('image/') && preview.mime !== 'image/svg+xml' ? (
-            <img src={`data:${preview.mime};base64,${preview.content}`} alt={preview.name} className='max-w-full' />
+            <img
+              src={`data:${preview.mime};base64,${preview.content}`}
+              alt={preview.name}
+              className="max-w-full"
+            />
           ) : (
-            <pre className='max-h-[60vh] overflow-auto text-12px whitespace-pre-wrap break-words text-foreground'>
+            <pre className="max-h-[60vh] overflow-auto text-12px whitespace-pre-wrap break-words text-foreground">
               {preview.content}
             </pre>
           )

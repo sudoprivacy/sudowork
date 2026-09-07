@@ -76,7 +76,11 @@ export function createSkillRouter(deps: SkillDeps): Router {
     }
   }
 
-  router.get('/', requireSession, wrap(async (req) => listInstalled(deps, await token(req))))
+  router.get(
+    '/',
+    requireSession,
+    wrap(async (req) => listInstalled(deps, await token(req))),
+  )
   router.get(
     '/hub/categories',
     requireSession,

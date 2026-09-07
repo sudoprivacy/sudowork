@@ -19,16 +19,16 @@ export function SettingsSider(): React.ReactElement {
   const { pathname } = useLocation()
 
   return (
-    <div className='flex-1 min-h-0 settings-sider flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden scrollbar-hide'>
+    <div className="flex-1 min-h-0 settings-sider flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden scrollbar-hide">
       {SETTINGS_ITEMS.map((item) => {
         const selected = pathname === `/settings/${item.path}`
         return (
           <SidebarNavItem
             key={item.id}
-            icon={<item.Icon size={20} strokeWidth={1.8} className='flex' />}
+            icon={<item.Icon size={20} strokeWidth={1.8} className="flex" />}
             label={item.label}
             selected={selected}
-            className='settings-sider__item shrink-0'
+            className="settings-sider__item shrink-0"
             dataAttributes={{ 'data-settings-id': item.id }}
             onClick={() => void navigate(`/settings/${item.path}`)}
           />
