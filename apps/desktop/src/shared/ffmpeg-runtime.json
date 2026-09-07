@@ -1,8 +1,8 @@
 {
   "_doc": "Pinned FFmpeg runtime — SSOT for scripts/download-ffmpeg.js (build-time bundling) and FfmpegRuntimeService (runtime extraction). Source: BtbN/FFmpeg-Builds GPL static builds (libx264 + libass, so `ffmpeg -vf subtitles=` subtitle burning works). 'tag' is an IMMUTABLE dated autobuild release (never 'latest', which rolls); 'version' is the git-describe shared by every asset name in that release; 'releaseSuffix' selects the FFmpeg release-branch build (n9.0) over the master snapshot. Per-platform 'sha256' is the SHA256 of the DOWNLOADED archive (BtbN's GitHub-published asset digest), verified after download — a mismatch aborts the build. To bump: pick a newer autobuild-* tag, set tag/version/releaseSuffix, and refresh every sha256 in one commit via `gh api repos/BtbN/FFmpeg-Builds/releases/tags/<tag> --jq '.assets[] | \"\\(.name) \\(.digest)\"'`. macOS: BtbN ships no macOS build — add an evermeet/osxexperts source before shipping mac (the script skips unconfigured platforms).",
 
-  "tag": "autobuild-2026-08-17-13-05",
-  "version": "n9.0.1-4-gb3ef323dd2",
+  "tag": "autobuild-2026-09-05-13-10",
+  "version": "n9.0.1-26-g5c8e7e2433",
   "releaseSuffix": "9.0",
 
   "_cos_doc": "Runtime download source. FfmpegRuntimeService downloads <cos.baseUrl>/ffmpeg/<tag>/ffmpeg-<key>.tar.gz on demand (China-reachable) when an ffmpeg-needing skill is installed, and verifies it against cos.sha256[key] (the SHA256 of the flat tar.gz produced+uploaded by .github/workflows/mirror-ffmpeg-to-cos.yml). IMPORTANT: node-tar's repack is NOT byte-reproducible, so EVERY mirror run re-uploads ALL platforms with fresh SHA256s — after ANY mirror run, replace EVERY entry below with the values the workflow printed, not just the one you bumped.",
@@ -20,10 +20,10 @@
 
   "_darwin_doc": "macOS: BtbN ships no macOS build, so darwin uses martin-riedl.de static release builds (same FFmpeg 9.0.1, --enable-gpl --enable-libass --enable-libx264). Unlike BtbN, ffmpeg and ffprobe are SEPARATE zips at immutable per-arch build-id URLs, so darwin entries carry explicit {url,sha256} per binary (verified against the source's .sha256 sidecar) instead of the derived-name/single-archive BtbN shape. To bump: pick a new release build id from https://ffmpeg.martin-riedl.de (macos/arm64 + macos/amd64, MATCH the versions) and refresh url+sha256.",
   "platforms": {
-    "win32-x64": { "btbn": "win64", "archive": "zip", "sha256": "ae937d5807fa7a281a0b9fbbfe976bfe60423a75c0892c0e6dcd266f37de43d5" },
-    "win32-arm64": { "btbn": "winarm64", "archive": "zip", "sha256": "ee488b5d138bc24557203b4b81a6a5895ef9b9a3f3b906c9669de2c6b07f63ef" },
-    "linux-x64": { "btbn": "linux64", "archive": "tar.xz", "sha256": "25557a63e38bbf2c03c27b647a40e3d1eaad391b6f0adfce501d62665b7c443c" },
-    "linux-arm64": { "btbn": "linuxarm64", "archive": "tar.xz", "sha256": "d6b7e2952b324b4f8f04d828778ca393668a34b00abd1a445000fbf97ba3e350" },
+    "win32-x64": { "btbn": "win64", "archive": "zip", "sha256": "a8ebbaf7a99185f5abc3a2d3a657521c38d7966f06b70468d7ab29a67fe8654f" },
+    "win32-arm64": { "btbn": "winarm64", "archive": "zip", "sha256": "4a14bf1cd415688667431b778432bf38d6ecca174e02cb0d08f21b331c8bd31a" },
+    "linux-x64": { "btbn": "linux64", "archive": "tar.xz", "sha256": "6b57f1c690481da960221afa3659c94532ceded9cb1eb633db853107769ba72a" },
+    "linux-arm64": { "btbn": "linuxarm64", "archive": "tar.xz", "sha256": "01b134fcdbf83d63814f483f30ead2102dec17fc560a54dd68acc585948b77c9" },
     "darwin-arm64": {
       "source": "martin-riedl",
       "archive": "zip",
