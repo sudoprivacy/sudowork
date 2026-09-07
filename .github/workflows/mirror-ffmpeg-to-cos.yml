@@ -27,6 +27,11 @@ jobs:
   mirror:
     name: Mirror pinned FFmpeg to runtime COS
     runs-on: ubuntu-latest
+    # The ffmpeg tooling lives in the desktop workspace after the monorepo move,
+    # so every `run:` step resolves scripts/ src/shared/ resources/ from there.
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -37,11 +42,16 @@ jobs:
           node-version: '24'
 
       - name: Install deps (tar, yauzl for download-ffmpeg.js)
-        # download-ffmpeg.js only needs these two pure-JS libs — install just
-        # them (no --save, no native builds, no lockfile coupling).
-        run: npm install --no-save tar yauzl
+        # download-ffmpeg.js only needs these two pure-JS libs. Install them into
+        # an ISOLATED prefix (not the workspace) so npm doesn't try to resolve the
+        # monorepo's heavy workspace deps; the download step reaches them via
+        # NODE_PATH. (No --save, no native builds, no lockfile coupling.)
+        working-directory: ${{ runner.temp }}
+        run: npm install --no-save --prefix "${{ runner.temp }}/ffdeps" tar yauzl
 
       - name: Download + repack all pinned platforms
+        env:
+          NODE_PATH: ${{ runner.temp }}/ffdeps/node_modules
         run: |
           set -euo pipefail
           # download-ffmpeg.js runs on any OS — it just fetches the BtbN archive
