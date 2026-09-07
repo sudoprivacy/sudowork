@@ -201,7 +201,7 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
             icon: <IconCopy />,
             onClick: () => {
               // Extract content from message based on its type
-              let textToCopy = '';
+              let textToCopy: string;
               if (messageObj.type === 'text') {
                 // For text messages, extract only the text content (exclude files, skills, etc.)
                 let rawContent = messageObj.content.content;

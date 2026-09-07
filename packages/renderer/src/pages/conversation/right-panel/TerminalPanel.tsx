@@ -233,7 +233,6 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conv
     if (!activeTabId) return;
     const timer = window.setTimeout(() => resizeRuntime(activeTabId), 0);
     return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convKey]);
 
   useLayoutEffect(() => {

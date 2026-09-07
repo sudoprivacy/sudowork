@@ -56,7 +56,6 @@ const WeChatConfigForm: React.FC<WeChatConfigFormProps> = ({ pluginId: pluginIdP
       setPhase('idle');
     }
     // Keep this tied to connection status only; adding phase can interrupt local QR login state transitions.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected]);
 
   // Load available agents + saved selection

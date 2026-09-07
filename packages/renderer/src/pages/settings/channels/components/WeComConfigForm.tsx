@@ -83,7 +83,6 @@ const WeComConfigForm: React.FC<WeComConfigFormProps> = ({ pluginId: pluginIdPro
       void loadCredentials();
     }
     // Keep this tied to plugin status only; onCredentialsChange is an inline parent callback.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pluginStatus]);
 
   // Load available agents + saved selection

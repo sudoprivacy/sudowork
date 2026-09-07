@@ -29,7 +29,7 @@ export function useAvailableModels(): { modelList: IProvider[]; ready: boolean }
   });
 
   const modelList = useMemo(() => {
-    let allProviders: IProvider[] = [];
+    let allProviders: IProvider[];
 
     if (isGoogleAuth) {
       const geminiProvider: IProvider = {
