@@ -62,11 +62,7 @@ export class NexusVfsGrpcClient {
    * now", NOT end. REJECTS on a stream error — that IS the real stream-closed /
    * agent-exited signal.
    */
-  streamReadAt(
-    streamPath: string,
-    offset: string,
-    opts: { blocking?: boolean; timeoutMs?: number } = {}
-  ): Promise<StreamReadAtResult> {
+  streamReadAt(streamPath: string, offset: string, opts: { blocking?: boolean; timeoutMs?: number } = {}): Promise<StreamReadAtResult> {
     return this.client.streamReadAt(streamPath, offset, this.token, opts);
   }
 
