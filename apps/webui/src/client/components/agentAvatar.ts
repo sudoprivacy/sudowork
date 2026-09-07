@@ -14,7 +14,8 @@ const MOSS_TENANT_AVATAR_PREFIX = '/uploads/tenant-assistant-avatars/'
 export type ResolvedAgentAvatar = { kind: 'emoji' | 'image'; value: string } | null
 
 // 单个 emoji（含 ZWJ 序列，如 👨‍💻）；与 AgentsPage 原本地实现同口径，收敛到此处统一使用
-const EMOJI_AVATAR_REGEX = /^(?:\p{Emoji_Presentation}|\p{Emoji}️)(?:‍(?:\p{Emoji_Presentation}|\p{Emoji}️))*$/u
+const EMOJI_AVATAR_REGEX =
+  /^(?:\p{Emoji_Presentation}|\p{Emoji}️)(?:‍(?:\p{Emoji_Presentation}|\p{Emoji}️))*$/u
 
 export function resolveAgentAvatar(avatar: string | null | undefined): ResolvedAgentAvatar {
   const value = (avatar ?? '').trim()

@@ -63,7 +63,10 @@ describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', (
     await port.tenantDelete(CTX, 't1')
     await port.tenantDownload(CTX, 't1')
     await port.tenantPublish(CTX, { assistantName: 'helper' })
-    const paths = mock.mock.calls.map((c) => (c[1] as { method: string; path: string }).method + ' ' + (c[1] as { path: string }).path)
+    const paths = mock.mock.calls.map(
+      (c) =>
+        (c[1] as { method: string; path: string }).method + ' ' + (c[1] as { path: string }).path,
+    )
     expect(paths).toEqual([
       'GET /api/v1/agents/tenant',
       'POST /api/v1/agents/tenant/create',

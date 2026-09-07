@@ -16,14 +16,11 @@ describe('MossAuthPort request shapes (contract vs baseline)', () => {
     const tokens = await port.loginWithPassword({ username: 'u1', password: 'p1' }, BASE)
 
     expect(tokens.access_token).toBe('at-1')
-    expect(mock).toHaveBeenCalledWith(
-      BASE,
-      {
-        method: 'POST',
-        path: '/api/v1/auth/login',
-        body: { grant_type: 'password', username: 'u1', password: 'p1' },
-      },
-    )
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { grant_type: 'password', username: 'u1', password: 'p1' },
+    })
   })
 
   test('api key login posts grant_type=api_key', async () => {
@@ -32,14 +29,11 @@ describe('MossAuthPort request shapes (contract vs baseline)', () => {
 
     await port.loginWithApiKey('sk-xyz', BASE)
 
-    expect(mock).toHaveBeenCalledWith(
-      BASE,
-      {
-        method: 'POST',
-        path: '/api/v1/auth/login',
-        body: { grant_type: 'api_key', api_key: 'sk-xyz' },
-      },
-    )
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { grant_type: 'api_key', api_key: 'sk-xyz' },
+    })
   })
 
   test('refresh posts grant_type=refresh_token to /api/v1/auth/token', async () => {
@@ -48,14 +42,11 @@ describe('MossAuthPort request shapes (contract vs baseline)', () => {
 
     await port.refresh('rt-old', BASE)
 
-    expect(mock).toHaveBeenCalledWith(
-      BASE,
-      {
-        method: 'POST',
-        path: '/api/v1/auth/token',
-        body: { grant_type: 'refresh_token', refresh_token: 'rt-old' },
-      },
-    )
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/auth/token',
+      body: { grant_type: 'refresh_token', refresh_token: 'rt-old' },
+    })
   })
 
   test('me sends GET /api/v1/auth/me with the session access token', async () => {
@@ -70,10 +61,11 @@ describe('MossAuthPort request shapes (contract vs baseline)', () => {
     const me = await port.me('at-9', BASE)
     expect(me.user.id).toBe('u')
 
-    expect(mock).toHaveBeenCalledWith(
-      BASE,
-      { method: 'GET', path: '/api/v1/auth/me', accessToken: 'at-9' },
-    )
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'GET',
+      path: '/api/v1/auth/me',
+      accessToken: 'at-9',
+    })
   })
 
   test('token set missing required fields is rejected', async () => {
@@ -88,7 +80,12 @@ describe('mossRequest transport behavior', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await mossRequest(BASE, { method: 'POST', path: '/api/v1/x', body: { a: 1 }, accessToken: 'tk' })
+    await mossRequest(BASE, {
+      method: 'POST',
+      path: '/api/v1/x',
+      body: { a: 1 },
+      accessToken: 'tk',
+    })
 
     const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit]
     expect(init.headers).toMatchObject({
@@ -102,7 +99,9 @@ describe('mossRequest transport behavior', () => {
   test('non-2xx response throws MossHttpError with status', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation(() => Promise.resolve(new Response('{"error":"no"}', { status: 403 }))),
+      vi
+        .fn()
+        .mockImplementation(() => Promise.resolve(new Response('{"error":"no"}', { status: 403 }))),
     )
     await expect(mossRequest(BASE, { method: 'GET', path: '/x' })).rejects.toThrow(MossHttpError)
     await expect(mossRequest(BASE, { method: 'GET', path: '/x' })).rejects.toThrow('403')
@@ -111,9 +110,7 @@ describe('mossRequest transport behavior', () => {
 
   test('network failure throws MossNetworkError', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')))
-    await expect(mossRequest(BASE, { method: 'GET', path: '/x' })).rejects.toThrow(
-      MossNetworkError,
-    )
+    await expect(mossRequest(BASE, { method: 'GET', path: '/x' })).rejects.toThrow(MossNetworkError)
     vi.unstubAllGlobals()
   })
 

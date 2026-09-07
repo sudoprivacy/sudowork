@@ -41,9 +41,18 @@ function parseToolInput(input: unknown): Record<string, unknown> | null {
 /** 展平 workspace tree，收集文件 node（用于补齐 size/mime） */
 function flattenFiles(node: unknown, out: { relativePath: string; size?: number }[]): void {
   if (!node || typeof node !== 'object') return
-  const n = node as { isFile?: boolean; isDir?: boolean; relativePath?: string; size?: number; children?: unknown[] }
+  const n = node as {
+    isFile?: boolean
+    isDir?: boolean
+    relativePath?: string
+    size?: number
+    children?: unknown[]
+  }
   if (n.isFile && typeof n.relativePath === 'string') {
-    out.push({ relativePath: n.relativePath, size: typeof n.size === 'number' ? n.size : undefined })
+    out.push({
+      relativePath: n.relativePath,
+      size: typeof n.size === 'number' ? n.size : undefined,
+    })
   }
   if (Array.isArray(n.children)) {
     for (const child of n.children) flattenFiles(child, out)
@@ -90,7 +99,8 @@ export async function getDeliverables(
   if (treeRoot) flattenFiles(treeRoot, files)
   const fileByPath = new Map(files.map((f) => [f.relativePath, f]))
 
-  const messages = ((contextJson as { context?: { messages?: unknown[] } } | null)?.context?.messages ?? []) as Record<string, unknown>[]
+  const messages = ((contextJson as { context?: { messages?: unknown[] } } | null)?.context
+    ?.messages ?? []) as Record<string, unknown>[]
   const items = new Map<string, DeliverableItem>()
   for (const msg of messages) {
     if (msg.type !== 'tool_use') continue

@@ -37,26 +37,26 @@ export function ConversationRow({
   return (
     <>
       <div
-        data-testid='conversation-row'
+        data-testid="conversation-row"
         className={`chat-history__item group relative flex w-full items-center overflow-hidden rounded-lg px-3 py-2 cursor-pointer shrink-0 min-w-0 transition-colors conversation-item ${
           active ? '!bg-active conversation-item--selected' : 'hover:bg-hover'
         }`}
         onClick={onOpen}
       >
         {/* 前置图标：头像（tenant 走同源代理）/ emoji / 兜底 MessageOne（对齐 Sudowork ConversationRow） */}
-        <span className='mr-2 inline-flex size-20px shrink-0 items-center justify-center overflow-hidden'>
+        <span className="mr-2 inline-flex size-20px shrink-0 items-center justify-center overflow-hidden">
           {(() => {
             const resolved = resolveAgentAvatar(avatar)
             if (resolved?.kind === 'image') {
-              return <img src={resolved.value} alt='' className='h-20px w-20px object-contain' />
+              return <img src={resolved.value} alt="" className="h-20px w-20px object-contain" />
             }
             if (resolved?.kind === 'emoji') {
-              return <span className='text-14px leading-none'>{resolved.value}</span>
+              return <span className="text-14px leading-none">{resolved.value}</span>
             }
             return emoji ? (
-              <span className='text-14px leading-none'>{emoji}</span>
+              <span className="text-14px leading-none">{emoji}</span>
             ) : (
-              <MessageOne theme='outline' size='20' className='line-height-0 flex-shrink-0' />
+              <MessageOne theme="outline" size="20" className="line-height-0 flex-shrink-0" />
             )
           })()}
         </span>
@@ -70,20 +70,26 @@ export function ConversationRow({
         </span>
         {/* 置顶标记 */}
         {item.pinned ? (
-          <Pin size={14} className='ml-1 shrink-0 text-secondary' aria-label='已置顶' />
+          <Pin size={14} className="ml-1 shrink-0 text-secondary" aria-label="已置顶" />
         ) : null}
         {/* hover 渐隐遮罩 + 三点菜单 */}
-        <span className='conversation-item__menu absolute right-6px top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity'>
+        <span className="conversation-item__menu absolute right-6px top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
           <Dropdown
-            trigger='click'
-            position='br'
+            trigger="click"
+            position="br"
             droplist={
               <Menu style={{ minWidth: 120 }}>
-                <Menu.Item key='pin' onClick={(e) => { e?.stopPropagation?.(); onPin() }}>
+                <Menu.Item
+                  key="pin"
+                  onClick={(e) => {
+                    e?.stopPropagation?.()
+                    onPin()
+                  }}
+                >
                   {item.pinned ? '取消置顶' : '置顶'}
                 </Menu.Item>
                 <Menu.Item
-                  key='rename'
+                  key="rename"
                   onClick={(e) => {
                     e?.stopPropagation?.()
                     setDraft(title)
@@ -92,22 +98,29 @@ export function ConversationRow({
                 >
                   重命名
                 </Menu.Item>
-                <Menu.Item key='delete' style={{ color: 'rgb(var(--red-6))' }} onClick={(e) => { e?.stopPropagation?.(); onDelete() }}>
+                <Menu.Item
+                  key="delete"
+                  style={{ color: 'rgb(var(--red-6))' }}
+                  onClick={(e) => {
+                    e?.stopPropagation?.()
+                    onDelete()
+                  }}
+                >
                   删除
                 </Menu.Item>
               </Menu>
             }
           >
             <button
-              type='button'
-              aria-label='会话操作'
-              className='flex items-center border-none bg-transparent cursor-pointer p-1'
+              type="button"
+              aria-label="会话操作"
+              className="flex items-center border-none bg-transparent cursor-pointer p-1"
               onClick={(e) => e.stopPropagation()}
             >
-              <span className='flex flex-col gap-0.5'>
-                <span className='block w-0.5 h-0.5 rounded-full bg-current' />
-                <span className='block w-0.5 h-0.5 rounded-full bg-current' />
-                <span className='block w-0.5 h-0.5 rounded-full bg-current' />
+              <span className="flex flex-col gap-0.5">
+                <span className="block w-0.5 h-0.5 rounded-full bg-current" />
+                <span className="block w-0.5 h-0.5 rounded-full bg-current" />
+                <span className="block w-0.5 h-0.5 rounded-full bg-current" />
               </span>
             </button>
           </Dropdown>
@@ -115,7 +128,7 @@ export function ConversationRow({
       </div>
       {/* 重命名 Modal（对齐 Sudowork 重命名弹窗语义） */}
       <Modal
-        title='重命名会话'
+        title="重命名会话"
         visible={renaming}
         onCancel={() => setRenaming(false)}
         onOk={() => {
@@ -127,15 +140,15 @@ export function ConversationRow({
           onRename(next)
           setRenaming(false)
         }}
-        okText='保存'
-        cancelText='取消'
+        okText="保存"
+        cancelText="取消"
         style={{ width: 380 }}
       >
         <Input
           value={draft}
           onChange={setDraft}
-          placeholder='输入会话标题'
-          aria-label='会话标题'
+          placeholder="输入会话标题"
+          aria-label="会话标题"
           maxLength={100}
         />
       </Modal>

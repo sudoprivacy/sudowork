@@ -24,9 +24,17 @@ const ConfigFileSchema = z.object({
     ttlSeconds: z.number().int().positive().default(604800),
   }),
   upload: z.object({
-    maxFileBytes: z.number().int().positive().default(10 * 1024 * 1024),
+    maxFileBytes: z
+      .number()
+      .int()
+      .positive()
+      .default(10 * 1024 * 1024),
     maxFilesPerRequest: z.number().int().positive().default(10),
-    maxTotalBytes: z.number().int().positive().default(50 * 1024 * 1024),
+    maxTotalBytes: z
+      .number()
+      .int()
+      .positive()
+      .default(50 * 1024 * 1024),
   }),
 })
 
@@ -73,7 +81,9 @@ function loadKey(envName: string, minBytes: number, purpose: string): Buffer {
 }
 
 export function loadConfig(configPath?: string): AppConfig {
-  const resolvedPath = resolve(configPath ?? process.env.CONFIG_PATH ?? 'config/sudowork-webui.json')
+  const resolvedPath = resolve(
+    configPath ?? process.env.CONFIG_PATH ?? 'config/sudowork-webui.json',
+  )
 
   let file: ConfigFile
   if (existsSync(resolvedPath)) {

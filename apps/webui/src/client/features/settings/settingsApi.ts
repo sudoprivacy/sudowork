@@ -63,8 +63,10 @@ export const mcpApi = {
     }),
   installJson: (json_config: string, name?: string) =>
     api('/api/mcp/install-json', { method: 'POST', body: JSON.stringify({ json_config, name }) }),
-  enable: (id: string) => api(`/api/mcp/servers/${encodeURIComponent(id)}/enable`, { method: 'PUT' }),
-  disable: (id: string) => api(`/api/mcp/servers/${encodeURIComponent(id)}/disable`, { method: 'PUT' }),
+  enable: (id: string) =>
+    api(`/api/mcp/servers/${encodeURIComponent(id)}/enable`, { method: 'PUT' }),
+  disable: (id: string) =>
+    api(`/api/mcp/servers/${encodeURIComponent(id)}/disable`, { method: 'PUT' }),
   test: (id: string) => api(`/api/mcp/servers/${encodeURIComponent(id)}/test`, { method: 'POST' }),
   remove: (id: string) => api(`/api/mcp/servers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 }

@@ -23,36 +23,44 @@ export function CronRuns({ jobId }: { jobId: string }): React.ReactElement {
       [])
 
   return (
-    <div className='flex flex-col gap-2' data-testid='cron-runs'>
-      <div className='text-15px font-600'>运行历史</div>
-      <Table rowKey={(record: RunRow) => String(record.id ?? Math.random())} data={rows} pagination={false} columns={[
-        {
-          title: '开始时间',
-          render: (_v, row: RunRow) => formatTime(row.startedAt),
-        },
-        {
-          title: '状态',
-          width: 110,
-          render: (_v, row: RunRow) => {
-            const status = row.status ?? '—'
-            return (
-              <Tag size='small' color={status === 'success' ? 'green' : status === 'failed' ? 'red' : 'gray'}>
-                {String(status)}
-              </Tag>
-            )
+    <div className="flex flex-col gap-2" data-testid="cron-runs">
+      <div className="text-15px font-600">运行历史</div>
+      <Table
+        rowKey={(record: RunRow) => String(record.id ?? Math.random())}
+        data={rows}
+        pagination={false}
+        columns={[
+          {
+            title: '开始时间',
+            render: (_v, row: RunRow) => formatTime(row.startedAt),
           },
-        },
-        {
-          title: '关联会话',
-          render: (_v, row: RunRow) =>
-            row.sessionId ? String(row.sessionId).slice(0, 12) + '…' : '—',
-        },
-        {
-          title: '错误',
-          ellipsis: true,
-          render: (_v, row: RunRow) => row.error ?? '—',
-        },
-      ]} />
+          {
+            title: '状态',
+            width: 110,
+            render: (_v, row: RunRow) => {
+              const status = row.status ?? '—'
+              return (
+                <Tag
+                  size="small"
+                  color={status === 'success' ? 'green' : status === 'failed' ? 'red' : 'gray'}
+                >
+                  {String(status)}
+                </Tag>
+              )
+            },
+          },
+          {
+            title: '关联会话',
+            render: (_v, row: RunRow) =>
+              row.sessionId ? String(row.sessionId).slice(0, 12) + '…' : '—',
+          },
+          {
+            title: '错误',
+            ellipsis: true,
+            render: (_v, row: RunRow) => row.error ?? '—',
+          },
+        ]}
+      />
     </div>
   )
 }

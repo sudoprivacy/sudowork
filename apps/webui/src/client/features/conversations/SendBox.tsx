@@ -52,40 +52,46 @@ export function SendBox({
   }
 
   return (
-    <form className='shrink-0 border-t border-light p-3 flex flex-col gap-2' onSubmit={handleSubmit}>
+    <form
+      className="shrink-0 border-t border-light p-3 flex flex-col gap-2"
+      onSubmit={handleSubmit}
+    >
       {images.length > 0 ? (
-        <div className='flex gap-2 text-12px text-secondary'>
+        <div className="flex gap-2 text-12px text-secondary">
           {images.map((img, i) => (
-            <span key={i} className='rd-1 bg-faint px-2 py-0.5'>
+            <span key={i} className="rd-1 bg-faint px-2 py-0.5">
               🖼 {img.mediaType}
             </span>
           ))}
         </div>
       ) : null}
-      {error ? <div className='text-12px text-danger'>{error}</div> : null}
-      <div className='flex items-end gap-2'>
-        <label className='shrink-0 size-9 f-center rd-2 border border-light cursor-pointer text-secondary hover:bg-hover' title='添加图片'>
+      {error ? <div className="text-12px text-danger">{error}</div> : null}
+      <div className="flex items-end gap-2">
+        <label
+          className="shrink-0 size-9 f-center rd-2 border border-light cursor-pointer text-secondary hover:bg-hover"
+          title="添加图片"
+        >
           📎
           <input
             ref={fileRef}
-            type='file'
-            accept='image/png,image/jpeg,image/webp'
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
             multiple
-            className='hidden'
+            className="hidden"
             onChange={(e) => void handleFiles(e)}
           />
         </label>
         <textarea
-          className='flex-1 resize-none rd-2 border border-light px-3 py-2 text-14px bg-base'
+          className="flex-1 resize-none rd-2 border border-light px-3 py-2 text-14px bg-base"
           rows={2}
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={disabled ? (disabledReason ?? '只读') : '输入消息，Enter 发送'}
-          aria-label='消息输入框'
+          aria-label="消息输入框"
         />
         <button
-          type='submit'
-          className='shrink-0 px-4 py-2 rd-2 bg-[var(--primary)] text-white text-14px disabled:opacity-50'
+          type="submit"
+          className="shrink-0 px-4 py-2 rd-2 bg-[var(--primary)] text-white text-14px disabled:opacity-50"
           disabled={disabled || !text.trim()}
         >
           发送

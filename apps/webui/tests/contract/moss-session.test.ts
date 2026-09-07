@@ -16,7 +16,11 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     const mock = vi.fn().mockResolvedValue({ sessions: [] })
     const port = createMossSessionPort(mock)
     await port.list(CTX)
-    expect(mock).toHaveBeenCalledWith(BASE, { method: 'GET', path: '/api/v1/sessions', accessToken: 'tk' })
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'GET',
+      path: '/api/v1/sessions',
+      accessToken: 'tk',
+    })
   })
 
   test('create posts assistant_name + enabled_skills, never cwd/runtime', async () => {
@@ -49,17 +53,22 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
   })
 
   test('context/resume/terminate/workspace paths match baseline routes', async () => {
-    const mock = vi.fn().mockImplementation((_base: string, req: { method: string; path: string }) =>
-      Promise.resolve(
-        req.path.endsWith('/context')
-          ? { context: { messages: [] } }
-          : req.path.endsWith('/resume')
-            ? { session: { sessionId: 's1', userId: 'u', orgId: 'o', status: 'active' }, ws_url: 'ws://moss.test/ws/sessions/s1' }
-            : req.path.includes('/workspace/tree')
-              ? { root: { name: 'r', relativePath: '', isFile: false, isDir: true } }
-              : { ok: true },
-      ),
-    )
+    const mock = vi
+      .fn()
+      .mockImplementation((_base: string, req: { method: string; path: string }) =>
+        Promise.resolve(
+          req.path.endsWith('/context')
+            ? { context: { messages: [] } }
+            : req.path.endsWith('/resume')
+              ? {
+                  session: { sessionId: 's1', userId: 'u', orgId: 'o', status: 'active' },
+                  ws_url: 'ws://moss.test/ws/sessions/s1',
+                }
+              : req.path.includes('/workspace/tree')
+                ? { root: { name: 'r', relativePath: '', isFile: false, isDir: true } }
+                : { ok: true },
+        ),
+      )
     const port = createMossSessionPort(mock)
 
     await port.context(CTX, 's1')
@@ -140,7 +149,7 @@ describe('ws_url validation (计划 3.5)', () => {
 })
 
 describe('protocol builders (browser message -> moss acp wire format)', () => {
-  test('buildUserMessage: text + image blocks with uuid', () => {
+  test('buildUserMessage: image + text blocks with uuid', () => {
     const msg = buildUserMessage({
       sessionId: 's1',
       text: 'hello',
@@ -152,9 +161,11 @@ describe('protocol builders (browser message -> moss acp wire format)', () => {
     expect(msg.session_id).toBe('s1')
     expect(typeof msg.uuid).toBe('string')
     const content = (msg.message as { content: { type: string }[] }).content
+    // Image blocks precede text on purpose — see MossWebSocket.buildUserMessage
+    // (vision input first, matching the desktop vision fix).
     expect(content).toEqual([
-      { type: 'text', text: 'hello' },
       { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+      { type: 'text', text: 'hello' },
     ])
   })
 

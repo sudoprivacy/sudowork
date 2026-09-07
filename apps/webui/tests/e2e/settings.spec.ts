@@ -11,9 +11,9 @@ test('settings sider has exactly four items', async ({ page }) => {
   await loginViaUi(page, env)
   await page.goto('/settings/profile')
   await page.waitForSelector('[data-settings-id]', { timeout: 20_000 })
-  const ids = await page.locator('[data-settings-id]').evaluateAll((els) =>
-    els.map((el) => (el as HTMLElement).dataset.settingsId),
-  )
+  const ids = await page
+    .locator('[data-settings-id]')
+    .evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.settingsId))
   expect(ids.sort()).toEqual(['about', 'display', 'mcp', 'profile'])
 })
 

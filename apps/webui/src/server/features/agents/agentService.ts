@@ -57,7 +57,10 @@ interface InstalledItem {
   name?: unknown
 }
 
-async function installedNames(deps: AgentDeps, ctx: MossCallContext): Promise<Map<string, Record<string, unknown>>> {
+async function installedNames(
+  deps: AgentDeps,
+  ctx: MossCallContext,
+): Promise<Map<string, Record<string, unknown>>> {
   const list = (await mapErr(() => deps.agents.installed(ctx))) as InstalledItem[]
   const map = new Map<string, Record<string, unknown>>()
   if (Array.isArray(list)) {
@@ -110,7 +113,11 @@ export async function hubList(
   }
 }
 
-export async function hubDetail(deps: AgentDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+export async function hubDetail(
+  deps: AgentDeps,
+  ctx: MossCallContext,
+  id: string,
+): Promise<unknown> {
   return mapErr(() => deps.agents.hubDetail(ctx, id))
 }
 
@@ -132,17 +139,14 @@ export async function installFromHub(
 ): Promise<unknown> {
   await requireAnyScope(deps, ctx, ['admin:settings'])
   // assistantMeta 由后端从 fresh hub 列表解析（不信任浏览器提交）
-  const hub = (await mapErr(() =>
-    deps.agents.hubList(ctx, { limit: '100' }),
-  )) as { items?: Record<string, unknown>[]; assistants?: Record<string, unknown>[] }
+  const hub = (await mapErr(() => deps.agents.hubList(ctx, { limit: '100' }))) as {
+    items?: Record<string, unknown>[]
+    assistants?: Record<string, unknown>[]
+  }
   const items = hub?.items ?? hub?.assistants ?? []
-  const meta = items.find(
-    (it) => it && (it.name === name || it.id === name),
-  )
+  const meta = items.find((it) => it && (it.name === name || it.id === name))
   if (!meta) throw new NotFoundError()
-  return mapErr(() =>
-    deps.agents.install(ctx, { assistantMeta: meta, selectedSkillIds: [] }),
-  )
+  return mapErr(() => deps.agents.install(ctx, { assistantMeta: meta, selectedSkillIds: [] }))
 }
 
 export async function createAgent(
@@ -216,12 +220,20 @@ export async function tenantUpdate(
   return mapErr(() => deps.agents.tenantUpdate(ctx, id, body))
 }
 
-export async function tenantDelete(deps: AgentDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+export async function tenantDelete(
+  deps: AgentDeps,
+  ctx: MossCallContext,
+  id: string,
+): Promise<unknown> {
   await requireTenantVisible(deps, ctx, id)
   return mapErr(() => deps.agents.tenantDelete(ctx, id))
 }
 
-export async function tenantDownload(deps: AgentDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+export async function tenantDownload(
+  deps: AgentDeps,
+  ctx: MossCallContext,
+  id: string,
+): Promise<unknown> {
   return mapErr(() => deps.agents.tenantDownload(ctx, id))
 }
 
@@ -231,9 +243,7 @@ export async function tenantPublish(
   sourceName: string,
 ): Promise<unknown> {
   await requireVisibleAgent(deps, ctx, sourceName)
-  return mapErr(() =>
-    deps.agents.tenantPublish(ctx, { assistantName: sourceName }),
-  )
+  return mapErr(() => deps.agents.tenantPublish(ctx, { assistantName: sourceName }))
 }
 
 /** tenant 目标必须来自当前 fresh tenant 列表（can_manage 之上的 WebUI 防线）。 */

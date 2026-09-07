@@ -16,8 +16,12 @@ test('user A and B see isolated conversation lists', async ({ request }) => {
   expect(listA.status()).toBe(200)
   expect(listB.status()).toBe(200)
 
-  const idsA = ((await listA.json()) as { conversations: { id: string }[] }).conversations.map((c) => c.id)
-  const idsB = ((await listB.json()) as { conversations: { id: string }[] }).conversations.map((c) => c.id)
+  const idsA = ((await listA.json()) as { conversations: { id: string }[] }).conversations.map(
+    (c) => c.id,
+  )
+  const idsB = ((await listB.json()) as { conversations: { id: string }[] }).conversations.map(
+    (c) => c.id,
+  )
   const overlap = idsA.filter((id) => idsB.includes(id))
   expect(overlap, 'no shared conversation ids between users').toEqual([])
 })
@@ -36,7 +40,9 @@ test('user B cannot read user A session context', async ({ request }) => {
   expect(cross.status()).toBe(403)
 })
 
-test('two browser contexts of same user: observer takes over writer after turn ends', async ({ browser }) => {
+test('two browser contexts of same user: observer takes over writer after turn ends', async ({
+  browser,
+}) => {
   test.setTimeout(150_000)
   const ctxA = await browser.newContext()
   const pageA = await ctxA.newPage()
@@ -66,7 +72,9 @@ test('two browser contexts of same user: observer takes over writer after turn e
   await expect(pageO.getByLabel('消息输入框')).toBeEnabled()
   await pageO.getByLabel('消息输入框').fill('请只回复两个字：好的')
   await pageO.getByRole('button', { name: '发送' }).click()
-  await expect(pageO.locator('[data-testid="assistant-message"]').nth(1)).toBeVisible({ timeout: 120_000 })
+  await expect(pageO.locator('[data-testid="assistant-message"]').nth(1)).toBeVisible({
+    timeout: 120_000,
+  })
 
   await ctxA.close()
   await ctxO.close()

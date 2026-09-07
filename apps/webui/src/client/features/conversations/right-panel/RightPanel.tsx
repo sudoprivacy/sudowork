@@ -36,7 +36,9 @@ export function RightPanel({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [ratio, setRatio] = useState<number>(() => {
     const stored = Number(localStorage.getItem(RATIO_KEY))
-    return Number.isFinite(stored) && stored >= MIN_RATIO && stored <= MAX_RATIO ? stored : DEFAULT_RATIO
+    return Number.isFinite(stored) && stored >= MIN_RATIO && stored <= MAX_RATIO
+      ? stored
+      : DEFAULT_RATIO
   })
   const [tab, setTab] = useState<'workspace' | 'deliverables'>(() => {
     const stored = localStorage.getItem(TAB_KEY_PREFIX + conversationId)
@@ -79,7 +81,10 @@ export function RightPanel({
 
   /** 像素宽度（对齐 Sudowork ChatLayout:344,411：clamp 到 [300, 500]，比例基准为行宽） */
   const panelWidth = rowWidth
-    ? Math.max(MIN_PANEL_PX, Math.round(Math.min(MAX_PANEL_PX, Math.max(200, (ratio / 100) * rowWidth))))
+    ? Math.max(
+        MIN_PANEL_PX,
+        Math.round(Math.min(MAX_PANEL_PX, Math.max(200, (ratio / 100) * rowWidth))),
+      )
     : MIN_PANEL_PX
 
   /** 左缘拖拽把手：向左拖变宽（reverse 语义对齐 Sudowork createWorkspaceDragHandle；基准为行宽） */
@@ -96,11 +101,18 @@ export function RightPanel({
       document.body.style.userSelect = 'none'
 
       const onMove = (ev: PointerEvent): void => {
-        const next = ((containerWidth - ev.clientX + container.getBoundingClientRect().left) / containerWidth) * 100
+        const next =
+          ((containerWidth - ev.clientX + container.getBoundingClientRect().left) /
+            containerWidth) *
+          100
         const clamped = Math.min(MAX_RATIO, Math.max(MIN_RATIO, next))
         // minWidth 300px 兜底：比例换算后的像素宽度不小于 300
         if (clamped === MIN_RATIO && (clamped / 100) * containerWidth < MIN_PANEL_PX) {
-          setRatio((MIN_PANEL_PX / containerWidth) * 100 > MAX_RATIO ? MAX_RATIO : (MIN_PANEL_PX / containerWidth) * 100)
+          setRatio(
+            (MIN_PANEL_PX / containerWidth) * 100 > MAX_RATIO
+              ? MAX_RATIO
+              : (MIN_PANEL_PX / containerWidth) * 100,
+          )
         } else {
           setRatio(clamped)
         }
@@ -125,23 +137,23 @@ export function RightPanel({
   if (!open) return null
 
   return (
-    <div ref={containerRef} className='relative flex h-full min-h-0 shrink-0'>
+    <div ref={containerRef} className="relative flex h-full min-h-0 shrink-0">
       <div
         className={`right-panel-drag-handle${dragging ? ' right-panel-drag-handle--active' : ''}`}
         onPointerDown={onPointerDown}
         onDoubleClick={onDoubleClick}
-        aria-label='拖拽调整面板宽度'
+        aria-label="拖拽调整面板宽度"
       />
       <div
-        className='flex h-full min-h-0 flex-col bg-[var(--color-bg-1)] border-l b-solid'
+        className="flex h-full min-h-0 flex-col bg-[var(--color-bg-1)] border-l b-solid"
         style={{
           width: `${panelWidth}px`,
           borderLeft: '1px solid var(--bg-3)',
         }}
-        data-testid='right-panel'
+        data-testid="right-panel"
       >
         {/* tab 条 */}
-        <div className='right-panel-tabs shrink-0' role='tablist'>
+        <div className="right-panel-tabs shrink-0" role="tablist">
           {(
             [
               ['workspace', '工作空间'],
@@ -150,8 +162,8 @@ export function RightPanel({
           ).map(([key, label]) => (
             <button
               key={key}
-              type='button'
-              role='tab'
+              type="button"
+              role="tab"
               aria-selected={tab === key}
               className={`right-panel-tabs__item${tab === key ? ' right-panel-tabs__item--active' : ''}`}
               onClick={() => setTab(key)}
@@ -162,8 +174,10 @@ export function RightPanel({
           ))}
         </div>
         {/* 内容栈：常驻挂载，display 切换（对齐 Sudowork） */}
-        <div className='right-panel-stack'>
-          <div className={`right-panel-stack__pane${tab === 'workspace' ? ' right-panel-stack__pane--active' : ''}`}>
+        <div className="right-panel-stack">
+          <div
+            className={`right-panel-stack__pane${tab === 'workspace' ? ' right-panel-stack__pane--active' : ''}`}
+          >
             <WorkspaceTab
               conversationId={conversationId}
               active={tab === 'workspace'}
@@ -171,8 +185,14 @@ export function RightPanel({
               workspaceRefreshKey={workspaceRefreshKey}
             />
           </div>
-          <div className={`right-panel-stack__pane${tab === 'deliverables' ? ' right-panel-stack__pane--active' : ''}`}>
-            <DeliverablesTab conversationId={conversationId} active={tab === 'deliverables'} turnFinishedAt={turnFinishedAt} />
+          <div
+            className={`right-panel-stack__pane${tab === 'deliverables' ? ' right-panel-stack__pane--active' : ''}`}
+          >
+            <DeliverablesTab
+              conversationId={conversationId}
+              active={tab === 'deliverables'}
+              turnFinishedAt={turnFinishedAt}
+            />
           </div>
         </div>
       </div>
@@ -181,17 +201,30 @@ export function RightPanel({
 }
 
 /** 收起态浮动展开按钮（Sudowork Linux 形态：容器右缘垂直居中） */
-export function RightPanelFloatingExpand({ onExpand }: { onExpand: () => void }): React.ReactElement {
+export function RightPanelFloatingExpand({
+  onExpand,
+}: {
+  onExpand: () => void
+}): React.ReactElement {
   return (
     <button
-      type='button'
-      className='right-panel-floating-expand'
+      type="button"
+      className="right-panel-floating-expand"
       onClick={onExpand}
-      aria-label='展开右侧面板'
-      data-testid='right-panel-floating-expand'
+      aria-label="展开右侧面板"
+      data-testid="right-panel-floating-expand"
     >
-      <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-        <polyline points='15 18 9 12 15 6' />
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <polyline points="15 18 9 12 15 6" />
       </svg>
     </button>
   )

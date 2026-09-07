@@ -39,13 +39,13 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const { session, isLoading, unauthorized } = useSession()
   if (isLoading) {
     return (
-      <div className='size-full f-center text-secondary text-14px' data-testid='auth-loading'>
+      <div className="size-full f-center text-secondary text-14px" data-testid="auth-loading">
         加载中…
       </div>
     )
   }
   if (unauthorized || !session) {
-    return <Navigate to='/login' replace />
+    return <Navigate to="/login" replace />
   }
   return <>{children}</>
 }
@@ -67,28 +67,28 @@ function LoginRoute(): React.ReactElement {
 export function AppRoutes(): React.ReactElement {
   return (
     <Routes>
-      <Route path='/login' element={<LoginRoute />} />
+      <Route path="/login" element={<LoginRoute />} />
       <Route
-        path='/'
+        path="/"
         element={
           <RequireAuth>
             <AppLayout />
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to='/guid' replace />} />
-        <Route path='guid' element={<NewConversationPage />} />
-        <Route path='conversation/:id' element={<ConversationPage />} />
-        <Route path='agents' element={<AgentsPage />} />
-        <Route path='skills' element={<SkillsPage />} />
-        <Route path='cron' element={<CronPage />} />
-        <Route path='cron/:id' element={<CronJobDetailPage />} />
-        <Route path='settings/profile' element={<ProfilePage />} />
-        <Route path='settings/mcp' element={<McpSettingsPage />} />
-        <Route path='settings/display' element={<DisplayPage />} />
-        <Route path='settings/about' element={<AboutPage />} />
+        <Route index element={<Navigate to="/guid" replace />} />
+        <Route path="guid" element={<NewConversationPage />} />
+        <Route path="conversation/:id" element={<ConversationPage />} />
+        <Route path="agents" element={<AgentsPage />} />
+        <Route path="skills" element={<SkillsPage />} />
+        <Route path="cron" element={<CronPage />} />
+        <Route path="cron/:id" element={<CronJobDetailPage />} />
+        <Route path="settings/profile" element={<ProfilePage />} />
+        <Route path="settings/mcp" element={<McpSettingsPage />} />
+        <Route path="settings/display" element={<DisplayPage />} />
+        <Route path="settings/about" element={<AboutPage />} />
       </Route>
-      <Route path='*' element={<Navigate to='/guid' replace />} />
+      <Route path="*" element={<Navigate to="/guid" replace />} />
     </Routes>
   )
 }

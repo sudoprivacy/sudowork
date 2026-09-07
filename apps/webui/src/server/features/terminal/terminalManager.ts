@@ -39,7 +39,11 @@ function defaultShell(): string {
 export class TerminalManager {
   private terminals = new Map<string, TerminalSession>()
 
-  create(conversationId: string, onOutput: (data: string) => void, onExit: () => void): TerminalSession {
+  create(
+    conversationId: string,
+    onOutput: (data: string) => void,
+    onExit: () => void,
+  ): TerminalSession {
     if (this.terminals.size >= GLOBAL_HARD_LIMIT) {
       throw new TerminalLimitError('GLOBAL_LIMIT')
     }

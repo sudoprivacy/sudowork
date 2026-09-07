@@ -133,9 +133,7 @@ export function isOriginAllowed(origin: string, publicOrigin: string): boolean {
   if (originUrl.hostname === publicUrl.hostname) {
     return true
   }
-  return (
-    LOOPBACK_HOSTNAMES.has(originUrl.hostname) && LOOPBACK_HOSTNAMES.has(publicUrl.hostname)
-  )
+  return LOOPBACK_HOSTNAMES.has(originUrl.hostname) && LOOPBACK_HOSTNAMES.has(publicUrl.hostname)
 }
 
 export function noStore(_req: Request, res: Response, next: NextFunction): void {

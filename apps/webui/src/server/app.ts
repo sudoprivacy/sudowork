@@ -6,8 +6,20 @@ import { WebSocketServer } from 'ws'
 import type { AppConfig } from './config.js'
 import type { MossAuthPort } from '@sudowork/moss-client'
 import { createMossSessionPort, type MossSessionPort } from '@sudowork/moss-client'
-import { type MossCallContext, type MossFetch, MossHttpError, MossNetworkError, mossFetchAsset, mossRequest } from '@sudowork/moss-client'
-import { createOriginGuard, isOriginAllowed, noStore, securityHeaders } from './security/requestSecurity.js'
+import {
+  type MossCallContext,
+  type MossFetch,
+  MossHttpError,
+  MossNetworkError,
+  mossFetchAsset,
+  mossRequest,
+} from '@sudowork/moss-client'
+import {
+  createOriginGuard,
+  isOriginAllowed,
+  noStore,
+  securityHeaders,
+} from './security/requestSecurity.js'
 import { createAuthRouter } from './features/auth/authRoutes.js'
 import { MossUnauthorizedError } from './features/auth/authService.js'
 import {
@@ -28,7 +40,11 @@ import { createSkillRouter } from './features/skills/skillRoutes.js'
 import { createCronRouter } from './features/cron/cronRoutes.js'
 import { createSettingsRouter } from './features/settings/settingsRoutes.js'
 import { createMcpRouter } from './features/mcp/mcpRoutes.js'
-import { TerminalManager, TerminalLimitError, type TerminalSession } from './features/terminal/terminalManager.js'
+import {
+  TerminalManager,
+  TerminalLimitError,
+  type TerminalSession,
+} from './features/terminal/terminalManager.js'
 
 /** 全局共享终端管理器（webui 单进程；DELETE 会话时按会话关闭其全部 pty） */
 export const globalTerminalManager = new TerminalManager()
@@ -63,10 +79,7 @@ export function createApp(deps: AppDeps): Express {
   const uploadJsonParser = express.json({ limit: '16mb' })
   const defaultJsonParser = express.json({ limit: '1mb' })
   app.use((req, res, next) => {
-    if (
-      req.method === 'POST' &&
-      /^\/api\/conversations\/[^/]+\/workspace\/file$/.test(req.path)
-    ) {
+    if (req.method === 'POST' && /^\/api\/conversations\/[^/]+\/workspace\/file$/.test(req.path)) {
       uploadJsonParser(req, res, next)
       return
     }
@@ -182,37 +195,40 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
 
   // 全局错误中间件：兜住各路由 next(err) 的未识别错误，统一返回 JSON（杜绝 Express 默认
   // HTML 错误页——前端对非 {error} JSON 只能显示 UNKNOWN）。必须注册在全部 /api 路由之后。
-  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    if (res.headersSent) {
-      _next(err)
-      return
-    }
-    if (err instanceof MossUnauthorizedError) {
-      res.status(401).json({ error: 'MOSS_UNAUTHORIZED' })
-      return
-    }
-    if (err instanceof MossNetworkError) {
-      res.status(503).json({ error: 'MOSS_UNAVAILABLE' })
-      return
-    }
-    if (err instanceof MossHttpError) {
-      if (err.status === 401 || err.status === 403) {
-        res.status(401).json({ error: 'MOSS_UNAUTHORIZED' })
-      } else {
-        res.status(502).json({ error: 'MOSS_ERROR' })
+  app.use(
+    (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      if (res.headersSent) {
+        _next(err)
+        return
       }
-      return
-    }
-    // body-parser 超限（raw-body 的 413 entity.too.large）→ 明确的上传超限语义
-    if (
-      err !== null && typeof err === 'object' &&
-      (err as { type?: unknown }).type === 'entity.too.large'
-    ) {
-      res.status(413).json({ error: 'FILE_TOO_LARGE' })
-      return
-    }
-    res.status(500).json({ error: 'INTERNAL' })
-  })
+      if (err instanceof MossUnauthorizedError) {
+        res.status(401).json({ error: 'MOSS_UNAUTHORIZED' })
+        return
+      }
+      if (err instanceof MossNetworkError) {
+        res.status(503).json({ error: 'MOSS_UNAVAILABLE' })
+        return
+      }
+      if (err instanceof MossHttpError) {
+        if (err.status === 401 || err.status === 403) {
+          res.status(401).json({ error: 'MOSS_UNAUTHORIZED' })
+        } else {
+          res.status(502).json({ error: 'MOSS_ERROR' })
+        }
+        return
+      }
+      // body-parser 超限（raw-body 的 413 entity.too.large）→ 明确的上传超限语义
+      if (
+        err !== null &&
+        typeof err === 'object' &&
+        (err as { type?: unknown }).type === 'entity.too.large'
+      ) {
+        res.status(413).json({ error: 'FILE_TOO_LARGE' })
+        return
+      }
+      res.status(500).json({ error: 'INTERNAL' })
+    },
+  )
 
   return { coordinator, mossSession }
 }
@@ -299,10 +315,14 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
           if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(payload))
         }
         try {
-          session = terminals.create(conversationId, (data) => send({ type: 'output', data }), () => {
-            send({ type: 'exit' })
-            ws.close()
-          })
+          session = terminals.create(
+            conversationId,
+            (data) => send({ type: 'output', data }),
+            () => {
+              send({ type: 'exit' })
+              ws.close()
+            },
+          )
         } catch (err) {
           send({
             type: 'error',
@@ -325,8 +345,10 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
             session.write(frame.data)
           } else if (
             frame.type === 'resize' &&
-            typeof frame.cols === 'number' && typeof frame.rows === 'number' &&
-            Number.isFinite(frame.cols) && Number.isFinite(frame.rows)
+            typeof frame.cols === 'number' &&
+            typeof frame.rows === 'number' &&
+            Number.isFinite(frame.cols) &&
+            Number.isFinite(frame.rows)
           ) {
             session.resize(Math.max(1, Math.floor(frame.cols)), Math.max(1, Math.floor(frame.rows)))
           }

@@ -68,7 +68,10 @@ function createFakeAgents(): MossAgentPort {
     'at-a': [{ name: 'helper' }],
     'at-b': [{ name: 'helper' }, { name: 'writer' }],
   }
-  const tenantRows = [{ id: 't1', name: 'shared-agent', can_manage: true }, { id: 't2', name: 'b-only', can_manage: false }]
+  const tenantRows = [
+    { id: 't1', name: 'shared-agent', can_manage: true },
+    { id: 't2', name: 'b-only', can_manage: false },
+  ]
   return {
     async hubCategories() {
       return []
@@ -203,8 +206,16 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
 
   beforeAll(async () => {
     pool = await createTestDatabase()
-    const principalA = await upsertPrincipal(pool, { mossUserId: 'moss-a', orgId: 'org-1', username: 'a' })
-    const principalB = await upsertPrincipal(pool, { mossUserId: 'moss-b', orgId: 'org-1', username: 'b' })
+    const principalA = await upsertPrincipal(pool, {
+      mossUserId: 'moss-a',
+      orgId: 'org-1',
+      username: 'a',
+    })
+    const principalB = await upsertPrincipal(pool, {
+      mossUserId: 'moss-b',
+      orgId: 'org-1',
+      username: 'b',
+    })
 
     const mkCookie = async (principalId: string, accessToken: string): Promise<string> => {
       const token = generateSessionToken()

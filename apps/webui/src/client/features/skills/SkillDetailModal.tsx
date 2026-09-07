@@ -17,9 +17,9 @@ export function SkillDetailModal({
       footer={null}
       onCancel={onClose}
       style={{ width: 520 }}
-      data-testid='skill-detail-modal'
+      data-testid="skill-detail-modal"
     >
-      <div className='text-14px break-words'>{String(skill.description ?? '暂无描述')}</div>
+      <div className="text-14px break-words">{String(skill.description ?? '暂无描述')}</div>
     </Modal>
   )
 }

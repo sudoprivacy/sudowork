@@ -62,8 +62,7 @@ export const cronApi = {
       body: JSON.stringify(body),
     }),
   remove: (id: string) => api(`/api/cron/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  trigger: (id: string) =>
-    api(`/api/cron/${encodeURIComponent(id)}/trigger`, { method: 'POST' }),
+  trigger: (id: string) => api(`/api/cron/${encodeURIComponent(id)}/trigger`, { method: 'POST' }),
   runs: (id: string, limit = 20): Promise<unknown> =>
     api(`/api/cron/${encodeURIComponent(id)}/runs?limit=${limit}`),
 }

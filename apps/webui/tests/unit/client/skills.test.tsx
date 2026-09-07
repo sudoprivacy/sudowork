@@ -67,7 +67,9 @@ describe('SkillsPage（列表逻辑对齐 sudowork B 端）', () => {
 
   test('技能库 tab 只渲染 moss installed 的 hub 类技能', async () => {
     renderIsolated(<SkillsPage />)
-    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(2), { timeout: 5000 })
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(2), {
+      timeout: 5000,
+    })
     expect(screen.getByText('PDF 处理')).toBeTruthy()
     expect(screen.getByText('搜索')).toBeTruthy()
     expect(screen.queryByText('租户专属技能')).toBeNull()
@@ -78,11 +80,15 @@ describe('SkillsPage（列表逻辑对齐 sudowork B 端）', () => {
   test('专属技能切回技能库后不会混入技能库列表', async () => {
     renderIsolated(<SkillsPage />)
     fireEvent.click(screen.getByRole('button', { name: /专属技能/ }))
-    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(1), { timeout: 5000 })
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(1), {
+      timeout: 5000,
+    })
     expect(screen.getByText('租户专属技能')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /技能库/ }))
-    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(2), { timeout: 5000 })
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(2), {
+      timeout: 5000,
+    })
     expect(screen.queryByText('租户专属技能')).toBeNull()
     expect(screen.getByText('PDF 处理')).toBeTruthy()
     expect(screen.getByText('搜索')).toBeTruthy()
@@ -90,7 +96,9 @@ describe('SkillsPage（列表逻辑对齐 sudowork B 端）', () => {
 
   test('分类 chips 来自列表数据，逐个点击均有结果（无空分类回归）', async () => {
     renderIsolated(<SkillsPage />)
-    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(2), { timeout: 5000 })
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(2), {
+      timeout: 5000,
+    })
     // 首项为"全部分类"；分类为列表项 categories 并集
     expect(screen.getByText('全部分类')).toBeTruthy()
     expect(screen.getByText('精选')).toBeTruthy()
@@ -99,11 +107,15 @@ describe('SkillsPage（列表逻辑对齐 sudowork B 端）', () => {
     expect(screen.getAllByText('精选')).toHaveLength(1)
 
     fireEvent.click(screen.getByText('精选'))
-    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(1), { timeout: 5000 })
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(1), {
+      timeout: 5000,
+    })
     expect(screen.getByText('PDF 处理')).toBeTruthy()
 
     fireEvent.click(screen.getByText('创作'))
-    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(1), { timeout: 5000 })
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(1), {
+      timeout: 5000,
+    })
     expect(screen.getByText('搜索')).toBeTruthy()
   })
 
@@ -111,7 +123,9 @@ describe('SkillsPage（列表逻辑对齐 sudowork B 端）', () => {
     renderIsolated(<SkillsPage />)
     // 默认 tab 为"技能库"，切到"我的技能"后断言 installed 列表（不做 isHubInstalled 过滤）
     fireEvent.click(screen.getByRole('button', { name: /我的技能/ }))
-    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(4), { timeout: 5000 })
+    await waitFor(() => expect(screen.getAllByTestId('skill-card')).toHaveLength(4), {
+      timeout: 5000,
+    })
     expect(screen.getByText('PDF 处理')).toBeTruthy()
     expect(screen.getByText('搜索')).toBeTruthy()
     expect(screen.getByText('本地技能')).toBeTruthy()

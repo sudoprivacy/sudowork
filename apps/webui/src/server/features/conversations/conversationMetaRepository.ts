@@ -46,7 +46,12 @@ export async function getConversationMetaMap(
 ): Promise<Map<string, ConversationMeta>> {
   const map = new Map<string, ConversationMeta>()
   if (mossSessionIds.length === 0) return map
-  const { rows } = await pool.query<{ moss_session_id: string; title: string | null; pinned: boolean; pinned_at: string | null }>(
+  const { rows } = await pool.query<{
+    moss_session_id: string
+    title: string | null
+    pinned: boolean
+    pinned_at: string | null
+  }>(
     `SELECT moss_session_id, title, pinned, pinned_at FROM conversation_meta
      WHERE principal_id = $1 AND moss_session_id = ANY($2)`,
     [principalId, mossSessionIds],
@@ -119,7 +124,8 @@ export async function updateConversationMeta(
   if (update.pinned !== undefined) {
     params.push(update.pinned)
     sets.push(`pinned = $${params.length}`)
-    if (update.pinned) sets.push('pinned_at = COALESCE(pinned_at, (extract(epoch from now()) * 1000)::bigint)')
+    if (update.pinned)
+      sets.push('pinned_at = COALESCE(pinned_at, (extract(epoch from now()) * 1000)::bigint)')
     else sets.push('pinned_at = NULL')
   }
   await pool.query(

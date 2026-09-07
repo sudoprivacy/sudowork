@@ -108,10 +108,9 @@ describe('AgentsPage（列表逻辑对齐 sudowork B 端）', () => {
     vi.mocked(agentApi.getScopes).mockResolvedValue({ scopes: ['admin:settings'] })
     renderIsolated(<AgentsPage />)
     fireEvent.click(screen.getByRole('button', { name: /我的智能体/ }))
-    await waitFor(
-      () => expect(screen.getAllByLabelText('卸载').length).toBeGreaterThanOrEqual(1),
-      { timeout: 5000 },
-    )
+    await waitFor(() => expect(screen.getAllByLabelText('卸载').length).toBeGreaterThanOrEqual(1), {
+      timeout: 5000,
+    })
     vi.mocked(agentApi.getScopes).mockResolvedValue({ scopes: ['store:read'] })
   })
 })

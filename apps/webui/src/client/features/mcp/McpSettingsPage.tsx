@@ -71,15 +71,17 @@ export function McpSettingsPage(): React.ReactElement {
     }
   }
 
-  const allowPersonal = Boolean((policy as { allow_personal_mcp?: boolean } | undefined)?.allow_personal_mcp)
+  const allowPersonal = Boolean(
+    (policy as { allow_personal_mcp?: boolean } | undefined)?.allow_personal_mcp,
+  )
 
   return (
-    <div className='size-full overflow-y-auto p-5' data-testid='mcp-settings-page'>
-      <div className='max-w-4xl mx-auto flex flex-col gap-4'>
-        <h1 className='text-20px font-700 m-0'>MCP 服务</h1>
+    <div className="size-full overflow-y-auto p-5" data-testid="mcp-settings-page">
+      <div className="max-w-4xl mx-auto flex flex-col gap-4">
+        <h1 className="text-20px font-700 m-0">MCP 服务</h1>
 
         <Table
-          rowKey='id'
+          rowKey="id"
           data={rows}
           pagination={false}
           columns={[
@@ -91,7 +93,7 @@ export function McpSettingsPage(): React.ReactElement {
               title: '类型',
               width: 110,
               render: (_v, row: McpServer) => (
-                <Tag size='small' color={row.scope === 'user' ? 'orangered' : 'arcoblue'}>
+                <Tag size="small" color={row.scope === 'user' ? 'orangered' : 'arcoblue'}>
                   {row.scope === 'user' ? '个人' : '组织'}
                 </Tag>
               ),
@@ -102,7 +104,7 @@ export function McpSettingsPage(): React.ReactElement {
               width: 80,
               render: (_v, row: McpServer) => (
                 <Switch
-                  size='small'
+                  size="small"
                   checked={!(row.user_disabled ?? false)}
                   onChange={(v) => void handleToggle(row, !v)}
                 />
@@ -112,16 +114,23 @@ export function McpSettingsPage(): React.ReactElement {
               title: '操作',
               width: 150,
               render: (_v, row: McpServer) => (
-                <div className='flex gap-1'>
+                <div className="flex gap-1">
                   {row.scope === 'user' ? (
                     <>
-                      <Button size='mini' onClick={() => void handleTest(row)}>测试</Button>
-                      <Button size='mini' status='danger' type='outline' onClick={() => void handleDelete(row)}>
+                      <Button size="mini" onClick={() => void handleTest(row)}>
+                        测试
+                      </Button>
+                      <Button
+                        size="mini"
+                        status="danger"
+                        type="outline"
+                        onClick={() => void handleDelete(row)}
+                      >
                         删除
                       </Button>
                     </>
                   ) : (
-                    <span className='text-12px text-tertiary'>组织管理</span>
+                    <span className="text-12px text-tertiary">组织管理</span>
                   )}
                 </div>
               ),
@@ -130,22 +139,27 @@ export function McpSettingsPage(): React.ReactElement {
         />
 
         {allowPersonal ? (
-          <section className='flex flex-col gap-2 border border-light rd-2 p-3'>
-            <div className='text-14px font-600'>通过 JSON 安装个人 MCP</div>
+          <section className="flex flex-col gap-2 border border-light rd-2 p-3">
+            <div className="text-14px font-600">通过 JSON 安装个人 MCP</div>
             <Input.TextArea
               value={jsonConfig}
               onChange={setJsonConfig}
               rows={5}
-              placeholder='粘贴 MCP JSON 配置'
+              placeholder="粘贴 MCP JSON 配置"
             />
             <div>
-              <Button size='small' type='primary' loading={installing} onClick={() => void handleInstallJson()}>
+              <Button
+                size="small"
+                type="primary"
+                loading={installing}
+                onClick={() => void handleInstallJson()}
+              >
                 安装
               </Button>
             </div>
           </section>
         ) : (
-          <div className='text-12px text-tertiary'>当前策略未开放个人 MCP 创建。</div>
+          <div className="text-12px text-tertiary">当前策略未开放个人 MCP 创建。</div>
         )}
       </div>
     </div>

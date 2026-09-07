@@ -5,11 +5,13 @@
   "type": "module",
   "exports": {
     "./*": {
+      "types": "./dist/renderer/src/*.d.ts",
       "bun": "./src/*",
       "default": "./src/*"
     }
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "type:check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

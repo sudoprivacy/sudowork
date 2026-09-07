@@ -68,7 +68,10 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       res.status(400).json({ error: 'SELECTION_NOT_AVAILABLE', field: err.field })
       return
     }
-    if ((err instanceof MossHttpError && err.status === 413) || (err instanceof Error && err.message === 'FILE_TOO_LARGE')) {
+    if (
+      (err instanceof MossHttpError && err.status === 413) ||
+      (err instanceof Error && err.message === 'FILE_TOO_LARGE')
+    ) {
       res.status(413).json({ error: 'FILE_TOO_LARGE' })
       return
     }
@@ -173,9 +176,7 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const ctx = await resolveCtx(req as AuthedRequest)
       res
         .status(200)
-        .json(
-        await uploadWorkspaceFile(deps, principal, id, body.path, body.content_base64, ctx),
-      )
+        .json(await uploadWorkspaceFile(deps, principal, id, body.path, body.content_base64, ctx))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
@@ -201,7 +202,12 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const rawSkills = Array.isArray(json) ? json : (json.skills ?? [])
       const skills = rawSkills.map((s) => ({
         name: typeof s.name === 'string' ? s.name : '',
-        displayName: typeof s.displayName === 'string' ? s.displayName : (typeof s.name === 'string' ? s.name : ''),
+        displayName:
+          typeof s.displayName === 'string'
+            ? s.displayName
+            : typeof s.name === 'string'
+              ? s.name
+              : '',
         description: typeof s.description === 'string' ? s.description : '',
         icon: typeof s.icon === 'string' ? s.icon : '',
         iconUrl: typeof s.iconUrl === 'string' ? s.iconUrl : '',

@@ -26,14 +26,8 @@ export function AgentsPage(): React.ReactElement {
   const [category, setCategory] = useState('all')
 
   // 对齐 sudowork B 端：智能体库 = moss installed 中 hub 类；专属智能体 = tenant 类
-  const storeList = useMemo(
-    () => installed.filter((a) => a.tag === 'hub'),
-    [installed],
-  )
-  const exclusiveList = useMemo(
-    () => installed.filter((a) => a.tag === 'tenant'),
-    [installed],
-  )
+  const storeList = useMemo(() => installed.filter((a) => a.tag === 'hub'), [installed])
+  const exclusiveList = useMemo(() => installed.filter((a) => a.tag === 'tenant'), [installed])
   // 分类从当前 tab 列表收集（每个分类都来自返回的智能体列表，点击必有结果）
   const tabList = tab === 'exclusive' ? exclusiveList : storeList
   const categoryList = useMemo(
@@ -41,10 +35,7 @@ export function AgentsPage(): React.ReactElement {
     [tabList],
   )
   // 对齐 sudowork：我的智能体过滤 moss 系统内置（isBuiltin）
-  const installedVisible = useMemo(
-    () => installed.filter((a) => a.isBuiltin !== true),
-    [installed],
-  )
+  const installedVisible = useMemo(() => installed.filter((a) => a.isBuiltin !== true), [installed])
 
   function switchTab(next: TabKey): void {
     setTab(next)
@@ -75,11 +66,20 @@ export function AgentsPage(): React.ReactElement {
     [installedVisible, search],
   )
   const installedSections = useMemo(
-    () => [
-      { key: 'custom', label: '自定义智能体', items: filteredInstalled.filter((a) => a.tag === 'custom') },
-      { key: 'tenant', label: '专属智能体', items: filteredInstalled.filter((a) => a.tag === 'tenant') },
-      { key: 'hub', label: '智能体库', items: filteredInstalled.filter((a) => a.tag === 'hub') },
-    ] as const,
+    () =>
+      [
+        {
+          key: 'custom',
+          label: '自定义智能体',
+          items: filteredInstalled.filter((a) => a.tag === 'custom'),
+        },
+        {
+          key: 'tenant',
+          label: '专属智能体',
+          items: filteredInstalled.filter((a) => a.tag === 'tenant'),
+        },
+        { key: 'hub', label: '智能体库', items: filteredInstalled.filter((a) => a.tag === 'hub') },
+      ] as const,
     [filteredInstalled],
   )
 
@@ -110,11 +110,14 @@ export function AgentsPage(): React.ReactElement {
   )
 
   return (
-    <div className='page-wrapper w-full min-h-full box-border overflow-y-auto px-10 pb-4' data-testid='agents-page'>
-      <div className='page-content mx-auto w-full max-w-240 flex flex-col h-full'>
+    <div
+      className="page-wrapper w-full min-h-full box-border overflow-y-auto px-10 pb-4"
+      data-testid="agents-page"
+    >
+      <div className="page-content mx-auto w-full max-w-240 flex flex-col h-full">
         {/* 顶部：Tabs + 搜索 + 创建 */}
-        <div className='flex items-center gap-6 mb-3'>
-          <div className='flex flex-wrap items-end gap-5 border-b border-fill-3 flex-shrink-0'>
+        <div className="flex items-center gap-6 mb-3">
+          <div className="flex flex-wrap items-end gap-5 border-b border-fill-3 flex-shrink-0">
             {(
               [
                 { key: 'store', label: '智能体库' },
@@ -124,35 +127,37 @@ export function AgentsPage(): React.ReactElement {
             ).map((t) => (
               <button
                 key={t.key}
-                type='button'
+                type="button"
                 className={`relative h-9 px-0 text-sm bg-transparent border-none inline-flex items-center gap-1.5 transition-all cursor-pointer ${
-                  tab === t.key ? 'text-primary font-medium' : 'text-secondary hover:text-foreground'
+                  tab === t.key
+                    ? 'text-primary font-medium'
+                    : 'text-secondary hover:text-foreground'
                 }`}
                 onClick={() => switchTab(t.key)}
               >
                 {t.label}
                 {t.key === 'installed' ? (
-                  <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>
+                  <span className="f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium">
                     {t.count}
                   </span>
                 ) : null}
                 {tab === t.key ? (
-                  <span className='absolute bottom-0 left-0 right-0 h-0.5 rd-t-full bg-primary' />
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 rd-t-full bg-primary" />
                 ) : null}
               </button>
             ))}
           </div>
           <Input
-            placeholder='搜索...'
-            prefix={<Search size={14} className='text-tertiary' />}
-            className='flex-1 min-w-0'
+            placeholder="搜索..."
+            prefix={<Search size={14} className="text-tertiary" />}
+            className="flex-1 min-w-0"
             value={search}
             onChange={setSearch}
           />
           {tab === 'installed' && canManage ? (
             <Button
               icon={<SquarePen size={13} />}
-              className='rd-full flex-shrink-0'
+              className="rd-full flex-shrink-0"
               onClick={() => setFormOpen(true)}
             >
               创建
@@ -162,7 +167,7 @@ export function AgentsPage(): React.ReactElement {
 
         {/* 分类 chips（store / exclusive tab） */}
         {tab !== 'installed' && categoryList.length > 0 ? (
-          <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
+          <div className="flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide">
             {['all', ...categoryList].map((c) => (
               <span
                 key={c}
@@ -176,22 +181,26 @@ export function AgentsPage(): React.ReactElement {
         ) : null}
 
         {/* 内容滚动区 */}
-        <div className='flex-1 min-h-0 overflow-y-auto'>
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {tab === 'store' ? (
             <>
               {isLoading ? (
-                <div className='flex justify-center items-center py-12'>
+                <div className="flex justify-center items-center py-12">
                   <Spin size={28} />
                 </div>
               ) : filteredHub.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                  <Bot size={32} className='text-tertiary' />
-                  <span className='text-13px'>暂无智能体</span>
+                <div className="flex flex-col items-center justify-center py-12 text-secondary gap-2">
+                  <Bot size={32} className="text-tertiary" />
+                  <span className="text-13px">暂无智能体</span>
                 </div>
               ) : (
-                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className="grid gap-4 pb-4" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filteredHub.map((a) => (
-                    <AgentCard key={String(a.id ?? a.name)} agent={a} onDetail={() => setDetail(a)} />
+                    <AgentCard
+                      key={String(a.id ?? a.name)}
+                      agent={a}
+                      onDetail={() => setDetail(a)}
+                    />
                   ))}
                 </div>
               )}
@@ -199,18 +208,22 @@ export function AgentsPage(): React.ReactElement {
           ) : tab === 'exclusive' ? (
             <>
               {isLoading ? (
-                <div className='flex justify-center items-center py-12'>
+                <div className="flex justify-center items-center py-12">
                   <Spin size={28} />
                 </div>
               ) : filteredTenant.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                  <Shield size={32} className='text-tertiary' />
-                  <span className='text-13px'>暂无专属智能体</span>
+                <div className="flex flex-col items-center justify-center py-12 text-secondary gap-2">
+                  <Shield size={32} className="text-tertiary" />
+                  <span className="text-13px">暂无专属智能体</span>
                 </div>
               ) : (
-                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className="grid gap-4 pb-4" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filteredTenant.map((a) => (
-                    <AgentCard key={String(a.id ?? a.name)} agent={a} onDetail={() => setDetail(a)} />
+                    <AgentCard
+                      key={String(a.id ?? a.name)}
+                      agent={a}
+                      onDetail={() => setDetail(a)}
+                    />
                   ))}
                 </div>
               )}
@@ -218,32 +231,40 @@ export function AgentsPage(): React.ReactElement {
           ) : (
             <>
               {isLoading ? (
-                <div className='flex justify-center items-center py-12'>
+                <div className="flex justify-center items-center py-12">
                   <Spin size={28} />
                 </div>
               ) : filteredInstalled.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-12 gap-2'>
-                  <Bot size={32} className='text-tertiary' />
-                  <div className='text-13px text-secondary'>暂无智能体</div>
+                <div className="flex flex-col items-center justify-center py-12 gap-2">
+                  <Bot size={32} className="text-tertiary" />
+                  <div className="text-13px text-secondary">暂无智能体</div>
                   {canManage ? (
-                    <Button size='small' type='outline' className='mt-1' onClick={() => setFormOpen(true)}>
+                    <Button
+                      size="small"
+                      type="outline"
+                      className="mt-1"
+                      onClick={() => setFormOpen(true)}
+                    >
                       创建智能体
                     </Button>
                   ) : null}
                 </div>
               ) : (
                 /* 对齐 sudowork installed tab：按 自定义/专属/智能体库 分组，空组显示占位 */
-                <div className='pb-4 space-y-5'>
+                <div className="pb-4 space-y-5">
                   {installedSections.map((sec) => (
                     <section key={sec.key}>
-                      <div className='flex items-center justify-between gap-2 mb-2.5'>
-                        <span className='text-13px font-medium text-foreground'>{sec.label}</span>
-                        <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>
+                      <div className="flex items-center justify-between gap-2 mb-2.5">
+                        <span className="text-13px font-medium text-foreground">{sec.label}</span>
+                        <span className="px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px">
                           {sec.items.length}
                         </span>
                       </div>
                       {sec.items.length > 0 ? (
-                        <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                        <div
+                          className="grid gap-4"
+                          style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}
+                        >
                           {sec.items.map((a) => (
                             <AgentCard
                               key={a.name}
@@ -251,13 +272,16 @@ export function AgentsPage(): React.ReactElement {
                               onDetail={() => setDetail(a)}
                               right={
                                 canManage ? (
-                                  <Popconfirm title='确定卸载该智能体吗？' onOk={() => void handleUninstall(a.name)}>
+                                  <Popconfirm
+                                    title="确定卸载该智能体吗？"
+                                    onOk={() => void handleUninstall(a.name)}
+                                  >
                                     <Button
-                                      shape='circle'
-                                      status='danger'
-                                      className='!size-7'
+                                      shape="circle"
+                                      status="danger"
+                                      className="!size-7"
                                       icon={<Trash2 size={13} />}
-                                      aria-label='卸载'
+                                      aria-label="卸载"
                                     />
                                   </Popconfirm>
                                 ) : null
@@ -266,7 +290,7 @@ export function AgentsPage(): React.ReactElement {
                           ))}
                         </div>
                       ) : (
-                        <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary text-center'>
+                        <div className="bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary text-center">
                           暂无{sec.label}
                         </div>
                       )}
@@ -320,38 +344,46 @@ function AgentCard({
   // 图标链对齐 sudowork HubAssistantCard：avatar（resolveAgentAvatar：emoji/图片，tenant 相对路径走同源代理）→ emoji 字段 → Bot 兜底
   const resolvedAvatar = resolveAgentAvatar(agent.avatar)
   return (
-    <div className='card group flex items-start gap-3 relative overflow-hidden' data-testid='assistant-card' onClick={onDetail}>
-      <div className='w-48px flex-shrink-0'>
-        <div className='size-12 rd-8px overflow-hidden bg-control f-center'>
+    <div
+      className="card group flex items-start gap-3 relative overflow-hidden"
+      data-testid="assistant-card"
+      onClick={onDetail}
+    >
+      <div className="w-48px flex-shrink-0">
+        <div className="size-12 rd-8px overflow-hidden bg-control f-center">
           {resolvedAvatar?.kind === 'image' ? (
-            <img src={resolvedAvatar.value} alt={displayName} className='w-full h-full object-cover' />
+            <img
+              src={resolvedAvatar.value}
+              alt={displayName}
+              className="w-full h-full object-cover"
+            />
           ) : resolvedAvatar?.kind === 'emoji' ? (
-            <div className='w-full h-full f-center text-22px'>{resolvedAvatar.value}</div>
+            <div className="w-full h-full f-center text-22px">{resolvedAvatar.value}</div>
           ) : agent.emoji ? (
-            <div className='w-full h-full f-center text-22px'>{agent.emoji}</div>
+            <div className="w-full h-full f-center text-22px">{agent.emoji}</div>
           ) : (
-            <Bot size={22} className='text-primary' />
+            <Bot size={22} className="text-primary" />
           )}
         </div>
       </div>
-      <div className='flex-1 min-w-0'>
-        <div className='h-5 flex items-center gap-1.5 pr-32 min-w-0'>
-          <span className='font-medium text-13px text-foreground truncate'>{displayName}</span>
+      <div className="flex-1 min-w-0">
+        <div className="h-5 flex items-center gap-1.5 pr-32 min-w-0">
+          <span className="font-medium text-13px text-foreground truncate">{displayName}</span>
           {version ? (
-            <span className='px-5px py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>
+            <span className="px-5px py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px">
               v{version}
             </span>
           ) : null}
         </div>
-        <div className='my-1'>
-          <div className='text-11px text-secondary line-clamp-2 leading-15px'>
+        <div className="my-1">
+          <div className="text-11px text-secondary line-clamp-2 leading-15px">
             {String(agent.description ?? '暂无描述')}
           </div>
         </div>
       </div>
       {right ? (
         <div
-          className='absolute top-2.5 right-2.5 flex items-center gap-1.5'
+          className="absolute top-2.5 right-2.5 flex items-center gap-1.5"
           onClick={(e) => e.stopPropagation()}
         >
           {right}

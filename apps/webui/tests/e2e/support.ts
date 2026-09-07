@@ -49,14 +49,22 @@ export async function mossHealthCheck(env: E2eEnv): Promise<void> {
     const res = await fetch(`${env.mossUrl}/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ grant_type: 'password', username: user.username, password: user.password }),
+      body: JSON.stringify({
+        grant_type: 'password',
+        username: user.username,
+        password: user.password,
+      }),
     })
     expect(res.status, `moss login should succeed for ${user.username}`).toBe(200)
   }
   const tokenRes = await fetch(`${env.mossUrl}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ grant_type: 'password', username: env.userA.username, password: env.userA.password }),
+    body: JSON.stringify({
+      grant_type: 'password',
+      username: env.userA.username,
+      password: env.userA.password,
+    }),
   })
   const tokens = (await tokenRes.json()) as { access_token: string }
   const models = await fetch(`${env.mossUrl}/api/v1/models/available`, {
@@ -94,10 +102,7 @@ export async function apiLogin(
 }
 
 /** 清理带前缀的 cron 任务（A/B 两个用户都清）。 */
-export async function cleanupCronByPrefix(
-  request: APIRequestContext,
-  env: E2eEnv,
-): Promise<void> {
+export async function cleanupCronByPrefix(request: APIRequestContext, env: E2eEnv): Promise<void> {
   for (const user of [env.userA, env.userB]) {
     const cookie = await apiLogin(request, env, user)
     const listRes = await request.get('/api/cron', { headers: { cookie } })
@@ -122,7 +127,9 @@ export async function cleanupSessionsByPrefix(
   const cookie = await apiLogin(request, env)
   const listRes = await request.get('/api/conversations', { headers: { cookie } })
   if (listRes.status() !== 200) return
-  const { conversations } = (await listRes.json()) as { conversations: { id: string; assistantName: string | null }[] }
+  const { conversations } = (await listRes.json()) as {
+    conversations: { id: string; assistantName: string | null }[]
+  }
   for (const conv of conversations ?? []) {
     // 以 assistant 名称为前缀标记不可靠；E2E 会话通过显式收集 id 清理（见各 spec）
     void conv

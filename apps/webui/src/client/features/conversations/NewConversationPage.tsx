@@ -4,7 +4,15 @@
  *       （空则不渲染；点击进入选中态视图）。发送与是否选中智能体无关：不选走 Moss 默认，
  *       选中则以其 name 创建会话。发送入口：箭头按钮 / Enter（Shift+Enter 换行）。
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { Button, Dropdown, Input, Menu, Message, Popover, Tag } from '@arco-design/web-react'
@@ -12,7 +20,11 @@ import type { RefTextAreaType } from '@arco-design/web-react/es/Input/textarea'
 import { ArrowUp, AtSign, Bot, Brain, Plus, Zap } from 'lucide-react'
 import { ApiError } from '../auth/authApi'
 import { resolveAgentAvatar } from '@client/components/agentAvatar'
-import { createConversation, getConversationOptions, updateConversationMeta } from './conversationApi'
+import {
+  createConversation,
+  getConversationOptions,
+  updateConversationMeta,
+} from './conversationApi'
 import { AgentSelectedView, type SelectedAgentInfo } from './AgentSelectedView'
 import { SkillSelectorMenu } from './SkillSelectorMenu'
 import { stripAtQuery, useSkillSelector } from './useSkillSelector'
@@ -44,9 +56,18 @@ const PROMPT_CATEGORIES: {
     icon: '💻',
     prompts: [
       { label: '帮我写一个脚本', content: '帮我写一个 Python 脚本，用于...' },
-      { label: '帮我 Review 代码', content: '请帮我 review 以下代码，指出潜在问题并给出优化建议：\n\n```\n// 粘贴代码\n```' },
-      { label: '帮我调试报错', content: '我遇到了以下报错，请帮我分析原因并给出解决方案：\n\n错误信息：' },
-      { label: '解释这段代码', content: '请解释以下代码的工作原理，用简单易懂的方式说明：\n\n```\n// 粘贴代码\n```' },
+      {
+        label: '帮我 Review 代码',
+        content: '请帮我 review 以下代码，指出潜在问题并给出优化建议：\n\n```\n// 粘贴代码\n```',
+      },
+      {
+        label: '帮我调试报错',
+        content: '我遇到了以下报错，请帮我分析原因并给出解决方案：\n\n错误信息：',
+      },
+      {
+        label: '解释这段代码',
+        content: '请解释以下代码的工作原理，用简单易懂的方式说明：\n\n```\n// 粘贴代码\n```',
+      },
     ],
   },
   {
@@ -92,7 +113,10 @@ const PROMPT_CATEGORIES: {
     icon: '📚',
     prompts: [
       { label: '解释一个概念', content: '请用通俗易懂的方式解释...这个概念，并举例说明' },
-      { label: '对比两个事物', content: '请对比...和...的区别，从原理、优缺点、适用场景等方面分析' },
+      {
+        label: '对比两个事物',
+        content: '请对比...和...的区别，从原理、优缺点、适用场景等方面分析',
+      },
     ],
   },
 ]
@@ -133,7 +157,9 @@ export function NewConversationPage(): React.ReactElement {
   const skills = options?.skills ?? []
   const models = options?.models ?? []
   // 选中 agent 的 zh-CN 案例提示词（moss 未返回该字段时为空，案例块不渲染）
-  const agentExamplePrompts = (selectedAgent?.promptsI18n['zh-CN'] ?? []).filter((prompt) => prompt.trim())
+  const agentExamplePrompts = (selectedAgent?.promptsI18n['zh-CN'] ?? []).filter((prompt) =>
+    prompt.trim(),
+  )
 
   // @ 触发控制器（对齐 Sudowork useSkillSelectorController）
   const skillSelector = useSkillSelector({
@@ -181,7 +207,11 @@ export function NewConversationPage(): React.ReactElement {
         revalidate()
       }
       void navigate(`/conversation/${created.id}`, {
-        state: { initialMessage: input.trim(), initialImages: images, initialModel: selectedModel || undefined },
+        state: {
+          initialMessage: input.trim(),
+          initialImages: images,
+          initialModel: selectedModel || undefined,
+        },
       })
     } catch (err) {
       const code = err instanceof ApiError ? err.code : (err as Error).message
@@ -226,54 +256,54 @@ export function NewConversationPage(): React.ReactElement {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const isDark = useMemo(
-    () => document.documentElement.getAttribute('data-theme') === 'dark',
-    [],
-  )
+  const isDark = useMemo(() => document.documentElement.getAttribute('data-theme') === 'dark', [])
   const ring = isDark ? FOCUS_RING.dark : FOCUS_RING.light
   const activeCategory = category ? PROMPT_CATEGORIES.find((c) => c.key === category) : undefined
   // placeholder 打字机动画（后半段逐字打出；前缀为 agent 名，对齐 Sudowork guid/index.tsx:699）
   const typewriter = useTypewriterPlaceholder('发消息、上传文件或打开文件夹...')
 
   return (
-    <div className='page-wrapper w-full min-h-full box-border overflow-y-auto px-10 pb-4' data-testid='new-conversation-page'>
-      <div className='page-content mx-auto w-full !max-w-[70%] h-full f-center flex-col'>
-        <div className='w-full px-4 box-border mx-auto mt-[-5vh] flex flex-col'>
+    <div
+      className="page-wrapper w-full min-h-full box-border overflow-y-auto px-10 pb-4"
+      data-testid="new-conversation-page"
+    >
+      <div className="page-content mx-auto w-full !max-w-[70%] h-full f-center flex-col">
+        <div className="w-full px-4 box-border mx-auto mt-[-5vh] flex flex-col">
           {selectedAgent ? (
             /* 选中态视图（返回 + 头像 + 名称 + 描述卡），替换欢迎语/胶囊/模板区 */
             <AgentSelectedView agent={selectedAgent} onBack={() => setSelectedAgent(null)} />
           ) : (
             <>
               {/* 欢迎标题 */}
-              <p className='text-2xl font-semibold mb-6 text-0 text-center'>Hi，今天有什么安排？</p>
+              <p className="text-2xl font-semibold mb-6 text-0 text-center">Hi，今天有什么安排？</p>
 
               {/* SudoCode 胶囊（对齐 Sudowork AgentPillBar 固定单胶囊形态） */}
-              <div className='w-full flex justify-center mb-5'>
-                <div className='f-center p-1.5 rd-30px bg-guid-agent-bar w-fit max-w-full text-foreground'>
-                  <div className='group relative flex items-center whitespace-nowrap px-3 py-2 rd-20px mx-0.5 bg-fill-0'>
-                    <span className='inline-flex h-5 shrink-0 items-center justify-center leading-none'>
+              <div className="w-full flex justify-center mb-5">
+                <div className="f-center p-1.5 rd-30px bg-guid-agent-bar w-fit max-w-full text-foreground">
+                  <div className="group relative flex items-center whitespace-nowrap px-3 py-2 rd-20px mx-0.5 bg-fill-0">
+                    <span className="inline-flex h-5 shrink-0 items-center justify-center leading-none">
                       <img
                         src={chinaTelecomLogo}
-                        alt='CTCode'
+                        alt="CTCode"
                         height={20}
-                        className='block h-5 w-auto max-w-none object-contain'
+                        className="block h-5 w-auto max-w-none object-contain"
                       />
                     </span>
-                    <span className='font-semibold text-14px ml-1 text-foreground'>CTCode</span>
+                    <span className="font-semibold text-14px ml-1 text-foreground">CTCode</span>
                   </div>
                 </div>
               </div>
 
               {/* 提示词模板（默认收起，点击分类展开——对齐 Sudowork） */}
-              <div className='w-full mb-4 animate-fade-in animate-duration-400 animate-ease-out'>
-                <div className='flex items-center gap-6px mb-10px'>
-                  <span className='text-13px text-secondary'>💡 常用提示词</span>
+              <div className="w-full mb-4 animate-fade-in animate-duration-400 animate-ease-out">
+                <div className="flex items-center gap-6px mb-10px">
+                  <span className="text-13px text-secondary">💡 常用提示词</span>
                 </div>
-                <div className='flex flex-wrap gap-2 mb-1'>
+                <div className="flex flex-wrap gap-2 mb-1">
                   {PROMPT_CATEGORIES.map((c) => (
                     <button
                       key={c.key}
-                      type='button'
+                      type="button"
                       className={`inline-flex items-center gap-1.5 h-7 border rd-full px-3 text-xs transition-all active:scale-96 ${
                         category === c.key
                           ? 'border-primary bg-primary font-semibold text-white'
@@ -281,15 +311,23 @@ export function NewConversationPage(): React.ReactElement {
                       }`}
                       onClick={() => setCategory(category === c.key ? null : c.key)}
                     >
-                      <span className='inline-flex h-3.5 w-3.5 items-center justify-center'>{c.icon}</span>
+                      <span className="inline-flex h-3.5 w-3.5 items-center justify-center">
+                        {c.icon}
+                      </span>
                       {c.label}
                     </button>
                   ))}
                 </div>
                 {activeCategory ? (
-                  <div className='flex flex-wrap gap-2 mt-2 animate-fade-in animate-duration-400'>
+                  <div className="flex flex-wrap gap-2 mt-2 animate-fade-in animate-duration-400">
                     {activeCategory.prompts.map((p) => (
-                      <Button key={p.label} size='small' shape='square' className='!border !border-default' onClick={() => setInput(p.content)}>
+                      <Button
+                        key={p.label}
+                        size="small"
+                        shape="square"
+                        className="!border !border-default"
+                        onClick={() => setInput(p.content)}
+                      >
                         {p.label}
                       </Button>
                     ))}
@@ -301,7 +339,7 @@ export function NewConversationPage(): React.ReactElement {
 
           {/* 输入卡片（GuidInputCard） */}
           <div
-            className='w-full box-border relative p-16px b b-solid rd-20px flex flex-col overflow-hidden transition-all duration-200'
+            className="w-full box-border relative p-16px b b-solid rd-20px flex flex-col overflow-hidden transition-all duration-200"
             style={{
               zIndex: 1,
               backgroundColor: 'var(--color-fill-1)',
@@ -313,16 +351,16 @@ export function NewConversationPage(): React.ReactElement {
           >
             {/* 已选技能 */}
             {selectedSkills.length > 0 ? (
-              <div className='flex flex-col gap-6px mb-8px'>
-                <div className='flex items-center gap-4px text-11px text-secondary'>
+              <div className="flex flex-col gap-6px mb-8px">
+                <div className="flex items-center gap-4px text-11px text-secondary">
                   <Zap size={12} /> 当前使用技能
                 </div>
-                <div className='flex flex-wrap gap-6px'>
+                <div className="flex flex-wrap gap-6px">
                   {selectedSkills.map((s) => (
                     <Tag
                       key={s}
                       closable
-                      className='text-12px rd-full'
+                      className="text-12px rd-full"
                       onClose={() => setSelectedSkills((prev) => prev.filter((x) => x !== s))}
                     >
                       {s}
@@ -334,7 +372,7 @@ export function NewConversationPage(): React.ReactElement {
 
             <Input.TextArea
               ref={textareaRef}
-              aria-label='消息输入框'
+              aria-label="消息输入框"
               autoSize={{ minRows: 3, maxRows: 20 }}
               value={input}
               onChange={(value, e) => {
@@ -351,14 +389,18 @@ export function NewConversationPage(): React.ReactElement {
                 if (skillSelector.onKeyDown(e)) return
               }}
               placeholder={`${selectedAgent?.displayName ?? 'CTCode'}, ${typewriter || '发消息、上传文件或打开文件夹...'}`}
-              className='text-16px rounded-xl !bg-transparent !b-none !resize-none !p-0'
+              className="text-16px rounded-xl !bg-transparent !b-none !resize-none !p-0"
               style={{ '--w-e-textarea-height': 'auto' } as React.CSSProperties}
             />
 
             {images.length > 0 ? (
-              <div className='flex flex-wrap items-center gap-3 my-3 text-12px text-secondary'>
+              <div className="flex flex-wrap items-center gap-3 my-3 text-12px text-secondary">
                 {images.map((img, i) => (
-                  <Tag key={i} closable onClose={() => setImages((prev) => prev.filter((_, j) => j !== i))}>
+                  <Tag
+                    key={i}
+                    closable
+                    onClose={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                  >
                     🖼 {img.mediaType}
                   </Tag>
                 ))}
@@ -366,27 +408,27 @@ export function NewConversationPage(): React.ReactElement {
             ) : null}
 
             {/* 操作行（GuidActionRow） */}
-            <div className='flex items-center justify-between w-full gap-2 mt-3'>
-              <div className='inline-flex items-center gap-2.5 shrink min-w-0'>
-                <span className='relative'>
+            <div className="flex items-center justify-between w-full gap-2 mt-3">
+              <div className="inline-flex items-center gap-2.5 shrink min-w-0">
+                <span className="relative">
                   <Button
-                    shape='circle'
-                    type='secondary'
-                    icon={<Plus size={16} color='var(--text-secondary)' />}
+                    shape="circle"
+                    type="secondary"
+                    icon={<Plus size={16} color="var(--text-secondary)" />}
                     onClick={() => fileRef.current?.click()}
-                    aria-label='添加图片'
+                    aria-label="添加图片"
                   />
                   {images.length > 0 ? (
-                    <span className='absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-white font-600'>
+                    <span className="absolute -right-3px -top-3px f-center min-w-14px h-14px rounded-full bg-primary px-3px text-9px text-white font-600">
                       {images.length}
                     </span>
                   ) : null}
                   <input
                     ref={fileRef}
-                    type='file'
-                    accept='image/png,image/jpeg,image/webp'
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
                     multiple
-                    className='hidden'
+                    className="hidden"
                     onChange={(e) => void handleFiles(e)}
                   />
                 </span>
@@ -394,7 +436,7 @@ export function NewConversationPage(): React.ReactElement {
                 {/* 技能选择（受控 Popover：按钮点击与输入 @ 触发共用 open state，对齐 Sudowork） */}
                 <Popover
                   trigger={[]}
-                  position='tl'
+                  position="tl"
                   popupVisible={skillPopoverOpen}
                   onVisibleChange={(visible) => {
                     if (!visible) closeSkillSelector()
@@ -416,14 +458,14 @@ export function NewConversationPage(): React.ReactElement {
                   }
                 >
                   <button
-                    type='button'
-                    className='inline-flex h-7 min-w-0 items-center gap-2 rd-full border px-3 text-13px font-500 transition-colors bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground'
+                    type="button"
+                    className="inline-flex h-7 min-w-0 items-center gap-2 rd-full border px-3 text-13px font-500 transition-colors bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground"
                     onClick={() => setSkillPopoverOpen(true)}
                   >
-                    <span className='inline-flex size-4 shrink-0 items-center justify-center text-inherit'>
+                    <span className="inline-flex size-4 shrink-0 items-center justify-center text-inherit">
                       <AtSign size={14} />
                     </span>
-                    <span className='min-w-0 truncate'>
+                    <span className="min-w-0 truncate">
                       {selectedSkills.length > 0 ? `技能 · ${selectedSkills.length}` : '技能'}
                     </span>
                   </button>
@@ -431,18 +473,21 @@ export function NewConversationPage(): React.ReactElement {
 
                 {/* 模型选择 */}
                 <Dropdown
-                  trigger='click'
-                  position='top'
+                  trigger="click"
+                  position="top"
                   droplist={
                     <Menu style={{ minWidth: 220, maxHeight: 360, overflowY: 'auto' }}>
                       {models.map((m) => (
                         <Menu.Item key={m.id} onClick={() => setSelectedModel(m.id)}>
-                          <span className='flex items-center gap-2'>
+                          <span className="flex items-center gap-2">
                             <span
-                              className='inline-block size-1.5 rounded-full'
-                              style={{ background: selectedModel === m.id ? 'var(--primary)' : 'var(--color-text-4)' }}
+                              className="inline-block size-1.5 rounded-full"
+                              style={{
+                                background:
+                                  selectedModel === m.id ? 'var(--primary)' : 'var(--color-text-4)',
+                              }}
                             />
-                            <span className='truncate'>{m.name}</span>
+                            <span className="truncate">{m.name}</span>
                           </span>
                         </Menu.Item>
                       ))}
@@ -450,13 +495,13 @@ export function NewConversationPage(): React.ReactElement {
                   }
                 >
                   <button
-                    type='button'
-                    className='inline-flex h-7 min-w-0 items-center gap-2 rd-full border px-3 text-13px font-500 transition-colors bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground'
+                    type="button"
+                    className="inline-flex h-7 min-w-0 items-center gap-2 rd-full border px-3 text-13px font-500 transition-colors bg-fill-2 text-secondary hover:bg-fill-3 hover:text-foreground"
                   >
-                    <span className='inline-flex size-4 shrink-0 items-center justify-center text-inherit'>
+                    <span className="inline-flex size-4 shrink-0 items-center justify-center text-inherit">
                       <Brain size={14} />
                     </span>
-                    <span className='min-w-0 truncate'>
+                    <span className="min-w-0 truncate">
                       {selectedModel || (models[0]?.name ?? '模型')}
                     </span>
                   </button>
@@ -464,27 +509,27 @@ export function NewConversationPage(): React.ReactElement {
               </div>
 
               <Button
-                shape='circle'
-                type='primary'
-                className='send-arrow-btn'
+                shape="circle"
+                type="primary"
+                className="send-arrow-btn"
                 loading={sending}
                 disabled={!input.trim() || sending}
-                icon={<ArrowUp size={16} color='#fff' />}
+                icon={<ArrowUp size={16} color="#fff" />}
                 onClick={() => void handleSend()}
-                aria-label='发送'
+                aria-label="发送"
               />
             </div>
           </div>
 
           {/* 底部（对齐 Sudowork AssistantSelectionArea）：已选中且有案例→案例提示词；未选中→智能体列表；否则不渲染 */}
           {selectedAgent && agentExamplePrompts.length > 0 ? (
-            <div className='mt-16px w-full' data-testid='agent-example-prompts'>
-              <div className='flex flex-col gap-2'>
+            <div className="mt-16px w-full" data-testid="agent-example-prompts">
+              <div className="flex flex-col gap-2">
                 {agentExamplePrompts.map((prompt) => (
                   <button
                     key={prompt}
-                    type='button'
-                    className='text-left text-14px text-2 hover:text-1 px-16px py-8px rd-12px b-1 b-solid cursor-pointer bg-fill-0 hover:bg-fill-1'
+                    type="button"
+                    className="text-left text-14px text-2 hover:text-1 px-16px py-8px rd-12px b-1 b-solid cursor-pointer bg-fill-0 hover:bg-fill-1"
                     style={{ borderColor: 'var(--bg-3)' }}
                     onClick={() => setInput(prompt)}
                   >
@@ -494,13 +539,13 @@ export function NewConversationPage(): React.ReactElement {
               </div>
             </div>
           ) : !selectedAgent && agents.length > 0 ? (
-            <div className='mt-16px w-full' data-testid='assistant-list'>
-              <div className='f-center flex-wrap gap-2'>
+            <div className="mt-16px w-full" data-testid="assistant-list">
+              <div className="f-center flex-wrap gap-2">
                 {agents.map((a) => (
                   <div
                     key={a.name}
                     data-testid={`assistant-chip-${a.name}`}
-                    className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
+                    className="h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none"
                     style={{ borderWidth: 1, borderColor: 'var(--bg-3)' }}
                     onClick={() => {
                       setSelectedAgent({
@@ -515,19 +560,29 @@ export function NewConversationPage(): React.ReactElement {
                       if (prompt) setInput(prompt)
                     }}
                   >
-                    <span className='inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none'>
+                    <span className="inline-flex h-16px w-16px shrink-0 items-center justify-center leading-none">
                       {(() => {
                         const resolved = resolveAgentAvatar(a.avatar)
                         if (resolved?.kind === 'image') {
-                          return <img src={resolved.value} alt={a.displayName} className='h-16px w-16px object-contain' />
+                          return (
+                            <img
+                              src={resolved.value}
+                              alt={a.displayName}
+                              className="h-16px w-16px object-contain"
+                            />
+                          )
                         }
                         if (resolved?.kind === 'emoji') {
-                          return <span className='text-16px leading-none'>{resolved.value}</span>
+                          return <span className="text-16px leading-none">{resolved.value}</span>
                         }
-                        return a.emoji ? <span className='text-16px leading-none'>{a.emoji}</span> : <Bot size={16} />
+                        return a.emoji ? (
+                          <span className="text-16px leading-none">{a.emoji}</span>
+                        ) : (
+                          <Bot size={16} />
+                        )
                       })()}
                     </span>
-                    <span className='text-14px text-2 hover:text-1'>{a.displayName}</span>
+                    <span className="text-14px text-2 hover:text-1">{a.displayName}</span>
                   </div>
                 ))}
               </div>

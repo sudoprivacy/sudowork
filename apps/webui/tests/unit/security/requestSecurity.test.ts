@@ -1,11 +1,7 @@
 import express, { type Express } from 'express'
 import request from 'supertest'
 import { describe, expect, test } from 'vitest'
-import {
-  createOriginGuard,
-  createSecurityHeaders,
-  noStore,
-} from '@server/security/requestSecurity'
+import { createOriginGuard, createSecurityHeaders, noStore } from '@server/security/requestSecurity'
 
 const PUBLIC_ORIGIN = 'http://localhost:5273'
 
@@ -32,17 +28,13 @@ describe('requestSecurity', () => {
   })
 
   test('state-changing request without Origin requires same-origin Sec-Fetch-Site', async () => {
-    const ok = await request(buildApp())
-      .post('/mutate')
-      .set('Sec-Fetch-Site', 'same-origin')
+    const ok = await request(buildApp()).post('/mutate').set('Sec-Fetch-Site', 'same-origin')
     expect(ok.status).toBe(200)
 
     const noneOk = await request(buildApp()).post('/mutate').set('Sec-Fetch-Site', 'none')
     expect(noneOk.status).toBe(200)
 
-    const cross = await request(buildApp())
-      .post('/mutate')
-      .set('Sec-Fetch-Site', 'cross-site')
+    const cross = await request(buildApp()).post('/mutate').set('Sec-Fetch-Site', 'cross-site')
     expect(cross.status).toBe(403)
   })
 

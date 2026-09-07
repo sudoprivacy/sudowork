@@ -1,4 +1,7 @@
-import type { ConversationContextDto, ConversationListItem } from '@sudowork/contracts/conversations'
+import type {
+  ConversationContextDto,
+  ConversationListItem,
+} from '@sudowork/contracts/conversations'
 import { ApiError } from '@client/features/auth/authApi'
 
 export interface ConversationOptions {
@@ -58,7 +61,10 @@ export function updateConversationMeta(
 }
 
 export function reorderPinnedConversations(orderedIds: string[]): Promise<{ ok: true }> {
-  return api('/api/conversations/meta/reorder', { method: 'POST', body: JSON.stringify({ orderedIds }) })
+  return api('/api/conversations/meta/reorder', {
+    method: 'POST',
+    body: JSON.stringify({ orderedIds }),
+  })
 }
 
 /** 删除会话（本地 meta + Moss terminate，对齐 Sudowork 删除语义） */
@@ -116,7 +122,9 @@ export function getWorkspaceFile(
   id: string,
   path: string,
 ): Promise<{ name: string; relativePath: string; mime: string; content: string; size: number }> {
-  return api(`/api/conversations/${encodeURIComponent(id)}/workspace/file?path=${encodeURIComponent(path)}`)
+  return api(
+    `/api/conversations/${encodeURIComponent(id)}/workspace/file?path=${encodeURIComponent(path)}`,
+  )
 }
 
 /** 上传文件到会话工作区（base64）；超限由服务端返回 413 FILE_TOO_LARGE。 */

@@ -8,8 +8,18 @@ import type { MossAuthPort } from '@sudowork/moss-client'
 import { MossHttpError } from '@sudowork/moss-client'
 import { createTestDatabase, destroyTestDatabase } from './helpers'
 
-const TOKENS_A = { access_token: 'at-a', refresh_token: 'rt-a', token_type: 'Bearer' as const, expires_in: 3600 }
-const TOKENS_B = { access_token: 'at-b', refresh_token: 'rt-b', token_type: 'Bearer' as const, expires_in: 3600 }
+const TOKENS_A = {
+  access_token: 'at-a',
+  refresh_token: 'rt-a',
+  token_type: 'Bearer' as const,
+  expires_in: 3600,
+}
+const TOKENS_B = {
+  access_token: 'at-b',
+  refresh_token: 'rt-b',
+  token_type: 'Bearer' as const,
+  expires_in: 3600,
+}
 const ME_A = {
   user: { id: 'moss-a', name: 'user_a' },
   organization: { id: 'org-1', name: 'Org One' },
@@ -128,9 +138,7 @@ describe('auth routes (real PostgreSQL + fake moss)', () => {
   })
 
   test('GET /api/auth/session returns whitelist DTO for user A', async () => {
-    const res = await request(buildApp())
-      .get('/api/auth/session')
-      .set('Cookie', cookieA)
+    const res = await request(buildApp()).get('/api/auth/session').set('Cookie', cookieA)
     expect(res.status).toBe(200)
     expect(res.body).toEqual({
       user: { id: 'moss-a', name: 'user_a' },
@@ -141,9 +149,7 @@ describe('auth routes (real PostgreSQL + fake moss)', () => {
   })
 
   test('user B session resolves to B, not A', async () => {
-    const res = await request(buildApp())
-      .get('/api/auth/session')
-      .set('Cookie', cookieB)
+    const res = await request(buildApp()).get('/api/auth/session').set('Cookie', cookieB)
     expect(res.status).toBe(200)
     expect(res.body.user.id).toBe('moss-b')
     expect(res.body.scopes).toEqual([])
@@ -163,13 +169,11 @@ describe('auth routes (real PostgreSQL + fake moss)', () => {
 
   test('expired web session is rejected', async () => {
     // 直接将 A 的 session 置为过期
-    await pool.query('UPDATE web_sessions SET expires_at = now() - interval \'1 second\'')
-    const res = await request(buildApp())
-      .get('/api/auth/session')
-      .set('Cookie', cookieA)
+    await pool.query("UPDATE web_sessions SET expires_at = now() - interval '1 second'")
+    const res = await request(buildApp()).get('/api/auth/session').set('Cookie', cookieA)
     expect(res.status).toBe(401)
     // 恢复，避免影响后续用例
-    await pool.query('UPDATE web_sessions SET expires_at = now() + interval \'1 hour\'')
+    await pool.query("UPDATE web_sessions SET expires_at = now() + interval '1 hour'")
   })
 
   test('logout clears cookie and invalidates the session', async () => {

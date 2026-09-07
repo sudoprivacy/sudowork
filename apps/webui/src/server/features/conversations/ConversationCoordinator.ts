@@ -109,15 +109,12 @@ export class ConversationCoordinator {
     }
     this.broadcast(entry, { kind: 'lock', state: lock.state })
     for (const conn of entry.subscribers) {
-      this.sendTo(
-        conn.ws,
-        {
-          kind: 'writer',
-          // idle（无进行中回合）乐观可写，首个发送者经 acquireWriteLock 的 idle 抢占成为 writer；
-          // running 仅 holder 可写；uncertain 恒只读
-          isWriter: lock.state === 'idle' || lock.writerWebSessionId === conn.webSession.id,
-        },
-      )
+      this.sendTo(conn.ws, {
+        kind: 'writer',
+        // idle（无进行中回合）乐观可写，首个发送者经 acquireWriteLock 的 idle 抢占成为 writer；
+        // running 仅 holder 可写；uncertain 恒只读
+        isWriter: lock.state === 'idle' || lock.writerWebSessionId === conn.webSession.id,
+      })
     }
   }
 
@@ -367,7 +364,9 @@ export class ConversationCoordinator {
             })
             if (released) {
               await this.broadcastLockState(entry).catch((err: unknown) =>
-                console.warn(`[coordinator] broadcast after set_model release failed: ${(err as Error).message}`),
+                console.warn(
+                  `[coordinator] broadcast after set_model release failed: ${(err as Error).message}`,
+                ),
               )
             }
           }
@@ -390,7 +389,8 @@ export class ConversationCoordinator {
       }
     } catch (err) {
       const code =
-        err instanceof Error && ['SESSION_NOT_FOUND', 'MOSS_UNAVAILABLE', 'UPSTREAM_OWNER_MISMATCH'].includes(err.message)
+        err instanceof Error &&
+        ['SESSION_NOT_FOUND', 'MOSS_UNAVAILABLE', 'UPSTREAM_OWNER_MISMATCH'].includes(err.message)
           ? err.message
           : 'UPSTREAM_FAILED'
       this.sendTo(conn.ws, { kind: 'error', code })

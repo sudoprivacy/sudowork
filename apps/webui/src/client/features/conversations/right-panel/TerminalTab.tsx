@@ -58,7 +58,9 @@ function fitAndResize(entry: TerminalEntry): void {
   try {
     entry.fit.fit()
     if (entry.ws.readyState === WebSocket.OPEN) {
-      entry.ws.send(JSON.stringify({ type: 'resize', cols: entry.term.cols, rows: entry.term.rows }))
+      entry.ws.send(
+        JSON.stringify({ type: 'resize', cols: entry.term.cols, rows: entry.term.rows }),
+      )
     }
   } catch {
     /* 容器无布局时 proposeDimensions 返回 NaN，fit 整体放弃 */
@@ -79,19 +81,16 @@ export function TerminalTab({
   const mountedEntryRef = useRef<TerminalEntry | null>(null)
 
   /** 激活某个终端：把已 open 的 xterm DOM 搬到当前容器并 fit 上报 */
-  const mountTerm = useCallback(
-    (entry: TerminalEntry) => {
-      const host = mountRef.current
-      if (!host) return
-      if (mountedEntryRef.current === entry && host.contains(entry.host)) return
-      host.innerHTML = ''
-      host.appendChild(entry.host)
-      fitAndResize(entry)
-      if (!entry.ended) entry.term.focus()
-      mountedEntryRef.current = entry
-    },
-    [],
-  )
+  const mountTerm = useCallback((entry: TerminalEntry) => {
+    const host = mountRef.current
+    if (!host) return
+    if (mountedEntryRef.current === entry && host.contains(entry.host)) return
+    host.innerHTML = ''
+    host.appendChild(entry.host)
+    fitAndResize(entry)
+    if (!entry.ended) entry.term.focus()
+    mountedEntryRef.current = entry
+  }, [])
 
   useEffect(() => {
     if (!active) return
@@ -128,14 +127,17 @@ export function TerminalTab({
   const openTerminal = useCallback((): void => {
     if (s.terminals.length >= PER_CONV_TAB_LIMIT) return
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws/terminal?conversation=${encodeURIComponent(conversationId)}`)
+    const ws = new WebSocket(
+      `${proto}://${window.location.host}/ws/terminal?conversation=${encodeURIComponent(conversationId)}`,
+    )
     const term = new Terminal({
       cursorBlink: true,
       convertEol: true,
       fontSize: 12,
       lineHeight: 1.45,
       scrollback: 5000,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+      fontFamily:
+        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       theme: {
         background: 'var(--color-bg-1)',
         foreground: 'var(--color-text-1)',
@@ -193,7 +195,15 @@ export function TerminalTab({
       }
       rerender()
     }
-    entry = { terminalId: `pending-${Date.now()}`, ws, term, fit, host, ended: false, userClosed: false }
+    entry = {
+      terminalId: `pending-${Date.now()}`,
+      ws,
+      term,
+      fit,
+      host,
+      ended: false,
+      userClosed: false,
+    }
     s.terminals = [...s.terminals, entry]
     rerender()
   }, [conversationId, s, rerender, mountTerm])
@@ -209,9 +219,9 @@ export function TerminalTab({
   )
 
   return (
-    <div className='w-full h-full min-h-0 flex flex-col'>
+    <div className="w-full h-full min-h-0 flex flex-col">
       {/* 终端子 tab */}
-      <div className='terminal-root__tabs shrink-0'>
+      <div className="terminal-root__tabs shrink-0">
         {s.terminals.map((t, i) => (
           <span
             key={t.terminalId}
@@ -225,9 +235,9 @@ export function TerminalTab({
             终端 {i + 1}
             {t.ended ? ' ·' : ''}
             <button
-              type='button'
-              className='terminal-root__tab-close'
-              aria-label='关闭终端'
+              type="button"
+              className="terminal-root__tab-close"
+              aria-label="关闭终端"
               onClick={(e) => {
                 e.stopPropagation()
                 closeTerminal(t)
@@ -239,10 +249,10 @@ export function TerminalTab({
         ))}
         {s.terminals.length < PER_CONV_TAB_LIMIT ? (
           <button
-            type='button'
-            className='terminal-root__tab'
-            aria-label='新建终端'
-            data-testid='terminal-new-tab'
+            type="button"
+            className="terminal-root__tab"
+            aria-label="新建终端"
+            data-testid="terminal-new-tab"
             onClick={openTerminal}
           >
             +
@@ -250,10 +260,10 @@ export function TerminalTab({
         ) : null}
       </div>
       {/* xterm 挂载点 */}
-      <div className='flex-1 min-h-0 overflow-hidden p-1'>
-        <div ref={mountRef} className='size-full' data-testid='terminal-mount' />
+      <div className="flex-1 min-h-0 overflow-hidden p-1">
+        <div ref={mountRef} className="size-full" data-testid="terminal-mount" />
         {s.terminals.length === 0 ? (
-          <div className='size-full f-center text-12px text-tertiary select-none'>
+          <div className="size-full f-center text-12px text-tertiary select-none">
             点击 + 新建终端（webui 服务器 shell）
           </div>
         ) : null}

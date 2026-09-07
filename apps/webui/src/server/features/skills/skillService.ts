@@ -60,7 +60,11 @@ async function installedNames(deps: SkillDeps, ctx: MossCallContext): Promise<Se
   return names
 }
 
-async function requireVisibleSkill(deps: SkillDeps, ctx: MossCallContext, name: string): Promise<void> {
+async function requireVisibleSkill(
+  deps: SkillDeps,
+  ctx: MossCallContext,
+  name: string,
+): Promise<void> {
   if (!(await installedNames(deps, ctx)).has(name)) throw new NotFoundError()
 }
 
@@ -92,7 +96,11 @@ export async function hubList(
   }
 }
 
-export async function hubDetail(deps: SkillDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+export async function hubDetail(
+  deps: SkillDeps,
+  ctx: MossCallContext,
+  id: string,
+): Promise<unknown> {
   return mapErr(() => deps.skills.hubDetail(ctx, id))
 }
 
@@ -111,9 +119,10 @@ export async function installFromHub(
   name: string,
 ): Promise<unknown> {
   await requireAnyScope(deps, ctx, ['admin:settings'])
-  const hub = (await mapErr(() =>
-    deps.skills.hubList(ctx, { limit: '100' }),
-  )) as { items?: Record<string, unknown>[]; skills?: Record<string, unknown>[] }
+  const hub = (await mapErr(() => deps.skills.hubList(ctx, { limit: '100' }))) as {
+    items?: Record<string, unknown>[]
+    skills?: Record<string, unknown>[]
+  }
   const items = hub?.items ?? hub?.skills ?? []
   const meta = items.find((it) => it && (it.name === name || it.id === name))
   if (!meta) throw new NotFoundError()
@@ -164,7 +173,11 @@ export async function tenantUpload(
   return mapErr(() => deps.skills.tenantUpload(ctx, body))
 }
 
-async function requireTenantVisible(deps: SkillDeps, ctx: MossCallContext, id: string): Promise<void> {
+async function requireTenantVisible(
+  deps: SkillDeps,
+  ctx: MossCallContext,
+  id: string,
+): Promise<void> {
   const list = (await mapErr(() => deps.skills.tenantList(ctx))) as Record<string, unknown>[]
   const row = Array.isArray(list) ? list.find((it) => it && it.id === id) : undefined
   if (!row) throw new NotFoundError()
@@ -181,12 +194,20 @@ export async function tenantUpdate(
   return mapErr(() => deps.skills.tenantUpdate(ctx, id, body))
 }
 
-export async function tenantDelete(deps: SkillDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+export async function tenantDelete(
+  deps: SkillDeps,
+  ctx: MossCallContext,
+  id: string,
+): Promise<unknown> {
   await requireTenantVisible(deps, ctx, id)
   return mapErr(() => deps.skills.tenantDelete(ctx, id))
 }
 
-export async function tenantDownload(deps: SkillDeps, ctx: MossCallContext, id: string): Promise<unknown> {
+export async function tenantDownload(
+  deps: SkillDeps,
+  ctx: MossCallContext,
+  id: string,
+): Promise<unknown> {
   return mapErr(() => deps.skills.tenantDownload(ctx, id))
 }
 

@@ -4,7 +4,13 @@ import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
 import type { Principal } from '../auth/principalRepository.js'
 import type { MossCallContext, MossSessionPort } from '@sudowork/moss-client'
-import { type MossAsset, type MossFetch, MossHttpError, MossNetworkError, mossFetchAsset } from '@sudowork/moss-client'
+import {
+  type MossAsset,
+  type MossFetch,
+  MossHttpError,
+  MossNetworkError,
+  mossFetchAsset,
+} from '@sudowork/moss-client'
 import type {
   ConversationListItem,
   CreateConversationRequest,
@@ -31,7 +37,10 @@ export class SessionNotFoundError extends Error {}
 export class SessionForbiddenError extends Error {}
 export class MossUnavailableError extends Error {}
 export class InvalidSelectionError extends Error {
-  constructor(readonly field: 'assistantName' | 'enabledSkills' | 'modelId', readonly value: string) {
+  constructor(
+    readonly field: 'assistantName' | 'enabledSkills' | 'modelId',
+    readonly value: string,
+  ) {
     super(`${field} not in current visible list: ${value}`)
   }
 }
@@ -52,7 +61,9 @@ export interface ConversationDeps {
 const NameListSchema = z.array(z.object({ name: z.string() }).passthrough())
 
 const AvailableModelsSchema = z
-  .object({ data: z.array(z.object({ id: z.string(), name: z.string().optional() }).passthrough()) })
+  .object({
+    data: z.array(z.object({ id: z.string(), name: z.string().optional() }).passthrough()),
+  })
   .passthrough()
 
 async function fetchVisibleNames(
@@ -60,7 +71,11 @@ async function fetchVisibleNames(
   path: '/api/v1/agents/installed' | '/api/v1/skills/installed',
   ctx: MossCallContext,
 ): Promise<Set<string>> {
-  const json = await deps.mossFetch(ctx.baseUrl, { method: 'GET', path, accessToken: ctx.accessToken })
+  const json = await deps.mossFetch(ctx.baseUrl, {
+    method: 'GET',
+    path,
+    accessToken: ctx.accessToken,
+  })
   const parsed = NameListSchema.parse(json)
   return new Set(parsed.map((item) => item.name))
 }
@@ -88,7 +103,11 @@ async function assertSelectionVisible(
 }
 
 /** 建会话选模型时：核验 modelId 在当前用户可用模型列表中（不接受浏览器自造）。 */
-async function assertModelAvailable(deps: ConversationDeps, modelId: string, ctx: MossCallContext): Promise<void> {
+async function assertModelAvailable(
+  deps: ConversationDeps,
+  modelId: string,
+  ctx: MossCallContext,
+): Promise<void> {
   const json = await deps.mossFetch(ctx.baseUrl, {
     method: 'GET',
     path: '/api/v1/models/available',
@@ -109,7 +128,8 @@ export async function listConversations(
   // 强制过滤：即使 token 带 sessions:list:any 也只返回本人会话（计划 3.3）；
   // 并过滤 terminated（部署版实测 terminate 后 list 仍返回该会话，不过滤则用户视角「删除无效」）
   const visible = sessions.filter(
-    (s) => s.userId === principal.mossUserId && s.orgId === principal.orgId && s.status !== 'terminated',
+    (s) =>
+      s.userId === principal.mossUserId && s.orgId === principal.orgId && s.status !== 'terminated',
   )
   const metaMap = await getConversationMetaMap(
     deps.pool,
@@ -123,9 +143,10 @@ export async function listConversations(
       status: s.status,
       assistantName: s.assistantName ?? null,
       source: s.source ?? null,
-      lastActiveAt: typeof (s as { lastActiveAt?: unknown }).lastActiveAt === 'number'
-        ? (s as { lastActiveAt?: number }).lastActiveAt!
-        : null,
+      lastActiveAt:
+        typeof (s as { lastActiveAt?: unknown }).lastActiveAt === 'number'
+          ? (s as { lastActiveAt?: number }).lastActiveAt!
+          : null,
       title: meta?.title ?? null,
       pinned: meta?.pinned ?? false,
       pinnedAt: meta?.pinnedAt ?? null,
@@ -153,9 +174,13 @@ export async function createConversation(
   )
   // 本地记录会话所选模型（重开会话时回读显示）。吞错防孤儿：会话已在 Moss 建立，抛错会造孤儿会话
   if (input.modelId) {
-    await upsertConversationModel(deps.pool, principal.id, created.sessionId, input.modelId).catch((err: unknown) => {
-      console.warn(`[conversations] persist modelId failed (session=${created.sessionId}): ${(err as Error).message}`)
-    })
+    await upsertConversationModel(deps.pool, principal.id, created.sessionId, input.modelId).catch(
+      (err: unknown) => {
+        console.warn(
+          `[conversations] persist modelId failed (session=${created.sessionId}): ${(err as Error).message}`,
+        )
+      },
+    )
   }
   // ws_url 只留在服务端（协调器 resume 时使用）
   return { id: created.sessionId }
@@ -180,7 +205,12 @@ export async function getContext(
   principal: Principal,
   sessionId: string,
   ctx: MossCallContext,
-): Promise<{ customTitle: string | null; title: string | null; modelId: string | null; messages: Record<string, unknown>[] }> {
+): Promise<{
+  customTitle: string | null
+  title: string | null
+  modelId: string | null
+  messages: Record<string, unknown>[]
+}> {
   await requireOwnSession(deps, principal, sessionId, ctx)
   const localMeta = async (): Promise<{ title: string | null; modelId: string | null }> => {
     const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
@@ -197,11 +227,17 @@ export async function getContext(
     }
     throw err
   }
-  const mossContext = (parsed as { context?: { customTitle?: string; messages?: unknown[] } }).context
+  const mossContext = (parsed as { context?: { customTitle?: string; messages?: unknown[] } })
+    .context
   const messages = (mossContext?.messages ?? []).map((raw) => sanitizeMessage(raw))
   await generateTitleIfMissing(deps, principal, sessionId, messages)
   const meta = await localMeta()
-  return { customTitle: mossContext?.customTitle ?? null, title: meta.title, modelId: meta.modelId, messages }
+  return {
+    customTitle: mossContext?.customTitle ?? null,
+    title: meta.title,
+    modelId: meta.modelId,
+    messages,
+  }
 }
 
 /**
@@ -337,9 +373,21 @@ export async function getConversationOptions(
   const baseUrl = ctx.baseUrl
   const [modelsJson, agentsJson, skillsJson] = await Promise.all(
     [
-      deps.mossFetch(baseUrl, { method: 'GET', path: '/api/v1/models/available', accessToken: ctx.accessToken }),
-      deps.mossFetch(baseUrl, { method: 'GET', path: '/api/v1/agents/installed', accessToken: ctx.accessToken }),
-      deps.mossFetch(baseUrl, { method: 'GET', path: '/api/v1/skills/installed', accessToken: ctx.accessToken }),
+      deps.mossFetch(baseUrl, {
+        method: 'GET',
+        path: '/api/v1/models/available',
+        accessToken: ctx.accessToken,
+      }),
+      deps.mossFetch(baseUrl, {
+        method: 'GET',
+        path: '/api/v1/agents/installed',
+        accessToken: ctx.accessToken,
+      }),
+      deps.mossFetch(baseUrl, {
+        method: 'GET',
+        path: '/api/v1/skills/installed',
+        accessToken: ctx.accessToken,
+      }),
     ].map((p) => mapMossErrors(() => p)),
   )
 
@@ -392,7 +440,12 @@ export async function getConversationOptions(
       }
     }),
     skills: skills.map((s) => {
-      const extra = s as { displayName?: unknown; description?: unknown; icon?: unknown; emoji?: unknown }
+      const extra = s as {
+        displayName?: unknown
+        description?: unknown
+        icon?: unknown
+        emoji?: unknown
+      }
       return {
         name: s.name,
         displayName: typeof extra.displayName === 'string' ? extra.displayName : s.name,
@@ -408,7 +461,11 @@ export async function getConversationOptions(
  * tenant 头像同源代理：从 moss 拉取头像二进制交由 webui 转发（moss 静态资源，无需鉴权）。
  * 调用方（conversationRoutes）已用 zod 白名单限制 path 仅 /uploads/tenant-assistant-avatars/<file>。
  */
-export async function proxyAgentAvatar(deps: ConversationDeps, ctx: MossCallContext, path: string): Promise<MossAsset> {
+export async function proxyAgentAvatar(
+  deps: ConversationDeps,
+  ctx: MossCallContext,
+  path: string,
+): Promise<MossAsset> {
   // 用会话生效地址：自定义 moss 会话的 tenant 头像在其自定义 moss 上
   return (deps.mossFetchAsset ?? mossFetchAsset)(ctx.baseUrl, path)
 }

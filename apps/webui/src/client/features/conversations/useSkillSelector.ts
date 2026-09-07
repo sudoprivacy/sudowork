@@ -44,7 +44,11 @@ export function stripAtQuery(input: string, cursorPosition?: number): string {
 /**
  * Replace the @query portion in input text with a new value.
  */
-export function replaceAtQuery(input: string, replacement: string, cursorPosition?: number): string {
+export function replaceAtQuery(
+  input: string,
+  replacement: string,
+  cursorPosition?: number,
+): string {
   const textBeforeCursor = cursorPosition !== undefined ? input.slice(0, cursorPosition) : input
   const textAfterCursor = cursorPosition !== undefined ? input.slice(cursorPosition) : ''
 

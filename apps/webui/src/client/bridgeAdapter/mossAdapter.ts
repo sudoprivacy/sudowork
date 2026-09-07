@@ -39,7 +39,7 @@ interface BridgeEmitter {
   emit: (name: string, data: unknown) => void
 }
 
-type AnyReq = Record<string, any>
+type AnyReq = Record<string, unknown>
 
 const ok = <D>(data?: D): IBridgeResponse<D> => ({ success: true, data })
 const fail = (msg: string): IBridgeResponse => ({ success: false, msg })
@@ -128,7 +128,11 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     },
   })
   // A successful mutation to the conversation collection invalidates the cache.
-  if (res.ok && (init?.method ?? 'GET').toUpperCase() !== 'GET' && path.startsWith('/api/conversations')) {
+  if (
+    res.ok &&
+    (init?.method ?? 'GET').toUpperCase() !== 'GET' &&
+    path.startsWith('/api/conversations')
+  ) {
     invalidateConversations()
   }
   const text = await res.text()
@@ -142,7 +146,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const code =
-      body && typeof body === 'object' && 'error' in body && typeof (body as { error?: unknown }).error === 'string'
+      body &&
+      typeof body === 'object' &&
+      'error' in body &&
+      typeof (body as { error?: unknown }).error === 'string'
         ? (body as { error: string }).error
         : `HTTP_${res.status}`
     throw new Error(code)
@@ -177,7 +184,7 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
   const ws = new WebSocket(wsUrlFor(sessionId))
   openStreams.set(sessionId, ws)
   ws.addEventListener('message', (ev) => {
-    let frame: any
+    let frame: { kind?: string; event?: unknown; code?: string | number }
     try {
       frame = JSON.parse(String(ev.data))
     } catch {
@@ -196,7 +203,12 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
         emitterRef?.emit('moss.response-stream', msg)
       }
     } else if (frame && frame.kind === 'error') {
-      emitterRef?.emit('chat.response.stream', { type: 'error', msg_id: nextMsgId(), conversation_id: sessionId, data: String(frame.code ?? 'error') })
+      emitterRef?.emit('chat.response.stream', {
+        type: 'error',
+        msg_id: nextMsgId(),
+        conversation_id: sessionId,
+        data: String(frame.code ?? 'error'),
+      })
     }
   })
   ws.addEventListener('close', () => openStreams.delete(sessionId))
@@ -300,7 +312,9 @@ function invalidateConversations(): void {
 
 async function listConversations(): Promise<ConversationListItem[]> {
   if (convCache && Date.now() - convCache.at < CONV_CACHE_MS) return convCache.items
-  const { conversations } = await apiFetch<{ conversations: ConversationListItem[] }>('/api/conversations')
+  const { conversations } = await apiFetch<{ conversations: ConversationListItem[] }>(
+    '/api/conversations',
+  )
   convCache = { at: Date.now(), items: conversations }
   return conversations
 }
@@ -316,7 +330,8 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   'moss.set-auth-token': async () => ok(),
 
   // --- conversation list / open ---
-  'database.get-user-conversations': async () => (await listConversations()).map(toChatConversation),
+  'database.get-user-conversations': async () =>
+    (await listConversations()).map(toChatConversation),
   'moss.list-sessions': async () => ok((await listConversations()).map(toMossSession)),
   'moss.get-session': async (req) => {
     const found = (await listConversations()).find((c) => c.id === req?.sessionId)
@@ -328,7 +343,9 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   'database.get-conversation-messages': async (req) => {
     const id = String(req?.conversation_id ?? '')
-    const ctx = await apiFetch<{ messages?: unknown[] }>(`/api/conversations/${encodeURIComponent(id)}/context`)
+    const ctx = await apiFetch<{ messages?: unknown[] }>(
+      `/api/conversations/${encodeURIComponent(id)}/context`,
+    )
     return ctx.messages ?? []
   },
 
@@ -337,10 +354,21 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     // The renderer's enterprise agent label (e.g. "Remote Agent") is a UI name,
     // not a moss agent — passing it yields SELECTION_NOT_AVAILABLE. Let moss pick
     // its default agent (empty assistantName) unless a real moss agent id is given.
-    const agent = typeof req?.assistantName === 'string' && req.assistantName && req.assistantName !== 'Remote Agent' ? req.assistantName : ''
+    const agent =
+      typeof req?.assistantName === 'string' &&
+      req.assistantName &&
+      req.assistantName !== 'Remote Agent'
+        ? req.assistantName
+        : ''
     const created = await apiFetch<{ id: string }>('/api/conversations', {
       method: 'POST',
-      body: JSON.stringify({ assistantName: agent, enabledSkills: req?.extra?.enabledSkills ?? req?.enabledSkills ?? [] }),
+      body: JSON.stringify({
+        assistantName: agent,
+        enabledSkills:
+          (req?.extra as { enabledSkills?: unknown } | undefined)?.enabledSkills ??
+          req?.enabledSkills ??
+          [],
+      }),
     })
     ensureSessionStream(created.id)
     return toChatConversation({ id: created.id, assistantName: agent || null })
@@ -351,7 +379,12 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       body: JSON.stringify({ assistantName: req?.assistantName ?? '', enabledSkills: [] }),
     })
     ensureSessionStream(created.id)
-    return ok(toMossSession({ id: created.id, assistantName: req?.assistantName ?? null }))
+    return ok(
+      toMossSession({
+        id: created.id,
+        assistantName: typeof req?.assistantName === 'string' ? req.assistantName : null,
+      }),
+    )
   },
   'moss.resume-session': async (req) => {
     const sessionId = String(req?.sessionId ?? '')
@@ -364,11 +397,13 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       method: 'PATCH',
       body: JSON.stringify({ title: req?.title }),
     })
-    return ok(toMossSession({ id: sessionId, title: req?.title ?? null }))
+    return ok(
+      toMossSession({ id: sessionId, title: typeof req?.title === 'string' ? req.title : null }),
+    )
   },
   'update-conversation': async (req) => {
     const id = String(req?.id ?? '')
-    const updates = (req?.updates ?? {}) as AnyReq
+    const updates = (req?.updates ?? {}) as { name?: unknown; extra?: { pinned?: unknown } }
     const body: Record<string, unknown> = {}
     if (typeof updates.name === 'string') body.title = updates.name
     if (typeof updates?.extra?.pinned === 'boolean') body.pinned = updates.extra.pinned
@@ -381,22 +416,29 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return true
   },
   'moss.delete-session': async (req) => {
-    await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.sessionId ?? ''))}`, { method: 'DELETE' })
+    await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.sessionId ?? ''))}`, {
+      method: 'DELETE',
+    })
     return ok()
   },
   'remove-conversation': async (req) => {
-    await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.id ?? ''))}`, { method: 'DELETE' })
+    await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.id ?? ''))}`, {
+      method: 'DELETE',
+    })
     return true
   },
 
   // --- models ---
   'mode.get-model-config': async () => [],
   'moss.get-available-models': async () => {
-    const opts = await apiFetch<{ models: { id: string; name: string }[] }>('/api/conversations/options')
+    const opts = await apiFetch<{ models: { id: string; name: string }[] }>(
+      '/api/conversations/options',
+    )
     return ok(opts.models.map((m) => ({ id: m.id, name: m.name, ratio: 1 })))
   },
   'moss.get-user-model': async () => ok(null),
-  'moss.set-user-model': async (req) => ok({ modelId: String(req?.modelId ?? ''), updatedAt: Date.now() }),
+  'moss.set-user-model': async (req) =>
+    ok({ modelId: String(req?.modelId ?? ''), updatedAt: Date.now() }),
 
   // --- chat send / control (over the session WS) ---
   'chat.send.message': async (req) => {
@@ -420,7 +462,10 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok()
   },
   'moss.set-model': async (req) => {
-    sendOverStream(String(req?.sessionId ?? ''), { kind: 'set_model', modelId: String(req?.modelId ?? '') })
+    sendOverStream(String(req?.sessionId ?? ''), {
+      kind: 'set_model',
+      modelId: String(req?.modelId ?? ''),
+    })
     return ok()
   },
 

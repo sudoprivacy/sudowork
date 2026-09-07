@@ -69,7 +69,9 @@ export function SkillsPage(): React.ReactElement {
       installed.filter(
         (s) =>
           !search ||
-          String(s.display_name ?? s.displayName ?? s.name).toLowerCase().includes(search.toLowerCase()),
+          String(s.display_name ?? s.displayName ?? s.name)
+            .toLowerCase()
+            .includes(search.toLowerCase()),
       ),
     [installed, search],
   )
@@ -101,11 +103,14 @@ export function SkillsPage(): React.ReactElement {
   )
 
   return (
-    <div className='page-wrapper w-full min-h-full box-border overflow-y-auto px-10 pb-4' data-testid='skills-page'>
-      <div className='page-content mx-auto w-full max-w-240 flex flex-col h-full'>
+    <div
+      className="page-wrapper w-full min-h-full box-border overflow-y-auto px-10 pb-4"
+      data-testid="skills-page"
+    >
+      <div className="page-content mx-auto w-full max-w-240 flex flex-col h-full">
         {/* 顶部：Tabs + 搜索 */}
-        <div className='flex items-center gap-6 mb-3'>
-          <div className='flex flex-wrap items-end gap-5 border-b border-fill-3 flex-shrink-0'>
+        <div className="flex items-center gap-6 mb-3">
+          <div className="flex flex-wrap items-end gap-5 border-b border-fill-3 flex-shrink-0">
             {(
               [
                 { key: 'store', label: '技能库' },
@@ -115,28 +120,30 @@ export function SkillsPage(): React.ReactElement {
             ).map((t) => (
               <button
                 key={t.key}
-                type='button'
+                type="button"
                 className={`relative h-9 px-0 text-sm bg-transparent border-none inline-flex items-center gap-1.5 transition-all cursor-pointer ${
-                  tab === t.key ? 'text-primary font-medium' : 'text-secondary hover:text-foreground'
+                  tab === t.key
+                    ? 'text-primary font-medium'
+                    : 'text-secondary hover:text-foreground'
                 }`}
                 onClick={() => switchTab(t.key)}
               >
-                <span className='f-center'>{t.label}</span>
+                <span className="f-center">{t.label}</span>
                 {t.key === 'installed' ? (
-                  <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>
+                  <span className="f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium">
                     {t.count}
                   </span>
                 ) : null}
                 {tab === t.key ? (
-                  <span className='absolute bottom-0 left-0 right-0 h-0.5 rd-t-full bg-primary' />
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 rd-t-full bg-primary" />
                 ) : null}
               </button>
             ))}
           </div>
           <Input
-            placeholder='搜索...'
-            prefix={<Search size={14} className='text-tertiary' />}
-            className='flex-1 min-w-0'
+            placeholder="搜索..."
+            prefix={<Search size={14} className="text-tertiary" />}
+            className="flex-1 min-w-0"
             value={search}
             onChange={setSearch}
           />
@@ -144,7 +151,7 @@ export function SkillsPage(): React.ReactElement {
 
         {/* 分类 chips（store / exclusive tab，首项"全部分类"对齐 sudowork zh-CN 文案） */}
         {tab !== 'installed' && categoryList.length > 0 ? (
-          <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
+          <div className="flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide">
             {['all', ...categoryList].map((c) => (
               <span
                 key={c}
@@ -158,20 +165,20 @@ export function SkillsPage(): React.ReactElement {
         ) : null}
 
         {/* 内容滚动区 */}
-        <div className='flex-1 min-h-0 overflow-y-auto'>
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {tab === 'store' ? (
             <>
               {isLoading ? (
-                <div className='flex justify-center items-center py-12'>
+                <div className="flex justify-center items-center py-12">
                   <Spin size={28} />
                 </div>
               ) : filteredHub.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                  <Zap size={32} className='text-tertiary' />
-                  <span className='text-13px'>暂无技能</span>
+                <div className="flex flex-col items-center justify-center py-12 text-secondary gap-2">
+                  <Zap size={32} className="text-tertiary" />
+                  <span className="text-13px">暂无技能</span>
                 </div>
               ) : (
-                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className="grid gap-4 pb-4" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filteredHub.map((s) => (
                     <HubSkillCard
                       key={String(s.id || s.name)}
@@ -186,16 +193,16 @@ export function SkillsPage(): React.ReactElement {
           ) : tab === 'exclusive' ? (
             <>
               {isLoading ? (
-                <div className='flex justify-center items-center py-12'>
+                <div className="flex justify-center items-center py-12">
                   <Spin size={28} />
                 </div>
               ) : filteredTenant.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                  <Shield size={32} className='text-tertiary' />
-                  <span className='text-13px'>暂无专属技能</span>
+                <div className="flex flex-col items-center justify-center py-12 text-secondary gap-2">
+                  <Shield size={32} className="text-tertiary" />
+                  <span className="text-13px">暂无专属技能</span>
                 </div>
               ) : (
-                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className="grid gap-4 pb-4" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filteredTenant.map((s) => (
                     <SkillCardAligned
                       key={String(s.id || s.name)}
@@ -212,17 +219,17 @@ export function SkillsPage(): React.ReactElement {
           ) : (
             <>
               {isLoading ? (
-                <div className='flex justify-center items-center py-12'>
+                <div className="flex justify-center items-center py-12">
                   <Spin size={28} />
                 </div>
               ) : filtered.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-12 gap-2'>
-                  <Zap size={32} className='text-tertiary' />
-                  <div className='text-13px text-secondary'>暂无已安装的技能</div>
-                  <div className='text-12px text-tertiary'>前往技能库安装你需要的技能</div>
+                <div className="flex flex-col items-center justify-center py-12 gap-2">
+                  <Zap size={32} className="text-tertiary" />
+                  <div className="text-13px text-secondary">暂无已安装的技能</div>
+                  <div className="text-12px text-tertiary">前往技能库安装你需要的技能</div>
                 </div>
               ) : (
-                <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   {filtered.map((skill) => (
                     <SkillCardAligned
                       key={skill.name}
@@ -263,47 +270,58 @@ function SkillCardAligned({
   const resolvedIcon = resolveHubSkillIcon(skill.icon)
   return (
     <div
-      className='card group flex items-start gap-3 relative overflow-hidden'
-      data-testid='skill-card'
+      className="card group flex items-start gap-3 relative overflow-hidden"
+      data-testid="skill-card"
       onClick={onDetail}
     >
-      <div className='w-12 flex-shrink-0'>
-        <div className='size-12 rd-8px overflow-hidden f-center'>
+      <div className="w-12 flex-shrink-0">
+        <div className="size-12 rd-8px overflow-hidden f-center">
           {resolvedIcon ? (
             <img
               src={resolvedIcon}
               alt={displayName}
-              className='w-full h-full object-cover'
+              className="w-full h-full object-cover"
               onError={handleHubSkillIconError}
             />
           ) : skill.emoji ? (
-            <div className='w-full h-full f-center text-22px'>{skill.emoji}</div>
+            <div className="w-full h-full f-center text-22px">{skill.emoji}</div>
           ) : (
-            <Zap size={22} className='text-primary' />
+            <Zap size={22} className="text-primary" />
           )}
         </div>
       </div>
-      <div className='flex-1 min-w-0'>
-        <div className='flex items-center gap-2 pr-14.5 min-w-0'>
-          <span className='min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 pr-14.5 min-w-0">
+          <span className="min-w-0 font-medium text-13px text-foreground truncate">
+            {displayName}
+          </span>
         </div>
-        <div className='mt-1 min-h-7.5'>
-          <div className='text-11px text-secondary line-clamp-2 leading-15px'>
+        <div className="mt-1 min-h-7.5">
+          <div className="text-11px text-secondary line-clamp-2 leading-15px">
             {String(skill.description ?? skill.name)}
           </div>
         </div>
       </div>
-      <div className='absolute top-1.5 right-2.5 flex items-center gap-3' onClick={(e) => e.stopPropagation()}>
+      <div
+        className="absolute top-1.5 right-2.5 flex items-center gap-3"
+        onClick={(e) => e.stopPropagation()}
+      >
         {canManage ? (
           <>
             <Switch
-              size='small'
+              size="small"
               checked={enabled}
               onChange={(v) => onToggle(v)}
               className={enabled ? '!bg-primary !border-[var(--ui-accent-orange)]' : ''}
             />
-            <Popconfirm title='确定卸载该技能吗？' onOk={onUninstall}>
-              <Button shape='circle' status='danger' className='!size-7' icon={<Trash2 size={13} />} aria-label='卸载' />
+            <Popconfirm title="确定卸载该技能吗？" onOk={onUninstall}>
+              <Button
+                shape="circle"
+                status="danger"
+                className="!size-7"
+                icon={<Trash2 size={13} />}
+                aria-label="卸载"
+              />
             </Popconfirm>
           </>
         ) : null}

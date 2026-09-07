@@ -53,5 +53,8 @@ export function groupByTimeline<T extends { lastActiveAt: number | null }>(
     list.push(item)
     buckets.set(label, list)
   }
-  return LABEL_ORDER.filter((l) => buckets.has(l)).map((label) => ({ label, items: buckets.get(label)! }))
+  return LABEL_ORDER.filter((l) => buckets.has(l)).map((label) => ({
+    label,
+    items: buckets.get(label)!,
+  }))
 }
