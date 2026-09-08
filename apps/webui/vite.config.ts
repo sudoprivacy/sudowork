@@ -23,11 +23,20 @@ export default defineConfig({
       { find: '@shared', replacement: abs('./src/shared') },
       // Shared renderer + its workspace deps, bundled from source (same as desktop).
       { find: '@renderer', replacement: abs('../../packages/renderer/src') },
-      { find: /^@sudowork\/renderer\/(.*)$/, replacement: abs('../../packages/renderer/src') + '/$1' },
+      {
+        find: /^@sudowork\/renderer\/(.*)$/,
+        replacement: abs('../../packages/renderer/src') + '/$1',
+      },
       { find: /^@sudowork\/common\/(.*)$/, replacement: abs('../../packages/common/src') + '/$1' },
       { find: /^@sudowork\/common$/, replacement: abs('../../packages/common/src/index.ts') },
-      { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: abs('../../packages/host-bridge/src') + '/$1' },
-      { find: /^@sudowork\/host-bridge$/, replacement: abs('../../packages/host-bridge/src/index.ts') },
+      {
+        find: /^@sudowork\/host-bridge\/(.*)$/,
+        replacement: abs('../../packages/host-bridge/src') + '/$1',
+      },
+      {
+        find: /^@sudowork\/host-bridge$/,
+        replacement: abs('../../packages/host-bridge/src/index.ts'),
+      },
       { find: /^@office-ai\/platform$/, replacement: officeAiPlatformEntry },
     ],
     // Single React across the client console and the shared-renderer graph.
@@ -55,11 +64,9 @@ export default defineConfig({
     outDir: 'dist/client',
     emptyOutDir: true,
     rollupOptions: {
-      // Keep the existing client (index.html) AND emit the additive shared-renderer
-      // entry, which bundles the shared renderer from packages/renderer/src.
+      // Single entry: index.html mounts the shared renderer from packages/renderer/src.
       input: {
         index: abs('./index.html'),
-        'shared-renderer': abs('./shared-renderer.html'),
       },
     },
   },
