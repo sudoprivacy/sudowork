@@ -18,7 +18,23 @@
  */
 
 import { ConfigStorage } from '@sudowork/common/storage';
+import { isElectronDesktop } from '@renderer/utils/platform';
 import type { EnterpriseMcpApiError } from '../types';
+
+/**
+ * Web host: the apps/webui server fronts the caller's own MCP surface at
+ * `/api/mcp/*` (same-origin, cookie session — no Bearer token). Rewrite the moss
+ * `/api/v1/...` paths the renderer authors to the server's own routes. Only the
+ * "my MCP" personal operations are proxied; enterprise-wide management falls
+ * through to the server's 403/404 and is surfaced as a normal error.
+ */
+function rewriteMcpPathForWeb(path: string): string {
+  if (path === '/api/v1/me/mcp-servers/install-json') return '/api/mcp/install-json';
+  if (path.startsWith('/api/v1/me/mcp-servers')) return path.replace('/api/v1/me/mcp-servers', '/api/mcp/servers');
+  if (path.startsWith('/api/v1/me/mcp-templates')) return path.replace('/api/v1/me/mcp-templates', '/api/mcp/templates');
+  if (path === '/api/v1/tenant/mcp-policy') return '/api/mcp/policy';
+  return path;
+}
 
 export type TokenProvider = (forceRefresh?: boolean) => Promise<string | null>;
 
@@ -171,6 +187,26 @@ export function createEnterpriseMcpClient(tokenProvider: TokenProvider): Enterpr
 
   return {
     async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+      // Web host: same-origin cookie auth against the server's /api/mcp/* proxy.
+      // No Bearer token, no 401 refresh retry (the cookie session is the SSOT).
+      if (!isElectronDesktop()) {
+        const webUrl = buildUrl(location.origin, rewriteMcpPathForWeb(path), options.query);
+        const webHeaders: Record<string, string> = { Accept: 'application/json' };
+        let webBody: BodyInit | undefined;
+        if (options.body !== undefined) {
+          webHeaders['Content-Type'] = 'application/json';
+          webBody = JSON.stringify(options.body);
+        }
+        const webRes = await fetch(webUrl, {
+          method: options.method ?? 'GET',
+          headers: webHeaders,
+          body: webBody,
+          credentials: 'include',
+          signal: options.signal,
+        });
+        return normalizeResponse<T>(webRes);
+      }
+
       const base = await resolveBaseUrl();
       const url = buildUrl(base, path, options.query);
       const token = await getToken();
@@ -210,6 +246,12 @@ export function createEnterpriseMcpClient(tokenProvider: TokenProvider): Enterpr
     },
 
     async openEventStream(path: string): Promise<EventSource> {
+      // The web server does not proxy MCP SSE (mcpRoutes.ts); mutations refetch
+      // instead. Reject so subscribeMcpEvents keeps its (backed-off) reconnect
+      // timer without ever opening a socket.
+      if (!isElectronDesktop()) {
+        throw new EnterpriseMcpError({ code: 'sse_unsupported_on_web', message: 'SSE 在 Web 端不可用' });
+      }
       const base = await resolveBaseUrl();
       const token = await getToken();
       const url = new URL(base + path);

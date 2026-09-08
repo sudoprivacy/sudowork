@@ -719,6 +719,20 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   'moss.get-config': async () => ({ serverUrl: location.origin, hasToken: true }),
   'moss.set-auth-token': async () => ok(),
 
+  // --- zoom / font scale: RAW number providers. Display prefs live in the
+  //     browser (R8); no server round-trip. useFontScale calls these directly. ---
+  'app.get-zoom-factor': async () => {
+    const raw = Number(localStorage.getItem('sw.web-zoom'))
+    return Number.isFinite(raw) && raw > 0 ? raw : 1
+  },
+  'app.set-zoom-factor': async (req) => {
+    const factor = Number(req?.factor)
+    const next = Number.isFinite(factor) && factor > 0 ? factor : 1
+    localStorage.setItem('sw.web-zoom', String(next))
+    document.documentElement.style.zoom = String(next)
+    return next
+  },
+
   // --- eeclaw tenancy: tenant config / profile / cloud assistants ---
   'eeclaw.verify-server': async () => {
     const about = await apiFetch<{ branding?: { appName?: string; logo?: string } }>(

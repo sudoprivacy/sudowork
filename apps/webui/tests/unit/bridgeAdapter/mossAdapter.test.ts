@@ -280,6 +280,19 @@ describe('mossAdapter: assistant/skill management channels', () => {
   })
 })
 
+describe('mossAdapter: zoom channels (browser-local display prefs)', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('get-zoom-factor defaults to 1 and set-zoom-factor persists to localStorage', async () => {
+    expect(await ipcBridge.application.getZoomFactor.invoke()).toBe(1)
+    const applied = await ipcBridge.application.setZoomFactor.invoke({ factor: 1.25 })
+    expect(applied).toBe(1.25)
+    expect(localStorage.getItem('sw.web-zoom')).toBe('1.25')
+    expect(await ipcBridge.application.getZoomFactor.invoke()).toBe(1.25)
+    expect(document.documentElement.style.zoom).toBe('1.25')
+  })
+})
+
 describe('cron schedule conversion', () => {
   it('round-trips every/cron/at schedules through server ↔ renderer', () => {
     const every = { kind: 'every' as const, everyMs: 3_600_000, description: 'hourly' }
