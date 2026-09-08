@@ -40,6 +40,13 @@ import {
   mossFrameToResponses,
 } from '@sudowork/common/mossResponse'
 
+declare global {
+  interface Window {
+    /** Set by this adapter to mark a shared-renderer web host (read by the renderer's isWebBridgeAvailable). */
+    __sudoworkWebBridge?: boolean
+  }
+}
+
 interface BridgeEmitter {
   emit: (name: string, data: unknown) => void
 }
@@ -462,11 +469,91 @@ async function listConversations(): Promise<ConversationListItem[]> {
 // Channel mapping table. Everything not listed falls through to a default reject.
 // ---------------------------------------------------------------------------
 
+/** Moss installed-agent row as projected by GET /api/agents. */
+interface MossAgentItem {
+  name: string
+  displayName?: string
+  display_name?: string
+  description?: string
+  avatar?: string
+  emoji?: string
+  /** 'hub' | 'custom' | 'system' | 'tenant' (absent for user-created rows) */
+  tag?: string
+  isBuiltin?: boolean
+  categories?: string[]
+}
+
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // --- enterprise/session flags ---
   'moss.is-enterprise-mode': async () => true,
   'moss.get-config': async () => ({ serverUrl: location.origin, hasToken: true }),
   'moss.set-auth-token': async () => ok(),
+
+  // --- eeclaw tenancy: tenant config / profile / cloud assistants ---
+  'eeclaw.verify-server': async () => {
+    const about = await apiFetch<{ branding?: { appName?: string; logo?: string } }>(
+      '/api/settings/about',
+    ).catch(() => null)
+    // TenantConfigData has no cron/policy flags; the consumer's
+    // resolveTenantConfig fills every null with DEFAULT_TENANT_CONFIG, which
+    // is exactly what unblocks the cron access chain on the web host.
+    return ok({
+      id: location.origin,
+      logo: about?.branding?.logo ?? null,
+      app_name: about?.branding?.appName ?? null,
+      top_name: about?.branding?.appName ?? null,
+      about_name: about?.branding?.appName ?? null,
+      app_company_name: null,
+      login_desp: null,
+      updated_at: Date.now(),
+    })
+  },
+  'eeclaw.get-user-profile': async () => {
+    // Same lenient field rules as the console ProfilePage (moss may return
+    // snake_case or camelCase depending on version).
+    const raw = await apiFetch<Record<string, unknown>>('/api/settings/profile').catch(() => null)
+    const p = ((raw && typeof raw === 'object' ? ((raw as { data?: unknown }).data ?? raw) : {}) ??
+      {}) as {
+      username?: unknown
+      name?: unknown
+      displayName?: unknown
+      department?: unknown
+      departmentName?: unknown
+      role?: unknown
+      usage?: Record<string, unknown>
+    }
+    const usage = (p.usage ?? {}) as Record<string, unknown>
+    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+    return ok({
+      username: String(p.username ?? p.name ?? p.displayName ?? '—'),
+      department: String(p.department ?? p.departmentName ?? '—'),
+      role: String(p.role ?? 'user'),
+      usage: {
+        input_tokens: num(usage.input_tokens),
+        output_tokens: num(usage.output_tokens),
+        total_tokens: num(usage.total_tokens ?? usage.totalTokens),
+        session_count: num(usage.session_count ?? usage.sessionCount),
+      },
+    })
+  },
+  'eeclaw.get-cloud-assistants': async () => {
+    const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [] as MossAgentItem[])
+    // key/name/avatar/emoji/description satisfy the channel type; the extra
+    // isBuiltin/isHubInstalled/sourceType fields feed the guid selector's
+    // isSelectableCloudAssistant filter (it drops rows without them).
+    return ok(
+      (Array.isArray(agents) ? agents : []).map((a) => ({
+        key: a.name,
+        name: String(a.displayName ?? a.display_name ?? a.name),
+        avatar: typeof a.avatar === 'string' ? a.avatar : undefined,
+        emoji: typeof a.emoji === 'string' ? a.emoji : undefined,
+        description: typeof a.description === 'string' ? a.description : undefined,
+        isBuiltin: a.isBuiltin === true,
+        isHubInstalled: a.tag === 'hub',
+        sourceType: typeof a.tag === 'string' ? a.tag : undefined,
+      })),
+    )
+  },
 
   // --- conversation list / open ---
   'database.get-user-conversations': async () =>
