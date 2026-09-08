@@ -12,11 +12,11 @@ import { useTranslation } from 'react-i18next';
 import type { IInstalledSkillInfo } from '@sudowork/host-bridge/ipcBridge';
 import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@renderer/utils/skillDisplay';
 
-export default function InstalledSkillCard({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating, onUpload, uploading, uploadStatus, enterprisePublishButton, hideUninstall }: IInstalledSkillCardProps) {
+export default function InstalledSkillCard({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating, onUpload, uploading, uploadStatus, enterprisePublishButton, hideUninstall, canManage = true }: IInstalledSkillCardProps) {
   const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
   const displayVersion = normalizeSkillVersion(skill.version);
   const canUninstall = !skill.isBuiltin && !hideUninstall;
-  const canToggleEnabled = !!skill.meta && !skill.isBuiltin;
+  const canToggleEnabled = !!skill.meta && !skill.isBuiltin && canManage;
   const hasDetail = !!skill.meta;
   const isEnabled = skill.enabled;
   const { t } = useTranslation();
@@ -62,23 +62,24 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
         )}
         {enterprisePublishButton}
         {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} />}
-        {skill.isBuiltin ? (
-          <Tooltip content={t('settings.skill.builtinSkill', '内置技能')}>
-            <Button icon={<Shield size={15} />} disabled className='!size-7' />
-          </Tooltip>
-        ) : !canUninstall ? (
-          <Tooltip content={t('settings.skill.builtinSkillCannotUninstall', '内置技能无法卸载')}>
-            <Button icon={<Shield size={14} />} disabled className='!size-7' />
-          </Tooltip>
-        ) : uninstalling ? (
-          <Spin size={14} />
-        ) : (
-          <Popconfirm title={t('settings.skill.uninstallConfirm', '确认卸载该技能？')} onOk={onUninstall} okText={t('common.uninstall', '卸载')} cancelText={t('common.cancel', '取消')} okButtonProps={{ status: 'danger' }}>
-            <Tooltip content={t('common.delete', '删除')}>
-              <Button status='danger' icon={<Trash2 size={15} />} className='!size-7' />
+        {canManage &&
+          (skill.isBuiltin ? (
+            <Tooltip content={t('settings.skill.builtinSkill', '内置技能')}>
+              <Button icon={<Shield size={15} />} disabled className='!size-7' />
             </Tooltip>
-          </Popconfirm>
-        )}
+          ) : !canUninstall ? (
+            <Tooltip content={t('settings.skill.builtinSkillCannotUninstall', '内置技能无法卸载')}>
+              <Button icon={<Shield size={14} />} disabled className='!size-7' />
+            </Tooltip>
+          ) : uninstalling ? (
+            <Spin size={14} />
+          ) : (
+            <Popconfirm title={t('settings.skill.uninstallConfirm', '确认卸载该技能？')} onOk={onUninstall} okText={t('common.uninstall', '卸载')} cancelText={t('common.cancel', '取消')} okButtonProps={{ status: 'danger' }}>
+              <Tooltip content={t('common.delete', '删除')}>
+                <Button status='danger' icon={<Trash2 size={15} />} className='!size-7' />
+              </Tooltip>
+            </Popconfirm>
+          ))}
       </div>
     </div>
   );
@@ -102,4 +103,6 @@ interface IInstalledSkillCardProps {
   enterprisePublishButton?: React.ReactNode;
   /** Enterprise mode: whether to hide uninstall button (only custom skills can be uninstalled) */
   hideUninstall?: boolean;
+  /** Web host: false hides the enable/uninstall controls for non-admin sessions (defaults to true; desktop keeps them). */
+  canManage?: boolean;
 }

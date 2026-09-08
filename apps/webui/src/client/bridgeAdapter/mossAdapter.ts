@@ -471,6 +471,7 @@ async function listConversations(): Promise<ConversationListItem[]> {
 
 /** Moss installed-agent row as projected by GET /api/agents. */
 interface MossAgentItem {
+  id?: string
   name: string
   displayName?: string
   display_name?: string
@@ -480,7 +481,81 @@ interface MossAgentItem {
   /** 'hub' | 'custom' | 'system' | 'tenant' (absent for user-created rows) */
   tag?: string
   isBuiltin?: boolean
+  enabled?: boolean
   categories?: string[]
+}
+
+/** Moss installed-skill row as projected by GET /api/skills. */
+interface MossSkillItem {
+  id?: string
+  name: string
+  version?: string
+  description?: string
+  display_name?: string
+  displayName?: string
+  enabled?: boolean
+  isBuiltin?: boolean
+  isHubInstalled?: boolean
+  category?: string
+  categories?: string[]
+  meta?: Record<string, unknown>
+}
+
+type WebAssistantCategory = 'custom' | 'hub' | 'system' | 'tenant'
+
+function toWebCategory(tag: unknown): WebAssistantCategory {
+  return tag === 'hub' || tag === 'system' || tag === 'tenant' ? tag : 'custom'
+}
+
+/** moss agent row → renderer IAssistantInfo (see assistantTypes.ts). Wire is untyped. */
+function mossAgentToAssistantInfo(a: MossAgentItem): unknown {
+  const displayName = a.displayName ?? a.display_name ?? a.name
+  return {
+    id: a.id,
+    name: a.name,
+    isBuiltin: a.isBuiltin === true,
+    isHubInstalled: a.tag === 'hub',
+    enabled: a.enabled !== false,
+    category: toWebCategory(a.tag),
+    meta: {
+      id: a.id,
+      name: a.name,
+      display_name: displayName,
+      description: a.description,
+      avatar: a.avatar,
+      emoji: a.emoji ?? null,
+      categories: Array.isArray(a.categories) ? a.categories : undefined,
+      tag: typeof a.tag === 'string' ? a.tag : undefined,
+      source_type: typeof a.tag === 'string' ? a.tag : 'custom',
+      is_builtin: a.isBuiltin === true,
+    },
+  }
+}
+
+/** moss skill row → renderer IInstalledSkillInfo (see ipcBridge IInstalledSkillInfo). Wire is untyped. */
+function mossSkillToInstalledInfo(s: MossSkillItem): unknown {
+  const isHub = s.isHubInstalled === true
+  const rawMeta = (s.meta && typeof s.meta === 'object' ? s.meta : {}) as Record<string, unknown>
+  const displayName = s.display_name ?? s.displayName ?? s.name
+  return {
+    name: s.name,
+    version: String(s.version ?? ''),
+    isHubInstalled: isHub,
+    isBuiltin: s.isBuiltin === true,
+    enabled: s.enabled !== false,
+    category: toWebCategory(s.category),
+    meta: {
+      ...rawMeta,
+      id: rawMeta.id ?? s.id ?? s.name,
+      name: s.name,
+      display_name: rawMeta.display_name ?? displayName,
+      description: rawMeta.description ?? s.description ?? '',
+      // Fallback keeps the renderer's `source_type === 'hub'` branch honest even
+      // when moss omits it on non-hub rows.
+      source_type: rawMeta.source_type ?? (isHub ? 'hub' : 'system'),
+      categories: rawMeta.categories ?? (Array.isArray(s.categories) ? s.categories : []),
+    },
+  }
 }
 
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
@@ -554,6 +629,66 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       })),
     )
   },
+
+  // --- assistant-hub: installed agents (management page) ---
+  'assistant-hub.get-installed-assistants': async () => {
+    const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [] as MossAgentItem[])
+    return ok((Array.isArray(agents) ? agents : []).map(mossAgentToAssistantInfo))
+  },
+  // with-visibility ignores accessToken: the server already scopes rows by session.
+  'assistant-hub.get-installed-assistants-with-visibility': async () => {
+    const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [] as MossAgentItem[])
+    return ok((Array.isArray(agents) ? agents : []).map(mossAgentToAssistantInfo))
+  },
+  'assistant-hub.create-assistant': async (req) => {
+    // CreateAgentRequestSchema (name/displayName/description?/avatar?/prompt?) is
+    // not .strict(): zod strips unknown keys, so we send only the minimal set.
+    const meta = (req?.meta ?? {}) as Record<string, unknown>
+    const name = String(meta.name ?? '')
+    const displayName = String(meta.display_name ?? meta.name ?? '')
+    await apiFetch('/api/agents/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        displayName,
+        description: typeof meta.description === 'string' ? meta.description : undefined,
+        avatar: typeof meta.avatar === 'string' ? meta.avatar : undefined,
+        prompt: typeof req?.ruleContent === 'string' ? req.ruleContent : undefined,
+      }),
+    })
+    return ok()
+  },
+  'assistant-hub.uninstall-assistant': async (req) => {
+    await apiFetch('/api/agents/uninstall', {
+      method: 'POST',
+      body: JSON.stringify({ name: String(req?.name ?? '') }),
+    })
+    return ok()
+  },
+
+  // --- skill-hub: installed skills (management page) ---
+  'skill-hub.get-installed-skills': async () => {
+    const skills = await apiFetch<MossSkillItem[]>('/api/skills').catch(() => [] as MossSkillItem[])
+    return ok((Array.isArray(skills) ? skills : []).map(mossSkillToInstalledInfo))
+  },
+  'skill-hub.set-skill-enabled': async (req) => {
+    await apiFetch('/api/skills/enabled', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: String(req?.skillName ?? ''), enabled: req?.enabled === true }),
+    })
+    return ok()
+  },
+  'skill-hub.uninstall-skill': async (req) => {
+    await apiFetch('/api/skills/uninstall', {
+      method: 'POST',
+      body: JSON.stringify({ name: String(req?.skillName ?? '') }),
+    })
+    return ok()
+  },
+
+  // --- extensions: web host has no local extension host; consumers tolerate []. ---
+  'extensions.get-assistants': async () => [],
+  'extensions.get-acp-adapters': async () => [],
 
   // --- conversation list / open ---
   'database.get-user-conversations': async () =>

@@ -22,7 +22,7 @@ import HubEmptyState from '@renderer/components/HubEmptyState';
 import { toBackendConfig, resolveAssistantName } from '@renderer/shared/agents/assistantAdapter';
 import Tabs from '@renderer/components/ui/Tabs';
 import AionScrollArea from '@renderer/components/base/AionScrollArea';
-import { isElectronDesktop } from '@renderer/utils/platform';
+import { isElectronDesktop, isWebBridgeAvailable } from '@renderer/utils/platform';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { emitter } from '@renderer/utils/emitter';
@@ -64,6 +64,25 @@ const AgentSettings: React.FC = () => {
   const [editAgent, setEditAgent] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
   const [isCreating, setIsCreating] = useState(false);
   const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
+
+  // Web host only: the server gates agent create/uninstall by the caller's scopes
+  // (admin:settings). Desktop manages assistants locally and always shows controls.
+  const [canManage, setCanManage] = useState(isElectronDesktop());
+  useEffect(() => {
+    if (isElectronDesktop() || !isWebBridgeAvailable()) return;
+    let alive = true;
+    void fetch('/api/agents/scopes', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : { scopes: [] as string[] }))
+      .then((body: { scopes?: string[] }) => {
+        if (alive) setCanManage(Array.isArray(body.scopes) && body.scopes.includes('admin:settings'));
+      })
+      .catch(() => {
+        if (alive) setCanManage(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Skills state
   const [installedSkills, setInstalledSkills] = useState<IInstalledSkillInfo[]>([]);
@@ -1407,6 +1426,10 @@ const AgentSettings: React.FC = () => {
   // ==================== CRUD Handlers ====================
 
   const handleEdit = async (assistant: AssistantListItem) => {
+    // The moss assistant-meta endpoint cannot round-trip the renderer's edit
+    // fields (I18n/prompt), so a web "save" would silently drop everything.
+    // Gate the edit entry off on the web host; create (handleCreate) stays open.
+    if (!isElectronDesktop()) return;
     setIsCreating(false);
     setActiveAssistantId(assistant.id);
     setEditName(assistant.nameI18n?.[localeKey] || assistant.name || '');
@@ -1639,6 +1662,7 @@ const AgentSettings: React.FC = () => {
             onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
             uploadStatus={uploadStatus}
             onClick={() => void handleEdit(assistant)}
+            canManage={canManage}
             hideDelete={hideDelete}
             allowToggle={allowToggle}
             allowDelete={allowDelete}
@@ -1693,6 +1717,7 @@ const AgentSettings: React.FC = () => {
             onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
             hasUpdate={false}
             onClick={() => void handleEdit(assistant)}
+            canManage={canManage}
             enterprisePublishButton={enterprisePublishButton}
           />
         );
@@ -1752,7 +1777,7 @@ const AgentSettings: React.FC = () => {
           <Input placeholder={t('settings.assistant.searchPlaceholder', '搜索...')} value={hubSearchQuery} onChange={setHubSearchQuery} prefix={<Search size={14} className='text-tertiary' />} className={classNames('flex-1 min-w-0 assistant-hub-input', activeTab === 'installed' && 'invisible')} />
 
           {/* Create button — only on installed tab */}
-          {activeTab === 'installed' && (
+          {activeTab === 'installed' && canManage && (
             <Tooltip content={t('settings.customAssistants', '自定义智能体')}>
               <Button icon={<Plus size={13} />} onClick={() => void handleCreate()} className='rd-full flex-shrink-0'>
                 {t('settings.createAssistant', '创建')}
@@ -1914,9 +1939,11 @@ const AgentSettings: React.FC = () => {
                 <Bot size={32} className='text-tertiary' />
                 <div className='text-13px text-secondary'>{t('settings.assistantsEmpty', '暂无智能体')}</div>
                 <div className='text-12px text-tertiary'>{t('settings.assistantsEmptyHint', '点击下方"创建智能体"按钮添加你的智能体')}</div>
-                <Button size='small' type='outline' className='mt-1' onClick={() => handleCreate()}>
-                  {t('settings.createAssistant', '创建智能体')}
-                </Button>
+                {canManage && (
+                  <Button size='small' type='outline' className='mt-1' onClick={() => handleCreate()}>
+                    {t('settings.createAssistant', '创建智能体')}
+                  </Button>
+                )}
               </div>
             ) : (
               <div className='pb-4 space-y-5'>

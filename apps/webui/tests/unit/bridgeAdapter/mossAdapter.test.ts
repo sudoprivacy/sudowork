@@ -150,3 +150,127 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
     expect(result.success).toBe(false)
   })
 })
+
+describe('mossAdapter: assistant/skill management channels', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('get-installed-assistants projects moss rows into IAssistantInfo', async () => {
+    stubFetch({
+      '/api/agents': [
+        { name: 'hub-a', displayName: 'Hub A', tag: 'hub', isBuiltin: false },
+        { name: 'sys-a', display_name: 'Sys A', tag: 'system', isBuiltin: true, enabled: false },
+        { name: 'mine' },
+      ],
+    })
+    const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke()
+
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual([
+      expect.objectContaining({
+        name: 'hub-a',
+        isBuiltin: false,
+        isHubInstalled: true,
+        enabled: true,
+        category: 'hub',
+      }),
+      expect.objectContaining({
+        name: 'sys-a',
+        isBuiltin: true,
+        enabled: false,
+        category: 'system',
+      }),
+      // user-created row (no tag) falls back to the custom category
+      expect.objectContaining({ name: 'mine', category: 'custom', isHubInstalled: false }),
+    ])
+    expect((result.data?.[0]?.meta as { display_name?: string })?.display_name).toBe('Hub A')
+  })
+
+  it('create-assistant sends only the minimal schema fields (no extra keys)', async () => {
+    const fetchMock = stubFetch({ '/api/agents/create': { ok: true } })
+    const result = await ipcBridge.assistantHub.createAssistant.invoke({
+      meta: {
+        name: 'writer',
+        display_name: 'Writer',
+        description: 'a writer',
+        avatar: 'data:img',
+        // fields the server schema does not accept — must not be forwarded
+        presetAgentType: 'claude',
+        enabledSkills: ['x'],
+        nameI18n: { en: 'Writer' },
+      },
+      ruleContent: 'You are a writer.',
+    } as never)
+
+    expect(result.success).toBe(true)
+    const body = JSON.parse(
+      String(fetchMock.mock.calls[0]?.[1] && (fetchMock.mock.calls[0][1] as RequestInit).body),
+    )
+    expect(body).toEqual({
+      name: 'writer',
+      displayName: 'Writer',
+      description: 'a writer',
+      avatar: 'data:img',
+      prompt: 'You are a writer.',
+    })
+  })
+
+  it('uninstall-assistant posts the bare name', async () => {
+    const fetchMock = stubFetch({ '/api/agents/uninstall': { ok: true } })
+    const result = await ipcBridge.assistantHub.uninstallAssistant.invoke({
+      name: 'writer',
+    } as never)
+
+    expect(result.success).toBe(true)
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))
+    expect(body).toEqual({ name: 'writer' })
+  })
+
+  it('get-installed-skills maps rows and backfills meta.source_type', async () => {
+    stubFetch({
+      '/api/skills': [
+        { name: 'hub-s', version: '1.0.0', isHubInstalled: true, enabled: true },
+        { name: 'sys-s', version: '2.0.0', isHubInstalled: false, isBuiltin: true, enabled: false },
+      ],
+    })
+    const result = await ipcBridge.skillHub.getInstalledSkills.invoke()
+
+    expect(result.success).toBe(true)
+    expect(result.data?.[0]).toEqual(
+      expect.objectContaining({
+        name: 'hub-s',
+        version: '1.0.0',
+        isHubInstalled: true,
+        enabled: true,
+      }),
+    )
+    expect(result.data?.[0]?.meta?.source_type).toBe('hub')
+    // non-hub row backfills 'system'
+    expect(result.data?.[1]?.meta?.source_type).toBe('system')
+    expect(result.data?.[1]?.isBuiltin).toBe(true)
+  })
+
+  it('set-skill-enabled patches {name, enabled}', async () => {
+    const fetchMock = stubFetch({ '/api/skills/enabled': { ok: true } })
+    const result = await ipcBridge.skillHub.setSkillEnabled.invoke({
+      skillName: 'hub-s',
+      enabled: false,
+    } as never)
+
+    expect(result.success).toBe(true)
+    const call = fetchMock.mock.calls[0]
+    expect((call?.[1] as RequestInit)?.method).toBe('PATCH')
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({
+      name: 'hub-s',
+      enabled: false,
+    })
+  })
+
+  it('extensions channels resolve to an empty array', async () => {
+    const assistants = await ipcBridge.extensions.getAssistants.invoke()
+    const adapters = await ipcBridge.extensions.getAcpAdapters.invoke()
+    expect(assistants).toEqual([])
+    expect(adapters).toEqual([])
+  })
+})
