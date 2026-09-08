@@ -119,6 +119,13 @@ if (typeof window !== 'undefined' && storageGet('agent.config', 'system.appMode'
   storageSet('agent.config', 'system.appMode', 'e')
 }
 
+// The renderer's enterprise login and MCP client read `eeclaw.serverUrl` before
+// doing anything; seed it with this origin so those paths resolve against the
+// webui server (the web transport ignores the value and stays same-origin).
+if (typeof window !== 'undefined' && storageGet('agent.config', 'eeclaw.serverUrl') === undefined) {
+  storageSet('agent.config', 'eeclaw.serverUrl', window.location.origin)
+}
+
 // ---------------------------------------------------------------------------
 // Same-origin HTTP to the apps/webui server (cookie session auth).
 // ---------------------------------------------------------------------------
@@ -806,6 +813,14 @@ function handleInvoke(channel: string, id: string, req: unknown): void {
 // ---------------------------------------------------------------------------
 // Wire the transport (side effect).
 // ---------------------------------------------------------------------------
+
+// Marks this window as a shared-renderer web host. The renderer's
+// `isWebBridgeAvailable()` reads it to relax desktop-only data guards; desktop
+// never loads this module, so the flag (and every guard keyed on it) stays
+// inert there.
+if (typeof window !== 'undefined') {
+  window.__sudoworkWebBridge = true
+}
 
 bridge.adapter({
   emit(name: string, data: unknown) {

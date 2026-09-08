@@ -5,6 +5,7 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
 import { ConfigStorage, type IConfigStorageRefer } from '@sudowork/common/storage';
@@ -243,6 +244,10 @@ async function restoreGuestScodeModels(): Promise<void> {
 
 const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
+// Shared-renderer web host (webui mossAdapter): auth talks to the webui server's
+// cookie session instead of the eeclaw IPC channels. Desktop is always false.
+const isWebRuntime = typeof window !== 'undefined' && !window.electronAPI;
+
 /**
  * Refresh Auth Proxy rules after successful login.
  * Reads enabled config item IDs from storage and triggers a rules refresh.
@@ -352,6 +357,42 @@ function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: st
     token,
     localAuth: enterpriseUser.localAuth === true,
   };
+}
+
+// Web host: the webui server exposes a cookie session at /api/auth/session
+// ({ user: { id, name }, organization, role, scopes }). No real token is handed
+// to the browser — the storage below only satisfies the EeclawAuthStorage shape
+// the existing enterprise branches read.
+async function fetchWebSession(): Promise<AuthUser | null> {
+  try {
+    const response = await fetch('/api/auth/session', {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { user?: { id?: string; name?: string }; role?: string };
+    if (!data.user?.id) return null;
+    return {
+      id: data.user.id,
+      nickname: data.user.name || data.user.id,
+      role: (data.role as AuthUser['role']) || 'USER',
+      status: 1,
+      localAuth: false,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildWebAuthStorage(user: AuthUser): string {
+  return JSON.stringify({
+    access_token: 'web-session',
+    refresh_token: '',
+    expires_at: Date.now() + 24 * 60 * 60 * 1000,
+    user,
+    device_id: getDeviceId(),
+    session_type: 'password',
+  } satisfies EeclawAuthStorage);
 }
 
 function resolveString(value: unknown): string | undefined {
@@ -617,6 +658,7 @@ async function restartSudoclawGatewayIfInstalled(): Promise<void> {
 }
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const { t } = useTranslation();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [status, setStatus] = useState<AuthStatus>('checking');
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -654,6 +696,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         // Enterprise mode: delegate to main process getValidToken via IPC to avoid race conditions
         const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
         if (eeclawStored) {
+          // Web host: no token concept — slide the placeholder expiry forward so
+          // callers stop retrying (refresh() re-validates on next page load).
+          if (isWebRuntime) {
+            try {
+              const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
+              authStorage.expires_at = Date.now() + 24 * 60 * 60 * 1000;
+              localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(authStorage));
+            } catch {
+              /* malformed storage — refresh() will clear it */
+            }
+            lastRefreshAtRef.current = Date.now();
+            return true;
+          }
           try {
             const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
 
@@ -731,6 +786,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       // Enterprise mode: check eeclaw_auth_v1
       const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
       if (eeclawStored) {
+        // Web host: the placeholder token is opaque to callers; the cookie
+        // session is the real credential. refresh() re-validates on page load.
+        if (isWebRuntime) return 'web-session';
         try {
           const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
           const { access_token, expires_at } = authStorage;
@@ -832,6 +890,22 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, [ensureValidToken]);
 
   const refresh = useCallback(async () => {
+    // === Web host (webui shared-renderer): restore from the webui cookie session ===
+    if (isWebRuntime) {
+      const webUser = await fetchWebSession();
+      if (webUser) {
+        localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, buildWebAuthStorage(webUser));
+        setUser(webUser);
+        setStatus('authenticated');
+      } else {
+        localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
+        setUser(null);
+        setStatus('unauthenticated');
+      }
+      setReady(true);
+      return;
+    }
+
     // === Enterprise mode: restore from eeclaw_auth_v1 ===
     const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
     if (eeclawStored) {
@@ -1410,6 +1484,54 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   // Enterprise login — independent from C-side login flow
   const enterpriseLogin = useCallback(
     async (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey): Promise<LoginResult> => {
+      // Web host: log in against the webui server's cookie-session endpoints
+      // instead of the eeclaw IPC channel.
+      if (isWebRuntime) {
+        try {
+          const isApiKeyLogin = 'api_key' in params;
+          const response = await fetch(isApiKeyLogin ? '/api/auth/login/api-key' : '/api/auth/login/password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(
+              isApiKeyLogin
+                ? { apiKey: (params as EnterpriseLoginParamsByKey).api_key }
+                : { username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password }
+            ),
+          });
+          if (!response.ok) {
+            const body = (await response.json().catch((): null => null)) as { error?: string } | null;
+            const code = body?.error || `HTTP_${response.status}`;
+            const message =
+              response.status === 503 || code === 'MOSS_UNAVAILABLE' ? t('login.errors.networkError') : t('login.errors.invalidCredentials');
+            return { success: false, message, code: 'invalidCredentials' };
+          }
+          const webUser = await fetchWebSession();
+          return finalizeEnterpriseLogin(
+            {
+              success: true,
+              data: {
+                access_token: 'web-session',
+                refresh_token: '',
+                expires_in: 24 * 60 * 60,
+                user: {
+                  id: webUser?.id || '',
+                  name: webUser?.nickname || '',
+                  role: (webUser?.role as string) || 'user',
+                  orgId: '',
+                  localAuth: false,
+                },
+              },
+            } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
+            getDeviceId(),
+            isApiKeyLogin ? 'api_key' : 'password'
+          );
+        } catch (error) {
+          console.error('[Auth] Web enterprise login failed:', error);
+          return { success: false, message: t('login.errors.networkError'), code: 'networkError' };
+        }
+      }
+
       try {
         const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
         if (!serverUrl) {
@@ -1438,7 +1560,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         };
       }
     },
-    [finalizeEnterpriseLogin]
+    [finalizeEnterpriseLogin, t]
   );
 
   // Enterprise OAuth2 login — completes after the browser redirects back via the
@@ -1473,6 +1595,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   );
 
   const logout = useCallback(async () => {
+    // Web host: destroy the webui cookie session; no eeclaw IPC involved.
+    if (isWebRuntime) {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      } catch {
+        /* server unreachable — clear local state anyway */
+      }
+      localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
+      setUser(null);
+      setStatus('unauthenticated');
+      setReady(true);
+      return;
+    }
+
     // Enterprise mode logout
     const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
     if (eeclawStored) {

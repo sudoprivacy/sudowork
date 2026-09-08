@@ -15,4 +15,6 @@
 interface Window {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   electronAPI?: any;
+  /** Set by the webui mossAdapter before mount — marks a shared-renderer web host. */
+  __sudoworkWebBridge?: boolean;
 }

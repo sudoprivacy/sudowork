@@ -70,6 +70,8 @@ const LoginPage: React.FC = () => {
 
   // Enterprise login state
   const [loginTab, setLoginTab] = useState<'password' | 'key' | 'oauth2'>('password');
+  // OAuth2 login round-trips via the sudowork:// deep link — desktop only.
+  const showOAuth2Tab = isElectronDesktop();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -527,9 +529,11 @@ const LoginPage: React.FC = () => {
             <button type='button' className={`login-tab ${loginTab === 'key' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('key')}>
               密钥登录
             </button>
-            <button type='button' className={`login-tab ${loginTab === 'oauth2' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('oauth2')}>
-              OAuth2 登录
-            </button>
+            {showOAuth2Tab && (
+              <button type='button' className={`login-tab ${loginTab === 'oauth2' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('oauth2')}>
+                OAuth2 登录
+              </button>
+            )}
           </div>
 
           <div className='flex flex-col gap-20px mt-24px'>
@@ -549,7 +553,7 @@ const LoginPage: React.FC = () => {
                 <div className='text-12px font-600 text-secondary ml-4px'>API Key</div>
                 <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
               </div>
-            ) : (
+            ) : showOAuth2Tab ? (
               <div className='flex flex-col gap-8px text-center'>
                 {oauth2Loading ? (
                   <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div>
@@ -559,7 +563,7 @@ const LoginPage: React.FC = () => {
                   <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>
                 )}
               </div>
-            )}
+            ) : null}
 
             {loginTab === 'oauth2' ? (
               <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
