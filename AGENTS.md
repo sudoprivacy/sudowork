@@ -14,8 +14,8 @@ Key choices that affect how code is written:
 
 ```bash
 # Development
-bun run start              # Start dev environment
-bun run webui              # Start WebUI server
+bun run start              # Start dev environment (Electron)
+cd apps/webui && bun run dev   # Start WebUI (client 26808 + server 26809)
 
 # Code Quality
 bun run lint               # Run ESLint

@@ -22,9 +22,10 @@ Sudowork 是一个基于 Electron 的桌面应用（productName 为 `sudowork`�
 ```bash
 # 开发 / 运行
 bun run start              # Electron 开发模式（先构建 hook，再执行 scripts/launch-dev.js）
-bun run webui              # 无界面 WebUI 服务器（本地）
-bun run webui:remote       # 允许网络访问的 WebUI 服务器
-bun run resetpass          # 重置 WebUI 管理员密码
+
+# WebUI（apps/webui —— 独立应用，前端复用 packages/renderer 单入口）
+cd apps/webui && bun run dev                       # 开发（client 26808 + server 26809）
+cd apps/webui && bun run build && node dist/server/index.js  # 生产
 
 # 质量检查（提交前运行）
 bun run check              # type:check + lint + format:check + vitest run（完整门禁）
@@ -76,9 +77,9 @@ IPC：`src/preload.ts` 通过 `contextBridge` 暴露类型化 API；主进程侧
 
 平台无关的框架，将 agent 能力通过 IM 平台暴露出去（Telegram 用 grammY、飞书 Lark 用 `@larksuiteoapi/node-sdk`、钉钉用 `dingtalk-stream`）。所有平台都归一化为统一消息协议（`IUnifiedIncomingMessage` / `IUnifiedOutgoingMessage`）。分层：`core/`（ChannelManager 单例、SessionManager 按会话隔离）→ `gateway/`（ActionExecutor 把消息路由到 Action，PluginManager 管理插件生命周期）→ `agent/`（事件总线 + 消息服务）→ `actions/`、`pairing/`（用户授权）、`plugins/`（各平台实现）。详见 [src/channels/ARCHITECTURE.md](src/channels/ARCHITECTURE.md)。
 
-### WebUI 服务器（`src/webserver/`）
+### WebUI（`apps/webui/`）
 
-Express 5 + WebSocket，用于无界面 / 远程访问。`auth/` 中实现 JWT 认证（bcrypt 密码、Cookie `sudowork-session`、24 小时有效期）；路由在 `routes/`；实时通信在 `websocket/`。默认端口 25808；通过 `--webui`/`--remote`/`--port` 命令行参数、`sudowork_*` 环境变量，或 OS app-data 目录下的 `webui.config.json` 配置。详见 [WEBUI_GUIDE.md](docs/WEBUI_GUIDE.md) 与 [SERVER_DEPLOY_GUIDE.md](docs/SERVER_DEPLOY_GUIDE.md)。
+独立的 monorepo 应用（Express 5 + WebSocket + PostgreSQL，`src/server/`），作为 Moss 企业服务的前置代理，供无界面 / 远程访问。前端**单入口**：`index.html` → `src/client/shared-renderer/main.ts` 挂载 `packages/renderer`（与桌面同一份 UI），传输层 `src/client/bridgeAdapter/mossAdapter.ts` 把 bridge channel 翻译为同源 HTTP + WS。认证走 session cookie（`sudowork-session`）。开发端口 client 26808 / server 26809；生产 `node dist/server/index.js`（默认 26809，`PORT` 可覆盖）。旧 console URL（`/agents`、`/cron/:id`、`/settings/*` 等）由 `main.ts` 客户端重定向到对应 hash 路由。详见 [apps/webui/README.md](apps/webui/README.md)。
 
 ### 扩展系统（`src/extensions/`）
 

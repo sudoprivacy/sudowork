@@ -5,9 +5,11 @@ Web 界面，含智能体、技能库、定时任务、会话历史与四项设�
 
 - **架构**：浏览器只访问同源的 WebUI 后端；后端以配置的固定 Moss 地址代理 REST/WebSocket，
   按 Cookie 会话隔离用户与 Moss token。Moss 是唯一业务数据源，WebUI 不复制业务数据。
-- **技术栈**：Node.js ≥22 <26、Bun、React 19、TypeScript strict、Vite、React Router、
-  Arco Design、UnoCSS、SWR、Express 5、ws、PostgreSQL、pg、Zod、Vitest、Supertest、Playwright。
-- UI 摘取自 Sudowork 企业端（Apache-2.0，见 `docs/ui-reuse-map.md`）。
+- **前端单入口**：`index.html` → `src/client/shared-renderer/main.ts` 挂载 `packages/renderer`
+  （与桌面端同一份 React 19 UI，hash 路由 `/#/`）；传输层 `src/client/bridgeAdapter/mossAdapter.ts`
+  把 renderer 的 bridge channel 翻译为同源 HTTP + WS。桌面端专属页面由运行时门控裁剪，桌面行为零影响。
+- **技术栈**：Node.js ≥22 <26、Bun、React 19、TypeScript strict、Vite、
+  Arco Design、UnoCSS、Express 5、ws、PostgreSQL、pg、Zod、Vitest、Supertest、Playwright。
 
 ## 快速开始（开发）
 
@@ -32,6 +34,10 @@ bun run dev
 
 打开 http://localhost:26808，用 Moss 账户密码或 API Key 登录。
 
+旧 console URL 会被客户端重定向到对应 hash 路由：`/agents`→`/#/app/agent`、`/skills`→`/#/app/skills`、
+`/cron[/:id]`→`/#/app/cron[/:id]`、`/settings/{profile,display,about,mcp}`→`/#/settings/…`、
+`/conversation/:id`→`/#/conversation/:id`；未匹配落 `/#/guid`。
+
 ## 环境变量
 
 | 变量 | 说明 |
@@ -41,7 +47,7 @@ bun run dev
 | `TOKEN_AES_KEY` | Moss access/refresh token 的 AES-256-GCM 密钥（32 字节，`openssl rand -base64 32`） |
 | `PUBLIC_ORIGIN` | 对外完整 Origin；生产必须 HTTPS（外部反向代理终结 TLS） |
 | `MOSS_BASE_URL` / `MOSS_WS_BASE_URL` | Moss 服务地址（只读访问，不由 WebUI 部署；两者主机必须一致） |
-| `PORT` | 服务端口（开发 26809，生产 26808） |
+| `PORT` | 服务端口（默认 26809；开发时前端 vite 跑 26808 并代理到此端口，生产由本服务同端口托管静态产物） |
 
 配置文件（`config/sudowork-webui.json`，可 `CONFIG_PATH` 覆盖）提供 server/publicOrigin/
 trustProxy/moss/session/upload 段；环境变量优先。
@@ -104,6 +110,12 @@ E2E_TEST_PREFIX=webui-e2e-<unique>
 - 当前上游 WS 协议不发射 thinking 事件、不支持 turn 级 interrupt：WebUI 保留协议兼容位，
   不伪造这两类交互；终止会话走 REST terminate。
 - 登录限流为进程内存存储（单实例约束）。
+- 会话右侧面板仅工作区（只读树 + 文本/图片预览）与交付物；浏览器 tab（Electron `<webview>` 专属）
+  与终端 tab（产品决策隐藏）在 Web 端不出现。工作区上传子功能与 html/pdf/office/媒体预览不支持
+  （依赖本地磁盘，与 console 现状一致）。
+- 助手编辑入口在 Web 端隐藏（Moss meta 端点无法回写 renderer 的 I18n/prompt 字段）；创建仍可用。
+- Agent 启停开关在 Web 端隐藏（Moss 无对应端点）；Agent/Skill 的创建/卸载、Skill 启停对非
+  `admin:settings` 用户隐藏控件（服务端强制）。
 
 ## 范围外（首版明确不做）
 
