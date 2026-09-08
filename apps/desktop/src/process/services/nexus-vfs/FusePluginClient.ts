@@ -65,7 +65,7 @@ export class FusePluginClient {
   async getStatus(): Promise<FusePluginStatusResult> {
     let response: Buffer;
     try {
-      response = this.nexus.callBinary(`${FUSE_PLUGIN_NAME}.status`, Buffer.alloc(0));
+      response = await this.nexus.callBinary(`${FUSE_PLUGIN_NAME}.status`, Buffer.alloc(0));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       mainWarn(TAG, `getStatus dispatch failed: ${msg}`);

@@ -175,24 +175,11 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
       - name: Install protoc
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler pkg-config libssl-dev
 
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            apps/desktop/native/nexus-napi/target
-          key: ${{ runner.os }}-cargo-napi-${{ hashFiles('apps/desktop/native/nexus-napi/**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-napi-
 
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
@@ -203,8 +190,6 @@ jobs:
         # forgetting to update scripts/download-nexus-vfs.js fail fast.
         run: bun run nexus-vfs:download
 
-      - name: Build nexus-napi native binding
-        run: bun run build:native
 
       - name: Start nexusd-cluster on :2028
         # nexusd-cluster speaks HTTP/2 gRPC. Background it, wait for the

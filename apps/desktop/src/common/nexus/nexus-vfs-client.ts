@@ -3,18 +3,18 @@
  * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
-/* eslint-disable @typescript-eslint/no-require-imports */
-
 /**
  * Nexus RPC Client
  *
  * File I/O client backed by nexusd-cluster gRPC (port 12022).
- * Uses the nexus-napi native addon for typed Read/Write RPCs and
- * the generic Call RPC for stat/readdir/unlink/mkdir.
+ * Uses the official @nexus-ai-fs/vfs-client for typed Read/Write RPCs
+ * and the generic Call RPC for stat/readdir/unlink/mkdir.
  *
  * Migrated from HTTP JSON-RPC (:12012) to gRPC (:12022) — all callers
  * (safety hooks, etc.) keep the same public API.
  */
+
+import { NexusVfsClient } from '@nexus-ai-fs/vfs-client';
 
 export interface NexusRpcOptions {
   /** gRPC endpoint (default: http://localhost:12022) */
@@ -27,38 +27,23 @@ export interface NexusRpcOptions {
   apiKey?: string;
 }
 
-// Lazy-load the native addon (same pattern as ACP transport).
-function loadNativeBinding(): typeof import('../../../native/nexus-napi') {
-  try {
-    const { app } = require('electron');
-    const path = require('path');
-    const appRoot = app.isPackaged ? app.getAppPath().replace('app.asar', 'app.asar.unpacked') : app.getAppPath();
-    return require(path.join(appRoot, 'native', 'nexus-napi'));
-  } catch {
-    throw new Error('nexus-napi native module not available. Run `bun run build:native` first.');
-  }
-}
-
-type GrpcClient = InstanceType<ReturnType<typeof loadNativeBinding>['NexusGrpcClient']>;
-
 export class Nexus {
-  private readonly client: GrpcClient;
+  private readonly client: NexusVfsClient;
   private readonly authToken: string;
 
   constructor(options?: NexusRpcOptions) {
     const endpoint = options?.endpoint ?? options?.serverUrl ?? 'http://localhost:12022';
     this.authToken = options?.authToken ?? options?.apiKey ?? '';
-    const { NexusGrpcClient } = loadNativeBinding();
-    this.client = new NexusGrpcClient(endpoint);
+    this.client = new NexusVfsClient(endpoint);
   }
 
   /**
    * Binary gRPC Call RPC — dispatches raw protobuf bytes to a service method.
    * Used by NexusSecretClient for vault plugin dispatch.
    */
-  public callBinary(method: string, payload: Buffer): Buffer {
+  public async callBinary(method: string, payload: Buffer): Promise<Buffer> {
     try {
-      return this.client.callBinary(method, payload, this.authToken);
+      return await this.client.callBinary(method, payload, this.authToken);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new NexusError(`RPC error: ${method}: ${msg}`);
@@ -70,7 +55,7 @@ export class Nexus {
    */
   public async callRPC(method: string, params: Record<string, unknown>): Promise<unknown> {
     try {
-      const raw = this.client.call(method, JSON.stringify(params), this.authToken);
+      const raw = await this.client.call(method, JSON.stringify(params), this.authToken);
       return JSON.parse(raw);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -81,7 +66,7 @@ export class Nexus {
   public async write(path: string, content: string | Buffer, _if_match?: string, _if_none_match?: boolean, _force?: boolean): Promise<Record<string, unknown>> {
     try {
       const buf = typeof content === 'string' ? Buffer.from(content, 'utf-8') : content;
-      this.client.write(path, buf, this.authToken);
+      await this.client.write(path, buf, this.authToken);
       return { path, size: buf.length };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -91,7 +76,7 @@ export class Nexus {
 
   public async read(path: string, returnMetadata?: boolean): Promise<Buffer | Record<string, unknown>> {
     try {
-      const buf = this.client.read(path, this.authToken);
+      const buf = await this.client.read(path, this.authToken);
       if (returnMetadata) {
         // Fetch stat separately for metadata
         const stat = (await this.callRPC('sys_stat', { path })) as Record<string, unknown> | null;
@@ -106,7 +91,7 @@ export class Nexus {
 
   public async exists(path: string): Promise<boolean> {
     try {
-      const raw = this.client.call('access', JSON.stringify({ path }), this.authToken);
+      const raw = await this.client.call('access', JSON.stringify({ path }), this.authToken);
       const result = JSON.parse(raw);
       return !!result;
     } catch {
@@ -130,7 +115,7 @@ export class Nexus {
    */
   public async list(path: string): Promise<NexusListItem[]> {
     try {
-      const raw = this.client.call('sys_readdir', JSON.stringify({ path }), this.authToken);
+      const raw = await this.client.call('sys_readdir', JSON.stringify({ path }), this.authToken);
       const result = JSON.parse(raw);
       // sys_readdir returns array of [path, entry_type] tuples or objects
       if (Array.isArray(result)) {

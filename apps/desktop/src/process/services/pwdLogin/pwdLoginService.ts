@@ -91,12 +91,11 @@ export async function resolvePwdAdapter(title: string): Promise<PwdAdapter | und
 
 /** True if a credential secret exists for the title (does not expose the value).
  *  Uses listSecrets (secret_list) — present even on plugin builds missing secret_get. */
-function hasCredential(title: string): boolean {
+async function hasCredential(title: string): Promise<boolean> {
   try {
     const key = title.trim();
-    return getNexusSecretClient()
-      .listSecrets(PWD_LOGIN_NAMESPACE, false)
-      .some((s) => s.key === key);
+    const secrets = await getNexusSecretClient().listSecrets(PWD_LOGIN_NAMESPACE, false);
+    return secrets.some((s) => s.key === key);
   } catch {
     return false;
   }
@@ -129,7 +128,7 @@ export async function savePwdLoginCredential(title: string, username: string, pa
   if (!key) throw new Error('title required');
   const value = JSON.stringify({ username, password });
   try {
-    putSecretResilient(PWD_LOGIN_NAMESPACE, key, value, `pwd_login: ${key}`);
+    await putSecretResilient(PWD_LOGIN_NAMESPACE, key, value, `pwd_login: ${key}`);
   } catch (err) {
     mainError('pwdLogin', `putSecret failed: ${err instanceof Error ? err.name : typeof err}`);
     throw err;
@@ -151,12 +150,12 @@ export async function listPwdLoginEntries(): Promise<PwdLoginEntryStatus[]> {
     const key = e.title.trim().toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ title: e.title, url: e.url, strategy: e.strategy, hasCaptcha: !!e.captchaSelector, source: 'custom', hasCredential: hasCredential(e.title) });
+    out.push({ title: e.title, url: e.url, strategy: e.strategy, hasCaptcha: !!e.captchaSelector, source: 'custom', hasCredential: await hasCredential(e.title) });
   }
   for (const a of listAdapters()) {
     if (seen.has(a.title)) continue;
     seen.add(a.title);
-    out.push({ title: a.title, url: a.loginUrl, strategy: a.strategy, hasCaptcha: !!a.captchaSelector, source: 'builtin', hasCredential: hasCredential(a.title) });
+    out.push({ title: a.title, url: a.loginUrl, strategy: a.strategy, hasCaptcha: !!a.captchaSelector, source: 'builtin', hasCredential: await hasCredential(a.title) });
   }
   return out;
 }
@@ -186,7 +185,7 @@ function credentialKey(title: string): IApprovalKey {
 async function fetchPasswordBuffer(title: string): Promise<{ username: string; passwordBuf: Buffer }> {
   let value: string;
   try {
-    value = getSecretResilient(PWD_LOGIN_NAMESPACE, title);
+    value = await getSecretResilient(PWD_LOGIN_NAMESPACE, title);
   } catch (err) {
     // Never log the error body (may carry secret material) — only the type.
     mainError('pwdLogin', `secret_get failed: ${err instanceof Error ? err.name : typeof err}`);

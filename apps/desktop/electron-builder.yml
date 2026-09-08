@@ -39,9 +39,6 @@ files:
   - vendor/ai-dev-browser/ai_dev_browser/**/*
   - package.json
   # Rust napi addon (nexus gRPC client)
-  - native/nexus-napi/*.node
-  - native/nexus-napi/index.js
-  - native/nexus-napi/index.d.ts
   # Native modules and their runtime dependencies
   - node_modules/better-sqlite3/**/*
   - node_modules/bcrypt/**/*
@@ -324,10 +321,7 @@ asarUnpack:
   # the junction never gets created, and `import ai_dev_browser` fails on every
   # packaged install.
   - 'vendor/ai-dev-browser/**/*'
-  - 'native/nexus-napi/*.node'
   # index.js must sit next to the unpacked .node so that
-  # require(app.asar.unpacked/native/nexus-napi) resolves (see nexus-vfs-client.ts)
-  - 'native/nexus-napi/index.js'
   - '**/node_modules/better-sqlite3/**/*'
   - '**/node_modules/bcrypt/**/*'
   - '**/node_modules/node-pty/**/*'
