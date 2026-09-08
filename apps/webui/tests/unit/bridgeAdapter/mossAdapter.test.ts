@@ -293,6 +293,75 @@ describe('mossAdapter: zoom channels (browser-local display prefs)', () => {
   })
 })
 
+describe('mossAdapter: workspace / deliverables channels', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('get-remote-workspace wraps the root node and synthesizes fullPath', async () => {
+    stubFetch({
+      '/workspace/tree': {
+        name: 'workspace',
+        relativePath: '',
+        isDir: true,
+        isFile: false,
+        children: [{ name: 'a.txt', relativePath: 'a.txt', isFile: true, isDir: false }],
+      },
+    })
+    const result = await ipcBridge.conversation.getRemoteWorkspace.invoke({ conversation_id: 'c1' })
+
+    expect(result.success).toBe(true)
+    expect(result.data?.pending).toBe(false)
+    const root = result.data?.files?.[0] as {
+      fullPath: string
+      children?: Array<{ fullPath: string }>
+    }
+    expect(root.fullPath).toBe('') // synth from relativePath
+    expect(root.children?.[0]?.fullPath).toBe('a.txt')
+  })
+
+  it('deliverables.list strips {items}, parses createdAt, and null→undefined', async () => {
+    stubFetch({
+      '/deliverables': {
+        items: [
+          {
+            name: 'r.md',
+            relativePath: 'out/r.md',
+            kind: 'create',
+            ext: 'md',
+            size: null,
+            mime: null,
+            createdAt: '2024-01-01T00:00:00Z',
+          },
+          {
+            name: 'bad.md',
+            relativePath: 'out/bad.md',
+            kind: 'edit',
+            ext: 'md',
+            size: 12,
+            mime: 'text/markdown',
+            createdAt: 'not-a-date',
+          },
+        ],
+      },
+    })
+    const result = await ipcBridge.deliverables.list.invoke({ conversationId: 'c1' })
+
+    expect(result.success).toBe(true)
+    expect(result.data?.[0]).toEqual({
+      path: 'out/r.md',
+      relativePath: 'out/r.md',
+      kind: 'create',
+      ext: 'md',
+      mime: undefined,
+      size: undefined,
+      createdAt: Date.parse('2024-01-01T00:00:00Z'),
+    })
+    // unparseable createdAt falls back to 0 (NaN guard)
+    expect(result.data?.[1]?.createdAt).toBe(0)
+  })
+})
+
 describe('cron schedule conversion', () => {
   it('round-trips every/cron/at schedules through server ↔ renderer', () => {
     const every = { kind: 'every' as const, everyMs: 3_600_000, description: 'hourly' }

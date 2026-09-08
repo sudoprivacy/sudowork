@@ -296,6 +296,9 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
         }
         emitterRef?.emit('chat.response.stream', msg)
         emitterRef?.emit('moss.response-stream', msg)
+        // Turn finished — the workspace tree auto-refreshes off this same stream,
+        // but deliverables have no server push, so re-pull them now.
+        if (msg.type === 'finish') void refreshDeliverables(sessionId)
       }
     } else if (frame && frame.kind === 'error') {
       emitterRef?.emit('chat.response.stream', {
@@ -419,8 +422,11 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
   const ts = item.lastActiveAt ?? Date.now()
   return {
     id: item.id,
+    // 'remote-agent' (not 'acp') so ChatSider mounts the moss-session workspace
+    // panel (readonly tree + deliverables); chat/model/stream all go through the
+    // already-mapped remote-agent channels.
     name: item.title ?? item.assistantName ?? item.id,
-    type: 'acp',
+    type: 'remote-agent',
     createTime: ts,
     modifyTime: ts,
     status: item.status === 'running' ? 'running' : 'finished',
@@ -713,6 +719,70 @@ function cronUpdateBody(updates: AnyReq): Record<string, unknown> {
   return body
 }
 
+// ---------------------------------------------------------------------------
+// Workspace / deliverables (moss-session right panel). The server strips
+// `fullPath` from workspace nodes (DTO whitelist); we synth it from
+// relativePath, matching the desktop convertMossWorkspaceNode transform.
+// ---------------------------------------------------------------------------
+
+function convertWorkspaceNode(node: unknown): unknown {
+  const n = (node && typeof node === 'object' ? node : {}) as Record<string, unknown>
+  const relativePath = typeof n.relativePath === 'string' ? n.relativePath : ''
+  return {
+    name: typeof n.name === 'string' ? n.name : '',
+    relativePath,
+    fullPath: relativePath,
+    isDir: n.isDir === true,
+    isFile: n.isFile === true,
+    children: Array.isArray(n.children) ? n.children.map(convertWorkspaceNode) : undefined,
+  }
+}
+
+interface ServerDeliverable {
+  name: string
+  relativePath: string
+  kind: 'create' | 'edit'
+  ext: string
+  size: number | null
+  mime: string | null
+  createdAt: string
+}
+
+function mapDeliverables(items: ServerDeliverable[]): unknown[] {
+  return items.map((d) => {
+    const parsed = Date.parse(d.createdAt)
+    return {
+      path: d.relativePath,
+      relativePath: d.relativePath,
+      kind: d.kind,
+      ext: d.ext,
+      mime: d.mime ?? undefined,
+      size: typeof d.size === 'number' ? d.size : undefined,
+      // moss timestamp is a wire string; NaN guard keeps sort/time display sane.
+      createdAt: Number.isFinite(parsed) ? parsed : 0,
+    }
+  })
+}
+
+async function fetchDeliverables(conversationId: string): Promise<unknown[]> {
+  const res = await apiFetch<{ items?: ServerDeliverable[] }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/deliverables`,
+  )
+  return mapDeliverables(Array.isArray(res.items) ? res.items : [])
+}
+
+// After a turn finishes, moss may have written new files. There is no server push
+// for deliverables, so re-pull and emit `deliverables.changed`; the panel merges
+// by path (idempotent).
+async function refreshDeliverables(conversationId: string): Promise<void> {
+  try {
+    const files = await fetchDeliverables(conversationId)
+    emitterRef?.emit('deliverables.changed', { conversationId, files })
+  } catch {
+    /* best-effort — the panel keeps its last list */
+  }
+}
+
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // --- enterprise/session flags ---
   'moss.is-enterprise-mode': async () => true,
@@ -885,6 +955,44 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       `/api/conversations/${encodeURIComponent(id)}/context`,
     )
     return ctx.messages ?? []
+  },
+
+  // --- workspace / deliverables (moss-session right panel) ---
+  'conversation.get-remote-workspace': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const params = new URLSearchParams()
+    if (typeof req?.path === 'string' && req.path) params.set('path', req.path)
+    if (typeof req?.search === 'string' && req.search) params.set('search', req.search)
+    const qs = params.toString()
+    try {
+      const root = await apiFetch<unknown>(
+        `/api/conversations/${encodeURIComponent(id)}/workspace/tree${qs ? `?${qs}` : ''}`,
+      )
+      return ok({ files: root ? [convertWorkspaceNode(root)] : [], pending: false })
+    } catch (err) {
+      return { success: false, msg: errMessage(err), data: { files: [], pending: false } }
+    }
+  },
+  'conversation.preview-remote-workspace-file': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const path = String(req?.path ?? '')
+    const preview = await apiFetch<unknown>(
+      `/api/conversations/${encodeURIComponent(id)}/workspace/file?path=${encodeURIComponent(path)}`,
+    )
+    return ok(preview)
+  },
+  'conversation.get-remote-available-skills': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const res = await apiFetch<{ skills?: unknown[] }>(
+      `/api/conversations/${encodeURIComponent(id)}/skills/available`,
+    ).catch(() => ({ skills: [] }))
+    return ok({ skills: Array.isArray(res.skills) ? res.skills : [], pending: false })
+  },
+  'deliverables.list': async (req) => {
+    const id = String(req?.conversationId ?? '')
+    if (!id) return ok([])
+    const files = await fetchDeliverables(id).catch(() => [])
+    return ok(files)
   },
 
   // --- create / update / delete ---
