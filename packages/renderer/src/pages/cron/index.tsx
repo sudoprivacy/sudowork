@@ -56,6 +56,10 @@ export default function CronPage() {
   // "local" cron mode is deprecated); consumer mode is always local.
   const sessionMode: 'remote' | 'local' = isEnterprise ? 'remote' : 'local';
   const { jobs, loading, error, refetch } = useAllCronJobs();
+  // When the org disables client cron, moss returns CRON_DISABLED_BY_ORG. Degrade
+  // to the empty state (matching the console) instead of the "server unavailable"
+  // banner, which would misattribute an org policy to a connectivity failure.
+  const isCronDisabledByOrg = error?.message === 'CRON_DISABLED_BY_ORG';
 
   const [keepAwake, setKeepAwake] = useState(false);
   useEffect(() => {
@@ -94,7 +98,7 @@ export default function CronPage() {
     >
       <div className='space-y-4'>
         {/* Error state (remote mode) */}
-        {error && sessionMode === 'remote' && (
+        {error && !isCronDisabledByOrg && sessionMode === 'remote' && (
           <div className='bg-red-1 rd-12px px-4 py-3 flex items-center justify-between'>
             <div className='flex items-center gap-2 text-13px text-red-6'>
               <Info size={16} />

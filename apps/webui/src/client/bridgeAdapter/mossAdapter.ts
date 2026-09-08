@@ -558,6 +558,161 @@ function mossSkillToInstalledInfo(s: MossSkillItem): unknown {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Cron schedule conversion. The renderer's ICronSchedule is a discriminated
+// union (atMs/everyMs/expr); the moss/server ScheduleSchema is a flat
+// {kind, value, tz?, description?}. These two pure functions round-trip it, and
+// are exercised by a round-trip unit test.
+// ---------------------------------------------------------------------------
+
+type ServerSchedule = {
+  kind: 'at' | 'every' | 'cron'
+  value: string
+  tz?: string
+  description?: string
+}
+type RendererSchedule =
+  | { kind: 'at'; atMs: number; description: string }
+  | { kind: 'every'; everyMs: number; description: string }
+  | { kind: 'cron'; expr: string; tz?: string; description: string }
+
+const DURATION_UNITS: Array<[string, number]> = [
+  ['d', 86_400_000],
+  ['h', 3_600_000],
+  ['m', 60_000],
+  ['s', 1000],
+  ['ms', 1],
+]
+
+/**
+ * everyMs → a duration string. Console encodes minutes ('60m' for hourly), so we
+ * prefer minutes, then whole seconds, then raw ms — never hours/days (durationToMs
+ * still parses those, for moss values authored elsewhere).
+ */
+export function msToDuration(ms: number): string {
+  if (ms % 60_000 === 0 && ms >= 60_000) return `${ms / 60_000}m`
+  if (ms % 1000 === 0 && ms >= 1000) return `${ms / 1000}s`
+  return `${ms}ms`
+}
+
+/** '60m' | '2h' | plain ms → milliseconds. NaN-safe (0 on failure). */
+export function durationToMs(value: string): number {
+  const m = /^(\d+)(ms|s|m|h|d)?$/.exec(value.trim())
+  if (!m) return 0
+  const n = Number(m[1])
+  const unit = m[2] ?? 'ms'
+  const size = DURATION_UNITS.find(([u]) => u === unit)?.[1] ?? 1
+  return Number.isFinite(n) ? n * size : 0
+}
+
+export function rendererScheduleToServer(schedule: RendererSchedule): ServerSchedule {
+  if (schedule.kind === 'at') {
+    return { kind: 'at', value: String(schedule.atMs), description: schedule.description }
+  }
+  if (schedule.kind === 'every') {
+    return {
+      kind: 'every',
+      value: msToDuration(schedule.everyMs),
+      description: schedule.description,
+    }
+  }
+  return { kind: 'cron', value: schedule.expr, tz: schedule.tz, description: schedule.description }
+}
+
+export function serverScheduleToRenderer(raw: unknown): RendererSchedule {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Partial<ServerSchedule>
+  const description = typeof s.description === 'string' ? s.description : ''
+  const value = typeof s.value === 'string' ? s.value : ''
+  if (s.kind === 'at') {
+    // Console never emits 'at'; moss value may be epoch-ms or an ISO string.
+    const n = Number(value)
+    const atMs = Number.isFinite(n) && value !== '' ? n : Date.parse(value) || 0
+    return { kind: 'at', atMs, description }
+  }
+  if (s.kind === 'every') {
+    return { kind: 'every', everyMs: durationToMs(value), description }
+  }
+  return { kind: 'cron', expr: value, tz: typeof s.tz === 'string' ? s.tz : undefined, description }
+}
+
+/** moss cron job row (transparent passthrough) → renderer ICronJob. Wire is untyped. */
+function toIcronJob(raw: unknown): unknown {
+  const j = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const num = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) ? v : undefined
+  const createdAt = num(j.createdAt ?? j.created_at) ?? Date.now()
+  const updatedAt = num(j.updatedAt ?? j.updated_at) ?? createdAt
+  return {
+    id: String(j.id ?? ''),
+    name: String(j.name ?? ''),
+    enabled: j.enabled !== false,
+    schedule: serverScheduleToRenderer(j.schedule),
+    target: { payload: { kind: 'message', text: String(j.payloadMessage ?? '') } },
+    metadata: {
+      conversationId: j.boundSessionId != null ? String(j.boundSessionId) : '',
+      agentType: typeof j.assistantName === 'string' ? j.assistantName : '',
+      createdBy: 'user',
+      createdAt,
+      updatedAt,
+      conversationMode: j.conversationMode === 'reuse' ? 'reuse' : 'new',
+    },
+    state: {
+      nextRunAtMs: num(j.nextRunAtMs ?? j.nextRunAt),
+      lastRunAtMs: num(j.lastRunAtMs ?? j.lastRunAt),
+      runCount: num(j.runCount) ?? 0,
+      retryCount: num(j.retryCount) ?? 0,
+      maxRetries: num(j.maxRetries) ?? 0,
+    },
+  }
+}
+
+/** renderer ICreateCronJobParams / Partial<ICronJob> updates → server strict body. */
+function cronCreateBody(req: AnyReq): Record<string, unknown> {
+  const schedule = req?.schedule as RendererSchedule | undefined
+  const conversationId = typeof req?.conversationId === 'string' ? req.conversationId : ''
+  const agentType = typeof req?.agentType === 'string' ? req.agentType : ''
+  const body: Record<string, unknown> = {
+    name: String(req?.name ?? ''),
+    payloadMessage: String(req?.message ?? ''),
+  }
+  if (schedule) body.schedule = rendererScheduleToServer(schedule)
+  if (req?.conversationMode === 'new' || req?.conversationMode === 'reuse') {
+    body.conversationMode = req.conversationMode
+  }
+  body.boundSessionId = conversationId || null
+  if (agentType) body.assistantName = agentType
+  return body
+}
+
+/**
+ * Runs a cron call and, on failure, returns the desktop bridge's `{ __error }`
+ * envelope instead of rejecting — matching what `unwrapCronResult` and the
+ * useCronAccess probe expect (a non-array on failure, never a thrown invoke).
+ */
+async function cronResult<T>(fn: () => Promise<T>): Promise<T | { __error: string }> {
+  try {
+    return await fn()
+  } catch (err) {
+    return { __error: errMessage(err) }
+  }
+}
+
+/** renderer Partial<ICronJob> (update-job) → server strict patch body (only known fields). */
+function cronUpdateBody(updates: AnyReq): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  if (typeof updates?.name === 'string') body.name = updates.name
+  if (typeof updates?.enabled === 'boolean') body.enabled = updates.enabled
+  const schedule = updates?.schedule as RendererSchedule | undefined
+  if (schedule) body.schedule = rendererScheduleToServer(schedule)
+  const target = updates?.target as { payload?: { text?: unknown } } | undefined
+  if (typeof target?.payload?.text === 'string') body.payloadMessage = target.payload.text
+  const metadata = updates?.metadata as { conversationMode?: unknown } | undefined
+  if (metadata?.conversationMode === 'new' || metadata?.conversationMode === 'reuse') {
+    body.conversationMode = metadata.conversationMode
+  }
+  return body
+}
+
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // --- enterprise/session flags ---
   'moss.is-enterprise-mode': async () => true,
@@ -954,12 +1109,65 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // --- misc surfaces the enterprise chat page touches early ---
   'conversation.get-slash-commands': async () => ok({ commands: [] }),
 
-  // --- desktop-only surfaces reached on load (e.g. the sidebar's cron access
-  //     probe). These return RAW arrays, so the default-reject object would
-  //     crash array consumers (`jobs.filter is not a function`). The features
-  //     are gated/absent on web, so answer with safe empties. ---
-  'cron.list-jobs': async () => [],
-  'cron.list-jobs-by-conversation': async () => [],
+  // --- cron: all providers are RAW (no ok() envelope). On failure they return
+  //     the SAME `{ __error }` shape the desktop main-process bridge uses, so
+  //     `unwrapCronResult` throws for callers and `Array.isArray` stays false for
+  //     the useCronAccess probe. GET /api/cron returns {jobs,canCreate,...}. ---
+  'cron.list-jobs': async () =>
+    cronResult(async () => {
+      const res = await apiFetch<{ jobs?: unknown[] }>('/api/cron')
+      return (Array.isArray(res.jobs) ? res.jobs : []).map(toIcronJob)
+    }),
+  'cron.list-jobs-by-conversation': async (req) =>
+    cronResult(async () => {
+      const conversationId = String(req?.conversationId ?? '')
+      const res = await apiFetch<{ jobs?: unknown[] }>('/api/cron')
+      return (Array.isArray(res.jobs) ? res.jobs : [])
+        .map(toIcronJob)
+        .filter(
+          (j) =>
+            (j as { metadata?: { conversationId?: string } }).metadata?.conversationId ===
+            conversationId,
+        )
+    }),
+  'cron.get-job': async (req) =>
+    cronResult(async () => {
+      const job = await apiFetch<unknown>(
+        `/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}`,
+      )
+      return job ? toIcronJob(job) : null
+    }),
+  'cron.add-job': async (req) =>
+    cronResult(async () => {
+      const job = await apiFetch<unknown>('/api/cron', {
+        method: 'POST',
+        body: JSON.stringify(cronCreateBody(req)),
+      })
+      return toIcronJob(job)
+    }),
+  'cron.update-job': async (req) =>
+    cronResult(async () => {
+      const jobId = encodeURIComponent(String(req?.jobId ?? ''))
+      const job = await apiFetch<unknown>(`/api/cron/${jobId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(cronUpdateBody((req?.updates ?? {}) as AnyReq)),
+      })
+      return toIcronJob(job)
+    }),
+  'cron.remove-job': async (req) =>
+    cronResult(async () => {
+      await apiFetch(`/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}`, {
+        method: 'DELETE',
+      })
+      return undefined
+    }),
+  'cron.trigger-job': async (req) =>
+    cronResult(async () => {
+      await apiFetch(`/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}/trigger`, {
+        method: 'POST',
+      })
+      return undefined
+    }),
   // The conversation view loads these on open; they return RAW arrays, so the
   // default-reject object breaks array consumers ("data is not iterable").
   'confirmation.list': async (req) =>

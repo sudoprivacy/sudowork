@@ -11,7 +11,12 @@
  * the webui server sees and the DTO mapping the renderer receives.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import '@client/bridgeAdapter/mossAdapter'
+import {
+  durationToMs,
+  msToDuration,
+  rendererScheduleToServer,
+  serverScheduleToRenderer,
+} from '@client/bridgeAdapter/mossAdapter'
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge'
 import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/types/tenantConfig'
 
@@ -272,5 +277,121 @@ describe('mossAdapter: assistant/skill management channels', () => {
     const adapters = await ipcBridge.extensions.getAcpAdapters.invoke()
     expect(assistants).toEqual([])
     expect(adapters).toEqual([])
+  })
+})
+
+describe('cron schedule conversion', () => {
+  it('round-trips every/cron/at schedules through server ↔ renderer', () => {
+    const every = { kind: 'every' as const, everyMs: 3_600_000, description: 'hourly' }
+    expect(rendererScheduleToServer(every)).toEqual({
+      kind: 'every',
+      value: '60m',
+      description: 'hourly',
+    })
+    expect(serverScheduleToRenderer(rendererScheduleToServer(every))).toEqual(every)
+
+    const cron = {
+      kind: 'cron' as const,
+      expr: '0 9 * * *',
+      tz: 'Asia/Shanghai',
+      description: 'daily',
+    }
+    expect(rendererScheduleToServer(cron)).toEqual({
+      kind: 'cron',
+      value: '0 9 * * *',
+      tz: 'Asia/Shanghai',
+      description: 'daily',
+    })
+    expect(serverScheduleToRenderer(rendererScheduleToServer(cron))).toEqual(cron)
+
+    const at = { kind: 'at' as const, atMs: 1_700_000_000_000, description: 'once' }
+    expect(rendererScheduleToServer(at)).toEqual({
+      kind: 'at',
+      value: '1700000000000',
+      description: 'once',
+    })
+    expect(serverScheduleToRenderer(rendererScheduleToServer(at))).toEqual(at)
+  })
+
+  it('msToDuration/durationToMs are inverse for common values', () => {
+    for (const ms of [1000, 60_000, 3_600_000, 86_400_000, 90_000, 1500]) {
+      expect(durationToMs(msToDuration(ms))).toBe(ms)
+    }
+    // moss 'at' value can arrive as an ISO string
+    const parsed = serverScheduleToRenderer({ kind: 'at', value: '2024-01-01T00:00:00Z' })
+    expect(parsed.kind === 'at' && parsed.atMs).toBe(Date.parse('2024-01-01T00:00:00Z'))
+  })
+})
+
+describe('mossAdapter: cron channels', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('list-jobs projects moss rows into ICronJob[]', async () => {
+    stubFetch({
+      '/api/cron': {
+        jobs: [
+          {
+            id: 'job-1',
+            name: 'daily',
+            enabled: true,
+            schedule: { kind: 'cron', value: '0 9 * * *', description: 'daily 09:00' },
+            payloadMessage: 'run it',
+            boundSessionId: 'sess-1',
+            assistantName: 'writer',
+          },
+        ],
+        canCreate: true,
+        canUseAdminList: false,
+      },
+    })
+    const jobs = (await ipcBridge.cron.listJobs.invoke()) as unknown as Array<{
+      id: string
+      schedule: { kind: string }
+      metadata: { conversationId: string; agentType: string }
+      state: { runCount: number }
+    }>
+
+    expect(Array.isArray(jobs)).toBe(true)
+    expect(jobs[0]?.id).toBe('job-1')
+    expect(jobs[0]?.schedule.kind).toBe('cron')
+    expect(jobs[0]?.metadata.conversationId).toBe('sess-1')
+    expect(jobs[0]?.metadata.agentType).toBe('writer')
+    expect(jobs[0]?.state.runCount).toBe(0)
+  })
+
+  it('add-job sends only the strict server fields', async () => {
+    const fetchMock = stubFetch({
+      '/api/cron': { id: 'job-2', name: 'j', schedule: { kind: 'every', value: '60m' } },
+    })
+    await ipcBridge.cron.addJob.invoke({
+      name: 'j',
+      message: 'hello',
+      schedule: { kind: 'every', everyMs: 3_600_000, description: 'hourly' },
+      conversationId: 'sess-1',
+      agentType: 'writer',
+      createdBy: 'user',
+      // fields the strict server schema would 400 on — must be dropped
+      workspace: '/tmp',
+      presetAssistantId: 'builtin-doctor',
+      conversationTitle: 'x',
+    } as never)
+
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))
+    expect(body).toEqual({
+      name: 'j',
+      payloadMessage: 'hello',
+      schedule: { kind: 'every', value: '60m', description: 'hourly' },
+      boundSessionId: 'sess-1',
+      assistantName: 'writer',
+    })
+  })
+
+  it('list-jobs returns the desktop { __error } envelope when the org disables cron', async () => {
+    stubFetch({ '/api/cron': { status: 403, body: { error: 'CRON_DISABLED_BY_ORG' } } })
+    const result = (await ipcBridge.cron.listJobs.invoke()) as unknown as { __error?: string }
+    expect(Array.isArray(result)).toBe(false)
+    expect(result.__error).toBe('CRON_DISABLED_BY_ORG')
   })
 })
