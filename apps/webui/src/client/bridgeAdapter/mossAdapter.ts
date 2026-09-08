@@ -676,7 +676,6 @@ function toIcronJob(raw: unknown): unknown {
 function cronCreateBody(req: AnyReq): Record<string, unknown> {
   const schedule = req?.schedule as RendererSchedule | undefined
   const conversationId = typeof req?.conversationId === 'string' ? req.conversationId : ''
-  const agentType = typeof req?.agentType === 'string' ? req.agentType : ''
   const body: Record<string, unknown> = {
     name: String(req?.name ?? ''),
     payloadMessage: String(req?.message ?? ''),
@@ -686,7 +685,12 @@ function cronCreateBody(req: AnyReq): Record<string, unknown> {
     body.conversationMode = req.conversationMode
   }
   body.boundSessionId = conversationId || null
-  if (agentType) body.assistantName = agentType
+  // NOTE: the renderer's `agentType` is an ACP backend id (scode/claude/…), NOT a
+  // moss assistant name. The server validates assistantName against the caller's
+  // visible agents (assertAssistantName → InvalidSelectionError), so forwarding
+  // the backend id would reject every create. Omit it; moss picks its default
+  // assistant. (This is the one place the plan's agentType→assistantName mapping
+  // could not hold.)
   return body
 }
 

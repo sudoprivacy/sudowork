@@ -452,7 +452,9 @@ describe('mossAdapter: cron channels', () => {
       message: 'hello',
       schedule: { kind: 'every', everyMs: 3_600_000, description: 'hourly' },
       conversationId: 'sess-1',
-      agentType: 'writer',
+      // agentType is an ACP backend id, NOT a moss assistant name — must be dropped
+      // (the server would reject it via assertAssistantName).
+      agentType: 'scode',
       createdBy: 'user',
       // fields the strict server schema would 400 on — must be dropped
       workspace: '/tmp',
@@ -466,8 +468,8 @@ describe('mossAdapter: cron channels', () => {
       payloadMessage: 'hello',
       schedule: { kind: 'every', value: '60m', description: 'hourly' },
       boundSessionId: 'sess-1',
-      assistantName: 'writer',
     })
+    expect(body).not.toHaveProperty('assistantName')
   })
 
   it('list-jobs returns the desktop { __error } envelope when the org disables cron', async () => {
