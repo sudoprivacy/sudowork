@@ -383,7 +383,7 @@ const ExcelPreview: React.FC<ExcelPreviewProps> = ({ filePath, content: _content
         {typeof sheetCount === 'number' && <span className='text-12px text-secondary'>{t('preview.excel.sheetCount', { count: sheetCount })}</span>}
       </div>
     ),
-    [sheetCount] // eslint-disable-line react-hooks/exhaustive-deps
+    [sheetCount]
   );
 
   useEffect(() => {

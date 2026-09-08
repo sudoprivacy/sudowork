@@ -109,7 +109,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
     }
 
     const service = buildCasServiceUrl(selectedProvider);
-    let loginUrl = '';
+    let loginUrl: string;
     try {
       loginUrl = buildCasLoginUrl(selectedProvider, service);
     } catch {

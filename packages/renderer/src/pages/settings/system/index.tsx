@@ -431,7 +431,6 @@ const SystemSettings: React.FC = () => {
   ];
 
   // 目录配置保存确认 / Directory configuration save confirmation
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const saveDirConfigValidate = (_values: { cacheDir: string; workDir: string }): Promise<unknown> => {
     return new Promise((resolve, reject) => {
       modal.confirm({

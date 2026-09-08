@@ -604,27 +604,6 @@ const ChannelPanel: React.FC = () => {
     [loadPluginStatus, t]
   );
 
-  /** Delete one connection along with the authorizations scoped to it. */
-  const handleRemoveConnection = useCallback(
-    async (pluginId: string) => {
-      setExtraLoadingMap((prev) => ({ ...prev, [pluginId]: true }));
-      try {
-        const result = await channel.removePlugin.invoke({ pluginId });
-        if (result.success) {
-          await loadPluginStatus();
-          Message.success(t('settings.channels.connectionRemoved', { defaultValue: 'Connection removed' }));
-        } else {
-          Message.error(result.msg || t('settings.channels.connectionRemoveFailed', { defaultValue: 'Failed to remove connection' }));
-        }
-      } catch (error: any) {
-        Message.error(error.message);
-      } finally {
-        setExtraLoadingMap((prev) => ({ ...prev, [pluginId]: false }));
-      }
-    },
-    [loadPluginStatus, t]
-  );
-
   /** Enable/disable one of the additional connections. */
   const handleToggleExtraConnection = useCallback(
     async (status: IChannelPluginStatus, enabled: boolean) => {

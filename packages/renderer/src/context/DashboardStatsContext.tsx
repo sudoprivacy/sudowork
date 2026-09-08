@@ -109,7 +109,6 @@ export const DashboardStatsProvider: React.FC<React.PropsWithChildren> = ({ chil
     // Intentionally omit `refresh` from deps — its identity changes when the
     // token does, which would just trigger a redundant invocation. We only
     // care about token transitions here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.token]);
 
   return <DashboardStatsContext.Provider value={{ profile, stats, loading, error, refresh }}>{children}</DashboardStatsContext.Provider>;

@@ -169,6 +169,12 @@ jobs:
       - name: Type check (apps/desktop + packages/renderer)
         run: bun run type:check
 
+      - name: Lint (packages/renderer)
+        run: bun run --filter '@sudowork/renderer' lint
+
+      - name: Format check (packages/renderer)
+        run: bun run --filter '@sudowork/renderer' format:check
+
   # Job 2c: Conversation resource reaper regression tests
   unit-tests-conversation-reaper:
     name: Conversation Reaper Unit Tests
