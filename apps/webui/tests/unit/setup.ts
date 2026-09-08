@@ -1,6 +1,6 @@
 import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
-import { installArcoReact19Compat } from '@client/arcoReact19Compat'
+import { installArcoReact19Compat } from './arcoReact19Compat'
 
 installArcoReact19Compat()
 
