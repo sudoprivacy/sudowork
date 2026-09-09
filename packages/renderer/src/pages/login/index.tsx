@@ -281,14 +281,21 @@ const LoginPage: React.FC = () => {
             body: JSON.stringify({ phone: currentPhone }),
           });
 
-      const raw = (await res.json()) as { success?: boolean; ok?: boolean; next_send_in?: number; nextSendIn?: number; msg?: string; error?: string };
+      const raw = (await res.json()) as { success?: boolean; ok?: boolean; next_send_in?: number; nextSendIn?: number; msg?: string; error?: string; message?: string };
       // The two servers answer in their own shapes; normalise once here so the
       // rest of this handler does not care which host it is running on.
       const data = {
         success: raw.success ?? raw.ok ?? false,
         next_send_in: raw.next_send_in ?? raw.nextSendIn,
-        msg: raw.msg ?? raw.error,
+        msg: raw.message ?? raw.msg ?? raw.error,
       };
+
+      // A refusal that carries a wait is a countdown, not a dead end: start the
+      // timer so the button says how long rather than only what went wrong.
+      if (!data.success && typeof data.next_send_in === 'number' && data.next_send_in > 0) {
+        if (mode === 'login') setLoginCountdown(data.next_send_in);
+        else setRegisterCountdown(data.next_send_in);
+      }
 
       if (data.success) {
         Message.success('验证码已发送');

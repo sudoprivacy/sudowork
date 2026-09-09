@@ -4,7 +4,7 @@ import {
   type MossMe,
   type MossTokenSet,
 } from '@sudowork/contracts/auth'
-import { type MossFetch } from './MossHttpClient.js'
+import { MossHttpError, type MossFetch } from './MossHttpClient.js'
 
 /**
  * Moss 认证端口（计划 3.1/3.7）：
@@ -41,6 +41,34 @@ export interface MossAuthPort {
   me(accessToken: string, baseUrl: string): Promise<MossMe>
 }
 
+
+/** Raised when the control plane refuses a send until the cooldown elapses. */
+export class SmsRateLimitedError extends Error {
+  constructor(readonly retryAfterSec: number, message?: string) {
+    super(message || 'Please wait before requesting another code')
+    this.name = 'SmsRateLimitedError'
+  }
+}
+
+function rateLimitBody(err: unknown): { msg?: string; next_send_in?: number } | null {
+  if (!(err instanceof MossHttpError) || err.status !== 429) return null
+  try {
+    return JSON.parse(err.bodyText) as { msg?: string; next_send_in?: number }
+  } catch {
+    return {}
+  }
+}
+
+function rateLimitRetryAfter(err: unknown): number | null {
+  const body = rateLimitBody(err)
+  if (!body) return null
+  return typeof body.next_send_in === 'number' ? body.next_send_in : 60
+}
+
+function rateLimitMessage(err: unknown): string | undefined {
+  return rateLimitBody(err)?.msg
+}
+
 export function createMossAuthPort(mossFetch: MossFetch): MossAuthPort {
   return {
     async loginWithPassword(input, baseUrl) {
@@ -60,11 +88,21 @@ export function createMossAuthPort(mossFetch: MossFetch): MossAuthPort {
       return MossTokenSetSchema.parse(json)
     },
     async sendPhoneCode(phone, baseUrl) {
-      const json = (await mossFetch(baseUrl, {
-        method: 'POST',
-        path: '/api/v1/auth/send-code',
-        body: { phone },
-      })) as { success?: boolean; next_send_in?: number; msg?: string }
+      let json: { success?: boolean; next_send_in?: number; msg?: string }
+      try {
+        json = (await mossFetch(baseUrl, {
+          method: 'POST',
+          path: '/api/v1/auth/send-code',
+          body: { phone },
+        })) as { success?: boolean; next_send_in?: number; msg?: string }
+      } catch (err) {
+        // A rate-limited send is a 429 carrying how long to wait. Letting it
+        // surface as a generic transport failure would show the person an error
+        // where the UI could show a countdown.
+        const retryAfter = rateLimitRetryAfter(err)
+        if (retryAfter !== null) throw new SmsRateLimitedError(retryAfter, rateLimitMessage(err))
+        throw err
+      }
       if (!json?.success) throw new Error(json?.msg || 'Failed to send verification code')
       return { nextSendIn: typeof json.next_send_in === 'number' ? json.next_send_in : 60 }
     },

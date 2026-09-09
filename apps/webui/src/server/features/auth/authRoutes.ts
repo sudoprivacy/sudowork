@@ -2,6 +2,7 @@ import { Router, type Response, type NextFunction } from 'express'
 import rateLimit from 'express-rate-limit'
 import { ZodError } from 'zod'
 import type { AppConfig } from '../../config.js'
+import { SmsRateLimitedError } from '@sudowork/moss-client'
 import {
   LoginApiKeyRequestSchema,
   LoginPasswordRequestSchema,
@@ -99,8 +100,21 @@ export function createAuthRouter(deps: AuthDeps): Router {
   router.post('/send-code', loginLimiter, (req, res, next) => {
     void (async () => {
       const input = SendPhoneCodeRequestSchema.parse(req.body)
-      const result = await sendPhoneCode(deps, input)
-      res.status(200).json({ ok: true, nextSendIn: result.nextSendIn })
+      try {
+        const result = await sendPhoneCode(deps, input)
+        res.status(200).json({ ok: true, nextSendIn: result.nextSendIn })
+      } catch (err) {
+        // The cooldown and the hourly cap are normal states with a wait
+        // attached, not failures: pass the countdown through so the UI can show
+        // it instead of a generic error.
+        if (err instanceof SmsRateLimitedError) {
+          res
+            .status(429)
+            .json({ error: 'RATE_LIMITED', nextSendIn: err.retryAfterSec, message: err.message })
+          return
+        }
+        throw err
+      }
     })().catch((err: unknown) => authErrorHandler(err, res, next))
   })
 
