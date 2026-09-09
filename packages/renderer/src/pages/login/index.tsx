@@ -35,6 +35,9 @@ function generateOAuth2State(): string {
 // Windows/Linux render custom window controls; macOS relies on native traffic lights, so skip them to avoid duplicates
 const showWindowControls = isElectronDesktop() && !isMacOS();
 
+// Web host detection, mirroring AuthContext: the browser has no electronAPI.
+const isWebRuntime = typeof window !== 'undefined' && !window.electronAPI;
+
 // Validate phone number format (same as server-side)
 function isValidPhone(phone: string): boolean {
   if (phone.length === 11) {
@@ -261,13 +264,31 @@ const LoginPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/send-code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: currentPhone }),
-      });
+      // Web host: the browser posts to this server, which forwards to the
+      // control plane and keeps its tokens server-side. Same split as the login
+      // and register calls in AuthContext — the desktop talks to the control
+      // plane directly, the browser goes through the webui server.
+      const res = isWebRuntime
+        ? await fetch('/api/auth/send-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ phone: currentPhone }),
+          })
+        : await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/send-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: currentPhone }),
+          });
 
-      const data = await res.json();
+      const raw = (await res.json()) as { success?: boolean; ok?: boolean; next_send_in?: number; nextSendIn?: number; msg?: string; error?: string };
+      // The two servers answer in their own shapes; normalise once here so the
+      // rest of this handler does not care which host it is running on.
+      const data = {
+        success: raw.success ?? raw.ok ?? false,
+        next_send_in: raw.next_send_in ?? raw.nextSendIn,
+        msg: raw.msg ?? raw.error,
+      };
 
       if (data.success) {
         Message.success('验证码已发送');
