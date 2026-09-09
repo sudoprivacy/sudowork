@@ -1500,17 +1500,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify(
-              isApiKeyLogin
-                ? { apiKey: (params as EnterpriseLoginParamsByKey).api_key }
-                : { username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password }
-            ),
+            body: JSON.stringify(isApiKeyLogin ? { apiKey: (params as EnterpriseLoginParamsByKey).api_key } : { username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password }),
           });
           if (!response.ok) {
             const body = (await response.json().catch((): null => null)) as { error?: string } | null;
             const code = body?.error || `HTTP_${response.status}`;
-            const message =
-              response.status === 503 || code === 'MOSS_UNAVAILABLE' ? t('login.errors.networkError') : t('login.errors.invalidCredentials');
+            const message = response.status === 503 || code === 'MOSS_UNAVAILABLE' ? t('login.errors.networkError') : t('login.errors.invalidCredentials');
             return { success: false, message, code: 'invalidCredentials' };
           }
           const webUser = await fetchWebSession();

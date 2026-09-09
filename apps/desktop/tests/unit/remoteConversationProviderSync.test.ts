@@ -1,40 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib';
 
-vi.mock('@process/database', () => ({
-  getDatabase: vi.fn(),
-}));
-
-vi.mock('@process/WorkerManage', () => ({
-  default: {},
-}));
-
-vi.mock('@process/remote/MossSessionApi', () => ({
-  initMossApi: vi.fn(),
-}));
-
-vi.mock('@process/utils/mainLogger', () => ({
-  mainLog: vi.fn(),
-  mainError: vi.fn(),
-}));
-
-vi.mock('@/common/utils', () => ({
-  uuid: () => 'uuid-1',
-}));
-
-vi.mock('@process/initStorage', () => ({
-  ProcessConfig: { getSync: vi.fn() },
-}));
-
-vi.mock('@/common/utils/workspaceSkillSync', () => ({
-  isRemoteContainerPath: () => false,
-}));
-
-describe('RemoteConversationProvider Moss sync conversion', () => {
-  it('uses local DB message status values for synced Moss history', async () => {
-    const { default: RemoteConversationProvider } = await import('../../src/process/providers/RemoteConversationProvider');
-    const provider = new RemoteConversationProvider({} as any);
-
-    const { messages, foundModel } = (provider as any).convertMossMessagesToTMessages(
+describe('convertMossMessagesToTMessages Moss sync conversion', () => {
+  it('uses local DB message status values for synced Moss history', () => {
+    const { messages, foundModel } = convertMossMessagesToTMessages(
       [
         {
           type: 'user',
@@ -60,11 +29,8 @@ describe('RemoteConversationProvider Moss sync conversion', () => {
     expect(messages.map((message: any) => message.position)).toEqual(['right', 'left']);
   });
 
-  it('strips injected cron prompt blocks from remote user messages', async () => {
-    const { default: RemoteConversationProvider } = await import('../../src/process/providers/RemoteConversationProvider');
-    const provider = new RemoteConversationProvider({} as any);
-
-    const { messages } = (provider as any).convertMossMessagesToTMessages(
+  it('strips injected cron prompt blocks from remote user messages', () => {
+    const { messages } = convertMossMessagesToTMessages(
       [
         {
           type: 'user',
