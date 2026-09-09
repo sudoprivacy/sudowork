@@ -1195,9 +1195,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           credentials: 'include',
           body: JSON.stringify({ phone, code }),
         });
-        const body = (await response.json().catch((): null => null)) as
-          | { ok?: boolean; needRegister?: boolean; registerToken?: string; phone?: string; error?: string }
-          | null;
+        const body = (await response.json().catch((): null => null)) as { ok?: boolean; needRegister?: boolean; registerToken?: string; phone?: string; error?: string } | null;
         if (body?.needRegister && body.registerToken) {
           // Not a failure: an unknown number is the first step of signup.
           return {
@@ -1231,7 +1229,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             },
           } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
           deviceId,
-          'password',
+          'password'
         );
       } catch (error) {
         console.error('[Auth] Web phone login failed:', error);
@@ -1319,7 +1317,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             },
           } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
           deviceId,
-          'password',
+          'password'
         );
       } catch (error) {
         console.error('[Auth] Web phone registration failed:', error);

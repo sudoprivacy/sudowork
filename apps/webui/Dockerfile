@@ -19,7 +19,6 @@ COPY packages/contracts/package.json packages/contracts/
 COPY packages/host-bridge/package.json packages/host-bridge/
 COPY packages/moss-client/package.json packages/moss-client/
 COPY packages/renderer/package.json packages/renderer/
-COPY packages/ui/package.json packages/ui/
 COPY patches/ patches/
 
 # --ignore-scripts: this build only produces the webui, so skip every workspace
@@ -60,7 +59,6 @@ COPY packages/contracts/package.json packages/contracts/
 COPY packages/host-bridge/package.json packages/host-bridge/
 COPY packages/moss-client/package.json packages/moss-client/
 COPY packages/renderer/package.json packages/renderer/
-COPY packages/ui/package.json packages/ui/
 COPY patches/ patches/
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \

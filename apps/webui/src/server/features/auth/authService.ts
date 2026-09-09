@@ -224,13 +224,22 @@ export async function loginWithPhone(
 /** Exchange moss's register attestation for an account, and open a web session. */
 export async function registerWithPhone(
   deps: AuthDeps,
-  input: { registerToken: string; nickname?: string; invitationCode?: string; mossBaseUrl?: string },
+  input: {
+    registerToken: string
+    nickname?: string
+    invitationCode?: string
+    mossBaseUrl?: string
+  },
 ): Promise<LoginResult> {
   const { baseUrl, identityBaseUrl } = resolveLoginMoss(deps.config, input.mossBaseUrl)
   let tokens
   try {
     tokens = await deps.mossAuth.registerWithPhone(
-      { registerToken: input.registerToken, nickname: input.nickname, invitationCode: input.invitationCode },
+      {
+        registerToken: input.registerToken,
+        nickname: input.nickname,
+        invitationCode: input.invitationCode,
+      },
       baseUrl,
     )
   } catch (err) {

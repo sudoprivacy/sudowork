@@ -147,7 +147,9 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   app.get('/api/v1/system-config', (_req, res) => {
     void (async () => {
       try {
-        const upstream = await fetch(new URL('/api/v1/system-config', config.moss.baseUrl).toString())
+        const upstream = await fetch(
+          new URL('/api/v1/system-config', config.moss.baseUrl).toString(),
+        )
         res.status(upstream.status).json(await upstream.json())
       } catch {
         // A moss that is down or too old to serve this must not take the login
