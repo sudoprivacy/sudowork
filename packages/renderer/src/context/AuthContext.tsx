@@ -8,6 +8,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
+import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
 import { ConfigStorage, type IConfigStorageRefer } from '@sudowork/common/storage';
 import { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } from '@sudowork/common/imageGenerationModelConfig';
 import { fetchSystemConfig } from '@sudowork/common/systemConfig';
@@ -475,7 +476,7 @@ async function openThirdPartyLogoutIfNeeded(session: AuthSession | undefined): P
   if (session?.type !== 'cas') return;
 
   try {
-    const serverBaseUrl = await getSudoworkServerBaseUrl();
+    const serverBaseUrl = await getAuthServerBaseUrl();
     const systemConfig = await fetchSystemConfig(serverBaseUrl);
     const authConfig = resolveThirdPartyAuthConfig(systemConfig);
     const provider = authConfig?.providers.find((item) => item.id === session.provider);
@@ -751,7 +752,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           const authStorage: AuthStorage = JSON.parse(stored);
           const { refresh_token, device_id } = authStorage;
 
-          const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/refresh`, {
+          const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh_token, device_id }),
@@ -1184,7 +1185,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const deviceId = getDeviceId();
 
     try {
-      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/login`, {
+      const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1232,7 +1233,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const deviceId = getDeviceId();
 
     try {
-      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/register`, {
+      const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1267,7 +1268,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const loginByPassword = useCallback(async ({ phone, password }: PasswordLoginParams): Promise<PasswordAuthResult> => {
     const deviceId = getDeviceId();
     try {
-      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/login-by-config`, {
+      const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/login-by-config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1291,7 +1292,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const registerByPassword = useCallback(async ({ phone, password, nickname, invitation_code }: PasswordRegisterParams): Promise<PasswordAuthResult> => {
     const deviceId = getDeviceId();
     try {
-      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/register-password`, {
+      const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/register-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1314,7 +1315,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const loginWithThirdPartyAuth = useCallback(async ({ provider, ticket, service }: ThirdPartyAuthLoginParams): Promise<PasswordAuthResult> => {
     const deviceId = getDeviceId();
     try {
-      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/third-party/cas/login`, {
+      const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/third-party/cas/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1337,7 +1338,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const exchangeThirdPartyAuthCode = useCallback(async ({ provider, code }: ThirdPartyAuthExchangeParams): Promise<PasswordAuthResult> => {
     const deviceId = getDeviceId();
     try {
-      const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/third-party/cas/exchange`, {
+      const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/third-party/cas/exchange`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1365,7 +1366,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         return { success: false, message: '登录状态已过期，请重新登录' };
       }
       try {
-        const response = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/change-password`, {
+        const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/change-password`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1690,7 +1691,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const { refresh_token, device_id } = authStorage;
         session = authStorage.session;
 
-        await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/logout`, {
+        await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token, device_id }),

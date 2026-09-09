@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { fetchSystemConfig, type SystemConfig } from '@sudowork/common/systemConfig';
+import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
 import { THIRD_PARTY_LOGIN_METHOD } from '@sudowork/common/thirdPartyAuthConfig';
 
 /** 0 = 手机验证码；1 = 用户名密码；2 = 三方认证登录 */
@@ -38,7 +39,10 @@ async function fetchLoginMethod(): Promise<{ loginMethod: LoginMethod; systemCon
       // Reuse the shared client; fetchSystemConfig() also fills the renderer's
       // system-config module cache (setSystemConfigCache) so synchronous base-url
       // helpers work for renderer consumers.
-      const data = await fetchSystemConfig();
+      // Ask the server this client actually authenticates against. Reading the
+      // consumer server here while logging in against a control plane is what
+      // used to make a moss deployment unable to advertise its login method.
+      const data = await fetchSystemConfig(await getAuthServerBaseUrl());
       // Sync to main-process cache (see main.tsx for rationale).
       if (data) {
         void ipcBridge.systemConfig.syncFromRenderer.invoke({ data }).catch(() => {});
