@@ -398,58 +398,56 @@ const AgentSettings: React.FC = () => {
         const sourceType = isEnterprise && activeTabRef.current === 'exclusive' ? 'tenant' : undefined;
         const tenantId = isEnterprise ? undefined : currentAssistantTenantIdRef.current;
 
-        if (isElectronDesktop()) {
-          const accessToken = !isEnterprise && tenantId ? await ensureValidToken().catch((): null => null) : null;
-          const res = await assistantHub.fetchAssistants.invoke({
-            cursor,
-            limit: 40,
-            query,
-            category,
-            tenantId,
-            sourceType,
-            accessToken: accessToken || undefined,
-          });
-          if (res.success && res.data) {
-            if (!isLatestHubRequest()) return;
-            // Successful fetch — clear any prior typed error so the
-            // empty-state UI falls back to the generic "暂无智能体"
-            // case if the catalog is genuinely empty.
-            setHubError(null);
-            const newAssistants = res.data.assistants || [];
-            if (append) {
-              setHubAssistantList((prev) => {
-                const existingIds = new Set(prev.map((a) => a.id));
-                const unique = newAssistants.filter((a) => !existingIds.has(a.id));
-                return [...prev, ...unique];
-              });
-            } else {
-              setHubAssistantList(newAssistants);
-            }
-
-            const raw = res.data as unknown as Record<string, unknown>;
-            let nextCursorValue: string | null = null;
-            if (typeof res.data.next_cursor === 'string' && res.data.next_cursor.length > 0) {
-              nextCursorValue = res.data.next_cursor;
-            } else if (typeof raw.nextCursor === 'string' && (raw.nextCursor as string).length > 0) {
-              nextCursorValue = raw.nextCursor as string;
-            }
-
-            const hasMoreValue = res.data.has_more === true || raw.hasMore === true;
-            setHubNextCursor(nextCursorValue);
-            setHubHasMore(hasMoreValue);
-            if (!isEnterprise) {
-              void fetchLatestAssistantVersions(newAssistants, append ? latestAssistantVersionsRef.current : undefined);
-            }
-          } else if (!res.success) {
-            if (!isLatestHubRequest()) return;
-            // Bridge returned a typed failure — surface to the empty
-            // state instead of silently showing "暂无智能体". Cast
-            // is safe inside this !success branch; the bridge type
-            // is a discriminated union but the response interface
-            // collapses success: boolean.
-            setHubError(parseHubError(res as { success: false; errorCode?: string; msg?: string }));
-            if (!append) setHubAssistantList([]);
+        const accessToken = !isEnterprise && tenantId ? await ensureValidToken().catch((): null => null) : null;
+        const res = await assistantHub.fetchAssistants.invoke({
+          cursor,
+          limit: 40,
+          query,
+          category,
+          tenantId,
+          sourceType,
+          accessToken: accessToken || undefined,
+        });
+        if (res.success && res.data) {
+          if (!isLatestHubRequest()) return;
+          // Successful fetch — clear any prior typed error so the
+          // empty-state UI falls back to the generic "暂无智能体"
+          // case if the catalog is genuinely empty.
+          setHubError(null);
+          const newAssistants = res.data.assistants || [];
+          if (append) {
+            setHubAssistantList((prev) => {
+              const existingIds = new Set(prev.map((a) => a.id));
+              const unique = newAssistants.filter((a) => !existingIds.has(a.id));
+              return [...prev, ...unique];
+            });
+          } else {
+            setHubAssistantList(newAssistants);
           }
+
+          const raw = res.data as unknown as Record<string, unknown>;
+          let nextCursorValue: string | null = null;
+          if (typeof res.data.next_cursor === 'string' && res.data.next_cursor.length > 0) {
+            nextCursorValue = res.data.next_cursor;
+          } else if (typeof raw.nextCursor === 'string' && (raw.nextCursor as string).length > 0) {
+            nextCursorValue = raw.nextCursor as string;
+          }
+
+          const hasMoreValue = res.data.has_more === true || raw.hasMore === true;
+          setHubNextCursor(nextCursorValue);
+          setHubHasMore(hasMoreValue);
+          if (!isEnterprise) {
+            void fetchLatestAssistantVersions(newAssistants, append ? latestAssistantVersionsRef.current : undefined);
+          }
+        } else if (!res.success) {
+          if (!isLatestHubRequest()) return;
+          // Bridge returned a typed failure — surface to the empty
+          // state instead of silently showing "暂无智能体". Cast
+          // is safe inside this !success branch; the bridge type
+          // is a discriminated union but the response interface
+          // collapses success: boolean.
+          setHubError(parseHubError(res as { success: false; errorCode?: string; msg?: string }));
+          if (!append) setHubAssistantList([]);
         }
       } catch (err) {
         if (!isLatestHubRequest()) return;

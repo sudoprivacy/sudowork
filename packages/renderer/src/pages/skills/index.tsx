@@ -12,7 +12,7 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { eeclaw, skillHub } from '@sudowork/host-bridge/ipcBridge';
-import type { ISkillHubSkill, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
+import type { ISkillHubSkill, IInstalledSkillInfo, ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import Tabs from '@renderer/components/ui/Tabs';
 import AionScrollArea from '@renderer/components/base/AionScrollArea';
@@ -29,8 +29,8 @@ import { SkillAuditReportModal } from './components/SkillAuditReportModal';
 import SkillCard from './components/SkillCard';
 import InstalledSkillCard from './components/InstalledSkillCard';
 import SkillDetailModal from './components/SkillDetailModal';
-import { installedInfoToSkill, resolveSkillTenantId, getLocalSkillImportDialogOptions, getInstalledSkillBadgeCount, fetchSkillsHttp, fetchCategoriesHttp, fetchSkillDetailHttp, VERSION_CACHE_TTL } from './utils';
-import type { IBridgeResponse, SkillLatestVersion, SkillDetailResponse, SkillStoreTab, LocalSkillImportSource } from './types';
+import { installedInfoToSkill, resolveSkillTenantId, getLocalSkillImportDialogOptions, getInstalledSkillBadgeCount, fetchCategoriesHttp, fetchSkillDetailHttp, VERSION_CACHE_TTL } from './utils';
+import type { SkillLatestVersion, SkillDetailResponse, SkillStoreTab, LocalSkillImportSource } from './types';
 
 // ==================== Main Component ====================
 
@@ -521,12 +521,7 @@ const SkillSettings: React.FC = () => {
           return;
         }
 
-        let skillsRes: IBridgeResponse<ISkillHubListResponse>;
-        if (isElectronDesktop()) {
-          skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 40, query, category, tenantId });
-        } else {
-          skillsRes = await fetchSkillsHttp({ cursor, limit: 40, query, category, tenantId });
-        }
+        const skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 40, query, category, tenantId });
 
         if (skillsRes.success && skillsRes.data) {
           setHubError(null);

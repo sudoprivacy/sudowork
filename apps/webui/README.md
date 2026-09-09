@@ -34,7 +34,7 @@ bun run dev
 
 打开 http://localhost:26808，用 Moss 账户密码或 API Key 登录。
 
-旧 console URL 会被客户端重定向到对应 hash 路由：`/agents`→`/#/app/agent`、`/skills`→`/#/app/skills`、
+旧路径 URL 会被客户端重定向到对应 hash 路由：`/agents`→`/#/app/agent`、`/skills`→`/#/app/skills`、
 `/cron[/:id]`→`/#/app/cron[/:id]`、`/settings/{profile,display,about,mcp}`→`/#/settings/…`、
 `/conversation/:id`→`/#/conversation/:id`；未匹配落 `/#/guid`。
 

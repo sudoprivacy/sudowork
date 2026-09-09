@@ -39,12 +39,12 @@ export default defineConfig({
       },
       { find: /^@office-ai\/platform$/, replacement: officeAiPlatformEntry },
     ],
-    // Single React across the client console and the shared-renderer graph.
+    // Single React across the webui app and the shared-renderer graph.
     dedupe: ['react', 'react-dom', 'react-router-dom'],
   },
   define: {
     // Some transitive deps expect a `global`; the shared renderer's desktop build
-    // sets this too. Harmless for the existing client (does not reference it).
+    // sets this too.
     global: 'globalThis',
   },
   server: {

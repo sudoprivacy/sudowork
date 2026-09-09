@@ -5,9 +5,8 @@
  */
 
 /**
- * Additive web entry that hosts the shared `@sudowork/renderer` over the moss
- * transport (proving the transport-swap on the web). It lives ALONGSIDE the
- * existing `src/client` console — this entry does not touch it.
+ * The web entry that hosts the shared `@sudowork/renderer` over the moss
+ * transport. This is the sole webui front-end entry.
  *
  * Order matters (mirrors the desktop entry packages/renderer/src/index.ts):
  * side-effect-import the moss adapter FIRST so `bridge.adapter` is wired before
@@ -21,7 +20,7 @@ import '../bridgeAdapter/mossAdapter'
 import { mountApp } from '@sudowork/renderer/bootstrap/mount'
 
 /**
- * Legacy console URLs (/agents, /cron/:id, /settings/*, …) are still served the
+ * Legacy path URLs (/agents, /cron/:id, /settings/*, …) are still served the
  * SPA shell by the server fallback. The renderer is a hash router, so translate
  * the old path to its hash route once, on the client, before mounting. Returns
  * true when a redirect was issued (navigation pending — skip mounting).

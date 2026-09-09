@@ -370,7 +370,11 @@ async function fetchWebSession(): Promise<AuthUser | null> {
       credentials: 'include',
     });
     if (!response.ok) return null;
-    const data = (await response.json()) as { user?: { id?: string; name?: string }; role?: string };
+    const data = (await response.json()) as {
+      user?: { id?: string; name?: string };
+      role?: string;
+      organization?: { id?: string; name?: string } | null;
+    };
     if (!data.user?.id) return null;
     return {
       id: data.user.id,
@@ -378,6 +382,9 @@ async function fetchWebSession(): Promise<AuthUser | null> {
       role: (data.role as AuthUser['role']) || 'USER',
       status: 1,
       localAuth: false,
+      // 企业标识：让技能「专属」tab 通过非空门槛并让 handler 分流到 /tenant
+      // （/tenant 取数按登录 session 企业身份返回，不依赖此值内容）
+      enterprise_code: data.organization?.id,
     };
   } catch {
     return null;

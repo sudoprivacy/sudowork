@@ -908,6 +908,29 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     })
     return ok()
   },
+  // --- assistant-hub: browse store (hub) & exclusive (tenant) lists ---
+  'assistant-hub.fetch-assistants': async (req) => {
+    if (String(req?.sourceType ?? '') === 'tenant') {
+      // 专属：/tenant 为 session 维度，moss 按登录企业身份返回，无需 tenant_id
+      const rows = await apiFetch<unknown[]>('/api/agents/tenant')
+      return ok({ assistants: Array.isArray(rows) ? rows : [], next_cursor: null, has_more: false })
+    }
+    const params = new URLSearchParams()
+    if (req?.cursor) params.set('cursor', String(req.cursor))
+    params.set('limit', String(req?.limit ?? 40))
+    if (req?.category) params.set('category', String(req.category))
+    if (req?.query) params.set('search', String(req.query))
+    const body = await apiFetch<{
+      items?: unknown[]
+      next_cursor?: string | null
+      has_more?: boolean
+    }>(`/api/agents/hub/list?${params.toString()}`)
+    return ok({
+      assistants: Array.isArray(body?.items) ? body.items : [],
+      next_cursor: typeof body?.next_cursor === 'string' ? body.next_cursor : null,
+      has_more: body?.has_more === true,
+    })
+  },
 
   // --- skill-hub: installed skills (management page) ---
   'skill-hub.get-installed-skills': async () => {
@@ -927,6 +950,29 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       body: JSON.stringify({ name: String(req?.skillName ?? '') }),
     })
     return ok()
+  },
+  // --- skill-hub: browse store (hub) & exclusive (tenant) lists ---
+  'skill-hub.fetch-skills': async (req) => {
+    if (req?.tenantId) {
+      // 专属：/tenant 为 session 维度，moss 按登录企业身份返回，无需 tenant_id
+      const rows = await apiFetch<unknown[]>('/api/skills/tenant')
+      return ok({ skills: Array.isArray(rows) ? rows : [], next_cursor: null, has_more: false })
+    }
+    const params = new URLSearchParams()
+    if (req?.cursor) params.set('cursor', String(req.cursor))
+    params.set('limit', String(req?.limit ?? 40))
+    if (req?.category) params.set('category', String(req.category))
+    if (req?.query) params.set('search', String(req.query))
+    const body = await apiFetch<{
+      items?: unknown[]
+      next_cursor?: string | null
+      has_more?: boolean
+    }>(`/api/skills/hub/list?${params.toString()}`)
+    return ok({
+      skills: Array.isArray(body?.items) ? body.items : [],
+      next_cursor: typeof body?.next_cursor === 'string' ? body.next_cursor : null,
+      has_more: body?.has_more === true,
+    })
   },
 
   // --- extensions: web host has no local extension host; consumers tolerate []. ---
@@ -1104,7 +1150,18 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const sessionId = String(req?.conversation_id ?? req?.sessionId ?? '')
     if (!sessionId) return fail('NO_SESSION')
     abortedSessions.delete(sessionId)
-    sendOverStream(sessionId, { kind: 'send', text: extractText(req) })
+    const text = extractText(req)
+    sendOverStream(sessionId, { kind: 'send', text })
+    // Echo the user's own message back so its bubble shows: the shared renderer does
+    // no optimistic insert and relies on a user_content frame (desktop RemoteAgent does
+    // the same). moss's user echo frame is dropped by mossFrameToResponses, so synthesize
+    // it here. Reuse the renderer-supplied msg_id so streaming/history dedup stays aligned.
+    emitterRef?.emit('chat.response.stream', {
+      type: 'user_content',
+      msg_id: String(req?.msg_id ?? nextMsgId()),
+      conversation_id: sessionId,
+      data: text,
+    })
     return ok()
   },
   'moss.send-message': async (req) => {

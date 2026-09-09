@@ -17,6 +17,8 @@ import type {
   CreateConversationRequest,
   UserModelResponse,
 } from '@sudowork/contracts/conversations'
+import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib'
+import type { TMessage } from '@sudowork/common/chatLib'
 import type { ConversationCoordinator } from './ConversationCoordinator.js'
 import {
   deleteConversationMeta as deleteConversationMetaRow,
@@ -246,7 +248,7 @@ export async function getContext(
   customTitle: string | null
   title: string | null
   modelId: string | null
-  messages: Record<string, unknown>[]
+  messages: TMessage[]
 }> {
   await requireOwnSession(deps, principal, sessionId, ctx)
   const localMeta = async (): Promise<{ title: string | null; modelId: string | null }> => {
@@ -267,13 +269,16 @@ export async function getContext(
   const mossContext = (parsed as { context?: { customTitle?: string; messages?: unknown[] } })
     .context
   const messages = (mossContext?.messages ?? []).map((raw) => sanitizeMessage(raw))
+  // 标题生成读原始 moss 形状（type:'user'/content），须在转换前用 messages
   await generateTitleIfMissing(deps, principal, sessionId, messages)
   const meta = await localMeta()
+  // 转成渲染层 TMessage（与桌面 RemoteConversationProvider 共用），否则用户/AI 气泡无法渲染
+  const { messages: tmessages } = convertMossMessagesToTMessages(messages, sessionId, sessionId)
   return {
     customTitle: mossContext?.customTitle ?? null,
     title: meta.title,
     modelId: meta.modelId,
-    messages,
+    messages: tmessages,
   }
 }
 

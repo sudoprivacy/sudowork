@@ -575,11 +575,13 @@ const LoginPage: React.FC = () => {
               </Button>
             )}
 
-            <div className='text-center mt-12px'>
-              <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={handleBackToModeSelect}>
-                ← 返回模式选择
-              </span>
-            </div>
+            {isElectronDesktop() && (
+              <div className='text-center mt-12px'>
+                <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={handleBackToModeSelect}>
+                  ← 返回模式选择
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
