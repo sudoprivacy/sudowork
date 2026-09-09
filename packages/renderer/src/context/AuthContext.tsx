@@ -1184,6 +1184,61 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const login = useCallback(async ({ phone, code, enterprise_code, invitation_code: _invitation_code, remember: _remember }: LoginParams): Promise<LoginResult> => {
     const deviceId = getDeviceId();
 
+    // Web host: the browser must not hold moss tokens, so the webui server does
+    // the exchange and answers with a cookie session. Mirrors the enterprise
+    // password branch above rather than inventing a second web login path.
+    if (isWebRuntime) {
+      try {
+        const response = await fetch('/api/auth/login/phone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ phone, code }),
+        });
+        const body = (await response.json().catch((): null => null)) as
+          | { ok?: boolean; needRegister?: boolean; registerToken?: string; phone?: string; error?: string }
+          | null;
+        if (body?.needRegister && body.registerToken) {
+          // Not a failure: an unknown number is the first step of signup.
+          return {
+            success: false,
+            need_register: true,
+            register_token: body.registerToken,
+            phone: body.phone || phone,
+            message: t('login.errors.needRegister', '该手机号未注册，请先注册'),
+          };
+        }
+        if (!response.ok || !body?.ok) {
+          return { success: false, message: t('login.errors.invalidCredentials'), code: 'invalidCredentials' };
+        }
+        const webUser = await fetchWebSession();
+        return finalizeEnterpriseLogin(
+          {
+            success: true,
+            data: {
+              // The cookie is the session on web; this placeholder keeps the
+              // shared finaliser's shape without handing the browser a real token.
+              access_token: 'web-session',
+              refresh_token: '',
+              expires_in: 24 * 60 * 60,
+              user: {
+                id: webUser?.id || '',
+                name: webUser?.nickname || '',
+                role: (webUser?.role as string) || 'user',
+                orgId: '',
+                localAuth: false,
+              },
+            },
+          } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
+          deviceId,
+          'password',
+        );
+      } catch (error) {
+        console.error('[Auth] Web phone login failed:', error);
+        return { success: false, message: t('login.errors.networkError'), code: 'networkError' };
+      }
+    }
+
     try {
       const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/login`, {
         method: 'POST',
@@ -1231,6 +1286,46 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const register = useCallback(async ({ register_token, nickname, invitation_code }: RegisterParams): Promise<RegisterResult> => {
     const deviceId = getDeviceId();
+
+    if (isWebRuntime) {
+      try {
+        const response = await fetch('/api/auth/register/phone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ registerToken: register_token, nickname, invitationCode: invitation_code }),
+        });
+        const body = (await response.json().catch((): null => null)) as { ok?: boolean; error?: string } | null;
+        if (!response.ok || !body?.ok) {
+          return { success: false, message: t('login.errors.invalidCredentials'), code: 'invalidCredentials' };
+        }
+        const webUser = await fetchWebSession();
+        return finalizeEnterpriseLogin(
+          {
+            success: true,
+            data: {
+              // The cookie is the session on web; this placeholder keeps the
+              // shared finaliser's shape without handing the browser a real token.
+              access_token: 'web-session',
+              refresh_token: '',
+              expires_in: 24 * 60 * 60,
+              user: {
+                id: webUser?.id || '',
+                name: webUser?.nickname || '',
+                role: (webUser?.role as string) || 'user',
+                orgId: '',
+                localAuth: false,
+              },
+            },
+          } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
+          deviceId,
+          'password',
+        );
+      } catch (error) {
+        console.error('[Auth] Web phone registration failed:', error);
+        return { success: false, message: t('login.errors.networkError'), code: 'networkError' };
+      }
+    }
 
     try {
       const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/register`, {
