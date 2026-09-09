@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
 import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
-import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
+import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
 import { ConfigStorage } from '@sudowork/common/storage';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
@@ -67,6 +67,20 @@ const LoginPage: React.FC = () => {
   const { status, enterGuest, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
   const { isEnterprise } = useAppMode();
   const { loginMethod, systemConfig } = useSystemLoginMethod();
+
+  // A control plane that serves /api/v1/system-config gets to say how people log
+  // in, exactly as the consumer server already does. `systemConfig` is null only
+  // when the probe found nothing to ask — an older build, or an unreachable
+  // server — in which case the tabs below stay the fallback.
+  //
+  // Only method 0 is delegated for now, and deliberately so: the phone panel
+  // posts to /api/v1/auth/{send-code,login,register} on the active server, which
+  // a control plane serves. Method 1's consumer panel speaks endpoints
+  // (login-by-config, register-password) that a control plane does not have —
+  // its password login IS the tab panel below — and method 2's CAS exchange is
+  // likewise not implemented there yet. Delegating those would swap a working
+  // screen for a 404.
+  const serverDeclaresPhoneLogin = isEnterprise && systemConfig !== null && loginMethod === 0;
 
   // Enterprise login state
   const [loginTab, setLoginTab] = useState<'password' | 'key' | 'oauth2'>('password');
@@ -247,7 +261,7 @@ const LoginPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/auth/send-code`, {
+      const res = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: currentPhone }),
@@ -277,8 +291,9 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
-    // Enterprise mode login
-    if (isEnterprise) {
+    // Enterprise mode login. Skipped when the server asked for the phone panel,
+    // so the submit path matches the panel actually on screen.
+    if (isEnterprise && !serverDeclaresPhoneLogin) {
       if (loginTab === 'password') {
         if (!username.trim() || !password.trim()) {
           Message.warning('请填写所有必填项');
@@ -497,7 +512,7 @@ const LoginPage: React.FC = () => {
   };
 
   // Enterprise login UI
-  if (isEnterprise) {
+  if (isEnterprise && !serverDeclaresPhoneLogin) {
     return (
       <div className='login-page'>
         {showWindowControls && (
