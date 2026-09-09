@@ -18,6 +18,16 @@ export const isElectronDesktop = (): boolean => {
 };
 
 /**
+ * Whether the web bridge transport (webui mossAdapter) has been wired up.
+ * True only in a browser host that side-effect-imported the mossAdapter —
+ * desktop is always false, so guards relaxed by this flag stay inert there.
+ * 检测 webui 共享渲染宿主（mossAdapter 已装载）的桥可用性
+ */
+export const isWebBridgeAvailable = (): boolean => {
+  return typeof window !== 'undefined' && !window.electronAPI && window.__sudoworkWebBridge === true;
+};
+
+/**
  * Check if running on macOS
  * 检测是否运行在 macOS
  */

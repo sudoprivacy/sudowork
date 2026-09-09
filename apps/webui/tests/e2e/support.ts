@@ -77,11 +77,14 @@ export async function mossHealthCheck(env: E2eEnv): Promise<void> {
 
 /** 浏览器登录（密码方式）。 */
 export async function loginViaUi(page: Page, env: E2eEnv, user = env.userA): Promise<void> {
-  await page.goto('/login')
-  await page.getByLabel('用户名').fill(user.username)
-  await page.getByLabel('密码').fill(user.password)
+  // Shared-renderer is a hash router; the login page uses placeholder inputs
+  // (no <label for>), so target by placeholder. After login the app leaves
+  // /#/login for the guid landing page.
+  await page.goto('/#/login')
+  await page.getByPlaceholder('请输入用户名').fill(user.username)
+  await page.getByPlaceholder('请输入密码').fill(user.password)
   await page.getByRole('button', { name: '登录' }).click()
-  await page.waitForSelector('[data-testid="new-conversation"]', { timeout: 20_000 })
+  await page.waitForURL((url) => !url.hash.includes('/login'), { timeout: 20_000 })
 }
 
 /** API 登录拿 cookie（用 playwright request context）。 */

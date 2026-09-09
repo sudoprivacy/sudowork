@@ -11,6 +11,7 @@ import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { STORAGE_KEYS } from '@sudowork/common/storageKeys';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { useAddEventListener } from '@renderer/utils/emitter';
+import { isElectronDesktop } from '@renderer/utils/platform';
 import ChatWorkspace from './workspace';
 import BrowserPanel from './right-panel/BrowserPanel';
 import DeliverablesPanel from './right-panel/DeliverablesPanel';
@@ -127,7 +128,12 @@ const ChatSider: React.FC<{
     );
   };
 
-  const overflowMenuTabs = OVERFLOW_PANEL_TABS.filter((tab) => tab !== promotedOverflowTab);
+  // Web host: `<webview>` is Electron-only and the server exposes no shell, so
+  // the browser/terminal tabs are filtered out (desktop keeps all four).
+  const isDesktop = isElectronDesktop();
+  const visibleBuiltinTabs = isDesktop ? BUILTIN_RIGHT_PANEL_TABS : BUILTIN_RIGHT_PANEL_TABS.filter((tab) => tab !== 'browser' && tab !== 'terminal');
+  const visibleOverflowTabs = isDesktop ? OVERFLOW_PANEL_TABS : ([] as OverflowPanelTab[]);
+  const overflowMenuTabs = visibleOverflowTabs.filter((tab) => tab !== promotedOverflowTab);
   const overflowMenu = (
     <Menu onClickMenuItem={(key) => onOverflowTabSelect(key as OverflowPanelTab)}>
       {overflowMenuTabs.map((tab) => (
@@ -168,7 +174,7 @@ const ChatSider: React.FC<{
             </>
           ) : (
             <>
-              {BUILTIN_RIGHT_PANEL_TABS.map(renderBuiltInTab)}
+              {visibleBuiltinTabs.map(renderBuiltInTab)}
               {extraTab ? (
                 <button type='button' role='tab' aria-selected={activeTab === extraTab.id} className={`right-panel-tabs__item ${activeTab === extraTab.id ? 'right-panel-tabs__item--active' : ''}`} onClick={() => setActiveTab(extraTab.id)}>
                   <span className='relative z-10'>{extraTab.label}</span>

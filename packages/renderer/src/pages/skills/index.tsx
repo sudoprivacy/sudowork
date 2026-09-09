@@ -12,7 +12,7 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { eeclaw, skillHub } from '@sudowork/host-bridge/ipcBridge';
-import type { ISkillHubSkill, ISkillHubListResponse, IInstalledSkillInfo, ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
+import type { ISkillHubSkill, IInstalledSkillInfo, ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import Tabs from '@renderer/components/ui/Tabs';
 import AionScrollArea from '@renderer/components/base/AionScrollArea';
@@ -20,7 +20,7 @@ import PageWrapper from '@renderer/components/base/PageWrapper';
 import { parseHubError, type HubError } from '@sudowork/common/nexus/hubErrors';
 import HubEmptyState from '@renderer/components/HubEmptyState';
 import { normalizeSkillVersion } from '@renderer/utils/skillDisplay';
-import { isElectronDesktop } from '@renderer/utils/platform';
+import { isElectronDesktop, isWebBridgeAvailable } from '@renderer/utils/platform';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useAppMode } from '@renderer/hooks/useAppMode';
@@ -29,8 +29,8 @@ import { SkillAuditReportModal } from './components/SkillAuditReportModal';
 import SkillCard from './components/SkillCard';
 import InstalledSkillCard from './components/InstalledSkillCard';
 import SkillDetailModal from './components/SkillDetailModal';
-import { installedInfoToSkill, resolveSkillTenantId, getLocalSkillImportDialogOptions, getInstalledSkillBadgeCount, fetchSkillsHttp, fetchCategoriesHttp, fetchSkillDetailHttp, VERSION_CACHE_TTL } from './utils';
-import type { IBridgeResponse, SkillLatestVersion, SkillDetailResponse, SkillStoreTab, LocalSkillImportSource } from './types';
+import { installedInfoToSkill, resolveSkillTenantId, getLocalSkillImportDialogOptions, getInstalledSkillBadgeCount, fetchCategoriesHttp, fetchSkillDetailHttp, VERSION_CACHE_TTL } from './utils';
+import type { SkillLatestVersion, SkillDetailResponse, SkillStoreTab, LocalSkillImportSource } from './types';
 
 // ==================== Main Component ====================
 
@@ -113,6 +113,25 @@ const SkillSettings: React.FC = () => {
   // Enterprise mode detection - use useAppMode hook for renderer process
   const { isEnterprise } = useAppMode();
 
+  // Web host only: the server gates skill enable/uninstall by the caller's scopes
+  // (admin:settings). Desktop manages skills locally and always shows the controls.
+  const [canManage, setCanManage] = useState(isElectronDesktop());
+  useEffect(() => {
+    if (isElectronDesktop() || !isWebBridgeAvailable()) return;
+    let alive = true;
+    void fetch('/api/agents/scopes', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : { scopes: [] as string[] }))
+      .then((body: { scopes?: string[] }) => {
+        if (alive) setCanManage(Array.isArray(body.scopes) && body.scopes.includes('admin:settings'));
+      })
+      .catch(() => {
+        if (alive) setCanManage(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // Upload/Publish state for enterprise mode
   const [publishingSkillName, setPublishingSkillName] = useState<string | null>(null);
   const [uploadingSkillName, setUploadingSkillName] = useState<string | null>(null);
@@ -131,7 +150,7 @@ const SkillSettings: React.FC = () => {
 
   // ---- Fetch installed skills ----
   const fetchInstalledSkills = useCallback(async () => {
-    if (!isElectronDesktop()) {
+    if (!isElectronDesktop() && !isWebBridgeAvailable()) {
       setInstalledSkillsReady(true);
       return;
     }
@@ -159,7 +178,7 @@ const SkillSettings: React.FC = () => {
 
   // ---- Fetch installed list (for installed tab) ----
   const fetchInstalledList = useCallback(async (options?: { isSilent?: boolean }) => {
-    if (!isElectronDesktop()) {
+    if (!isElectronDesktop() && !isWebBridgeAvailable()) {
       setInstalledSkillsReady(true);
       return;
     }
@@ -502,12 +521,7 @@ const SkillSettings: React.FC = () => {
           return;
         }
 
-        let skillsRes: IBridgeResponse<ISkillHubListResponse>;
-        if (isElectronDesktop()) {
-          skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 40, query, category, tenantId });
-        } else {
-          skillsRes = await fetchSkillsHttp({ cursor, limit: 40, query, category, tenantId });
-        }
+        const skillsRes = await skillHub.fetchSkills.invoke({ cursor, limit: 40, query, category, tenantId });
 
         if (skillsRes.success && skillsRes.data) {
           setHubError(null);
@@ -895,7 +909,7 @@ const SkillSettings: React.FC = () => {
   // ---- Uninstall handler ----
   const handleUninstall = useCallback(
     async (skillName: string, category?: 'custom' | 'hub' | 'system' | 'tenant') => {
-      if (!isElectronDesktop()) return;
+      if (!isElectronDesktop() && !isWebBridgeAvailable()) return;
       setUninstallingSkillName(skillName);
       try {
         const res = await skillHub.uninstallSkill.invoke({ skillName, category });
@@ -1000,7 +1014,7 @@ const SkillSettings: React.FC = () => {
 
   const handleToggleSkillEnabled = useCallback(
     async (skillName: string, enabled: boolean, category?: 'custom' | 'hub' | 'system' | 'tenant') => {
-      if (!isElectronDesktop()) return;
+      if (!isElectronDesktop() && !isWebBridgeAvailable()) return;
       setTogglingSkillName(skillName);
       try {
         const res = await skillHub.setSkillEnabled.invoke({ skillName, enabled, category });
@@ -1107,6 +1121,7 @@ const SkillSettings: React.FC = () => {
             uninstalling={uninstallingSkillName === skill.name}
             onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled, skillCategory)}
             togglingEnabled={togglingSkillName === skill.name}
+            canManage={canManage}
             hasUpdate={skillHasUpdate}
             onUpdate={() => skillHubId && void handleUpdate(skillHubId, skill.name, skill.meta)}
             updating={updatingSkillId === skillHubId}
@@ -1171,6 +1186,7 @@ const SkillSettings: React.FC = () => {
             uninstalling={uninstallingSkillName === skill.name}
             onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled, skillCategory)}
             togglingEnabled={togglingSkillName === skill.name}
+            canManage={canManage}
             hasUpdate={false}
             onClick={
               skill.meta
@@ -1277,6 +1293,7 @@ const SkillSettings: React.FC = () => {
                           uninstalling={uninstallingSkillName === skill.name}
                           onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled, 'tenant')}
                           togglingEnabled={togglingSkillName === skill.name}
+                          canManage={canManage}
                           hasUpdate={false}
                           hideUninstall={true}
                           onClick={

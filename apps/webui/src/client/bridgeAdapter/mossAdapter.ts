@@ -40,6 +40,13 @@ import {
   mossFrameToResponses,
 } from '@sudowork/common/mossResponse'
 
+declare global {
+  interface Window {
+    /** Set by this adapter to mark a shared-renderer web host (read by the renderer's isWebBridgeAvailable). */
+    __sudoworkWebBridge?: boolean
+  }
+}
+
 interface BridgeEmitter {
   emit: (name: string, data: unknown) => void
 }
@@ -117,6 +124,13 @@ function storageClear(group: string): void {
 // (which also makes needsSetup=false, skipping the first-run ModeSetup).
 if (typeof window !== 'undefined' && storageGet('agent.config', 'system.appMode') === undefined) {
   storageSet('agent.config', 'system.appMode', 'e')
+}
+
+// The renderer's enterprise login and MCP client read `eeclaw.serverUrl` before
+// doing anything; seed it with this origin so those paths resolve against the
+// webui server (the web transport ignores the value and stays same-origin).
+if (typeof window !== 'undefined' && storageGet('agent.config', 'eeclaw.serverUrl') === undefined) {
+  storageSet('agent.config', 'eeclaw.serverUrl', window.location.origin)
 }
 
 // ---------------------------------------------------------------------------
@@ -282,6 +296,9 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
         }
         emitterRef?.emit('chat.response.stream', msg)
         emitterRef?.emit('moss.response-stream', msg)
+        // Turn finished — the workspace tree auto-refreshes off this same stream,
+        // but deliverables have no server push, so re-pull them now.
+        if (msg.type === 'finish') void refreshDeliverables(sessionId)
       }
     } else if (frame && frame.kind === 'error') {
       emitterRef?.emit('chat.response.stream', {
@@ -405,8 +422,11 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
   const ts = item.lastActiveAt ?? Date.now()
   return {
     id: item.id,
+    // 'remote-agent' (not 'acp') so ChatSider mounts the moss-session workspace
+    // panel (readonly tree + deliverables); chat/model/stream all go through the
+    // already-mapped remote-agent channels.
     name: item.title ?? item.assistantName ?? item.id,
-    type: 'acp',
+    type: 'remote-agent',
     createTime: ts,
     modifyTime: ts,
     status: item.status === 'running' ? 'running' : 'finished',
@@ -455,11 +475,509 @@ async function listConversations(): Promise<ConversationListItem[]> {
 // Channel mapping table. Everything not listed falls through to a default reject.
 // ---------------------------------------------------------------------------
 
+/** Moss installed-agent row as projected by GET /api/agents. */
+interface MossAgentItem {
+  id?: string
+  name: string
+  displayName?: string
+  display_name?: string
+  description?: string
+  avatar?: string
+  emoji?: string
+  /** 'hub' | 'custom' | 'system' | 'tenant' (absent for user-created rows) */
+  tag?: string
+  isBuiltin?: boolean
+  enabled?: boolean
+  categories?: string[]
+}
+
+/** Moss installed-skill row as projected by GET /api/skills. */
+interface MossSkillItem {
+  id?: string
+  name: string
+  version?: string
+  description?: string
+  display_name?: string
+  displayName?: string
+  enabled?: boolean
+  isBuiltin?: boolean
+  isHubInstalled?: boolean
+  category?: string
+  categories?: string[]
+  meta?: Record<string, unknown>
+}
+
+type WebAssistantCategory = 'custom' | 'hub' | 'system' | 'tenant'
+
+function toWebCategory(tag: unknown): WebAssistantCategory {
+  return tag === 'hub' || tag === 'system' || tag === 'tenant' ? tag : 'custom'
+}
+
+/** moss agent row → renderer IAssistantInfo (see assistantTypes.ts). Wire is untyped. */
+function mossAgentToAssistantInfo(a: MossAgentItem): unknown {
+  const displayName = a.displayName ?? a.display_name ?? a.name
+  return {
+    id: a.id,
+    name: a.name,
+    isBuiltin: a.isBuiltin === true,
+    isHubInstalled: a.tag === 'hub',
+    enabled: a.enabled !== false,
+    category: toWebCategory(a.tag),
+    meta: {
+      id: a.id,
+      name: a.name,
+      display_name: displayName,
+      description: a.description,
+      avatar: a.avatar,
+      emoji: a.emoji ?? null,
+      categories: Array.isArray(a.categories) ? a.categories : undefined,
+      tag: typeof a.tag === 'string' ? a.tag : undefined,
+      source_type: typeof a.tag === 'string' ? a.tag : 'custom',
+      is_builtin: a.isBuiltin === true,
+    },
+  }
+}
+
+/** moss skill row → renderer IInstalledSkillInfo (see ipcBridge IInstalledSkillInfo). Wire is untyped. */
+function mossSkillToInstalledInfo(s: MossSkillItem): unknown {
+  const isHub = s.isHubInstalled === true
+  const rawMeta = (s.meta && typeof s.meta === 'object' ? s.meta : {}) as Record<string, unknown>
+  const displayName = s.display_name ?? s.displayName ?? s.name
+  return {
+    name: s.name,
+    version: String(s.version ?? ''),
+    isHubInstalled: isHub,
+    isBuiltin: s.isBuiltin === true,
+    enabled: s.enabled !== false,
+    category: toWebCategory(s.category),
+    meta: {
+      ...rawMeta,
+      id: rawMeta.id ?? s.id ?? s.name,
+      name: s.name,
+      display_name: rawMeta.display_name ?? displayName,
+      description: rawMeta.description ?? s.description ?? '',
+      // Fallback keeps the renderer's `source_type === 'hub'` branch honest even
+      // when moss omits it on non-hub rows.
+      source_type: rawMeta.source_type ?? (isHub ? 'hub' : 'system'),
+      categories: rawMeta.categories ?? (Array.isArray(s.categories) ? s.categories : []),
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cron schedule conversion. The renderer's ICronSchedule is a discriminated
+// union (atMs/everyMs/expr); the moss/server ScheduleSchema is a flat
+// {kind, value, tz?, description?}. These two pure functions round-trip it, and
+// are exercised by a round-trip unit test.
+// ---------------------------------------------------------------------------
+
+type ServerSchedule = {
+  kind: 'at' | 'every' | 'cron'
+  value: string
+  tz?: string
+  description?: string
+}
+type RendererSchedule =
+  | { kind: 'at'; atMs: number; description: string }
+  | { kind: 'every'; everyMs: number; description: string }
+  | { kind: 'cron'; expr: string; tz?: string; description: string }
+
+const DURATION_UNITS: Array<[string, number]> = [
+  ['d', 86_400_000],
+  ['h', 3_600_000],
+  ['m', 60_000],
+  ['s', 1000],
+  ['ms', 1],
+]
+
+/**
+ * everyMs → a duration string. Console encodes minutes ('60m' for hourly), so we
+ * prefer minutes, then whole seconds, then raw ms — never hours/days (durationToMs
+ * still parses those, for moss values authored elsewhere).
+ */
+export function msToDuration(ms: number): string {
+  if (ms % 60_000 === 0 && ms >= 60_000) return `${ms / 60_000}m`
+  if (ms % 1000 === 0 && ms >= 1000) return `${ms / 1000}s`
+  return `${ms}ms`
+}
+
+/** '60m' | '2h' | plain ms → milliseconds. NaN-safe (0 on failure). */
+export function durationToMs(value: string): number {
+  const m = /^(\d+)(ms|s|m|h|d)?$/.exec(value.trim())
+  if (!m) return 0
+  const n = Number(m[1])
+  const unit = m[2] ?? 'ms'
+  const size = DURATION_UNITS.find(([u]) => u === unit)?.[1] ?? 1
+  return Number.isFinite(n) ? n * size : 0
+}
+
+export function rendererScheduleToServer(schedule: RendererSchedule): ServerSchedule {
+  if (schedule.kind === 'at') {
+    return { kind: 'at', value: String(schedule.atMs), description: schedule.description }
+  }
+  if (schedule.kind === 'every') {
+    return {
+      kind: 'every',
+      value: msToDuration(schedule.everyMs),
+      description: schedule.description,
+    }
+  }
+  return { kind: 'cron', value: schedule.expr, tz: schedule.tz, description: schedule.description }
+}
+
+export function serverScheduleToRenderer(raw: unknown): RendererSchedule {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Partial<ServerSchedule>
+  const description = typeof s.description === 'string' ? s.description : ''
+  const value = typeof s.value === 'string' ? s.value : ''
+  if (s.kind === 'at') {
+    // Console never emits 'at'; moss value may be epoch-ms or an ISO string.
+    const n = Number(value)
+    const atMs = Number.isFinite(n) && value !== '' ? n : Date.parse(value) || 0
+    return { kind: 'at', atMs, description }
+  }
+  if (s.kind === 'every') {
+    return { kind: 'every', everyMs: durationToMs(value), description }
+  }
+  return { kind: 'cron', expr: value, tz: typeof s.tz === 'string' ? s.tz : undefined, description }
+}
+
+/** moss cron job row (transparent passthrough) → renderer ICronJob. Wire is untyped. */
+function toIcronJob(raw: unknown): unknown {
+  const j = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const num = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) ? v : undefined
+  const createdAt = num(j.createdAt ?? j.created_at) ?? Date.now()
+  const updatedAt = num(j.updatedAt ?? j.updated_at) ?? createdAt
+  return {
+    id: String(j.id ?? ''),
+    name: String(j.name ?? ''),
+    enabled: j.enabled !== false,
+    schedule: serverScheduleToRenderer(j.schedule),
+    target: { payload: { kind: 'message', text: String(j.payloadMessage ?? '') } },
+    metadata: {
+      conversationId: j.boundSessionId != null ? String(j.boundSessionId) : '',
+      agentType: typeof j.assistantName === 'string' ? j.assistantName : '',
+      createdBy: 'user',
+      createdAt,
+      updatedAt,
+      conversationMode: j.conversationMode === 'reuse' ? 'reuse' : 'new',
+    },
+    state: {
+      nextRunAtMs: num(j.nextRunAtMs ?? j.nextRunAt),
+      lastRunAtMs: num(j.lastRunAtMs ?? j.lastRunAt),
+      runCount: num(j.runCount) ?? 0,
+      retryCount: num(j.retryCount) ?? 0,
+      maxRetries: num(j.maxRetries) ?? 0,
+    },
+  }
+}
+
+/** renderer ICreateCronJobParams / Partial<ICronJob> updates → server strict body. */
+function cronCreateBody(req: AnyReq): Record<string, unknown> {
+  const schedule = req?.schedule as RendererSchedule | undefined
+  const conversationId = typeof req?.conversationId === 'string' ? req.conversationId : ''
+  const body: Record<string, unknown> = {
+    name: String(req?.name ?? ''),
+    payloadMessage: String(req?.message ?? ''),
+  }
+  if (schedule) body.schedule = rendererScheduleToServer(schedule)
+  if (req?.conversationMode === 'new' || req?.conversationMode === 'reuse') {
+    body.conversationMode = req.conversationMode
+  }
+  body.boundSessionId = conversationId || null
+  // NOTE: the renderer's `agentType` is an ACP backend id (scode/claude/…), NOT a
+  // moss assistant name. The server validates assistantName against the caller's
+  // visible agents (assertAssistantName → InvalidSelectionError), so forwarding
+  // the backend id would reject every create. Omit it; moss picks its default
+  // assistant. (This is the one place the plan's agentType→assistantName mapping
+  // could not hold.)
+  return body
+}
+
+/**
+ * Runs a cron call and, on failure, returns the desktop bridge's `{ __error }`
+ * envelope instead of rejecting — matching what `unwrapCronResult` and the
+ * useCronAccess probe expect (a non-array on failure, never a thrown invoke).
+ */
+async function cronResult<T>(fn: () => Promise<T>): Promise<T | { __error: string }> {
+  try {
+    return await fn()
+  } catch (err) {
+    return { __error: errMessage(err) }
+  }
+}
+
+/** renderer Partial<ICronJob> (update-job) → server strict patch body (only known fields). */
+function cronUpdateBody(updates: AnyReq): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  if (typeof updates?.name === 'string') body.name = updates.name
+  if (typeof updates?.enabled === 'boolean') body.enabled = updates.enabled
+  const schedule = updates?.schedule as RendererSchedule | undefined
+  if (schedule) body.schedule = rendererScheduleToServer(schedule)
+  const target = updates?.target as { payload?: { text?: unknown } } | undefined
+  if (typeof target?.payload?.text === 'string') body.payloadMessage = target.payload.text
+  const metadata = updates?.metadata as { conversationMode?: unknown } | undefined
+  if (metadata?.conversationMode === 'new' || metadata?.conversationMode === 'reuse') {
+    body.conversationMode = metadata.conversationMode
+  }
+  return body
+}
+
+// ---------------------------------------------------------------------------
+// Workspace / deliverables (moss-session right panel). The server strips
+// `fullPath` from workspace nodes (DTO whitelist); we synth it from
+// relativePath, matching the desktop convertMossWorkspaceNode transform.
+// ---------------------------------------------------------------------------
+
+function convertWorkspaceNode(node: unknown): unknown {
+  const n = (node && typeof node === 'object' ? node : {}) as Record<string, unknown>
+  const relativePath = typeof n.relativePath === 'string' ? n.relativePath : ''
+  return {
+    name: typeof n.name === 'string' ? n.name : '',
+    relativePath,
+    fullPath: relativePath,
+    isDir: n.isDir === true,
+    isFile: n.isFile === true,
+    children: Array.isArray(n.children) ? n.children.map(convertWorkspaceNode) : undefined,
+  }
+}
+
+interface ServerDeliverable {
+  name: string
+  relativePath: string
+  kind: 'create' | 'edit'
+  ext: string
+  size: number | null
+  mime: string | null
+  createdAt: string
+}
+
+function mapDeliverables(items: ServerDeliverable[]): unknown[] {
+  return items.map((d) => {
+    const parsed = Date.parse(d.createdAt)
+    return {
+      path: d.relativePath,
+      relativePath: d.relativePath,
+      kind: d.kind,
+      ext: d.ext,
+      mime: d.mime ?? undefined,
+      size: typeof d.size === 'number' ? d.size : undefined,
+      // moss timestamp is a wire string; NaN guard keeps sort/time display sane.
+      createdAt: Number.isFinite(parsed) ? parsed : 0,
+    }
+  })
+}
+
+async function fetchDeliverables(conversationId: string): Promise<unknown[]> {
+  const res = await apiFetch<{ items?: ServerDeliverable[] }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/deliverables`,
+  )
+  return mapDeliverables(Array.isArray(res.items) ? res.items : [])
+}
+
+// After a turn finishes, moss may have written new files. There is no server push
+// for deliverables, so re-pull and emit `deliverables.changed`; the panel merges
+// by path (idempotent).
+async function refreshDeliverables(conversationId: string): Promise<void> {
+  try {
+    const files = await fetchDeliverables(conversationId)
+    emitterRef?.emit('deliverables.changed', { conversationId, files })
+  } catch {
+    /* best-effort — the panel keeps its last list */
+  }
+}
+
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // --- enterprise/session flags ---
   'moss.is-enterprise-mode': async () => true,
   'moss.get-config': async () => ({ serverUrl: location.origin, hasToken: true }),
   'moss.set-auth-token': async () => ok(),
+
+  // --- zoom / font scale: RAW number providers. Display prefs live in the
+  //     browser (R8); no server round-trip. useFontScale calls these directly. ---
+  'app.get-zoom-factor': async () => {
+    const raw = Number(localStorage.getItem('sw.web-zoom'))
+    return Number.isFinite(raw) && raw > 0 ? raw : 1
+  },
+  'app.set-zoom-factor': async (req) => {
+    const factor = Number(req?.factor)
+    const next = Number.isFinite(factor) && factor > 0 ? factor : 1
+    localStorage.setItem('sw.web-zoom', String(next))
+    document.documentElement.style.zoom = String(next)
+    return next
+  },
+
+  // --- eeclaw tenancy: tenant config / profile / cloud assistants ---
+  'eeclaw.verify-server': async () => {
+    const about = await apiFetch<{ branding?: { appName?: string; logo?: string } }>(
+      '/api/settings/about',
+    ).catch(() => null)
+    // TenantConfigData has no cron/policy flags; the consumer's
+    // resolveTenantConfig fills every null with DEFAULT_TENANT_CONFIG, which
+    // is exactly what unblocks the cron access chain on the web host.
+    return ok({
+      id: location.origin,
+      logo: about?.branding?.logo ?? null,
+      app_name: about?.branding?.appName ?? null,
+      top_name: about?.branding?.appName ?? null,
+      about_name: about?.branding?.appName ?? null,
+      app_company_name: null,
+      login_desp: null,
+      updated_at: Date.now(),
+    })
+  },
+  'eeclaw.get-user-profile': async () => {
+    // Same lenient field rules as the console ProfilePage (moss may return
+    // snake_case or camelCase depending on version).
+    const raw = await apiFetch<Record<string, unknown>>('/api/settings/profile').catch(() => null)
+    const p = ((raw && typeof raw === 'object' ? ((raw as { data?: unknown }).data ?? raw) : {}) ??
+      {}) as {
+      username?: unknown
+      name?: unknown
+      displayName?: unknown
+      department?: unknown
+      departmentName?: unknown
+      role?: unknown
+      usage?: Record<string, unknown>
+    }
+    const usage = (p.usage ?? {}) as Record<string, unknown>
+    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+    return ok({
+      username: String(p.username ?? p.name ?? p.displayName ?? '—'),
+      department: String(p.department ?? p.departmentName ?? '—'),
+      role: String(p.role ?? 'user'),
+      usage: {
+        input_tokens: num(usage.input_tokens),
+        output_tokens: num(usage.output_tokens),
+        total_tokens: num(usage.total_tokens ?? usage.totalTokens),
+        session_count: num(usage.session_count ?? usage.sessionCount),
+      },
+    })
+  },
+  'eeclaw.get-cloud-assistants': async () => {
+    const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [] as MossAgentItem[])
+    // key/name/avatar/emoji/description satisfy the channel type; the extra
+    // isBuiltin/isHubInstalled/sourceType fields feed the guid selector's
+    // isSelectableCloudAssistant filter (it drops rows without them).
+    return ok(
+      (Array.isArray(agents) ? agents : []).map((a) => ({
+        key: a.name,
+        name: String(a.displayName ?? a.display_name ?? a.name),
+        avatar: typeof a.avatar === 'string' ? a.avatar : undefined,
+        emoji: typeof a.emoji === 'string' ? a.emoji : undefined,
+        description: typeof a.description === 'string' ? a.description : undefined,
+        isBuiltin: a.isBuiltin === true,
+        isHubInstalled: a.tag === 'hub',
+        sourceType: typeof a.tag === 'string' ? a.tag : undefined,
+      })),
+    )
+  },
+
+  // --- assistant-hub: installed agents (management page) ---
+  'assistant-hub.get-installed-assistants': async () => {
+    const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [] as MossAgentItem[])
+    return ok((Array.isArray(agents) ? agents : []).map(mossAgentToAssistantInfo))
+  },
+  // with-visibility ignores accessToken: the server already scopes rows by session.
+  'assistant-hub.get-installed-assistants-with-visibility': async () => {
+    const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [] as MossAgentItem[])
+    return ok((Array.isArray(agents) ? agents : []).map(mossAgentToAssistantInfo))
+  },
+  'assistant-hub.create-assistant': async (req) => {
+    // CreateAgentRequestSchema (name/displayName/description?/avatar?/prompt?) is
+    // not .strict(): zod strips unknown keys, so we send only the minimal set.
+    const meta = (req?.meta ?? {}) as Record<string, unknown>
+    const name = String(meta.name ?? '')
+    const displayName = String(meta.display_name ?? meta.name ?? '')
+    await apiFetch('/api/agents/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        displayName,
+        description: typeof meta.description === 'string' ? meta.description : undefined,
+        avatar: typeof meta.avatar === 'string' ? meta.avatar : undefined,
+        prompt: typeof req?.ruleContent === 'string' ? req.ruleContent : undefined,
+      }),
+    })
+    return ok()
+  },
+  'assistant-hub.uninstall-assistant': async (req) => {
+    await apiFetch('/api/agents/uninstall', {
+      method: 'POST',
+      body: JSON.stringify({ name: String(req?.name ?? '') }),
+    })
+    return ok()
+  },
+  // --- assistant-hub: browse store (hub) & exclusive (tenant) lists ---
+  'assistant-hub.fetch-assistants': async (req) => {
+    if (String(req?.sourceType ?? '') === 'tenant') {
+      // 专属：/tenant 为 session 维度，moss 按登录企业身份返回，无需 tenant_id
+      const rows = await apiFetch<unknown[]>('/api/agents/tenant')
+      return ok({ assistants: Array.isArray(rows) ? rows : [], next_cursor: null, has_more: false })
+    }
+    const params = new URLSearchParams()
+    if (req?.cursor) params.set('cursor', String(req.cursor))
+    params.set('limit', String(req?.limit ?? 40))
+    if (req?.category) params.set('category', String(req.category))
+    if (req?.query) params.set('search', String(req.query))
+    const body = await apiFetch<{
+      items?: unknown[]
+      next_cursor?: string | null
+      has_more?: boolean
+    }>(`/api/agents/hub/list?${params.toString()}`)
+    return ok({
+      assistants: Array.isArray(body?.items) ? body.items : [],
+      next_cursor: typeof body?.next_cursor === 'string' ? body.next_cursor : null,
+      has_more: body?.has_more === true,
+    })
+  },
+
+  // --- skill-hub: installed skills (management page) ---
+  'skill-hub.get-installed-skills': async () => {
+    const skills = await apiFetch<MossSkillItem[]>('/api/skills').catch(() => [] as MossSkillItem[])
+    return ok((Array.isArray(skills) ? skills : []).map(mossSkillToInstalledInfo))
+  },
+  'skill-hub.set-skill-enabled': async (req) => {
+    await apiFetch('/api/skills/enabled', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: String(req?.skillName ?? ''), enabled: req?.enabled === true }),
+    })
+    return ok()
+  },
+  'skill-hub.uninstall-skill': async (req) => {
+    await apiFetch('/api/skills/uninstall', {
+      method: 'POST',
+      body: JSON.stringify({ name: String(req?.skillName ?? '') }),
+    })
+    return ok()
+  },
+  // --- skill-hub: browse store (hub) & exclusive (tenant) lists ---
+  'skill-hub.fetch-skills': async (req) => {
+    if (req?.tenantId) {
+      // 专属：/tenant 为 session 维度，moss 按登录企业身份返回，无需 tenant_id
+      const rows = await apiFetch<unknown[]>('/api/skills/tenant')
+      return ok({ skills: Array.isArray(rows) ? rows : [], next_cursor: null, has_more: false })
+    }
+    const params = new URLSearchParams()
+    if (req?.cursor) params.set('cursor', String(req.cursor))
+    params.set('limit', String(req?.limit ?? 40))
+    if (req?.category) params.set('category', String(req.category))
+    if (req?.query) params.set('search', String(req.query))
+    const body = await apiFetch<{
+      items?: unknown[]
+      next_cursor?: string | null
+      has_more?: boolean
+    }>(`/api/skills/hub/list?${params.toString()}`)
+    return ok({
+      skills: Array.isArray(body?.items) ? body.items : [],
+      next_cursor: typeof body?.next_cursor === 'string' ? body.next_cursor : null,
+      has_more: body?.has_more === true,
+    })
+  },
+
+  // --- extensions: web host has no local extension host; consumers tolerate []. ---
+  'extensions.get-assistants': async () => [],
+  'extensions.get-acp-adapters': async () => [],
 
   // --- conversation list / open ---
   'database.get-user-conversations': async () =>
@@ -487,6 +1005,44 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       `/api/conversations/${encodeURIComponent(id)}/context`,
     )
     return ctx.messages ?? []
+  },
+
+  // --- workspace / deliverables (moss-session right panel) ---
+  'conversation.get-remote-workspace': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const params = new URLSearchParams()
+    if (typeof req?.path === 'string' && req.path) params.set('path', req.path)
+    if (typeof req?.search === 'string' && req.search) params.set('search', req.search)
+    const qs = params.toString()
+    try {
+      const root = await apiFetch<unknown>(
+        `/api/conversations/${encodeURIComponent(id)}/workspace/tree${qs ? `?${qs}` : ''}`,
+      )
+      return ok({ files: root ? [convertWorkspaceNode(root)] : [], pending: false })
+    } catch (err) {
+      return { success: false, msg: errMessage(err), data: { files: [], pending: false } }
+    }
+  },
+  'conversation.preview-remote-workspace-file': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const path = String(req?.path ?? '')
+    const preview = await apiFetch<unknown>(
+      `/api/conversations/${encodeURIComponent(id)}/workspace/file?path=${encodeURIComponent(path)}`,
+    )
+    return ok(preview)
+  },
+  'conversation.get-remote-available-skills': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const res = await apiFetch<{ skills?: unknown[] }>(
+      `/api/conversations/${encodeURIComponent(id)}/skills/available`,
+    ).catch(() => ({ skills: [] }))
+    return ok({ skills: Array.isArray(res.skills) ? res.skills : [], pending: false })
+  },
+  'deliverables.list': async (req) => {
+    const id = String(req?.conversationId ?? '')
+    if (!id) return ok([])
+    const files = await fetchDeliverables(id).catch(() => [])
+    return ok(files)
   },
 
   // --- create / update / delete ---
@@ -594,7 +1150,18 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const sessionId = String(req?.conversation_id ?? req?.sessionId ?? '')
     if (!sessionId) return fail('NO_SESSION')
     abortedSessions.delete(sessionId)
-    sendOverStream(sessionId, { kind: 'send', text: extractText(req) })
+    const text = extractText(req)
+    sendOverStream(sessionId, { kind: 'send', text })
+    // Echo the user's own message back so its bubble shows: the shared renderer does
+    // no optimistic insert and relies on a user_content frame (desktop RemoteAgent does
+    // the same). moss's user echo frame is dropped by mossFrameToResponses, so synthesize
+    // it here. Reuse the renderer-supplied msg_id so streaming/history dedup stays aligned.
+    emitterRef?.emit('chat.response.stream', {
+      type: 'user_content',
+      msg_id: String(req?.msg_id ?? nextMsgId()),
+      conversation_id: sessionId,
+      data: text,
+    })
     return ok()
   },
   'moss.send-message': async (req) => {
@@ -725,12 +1292,65 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // --- misc surfaces the enterprise chat page touches early ---
   'conversation.get-slash-commands': async () => ok({ commands: [] }),
 
-  // --- desktop-only surfaces reached on load (e.g. the sidebar's cron access
-  //     probe). These return RAW arrays, so the default-reject object would
-  //     crash array consumers (`jobs.filter is not a function`). The features
-  //     are gated/absent on web, so answer with safe empties. ---
-  'cron.list-jobs': async () => [],
-  'cron.list-jobs-by-conversation': async () => [],
+  // --- cron: all providers are RAW (no ok() envelope). On failure they return
+  //     the SAME `{ __error }` shape the desktop main-process bridge uses, so
+  //     `unwrapCronResult` throws for callers and `Array.isArray` stays false for
+  //     the useCronAccess probe. GET /api/cron returns {jobs,canCreate,...}. ---
+  'cron.list-jobs': async () =>
+    cronResult(async () => {
+      const res = await apiFetch<{ jobs?: unknown[] }>('/api/cron')
+      return (Array.isArray(res.jobs) ? res.jobs : []).map(toIcronJob)
+    }),
+  'cron.list-jobs-by-conversation': async (req) =>
+    cronResult(async () => {
+      const conversationId = String(req?.conversationId ?? '')
+      const res = await apiFetch<{ jobs?: unknown[] }>('/api/cron')
+      return (Array.isArray(res.jobs) ? res.jobs : [])
+        .map(toIcronJob)
+        .filter(
+          (j) =>
+            (j as { metadata?: { conversationId?: string } }).metadata?.conversationId ===
+            conversationId,
+        )
+    }),
+  'cron.get-job': async (req) =>
+    cronResult(async () => {
+      const job = await apiFetch<unknown>(
+        `/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}`,
+      )
+      return job ? toIcronJob(job) : null
+    }),
+  'cron.add-job': async (req) =>
+    cronResult(async () => {
+      const job = await apiFetch<unknown>('/api/cron', {
+        method: 'POST',
+        body: JSON.stringify(cronCreateBody(req)),
+      })
+      return toIcronJob(job)
+    }),
+  'cron.update-job': async (req) =>
+    cronResult(async () => {
+      const jobId = encodeURIComponent(String(req?.jobId ?? ''))
+      const job = await apiFetch<unknown>(`/api/cron/${jobId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(cronUpdateBody((req?.updates ?? {}) as AnyReq)),
+      })
+      return toIcronJob(job)
+    }),
+  'cron.remove-job': async (req) =>
+    cronResult(async () => {
+      await apiFetch(`/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}`, {
+        method: 'DELETE',
+      })
+      return undefined
+    }),
+  'cron.trigger-job': async (req) =>
+    cronResult(async () => {
+      await apiFetch(`/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}/trigger`, {
+        method: 'POST',
+      })
+      return undefined
+    }),
   // The conversation view loads these on open; they return RAW arrays, so the
   // default-reject object breaks array consumers ("data is not iterable").
   'confirmation.list': async (req) =>
@@ -806,6 +1426,14 @@ function handleInvoke(channel: string, id: string, req: unknown): void {
 // ---------------------------------------------------------------------------
 // Wire the transport (side effect).
 // ---------------------------------------------------------------------------
+
+// Marks this window as a shared-renderer web host. The renderer's
+// `isWebBridgeAvailable()` reads it to relax desktop-only data guards; desktop
+// never loads this module, so the flag (and every guard keyed on it) stays
+// inert there.
+if (typeof window !== 'undefined') {
+  window.__sudoworkWebBridge = true
+}
 
 bridge.adapter({
   emit(name: string, data: unknown) {

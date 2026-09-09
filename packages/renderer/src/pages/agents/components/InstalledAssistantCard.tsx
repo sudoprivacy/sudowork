@@ -11,16 +11,19 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import type { AssistantListItem } from '../types';
 import { normalizeAssistantVersion, resolveAvatarImageSrc } from '../utils';
+import { isElectronDesktop } from '@renderer/utils/platform';
 
 const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) => {
   const { assistant, isExtension, localeKey } = props;
   const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick } = props;
-  const { uploadStatus, enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode } = props;
+  const { uploadStatus, enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode, canManage = true } = props;
   const { t } = useTranslation();
   const isCustom = enterpriseMode ? assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled) : !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
   const isReadonly = assistant.isBuiltin || isExtension || assistant._isHubInstalled || hideDelete || (enterpriseMode && !isCustom);
-  const canToggle = !isExtension && (isCustom || allowToggle === true);
-  const canDelete = !isExtension && !assistant.isBuiltin && !hideDelete && (!isReadonly || allowDelete === true);
+  // moss exposes no assistant enable/disable endpoint, so the web host hides the
+  // switch entirely (desktop keeps it). One card-level gate covers custom/tenant/hub.
+  const canToggle = !isExtension && (isCustom || allowToggle === true) && isElectronDesktop();
+  const canDelete = !isExtension && !assistant.isBuiltin && !hideDelete && (!isReadonly || allowDelete === true) && canManage;
   const isEnabled = isExtension ? true : assistant.enabled !== false;
 
   const resolvedAvatar = assistant.avatar?.trim();
@@ -136,6 +139,8 @@ type InstalledAssistantCardProps = {
   allowDelete?: boolean;
   /** Enterprise mode: use directory category to distinguish custom/hub/tenant assistants. */
   enterpriseMode?: boolean;
+  /** Web host: false hides the delete button for non-admin sessions (defaults to true; desktop keeps it). */
+  canManage?: boolean;
 };
 
 export default InstalledAssistantCard;

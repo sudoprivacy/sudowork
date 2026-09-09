@@ -16,6 +16,7 @@ import { getContentTypeByExtension } from '@renderer/pages/conversation/preview/
 import { formatFileSize } from '@renderer/services/FileService';
 import { resolveFileIcon } from '@renderer/utils/fileIcon';
 import { emitter } from '@renderer/utils/emitter';
+import { isElectronDesktop } from '@renderer/utils/platform';
 
 interface GeneratedFileCardProps {
   entry: GeneratedFileEntry;
@@ -66,6 +67,9 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
   }, [entry.path]);
 
   const handleClick = useCallback(() => {
+    // Web host: html click would target the filtered-out browser tab and other
+    // previews depend on local fs. Both dead-end, so the card is display-only.
+    if (!isElectronDesktop()) return;
     if (missing || loading) return;
     if (isHtml) {
       // Same channel that AI-write-HTML auto-open uses (browser-panel-cdp PR).

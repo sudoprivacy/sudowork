@@ -74,8 +74,9 @@ test('cron page renders jobs table', async ({ page, request }) => {
 
   try {
     await loginViaUi(page, env)
-    await page.goto('/cron')
-    await page.waitForSelector('[data-testid="cron-page"]', { timeout: 20_000 })
+    await page.goto('/#/app/cron')
+    // Renderer cron page (PageWrapper title '定时任务'); the created job card shows its name.
+    await expect(page.getByText('定时任务').first()).toBeVisible({ timeout: 20_000 })
     await expect(page.getByText(name)).toBeVisible({ timeout: 15_000 })
   } finally {
     const jobId = ((await create.json()) as { id?: string }).id

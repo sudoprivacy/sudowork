@@ -53,6 +53,311 @@ export const joinPath = (basePath: string, relativePath: string): string => {
   return result.replace(/\/+/g, '/'); // 将多个连续的斜杠替换为单个
 };
 
+const parseMossToolInput = (input: unknown): Record<string, unknown> => {
+  if (!input) return {};
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input);
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+    } catch {
+      return { input };
+    }
+  }
+  return typeof input === 'object' ? (input as Record<string, unknown>) : { input };
+};
+
+const extractDisplayUserContent = (content: string): string => {
+  let userContent = content;
+  if (userContent.includes('[User Request]')) {
+    const parts = userContent.split('[User Request]');
+    userContent = parts[parts.length - 1]?.trim() || userContent;
+  }
+  return userContent;
+};
+
+const getMossToolKind = (toolName: string): 'read' | 'edit' | 'execute' => {
+  const normalized = toolName.toLowerCase();
+  if (normalized.includes('read')) return 'read';
+  if (normalized.includes('write') || normalized.includes('edit') || normalized.includes('patch')) return 'edit';
+  return 'execute';
+};
+
+/**
+ * Convert Moss Server messages to TMessage format (shared by the desktop remote
+ * provider and the webui server's /context transform).
+ * 将 Moss Server 消息转换为 TMessage 格式（桌面远程 provider 与 webui 服务端 /context 共用）
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const convertMossMessagesToTMessages = (allMessages: any[], conversationId: string, mossSessionId: string): { messages: TMessage[]; foundModel: string } => {
+  const messages: TMessage[] = [];
+  const finishedMessageStatus = 'finish';
+  let messageIndex = 0;
+  let foundModel = '';
+
+  for (const msg of allMessages) {
+    const msgType = msg.type;
+    const innerRole = msg.message?.role;
+    const msgModel = msg.message?.model;
+    const timestamp = new Date(msg.timestamp || Date.now()).getTime();
+
+    if (msgType === 'assistant' && msgModel) {
+      foundModel = msgModel;
+    }
+
+    if (msgType === 'tool_use') {
+      const toolCallId = msg.tool_use_id || msg.id || msg.uuid || `${conversationId}-${messageIndex}`;
+      const responseToolCallId = msg.uuid || toolCallId;
+      const toolName = msg.name || 'Tool';
+      const rawInput = parseMossToolInput(msg.input);
+
+      if (toolName === 'AskUserQuestion') {
+        const question = typeof rawInput.question === 'string' ? rawInput.question : '';
+        const description = typeof rawInput.description === 'string' ? rawInput.description : undefined;
+        const options = Array.isArray(rawInput.options) ? rawInput.options.filter((option): option is string => typeof option === 'string') : [];
+
+        messages.push({
+          id: `${conversationId}-${messageIndex++}`,
+          msg_id: toolCallId,
+          conversation_id: conversationId,
+          type: 'acp_question',
+          position: 'left',
+          content: {
+            question,
+            intro: description,
+            options,
+            conversationId,
+            toolCallId,
+            responseToolCallId,
+          },
+          create_time: timestamp,
+          status: finishedMessageStatus,
+        } as unknown as TMessage);
+      } else {
+        messages.push({
+          id: `${conversationId}-${messageIndex++}`,
+          msg_id: toolCallId,
+          conversation_id: conversationId,
+          type: 'acp_tool_call',
+          position: 'left',
+          content: {
+            sessionId: mossSessionId,
+            update: {
+              sessionUpdate: 'tool_call',
+              toolCallId,
+              status: 'completed',
+              title: toolName,
+              kind: getMossToolKind(toolName),
+              rawInput,
+              content: [],
+            },
+          },
+          create_time: timestamp,
+          status: finishedMessageStatus,
+        } as unknown as TMessage);
+      }
+      continue;
+    }
+
+    if (msgType !== 'user' && msgType !== 'assistant' && innerRole !== 'user' && innerRole !== 'assistant') {
+      continue;
+    }
+
+    const contentArray = msg.message?.content || msg.content || [];
+    const isError = msg.error || msg.isApiErrorMessage;
+    const msgRole = msgType || innerRole || 'unknown';
+
+    if (isError && msgRole === 'assistant') {
+      const errorText = Array.isArray(contentArray)
+        ? contentArray
+            .filter((c: any) => c?.type === 'text')
+            .map((c: any) => c.text || '')
+            .join('\n')
+        : typeof contentArray === 'string'
+          ? contentArray
+          : '';
+      messages.push({
+        id: `${conversationId}-${messageIndex++}`,
+        conversation_id: conversationId,
+        type: 'tips',
+        position: 'left',
+        content: { content: errorText || msg.error || 'Unknown error', type: 'error' },
+        create_time: timestamp,
+        status: finishedMessageStatus,
+      } as unknown as TMessage);
+      continue;
+    }
+
+    if (msgRole === 'user' && Array.isArray(contentArray)) {
+      for (const block of contentArray) {
+        if (block?.type === 'text') {
+          const textContent = extractDisplayUserContent(block.text || '');
+          if (textContent && textContent.trim()) {
+            messages.push({
+              id: `${conversationId}-${messageIndex++}`,
+              conversation_id: conversationId,
+              type: 'text',
+              role: 'user',
+              position: 'right',
+              content: { content: textContent },
+              create_time: timestamp,
+              status: finishedMessageStatus,
+            } as unknown as TMessage);
+          }
+        } else if (block?.type === 'tool_result') {
+          const toolUseId = block.tool_use_id || block.toolCallId;
+          const isError = block.is_error;
+          const resultContent = block.content || '';
+
+          if (isError) {
+            messages.push({
+              id: `${conversationId}-${messageIndex++}`,
+              msg_id: toolUseId,
+              conversation_id: conversationId,
+              type: 'tips',
+              position: 'left',
+              content: { content: resultContent || 'Tool execution failed', type: 'error' },
+              create_time: timestamp,
+              status: finishedMessageStatus,
+            } as unknown as TMessage);
+          } else {
+            messages.push({
+              id: `${conversationId}-${messageIndex++}`,
+              msg_id: toolUseId,
+              conversation_id: conversationId,
+              type: 'acp_tool_call',
+              position: 'left',
+              content: {
+                sessionId: mossSessionId,
+                update: {
+                  sessionUpdate: 'tool_call_update',
+                  toolCallId: toolUseId,
+                  status: 'completed',
+                  content: [{ type: 'content', content: { type: 'text', text: resultContent } }],
+                },
+              },
+              create_time: timestamp,
+              status: finishedMessageStatus,
+            } as unknown as TMessage);
+          }
+        }
+      }
+      continue;
+    }
+
+    if (msgRole === 'user') {
+      const textContent = Array.isArray(contentArray)
+        ? contentArray
+            .filter((c: any) => c?.type === 'text')
+            .map((c: any) => c.text || '')
+            .join('\n')
+        : typeof contentArray === 'string'
+          ? contentArray
+          : '';
+      const displayText = extractDisplayUserContent(textContent);
+      if (displayText && displayText.trim()) {
+        messages.push({
+          id: `${conversationId}-${messageIndex++}`,
+          conversation_id: conversationId,
+          type: 'text',
+          role: 'user',
+          position: 'right',
+          content: { content: displayText },
+          create_time: timestamp,
+          status: finishedMessageStatus,
+        } as unknown as TMessage);
+      }
+      continue;
+    }
+
+    if (msgRole === 'assistant' && Array.isArray(contentArray)) {
+      for (const block of contentArray) {
+        if (block?.type === 'thinking') {
+          // thinking content is not displayed in UI
+        } else if (block?.type === 'text') {
+          const textContent = block.text || '';
+          if (textContent && textContent.trim()) {
+            messages.push({
+              id: `${conversationId}-${messageIndex++}`,
+              conversation_id: conversationId,
+              type: 'text',
+              role: 'assistant',
+              position: 'left',
+              content: { content: textContent },
+              create_time: timestamp,
+              status: finishedMessageStatus,
+            } as unknown as TMessage);
+          }
+        } else if (block?.type === 'tool_use') {
+          const toolCallId = block.id || `${conversationId}-${messageIndex}`;
+          const responseToolCallId = block.uuid || toolCallId;
+          const rawInput = parseMossToolInput(block.input);
+          if (block.name === 'AskUserQuestion') {
+            const question = typeof rawInput.question === 'string' ? rawInput.question : '';
+            const description = typeof rawInput.description === 'string' ? rawInput.description : undefined;
+            const options = Array.isArray(rawInput.options) ? rawInput.options.filter((option): option is string => typeof option === 'string') : [];
+
+            messages.push({
+              id: `${conversationId}-${messageIndex++}`,
+              msg_id: toolCallId,
+              conversation_id: conversationId,
+              type: 'acp_question',
+              position: 'left',
+              content: {
+                question,
+                intro: description,
+                options,
+                conversationId,
+                toolCallId,
+                responseToolCallId,
+              },
+              create_time: timestamp,
+              status: finishedMessageStatus,
+            } as unknown as TMessage);
+          } else {
+            messages.push({
+              id: `${conversationId}-${messageIndex++}`,
+              msg_id: toolCallId,
+              conversation_id: conversationId,
+              type: 'acp_tool_call',
+              position: 'left',
+              content: {
+                sessionId: mossSessionId,
+                update: {
+                  sessionUpdate: 'tool_call',
+                  toolCallId,
+                  status: 'completed',
+                  title: block.name,
+                  kind: getMossToolKind(block.name || ''),
+                  rawInput,
+                  content: [],
+                },
+              },
+              create_time: timestamp,
+              status: finishedMessageStatus,
+            } as unknown as TMessage);
+          }
+        }
+      }
+    } else if (msgRole === 'assistant') {
+      const textContent = typeof contentArray === 'string' ? contentArray : '';
+      if (textContent && textContent.trim()) {
+        messages.push({
+          id: `${conversationId}-${messageIndex++}`,
+          conversation_id: conversationId,
+          type: 'text',
+          role: 'assistant',
+          position: 'left',
+          content: { content: textContent },
+          create_time: timestamp,
+          status: finishedMessageStatus,
+        } as unknown as TMessage);
+      }
+    }
+  }
+
+  return { messages, foundModel };
+};
+
 /**
  * @description 将后端返回的消息转换为前端消息
  * */

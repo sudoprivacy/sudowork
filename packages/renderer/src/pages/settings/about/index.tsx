@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@sudowork/common/buildInfo';
 import sudoIcon from '@renderer/assets/sudowork-icon-dark.svg';
-import { openExternalUrl } from '@renderer/utils/platform';
+import { openExternalUrl, isElectronDesktop } from '@renderer/utils/platform';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import OpsModal from './components/OpsModal';
 
@@ -60,16 +60,18 @@ const About: React.FC = () => {
           </div>
         )}
 
-        {/* 操作按钮 / Actions */}
-        <div className='flex items-center gap-2 mt-8'>
-          <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('sudowork-open-update-modal'))}>
-            {t('settings.checkForUpdates', '检查更新')}
-          </Button>
-          <Button type='text' onClick={() => setOpsVisible(true)} icon={<IconSettings style={{ fontSize: 20 }} />} />
-        </div>
+        {/* 操作按钮 / Actions — desktop only: web has no in-app updater / ops modal */}
+        {isElectronDesktop() && (
+          <div className='flex items-center gap-2 mt-8'>
+            <Button size='small' type='outline' onClick={() => window.dispatchEvent(new Event('sudowork-open-update-modal'))}>
+              {t('settings.checkForUpdates', '检查更新')}
+            </Button>
+            <Button type='text' onClick={() => setOpsVisible(true)} icon={<IconSettings style={{ fontSize: 20 }} />} />
+          </div>
+        )}
       </div>
 
-      <OpsModal visible={opsVisible} onClose={() => setOpsVisible(false)} />
+      {isElectronDesktop() && <OpsModal visible={opsVisible} onClose={() => setOpsVisible(false)} />}
     </PageWrapper>
   );
 };

@@ -78,17 +78,6 @@ export async function fetchSkillDetailHttp(skillId: string): Promise<SkillDetail
   return response.json();
 }
 
-export async function fetchSkillsHttp(params: { cursor?: string; limit?: number; query?: string; category?: string; tenantId?: string }) {
-  const searchParams = new URLSearchParams();
-  if (params.cursor) searchParams.set('cursor', params.cursor);
-  if (params.limit) searchParams.set('limit', String(params.limit));
-  if (params.query) searchParams.set('query', params.query);
-  if (params.category) searchParams.set('categories', params.category);
-  if (params.tenantId) searchParams.set('tenant_id', params.tenantId);
-  const response = await fetch(`/api/skill-hub/skills/cursor?${searchParams}`);
-  return response.json();
-}
-
 export async function fetchCategoriesHttp() {
   const response = await fetch('/api/categories');
   return response.json();
