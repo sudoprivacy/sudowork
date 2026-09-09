@@ -50,6 +50,28 @@ export const LoginApiKeyRequestSchema = z.object({
 })
 export type LoginApiKeyRequest = z.infer<typeof LoginApiKeyRequestSchema>
 
+/** Phone signup/login. Bounds mirror the server-side validator in moss. */
+export const SendPhoneCodeRequestSchema = z.object({
+  phone: z.string().trim().min(11).max(16),
+  mossBaseUrl: MossBaseUrlSchema,
+})
+export type SendPhoneCodeRequest = z.infer<typeof SendPhoneCodeRequestSchema>
+
+export const LoginPhoneRequestSchema = z.object({
+  phone: z.string().trim().min(11).max(16),
+  code: z.string().trim().regex(/^\d{4,8}$/),
+  mossBaseUrl: MossBaseUrlSchema,
+})
+export type LoginPhoneRequest = z.infer<typeof LoginPhoneRequestSchema>
+
+export const RegisterPhoneRequestSchema = z.object({
+  registerToken: z.string().min(1).max(4096),
+  nickname: z.string().trim().max(64).optional(),
+  invitationCode: z.string().trim().max(64).optional(),
+  mossBaseUrl: MossBaseUrlSchema,
+})
+export type RegisterPhoneRequest = z.infer<typeof RegisterPhoneRequestSchema>
+
 /** GET /api/auth/session 的浏览器响应（白名单 DTO）。 */
 export const SessionResponseSchema = z.object({
   user: z.object({ id: z.string(), name: z.string() }),

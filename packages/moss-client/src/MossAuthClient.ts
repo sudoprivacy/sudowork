@@ -15,9 +15,28 @@ import { type MossFetch } from './MossHttpClient.js'
  * 每个方法尾部传入 baseUrl（登录期无 session，地址由 resolveLoginMoss 决定；登录后取 session 地址）。
  */
 
+/**
+ * Result of presenting a phone + verification code.
+ *
+ * A number moss has never seen is not an error — it is the normal first step of
+ * self-service signup, and moss answers with a short-lived attestation that the
+ * code checked out. The caller shows a registration form and returns with that
+ * token, so the code is verified exactly once across the two requests.
+ */
+export type MossPhoneLoginResult =
+  | { kind: 'tokens'; tokens: MossTokenSet }
+  | { kind: 'need_register'; registerToken: string; phone: string }
+
 export interface MossAuthPort {
   loginWithPassword(input: { username: string; password: string }, baseUrl: string): Promise<MossTokenSet>
   loginWithApiKey(apiKey: string, baseUrl: string): Promise<MossTokenSet>
+  /** Ask moss to mint and deliver a code. Returns the resend cooldown. */
+  sendPhoneCode(phone: string, baseUrl: string): Promise<{ nextSendIn: number }>
+  loginWithPhone(input: { phone: string; code: string }, baseUrl: string): Promise<MossPhoneLoginResult>
+  registerWithPhone(
+    input: { registerToken: string; nickname?: string; invitationCode?: string },
+    baseUrl: string,
+  ): Promise<MossTokenSet>
   refresh(refreshToken: string, baseUrl: string): Promise<MossTokenSet>
   me(accessToken: string, baseUrl: string): Promise<MossMe>
 }
@@ -39,6 +58,54 @@ export function createMossAuthPort(mossFetch: MossFetch): MossAuthPort {
         body: { grant_type: 'api_key', api_key: apiKey },
       })
       return MossTokenSetSchema.parse(json)
+    },
+    async sendPhoneCode(phone, baseUrl) {
+      const json = (await mossFetch(baseUrl, {
+        method: 'POST',
+        path: '/api/v1/auth/send-code',
+        body: { phone },
+      })) as { success?: boolean; next_send_in?: number; msg?: string }
+      if (!json?.success) throw new Error(json?.msg || 'Failed to send verification code')
+      return { nextSendIn: typeof json.next_send_in === 'number' ? json.next_send_in : 60 }
+    },
+    async loginWithPhone(input, baseUrl) {
+      // Phone login wraps its payload in `data` (and signals need_register in
+      // band) because that is the shape the desktop client already parses; the
+      // grant-type logins above return the token set at the top level.
+      const json = (await mossFetch(baseUrl, {
+        method: 'POST',
+        path: '/api/v1/auth/login',
+        body: { phone: input.phone, code: input.code },
+      })) as {
+        success?: boolean
+        data?: unknown
+        need_register?: boolean
+        register_token?: string
+        phone?: string
+        msg?: string
+      }
+      if (json?.need_register && json.register_token) {
+        return {
+          kind: 'need_register',
+          registerToken: json.register_token,
+          phone: json.phone || input.phone,
+        }
+      }
+      if (!json?.success || !json.data) throw new Error(json?.msg || 'Phone login failed')
+      return { kind: 'tokens', tokens: MossTokenSetSchema.parse(json.data) }
+    },
+    async registerWithPhone(input, baseUrl) {
+      const json = (await mossFetch(baseUrl, {
+        method: 'POST',
+        path: '/api/v1/auth/register',
+        body: {
+          register_token: input.registerToken,
+          ...(input.nickname ? { nickname: input.nickname } : {}),
+          ...(input.invitationCode ? { invitation_code: input.invitationCode } : {}),
+        },
+      })) as { success?: boolean; data?: unknown; msg?: string }
+      if (!json?.success || !json.data) throw new Error(json?.msg || 'Registration failed')
+      return MossTokenSetSchema.parse(json.data)
     },
     async refresh(refreshToken, baseUrl) {
       const json = await mossFetch(baseUrl, {

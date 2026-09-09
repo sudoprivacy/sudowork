@@ -149,6 +149,15 @@ const fakeMossAuth: MossAuthPort = {
   async loginWithApiKey() {
     throw new MossHttpError(401, '', '')
   },
+  async sendPhoneCode() {
+    throw new Error('sendPhoneCode not stubbed in this test')
+  },
+  async loginWithPhone() {
+    throw new Error('loginWithPhone not stubbed in this test')
+  },
+  async registerWithPhone() {
+    throw new Error('registerWithPhone not stubbed in this test')
+  },
   async refresh() {
     throw new MossHttpError(401, '', '')
   },
