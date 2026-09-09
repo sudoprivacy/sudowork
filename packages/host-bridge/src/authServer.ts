@@ -35,7 +35,20 @@ export async function getAuthServerBaseUrl(): Promise<string> {
   if (mode === 'e') {
     const raw = await ConfigStorage.get('eeclaw.serverUrl').catch((): string | undefined => undefined);
     const normalized = normalizeSudoworkServerUrl(raw);
-    if (normalized) return normalized;
+    // normalizeSudoworkServerUrl only trims — it does not validate — so an
+    // unusable value would otherwise be handed out as a base URL and every auth
+    // request would fail against a nonsense address. Parse it here instead of
+    // tightening the shared helper, which other call sites rely on as-is.
+    if (normalized && isUsableHttpUrl(normalized)) return normalized;
   }
   return getSudoworkServerBaseUrl();
+}
+
+function isUsableHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
