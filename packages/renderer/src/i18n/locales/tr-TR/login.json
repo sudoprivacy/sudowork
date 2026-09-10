@@ -65,5 +65,9 @@
   "thirdPartyMissingTicket": "Kimlik doğrulama geri çağrısında ticket eksik",
   "thirdPartyFailed": "Üçüncü taraf giriş başarısız",
   "backToModeSelect": "← Mod seçimine dön",
-  "skip": "Şimdilik atla →"
+  "skip": "Şimdilik atla →",
+  "customServerToggle": "Özel sunucu adresi kullan",
+  "mossBaseUrlLabel": "Moss sunucu adresi",
+  "mossBaseUrlPlaceholder": "Moss sunucu adresini girin (http:// veya https://)",
+  "mossBaseUrlInvalid": "http:// veya https:// ile başlayan geçerli bir adres girin"
 }

@@ -195,10 +195,14 @@ type SetSyncMessage = (message: string | null) => void;
 interface EnterpriseLoginParams {
   username: string;
   password: string;
+  // WebUI 自定义 moss 服务器地址（可选）；桌面端不传
+  mossBaseUrl?: string;
 }
 
 interface EnterpriseLoginParamsByKey {
   api_key: string;
+  // WebUI 自定义 moss 服务器地址（可选）；桌面端不传
+  mossBaseUrl?: string;
 }
 
 interface AuthContextValue {
@@ -1594,7 +1598,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify(isApiKeyLogin ? { apiKey: (params as EnterpriseLoginParamsByKey).api_key } : { username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password }),
+            body: JSON.stringify({
+              ...(isApiKeyLogin ? { apiKey: (params as EnterpriseLoginParamsByKey).api_key } : { username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password }),
+              ...(params.mossBaseUrl ? { mossBaseUrl: params.mossBaseUrl } : {}),
+            }),
           });
           if (!response.ok) {
             const body = (await response.json().catch((): null => null)) as { error?: string } | null;
