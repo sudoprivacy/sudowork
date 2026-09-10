@@ -2,13 +2,23 @@ import { Router, type Response, type NextFunction } from 'express'
 import rateLimit from 'express-rate-limit'
 import { ZodError } from 'zod'
 import type { AppConfig } from '../../config.js'
-import { LoginApiKeyRequestSchema, LoginPasswordRequestSchema } from '@sudowork/contracts/auth'
+import { SmsRateLimitedError } from '@sudowork/moss-client'
+import {
+  LoginApiKeyRequestSchema,
+  LoginPasswordRequestSchema,
+  LoginPhoneRequestSchema,
+  RegisterPhoneRequestSchema,
+  SendPhoneCodeRequestSchema,
+} from '@sudowork/contracts/auth'
 import {
   InvalidCredentialsError,
   MossUnavailableError,
   loginWithApiKey,
   loginWithPassword,
+  loginWithPhone,
   logout,
+  registerWithPhone,
+  sendPhoneCode,
   resolveSession,
   type AuthDeps,
 } from './authService.js'
@@ -19,6 +29,9 @@ import { SESSION_COOKIE_NAME, requireSession, type AuthedRequest } from './sessi
  *   GET  /api/auth/session
  *   POST /api/auth/login/password
  *   POST /api/auth/login/api-key
+ *   POST /api/auth/send-code
+ *   POST /api/auth/login/phone
+ *   POST /api/auth/register/phone
  *   POST /api/auth/logout
  * 错误不区分用户不存在/密码错误（计划 Task 3）。
  */
@@ -75,6 +88,60 @@ export function createAuthRouter(deps: AuthDeps): Router {
     void (async () => {
       const input = LoginApiKeyRequestSchema.parse(req.body)
       const result = await loginWithApiKey(deps, input.apiKey, input.mossBaseUrl)
+      setSessionCookie(res, deps.config, result.cookieToken)
+      res.status(200).json({ ok: true })
+    })().catch((err: unknown) => authErrorHandler(err, res, next))
+  })
+
+  // Phone signup/login. Under the same limiter as the other login routes: it is
+  // unauthenticated and, once a real SMS provider exists, costs money per call.
+  // moss owns cooldown, expiry and attempt budget, so the browser and the
+  // desktop cannot drift apart on them.
+  router.post('/send-code', loginLimiter, (req, res, next) => {
+    void (async () => {
+      const input = SendPhoneCodeRequestSchema.parse(req.body)
+      try {
+        const result = await sendPhoneCode(deps, input)
+        res.status(200).json({ ok: true, nextSendIn: result.nextSendIn })
+      } catch (err) {
+        // The cooldown and the hourly cap are normal states with a wait
+        // attached, not failures: pass the countdown through so the UI can show
+        // it instead of a generic error.
+        if (err instanceof SmsRateLimitedError) {
+          res
+            .status(429)
+            .json({ error: 'RATE_LIMITED', nextSendIn: err.retryAfterSec, message: err.message })
+          return
+        }
+        throw err
+      }
+    })().catch((err: unknown) => authErrorHandler(err, res, next))
+  })
+
+  router.post('/login/phone', loginLimiter, (req, res, next) => {
+    void (async () => {
+      const input = LoginPhoneRequestSchema.parse(req.body)
+      const result = await loginWithPhone(deps, input)
+      // An unknown number is the normal first step of signup, not a failure, so
+      // it answers 200 with the attestation and sets no cookie.
+      if ('needRegister' in result) {
+        res.status(200).json({
+          ok: false,
+          needRegister: true,
+          registerToken: result.registerToken,
+          phone: result.phone,
+        })
+        return
+      }
+      setSessionCookie(res, deps.config, result.cookieToken)
+      res.status(200).json({ ok: true })
+    })().catch((err: unknown) => authErrorHandler(err, res, next))
+  })
+
+  router.post('/register/phone', loginLimiter, (req, res, next) => {
+    void (async () => {
+      const input = RegisterPhoneRequestSchema.parse(req.body)
+      const result = await registerWithPhone(deps, input)
       setSessionCookie(res, deps.config, result.cookieToken)
       res.status(200).json({ ok: true })
     })().catch((err: unknown) => authErrorHandler(err, res, next))

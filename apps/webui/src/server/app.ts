@@ -135,6 +135,30 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   const { config, pool } = deps
 
   app.use('/api', createSessionMiddleware(pool, config.sessionHmacKey))
+
+  // Client bootstrap, forwarded from the moss this deployment fronts.
+  //
+  // The shared renderer probes `<origin>/api/v1/system-config` before showing a
+  // login screen, and in the browser that origin is this server rather than
+  // moss. Without the forward the probe finds nothing, the renderer falls back
+  // to its password tabs, and a deployment configured for phone signup silently
+  // shows the wrong screen. Mounted above the session middleware's protected
+  // routes because it is read while logged out.
+  app.get('/api/v1/system-config', (_req, res) => {
+    void (async () => {
+      try {
+        const upstream = await fetch(
+          new URL('/api/v1/system-config', config.moss.baseUrl).toString(),
+        )
+        res.status(upstream.status).json(await upstream.json())
+      } catch {
+        // A moss that is down or too old to serve this must not take the login
+        // page with it: the renderer treats an unusable answer as "unknown" and
+        // keeps its existing tabs.
+        res.status(502).json({ success: false, msg: 'system config unavailable' })
+      }
+    })()
+  })
   app.use('/api/auth', createAuthRouter({ pool, config, mossAuth: deps.mossAuth }))
 
   const mossFetch = deps.mossFetch ?? mossRequest

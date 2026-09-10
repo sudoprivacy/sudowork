@@ -182,6 +182,73 @@ export async function loginWithPassword(
   return performLogin(deps, tokens, me, identityBaseUrl)
 }
 
+/**
+ * Ask moss to send a verification code. A pure pass-through: the browser has no
+ * session yet, and rate limiting / delivery / expiry all belong to moss so the
+ * desktop and the browser cannot drift apart on them.
+ */
+export async function sendPhoneCode(
+  deps: AuthDeps,
+  input: { phone: string; mossBaseUrl?: string },
+): Promise<{ nextSendIn: number }> {
+  const { baseUrl } = resolveLoginMoss(deps.config, input.mossBaseUrl)
+  return deps.mossAuth.sendPhoneCode(input.phone, baseUrl)
+}
+
+/**
+ * Phone + code login.
+ *
+ * A number moss has not seen yet returns `needRegister` with moss's attestation
+ * rather than an error, and no cookie is set: the caller shows a registration
+ * form and comes back to `registerWithPhone`. That keeps the code verified
+ * exactly once even though signup takes two requests.
+ */
+export async function loginWithPhone(
+  deps: AuthDeps,
+  input: { phone: string; code: string; mossBaseUrl?: string },
+): Promise<LoginResult | { needRegister: true; registerToken: string; phone: string }> {
+  const { baseUrl, identityBaseUrl } = resolveLoginMoss(deps.config, input.mossBaseUrl)
+  let result
+  try {
+    result = await deps.mossAuth.loginWithPhone({ phone: input.phone, code: input.code }, baseUrl)
+  } catch (err) {
+    throw mapLoginError(err)
+  }
+  if (result.kind === 'need_register') {
+    return { needRegister: true, registerToken: result.registerToken, phone: result.phone }
+  }
+  const me = await fetchMe(deps, result.tokens.access_token, baseUrl)
+  return performLogin(deps, result.tokens, me, identityBaseUrl)
+}
+
+/** Exchange moss's register attestation for an account, and open a web session. */
+export async function registerWithPhone(
+  deps: AuthDeps,
+  input: {
+    registerToken: string
+    nickname?: string
+    invitationCode?: string
+    mossBaseUrl?: string
+  },
+): Promise<LoginResult> {
+  const { baseUrl, identityBaseUrl } = resolveLoginMoss(deps.config, input.mossBaseUrl)
+  let tokens
+  try {
+    tokens = await deps.mossAuth.registerWithPhone(
+      {
+        registerToken: input.registerToken,
+        nickname: input.nickname,
+        invitationCode: input.invitationCode,
+      },
+      baseUrl,
+    )
+  } catch (err) {
+    throw mapLoginError(err)
+  }
+  const me = await fetchMe(deps, tokens.access_token, baseUrl)
+  return performLogin(deps, tokens, me, identityBaseUrl)
+}
+
 export async function loginWithApiKey(
   deps: AuthDeps,
   apiKey: string,
