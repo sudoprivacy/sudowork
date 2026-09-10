@@ -17,6 +17,7 @@ import { useAuth } from '@renderer/context/AuthContext';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useCronAccess } from '@renderer/hooks/useCronAccess';
+import { isElectronDesktop } from '@renderer/utils/platform';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
 import { maskPhone } from '@renderer/utils';
@@ -64,7 +65,9 @@ const Sider: React.FC = () => {
   const Menus = [
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/app/agent' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/app/skills' },
-    { id: 'local-kb', label: t('common.siderMenu.localKb'), icon: BookOpen, path: '/app/local-kb' },
+    // The local knowledge base is desktop-only (WEB_CAPABILITIES.localKnowledgeBase
+    // is false and mossAdapter has no local-kb mappings), so hide it on the web host.
+    ...(isElectronDesktop() ? [{ id: 'local-kb' as const, label: t('common.siderMenu.localKb'), icon: BookOpen, path: '/app/local-kb' }] : []),
     { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'channels' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/app/channels' }] : []),
     ...(isCronVisible ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/app/cron' }] : []),

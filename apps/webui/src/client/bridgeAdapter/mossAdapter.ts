@@ -482,6 +482,9 @@ interface MossAgentItem {
   displayName?: string
   display_name?: string
   description?: string
+  defaultInitPrompt?: string
+  promptsI18n?: Record<string, string[]>
+  prompts_i18n?: Record<string, string[]>
   avatar?: string
   emoji?: string
   /** 'hub' | 'custom' | 'system' | 'tenant' (absent for user-created rows) */
@@ -489,6 +492,7 @@ interface MossAgentItem {
   isBuiltin?: boolean
   enabled?: boolean
   categories?: string[]
+  enabledSkills?: string[]
 }
 
 /** Moss installed-skill row as projected by GET /api/skills. */
@@ -528,12 +532,15 @@ function mossAgentToAssistantInfo(a: MossAgentItem): unknown {
       name: a.name,
       display_name: displayName,
       description: a.description,
-      avatar: a.avatar,
+      defaultInitPrompt: a.defaultInitPrompt,
+      promptsI18n: a.promptsI18n ?? a.prompts_i18n,
+      avatar: a.avatar || a.emoji || '',
       emoji: a.emoji ?? null,
       categories: Array.isArray(a.categories) ? a.categories : undefined,
       tag: typeof a.tag === 'string' ? a.tag : undefined,
       source_type: typeof a.tag === 'string' ? a.tag : 'custom',
       is_builtin: a.isBuiltin === true,
+      enabledSkills: Array.isArray(a.enabledSkills) ? a.enabledSkills : undefined,
     },
   }
 }
@@ -930,6 +937,24 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       next_cursor: typeof body?.next_cursor === 'string' ? body.next_cursor : null,
       has_more: body?.has_more === true,
     })
+  },
+
+  // --- assistant rule read (web opens the installed-assistant drawer read-only) ---
+  // ipcBridge.fs.readAssistantRule's wire channel is 'read-assistant-rule' (the fs
+  // prefix is only the TS namespace). Desktop returns a bare string; moss returns
+  // {rules} and is admin-scoped — degrade to '' (drawer shows the empty-state)
+  // instead of surfacing an error. webui ids are moss directory names, builtin-
+  // prefixed for system rows.
+  'read-assistant-rule': async (req) => {
+    const name = String(req?.assistantId ?? '').replace(/^builtin-/, '')
+    try {
+      const body = await apiFetch<{ rules?: unknown }>(
+        `/api/agents/rules/${encodeURIComponent(name)}`,
+      )
+      return typeof body?.rules === 'string' ? body.rules : ''
+    } catch {
+      return ''
+    }
   },
 
   // --- skill-hub: installed skills (management page) ---

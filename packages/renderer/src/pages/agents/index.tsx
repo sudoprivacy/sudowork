@@ -194,11 +194,6 @@ const AgentSettings: React.FC = () => {
 
   // Load installed skills
   const loadInstalledSkills = useCallback(async (): Promise<IInstalledSkillInfo[]> => {
-    if (!isElectronDesktop()) {
-      setInstalledSkills([]);
-      setHubInstalledSkillsReady(true);
-      return [];
-    }
     try {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {
@@ -1322,8 +1317,10 @@ const AgentSettings: React.FC = () => {
   }, [duplicateAssistant, duplicateInstalledAssistant, duplicateTenantAssistant, hubInstalledAssistants, localeKey, loadAssistants, t, isEnterprise, handleUploadCustomAssistant]);
 
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
-  // Only custom assistants can be edited; hub/tenant-installed, builtin, and extension assistants are readonly
-  const isReadonlyAssistant = Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin || (isEnterprise && (activeAssistant._category === 'hub' || activeAssistant._category === 'tenant'))));
+  // Only custom assistants can be edited; hub/tenant-installed, builtin, and extension assistants are readonly.
+  // On the web host every assistant is readonly (the moss meta endpoint cannot
+  // round-trip the edit fields, so the drawer opens in view-only mode).
+  const isReadonlyAssistant = !isElectronDesktop() || Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin || (isEnterprise && (activeAssistant._category === 'hub' || activeAssistant._category === 'tenant'))));
 
   // ===== 分类逻辑：以目录分类（_category）为主，其他字段仅作兼容兜底 =====
   // Tenant assistants: 目录分类为 tenant
@@ -1424,10 +1421,6 @@ const AgentSettings: React.FC = () => {
   // ==================== CRUD Handlers ====================
 
   const handleEdit = async (assistant: AssistantListItem) => {
-    // The moss assistant-meta endpoint cannot round-trip the renderer's edit
-    // fields (I18n/prompt), so a web "save" would silently drop everything.
-    // Gate the edit entry off on the web host; create (handleCreate) stays open.
-    if (!isElectronDesktop()) return;
     setIsCreating(false);
     setActiveAssistantId(assistant.id);
     setEditName(assistant.nameI18n?.[localeKey] || assistant.name || '');

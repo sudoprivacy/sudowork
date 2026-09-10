@@ -9,6 +9,7 @@ import { Progress, Tooltip } from '@arco-design/web-react';
 import { Bot, Copy, Download, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { IAssistantHubSkill } from '@sudowork/host-bridge/ipcBridge';
+import { isElectronDesktop } from '@renderer/utils/platform';
 
 const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstalled, installing, installProgress, onInstall, onUpdate, onDuplicate, onClick, hasUpdate, updating, latestVersion }) => {
   const { t } = useTranslation();
@@ -72,11 +73,14 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
                 {t('settings.assistant.updateAvailable', '可更新')}
               </span>
             )}
-            <Tooltip content={t('settings.assistant.duplicate', '复制')}>
-              <button type='button' className='store-action-icon' onClick={onDuplicate}>
-                <Copy size={13} />
-              </button>
-            </Tooltip>
+            {/* Duplicate button - desktop only: the web host cannot copy assistants (desktop keeps it) */}
+            {isElectronDesktop() && (
+              <Tooltip content={t('settings.assistant.duplicate', '复制')}>
+                <button type='button' className='store-action-icon' onClick={onDuplicate}>
+                  <Copy size={13} />
+                </button>
+              </Tooltip>
+            )}
           </>
         )}
         {/* Install button or progress - only show if hasDownloadUrl */}
