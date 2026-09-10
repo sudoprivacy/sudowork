@@ -420,6 +420,20 @@ interface ConversationListItem {
 /** Minimal TChatConversation projection (enough for the sider + open flow). */
 function toChatConversation(item: ConversationListItem): Record<string, unknown> {
   const ts = item.lastActiveAt ?? Date.now()
+  // cron 运行记录会话在 moss 侧用 `source`（JSON 字符串）标记；grouped-history 的
+  // buildScheduledGroups 靠 extra.cronJobId 把运行记录归到对应定时任务分组，缺失则
+  // 「定时任务」tab 为空。仅对字符串 source 容错解析，非 cron 会话不写入。
+  let cronJobId: string | undefined
+  if (typeof item.source === 'string') {
+    try {
+      const parsed = JSON.parse(item.source) as { source?: unknown; cronJobId?: unknown }
+      if (parsed.source === 'cron' && typeof parsed.cronJobId === 'string') {
+        cronJobId = parsed.cronJobId
+      }
+    } catch {
+      // 非 JSON / 非 cron 会话：忽略
+    }
+  }
   return {
     id: item.id,
     // 'remote-agent' (not 'acp') so ChatSider mounts the moss-session workspace
@@ -436,6 +450,7 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
       pinned: item.pinned ?? false,
       pinnedAt: item.pinnedAt ?? undefined,
       mossSessionId: item.id,
+      ...(cronJobId ? { cronJobId } : {}),
     },
     model: { platform: '', name: '', useModel: '', id: '' },
   }
@@ -650,7 +665,14 @@ export function serverScheduleToRenderer(raw: unknown): RendererSchedule {
 
 /** moss cron job row (transparent passthrough) → renderer ICronJob. Wire is untyped. */
 function toIcronJob(raw: unknown): unknown {
-  const j = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  // moss 单任务 / 创建 / 更新接口返回 `{ success, data }` 信封（列表接口已由服务端
+  // extractRows 解包为裸数组）。仅当同时含 success+data 顶层字段时取 data，否则用
+  // raw 本身——裸 job 不含这两个字段，走 else 分支、行为不变。
+  const unwrapped =
+    raw && typeof raw === 'object' && 'success' in raw && 'data' in raw
+      ? (raw as { data: unknown }).data
+      : raw
+  const j = (unwrapped && typeof unwrapped === 'object' ? unwrapped : {}) as Record<string, unknown>
   const num = (v: unknown): number | undefined =>
     typeof v === 'number' && Number.isFinite(v) ? v : undefined
   const createdAt = num(j.createdAt ?? j.created_at) ?? Date.now()
@@ -668,6 +690,8 @@ function toIcronJob(raw: unknown): unknown {
       createdAt,
       updatedAt,
       conversationMode: j.conversationMode === 'reuse' ? 'reuse' : 'new',
+      workspace: typeof j.workspace === 'string' ? j.workspace : undefined,
+      presetAssistantId: typeof j.assistantId === 'string' ? j.assistantId : undefined,
     },
     state: {
       nextRunAtMs: num(j.nextRunAtMs ?? j.nextRunAt),
@@ -675,6 +699,7 @@ function toIcronJob(raw: unknown): unknown {
       runCount: num(j.runCount) ?? 0,
       retryCount: num(j.retryCount) ?? 0,
       maxRetries: num(j.maxRetries) ?? 0,
+      lastConversationId: j.lastSessionId != null ? String(j.lastSessionId) : undefined,
     },
   }
 }
