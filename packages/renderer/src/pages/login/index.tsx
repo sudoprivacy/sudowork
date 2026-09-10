@@ -8,7 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
-import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
+import { Phone, Protect, Key, User, Lock, Server } from '@icon-park/react';
 import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
 import { ConfigStorage } from '@sudowork/common/storage';
@@ -37,6 +37,9 @@ const showWindowControls = isElectronDesktop() && !isMacOS();
 
 // Web host detection, mirroring AuthContext: the browser has no electronAPI.
 const isWebRuntime = typeof window !== 'undefined' && !window.electronAPI;
+
+// WebUI 自定义 moss 服务器地址的本地记忆 key（仅浏览器回填便利，不参与运行时路由）
+const MOSS_URL_STORAGE_KEY = 'login.mossBaseUrl';
 
 // Validate phone number format (same as server-side)
 function isValidPhone(phone: string): boolean {
@@ -92,6 +95,9 @@ const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [apiKey, setApiKey] = useState('');
+  // WebUI 自定义 moss 地址：回填上次地址（折叠态下仍随登录生效）；默认恒折叠，仅点击小字才单向展开
+  const [mossUrl, setMossUrl] = useState(() => (isWebRuntime ? (localStorage.getItem(MOSS_URL_STORAGE_KEY) ?? '') : ''));
+  const [isCustomUrlExpanded, setIsCustomUrlExpanded] = useState(false);
 
   // OAuth2 login state
   // `require_state` defaults to true on the moss side; older moss builds omit
@@ -322,6 +328,28 @@ const LoginPage: React.FC = () => {
     // Enterprise mode login. Skipped when the server asked for the phone panel,
     // so the submit path matches the panel actually on screen.
     if (isEnterprise && !serverDeclaresPhoneLogin) {
+      // WebUI 自定义 moss 地址：在 setLoading 之前校验并记忆，非法即返回（避免卡住 loading）。
+      // 行为由 mossUrl 值驱动：有值才透传，空则清除记忆并回退服务器默认地址。
+      let mossBaseUrl: string | undefined;
+      if (isWebRuntime) {
+        const trimmedMossUrl = mossUrl.trim();
+        if (trimmedMossUrl) {
+          try {
+            const { protocol } = new URL(trimmedMossUrl);
+            if (protocol !== 'http:' && protocol !== 'https:') {
+              Message.warning(t('login.mossBaseUrlInvalid'));
+              return;
+            }
+          } catch {
+            Message.warning(t('login.mossBaseUrlInvalid'));
+            return;
+          }
+          localStorage.setItem(MOSS_URL_STORAGE_KEY, trimmedMossUrl);
+          mossBaseUrl = trimmedMossUrl;
+        } else {
+          localStorage.removeItem(MOSS_URL_STORAGE_KEY);
+        }
+      }
       if (loginTab === 'password') {
         if (!username.trim() || !password.trim()) {
           Message.warning('请填写所有必填项');
@@ -329,7 +357,7 @@ const LoginPage: React.FC = () => {
         }
         setLoading(true);
         try {
-          const result = await enterpriseLogin({ username: username.trim(), password: password.trim() });
+          const result = await enterpriseLogin({ username: username.trim(), password: password.trim(), mossBaseUrl });
           if (result.success) {
             setTimeout(() => navigate('/guid', { replace: true }), 300);
           } else {
@@ -345,7 +373,7 @@ const LoginPage: React.FC = () => {
         }
         setLoading(true);
         try {
-          const result = await enterpriseLogin({ api_key: apiKey.trim() });
+          const result = await enterpriseLogin({ api_key: apiKey.trim(), mossBaseUrl });
           if (result.success) {
             setTimeout(() => navigate('/guid', { replace: true }), 300);
           } else {
@@ -607,6 +635,21 @@ const LoginPage: React.FC = () => {
                 )}
               </div>
             ) : null}
+
+            {isWebRuntime &&
+              (loginTab === 'password' || loginTab === 'key') &&
+              (isCustomUrlExpanded ? (
+                <div className='flex flex-col gap-8px'>
+                  <div className='text-12px font-600 text-secondary ml-4px'>{t('login.mossBaseUrlLabel')}</div>
+                  <Input size='large' maxLength={2048} prefix={<Server className='text-tertiary' />} placeholder={t('login.mossBaseUrlPlaceholder')} value={mossUrl} onChange={setMossUrl} className='login-input !rd-12px h-48px' />
+                </div>
+              ) : (
+                <div className='text-left'>
+                  <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={() => setIsCustomUrlExpanded(true)}>
+                    {t('login.customServerToggle')}
+                  </span>
+                </div>
+              ))}
 
             {loginTab === 'oauth2' ? (
               <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>

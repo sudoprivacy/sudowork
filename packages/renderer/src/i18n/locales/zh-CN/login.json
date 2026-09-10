@@ -69,5 +69,9 @@
   "thirdPartyMissingTicket": "认证回调缺少 ticket",
   "thirdPartyFailed": "三方认证登录失败",
   "backToModeSelect": "← 返回模式选择",
-  "skip": "暂时跳过 →"
+  "skip": "暂时跳过 →",
+  "customServerToggle": "使用自定义服务器地址",
+  "mossBaseUrlLabel": "moss 服务器地址",
+  "mossBaseUrlPlaceholder": "请输入 moss 服务器地址（http:// 或 https://）",
+  "mossBaseUrlInvalid": "请输入以 http:// 或 https:// 开头的有效地址"
 }

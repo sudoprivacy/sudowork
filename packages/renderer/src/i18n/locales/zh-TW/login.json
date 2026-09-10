@@ -65,5 +65,9 @@
   "thirdPartyMissingTicket": "認證回調缺少 ticket",
   "thirdPartyFailed": "第三方認證登入失敗",
   "backToModeSelect": "← 返回模式選擇",
-  "skip": "暫時跳過 →"
+  "skip": "暫時跳過 →",
+  "customServerToggle": "使用自訂伺服器位址",
+  "mossBaseUrlLabel": "moss 伺服器位址",
+  "mossBaseUrlPlaceholder": "請輸入 moss 伺服器位址（http:// 或 https://）",
+  "mossBaseUrlInvalid": "請輸入以 http:// 或 https:// 開頭的有效位址"
 }
