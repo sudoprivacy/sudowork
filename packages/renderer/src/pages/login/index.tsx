@@ -8,7 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message, Space } from '@arco-design/web-react';
-import { Phone, Protect, Key, User, Lock } from '@icon-park/react';
+import { Phone, Protect, Key, User, Lock, Server } from '@icon-park/react';
 import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
 import { ConfigStorage } from '@sudowork/common/storage';
@@ -95,9 +95,9 @@ const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [apiKey, setApiKey] = useState('');
-  // WebUI 自定义 moss 地址：回填上次地址；有回填值时默认展开（否则回填值被折叠隐藏且静默走默认）
+  // WebUI 自定义 moss 地址：回填上次地址（折叠态下仍随登录生效）；默认恒折叠，仅点击小字才单向展开
   const [mossUrl, setMossUrl] = useState(() => (isWebRuntime ? (localStorage.getItem(MOSS_URL_STORAGE_KEY) ?? '') : ''));
-  const [isCustomUrlExpanded, setIsCustomUrlExpanded] = useState(() => isWebRuntime && !!localStorage.getItem(MOSS_URL_STORAGE_KEY));
+  const [isCustomUrlExpanded, setIsCustomUrlExpanded] = useState(false);
 
   // OAuth2 login state
   // `require_state` defaults to true on the moss side; older moss builds omit
@@ -641,10 +641,10 @@ const LoginPage: React.FC = () => {
               (isCustomUrlExpanded ? (
                 <div className='flex flex-col gap-8px'>
                   <div className='text-12px font-600 text-secondary ml-4px'>{t('login.mossBaseUrlLabel')}</div>
-                  <Input size='large' maxLength={2048} placeholder={t('login.mossBaseUrlPlaceholder')} value={mossUrl} onChange={setMossUrl} className='login-input !rd-12px h-48px' />
+                  <Input size='large' maxLength={2048} prefix={<Server className='text-tertiary' />} placeholder={t('login.mossBaseUrlPlaceholder')} value={mossUrl} onChange={setMossUrl} className='login-input !rd-12px h-48px' />
                 </div>
               ) : (
-                <div className='text-center'>
+                <div className='text-left'>
                   <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={() => setIsCustomUrlExpanded(true)}>
                     {t('login.customServerToggle')}
                   </span>
