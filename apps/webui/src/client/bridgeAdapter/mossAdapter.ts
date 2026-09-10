@@ -482,6 +482,9 @@ interface MossAgentItem {
   displayName?: string
   display_name?: string
   description?: string
+  defaultInitPrompt?: string
+  promptsI18n?: Record<string, string[]>
+  prompts_i18n?: Record<string, string[]>
   avatar?: string
   emoji?: string
   /** 'hub' | 'custom' | 'system' | 'tenant' (absent for user-created rows) */
@@ -529,7 +532,9 @@ function mossAgentToAssistantInfo(a: MossAgentItem): unknown {
       name: a.name,
       display_name: displayName,
       description: a.description,
-      avatar: a.avatar,
+      defaultInitPrompt: a.defaultInitPrompt,
+      promptsI18n: a.promptsI18n ?? a.prompts_i18n,
+      avatar: a.avatar || a.emoji || '',
       emoji: a.emoji ?? null,
       categories: Array.isArray(a.categories) ? a.categories : undefined,
       tag: typeof a.tag === 'string' ? a.tag : undefined,

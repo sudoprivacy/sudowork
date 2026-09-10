@@ -97,10 +97,12 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
           </Tooltip>
         )}
         {uploadStatus}
-        {/* Duplicate button - available for all assistant types */}
-        <Tooltip content={t('settings.assistant.duplicate', '复制')}>
-          <Button shape='circle' className='!size-7' icon={<Copy size={13} />} onClick={onDuplicate} />
-        </Tooltip>
+        {/* Duplicate button - desktop only: the web host cannot copy assistants (desktop keeps it) */}
+        {isElectronDesktop() && (
+          <Tooltip content={t('settings.assistant.duplicate', '复制')}>
+            <Button shape='circle' className='!size-7' icon={<Copy size={13} />} onClick={onDuplicate} />
+          </Tooltip>
+        )}
         {enterprisePublishButton}
         {/* Delete button - only for custom assistants that are not readonly */}
         {canDelete && (

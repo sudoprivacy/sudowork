@@ -41,6 +41,8 @@ export interface IAssistantMeta {
   profession?: string;
   nameI18n?: Record<string, string>;
   descriptionI18n?: Record<string, string>;
+  /** Un-localized plain description from moss installed rows (enterprise-synced tenant meta carries it on disk) */
+  description?: string;
   promptsI18n?: Record<string, string[]>;
   presetAgentType?: string;
   /** Skill names referenced from ~/.nexus/skills/ (SSOT) */

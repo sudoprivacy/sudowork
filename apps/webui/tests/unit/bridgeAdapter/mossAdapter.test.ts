@@ -192,6 +192,46 @@ describe('mossAdapter: assistant/skill management channels', () => {
     expect((result.data?.[0]?.meta as { display_name?: string })?.display_name).toBe('Hub A')
   })
 
+  it('get-installed-assistants maps avatar emoji fallback, promptsI18n dual-read and defaultInitPrompt', async () => {
+    stubFetch({
+      '/api/agents': [
+        {
+          name: 'sys-emoji',
+          displayName: 'Sys',
+          tag: 'system',
+          isBuiltin: true,
+          avatar: '',
+          emoji: '🚀',
+          defaultInitPrompt: '帮我构建一个应用',
+          prompts_i18n: { 'zh-CN': ['案例一'] },
+        },
+        {
+          name: 'hub-img',
+          displayName: 'Hub',
+          tag: 'hub',
+          avatar: 'https://example.com/a.png',
+          promptsI18n: { 'zh-CN': ['案例二'] },
+        },
+      ],
+    })
+    const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke()
+
+    expect(result.success).toBe(true)
+    expect(result.data?.[0]?.meta).toEqual(
+      expect.objectContaining({
+        avatar: '🚀',
+        defaultInitPrompt: '帮我构建一个应用',
+        promptsI18n: { 'zh-CN': ['案例一'] },
+      }),
+    )
+    expect(result.data?.[1]?.meta).toEqual(
+      expect.objectContaining({
+        avatar: 'https://example.com/a.png',
+        promptsI18n: { 'zh-CN': ['案例二'] },
+      }),
+    )
+  })
+
   it('create-assistant sends only the minimal schema fields (no extra keys)', async () => {
     const fetchMock = stubFetch({ '/api/agents/create': { ok: true } })
     const result = await ipcBridge.assistantHub.createAssistant.invoke({
