@@ -489,6 +489,7 @@ interface MossAgentItem {
   isBuiltin?: boolean
   enabled?: boolean
   categories?: string[]
+  enabledSkills?: string[]
 }
 
 /** Moss installed-skill row as projected by GET /api/skills. */
@@ -534,6 +535,7 @@ function mossAgentToAssistantInfo(a: MossAgentItem): unknown {
       tag: typeof a.tag === 'string' ? a.tag : undefined,
       source_type: typeof a.tag === 'string' ? a.tag : 'custom',
       is_builtin: a.isBuiltin === true,
+      enabledSkills: Array.isArray(a.enabledSkills) ? a.enabledSkills : undefined,
     },
   }
 }
@@ -930,6 +932,24 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       next_cursor: typeof body?.next_cursor === 'string' ? body.next_cursor : null,
       has_more: body?.has_more === true,
     })
+  },
+
+  // --- assistant rule read (web opens the installed-assistant drawer read-only) ---
+  // ipcBridge.fs.readAssistantRule's wire channel is 'read-assistant-rule' (the fs
+  // prefix is only the TS namespace). Desktop returns a bare string; moss returns
+  // {rules} and is admin-scoped — degrade to '' (drawer shows the empty-state)
+  // instead of surfacing an error. webui ids are moss directory names, builtin-
+  // prefixed for system rows.
+  'read-assistant-rule': async (req) => {
+    const name = String(req?.assistantId ?? '').replace(/^builtin-/, '')
+    try {
+      const body = await apiFetch<{ rules?: unknown }>(
+        `/api/agents/rules/${encodeURIComponent(name)}`,
+      )
+      return typeof body?.rules === 'string' ? body.rules : ''
+    } catch {
+      return ''
+    }
   },
 
   // --- skill-hub: installed skills (management page) ---

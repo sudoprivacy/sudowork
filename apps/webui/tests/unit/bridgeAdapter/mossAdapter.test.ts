@@ -232,6 +232,27 @@ describe('mossAdapter: assistant/skill management channels', () => {
     expect(body).toEqual({ name: 'writer' })
   })
 
+  it('read-assistant-rule unwraps {rules} and strips the builtin- id prefix (bare string)', async () => {
+    const fetchMock = stubFetch({ '/api/agents/rules/': { rules: '# writer rules' } })
+    const content = await ipcBridge.fs.readAssistantRule.invoke({
+      assistantId: 'builtin-a',
+      locale: 'zh-CN',
+    })
+
+    // Desktop provider contract: a bare string, not an IBridgeResponse envelope.
+    expect(content).toBe('# writer rules')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/agents/rules/a')
+  })
+
+  it('read-assistant-rule degrades to an empty string on error (admin scope, 404)', async () => {
+    stubFetch({
+      '/api/agents/rules/': { status: 403, body: { error: 'Missing scope: admin:settings' } },
+    })
+    const content = await ipcBridge.fs.readAssistantRule.invoke({ assistantId: 'hub-a' })
+
+    expect(content).toBe('')
+  })
+
   it('get-installed-skills maps rows and backfills meta.source_type', async () => {
     stubFetch({
       '/api/skills': [
