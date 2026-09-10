@@ -35,6 +35,7 @@ import { createMossAgentPort, type MossAgentPort } from '@sudowork/moss-client'
 import { createMossSkillPort, type MossSkillPort } from '@sudowork/moss-client'
 import { createMossCronPort } from '@sudowork/moss-client'
 import { createMossMcpPort, type MossMcpPort } from '@sudowork/moss-client'
+import { createConsumerRouter } from './features/consumer/consumerRoutes.js'
 import { createAgentRouter } from './features/agents/agentRoutes.js'
 import { createSkillRouter } from './features/skills/skillRoutes.js'
 import { createCronRouter } from './features/cron/cronRoutes.js'
@@ -182,6 +183,9 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
       closeTerminals: (conversationId) => globalTerminalManager.closeByConversation(conversationId),
     }),
   )
+  // The consumer endpoints the points/usage/orders pages read, forwarded to
+  // moss under this session. Allowlisted, not a blanket /api/v1 proxy.
+  app.use('/api/v1', createConsumerRouter({ auth }))
   app.use('/api/agents', createAgentRouter({ pool, config, auth, agents }))
   app.use('/api/skills', createSkillRouter({ pool, config, auth, skills }))
 

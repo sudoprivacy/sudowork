@@ -825,6 +825,14 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   'moss.get-config': async () => ({ serverUrl: location.origin, hasToken: true }),
   'moss.set-auth-token': async () => ok(),
 
+  // The pages that show points, usage and orders ask this channel where to send
+  // their requests. On the web that is this origin, which proxies to the moss
+  // this browser is signed in to — the same server that issued the session.
+  // Without it those pages fell through to `not-supported-on-web` and rendered
+  // an empty panel with no error.
+  'sudowork-server.get-config': async () => ({ baseUrl: location.origin }),
+  'sudowork-server.update-config': async () => ok(),
+
   // --- zoom / font scale: RAW number providers. Display prefs live in the
   //     browser (R8); no server round-trip. useFontScale calls these directly. ---
   'app.get-zoom-factor': async () => {
