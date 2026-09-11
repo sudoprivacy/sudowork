@@ -12,6 +12,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import socket
 import subprocess
 import sys
 import time
@@ -29,7 +30,31 @@ from ops._enterprise_config import (
 )
 
 
-def kill_electron():
+def _port_is_free(port: int) -> bool:
+    """Can a listener take this port right now?
+
+    Binding is the same test launch-dev.js's findAvailablePort runs, so the
+    two agree on what "free" means — a connect probe would call a socket in
+    TIME_WAIT free while the launcher still refuses it.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('127.0.0.1', port))
+            return True
+        except OSError:
+            return False
+
+
+def _wait_for_port_free(port: int, timeout: float = 30) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if _port_is_free(port):
+            return True
+        time.sleep(1)
+    return False
+
+
+def kill_electron(port=None):
     """Kill any running Electron processes.
 
     Uses `pkill -x` (exact process-name match) on POSIX rather than `-f` (full
@@ -47,11 +72,21 @@ def kill_electron():
                        shell=True, capture_output=True, timeout=10)
     else:
         subprocess.run(['pkill', '-x', 'electron'], capture_output=True, timeout=10)
-    time.sleep(3)
+
+    # Wait for the CDP port to actually come free, rather than sleeping a flat
+    # 3s and hoping. The kill returns as soon as the process is gone, but the
+    # listening socket lingers a few seconds more — and launch-dev.js reacts to
+    # a busy port by silently shifting the app to the next one (9232 -> 9233),
+    # after which wait_for_cdp polls the requested port for its full timeout
+    # and reports "Electron did not start in time" about an app that started
+    # fine somewhere else.
+    if port is not None and not _wait_for_port_free(port, timeout=30):
+        print(f"WARNING: CDP port {port} still bound after 30s — "
+              f"the launcher may shift the app to {port + 1}")
 
 
-def launch_electron():
-    """Launch Electron app in dev mode.
+def launch_electron(port=None):
+    """Launch Electron app in dev mode on `port`.
 
     Redirects stdout/stderr into a per-launch log file under /tmp so a
     failing CDP handshake is diagnosable — DEVNULL made prior CI failures
@@ -67,7 +102,10 @@ def launch_electron():
     log_fh = open(log_path, 'wb')
     print(f"Launching Electron from {project_root} (log: {log_path})...")
     env = os.environ.copy()
-    env['NEXUS_CDP_PORT'] = env.get('NEXUS_CDP_PORT', '9232')
+    # --port is the port the app is launched on, not merely the one we poll.
+    # It used to reach only wait_for_cdp: `--port 9233` launched the app on
+    # 9232 and then waited on 9233 until the timeout.
+    env['NEXUS_CDP_PORT'] = str(port) if port else env.get('NEXUS_CDP_PORT', '9232')
 
     if sys.platform == 'win32':
         proc = subprocess.Popen(
@@ -112,9 +150,11 @@ async def _seed_renderer_localstorage_async(port: int) -> str:
     presented as an auth failure 120s downstream. An eval evaluates; navigation
     is `page_reload`'s job, and it knows to wait for the new document.
     """
-    from ai_dev_browser.core.connection import connect_browser, get_active_tab
     from ai_dev_browser.core.navigation import page_reload, page_wait_ready
     from ai_dev_browser.core.page import js_evaluate
+
+    from ops._ui_ready import wait_for_shell_state
+    from ops.connect import connect
 
     blob = build_enterprise_localstorage_blob()
     # json.dumps twice: the inner call builds the blob the app will parse, the
@@ -138,24 +178,46 @@ async def _seed_renderer_localstorage_async(port: int) -> str:
         }})()
     """
 
-    browser = await connect_browser(host="127.0.0.1", port=port)
-    tab = await get_active_tab(browser)
+    # Pick the tab the way every op does (ops.connect), not via get_active_tab:
+    # the CDP target list also carries webview preview panes and the avatar
+    # window, and seeding localStorage into one of those writes the blob into a
+    # document AuthContext never reads. Connecting is retried because right
+    # after launch the renderer target does not exist yet.
+    deadline = time.time() + 90
+    while True:
+        try:
+            _browser, tab = await connect(port)
+            break
+        except ConnectionError:
+            if time.time() >= deadline:
+                raise RuntimeError("no sudowork renderer target appeared on CDP — nothing to seed auth into")
+            await asyncio.sleep(2)
 
-    result = await js_evaluate(tab, expression)
-    outcome = result.get("result") if isinstance(result, dict) else str(result)
+    # CDP answers before the renderer has mounted, and seeding into a document
+    # that is still booting loses the race: the main process emits authRequired
+    # somewhere in its own startup, AuthContext clears eeclaw_auth_v1, and the
+    # app parks on /login with the seed reporting success. Wait for a mounted
+    # shell first, and afterwards prove the app actually left the login screen
+    # rather than that the key merely survived the reload.
+    if not await wait_for_shell_state(tab, {"login", "in-app"}, timeout=90):
+        raise RuntimeError("renderer never mounted — nothing to seed auth into")
 
-    # Reload so AuthContext.refresh() re-reads localStorage on a fresh document
-    # and takes the authenticated fastpath.
-    await page_reload(tab)
-    await page_wait_ready(tab)
+    for attempt in range(3):
+        result = await js_evaluate(tab, expression)
+        outcome = result.get("result") if isinstance(result, dict) else str(result)
 
-    # Prove the value survived the reload. Without this the seed can report
-    # success while the app boots to the login screen anyway.
-    verify = await js_evaluate(tab, "!!localStorage.getItem('eeclaw_auth_v1')")
-    if not (verify.get("result") if isinstance(verify, dict) else verify):
-        raise RuntimeError("eeclaw_auth_v1 missing from localStorage after reload — auth seed did not stick")
+        # Reload so AuthContext.refresh() re-reads localStorage on a fresh
+        # document and takes the authenticated fastpath.
+        await page_reload(tab)
+        await page_wait_ready(tab)
 
-    return outcome
+        if await wait_for_shell_state(tab, {"in-app"}, timeout=45):
+            return outcome
+
+    raise RuntimeError(
+        "app stayed on the login screen after 3 auth seeds — the mock session is "
+        "being rejected (check the enterprise serverUrl and MOCK_* constants)"
+    )
 
 
 def seed_renderer_localstorage(port: int) -> bool:
@@ -191,6 +253,20 @@ def wait_for_cdp(port=9232, timeout=180):
         except Exception:
             if i % 5 == 0:
                 print(f"  ... still waiting ({i*2}s)")
+
+    # Before declaring the app dead, look where launch-dev.js would have put it:
+    # it shifts to the next free port when the requested one is busy, so the app
+    # can be perfectly healthy a port or two over. Naming that port is the
+    # difference between a one-line fix and debugging a launch that never failed.
+    for probe in range(port + 1, port + 21):
+        try:
+            if urllib.request.urlopen(f'http://localhost:{probe}/json/version', timeout=1).status == 200:
+                print(f"ERROR: nothing on CDP {port}, but an app IS listening on {probe} — "
+                      f"the launcher shifted ports because {port} was still bound; "
+                      f"re-run once {port} is free, or drive the suite with --port {probe}")
+                return False
+        except Exception:
+            continue
     return False
 
 
@@ -206,7 +282,7 @@ def main():
     args = parser.parse_args()
 
     # Kill existing Electron
-    kill_electron()
+    kill_electron(args.port)
 
     # Modify config
     if args.clean or (not args.enterprise and not args.consumer):
@@ -225,7 +301,7 @@ def main():
             set_enterprise_auth_config()
 
     # Launch
-    proc = launch_electron()
+    proc = launch_electron(args.port)
 
     # Wait for CDP
     if not wait_for_cdp(args.port):

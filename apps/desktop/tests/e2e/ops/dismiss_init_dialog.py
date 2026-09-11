@@ -22,6 +22,8 @@ import asyncio
 
 from ai_dev_browser.core.page import js_evaluate
 
+from ._ui_ready import SHELL_STATE_JS
+
 
 # Probe every terminal state in one round-trip: the Skip button (init gate up),
 # a visible send-box textarea (already in a conversation view), and the app
@@ -36,8 +38,6 @@ from ai_dev_browser.core.page import js_evaluate
 # Being off-route is booted — the prelude's `reset_conversation` navigates to
 # /guid next and `wait_for_app_ready` still has to prove interactivity there,
 # so a wrong guess here costs seconds downstream instead of the whole case.
-# Any route but the login screen counts, rather than an allowlist of in-app
-# routes that would go stale the next time a route is renamed.
 _PROBE = """
 (function() {
     var buttons = Array.prototype.slice.call(document.querySelectorAll('button'));
@@ -50,15 +50,9 @@ _PROBE = """
     var ta = document.querySelector('textarea');
     if (ta && ta.offsetHeight > 0 && ta.offsetWidth > 0) return 'already-booted';
 
-    var root = document.getElementById('root');
-    var hash = location.hash || '';
-    if (root && root.childElementCount > 0 && hash.length > 2 && hash.indexOf('#/login') !== 0) {
-        return 'booted-off-route';
-    }
-
-    return 'pending';
+    return __SHELL_STATE__ === 'in-app' ? 'booted-off-route' : 'pending';
 })()
-"""
+""".replace("__SHELL_STATE__", f"({SHELL_STATE_JS.strip()})")
 
 
 async def dismiss_init_dialog(tab, timeout: float = 180, poll_interval: float = 2) -> dict:
