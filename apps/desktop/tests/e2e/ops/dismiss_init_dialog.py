@@ -23,10 +23,21 @@ import asyncio
 from ai_dev_browser.core.page import js_evaluate
 
 
-# Probe both terminal states in one round-trip: the Skip button (init gate up)
-# and a visible send-box textarea (already in the app). Mirrors the visibility
-# rule in wait_for_app_ready — a textarea in the DOM but offscreen (login
-# screen, unmounted dialog) does not count as booted.
+# Probe every terminal state in one round-trip: the Skip button (init gate up),
+# a visible send-box textarea (already in a conversation view), and the app
+# shell mounted on some other route. Mirrors the visibility rule in
+# wait_for_app_ready — a textarea in the DOM but offscreen (login screen,
+# unmounted dialog) does not count as booted.
+#
+# The off-route state is why the shell check exists at all: cases share one
+# app instance, so the previous case can leave the app on Skill Store or
+# Settings, where no send-box exists. Treating that as `pending` burned the
+# full timeout and then blamed a renderer that had mounted minutes earlier.
+# Being off-route is booted — the prelude's `reset_conversation` navigates to
+# /guid next and `wait_for_app_ready` still has to prove interactivity there,
+# so a wrong guess here costs seconds downstream instead of the whole case.
+# Any route but the login screen counts, rather than an allowlist of in-app
+# routes that would go stale the next time a route is renamed.
 _PROBE = """
 (function() {
     var buttons = Array.prototype.slice.call(document.querySelectorAll('button'));
@@ -38,6 +49,12 @@ _PROBE = """
 
     var ta = document.querySelector('textarea');
     if (ta && ta.offsetHeight > 0 && ta.offsetWidth > 0) return 'already-booted';
+
+    var root = document.getElementById('root');
+    var hash = location.hash || '';
+    if (root && root.childElementCount > 0 && hash.length > 2 && hash.indexOf('#/login') !== 0) {
+        return 'booted-off-route';
+    }
 
     return 'pending';
 })()
@@ -53,9 +70,11 @@ async def dismiss_init_dialog(tab, timeout: float = 180, poll_interval: float = 
         poll_interval: Seconds between probes.
 
     Returns:
-        {"pass": True, "state": "dismissed"}      — init dialog was up; Skip clicked.
-        {"pass": True, "state": "already-booted"} — app was already in the main UI.
-        {"pass": False, "reason": ...}            — neither state within `timeout`
+        {"pass": True, "state": "dismissed"}         — init dialog was up; Skip clicked.
+        {"pass": True, "state": "already-booted"}    — app was already in a conversation view.
+        {"pass": True, "state": "booted-off-route"}  — app shell is up on a non-chat
+            route left behind by the previous case.
+        {"pass": False, "reason": ...}               — no such state within `timeout`
             (renderer never mounted, stuck on login, crashed on boot).
     """
     deadline = asyncio.get_running_loop().time() + timeout
@@ -71,8 +90,8 @@ async def dismiss_init_dialog(tab, timeout: float = 180, poll_interval: float = 
             await asyncio.sleep(2)
             return {"pass": True, "state": "dismissed"}
 
-        if state == "already-booted":
-            return {"pass": True, "state": "already-booted"}
+        if state in ("already-booted", "booted-off-route"):
+            return {"pass": True, "state": state}
 
         await asyncio.sleep(poll_interval)
 
