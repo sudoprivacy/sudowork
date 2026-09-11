@@ -34,5 +34,9 @@ tests/e2e/screenshots/
 tests/e2e/results/
 tests/e2e/report/
 tests/e2e/output/
+# ai-dev-browser drops screenshots in ./output/ relative to cwd when run_op.py
+# is called without --path, so this lands here whenever the suite is driven
+# from apps/desktop.
+output/
 tests/e2e/__pycache__/
 tests/e2e/ops/__pycache__/
