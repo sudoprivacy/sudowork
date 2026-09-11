@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
 import { IconEdit, IconLock, IconMobile, IconUser } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +22,7 @@ import ChangePasswordModal from './components/ChangePasswordModal';
 
 const UserProfile: React.FC = () => {
   const { t } = useTranslation();
-  const { user: currentUser, refresh: refreshAuth, ensureValidToken, forceRefreshToken } = useAuth();
+  const { user: currentUser, refresh: refreshAuth, authFetch } = useAuth();
   const { profile, stats, refresh: refreshDashboard } = useDashboardStats();
   const { isEnterprise } = useAppMode();
   const [editingNickname, setEditingNickname] = useState('');
@@ -32,40 +32,6 @@ const UserProfile: React.FC = () => {
 
   // Enterprise mode state
   const [enterpriseProfile, setEnterpriseProfile] = useState<UserProfileData | null>(null);
-
-  // 带自动刷新的 fetch 封装（仅用于昵称更新等写操作；读路径已迁移到 DashboardStatsContext）
-  const fetchWithAuth = useCallback(
-    async (url: string, options: RequestInit = {}, retry = true): Promise<Response> => {
-      const token = await ensureValidToken();
-      if (!token) {
-        throw new Error('NO_TOKEN');
-      }
-
-      const headers = {
-        ...options.headers,
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await fetch(url, { ...options, headers });
-
-      // 如果返回 401，尝试强制刷新 token 后重试一次
-      if (response.status === 401 && retry) {
-        console.log('[UserProfile] Got 401, attempting force token refresh...');
-        const newToken = await forceRefreshToken();
-        if (newToken) {
-          // 用新 token 重试
-          const retryHeaders = {
-            ...options.headers,
-            Authorization: `Bearer ${newToken}`,
-          };
-          return fetch(url, { ...options, headers: retryHeaders });
-        }
-      }
-
-      return response;
-    },
-    [ensureValidToken, forceRefreshToken]
-  );
 
   // Enterprise mode: fetch user profile from MOSS server
   const fetchEnterpriseProfile = async () => {
@@ -106,17 +72,11 @@ const UserProfile: React.FC = () => {
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
 
-      const res = await fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/update-profile`, {
+      const res = await authFetch(`${serverConfig.baseUrl}/api/v1/user/update-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nickname: editingNickname.trim() }),
       });
-
-      // 检查 401
-      if (res.status === 401) {
-        Message.error(t('settings.userProfile.loginExpired', '登录状态已过期，请重新登录'));
-        return;
-      }
 
       const data = await res.json();
       if (data.success) {

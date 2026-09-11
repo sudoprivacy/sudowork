@@ -29,7 +29,7 @@ const PANEL_CLASS = 'p-6 bg-muted rd-16px border border-light';
 
 const RechargeCenter: React.FC = () => {
   const { t } = useTranslation();
-  const { user: currentUser, refresh, ensureValidToken, forceRefreshToken } = useAuth();
+  const { user: currentUser, refresh, authFetch } = useAuth();
 
   // Points state
   const [stats, setStats] = useState<any>(null);
@@ -53,38 +53,6 @@ const RechargeCenter: React.FC = () => {
   const pollCountRef = useRef(0);
   const MAX_POLL_COUNT = 600; // 30 minutes / 3 seconds
 
-  // Fetch with auth
-  const fetchWithAuth = useCallback(
-    async (url: string, options: RequestInit = {}, retry = true): Promise<Response> => {
-      const token = await ensureValidToken();
-      if (!token) {
-        throw new Error('NO_TOKEN');
-      }
-
-      const headers = {
-        ...options.headers,
-        Authorization: `Bearer ${token}`,
-      };
-
-      const response = await fetch(url, { ...options, headers });
-
-      if (response.status === 401 && retry) {
-        console.log('[RechargeCenter] Got 401, attempting force token refresh...');
-        const newToken = await forceRefreshToken();
-        if (newToken) {
-          const retryHeaders = {
-            ...options.headers,
-            Authorization: `Bearer ${newToken}`,
-          };
-          return fetch(url, { ...options, headers: retryHeaders });
-        }
-      }
-
-      return response;
-    },
-    [ensureValidToken, forceRefreshToken]
-  );
-
   // Fetch stats and packages
   const fetchStats = useCallback(async () => {
     if (!currentUser?.token) return;
@@ -92,7 +60,7 @@ const RechargeCenter: React.FC = () => {
     setStatsLoading(true);
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const response = await fetchWithAuth(`${serverConfig.baseUrl}/api/v1/user/dashboard`);
+      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/user/dashboard`);
       const data = await response.json();
       if (data.success) {
         setStats(data.data.points);
@@ -102,7 +70,7 @@ const RechargeCenter: React.FC = () => {
     } finally {
       setStatsLoading(false);
     }
-  }, [currentUser?.token, fetchWithAuth]);
+  }, [currentUser?.token, authFetch]);
 
   const fetchPackages = useCallback(async () => {
     if (!currentUser?.token) return;
@@ -110,7 +78,7 @@ const RechargeCenter: React.FC = () => {
     setLoading(true);
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const response = await fetchWithAuth(`${serverConfig.baseUrl}/api/v1/recharge/packages`);
+      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/recharge/packages`);
       const data = await response.json();
       if (data.success) {
         setPackages(data.data);
@@ -121,7 +89,7 @@ const RechargeCenter: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.token, fetchWithAuth, t]);
+  }, [currentUser?.token, authFetch, t]);
 
   // Stop polling
   const stopPolling = useCallback(() => {
@@ -191,7 +159,7 @@ const RechargeCenter: React.FC = () => {
       const baseUrl = serverConfig.baseUrl;
 
       // Step 1: Create order
-      const createRes = await fetchWithAuth(`${baseUrl}/api/v1/recharge/create`, {
+      const createRes = await authFetch(`${baseUrl}/api/v1/recharge/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -211,7 +179,7 @@ const RechargeCenter: React.FC = () => {
       setExpiredAt(new Date(order.expired_at));
 
       // Step 2: Get QR code
-      const payRes = await fetchWithAuth(`${baseUrl}/api/v1/recharge/pay`, {
+      const payRes = await authFetch(`${baseUrl}/api/v1/recharge/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_no: order.order_no }),
@@ -235,7 +203,7 @@ const RechargeCenter: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.token, selectedPackage, paymentMethod, fetchWithAuth, t, startPolling]);
+  }, [currentUser?.token, selectedPackage, paymentMethod, authFetch, t, startPolling]);
 
   // Cancel order
   const handleCancelOrder = useCallback(async () => {
