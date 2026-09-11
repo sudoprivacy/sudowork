@@ -21,8 +21,16 @@ import SidebarNavItem from '@renderer/layouts/components/SidebarNavItem';
 /** Builtin settings tab IDs in display order (must match router paths). */
 const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'tools', 'skill', 'security', 'display', 'channels', 'runtime', 'system', 'about'] as const; // 隐藏'copilot'；'cron'已移至左侧边栏
 
-/** Enterprise mode builtin tab IDs (restricted subset). */
-const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'mcp', 'display', 'channels', 'system', 'about'] as const;
+/**
+ * Enterprise mode builtin tab IDs (restricted subset).
+ *
+ * `recharge` is listed even though this is the restricted set: the entry is
+ * already gated on the server's `recharge_mode`, so a deployment that declares
+ * `disabled` still hides it. Leaving it out of the list instead meant a control
+ * plane could serve points and applications and no one could reach the page —
+ * the route existed, the menu never offered it.
+ */
+const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'recharge', 'mcp', 'display', 'channels', 'system', 'about'] as const;
 
 type SiderItem = {
   id: string;
