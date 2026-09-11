@@ -61,7 +61,12 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        const tabs = (await extensionsIpc.getSettingsTabs.invoke()) ?? [];
+        // `?? []` is not enough: a bridge channel with no host mapping resolves
+        // an IBridgeResponse object rather than rejecting, and an object
+        // survives the nullish check to be iterated later — which takes the
+        // whole settings sidebar down, several seconds after it rendered fine.
+        const raw = await extensionsIpc.getSettingsTabs.invoke();
+        const tabs = Array.isArray(raw) ? raw : [];
         if (tabs.length > 0 || attempt === maxAttempts - 1) {
           return tabs;
         }

@@ -1034,6 +1034,11 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
 
   // --- extensions: web host has no local extension host; consumers tolerate []. ---
+  // Extensions do not run in the browser host. These answer with an empty
+  // list rather than falling through to `not-supported-on-web`, which
+  // resolves an IBridgeResponse object — a caller expecting an array then
+  // iterates it and throws.
+  'extensions.get-settings-tabs': async () => [],
   'extensions.get-assistants': async () => [],
   'extensions.get-acp-adapters': async () => [],
 
