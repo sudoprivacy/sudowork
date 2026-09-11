@@ -14,7 +14,7 @@ import { closePool, getPool } from './db.js'
 
 const config = loadConfig()
 
-const app = createApp({ publicOrigin: config.publicOrigin })
+const app = createApp({ publicOrigin: config.publicOrigin, trustProxy: config.trustProxy })
 const pool: Pool = getPool(config.databaseUrl)
 const mossAuth = createMossAuthPort(mossRequest)
 

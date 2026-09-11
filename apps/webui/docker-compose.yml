@@ -26,6 +26,10 @@ services:
       SESSION_HMAC_KEY: ${SESSION_HMAC_KEY}
       TOKEN_AES_KEY: ${TOKEN_AES_KEY}
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN}
+      # This compose normally sits behind an nginx/Caddy layer. Left off, req.ip
+      # is always the gateway's address and the login rate limit (10 per 15
+      # minutes) is shared by every user of the deployment.
+      TRUST_PROXY: ${TRUST_PROXY:-true}
       MOSS_BASE_URL: ${MOSS_BASE_URL}
       MOSS_WS_BASE_URL: ${MOSS_WS_BASE_URL}
       PORT: '26808'

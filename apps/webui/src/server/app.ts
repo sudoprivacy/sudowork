@@ -62,10 +62,22 @@ export const globalTerminalManager = new TerminalManager()
 
 export interface AppDeps {
   publicOrigin: string
+  trustProxy?: boolean
 }
 
 export function createApp(deps: AppDeps): Express {
   const app = express()
+
+  // One hop, not `true`, when a reverse proxy is configured.
+  //
+  // `true` takes the leftmost X-Forwarded-For entry, which is the part a client
+  // can write itself; `1` trusts only the adjacent hop — the segment nginx
+  // appends — so a forged value is skipped. The difference is not theoretical:
+  // the five login routes share one counter of 10 per 15 minutes, bucketed by
+  // req.ip. Left unset, req.ip is always nginx's address, so everyone shares
+  // those 10 and a few bad password attempts lock out the rest; set to `true`,
+  // any caller picks their own bucket and the limit stops meaning anything.
+  app.set('trust proxy', deps.trustProxy ? 1 : false)
 
   app.get('/health/live', (_req, res) => {
     res.json({ status: 'ok' })
