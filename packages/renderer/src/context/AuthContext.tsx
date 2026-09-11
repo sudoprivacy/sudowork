@@ -370,6 +370,9 @@ function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: st
 // ({ user: { id, name }, organization, role, scopes }). No real token is handed
 // to the browser — the storage below only satisfies the EeclawAuthStorage shape
 // the existing enterprise branches read.
+/** Stands in for a bearer on the web host, where the session cookie is the real credential. */
+const WEB_SESSION_TOKEN = 'web-session';
+
 async function fetchWebSession(): Promise<AuthUser | null> {
   try {
     const response = await fetch('/api/auth/session', {
@@ -392,6 +395,14 @@ async function fetchWebSession(): Promise<AuthUser | null> {
       // 企业标识：让技能「专属」tab 通过非空门槛并让 handler 分流到 /tenant
       // （/tenant 取数按登录 session 企业身份返回，不依赖此值内容）
       enterprise_code: data.organization?.id,
+      // The placeholder the rest of the app tests for. Twenty-odd screens gate
+      // their data fetching on `user.token` being present, which on the desktop
+      // carries a real bearer. Here the cookie is the credential and nothing
+      // needs the value — but leaving the field empty silently switched every
+      // one of those screens off: the settings pages rendered their zero state
+      // and never issued a request. `ensureValidToken()` returns this same
+      // placeholder, so the two agree.
+      token: WEB_SESSION_TOKEN,
     };
   } catch {
     return null;
@@ -400,7 +411,7 @@ async function fetchWebSession(): Promise<AuthUser | null> {
 
 function buildWebAuthStorage(user: AuthUser): string {
   return JSON.stringify({
-    access_token: 'web-session',
+    access_token: WEB_SESSION_TOKEN,
     refresh_token: '',
     expires_at: Date.now() + 24 * 60 * 60 * 1000,
     user,
@@ -856,7 +867,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       if (eeclawStored) {
         // Web host: the placeholder token is opaque to callers; the cookie
         // session is the real credential. refresh() re-validates on page load.
-        if (isWebRuntime) return 'web-session';
+        if (isWebRuntime) return WEB_SESSION_TOKEN;
         try {
           const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
           const { access_token, expires_at } = authStorage;
@@ -1319,7 +1330,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             data: {
               // The cookie is the session on web; this placeholder keeps the
               // shared finaliser's shape without handing the browser a real token.
-              access_token: 'web-session',
+              access_token: WEB_SESSION_TOKEN,
               refresh_token: '',
               expires_in: 24 * 60 * 60,
               user: {
@@ -1407,7 +1418,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             data: {
               // The cookie is the session on web; this placeholder keeps the
               // shared finaliser's shape without handing the browser a real token.
-              access_token: 'web-session',
+              access_token: WEB_SESSION_TOKEN,
               refresh_token: '',
               expires_in: 24 * 60 * 60,
               user: {
@@ -1713,7 +1724,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             {
               success: true,
               data: {
-                access_token: 'web-session',
+                access_token: WEB_SESSION_TOKEN,
                 refresh_token: '',
                 expires_in: 24 * 60 * 60,
                 user: {

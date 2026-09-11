@@ -46,7 +46,12 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
 );
 
 // Enterprise-allowed settings paths
-const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/mcp', '/settings/display', '/settings/channels', '/settings/system', '/settings/about'];
+// Enterprise mode narrows the settings area to these paths. Kept in step with
+// ENTERPRISE_BUILTIN_TAB_IDS in SettingsSider: the menu decides what is
+// offered and this decides what is reachable, so a path missing from either
+// one is unreachable — `/settings/recharge` was missing from both, which is
+// why a control plane could serve credits that no one could open.
+const ENTERPRISE_ALLOWED_PATHS = ['/settings/profile', '/settings/enterprise', '/settings/recharge', '/settings/mcp', '/settings/display', '/settings/channels', '/settings/system', '/settings/about'];
 
 // Mode-aware default settings route
 const SettingsDefaultRoute: React.FC = () => {
