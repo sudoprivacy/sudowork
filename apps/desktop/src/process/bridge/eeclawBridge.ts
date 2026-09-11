@@ -42,6 +42,17 @@ function emitAuthRequired(reason: 'no_refresh_token' | 'refresh_failed'): void {
   }
 }
 
+async function markAuthRequired(reason: 'no_refresh_token' | 'refresh_failed'): Promise<void> {
+  await withAuthStorageLock(async () => {
+    await ProcessConfig.set('eeclaw.authStorage', null);
+    await ProcessConfig.set('eeclaw.localModeAvailable', null);
+    setCachedAuthToken('');
+    setCachedLocalModeAvailable(null);
+    resetConversationProvider();
+  });
+  emitAuthRequired(reason);
+}
+
 export async function getValidToken(forceRefresh = false): Promise<string> {
   const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
   const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
@@ -72,7 +83,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
   // token): there is nothing to retry — surface a single re-login prompt
   // instead of looping on "No refresh token available".
   if (!refresh_token) {
-    emitAuthRequired('no_refresh_token');
+    await markAuthRequired('no_refresh_token');
     throw new Error('AUTH_REQUIRED: session is not refreshable, please sign in again');
   }
 
@@ -149,7 +160,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
         // The server definitively rejected the refresh (not a network blip) —
         // the session is dead and only an interactive re-login can recover it.
         if (response.status === 401 || data?.error === 'Invalid refresh token') {
-          emitAuthRequired('refresh_failed');
+          await markAuthRequired('refresh_failed');
         }
         throw new Error(data?.error || 'token_refresh_failed');
       }
@@ -391,9 +402,9 @@ export function initEeclawBridge(): void {
         return { success: false, error: 'no_server_url' as const, data: undefined };
       }
 
-      const accessToken = await getValidToken();
+      let accessToken = await getValidToken();
 
-      const response = await fetch(`${serverUrl}/api/v1/user/profile`, {
+      let response = await fetch(`${serverUrl}/api/v1/user/profile`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -403,6 +414,19 @@ export function initEeclawBridge(): void {
       });
 
       if (response.status === 401) {
+        accessToken = await getValidToken(true);
+        response = await fetch(`${serverUrl}/api/v1/user/profile`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+      }
+
+      if (response.status === 401) {
+        await markAuthRequired('refresh_failed');
         return { success: false, error: 'unauthorized' as const, data: undefined };
       }
 
@@ -418,6 +442,9 @@ export function initEeclawBridge(): void {
       return { success: false, error: 'server_error' as const, data: undefined };
     } catch (error) {
       mainWarn('eeclawBridge', 'getUserProfile error:', error);
+      if (error instanceof Error && (error.message.includes('AUTH_REQUIRED') || error.message.includes('Invalid refresh token'))) {
+        return { success: false, error: 'unauthorized' as const, data: undefined };
+      }
       return { success: false, error: 'network_error' as const, data: undefined };
     }
   });
@@ -429,9 +456,9 @@ export function initEeclawBridge(): void {
         return { success: false, error: 'no_server_url' as const, data: undefined };
       }
 
-      const accessToken = await getValidToken();
+      let accessToken = await getValidToken();
 
-      const response = await fetch(`${serverUrl}/api/v1/agents/installed`, {
+      let response = await fetch(`${serverUrl}/api/v1/agents/installed`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -441,6 +468,19 @@ export function initEeclawBridge(): void {
       });
 
       if (response.status === 401) {
+        accessToken = await getValidToken(true);
+        response = await fetch(`${serverUrl}/api/v1/agents/installed`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+      }
+
+      if (response.status === 401) {
+        await markAuthRequired('refresh_failed');
         return { success: false, error: 'unauthorized' as const, data: undefined };
       }
 
@@ -461,6 +501,9 @@ export function initEeclawBridge(): void {
       return { success: true, data: assistants };
     } catch (error) {
       mainWarn('eeclawBridge', 'getCloudAssistants error:', error);
+      if (error instanceof Error && (error.message.includes('AUTH_REQUIRED') || error.message.includes('Invalid refresh token'))) {
+        return { success: false, error: 'unauthorized' as const, data: undefined };
+      }
       return { success: false, error: 'network_error' as const, data: undefined };
     }
   });

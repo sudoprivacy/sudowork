@@ -17,7 +17,7 @@ const STATUS_COLOR: Record<CreditApplicationStatus, string> = {
 
 export default function CreditApplicationPanel({ onSubmitted }: ICreditApplicationPanelProps) {
   const { t } = useTranslation();
-  const { user: currentUser, ensureValidToken } = useAuth();
+  const { user: currentUser, authFetch } = useAuth();
   const [form] = Form.useForm();
   const [applications, setApplications] = useState<CreditApplication[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,11 +40,7 @@ export default function CreditApplicationPanel({ onSubmitted }: ICreditApplicati
     setIsLoading(true);
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const token = await ensureValidToken();
-      if (!token) return;
-      const response = await fetch(`${serverConfig.baseUrl}/api/v1/credit-applications?page=1&pageSize=50`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/credit-applications?page=1&pageSize=50`);
       const data = await response.json();
       if (data.success) {
         setApplications(data.data?.list || []);
@@ -57,7 +53,7 @@ export default function CreditApplicationPanel({ onSubmitted }: ICreditApplicati
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.token, ensureValidToken, t]);
+  }, [currentUser?.token, authFetch, t]);
 
   useEffect(() => {
     void fetchApplications();
@@ -68,12 +64,9 @@ export default function CreditApplicationPanel({ onSubmitted }: ICreditApplicati
     setIsSubmitting(true);
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const token = await ensureValidToken();
-      if (!token) return;
-      const response = await fetch(`${serverConfig.baseUrl}/api/v1/credit-applications`, {
+      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/credit-applications`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

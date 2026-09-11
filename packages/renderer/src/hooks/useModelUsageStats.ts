@@ -30,7 +30,7 @@ interface UseModelUsageStatsResult {
 }
 
 export function useModelUsageStats(): UseModelUsageStatsResult {
-  const { user: currentUser, ensureValidToken } = useAuth();
+  const { user: currentUser, authFetch } = useAuth();
   const [data, setData] = useState<ModelUsageData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,16 +44,7 @@ export function useModelUsageStats(): UseModelUsageStatsResult {
 
       try {
         const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-        const token = await ensureValidToken();
-        if (!token) {
-          setError('NO_TOKEN');
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`${serverConfig.baseUrl}/api/v1/user/model-usage-stats?start_date=${startDate}&end_date=${endDate}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await authFetch(`${serverConfig.baseUrl}/api/v1/user/model-usage-stats?start_date=${startDate}&end_date=${endDate}`);
 
         const result: ModelUsageStatsResponse = await response.json();
 
@@ -69,7 +60,7 @@ export function useModelUsageStats(): UseModelUsageStatsResult {
         setLoading(false);
       }
     },
-    [currentUser?.token, ensureValidToken]
+    [currentUser?.token, authFetch]
   );
 
   return { data, loading, error, fetchStats };

@@ -190,6 +190,7 @@ type SetAuthUser = (user: AuthUser | null) => void;
 type SetAuthStatus = (status: AuthStatus) => void;
 type SetAuthReady = (ready: boolean) => void;
 type SetSyncMessage = (message: string | null) => void;
+type RefreshResult = { status: 'success'; accessToken: string } | { status: 'auth_expired' | 'failed'; reason?: string };
 
 // Enterprise login params
 interface EnterpriseLoginParams {
@@ -211,6 +212,7 @@ interface AuthContextValue {
   status: AuthStatus;
   isGuest: boolean;
   syncMessage: string | null;
+  authFetch: (url: string, options?: RequestInit) => Promise<Response>;
   login: (params: LoginParams) => Promise<LoginResult>;
   register: (params: RegisterParams) => Promise<RegisterResult>;
   logout: () => Promise<void>;
@@ -424,6 +426,20 @@ function resolveConsumerUserId(user: Partial<AuthUser>): string | undefined {
 
 function resolveConsumerTenantId(user: Partial<AuthUser> & { tenant_id?: string }, fallbackTenantId?: string): string | undefined {
   return resolveString(user.tenant_id) || resolveString(user.enterprise_code) || resolveString(fallbackTenantId);
+}
+
+function isAuthRejectedResponse(status: number, body?: unknown): boolean {
+  if (status === 401 || status === 403) return true;
+  const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+  const code = resolveString(record.error) || resolveString(record.code) || resolveString(record.msg) || resolveString(record.message);
+  if (!code) return false;
+  return /invalid.*refresh|refresh.*invalid|expired|unauthorized|forbidden|auth.*required/i.test(code);
+}
+
+function withAuthorizationHeader(headers: HeadersInit | undefined, token: string): Headers {
+  const nextHeaders = new Headers(headers);
+  nextHeaders.set('Authorization', `Bearer ${token}`);
+  return nextHeaders;
 }
 
 // 同步图像生成模型到 sudocode/sudoclaw：尊重用户已保存的选择，不再无条件覆盖为默认值
@@ -678,10 +694,41 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const abortRef = useRef<AbortController | null>(null);
 
   // Mutex to prevent concurrent refresh calls
-  const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+  const refreshPromiseRef = useRef<Promise<RefreshResult> | null>(null);
   // Cooldown to prevent rapid repeated refresh
   const lastRefreshAtRef = useRef<number>(0);
   const REFRESH_COOLDOWN_MS = 30_000;
+  const isExpiringAuthRef = useRef(false);
+
+  const expireAuth = useCallback(async (reason: string) => {
+    if (isExpiringAuthRef.current) return;
+    isExpiringAuthRef.current = true;
+    try {
+      console.warn('[Auth] Session expired, clearing local auth state:', reason);
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem('sudowork_auth_v1');
+      localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
+      localStorage.removeItem(GUEST_FLAG_KEY);
+
+      setUser(null);
+      setStatus('unauthenticated');
+      setSyncMessage(null);
+      setReady(true);
+
+      if (!isDesktopRuntime) return;
+
+      await Promise.allSettled([
+        ConfigStorage.set('consumer.userInfo', undefined),
+        ConfigStorage.set('eeclaw.authStorage', undefined),
+        ConfigStorage.set('eeclaw.userInfo', undefined),
+        ConfigStorage.set('eeclaw.localModeAvailable', undefined),
+        ipcBridge.sudoworkAuth.clearConsumerUserId.invoke(),
+        ipcBridge.eeclaw.logout.invoke(),
+      ]);
+    } finally {
+      isExpiringAuthRef.current = false;
+    }
+  }, []);
 
   // Enter guest mode (unauthenticated use): restore guest custom models, set flag + status.
   // Caller is responsible for navigate('/guid').
@@ -692,10 +739,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, []);
 
   // Token 刷新函数 — supports both C-side and enterprise mode
-  const refreshTokens = useCallback(async (): Promise<boolean> => {
+  const refreshTokens = useCallback(async ({ force = false }: { force?: boolean } = {}): Promise<RefreshResult> => {
     // Cooldown: skip if refreshed recently
-    if (Date.now() - lastRefreshAtRef.current < REFRESH_COOLDOWN_MS) {
-      return false;
+    if (!force && Date.now() - lastRefreshAtRef.current < REFRESH_COOLDOWN_MS) {
+      return { status: 'failed', reason: 'refresh_cooldown' };
     }
 
     // Dedup: if already refreshing, wait for it
@@ -719,7 +766,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               /* malformed storage — refresh() will clear it */
             }
             lastRefreshAtRef.current = Date.now();
-            return true;
+            return { status: 'success', accessToken: 'web-session' };
           }
           try {
             const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
@@ -738,23 +785,27 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               setUser({ ...authStorage.user, token: result.data.access_token });
               lastRefreshAtRef.current = Date.now();
               console.log('[Auth] Enterprise token refreshed successfully via IPC');
-              return true;
+              return { status: 'success', accessToken: result.data.access_token };
             }
             console.error('[Auth] Enterprise token refresh via IPC failed');
-            return false;
+            const error = 'error' in result ? result.error : result.msg;
+            return isAuthRejectedResponse(0, { error }) || String(error || '').includes('AUTH_REQUIRED') ? { status: 'auth_expired', reason: String(error || 'enterprise_refresh_failed') } : { status: 'failed', reason: String(error || 'enterprise_refresh_failed') };
           } catch (error) {
             console.error('[Auth] Enterprise token refresh via IPC failed:', error);
-            return false;
+            return { status: 'failed', reason: error instanceof Error ? error.message : String(error) };
           }
         }
 
         // C-side mode: refresh from sudowork server
         const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-        if (!stored) return false;
+        if (!stored) return { status: 'failed', reason: 'missing_auth_storage' };
 
         try {
           const authStorage: AuthStorage = JSON.parse(stored);
           const { refresh_token, device_id } = authStorage;
+          if (!refresh_token) {
+            return { status: 'auth_expired', reason: 'missing_refresh_token' };
+          }
 
           const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/refresh`, {
             method: 'POST',
@@ -762,28 +813,33 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             body: JSON.stringify({ refresh_token, device_id }),
           });
 
-          const data = await response.json();
-          if (data.success) {
+          const data = (await response.json().catch((): unknown => ({}))) as Record<string, unknown>;
+          if (data.success === true) {
+            const body = data as { access_token: string; refresh_token: string; expires_in: number };
             const newStorage: AuthStorage = {
-              access_token: data.access_token,
-              refresh_token: data.refresh_token,
-              expires_at: Date.now() + data.expires_in * 1000,
+              access_token: body.access_token,
+              refresh_token: body.refresh_token,
+              expires_at: Date.now() + body.expires_in * 1000,
               user: authStorage.user,
               device_id: device_id || getDeviceId(),
               session: authStorage.session,
             };
 
             localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newStorage));
-            setUser({ ...authStorage.user, token: data.access_token });
+            setUser({ ...authStorage.user, token: body.access_token });
             lastRefreshAtRef.current = Date.now();
             console.log('[Auth] Token refreshed successfully');
-            return true;
+            return { status: 'success', accessToken: body.access_token };
+          }
+          if (isAuthRejectedResponse(response.status, data)) {
+            return { status: 'auth_expired', reason: 'consumer_refresh_rejected' };
           }
         } catch (error) {
           console.error('[Auth] Token refresh failed:', error);
+          return { status: 'failed', reason: error instanceof Error ? error.message : String(error) };
         }
 
-        return false;
+        return { status: 'failed', reason: 'refresh_failed' };
       } finally {
         refreshPromiseRef.current = null;
       }
@@ -806,16 +862,18 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           const { access_token, expires_at } = authStorage;
 
           if (forceRefresh || (expires_at && Date.now() > expires_at - 5 * 60 * 1000)) {
-            const refreshed = await refreshTokens();
-            if (refreshed) {
-              const newStorage = JSON.parse(localStorage.getItem(EECLAW_AUTH_STORAGE_KEY) || '{}');
-              return newStorage.access_token || null;
+            const refreshed = await refreshTokens({ force: forceRefresh });
+            if (refreshed.status === 'success') {
+              return refreshed.accessToken;
             }
             // Refresh failed (e.g. provider has no refresh API). Keep using the
             // current access_token while it is still valid; only give up once it
             // has actually expired, at which point re-login is required.
             if (!forceRefresh && expires_at && Date.now() < expires_at) {
               return access_token;
+            }
+            if (refreshed.status === 'auth_expired') {
+              await expireAuth(refreshed.reason || 'enterprise_refresh_failed');
             }
             return null;
           }
@@ -835,12 +893,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           const { access_token, expires_at } = authStorage;
 
           if (forceRefresh || (expires_at && Date.now() > expires_at - 5 * 60 * 1000)) {
-            const refreshed = await refreshTokens();
-            if (!refreshed) {
+            const refreshed = await refreshTokens({ force: forceRefresh });
+            if (refreshed.status === 'success') {
+              return refreshed.accessToken;
+            }
+            if (refreshed.status === 'auth_expired') {
+              await expireAuth(refreshed.reason || 'consumer_refresh_failed');
               return null;
             }
-            const newStorage = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || '{}');
-            return newStorage.access_token || null;
+            return null;
           }
 
           return access_token;
@@ -862,7 +923,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
       return null;
     },
-    [refreshTokens]
+    [expireAuth, refreshTokens]
   );
 
   // 强制刷新 Token — supports both modes
@@ -872,34 +933,54 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     // Enterprise mode
     const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
     if (eeclawStored) {
-      try {
-        const authStorage: EeclawAuthStorage = JSON.parse(eeclawStored);
-        if (authStorage.refresh_token) {
-          return ensureValidToken(true);
-        }
-      } catch (error) {
-        console.error('[Auth] Failed to check enterprise auth storage:', error);
-      }
-      console.warn('[Auth] No enterprise refresh_token available, user needs to re-login');
-      return null;
+      return ensureValidToken(true);
     }
 
     // C-side
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
     if (stored) {
-      try {
-        const authStorage: AuthStorage = JSON.parse(stored);
-        if (authStorage.refresh_token) {
-          return ensureValidToken(true);
-        }
-      } catch (error) {
-        console.error('[Auth] Failed to check auth storage:', error);
-      }
+      return ensureValidToken(true);
     }
 
     console.warn('[Auth] No refresh_token available, user needs to re-login');
     return null;
   }, [ensureValidToken]);
+
+  const authFetch = useCallback(
+    async (url: string, options: RequestInit = {}): Promise<Response> => {
+      const token = await ensureValidToken();
+      if (!token) {
+        throw new Error('AUTH_UNAVAILABLE');
+      }
+
+      const response = await fetch(url, {
+        ...options,
+        headers: withAuthorizationHeader(options.headers, token),
+      });
+
+      if (response.status !== 401 && response.status !== 403) {
+        return response;
+      }
+
+      const newToken = await forceRefreshToken();
+      if (!newToken) {
+        throw new Error('AUTH_UNAVAILABLE');
+      }
+
+      const retryResponse = await fetch(url, {
+        ...options,
+        headers: withAuthorizationHeader(options.headers, newToken),
+      });
+
+      if (retryResponse.status === 401 || retryResponse.status === 403) {
+        await expireAuth('authenticated_request_unauthorized_after_retry');
+        throw new Error('AUTH_EXPIRED');
+      }
+
+      return retryResponse;
+    },
+    [ensureValidToken, expireAuth, forceRefreshToken]
+  );
 
   const refresh = useCallback(async () => {
     // === Web host (webui shared-renderer): restore from the webui cookie session ===
@@ -927,11 +1008,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         if (!authStorage.user) {
           localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
         } else {
-          setUser(authStorage.user);
-          setStatus('authenticated');
-          setReady(true);
-          await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
-
           // Sync token to ConfigStorage for eeclawBridge
           // Prefer ProcessConfig's refresh_token if it's newer (main process may have rotated it)
           try {
@@ -967,8 +1043,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
           // Check if token needs refresh
           if (authStorage.expires_at && Date.now() > authStorage.expires_at - 5 * 60 * 1000) {
-            await refreshTokens();
+            const refreshed = await refreshTokens({ force: true });
+            if (refreshed.status === 'auth_expired') {
+              await expireAuth(refreshed.reason || 'enterprise_refresh_rejected_on_restore');
+              return;
+            }
+            if (refreshed.status === 'failed' && Date.now() >= authStorage.expires_at) {
+              setUser(null);
+              setStatus('unauthenticated');
+              setReady(true);
+              return;
+            }
           }
+          const latestAuth = JSON.parse(localStorage.getItem(EECLAW_AUTH_STORAGE_KEY) || JSON.stringify(authStorage)) as EeclawAuthStorage;
+          setUser({ ...latestAuth.user, token: latestAuth.access_token });
+          setStatus('authenticated');
+          setReady(true);
+          await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
           return;
         }
       } catch {
@@ -989,11 +1080,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           setReady(true);
           return;
         }
-
-        setUser({ ...authStorage.user, token: authStorage.access_token });
-        setStatus('authenticated');
-        setReady(true);
-        await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
 
         const restoredUserId = resolveConsumerUserId(authStorage.user);
         // 从 localStorage 恢复登录状态时，也保存手机号到文件
@@ -1031,8 +1117,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
         // 检查 token 是否需要刷新
         if (authStorage.expires_at && Date.now() > authStorage.expires_at - 5 * 60 * 1000) {
-          await refreshTokens();
+          const refreshed = await refreshTokens({ force: true });
+          if (refreshed.status === 'auth_expired') {
+            await expireAuth(refreshed.reason || 'consumer_refresh_rejected_on_restore');
+            return;
+          }
+          if (refreshed.status === 'failed' && Date.now() >= authStorage.expires_at) {
+            setUser(null);
+            setStatus('unauthenticated');
+            setReady(true);
+            return;
+          }
         }
+        const latestAuth = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || JSON.stringify(authStorage)) as AuthStorage;
+        setUser({ ...latestAuth.user, token: latestAuth.access_token });
+        setStatus('authenticated');
+        setReady(true);
+        await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
         // §6.4 凭据注入必须在 token 刷新之后:冷启动时 access_token 可能已过期,
         // 若在刷新前注入,/system-config/credentials 会用过期 JWT 返回 401,凭据无法注入。
         void fetchAndCacheCredentials();
@@ -1127,7 +1228,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       setStatus('unauthenticated');
     }
     setReady(true);
-  }, [refreshTokens]);
+  }, [expireAuth, refreshTokens]);
 
   useEffect(() => {
     void refresh();
@@ -1176,14 +1277,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   useEffect(() => {
     const unsubscribe = ipcBridge.eeclaw.authRequired.on(({ reason }) => {
       console.warn(`[Auth] Enterprise session requires re-login (${reason})`);
-      localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
-      setUser(null);
-      setStatus('unauthenticated');
+      void expireAuth(`enterprise_auth_required:${reason}`);
     });
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [expireAuth]);
 
   const login = useCallback(async ({ phone, code, enterprise_code, invitation_code: _invitation_code, remember: _remember }: LoginParams): Promise<LoginResult> => {
     const deviceId = getDeviceId();
@@ -1852,6 +1951,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       status,
       isGuest: status === 'guest',
       syncMessage,
+      authFetch,
       login,
       register,
       logout,
@@ -1867,7 +1967,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       changePassword,
       enterGuest,
     }),
-    [login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, loginWithThirdPartyAuth, exchangeThirdPartyAuthCode, changePassword, enterGuest]
+    [authFetch, login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, loginWithThirdPartyAuth, exchangeThirdPartyAuthCode, changePassword, enterGuest]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

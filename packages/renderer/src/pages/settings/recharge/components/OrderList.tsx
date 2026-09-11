@@ -17,7 +17,7 @@ import { formatAmount, formatDateTime } from '../utils';
 
 const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => {
   const { t } = useTranslation();
-  const { user: currentUser, ensureValidToken } = useAuth();
+  const { user: currentUser, authFetch } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -27,12 +27,7 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
     setLoading(true);
     try {
       const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const token = await ensureValidToken();
-      if (!token) return;
-
-      const response = await fetch(`${serverConfig.baseUrl}/api/v1/recharge/list?page=1&pageSize=100`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/recharge/list?page=1&pageSize=100`);
       const data = await response.json();
 
       if (data.success) {
@@ -44,7 +39,7 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.token, ensureValidToken, t]);
+  }, [currentUser?.token, authFetch, t]);
 
   useEffect(() => {
     void fetchOrders();
