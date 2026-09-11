@@ -380,8 +380,13 @@ def main():
     OPS_DIR.mkdir(exist_ok=True)
 
     # Write primitives/__init__.py
+    #
+    # encoding="utf-8" on every write, not just the spec read above: the
+    # generated code carries non-ASCII (WebDriver "§", em-dashes), and
+    # write_text defaults to the locale encoding — on a Windows GBK box that
+    # silently rewrites all 13 files with mojibake.
     (PRIMITIVES_DIR / "__init__.py").write_text(
-        "# AUTO-GENERATED — DO NOT EDIT\n"
+        "# AUTO-GENERATED — DO NOT EDIT\n", encoding="utf-8"
     )
 
 
@@ -389,13 +394,13 @@ def main():
     generated_primitives = []
     for name in CORE_PARAMS:
         code = generate_primitive(name)
-        (PRIMITIVES_DIR / f"{name}.py").write_text(code)
+        (PRIMITIVES_DIR / f"{name}.py").write_text(code, encoding="utf-8")
         generated_primitives.append(name)
         print(f"  primitives/{name}.py")
 
     # Write ops/__init__.py
     (OPS_DIR / "__init__.py").write_text(
-        "# AUTO-GENERATED — DO NOT EDIT\n"
+        "# AUTO-GENERATED — DO NOT EDIT\n", encoding="utf-8"
     )
 
     # Keep registry.py (not generated)
@@ -406,7 +411,7 @@ def main():
     for name in CORE_PARAMS:
         spec = primitives_spec.get(name, {})
         code = generate_op(name, spec)
-        (OPS_DIR / f"{name}.py").write_text(code)
+        (OPS_DIR / f"{name}.py").write_text(code, encoding="utf-8")
         generated_ops.append(name)
         print(f"  ops/{name}.py")
 
