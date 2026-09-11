@@ -44,10 +44,32 @@ export function normalizeSudoworkServerUrl(raw: string | null | undefined): stri
 }
 
 /**
+ * Whether this is the browser host (apps/webui) rather than the desktop app.
+ *
+ * The desktop bundle has no `window.__sudoworkWebBridge`; the web adapter sets
+ * it at import time, before any of this runs.
+ */
+function isWebHost(): boolean {
+  return typeof window !== 'undefined'
+    && Boolean((window as { __sudoworkWebBridge?: boolean }).__sudoworkWebBridge);
+}
+
+/**
  * Resolve the current sudowork-server base URL (renderer / async context).
  * Reads the user setting on every call — no caching.
+ *
+ * On the browser host the answer is this origin, which fronts the server the
+ * session belongs to. The compiled-in default points at the consumer server,
+ * and a page served from somewhere else reaching for it is a cross-origin
+ * request that simply fails — which is not visible as a failure, because every
+ * caller here treats a failed config fetch as "unknown" and falls back to a
+ * default. That is how the web console came to show a payment UI for a
+ * deployment that had declared credit applications instead.
  */
 export async function getSudoworkServerBaseUrl(): Promise<string> {
   const raw = await ConfigStorage.get('system.sudoworkServerUrl').catch(() => undefined as unknown as string | undefined);
-  return normalizeSudoworkServerUrl(raw) ?? BUILD_SUDOWORK_SERVER_BASE_URL;
+  const configured = normalizeSudoworkServerUrl(raw);
+  if (configured) return configured;
+  if (isWebHost()) return window.location.origin;
+  return BUILD_SUDOWORK_SERVER_BASE_URL;
 }
