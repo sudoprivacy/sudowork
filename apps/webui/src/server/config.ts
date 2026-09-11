@@ -123,6 +123,13 @@ export function loadConfig(configPath?: string): AppConfig {
   if (process.env.PORT && /^\d+$/.test(process.env.PORT)) {
     file = { ...file, server: { ...file.server, port: Number(process.env.PORT) } }
   }
+  // Container deployments ship no config file and configure everything through
+  // the environment, so this setting had no way to be turned on: present in the
+  // schema, reachable from nowhere, leaving req.ip pinned to the gateway address
+  // behind a reverse proxy.
+  if (process.env.TRUST_PROXY) {
+    file = { ...file, trustProxy: /^(1|true)$/i.test(process.env.TRUST_PROXY.trim()) }
+  }
 
   const isProduction = process.env.NODE_ENV === 'production'
   const publicOriginUrl = new URL(file.publicOrigin)
