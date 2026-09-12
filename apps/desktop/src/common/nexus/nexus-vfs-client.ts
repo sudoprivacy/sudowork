@@ -51,6 +51,27 @@ export class Nexus {
   }
 
   /**
+   * Server identity and the zone currently serving, as a typed RPC.
+   *
+   * One of the few calls `nexusd-cluster` answers without a plugin behind it —
+   * `read`/`write` and this. The generic `call` dispatch below reaches kernel
+   * methods that this daemon does not register (`access`, `mkdir`, `readdir`
+   * and `ping` all come back as "unknown Call method"), so anything that must
+   * simply establish the daemon is answering has to go through here.
+   *
+   * Returning `zone_id` is what makes it usable as a liveness check rather than
+   * a transport check: it names the zone that answered.
+   */
+  public async serverInfo(): Promise<{ version?: string; zone_id?: string; uptime_seconds?: string }> {
+    try {
+      return await this.client.serverInfo(this.authToken);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new NexusError(`RPC error: serverInfo: ${msg}`);
+    }
+  }
+
+  /**
    * Generic gRPC Call RPC — dispatches to kernel method by name.
    */
   public async callRPC(method: string, params: Record<string, unknown>): Promise<unknown> {
