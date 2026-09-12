@@ -11,7 +11,9 @@ type SpawnImpl = () => Promise<unknown>;
 async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric: SpawnImpl }) {
   vi.resetModules();
   vi.doMock('@process/telemetry', () => ({ recordFirstToken: vi.fn() }));
-  vi.doMock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn() }));
+  const mainLog = vi.fn();
+  const mainWarn = vi.fn();
+  vi.doMock('@process/utils/mainLogger', () => ({ mainLog, mainWarn }));
   vi.doMock('@process/utils/shellEnv', () => ({ resolveNpxPath: vi.fn(() => 'npx') }));
   vi.doMock('@process/services/authProxy', () => ({
     getAuthProxyPort: vi.fn(() => null),
@@ -39,10 +41,13 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
     spawnGenericBackend: spawnGeneric,
   }));
 
+  const grpcSent: Array<{ id?: number; method?: string }> = [];
   class MockGrpcAcpTransport {
     connect = grpcConnect;
     close = grpcClose;
-    send = vi.fn();
+    send = vi.fn((message: { id?: number; method?: string }) => {
+      grpcSent.push(message);
+    });
     get connected() {
       return false;
     }
@@ -69,7 +74,7 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
   }));
 
   const mod = await import('@/agent/acp/AcpConnection');
-  return { AcpConnection: mod.AcpConnection, grpcConnect, spawnGeneric, buildSpec };
+  return { AcpConnection: mod.AcpConnection, grpcConnect, spawnGeneric, buildSpec, mainLog, mainWarn, grpcSent };
 }
 
 describe('AcpConnection nexus-tunnel routing', () => {
@@ -88,6 +93,45 @@ describe('AcpConnection nexus-tunnel routing', () => {
     expect(buildSpec).toHaveBeenCalledTimes(1); // tunnel path built the spawn-spec
     expect(grpcConnect).toHaveBeenCalledTimes(1); // tunnel connect was attempted
     expect(spawnGeneric).toHaveBeenCalledTimes(1); // …then fell back to local spawn
+  });
+
+  it('says which path a session took, in both directions', async () => {
+    // The defect this pins: two of the three outcomes used to be silent, so a
+    // session that never reached nexus read exactly like one that ran wholly
+    // over the tunnel. Asserting the log IS the regression guard — there is no
+    // other artefact that distinguishes them after the fact.
+    const failed = await loadAcpConnection({
+      grpcConnect: () => Promise.reject(new Error('TUNNEL_UNAVAILABLE')),
+      spawnGeneric: () => Promise.reject(new Error('LOCAL_SPAWN_REACHED')),
+    });
+    await expect(new failed.AcpConnection().connect('scode', '/opt/scode', '/tmp/ws', [], { ACP_GRPC_ENDPOINT: '127.0.0.1:65535' })).rejects.toThrow('LOCAL_SPAWN_REACHED');
+    expect(failed.mainWarn).toHaveBeenCalledWith('[ACP]', expect.stringContaining('falling back to local spawn'));
+
+    const ok = await loadAcpConnection({
+      grpcConnect: () => Promise.resolve(),
+      spawnGeneric: () => Promise.reject(new Error('LOCAL_SPAWN_MUST_NOT_RUN')),
+    });
+    const connection = new ok.AcpConnection();
+    const connecting = connection.connect('scode', '/opt/scode', '/tmp/ws', [], {
+      ACP_GRPC_ENDPOINT: '127.0.0.1:12022',
+    });
+    // The tunnel connects, then the ACP handshake runs. Answer it, or the
+    // connect never resolves and the success line is never reached.
+    await vi.waitFor(() => {
+      expect(ok.grpcSent.some((m) => m.method === 'initialize')).toBe(true);
+    });
+    const init = ok.grpcSent.find((m) => m.method === 'initialize')!;
+    (connection as unknown as { handleMessage: (m: unknown) => void }).handleMessage({
+      jsonrpc: '2.0',
+      id: init.id,
+      result: { protocolVersion: 1 },
+    });
+    await connecting;
+
+    expect(ok.spawnGeneric).not.toHaveBeenCalled();
+    // Names the endpoint, so the log says WHICH daemon served it, not merely
+    // that something did.
+    expect(ok.mainLog).toHaveBeenCalledWith('[ACP]', expect.stringContaining('127.0.0.1:12022'));
   });
 
   it('never attempts the tunnel when no endpoint is advertised', async () => {
