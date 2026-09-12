@@ -169,6 +169,35 @@ describe('DynamicNexusVfsService', () => {
     expect(dynamicNexusVfsService.isRunning).toBe(true);
   });
 
+  it('names a Windows heap-corruption crash instead of logging a bare number', async () => {
+    listSecrets.mockReturnValue([]);
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValue(child);
+
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    await dynamicNexusVfsService.start();
+
+    // 0xC0000374, as Node surfaces it on Windows — unsigned, not a negative
+    // int32. Getting that wrong makes the lookup silently never match.
+    child.emit('exit', 3221226356, null);
+
+    expect(mainError).toHaveBeenCalledWith('NexusVfs', expect.stringContaining('heap corruption'));
+    expect(mainError).toHaveBeenCalledWith('NexusVfs', expect.stringContaining('plugin-ABI-v5'));
+    expect(dynamicNexusVfsService.isRunning).toBe(false);
+  });
+
+  it('stays quiet on an ordinary exit', async () => {
+    listSecrets.mockReturnValue([]);
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValue(child);
+
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    await dynamicNexusVfsService.start();
+    child.emit('exit', 0, null);
+
+    expect(mainError).not.toHaveBeenCalled();
+  });
+
   it('proves the root zone serves rather than trusting the accepted connection', async () => {
     listSecrets.mockReturnValue([]);
 

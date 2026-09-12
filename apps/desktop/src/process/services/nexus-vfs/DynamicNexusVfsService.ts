@@ -46,6 +46,26 @@ const NEXUS_VFS_START_TIMEOUT_MS = 30_000;
 const NEXUS_VFS_ZONE_READY_TIMEOUT_MS = 10_000;
 const NEXUS_VAULT_READY_TIMEOUT_MS = 5_000;
 
+/**
+ * Windows NTSTATUS codes a crashing daemon exits with, named so the log says
+ * what happened instead of a nine-digit number nobody will recognise.
+ *
+ * Heap corruption is here for a specific reason. Up to nexus-vfs plugin ABI v5,
+ * a buffer allocated inside a plugin and freed by the host crossed two
+ * allocators — the host links mimalloc, plugin cdylibs link the system one. On
+ * Windows that traps as 0xC0000374; on Linux a foreign free does not trap, so
+ * the same bug is silent there. Every plugin that hands buffers back is in that
+ * shape, the vault service plugin included, and we ship Windows desktops on a
+ * v5 daemon until the 0.7.x upgrade lands. ABI v6 is the fix.
+ */
+// Unsigned, which is how Node surfaces them on Windows — 0xC0000374 arrives as
+// 3221226356, not as a negative int32.
+const WINDOWS_CRASH_EXIT_CODES: Record<number, string> = {
+  3221226356: 'heap corruption (STATUS_HEAP_CORRUPTION) — known plugin-ABI-v5 cross-allocator free',
+  3221225477: 'access violation (STATUS_ACCESS_VIOLATION)',
+  3221225725: 'stack overflow (STATUS_STACK_OVERFLOW)',
+};
+
 /** Marker file recording the installed version inside the bin directory. */
 const NEXUS_VFS_READY_MARKER = '.nexus-vfs-bin-ready';
 
@@ -523,6 +543,9 @@ class DynamicNexusVfsService {
     });
     this.process.on('exit', (code, signal) => {
       mainLog('NexusVfs', `Process exited — code=${code} signal=${signal} uptime=${Date.now() - spawnStart}ms`);
+      if (code !== null && WINDOWS_CRASH_EXIT_CODES[code]) {
+        mainError('NexusVfs', `Daemon crashed: ${WINDOWS_CRASH_EXIT_CODES[code]} (exit code ${code}).`);
+      }
       this._running = false;
     });
     this.process.on('error', (err) => {
@@ -646,15 +669,22 @@ class DynamicNexusVfsService {
   /**
    * Readiness that does not assume an accepted connection means a serving zone.
    *
-   * A TCP connect only proves the daemon bound its port. Upstream stopped
-   * opening persisted zones before it starts serving (nexus-vfs >=0.7 —
-   * a zone materializes on first access instead), so "the port answers" no
-   * longer implies "the root zone can serve". The eager boot that used to make
-   * that inference hold was an undocumented side effect of the old startup.
+   * A TCP connect only proves the daemon bound its port.
+   *
+   * Narrower than it first looks, and worth stating precisely because the
+   * obvious version of this claim is wrong: on a RESTART of a root-only install
+   * the port does still imply a live root zone, on 0.6.0 and on 0.7.x alike —
+   * 0.7's ZoneManager materializes the eager set (root, plus the credential
+   * zone) before the gRPC server accepts.
+   *
+   * Where it fails is FIRST boot: with no root on disk, the boot path creates it
+   * after the server is already accepting. That has never been true, 0.6.0
+   * included. It also stops holding for any node that hosts zones beyond the
+   * eager set, which is where the hosted model is headed.
    *
    * So gate on a real round trip through the VFS plane. `access` on the root is
-   * the cheapest call that forces materialization and reports a zone that
-   * cannot serve, rather than reporting the socket.
+   * the cheapest call that reports a zone which cannot serve, rather than
+   * reporting the socket.
    *
    * Kept separate from the vault probe below on purpose: that one returns early
    * whenever the plugin is missing or the platform is unsupported, which would
