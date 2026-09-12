@@ -16,6 +16,7 @@ import { transformMessage } from '@sudowork/common/chatLib';
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
+import { resolveTunnelEnv } from '@/agent/acp/tunnelEnv';
 import { CLAUDE_YOLO_SESSION_MODE, CODEBUDDY_YOLO_SESSION_MODE, IFLOW_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from '@/agent/acp/constants';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { getClaudeModel } from '@/agent/acp/utils';
@@ -453,18 +454,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // platform as of nexus-vfs#255 / nexusd-cluster 0.1.1. Scoped to scode —
       // the only backend proven end-to-end over the tunnel; others stay local
       // until validated.
-      if (data.backend === 'scode') {
-        const tunnelEndpoint = dynamicNexusVfsService.acpTunnelEndpoint;
-        if (tunnelEndpoint) {
-          customEnv = { ...customEnv, ACP_GRPC_ENDPOINT: tunnelEndpoint };
-        } else {
-          // Say so. A dial that fails is already warned about downstream, but
-          // this branch — the daemon not serving at all — used to take the local
-          // path without a word, so a session that never went near nexus was
-          // indistinguishable in the logs from one that did.
-          mainWarn('[AcpAgent]', 'nexus tunnel unavailable (nexusd-cluster not serving); spawning scode locally');
-        }
-      }
+      customEnv = {
+        ...customEnv,
+        ...resolveTunnelEnv(data.backend, dynamicNexusVfsService.acpTunnelEndpoint),
+      };
 
       this.extra = {
         ...this.extra,
