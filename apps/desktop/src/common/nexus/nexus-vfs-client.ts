@@ -7,8 +7,11 @@
  * Nexus RPC Client
  *
  * File I/O client backed by nexusd-cluster gRPC (port 12022).
- * Uses the official @nexus-ai-fs/vfs-client for typed Read/Write RPCs
- * and the generic Call RPC for stat/readdir/unlink/mkdir.
+ * Every file operation is a typed RPC on @nexus-ai-fs/vfs-client. The generic
+ * Call surface is kept only for what genuinely lives there (registry ops,
+ * `<service>.<method>` plugin dispatch) — it does NOT carry file operations,
+ * and hand-rolling them over it is how `exists`/`list`/`mkdir` came to fail
+ * silently against this daemon.
  *
  * Migrated from HTTP JSON-RPC (:12012) to gRPC (:12022) — all callers
  * (safety hooks, etc.) keep the same public API.
@@ -53,11 +56,9 @@ export class Nexus {
   /**
    * Server identity and the zone currently serving, as a typed RPC.
    *
-   * One of the few calls `nexusd-cluster` answers without a plugin behind it —
-   * `read`/`write` and this. The generic `call` dispatch below reaches kernel
-   * methods that this daemon does not register (`access`, `mkdir`, `readdir`
-   * and `ping` all come back as "unknown Call method"), so anything that must
-   * simply establish the daemon is answering has to go through here.
+   * A typed RPC, like every other file operation here. The generic `call`
+   * dispatch below does not carry these — `access`, `mkdir`, `readdir` and
+   * `ping` all come back as "unknown Call method" on it.
    *
    * Returning `zone_id` is what makes it usable as a liveness check rather than
    * a transport check: it names the zone that answered.
@@ -99,8 +100,8 @@ export class Nexus {
     try {
       const buf = await this.client.read(path, this.authToken);
       if (returnMetadata) {
-        // Fetch stat separately for metadata
-        const stat = (await this.callRPC('sys_stat', { path })) as Record<string, unknown> | null;
+        // Metadata comes from the typed Stat RPC, not the generic surface.
+        const stat = await this.client.stat(path, this.authToken);
         return { content: buf, ...(stat ?? {}) };
       }
       return buf;
@@ -110,13 +111,21 @@ export class Nexus {
     }
   }
 
+  /**
+   * Whether a path is there.
+   *
+   * False means the daemon said "not there". Every other failure throws —
+   * losing that distinction is what let a broken call read as a clean absence
+   * for months: this used to dispatch `access` through the generic Call
+   * surface, which `nexusd-cluster` does not register, and swallow the
+   * resulting "unknown Call method" as `false`.
+   */
   public async exists(path: string): Promise<boolean> {
     try {
-      const raw = await this.client.call('access', JSON.stringify({ path }), this.authToken);
-      const result = JSON.parse(raw);
-      return !!result;
-    } catch {
-      return false;
+      return await this.client.exists(path, this.authToken);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new NexusError(`RPC error: exists ${path}: ${msg}`);
     }
   }
 
@@ -126,7 +135,12 @@ export class Nexus {
    * @param parents If true, create parent directories as needed (like mkdir -p)
    */
   public async mkdir(path: string, parents?: boolean): Promise<void> {
-    await this.callRPC('mkdir', { path, parents: parents ?? true });
+    try {
+      await this.client.mkdir(path, this.authToken, { parents: parents ?? true, existOk: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new NexusError(`RPC error: mkdir ${path}: ${msg}`);
+    }
   }
 
   /**
@@ -135,37 +149,23 @@ export class Nexus {
    * @returns Array of directory items with name, path, isDirectory, etc.
    */
   public async list(path: string): Promise<NexusListItem[]> {
+    let entries;
     try {
-      const raw = await this.client.call('sys_readdir', JSON.stringify({ path }), this.authToken);
-      const result = JSON.parse(raw);
-      // sys_readdir returns array of [path, entry_type] tuples or objects
-      if (Array.isArray(result)) {
-        return result.map((item: unknown): NexusListItem => {
-          if (Array.isArray(item) && item.length >= 2) {
-            const itemPath = String(item[0]);
-            return {
-              path: itemPath,
-              name: itemPath.split('/').pop() || itemPath,
-              entry_type: Number(item[1]),
-              isDirectory: Number(item[1]) === 1,
-            };
-          }
-          if (item && typeof item === 'object') {
-            const obj = item as Record<string, unknown>;
-            const itemPath = typeof obj.path === 'string' ? obj.path : '';
-            return {
-              ...obj,
-              path: itemPath,
-              name: typeof obj.name === 'string' ? obj.name : itemPath.split('/').pop() || itemPath,
-            } as NexusListItem;
-          }
-          return { path: '', name: '' };
-        });
-      }
-      return [];
-    } catch {
-      return [];
+      entries = await this.client.readdir(path, this.authToken);
+    } catch (err) {
+      // Deliberately not `return []`. An empty listing and a failed listing are
+      // different facts, and collapsing them is why the safety poller reported
+      // "no events" for every event it could not enumerate.
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new NexusError(`RPC error: readdir ${path}: ${msg}`);
     }
+    // entryType follows DT_*: 0 file, 1 dir, 2 mount, 4 stream.
+    return entries.map((entry) => ({
+      path: entry.name,
+      name: entry.name.split('/').pop() || entry.name,
+      entry_type: entry.entryType,
+      isDirectory: entry.entryType === 1,
+    }));
   }
 
   /**
@@ -175,10 +175,11 @@ export class Nexus {
    */
   public async delete(path: string): Promise<boolean> {
     try {
-      await this.callRPC('sys_unlink', { path });
+      await this.client.delete(path, this.authToken);
       return true;
-    } catch {
-      return false;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new NexusError(`RPC error: delete ${path}: ${msg}`);
     }
   }
 

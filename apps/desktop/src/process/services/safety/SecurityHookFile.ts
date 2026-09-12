@@ -83,11 +83,18 @@ export async function readNexusFileAsUtf8(filePath: string): Promise<string | nu
 export async function ensureSecurityHookDirs(): Promise<void> {
   try {
     const client = getNexusClient();
+    // existOk is handled inside mkdir, so reaching the catch means the daemon
+    // could not create them — which the poller cannot work around. The previous
+    // comment here claimed "directories may already exist", and that plausible
+    // reason hid the real one for months: mkdir was dispatched over the generic
+    // Call surface, which this daemon does not carry file operations on, so the
+    // directories were never created at all.
     await client.mkdir(EVENT_DIR, true);
     await client.mkdir(ACTION_DIR, true);
     await client.mkdir(CONFIG_DIR, true);
-  } catch {
-    // Directories may already exist, ignore errors
+  } catch (err) {
+    mainError('SecurityHook', 'Failed to create security hook directories:', err);
+    throw err;
   }
 }
 
