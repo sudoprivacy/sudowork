@@ -682,9 +682,17 @@ class DynamicNexusVfsService {
    * included. It also stops holding for any node that hosts zones beyond the
    * eager set, which is where the hosted model is headed.
    *
-   * So gate on a real round trip through the VFS plane. `access` on the root is
-   * the cheapest call that reports a zone which cannot serve, rather than
-   * reporting the socket.
+   * So gate on a real round trip through the VFS plane. `serverInfo` is the
+   * call to use, and this is worth spelling out because the obvious choices are
+   * not available: `nexusd-cluster` answers `read`, `write` and `serverInfo`,
+   * while `access`, `mkdir`, `readdir` and `ping` all come back as "unknown
+   * Call method" — on 0.7.x and on the 0.6.0 we ship today alike. A probe built
+   * on any of those would never succeed, and since a failed probe aborts
+   * startup, it would stop the daemon from coming up at all.
+   *
+   * `serverInfo` also answers the question actually being asked: it returns the
+   * `zone_id` that served the call, so a reply names a live zone rather than
+   * merely proving the socket accepted.
    *
    * Kept separate from the vault probe below on purpose: that one returns early
    * whenever the plugin is missing or the platform is unsupported, which would
@@ -696,11 +704,12 @@ class DynamicNexusVfsService {
 
     while (Date.now() < deadline) {
       try {
-        // callRPC rather than exists(): exists() swallows every error and
-        // returns false, which cannot tell "zone not serving" from "no such
-        // path" — the distinction this probe exists to make.
-        await getNexusRpcClient().callRPC('access', { path: '/' });
-        return;
+        // Not exists(): it swallows every error and returns false, which cannot
+        // tell "zone not serving" from "no such path" — the distinction this
+        // probe exists to draw.
+        const info = await getNexusRpcClient().serverInfo();
+        if (info?.zone_id) return;
+        lastReason = `serverInfo answered without a zone_id: ${JSON.stringify(info)}`;
       } catch (err) {
         lastReason = err instanceof Error ? err.message : String(err);
       }
