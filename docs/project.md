@@ -186,6 +186,11 @@ components/
 
 ### 3. Web 服务器模块 (`src/webserver/`)
 
+> **本节描述的模块已不存在**：`src/webserver/` 在 dev 上已是空目录，无界面访问由 `apps/webui/` 承担。
+> 两者不是同一套实现——本节写的 JWT / bcrypt / 24 小时有效期、以及 cookie 名 `sudowork-session`
+> 都不适用于 `apps/webui`（它用 Postgres 中的 HMAC 会话，cookie 名为 `sudowork_session`，
+> 默认 7 天）。保留本节仅为历史参照，当前行为请以 [apps/webui/README.md](../apps/webui/README.md) 为准。
+
 #### 3.1 认证系统 (`auth/`)
 
 ```

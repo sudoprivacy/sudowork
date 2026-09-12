@@ -14,6 +14,7 @@ import { processSupervisor } from '@process/ProcessSupervisor';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import runtimeSha256 from '@/shared/runtime-sha256.json';
 import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
+import { getNexusRpcClient } from '@common/nexus/nexus-vfs-client';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import { vaultPluginInstaller } from './VaultPluginInstaller';
 
@@ -27,7 +28,10 @@ const execAsync = promisify(exec);
  *
  * Differences from DynamicNexusService that matter here:
  *  - nexusd-cluster speaks gRPC only; there is NO HTTP /health endpoint, so
- *    readiness is a TCP-connect probe against the bind port.
+ *    readiness is a TCP-connect probe against the bind port followed by a real
+ *    call through the VFS plane. The port alone is not enough: upstream stopped
+ *    opening persisted zones before serving, so an accepted connection does not
+ *    mean the root zone can answer.
  *  - It is launched via the `serve-local --port <p>` subcommand (nexus-vfs
  *    >=v0.6.0), the shorthand for `--bind-addr 127.0.0.1:<p> --no-tls` — the
  *    trusted-local-backend posture. With no peers it founds a healthy
@@ -39,6 +43,7 @@ const NEXUS_VFS_BIND_HOST = '127.0.0.1';
 const NEXUS_VFS_DEFAULT_PORT = 12022;
 const NEXUS_VFS_POLL_INTERVAL_MS = 200;
 const NEXUS_VFS_START_TIMEOUT_MS = 30_000;
+const NEXUS_VFS_ZONE_READY_TIMEOUT_MS = 10_000;
 const NEXUS_VAULT_READY_TIMEOUT_MS = 5_000;
 
 /** Marker file recording the installed version inside the bin directory. */
@@ -530,6 +535,7 @@ class DynamicNexusVfsService {
     await this.waitForPortReady(this._port, NEXUS_VFS_START_TIMEOUT_MS);
     const elapsed = Date.now() - spawnStart;
     try {
+      await this.waitForVfsZoneReady(NEXUS_VFS_ZONE_READY_TIMEOUT_MS);
       await this.waitForVaultServiceReady(NEXUS_VAULT_READY_TIMEOUT_MS);
     } catch (err) {
       await this.stop().catch(() => {});
@@ -635,6 +641,46 @@ class DynamicNexusVfsService {
       await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_VFS_POLL_INTERVAL_MS));
     }
     throw new Error(`nexus-vfs did not start listening on port ${port} within ${timeoutMs}ms`);
+  }
+
+  /**
+   * Readiness that does not assume an accepted connection means a serving zone.
+   *
+   * A TCP connect only proves the daemon bound its port. Upstream stopped
+   * opening persisted zones before it starts serving (nexus-vfs >=0.7 —
+   * a zone materializes on first access instead), so "the port answers" no
+   * longer implies "the root zone can serve". The eager boot that used to make
+   * that inference hold was an undocumented side effect of the old startup.
+   *
+   * So gate on a real round trip through the VFS plane. `access` on the root is
+   * the cheapest call that forces materialization and reports a zone that
+   * cannot serve, rather than reporting the socket.
+   *
+   * Kept separate from the vault probe below on purpose: that one returns early
+   * whenever the plugin is missing or the platform is unsupported, which would
+   * leave exactly those installs back on a bare port check.
+   */
+  private async waitForVfsZoneReady(timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let lastReason = 'unknown error';
+
+    while (Date.now() < deadline) {
+      try {
+        // callRPC rather than exists(): exists() swallows every error and
+        // returns false, which cannot tell "zone not serving" from "no such
+        // path" — the distinction this probe exists to make.
+        await getNexusRpcClient().callRPC('access', { path: '/' });
+        return;
+      } catch (err) {
+        lastReason = err instanceof Error ? err.message : String(err);
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, NEXUS_VFS_POLL_INTERVAL_MS));
+    }
+
+    const msg = `Nexus gRPC port is ready but the root zone did not serve within ${timeoutMs}ms: ${lastReason}`;
+    mainError('NexusVfs', msg);
+    this.emit('error', msg);
+    throw new Error(msg);
   }
 
   private async waitForVaultServiceReady(timeoutMs: number): Promise<void> {

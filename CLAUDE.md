@@ -79,7 +79,7 @@ IPC：`src/preload.ts` 通过 `contextBridge` 暴露类型化 API；主进程侧
 
 ### WebUI（`apps/webui/`）
 
-独立的 monorepo 应用（Express 5 + WebSocket + PostgreSQL，`src/server/`），作为 Moss 企业服务的前置代理，供无界面 / 远程访问。前端**单入口**：`index.html` → `src/client/shared-renderer/main.ts` 挂载 `packages/renderer`（与桌面同一份 UI），传输层 `src/client/bridgeAdapter/mossAdapter.ts` 把 bridge channel 翻译为同源 HTTP + WS。认证走 session cookie（`sudowork-session`）。开发端口 client 26808 / server 26809；生产 `node dist/server/index.js`（默认 26809，`PORT` 可覆盖）。旧 console URL（`/agents`、`/cron/:id`、`/settings/*` 等）由 `main.ts` 客户端重定向到对应 hash 路由。详见 [apps/webui/README.md](apps/webui/README.md)。
+独立的 monorepo 应用（Express 5 + WebSocket + PostgreSQL，`src/server/`），作为 Moss 企业服务的前置代理，供无界面 / 远程访问。前端**单入口**：`index.html` → `src/client/shared-renderer/main.ts` 挂载 `packages/renderer`（与桌面同一份 UI），传输层 `src/client/bridgeAdapter/mossAdapter.ts` 把 bridge channel 翻译为同源 HTTP + WS。认证走 session cookie（`sudowork_session`）。开发端口 client 26808 / server 26809；生产 `node dist/server/index.js`（默认 26809，`PORT` 可覆盖）。旧 console URL（`/agents`、`/cron/:id`、`/settings/*` 等）由 `main.ts` 客户端重定向到对应 hash 路由。详见 [apps/webui/README.md](apps/webui/README.md)。
 
 ### 扩展系统（`src/extensions/`）
 

@@ -18,35 +18,7 @@
 
 import '../bridgeAdapter/mossAdapter'
 import { mountApp } from '@sudowork/renderer/bootstrap/mount'
-
-/**
- * Legacy path URLs (/agents, /cron/:id, /settings/*, …) are still served the
- * SPA shell by the server fallback. The renderer is a hash router, so translate
- * the old path to its hash route once, on the client, before mounting. Returns
- * true when a redirect was issued (navigation pending — skip mounting).
- */
-function redirectLegacyPath(): boolean {
-  const path = window.location.pathname.replace(/\/+$/, '') || '/'
-  // Normal entry ('/') is already hash-routed — nothing to migrate.
-  if (path === '/') return false
-
-  const settings = /^\/settings\/(profile|display|about|mcp)$/.exec(path)
-  const cronId = /^\/cron\/(.+)$/.exec(path)
-  const conversation = /^\/conversation\/(.+)$/.exec(path)
-
-  let target = '/#/guid'
-  if (path === '/agents') target = '/#/app/agent'
-  else if (path === '/skills') target = '/#/app/skills'
-  else if (cronId) target = `/#/app/cron/${cronId[1]}`
-  else if (path === '/cron') target = '/#/app/cron'
-  else if (settings) target = `/#/settings/${settings[1]}`
-  else if (conversation) target = `/#/conversation/${conversation[1]}`
-  else if (path === '/login') target = '/#/login'
-  else if (path === '/guid') target = '/#/guid'
-
-  window.location.replace(target)
-  return true
-}
+import { redirectLegacyPath } from './legacyPaths'
 
 if (!redirectLegacyPath()) {
   mountApp()

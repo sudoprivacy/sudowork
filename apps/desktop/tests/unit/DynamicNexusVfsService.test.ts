@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listSecrets = vi.fn();
+const callRPC = vi.fn();
 const processKill = vi.fn();
 const processSupervisorTrack = vi.fn();
 const mainError = vi.fn();
@@ -74,6 +75,10 @@ vi.mock('@common/nexus/nexus-secret-client', () => ({
   getNexusSecretClient: () => ({ listSecrets }),
 }));
 
+vi.mock('@common/nexus/nexus-vfs-client', () => ({
+  getNexusRpcClient: () => ({ callRPC }),
+}));
+
 vi.mock('@/shared/runtime-versions.json', () => ({
   default: { 'nexus-vfs': '0.4.0', 'nexus-vault': '0.4.0' },
 }));
@@ -130,6 +135,7 @@ describe('DynamicNexusVfsService', () => {
     });
     spawnMock.mockReturnValue(new FakeChildProcess());
     mockPortSequence([false, true]);
+    callRPC.mockResolvedValue(true);
   });
 
   it('fails startup when the vault plugin is installed but password-vault is not registered', async () => {
@@ -142,7 +148,7 @@ describe('DynamicNexusVfsService', () => {
     const startPromise = dynamicNexusVfsService.start();
     const startError = startPromise.then(
       () => null,
-      (err: unknown) => err,
+      (err: unknown) => err
     );
     await vi.runAllTimersAsync();
 
@@ -161,5 +167,60 @@ describe('DynamicNexusVfsService', () => {
 
     expect(listSecrets).toHaveBeenCalledWith('__sudowork_startup_probe__', false);
     expect(dynamicNexusVfsService.isRunning).toBe(true);
+  });
+
+  it('proves the root zone serves rather than trusting the accepted connection', async () => {
+    listSecrets.mockReturnValue([]);
+
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    await dynamicNexusVfsService.start();
+
+    expect(callRPC).toHaveBeenCalledWith('access', { path: '/' });
+  });
+
+  it('fails startup when the port accepts but the root zone cannot serve', async () => {
+    vi.useFakeTimers();
+    // The shape upstream introduced: the daemon binds and accepts, but a zone
+    // only materializes on first access, so the socket says nothing about it.
+    callRPC.mockRejectedValue(new Error('RPC error: access: zone not available'));
+    listSecrets.mockReturnValue([]);
+
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    const startPromise = dynamicNexusVfsService.start();
+    const startError = startPromise.then(
+      () => null,
+      (err: unknown) => err
+    );
+    await vi.runAllTimersAsync();
+
+    const err = await startError;
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('root zone did not serve');
+    expect(dynamicNexusVfsService.isRunning).toBe(false);
+    expect(processKill).toHaveBeenCalledWith('SIGTERM');
+  });
+
+  it('still proves the zone when the vault plugin is absent', async () => {
+    vi.useFakeTimers();
+    // This is the branch that mattered: the vault probe returns early without
+    // the plugin, so before the zone probe existed this path degraded to a bare
+    // TCP check and reported ready for a daemon that could not serve.
+    const { vaultPluginInstaller } = await import('@process/services/nexus-vfs/VaultPluginInstaller');
+    vi.mocked(vaultPluginInstaller.checkInstalledSync).mockReturnValue(false);
+    callRPC.mockRejectedValue(new Error('RPC error: access: zone not available'));
+
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    const startPromise = dynamicNexusVfsService.start();
+    const startError = startPromise.then(
+      () => null,
+      (err: unknown) => err
+    );
+    await vi.runAllTimersAsync();
+
+    const err = await startError;
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('root zone did not serve');
+    expect(listSecrets).not.toHaveBeenCalled();
+    expect(dynamicNexusVfsService.isRunning).toBe(false);
   });
 });
