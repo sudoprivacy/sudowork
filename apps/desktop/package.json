@@ -172,7 +172,7 @@
     "@larksuiteoapi/node-sdk": "^1.58.0",
     "@lydell/node-pty": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.20.0",
-    "@nexus-ai-fs/vfs-client": "https://sudowork-runtime-1309794936.cos.accelerate.myqcloud.com/nexus-vfs/clients/node/0.2.4/nexus-ai-fs-vfs-client-0.2.4.tgz",
+    "@nexus-ai-fs/vfs-client": "https://sudowork-runtime-1309794936.cos.accelerate.myqcloud.com/nexus-vfs/clients/node/0.3.0/nexus-ai-fs-vfs-client-0.3.0.tgz",
     "@office-ai/aioncli-core": "^0.30.0",
     "@office-ai/platform": "^0.3.16",
     "@sudowork/common": "workspace:*",
