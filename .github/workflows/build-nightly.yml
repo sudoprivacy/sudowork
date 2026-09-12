@@ -108,7 +108,7 @@ jobs:
 
       # Checkout 目标分支以获取精确的 commit SHA 并创建 tag
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.context.outputs.branch }}
 
