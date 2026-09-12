@@ -392,6 +392,10 @@ export class AcpConnection {
 
     await this.initialize();
     this.isSetupComplete = true;
+    // Assert the positive. Every other outcome on this path is logged — the
+    // dial failing, the daemon not serving — so without a line here the one
+    // case that cannot be confirmed from a log is the one that worked.
+    mainLog('[ACP]', `${backend} connected over the nexus tunnel (${endpoint})`);
   }
 
   /**

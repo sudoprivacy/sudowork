@@ -457,6 +457,12 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         const tunnelEndpoint = dynamicNexusVfsService.acpTunnelEndpoint;
         if (tunnelEndpoint) {
           customEnv = { ...customEnv, ACP_GRPC_ENDPOINT: tunnelEndpoint };
+        } else {
+          // Say so. A dial that fails is already warned about downstream, but
+          // this branch — the daemon not serving at all — used to take the local
+          // path without a word, so a session that never went near nexus was
+          // indistinguishable in the logs from one that did.
+          mainWarn('[AcpAgent]', 'nexus tunnel unavailable (nexusd-cluster not serving); spawning scode locally');
         }
       }
 
