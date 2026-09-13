@@ -35,7 +35,15 @@ function runPostInstall() {
     }
   } catch (e) {
     console.error('Postinstall failed:', e.message);
-    // Do not fail the entire install when optional native rebuilds cannot complete.
+    // Do not fail the entire install when optional native rebuilds cannot
+    // complete — EXCEPT when a caller explicitly asked for the rebuild. For
+    // those the rebuild is the whole point: swallowing it left the e2e job
+    // green on this step and then failing four minutes later with "no
+    // renderer target appeared", because Electron had died on boot over the
+    // better-sqlite3 binding this step was supposed to produce.
+    if (process.env.SUDOWORK_FORCE_REBUILD === '1') {
+      process.exitCode = 1;
+    }
   }
 }
 
