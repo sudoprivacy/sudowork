@@ -7,11 +7,18 @@
  * Nexus RPC Client
  *
  * File I/O client backed by nexusd-cluster gRPC (port 12022).
- * Every file operation is a typed RPC on @nexus-ai-fs/vfs-client. The generic
- * Call surface is kept only for what genuinely lives there (registry ops,
- * `<service>.<method>` plugin dispatch) — it does NOT carry file operations,
- * and hand-rolling them over it is how `exists`/`list`/`mkdir` came to fail
- * silently against this daemon.
+ * Every file operation is a typed RPC on @nexus-ai-fs/vfs-client — that service
+ * IS the kernel boundary for file I/O, and the way through it is the only way
+ * through it.
+ *
+ * The generic Call surface is a different boundary: registry ops (`agent_*`,
+ * `get_mount_points`, `service_*`) and `<service>.<method>` plugin dispatch.
+ * It does not carry file operations under any spelling — `sys_readdir`,
+ * `sys_unlink` and `sys_stat` are rejected exactly like `readdir` and `access`,
+ * because a `sys_` prefix on a generic dispatch is a name, not a syscall.
+ * Hand-rolling file I/O over it is how `exists`/`list`/`mkdir`/`delete` came to
+ * fail silently here. Only `callBinary` remains, for plugin dispatch, which is
+ * what that surface is for.
  *
  * Migrated from HTTP JSON-RPC (:12012) to gRPC (:12022) — all callers
  * (safety hooks, etc.) keep the same public API.
@@ -24,10 +31,6 @@ export interface NexusRpcOptions {
   endpoint?: string;
   /** Auth token for gRPC calls */
   authToken?: string;
-  /** @deprecated Use endpoint instead */
-  serverUrl?: string;
-  /** @deprecated Use authToken instead */
-  apiKey?: string;
 }
 
 export class Nexus {
@@ -35,8 +38,8 @@ export class Nexus {
   private readonly authToken: string;
 
   constructor(options?: NexusRpcOptions) {
-    const endpoint = options?.endpoint ?? options?.serverUrl ?? 'http://localhost:12022';
-    this.authToken = options?.authToken ?? options?.apiKey ?? '';
+    const endpoint = options?.endpoint ?? 'http://localhost:12022';
+    this.authToken = options?.authToken ?? '';
     this.client = new NexusVfsClient(endpoint);
   }
 
@@ -56,9 +59,7 @@ export class Nexus {
   /**
    * Server identity and the zone currently serving, as a typed RPC.
    *
-   * A typed RPC, like every other file operation here. The generic `call`
-   * dispatch below does not carry these — `access`, `mkdir`, `readdir` and
-   * `ping` all come back as "unknown Call method" on it.
+   * A typed RPC, like every other file operation here.
    *
    * Returning `zone_id` is what makes it usable as a liveness check rather than
    * a transport check: it names the zone that answered.
@@ -69,19 +70,6 @@ export class Nexus {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new NexusError(`RPC error: serverInfo: ${msg}`);
-    }
-  }
-
-  /**
-   * Generic gRPC Call RPC — dispatches to kernel method by name.
-   */
-  public async callRPC(method: string, params: Record<string, unknown>): Promise<unknown> {
-    try {
-      const raw = await this.client.call(method, JSON.stringify(params), this.authToken);
-      return JSON.parse(raw);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new NexusError(`RPC error: ${method}: ${msg}`);
     }
   }
 
@@ -182,33 +170,17 @@ export class Nexus {
       throw new NexusError(`RPC error: delete ${path}: ${msg}`);
     }
   }
-
-  public async readUntilExists(path: string, timeout?: number): Promise<Buffer> {
-    const start = Date.now();
-    while (!((timeout && Date.now() - start > timeout) || (await this.exists(path)))) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-    return (await this.read(path, false)) as Buffer;
-  }
 }
 
 export interface NexusListItem {
-  /** File/directory name (extracted from path) */
+  /** Basename, which is what callers key on. */
   name: string;
-  /** Full path to the file/directory */
+  /** Path exactly as the daemon reported it. */
   path: string;
-  /** Whether this is a directory (1 = directory, 0 = file) */
-  isDirectory?: boolean;
-  /** Entry type: 0 = file, 1 = directory */
+  /** DT_* code: 0 file, 1 dir, 2 mount, 4 stream. */
   entry_type?: number;
-  /** File size in bytes */
-  size?: number;
-  /** Last modified timestamp */
-  modifiedAt?: string;
-  /** ETag for the file */
-  etag?: string;
-  /** Version number */
-  version?: number;
+  /** Convenience for the common DT_DIR test. */
+  isDirectory?: boolean;
 }
 
 export class NexusError extends Error {
