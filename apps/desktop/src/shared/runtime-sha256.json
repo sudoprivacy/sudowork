@@ -1,12 +1,12 @@
 {
   "_doc": "Canonical SHA256 sums for every downloadable nexus-vfs runtime artifact. Single source of truth — scripts/download-nexus-vfs.js (build/install-time), DynamicNexusVfsService.ts (runtime cluster re-installer), and VaultPluginInstaller.ts (runtime vault re-installer) all read from this file. Bump versions in runtime-versions.json AND update the matching entry here in one commit; do NOT inline a SHA back into any source file. Verified against the per-release SHA256SUMS.txt in the COS bucket.",
 
-  "nexusd-cluster-linux-aarch64.tar.gz": "82116f6a5445487cecbfb796d741616cade7e73606bf2353751ebab171b4afba",
-  "nexusd-cluster-linux-x86_64.tar.gz": "3ab747a9c29c53904da2b75c0ffb108a7fe883e6aaf24070afb7c8a4af12ee61",
-  "nexusd-cluster-macos-aarch64.tar.gz": "097117673640e768513edaba310bf887801463e39d1375b1321138bea11db3f5",
-  "nexusd-cluster-macos-x86_64.tar.gz": "f6db7325b3ed1c9645ce9800dab6626887f8f61f489b6ba3e063aa14a1aa0308",
-  "nexusd-cluster-windows-aarch64.zip": "738172f51682385b2847ed350f068cf3b55b74e9807283c65c654bbcbe326876",
-  "nexusd-cluster-windows-x86_64.zip": "5755524971e79a4f07d7652e57152723d55b64464a4e4fbd63e4bf8095b52ffd",
+  "nexusd-cluster-linux-aarch64.tar.gz": "f3cfbaef5fbf4328ed41e7a8f9ae79fc6c1347ec55cb414b16dabd78d4441f11",
+  "nexusd-cluster-linux-x86_64.tar.gz": "033861b16c811a997723b2c900a69de297a969db2b39c81936bbee08d2851b25",
+  "nexusd-cluster-macos-aarch64.tar.gz": "be41487657e10955f37395c8c671f0c820359c148c2afb86c5d10162822f53ab",
+  "nexusd-cluster-macos-x86_64.tar.gz": "f8e9aceed8f02192621b27a71040708d30a89b1eccde86c1a5a2190328b38d8b",
+  "nexusd-cluster-windows-aarch64.zip": "0bd111427a134c599185f3f4285e7ed7c9ee4e3e2f52e6017daf82a2d7433a85",
+  "nexusd-cluster-windows-x86_64.zip": "65199f632da8e75de0da4e7be6e3389891b71c1a854d096b9f604890436a9156",
 
   "nexus-vault-linux-x86_64.tar.gz": "93bb9c7744f1711a570bb309848b37769d9a8a7883c83d8a30ef407f97d73833",
   "nexus-vault-macos-arm64.tar.gz": "b671aa12913317c4011a337dde0a983cf80e2230fb7f7eeec764d87a33fee0ac",
