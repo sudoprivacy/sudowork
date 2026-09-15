@@ -70,6 +70,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: code-quality
     if: ${{ always() && (inputs.skip_code_quality || needs.code-quality.result == 'success') }}
+    defaults:
+      run:
+        working-directory: apps/desktop
 
     # Job-level env propagates to every step in this job AND to subprocesses spawned by those steps
     # (e.g. build-with-builder.js → electron-vite). Existing release/nightly callers do not pass
@@ -108,7 +111,7 @@ jobs:
       - name: Verify ai-dev-browser submodule is bundled
         shell: bash
         run: |
-          pkg="vendor/ai-dev-browser/ai_dev_browser"
+          pkg="$GITHUB_WORKSPACE/vendor/ai-dev-browser/ai_dev_browser"
           count=$(find "$pkg" -name '*.py' 2>/dev/null | wc -l | tr -d ' ')
           if [ "${count:-0}" -eq 0 ]; then
             echo "::error::ai-dev-browser package is empty or missing ($pkg has no .py files). The browser builtin skill would ship dead. Ensure checkout uses 'submodules: recursive' and the submodule is initialized."
@@ -633,13 +636,13 @@ jobs:
         with:
           name: ${{ inputs.append_commit_hash && format('{0}-{1}', matrix.artifact-name, steps.commit.outputs.short) || matrix.artifact-name }}
           path: |
-            out/*.exe
-            out/*.msi
-            out/*.dmg
-            out/*.AppImage
-            out/*.zip
-            out/*.yml
-            out/*.blockmap
+            apps/desktop/out/*.exe
+            apps/desktop/out/*.msi
+            apps/desktop/out/*.dmg
+            apps/desktop/out/*.AppImage
+            apps/desktop/out/*.zip
+            apps/desktop/out/*.yml
+            apps/desktop/out/*.blockmap
           if-no-files-found: warn
           retention-days: 7
 
