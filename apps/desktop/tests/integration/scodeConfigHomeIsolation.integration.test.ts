@@ -7,10 +7,10 @@
 /**
  * Real cross-repo contract test for sudowork ↔ scode config isolation.
  *
- * sudowork isolates its embedded engine-scode by spawning the scode binary with
- * `SUDO_CODE_CONFIG_HOME` pointed at `~/.nexus/sudowork/sudocode` (see
- * scodePaths.ts + acpConnectors). That only actually isolates anything if the
- * REAL scode binary honours the env var. Rather than trust the contract, this
+ * sudowork points its embedded engine-scode at a config home via
+ * `SUDO_CODE_CONFIG_HOME` (see scodePaths.ts + scodeEngineEnv). Whether that
+ * points at the shared home or elsewhere, it only means anything if the REAL
+ * scode binary honours the env var. Rather than trust the contract, this
  * test drives the actual binary:
  *
  *   scode config --output-format json   (a read-only merged-config report)
@@ -32,7 +32,7 @@ import { createRequire } from 'module';
 import os from 'os';
 import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SCODE_HOME, LEGACY_SCODE_HOME } from '../../src/process/services/scode/scodePaths';
+import { SCODE_BIN_HOME, SCODE_CONFIG_HOME } from '../../src/process/services/scode/scodePaths';
 
 const exeName = process.platform === 'win32' ? 'scode.exe' : 'scode';
 
@@ -40,8 +40,8 @@ const exeName = process.platform === 'win32' ? 'scode.exe' : 'scode';
 function resolveScodeBinary(): string | null {
   const candidates = [
     process.env.SCODE_BIN,
-    path.join(SCODE_HOME, exeName), // sudowork's isolated install
-    path.join(LEGACY_SCODE_HOME, exeName), // standalone / pre-isolation install
+    path.join(SCODE_BIN_HOME, exeName), // sudowork's pinned engine binary
+    path.join(SCODE_CONFIG_HOME, exeName), // a standalone scode install
   ].filter((p): p is string => !!p);
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
@@ -123,9 +123,11 @@ describeMaybe('scode config-home isolation (real binary)', () => {
     for (const f of userFiles) {
       expect(normalize(f.path).startsWith(normalize(isoHome))).toBe(true);
     }
-    // ...and NONE leaks to the standalone ~/.nexus/sudocode home
+    // ...and NONE falls back to the shared default home, proving an explicit
+    // SUDO_CODE_CONFIG_HOME still overrides it (that is what sudowork relies on
+    // when it points the engine at the shared home on purpose).
     for (const f of userFiles) {
-      expect(normalize(f.path).startsWith(normalize(LEGACY_SCODE_HOME) + '/')).toBe(false);
+      expect(normalize(f.path).startsWith(normalize(SCODE_CONFIG_HOME) + '/')).toBe(false);
     }
     // the settings.json we placed in the isolated home was actually loaded (data flow, not just path)
     const loadedSettings = userFiles.find((f) => normalize(f.path).endsWith('/settings.json'));

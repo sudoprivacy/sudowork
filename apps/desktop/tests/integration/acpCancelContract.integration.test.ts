@@ -29,12 +29,12 @@ import path from 'path';
 import readline from 'readline';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { LEGACY_SCODE_HOME, SCODE_HOME } from '../../src/process/services/scode/scodePaths';
+import { SCODE_BIN_HOME, SCODE_CONFIG_PATH } from '../../src/process/services/scode/scodePaths';
 
 const exeName = process.platform === 'win32' ? 'scode.exe' : 'scode';
 
 function resolveScodeBinary(): string | null {
-  const candidates = [process.env.SCODE_BIN, path.join(SCODE_HOME, exeName), path.join(LEGACY_SCODE_HOME, exeName)].filter((p): p is string => !!p);
+  const candidates = [process.env.SCODE_BIN, path.join(SCODE_BIN_HOME, exeName), path.join(path.dirname(SCODE_CONFIG_PATH), exeName)].filter((p): p is string => !!p);
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
@@ -251,9 +251,7 @@ describeLive('ACP session/cancel live (real scode + real API)', () => {
   beforeAll(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-cancel-live-ws-'));
     configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-cancel-live-cfg-'));
-    const realConfig = path.join(SCODE_HOME, 'sudocode.json');
-    const legacyConfig = path.join(LEGACY_SCODE_HOME, 'sudocode.json');
-    const source = fs.existsSync(realConfig) ? realConfig : fs.existsSync(legacyConfig) ? legacyConfig : null;
+    const source = fs.existsSync(SCODE_CONFIG_PATH) ? SCODE_CONFIG_PATH : null;
     if (!source) throw new Error('No sudocode.json found — cannot run live test');
     fs.copyFileSync(source, path.join(configHome, 'sudocode.json'));
   });

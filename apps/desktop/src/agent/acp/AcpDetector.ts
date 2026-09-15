@@ -17,7 +17,7 @@ import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
 import { SUDOCLAW_BIN_DIR } from '@/process/services/sudoclaw/SudoclawInstallService';
 import { getScodePath } from '@/process/services/scode/ScodeInstallService';
-import { SCODE_HOME } from '@/process/services/scode/scodePaths';
+import { SCODE_BIN_HOME } from '@/process/services/scode/scodePaths';
 
 const execAsync = promisify(exec);
 
@@ -25,7 +25,7 @@ const execAsync = promisify(exec);
 const NEXUS_BIN_DIR = path.join(os.homedir(), '.nexus', 'bin');
 
 /** sudowork's isolated engine-scode dir (binary lives here). SSOT: scodePaths.ts */
-const SCODE_BIN_DIR = SCODE_HOME;
+const SCODE_BIN_DIR = SCODE_BIN_HOME;
 
 /** Priority bin directories for CLI detection (scode first to prefer the isolated engine-scode dir over ~/.nexus/bin) */
 const PRIORITY_BIN_DIRS = [SCODE_BIN_DIR, NEXUS_BIN_DIR, SUDOCLAW_BIN_DIR];

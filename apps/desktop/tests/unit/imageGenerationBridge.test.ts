@@ -40,6 +40,15 @@ async function loadImageGenerationBridge(processImageModel?: ImageGenerationMode
   vi.doMock('@process/services/scode/ScodeInstallService', () => ({
     SCODE_DIR: scodeDir,
   }));
+  // The bridge reads its config path from scodePaths (the SSOT), not from
+  // ScodeInstallService — mock every export so a transitive import of this
+  // module never resolves to undefined.
+  vi.doMock('@process/services/scode/scodePaths', () => ({
+    SCODE_BIN_HOME: path.join(tempRoot, 'scode-bin'),
+    SCODE_CONFIG_HOME: scodeDir,
+    SCODE_CONFIG_PATH: path.join(scodeDir, 'sudocode.json'),
+    SCODE_SETTINGS_PATH: path.join(scodeDir, 'settings.json'),
+  }));
   vi.doMock('@process/services/sudoclaw/SudoclawInstallService', () => ({
     SUDOCLAW_DIR: sudoclawDir,
   }));

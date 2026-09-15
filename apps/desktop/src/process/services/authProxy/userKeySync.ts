@@ -15,7 +15,7 @@ import path from 'path';
 import { extractSudorouterCreds } from '@sudowork/common/scodeConfig';
 import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
 import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
-import { SCODE_DIR } from '@process/services/scode/ScodeInstallService';
+import { SCODE_CONFIG_PATH } from '@process/services/scode/scodePaths';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
 const TAG = 'UserKeySync';
@@ -23,7 +23,7 @@ const TAG = 'UserKeySync';
 const USER_KEY_NAMESPACE = 'service_system:user_info';
 const KEY_BASE_URL = 'base_url';
 const KEY_API_KEY = 'api_key';
-const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
+const SUDOCODE_CONFIG_PATH = SCODE_CONFIG_PATH;
 
 /**
  * Sync sudorouter credentials from a parsed sudocode.json config object into Nexus.
