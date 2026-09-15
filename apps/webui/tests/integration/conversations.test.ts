@@ -72,8 +72,9 @@ const SESSIONS = [
   },
 ]
 
-/** user-model 读桩：默认模拟上游无该端点（404 → service 兜底 null）。 */
+/** user-model 读桩：默认模拟上游不可达（service 兜底两者皆 null）。 */
 let fakeUserModelId: string | null = null
+let fakeSystemDefaultModel: string | null = null
 let fakeUserModelError: unknown = new MossHttpError(404, '', '')
 
 function createFakeMossSession(): MossSessionPort {
@@ -90,7 +91,7 @@ function createFakeMossSession(): MossSessionPort {
     async setUserModel() {},
     async getUserModel() {
       if (fakeUserModelError) throw fakeUserModelError
-      return fakeUserModelId
+      return { modelId: fakeUserModelId, systemDefaultModel: fakeSystemDefaultModel }
     },
     async context(_tk, sessionId) {
       if (sessionId === 'sess-empty') throw new MossHttpError(404, '', '')
@@ -329,22 +330,32 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     expect(cross.status).toBe(403)
   })
 
-  test('GET /user-model falls back to null on upstream 404 and proxies the preference', async () => {
+  test('GET /user-model distinguishes unreachable upstream from an unset preference', async () => {
     const app = await buildApp()
-    // 默认桩抛 404（上游无该端点）→ 读不阻塞 UI，返回 null
-    const unset = await request(app).get('/api/conversations/user-model').set('Cookie', cookieA)
-    expect(unset.status).toBe(200)
-    expect(unset.body).toEqual({ modelId: null })
+    // 上游不可达 → 读不阻塞 UI，但两者皆 null：那是「读不到」
+    const unreachable = await request(app)
+      .get('/api/conversations/user-model')
+      .set('Cookie', cookieA)
+    expect(unreachable.status).toBe(200)
+    expect(unreachable.body).toEqual({ modelId: null, systemDefaultModel: null })
 
     fakeUserModelError = null
-    fakeUserModelId = 'm1'
+    fakeSystemDefaultModel = 'sys-default'
     try {
+      // 未设偏好 → modelId 为 null，但 systemDefaultModel 必须带回，
+      // 否则前端第二级兜底无从落脚，只能塌到「列表首项」——徽章与实际模型就此对不上。
+      const unset = await request(app).get('/api/conversations/user-model').set('Cookie', cookieA)
+      expect(unset.status).toBe(200)
+      expect(unset.body).toEqual({ modelId: null, systemDefaultModel: 'sys-default' })
+
+      fakeUserModelId = 'm1'
       const set = await request(app).get('/api/conversations/user-model').set('Cookie', cookieA)
       expect(set.status).toBe(200)
-      expect(set.body).toEqual({ modelId: 'm1' })
+      expect(set.body).toEqual({ modelId: 'm1', systemDefaultModel: 'sys-default' })
     } finally {
       fakeUserModelError = new MossHttpError(404, '', '')
       fakeUserModelId = null
+      fakeSystemDefaultModel = null
     }
   })
 

@@ -204,15 +204,21 @@ export async function requireOwnSession(
   }
 }
 
-/** 用户级模型偏好读取；上游无该端点（404）/未设偏好 → null（renderer 侧三级 fallback 已兜底）。 */
+/**
+ * 用户级模型偏好读取。未设偏好 → modelId 为 null，但 systemDefaultModel 仍带回，
+ * 前端才能落在第二级兜底而不是「列表首项」。
+ * 上游不可达/非 2xx → 两者皆 null：那是「读不到」，与「没设过」不是一回事。
+ */
 export async function getUserModel(
   deps: ConversationDeps,
   ctx: MossCallContext,
 ): Promise<UserModelResponse> {
   try {
-    return { modelId: await deps.moss.getUserModel(ctx) }
+    return await deps.moss.getUserModel(ctx)
   } catch (err) {
-    if (err instanceof MossHttpError || err instanceof MossNetworkError) return { modelId: null }
+    if (err instanceof MossHttpError || err instanceof MossNetworkError) {
+      return { modelId: null, systemDefaultModel: null }
+    }
     throw err
   }
 }

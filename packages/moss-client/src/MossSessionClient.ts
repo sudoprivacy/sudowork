@@ -26,8 +26,13 @@ export interface MossSessionPort {
   ): Promise<{ sessionId: string; wsUrl: string }>
   /** 用户级模型偏好（Moss 无会话级模型接口，PUT /api/v1/users/me/model）；建会话前设置使新会话采用该模型 */
   setUserModel(ctx: MossCallContext, modelId: string): Promise<void>
-  /** 用户级模型偏好读取（GET /api/v1/users/me/model）；未设偏好时 null。上游无该端点等错误由调用方 catch */
-  getUserModel(ctx: MossCallContext): Promise<string | null>
+  /**
+   * 用户级模型偏好读取（GET /api/v1/users/me/model）。
+   * 返回 modelId（未设偏好为 null）与上游的 systemDefaultModel —— 两者都要，
+   * 因为调用方的兜底顺序是「用户偏好 → 系统默认 → 列表首项」，丢掉后者会直接塌到首项。
+   * 上游不可达/非 2xx 抛错，由调用方 catch。
+   */
+  getUserModel(ctx: MossCallContext): Promise<{ modelId: string | null; systemDefaultModel: string | null }>
   context(ctx: MossCallContext, sessionId: string): Promise<unknown>
   resume(ctx: MossCallContext, sessionId: string): Promise<{ session: MossSessionSummary; wsUrl: string }>
   terminate(ctx: MossCallContext, sessionId: string): Promise<void>
@@ -99,9 +104,27 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
         path: '/api/v1/users/me/model',
         accessToken: ctx.accessToken,
       })
-      // 上游响应形状未在仓库内可考（camelCase 与 snake_case 兼容读取），未设偏好返回 null
-      const parsed = safeParse(z.object({ modelId: z.string().nullable().optional(), model_id: z.string().nullable().optional() }).passthrough(), json)
-      return parsed?.modelId ?? parsed?.model_id ?? null
+      // 上游形状（moss server.ts 的 /api/v1/users/:id/model）：
+      //   { success, data: { modelId, updatedAt } | null, systemDefaultModel }
+      // 偏好在 data 里，不在顶层 —— 早先按顶层读，于是永远拿到 null，
+      // 前端三级兜底直接塌到「列表首项」，徽章显示的模型与实际跑的模型对不上。
+      const parsed = safeParse(
+        z
+          .object({
+            data: z
+              .object({ modelId: z.string().nullable().optional(), model_id: z.string().nullable().optional() })
+              .passthrough()
+              .nullable()
+              .optional(),
+            systemDefaultModel: z.string().nullable().optional(),
+          })
+          .passthrough(),
+        json,
+      )
+      return {
+        modelId: parsed?.data?.modelId ?? parsed?.data?.model_id ?? null,
+        systemDefaultModel: parsed?.systemDefaultModel ?? null,
+      }
     },
 
     async context(ctx, sessionId) {
