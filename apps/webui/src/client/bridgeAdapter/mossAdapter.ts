@@ -384,10 +384,11 @@ async function resolveCurrentModelId(sessionId?: string): Promise<string> {
     ).catch(() => null)
     if (conv?.modelId) return conv.modelId
   }
-  const user = await apiFetch<{ modelId: string | null }>('/api/conversations/user-model').catch(
-    () => null,
-  )
+  const user = await apiFetch<{ modelId: string | null; systemDefaultModel: string | null }>(
+    '/api/conversations/user-model',
+  ).catch(() => null)
   if (user?.modelId) return user.modelId
+  if (user?.systemDefaultModel) return user.systemDefaultModel
   return cachedModels?.[0]?.id ?? ''
 }
 
@@ -1196,8 +1197,10 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok(opts.models.map((m) => ({ id: m.id, name: m.name, ratio: 1 })))
   },
   'moss.get-user-model': async () => {
-    const data = await apiFetch<{ modelId: string | null }>('/api/conversations/user-model')
-    return ok(data ?? { modelId: null })
+    const data = await apiFetch<{ modelId: string | null; systemDefaultModel: string | null }>(
+      '/api/conversations/user-model',
+    )
+    return ok(data ?? { modelId: null, systemDefaultModel: null })
   },
   'moss.set-user-model': async (req) => {
     const modelId = String(req?.modelId ?? '')

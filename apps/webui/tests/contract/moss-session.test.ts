@@ -57,21 +57,45 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     })
   })
 
-  test('getUserModel gets /api/v1/users/me/model and reads modelId (camel/snake compatible)', async () => {
-    const mock = vi.fn().mockResolvedValue({ modelId: 'gpt-4' })
+  // 上游真实形状是 { success, data: {...}, systemDefaultModel }（moss server.ts
+  // /api/v1/users/:id/model）。早先这里 mock 的是顶层 { modelId }，测试因此恒绿
+  // 而线上恒 null —— 断言必须照上游的包封写，否则它保护的是一个不存在的上游。
+  test('getUserModel reads modelId out of the data envelope and keeps systemDefaultModel', async () => {
+    const mock = vi.fn().mockResolvedValue({
+      success: true,
+      data: { modelId: 'gpt-4', updatedAt: 1 },
+      systemDefaultModel: 'sonnet',
+    })
     const port = createMossSessionPort(mock)
-    await expect(port.getUserModel(CTX)).resolves.toBe('gpt-4')
+    await expect(port.getUserModel(CTX)).resolves.toEqual({
+      modelId: 'gpt-4',
+      systemDefaultModel: 'sonnet',
+    })
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'GET',
       path: '/api/v1/users/me/model',
       accessToken: 'tk',
     })
 
-    const snakeMock = vi.fn().mockResolvedValue({ model_id: 'claude-x' })
-    await expect(createMossSessionPort(snakeMock).getUserModel(CTX)).resolves.toBe('claude-x')
+    const snakeMock = vi.fn().mockResolvedValue({
+      success: true,
+      data: { model_id: 'claude-x' },
+      systemDefaultModel: 'sonnet',
+    })
+    await expect(createMossSessionPort(snakeMock).getUserModel(CTX)).resolves.toEqual({
+      modelId: 'claude-x',
+      systemDefaultModel: 'sonnet',
+    })
 
-    const unsetMock = vi.fn().mockResolvedValue({})
-    await expect(createMossSessionPort(unsetMock).getUserModel(CTX)).resolves.toBeNull()
+    // 未设偏好：data 为 null，但 systemDefaultModel 仍要带回，
+    // 否则调用方的第二级兜底拿不到东西，只能塌到「列表首项」。
+    const unsetMock = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: null, systemDefaultModel: 'sonnet' })
+    await expect(createMossSessionPort(unsetMock).getUserModel(CTX)).resolves.toEqual({
+      modelId: null,
+      systemDefaultModel: 'sonnet',
+    })
   })
 
   test('context/resume/terminate/workspace paths match baseline routes', async () => {
