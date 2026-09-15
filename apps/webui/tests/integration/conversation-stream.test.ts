@@ -470,6 +470,58 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     await sleep(100)
   }, 15_000)
 
+  test('send frame msgId is forwarded as the upstream user message uuid', async () => {
+    // 前置：清掉历史残留锁，保证起点 idle
+    await request(app)
+      .post(`/api/conversations/${SID}/terminate`)
+      .set('Cookie', cookie1)
+      .set('Origin', 'http://localhost:5273')
+    await sleep(150)
+
+    const ws1 = await browserWs(cookie1)
+    const c1 = collector(ws1)
+    try {
+      await c1.waitFor((e) => e.kind === 'lock')
+      const before = upstreamReceived.length
+      ws1.send(
+        JSON.stringify({ kind: 'send', text: 'uuid probe', images: [], msgId: 'msg-uuid-42' }),
+      )
+
+      // 转发是异步的（写锁 + resume + 上游握手后才 send），轮询等待 user 帧到达 upstream
+      const probeArrived = async (): Promise<boolean> => {
+        const received = upstreamReceived
+          .slice(before)
+          .some(
+            (e) =>
+              (e as { type?: string }).type === 'user' &&
+              (e as { uuid?: string }).uuid === 'msg-uuid-42',
+          )
+        if (received) return true
+        await sleep(50)
+        return false
+      }
+      for (let i = 0; i < 100 && !(await probeArrived()); i++) {
+        // 轮询
+      }
+      const userFrames = upstreamReceived
+        .slice(before)
+        .filter((e) => (e as { type?: string }).type === 'user')
+      expect(userFrames.length).toBe(1)
+      expect(userFrames[0]).toMatchObject({
+        type: 'user',
+        uuid: 'msg-uuid-42',
+        message: { content: [{ type: 'text', text: 'uuid probe' }] },
+      })
+    } finally {
+      ws1.close()
+      await request(app)
+        .post(`/api/conversations/${SID}/terminate`)
+        .set('Cookie', cookie1)
+        .set('Origin', 'http://localhost:5273')
+      await sleep(150)
+    }
+  }, 20_000)
+
   test('WS upgrade rejects bad origin and missing cookie', async () => {
     await expect(
       new Promise<WebSocket>((resolve, reject) => {

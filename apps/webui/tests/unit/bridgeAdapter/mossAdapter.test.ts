@@ -18,6 +18,7 @@ import {
   serverScheduleToRenderer,
 } from '@client/bridgeAdapter/mossAdapter'
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge'
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge'
 import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/types/tenantConfig'
 
 type FetchMock = ReturnType<typeof vi.fn>
@@ -538,5 +539,151 @@ describe('mossAdapter: cron channels', () => {
     const result = (await ipcBridge.cron.listJobs.invoke()) as unknown as { __error?: string }
     expect(Array.isArray(result)).toBe(false)
     expect(result.__error).toBe('CRON_DISABLED_BY_ORG')
+  })
+})
+
+describe('mossAdapter: create-conversation binds the selected assistant', () => {
+  // The handler opens the session stream after creating the conversation; jsdom's
+  // WebSocket would fire async connection errors into the test run, so stub it.
+  class FakeWebSocket {
+    constructor(public url: string) {}
+    addEventListener() {}
+    close() {}
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const readBody = (fetchMock: FetchMock, call = 0): Record<string, unknown> =>
+    JSON.parse(String((fetchMock.mock.calls[call]?.[1] as RequestInit).body))
+
+  it('forwards extra.presetAssistantId as moss assistantName and reports the display name', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-1' } })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+      extra: {
+        backend: 'remote-agent',
+        presetAssistantId: 'compliance_auditor',
+        agentName: '合规审计师',
+        enabledSkills: ['soc2-audit'],
+      },
+    } as never)
+
+    expect(readBody(fetchMock)).toEqual({
+      assistantName: 'compliance_auditor',
+      enabledSkills: ['soc2-audit'],
+    })
+    // Creation-time response carries the UI display name, matching what
+    // get-conversation returns once moss persists display_name.
+    expect(conversation).toMatchObject({ name: '合规审计师', extra: { agentName: '合规审计师' } })
+  })
+
+  it('strips the builtin- prefix so system assistants match the moss name', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-2' } })
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hi',
+      model: {},
+      extra: { presetAssistantId: 'builtin-app-builder-assistant', agentName: 'App 构建助手' },
+    } as never)
+
+    expect(readBody(fetchMock)).toEqual({
+      assistantName: 'app-builder-assistant',
+      enabledSkills: [],
+    })
+  })
+
+  it('drops UI placeholder names so moss falls back to its default agent', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-3' } })
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+      extra: { presetAssistantId: 'Remote Agent', agentName: 'Remote Agent' },
+    } as never)
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+      extra: { presetAssistantId: 'Moss Server', agentName: 'Moss Server' },
+    } as never)
+
+    expect(readBody(fetchMock, 0)).toEqual({ assistantName: '', enabledSkills: [] })
+    expect(readBody(fetchMock, 1)).toEqual({ assistantName: '', enabledSkills: [] })
+  })
+
+  it('sends an empty assistantName when no assistant is selected', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-4' } })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+    } as never)
+
+    expect(readBody(fetchMock)).toEqual({ assistantName: '', enabledSkills: [] })
+    expect(conversation).toMatchObject({ id: 'sess-4' })
+  })
+})
+
+describe('mossAdapter: chat.send.message shares msgId between the WS send frame and the user echo', () => {
+  // Same FakeWebSocket approach as the create-conversation suite above: jsdom's
+  // real WebSocket would attempt a real connection; capture frames instead.
+  class CaptureWebSocket {
+    static instances: CaptureWebSocket[] = []
+    static readonly OPEN = 1
+    readonly readyState = 1
+    sent: unknown[] = []
+
+    constructor(public url: string) {
+      CaptureWebSocket.instances.push(this)
+    }
+
+    addEventListener() {}
+
+    send(payload: string) {
+      this.sent.push(JSON.parse(payload))
+    }
+
+    close() {}
+  }
+
+  const echoFrames: IResponseMessage[] = []
+  let offStream: () => void
+
+  beforeEach(() => {
+    localStorage.clear()
+    CaptureWebSocket.instances = []
+    echoFrames.length = 0
+    vi.stubGlobal('WebSocket', CaptureWebSocket)
+    offStream = ipcBridge.conversation.responseStream.on((msg) => echoFrames.push(msg))
+  })
+
+  afterEach(() => {
+    offStream()
+    vi.unstubAllGlobals()
+  })
+
+  it('forwards the renderer msg_id as the WS send msgId and echoes the same value as user_content', async () => {
+    const result = await ipcBridge.acpConversation.sendMessage.invoke({
+      conversation_id: 'sess-echo-1',
+      input: 'hello',
+      msg_id: 'msg-uuid-9',
+    } as never)
+
+    expect(result).toEqual({ success: true, data: undefined })
+    const ws = CaptureWebSocket.instances[CaptureWebSocket.instances.length - 1]
+    // The WS frame carries msgId so moss persists it as the message uuid; /context
+    // returns it and the history merge dedupes the echo below by msg_id.
+    expect(ws?.sent).toEqual([{ kind: 'send', text: 'hello', msgId: 'msg-uuid-9' }])
+    const echo = echoFrames.find((frame) => frame.type === 'user_content')
+    expect(echo?.msg_id).toBe('msg-uuid-9')
   })
 })

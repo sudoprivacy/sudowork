@@ -269,6 +269,8 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       expect(msg.cwd).toBeUndefined()
       expect(msg.workDir).toBeUndefined()
     }
+    // user 消息透传 moss uuid 作为 msg_id（与流式回显按 msg_id 去重）
+    expect(messages[0]).toMatchObject({ type: 'text', msg_id: 'u1', position: 'right' })
 
     // B 访问 A 的会话 → 403（即使同 org）
     const cross = await request(app)

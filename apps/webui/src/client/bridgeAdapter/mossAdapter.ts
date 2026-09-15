@@ -1111,27 +1111,34 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
 
   // --- create / update / delete ---
   'create-conversation': async (req) => {
-    // The renderer's enterprise agent label (e.g. "Remote Agent") is a UI name,
-    // not a moss agent — passing it yields SELECTION_NOT_AVAILABLE. Let moss pick
-    // its default agent (empty assistantName) unless a real moss agent id is given.
+    // The renderer carries the selected assistant as extra.presetAssistantId —
+    // the moss installed-agent `name`, possibly prefixed `builtin-` by the
+    // desktop-style id. UI placeholders ("Remote Agent"/"Moss Server") are not
+    // moss agents — passing them yields SELECTION_NOT_AVAILABLE, so fall back to
+    // an empty assistantName and let moss pick its default agent.
+    const extra = req?.extra as
+      { presetAssistantId?: unknown; agentName?: unknown; enabledSkills?: unknown } | undefined
+    const raw = typeof extra?.presetAssistantId === 'string' ? extra.presetAssistantId : ''
     const agent =
-      typeof req?.assistantName === 'string' &&
-      req.assistantName &&
-      req.assistantName !== 'Remote Agent'
-        ? req.assistantName
-        : ''
+      raw && raw !== 'Remote Agent' && raw !== 'Moss Server' ? raw.replace(/^builtin-/, '') : ''
     const created = await apiFetch<{ id: string }>('/api/conversations', {
       method: 'POST',
       body: JSON.stringify({
         assistantName: agent,
-        enabledSkills:
-          (req?.extra as { enabledSkills?: unknown } | undefined)?.enabledSkills ??
-          req?.enabledSkills ??
-          [],
+        enabledSkills: extra?.enabledSkills ?? req?.enabledSkills ?? [],
       }),
     })
     ensureSessionStream(created.id)
-    return toChatConversation({ id: created.id, assistantName: agent || null })
+    // Report the UI display name (moss persists display_name) so the freshly
+    // created conversation matches what get-conversation will return later.
+    const displayName =
+      typeof extra?.agentName === 'string' &&
+      extra.agentName &&
+      extra.agentName !== 'Remote Agent' &&
+      extra.agentName !== 'Moss Server'
+        ? extra.agentName
+        : agent || null
+    return toChatConversation({ id: created.id, assistantName: displayName })
   },
   'moss.create-session': async (req) => {
     const created = await apiFetch<{ id: string }>('/api/conversations', {
@@ -1217,14 +1224,16 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     if (!sessionId) return fail('NO_SESSION')
     abortedSessions.delete(sessionId)
     const text = extractText(req)
-    sendOverStream(sessionId, { kind: 'send', text })
+    const msgId = String(req?.msg_id ?? nextMsgId())
+    sendOverStream(sessionId, { kind: 'send', text, msgId })
     // Echo the user's own message back so its bubble shows: the shared renderer does
     // no optimistic insert and relies on a user_content frame (desktop RemoteAgent does
     // the same). moss's user echo frame is dropped by mossFrameToResponses, so synthesize
-    // it here. Reuse the renderer-supplied msg_id so streaming/history dedup stays aligned.
+    // it here. The echo and the WS send share msgId: moss persists it as the message uuid,
+    // /context returns it, and the history merge dedupes this echo by msg_id.
     emitterRef?.emit('chat.response.stream', {
       type: 'user_content',
-      msg_id: String(req?.msg_id ?? nextMsgId()),
+      msg_id: msgId,
       conversation_id: sessionId,
       data: text,
     })

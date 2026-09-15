@@ -159,6 +159,8 @@ export type ConversationContextDto = z.infer<typeof ConversationContextDtoSchema
 export const ClientOutboundMessageSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('send'),
+    /** renderer 侧 msg_id；透传给 moss 作为消息 uuid，/context 回读后用于与流式回显去重 */
+    msgId: z.string().min(1).max(255).optional(),
     text: z.string().min(1).max(32_768),
     images: z
       .array(
