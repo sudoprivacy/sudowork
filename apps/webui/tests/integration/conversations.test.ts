@@ -286,7 +286,7 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .get('/api/conversations/sess-empty/context')
       .set('Cookie', cookieA)
     expect(empty.status).toBe(200)
-    expect(empty.body).toEqual({ customTitle: null, title: null, messages: [] })
+    expect(empty.body).toEqual({ customTitle: null, title: null, modelId: null, messages: [] })
   })
 
   test('POST create validates agent/skill names against fresh visible lists', async () => {
@@ -419,10 +419,20 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .get('/api/conversations/options')
       .set('Cookie', cookieA)
     expect(res.status).toBe(200)
-    // agents/skills 含列表展示所需字段（displayName/emoji/description/icon；fake 上游只提供 name，其余兜底）；
-    // fake 上游的 isBuiltin 条目（builtin-agent）应被过滤——与智能体页"我的智能体"一致
+    // agents/skills 含列表展示所需字段（fake 上游只提供 name，其余全部兜底）；
+    // fake 上游的 isBuiltin 条目（builtin-agent）应被过滤——与智能体页"我的智能体"一致。
+    // 这里断言的是**完整字段集**：给 agent DTO 加字段而不改这条，测试就会红——
+    // 那是有意的，字段是前端列表直接消费的契约，不该悄悄变。
     expect(res.body.agents).toEqual([
-      { name: 'helper', displayName: 'helper', emoji: '', description: '' },
+      {
+        name: 'helper',
+        displayName: 'helper',
+        emoji: '',
+        description: '',
+        avatar: '',
+        defaultInitPrompt: '',
+        promptsI18n: { 'zh-CN': [] },
+      },
     ])
     expect(res.body.skills).toEqual([
       { name: 'known-skill', displayName: 'known-skill', description: '', icon: '', emoji: '' },

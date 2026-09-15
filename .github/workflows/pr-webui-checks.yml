@@ -1,5 +1,11 @@
-# PR gate for apps/webui: typecheck / lint / format:check / unit / contract tests.
+# PR gate for apps/webui: typecheck / lint / format:check / unit / contract / integration tests.
 # Mirrors pr-checks.yml conventions (trigger, concurrency, edited-skip, minimal deps).
+#
+# Integration runs here because leaving it out is what let it rot: two assertions
+# in conversations.test.ts sat red on dev for days after fields were added to the
+# context and agent DTOs, and nothing reported it. A suite nothing runs protects
+# nothing. It needs a real PostgreSQL (the tests create and migrate their own
+# database), which is what the postgres service below provides.
 # build:packages is a DUAL prerequisite: tsc resolves the shared packages through
 # their `types` exports condition (dist/*.d.ts) AND vitest resolves them at runtime
 # through the `default` condition (dist/*.js) — without it the tests cannot even
@@ -28,6 +34,22 @@ jobs:
     if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Same major as production (the deployed stack runs postgres:16-alpine), so a
+    # migration that passes here is a migration that passes there.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -67,3 +89,12 @@ jobs:
       - name: Contract tests
         working-directory: apps/webui
         run: bun run test:contract
+
+      # DATABASE_URL is set explicitly rather than relying on the helper's default:
+      # the CI database is a fact of this workflow, not something to infer from a
+      # fallback in test code.
+      - name: Integration tests
+        working-directory: apps/webui
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: bun run test:integration
