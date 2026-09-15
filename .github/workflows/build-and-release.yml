@@ -257,7 +257,7 @@ jobs:
 
       - name: Prepare release assets (normalize updater metadata)
         shell: bash
-        run: bash scripts/prepare-release-assets.sh build-artifacts release-assets
+        run: bash apps/desktop/scripts/prepare-release-assets.sh build-artifacts release-assets
 
       - name: Create Release on Public Repo
         uses: softprops/action-gh-release@v2
@@ -283,6 +283,7 @@ jobs:
       - name: Upload to Tencent COS
         # 【变更】仅正式发布 v* 标签时上传 COS latest，dev 版本和 RC 版本都不上传
         if: steps.version.outputs.is_dev == 'false' && steps.version.outputs.is_rc == 'false' && env.TENCENT_SECRET_ID != '' && env.TENCENT_SECRET_KEY != ''
+        working-directory: apps/desktop
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
@@ -297,7 +298,7 @@ jobs:
           echo "🔐 Configuring coscmd..."
           coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" -b "$COS_BUCKET" -e cos.accelerate.myqcloud.com
 
-          bash scripts/publish-release-to-cos.sh release-assets
+          bash scripts/publish-release-to-cos.sh ../../release-assets
 
       - name: Cleanup Old Releases on Public Repo
         run: |
