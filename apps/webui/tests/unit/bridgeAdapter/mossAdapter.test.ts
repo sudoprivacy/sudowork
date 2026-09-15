@@ -540,3 +540,94 @@ describe('mossAdapter: cron channels', () => {
     expect(result.__error).toBe('CRON_DISABLED_BY_ORG')
   })
 })
+
+describe('mossAdapter: create-conversation binds the selected assistant', () => {
+  // The handler opens the session stream after creating the conversation; jsdom's
+  // WebSocket would fire async connection errors into the test run, so stub it.
+  class FakeWebSocket {
+    constructor(public url: string) {}
+    addEventListener() {}
+    close() {}
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const readBody = (fetchMock: FetchMock, call = 0): Record<string, unknown> =>
+    JSON.parse(String((fetchMock.mock.calls[call]?.[1] as RequestInit).body))
+
+  it('forwards extra.presetAssistantId as moss assistantName and reports the display name', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-1' } })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+      extra: {
+        backend: 'remote-agent',
+        presetAssistantId: 'compliance_auditor',
+        agentName: '合规审计师',
+        enabledSkills: ['soc2-audit'],
+      },
+    } as never)
+
+    expect(readBody(fetchMock)).toEqual({
+      assistantName: 'compliance_auditor',
+      enabledSkills: ['soc2-audit'],
+    })
+    // Creation-time response carries the UI display name, matching what
+    // get-conversation returns once moss persists display_name.
+    expect(conversation).toMatchObject({ name: '合规审计师', extra: { agentName: '合规审计师' } })
+  })
+
+  it('strips the builtin- prefix so system assistants match the moss name', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-2' } })
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hi',
+      model: {},
+      extra: { presetAssistantId: 'builtin-app-builder-assistant', agentName: 'App 构建助手' },
+    } as never)
+
+    expect(readBody(fetchMock)).toEqual({
+      assistantName: 'app-builder-assistant',
+      enabledSkills: [],
+    })
+  })
+
+  it('drops UI placeholder names so moss falls back to its default agent', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-3' } })
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+      extra: { presetAssistantId: 'Remote Agent', agentName: 'Remote Agent' },
+    } as never)
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+      extra: { presetAssistantId: 'Moss Server', agentName: 'Moss Server' },
+    } as never)
+
+    expect(readBody(fetchMock, 0)).toEqual({ assistantName: '', enabledSkills: [] })
+    expect(readBody(fetchMock, 1)).toEqual({ assistantName: '', enabledSkills: [] })
+  })
+
+  it('sends an empty assistantName when no assistant is selected', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-4' } })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+    } as never)
+
+    expect(readBody(fetchMock)).toEqual({ assistantName: '', enabledSkills: [] })
+    expect(conversation).toMatchObject({ id: 'sess-4' })
+  })
+})
