@@ -52,4 +52,22 @@ describe('convertMossMessagesToTMessages Moss sync conversion', () => {
     expect(messages).toHaveLength(1);
     expect((messages[0] as any).content.content).toBe('生成一个 go 语言的 knn 算法');
   });
+
+  it('maps the moss user message uuid to msg_id for streaming/history dedup', () => {
+    const { messages } = convertMossMessagesToTMessages(
+      [
+        {
+          type: 'user',
+          uuid: 'msg-uuid-1',
+          timestamp: '2026-06-10T00:00:00.000Z',
+          message: { content: [{ type: 'text', text: 'hi' }] },
+        },
+      ],
+      'conv-1',
+      'moss-session-1'
+    );
+
+    expect(messages).toHaveLength(1);
+    expect((messages[0] as any).msg_id).toBe('msg-uuid-1');
+  });
 });

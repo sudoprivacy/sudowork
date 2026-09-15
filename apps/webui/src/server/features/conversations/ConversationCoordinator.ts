@@ -313,6 +313,9 @@ export class ConversationCoordinator {
                 text: msg.text,
                 images: msg.images,
                 parentToolUseId: null,
+                // 透传 renderer msg_id 作为 moss 消息 uuid（对齐桌面 MossWsConnection），
+                // /context 回读后历史与流式回显按 msg_id 去重
+                uuid: msg.msgId,
               })
             : buildAnswerQuestionMessage(entry.mossSessionId, msg.parentToolUseId, msg.text)
 

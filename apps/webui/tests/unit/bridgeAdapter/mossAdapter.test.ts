@@ -18,6 +18,7 @@ import {
   serverScheduleToRenderer,
 } from '@client/bridgeAdapter/mossAdapter'
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge'
+import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge'
 import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/types/tenantConfig'
 
 type FetchMock = ReturnType<typeof vi.fn>
@@ -629,5 +630,60 @@ describe('mossAdapter: create-conversation binds the selected assistant', () => 
 
     expect(readBody(fetchMock)).toEqual({ assistantName: '', enabledSkills: [] })
     expect(conversation).toMatchObject({ id: 'sess-4' })
+  })
+})
+
+describe('mossAdapter: chat.send.message shares msgId between the WS send frame and the user echo', () => {
+  // Same FakeWebSocket approach as the create-conversation suite above: jsdom's
+  // real WebSocket would attempt a real connection; capture frames instead.
+  class CaptureWebSocket {
+    static instances: CaptureWebSocket[] = []
+    static readonly OPEN = 1
+    readonly readyState = 1
+    sent: unknown[] = []
+
+    constructor(public url: string) {
+      CaptureWebSocket.instances.push(this)
+    }
+
+    addEventListener() {}
+
+    send(payload: string) {
+      this.sent.push(JSON.parse(payload))
+    }
+
+    close() {}
+  }
+
+  const echoFrames: IResponseMessage[] = []
+  let offStream: () => void
+
+  beforeEach(() => {
+    localStorage.clear()
+    CaptureWebSocket.instances = []
+    echoFrames.length = 0
+    vi.stubGlobal('WebSocket', CaptureWebSocket)
+    offStream = ipcBridge.conversation.responseStream.on((msg) => echoFrames.push(msg))
+  })
+
+  afterEach(() => {
+    offStream()
+    vi.unstubAllGlobals()
+  })
+
+  it('forwards the renderer msg_id as the WS send msgId and echoes the same value as user_content', async () => {
+    const result = await ipcBridge.acpConversation.sendMessage.invoke({
+      conversation_id: 'sess-echo-1',
+      input: 'hello',
+      msg_id: 'msg-uuid-9',
+    } as never)
+
+    expect(result).toEqual({ success: true, data: undefined })
+    const ws = CaptureWebSocket.instances[CaptureWebSocket.instances.length - 1]
+    // The WS frame carries msgId so moss persists it as the message uuid; /context
+    // returns it and the history merge dedupes the echo below by msg_id.
+    expect(ws?.sent).toEqual([{ kind: 'send', text: 'hello', msgId: 'msg-uuid-9' }])
+    const echo = echoFrames.find((frame) => frame.type === 'user_content')
+    expect(echo?.msg_id).toBe('msg-uuid-9')
   })
 })

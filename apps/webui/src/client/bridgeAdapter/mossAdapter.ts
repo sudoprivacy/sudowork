@@ -1224,14 +1224,16 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     if (!sessionId) return fail('NO_SESSION')
     abortedSessions.delete(sessionId)
     const text = extractText(req)
-    sendOverStream(sessionId, { kind: 'send', text })
+    const msgId = String(req?.msg_id ?? nextMsgId())
+    sendOverStream(sessionId, { kind: 'send', text, msgId })
     // Echo the user's own message back so its bubble shows: the shared renderer does
     // no optimistic insert and relies on a user_content frame (desktop RemoteAgent does
     // the same). moss's user echo frame is dropped by mossFrameToResponses, so synthesize
-    // it here. Reuse the renderer-supplied msg_id so streaming/history dedup stays aligned.
+    // it here. The echo and the WS send share msgId: moss persists it as the message uuid,
+    // /context returns it, and the history merge dedupes this echo by msg_id.
     emitterRef?.emit('chat.response.stream', {
       type: 'user_content',
-      msg_id: String(req?.msg_id ?? nextMsgId()),
+      msg_id: msgId,
       conversation_id: sessionId,
       data: text,
     })
