@@ -16,7 +16,8 @@ import path from 'path';
 import type { ScodeConfig } from '@sudowork/host-bridge/ipcBridge';
 import { getSudorouterBaseUrl } from '@sudowork/common/systemConfig';
 import { extractImageModelsFromScodeConfig, mergeCustomProvidersIntoScodeConfig, normalizeCustomApiKeyModelsInScodeConfig, normalizeScodeModelApiTypesInScodeConfig, type ScodeCustomModelProvider, type SpecificPricingItem } from '@sudowork/common/scodeConfig';
-import { SCODE_DIR, isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
+import { isScodeInstalled, getScodeVersionState, ensureScodeInstalled } from '@process/services/scode/ScodeInstallService';
+import { SCODE_CONFIG_PATH } from '@process/services/scode/scodePaths';
 import { syncUserKeyFromScodeConfig } from '@process/services/authProxy/userKeySync';
 import { readSettings, removeDisabledMcpServersFromSettings, writeSettings } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import { getDatabase } from '@process/database';
@@ -27,7 +28,7 @@ import { ipcBridge } from '@/common';
 import { modelInputForModelId } from '@/common/imageUtils';
 
 const TAG = 'ScodeBridge';
-const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
+const SUDOCODE_CONFIG_PATH = SCODE_CONFIG_PATH;
 const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
 
 /** Read existing sudocode.json, returns empty object on failure */
@@ -41,7 +42,7 @@ function readExistingConfig(): Record<string, unknown> {
 
 /** Write config to sudocode.json, ensuring directory exists */
 function writeConfig(config: Record<string, unknown>): void {
-  fs.mkdirSync(SCODE_DIR, { recursive: true });
+  fs.mkdirSync(path.dirname(SUDOCODE_CONFIG_PATH), { recursive: true });
   fs.writeFileSync(SUDOCODE_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
   if (process.platform !== 'win32') {
     try {

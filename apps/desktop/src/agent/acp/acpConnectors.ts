@@ -18,7 +18,7 @@ import os from 'os';
 import path from 'path';
 import { app } from 'electron';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
-import { SCODE_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
+import { SCODE_CONFIG_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
 import { scodeEngineEnvOverrides } from '@process/services/scode/scodeEngineEnv';
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -161,7 +161,7 @@ export function resolveScodeAuthModeFromConfig(config: unknown, settings: unknow
 
 function readScodeAuthModeFromDisk(modelOverride?: string | null): ScodeAuthMode | null {
   try {
-    const scodeDir = SCODE_HOME;
+    const scodeDir = SCODE_CONFIG_HOME;
     const configPath = path.join(scodeDir, 'sudocode.json');
     const settingsPath = path.join(scodeDir, 'settings.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as unknown;

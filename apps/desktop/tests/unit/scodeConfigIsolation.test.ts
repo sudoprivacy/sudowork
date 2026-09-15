@@ -8,25 +8,22 @@
  * Config/binary isolation between sudowork's embedded (engine) scode and a
  * user-installed standalone scode.
  *
- * Background: both products default their config home to `~/.nexus/sudocode`, so
- * installing both on one machine made them stomp each other's `sudocode.json`
- * (models/auth), `settings.json` (settings/MCP) and the binary. sudowork now
- * isolates its engine-scode under `~/.nexus/sudowork/sudocode` (mirroring how
- * Claude Desktop / Claude Code keep separate config homes) and drives scode with
- * `SUDO_CODE_CONFIG_HOME` pointed there.
+ * Background: sudowork is a UI over sudocode, so it isolates the way two
+ * sudocode instances do — one shared config home, per-instance differences
+ * layered on as project config. Only the pinned engine BINARY is kept apart.
+ * Forking a second config home instead made the same accounts and models
+ * exist twice and drift; the copy went stale and ended up with no accounts.
  *
- * These tests lock in the three load-bearing guarantees:
- *   1. the path SSOT is isolated and self-consistent;
- *   2. first-run migration copies a PRIOR SUDOWORK install's config once, never
- *      clobbers, never auto-imports a standalone scode's config, and is idempotent;
- *   3. no code outside the SSOT re-derives a home-level `~/.nexus/sudocode` path.
+ * These tests lock in the load-bearing guarantees:
+ *   1. config resolves to the shared home, the binary to the isolated one;
+ *   2. no code outside the SSOT re-derives a home-level scode path;
+ *   3. the engine env contract points scode at the shared config home.
  */
 
 import fs from 'fs';
-import fsp from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
   app: {
@@ -40,9 +37,6 @@ vi.mock('@process/utils/mainLogger', () => ({
   mainWarn: vi.fn(),
   mainError: vi.fn(),
 }));
-
-const READY_MARKER = '.scode-bin-ready';
-const MIGRATION_MARKER = '.sudowork-config-migrated';
 
 /** First scode release whose engine reads `SUDOCODE_DISABLE_CRON_TOOLS`. */
 const SCODE_MIN_VERSION_WITH_CRON_GATE = '0.1.13';
@@ -62,141 +56,31 @@ function isAtLeast(version: string, minimum: string): boolean {
 }
 
 describe('scode config isolation — path SSOT', () => {
-  it('isolates the engine-scode home under ~/.nexus/sudowork/sudocode', async () => {
-    const { SCODE_HOME, LEGACY_SCODE_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } = await import('../../src/process/services/scode/scodePaths');
+  it('shares the config home and isolates only the engine binary', async () => {
+    const { SCODE_BIN_HOME, SCODE_CONFIG_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } = await import('../../src/process/services/scode/scodePaths');
 
-    // engine home lives under the isolated sudowork/ namespace, not the shared one
-    expect(SCODE_HOME).toContain(os.homedir());
-    expect(SCODE_HOME.endsWith(path.join('.nexus', 'sudowork', 'sudocode'))).toBe(true);
+    // config lives in the SHARED home — the same one a standalone scode defaults to,
+    // so accounts/models are defined once instead of copied into a second home
+    expect(SCODE_CONFIG_HOME).toContain(os.homedir());
+    expect(SCODE_CONFIG_HOME.endsWith(path.join('.nexus', 'sudocode'))).toBe(true);
 
-    // standalone scode's default home (used only as the migration source)
-    expect(LEGACY_SCODE_HOME.endsWith(path.join('.nexus', 'sudocode'))).toBe(true);
+    // the binary stays isolated: sudowork pins its own engine version
+    expect(SCODE_BIN_HOME.endsWith(path.join('.nexus', 'sudowork', 'sudocode'))).toBe(true);
+    expect(SCODE_BIN_HOME).not.toBe(SCODE_CONFIG_HOME);
 
-    // the whole point: the two homes must differ, else there is no isolation
-    expect(SCODE_HOME).not.toBe(LEGACY_SCODE_HOME);
-    expect(SCODE_HOME.startsWith(LEGACY_SCODE_HOME + path.sep)).toBe(false);
-
-    // config + settings are derived from the isolated home (one relocation, both files)
-    expect(SCODE_CONFIG_PATH).toBe(path.join(SCODE_HOME, 'sudocode.json'));
-    expect(SCODE_SETTINGS_PATH).toBe(path.join(SCODE_HOME, 'settings.json'));
+    // both config files derive from the config home, not the binary home
+    expect(SCODE_CONFIG_PATH).toBe(path.join(SCODE_CONFIG_HOME, 'sudocode.json'));
+    expect(SCODE_SETTINGS_PATH).toBe(path.join(SCODE_CONFIG_HOME, 'settings.json'));
+    expect(SCODE_CONFIG_PATH.startsWith(SCODE_BIN_HOME)).toBe(false);
   });
 
-  it('ScodeInstallService.SCODE_DIR is an alias of the SSOT home (no duplicate literal)', async () => {
+  it('ScodeInstallService.SCODE_DIR is the BINARY home (no duplicate literal)', async () => {
     const paths = await import('../../src/process/services/scode/scodePaths');
     const install = await import('../../src/process/services/scode/ScodeInstallService');
 
-    // SCODE_DIR is re-exported from the SSOT, not an independently-computed string.
-    expect(install.SCODE_DIR).toBe(paths.SCODE_HOME);
-  });
-});
-
-describe('scode config isolation — first-run migration', () => {
-  let tempRoot: string;
-  let home: string; // isolated ~/.nexus/sudowork/sudocode stand-in
-  let legacy: string; // shared ~/.nexus/sudocode stand-in
-
-  beforeEach(async () => {
-    tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'sudowork-scode-iso-'));
-    home = path.join(tempRoot, 'sudowork', 'sudocode');
-    legacy = path.join(tempRoot, 'sudocode');
-    await fsp.mkdir(legacy, { recursive: true });
-  });
-
-  afterEach(async () => {
-    await fsp.rm(tempRoot, { recursive: true, force: true });
-  });
-
-  it('copies config from a PRIOR SUDOWORK install and leaves the legacy copy intact', async () => {
-    const { migrateLegacyScodeHomeOnce } = await import('../../src/process/services/scode/ScodeInstallService');
-
-    // legacy home was a sudowork install (has sudowork's ready-marker) with real config
-    fs.writeFileSync(path.join(legacy, READY_MARKER), '0.1.1');
-    fs.writeFileSync(path.join(legacy, 'sudocode.json'), '{"default_model":"gpt"}');
-    fs.writeFileSync(path.join(legacy, 'settings.json'), '{"mcp":{}}');
-    fs.mkdirSync(path.join(legacy, 'skills', 'demo'), { recursive: true });
-    fs.writeFileSync(path.join(legacy, 'skills', 'demo', 'SKILL.md'), '# demo');
-
-    migrateLegacyScodeHomeOnce(home, legacy);
-
-    // config copied into the isolated home (data-flow assertion, not just existence)
-    expect(fs.readFileSync(path.join(home, 'sudocode.json'), 'utf-8')).toBe('{"default_model":"gpt"}');
-    expect(fs.readFileSync(path.join(home, 'settings.json'), 'utf-8')).toBe('{"mcp":{}}');
-    expect(fs.readFileSync(path.join(home, 'skills', 'demo', 'SKILL.md'), 'utf-8')).toBe('# demo');
-    // migration is a COPY, not a move — legacy stays usable for a standalone scode
-    expect(fs.existsSync(path.join(legacy, 'sudocode.json'))).toBe(true);
-    // marker written so it never runs again
-    expect(fs.existsSync(path.join(home, MIGRATION_MARKER))).toBe(true);
-  });
-
-  it("does NOT auto-import a standalone scode's config (default full isolation)", async () => {
-    const { migrateLegacyScodeHomeOnce } = await import('../../src/process/services/scode/ScodeInstallService');
-
-    // legacy home is a STANDALONE scode: has config but NO sudowork ready-marker/binary
-    fs.writeFileSync(path.join(legacy, 'sudocode.json'), '{"default_model":"standalone-secret"}');
-
-    migrateLegacyScodeHomeOnce(home, legacy);
-
-    // isolation wins: the standalone config must not leak into the engine home
-    expect(fs.existsSync(path.join(home, 'sudocode.json'))).toBe(false);
-    // but migration is still marked done so we don't re-scan on every launch
-    expect(fs.existsSync(path.join(home, MIGRATION_MARKER))).toBe(true);
-  });
-
-  it('does NOT treat a standalone scode (has scode.exe but no sudowork marker) as migratable', async () => {
-    const { migrateLegacyScodeHomeOnce } = await import('../../src/process/services/scode/ScodeInstallService');
-
-    // The exact customer scenario: a standalone scode install — scode binary
-    // present, real config present, but NO sudowork ready-marker. Detection must
-    // key off the sudowork marker, not the (shared) binary, or it would import.
-    const exeName = process.platform === 'win32' ? 'scode.exe' : 'scode';
-    fs.writeFileSync(path.join(legacy, exeName), 'binary');
-    fs.writeFileSync(path.join(legacy, 'sudocode.json'), '{"default_model":"standalone-secret"}');
-
-    migrateLegacyScodeHomeOnce(home, legacy);
-
-    expect(fs.existsSync(path.join(home, 'sudocode.json'))).toBe(false);
-    expect(fs.existsSync(path.join(home, MIGRATION_MARKER))).toBe(true);
-  });
-
-  it('never clobbers config already present in the isolated home', async () => {
-    const { migrateLegacyScodeHomeOnce } = await import('../../src/process/services/scode/ScodeInstallService');
-
-    fs.writeFileSync(path.join(legacy, READY_MARKER), '0.1.1');
-    fs.writeFileSync(path.join(legacy, 'sudocode.json'), '{"from":"legacy"}');
-    // user already has an isolated config (e.g. re-run after partial migration)
-    fs.mkdirSync(home, { recursive: true });
-    fs.writeFileSync(path.join(home, 'sudocode.json'), '{"from":"isolated"}');
-
-    migrateLegacyScodeHomeOnce(home, legacy);
-
-    expect(fs.readFileSync(path.join(home, 'sudocode.json'), 'utf-8')).toBe('{"from":"isolated"}');
-  });
-
-  it('is idempotent — a second run does not re-copy after the marker exists', async () => {
-    const { migrateLegacyScodeHomeOnce } = await import('../../src/process/services/scode/ScodeInstallService');
-
-    fs.writeFileSync(path.join(legacy, READY_MARKER), '0.1.1');
-    fs.writeFileSync(path.join(legacy, 'sudocode.json'), '{"v":1}');
-
-    migrateLegacyScodeHomeOnce(home, legacy);
-    // user edits the isolated config after migration; legacy also changes
-    fs.writeFileSync(path.join(home, 'sudocode.json'), '{"v":2}');
-    fs.writeFileSync(path.join(legacy, 'sudocode.json'), '{"v":99}');
-
-    migrateLegacyScodeHomeOnce(home, legacy);
-
-    // second run is a no-op: user's post-migration edit is preserved
-    expect(fs.readFileSync(path.join(home, 'sudocode.json'), 'utf-8')).toBe('{"v":2}');
-  });
-
-  it('no-ops when home and legacy are the same path (isolation disabled)', async () => {
-    const { migrateLegacyScodeHomeOnce } = await import('../../src/process/services/scode/ScodeInstallService');
-    fs.writeFileSync(path.join(legacy, READY_MARKER), '0.1.1');
-
-    migrateLegacyScodeHomeOnce(legacy, legacy);
-
-    // must not write a migration marker into the shared home when nothing to isolate
-    expect(fs.existsSync(path.join(legacy, MIGRATION_MARKER))).toBe(false);
+    // the install service manages the binary, so its dir is the binary home —
+    // re-exported from the SSOT, never an independently-computed string
+    expect(install.SCODE_DIR).toBe(paths.SCODE_BIN_HOME);
   });
 });
 
@@ -234,14 +118,15 @@ describe('scode config isolation — SSOT guard (no-hardcoded-scode-home)', () =
 });
 
 describe('scode engine env contract', () => {
-  it('injects the isolated config home AND gates the agent cron tools', async () => {
+  it('injects the shared config home AND gates the agent cron tools', async () => {
     const { scodeEngineEnvOverrides } = await import('../../src/process/services/scode/scodeEngineEnv');
-    const { SCODE_HOME, SCODE_CONFIG_PATH } = await import('../../src/process/services/scode/scodePaths');
+    const { SCODE_CONFIG_HOME, SCODE_CONFIG_PATH } = await import('../../src/process/services/scode/scodePaths');
 
     const env = scodeEngineEnvOverrides();
 
-    // Config isolation (engine-scode never shares a standalone scode's home).
-    expect(env.SUDO_CODE_CONFIG_HOME).toBe(SCODE_HOME);
+    // Config is SHARED with a standalone scode — one set of account/model
+    // definitions, not two copies that drift.
+    expect(env.SUDO_CODE_CONFIG_HOME).toBe(SCODE_CONFIG_HOME);
     expect(env.SUDOCODE_CONFIG_PATH).toBe(SCODE_CONFIG_PATH);
 
     // sudowork owns scheduling: it runs its own CronService and never ticks
@@ -260,21 +145,5 @@ describe('scode engine env contract', () => {
     const versions = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'src', 'shared', 'runtime-versions.json'), 'utf-8'));
 
     expect(isAtLeast(versions.scode, SCODE_MIN_VERSION_WITH_CRON_GATE), `runtime-versions.json pins scode ${versions.scode}, but the cron-tool gate needs >= ${SCODE_MIN_VERSION_WITH_CRON_GATE}`).toBe(true);
-  });
-});
-
-describe('scode config isolation — migration runs before config writers', () => {
-  it('initializeProcess calls migrateLegacyScodeHomeOnce before initStorage()', () => {
-    // Regression guard for a real bug found via full-app e2e: several services
-    // (image model, user-key sync, auth) write to the isolated sudocode.json during
-    // init. If migration runs AFTER any of them, its no-clobber guard skips the real
-    // copy and the user loses their models/auth on upgrade. Migration must therefore
-    // be the FIRST thing initializeProcess does — before storage/bridges/auth.
-    const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'src', 'process', 'index.ts'), 'utf-8');
-    const migrateIdx = src.indexOf('migrateLegacyScodeHomeOnce(');
-    const storageIdx = src.indexOf('initStorage(');
-    expect(migrateIdx, 'initializeProcess must call migrateLegacyScodeHomeOnce()').toBeGreaterThan(-1);
-    expect(storageIdx, 'initializeProcess must call initStorage()').toBeGreaterThan(-1);
-    expect(migrateIdx).toBeLessThan(storageIdx);
   });
 });
