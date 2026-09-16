@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 import request from 'supertest'
 import type { Express } from 'express'
 import { Pool } from 'pg'
@@ -84,6 +84,8 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
 
   /** upstream 行为：auto=收到消息立即回完整 turn；hold=保持 running */
   let upstreamMode: 'auto' | 'hold' = 'auto'
+  /** When set, `resume` hands back this ws_url instead of the matching one — used to exercise rejection. */
+  let upstreamWsUrlOverride: string | null = null
   const upstreamReceived: WsEvent[] = []
   const upstreamAuthHeaders: string[] = []
 
@@ -221,7 +223,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       async resume(_tk, id) {
         return {
           session: { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' },
-          wsUrl: `ws://127.0.0.1:${upstreamPort}/ws/sessions/${id}`,
+          wsUrl: upstreamWsUrlOverride ?? `ws://127.0.0.1:${upstreamPort}/ws/sessions/${id}`,
         }
       },
       async terminate() {},
@@ -543,4 +545,42 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       }),
     ).rejects.toThrow()
   })
+
+  // A ws_url whose host differs from the configured one is rejected before any socket is opened,
+  // so moss never sees an upgrade and logs nothing. The browser only ever gets UPSTREAM_FAILED,
+  // which carries no message — leaving a deployment misconfiguration with no trace anywhere. The
+  // wire code stays opaque on purpose; the cause has to reach the server log instead.
+  test('ws_url host mismatch keeps the opaque wire code but logs the cause server-side', async () => {
+    await request(app)
+      .post(`/api/conversations/${SID}/terminate`)
+      .set('Cookie', cookie1)
+      .set('Origin', 'http://localhost:5273')
+    await sleep(150)
+
+    upstreamWsUrlOverride = `ws://127.0.0.1:${upstreamPort + 1}/ws/sessions/${SID}`
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const ws1 = await browserWs(cookie1)
+    const c1 = collector(ws1)
+    try {
+      await c1.waitFor((e) => e.kind === 'lock')
+      ws1.send(JSON.stringify({ kind: 'send', text: 'host mismatch', images: [] }))
+
+      const err = await c1.waitFor((e) => e.kind === 'error')
+      expect(err.code).toBe('UPSTREAM_FAILED')
+      expect(err.message).toBeUndefined()
+
+      const logged = warn.mock.calls.map((args) => args.map(String).join(' ')).join('\n')
+      expect(logged).toContain('does not match configured moss.wsBaseUrl host')
+      expect(logged).toContain('[coordinator] send failed')
+    } finally {
+      warn.mockRestore()
+      upstreamWsUrlOverride = null
+      ws1.close()
+      await request(app)
+        .post(`/api/conversations/${SID}/terminate`)
+        .set('Cookie', cookie1)
+        .set('Origin', 'http://localhost:5273')
+      await sleep(150)
+    }
+  }, 20_000)
 })
