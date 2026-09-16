@@ -407,12 +407,22 @@ export class ConversationCoordinator {
         }
       }
     } catch (err) {
-      const code =
+      const known =
         err instanceof Error &&
         ['SESSION_NOT_FOUND', 'MOSS_UNAVAILABLE', 'UPSTREAM_OWNER_MISMATCH'].includes(err.message)
-          ? err.message
-          : 'UPSTREAM_FAILED'
-      this.sendTo(conn.ws, { kind: 'error', code })
+      if (!known) {
+        // UPSTREAM_FAILED is deliberately opaque on the wire — the browser DTO whitelist keeps moss
+        // internals out — so unless the cause lands here it is lost on both sides. A ws_url host
+        // mismatch is the case that hurts: it throws before any socket opens, so moss logs nothing
+        // either, and all that survives is an error code with no message.
+        const reason = err instanceof Error ? err.message : String(err)
+        const who = `principal=${conn.principalId.slice(0, 8)} session=${entry.mossSessionId.slice(0, 8)}`
+        console.warn(`[coordinator] ${msg.kind} failed (${who}): ${reason}`)
+      }
+      this.sendTo(conn.ws, {
+        kind: 'error',
+        code: known ? (err as Error).message : 'UPSTREAM_FAILED',
+      })
     }
   }
 
