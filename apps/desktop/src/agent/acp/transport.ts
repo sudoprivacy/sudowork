@@ -276,7 +276,10 @@ export class GrpcAcpTransport implements AcpTransport {
   /** start_session on nexus (it spawns spawn_spec), then begin the stdout reader. */
   async connect(): Promise<void> {
     try {
-      this.client = new NexusVfsGrpcClient(this.options.endpoint, this.options.authToken);
+      // SDK 0.3.0 applies connectTimeoutMs to every RPC, including blocking reads.
+      // Allow the daemon's long-poll timeout response to arrive before the RPC deadline.
+      const rpcTimeoutMs = Math.max(30_000, this.longPollMs + 15_000);
+      this.client = new NexusVfsGrpcClient(this.options.endpoint, this.options.authToken, rpcTimeoutMs);
       const res = await this.client.call<{ session_id: string; os_pid?: number | null }>('managed_agent.start_session_v1', {
         agent_id: this.options.agentId,
         spawn_spec: {

@@ -35,9 +35,9 @@ export class NexusVfsGrpcClient {
   private readonly client: NexusVfsClient;
   private readonly token: string;
 
-  constructor(address: string, token: string = '') {
+  constructor(address: string, token: string = '', rpcTimeoutMs?: number) {
     this.token = token;
-    this.client = new NexusVfsClient(address);
+    this.client = new NexusVfsClient(address, { connectTimeoutMs: rpcTimeoutMs });
   }
 
   /**
