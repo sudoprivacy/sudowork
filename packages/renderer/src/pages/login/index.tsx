@@ -192,7 +192,7 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'password'>('login');
   const [loginPhone, setLoginPhone] = useState('');
   const [registerPhone, setRegisterPhone] = useState('');
   const [code, setCode] = useState('');
@@ -382,6 +382,33 @@ const LoginPage: React.FC = () => {
         } finally {
           setLoading(false);
         }
+      }
+      return;
+    }
+
+    // Password login offered alongside the phone panel. It goes through
+    // enterpriseLogin (same-origin /api/auth/login/password), not
+    // loginByPassword — the latter posts to the C-side auth server and keys the
+    // account by phone number, so it cannot authenticate a username here.
+    if (mode === 'password') {
+      if (!username.trim()) {
+        Message.warning(t('login.pwdAccountRequired'));
+        return;
+      }
+      if (!password.trim()) {
+        Message.warning(t('login.pwdPasswordRequired'));
+        return;
+      }
+      setLoading(true);
+      try {
+        const result = await enterpriseLogin({ username: username.trim(), password: password.trim() });
+        if (result.success) {
+          setTimeout(() => navigate('/guid', { replace: true }), 300);
+        } else {
+          Message.error(result.message || t('login.pwdLoginFailed'));
+        }
+      } finally {
+        setLoading(false);
       }
       return;
     }
@@ -742,31 +769,53 @@ const LoginPage: React.FC = () => {
           <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
         </div>
 
-        {/* Tab switcher */}
+        {/* Tab switcher. The password tab is enterprise-only: it submits through
+            enterpriseLogin, which the C-side deployment does not serve. */}
         <div className='login-tabs'>
           <button type='button' className={`login-tab ${mode === 'login' ? 'login-tab--active' : ''}`} onClick={() => setMode('login')}>
-            登录
+            {t('login.phoneTab')}
           </button>
+          {isEnterprise && (
+            <button type='button' className={`login-tab ${mode === 'password' ? 'login-tab--active' : ''}`} onClick={() => setMode('password')}>
+              {t('login.passwordTab')}
+            </button>
+          )}
           <button type='button' className={`login-tab ${mode === 'register' ? 'login-tab--active' : ''}`} onClick={() => setMode('register')}>
             注册
           </button>
         </div>
 
         <div className='flex flex-col gap-20px mt-24px'>
-          <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-secondary ml-4px'>手机号码</div>
-            <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
-          </div>
+          {mode === 'password' ? (
+            <>
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-secondary ml-4px'>{t('login.pwdAccountLabel')}</div>
+                <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdAccountPlaceholder')} value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
+              </div>
 
-          <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-secondary ml-4px'>身份验证</div>
-            <Space size='small' className='w-full'>
-              <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='6 位验证码' value={code} onChange={setCode} className='login-input !rd-12px h-48px flex-1' />
-              <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
-                {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
-              </Button>
-            </Space>
-          </div>
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-secondary ml-4px'>{t('login.pwdPasswordLabel')}</div>
+                <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('login.pwdPasswordPlaceholder')} value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-secondary ml-4px'>手机号码</div>
+                <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
+              </div>
+
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-secondary ml-4px'>身份验证</div>
+                <Space size='small' className='w-full'>
+                  <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='6 位验证码' value={code} onChange={setCode} className='login-input !rd-12px h-48px flex-1' />
+                  <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
+                    {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
+                  </Button>
+                </Space>
+              </div>
+            </>
+          )}
 
           {mode === 'register' && (
             <>
@@ -783,7 +832,7 @@ const LoginPage: React.FC = () => {
           )}
 
           <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
-            {mode === 'login' ? '登录' : '注册'}
+            {mode === 'password' ? t('login.pwdLoginBtn') : mode === 'login' ? '登录' : '注册'}
           </Button>
 
           <div className='flex items-center justify-center gap-16px mt-12px'>

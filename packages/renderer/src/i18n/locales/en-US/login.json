@@ -38,6 +38,8 @@
   "pwdInvitationCodePlaceholder": "Enter invitation code",
   "pwdLoginTab": "Sign In",
   "pwdRegisterTab": "Register",
+  "phoneTab": "Phone",
+  "passwordTab": "Password",
   "pwdLoginBtn": "Sign In",
   "pwdRegisterBtn": "Register",
   "pwdRuleHint": "8-20 characters, must include uppercase, lowercase and digit.",

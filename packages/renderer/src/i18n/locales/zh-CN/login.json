@@ -42,6 +42,8 @@
   "pwdInvitationCodePlaceholder": "请输入邀请码",
   "pwdLoginTab": "登录",
   "pwdRegisterTab": "注册",
+  "phoneTab": "手机登录",
+  "passwordTab": "密码登录",
   "pwdLoginBtn": "登录",
   "pwdRegisterBtn": "注册",
   "pwdRuleHint": "8-20 位，需同时包含大写字母、小写字母和数字。",
