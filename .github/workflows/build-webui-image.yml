@@ -33,7 +33,6 @@ permissions:
 
 env:
   COS_BUCKET: sudowork-runtime-1309794936
-  COS_REGION: ap-beijing
   IMAGE_NAME: sudowork-webui
 
 jobs:
@@ -85,8 +84,14 @@ jobs:
             echo "TENCENT_SECRET_ID/KEY not set — cannot upload."; exit 1
           fi
           pip install --quiet coscmd
+          # Upload through the global acceleration endpoint, as the release and
+          # ffmpeg-mirror workflows do. The regional (ap-beijing) endpoint runs
+          # at ~50 kB/s with write timeouts from a GitHub runner, so a
+          # cross-border upload there never finishes; the object lands in the
+          # same bucket either way and China users still download via the
+          # regional endpoint.
           coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" \
-            -b "$COS_BUCKET" -r "$COS_REGION"
+            -b "$COS_BUCKET" -e cos.accelerate.myqcloud.com
           BASE="sudowork/webui/${{ steps.tag.outputs.sha }}"
           coscmd upload "${{ steps.tag.outputs.tarball }}" "$BASE/${{ steps.tag.outputs.tarball }}"
           coscmd upload "${{ steps.tag.outputs.tarball }}.sha256" "$BASE/${{ steps.tag.outputs.tarball }}.sha256"
