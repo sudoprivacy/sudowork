@@ -1,0 +1,94 @@
+# Builds the WebUI container image and publishes it to COS.
+#
+# Until now this image was built by hand on the deployment host and tagged with
+# an opaque id that matched no commit, so nothing could answer "which source is
+# production running?". The tag here is the commit SHA, and the tarball lands
+# next to the other runtime artifacts, so `docker load` on the host replaces a
+# local build.
+
+name: "Build WebUI Image"
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "apps/webui/**"
+      - "packages/**"
+      - "package.json"
+      - "bun.lock"
+      - "apps/webui/Dockerfile"
+      - ".github/workflows/build-webui-image.yml"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to build (defaults to the triggering ref)"
+        required: false
+
+concurrency:
+  group: build-webui-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  COS_BUCKET: sudowork-runtime-1309794936
+  COS_REGION: ap-beijing
+  IMAGE_NAME: sudowork-webui
+
+jobs:
+  build:
+    name: build-and-publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse --short=8 HEAD)"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "tarball=${IMAGE_NAME}-${SHA}-linux-amd64.tar" >> "$GITHUB_OUTPUT"
+          echo "Building ${IMAGE_NAME}:${SHA}"
+
+      - name: Build image
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Context is the repo root: the webui is a workspace member that
+          # consumes the @sudowork/* packages.
+          docker build -f apps/webui/Dockerfile -t "${IMAGE_NAME}:${{ steps.tag.outputs.sha }}" .
+
+      - name: Save and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker save "${IMAGE_NAME}:${{ steps.tag.outputs.sha }}" -o "${{ steps.tag.outputs.tarball }}"
+          sha256sum "${{ steps.tag.outputs.tarball }}" > "${{ steps.tag.outputs.tarball }}.sha256"
+          ls -lh "${{ steps.tag.outputs.tarball }}"
+
+      - name: Upload to COS
+        env:
+          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${TENCENT_SECRET_ID:-}" ] || [ -z "${TENCENT_SECRET_KEY:-}" ]; then
+            echo "TENCENT_SECRET_ID/KEY not set — cannot upload."; exit 1
+          fi
+          pip install --quiet coscmd
+          coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" \
+            -b "$COS_BUCKET" -r "$COS_REGION"
+          BASE="sudowork/webui/${{ steps.tag.outputs.sha }}"
+          coscmd upload "${{ steps.tag.outputs.tarball }}" "$BASE/${{ steps.tag.outputs.tarball }}"
+          coscmd upload "${{ steps.tag.outputs.tarball }}.sha256" "$BASE/${{ steps.tag.outputs.tarball }}.sha256"
+          # The accelerate endpoint is the one consumers outside Beijing can reach.
+          echo "::notice::WebUI image published: https://${COS_BUCKET}.cos.accelerate.myqcloud.com/$BASE/${{ steps.tag.outputs.tarball }}"
