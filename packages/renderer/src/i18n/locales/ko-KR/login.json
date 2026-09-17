@@ -38,6 +38,8 @@
   "pwdInvitationCodePlaceholder": "초대 코드를 입력하세요",
   "pwdLoginTab": "로그인",
   "pwdRegisterTab": "회원가입",
+  "phoneTab": "휴대폰",
+  "passwordTab": "비밀번호",
   "pwdLoginBtn": "로그인",
   "pwdRegisterBtn": "회원가입",
   "pwdRuleHint": "8-20자, 대문자·소문자·숫자를 모두 포함해야 합니다.",

@@ -38,6 +38,8 @@
   "pwdInvitationCodePlaceholder": "招待コードを入力",
   "pwdLoginTab": "ログイン",
   "pwdRegisterTab": "登録",
+  "phoneTab": "電話番号",
+  "passwordTab": "パスワード",
   "pwdLoginBtn": "ログイン",
   "pwdRegisterBtn": "登録",
   "pwdRuleHint": "8-20桁、大文字・小文字・数字をそれぞれ含めてください。",

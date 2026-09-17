@@ -38,6 +38,8 @@
   "pwdInvitationCodePlaceholder": "Davet kodunu girin",
   "pwdLoginTab": "Giriş",
   "pwdRegisterTab": "Kayıt ol",
+  "phoneTab": "Telefon",
+  "passwordTab": "Parola",
   "pwdLoginBtn": "Giriş",
   "pwdRegisterBtn": "Kayıt ol",
   "pwdRuleHint": "8-20 karakter; büyük harf, küçük harf ve rakam içermelidir.",

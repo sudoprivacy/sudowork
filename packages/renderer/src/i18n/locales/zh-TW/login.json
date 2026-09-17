@@ -38,6 +38,8 @@
   "pwdInvitationCodePlaceholder": "請輸入邀請碼",
   "pwdLoginTab": "登入",
   "pwdRegisterTab": "註冊",
+  "phoneTab": "手機登入",
+  "passwordTab": "密碼登入",
   "pwdLoginBtn": "登入",
   "pwdRegisterBtn": "註冊",
   "pwdRuleHint": "8-20 位，需同時包含大寫字母、小寫字母和數字。",
