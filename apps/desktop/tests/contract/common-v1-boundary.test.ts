@@ -1,14 +1,14 @@
-import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
 type ParseResult = { ok: boolean; value?: unknown; issues?: Array<{ path: string; message: string }> };
 
-const expectedSudostackSha = '65904eb0a0991366767095b707f5a86835089a1e';
+const expectedSudostackSha = '6a51190a0e08f673912967716629a2fdb424b85a';
 const here = dirname(fileURLToPath(import.meta.url));
-const repo = join(here, '../..');
+const repo = join(here, '../../../..');
 const sudostack = process.env.SUDOSTACK_REPO ?? join(repo, '../sudostack');
 const commonArtifact = join(sudostack, 'contracts/common/v1/common.gen.ts');
 const fixturesRoot = join(sudostack, 'fixtures');
@@ -50,7 +50,9 @@ describe('ADR-005 common/v1 boundary', () => {
 });
 
 function fixtureFiles(kind: string): string[] {
-  return walk(join(fixturesRoot, kind, 'common/v1')).filter((path) => path.endsWith('.json')).sort();
+  return walk(join(fixturesRoot, kind, 'common/v1'))
+    .filter((path) => path.endsWith('.json'))
+    .sort();
 }
 
 function walk(root: string): string[] {
