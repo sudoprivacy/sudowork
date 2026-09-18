@@ -18,6 +18,9 @@ COPY packages/common/package.json packages/common/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/host-bridge/package.json packages/host-bridge/
 COPY packages/moss-client/package.json packages/moss-client/
+COPY packages/ontology-common/package.json packages/ontology-common/
+COPY packages/ontology-engine/package.json packages/ontology-engine/
+COPY packages/ontology-ui/package.json packages/ontology-ui/
 COPY packages/renderer/package.json packages/renderer/
 COPY patches/ patches/
 
@@ -58,6 +61,9 @@ COPY packages/common/package.json packages/common/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/host-bridge/package.json packages/host-bridge/
 COPY packages/moss-client/package.json packages/moss-client/
+COPY packages/ontology-common/package.json packages/ontology-common/
+COPY packages/ontology-engine/package.json packages/ontology-engine/
+COPY packages/ontology-ui/package.json packages/ontology-ui/
 COPY packages/renderer/package.json packages/renderer/
 COPY patches/ patches/
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \

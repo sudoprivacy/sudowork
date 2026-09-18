@@ -57,6 +57,37 @@ jobs:
           echo "tarball=${IMAGE_NAME}-${SHA}-linux-amd64.tar" >> "$GITHUB_OUTPUT"
           echo "Building ${IMAGE_NAME}:${SHA}"
 
+      - name: Check the Dockerfile covers every workspace member
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The Dockerfile lists each member's package.json by hand so the
+          # dependency layer keeps caching across source edits, but the
+          # workspaces field is a glob. The two drift apart in silence: adding a
+          # package makes `bun install --frozen-lockfile` fail inside the image
+          # with "Workspace dependency <name> not found", which names the
+          # package and not the file to edit. Fail here instead, and say which
+          # lines to add. Each member must appear twice — the build and
+          # prod-deps stages both run a frozen install, and covering only one of
+          # them fails the same way, one stage later.
+          missing=()
+          for dir in apps/*/ packages/*/; do
+            [ -f "${dir}package.json" ] || continue
+            found=$(grep -cF "COPY ${dir}package.json ${dir}" apps/webui/Dockerfile || true)
+            [ "$found" -eq 2 ] || missing+=("${dir} (found ${found}, expected 2)")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::apps/webui/Dockerfile does not cover every workspace member"
+            for m in "${missing[@]}"; do echo "  - $m"; done
+            echo "Add to BOTH the build and prod-deps stages:"
+            for m in "${missing[@]}"; do
+              d="${m%% *}"
+              echo "  COPY ${d}package.json ${d}"
+            done
+            exit 1
+          fi
+          echo "All workspace members are covered in both stages."
+
       - name: Build image
         shell: bash
         run: |
