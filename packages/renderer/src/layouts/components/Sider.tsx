@@ -5,7 +5,7 @@
  */
 
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Network, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -68,6 +68,7 @@ const Sider: React.FC = () => {
     // The local knowledge base is desktop-only (WEB_CAPABILITIES.localKnowledgeBase
     // is false and mossAdapter has no local-kb mappings), so hide it on the web host.
     ...(isElectronDesktop() ? [{ id: 'local-kb' as const, label: t('common.siderMenu.localKb'), icon: BookOpen, path: '/app/local-kb' }] : []),
+    ...(isElectronDesktop() ? [{ id: 'ontology' as const, label: t('common.siderMenu.ontology'), icon: Network, path: '/app/ontology' }] : []),
     { id: 'security', label: t('common.siderMenu.security'), icon: ShieldCheck, path: '/app/security' },
     ...(!isEnterprise ? [{ id: 'channels' as const, label: t('common.siderMenu.webui'), icon: Globe, path: '/app/channels' }] : []),
     ...(isCronVisible ? [{ id: 'cron' as const, label: t('common.siderMenu.cron'), icon: AlarmClock, path: '/app/cron' }] : []),

@@ -18,7 +18,11 @@
       "@renderer/*": ["./src/*"],
       "@sudowork/common/*": ["../common/src/*"],
       "@sudowork/host-bridge/*": ["../host-bridge/src/*"],
-      "@sudowork/host-bridge": ["../host-bridge/src/index.ts"]
+      "@sudowork/host-bridge": ["../host-bridge/src/index.ts"],
+      "@sudowork/ontology-common": ["../ontology-common/src/index.ts"],
+      "@sudowork/ontology-common/*": ["../ontology-common/src/*"],
+      "@sudowork/ontology-ui": ["../ontology-ui/src/index.ts"],
+      "@sudowork/ontology-ui/*": ["../ontology-ui/src/*"]
     }
   },
   "include": ["src"]

@@ -1,5 +1,5 @@
 {
-  "name": "@sudowork/host-bridge",
+  "name": "@sudowork/ontology-engine",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -22,8 +22,9 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@office-ai/platform": "^0.3.16",
-    "@sudowork/common": "workspace:*",
     "@sudowork/ontology-common": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1"
   }
 }
