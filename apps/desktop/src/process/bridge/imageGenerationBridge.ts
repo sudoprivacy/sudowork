@@ -15,9 +15,9 @@ import { detectImageMimeType, IMAGE_TARGET_RAW_SIZE } from '@common/imageUtils';
 import { ipcBridge } from '../../common';
 import { ProcessConfig } from '../initStorage';
 import { SUDOCLAW_DIR } from '../services/sudoclaw/SudoclawInstallService';
-import { SCODE_DIR } from '../services/scode/ScodeInstallService';
+import { SCODE_CONFIG_PATH } from '@process/services/scode/scodePaths';
 const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
-const SUDOCODE_CONFIG_PATH = path.join(SCODE_DIR, 'sudocode.json');
+const SUDOCODE_CONFIG_PATH = SCODE_CONFIG_PATH;
 
 const GEMINI_IMAGE_GENERATION_MODELS = new Set(['gemini-3.1-flash-image', 'gemini-3-pro-image', 'gemini-2.5-flash-image']);
 

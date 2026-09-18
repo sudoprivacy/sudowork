@@ -29,12 +29,12 @@ import path from 'path';
 import readline from 'readline';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { LEGACY_SCODE_HOME, SCODE_HOME } from '../../src/process/services/scode/scodePaths';
+import { SCODE_BIN_HOME, SCODE_CONFIG_PATH } from '../../src/process/services/scode/scodePaths';
 
 const exeName = process.platform === 'win32' ? 'scode.exe' : 'scode';
 
 function resolveScodeBinary(): string | null {
-  const candidates = [process.env.SCODE_BIN, path.join(SCODE_HOME, exeName), path.join(LEGACY_SCODE_HOME, exeName)].filter((p): p is string => !!p);
+  const candidates = [process.env.SCODE_BIN, path.join(SCODE_BIN_HOME, exeName), path.join(path.dirname(SCODE_CONFIG_PATH), exeName)].filter((p): p is string => !!p);
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
@@ -150,19 +150,21 @@ describeMaybe('ACP session/cancel protocol (real scode binary)', () => {
   beforeAll(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-cancel-ws-'));
     configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-cancel-cfg-'));
-    // Minimal config — fake API key, just enough for scode to start.
-    // Protocol tests below don't send prompts (no API call needed).
-    const realConfig = path.join(SCODE_HOME, 'sudocode.json');
-    const legacyConfig = path.join(LEGACY_SCODE_HOME, 'sudocode.json');
-    const source = fs.existsSync(realConfig) ? realConfig : fs.existsSync(legacyConfig) ? legacyConfig : null;
-    if (source) {
-      // Copy real config — swap API key to a dummy so no real calls are made.
-      const content = fs.readFileSync(source, 'utf-8');
-      fs.writeFileSync(path.join(configHome, 'sudocode.json'), content.replace(/"apiKey":\s*"[^"]*"/g, '"apiKey": "sk-test-dummy"'));
-    } else {
-      // No real config available — skip will be handled by test assertions.
-      fs.writeFileSync(path.join(configHome, 'sudocode.json'), '{}');
-    }
+    // Deterministic fake account: session lifecycle tests never send a prompt,
+    // but scode validates the selected auth mode during session/new.
+    fs.writeFileSync(
+      path.join(configHome, 'sudocode.json'),
+      JSON.stringify({
+        auth_modes: {
+          proxy: {
+            sudorouter: {
+              baseUrl: 'http://127.0.0.1:9/v1',
+              apiKey: 'sk-test-dummy',
+            },
+          },
+        },
+      })
+    );
   });
 
   afterAll(() => {
@@ -176,7 +178,9 @@ describeMaybe('ACP session/cancel protocol (real scode binary)', () => {
       SUDO_CODE_CONFIG_HOME: configHome,
       NO_COLOR: '1',
     };
-    return new AcpStdioClient(scodeBin!, ['--auth', 'proxy', '--model', 'auto', '--permission-mode', 'danger-full-access', 'acp'], env, workspace);
+    // scode 0.2.x validates the model before ACP starts. Use a built-in alias
+    // so this no-network protocol suite does not depend on local model config.
+    return new AcpStdioClient(scodeBin!, ['--auth', 'proxy', '--model', 'sonnet', '--permission-mode', 'danger-full-access', 'acp'], env, workspace);
   }
 
   it('initialize + session/new handshake succeeds', async () => {
@@ -247,9 +251,7 @@ describeLive('ACP session/cancel live (real scode + real API)', () => {
   beforeAll(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-cancel-live-ws-'));
     configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-cancel-live-cfg-'));
-    const realConfig = path.join(SCODE_HOME, 'sudocode.json');
-    const legacyConfig = path.join(LEGACY_SCODE_HOME, 'sudocode.json');
-    const source = fs.existsSync(realConfig) ? realConfig : fs.existsSync(legacyConfig) ? legacyConfig : null;
+    const source = fs.existsSync(SCODE_CONFIG_PATH) ? SCODE_CONFIG_PATH : null;
     if (!source) throw new Error('No sudocode.json found — cannot run live test');
     fs.copyFileSync(source, path.join(configHome, 'sudocode.json'));
   });

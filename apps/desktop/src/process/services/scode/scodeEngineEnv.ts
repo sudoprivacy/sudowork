@@ -13,7 +13,7 @@
  * whole ACP/storage stack.
  */
 
-import { SCODE_CONFIG_PATH, SCODE_HOME } from './scodePaths';
+import { SCODE_CONFIG_HOME, SCODE_CONFIG_PATH } from './scodePaths';
 
 /**
  * Variables sudowork sets on the scode engine process. The caller applies each
@@ -22,10 +22,9 @@ import { SCODE_CONFIG_PATH, SCODE_HOME } from './scodePaths';
 export function scodeEngineEnvOverrides(): Record<string, string> {
   return {
     // scode's Rust config loader resolves its config home from this, so point it
-    // at sudowork's ISOLATED home — relocating both sudocode.json (models/auth)
-    // and settings.json (settings/MCP) away from a standalone scode's
-    // ~/.nexus/sudocode, so the two products never stomp each other.
-    SUDO_CODE_CONFIG_HOME: SCODE_HOME,
+    // at the SHARED config home, so sudowork and a standalone scode resolve one
+    // set of account/model definitions instead of two copies that drift apart.
+    SUDO_CODE_CONFIG_HOME: SCODE_CONFIG_HOME,
 
     // Lets skill bash scripts locate sudocode.json even when claude-code
     // overrides $HOME to a sandbox directory (.sandbox-home/).

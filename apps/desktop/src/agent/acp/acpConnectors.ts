@@ -13,12 +13,12 @@
 import type { ChildProcess, SpawnOptions } from 'child_process';
 import { execFile as execFileCb, execFileSync, spawn } from 'child_process';
 import { promisify } from 'util';
-import { existsSync, mkdirSync, promises as fs, readFileSync, writeFileSync } from 'fs';
+import { existsSync, promises as fs, readFileSync } from 'fs';
 import os from 'os';
 import path from 'path';
 import { app } from 'electron';
 import { CLAUDE_ACP_NPX_PACKAGE, CODEBUDDY_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
-import { SCODE_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
+import { SCODE_CONFIG_HOME, SCODE_CONFIG_PATH, SCODE_SETTINGS_PATH } from '@process/services/scode/scodePaths';
 import { scodeEngineEnvOverrides } from '@process/services/scode/scodeEngineEnv';
 import { findSuitableNodeBin, getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -87,8 +87,26 @@ function scodeArgsIncludeAuthFlag(args: string[] | undefined): boolean {
   return Array.isArray(args) && args.includes('--auth');
 }
 
-export function resolveScodeAcpArgs(cliPath: string, acpArgs: string[] | undefined, env: Record<string, string | undefined>, authMode?: ScodeAuthMode | null): string[] | undefined {
-  const baseArgs = acpArgs ?? ['acp'];
+function scodeCliPathIncludesModelFlag(cliPath: string): boolean {
+  return /(?:^|\s)--model(?:\s|$)/.test(cliPath);
+}
+
+function scodeArgsIncludeModelFlag(args: string[] | undefined): boolean {
+  return Array.isArray(args) && args.includes('--model');
+}
+
+export function resolveScodeAcpArgs(cliPath: string, acpArgs: string[] | undefined, env: Record<string, string | undefined>, authMode?: ScodeAuthMode | null, model?: string | null): string[] | undefined {
+  let baseArgs = acpArgs ?? ['acp'];
+
+  // The model travels as a flag, never as a write into scode's settings.json.
+  // `--model` is a clap global, so it overrides whatever settings.json holds —
+  // verified directly: with an invalid `model` in settings.json the run fails
+  // ("No available channel for model ..."), and the same run with `--model`
+  // succeeds. Writing the file instead made sudowork a second writer of config
+  // it does not own, which is what this removes.
+  if (model && !scodeCliPathIncludesModelFlag(cliPath) && !scodeArgsIncludeModelFlag(baseArgs)) {
+    baseArgs = ['--model', model, ...baseArgs];
+  }
 
   if (scodeCliPathIncludesAuthFlag(cliPath) || scodeArgsIncludeAuthFlag(baseArgs)) {
     return baseArgs;
@@ -143,7 +161,7 @@ export function resolveScodeAuthModeFromConfig(config: unknown, settings: unknow
 
 function readScodeAuthModeFromDisk(modelOverride?: string | null): ScodeAuthMode | null {
   try {
-    const scodeDir = SCODE_HOME;
+    const scodeDir = SCODE_CONFIG_HOME;
     const configPath = path.join(scodeDir, 'sudocode.json');
     const settingsPath = path.join(scodeDir, 'settings.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as unknown;
@@ -732,52 +750,14 @@ export async function buildGenericSpawnSpec(backend: string, cliPath: string, wo
     }
   }
 
-  // Ensure settings.json model is valid before spawning scode.
-  // scode reads settings.json on startup and crashes (exit 1) if the model is not in sudocode.json models.
-  // This prevents a death loop: crash → reconnect → read bad settings.json → crash again.
-  if (backend === 'scode') {
-    try {
-      const scodeDir = SCODE_HOME;
-      const settingsPath = path.join(scodeDir, 'settings.json');
-      let settings: Record<string, unknown> = {};
-      try {
-        settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
-      } catch {
-        /* no settings */
-      }
-      const scodeConfigPath = path.join(scodeDir, 'sudocode.json');
-      let scodeConfig: Record<string, unknown> = {};
-      try {
-        scodeConfig = JSON.parse(readFileSync(scodeConfigPath, 'utf-8'));
-      } catch {
-        /* no config */
-      }
-      const availableModels = scodeConfig.models && typeof scodeConfig.models === 'object' ? Object.keys(scodeConfig.models as Record<string, unknown>) : [];
-      const currentModel = typeof settings.model === 'string' ? settings.model : undefined;
-      if (requestedScodeModel && availableModels.includes(requestedScodeModel) && currentModel !== requestedScodeModel) {
-        settings.model = requestedScodeModel;
-        mkdirSync(scodeDir, { recursive: true });
-        writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-        mainLog('[ACP scode]', `Synced settings.json model to requested model "${requestedScodeModel}" before spawn`);
-      } else if (requestedScodeModel && availableModels.length > 0 && !availableModels.includes(requestedScodeModel)) {
-        mainWarn('[ACP scode]', `Requested model "${requestedScodeModel}" is not in sudocode.json models`);
-      }
-
-      const effectiveCurrentModel = typeof settings.model === 'string' ? settings.model : currentModel;
-      if (effectiveCurrentModel && availableModels.length > 0 && !availableModels.includes(effectiveCurrentModel)) {
-        settings.model = availableModels[0];
-        mkdirSync(scodeDir, { recursive: true });
-        writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-        mainLog('[ACP scode]', `Corrected settings.json model from "${effectiveCurrentModel}" to "${availableModels[0]}"`);
-      }
-    } catch {
-      /* best-effort */
-    }
-  }
+  // The requested model reaches scode as `--model` (see resolveScodeAcpArgs).
+  // sudowork used to rewrite scode's settings.json here to keep it valid; that
+  // made it a second writer of a file it does not own, and once the config home
+  // is shared with a standalone scode it would clobber the user's settings.
 
   ensureMinNodeVersion(cleanEnv, 18, 17, `${backend} ACP`);
 
-  const effectiveAcpArgs = backend === 'scode' ? resolveScodeAcpArgs(cliPath, acpArgs, cleanEnv, scodeAuthMode) : acpArgs;
+  const effectiveAcpArgs = backend === 'scode' ? resolveScodeAcpArgs(cliPath, acpArgs, cleanEnv, scodeAuthMode, requestedScodeModel) : acpArgs;
   if (backend === 'scode' && scodeAuthMode && effectiveAcpArgs !== acpArgs) {
     mainLog('[ACP scode]', `Using ${scodeAuthMode} auth mode for current model`);
   }

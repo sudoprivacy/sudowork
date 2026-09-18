@@ -103,6 +103,8 @@ export type SetUserModelRequest = z.infer<typeof SetUserModelRequestSchema>
 export const UserModelResponseSchema = z.object({
   /** 未设偏好 / 上游不可用时为 null */
   modelId: z.string().nullable(),
+  /** 上游的系统默认模型；未设偏好时前端据此显示，上游不可用时为 null */
+  systemDefaultModel: z.string().nullable(),
 })
 export type UserModelResponse = z.infer<typeof UserModelResponseSchema>
 
@@ -157,6 +159,8 @@ export type ConversationContextDto = z.infer<typeof ConversationContextDtoSchema
 export const ClientOutboundMessageSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('send'),
+    /** renderer 侧 msg_id；透传给 moss 作为消息 uuid，/context 回读后用于与流式回显去重 */
+    msgId: z.string().min(1).max(255).optional(),
     text: z.string().min(1).max(32_768),
     images: z
       .array(

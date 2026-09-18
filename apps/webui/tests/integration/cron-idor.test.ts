@@ -149,7 +149,7 @@ function createFakeSessions(): MossSessionPort {
     },
     async setUserModel() {},
     async getUserModel() {
-      return null
+      return { modelId: null, systemDefaultModel: null }
     },
     async context() {
       return { context: { messages: [] } }

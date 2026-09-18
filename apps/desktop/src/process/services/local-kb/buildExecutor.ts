@@ -3,7 +3,7 @@ import type { Dirent } from 'fs';
 import path from 'path';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { getScodePath } from '@process/services/scode/ScodeInstallService';
-import { SCODE_HOME } from '@process/services/scode/scodePaths';
+import { SCODE_CONFIG_HOME } from '@process/services/scode/scodePaths';
 import { mainWarn } from '@process/utils/mainLogger';
 import { getDatabase } from '@process/database';
 import type { AcpPromptResponseUsage, AcpSessionUpdate } from '@/types/acpTypes';
@@ -212,7 +212,7 @@ export class LocalKnowledgeBuildExecutor {
     try {
       db.updateLocalKbBuildJob(jobId, { progress: 25, currentStep: `启动本地 scode ACP（stage: ${path.basename(stageDir)}）` });
       await connection.connect('scode', scodePath, stageDir, SCODE_REASONING_ACP_ARGS, {
-        SUDO_CODE_CONFIG_HOME: SCODE_HOME,
+        SUDO_CODE_CONFIG_HOME: SCODE_CONFIG_HOME,
       });
       db.updateLocalKbBuildJob(jobId, { progress: 25, currentStep: `本地 scode ACP 已连接（${formatElapsed(startedAt)}），创建构建会话` });
       await connection.newSession(stageDir);

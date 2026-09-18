@@ -158,6 +158,49 @@ describe('Scode ACP integration', () => {
       expect(args).toEqual(['--auth', 'proxy', 'acp']);
     });
 
+    it('carries the requested model as --model instead of writing settings.json', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs('scode', ['--reasoning-effort', 'high', 'acp'], {}, null, 'claude-sonnet-4-6');
+
+      // `--model` is a clap global, so it overrides settings.json at run time.
+      // sudowork therefore never has to write a file scode owns.
+      expect(args).toEqual(['--model', 'claude-sonnet-4-6', '--reasoning-effort', 'high', 'acp']);
+    });
+
+    it('does not duplicate --model when cliPath already specifies one', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs('scode --model opus', ['acp'], {}, null, 'claude-sonnet-4-6');
+
+      expect(args).toEqual(['acp']);
+    });
+
+    it('does not duplicate --model when args already carry one', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs('scode', ['--model', 'opus', 'acp'], {}, null, 'claude-sonnet-4-6');
+
+      expect(args).toEqual(['--model', 'opus', 'acp']);
+    });
+
+    it('composes --model with the auth flag', async () => {
+      const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
+
+      const args = resolveScodeAcpArgs(
+        'scode',
+        ['acp'],
+        {
+          PROXY_AUTH_TOKEN: 'proxy-token',
+          PROXY_BASE_URL: 'https://proxy.example.com',
+        },
+        null,
+        'claude-sonnet-4-6'
+      );
+
+      expect(args).toEqual(['--auth', 'proxy', '--model', 'claude-sonnet-4-6', 'acp']);
+    });
+
     it('does not duplicate auth flags when cliPath already specifies auth mode', async () => {
       const resolveScodeAcpArgs = await loadResolveScodeAcpArgs();
 

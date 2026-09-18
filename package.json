@@ -1,7 +1,7 @@
 {
   "name": "sudowork-monorepo",
   "private": true,
-  "version": "0.2.17",
+  "version": "0.2.19",
   "description": "Sudowork monorepo — Electron desktop app, multi-tenant web console, and shared packages",
   "workspaces": [
     "apps/*",

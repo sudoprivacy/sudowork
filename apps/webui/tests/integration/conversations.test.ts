@@ -72,8 +72,9 @@ const SESSIONS = [
   },
 ]
 
-/** user-model 读桩：默认模拟上游无该端点（404 → service 兜底 null）。 */
+/** user-model 读桩：默认模拟上游不可达（service 兜底两者皆 null）。 */
 let fakeUserModelId: string | null = null
+let fakeSystemDefaultModel: string | null = null
 let fakeUserModelError: unknown = new MossHttpError(404, '', '')
 
 function createFakeMossSession(): MossSessionPort {
@@ -90,7 +91,7 @@ function createFakeMossSession(): MossSessionPort {
     async setUserModel() {},
     async getUserModel() {
       if (fakeUserModelError) throw fakeUserModelError
-      return fakeUserModelId
+      return { modelId: fakeUserModelId, systemDefaultModel: fakeSystemDefaultModel }
     },
     async context(_tk, sessionId) {
       if (sessionId === 'sess-empty') throw new MossHttpError(404, '', '')
@@ -268,6 +269,8 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       expect(msg.cwd).toBeUndefined()
       expect(msg.workDir).toBeUndefined()
     }
+    // user 消息透传 moss uuid 作为 msg_id（与流式回显按 msg_id 去重）
+    expect(messages[0]).toMatchObject({ type: 'text', msg_id: 'u1', position: 'right' })
 
     // B 访问 A 的会话 → 403（即使同 org）
     const cross = await request(app)
@@ -283,7 +286,7 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .get('/api/conversations/sess-empty/context')
       .set('Cookie', cookieA)
     expect(empty.status).toBe(200)
-    expect(empty.body).toEqual({ customTitle: null, title: null, messages: [] })
+    expect(empty.body).toEqual({ customTitle: null, title: null, modelId: null, messages: [] })
   })
 
   test('POST create validates agent/skill names against fresh visible lists', async () => {
@@ -329,22 +332,32 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     expect(cross.status).toBe(403)
   })
 
-  test('GET /user-model falls back to null on upstream 404 and proxies the preference', async () => {
+  test('GET /user-model distinguishes unreachable upstream from an unset preference', async () => {
     const app = await buildApp()
-    // 默认桩抛 404（上游无该端点）→ 读不阻塞 UI，返回 null
-    const unset = await request(app).get('/api/conversations/user-model').set('Cookie', cookieA)
-    expect(unset.status).toBe(200)
-    expect(unset.body).toEqual({ modelId: null })
+    // 上游不可达 → 读不阻塞 UI，但两者皆 null：那是「读不到」
+    const unreachable = await request(app)
+      .get('/api/conversations/user-model')
+      .set('Cookie', cookieA)
+    expect(unreachable.status).toBe(200)
+    expect(unreachable.body).toEqual({ modelId: null, systemDefaultModel: null })
 
     fakeUserModelError = null
-    fakeUserModelId = 'm1'
+    fakeSystemDefaultModel = 'sys-default'
     try {
+      // 未设偏好 → modelId 为 null，但 systemDefaultModel 必须带回，
+      // 否则前端第二级兜底无从落脚，只能塌到「列表首项」——徽章与实际模型就此对不上。
+      const unset = await request(app).get('/api/conversations/user-model').set('Cookie', cookieA)
+      expect(unset.status).toBe(200)
+      expect(unset.body).toEqual({ modelId: null, systemDefaultModel: 'sys-default' })
+
+      fakeUserModelId = 'm1'
       const set = await request(app).get('/api/conversations/user-model').set('Cookie', cookieA)
       expect(set.status).toBe(200)
-      expect(set.body).toEqual({ modelId: 'm1' })
+      expect(set.body).toEqual({ modelId: 'm1', systemDefaultModel: 'sys-default' })
     } finally {
       fakeUserModelError = new MossHttpError(404, '', '')
       fakeUserModelId = null
+      fakeSystemDefaultModel = null
     }
   })
 
@@ -406,10 +419,20 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .get('/api/conversations/options')
       .set('Cookie', cookieA)
     expect(res.status).toBe(200)
-    // agents/skills 含列表展示所需字段（displayName/emoji/description/icon；fake 上游只提供 name，其余兜底）；
-    // fake 上游的 isBuiltin 条目（builtin-agent）应被过滤——与智能体页"我的智能体"一致
+    // agents/skills 含列表展示所需字段（fake 上游只提供 name，其余全部兜底）；
+    // fake 上游的 isBuiltin 条目（builtin-agent）应被过滤——与智能体页"我的智能体"一致。
+    // 这里断言的是**完整字段集**：给 agent DTO 加字段而不改这条，测试就会红——
+    // 那是有意的，字段是前端列表直接消费的契约，不该悄悄变。
     expect(res.body.agents).toEqual([
-      { name: 'helper', displayName: 'helper', emoji: '', description: '' },
+      {
+        name: 'helper',
+        displayName: 'helper',
+        emoji: '',
+        description: '',
+        avatar: '',
+        defaultInitPrompt: '',
+        promptsI18n: { 'zh-CN': [] },
+      },
     ])
     expect(res.body.skills).toEqual([
       { name: 'known-skill', displayName: 'known-skill', description: '', icon: '', emoji: '' },

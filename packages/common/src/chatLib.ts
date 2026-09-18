@@ -194,6 +194,8 @@ export const convertMossMessagesToTMessages = (allMessages: any[], conversationI
           if (textContent && textContent.trim()) {
             messages.push({
               id: `${conversationId}-${messageIndex++}`,
+              // moss 消息 uuid（发送时透传的 renderer msg_id），与流式回显按 msg_id 去重
+              msg_id: msg.uuid,
               conversation_id: conversationId,
               type: 'text',
               role: 'user',
@@ -257,6 +259,8 @@ export const convertMossMessagesToTMessages = (allMessages: any[], conversationI
       if (displayText && displayText.trim()) {
         messages.push({
           id: `${conversationId}-${messageIndex++}`,
+          // moss 消息 uuid（发送时透传的 renderer msg_id），与流式回显按 msg_id 去重
+          msg_id: msg.uuid,
           conversation_id: conversationId,
           type: 'text',
           role: 'user',

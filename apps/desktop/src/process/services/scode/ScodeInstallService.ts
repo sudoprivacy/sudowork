@@ -22,7 +22,7 @@ import { getProxyAgent } from '@process/utils/proxyAgent';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import scodePlatforms from '@/shared/scode-platforms.json';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
-import { SCODE_HOME, LEGACY_SCODE_HOME, SCODE_MIGRATED_ENTRY_NAMES } from './scodePaths';
+import { SCODE_BIN_HOME } from './scodePaths';
 
 const TAG = 'ScodeInstallService';
 
@@ -37,11 +37,11 @@ const SCODE_PLATFORMS = scodePlatforms.platforms as Record<string, ScodePlatform
 
 /**
  * Scode root = sudowork's **isolated** engine-scode home (`~/.nexus/sudowork/sudocode`).
- * SSOT is {@link SCODE_HOME} in scodePaths.ts; re-exported here as `SCODE_DIR` for
+ * SSOT is {@link SCODE_BIN_HOME} in scodePaths.ts; re-exported here as `SCODE_DIR` for
  * back-compat with existing importers. Isolated from standalone scode
  * (`~/.nexus/sudocode`) so the two products don't stomp each other.
  */
-export const SCODE_DIR = SCODE_HOME;
+export const SCODE_DIR = SCODE_BIN_HOME;
 
 /** Marker filename to record installed version */
 const SCODE_READY_MARKER = '.scode-bin-ready';
@@ -392,51 +392,9 @@ function getGitHubDownloadUrl(): string {
  * Silent installation - no UI, just background install.
  */
 /** Marker recording that the legacy→isolated config migration already ran. */
-const SCODE_MIGRATION_MARKER = '.sudowork-config-migrated';
-
-/**
- * One-time migration for sudowork's engine-scode home moving from the shared
- * `~/.nexus/sudocode` to the isolated `~/.nexus/sudowork/sudocode`.
- *
- * Copies (never moves) the user's config so upgrading sudowork users don't lose
- * their settings; the legacy copy stays intact for a standalone scode install.
- * Only migrates config that a PRIOR SUDOWORK INSTALL left at the legacy home
- * (detected by sudowork's own ready-marker — NOT the scode binary, which a
- * standalone install also has) — a legacy home holding only a *standalone*
- * scode's config is NOT auto-imported, honouring the "default full isolation"
- * decision. Runs at most once (marker-guarded) and never clobbers a file already
- * present in the isolated home.
- */
-export function migrateLegacyScodeHomeOnce(home: string = SCODE_HOME, legacy: string = LEGACY_SCODE_HOME): void {
-  if (home === legacy) return; // nothing to isolate
-  const marker = path.join(home, SCODE_MIGRATION_MARKER);
-  if (fs.existsSync(marker)) return;
-  try {
-    // ONLY a prior SUDOWORK install writes SCODE_READY_MARKER; a standalone scode
-    // has scode.exe but never writes it. So the marker — not the binary — is the
-    // only safe signal that the legacy config is ours to migrate. Keying off
-    // scode.exe would misclassify a standalone install and import its config,
-    // breaking the "default full isolation / no auto-import" decision.
-    const legacyWasSudoworkInstall = fs.existsSync(path.join(legacy, SCODE_READY_MARKER));
-    fs.mkdirSync(home, { recursive: true });
-    if (legacyWasSudoworkInstall) {
-      for (const name of SCODE_MIGRATED_ENTRY_NAMES) {
-        const src = path.join(legacy, name);
-        const dest = path.join(home, name);
-        if (!fs.existsSync(src) || fs.existsSync(dest)) continue; // never clobber
-        fs.cpSync(src, dest, { recursive: true });
-        mainLog(TAG, `Migrated ${name}: legacy sudowork scode home -> isolated home`);
-      }
-    }
-    fs.writeFileSync(marker, new Date().toISOString(), 'utf-8');
-  } catch (e) {
-    mainWarn(TAG, `scode-home migration skipped (non-fatal): ${String(e)}`);
-  }
-}
 
 export async function ensureScodeInstalled(options?: { forceReinstall?: boolean; onProgress?: (percent: number) => void }): Promise<boolean> {
   const forceReinstall = options?.forceReinstall === true;
-  migrateLegacyScodeHomeOnce();
   cleanupLegacyManagedScodeSkills();
 
   if (!forceReinstall && isScodeInstalled()) {
