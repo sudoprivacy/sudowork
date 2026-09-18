@@ -74,6 +74,7 @@
     "agent": "Agent",
     "skillStore": "Skill Store",
     "localKb": "Local KB",
+    "ontology": "Ontology Workbench",
     "security": "Security",
     "webui": "Remote Access",
     "cron": "Scheduled Tasks",

@@ -1,10 +1,28 @@
-import { resolve } from 'path';
+import { existsSync } from 'fs';
+import { createRequire } from 'module';
+import { dirname, resolve } from 'path';
 import { execSync } from 'child_process';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import UnoCSS from 'unocss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import unoConfig from './uno.config.ts';
+
+const nodeRequire = createRequire(import.meta.url);
+
+function resolveDependencyFile(packageName: string, filePath: string) {
+  const entryFile = nodeRequire.resolve(packageName, {
+    paths: [resolve('.'), resolve('../..'), process.cwd()],
+  });
+  let packageRoot = dirname(entryFile);
+  while (packageRoot !== dirname(packageRoot)) {
+    if (existsSync(resolve(packageRoot, 'package.json'))) {
+      return resolve(packageRoot, filePath);
+    }
+    packageRoot = dirname(packageRoot);
+  }
+  return resolve(dirname(entryFile), filePath);
+}
 
 // Icon Park transform plugin (replaces webpack icon-park-loader)
 function iconParkPlugin() {
@@ -86,6 +104,10 @@ const mainAliases = [
   // exclude below) so the packaged/dev main process never depends on a prior
   // `dist` build of them.
   { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
+  { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: resolve('../../packages/ontology-common/src') + '/$1' },
+  { find: /^@sudowork\/ontology-common$/, replacement: resolve('../../packages/ontology-common/src/index.ts') },
+  { find: /^@sudowork\/ontology-engine\/(.*)$/, replacement: resolve('../../packages/ontology-engine/src') + '/$1' },
+  { find: /^@sudowork\/ontology-engine$/, replacement: resolve('../../packages/ontology-engine/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
   { find: '@sudowork/contracts/conversations', replacement: resolve('../../packages/contracts/src/conversations.ts') },
   { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
@@ -150,7 +172,7 @@ export default defineConfig(({ mode }) => {
         externalizeDepsPlugin({
           // @sudowork/* are workspace packages bundled from source (aliased above)
           // so the main process has no runtime dependency on their dist build.
-          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts', '@sudowork/common', '@sudowork/host-bridge'],
+          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts', '@sudowork/common', '@sudowork/host-bridge', '@sudowork/ontology-common', '@sudowork/ontology-engine'],
         }),
         ...(!isDevelopment
           ? [
@@ -227,9 +249,13 @@ export default defineConfig(({ mode }) => {
           { find: '@process', replacement: resolve('src/process') },
           { find: '@worker', replacement: resolve('src/worker') },
           // Force ESM version of streamdown
-          { find: 'streamdown', replacement: resolve('node_modules/streamdown/dist/index.js') },
+          { find: 'streamdown', replacement: resolveDependencyFile('streamdown', 'dist/index.js') },
           { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
           { find: /^@sudowork\/host-bridge$/, replacement: resolve('../../packages/host-bridge/src/index.ts') },
+          { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: resolve('../../packages/ontology-common/src') + '/$1' },
+          { find: /^@sudowork\/ontology-common$/, replacement: resolve('../../packages/ontology-common/src/index.ts') },
+          { find: /^@sudowork\/ontology-ui\/(.*)$/, replacement: resolve('../../packages/ontology-ui/src') + '/$1' },
+          { find: /^@sudowork\/ontology-ui$/, replacement: resolve('../../packages/ontology-ui/src/index.ts') },
           { find: '@', replacement: resolve('src') },
         ],
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.css'],

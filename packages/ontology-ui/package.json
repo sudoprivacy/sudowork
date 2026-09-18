@@ -1,5 +1,5 @@
 {
-  "name": "@sudowork/host-bridge",
+  "name": "@sudowork/ontology-ui",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
       "default": "./dist/index.js"
     },
     "./*": {
-      "bun": "./src/*.ts",
+      "bun": "./src/*",
       "types": "./dist/*.d.ts",
       "default": "./dist/*.js"
     }
@@ -22,8 +22,16 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@office-ai/platform": "^0.3.16",
-    "@sudowork/common": "workspace:*",
-    "@sudowork/ontology-common": "workspace:*"
+    "@arco-design/web-react": "^2.66.1",
+    "@sudowork/ontology-common": "workspace:*",
+    "echarts": "^6.0.0",
+    "echarts-for-react": "^3.0.6",
+    "lucide-react": "^1.21.0",
+    "react": "^19.1.0",
+    "react-i18next": "^14.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.6",
+    "typescript": "^5.8.3"
   }
 }

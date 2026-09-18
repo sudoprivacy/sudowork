@@ -28,6 +28,7 @@ import agentStatus from './agentStatus.json';
 import setup from './setup.json';
 import runtimeError from './runtimeError.json';
 import pwdLogin from './pwdLogin.json';
+import ontology from './ontology.json';
 
 export default {
   common,
@@ -53,4 +54,5 @@ export default {
   setup,
   runtimeError,
   pwdLogin,
+  ontology,
 };

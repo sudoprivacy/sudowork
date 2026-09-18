@@ -204,6 +204,8 @@ extraResources:
   # format) for each team agent. Normal sessions never load it.
   - from: resources/team-mcp/index.js
     to: team-mcp/index.js
+  - from: resources/ontology-mcp/index.js
+    to: ontology-mcp/index.js
   # Nexus binary - versioned, optional (may not be available for all platforms)
   # Copy from the resources directory with filters; using a glob in `from`
   # is not reliable for electron-builder file-set matching.

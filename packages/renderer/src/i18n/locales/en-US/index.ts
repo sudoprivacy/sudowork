@@ -34,6 +34,7 @@ import setup from './setup.json';
 import runtimeError from './runtimeError.json';
 import pwdLogin from './pwdLogin.json';
 import localKb from './localKb.json';
+import ontology from './ontology.json';
 
 export default {
   common,
@@ -61,4 +62,5 @@ export default {
   runtimeError,
   pwdLogin,
   localKb,
+  ontology,
 };

@@ -1,0 +1,856 @@
+{
+  "header": {
+    "kicker": "Ontology Workbench",
+    "title": "Ontology Workbench",
+    "subtitle": "Run environment scanning, ontology generation, review, publishing, and Agent build inside Sudowork."
+  },
+  "actions": {
+    "refresh": "Refresh",
+    "reset": "Reset",
+    "saveDraft": "Save Draft",
+    "markComplete": "Mark Complete"
+  },
+  "stats": {
+    "assets": "Assets",
+    "objects": "Objects",
+    "relations": "Relations",
+    "pendingReview": "Pending Review",
+    "versions": "Published Versions",
+    "agents": "Agent Blueprints"
+  },
+  "phase": {
+    "scan": "Scan",
+    "generate": "Generate",
+    "review": "Review",
+    "publish": "Publish",
+    "agent": "Build Agent"
+  },
+  "phaseSummary": {
+    "scan": "Connect data sources, documents, APIs, messages, and object storage assets.",
+    "generate": "Generate ontology objects, attributes, relations, and initial mappings.",
+    "review": "Discuss, edit, and approve ontology objects, attributes, and relations.",
+    "publish": "Run consistency checks, publish immutable versions, and retain rollback support.",
+    "agent": "Generate Agent blueprints from published ontology versions and register them in Sudowork."
+  },
+  "phaseStatus": {
+    "not_started": "Not Started",
+    "in_progress": "In Progress",
+    "completed": "Completed",
+    "blocked": "Blocked"
+  },
+  "draft": {
+    "title": "Business Context",
+    "description": "Keep the ontology scenario, target, and generation inputs.",
+    "titleLabel": "Project Name",
+    "descriptionLabel": "Scenario Description",
+    "businessGoalLabel": "Business Goal",
+    "titlePlaceholder": "Project name",
+    "descriptionPlaceholder": "Scenario description",
+    "businessGoalPlaceholder": "Describe business goals, demo scenario, core objects, and expected Agent capabilities"
+  },
+  "scan": {
+    "title": "Asset Scan",
+    "description": "Import local assets. Database, API, MQ, OSS, and directory scanners will plug into the same engine.",
+    "selected": "{{count}} assets selected",
+    "empty": "No assets yet",
+    "columns": {
+      "name": "Name",
+      "kind": "Kind",
+      "profile": "Profile"
+    }
+  },
+  "connectorType": {
+    "local_files": "Local Files",
+    "directory": "Directory",
+    "sqlite": "SQLite",
+    "mysql": "MySQL",
+    "postgresql": "PostgreSQL",
+    "oracle": "Oracle",
+    "sqlserver": "SQL Server",
+    "openapi": "OpenAPI",
+    "rest": "REST",
+    "ftp": "FTP",
+    "sftp": "SFTP",
+    "mq": "Message Queue",
+    "kafka": "Kafka",
+    "oss": "Object Storage",
+    "s3": "S3"
+  },
+  "connectorAuthType": {
+    "none": "None",
+    "bearer": "Bearer Token",
+    "basic": "Basic",
+    "api_key": "API Key (Header)"
+  },
+  "connector": {
+    "namePlaceholder": "Connection name",
+    "pathPlaceholder": "File or directory path",
+    "urlPlaceholder": "OpenAPI/REST URL",
+    "metadataPlaceholder": "Metadata JSON or topics=a,b / buckets=a,b",
+    "pick": "Pick",
+    "scan": "Scan Connector",
+    "browserTitle": "{{name}} Assets",
+    "browserDescription": "View assets already scanned from this data source and automatically added to the asset catalog.",
+    "browserEmpty": "No assets are available for this connection. Test or rescan the connection first.",
+    "deleteTitle": "Delete Data Source",
+    "deleteContent": "Delete data source {{name}}?",
+    "cascadeDescription": "This data source still has {{count}} linked assets. Confirm whether to remove those assets together.",
+    "cascadeAssets": "Also delete {{count}} linked assets"
+  },
+  "asset": {
+    "preview": "Preview Data",
+    "previewRows": "{{count}} rows",
+    "previewTruncated": "Only the first rows are shown.",
+    "detail": "Details",
+    "syncSchema": "Sync Schema",
+    "profile": "Profile",
+    "schemaSyncedAt": "Schema Synced At",
+    "fields": "Fields",
+    "metadata": "Metadata",
+    "deleteTitle": "Delete Asset",
+    "deleteContent": "Delete asset {{name}}?"
+  },
+  "generate": {
+    "title": "Ontology Generation",
+    "description": "Generate ontology object, attribute, and relation drafts from business goals and selected assets.",
+    "summary": "{{objects}} objects, {{relations}} relations",
+    "action": "Generate Draft",
+    "emptyObjects": "No objects yet. Add an object to get started.",
+    "emptyRelations": "No relations yet. Initial relations are generated when multiple objects exist.",
+    "columns": {
+      "object": "Object",
+      "attributes": "Attributes",
+      "tierStatus": "Tier / Status",
+      "review": "Review",
+      "actions": "Actions",
+      "relation": "Relation",
+      "endpoints": "Endpoints",
+      "relationSemantics": "Cardinality / Semantics"
+    }
+  },
+  "review": {
+    "title": "Collaborative Review",
+    "description": "Run expert review for generated objects and relations during guided construction.",
+    "pending": "{{count}} pending review",
+    "approveAll": "Approve All",
+    "approve": "Approve",
+    "requestChanges": "Request Changes",
+    "logCount": "{{count}} review records"
+  },
+  "reviewDecision": {
+    "pending": "Pending",
+    "approved": "Approved",
+    "changes_requested": "Changes Requested",
+    "rejected": "Rejected"
+  },
+  "cardinality": {
+    "one_to_one": "One to One",
+    "one_to_many": "One to Many",
+    "many_to_one": "Many to One",
+    "many_to_many": "Many to Many"
+  },
+  "editor": {
+    "add": "Add",
+    "addObject": "Add Object",
+    "editObject": "Edit Object",
+    "deleteObjectTitle": "Delete Object",
+    "deleteObjectContent": "Delete {{name}} and related relations, mappings, and rules?",
+    "addAttribute": "Add Attribute",
+    "addAttributeShort": "+ Attr",
+    "editAttribute": "Edit Attribute",
+    "addRelation": "Add Relation",
+    "editRelation": "Edit Relation",
+    "addMapping": "Add Mapping",
+    "editMapping": "Edit Mapping",
+    "addRule": "Add Rule",
+    "editRule": "Edit Rule",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteShort": "Del",
+    "name": "Name",
+    "code": "Code",
+    "displayName": "Display Name",
+    "englishName": "English Name",
+    "description": "Description",
+    "namespace": "Namespace",
+    "tierLabel": "Object Tier",
+    "statusLabel": "Object Status",
+    "tier": "Tier {{tier}}",
+    "example": "Example value",
+    "constraints": "Constraints (JSON object)",
+    "invalidConstraints": "Constraints must be a valid JSON object.",
+    "acyclic": "Acyclic relation",
+    "objectStatus": {
+      "active": "Active",
+      "warning": "Warning",
+      "error": "Error"
+    },
+    "relationType": {
+      "object_property": "Object property",
+      "symmetric_property": "Symmetric property",
+      "transitive_property": "Transitive property",
+      "functional_property": "Functional property"
+    },
+    "semanticType": {
+      "composition": "Composition",
+      "event": "Event",
+      "inheritance": "Inheritance",
+      "dependency": "Dependency",
+      "association": "Association"
+    },
+    "dataType": "Data Type",
+    "required": "Required",
+    "expression": "Rule Expression",
+    "fromObject": "Source Object",
+    "toObject": "Target Object",
+    "cardinalityLabel": "Cardinality",
+    "relationTypeLabel": "Relation Type",
+    "semanticTypeLabel": "Semantic Type",
+    "mappingObject": "Ontology Object",
+    "mappingAttribute": "Object Attribute",
+    "mappingAsset": "Data Asset",
+    "mappingField": "Asset Field",
+    "ruleObject": "Target Object",
+    "severityLabel": "Severity"
+  },
+  "objectBuilder": {
+    "manual": "Manual Build",
+    "manualDescription": "Define an object and its properties",
+    "template": "Template Build",
+    "templateDescription": "Import a standard ontology template",
+    "document": "Document Build",
+    "documentDescription": "Generate objects from business documents",
+    "asset": "Asset Build",
+    "assetDescription": "Generate objects from data assets",
+    "templateFiles": "Ontology Templates",
+    "documentFiles": "Business Documents",
+    "documentTitle": "Build Objects from Documents",
+    "assetTitle": "Build Objects from Assets",
+    "documentPrompt": "Select documents from the asset catalog, or import local documents, to generate object, property, and mapping drafts.",
+    "assetPrompt": "Select structured assets from the catalog to generate objects, properties, and field mappings.",
+    "businessGoal": "Business Goal",
+    "businessGoalPlaceholder": "Optional: describe the object purpose, business scope, and expected capabilities",
+    "sourceAssets": "Build Sources",
+    "chooseDocumentFiles": "Choose Local Documents",
+    "emptyDocuments": "No document assets are available. Choose local documents to continue.",
+    "emptyAssets": "No structured assets are available. Connect and scan a data source first.",
+    "buildSelected": "Build from Selection",
+    "noImportableFiles": "No usable content was found in the selected files",
+    "completed": "Generated object drafts from {{count}} sources",
+    "filesReady": "Imported {{count}} build files",
+    "backToObjects": "Back to Object Definitions",
+    "draftVersion": "Draft · v0.1",
+    "manualWorkspaceTitle": "Manual Modeling",
+    "manualWorkspaceDescription": "Define objects, properties, and relations",
+    "attributeCount": "{{count}} attributes",
+    "previewGraph": "Preview in Graph",
+    "submitReview": "Submit for Review",
+    "objectList": "Objects · {{count}}",
+    "basicInfo": "Basic Information",
+    "attributes": "Attributes ({{count}})",
+    "emptyAttributes": "This object has no attributes",
+    "relationList": "Relations · {{count}}",
+    "selectObject": "Select an object from the left",
+    "objectsTitle": "Objects · {{count}}",
+    "objectsDescription": "Manage object definitions, status, and construction methods for this ontology.",
+    "batchActions": "Batch Actions",
+    "batchActivate": "Activate Selected",
+    "batchExport": "Export Selected",
+    "batchDelete": "Delete Selected",
+    "batchDeleteTitle": "Delete Objects",
+    "batchDeleteContent": "Delete the selected {{count}} objects and their related relations, mappings, and rules?",
+    "batchDeleted": "Deleted {{count}} objects",
+    "batchActivated": "Activated {{count}} objects",
+    "exported": "Exported {{count}} objects",
+    "selectAllObjects": "Select all objects",
+    "selectObjectNamed": "Select object {{name}}",
+    "previous": "Previous",
+    "next": "Next",
+    "finish": "Finish and Return",
+    "skipDocuments": "Skip Documents",
+    "chooseTemplateFile": "Choose Ontology Template",
+    "templateReadyTitle": "Template Ready",
+    "templateFileCount": "{{count}} file(s)",
+    "reselectTemplate": "Choose Again",
+    "confirmTemplate": "Parse and Import",
+    "templateStepTitle": "Import a Standard Ontology Template",
+    "templateStepDescription": "Choose a JSON, YAML, or structured document template. Objects, properties, and relations will be validated and merged.",
+    "businessStepTitle": "Describe the Business Scenario",
+    "businessStepDescription": "Describe the target business, key objects, and problems to solve as context for asset-based modeling.",
+    "assetStepTitle": "Select Data Assets",
+    "assetStepDescription": "Select tables or schemas from the asset catalog to generate objects, properties, and field mappings.",
+    "documentStepTitle": "Select Business Documents",
+    "documentStepDescription": "Select existing documents or import local files to enrich object discovery and business semantics.",
+    "extractStepTitle": "Extract Objects and Relations",
+    "extractStepDescription": "Generate object, property, relation, and mapping drafts from {{assets}} structured assets and {{documents}} documents.",
+    "startExtraction": "Start Extraction",
+    "mappingStepTitle": "Review Data Mappings",
+    "mappingStepDescription": "Review object-property to asset-field mappings and return to adjust sources when needed.",
+    "confirmStepTitle": "Confirm the Object Model",
+    "confirmStepDescription": "Review generated objects, relations, and review states before expert review.",
+    "reviewStepTitle": "Expert Review",
+    "reviewStepDescription": "Verify the business correctness of objects and relations before validation.",
+    "hydrateStepTitle": "Hydrate, Validate, and Publish",
+    "hydrateStepDescription": "Run consistency checks and continue to ontology publishing after objects, relations, and mappings are valid.",
+    "flowSteps": {
+      "template": "Import Template",
+      "business": "Business Scenario",
+      "assets": "Select Tables",
+      "documents": "Select Documents",
+      "extract": "Extract Objects",
+      "mapping": "Data Mapping",
+      "confirm": "Model Confirmation",
+      "review": "Expert Review",
+      "hydrate": "Hydration Validation"
+    },
+    "columns": {
+      "displayName": "Display Name",
+      "code": "English Name",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "objectState": {
+      "draft": "Draft",
+      "active": "Active"
+    },
+    "steps": {
+      "manual": "Manual Modeling",
+      "review": "Expert Review",
+      "mapping": "Data Mapping",
+      "publish": "Validate and Publish"
+    },
+    "stepDescriptions": {
+      "manual": "Define objects, properties, and relations",
+      "review": "Review business correctness",
+      "mapping": "Complete field mappings",
+      "publish": "Validate and publish"
+    }
+  },
+  "mapping": {
+    "title": "Mapping and Quality",
+    "description": "Manage hydration mappings from ontology attributes to asset fields and generate publish-time quality rules.",
+    "mappings": "Mappings",
+    "qualityRules": "Quality Rules",
+    "documents": "Documents",
+    "connections": "Connection Profiles",
+    "emptyMappings": "No field mappings yet. Import assets with fields and generate a draft.",
+    "columns": {
+      "object": "Object",
+      "field": "Asset Field",
+      "confidence": "Confidence",
+      "strategy": "Strategy"
+    }
+  },
+  "mappingStrategy": {
+    "exact": "Exact",
+    "normalized": "Normalized",
+    "ai_suggested": "AI Suggested",
+    "manual": "Manual"
+  },
+  "ruleSeverity": {
+    "info": "Info",
+    "warning": "Warning",
+    "error": "Error"
+  },
+  "artifactStatus": {
+    "draft": "Draft",
+    "active": "Active",
+    "disabled": "Disabled"
+  },
+  "assetKind": {
+    "database": "Database",
+    "schema": "Schema",
+    "table": "Table",
+    "document": "Document",
+    "directory": "Directory",
+    "api": "API",
+    "mq": "Message",
+    "oss": "Object Storage"
+  },
+  "profileStatus": {
+    "not_profiled": "Not Profiled",
+    "profiling": "Profiling",
+    "ready": "Ready",
+    "failed": "Failed"
+  },
+  "connectorStatus": {
+    "not_tested": "Not Tested",
+    "reachable": "Online",
+    "failed": "Error"
+  },
+  "console": {
+    "brand": "Ontology Workbench",
+    "user": "User",
+    "groups": {
+      "data": "Data",
+      "ontology": "Ontology",
+      "application": "Agents"
+    },
+    "views": {
+      "connections": {
+        "title": "Data Access",
+        "description": "Manage data source connections, credentials, and access permissions for databases, object storage, file transfer, queues, and APIs."
+      },
+      "assets": {
+        "title": "Asset Catalog",
+        "description": "Manage data assets used for ontology generation, field mapping, and service publishing."
+      },
+      "ontology": {
+        "title": "Ontology List",
+        "description": "Manage objects, attributes, relations, field mappings, quality rules, and expert review."
+      },
+      "publish": {
+        "title": "Ontology Service",
+        "description": "Manage published ontology versions, service status, and MCP tools."
+      },
+      "agent": {
+        "title": "Ontology Apps",
+        "description": "Create Agent blueprints from published ontology versions and register them into Sudowork Agents."
+      }
+    },
+    "stats": {
+      "connectionTotal": "Connections",
+      "online": "Online",
+      "offline": "Offline",
+      "assetTotal": "Assets",
+      "structured": "Structured",
+      "unstructured": "Unstructured"
+    },
+    "connectionForm": {
+      "title": "Add or Update Data Source",
+      "description": "Select a connection type, fill path, URL, or metadata, then scan. Results are added to the asset catalog.",
+      "newTitle": "Add Data Source",
+      "editTitle": "Edit Data Source",
+      "name": "Connection Name",
+      "category": "Category",
+      "type": "Type",
+      "path": "Path",
+      "url": "URL / Endpoint",
+      "metadata": "Metadata",
+      "metadataHint": "Supports JSON or key=value input such as topics=a,b / buckets=a,b.",
+      "host": "Host *",
+      "port": "Port",
+      "database": "Database / Schema",
+      "username": "Username *",
+      "password": "Password *",
+      "writable": "Allow Writes",
+      "poolSize": "Pool Size",
+      "rateLimitQps": "QPS Limit",
+      "description": "Description",
+      "endpoint": "Endpoint",
+      "region": "Region",
+      "bucket": "Bucket *",
+      "pathStyle": "Path-Style Addressing",
+      "accessKey": "Access Key *",
+      "secretKey": "Secret Key *",
+      "rootPath": "Root Path",
+      "useTls": "Enable FTPS",
+      "brokers": "Brokers *",
+      "securityProtocol": "Security Protocol",
+      "saslUsername": "SASL Username",
+      "saslPassword": "SASL Password",
+      "baseUrl": "Base URL *",
+      "probePath": "Probe Path",
+      "authType": "Auth Type",
+      "bearerToken": "Bearer Token",
+      "apiKeyName": "Header Name",
+      "apiKeyValue": "API Key Value"
+    },
+    "connectionPicker": {
+      "title": "Select Data Source Type",
+      "description": "Choose a connection category, fill the connection details, and scan. Results are added to the asset catalog.",
+      "categories": {
+        "database": {
+          "title": "Database",
+          "types": "MySQL · PostgreSQL",
+          "hint": "Connect structured tables, schemas, and field metadata."
+        },
+        "object_storage": {
+          "title": "Object Storage",
+          "types": "S3",
+          "hint": "Scan buckets, object prefixes, and file assets."
+        },
+        "file_transfer": {
+          "title": "File Transfer",
+          "types": "FTP · SFTP",
+          "hint": "Scan directories, documents, and offline file assets."
+        },
+        "message_queue": {
+          "title": "Message Queue",
+          "types": "Kafka",
+          "hint": "Connect topics, message schemas, and event assets."
+        },
+        "api": {
+          "title": "HTTP API",
+          "types": "REST",
+          "hint": "Connect service endpoints, interface docs, and API metadata."
+        }
+      }
+    },
+    "actions": {
+      "newConnection": "New Source",
+      "test": "Test",
+      "list": "List"
+    },
+    "filters": {
+      "all": "All",
+      "structured": "Structured",
+      "unstructured": "Unstructured"
+    },
+    "viewMode": {
+      "grid": "Cards",
+      "list": "List"
+    },
+    "columns": {
+      "name": "Name",
+      "category": "Category",
+      "type": "Type",
+      "endpoint": "Endpoint",
+      "permission": "Permission",
+      "status": "Status",
+      "actions": "Actions",
+      "locator": "Location",
+      "fields": "Fields",
+      "profile": "Profile",
+      "tools": "Tools",
+      "registeredId": "Registered ID"
+    },
+    "permission": {
+      "readonly": "Read-only"
+    },
+    "fieldCount": "{{count}} fields"
+  },
+  "capabilities": {
+    "title": "Capability Migration Matrix",
+    "description": "Track every ontology module as it moves into isolated engine packages."
+  },
+  "capability": {
+    "data_integration": "Data Integration",
+    "asset_catalog": "Asset Catalog",
+    "ontology_modeling": "Ontology Modeling",
+    "ai_builder": "AI Builder",
+    "doc_builder": "Doc Builder",
+    "review_collaboration": "Review Collaboration",
+    "hydration_mapping": "Hydration Mapping",
+    "publish_governance": "Publish Governance",
+    "logic_modeling": "Logic Modeling",
+    "agent_builder": "Agent Builder",
+    "service_registry": "Service Registry",
+    "monitoring": "Monitoring"
+  },
+  "capabilityStatus": {
+    "planned": "Planned",
+    "building": "Building",
+    "available": "Available",
+    "blocked": "Blocked"
+  },
+  "runtime": {
+    "title": "Runtime and Services",
+    "description": "Generate document templates, logic functions, action definitions, and MCP/OSDK/API service endpoints.",
+    "functions": "Functions",
+    "actions": "Actions",
+    "endpoints": "Endpoints",
+    "documents": "Documents",
+    "empty": "No runtime artifacts yet",
+    "emptyFunctions": "No logic functions",
+    "emptyActions": "No action definitions",
+    "emptyDocuments": "No business documents",
+    "copy": "Copy",
+    "copied": "Endpoint config copied",
+    "detailTitle": "{{name}} Details",
+    "toolCount": "{{count}} tools",
+    "summary": "{{functions}} functions, {{actions}} action definitions",
+    "addFunction": "Add Logic Function",
+    "editFunction": "Edit Logic Function",
+    "addAction": "Add Action",
+    "editAction": "Edit Action",
+    "runtime": "Runtime",
+    "returnType": "Return Type",
+    "boundObjects": "Bound Objects",
+    "signature": "Signature",
+    "parametersJson": "Parameters (JSON array)",
+    "body": "Implementation",
+    "executor": "Executor",
+    "configurationJson": "Configuration (JSON object)",
+    "invalidParameters": "Parameters must be a valid JSON array.",
+    "invalidConfiguration": "Configuration must be a valid JSON object.",
+    "deleteFunctionTitle": "Delete Logic Function",
+    "deleteFunctionContent": "Delete logic function {{name}}?",
+    "deleteActionTitle": "Delete Action",
+    "deleteActionContent": "Delete action {{name}}?",
+    "executors": {
+      "function": "Function Call",
+      "api": "API Call",
+      "sql": "SQL Execution",
+      "notification": "Notification",
+      "custom_script": "Custom Script"
+    }
+  },
+  "publish": {
+    "title": "Publish Governance",
+    "description": "Create immutable ontology versions before adding consistency checks, impact analysis, and rollback.",
+    "latest": "Latest version: {{version}}",
+    "none": "None",
+    "quickPublish": "Publish Current Draft",
+    "check": "Consistency Check",
+    "checkResult": "Check Result",
+    "valid": "Valid",
+    "invalid": "Invalid",
+    "noIssues": "No issues found",
+    "empty": "No published versions",
+    "versionSummary": "{{objects}} objects, {{relations}} relations",
+    "approve": "Approve",
+    "rollback": "Rollback",
+    "rollbackTitle": "Rollback Ontology Version",
+    "rollbackContent": "Rollback to {{version}}? The current draft will be replaced by that version snapshot."
+  },
+  "versionStatus": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "published": "Published",
+    "rejected": "Rejected",
+    "rolled_back": "Rolled Back"
+  },
+  "detail": {
+    "back": "Back to ontologies",
+    "publish": "Publish",
+    "navigation": "Ontology detail navigation",
+    "workflowDescription": "Track the ontology from asset discovery through Sudocode Agent registration.",
+    "graphDescription": "Inspect object relationships, drag nodes, and zoom across the ontology graph.",
+    "graphApproved": "Approved",
+    "graphPending": "Pending review",
+    "emptyQualityRules": "No quality rules yet",
+    "tabs": {
+      "overview": "Overview",
+      "objects": "Object definitions",
+      "relations": "Relation definitions",
+      "graph": "Ontology graph",
+      "mapping": "Mappings and quality",
+      "runtime": "Logic and actions",
+      "history": "History"
+    }
+  },
+  "overview": {
+    "title": "Overview",
+    "summary": "Resource overview for ontology “{{name}}”",
+    "basicInfo": "Basic Information",
+    "displayName": "Display Name",
+    "code": "English Name",
+    "status": "Status",
+    "createdAt": "Created",
+    "description": "Description",
+    "objects": "Objects ({{count}})",
+    "logic": "Logic ({{count}})",
+    "logicHint": "See the Logic and Actions page for details"
+  },
+  "list": {
+    "title": "Ontology List",
+    "description": "Provide an ontology designer that supports human-AI collaboration and AI-assisted ontology construction, while still allowing manual top-down modeling.",
+    "newOntology": "New Ontology",
+    "empty": "No matching ontology",
+    "defaultName": "Ontology Workbench",
+    "built": "Built",
+    "noDescription": "No description",
+    "statObjects": "{{count}} objects",
+    "statRelations": "{{count}} relations",
+    "statLogic": "{{count}} logic",
+    "statActions": "{{count}} actions",
+    "updated": "Updated",
+    "enabled": "Enabled",
+    "detail": "Details",
+    "createTitle": "Build Ontology",
+    "confirmBuild": "Confirm and Build",
+    "deleteTitle": "Delete Ontology",
+    "deleteContent": "Delete ontology {{name}}? This clears its data sources, assets, objects, published versions, and Agent blueprints.",
+    "created": "Ontology created",
+    "deleted": "Ontology deleted",
+    "basicInfo": "Basic Information",
+    "nameLabel": "Ontology Name",
+    "codeLabel": "Ontology Code",
+    "descriptionLabel": "Ontology Description",
+    "namePlaceholder": "Ontology name",
+    "codePlaceholder": "Ontology code",
+    "descriptionPlaceholder": "Ontology description",
+    "characterCount": "{{count}} characters"
+  },
+  "publishConsole": {
+    "environmentTitle": "Ontology Services",
+    "environmentDescription": "View every ontology service. Open a card to inspect versions, service status, and MCP tools.",
+    "empty": "No ontologies",
+    "emptyHint": "Create an ontology from the ontology list first.",
+    "servingVersion": "{{version}} · Serving",
+    "notPublished": "Not Published",
+    "entityCount": "{{count}} entities",
+    "versionCount": "{{count}} versions",
+    "published": "Published",
+    "back": "Back to Ontology Services",
+    "historyDescription": "Version history · {{count}} versions",
+    "createVersion": "Create Version",
+    "serving": "Serving",
+    "versionTitle": "{{version}} — {{name}}",
+    "noSelectedVersion": "Select a version",
+    "objects": "Objects",
+    "relations": "Relations",
+    "logic": "Logic",
+    "actions": "Actions",
+    "check": "Consistency Check",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectTitle": "Reject Version",
+    "rejectReasonLabel": "Rejection Reason",
+    "rejectReasonPlaceholder": "Explain what must change before this version can be approved",
+    "rollback": "Rollback to This Version",
+    "emptyObjects": "No objects",
+    "emptyRelations": "No relations",
+    "emptyLogic": "No logic",
+    "emptyActions": "No actions"
+  },
+  "mcpService": {
+    "title": "Ontology Service",
+    "detailsTitle": "MCP Service Capabilities",
+    "description": "Expose this ontology's serving version to Sudocode through a managed, read-only MCP stdio server.",
+    "running": "Registered in Sudocode",
+    "notRegistered": "Register an ontology Agent to enable MCP",
+    "registeredAgents": "Registered Agents",
+    "paramCountLabel": "Parameters",
+    "copy": "Copy",
+    "copied": "Copied",
+    "todayCalls": "Calls Today",
+    "times": "times",
+    "avgResponse": "Average Response",
+    "errorRate": "Error Rate",
+    "activeConnections": "Active Connections",
+    "connections": "connections",
+    "callTrend": "Call Trend",
+    "empty": "No data",
+    "toolName": "Tool Name",
+    "callCount": "Calls",
+    "avgLatency": "Average Latency",
+    "errorCount": "Errors",
+    "lastCall": "Last Call",
+    "apiKeyTitle": "API Key (X-API-Key)",
+    "apiKeyFallback": "Not configured: set MCP_API_KEYS in the server .env",
+    "copyKey": "Copy Key",
+    "endpointToolDescription": "{{protocol}} service endpoint with {{count}} tools.",
+    "actionToolDescription": "Execute {{executor}} action.",
+    "paramDescriptions": {
+      "query": "Query text or natural-language question.",
+      "limit": "Maximum number of returned results.",
+      "scope": "Capability scope.",
+      "args": "Function arguments object.",
+      "payload": "Action execution payload.",
+      "objectId": "Ontology object id or code."
+    },
+    "coreTools": {
+      "query": "Search ontology objects, relations, logic, actions, and quality rules.",
+      "overview": "Describe the published ontology and its resource counts.",
+      "object": "Get one object with its attributes, relations, mappings, and quality rules.",
+      "logic": "List logic functions in the published ontology.",
+      "actions": "List action definitions without executing them.",
+      "capabilities": "List the capabilities and tools exposed by this ontology service."
+    }
+  },
+  "agentManage": {
+    "title": "Agent Management",
+    "description": "Manage and configure agents as atomic capability units for workflow orchestration.",
+    "newAgent": "New Agent",
+    "create": "Create Blueprint",
+    "sudocodeHint": "The agent is bound one-to-one to the selected published ontology service and runs with Sudocode. Register it from the details when ready.",
+    "ontologyService": "Ontology Service",
+    "servicePlaceholder": "Select a published ontology service",
+    "servingVersion": "Serving",
+    "boundService": "Bound Service",
+    "noDescription": "No description",
+    "empty": "No agents yet. Click New Agent in the top right.",
+    "noMatches": "No matching agents",
+    "deleteTitle": "Delete Agent",
+    "deleteContent": "Delete agent {{name}}?",
+    "deleted": "Agent deleted",
+    "filters": {
+      "all": "All",
+      "draft": "Draft",
+      "published": "Published"
+    },
+    "status": {
+      "draft": "Draft",
+      "published": "Published"
+    }
+  },
+  "agent": {
+    "title": "Agent Blueprint",
+    "description": "Generate Agent blueprints from published ontology versions and register them into Sudowork Agents.",
+    "defaultName": "Ontology Agent",
+    "nameTemplate": "{{title}} Agent",
+    "defaultPrompt": "Use the published ontology to answer domain questions and call approved ontology tools, logic functions, and actions.",
+    "namePlaceholder": "Agent blueprint name",
+    "createBlueprint": "Create Agent Blueprint",
+    "registerBlueprint": "Register in Sudowork",
+    "copyPrompt": "Copy Prompt",
+    "promptCopied": "Prompt copied",
+    "promptTemplate": "System Prompt",
+    "registeredId": "Registered: {{id}}",
+    "empty": "Publish an ontology version before creating Agent blueprints"
+  },
+  "agentStatus": {
+    "draft": "Draft",
+    "registered": "Registered",
+    "published": "Published"
+  },
+  "monitor": {
+    "title": "Impact and Monitoring",
+    "description": "Track generation, review, publishing, and Agent build events with impact scope.",
+    "riskItems": "Risk Items",
+    "affected": "{{objects}} objects and {{relations}} relations affected",
+    "empty": "No monitoring events yet"
+  },
+  "monitorLevel": {
+    "info": "Info",
+    "warning": "Warning",
+    "error": "Error"
+  },
+  "riskLevel": {
+    "low": "Low Risk",
+    "medium": "Medium Risk",
+    "high": "High Risk"
+  },
+  "reset": {
+    "title": "Reset Ontology Workbench",
+    "content": "This will clear the current ontology workbench state. This action cannot be undone.",
+    "confirm": "Reset",
+    "cancel": "Cancel"
+  },
+  "messages": {
+    "saved": "Draft saved",
+    "imported": "Imported {{count}} assets",
+    "generated": "Ontology draft generated",
+    "approved": "All review items approved",
+    "consistencyPassed": "Consistency check passed",
+    "published": "Published {{version}}",
+    "versionApproved": "Version approved",
+    "versionSubmitted": "Submitted {{version}} for approval",
+    "versionRejected": "Version rejected",
+    "rolledBack": "Rolled back to {{version}}",
+    "agentCreated": "Agent blueprint created",
+    "agentRegistered": "Agent registered in Sudowork",
+    "connectorScanned": "Scanned {{count}} assets",
+    "connectorDeleted": "Data source deleted",
+    "assetSchemaSynced": "Asset schema synced",
+    "assetProfiled": "Asset profile updated",
+    "assetDeleted": "Asset deleted"
+  },
+  "errors": {
+    "loadFailed": "Failed to load ontology workbench",
+    "saveFailed": "Failed to save draft",
+    "importFailed": "Failed to import assets",
+    "generateFailed": "Failed to generate ontology draft",
+    "reviewFailed": "Review failed",
+    "checkFailed": "Consistency check failed",
+    "operationFailed": "Operation failed",
+    "publishFailed": "Publish failed",
+    "agentFailed": "Failed to create Agent blueprint",
+    "resetFailed": "Reset failed",
+    "withMessage": "Operation failed: {{message}}"
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "name": "@sudowork/host-bridge",
+  "name": "@sudowork/ontology-common",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -20,10 +20,5 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
-  },
-  "dependencies": {
-    "@office-ai/platform": "^0.3.16",
-    "@sudowork/common": "workspace:*",
-    "@sudowork/ontology-common": "workspace:*"
   }
 }
