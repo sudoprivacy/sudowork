@@ -65,7 +65,6 @@
     "debug:mcp:list": "bunx tsx scripts/debug-mcp.ts list",
     "debug:mcp:validate": "bunx tsx scripts/debug-mcp.ts validate",
     "debug:custom-agent": "bunx tsx scripts/debug-custom-agent.ts",
-    "test:e2e": "python -m pytest tests/e2e/ -v",
     "test:libreoffice": "npx tsx test-libreoffice.ts",
     "postinstall": "node scripts/postinstall.js"
   },

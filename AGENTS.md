@@ -27,7 +27,8 @@ bun run test               # Run all tests (run before every commit)
 bun run test:watch         # Watch mode
 bun run test:coverage      # Coverage report
 bun run test:integration   # Integration tests only
-bun run test:e2e           # E2E tests (Playwright)
+# E2E (tests/e2e/, Python + YAML) drives a running instance over CDP:
+#   python tests/e2e/runner.py --port 9232 --case <name>   # see tests/e2e/README.md
 ```
 
 ## Code Conventions
@@ -102,7 +103,7 @@ const RuleModal: React.FC<Props> = ({ open, ok }) => {
 - `tests/unit/` - Individual functions, utilities, components
 - `tests/integration/` - IPC, database, service interactions
 - `tests/regression/` - Regression test cases
-- `tests/e2e/` - End-to-end tests (Playwright, `playwright.config.ts`)
+- `tests/e2e/` - End-to-end tests (Python + YAML cases driven by `runner.py`; see `tests/e2e/README.md`)
 
 **Two test environments**:
 
