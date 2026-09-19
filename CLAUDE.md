@@ -11,7 +11,7 @@ Sudowork 是一个基于 Electron 的桌面应用（productName 为 `sudowork`�
 - **编辑 `.ts`/`.tsx` 后只 lint 改动的那个文件** —— 运行 `bunx eslint <路径> --fix`，**不要**用 `bun run lint:fix`。后者会对整个仓库 `eslint --fix`，把无关的历史遗留问题一并改掉，污染你的 diff。Prettier 在 CI 中强制执行，格式问题会阻塞合并。ESLint 行宽上限为 120；Prettier 的 `printWidth` 实质不限（700）。
 - **运行 `bunx tsc --noEmit` 校验类型** —— 开启了 strict 模式，类型错误会阻塞合并。
 - **绝不添加 AI 署名** 到 commit 或 PR（`Co-Authored-By`、"Generated with…"、任何 AI 落款）。这是硬性规则 —— 违反会污染 git 历史。
-- **绝不硬编码面向用户的字符串** —— 使用 i18n key（`src/renderer/i18n/locales/*.json`）。
+- **绝不硬编码面向用户的字符串** —— 使用 i18n key（`packages/renderer/src/i18n/locales/*.json`）。
 - **复杂逻辑才注释，简单改动不写** —— 不要为了模仿周围注释密度而堆注释；只在逻辑不直观、需要解释「为什么」时写。
 - 提交信息：英文，格式 `<type>(<scope>): <subject>`（feat/fix/refactor/chore/docs/test/style/perf）。
 
@@ -41,7 +41,8 @@ bun run test:coverage
 bun run test:integration   # 仅 tests/integration
 bunx vitest run path/to/file.test.ts          # 运行单个测试文件
 bunx vitest run -t "测试名片段"                 # 按名称匹配运行
-bun run test:e2e           # 通过 pytest 运行 E2E（tests/e2e/，Python）
+# E2E（tests/e2e/，Python + YAML）—— 需要一个已启动、开了 CDP 的实例
+python tests/e2e/runner.py --port 9232 --case <用例名>   # 单个用例（见 tests/e2e/README.md）
 ```
 
 两套 Vitest 环境：`node`（默认）和用于 `*.dom.test.ts` 文件的 `jsdom`。给某个功能区新增源文件时，记得同步加入 `vitest.config.ts` 的 `coverage.include`。
@@ -55,12 +56,14 @@ bun run test:e2e           # 通过 pytest 运行 E2E（tests/e2e/，Python）
 三种进程，各有严格的 API 边界。跨进程调用 **只能** 通过 IPC 桥接 —— 不要直接互相访问。
 
 - **主进程（Main）** —— `src/process/` 与 `src/index.ts`。应用逻辑、SQLite 数据库、各类服务、IPC 处理。无 DOM API。
-- **渲染进程（Renderer）** —— `src/renderer/`。React 19 UI。无 Node.js API。
+- **渲染进程（Renderer）** —— `packages/renderer/`（包名 `@sudowork/renderer`，桌面端与 WebUI 共用同一份 UI）。React 19。无 Node.js API。
 - **Worker 进程** —— 后台 AI 任务（别名 `@worker`），由主进程派生并监管。
 
-路径别名（同时定义于 `electron.vite.config.ts` 和 `tsconfig.json`）：`@/*`→src、`@common/*`、`@process/*`、`@renderer/*`、`@worker/*`。
+路径别名（同时定义于 `electron.vite.config.ts` 和 `tsconfig.json`）：`@/*`→`apps/desktop/src`、`@common/*`、`@process/*`、`@worker/*` 同在桌面端；`@renderer/*` 指向仓库外层的 `packages/renderer/src`。
 
-IPC：`src/preload.ts` 通过 `contextBridge` 暴露类型化 API；主进程侧处理器在 `src/process/bridge/`（authBridge、fsBridge、mcpBridge、modelBridge、webuiBridge…）；消息/类型定义在 `src/renderer/messages/`。新增一个 channel 意味着同时改动 preload 桥接与对应 bridge 处理器。
+下文桌面端的 `src/…` 路径均相对 `apps/desktop/`。
+
+IPC：`src/preload.ts` 通过 `contextBridge` 暴露类型化 API；主进程侧处理器在 `src/process/bridge/`（authBridge、fsBridge、mcpBridge、modelBridge、webuiBridge…）；消息/类型定义在 `packages/renderer/src/messages/`。新增一个 channel 意味着同时改动 preload 桥接与对应 bridge 处理器。
 
 ### Agent 层（`src/agent/`）
 
