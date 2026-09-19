@@ -190,6 +190,22 @@ FALLBACK_SUDOCODE_JSON: dict = {
                 "api-key": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
             },
         },
+        # The renderer pins the GUID conversation to the `auto` alias
+        # (SCODE_AUTO_MODEL_ALIAS, packages/common/src/scodeConfig.ts) as soon
+        # as auth is restored, and the product registers a matching `auto`
+        # entry next to its other models. CI seeded the models map without one,
+        # which older scode tolerated and 0.2.11 does not: every turn died at
+        # ACP startup with `invalid model syntax: 'auto'. Expected
+        # provider/model`. Same provider as claude-sonnet above, so the
+        # auth-mode walker still only ever sees api-key.
+        "auto": {
+            "alias": "auto",
+            "name": "auto",
+            "input": ["text"],
+            "providers": {
+                "api-key": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
+            },
+        },
     },
 }
 
