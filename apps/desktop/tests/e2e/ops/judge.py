@@ -49,6 +49,31 @@ async def _get_shadow_text(tab):
     return r.get("result", "")
 
 
+# A judge confirms that expected content is on screen; it cannot see that the
+# agent never ran. On a scode startup crash the conversation shows an error
+# card while the surrounding chrome still carries enough of the expected words
+# to clear the 0.6 keyword ratio — scode-basic-conversation scored
+# "PASS: 3/3 keywords matched" on a turn whose only reply was
+# "invalid model syntax: 'auto'". These markers are agent-transport failures,
+# never product copy, so their presence fails the judge outright.
+_AGENT_FAILURE_MARKERS = (
+    "scode ACP process exited",
+    "scode process disconnected",
+    "invalid model syntax",
+    "error-kind:",
+    "Internal error:",
+)
+
+
+def agent_failure_marker(page_text: str):
+    """Return the first agent-transport failure marker on screen, or None."""
+    low = (page_text or "").lower()
+    for marker in _AGENT_FAILURE_MARKERS:
+        if marker.lower() in low:
+            return marker
+    return None
+
+
 async def _keyword_judge(page_text, expect):
     """Fallback: keyword matching (Phase 1)."""
     keywords = [w.strip("\"'`，。") for w in expect.lower().split()
@@ -83,6 +108,15 @@ async def judge(tab, expect: str, use_agent: bool = False) -> dict:
 
     # 2. Get page text (with Shadow DOM)
     page_text = await _get_shadow_text(tab)
+
+    # Guard both judging paths: a visible transport failure means the
+    # expectation was never actually exercised.
+    failure = agent_failure_marker(page_text)
+    if failure:
+        return {"pass": False,
+                "reason": f"FAIL: agent transport failure on screen ({failure!r}) "
+                          "— the expectation was never exercised",
+                "screenshot": screenshot_path}
 
     if not use_agent:
         # Phase 1: keyword matching
