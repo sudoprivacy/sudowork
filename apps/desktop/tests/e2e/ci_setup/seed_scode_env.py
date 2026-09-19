@@ -3,7 +3,8 @@
 Sudo Code conversation without any interactive install / config wizard.
 
 SSOT for the paths lives in src/process/services/scode/scodePaths.ts. This
-seeder mirrors those (SCODE_HOME = ~/.nexus/sudowork/sudocode/) so any future
+seeder mirrors those (binary in ~/.nexus/sudowork/sudocode/, config in
+~/.nexus/sudocode/ — they are NOT the same directory) so any future
 path move stays a single-source edit in TS + this file.
 
 Two effects, both idempotent:
@@ -13,7 +14,7 @@ Two effects, both idempotent:
      version string so ScodeInstallService.isScodeInstalled() returns true.
      (Skipped if a matching marker already exists.)
 
-  2. Write ~/.nexus/sudowork/sudocode/sudocode.json based on the sample shipped
+  2. Write ~/.nexus/sudocode/sudocode.json based on the sample shipped
      with the archive OR the fallback baked in below, with the apiKey.anthropic
      entry rewritten to point at the passed-in --mock-url. --api-key defaults
      to 'test-pty-key' -- the same sentinel used by sudocode's PTY harness so
@@ -45,9 +46,16 @@ RESOURCES_DIR = REPO_ROOT / "resources"
 RUNTIME_VERSIONS = REPO_ROOT / "src" / "shared" / "runtime-versions.json"
 SCODE_PLATFORMS_JSON = REPO_ROOT / "src" / "shared" / "scode-platforms.json"
 
+# scodePaths.ts splits these two on purpose, and so must we: sudowork pins its
+# own engine BINARY under ~/.nexus/sudowork/sudocode/, but launches it with
+# SUDO_CODE_CONFIG_HOME=~/.nexus/sudocode/ (scodeEngineEnv.ts), the config home a
+# standalone scode uses. Seeding the config next to the binary wrote a file
+# nothing reads: scode started with an empty models map and every turn died on
+# `--model auto` with "invalid model syntax: 'auto'. Expected provider/model".
 SCODE_HOME = Path.home() / ".nexus" / "sudowork" / "sudocode"
 SCODE_READY_MARKER = SCODE_HOME / ".scode-bin-ready"
-SCODE_CONFIG_PATH = SCODE_HOME / "sudocode.json"
+SCODE_CONFIG_HOME = Path.home() / ".nexus" / "sudocode"
+SCODE_CONFIG_PATH = SCODE_CONFIG_HOME / "sudocode.json"
 
 
 # Python normalises machine names to the Node.js `process.arch` keys used in
@@ -190,6 +198,22 @@ FALLBACK_SUDOCODE_JSON: dict = {
                 "api-key": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
             },
         },
+        # The renderer pins the GUID conversation to the `auto` alias
+        # (SCODE_AUTO_MODEL_ALIAS, packages/common/src/scodeConfig.ts) as soon
+        # as auth is restored, and the product registers a matching `auto`
+        # entry next to its other models. CI seeded the models map without one,
+        # which older scode tolerated and 0.2.11 does not: every turn died at
+        # ACP startup with `invalid model syntax: 'auto'. Expected
+        # provider/model`. Same provider as claude-sonnet above, so the
+        # auth-mode walker still only ever sees api-key.
+        "auto": {
+            "alias": "auto",
+            "name": "auto",
+            "input": ["text"],
+            "providers": {
+                "api-key": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
+            },
+        },
     },
 }
 
@@ -210,7 +234,7 @@ def _write_sudocode_json(mock_url: str, api_key: str) -> None:
         "baseUrl": mock_url.rstrip("/"),
         "apiKey": api_key,
     }
-    SCODE_HOME.mkdir(parents=True, exist_ok=True)
+    SCODE_CONFIG_HOME.mkdir(parents=True, exist_ok=True)
     with SCODE_CONFIG_PATH.open("w", encoding="utf-8") as fh:
         json.dump(cfg, fh, indent=2)
 
