@@ -10,7 +10,6 @@ import { fetchSystemConfig, isProductImprovementEnabled, type SystemConfig } fro
 import AppLoader from '@renderer/components/AppLoader';
 import InitLoading from '@renderer/components/InitLoading';
 import OptInDialog from '@renderer/pages/settings/system/components/OptInDialog';
-import ModeSetup from '@renderer/pages/setup/ModeSetup';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useInit } from '@renderer/context/InitContext';
 import { useAppMode, isModeResolved } from '@renderer/hooks/useAppMode';
@@ -38,7 +37,7 @@ async function fetchSystemConfigAndSync(): Promise<SystemConfig | null> {
 const Main = () => {
   const { ready: authReady } = useAuth();
   const { status, isReady: initReady, hasResolvedInitialStatus, isInitScreenSkipped } = useInit();
-  const { needsSetup, isEnterprise } = useAppMode();
+  const { isEnterprise } = useAppMode();
 
   // Product improvement opt-in dialog state (shown only on first install for new users)
   const [isOptInDialogOpen, setIsOptInDialogOpen] = useState(false);
@@ -114,11 +113,6 @@ const Main = () => {
   // (e.g. new user seeing Router briefly before ModeSetup appears)
   if (!isModeResolved()) {
     return <AppLoader text='正在加载...' />;
-  }
-
-  // New user: show ModeSetup (first-time mode selection)
-  if (needsSetup) {
-    return <ModeSetup />;
   }
 
   // Show InitLoading until services are ready.

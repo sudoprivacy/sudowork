@@ -34,10 +34,6 @@ vi.mock('@renderer/components/AppLoader', () => ({
   default: ({ text }: { text?: string }) => <div data-testid='app-loader'>{text ?? ''}</div>,
 }));
 
-vi.mock('@renderer/pages/setup/ModeSetup', () => ({
-  default: () => <div data-testid='mode-setup'>mode-setup</div>,
-}));
-
 vi.mock('@renderer/components/InitLoading', () => ({
   default: ({ variant }: { variant?: string }) => <div data-testid='init-loading'>{variant ?? 'full'}</div>,
 }));
@@ -126,5 +122,21 @@ describe('Main init gate', () => {
 
     expect(screen.getByTestId('router')).toBeInTheDocument();
     expect(screen.queryByTestId('init-loading')).not.toBeInTheDocument();
+  });
+
+  it('does not show the retired consumer-or-enterprise mode picker', () => {
+    mockUseAppMode.mockReturnValue({ needsSetup: true, isEnterprise: true });
+    mockUseInit.mockReturnValue({
+      status: createInitStatus({ phase: 'ready' }),
+      isReady: true,
+      hasResolvedInitialStatus: true,
+      isInitScreenSkipped: false,
+      skipInitScreen: vi.fn(),
+      refetch: vi.fn(),
+    });
+
+    render(<Main />);
+
+    expect(screen.getByTestId('router')).toBeInTheDocument();
   });
 });

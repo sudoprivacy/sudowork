@@ -6,28 +6,15 @@
 
 import { Robot } from '@icon-park/react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { getAgentPriority } from '@sudowork/common/acpTypes';
 import type { AcpBackendAll } from '@sudowork/common/acpTypes';
 import { getAgentLogo } from '@renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@renderer/utils/platform';
 import type { AvailableAgent } from '../types';
 
-type AgentPillBarProps = {
-  availableAgents: AvailableAgent[];
-  selectedAgentKey: string;
-  getAgentKey: (agent: { backend: AcpBackendAll; customAgentId?: string }) => string;
-  onSelectAgent: (key: string) => void;
-  /** Current session mode (remote/local) - only meaningful in enterprise mode */
-  sessionMode?: 'remote' | 'local';
-  /** Callback when session mode tab is clicked */
-  onSessionModeChange?: (mode: 'remote' | 'local') => void;
-  /** Whether the app is in enterprise mode */
-  isEnterprise?: boolean;
-  /** Whether local mode is available (localAuth=true + config complete) */
-  localModeAvailable?: boolean;
-};
-
-const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAgentKey, getAgentKey, onSelectAgent, sessionMode, onSessionModeChange, isEnterprise, localModeAvailable }) => {
+function AgentPillBar({ availableAgents, selectedAgentKey, getAgentKey, onSelectAgent, sessionMode, onSessionModeChange, isEnterprise, localModeAvailable }: IAgentPillBarProps) {
+  const { t } = useTranslation();
   // Sort agents according to priority
   const sortedAgents = [...availableAgents].sort((a, b) => {
     // For non-custom agents, use priority-based sorting
@@ -56,7 +43,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
           <div className='f-center mb-5 p-1.5 rd-30px bg-guid-agent-bar w-fit max-w-full gap-1 text-foreground' style={{ transition: 'background-color 0.35s ease' }}>
             {/* Shared Remote icon */}
             <span className='inline-flex h-5 w-5 shrink-0 items-center justify-center leading-none'>
-              <img src={getAgentLogo('remote-agent')} alt='Remote' width={20} height={20} className='block object-contain' />
+              <img src={getAgentLogo('remote-agent')} alt={t('conversation.welcome.execution.cloud')} width={20} height={20} className='block object-contain' />
             </span>
             {/* Remote tab */}
             <div
@@ -66,7 +53,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
               style={sessionMode === 'remote' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
               onClick={() => onSessionModeChange?.('remote')}
             >
-              <span className='font-semibold text-14px ml-1 text-foreground'>Remote</span>
+              <span className='font-semibold text-14px ml-1 text-foreground'>{t('conversation.welcome.execution.cloud')}</span>
             </div>
             {/* Divider + Local tab */}
             <>
@@ -78,7 +65,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
                 style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
                 onClick={() => onSessionModeChange?.('local')}
               >
-                <span className='font-semibold text-14px ml-1 text-foreground'>Local</span>
+                <span className='font-semibold text-14px ml-1 text-foreground'>{t('conversation.welcome.execution.local')}</span>
               </div>
             </>
           </div>
@@ -87,9 +74,9 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
           <div className='f-center mb-5 p-1.5 rd-30px bg-guid-agent-bar w-fit max-w-full text-foreground'>
             <div className='group relative flex items-center whitespace-nowrap px-3 py-2 rd-20px mx-0.5 bg-fill-0 transition-[opacity,background-color] duration-250 ease-out [animation:animationPop_0.4s_ease-out_forwards]' style={{ transition: 'opacity 0.2s ease, background-color 0.2s ease' }}>
               <span className='inline-flex h-5 w-5 shrink-0 items-center justify-center leading-none'>
-                <img src={getAgentLogo('remote-agent')} alt='Remote Agent' width={20} height={20} className='block object-contain' />
+                <img src={getAgentLogo('remote-agent')} alt={t('conversation.welcome.execution.cloud')} width={20} height={20} className='block object-contain' />
               </span>
-              <span className='font-semibold text-14px ml-1 text-foreground'>Remote Agent</span>
+              <span className='font-semibold text-14px ml-1 text-foreground'>{t('conversation.welcome.execution.cloud')}</span>
             </div>
           </div>
         )
@@ -135,6 +122,21 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({ availableAgents, selectedAg
       )}
     </div>
   );
-};
+}
 
 export default AgentPillBar;
+
+interface IAgentPillBarProps {
+  availableAgents: AvailableAgent[];
+  selectedAgentKey: string;
+  getAgentKey: (agent: { backend: AcpBackendAll; customAgentId?: string }) => string;
+  onSelectAgent: (key: string) => void;
+  /** Current session mode (remote/local) - only meaningful in enterprise mode */
+  sessionMode?: 'remote' | 'local';
+  /** Callback when session mode tab is clicked */
+  onSessionModeChange?: (mode: 'remote' | 'local') => void;
+  /** Whether the app is in enterprise mode */
+  isEnterprise?: boolean;
+  /** Whether local mode is available (localAuth=true + config complete) */
+  localModeAvailable?: boolean;
+}

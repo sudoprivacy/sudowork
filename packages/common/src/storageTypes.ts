@@ -121,6 +121,10 @@ export interface IConfigStorageRefer {
    * Empty / absent → fall back to build-time define, then to literal.
    */
   'system.sudoworkServerUrl'?: string;
+  /** Administrator-distributed Moss origin. Takes precedence when locked. */
+  'system.managedMossServerUrl'?: string;
+  /** Prevent users from overriding the administrator/build supplied Moss origin. */
+  'system.mossServerUrlLocked'?: boolean;
   // Telegram assistant default model / Telegram 助手默认模型
   'assistant.telegram.defaultModel'?: {
     id: string;
@@ -229,7 +233,8 @@ export interface IConfigStorageRefer {
   'telemetry.serverUrl'?: string; // 遥测服务器地址 (可选，默认使用内置地址) / Telemetry server URL
   'telemetry.installId'?: string; // 安装 ID / Install ID
   'telemetry.previousVersion'?: string; // 之前的版本 (用于判断安装类型) / Previous version for install type detection
-  // App mode: 'c' for consumer, 'e' for enterprise, undefined = not set (new user)
+  // Internal execution context: 'c' for offline/local, 'e' for online/Moss.
+  // Kept for compatibility; it is no longer a user-facing account type.
   'system.appMode'?: 'c' | 'e';
   // Enterprise server URL / 企业服务器地址
   'eeclaw.serverUrl'?: string;
@@ -240,7 +245,8 @@ export interface IConfigStorageRefer {
   // Whether enterprise local mode is available for the current user / 当前用户是否可用企业本地模式
   'eeclaw.localModeAvailable'?: boolean;
   // Enterprise auth token for main process (no user field, unlike localStorage eeclaw_auth_v1)
-  'eeclaw.authStorage'?: { access_token: string; refresh_token: string; expires_at: number; device_id: string; session_type?: 'password' | 'api_key' | 'oauth2' };
+  'eeclaw.authStorage'?: { access_token: string; refresh_token: string; expires_at: number; device_id: string; session_type?: 'password' | 'api_key' | 'oauth2' | 'phone';
+  };
   // Last resolved tenant config (main-process offline fallback for policy flags like client_cron_enabled)
   'eeclaw.tenantConfig'?: { client_cron_enabled?: boolean; [key: string]: unknown };
   // Consumer (personal) mode user info for telemetry / 个人模式用户信息（用于遥测）

@@ -32,6 +32,7 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-true}
       MOSS_BASE_URL: ${MOSS_BASE_URL}
       MOSS_WS_BASE_URL: ${MOSS_WS_BASE_URL}
+      MOSS_ALLOWED_ORIGINS: ${MOSS_ALLOWED_ORIGINS:-}
       PORT: '26808'
       NODE_ENV: production
     depends_on:

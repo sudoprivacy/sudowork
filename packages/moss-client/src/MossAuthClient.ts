@@ -15,17 +15,8 @@ import { MossHttpError, type MossFetch } from './MossHttpClient.js'
  * 每个方法尾部传入 baseUrl（登录期无 session，地址由 resolveLoginMoss 决定；登录后取 session 地址）。
  */
 
-/**
- * Result of presenting a phone + verification code.
- *
- * A number moss has never seen is not an error — it is the normal first step of
- * self-service signup, and moss answers with a short-lived attestation that the
- * code checked out. The caller shows a registration form and returns with that
- * token, so the code is verified exactly once across the two requests.
- */
-export type MossPhoneLoginResult =
-  | { kind: 'tokens'; tokens: MossTokenSet }
-  | { kind: 'need_register'; registerToken: string; phone: string }
+/** Result of phone login. Registration uses its own endpoint. */
+export type MossPhoneLoginResult = { kind: 'tokens'; tokens: MossTokenSet }
 
 export interface MossAuthPort {
   loginWithPassword(input: { username: string; password: string }, baseUrl: string): Promise<MossTokenSet>
@@ -34,7 +25,7 @@ export interface MossAuthPort {
   sendPhoneCode(phone: string, baseUrl: string): Promise<{ nextSendIn: number }>
   loginWithPhone(input: { phone: string; code: string }, baseUrl: string): Promise<MossPhoneLoginResult>
   registerWithPhone(
-    input: { registerToken: string; nickname?: string; invitationCode?: string },
+    input: { phone: string; code: string; nickname: string; invitationCode: string },
     baseUrl: string,
   ): Promise<MossTokenSet>
   refresh(refreshToken: string, baseUrl: string): Promise<MossTokenSet>
@@ -107,9 +98,8 @@ export function createMossAuthPort(mossFetch: MossFetch): MossAuthPort {
       return { nextSendIn: typeof json.next_send_in === 'number' ? json.next_send_in : 60 }
     },
     async loginWithPhone(input, baseUrl) {
-      // Phone login wraps its payload in `data` (and signals need_register in
-      // band) because that is the shape the desktop client already parses; the
-      // grant-type logins above return the token set at the top level.
+      // Phone login wraps its token payload in `data`; registration is a
+      // separate endpoint and an unknown phone is an HTTP error.
       const json = (await mossFetch(baseUrl, {
         method: 'POST',
         path: '/api/v1/auth/login',
@@ -117,17 +107,7 @@ export function createMossAuthPort(mossFetch: MossFetch): MossAuthPort {
       })) as {
         success?: boolean
         data?: unknown
-        need_register?: boolean
-        register_token?: string
-        phone?: string
         msg?: string
-      }
-      if (json?.need_register && json.register_token) {
-        return {
-          kind: 'need_register',
-          registerToken: json.register_token,
-          phone: json.phone || input.phone,
-        }
       }
       if (!json?.success || !json.data) throw new Error(json?.msg || 'Phone login failed')
       return { kind: 'tokens', tokens: MossTokenSetSchema.parse(json.data) }
@@ -137,9 +117,10 @@ export function createMossAuthPort(mossFetch: MossFetch): MossAuthPort {
         method: 'POST',
         path: '/api/v1/auth/register',
         body: {
-          register_token: input.registerToken,
-          ...(input.nickname ? { nickname: input.nickname } : {}),
-          ...(input.invitationCode ? { invitation_code: input.invitationCode } : {}),
+          phone: input.phone,
+          code: input.code,
+          nickname: input.nickname,
+          invitation_code: input.invitationCode,
         },
       })) as { success?: boolean; data?: unknown; msg?: string }
       if (!json?.success || !json.data) throw new Error(json?.msg || 'Registration failed')

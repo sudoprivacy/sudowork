@@ -10,7 +10,11 @@
     "downloadLocalFile": "导入本地文件",
     "downloadBdpanFile": "导入百度网盘文件",
     "linkFolder": "打开文件夹",
-    "newConversation": "新会话",
+    "newConversation": "新建任务",
+    "execution": {
+      "cloud": "云端执行",
+      "local": "本地执行"
+    },
     "multiAgentModeEnabled": "已进入多智能体模式",
     "selectModel": "选择模型",
     "useCliModel": "选择模型",
@@ -33,7 +37,7 @@
     "earlier": "更早",
     "noHistory": "暂无对话历史",
     "noScheduledTask": "暂无执行记录",
-    "actionNewConversation": "新会话",
+    "actionNewConversation": "新建任务",
     "deleteTitle": "删除",
     "deleteConfirm": "确定删除该对话吗？",
     "deleteWorkspaceOption": "同时删除工作区文件夹",

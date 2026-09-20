@@ -22,7 +22,7 @@ const testConfig: AppConfig = {
   server: { host: '127.0.0.1', port: 26809 },
   publicOrigin: 'http://localhost:5273',
   trustProxy: false,
-  moss: { baseUrl: 'http://moss.test', wsBaseUrl: 'ws://moss.test' },
+  moss: { baseUrl: 'http://moss.test', wsBaseUrl: 'ws://moss.test', allowedOrigins: [] },
   session: { ttlSeconds: 3600 },
   upload: { maxFileBytes: 1024, maxFilesPerRequest: 1, maxTotalBytes: 1024 },
   isProduction: false,
@@ -297,7 +297,7 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .set('Origin', testConfig.publicOrigin)
       .send({ assistantName: 'helper', enabledSkills: ['known-skill'] })
     expect(ok.status).toBe(201)
-    expect(ok.body).toEqual({ id: 'created-helper' })
+    expect(ok.body).toEqual({ id: 'created-helper', taskId: 'created-helper' })
 
     const badAgent = await request(app)
       .post('/api/conversations')

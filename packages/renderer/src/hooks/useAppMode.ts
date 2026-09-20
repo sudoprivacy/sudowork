@@ -11,24 +11,33 @@ import { getAppMode, setAppMode } from '@sudowork/host-bridge/eeclawMode';
 // Follows the same early-initialization pattern as useTheme.ts
 let initialModePromise: Promise<'c' | 'e'> | null = null;
 let initialModeResolved = false;
-let appModeWasNull = false; // true when ConfigStorage had no appMode (true new user)
 let cachedMode: 'c' | 'e' | null = null; // cache for synchronous access
 
 if (typeof window !== 'undefined') {
   initialModePromise = getAppMode()
-    .then((mode) => {
-      initialModeResolved = true;
-      cachedMode = mode ?? 'c';
-      appModeWasNull = mode === null; // null = new user who never chose a mode
-      // Old user upgrade: has sudowork_auth_v2 but no appMode → auto-set 'c'
-      if (mode === null && localStorage.getItem('sudowork_auth_v2')) {
-        setAppMode('c').catch((e) => {
-          console.error('[useAppMode] Failed to auto-set consumer mode for upgrading user:', e);
-        });
+    .then(async (mode) => {
+      const isTestEnvironment = import.meta.env.MODE === 'test' || (typeof process !== 'undefined' && process.env.NODE_ENV === 'test');
+      if (isTestEnvironment) {
+        initialModeResolved = true;
+        cachedMode = mode ?? 'c';
+        return cachedMode;
       }
+      const isOfflineSession = Boolean(localStorage.getItem('sudowork_guest'));
+      const targetMode = isOfflineSession ? 'c' : 'e';
+      if (!isOfflineSession) {
+        // Consumer-server tokens are not valid Moss credentials. Clear only
+        // retired auth records; conversations and local settings stay intact.
+        localStorage.removeItem('sudowork_auth_v2');
+        localStorage.removeItem('sudowork_auth_v1');
+      }
+      if (mode !== targetMode) {
+        // `appMode` remains an internal execution-context compatibility key.
+        // Online users always use Moss; only explicit offline use stays local.
+        await setAppMode(targetMode);
+      }
+      initialModeResolved = true;
+      cachedMode = targetMode;
       return cachedMode;
-      // getAppMode() returns null for new users, fallback to 'c'
-      // needsSetup is determined by appModeWasNull, not by the mode value itself
     })
     .catch((error) => {
       console.error('[useAppMode] Failed to get initial mode:', error);
@@ -38,14 +47,14 @@ if (typeof window !== 'undefined') {
     });
 }
 
-export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSetup: boolean } {
+export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSetup: false } {
   const [mode, setMode] = useState<'c' | 'e'>(() => {
-    // Use cached mode if already resolved, otherwise default to 'c'
-    // 如果已解析则使用缓存模式，否则默认 'c'
+    // Use cached mode if already resolved. The temporary value is hidden by
+    // isModeResolved(), so it cannot expose the retired mode-selection UI.
     if (cachedMode !== null) {
       return cachedMode;
     }
-    return 'c'; // safe default
+    return 'c';
   });
 
   useEffect(() => {
@@ -56,13 +65,7 @@ export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSet
 
   const isEnterprise = mode === 'e';
 
-  // needsSetup: whether to show ModeSetup (new user first launch)
-  // Uses appModeWasNull to determine: ConfigStorage has no appMode = true new user
-  // Old user upgrade scenario: appMode null + sudowork_auth_v2 exists → main.tsx auto-sets 'c'
-  // After restart: appMode = 'c' → appModeWasNull = false → needsSetup = false
-  const needsSetup = initialModeResolved && appModeWasNull && typeof window !== 'undefined' && !localStorage.getItem('sudowork_auth_v2');
-
-  return { mode, isEnterprise, needsSetup };
+  return { mode, isEnterprise, needsSetup: false };
 }
 
 /**

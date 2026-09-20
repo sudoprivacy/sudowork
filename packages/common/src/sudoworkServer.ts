@@ -5,12 +5,14 @@
  */
 
 /**
- * Sudowork Server base URL resolver.
+ * Online service base URL resolver.
  *
  * Priority (highest to lowest):
- *   1. User setting in ConfigStorage / ProcessConfig (`system.sudoworkServerUrl`)
- *   2. Build-time injected value (`__SUDOWORK_SERVER_BASE_URL__` via Vite `define`)
- *   3. Hardcoded fallback (`FALLBACK_SUDOWORK_SERVER_BASE_URL`)
+ *   1. Administrator-managed URL when locked
+ *   2. User setting in ConfigStorage / ProcessConfig (`eeclaw.serverUrl`)
+ *   3. Legacy user setting (`system.sudoworkServerUrl`)
+ *   4. Build-time injected value (`__SUDOWORK_SERVER_BASE_URL__` via Vite `define`)
+ *   5. Hosted Moss fallback
  *
  * All call sites must resolve the URL on every use (no caching of the value
  * inside Reporter / module-level constants) so that user updates take effect
@@ -22,15 +24,23 @@ import { ConfigStorage } from './storage.js';
 // Vite `define` injects this as a string literal at build time.
 // Empty string when the env var BUILD_SERVER_BASE_URL was not set during build.
 declare const __SUDOWORK_SERVER_BASE_URL__: string | undefined;
+declare const __SUDOWORK_SERVER_LOCKED__: boolean | undefined;
 
-/** Hardcoded fallback (the historical production address). */
-export const FALLBACK_SUDOWORK_SERVER_BASE_URL = 'https://sudowork-server.sudoprivacy.com';
+/** Hosted Moss used when neither an administrator nor the user supplied one. */
+export const FALLBACK_SUDOWORK_SERVER_BASE_URL = 'https://agent.sudoprivacy.com';
 
 /**
  * Build-time injected base URL, or fallback when not injected.
  * Resolved synchronously at module load (the define is a compile-time string literal).
  */
 export const BUILD_SUDOWORK_SERVER_BASE_URL: string = (typeof __SUDOWORK_SERVER_BASE_URL__ !== 'undefined' && __SUDOWORK_SERVER_BASE_URL__) || FALLBACK_SUDOWORK_SERVER_BASE_URL;
+export const BUILD_SUDOWORK_SERVER_LOCKED: boolean = typeof __SUDOWORK_SERVER_LOCKED__ !== 'undefined' && __SUDOWORK_SERVER_LOCKED__ === true;
+
+export interface IMossServerPolicy {
+  serverUrl: string;
+  isLocked: boolean;
+  source: 'managed' | 'user' | 'legacy' | 'build';
+}
 
 /**
  * Normalize a raw URL string: trim whitespace and strip trailing slashes.
@@ -67,9 +77,51 @@ function isWebHost(): boolean {
  * deployment that had declared credit applications instead.
  */
 export async function getSudoworkServerBaseUrl(): Promise<string> {
-  const raw = await ConfigStorage.get('system.sudoworkServerUrl').catch(() => undefined as unknown as string | undefined);
-  const configured = normalizeSudoworkServerUrl(raw);
-  if (configured) return configured;
   if (isWebHost()) return window.location.origin;
-  return BUILD_SUDOWORK_SERVER_BASE_URL;
+  return (await getMossServerPolicy()).serverUrl;
+}
+
+/** Resolve the effective Moss address and whether the UI may change it. */
+export async function getMossServerPolicy(): Promise<IMossServerPolicy> {
+  const [managedRaw, isManagedLocked, userRaw, legacyRaw] = await Promise.all([
+    ConfigStorage.get('system.managedMossServerUrl').catch((): string | undefined => undefined),
+    ConfigStorage.get('system.mossServerUrlLocked').catch((): boolean | undefined => undefined),
+    ConfigStorage.get('eeclaw.serverUrl').catch((): string | undefined => undefined),
+    ConfigStorage.get('system.sudoworkServerUrl').catch((): string | undefined => undefined),
+  ]);
+  const managed = normalizeHttpOrigin(managedRaw);
+  if (managed && isManagedLocked === true) {
+    return { serverUrl: managed, isLocked: true, source: 'managed' };
+  }
+  if (BUILD_SUDOWORK_SERVER_LOCKED) {
+    return {
+      serverUrl: BUILD_SUDOWORK_SERVER_BASE_URL,
+      isLocked: true,
+      source: 'build',
+    };
+  }
+  const user = normalizeHttpOrigin(userRaw);
+  if (user) return { serverUrl: user, isLocked: false, source: 'user' };
+  if (managed) return { serverUrl: managed, isLocked: false, source: 'managed' };
+  const legacy = normalizeHttpOrigin(legacyRaw);
+  if (legacy) return { serverUrl: legacy, isLocked: false, source: 'legacy' };
+  return {
+    serverUrl: BUILD_SUDOWORK_SERVER_BASE_URL,
+    isLocked: false,
+    source: 'build',
+  };
+}
+
+/** Accept only an HTTP(S) origin; paths and embedded credentials are rejected. */
+export function normalizeHttpOrigin(raw: string | null | undefined): string | null {
+  const normalized = normalizeSudoworkServerUrl(raw);
+  if (!normalized) return null;
+  try {
+    const parsed = new URL(normalized);
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) return null;
+    if (parsed.pathname !== '/' || parsed.search || parsed.hash) return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
 }

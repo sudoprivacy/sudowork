@@ -13,6 +13,8 @@ import { z } from 'zod'
 export const MossSessionSummarySchema = z
   .object({
     sessionId: z.string(),
+    taskId: z.string().optional(),
+    currentAttemptId: z.string().nullable().optional(),
     userId: z.string(),
     orgId: z.string(),
     status: z.string(),
@@ -29,6 +31,8 @@ export const MossSessionListResponseSchema = z.object({
 export const MossCreateSessionResponseSchema = z
   .object({
     session_id: z.string(),
+    task_id: z.string().optional(),
+    attempt_id: z.string().nullable().optional(),
     ws_url: z.string(),
     work_dir: z.string().optional(),
   })
@@ -116,6 +120,8 @@ export type ConversationModelResponse = z.infer<typeof ConversationModelResponse
 
 export const ConversationListItemSchema = z.object({
   id: z.string(),
+  /** Provisional implicit Task id advertised by Moss. */
+  taskId: z.string().nullable().optional(),
   status: z.string(),
   assistantName: z.string().nullable(),
   source: z.string().nullable(),

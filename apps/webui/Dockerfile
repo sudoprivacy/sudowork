@@ -32,7 +32,8 @@ COPY patches/ patches/
 # The env vars keep transitive electron/playwright binary downloads out of resolve.
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
-    HUSKY=0
+    HUSKY=0 \
+    NODE_OPTIONS=--max-old-space-size=8192
 RUN bun install --frozen-lockfile --ignore-scripts
 
 # Sources for the shared packages + the webui app.
@@ -74,8 +75,11 @@ RUN bun install --frozen-lockfile --ignore-scripts --production
 FROM node:22-slim AS runtime
 # glibc runtime to match the native @lydell/node-pty binary fetched on the debian
 # build image (alpine/musl would fail to load it).
+ARG RELEASE_VERSION=dev
 WORKDIR /app/apps/webui
 ENV NODE_ENV=production
+LABEL org.opencontainers.image.title="Sudowork WebUI" \
+    org.opencontainers.image.version="$RELEASE_VERSION"
 
 # bun's isolated layout resolves the webui server's modules through THREE layers,
 # all required at runtime:

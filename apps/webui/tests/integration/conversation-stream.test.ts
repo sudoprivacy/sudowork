@@ -170,7 +170,11 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       server: { host: '127.0.0.1', port: 0 },
       publicOrigin: 'http://localhost:5273',
       trustProxy: false,
-      moss: { baseUrl: 'http://moss.test', wsBaseUrl: `ws://127.0.0.1:${upstreamPort}` },
+      moss: {
+        baseUrl: 'http://moss.test',
+        wsBaseUrl: `ws://127.0.0.1:${upstreamPort}`,
+        allowedOrigins: [],
+      },
       session: { ttlSeconds: 3600 },
       upload: { maxFileBytes: 1024, maxFilesPerRequest: 1, maxTotalBytes: 1024 },
       isProduction: false,

@@ -10,7 +10,11 @@
     "downloadLocalFile": "導入本地檔案",
     "downloadBdpanFile": "導入百度網盤檔案",
     "linkFolder": "開啟資料夾",
-    "newConversation": "新會話",
+    "newConversation": "新建任務",
+    "execution": {
+      "cloud": "雲端執行",
+      "local": "本機執行"
+    },
     "multiAgentModeEnabled": "已進入多智能體模式",
     "selectModel": "選擇模型",
     "useCliModel": "選擇模型",
@@ -33,6 +37,7 @@
     "earlier": "更早",
     "noHistory": "暫無對話記錄",
     "noScheduledTask": "暫無執行記錄",
+    "actionNewConversation": "新建任務",
     "deleteTitle": "刪除",
     "deleteConfirm": "確定要刪除此對話嗎？",
     "deleteWorkspaceOption": "同時刪除工作區資料夾",

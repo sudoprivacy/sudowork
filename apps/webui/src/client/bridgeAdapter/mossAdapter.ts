@@ -144,10 +144,8 @@ function storageClear(group: string): void {
   }
 }
 
-// Web host runs in enterprise ('e') mode: the renderer's enterprise branches hide
-// local-only desktop surfaces (filesystem / terminal / runtime installers). Seed
-// it so useAppMode's eager `ConfigStorage.get('system.appMode')` resolves to 'e'
-// (which also makes needsSetup=false, skipping the first-run ModeSetup).
+// Web host always uses the online Moss execution context. Seed the compatibility
+// key before useAppMode resolves; the retired account-mode picker is never shown.
 if (typeof window !== 'undefined' && storageGet('agent.config', 'system.appMode') === undefined) {
   storageSet('agent.config', 'system.appMode', 'e')
 }
@@ -435,6 +433,7 @@ function makeModelInfo(models: Array<{ id: string; label: string }>, currentMode
 
 interface ConversationListItem {
   id: string
+  taskId?: string | null
   status?: string
   assistantName?: string | null
   source?: string | null
@@ -487,6 +486,7 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
 function toMossSession(item: ConversationListItem): Record<string, unknown> {
   return {
     sessionId: item.id,
+    taskId: item.taskId ?? item.id,
     status: item.status ?? 'active',
     assistantName: item.assistantName ?? null,
     title: item.title ?? null,
@@ -1182,7 +1182,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const raw = typeof extra?.presetAssistantId === 'string' ? extra.presetAssistantId : ''
     const agent =
       raw && raw !== 'Remote Agent' && raw !== 'Moss Server' ? raw.replace(/^builtin-/, '') : ''
-    const created = await apiFetch<{ id: string }>('/api/conversations', {
+    const created = await apiFetch<{ id: string; taskId: string }>('/api/conversations', {
       method: 'POST',
       body: JSON.stringify({
         assistantName: agent,
@@ -1199,10 +1199,14 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       extra.agentName !== 'Moss Server'
         ? extra.agentName
         : agent || null
-    return toChatConversation({ id: created.id, assistantName: displayName })
+    return toChatConversation({
+      id: created.id,
+      taskId: created.taskId,
+      assistantName: displayName,
+    })
   },
   'moss.create-session': async (req) => {
-    const created = await apiFetch<{ id: string }>('/api/conversations', {
+    const created = await apiFetch<{ id: string; taskId: string }>('/api/conversations', {
       method: 'POST',
       body: JSON.stringify({ assistantName: req?.assistantName ?? '', enabledSkills: [] }),
     })
@@ -1210,6 +1214,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok(
       toMossSession({
         id: created.id,
+        taskId: created.taskId,
         assistantName: typeof req?.assistantName === 'string' ? req.assistantName : null,
       }),
     )

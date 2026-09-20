@@ -40,6 +40,17 @@
   "pwdRegisterTab": "注册",
   "phoneTab": "手机登录",
   "passwordTab": "密码登录",
+  "apiKeyTab": "API Key",
+  "ssoTab": "企业单点登录",
+  "phonePlaceholder": "请输入手机号",
+  "codePlaceholder": "请输入验证码",
+  "phoneInvalid": "请输入有效的手机号",
+  "requiredFields": "请填写必填项",
+  "apiKeyRequired": "请输入 API Key",
+  "apiKeyPlaceholder": "请输入 API Key",
+  "sendCodeSuccess": "验证码已发送",
+  "registrationNeeded": "该手机号尚未注册，请完善信息",
+  "ssoLogin": "企业单点登录",
   "pwdLoginBtn": "登录",
   "pwdRegisterBtn": "注册",
   "pwdRuleHint": "8-20 位，需同时包含大写字母、小写字母和数字。",
@@ -71,5 +82,9 @@
   "customServerToggle": "使用自定义服务器地址",
   "mossBaseUrlLabel": "moss 服务器地址",
   "mossBaseUrlPlaceholder": "请输入 moss 服务器地址（http:// 或 https://）",
-  "mossBaseUrlInvalid": "请输入以 http:// 或 https:// 开头的有效地址"
+  "mossBaseUrlInvalid": "请输入以 http:// 或 https:// 开头的有效地址",
+  "serverApply": "验证并应用",
+  "serverLocked": "服务器地址由管理员锁定",
+  "serverVerifyFailed": "无法连接该 Moss 服务器，或地址不在允许范围内",
+  "offlineUse": "离线使用"
 }

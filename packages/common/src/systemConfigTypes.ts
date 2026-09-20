@@ -18,8 +18,18 @@ export interface ICreditApplicationConfig {
   allow_duplicate_pending: boolean;
 }
 
+export type AuthMethod = 'phone' | 'password' | 'api_key' | 'sso';
+
+export interface IRegistrationPolicy {
+  phone_enabled: boolean;
+  invitation_required: boolean;
+  auto_create_org: boolean;
+}
+
 export interface SystemConfig {
   login_method?: number;
+  auth_methods?: AuthMethod[];
+  registration?: IRegistrationPolicy;
   third_party_auth?: ThirdPartyAuthConfig;
   log_report?: { enabled: number; baseurl?: string };
   version_update?: { enabled: number; cos_domain?: string };

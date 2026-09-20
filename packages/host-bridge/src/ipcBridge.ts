@@ -1656,6 +1656,7 @@ export interface IBridgeResponse<D = Record<string, never>> {
   success: boolean;
   data?: D;
   msg?: string;
+  error?: string;
 }
 
 // ==================== Extensions API ====================
@@ -2713,6 +2714,23 @@ export interface UserProfileData {
   usage: UserProfileUsageData;
 }
 
+export interface IEeclawAuthenticatedLogin {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  user: {
+    id: string;
+    name: string;
+    role: string;
+    orgId: string;
+    localAuth: boolean;
+  };
+  sudorouter_key?: string;
+  model_service_url?: string;
+  models?: string[];
+  scode_auto_model?: string;
+}
+
 export const eeclaw = {
   /** Fetch enterprise cloud assistants from the enterprise server */
   getCloudAssistants: bridge.buildProvider<IBridgeResponse<Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }>>, void>('eeclaw.get-cloud-assistants'),
@@ -2722,17 +2740,22 @@ export const eeclaw = {
   getUserProfile: bridge.buildProvider<IBridgeResponse<UserProfileData>, void>('eeclaw.get-user-profile'),
   /** Login to MOSS enterprise server (runs in main process to avoid CORS) */
   login: bridge.buildProvider<
-    IBridgeResponse<{
-      access_token: string;
-      refresh_token?: string;
-      expires_in: number;
-      user: { id: string; name: string; role: string; orgId: string; localAuth: boolean };
-      sudorouter_key?: string;
-      model_service_url?: string;
-      models?: string[];
-      scode_auto_model?: string;
-    }>,
-    { serverUrl: string; body: { grant_type: string; username?: string; password?: string; api_key?: string; params?: Record<string, string> }; deviceId: string }
+    IBridgeResponse<IEeclawAuthenticatedLogin>,
+    {
+      serverUrl: string;
+      body: {
+        grant_type: 'password' | 'api_key' | 'oauth2' | 'phone' | 'phone_register';
+        username?: string;
+        password?: string;
+        api_key?: string;
+        params?: Record<string, string>;
+        phone?: string;
+        code?: string;
+        nickname?: string;
+        invitation_code?: string;
+      };
+      deviceId: string;
+    }
   >('eeclaw.login'),
   /** Check whether OAuth2 login is enabled on the MOSS server and get the ready-to-open authorize URL (runs in main process to avoid CORS) */
   oauth2Config: bridge.buildProvider<IBridgeResponse<{ enabled: boolean; authorize_url?: string; require_state?: boolean }>, { serverUrl: string }>('eeclaw.oauth2-config'),

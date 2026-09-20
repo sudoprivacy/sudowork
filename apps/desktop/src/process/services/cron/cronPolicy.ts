@@ -74,7 +74,11 @@ export async function getClientCronEnabled(forceFresh = false): Promise<boolean>
   const serverUrl = readServerUrl();
   if (serverUrl) {
     try {
-      const response = await fetch(`${serverUrl}/api/v1/tenant/config`, { signal: AbortSignal.timeout(10000) });
+      const accessToken = ProcessConfig.getSync('eeclaw.authStorage')?.access_token;
+      const response = await fetch(`${serverUrl}/api/v1/tenant/config`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        signal: AbortSignal.timeout(10000),
+      });
       if (response.ok) {
         const json = (await response.json()) as { success?: boolean; data?: Record<string, unknown> };
         const resolved = resolveTenantConfig(json?.data ?? null);

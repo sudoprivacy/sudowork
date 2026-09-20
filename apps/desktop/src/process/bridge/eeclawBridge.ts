@@ -260,8 +260,22 @@ export function initEeclawBridge(): void {
 
   ipcBridge.eeclaw.verifyServer.provider(async ({ serverUrl }) => {
     try {
+      // Before login this remains a public connectivity/branding probe. Once
+      // authenticated against the same origin, include the token so Moss can
+      // return the current organization's configuration. Never forward a token
+      // while the user is testing a different manually-entered server.
+      const configuredServerUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      let accessToken: string | null = null;
+      try {
+        if (configuredServerUrl && new URL(configuredServerUrl).origin === new URL(serverUrl).origin) {
+          accessToken = await getValidToken();
+        }
+      } catch {
+        // Missing/expired authentication is valid on the login screen.
+      }
       const response = await fetch(`${serverUrl}/api/v1/tenant/config`, {
         method: 'GET',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         signal: AbortSignal.timeout(10000),
       });
       if (response.ok) {
@@ -306,7 +320,8 @@ export function initEeclawBridge(): void {
 
   ipcBridge.eeclaw.login.provider(async ({ serverUrl, body, deviceId }) => {
     try {
-      const response = await fetch(`${serverUrl}/api/v1/auth/login`, {
+      const isPhoneRegistration = body.grant_type === 'phone_register';
+      const response = await fetch(`${serverUrl}${isPhoneRegistration ? '/api/v1/auth/register' : '/api/v1/auth/login'}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -319,20 +334,32 @@ export function initEeclawBridge(): void {
       const data = await response.json();
 
       if (!response.ok) {
-        return { success: false, error: (data?.error || 'login_failed') as string, data: undefined };
+        return {
+          success: false,
+          error: (data?.code || data?.error || 'login_failed') as string,
+          msg: (data?.msg || data?.message) as string | undefined,
+          data: undefined,
+        };
       }
 
-      const localModeAvailable = !!(data.user.localAuth && data.sudorouter_key && data.model_service_url && Array.isArray(data.models) && data.models.length > 0);
+      // Password/API-key/OAuth2 responses are bare token payloads; phone login
+      // and registration use the older { success, data } envelope.
+      const authData = data?.success === true && data?.data ? data.data : data;
+      if (!authData?.access_token || !authData?.user) {
+        return { success: false, error: (data?.msg || data?.error || 'login_failed') as string, data: undefined };
+      }
+
+      const localModeAvailable = !!(authData.user.localAuth && authData.sudorouter_key && authData.model_service_url && Array.isArray(authData.models) && authData.models.length > 0);
 
       // Save server URL and auth storage to ProcessConfig
       // 将服务器 URL 和认证存储保存到 ProcessConfig
-      const sessionType: 'password' | 'api_key' | 'oauth2' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : 'password';
+      const sessionType: 'password' | 'api_key' | 'oauth2' | 'phone' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : body.grant_type === 'phone' || body.grant_type === 'phone_register' ? 'phone' : 'password';
       await withAuthStorageLock(async () => {
         await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
         await ProcessConfig.set('eeclaw.authStorage', {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+          access_token: authData.access_token,
+          refresh_token: authData.refresh_token,
+          expires_at: Date.now() + (authData.expires_in || 3600) * 1000,
           device_id: deviceId,
           session_type: sessionType,
         });
@@ -342,7 +369,7 @@ export function initEeclawBridge(): void {
       // Update enterprise cache for synchronous access
       // 更新企业配置缓存以供同步访问
       setCachedServerUrl(serverUrl);
-      setCachedAuthToken(data.access_token);
+      setCachedAuthToken(authData.access_token);
       setCachedAppMode('e');
       setCachedLocalModeAvailable(localModeAvailable);
 
@@ -373,20 +400,20 @@ export function initEeclawBridge(): void {
       return {
         success: true,
         data: {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_in: data.expires_in,
+          access_token: authData.access_token,
+          refresh_token: authData.refresh_token,
+          expires_in: authData.expires_in,
           user: {
-            id: data.user.id,
-            name: data.user.name,
-            role: data.user.role,
-            orgId: data.user.orgId,
-            localAuth: data.user.localAuth === true,
+            id: authData.user.id,
+            name: authData.user.name,
+            role: authData.user.role,
+            orgId: authData.user.orgId,
+            localAuth: authData.user.localAuth === true,
           },
-          sudorouter_key: data.sudorouter_key,
-          model_service_url: data.model_service_url,
-          models: Array.isArray(data.models) ? data.models : undefined,
-          scode_auto_model: typeof data.scode_auto_model === 'string' ? data.scode_auto_model : undefined,
+          sudorouter_key: authData.sudorouter_key,
+          model_service_url: authData.model_service_url,
+          models: Array.isArray(authData.models) ? authData.models : undefined,
+          scode_auto_model: typeof authData.scode_auto_model === 'string' ? authData.scode_auto_model : undefined,
         },
       };
     } catch (error) {
