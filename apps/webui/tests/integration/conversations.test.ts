@@ -297,7 +297,7 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .set('Origin', testConfig.publicOrigin)
       .send({ assistantName: 'helper', enabledSkills: ['known-skill'] })
     expect(ok.status).toBe(201)
-    expect(ok.body).toEqual({ id: 'created-helper' })
+    expect(ok.body).toEqual({ id: 'created-helper', taskId: 'created-helper' })
 
     const badAgent = await request(app)
       .post('/api/conversations')
