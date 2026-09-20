@@ -12,6 +12,9 @@ import {
 } from '@sudowork/contracts/auth'
 import {
   InvalidCredentialsError,
+  MossOriginNotAllowedError,
+  PhoneNotRegisteredError,
+  RegistrationRejectedError,
   MossUnavailableError,
   loginWithApiKey,
   loginWithPassword,
@@ -53,6 +56,18 @@ function authErrorHandler(err: unknown, res: Response, next: NextFunction): void
   }
   if (err instanceof InvalidCredentialsError) {
     res.status(401).json({ error: 'INVALID_CREDENTIALS' })
+    return
+  }
+  if (err instanceof PhoneNotRegisteredError) {
+    res.status(404).json({ error: 'PHONE_NOT_REGISTERED', message: '手机号未注册，请使用注册入口' })
+    return
+  }
+  if (err instanceof RegistrationRejectedError) {
+    res.status(400).json({ error: 'REGISTRATION_REJECTED', message: err.message })
+    return
+  }
+  if (err instanceof MossOriginNotAllowedError) {
+    res.status(400).json({ error: 'MOSS_ORIGIN_NOT_ALLOWED' })
     return
   }
   if (err instanceof MossUnavailableError) {
@@ -122,17 +137,6 @@ export function createAuthRouter(deps: AuthDeps): Router {
     void (async () => {
       const input = LoginPhoneRequestSchema.parse(req.body)
       const result = await loginWithPhone(deps, input)
-      // An unknown number is the normal first step of signup, not a failure, so
-      // it answers 200 with the attestation and sets no cookie.
-      if ('needRegister' in result) {
-        res.status(200).json({
-          ok: false,
-          needRegister: true,
-          registerToken: result.registerToken,
-          phone: result.phone,
-        })
-        return
-      }
       setSessionCookie(res, deps.config, result.cookieToken)
       res.status(200).json({ ok: true })
     })().catch((err: unknown) => authErrorHandler(err, res, next))

@@ -50,7 +50,7 @@ export const LoginApiKeyRequestSchema = z.object({
 })
 export type LoginApiKeyRequest = z.infer<typeof LoginApiKeyRequestSchema>
 
-/** Phone signup/login. Bounds mirror the server-side validator in moss. */
+/** Phone verification. Bounds mirror the server-side validator in moss. */
 export const SendPhoneCodeRequestSchema = z.object({
   phone: z.string().trim().min(11).max(16),
   mossBaseUrl: MossBaseUrlSchema,
@@ -65,9 +65,10 @@ export const LoginPhoneRequestSchema = z.object({
 export type LoginPhoneRequest = z.infer<typeof LoginPhoneRequestSchema>
 
 export const RegisterPhoneRequestSchema = z.object({
-  registerToken: z.string().min(1).max(4096),
-  nickname: z.string().trim().max(64).optional(),
-  invitationCode: z.string().trim().max(64).optional(),
+  phone: z.string().trim().min(11).max(16),
+  code: z.string().trim().regex(/^\d{4,8}$/),
+  nickname: z.string().trim().min(1).max(64),
+  invitationCode: z.string().trim().min(1).max(64),
   mossBaseUrl: MossBaseUrlSchema,
 })
 export type RegisterPhoneRequest = z.infer<typeof RegisterPhoneRequestSchema>

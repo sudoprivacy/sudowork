@@ -65,7 +65,7 @@ interface EeclawAuthStorage {
   user: AuthUser;
   device_id: string;
   /** How this session was established; drives which grant_type is used on refresh. */
-  session_type?: 'password' | 'api_key' | 'oauth2';
+  session_type?: 'password' | 'api_key' | 'oauth2' | 'phone';
 }
 
 interface LoginParams {
@@ -74,6 +74,7 @@ interface LoginParams {
   enterprise_code?: string;
   invitation_code?: string;
   remember?: boolean;
+  mossBaseUrl?: string;
 }
 
 type LoginErrorCode = 'invalidCredentials' | 'tooManyAttempts' | 'serverError' | 'networkError' | 'unknown';
@@ -83,15 +84,14 @@ interface LoginResult {
   message?: string;
   code?: LoginErrorCode;
   status?: number;
-  need_register?: boolean;
-  register_token?: string;
-  phone?: string;
 }
 
 interface RegisterParams {
-  register_token: string;
+  phone: string;
+  code: string;
   nickname: string;
   invitation_code: string;
+  mossBaseUrl?: string;
 }
 
 interface RegisterResult {
@@ -180,8 +180,6 @@ type AuthApiResponse = {
   msg?: string;
   message?: string;
   status?: number;
-  need_register?: boolean;
-  register_token?: string;
   phone?: string;
   data?: LoginSuccessResponse['data'];
 };
@@ -741,12 +739,31 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, []);
 
-  // Enter guest mode (unauthenticated use): restore guest custom models, set flag + status.
-  // Caller is responsible for navigate('/guid').
+  // Enter guest mode (unauthenticated use). Clear any online credentials first:
+  // auth restoration intentionally prefers a valid Moss session, so leaving
+  // one behind would send a reload straight back to online mode.
   const enterGuest = useCallback(async () => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem('sudowork_auth_v1');
+    localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
+    if (isDesktopRuntime) {
+      await Promise.allSettled([
+        ConfigStorage.set('consumer.userInfo', undefined),
+        ConfigStorage.set('eeclaw.authStorage', undefined),
+        ConfigStorage.set('eeclaw.userInfo', undefined),
+        ConfigStorage.set('eeclaw.localModeAvailable', undefined),
+        ConfigStorage.set('guid.sessionMode', 'local'),
+        ipcBridge.sudoworkAuth.clearConsumerUserId.invoke(),
+        ipcBridge.eeclaw.logout.invoke(),
+        ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'local' }),
+      ]);
+    }
     await restoreGuestScodeModels();
     localStorage.setItem(GUEST_FLAG_KEY, '1');
+    setUser(null);
     setStatus('guest');
+    setSyncMessage(null);
+    setReady(true);
   }, []);
 
   // Token 刷新函数 — supports both C-side and enterprise mode
@@ -1078,7 +1095,27 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }
     }
 
-    // === C-side: original logic ===
+    // Explicit offline use takes precedence over retired consumer credentials.
+    if (isDesktopRuntime && localStorage.getItem(GUEST_FLAG_KEY)) {
+      await restoreGuestScodeModels();
+      setStatus('guest');
+      setUser(null);
+      setReady(true);
+      return;
+    }
+
+    // Online desktop users authenticate only against Moss. Legacy consumer
+    // tokens are intentionally not restored after the unified-entry upgrade.
+    if (isDesktopRuntime) {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem('sudowork_auth_v1');
+      setStatus('unauthenticated');
+      setUser(null);
+      setReady(true);
+      return;
+    }
+
+    // === Legacy C-side web flow ===
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
     if (stored) {
       try {
@@ -1209,22 +1246,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }
     }
 
-    // 游客态恢复（桌面端、无任何登录态、有 guest 标志）—— 须在 unauthenticated 之前，保证有登录态时优先登录态
-    if (isDesktopRuntime && localStorage.getItem(GUEST_FLAG_KEY)) {
-      await restoreGuestScodeModels();
-      setStatus('guest');
-      setUser(null);
-      setReady(true);
-      return;
-    }
-
-    if (isDesktopRuntime) {
-      setStatus('unauthenticated');
-      setUser(null);
-      setReady(true);
-      return;
-    }
-
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -1295,7 +1316,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
   }, [expireAuth]);
 
-  const login = useCallback(async ({ phone, code, enterprise_code, invitation_code: _invitation_code, remember: _remember }: LoginParams): Promise<LoginResult> => {
+  const login = useCallback(async ({ phone, code, enterprise_code: _enterpriseCode, invitation_code: _invitationCode, remember: _remember, mossBaseUrl }: LoginParams): Promise<LoginResult> => {
     const deviceId = getDeviceId();
 
     // Web host: the browser must not hold moss tokens, so the webui server does
@@ -1307,21 +1328,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ phone, code }),
+          body: JSON.stringify({ phone, code, ...(mossBaseUrl ? { mossBaseUrl } : {}) }),
         });
-        const body = (await response.json().catch((): null => null)) as { ok?: boolean; needRegister?: boolean; registerToken?: string; phone?: string; error?: string } | null;
-        if (body?.needRegister && body.registerToken) {
-          // Not a failure: an unknown number is the first step of signup.
-          return {
-            success: false,
-            need_register: true,
-            register_token: body.registerToken,
-            phone: body.phone || phone,
-            message: t('login.errors.needRegister', '该手机号未注册，请先注册'),
-          };
-        }
+        const body = (await response.json().catch((): null => null)) as { ok?: boolean; error?: string; message?: string } | null;
         if (!response.ok || !body?.ok) {
-          return { success: false, message: t('login.errors.invalidCredentials'), code: 'invalidCredentials' };
+          return { success: false, message: body?.message || t('login.errors.invalidCredentials'), code: 'invalidCredentials' };
         }
         const webUser = await fetchWebSession();
         return finalizeEnterpriseLogin(
@@ -1343,7 +1354,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             },
           } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
           deviceId,
-          'password'
+          'phone'
         );
       } catch (error) {
         console.error('[Auth] Web phone login failed:', error);
@@ -1352,40 +1363,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
 
     try {
-      const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Device-Id': deviceId,
-        },
-        body: JSON.stringify({ phone, code, enterprise_code }),
+      const serverUrl = await getAuthServerBaseUrl();
+      const result = await ipcBridge.eeclaw.login.invoke({
+        serverUrl,
+        body: { grant_type: 'phone', phone, code },
+        deviceId,
       });
-
-      const data = (await response.json()) as AuthApiResponse;
-
-      // 用户不存在，需要注册
-      if (data.need_register) {
+      if (!result.success && result.error === 'phone_not_registered') {
         return {
           success: false,
-          status: data.status,
-          need_register: true,
-          register_token: data.register_token,
-          phone: data.phone,
-          message: data.msg || '用户不存在，请先注册',
-        };
-      }
-
-      if (!response.ok || !data.success || !data.data) {
-        return {
-          success: false,
-          status: data.status,
-          message: data?.msg || data?.message || '登录失败',
+          message: t('login.registrationNeeded'),
           code: 'invalidCredentials',
         };
       }
 
-      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage, enterprise_code);
-      return { success: true };
+      return finalizeEnterpriseLogin(result, deviceId, 'phone');
     } catch (error) {
       console.error('Login request failed:', error);
       return {
@@ -1396,7 +1388,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, []);
 
-  const register = useCallback(async ({ register_token, nickname, invitation_code }: RegisterParams): Promise<RegisterResult> => {
+  const register = useCallback(async ({ phone, code, nickname, invitation_code, mossBaseUrl }: RegisterParams): Promise<RegisterResult> => {
     const deviceId = getDeviceId();
 
     if (isWebRuntime) {
@@ -1405,11 +1397,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ registerToken: register_token, nickname, invitationCode: invitation_code }),
+          body: JSON.stringify({ phone, code, nickname, invitationCode: invitation_code, ...(mossBaseUrl ? { mossBaseUrl } : {}) }),
         });
-        const body = (await response.json().catch((): null => null)) as { ok?: boolean; error?: string } | null;
+        const body = (await response.json().catch((): null => null)) as { ok?: boolean; error?: string; message?: string } | null;
         if (!response.ok || !body?.ok) {
-          return { success: false, message: t('login.errors.invalidCredentials'), code: 'invalidCredentials' };
+          return { success: false, message: body?.message || t('login.pwdRegisterFailed'), code: 'invalidCredentials' };
         }
         const webUser = await fetchWebSession();
         return finalizeEnterpriseLogin(
@@ -1431,7 +1423,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             },
           } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
           deviceId,
-          'password'
+          'phone'
         );
       } catch (error) {
         console.error('[Auth] Web phone registration failed:', error);
@@ -1440,27 +1432,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
 
     try {
-      const response = await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Device-Id': deviceId,
+      const serverUrl = await getAuthServerBaseUrl();
+      const result = await ipcBridge.eeclaw.login.invoke({
+        serverUrl,
+        body: {
+          grant_type: 'phone_register',
+          phone,
+          code,
+          nickname,
+          invitation_code,
         },
-        body: JSON.stringify({ register_token, nickname, invitation_code }),
+        deviceId,
       });
-
-      const data = (await response.json()) as AuthApiResponse;
-
-      if (!response.ok || !data.success || !data.data) {
-        return {
-          success: false,
-          message: data?.msg || data?.message || '注册失败',
-          code: 'invalidCredentials',
-        };
-      }
-
-      await handleLoginSuccess({ data: data.data }, setUser, setStatus, setReady, setSyncMessage);
-      return { success: true };
+      return finalizeEnterpriseLogin(result, deviceId, 'phone');
     } catch (error) {
       console.error('Register request failed:', error);
       return {
@@ -1596,11 +1580,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   // Shared post-login handling for all enterprise grant types (password / api_key / oauth2).
   // Persists tokens, sets up scode/session mode, and updates auth state.
-  const finalizeEnterpriseLogin = useCallback(async (result: Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>, deviceId: string, sessionType: 'password' | 'api_key' | 'oauth2'): Promise<LoginResult> => {
+  const finalizeEnterpriseLogin = useCallback(async (result: Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>, deviceId: string, sessionType: 'password' | 'api_key' | 'oauth2' | 'phone'): Promise<LoginResult> => {
     if (!result.success || !result.data) {
       return {
         success: false,
-        message: (result as any).error === 'network_error' ? '连接到企业服务器失败' : (result as any).error || result.msg || '登录失败',
+        message: result.error === 'network_error' ? '连接到企业服务器失败' : result.msg || result.error || '登录失败',
         code: 'invalidCredentials',
       };
     }
@@ -1746,15 +1730,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }
 
       try {
-        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-        if (!serverUrl) {
-          return { success: false, message: '未配置企业服务器地址' };
-        }
+        const serverUrl = await getAuthServerBaseUrl();
 
         const deviceId = getDeviceId();
         // Build MOSS-compatible request body with grant_type
         const isApiKeyLogin = 'api_key' in params;
-        const requestBody = isApiKeyLogin ? { grant_type: 'api_key', api_key: (params as EnterpriseLoginParamsByKey).api_key } : { grant_type: 'password', username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password };
+        const requestBody = isApiKeyLogin
+          ? {
+              grant_type: 'api_key' as const,
+              api_key: (params as EnterpriseLoginParamsByKey).api_key,
+            }
+          : {
+              grant_type: 'password' as const,
+              username: (params as EnterpriseLoginParams).username,
+              password: (params as EnterpriseLoginParams).password,
+            };
 
         // Use IPC bridge to avoid CORS (main process has no CORS restrictions)
         const result = await ipcBridge.eeclaw.login.invoke({
@@ -1782,10 +1772,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const enterpriseLoginWithOAuth2 = useCallback(
     async (params: Record<string, string>): Promise<LoginResult> => {
       try {
-        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-        if (!serverUrl) {
-          return { success: false, message: '未配置企业服务器地址' };
-        }
+        const serverUrl = await getAuthServerBaseUrl();
 
         const deviceId = getDeviceId();
         const result = await ipcBridge.eeclaw.login.invoke({
@@ -1808,6 +1795,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   );
 
   const logout = useCallback(async () => {
+    localStorage.removeItem(GUEST_FLAG_KEY);
+
     // Web host: destroy the webui cookie session; no eeclaw IPC involved.
     if (isWebRuntime) {
       try {

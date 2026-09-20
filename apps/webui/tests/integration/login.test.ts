@@ -67,7 +67,7 @@ const testConfig: AppConfig = {
   server: { host: '127.0.0.1', port: 26809 },
   publicOrigin: 'http://localhost:5273',
   trustProxy: false,
-  moss: { baseUrl: 'http://moss.test', wsBaseUrl: 'ws://moss.test' },
+  moss: { baseUrl: 'http://moss.test', wsBaseUrl: 'ws://moss.test', allowedOrigins: [] },
   session: { ttlSeconds: 3600 },
   upload: { maxFileBytes: 1024, maxFilesPerRequest: 1, maxTotalBytes: 1024 },
   isProduction: false,
@@ -80,9 +80,9 @@ const testConfig: AppConfig = {
 describe('auth routes (real PostgreSQL + fake moss)', () => {
   let pool: Pool
 
-  function buildApp(): Express {
+  function buildApp(mossAuth: MossAuthPort = createFakeMossAuth()): Express {
     const app = createApp({ publicOrigin: testConfig.publicOrigin })
-    registerApiRoutes(app, { config: testConfig, pool, mossAuth: createFakeMossAuth() })
+    registerApiRoutes(app, { config: testConfig, pool, mossAuth })
     return app
   }
 
@@ -132,6 +132,56 @@ describe('auth routes (real PostgreSQL + fake moss)', () => {
       .send({ username: 'nobody', password: 'whatever' })
     expect(unknown.status).toBe(401)
     expect(unknown.body).toEqual({ error: 'INVALID_CREDENTIALS' })
+  })
+
+  test('phone login rejects an unregistered number instead of entering registration', async () => {
+    const mossAuth = createFakeMossAuth()
+    mossAuth.loginWithPhone = async () => {
+      throw new MossHttpError(
+        404,
+        JSON.stringify({ code: 'phone_not_registered' }),
+        '/api/v1/auth/login',
+      )
+    }
+
+    const res = await request(buildApp(mossAuth))
+      .post('/api/auth/login/phone')
+      .set('Origin', testConfig.publicOrigin)
+      .send({ phone: '13800138000', code: '123456' })
+
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({
+      error: 'PHONE_NOT_REGISTERED',
+      message: '手机号未注册，请使用注册入口',
+    })
+  })
+
+  test('phone registration sends the code and enterprise invitation to Moss', async () => {
+    let received: unknown
+    const mossAuth = createFakeMossAuth()
+    mossAuth.registerWithPhone = async (input) => {
+      received = input
+      return TOKENS_B
+    }
+
+    const res = await request(buildApp(mossAuth))
+      .post('/api/auth/register/phone')
+      .set('Origin', testConfig.publicOrigin)
+      .send({
+        phone: '13800138000',
+        code: '123456',
+        nickname: 'Alice',
+        invitationCode: 'JOINME',
+      })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+    expect(received).toEqual({
+      phone: '13800138000',
+      code: '123456',
+      nickname: 'Alice',
+      invitationCode: 'JOINME',
+    })
   })
 
   test('api key login works and yields a separate session', async () => {

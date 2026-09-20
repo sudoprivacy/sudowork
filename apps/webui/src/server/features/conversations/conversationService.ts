@@ -144,6 +144,7 @@ export async function listConversations(
     const meta = metaMap.get(s.sessionId)
     return {
       id: s.sessionId,
+      taskId: s.taskId ?? s.sessionId,
       status: s.status,
       assistantName: s.assistantName ?? null,
       source: s.source ?? null,
@@ -163,7 +164,7 @@ export async function createConversation(
   principal: Principal,
   input: CreateConversationRequest,
   ctx: MossCallContext,
-): Promise<{ id: string }> {
+): Promise<{ id: string; taskId: string }> {
   await assertSelectionVisible(deps, input, ctx)
   // 模型：先校验可用（不通过则 400，不建会话）→ setUserModel（Moss 用户级），使新会话采用该模型
   if (input.modelId) {
@@ -187,7 +188,7 @@ export async function createConversation(
     )
   }
   // ws_url 只留在服务端（协调器 resume 时使用）
-  return { id: created.sessionId }
+  return { id: created.sessionId, taskId: created.taskId ?? created.sessionId }
 }
 
 /** 计划 3.3：打开会话先重新查询该 Session 并校验归属。 */

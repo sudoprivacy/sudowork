@@ -27,12 +27,19 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
   test('create posts assistant_name + enabled_skills + explicit skip_permissions=false, never cwd/runtime', async () => {
     const mock = vi.fn().mockResolvedValue({
       session_id: 's1',
+      task_id: 't1',
+      attempt_id: 'a1',
       ws_url: 'ws://moss.test/ws/sessions/s1',
       work_dir: '/home/x',
     })
     const port = createMossSessionPort(mock)
     const created = await port.create(CTX, { assistantName: 'helper', enabledSkills: ['a', 'b'] })
-    expect(created).toEqual({ sessionId: 's1', wsUrl: 'ws://moss.test/ws/sessions/s1' })
+    expect(created).toEqual({
+      sessionId: 's1',
+      taskId: 't1',
+      attemptId: 'a1',
+      wsUrl: 'ws://moss.test/ws/sessions/s1',
+    })
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'POST',
       path: '/api/v1/sessions',

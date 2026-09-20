@@ -40,19 +40,82 @@ bun run dev
 
 ## 环境变量
 
-| 变量 | 说明 |
-|---|---|
-| `DATABASE_URL` | WebUI 自有 PostgreSQL（仅存 Web Session / 偏好 / 会话锁） |
-| `SESSION_HMAC_KEY` | Cookie token 的 HMAC 密钥（≥32 字节，`openssl rand -hex 32`） |
-| `TOKEN_AES_KEY` | Moss access/refresh token 的 AES-256-GCM 密钥（32 字节，`openssl rand -base64 32`） |
-| `PUBLIC_ORIGIN` | 对外完整 Origin；生产必须 HTTPS（外部反向代理终结 TLS） |
-| `MOSS_BASE_URL` / `MOSS_WS_BASE_URL` | Moss 服务地址（只读访问，不由 WebUI 部署；两者主机必须一致） |
-| `PORT` | 服务端口（默认 26809；开发时前端 vite 跑 26808 并代理到此端口，生产由本服务同端口托管静态产物） |
+| 变量                                 | 说明                                                                                            |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                       | WebUI 自有 PostgreSQL（仅存 Web Session / 偏好 / 会话锁）                                       |
+| `SESSION_HMAC_KEY`                   | Cookie token 的 HMAC 密钥（≥32 字节，`openssl rand -hex 32`）                                   |
+| `TOKEN_AES_KEY`                      | Moss access/refresh token 的 AES-256-GCM 密钥（32 字节，`openssl rand -base64 32`）             |
+| `PUBLIC_ORIGIN`                      | 对外完整 Origin；生产必须 HTTPS（外部反向代理终结 TLS）                                         |
+| `MOSS_BASE_URL` / `MOSS_WS_BASE_URL` | Moss 服务地址（只读访问，不由 WebUI 部署；两者主机必须一致）                                    |
+| `MOSS_ALLOWED_ORIGINS`               | 登录页允许手填的额外 Moss Origin，逗号分隔；默认只允许 `MOSS_BASE_URL`                          |
+| `PORT`                               | 服务端口（默认 26809；开发时前端 vite 跑 26808 并代理到此端口，生产由本服务同端口托管静态产物） |
 
 配置文件（`config/sudowork-webui.json`，可 `CONFIG_PATH` 覆盖）提供 server/publicOrigin/
 trustProxy/moss/session/upload 段；环境变量优先。
 
-## 生产部署（Docker Compose）
+## 一键部署（推荐）
+
+前置条件：Docker 20.10+、Docker Compose v2，以及已经启用的 Moss Server。生产环境需要
+一个由 Nginx/Caddy 等反向代理提供 HTTPS 的 WebUI 域名。
+
+在 Linux amd64 服务器上执行，不需要下载源码：
+
+```bash
+curl -fsSL https://sudowork-release-1309794936.cos.accelerate.myqcloud.com/sudowork/webui/latest/install.sh | sudo bash
+```
+
+脚本会提示 WebUI 的公开 HTTPS Origin 和 Moss 对外地址，随后自动：
+
+- 生成 PostgreSQL 密码、Session HMAC 密钥和 Token AES 密钥；
+- 下载并校验 CI 构建的 WebUI/PostgreSQL 镜像包，不在服务器上编译源码；
+- 将配置以 `0600` 权限保存到 `~/.sudowork/webui/.env`；
+- 启动 PostgreSQL、数据库迁移和 WebUI；
+- 升级前备份数据库、配置和版本信息，健康检查失败时自动恢复；
+- 等待容器健康检查通过并输出状态、日志和停止命令。
+
+非交互部署：
+
+```bash
+curl -fsSL https://sudowork-release-1309794936.cos.accelerate.myqcloud.com/sudowork/webui/latest/install.sh | \
+  sudo PUBLIC_ORIGIN=https://webui.example.com \
+       MOSS_BASE_URL=http://10.0.1.206:43127 \
+       bash -s -- --non-interactive
+```
+
+`MOSS_WS_BASE_URL` 默认根据 `MOSS_BASE_URL` 推导。两者的主机和端口必须与 Moss
+`server.publicBaseUrl` 一致，否则 HTTP 页面可以加载，但创建会话后的 WebSocket 会被拒绝。
+如需让用户在登录页切换到其他 Moss，管理员还需设置
+`MOSS_ALLOWED_ORIGINS=https://moss-a.example.com,https://moss-b.example.com`；未列入白名单的地址会由
+WebUI 服务端拒绝，不能作为代理目标。
+安装完成后通过配置的 `PUBLIC_ORIGIN` 打开 WebUI，并直接使用 Moss 账号登录。常用维护命令：
+
+```bash
+sudo ~/.sudowork/webui/status.sh
+sudo ~/.sudowork/webui/backup.sh
+sudo ~/.sudowork/webui/restore.sh ~/.sudowork/webui/backups/<timestamp>
+sudo ~/.sudowork/webui/install.sh --upgrade
+sudo ~/.sudowork/webui/stop.sh
+sudo ~/.sudowork/webui/uninstall.sh             # 保留配置和数据库
+sudo ~/.sudowork/webui/uninstall.sh --purge     # 同时删除本地数据
+```
+
+升级会获取最新安装器，在 `backups/<UTC 时间>` 中保存 PostgreSQL、`.env`、Compose 和版本信息，
+并保留最近 5 份备份。新版本健康检查失败时自动恢复升级前的数据和程序配置。如需离线部署，先在联网机器下载完整发布包：
+
+```bash
+./install.sh --download ./sudowork-webui-offline
+# 将目录复制到目标服务器
+sudo ./sudowork-webui-offline/install.sh --offline
+```
+
+CI 在版本发布时生成 `install.sh`、`SHA256SUMS` 和
+`sudowork-webui-<version>-linux-amd64.tar.gz`，同时附加到 GitHub Release；稳定版还会同步到
+COS 的不可变版本目录，并在校验通过后更新上述 `latest/install.sh`。
+
+从源码部署仍可在仓库中执行 `cd apps/webui && bun run deploy`。该模式使用当前源码构建镜像，
+配置保存在 `apps/webui/.env.deploy`，适合开发验证，不等同于 CI 发布包安装。
+
+## 手动生产部署（Docker Compose）
 
 ```bash
 export SESSION_HMAC_KEY=... TOKEN_AES_KEY=... PUBLIC_ORIGIN=https://webui.example.com \

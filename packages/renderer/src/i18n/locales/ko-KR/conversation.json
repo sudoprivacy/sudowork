@@ -10,7 +10,11 @@
     "downloadLocalFile": "로컬 파일 가져오기",
     "downloadBdpanFile": "바이두 넷디스크 파일 가져오기",
     "linkFolder": "폴더 열기",
-    "newConversation": "새 채팅",
+    "newConversation": "새 작업",
+    "execution": {
+      "cloud": "클라우드 실행",
+      "local": "로컬 실행"
+    },
     "multiAgentModeEnabled": "멀티 에이전트 모드 진입",
     "selectModel": "모델 선택",
     "useCliModel": "모델 선택",
@@ -33,7 +37,7 @@
     "earlier": "이전",
     "noHistory": "채팅 기록 없음",
     "noScheduledTask": "실행 기록 없음",
-    "actionNewConversation": "새 대화",
+    "actionNewConversation": "새 작업",
     "deleteTitle": "삭제",
     "deleteConfirm": "이 채팅을 삭제하시겠습니까?",
     "deleteWorkspaceOption": "작업 공간 폴더도 함께 삭제",

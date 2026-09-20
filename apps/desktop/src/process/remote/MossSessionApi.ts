@@ -1256,6 +1256,11 @@ export interface MossSession {
   sessionId?: string;
   /** Alternative session ID field (snake_case) */
   session_id?: string;
+  /** Provisional implicit Task ID returned by Moss. */
+  taskId?: string;
+  task_id?: string;
+  attemptId?: string | null;
+  attempt_id?: string | null;
   /** WebSocket URL for session */
   ws_url?: string;
   wsUrl?: string;

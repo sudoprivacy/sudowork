@@ -36,6 +36,46 @@ describe('MossAuthPort request shapes (contract vs baseline)', () => {
     })
   })
 
+  test('phone login only exchanges a phone verification code', async () => {
+    const mock = vi.fn().mockResolvedValue({ success: true, data: okTokenSet() })
+    const port = createMossAuthPort(mock)
+
+    const result = await port.loginWithPhone({ phone: '13800138000', code: '123456' }, BASE)
+
+    expect(result).toEqual({ kind: 'tokens', tokens: okTokenSet() })
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      body: { phone: '13800138000', code: '123456' },
+    })
+  })
+
+  test('phone registration sends the phone code and invitation to its own endpoint', async () => {
+    const mock = vi.fn().mockResolvedValue({ success: true, data: okTokenSet() })
+    const port = createMossAuthPort(mock)
+
+    await port.registerWithPhone(
+      {
+        phone: '13800138000',
+        code: '123456',
+        nickname: 'Alice',
+        invitationCode: 'JOINME',
+      },
+      BASE,
+    )
+
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/auth/register',
+      body: {
+        phone: '13800138000',
+        code: '123456',
+        nickname: 'Alice',
+        invitation_code: 'JOINME',
+      },
+    })
+  })
+
   test('refresh posts grant_type=refresh_token to /api/v1/auth/token', async () => {
     const mock = vi.fn().mockResolvedValue(okTokenSet())
     const port = createMossAuthPort(mock)

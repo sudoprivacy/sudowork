@@ -10,7 +10,11 @@
     "downloadLocalFile": "Import Local Files",
     "downloadBdpanFile": "Import Baidu Netdisk Files",
     "linkFolder": "Open Folder",
-    "newConversation": "New Chat",
+    "newConversation": "New task",
+    "execution": {
+      "cloud": "Cloud execution",
+      "local": "Local execution"
+    },
     "multiAgentModeEnabled": "Entering multi-agent mode",
     "selectModel": "Select Model",
     "useCliModel": "Select Model",
@@ -33,7 +37,7 @@
     "earlier": "Earlier",
     "noHistory": "No chat history",
     "noScheduledTask": "No execution records",
-    "actionNewConversation": "New Conversation",
+    "actionNewConversation": "New task",
     "deleteTitle": "Delete",
     "deleteConfirm": "Are you sure you want to delete this chat?",
     "deleteWorkspaceOption": "Also delete workspace folder",

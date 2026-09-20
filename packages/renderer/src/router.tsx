@@ -141,13 +141,13 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
 
 const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
-  const isSignedIn = status === 'authenticated';
+  const canEnterApp = status === 'authenticated' || status === 'guest';
 
   return (
     <HashRouter>
       <Routes>
-        <Route path='/login' element={isSignedIn ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)} />
-        <Route path='/register' element={isSignedIn ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
+        <Route path='/login' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)} />
+        <Route path='/register' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
         <Route element={<ProtectedLayout layout={layout} />}>
           <Route index element={<Navigate to='/guid' replace />} />
           {PROTECTED_ROUTE_CONFIGS.map(({ path, component }) => (
@@ -155,7 +155,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           ))}
           <Route path='/settings' element={<SettingsDefaultRoute />} />
         </Route>
-        <Route path='*' element={<Navigate to={isSignedIn ? '/guid' : '/login'} replace />} />
+        <Route path='*' element={<Navigate to={canEnterApp ? '/guid' : '/login'} replace />} />
       </Routes>
     </HashRouter>
   );

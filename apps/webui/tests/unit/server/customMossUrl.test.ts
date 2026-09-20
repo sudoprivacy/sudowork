@@ -3,7 +3,12 @@ import { deriveWsBaseUrl } from '@sudowork/moss-client'
 import type { AppConfig } from '@server/config'
 import { resolveLoginMoss } from '@server/features/auth/authService'
 
-const config = { moss: { baseUrl: 'https://moss.default.com' } } as AppConfig
+const config = {
+  moss: {
+    baseUrl: 'https://moss.default.com',
+    allowedOrigins: ['https://moss.default.com', 'https://custom.moss.com:8443'],
+  },
+} as AppConfig
 
 describe('resolveLoginMoss（登录期 moss 地址归一化）', () => {
   test('无自定义地址 → 配置默认，身份地址为 null', () => {
@@ -20,11 +25,21 @@ describe('resolveLoginMoss（登录期 moss 地址归一化）', () => {
     })
   })
 
-  test('自定义地址异 origin → 归一为 origin，身份地址非 null', () => {
-    expect(resolveLoginMoss(config, 'https://custom.moss.com:8443/x')).toEqual({
+  test('白名单中的自定义 origin → 身份地址非 null', () => {
+    expect(resolveLoginMoss(config, 'https://custom.moss.com:8443')).toEqual({
       baseUrl: 'https://custom.moss.com:8443',
       identityBaseUrl: 'https://custom.moss.com:8443',
     })
+  })
+
+  test('拒绝白名单外地址和带路径的地址', () => {
+    expect(() => resolveLoginMoss(config, 'http://127.0.0.1:8080')).toThrow(
+      'moss origin is not allowed',
+    )
+    expect(() => resolveLoginMoss(config, 'https://custom.moss.com:8443/internal')).toThrow(
+      'moss origin is not allowed',
+    )
+    expect(() => resolveLoginMoss(config, 'not a url')).toThrow('moss origin is not allowed')
   })
 })
 

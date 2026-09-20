@@ -19,8 +19,9 @@ const RegisterPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { register } = useAuth();
 
-  // 从 URL 参数获取 register_token 和 phone
-  const registerToken = searchParams.get('token') || '';
+  // Legacy route retained for bookmarked links; registration now requires the
+  // phone verification code directly and normally lives on the login page.
+  const codeFromUrl = searchParams.get('code') || '';
   const phoneFromUrl = searchParams.get('phone') || '';
 
   const [nickname, setNickname] = useState('');
@@ -55,15 +56,16 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    if (!registerToken) {
-      Message.error('注册凭证无效，请重新登录');
+    if (!phoneFromUrl || !codeFromUrl) {
+      Message.error('注册信息无效，请重新获取验证码');
       void navigate('/login', { replace: true });
       return;
     }
 
     setLoading(true);
     const result = await register({
-      register_token: registerToken,
+      phone: phoneFromUrl,
+      code: codeFromUrl,
       nickname: nickname.trim(),
       invitation_code: invitationCode.trim(),
     });
@@ -76,8 +78,8 @@ const RegisterPage: React.FC = () => {
     setLoading(false);
   };
 
-  // 如果没有 register_token，跳转到登录页
-  if (!registerToken) {
+  // 如果没有手机号和验证码，跳转到统一登录页。
+  if (!phoneFromUrl || !codeFromUrl) {
     return (
       <div className='login-page'>
         <div className='login-page__card text-center flex flex-col items-center gap-24px py-48px'>

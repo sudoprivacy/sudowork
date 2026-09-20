@@ -4,756 +4,356 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Input, Message, Space } from '@arco-design/web-react';
-import { Phone, Protect, Key, User, Lock, Server } from '@icon-park/react';
-import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
-import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
+import { Button, Input, Message } from '@arco-design/web-react';
+import { Key, Link, Lock, Phone, Protect, Server, User } from '@icon-park/react';
+import type { AuthMethod } from '@sudowork/common/systemConfigTypes';
+import { getMossServerPolicy, normalizeHttpOrigin } from '@sudowork/common/sudoworkServer';
 import { ConfigStorage } from '@sudowork/common/storage';
+import { TENANT_CONFIG_STORAGE_KEY, DEFAULT_TENANT_CONFIG, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
+import { setAppMode } from '@sudowork/host-bridge/eeclawMode';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
-import { isElectronDesktop, isMacOS } from '@renderer/utils/platform';
-import { useAppMode } from '@renderer/hooks/useAppMode';
+import AppLoader from '@renderer/components/AppLoader';
+import WindowControls from '@renderer/components/WindowControls';
 import { useSystemLoginMethod } from '@renderer/hooks/useSystemLoginMethod';
-import WindowControls from '../../components/WindowControls';
-import { useAuth, GUEST_FLAG_KEY } from '../../context/AuthContext';
-import AppLoader from '../../components/AppLoader';
-import PasswordAuthPanel from './PasswordAuthPanel';
-import ThirdPartyAuthPanel from './ThirdPartyAuthPanel';
+import { isElectronDesktop, isMacOS } from '@renderer/utils/platform';
+import { useAuth } from '../../context/AuthContext';
 import './LoginPage.css';
 
-// Generate a random state token to bind the OAuth2 authorize request to its callback.
-function generateOAuth2State(): string {
-  const bytes = new Uint8Array(16);
-  (globalThis.crypto || window.crypto).getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-// Windows/Linux 显示自定义窗口按钮；macOS 由系统原生信号灯负责，避免重复
-// Windows/Linux render custom window controls; macOS relies on native traffic lights, so skip them to avoid duplicates
+const DEFAULT_MOSS_URL = 'https://agent.sudoprivacy.com';
+const MOSS_URL_STORAGE_KEY = 'login.mossBaseUrl';
 const showWindowControls = isElectronDesktop() && !isMacOS();
-
-// Web host detection, mirroring AuthContext: the browser has no electronAPI.
 const isWebRuntime = typeof window !== 'undefined' && !window.electronAPI;
 
-// WebUI 自定义 moss 服务器地址的本地记忆 key（仅浏览器回填便利，不参与运行时路由）
-const MOSS_URL_STORAGE_KEY = 'login.mossBaseUrl';
+type LoginTab = 'phone' | 'password' | 'api_key' | 'register' | 'sso';
 
-// Validate phone number format (same as server-side)
 function isValidPhone(phone: string): boolean {
-  if (phone.length === 11) {
-    return phone[0] === '1' && /^\d{11}$/.test(phone);
-  } else if (phone.length >= 13 && phone[0] === '+') {
-    if (!phone.startsWith('+86')) return false;
-    const phoneNumber = phone.slice(3);
-    return phoneNumber.length === 11 && phoneNumber[0] === '1' && /^\d{11}$/.test(phoneNumber);
+  if (phone.length === 11) return phone[0] === '1' && /^\d{11}$/.test(phone);
+  if (phone.length >= 13 && phone.startsWith('+86')) {
+    const number = phone.slice(3);
+    return number.length === 11 && number[0] === '1' && /^\d{11}$/.test(number);
   }
   return false;
 }
 
-// 从 localStorage 读取缓存的租户配置
 function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
   try {
     const cached = localStorage.getItem(TENANT_CONFIG_STORAGE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      return resolveTenantConfig(parsed);
-    }
+    if (cached) return resolveTenantConfig(JSON.parse(cached));
   } catch {
-    // ignore
+    // Ignore invalid legacy cache and use the product defaults.
   }
   return DEFAULT_TENANT_CONFIG;
 }
 
-const LoginPage: React.FC = () => {
+function preferredTab(methods: AuthMethod[], legacyMethod: number | null): LoginTab {
+  const legacyPreferred: LoginTab = legacyMethod === 0 ? 'phone' : legacyMethod === 2 ? 'sso' : 'password';
+  if (methods.includes(legacyPreferred)) return legacyPreferred;
+  return (methods[0] as LoginTab | undefined) ?? 'password';
+}
+
+function generateOAuth2State(): string {
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export default function LoginPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { status, enterGuest, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
-  const { isEnterprise } = useAppMode();
-  const { loginMethod, systemConfig } = useSystemLoginMethod();
-
-  // A control plane that serves /api/v1/system-config gets to say how people log
-  // in, exactly as the consumer server already does. `systemConfig` is null only
-  // when the probe found nothing to ask — an older build, or an unreachable
-  // server — in which case the tabs below stay the fallback.
-  //
-  // Only method 0 is delegated for now, and deliberately so: the phone panel
-  // posts to /api/v1/auth/{send-code,login,register} on the active server, which
-  // a control plane serves. Method 1's consumer panel speaks endpoints
-  // (login-by-config, register-password) that a control plane does not have —
-  // its password login IS the tab panel below — and method 2's CAS exchange is
-  // likewise not implemented there yet. Delegating those would swap a working
-  // screen for a 404.
-  const serverDeclaresPhoneLogin = isEnterprise && systemConfig !== null && loginMethod === 0;
-
-  // Enterprise login state
-  const [loginTab, setLoginTab] = useState<'password' | 'key' | 'oauth2'>('password');
-  // OAuth2 login round-trips via the sudowork:// deep link — desktop only.
-  const showOAuth2Tab = isElectronDesktop();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  // WebUI 自定义 moss 地址：回填上次地址（折叠态下仍随登录生效）；默认恒折叠，仅点击小字才单向展开
-  const [mossUrl, setMossUrl] = useState(() => (isWebRuntime ? (localStorage.getItem(MOSS_URL_STORAGE_KEY) ?? '') : ''));
-  const [isCustomUrlExpanded, setIsCustomUrlExpanded] = useState(false);
-
-  // OAuth2 login state
-  // `require_state` defaults to true on the moss side; older moss builds omit
-  // the field, so the absence is treated as "verify state" for backwards safety.
-  const [oauth2Config, setOauth2Config] = useState<{ enabled: boolean; authorize_url?: string; require_state?: boolean } | null>(null);
-  const [oauth2Loading, setOauth2Loading] = useState(false);
-  const [oauth2Waiting, setOauth2Waiting] = useState(false);
-  const oauth2StateRef = React.useRef<string | null>(null);
-
-  // 从 localStorage 读取缓存的租户配置
+  const { loginMethod, authMethods, systemConfig, isLoading: isBootstrapLoading } = useSystemLoginMethod();
   const tenantConfig = getCachedTenantConfig();
-
-  // OAuth2: fetch config from MOSS when the OAuth2 tab is selected
-  useEffect(() => {
-    if (!isEnterprise || loginTab !== 'oauth2' || oauth2Config) return;
-    let cancelled = false;
-    setOauth2Loading(true);
-    void (async () => {
-      try {
-        const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
-        if (!serverUrl) {
-          if (!cancelled) setOauth2Config({ enabled: false });
-          return;
-        }
-        const res = await ipcBridge.eeclaw.oauth2Config.invoke({ serverUrl });
-        if (cancelled) return;
-        setOauth2Config(res.success && res.data ? res.data : { enabled: false });
-      } finally {
-        if (!cancelled) setOauth2Loading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isEnterprise, loginTab, oauth2Config]);
-
-  // OAuth2: listen for the sudowork://oauth2-callback deep link and complete login.
-  // The provider redirects straight back to the desktop app (no server-side callback page).
-  // `sudowork` is the scheme the packaged app registers, so this routes in production.
-  useEffect(() => {
-    if (!isEnterprise) return;
-    return ipcBridge.deepLink.received.on((payload) => {
-      if (payload.action !== 'oauth2-callback') return;
-      const { state, ...rest } = payload.params || {};
-      // When the moss admin has disabled state verification (`require_state: false`),
-      // skip the local equality check. Trusted-internal deployments use this to
-      // accept logins even when the IdP rewrites or drops `state` on round-trip.
-      // We still generate + carry state on the outbound authorize URL for IdP
-      // compatibility — only the CSRF check on return is bypassed.
-      const verifyState = oauth2Config?.require_state !== false;
-      if (verifyState && (!oauth2StateRef.current || state !== oauth2StateRef.current)) {
-        setOauth2Waiting(false);
-        Message.error('授权回调验证失败,请重试');
-        return;
-      }
-      oauth2StateRef.current = null;
-      // Forward ALL non-state params to moss as an opaque dict — supports both
-      // standard (code) and non-standard (access_token/refresh_token) providers.
-      const params: Record<string, string> = {};
-      for (const [k, v] of Object.entries(rest)) {
-        if (typeof v === 'string' && v.length > 0) params[k] = v;
-      }
-      if (Object.keys(params).length === 0) {
-        setOauth2Waiting(false);
-        Message.error('OAuth2 登录失败');
-        return;
-      }
-      void (async () => {
-        const result = await enterpriseLoginWithOAuth2(params);
-        setOauth2Waiting(false);
-        if (result.success) {
-          setTimeout(() => navigate('/guid', { replace: true }), 300);
-        } else {
-          Message.error(result.message || 'OAuth2 登录失败');
-        }
-      })();
-    });
-  }, [isEnterprise, enterpriseLoginWithOAuth2, navigate, oauth2Config]);
-
-  const handleOAuth2Login = async () => {
-    if (!oauth2Config?.enabled || !oauth2Config.authorize_url) return;
-    const state = generateOAuth2State();
-    oauth2StateRef.current = state;
-    // moss returns the authorize URL with {state} placeholder (or none); fill/append it.
-    const url = oauth2Config.authorize_url.includes('{state}') ? oauth2Config.authorize_url.replace('{state}', encodeURIComponent(state)) : `${oauth2Config.authorize_url}${oauth2Config.authorize_url.includes('?') ? '&' : '?'}state=${encodeURIComponent(state)}`;
-    setOauth2Waiting(true);
-    try {
-      await ipcBridge.shell.openExternal.invoke(url);
-    } catch {
-      setOauth2Waiting(false);
-      Message.error('无法打开浏览器');
-    }
-  };
-
-  const [mode, setMode] = useState<'login' | 'register' | 'password'>('login');
-  const [loginPhone, setLoginPhone] = useState('');
-  const [registerPhone, setRegisterPhone] = useState('');
+  const availableMethods = useMemo(() => authMethods.filter((method) => method !== 'sso' || isElectronDesktop()), [authMethods]);
+  const isRegistrationEnabled = systemConfig?.registration?.phone_enabled ?? availableMethods.includes('phone');
+  const [loginTab, setLoginTab] = useState<LoginTab>(() => preferredTab(authMethods, loginMethod));
+  const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [nickname, setNickname] = useState('');
   const [invitationCode, setInvitationCode] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [loginCountdown, setLoginCountdown] = useState(0);
-  const [registerCountdown, setRegisterCountdown] = useState(0);
-  // 保存注册凭证，避免重复验证验证码
-  const [savedRegisterToken, setSavedRegisterToken] = useState<string | null>(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [isServerExpanded, setIsServerExpanded] = useState(false);
+  const [isServerLocked, setIsServerLocked] = useState(false);
+  const [serverUrl, setServerUrl] = useState(() => (isWebRuntime ? (localStorage.getItem(MOSS_URL_STORAGE_KEY) ?? '') : DEFAULT_MOSS_URL));
+  const [oauth2Config, setOauth2Config] = useState<{
+    enabled: boolean;
+    authorize_url?: string;
+    require_state?: boolean;
+  } | null>(null);
+  const [isOauth2Loading, setIsOauth2Loading] = useState(false);
+  const oauth2StateRef = useRef<string | null>(null);
 
-  // 固定企业码
-  const ENTERPRISE_CODE = 'sudo';
-
-  const [statusMsg, setStatusMsg] = useState<{ text: string; sub: string; type?: string } | null>(null);
-
-  // 允许页面滚动（覆盖 index.html 的 overflow: hidden）
   useEffect(() => {
-    const root = document.getElementById('root');
-    const originalBodyOverflow = document.body.style.overflow;
-    const originalRootOverflow = root?.style.overflow;
+    if (loginTab === 'register' && isRegistrationEnabled) return;
+    if (!availableMethods.includes(loginTab as AuthMethod)) {
+      setLoginTab(preferredTab(availableMethods, loginMethod));
+    }
+  }, [availableMethods, isRegistrationEnabled, loginMethod, loginTab]);
 
-    document.body.style.overflow = 'auto';
-    if (root) root.style.overflow = 'auto';
-
-    return () => {
-      document.body.style.overflow = originalBodyOverflow;
-      if (root) root.style.overflow = originalRootOverflow || '';
-    };
+  useEffect(() => {
+    if (!isElectronDesktop()) return;
+    void getMossServerPolicy().then((policy) => {
+      setServerUrl(policy.serverUrl);
+      setIsServerLocked(policy.isLocked);
+    });
   }, []);
 
   useEffect(() => {
-    if (status === 'authenticated') {
-      void navigate('/guid', { replace: true });
-    }
+    if (status === 'authenticated') void navigate('/guid', { replace: true });
   }, [navigate, status]);
 
-  // 页面加载时重置倒计时
   useEffect(() => {
-    setLoginCountdown(0);
-    setRegisterCountdown(0);
-  }, []);
+    if (countdown <= 0) return;
+    const timer = window.setInterval(() => setCountdown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [countdown]);
 
-  // 手机号变化时清除 register_token（token 绑定特定手机号）
-  const handlePhoneChange = (value: string) => {
-    if (mode === 'login') {
-      setLoginPhone(value);
-    } else {
-      setRegisterPhone(value);
+  useEffect(() => {
+    if (loginTab !== 'sso' || !isElectronDesktop() || oauth2Config) return;
+    setIsOauth2Loading(true);
+    void getMossServerPolicy()
+      .then((policy) => ipcBridge.eeclaw.oauth2Config.invoke({ serverUrl: policy.serverUrl }))
+      .then((result) => setOauth2Config(result.success && result.data ? result.data : { enabled: false }))
+      .finally(() => setIsOauth2Loading(false));
+  }, [loginTab, oauth2Config]);
+
+  useEffect(() => {
+    if (!isElectronDesktop()) return;
+    return ipcBridge.deepLink.received.on((payload) => {
+      if (payload.action !== 'oauth2-callback') return;
+      const { state, ...rest } = payload.params || {};
+      if (oauth2Config?.require_state !== false && state !== oauth2StateRef.current) {
+        setIsLoading(false);
+        Message.error(t('login.thirdPartyStateInvalid'));
+        return;
+      }
+      const params = Object.fromEntries(Object.entries(rest).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].length > 0));
+      oauth2StateRef.current = null;
+      if (Object.keys(params).length === 0) {
+        setIsLoading(false);
+        Message.error(t('login.thirdPartyFailed'));
+        return;
+      }
+      void enterpriseLoginWithOAuth2(params).then((result) => {
+        setIsLoading(false);
+        if (result.success) window.location.reload();
+        else Message.error(result.message || t('login.thirdPartyFailed'));
+      });
+    });
+  }, [enterpriseLoginWithOAuth2, navigate, oauth2Config?.require_state, t]);
+
+  const mossBaseUrl = (): string | undefined => {
+    if (!isWebRuntime || !serverUrl.trim()) return undefined;
+    return normalizeHttpOrigin(serverUrl);
+  };
+
+  const onLoginSucceeded = () => {
+    if (isElectronDesktop()) {
+      // setAppMode updates the persisted process setting. Reload once so all
+      // mode-dependent providers initialize against the online Moss context.
+      window.location.reload();
+      return;
     }
-    if (savedRegisterToken) {
-      setSavedRegisterToken(null);
+    void navigate('/guid', { replace: true });
+  };
+
+  const onPrepareOnline = async (): Promise<boolean> => {
+    if (isWebRuntime && !serverUrl.trim()) {
+      localStorage.removeItem('sudowork_guest');
+      return true;
+    }
+    const normalized = normalizeHttpOrigin(serverUrl);
+    if (!normalized) {
+      Message.warning(t('login.mossBaseUrlInvalid'));
+      return false;
+    }
+    if (isElectronDesktop()) {
+      await ConfigStorage.set('eeclaw.serverUrl', normalized);
+      await setAppMode('e');
+    }
+    localStorage.removeItem('sudowork_guest');
+    return true;
+  };
+
+  const onApplyServer = async () => {
+    const normalized = normalizeHttpOrigin(serverUrl);
+    if (!normalized) {
+      Message.warning(t('login.mossBaseUrlInvalid'));
+      return;
+    }
+    setIsLoading(true);
+    try {
+      if (isWebRuntime) {
+        const response = await fetch(`/api/v1/system-config?mossBaseUrl=${encodeURIComponent(normalized)}`);
+        if (!response.ok) throw new Error('server rejected');
+        localStorage.setItem(MOSS_URL_STORAGE_KEY, normalized);
+      } else {
+        const result = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl: normalized });
+        if (!result.success || !result.data) throw new Error('server unavailable');
+        await ConfigStorage.set('eeclaw.serverUrl', normalized);
+        await ConfigStorage.set('eeclaw.tenantName', resolveTenantConfig(result.data).app_company_name);
+        localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(resolveTenantConfig(result.data)));
+      }
+      window.location.reload();
+    } catch {
+      Message.error(t('login.serverVerifyFailed'));
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const currentPhone = mode === 'login' ? loginPhone : registerPhone;
-
-  // 倒计时定时器
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setLoginCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-      setRegisterCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleSendCode = async () => {
-    if (!isValidPhone(currentPhone)) {
-      Message.error('请输入正确的 11 位手机号');
+  const onSendCode = async () => {
+    if (!isValidPhone(phone)) {
+      Message.warning(t('login.phoneInvalid'));
       return;
     }
-
-    // 发送新验证码时清除旧的 register_token
-    setSavedRegisterToken(null);
-
-    setLoading(true);
+    if (!(await onPrepareOnline())) return;
+    setIsLoading(true);
     try {
-      // Web host: the browser posts to this server, which forwards to the
-      // control plane and keeps its tokens server-side. Same split as the login
-      // and register calls in AuthContext — the desktop talks to the control
-      // plane directly, the browser goes through the webui server.
-      const res = isWebRuntime
+      const response = isWebRuntime
         ? await fetch('/api/auth/send-code', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ phone: currentPhone }),
+            body: JSON.stringify({ phone, ...(mossBaseUrl() ? { mossBaseUrl: mossBaseUrl() } : {}) }),
           })
-        : await fetch(`${await getAuthServerBaseUrl()}/api/v1/auth/send-code`, {
+        : await fetch(`${normalizeHttpOrigin(serverUrl)}/api/v1/auth/send-code`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: currentPhone }),
+            body: JSON.stringify({ phone }),
           });
-
-      const raw = (await res.json()) as { success?: boolean; ok?: boolean; next_send_in?: number; nextSendIn?: number; msg?: string; error?: string; message?: string };
-      // The two servers answer in their own shapes; normalise once here so the
-      // rest of this handler does not care which host it is running on.
-      const data = {
-        success: raw.success ?? raw.ok ?? false,
-        next_send_in: raw.next_send_in ?? raw.nextSendIn,
-        msg: raw.message ?? raw.msg ?? raw.error,
+      const body = (await response.json()) as {
+        success?: boolean;
+        ok?: boolean;
+        next_send_in?: number;
+        nextSendIn?: number;
+        msg?: string;
+        message?: string;
       };
-
-      // A refusal that carries a wait is a countdown, not a dead end: start the
-      // timer so the button says how long rather than only what went wrong.
-      if (!data.success && typeof data.next_send_in === 'number' && data.next_send_in > 0) {
-        if (mode === 'login') setLoginCountdown(data.next_send_in);
-        else setRegisterCountdown(data.next_send_in);
-      }
-
-      if (data.success) {
-        Message.success('验证码已发送');
-        const nextSendIn = data.next_send_in || 60;
-        if (mode === 'login') {
-          setLoginCountdown(nextSendIn);
-        } else {
-          setRegisterCountdown(nextSendIn);
-        }
-      } else {
-        Message.error(data.msg || '发送失败');
-      }
-    } catch (error) {
-      console.error('Failed to send code:', error);
-      Message.error('网络错误，请稍后重试');
+      const nextSendIn = body.next_send_in ?? body.nextSendIn;
+      if (typeof nextSendIn === 'number') setCountdown(nextSendIn);
+      if (response.ok && (body.success ?? body.ok)) Message.success(t('login.sendCodeSuccess'));
+      else Message.error(body.message || body.msg || t('login.errors.serverError'));
+    } catch {
+      Message.error(t('login.errors.networkError'));
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-
-    // Enterprise mode login. Skipped when the server asked for the phone panel,
-    // so the submit path matches the panel actually on screen.
-    if (isEnterprise && !serverDeclaresPhoneLogin) {
-      // WebUI 自定义 moss 地址：在 setLoading 之前校验并记忆，非法即返回（避免卡住 loading）。
-      // 行为由 mossUrl 值驱动：有值才透传，空则清除记忆并回退服务器默认地址。
-      let mossBaseUrl: string | undefined;
-      if (isWebRuntime) {
-        const trimmedMossUrl = mossUrl.trim();
-        if (trimmedMossUrl) {
-          try {
-            const { protocol } = new URL(trimmedMossUrl);
-            if (protocol !== 'http:' && protocol !== 'https:') {
-              Message.warning(t('login.mossBaseUrlInvalid'));
-              return;
-            }
-          } catch {
-            Message.warning(t('login.mossBaseUrlInvalid'));
-            return;
-          }
-          localStorage.setItem(MOSS_URL_STORAGE_KEY, trimmedMossUrl);
-          mossBaseUrl = trimmedMossUrl;
-        } else {
-          localStorage.removeItem(MOSS_URL_STORAGE_KEY);
-        }
-      }
-      if (loginTab === 'password') {
-        if (!username.trim() || !password.trim()) {
-          Message.warning('请填写所有必填项');
-          return;
-        }
-        setLoading(true);
-        try {
-          const result = await enterpriseLogin({ username: username.trim(), password: password.trim(), mossBaseUrl });
-          if (result.success) {
-            setTimeout(() => navigate('/guid', { replace: true }), 300);
-          } else {
-            Message.error(result.message || '登录失败');
-          }
-        } finally {
-          setLoading(false);
-        }
+  const onPhoneSubmit = async () => {
+    if (!isValidPhone(phone) || !code.trim()) {
+      Message.warning(t('login.requiredFields'));
+      return;
+    }
+    if (!(await onPrepareOnline())) return;
+    setIsLoading(true);
+    try {
+      const result = await login({ phone, code, mossBaseUrl: mossBaseUrl() });
+      if (result.success) {
+        onLoginSucceeded();
       } else {
-        if (!apiKey.trim()) {
-          Message.warning('请输入 API Key');
-          return;
-        }
-        setLoading(true);
-        try {
-          const result = await enterpriseLogin({ api_key: apiKey.trim(), mossBaseUrl });
-          if (result.success) {
-            setTimeout(() => navigate('/guid', { replace: true }), 300);
-          } else {
-            Message.error(result.message || '登录失败');
-          }
-        } finally {
-          setLoading(false);
-        }
+        Message.error(result.message || t('login.errors.invalidCredentials'));
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onRegisterSubmit = async () => {
+    if (!isValidPhone(phone) || !code.trim() || !nickname.trim() || !invitationCode.trim()) {
+      Message.warning(t('login.requiredFields'));
       return;
     }
-
-    // Password login offered alongside the phone panel. It goes through
-    // enterpriseLogin (same-origin /api/auth/login/password), not
-    // loginByPassword — the latter posts to the C-side auth server and keys the
-    // account by phone number, so it cannot authenticate a username here.
-    if (mode === 'password') {
-      if (!username.trim()) {
-        Message.warning(t('login.pwdAccountRequired'));
-        return;
-      }
-      if (!password.trim()) {
-        Message.warning(t('login.pwdPasswordRequired'));
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await enterpriseLogin({ username: username.trim(), password: password.trim() });
-        if (result.success) {
-          setTimeout(() => navigate('/guid', { replace: true }), 300);
-        } else {
-          Message.error(result.message || t('login.pwdLoginFailed'));
-        }
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    if (!currentPhone || !code) {
-      Message.warning('请填写所有必填项');
-      return;
-    }
-
-    if (mode === 'register') {
-      if (!nickname.trim()) {
-        Message.warning('请输入昵称');
-        return;
-      }
-      if (!invitationCode.trim()) {
-        Message.warning('请输入邀请码');
-        return;
-      }
-    }
-
-    setLoading(true);
-
-    // 注册模式下，如果已有 register_token，直接注册
-    if (mode === 'register' && savedRegisterToken) {
-      const regResult = await register({
-        register_token: savedRegisterToken,
+    if (!(await onPrepareOnline())) return;
+    setIsLoading(true);
+    try {
+      const result = await register({
+        phone,
+        code,
         nickname: nickname.trim(),
         invitation_code: invitationCode.trim(),
+        mossBaseUrl: mossBaseUrl(),
       });
-
-      if (regResult.success) {
-        setTimeout(() => navigate('/guid', { replace: true }), 300);
-      } else {
-        Message.error(regResult.message || '注册失败');
-
-        // 区分错误类型：仅 token 过期时清除，邀请码错误保留 token 允许重试
-        const errorMsg = regResult.message || '';
-        const isTokenExpired = errorMsg.includes('注册凭证') || errorMsg.includes('过期') || errorMsg.includes('无效');
-
-        if (isTokenExpired) {
-          setSavedRegisterToken(null);
-          Message.warning('注册凭证已过期，请重新获取验证码');
-        }
-      }
-      setLoading(false);
-      return;
+      if (result.success) onLoginSucceeded();
+      else Message.error(result.message || t('login.pwdRegisterFailed'));
+    } finally {
+      setIsLoading(false);
     }
-
-    // 否则先验证验证码
-    const result = await login({ phone: currentPhone, code, enterprise_code: ENTERPRISE_CODE });
-
-    if (result.success) {
-      if (mode === 'register') {
-        Message.info('该手机号已注册，已直接登录');
-      }
-      setTimeout(() => navigate('/guid', { replace: true }), 300);
-      setLoading(false);
-      return;
-    } else {
-      const statusCode = result.status;
-      const needRegister = result.need_register;
-      const registerToken = result.register_token;
-
-      if (needRegister && registerToken) {
-        // 保存 register_token 供后续使用
-        setSavedRegisterToken(registerToken);
-
-        if (mode === 'register') {
-          // 注册模式：直接完成注册
-          const regResult = await register({
-            register_token: registerToken,
-            nickname: nickname.trim(),
-            invitation_code: invitationCode.trim(),
-          });
-
-          if (regResult.success) {
-            setTimeout(() => navigate('/guid', { replace: true }), 300);
-          } else {
-            Message.error(regResult.message || '注册失败');
-            // 仅在 token 过期错误时清除，邀请码错误保留 token 允许重试
-            const errorMsg = regResult.message || '';
-            if (errorMsg.includes('注册凭证') || errorMsg.includes('过期') || errorMsg.includes('无效')) {
-              setSavedRegisterToken(null);
-            }
-          }
-        } else {
-          // 登录模式：提示用户切换到注册标签
-          Message.info('该手机号未注册，请切换到注册标签完成注册');
-          setMode('register');
-        }
-        setLoading(false);
-        return;
-      }
-
-      // 处理审核中状态
-      if (statusCode === 0) {
-        setStatusMsg({
-          text: '账号申请已提交',
-          sub: result.message || '请联系企业管理员审批通过后重新登录',
-          type: 'pending',
-        });
-      }
-      // 处理审核被拒绝状态
-      else if (statusCode === 2) {
-        setStatusMsg({
-          text: '账号审核被拒绝',
-          sub: '您的加入申请已被管理员拒绝。点击下方按钮重新提交申请。',
-          type: 'rejected',
-        });
-      } else {
-        Message.error(result.message || '登录失败');
-      }
-    }
-    setLoading(false);
   };
 
-  const currentCountdown = mode === 'login' ? loginCountdown : registerCountdown;
-
-  if (status === 'checking') {
-    return <AppLoader />;
-  }
-
-  if (statusMsg) {
-    return (
-      <div className='login-page'>
-        <div className='login-page__card text-center flex flex-col items-center gap-24px py-48px'>
-          <div className={`w-64px h-64px rd-full f-center ${statusMsg.type === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
-            <Protect theme='filled' size={32} />
-          </div>
-          <div>
-            <h2 className='text-20px font-700 text-foreground'>{statusMsg.text}</h2>
-            <p className='text-14px text-secondary mt-8px px-20px'>{statusMsg.sub}</p>
-          </div>
-          {statusMsg.type === 'rejected' ? (
-            <Button
-              type='primary'
-              long
-              className='!rd-12px h-48px mt-12px'
-              onClick={() => {
-                setStatusMsg(null);
-                // 自动重新提交申请
-                setTimeout(() => {
-                  const form = document.querySelector('form');
-                  if (form) {
-                    const submitEvent = new SubmitEvent('submit', { bubbles: true, cancelable: true });
-                    form.dispatchEvent(submitEvent);
-                  }
-                }, 100);
-              }}
-            >
-              重新申请
-            </Button>
-          ) : (
-            <Button long className='!rd-12px h-48px mt-12px' onClick={() => setStatusMsg(null)}>
-              返回登录
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Enterprise mode: return mode selection handler
-  const handleBackToModeSelect = async () => {
+  const onCredentialSubmit = async () => {
+    if (!(await onPrepareOnline())) return;
+    if (loginTab === 'password' && (!username.trim() || !password)) {
+      Message.warning(t('login.requiredFields'));
+      return;
+    }
+    if (loginTab === 'api_key' && !apiKey.trim()) {
+      Message.warning(t('login.apiKeyRequired'));
+      return;
+    }
+    setIsLoading(true);
     try {
-      // Clear all enterprise-related ConfigStorage keys
-      await ConfigStorage.set('eeclaw.authStorage', undefined);
-      await ConfigStorage.set('eeclaw.userInfo', undefined);
-      await ConfigStorage.set('eeclaw.serverUrl', undefined);
-      await ConfigStorage.set('eeclaw.tenantName', undefined);
-      await ConfigStorage.set('system.appMode', undefined);
-      // Clear enterprise auth from localStorage
-      localStorage.removeItem('eeclaw_auth_v1');
-      localStorage.removeItem(TENANT_CONFIG_STORAGE_KEY);
-      // Clear C-side auth to avoid falling into authenticated state
-      localStorage.removeItem('sudowork_auth_v2');
-      localStorage.removeItem('sudowork_auth_v1');
-      localStorage.removeItem(GUEST_FLAG_KEY);
-      // Reload page instead of restarting app
+      const result =
+        loginTab === 'api_key'
+          ? await enterpriseLogin({ api_key: apiKey.trim(), mossBaseUrl: mossBaseUrl() })
+          : await enterpriseLogin({
+              username: username.trim(),
+              password,
+              mossBaseUrl: mossBaseUrl(),
+            });
+      if (result.success) onLoginSucceeded();
+      else Message.error(result.message || t('login.pwdLoginFailed'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onSsoLogin = async () => {
+    if (!(await onPrepareOnline()) || !oauth2Config?.enabled || !oauth2Config.authorize_url) return;
+    const state = generateOAuth2State();
+    oauth2StateRef.current = state;
+    const separator = oauth2Config.authorize_url.includes('?') ? '&' : '?';
+    const url = oauth2Config.authorize_url.includes('{state}') ? oauth2Config.authorize_url.replace('{state}', encodeURIComponent(state)) : `${oauth2Config.authorize_url}${separator}state=${encodeURIComponent(state)}`;
+    setIsLoading(true);
+    try {
+      await ipcBridge.shell.openExternal.invoke(url);
+    } catch {
+      setIsLoading(false);
+      Message.error(t('login.thirdPartyOpenFailed'));
+    }
+  };
+
+  const onUseOffline = async () => {
+    setIsLoading(true);
+    try {
+      await enterGuest();
+      await setAppMode('c');
+      const result = await ipcBridge.application.startConsumerServices.invoke();
+      if (result && !result.success) throw new Error(result.msg || 'Failed to start local services');
       window.location.reload();
     } catch (error) {
-      console.error('[LoginPage] Failed to reset mode:', error);
+      setIsLoading(false);
+      Message.error(error instanceof Error ? error.message : t('login.errors.serverError'));
     }
   };
 
-  // Enterprise login UI
-  if (isEnterprise && !serverDeclaresPhoneLogin) {
-    return (
-      <div className='login-page'>
-        {showWindowControls && (
-          <div className='app-window-controls'>
-            <WindowControls />
-          </div>
-        )}
-
-        <div className='login-page__background'>
-          <div className='login-page__background-circle login-page__background-circle--lg' />
-          <div className='login-page__background-circle login-page__background-circle--md' />
-          <div className='login-page__background-circle login-page__background-circle--sm' />
-        </div>
-
-        <div className='login-page__card'>
-          <div className='login-page__header'>
-            <div className='login-page__logo'>
-              <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
-            </div>
-            <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
-            <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
-          </div>
-
-          {/* Enterprise login tabs: password / key / oauth2 */}
-          <div className='login-tabs'>
-            <button type='button' className={`login-tab ${loginTab === 'password' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('password')}>
-              密码登录
-            </button>
-            <button type='button' className={`login-tab ${loginTab === 'key' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('key')}>
-              密钥登录
-            </button>
-            {showOAuth2Tab && (
-              <button type='button' className={`login-tab ${loginTab === 'oauth2' ? 'login-tab--active' : ''}`} onClick={() => setLoginTab('oauth2')}>
-                OAuth2 登录
-              </button>
-            )}
-          </div>
-
-          <div className='flex flex-col gap-20px mt-24px'>
-            {loginTab === 'password' ? (
-              <>
-                <div className='flex flex-col gap-8px'>
-                  <div className='text-12px font-600 text-secondary ml-4px'>用户名</div>
-                  <Input size='large' prefix={<User className='text-tertiary' />} placeholder='请输入用户名' value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
-                </div>
-                <div className='flex flex-col gap-8px'>
-                  <div className='text-12px font-600 text-secondary ml-4px'>密码</div>
-                  <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder='请输入密码' value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
-                </div>
-              </>
-            ) : loginTab === 'key' ? (
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>API Key</div>
-                <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='moss_sk_xxx.yyy' value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
-              </div>
-            ) : showOAuth2Tab ? (
-              <div className='flex flex-col gap-8px text-center'>
-                {oauth2Loading ? (
-                  <div className='text-13px text-tertiary py-12px'>正在检查 OAuth2 配置…</div>
-                ) : oauth2Config?.enabled ? (
-                  <div className='text-13px text-secondary py-4px'>点击下方按钮，将在浏览器中完成身份认证。</div>
-                ) : (
-                  <div className='text-13px text-tertiary py-12px'>管理员未启用 OAuth2 登录</div>
-                )}
-              </div>
-            ) : null}
-
-            {isWebRuntime &&
-              (loginTab === 'password' || loginTab === 'key') &&
-              (isCustomUrlExpanded ? (
-                <div className='flex flex-col gap-8px'>
-                  <div className='text-12px font-600 text-secondary ml-4px'>{t('login.mossBaseUrlLabel')}</div>
-                  <Input size='large' maxLength={2048} prefix={<Server className='text-tertiary' />} placeholder={t('login.mossBaseUrlPlaceholder')} value={mossUrl} onChange={setMossUrl} className='login-input !rd-12px h-48px' />
-                </div>
-              ) : (
-                <div className='text-left'>
-                  <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={() => setIsCustomUrlExpanded(true)}>
-                    {t('login.customServerToggle')}
-                  </span>
-                </div>
-              ))}
-
-            {loginTab === 'oauth2' ? (
-              <Button type='primary' size='large' loading={oauth2Waiting} disabled={oauth2Loading || !oauth2Config?.enabled} onClick={() => handleOAuth2Login()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
-                {oauth2Waiting ? '等待浏览器授权…' : '通过浏览器登录'}
-              </Button>
-            ) : (
-              <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
-                登录
-              </Button>
-            )}
-
-            {isElectronDesktop() && (
-              <div className='text-center mt-12px'>
-                <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={handleBackToModeSelect}>
-                  ← 返回模式选择
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // C 端：登录方式探测中（避免手机/密码面板闪烁）
-  if (loginMethod === null) {
-    return <AppLoader />;
-  }
-
-  // C 端：用户名密码登录方式（login_method=1）
-  if (loginMethod === 1) {
-    return (
-      <div className='login-page'>
-        {showWindowControls && (
-          <div className='app-window-controls'>
-            <WindowControls />
-          </div>
-        )}
-        <div className='login-page__background'>
-          <div className='login-page__background-circle login-page__background-circle--lg' />
-          <div className='login-page__background-circle login-page__background-circle--md' />
-          <div className='login-page__background-circle login-page__background-circle--sm' />
-        </div>
-        <PasswordAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} onBackToModeSelect={handleBackToModeSelect} />
-      </div>
-    );
-  }
-
-  // C 端：三方认证登录方式（login_method=2）
-  if (loginMethod === 2) {
-    return (
-      <div className='login-page'>
-        {showWindowControls && (
-          <div className='app-window-controls'>
-            <WindowControls />
-          </div>
-        )}
-        <div className='login-page__background'>
-          <div className='login-page__background-circle login-page__background-circle--lg' />
-          <div className='login-page__background-circle login-page__background-circle--md' />
-          <div className='login-page__background-circle login-page__background-circle--sm' />
-        </div>
-        <ThirdPartyAuthPanel appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} systemConfig={systemConfig} onBackToModeSelect={handleBackToModeSelect} />
-      </div>
-    );
-  }
+  if (status === 'checking' || isBootstrapLoading) return <AppLoader />;
 
   return (
     <div className='login-page'>
-      {/* 桌面端窗口控制按钮 / Window controls for desktop */}
       {showWindowControls && (
         <div className='app-window-controls'>
           <WindowControls />
         </div>
       )}
-
-      {/* 装饰性背景 */}
       <div className='login-page__background'>
         <div className='login-page__background-circle login-page__background-circle--lg' />
         <div className='login-page__background-circle login-page__background-circle--md' />
@@ -769,90 +369,118 @@ const LoginPage: React.FC = () => {
           <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>
         </div>
 
-        {/* Tab switcher. The password tab is enterprise-only: it submits through
-            enterpriseLogin, which the C-side deployment does not serve. */}
         <div className='login-tabs'>
-          <button type='button' className={`login-tab ${mode === 'login' ? 'login-tab--active' : ''}`} onClick={() => setMode('login')}>
-            {t('login.phoneTab')}
-          </button>
-          {isEnterprise && (
-            <button type='button' className={`login-tab ${mode === 'password' ? 'login-tab--active' : ''}`} onClick={() => setMode('password')}>
-              {t('login.passwordTab')}
-            </button>
-          )}
-          <button type='button' className={`login-tab ${mode === 'register' ? 'login-tab--active' : ''}`} onClick={() => setMode('register')}>
-            注册
-          </button>
+          {availableMethods.includes('phone') && <LoginTabButton isActive={loginTab === 'phone'} label={t('login.phoneTab')} onClick={() => setLoginTab('phone')} />}
+          {availableMethods.includes('password') && <LoginTabButton isActive={loginTab === 'password'} label={t('login.passwordTab')} onClick={() => setLoginTab('password')} />}
+          {availableMethods.includes('api_key') && <LoginTabButton isActive={loginTab === 'api_key'} label={t('login.apiKeyTab')} onClick={() => setLoginTab('api_key')} />}
+          {isRegistrationEnabled && <LoginTabButton isActive={loginTab === 'register'} label={t('login.pwdRegisterTab')} onClick={() => setLoginTab('register')} />}
+          {availableMethods.includes('sso') && <LoginTabButton isActive={loginTab === 'sso'} label={t('login.ssoTab')} onClick={() => setLoginTab('sso')} />}
         </div>
 
         <div className='flex flex-col gap-20px mt-24px'>
-          {mode === 'password' ? (
+          {loginTab === 'phone' && (
             <>
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>{t('login.pwdAccountLabel')}</div>
-                <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdAccountPlaceholder')} value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
+              <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder={t('login.phonePlaceholder')} value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
+              <div className='flex w-full'>
+                <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder={t('login.codePlaceholder')} value={code} onChange={setCode} maxLength={8} className='login-input !rd-l-12px h-48px flex-1' />
+                <Button size='large' disabled={countdown > 0 || isLoading} onClick={() => void onSendCode()} className='h-48px !rd-r-12px'>
+                  {countdown > 0 ? t('login.countingDown', { count: countdown }) : t('login.sendCode')}
+                </Button>
               </div>
-
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>{t('login.pwdPasswordLabel')}</div>
-                <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('login.pwdPasswordPlaceholder')} value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
-              </div>
+              <Button type='primary' size='large' loading={isLoading} onClick={() => void onPhoneSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {t('login.submit')}
+              </Button>
             </>
+          )}
+
+          {loginTab === 'password' && (
+            <>
+              <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdAccountPlaceholder')} value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
+              <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('login.pwdPasswordPlaceholder')} value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
+              <Button type='primary' size='large' loading={isLoading} onClick={() => void onCredentialSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {t('login.pwdLoginBtn')}
+              </Button>
+            </>
+          )}
+
+          {loginTab === 'api_key' && (
+            <>
+              <Input.Password size='large' prefix={<Key className='text-tertiary' />} placeholder={t('login.apiKeyPlaceholder')} value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
+              <Button type='primary' size='large' loading={isLoading} onClick={() => void onCredentialSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {t('login.submit')}
+              </Button>
+            </>
+          )}
+
+          {loginTab === 'register' && (
+            <>
+              <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder={t('login.phonePlaceholder')} value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
+              <div className='flex w-full'>
+                <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder={t('login.codePlaceholder')} value={code} onChange={setCode} maxLength={8} className='login-input !rd-l-12px h-48px flex-1' />
+                <Button size='large' disabled={countdown > 0 || isLoading} onClick={() => void onSendCode()} className='h-48px !rd-r-12px'>
+                  {countdown > 0 ? t('login.countingDown', { count: countdown }) : t('login.sendCode')}
+                </Button>
+              </div>
+              <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdNicknamePlaceholder')} value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' />
+              <Input size='large' prefix={<Key className='text-tertiary' />} placeholder={t('login.pwdInvitationCodePlaceholder')} value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' />
+              <Button type='primary' size='large' loading={isLoading} onClick={() => void onRegisterSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {t('login.pwdRegisterBtn')}
+              </Button>
+            </>
+          )}
+
+          {loginTab === 'sso' && (
+            <>
+              <div className='login-third-party__icon'>
+                <Link theme='outline' size={32} />
+              </div>
+              <Button type='primary' size='large' loading={isLoading} disabled={isOauth2Loading || !oauth2Config?.enabled} onClick={() => void onSsoLogin()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {isLoading ? t('login.thirdPartyWaiting') : t('login.ssoLogin')}
+              </Button>
+              {!isOauth2Loading && !oauth2Config?.enabled && <div className='text-center text-12px text-tertiary'>{t('login.thirdPartyUnavailable')}</div>}
+            </>
+          )}
+
+          {isServerExpanded ? (
+            <div className='flex flex-col gap-8px'>
+              <div className='text-12px font-600 text-secondary ml-4px'>{t('login.mossBaseUrlLabel')}</div>
+              <div className='flex w-full'>
+                <Input size='large' maxLength={2048} disabled={isServerLocked} prefix={<Server className='text-tertiary' />} placeholder={DEFAULT_MOSS_URL} value={serverUrl} onChange={setServerUrl} className='login-input !rd-l-12px h-48px flex-1' />
+                <Button size='large' loading={isLoading} disabled={isServerLocked} onClick={() => void onApplyServer()} className='h-48px !rd-r-12px'>
+                  {t('login.serverApply')}
+                </Button>
+              </div>
+              {isServerLocked && <div className='text-12px text-tertiary ml-4px'>{t('login.serverLocked')}</div>}
+            </div>
           ) : (
-            <>
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>手机号码</div>
-                <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder='11 位手机号' value={currentPhone} onChange={handlePhoneChange} className='login-input !rd-12px h-48px' />
-              </div>
-
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>身份验证</div>
-                <Space size='small' className='w-full'>
-                  <Input size='large' prefix={<Key className='text-tertiary' />} placeholder='6 位验证码' value={code} onChange={setCode} className='login-input !rd-12px h-48px flex-1' />
-                  <Button size='large' disabled={currentCountdown > 0} onClick={handleSendCode} className='!rd-8px h-48px font-600 min-w-120px'>
-                    {currentCountdown > 0 ? `${currentCountdown}s` : '发送验证码'}
-                  </Button>
-                </Space>
-              </div>
-            </>
+            <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={() => setIsServerExpanded(true)}>
+              {t('login.customServerToggle')}
+            </span>
           )}
 
-          {mode === 'register' && (
-            <>
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>昵称</div>
-                <Input size='large' prefix={<User className='text-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
-              </div>
-
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-600 text-secondary ml-4px'>邀请码</div>
-                <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
-              </div>
-            </>
+          {isElectronDesktop() && (
+            <div className='text-center'>
+              <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={() => void onUseOffline()}>
+                {t('login.offlineUse')}
+              </span>
+            </div>
           )}
-
-          <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
-            {mode === 'password' ? t('login.pwdLoginBtn') : mode === 'login' ? '登录' : '注册'}
-          </Button>
-
-          <div className='flex items-center justify-center gap-16px mt-12px'>
-            <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={handleBackToModeSelect}>
-              ← 返回模式选择
-            </span>
-            <span
-              className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors'
-              onClick={async () => {
-                await enterGuest();
-                void navigate('/guid');
-              }}
-            >
-              {t('login.skip')}
-            </span>
-          </div>
         </div>
       </div>
     </div>
   );
-};
+}
 
-export default LoginPage;
+function LoginTabButton({ isActive, label, onClick }: ILoginTabButtonProps) {
+  return (
+    <button type='button' className={`login-tab ${isActive ? 'login-tab--active' : ''}`} onClick={onClick}>
+      {label}
+    </button>
+  );
+}
+
+interface ILoginTabButtonProps {
+  isActive: boolean;
+  label: string;
+  onClick: () => void;
+}

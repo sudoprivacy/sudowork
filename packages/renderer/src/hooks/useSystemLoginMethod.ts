@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { fetchSystemConfig, type SystemConfig } from '@sudowork/common/systemConfig';
+import type { AuthMethod } from '@sudowork/common/systemConfigTypes';
 import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
 import { THIRD_PARTY_LOGIN_METHOD } from '@sudowork/common/thirdPartyAuthConfig';
 
@@ -17,6 +18,7 @@ export interface SystemLoginMethodState {
   /** null 表示尚未拿到结果；拿到后为 0、1 或 2 */
   loginMethod: LoginMethod | null;
   systemConfig: SystemConfig | null;
+  authMethods: AuthMethod[];
   isLoading: boolean;
   error: Error | null;
 }
@@ -27,14 +29,28 @@ let cachedLoginMethod: LoginMethod | null = null;
 let cachedSystemConfig: SystemConfig | null = null;
 let cachedAt = 0;
 // 进行中的请求去重，避免并发触发多次
-let inflight: Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null }> | null = null;
+let cachedAuthMethods: AuthMethod[] = [];
+let inflight: Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null; authMethods: AuthMethod[] }> | null = null;
 
-async function fetchLoginMethod(): Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null }> {
+export function resolveAuthMethods(data: SystemConfig | null): AuthMethod[] {
+  const allowed = new Set<AuthMethod>(['phone', 'password', 'api_key', 'sso']);
+  const declared = data?.auth_methods?.filter((method): method is AuthMethod => allowed.has(method));
+  if (declared?.length) return [...new Set(declared)];
+  if (data?.login_method === 2) return ['sso', 'password', 'api_key'];
+  if (data?.login_method === 1) return ['password', 'api_key'];
+  return ['phone', 'password', 'api_key'];
+}
+
+async function fetchLoginMethod(): Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null; authMethods: AuthMethod[] }> {
   if (cachedLoginMethod !== null && Date.now() - cachedAt < CACHE_TTL_MS) {
-    return { loginMethod: cachedLoginMethod, systemConfig: cachedSystemConfig };
+    return { loginMethod: cachedLoginMethod, systemConfig: cachedSystemConfig, authMethods: cachedAuthMethods };
   }
   if (inflight) return inflight;
-  inflight = (async (): Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null }> => {
+  inflight = (async (): Promise<{
+    loginMethod: LoginMethod;
+    systemConfig: SystemConfig | null;
+    authMethods: AuthMethod[];
+  }> => {
     try {
       // Reuse the shared client; fetchSystemConfig() also fills the renderer's
       // system-config module cache (setSystemConfigCache) so synchronous base-url
@@ -42,7 +58,8 @@ async function fetchLoginMethod(): Promise<{ loginMethod: LoginMethod; systemCon
       // Ask the server this client actually authenticates against. Reading the
       // consumer server here while logging in against a control plane is what
       // used to make a moss deployment unable to advertise its login method.
-      const data = await fetchSystemConfig(await getAuthServerBaseUrl());
+      const customMossBaseUrl = typeof window !== 'undefined' && !window.electronAPI ? localStorage.getItem('login.mossBaseUrl') || undefined : undefined;
+      const data = await fetchSystemConfig(await getAuthServerBaseUrl(), customMossBaseUrl);
       // Sync to main-process cache (see main.tsx for rationale).
       if (data) {
         void ipcBridge.systemConfig.syncFromRenderer.invoke({ data }).catch(() => {});
@@ -50,12 +67,13 @@ async function fetchLoginMethod(): Promise<{ loginMethod: LoginMethod; systemCon
       const loginMethod: LoginMethod = data?.login_method === THIRD_PARTY_LOGIN_METHOD ? 2 : data?.login_method === 1 ? 1 : 0;
       cachedLoginMethod = loginMethod;
       cachedSystemConfig = data;
+      cachedAuthMethods = resolveAuthMethods(data);
       cachedAt = Date.now();
-      return { loginMethod, systemConfig: data };
+      return { loginMethod, systemConfig: data, authMethods: cachedAuthMethods };
     } catch (err) {
       // 失败兜底：按手机验证码（login_method=0，即维持现状），控制台告警，不打断用户
       console.warn('[useSystemLoginMethod] fetch system-config failed, fallback to login_method=0:', err);
-      return { loginMethod: 0, systemConfig: null };
+      return { loginMethod: 0, systemConfig: null, authMethods: resolveAuthMethods(null) };
     } finally {
       inflight = null;
     }
@@ -67,6 +85,7 @@ export function useSystemLoginMethod(): SystemLoginMethodState {
   const [state, setState] = useState<SystemLoginMethodState>(() => ({
     loginMethod: cachedLoginMethod,
     systemConfig: cachedSystemConfig,
+    authMethods: cachedAuthMethods.length ? cachedAuthMethods : resolveAuthMethods(null),
     isLoading: cachedLoginMethod === null,
     error: null,
   }));
@@ -74,9 +93,9 @@ export function useSystemLoginMethod(): SystemLoginMethodState {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { loginMethod, systemConfig } = await fetchLoginMethod();
+      const { loginMethod, systemConfig, authMethods } = await fetchLoginMethod();
       if (cancelled) return;
-      setState({ loginMethod, systemConfig, isLoading: false, error: null });
+      setState({ loginMethod, systemConfig, authMethods, isLoading: false, error: null });
     })();
     return () => {
       cancelled = true;

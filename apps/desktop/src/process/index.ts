@@ -106,15 +106,10 @@ export const initializeProcess = async () => {
     }
     perfLog('ChannelManager', Date.now() - channelStart);
   }
-  // appMode=null（真新用户 / 老用户升级）：保持 initStatus 默认 phase='pending'，
-  // 不在此处声称 'ready'。让 InitLoading 真实反映"核心服务尚未启动"，
-  // 避免 main.tsx 在服务未就绪时进入主界面。
-  // 后续收敛路径：
-  //   - 真新用户：main.tsx 用 needsSetup 优先级显示 ModeSetup；用户选模式后
-  //     handleConsumerNext → setAppMode → eeclawBridge.setAppMode.provider 触发 startup。
-  //   - 老用户升级（sudowork_auth_v2 存在）：main.tsx 显示 InitLoading；
-  //     useAppMode fire-and-forget setAppMode('c') → 同上触发 startup。
-  //   - 两条路径都在 setAppMode.provider 收敛，确保核心服务一定被启动。
+  // appMode=null（新安装或旧版本升级）时保持 initStatus 为 pending。
+  // renderer 的 useAppMode 会自动收敛到在线 Moss 模式；用户明确选择
+  // “离线使用”时才切到本地模式。两条路径最终都由
+  // eeclawBridge.setAppMode.provider 启动核心服务。
 
   perfLog('total_startup', Date.now() - totalStart);
   mainLog('Process', `Initialization complete in ${Date.now() - totalStart}ms`);

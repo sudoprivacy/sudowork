@@ -169,6 +169,7 @@ const Sider: React.FC = () => {
       return;
     } else if (key === 'login') {
       setUserMenuOpen(false);
+      await logout();
       void navigate('/login', { replace: true });
     } else if (key === 'logout') {
       setUserMenuOpen(false);

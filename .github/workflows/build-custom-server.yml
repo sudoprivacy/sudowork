@@ -17,9 +17,14 @@ on:
   workflow_dispatch:
     inputs:
       server_base_url:
-        description: 'sudowork-server base URL to inject (REQUIRED, e.g. https://sudowork-staging.example.com)'
+        description: 'Moss base URL to inject (REQUIRED, e.g. https://agent.example.com)'
         required: true
         type: string
+      lock_server_url:
+        description: 'Lock the Moss address so users cannot override it'
+        required: false
+        type: boolean
+        default: false
       ref:
         description: 'Git ref to checkout (branch or commit; leave empty for the default branch)'
         required: false
@@ -72,4 +77,5 @@ jobs:
       ref: ${{ inputs.ref }}
       skip_code_quality: ${{ inputs.skip_code_quality }}
       server_base_url: ${{ inputs.server_base_url }}
+      server_locked: ${{ inputs.lock_server_url }}
     secrets: inherit

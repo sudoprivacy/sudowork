@@ -23,7 +23,7 @@ export interface MossSessionPort {
   create(
     ctx: MossCallContext,
     input: { assistantName: string; enabledSkills: string[] },
-  ): Promise<{ sessionId: string; wsUrl: string }>
+  ): Promise<{ sessionId: string; taskId?: string; attemptId?: string | null; wsUrl: string }>
   /** 用户级模型偏好（Moss 无会话级模型接口，PUT /api/v1/users/me/model）；建会话前设置使新会话采用该模型 */
   setUserModel(ctx: MossCallContext, modelId: string): Promise<void>
   /**
@@ -85,7 +85,12 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
         },
       })
       const parsed = MossCreateSessionResponseSchema.parse(json)
-      return { sessionId: parsed.session_id, wsUrl: parsed.ws_url }
+      return {
+        sessionId: parsed.session_id,
+        taskId: parsed.task_id ?? parsed.session_id,
+        attemptId: parsed.attempt_id ?? null,
+        wsUrl: parsed.ws_url,
+      }
     },
 
     async setUserModel(ctx, modelId) {

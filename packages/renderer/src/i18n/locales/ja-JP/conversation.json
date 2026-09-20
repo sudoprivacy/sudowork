@@ -10,7 +10,11 @@
     "downloadLocalFile": "ローカルファイルをインポート",
     "downloadBdpanFile": "バイドゥ・ネットディスクのファイルをインポート",
     "linkFolder": "フォルダを追加",
-    "newConversation": "新しいチャット",
+    "newConversation": "新しいタスク",
+    "execution": {
+      "cloud": "クラウド実行",
+      "local": "ローカル実行"
+    },
     "multiAgentModeEnabled": "マルチエージェントモードに入ります",
     "selectModel": "モデルを選択",
     "useCliModel": "モデルを選択",
@@ -33,7 +37,7 @@
     "earlier": "それ以前",
     "noHistory": "チャット履歴はありません",
     "noScheduledTask": "実行記録はありません",
-    "actionNewConversation": "新しい会話",
+    "actionNewConversation": "新しいタスク",
     "deleteTitle": "削除",
     "deleteConfirm": "このチャットを削除してもよろしいですか？",
     "deleteWorkspaceOption": "ワークスペースフォルダも削除する",

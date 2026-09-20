@@ -34,10 +34,31 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+export class PhoneNotRegisteredError extends Error {
+  constructor() {
+    super('phone not registered')
+    this.name = 'PhoneNotRegisteredError'
+  }
+}
+
+export class RegistrationRejectedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RegistrationRejectedError'
+  }
+}
+
 export class MossUnavailableError extends Error {
   constructor(cause: unknown) {
     super(`moss unavailable: ${(cause as Error)?.message ?? String(cause)}`)
     this.name = 'MossUnavailableError'
+  }
+}
+
+export class MossOriginNotAllowedError extends Error {
+  constructor() {
+    super('moss origin is not allowed')
+    this.name = 'MossOriginNotAllowedError'
   }
 }
 
@@ -64,9 +85,17 @@ interface StoredTokens {
 const refreshInFlight = new Map<string, Promise<StoredTokens>>()
 
 function mapLoginError(err: unknown): Error {
+  if (err instanceof MossHttpError && err.status === 404) {
+    try {
+      const body = JSON.parse(err.bodyText) as { code?: string }
+      if (body.code === 'phone_not_registered') return new PhoneNotRegisteredError()
+    } catch {
+      // A non-JSON 404 is handled as a normal upstream error below.
+    }
+  }
   if (
     err instanceof MossHttpError &&
-    (err.status === 400 || err.status === 401 || err.status === 403)
+    (err.status === 400 || err.status === 401 || err.status === 403 || err.status === 404)
   ) {
     return new InvalidCredentialsError()
   }
@@ -74,6 +103,18 @@ function mapLoginError(err: unknown): Error {
     return new MossUnavailableError(err)
   }
   return err instanceof Error ? err : new Error(String(err))
+}
+
+function mapRegistrationError(err: unknown): Error {
+  if (err instanceof MossHttpError && (err.status === 400 || err.status === 409)) {
+    try {
+      const body = JSON.parse(err.bodyText) as { msg?: string; message?: string }
+      return new RegistrationRejectedError(body.msg || body.message || 'Registration rejected')
+    } catch {
+      return new RegistrationRejectedError('Registration rejected')
+    }
+  }
+  return mapLoginError(err)
 }
 
 /**
@@ -88,7 +129,22 @@ export function resolveLoginMoss(
 ): { baseUrl: string; identityBaseUrl: string | null } {
   if (!mossBaseUrl) return { baseUrl: config.moss.baseUrl, identityBaseUrl: null }
   const configuredOrigin = new URL(config.moss.baseUrl).origin
-  const origin = new URL(mossBaseUrl).origin
+  let parsed: URL
+  try {
+    parsed = new URL(mossBaseUrl)
+  } catch {
+    throw new MossOriginNotAllowedError()
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
+    throw new MossOriginNotAllowedError()
+  }
+  if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
+    throw new MossOriginNotAllowedError()
+  }
+  const origin = parsed.origin
+  const allowedOrigins = new Set(config.moss.allowedOrigins.map((value) => new URL(value).origin))
+  allowedOrigins.add(configuredOrigin)
+  if (!allowedOrigins.has(origin)) throw new MossOriginNotAllowedError()
   if (origin === configuredOrigin) return { baseUrl: config.moss.baseUrl, identityBaseUrl: null }
   return { baseUrl: origin, identityBaseUrl: origin }
 }
@@ -198,15 +254,13 @@ export async function sendPhoneCode(
 /**
  * Phone + code login.
  *
- * A number moss has not seen yet returns `needRegister` with moss's attestation
- * rather than an error, and no cookie is set: the caller shows a registration
- * form and comes back to `registerWithPhone`. That keeps the code verified
- * exactly once even though signup takes two requests.
+ * Registration is intentionally separate. An unknown number is rejected by
+ * Moss and the caller may switch to the registration tab.
  */
 export async function loginWithPhone(
   deps: AuthDeps,
   input: { phone: string; code: string; mossBaseUrl?: string },
-): Promise<LoginResult | { needRegister: true; registerToken: string; phone: string }> {
+): Promise<LoginResult> {
   const { baseUrl, identityBaseUrl } = resolveLoginMoss(deps.config, input.mossBaseUrl)
   let result
   try {
@@ -214,20 +268,18 @@ export async function loginWithPhone(
   } catch (err) {
     throw mapLoginError(err)
   }
-  if (result.kind === 'need_register') {
-    return { needRegister: true, registerToken: result.registerToken, phone: result.phone }
-  }
   const me = await fetchMe(deps, result.tokens.access_token, baseUrl)
   return performLogin(deps, result.tokens, me, identityBaseUrl)
 }
 
-/** Exchange moss's register attestation for an account, and open a web session. */
+/** Register with a verified phone and enterprise invitation, then open a web session. */
 export async function registerWithPhone(
   deps: AuthDeps,
   input: {
-    registerToken: string
-    nickname?: string
-    invitationCode?: string
+    phone: string
+    code: string
+    nickname: string
+    invitationCode: string
     mossBaseUrl?: string
   },
 ): Promise<LoginResult> {
@@ -236,14 +288,15 @@ export async function registerWithPhone(
   try {
     tokens = await deps.mossAuth.registerWithPhone(
       {
-        registerToken: input.registerToken,
+        phone: input.phone,
+        code: input.code,
         nickname: input.nickname,
         invitationCode: input.invitationCode,
       },
       baseUrl,
     )
   } catch (err) {
-    throw mapLoginError(err)
+    throw mapRegistrationError(err)
   }
   const me = await fetchMe(deps, tokens.access_token, baseUrl)
   return performLogin(deps, tokens, me, identityBaseUrl)

@@ -19,6 +19,8 @@ const ConfigFileSchema = z.object({
   moss: z.object({
     baseUrl: z.string().url(),
     wsBaseUrl: z.string().url(),
+    /** Additional administrator-approved origins users may select at login. */
+    allowedOrigins: z.array(z.string().url()).default([]),
   }),
   session: z.object({
     ttlSeconds: z.number().int().positive().default(604800),
@@ -106,6 +108,7 @@ export function loadConfig(configPath?: string): AppConfig {
       moss: {
         baseUrl: process.env.MOSS_BASE_URL,
         wsBaseUrl: process.env.MOSS_WS_BASE_URL,
+        allowedOrigins: [],
       },
     })
   }
@@ -119,6 +122,17 @@ export function loadConfig(configPath?: string): AppConfig {
   }
   if (process.env.MOSS_WS_BASE_URL) {
     file = { ...file, moss: { ...file.moss, wsBaseUrl: process.env.MOSS_WS_BASE_URL } }
+  }
+  if (process.env.MOSS_ALLOWED_ORIGINS !== undefined) {
+    file = {
+      ...file,
+      moss: {
+        ...file.moss,
+        allowedOrigins: process.env.MOSS_ALLOWED_ORIGINS.split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      },
+    }
   }
   if (process.env.PORT && /^\d+$/.test(process.env.PORT)) {
     file = { ...file, server: { ...file.server, port: Number(process.env.PORT) } }
@@ -165,8 +179,27 @@ export function loadConfig(configPath?: string): AppConfig {
     )
   }
 
+  const allowedOrigins = [
+    ...new Set([
+      httpUrl.origin,
+      ...file.moss.allowedOrigins.map((value) => {
+        const url = new URL(value)
+        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+          throw new ConfigError(`invalid Moss allowed origin: ${value}`)
+        }
+        if (url.pathname !== '/' || url.search || url.hash) {
+          throw new ConfigError(
+            `Moss allowed origin must not contain a path, query or fragment: ${value}`,
+          )
+        }
+        return url.origin
+      }),
+    ]),
+  ]
+
   return {
     ...file,
+    moss: { ...file.moss, baseUrl: httpUrl.origin, allowedOrigins },
     isProduction,
     databaseUrl: readEnv('DATABASE_URL'),
     sessionHmacKey: loadKey('SESSION_HMAC_KEY', 32, 'session token HMAC'),

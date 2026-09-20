@@ -21,7 +21,11 @@ import {
   securityHeaders,
 } from './security/requestSecurity.js'
 import { createAuthRouter } from './features/auth/authRoutes.js'
-import { MossUnauthorizedError } from './features/auth/authService.js'
+import {
+  MossOriginNotAllowedError,
+  MossUnauthorizedError,
+  resolveLoginMoss,
+} from './features/auth/authService.js'
 import {
   createSessionMiddleware,
   findSessionByCookie,
@@ -158,14 +162,19 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   // to its password tabs, and a deployment configured for phone signup silently
   // shows the wrong screen. Mounted above the session middleware's protected
   // routes because it is read while logged out.
-  app.get('/api/v1/system-config', (_req, res) => {
+  app.get('/api/v1/system-config', (req, res) => {
     void (async () => {
       try {
-        const upstream = await fetch(
-          new URL('/api/v1/system-config', config.moss.baseUrl).toString(),
-        )
+        const requestedBaseUrl =
+          typeof req.query.mossBaseUrl === 'string' ? req.query.mossBaseUrl : undefined
+        const { baseUrl } = resolveLoginMoss(config, requestedBaseUrl)
+        const upstream = await fetch(new URL('/api/v1/system-config', baseUrl).toString())
         res.status(upstream.status).json(await upstream.json())
-      } catch {
+      } catch (error) {
+        if (error instanceof MossOriginNotAllowedError) {
+          res.status(400).json({ success: false, msg: 'moss origin is not allowed' })
+          return
+        }
         // A moss that is down or too old to serve this must not take the login
         // page with it: the renderer treats an unusable answer as "unknown" and
         // keeps its existing tabs.
