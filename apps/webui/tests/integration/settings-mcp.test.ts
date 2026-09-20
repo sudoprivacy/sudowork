@@ -160,6 +160,19 @@ describe('settings + mcp routes (real PostgreSQL + fake moss)', () => {
       config: testConfig,
       pool,
       mossAuth: createFakeAuth(),
+      mossFetch: async (_baseUrl, req) => {
+        if (req.path === '/api/v1/tenant/config') {
+          return {
+            success: true,
+            data: {
+              app_name: 'Public Acme',
+              top_name: 'Public Acme Top',
+              logo: 'data:image/png;base64,abc',
+            },
+          }
+        }
+        throw new Error(`unexpected moss request ${req.path}`)
+      },
       mcp: createFakeMcp(),
     })
   })
@@ -169,6 +182,14 @@ describe('settings + mcp routes (real PostgreSQL + fake moss)', () => {
   })
 
   const ORIGIN = testConfig.publicOrigin
+
+  test('public tenant config is available before login', async () => {
+    const res = await request(app).get('/api/v1/tenant/config')
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.data.app_name).toBe('Public Acme')
+    expect(res.body.data.logo).toBe('data:image/png;base64,abc')
+  })
 
   test('profile returns moss user profile projection', async () => {
     const res = await request(app).get('/api/settings/profile').set('Cookie', cookieA)

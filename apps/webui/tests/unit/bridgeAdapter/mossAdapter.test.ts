@@ -56,16 +56,32 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
     vi.unstubAllGlobals()
   })
 
-  it('verify-server maps /api/settings/about into a TenantConfigData envelope', async () => {
+  it('verify-server maps public /api/v1/tenant/config into a TenantConfigData envelope', async () => {
     const fetchMock = stubFetch({
-      '/api/settings/about': { branding: { appName: 'Acme', logo: 'https://logo' } },
+      '/api/v1/tenant/config': {
+        success: true,
+        data: {
+          app_name: 'Acme',
+          top_name: 'Acme Top',
+          about_name: 'About Acme',
+          app_company_name: 'Acme Inc.',
+          login_desp: 'Welcome',
+          logo: 'https://logo',
+          client_cron_enabled: false,
+        },
+      },
     })
     const result = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl: 'ignored' })
 
     expect(result.success).toBe(true)
     expect(result.data).toMatchObject({
       app_name: 'Acme',
+      top_name: 'Acme Top',
+      about_name: 'About Acme',
+      app_company_name: 'Acme Inc.',
+      login_desp: 'Welcome',
       logo: 'https://logo',
+      client_cron_enabled: false,
     })
     // Required TenantConfigData fields are synthesized, never undefined.
     expect(typeof result.data?.id).toBe('string')
@@ -73,13 +89,13 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
     // The consumer side fills every remaining null from DEFAULT_TENANT_CONFIG.
     const resolved = resolveTenantConfig(result.data as unknown as TenantConfigInput)
     expect(resolved.app_name).toBe('Acme')
-    expect(resolved.client_cron_enabled).toBe(true)
+    expect(resolved.client_cron_enabled).toBe(false)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/settings/about')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/v1/tenant/config')
   })
 
   it('verify-server tolerates branding failure and still resolves defaults', async () => {
-    stubFetch({ '/api/settings/about': { status: 500, body: { error: 'MOSS_UNAVAILABLE' } } })
+    stubFetch({ '/api/v1/tenant/config': { status: 500, body: { error: 'MOSS_UNAVAILABLE' } } })
     const result = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl: '' })
 
     expect(result.success).toBe(true)

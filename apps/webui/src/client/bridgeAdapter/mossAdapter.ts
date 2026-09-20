@@ -52,12 +52,38 @@ interface BridgeEmitter {
 }
 
 type AnyReq = Record<string, unknown>
+type TenantConfigPayload = {
+  success?: unknown
+  data?: unknown
+  logo?: unknown
+  app_name?: unknown
+  appName?: unknown
+  top_name?: unknown
+  topName?: unknown
+  about_name?: unknown
+  aboutName?: unknown
+  app_company_name?: unknown
+  appCompanyName?: unknown
+  login_desp?: unknown
+  loginDesp?: unknown
+  client_cron_enabled?: unknown
+  client_show_tool_calls?: unknown
+  workspace_upload_limit_bytes?: unknown
+}
 
 const ok = <D>(data?: D): IBridgeResponse<D> => ({ success: true, data })
 const fail = (msg: string): IBridgeResponse => ({ success: false, msg })
 
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
+}
+
+function tenantConfigFromPayload(payload: TenantConfigPayload | null): TenantConfigPayload | null {
+  if (!payload || typeof payload !== 'object') return null
+  if (payload.success === true && payload.data && typeof payload.data === 'object') {
+    return payload.data as TenantConfigPayload
+  }
+  return payload
 }
 
 // ---------------------------------------------------------------------------
@@ -850,20 +876,55 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
 
   // --- eeclaw tenancy: tenant config / profile / cloud assistants ---
   'eeclaw.verify-server': async () => {
-    const about = await apiFetch<{ branding?: { appName?: string; logo?: string } }>(
-      '/api/settings/about',
-    ).catch(() => null)
-    // TenantConfigData has no cron/policy flags; the consumer's
-    // resolveTenantConfig fills every null with DEFAULT_TENANT_CONFIG, which
-    // is exactly what unblocks the cron access chain on the web host.
+    const tenantConfig = tenantConfigFromPayload(
+      await apiFetch<TenantConfigPayload>('/api/v1/tenant/config').catch(() => null),
+    )
+    // Missing/null fields are filled by resolveTenantConfig on the consumer side.
     return ok({
       id: location.origin,
-      logo: about?.branding?.logo ?? null,
-      app_name: about?.branding?.appName ?? null,
-      top_name: about?.branding?.appName ?? null,
-      about_name: about?.branding?.appName ?? null,
-      app_company_name: null,
-      login_desp: null,
+      logo: typeof tenantConfig?.logo === 'string' ? tenantConfig.logo : null,
+      app_name:
+        typeof tenantConfig?.app_name === 'string'
+          ? tenantConfig.app_name
+          : typeof tenantConfig?.appName === 'string'
+            ? tenantConfig.appName
+            : null,
+      top_name:
+        typeof tenantConfig?.top_name === 'string'
+          ? tenantConfig.top_name
+          : typeof tenantConfig?.topName === 'string'
+            ? tenantConfig.topName
+            : null,
+      about_name:
+        typeof tenantConfig?.about_name === 'string'
+          ? tenantConfig.about_name
+          : typeof tenantConfig?.aboutName === 'string'
+            ? tenantConfig.aboutName
+            : null,
+      app_company_name:
+        typeof tenantConfig?.app_company_name === 'string'
+          ? tenantConfig.app_company_name
+          : typeof tenantConfig?.appCompanyName === 'string'
+            ? tenantConfig.appCompanyName
+            : null,
+      login_desp:
+        typeof tenantConfig?.login_desp === 'string'
+          ? tenantConfig.login_desp
+          : typeof tenantConfig?.loginDesp === 'string'
+            ? tenantConfig.loginDesp
+            : null,
+      client_cron_enabled:
+        typeof tenantConfig?.client_cron_enabled === 'boolean'
+          ? tenantConfig.client_cron_enabled
+          : null,
+      client_show_tool_calls:
+        typeof tenantConfig?.client_show_tool_calls === 'boolean'
+          ? tenantConfig.client_show_tool_calls
+          : null,
+      workspace_upload_limit_bytes:
+        typeof tenantConfig?.workspace_upload_limit_bytes === 'number'
+          ? tenantConfig.workspace_upload_limit_bytes
+          : null,
       updated_at: Date.now(),
     })
   },
