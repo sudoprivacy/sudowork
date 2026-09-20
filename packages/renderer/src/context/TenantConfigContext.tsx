@@ -11,6 +11,7 @@ import { ConfigStorage } from '@sudowork/common/storage';
 import type { TenantConfig, TenantConfigResponse } from '@sudowork/common/types/tenantConfig';
 import { DEFAULT_TENANT_CONFIG, TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
 import { useAppMode } from '@renderer/hooks/useAppMode';
+import { applyTenantBrowserBranding } from '@renderer/utils/tenantBranding';
 import { useAuth } from './AuthContext';
 
 const POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 分钟
@@ -66,6 +67,13 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
   const [confirmed, setConfirmed] = useState(false);
   const isRefreshing = useRef(false);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const isCustomBranding = Boolean(config.logo) || config.app_name !== DEFAULT_TENANT_CONFIG.app_name || config.top_name !== DEFAULT_TENANT_CONFIG.top_name;
+    if (isCustomBranding) {
+      applyTenantBrowserBranding(config);
+    }
+  }, [config]);
 
   /**
    * 从服务端获取租户配置

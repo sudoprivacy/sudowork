@@ -146,6 +146,7 @@ export interface ApiHandles {
 /** 挂载 /api 路由（登录后全部走 session middleware，计划 3.2）。 */
 export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   const { config, pool } = deps
+  const mossFetch = deps.mossFetch ?? mossRequest
 
   app.use('/api', createSessionMiddleware(pool, config.sessionHmacKey))
 
@@ -172,9 +173,23 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
       }
     })()
   })
+
+  // Public tenant branding bootstrap. This intentionally mirrors the desktop
+  // enterprise setup probe, which reads Moss tenant config before login so the
+  // first WebUI screen can show the configured company name and logo.
+  app.get('/api/v1/tenant/config', (_req, res, next) => {
+    void (async () => {
+      const upstream = await mossFetch(
+        config.moss.baseUrl,
+        { method: 'GET', path: '/api/v1/tenant/config' },
+        10_000,
+      )
+      res.status(200).json(upstream)
+    })().catch(next)
+  })
+
   app.use('/api/auth', createAuthRouter({ pool, config, mossAuth: deps.mossAuth }))
 
-  const mossFetch = deps.mossFetch ?? mossRequest
   const auth = { pool, config, mossAuth: deps.mossAuth }
   const mossSession = deps.mossSession ?? createMossSessionPort(mossFetch)
   const coordinator =
