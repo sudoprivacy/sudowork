@@ -113,7 +113,36 @@ describe('OntologyDatabase schema', () => {
             name: 'isolated-ontology-database',
             setup(context) {
               context.onResolve({ filter: /^@sudowork\/ontology-common$/ }, () => ({ path: commonSource }));
-              context.onResolve({ filter: /^better-sqlite3$/ }, () => ({ path: require.resolve('better-sqlite3'), external: true }));
+              // The full unit-test CI job does not rebuild native modules. Keep this
+              // subprocess isolated from better-sqlite3's Node/Electron ABI by using
+              // Node 22's built-in SQLite implementation behind the same small API.
+              context.onResolve({ filter: /^better-sqlite3$/ }, () => ({ path: 'better-sqlite3', namespace: 'node-sqlite' }));
+              context.onLoad({ filter: /.*/, namespace: 'node-sqlite' }, () => ({
+                contents: `
+                  const { DatabaseSync } = require('node:sqlite');
+                  class BetterSqlite3 {
+                    constructor(filename) { this.database = new DatabaseSync(filename); }
+                    close() { this.database.close(); }
+                    exec(sql) { return this.database.exec(sql); }
+                    prepare(sql) { return this.database.prepare(sql); }
+                    pragma(source) { return this.database.exec(\`PRAGMA \${source}\`); }
+                    transaction(callback) {
+                      return (...args) => {
+                        this.database.exec('BEGIN');
+                        try {
+                          const result = callback(...args);
+                          this.database.exec('COMMIT');
+                          return result;
+                        } catch (error) {
+                          this.database.exec('ROLLBACK');
+                          throw error;
+                        }
+                      };
+                    }
+                  }
+                  module.exports = BetterSqlite3;
+                `,
+              }));
               context.onResolve({ filter: /^(electron|@process\/utils|@process\/utils\/mainLogger)$/ }, (args) => ({ path: args.path, namespace: 'fixture' }));
               context.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
                 contents: `export const getDataPath=()=>${JSON.stringify(directory)}; export const ensureDirectory=(dir)=>require('node:fs').mkdirSync(dir,{recursive:true}); export const mainLog=()=>{}; export const safeStorage={isEncryptionAvailable:()=>false};`,
@@ -123,15 +152,7 @@ describe('OntologyDatabase schema', () => {
         ],
       });
       const run = promisify(execFile);
-      let stdout: string;
-      try {
-        ({ stdout } = await run(process.execPath, [outputFile], { timeout: 15_000 }));
-      } catch (error) {
-        if (!String(error).includes('NODE_MODULE_VERSION')) throw error;
-        const electronDirectory = path.dirname(require.resolve('electron/package.json'));
-        const executable = path.join(electronDirectory, 'dist', fs.readFileSync(path.join(electronDirectory, 'path.txt'), 'utf8').trim());
-        ({ stdout } = await run(executable, [outputFile], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 15_000 }));
-      }
+      const { stdout } = await run(process.execPath, [outputFile], { timeout: 15_000 });
       expect(stdout).toContain('isolated SQLite conditional save passed');
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
