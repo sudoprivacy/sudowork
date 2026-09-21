@@ -67,6 +67,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       isTeamMember: extra.isTeamMember,
       teamId: extra.teamId,
       teamMcpConfig: extra.teamMcpConfig,
+      extraMcpConfigs: extra.extraMcpConfigs,
       backend: extra.backend,
       cliPath: extra.cliPath,
       agentName: extra.agentName,

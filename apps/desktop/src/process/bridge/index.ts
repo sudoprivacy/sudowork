@@ -62,6 +62,7 @@ import { initBrowserPanelBridge } from './browserPanelBridge';
 import { initDeliverablesBridge } from './deliverablesBridge';
 import { initLocalKnowledgeBaseBridge } from './localKnowledgeBaseBridge';
 import { initOntologyBridge } from './ontologyBridge';
+import { initOntologyAiBuilderBridge } from './ontologyAiBuilderBridge';
 // Crash bridge is initialized early in src/process/index.ts before storage
 // to handle renderer errors during startup
 import { initEeclawBridge } from './eeclawBridge';
@@ -129,6 +130,7 @@ export function initAllBridges(): void {
   initDeliverablesBridge();
   initLocalKnowledgeBaseBridge();
   initOntologyBridge();
+  initOntologyAiBuilderBridge();
   // Note: initCrashBridge() is called early in src/process/index.ts before storage
   initEeclawBridge();
   registerScodeBridge();

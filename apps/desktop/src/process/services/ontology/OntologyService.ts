@@ -1,6 +1,8 @@
 import fs from 'fs/promises';
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
+import { isOntologyDocumentAsset, ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS } from '@sudowork/ontology-common';
 import BetterSqlite3 from 'better-sqlite3';
 import { Client as FtpClient } from 'basic-ftp';
 import { Kafka, logLevel, type KafkaConfig } from 'kafkajs';
@@ -57,12 +59,18 @@ import { acpDetector } from '@/agent/acp/AcpDetector';
 import { OntologyDatabase } from './OntologyDatabase';
 import { installOntologyMcpServer, removeOntologyMcpServer } from './OntologyMcpRegistration';
 import { parseOntologyTemplateFile } from './ontologyTemplateParser';
+import { extractOntologyDocuments, readOntologyDocuments, validateOntologyDocumentFiles } from './ontologyDocumentExtractor';
 
 export class OntologyService {
   private readonly database: OntologyDatabase;
   private readonly engine: OntologyEngine;
+  private readonly generatingWorkspaces = new Set<string>();
 
-  constructor(database = new OntologyDatabase(), engine = new OntologyEngine(database)) {
+  constructor(
+    database = new OntologyDatabase(),
+    engine = new OntologyEngine(database),
+    private readonly extractDocuments = extractOntologyDocuments
+  ) {
     this.database = database;
     this.engine = engine;
   }
@@ -110,24 +118,36 @@ export class OntologyService {
   }
 
   async importFiles(input: IOntologyImportFilesInput) {
+    const workspaceId = input.workspaceId?.trim() || (await this.getActiveWorkspaceId());
+    if (input.workspaceId && !this.database.getSnapshot(workspaceId)) throw new Error('ontology.documentErrors.conflict');
+    if (input.purpose === 'document') await validateOntologyDocumentFiles(input.filePaths);
     const fileStats = [];
-    for (const filePath of input.filePaths) {
+    for (const filePath of [...new Set(input.filePaths)]) {
       try {
         const stat = await fs.stat(filePath);
-        if (!stat.isFile()) continue;
-        if (input.purpose && stat.size > 50 * 1024 * 1024) throw new Error(`Ontology build file exceeds the 50 MB limit: ${path.basename(filePath)}`);
+        if (!stat.isFile()) {
+          if (input.purpose) throw new Error('ontology.documentErrors.fileUnavailable');
+          continue;
+        }
+        if (input.purpose && stat.size > 50 * 1024 * 1024) throw new Error('ontology.documentErrors.fileTooLarge');
         const template = input.purpose === 'template' ? await parseOntologyTemplateFile(filePath) : null;
         if (input.purpose === 'template' && !template) throw new Error(`No ontology objects were found in template file: ${path.basename(filePath)}`);
         fileStats.push({
           ...createFileStat(filePath, stat.size),
-          fields: await inferFields(filePath),
+          fields: input.purpose === 'document' ? [] : await inferFields(filePath),
           ...(template ? { metadata: { ontologyTemplate: JSON.stringify(template) } } : {}),
         });
       } catch (err) {
+        if (input.purpose === 'document') {
+          if (err instanceof Error && err.message.startsWith('ontology.documentErrors.')) throw err;
+          throw new Error('ontology.documentErrors.fileUnavailable');
+        }
+        if (input.purpose === 'template') throw err;
         mainError('OntologyService', `Failed to stat ontology import file: ${filePath}`, err);
       }
     }
-    return this.engine.importFiles(input, fileStats, await this.getActiveWorkspaceId());
+    if (!this.database.getSnapshot(workspaceId)) throw new Error('ontology.documentErrors.conflict');
+    return this.engine.importFiles(input, fileStats, workspaceId);
   }
 
   async probeConnector(input: IOntologyProbeConnectorInput) {
@@ -172,8 +192,29 @@ export class OntologyService {
     return previewAsset(asset, connector, Math.max(1, Math.min(input.limit ?? 20, 100)));
   }
 
-  async generateDraft(input?: IOntologyGenerateDraftInput) {
-    return this.engine.generateDraft(input, await this.getActiveWorkspaceId());
+  async generateDraft(input: IOntologyGenerateDraftInput = {}) {
+    const workspaceId = input.workspaceId?.trim() || (await this.getActiveWorkspaceId());
+    if (this.generatingWorkspaces.has(workspaceId)) throw new Error('ontology.documentErrors.busy');
+    const expectedSnapshot = this.database.getSnapshot(workspaceId);
+    if (!expectedSnapshot) throw new Error('ontology.documentErrors.conflict');
+    const assetIds = [...new Set(input.assetIds ?? expectedSnapshot.draft.selectedAssetIds)];
+    const documentAssetIds = [...new Set([...(input.documentAssetIds ?? []), ...expectedSnapshot.assets.filter((asset) => assetIds.includes(asset.id) && asset.kind === 'document' && !asset.metadata.ontologyTemplate).map((asset) => asset.id)])];
+    if (documentAssetIds.length === 0) return this.engine.generateDraft(input, workspaceId);
+    const documentAssets = expectedSnapshot.assets.filter((asset) => documentAssetIds.includes(asset.id));
+    if (documentAssets.length !== documentAssetIds.length || documentAssets.some((asset) => !assetIds.includes(asset.id) || !isOntologyDocumentAsset(asset))) {
+      throw new Error('ontology.documentErrors.invalidSelection');
+    }
+    const businessGoal = (input.businessGoal ?? expectedSnapshot.draft.businessGoal).trim();
+    if (businessGoal.length > ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS) throw new Error('ontology.documentErrors.textTooLarge');
+    this.generatingWorkspaces.add(workspaceId);
+    try {
+      const documents = await readOntologyDocuments(documentAssets);
+      const extraction = await this.extractDocuments(documents, businessGoal);
+      if (!isDeepStrictEqual(this.database.getSnapshot(workspaceId), expectedSnapshot)) throw new Error('ontology.documentErrors.conflict');
+      return await this.engine.generateDraft({ ...input, assetIds, documentAssetIds, workspaceId, businessGoal }, workspaceId, { extraction, expectedSnapshot });
+    } finally {
+      this.generatingWorkspaces.delete(workspaceId);
+    }
   }
 
   async upsertObject(input: IOntologyObjectDraftInput) {

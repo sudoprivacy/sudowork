@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type {
   IOntologyActionDefinition,
   IOntologyActionDefinitionInput,
@@ -20,6 +21,7 @@ import type {
   IOntologyDeleteAttributeInput,
   IOntologyDeleteConnectorInput,
   IOntologyDeleteInput,
+  IOntologyDocumentExtraction,
   IOntologyEnvironmentAsset,
   IOntologyFieldMapping,
   IOntologyFieldMappingInput,
@@ -74,7 +76,10 @@ export interface IOntologyRepository {
   listSnapshots():
     | IOntologyWorkbenchSnapshot[]
     | Promise<IOntologyWorkbenchSnapshot[]>;
-  saveSnapshot(snapshot: IOntologyWorkbenchSnapshot): void | Promise<void>;
+  saveSnapshot(
+    snapshot: IOntologyWorkbenchSnapshot,
+    expectedSnapshot?: IOntologyWorkbenchSnapshot,
+  ): void | Promise<void>;
   deleteSnapshot(workspaceId: string): void | Promise<void>;
   resetSnapshot(workspaceId: string): void | Promise<void>;
 }
@@ -1127,8 +1132,30 @@ export class OntologyEngine {
   async generateDraft(
     input: IOntologyGenerateDraftInput = {},
     workspaceId = "default",
+    documentGeneration?: {
+      extraction: IOntologyDocumentExtraction;
+      expectedSnapshot: IOntologyWorkbenchSnapshot;
+    },
   ): Promise<IOntologyWorkbenchSnapshot> {
-    const snapshot = await this.getWorkbench(workspaceId);
+    const documentAssetIds = new Set(input.documentAssetIds ?? []);
+    if (documentAssetIds.size > 0 && !documentGeneration) {
+      throw new Error("ontology.documentErrors.invalidResult");
+    }
+    let snapshot: IOntologyWorkbenchSnapshot;
+    if (documentGeneration) {
+      const stored = await this.repository.getSnapshot(workspaceId);
+      if (
+        !stored ||
+        stored.workspaceId !== workspaceId ||
+        !isDeepStrictEqual(stored, documentGeneration.expectedSnapshot)
+      ) {
+        throw new Error("ontology.documentErrors.conflict");
+      }
+      // Compare and save the raw snapshot; normalization may add legacy defaults.
+      snapshot = normalizeSnapshot(structuredClone(stored));
+    } else {
+      snapshot = await this.getWorkbench(workspaceId);
+    }
     const selectedAssetIds =
       input.assetIds !== undefined
         ? dedupe(input.assetIds)
@@ -1136,19 +1163,50 @@ export class OntologyEngine {
     const selectedAssets = snapshot.assets.filter((asset) =>
       selectedAssetIds.includes(asset.id),
     );
+    if (
+      documentGeneration &&
+      (documentAssetIds.size === 0 ||
+        (input.workspaceId !== undefined &&
+          input.workspaceId !== workspaceId) ||
+        [...documentAssetIds].some(
+          (id) => !selectedAssets.some((asset) => asset.id === id),
+        ))
+    ) {
+      throw new Error("ontology.documentErrors.invalidSelection");
+    }
+    if (
+      selectedAssets.some(
+        (asset) =>
+          asset.kind === "document" &&
+          !ontologyTemplateFromMetadata(asset.metadata) &&
+          !documentAssetIds.has(asset.id),
+      )
+    ) {
+      throw new Error("ontology.documentErrors.invalidSelection");
+    }
+    const structuredAssets = selectedAssets.filter(
+      (asset) => !documentAssetIds.has(asset.id),
+    );
     const now = Date.now();
+    if (input.businessGoal !== undefined) {
+      snapshot.draft.businessGoal = input.businessGoal.trim();
+    }
 
     const nextObjects =
-      selectedAssets.length > 0
-        ? selectedAssets.flatMap((asset) => createObjectsFromAsset(asset, now))
-        : [
-            createObjectFromBusinessGoal(
-              input.businessGoal ||
-                snapshot.draft.businessGoal ||
-                snapshot.draft.title,
-              now,
-            ),
-          ];
+      structuredAssets.length > 0
+        ? structuredAssets.flatMap((asset) =>
+            createObjectsFromAsset(asset, now),
+          )
+        : documentGeneration
+          ? []
+          : [
+              createObjectFromBusinessGoal(
+                input.businessGoal ||
+                  snapshot.draft.businessGoal ||
+                  snapshot.draft.title,
+                now,
+              ),
+            ];
     const existingBySourceAndCode = new Map(
       snapshot.objects.flatMap((object) =>
         object.sourceAssetIds.map(
@@ -1174,8 +1232,10 @@ export class OntologyEngine {
     const replacedObjectIds = new Set(
       generatedObjects.map((object) => object.id),
     );
-    const replacedSourceIds = new Set(selectedAssets.map((asset) => asset.id));
-    const mergedObjects =
+    const replacedSourceIds = new Set(
+      structuredAssets.map((asset) => asset.id),
+    );
+    let mergedObjects =
       input.mode === "merge"
         ? [
             ...snapshot.objects.filter(
@@ -1189,7 +1249,7 @@ export class OntologyEngine {
           ]
         : generatedObjects;
     const templateRelations = createRelationsFromTemplateAssets(
-      selectedAssets,
+      structuredAssets,
       generatedObjects,
       now,
     );
@@ -1201,22 +1261,44 @@ export class OntologyEngine {
       generatedRelations.map((relation) => relation.code),
     );
 
-    snapshot.objects = mergedObjects;
-    snapshot.relations =
-      input.mode === "merge"
-        ? [
-            ...snapshot.relations.filter(
-              (relation) => !generatedRelationCodes.has(relation.code),
-            ),
-            ...generatedRelations,
-          ]
-        : generatedRelations;
+    if (documentGeneration) {
+      mergeDocumentExtraction(
+        snapshot,
+        documentGeneration.extraction,
+        documentAssetIds,
+        generatedObjects,
+        generatedRelations,
+        now,
+      );
+      mergedObjects = snapshot.objects;
+    } else {
+      snapshot.objects = mergedObjects;
+      snapshot.relations =
+        input.mode === "merge"
+          ? [
+              ...snapshot.relations.filter(
+                (relation) => !generatedRelationCodes.has(relation.code),
+              ),
+              ...generatedRelations,
+            ]
+          : generatedRelations;
+    }
     snapshot.mappings =
-      input.mode === "merge"
+      input.mode === "merge" || documentGeneration
         ? reconcileFieldMappings(snapshot, now)
         : createFieldMappings(mergedObjects, now);
+    if (documentGeneration) {
+      const manualByKey = new Map(
+        (documentGeneration.expectedSnapshot.mappings ?? [])
+          .filter((mapping) => mapping.strategy === "manual")
+          .map((mapping) => [mappingKey(mapping), mapping]),
+      );
+      snapshot.mappings = snapshot.mappings
+        .filter((mapping) => isMappingStillValid(snapshot, mapping))
+        .map((mapping) => manualByKey.get(mappingKey(mapping)) ?? mapping);
+    }
     snapshot.qualityRules =
-      input.mode === "merge"
+      input.mode === "merge" || documentGeneration
         ? reconcileQualityRules(snapshot, now)
         : createQualityRules(mergedObjects, now);
     snapshot.businessDocuments = createBusinessDocuments(
@@ -1261,7 +1343,7 @@ export class OntologyEngine {
       "review",
       snapshot.objects.length > 0 ? "in_progress" : "not_started",
     );
-    return this.save(snapshot);
+    return this.save(snapshot, documentGeneration?.expectedSnapshot);
   }
 
   async reviewTarget(
@@ -1716,10 +1798,11 @@ export class OntologyEngine {
 
   private async save(
     snapshot: IOntologyWorkbenchSnapshot,
+    expectedSnapshot?: IOntologyWorkbenchSnapshot,
   ): Promise<IOntologyWorkbenchSnapshot> {
     snapshot.updatedAt = Date.now();
     snapshot.stats = recalculateOntologyStats(snapshot);
-    await this.repository.saveSnapshot(snapshot);
+    await this.repository.saveSnapshot(snapshot, expectedSnapshot);
     return snapshot;
   }
 
@@ -2030,6 +2113,286 @@ function validateMappingInput(
 function clampConfidence(value: number): number {
   if (Number.isNaN(value)) return 0;
   return Math.min(1, Math.max(0, value));
+}
+
+function mergeDocumentExtraction(
+  snapshot: IOntologyWorkbenchSnapshot,
+  extraction: IOntologyDocumentExtraction,
+  documentAssetIds: Set<string>,
+  structuredObjects: IOntologyObjectDraft[],
+  structuredRelations: IOntologyRelationDraft[],
+  now: number,
+): void {
+  if (!extraction?.objects?.length || !Array.isArray(extraction.relations)) {
+    throw new Error("ontology.documentErrors.invalidResult");
+  }
+  const relatedObjects = snapshot.objects.filter((object) =>
+    object.sourceAssetIds.some((id) => documentAssetIds.has(id)),
+  );
+  if (
+    relatedObjects.some((object) =>
+      object.sourceAssetIds.some((id) => !documentAssetIds.has(id)),
+    )
+  ) {
+    throw new Error("ontology.documentErrors.conflict");
+  }
+  const relatedIds = new Set(relatedObjects.map((object) => object.id));
+  const documentObjects = extraction.objects.map(
+    (definition): IOntologyObjectDraft => {
+      if (
+        !definition.sourceAssetIds.length ||
+        definition.sourceAssetIds.some((id) => !documentAssetIds.has(id))
+      ) {
+        throw new Error("ontology.documentErrors.invalidResult");
+      }
+      const code = toCode(definition.code);
+      const sourceAssetIds = dedupe(definition.sourceAssetIds).sort();
+      const candidates = snapshot.objects.filter(
+        (object) => toCode(object.code) === code,
+      );
+      if (
+        candidates.length > 1 ||
+        candidates.some(
+          (object) =>
+            !relatedIds.has(object.id) ||
+            !isDeepStrictEqual(
+              dedupe(object.sourceAssetIds).sort(),
+              sourceAssetIds,
+            ),
+        )
+      ) {
+        throw new Error("ontology.documentErrors.conflict");
+      }
+      const previous = candidates[0];
+      const attributes = definition.attributes.map(
+        (attribute): IOntologyAttributeDraft => {
+          const attributeCode = toCode(attribute.code);
+          const matches =
+            previous?.attributes.filter(
+              (item) => toCode(item.code) === attributeCode,
+            ) ?? [];
+          if (matches.length > 1)
+            throw new Error("ontology.documentErrors.conflict");
+          const nextAttribute: IOntologyAttributeDraft = {
+            ...matches[0],
+            id: matches[0]?.id ?? randomUUID(),
+            code: attributeCode,
+            name: attribute.name,
+            dataType: attribute.dataType,
+            required: attribute.required,
+            description: attribute.description,
+          };
+          const mappedField = nextAttribute.mappedField;
+          return mappedField &&
+            !snapshot.assets.some(
+              (asset) =>
+                asset.id === mappedField.assetId &&
+                asset.fields.some(
+                  (field) => field.name === mappedField.fieldName,
+                ),
+            )
+            ? omitMappedField(nextAttribute)
+            : nextAttribute;
+        },
+      );
+      if (
+        new Set(attributes.map((attribute) => attribute.code)).size !==
+        attributes.length
+      ) {
+        throw new Error("ontology.documentErrors.invalidResult");
+      }
+      const object: IOntologyObjectDraft = {
+        ...previous,
+        id: previous?.id ?? randomUUID(),
+        code,
+        name: definition.name,
+        description: definition.description,
+        tier: previous?.tier ?? 3,
+        status: previous?.status ?? "active",
+        sourceAssetIds: previous?.sourceAssetIds ?? sourceAssetIds,
+        attributes,
+        reviewDecision: "pending",
+        updatedAt: now,
+      };
+      if (
+        previous &&
+        isDeepStrictEqual(
+          documentObjectContent(previous),
+          documentObjectContent(object),
+        )
+      ) {
+        object.reviewDecision = previous.reviewDecision;
+        object.updatedAt = previous.updatedAt;
+      }
+      return object;
+    },
+  );
+  if (
+    new Set(documentObjects.map((object) => object.code)).size !==
+    documentObjects.length
+  ) {
+    throw new Error("ontology.documentErrors.invalidResult");
+  }
+  const structuredSourceIds = new Set(
+    structuredObjects.flatMap((object) => object.sourceAssetIds),
+  );
+  const replacedStructuredIds = new Set(
+    snapshot.objects
+      .filter((object) =>
+        object.sourceAssetIds.some((id) => structuredSourceIds.has(id)),
+      )
+      .map((object) => object.id),
+  );
+  if (
+    snapshot.objects.some(
+      (object) =>
+        replacedStructuredIds.has(object.id) &&
+        object.sourceAssetIds.some((id) => !structuredSourceIds.has(id)),
+    )
+  ) {
+    throw new Error("ontology.documentErrors.conflict");
+  }
+  // Document regeneration replaces only selected sources, even in replace mode.
+  const objects = [
+    ...snapshot.objects.filter(
+      (object) =>
+        !relatedIds.has(object.id) && !replacedStructuredIds.has(object.id),
+    ),
+    ...structuredObjects,
+    ...documentObjects,
+  ];
+  if (
+    new Set(objects.map((object) => toCode(object.code))).size !==
+    objects.length
+  ) {
+    throw new Error("ontology.documentErrors.conflict");
+  }
+  const objectByCode = new Map(
+    documentObjects.map((object) => [object.code, object]),
+  );
+  const documentRelations = extraction.relations.map(
+    (definition): IOntologyRelationDraft => {
+      const from = objectByCode.get(toCode(definition.from));
+      const to = objectByCode.get(toCode(definition.to));
+      if (!from || !to)
+        throw new Error("ontology.documentErrors.invalidResult");
+      const code = toCode(definition.code);
+      const candidates = snapshot.relations.filter(
+        (relation) => toCode(relation.code) === code,
+      );
+      if (
+        candidates.length > 1 ||
+        candidates.some(
+          (relation) =>
+            !relatedIds.has(relation.fromObjectId) ||
+            !relatedIds.has(relation.toObjectId),
+        )
+      ) {
+        throw new Error("ontology.documentErrors.conflict");
+      }
+      const previous = candidates[0];
+      const relation: IOntologyRelationDraft = {
+        ...previous,
+        id: previous?.id ?? randomUUID(),
+        code,
+        name: definition.name,
+        description: definition.description,
+        fromObjectId: from.id,
+        toObjectId: to.id,
+        cardinality: definition.cardinality,
+        relationType: previous?.relationType ?? "object_property",
+        semanticType: previous?.semanticType ?? "association",
+        isAcyclic: previous?.isAcyclic ?? false,
+        reviewDecision: "pending",
+        updatedAt: now,
+      };
+      if (
+        previous &&
+        isDeepStrictEqual(
+          {
+            ...previous,
+            code: toCode(previous.code),
+            description: previous.description ?? "",
+          },
+          {
+            ...relation,
+            reviewDecision: previous.reviewDecision,
+            updatedAt: previous.updatedAt,
+          },
+        )
+      ) {
+        relation.reviewDecision = previous.reviewDecision;
+        relation.updatedAt = previous.updatedAt;
+      }
+      return relation;
+    },
+  );
+  for (const relation of structuredRelations) {
+    if (
+      snapshot.relations.some(
+        (previous) =>
+          toCode(previous.code) === toCode(relation.code) &&
+          (!replacedStructuredIds.has(previous.fromObjectId) ||
+            !replacedStructuredIds.has(previous.toObjectId)),
+      )
+    ) {
+      throw new Error("ontology.documentErrors.conflict");
+    }
+  }
+  const objectIds = new Set(objects.map((object) => object.id));
+  const relations = [
+    ...snapshot.relations.filter(
+      (relation) =>
+        objectIds.has(relation.fromObjectId) &&
+        objectIds.has(relation.toObjectId) &&
+        !(
+          relatedIds.has(relation.fromObjectId) &&
+          relatedIds.has(relation.toObjectId)
+        ) &&
+        !(
+          replacedStructuredIds.has(relation.fromObjectId) &&
+          replacedStructuredIds.has(relation.toObjectId)
+        ),
+    ),
+    ...structuredRelations,
+    ...documentRelations,
+  ];
+  if (
+    new Set(relations.map((relation) => toCode(relation.code))).size !==
+    relations.length
+  ) {
+    throw new Error("ontology.documentErrors.conflict");
+  }
+  const oldGeneratedRuleIds = new Set(
+    createQualityRules(relatedObjects, now).map(
+      (rule) => `${rule.objectId}:${rule.code}`,
+    ),
+  );
+  snapshot.qualityRules = snapshot.qualityRules.filter(
+    (rule) => !oldGeneratedRuleIds.has(`${rule.objectId}:${rule.code}`),
+  );
+  snapshot.objects = objects;
+  snapshot.relations = relations;
+}
+
+function documentObjectContent(object: IOntologyObjectDraft) {
+  const {
+    reviewDecision: _reviewDecision,
+    updatedAt: _updatedAt,
+    ...content
+  } = object;
+  return {
+    ...content,
+    code: toCode(object.code),
+    sourceAssetIds: dedupe(object.sourceAssetIds).sort(),
+    attributes: object.attributes
+      .map((attribute) => ({
+        ...attribute,
+        code: toCode(attribute.code),
+        description: attribute.description ?? "",
+      }))
+      .sort((left, right) => left.code.localeCompare(right.code)),
+  };
 }
 
 function createObjectsFromAsset(

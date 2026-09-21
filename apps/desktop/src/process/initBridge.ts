@@ -33,3 +33,16 @@ void (async () => {
     mainWarn('initBridge', 'TeamService initialization failed:', error.message);
   });
 })();
+
+// Register the ontology-builder MCP server up-front so every scode session
+// spawned during this app run sees the ontology_* write tools. The MCP itself
+// only talks HTTP into main-process, so this is cheap and idempotent.
+void (async () => {
+  try {
+    const { ensureOntologyBuilderMcpServer } = await import('@process/services/ontology/OntologyMcpRegistration');
+    await ensureOntologyBuilderMcpServer();
+    mainLog('initBridge', 'Ontology builder MCP registered with Sudocode');
+  } catch (error) {
+    mainWarn('initBridge', 'Ontology builder MCP registration failed:', error instanceof Error ? error.message : String(error));
+  }
+})();

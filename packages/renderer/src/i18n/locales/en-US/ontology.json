@@ -1,4 +1,30 @@
 {
+  "documentBuilder.documentFiles": "Business Documents",
+  "documentBuilder.documentGoalPlaceholder": "Describe the business scope, key objects, and what you want to model from these documents",
+  "documentBuilder.documentFormatsHint": "Supported formats: {{formats}}.",
+  "documentBuilder.documentLimitsHint": "Up to {{files}} files per batch, {{fileMiB}} MiB per file, {{totalMiB}} MiB total.",
+  "documentBuilder.documentParsingHint": "PDFs must contain extractable text; OCR is not supported. Legacy DOC/PPT files may require LibreOffice.",
+  "documentBuilder.documentModelHint": "Extraction sends document text to the currently configured model. The combined text must not exceed {{chars}} characters; split larger documents before retrying.",
+  "documentErrors.unsupportedFormat": "This document format is not supported. Choose one of the listed formats.",
+  "documentErrors.fileUnavailable": "A selected file is unavailable or is not a regular local file. Select it again.",
+  "documentErrors.fileTooLarge": "A file exceeds the 50 MiB limit. Split it before retrying.",
+  "documentErrors.batchTooLarge": "Select at most 10 files with a combined size of 100 MiB or less.",
+  "documentErrors.textTooLarge": "The combined document text exceeds 60000 characters. Split the documents before retrying.",
+  "documentErrors.emptyDocument": "A document has no extractable text. Scanned PDFs require text recognition outside this app.",
+  "documentErrors.parseFailed": "A document could not be parsed. Check for encryption or damage; legacy DOC/PPT files may require LibreOffice.",
+  "documentErrors.modelUnavailable": "No usable model is configured. Configure a model and try again.",
+  "documentErrors.modelFailed": "The model could not complete extraction. Your selection is preserved; try again.",
+  "documentErrors.modelTimeout": "Model extraction timed out. Try again with fewer or smaller documents.",
+  "documentErrors.invalidResult": "The model returned an invalid object or relation structure. Try again.",
+  "documentErrors.noObjects": "No business objects were extracted. Clarify the business goal or choose other documents.",
+  "documentErrors.conflict": "The workspace changed or extracted objects conflict with existing objects. Review the current workspace and retry.",
+  "documentErrors.busy": "Document extraction is already running in this workspace. Wait for it to finish.",
+  "documentErrors.invalidSelection": "Check the selected documents and business goal (required, at most 2000 characters), then retry.",
+  "objectEditor.saveBasicInfo": "Save basic information",
+  "objectEditor.close": "Close",
+  "objectEditor.attributeSaveHint": "Attribute changes are saved immediately and are not undone when this window closes. Save basic information separately.",
+  "objectEditor.deleteAttributeTitle": "Delete attribute",
+  "objectEditor.deleteAttributeContent": "Delete attribute {{name}}? Its field mappings will also be deleted.",
   "header": {
     "kicker": "Ontology Workbench",
     "title": "Ontology Workbench",
@@ -395,6 +421,10 @@
       "assets": {
         "title": "Asset Catalog",
         "description": "Manage data assets used for ontology generation, field mapping, and service publishing."
+      },
+      "ai_builder": {
+        "title": "AI Builder",
+        "description": "Build ontologies with a SudoWork chat-guided assistant."
       },
       "ontology": {
         "title": "Ontology List",
@@ -852,5 +882,44 @@
     "agentFailed": "Failed to create Agent blueprint",
     "resetFailed": "Reset failed",
     "withMessage": "Operation failed: {{message}}"
+  },
+  "aiBuilder": {
+    "title": "AI Builder",
+    "description": "Build ontologies through a chat-guided SudoWork session. Every session shares the same model pool as the main SudoWork chat.",
+    "bubbleTooltip": "AI Builder",
+    "new": "AI Build",
+    "open": "Open",
+    "empty": "No AI build sessions yet — start one with the button above.",
+    "deleted": "Session deleted",
+    "updatedAt": "Updated at {{time}}",
+    "sessionTitle": "AI Build · {{title}}",
+    "initialPrompt": "Please act as the Ontology AI Builder and help me construct the \"{{title}}\" ontology. Start by calling ontology_get_snapshot to inspect current state, then progress through: define goal → confirm data assets → extract objects/relations → add mappings & quality rules → consistency check → publish → register agent, using the corresponding ontology_* tools to actually persist every step to the database.",
+    "initialPromptGoalLine": "Business goal: {{goal}}",
+    "presetContext": "You are helping the user build the ontology \"{{title}}\" (workspace_id: {{workspaceId}}) inside SudoWork's Ontology Workbench via the AI Builder entry.\n\n**Key rule**: You MUST use the `ontology-builder` MCP's `ontology_*` tools to actually create/update objects, attributes, relations, mappings, quality rules, logic functions and actions. Every write is reflected live in the workbench UI the user is looking at; describing structure only in chat means the user sees no change.\n\n**Available tools**: ontology_get_snapshot, ontology_update_draft, ontology_upsert_object, ontology_upsert_attribute, ontology_upsert_relation, ontology_upsert_mapping, ontology_upsert_quality_rule, ontology_upsert_logic_function, ontology_upsert_action, ontology_generate_draft_from_assets, ontology_run_consistency_check, ontology_publish_current_draft, ontology_create_agent_blueprint, ontology_register_agent_blueprint.\n\n**Workflow**:\n1. Call ontology_get_snapshot at session start.\n2. If the user hasn't given a business goal, ask; then ontology_update_draft to store it.\n3. Extract objects: ontology_upsert_object one at a time (parallel batches OK); name in the user's language, code in snake_case.\n4. Add attributes per object with ontology_upsert_attribute (objectId + name + dataType required); bind mappedField if you already know the asset field.\n5. Build relations with ontology_upsert_relation.\n6. Add mappings and quality rules.\n7. When done, ontology_run_consistency_check; on isValid=false, read issues[] and fix them.\n8. **Review is done by the human**: tell the user \"open the workbench preview and click Approve All\". Never approve on their behalf.\n9. After the user confirms approval, call ontology_publish_current_draft.\n10. After publish, ontology_create_agent_blueprint + ontology_register_agent_blueprint.\n\nAlways pass workspace_id: \"{{workspaceId}}\" (unless the user switches ontology explicitly). Keep replies concise — one line summarising the round and one line suggesting the next step.",
+    "modal": {
+      "title": "Start a new AI build",
+      "confirm": "Start",
+      "confirmOpen": "Open existing session",
+      "hasExistingSessions": "{{count}} existing session(s)",
+      "cancel": "Cancel",
+      "existing": "Existing ontology",
+      "new": "New ontology",
+      "existingHint": "Pick the target ontology:",
+      "selectPlaceholder": "Choose ontology",
+      "newName": "Ontology name",
+      "newNamePlaceholder": "e.g. Project Management Ontology",
+      "newCode": "Ontology code (unique)",
+      "newCodePlaceholder": "e.g. project_management",
+      "newCodeHint": "Lowercase letters, digits, underscores and hyphens. Auto-generated from the name when left blank.",
+      "newCodeInvalid": "Must start with a letter and contain only lowercase letters, digits, underscores or hyphens (2-64 chars).",
+      "newCodeConflict": "This code is already used by another ontology.",
+      "businessGoal": "Business goal (optional)",
+      "businessGoalPlaceholder": "e.g. Collaboration around projects, tasks, and members"
+    },
+    "errors": {
+      "createFailed": "Failed to create AI build session",
+      "deleteFailed": "Delete failed",
+      "noWorkspace": "Cannot determine the target ontology, please try again"
+    }
   }
 }

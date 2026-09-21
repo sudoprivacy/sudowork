@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  isOntologyDocumentAsset,
+  ONTOLOGY_DOCUMENT_ERROR_KEYS,
+  ONTOLOGY_DOCUMENT_EXTENSIONS,
+  ONTOLOGY_DOCUMENT_MAX_FILES,
+  ONTOLOGY_DOCUMENT_MAX_FILE_BYTES,
+  ONTOLOGY_DOCUMENT_MAX_TOTAL_BYTES,
+  ONTOLOGY_DOCUMENT_MAX_TEXT_CHARS,
+  ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS,
+} from "@sudowork/ontology-common";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import ReactECharts from "echarts-for-react";
@@ -46,6 +56,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  Sparkles,
   Table2,
   Trash2,
   Eye,
@@ -116,6 +127,7 @@ const { Option } = Select;
 type OntologyConsoleView =
   | "connections"
   | "assets"
+  | "ai_builder"
   | "ontology"
   | "publish"
   | "agent";
@@ -166,6 +178,7 @@ const CONSOLE_NAV_GROUPS: Array<{
   {
     key: "ontology",
     items: [
+      { key: "ai_builder", icon: Sparkles },
       { key: "ontology", icon: ListTree },
       { key: "publish", icon: Rocket },
     ],
@@ -360,7 +373,11 @@ export interface IOntologyWorkbenchApi {
   ) => () => void;
 }
 
-export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
+export default function OntologyWorkbench({
+  api,
+  renderAiBuilder,
+  onExposeActivateView,
+}: IOntologyWorkbenchProps) {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<IOntologyWorkbenchSnapshot | null>(
     null,
@@ -421,6 +438,10 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
   const [attributeDataTypeValue, setAttributeDataTypeValue] =
     useState("string");
   const [isAttributeRequired, setIsAttributeRequired] = useState(false);
+  const [attributeDescriptionValue, setAttributeDescriptionValue] =
+    useState("");
+  const [isAttributeDeleteConfirmVisible, setIsAttributeDeleteConfirmVisible] =
+    useState(false);
   const [attributeExampleValue, setAttributeExampleValue] = useState("");
   const [attributeConstraintsValue, setAttributeConstraintsValue] =
     useState("{}");
@@ -458,6 +479,16 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
   const [ruleExpressionValue, setRuleExpressionValue] = useState("");
   const [ruleSeverityValue, setRuleSeverityValue] =
     useState<IOntologyQualityRule["severity"]>("warning");
+
+  const isBuildOperationPendingRef = useRef(false);
+
+  const currentEditingObject = snapshot?.objects.find(
+    (object) => object.id === editingObject?.id,
+  );
+  const isObjectEditorBlocked =
+    isEditingModel ||
+    isAttributeModalVisible ||
+    isAttributeDeleteConfirmVisible;
 
   const onCacheSnapshot = useCallback(
     (nextSnapshot: IOntologyWorkbenchSnapshot) => {
@@ -603,6 +634,17 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
     if (view !== "ontology") setIsOntologyDetailVisible(false);
     setSearchValue("");
   };
+
+  useEffect(() => {
+    if (!onExposeActivateView) return;
+    onExposeActivateView((view) => {
+      onActiveViewChange(view);
+    });
+    // We intentionally don't include onActiveViewChange as a dep because it is
+    // recreated every render; the imperative handle only needs to fire the
+    // current setter, which reads latest state via setActiveView anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onExposeActivateView]);
 
   const onConnectorSourceTypeChange = (
     sourceType: OntologyConnectionSourceType,
@@ -815,6 +857,7 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
   };
 
   const onSaveObject = async () => {
+    if (isObjectEditorBlocked) return;
     const isSaved = await onUpsertObject({
       id: editingObject?.id,
       name: objectNameValue,
@@ -907,8 +950,10 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
     objectId: string,
     attribute?: IOntologyObjectDraft["attributes"][number],
   ) => {
+    if (isEditingModel || isAttributeDeleteConfirmVisible) return;
     setEditingAttribute({ objectId, attribute });
     setAttributeNameValue(attribute?.name ?? "");
+    setAttributeDescriptionValue(attribute?.description ?? "");
     setAttributeCodeValue(attribute?.code ?? "");
     setAttributeDataTypeValue(attribute?.dataType ?? "string");
     setIsAttributeRequired(attribute?.required ?? false);
@@ -920,9 +965,20 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
   };
 
   const onSaveAttribute = async () => {
-    if (!editingAttribute) return;
+    if (
+      !editingAttribute ||
+      isEditingModel ||
+      !attributeNameValue.trim() ||
+      !attributeDataTypeValue.trim()
+    )
+      return;
     setIsEditingModel(true);
     try {
+      const currentAttribute = snapshot?.objects
+        .find((object) => object.id === editingAttribute.objectId)
+        ?.attributes.find(
+          (attribute) => attribute.id === editingAttribute.attribute?.id,
+        );
       const constraints = parseJsonObject<Record<string, unknown>>(
         attributeConstraintsValue,
         t("ontology.editor.invalidConstraints"),
@@ -934,6 +990,8 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
         code: attributeCodeValue,
         dataType: attributeDataTypeValue,
         required: isAttributeRequired,
+        description: attributeDescriptionValue,
+        mappedField: currentAttribute?.mappedField,
         example: attributeExampleValue,
         constraints,
       });
@@ -948,9 +1006,50 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
   };
 
   const onDeleteAttribute = async (input: IOntologyDeleteAttributeInput) => {
-    const nextSnapshot = await api.deleteAttribute(input);
-    setSnapshot(nextSnapshot);
-    setConsistencyCheck(null);
+    if (
+      isEditingModel ||
+      isAttributeModalVisible ||
+      isAttributeDeleteConfirmVisible
+    )
+      return;
+    const attribute = snapshot?.objects
+      .find((object) => object.id === input.objectId)
+      ?.attributes.find((item) => item.id === input.attributeId);
+    if (!attribute) return;
+    setIsAttributeDeleteConfirmVisible(true);
+    const confirmation = Modal.confirm({
+      title: t("ontology.objectEditor.deleteAttributeTitle"),
+      content: t("ontology.objectEditor.deleteAttributeContent", {
+        name: attribute.name,
+      }),
+      okText: t("ontology.editor.delete"),
+      cancelText: t("ontology.reset.cancel"),
+      okButtonProps: { status: "danger" },
+      maskClosable: false,
+      afterClose: () => setIsAttributeDeleteConfirmVisible(false),
+      onOk: async () => {
+        setIsEditingModel(true);
+        confirmation.update({
+          cancelButtonProps: { disabled: true },
+          escToExit: false,
+          closable: false,
+        });
+        try {
+          const nextSnapshot = await api.deleteAttribute(input);
+          setSnapshot(nextSnapshot);
+          setConsistencyCheck(null);
+        } catch (err) {
+          showError(t, err);
+          throw err;
+        } finally {
+          setIsEditingModel(false);
+          confirmation.update({
+            cancelButtonProps: { disabled: false },
+            escToExit: true,
+          });
+        }
+      },
+    });
   };
 
   const onOpenRelationModal = (
@@ -1142,22 +1241,27 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
   const onGenerateDraft = async (
     input?: IOntologyGenerateDraftInput,
   ): Promise<boolean> => {
+    const workspaceId = snapshot?.workspaceId;
+    if (!workspaceId || isBuildOperationPendingRef.current) return false;
+    isBuildOperationPendingRef.current = true;
     setIsGenerating(true);
     try {
-      const nextSnapshot = await api.generateDraft(
-        input ?? {
-          businessGoal: snapshot?.draft.businessGoal,
-          assetIds: snapshot?.draft.selectedAssetIds,
-        },
-      );
-      setSnapshot(nextSnapshot);
+      const nextSnapshot = await api.generateDraft({
+        ...(input ?? {
+          businessGoal: snapshot.draft.businessGoal,
+          assetIds: snapshot.draft.selectedAssetIds,
+        }),
+        workspaceId,
+      });
+      onApplyWorkspaceMutation(nextSnapshot);
       setConsistencyCheck(null);
       Message.success(t("ontology.messages.generated"));
       return true;
     } catch (err) {
-      showError(t, err);
+      showDocumentBuildError(t, err);
       return false;
     } finally {
+      isBuildOperationPendingRef.current = false;
       setIsGenerating(false);
     }
   };
@@ -1165,14 +1269,21 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
   const onImportObjectBuildFiles = async (
     method: "template" | "document",
   ): Promise<string[]> => {
+    const workspaceId = snapshot?.workspaceId;
+    if (!workspaceId || isBuildOperationPendingRef.current) return [];
+    isBuildOperationPendingRef.current = true;
+    setIsGenerating(true);
     try {
       const filePaths = await api.pickBuildFiles(method);
       if (filePaths.length === 0) return [];
-      setIsGenerating(true);
-      const imported = await api.importFiles({ filePaths, purpose: method });
+      const imported = await api.importFiles({
+        filePaths,
+        purpose: method,
+        workspaceId,
+      });
       if (imported.files.length === 0)
         throw new Error(t("ontology.objectBuilder.noImportableFiles"));
-      setSnapshot(imported.snapshot);
+      onApplyWorkspaceMutation(imported.snapshot);
       setConsistencyCheck(null);
       Message.success(
         t("ontology.objectBuilder.filesReady", {
@@ -1181,9 +1292,10 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
       );
       return imported.files.map((file) => file.id);
     } catch (err) {
-      showError(t, err);
+      showDocumentBuildError(t, err);
       return [];
     } finally {
+      isBuildOperationPendingRef.current = false;
       setIsGenerating(false);
     }
   };
@@ -1447,7 +1559,7 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
         : [snapshot];
 
   const hasEmbeddedPageHeader = (
-    ["ontology", "publish", "agent"] as OntologyConsoleView[]
+    ["ai_builder", "ontology", "publish", "agent"] as OntologyConsoleView[]
   ).includes(activeView);
 
   return (
@@ -1456,6 +1568,7 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
         <OntologyConsoleSidebar
           activeView={activeView}
           onActiveViewChange={onActiveViewChange}
+          isAiBuilderVisible={Boolean(renderAiBuilder)}
         />
 
         <section className="flex min-w-0 flex-1 flex-col bg-[var(--color-fill-1)]">
@@ -1468,6 +1581,10 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
                 )}
               />
             )}
+
+            {activeView === "ai_builder" &&
+              renderAiBuilder &&
+              renderAiBuilder(snapshot?.workspaceId ?? null)}
 
             {activeView === "connections" && (
               <ConnectionsPage
@@ -1601,41 +1718,83 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
               ? t("ontology.editor.editObject")
               : t("ontology.editor.addObject")
           }
-          okText={t("ontology.editor.save")}
-          cancelText={t("ontology.reset.cancel")}
-          confirmLoading={isEditingModel}
+          okText={t(
+            editingObject
+              ? "ontology.objectEditor.saveBasicInfo"
+              : "ontology.editor.save",
+          )}
+          cancelText={t(
+            editingObject
+              ? "ontology.objectEditor.close"
+              : "ontology.reset.cancel",
+          )}
+          style={{ width: 760, maxWidth: "calc(100vw - 32px)" }}
+          wrapClassName="ontology-object-editor"
+          focusLock={
+            !isAttributeModalVisible && !isAttributeDeleteConfirmVisible
+          }
+          escToExit={!isObjectEditorBlocked}
+          maskClosable={!isObjectEditorBlocked}
+          closable={!isObjectEditorBlocked}
+          cancelButtonProps={{ disabled: isObjectEditorBlocked }}
+          confirmLoading={
+            isEditingModel &&
+            !isAttributeModalVisible &&
+            !isAttributeDeleteConfirmVisible
+          }
           okButtonProps={{
             disabled:
+              isObjectEditorBlocked ||
               objectNameValue.trim().length === 0 ||
               objectCodeValue.trim().length === 0,
           }}
           onOk={() => void onSaveObject()}
-          onCancel={() => setIsObjectModalVisible(false)}
+          onCancel={() => {
+            if (!isObjectEditorBlocked) setIsObjectModalVisible(false);
+          }}
         >
-          <Form layout="vertical">
-            <Form.Item label={t("ontology.editor.displayName")} required>
-              <Input
-                value={objectNameValue}
-                placeholder={t("ontology.editor.displayName")}
-                onChange={setObjectNameValue}
-              />
-            </Form.Item>
-            <Form.Item label={t("ontology.editor.englishName")} required>
-              <Input
-                value={objectCodeValue}
-                placeholder={t("ontology.editor.englishName")}
-                onChange={setObjectCodeValue}
-              />
-            </Form.Item>
-            <Form.Item label={t("ontology.editor.description")}>
-              <TextArea
-                value={objectDescriptionValue}
-                autoSize={{ minRows: 3, maxRows: 6 }}
-                placeholder={t("ontology.editor.description")}
-                onChange={setObjectDescriptionValue}
-              />
-            </Form.Item>
-          </Form>
+          <div className="max-h-[min(65vh,calc(100dvh-12rem))] overflow-y-auto">
+            <Form layout="vertical" disabled={isObjectEditorBlocked}>
+              <Form.Item label={t("ontology.editor.displayName")} required>
+                <Input
+                  value={objectNameValue}
+                  placeholder={t("ontology.editor.displayName")}
+                  onChange={setObjectNameValue}
+                />
+              </Form.Item>
+              <Form.Item label={t("ontology.editor.englishName")} required>
+                <Input
+                  value={objectCodeValue}
+                  placeholder={t("ontology.editor.englishName")}
+                  onChange={setObjectCodeValue}
+                />
+              </Form.Item>
+              <Form.Item label={t("ontology.editor.description")}>
+                <TextArea
+                  value={objectDescriptionValue}
+                  autoSize={{ minRows: 3, maxRows: 6 }}
+                  placeholder={t("ontology.editor.description")}
+                  onChange={setObjectDescriptionValue}
+                />
+              </Form.Item>
+            </Form>
+            {currentEditingObject && (
+              <section className="border-t border-light pt-4">
+                <Typography.Text
+                  type="secondary"
+                  className="mb-3 block text-xs"
+                >
+                  {t("ontology.objectEditor.attributeSaveHint")}
+                </Typography.Text>
+                <ObjectAttributeList
+                  object={currentEditingObject}
+                  isDisabled={isObjectEditorBlocked}
+                  onEditAttribute={onOpenAttributeModal}
+                  onDeleteAttribute={onDeleteAttribute}
+                />
+              </section>
+            )}
+          </div>
         </Modal>
 
         <Modal
@@ -1648,10 +1807,28 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
           okText={t("ontology.editor.save")}
           cancelText={t("ontology.reset.cancel")}
           confirmLoading={isEditingModel}
+          wrapClassName="ontology-attribute-editor"
+          style={{ maxWidth: "calc(100vw - 32px)" }}
+          escToExit={!isEditingModel}
+          maskClosable={!isEditingModel}
+          closable={!isEditingModel}
+          cancelButtonProps={{ disabled: isEditingModel }}
+          okButtonProps={{
+            disabled:
+              isEditingModel ||
+              !attributeNameValue.trim() ||
+              !attributeDataTypeValue.trim(),
+          }}
           onOk={() => void onSaveAttribute()}
-          onCancel={() => setIsAttributeModalVisible(false)}
+          onCancel={() => {
+            if (!isEditingModel) setIsAttributeModalVisible(false);
+          }}
         >
-          <Form layout="vertical">
+          <Form
+            layout="vertical"
+            disabled={isEditingModel}
+            className="max-h-[min(65vh,calc(100dvh-12rem))] overflow-y-auto"
+          >
             <Form.Item label={t("ontology.editor.name")} required>
               <Input
                 value={attributeNameValue}
@@ -1671,6 +1848,14 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
                 value={attributeDataTypeValue}
                 placeholder={t("ontology.editor.dataType")}
                 onChange={setAttributeDataTypeValue}
+              />
+            </Form.Item>
+            <Form.Item label={t("ontology.editor.description")}>
+              <TextArea
+                value={attributeDescriptionValue}
+                autoSize={{ minRows: 2, maxRows: 4 }}
+                placeholder={t("ontology.editor.description")}
+                onChange={setAttributeDescriptionValue}
               />
             </Form.Item>
             <Form.Item label={t("ontology.editor.example")}>
@@ -2010,8 +2195,19 @@ export default function OntologyWorkbench({ api }: IOntologyWorkbenchProps) {
 function OntologyConsoleSidebar({
   activeView,
   onActiveViewChange,
+  isAiBuilderVisible,
 }: IOntologyConsoleSidebarProps) {
   const { t } = useTranslation();
+  const navGroups = useMemo(
+    () =>
+      CONSOLE_NAV_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.filter((item) =>
+          item.key === "ai_builder" ? isAiBuilderVisible : true,
+        ),
+      })).filter((group) => group.items.length > 0),
+    [isAiBuilderVisible],
+  );
   return (
     <aside className="flex w-44 shrink-0 flex-col border-r border-[var(--color-border-2)] bg-[var(--color-bg-1)] px-3 py-5">
       <div className="mb-8 flex items-center gap-3 px-1">
@@ -2026,7 +2222,7 @@ function OntologyConsoleSidebar({
       </div>
 
       <nav className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
-        {CONSOLE_NAV_GROUPS.map((group) => (
+        {navGroups.map((group) => (
           <div key={group.key}>
             <Typography.Text
               className="mb-2 block px-3 text-xs"
@@ -2121,6 +2317,11 @@ function ConnectionsPage({
     CONNECTOR_CATEGORY_OPTIONS.find((option) =>
       isConnectorSourceTypeInCategory(option.key, connectorSourceType),
     ) ?? CONNECTOR_CATEGORY_OPTIONS[0];
+  const connectorTypeOptions = CONNECTOR_TYPE_OPTIONS_BY_CATEGORY[
+    activeCategory.key
+  ].filter(
+    (type) => isEditingConnector || (type !== "oracle" && type !== "sqlserver"),
+  );
 
   const onOpenCreateConnector = () => {
     onCreateConnector();
@@ -2517,13 +2718,11 @@ function ConnectionsPage({
                   )
                 }
               >
-                {CONNECTOR_TYPE_OPTIONS_BY_CATEGORY[activeCategory.key].map(
-                  (type) => (
-                    <Option key={type} value={type}>
-                      {t(`ontology.connectorType.${type}`)}
-                    </Option>
-                  ),
-                )}
+                {connectorTypeOptions.map((type) => (
+                  <Option key={type} value={type}>
+                    {t(`ontology.connectorType.${type}`)}
+                  </Option>
+                ))}
               </Select>
             </Form.Item>
           </div>
@@ -3112,16 +3311,16 @@ function OntologyModelPage(props: IOntologyModelPageProps) {
                 }
               }}
             >
-              <div className="mb-4 flex items-start gap-3">
+              <div className="mb-4 flex flex-wrap items-start gap-3">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-[rgb(var(--primary-2))] bg-[rgb(var(--primary-1))] text-[rgb(var(--primary-6))]">
                   <Network size={23} />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                <div className="min-w-0 flex-1 basis-40">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 basis-24">
                       <Typography.Text
                         bold
-                        className="block truncate text-base"
+                        className="block truncate text-size-base"
                       >
                         {card.name}
                       </Typography.Text>
@@ -3545,6 +3744,7 @@ function OntologyDetailPage({
   if (guidedBuildMethod) {
     return (
       <GuidedObjectBuilder
+        key={`${snapshot.workspaceId}:${guidedBuildMethod}`}
         method={guidedBuildMethod}
         snapshot={snapshot}
         isGenerating={isGenerating}
@@ -4247,76 +4447,12 @@ function ManualObjectBuilder({
                   isSaving={isEditingModel}
                   onSave={onUpdateObject}
                 />
-                <div>
-                  <div className="mb-3 flex items-center justify-between">
-                    <Typography.Text bold>
-                      {t("ontology.objectBuilder.attributes", {
-                        count: selectedObject.attributes.length,
-                      })}
-                    </Typography.Text>
-                    <Button
-                      size="mini"
-                      onClick={() => onEditAttribute(selectedObject.id)}
-                    >
-                      {t("ontology.editor.addAttributeShort")}
-                    </Button>
-                  </div>
-                  {selectedObject.attributes.length === 0 ? (
-                    <Empty
-                      description={t("ontology.objectBuilder.emptyAttributes")}
-                    />
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {selectedObject.attributes.map((attribute) => (
-                        <div
-                          key={attribute.id}
-                          className="flex items-center gap-3 rounded-lg bg-[var(--color-fill-1)] px-3 py-2"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <Typography.Text
-                              bold
-                              className="block truncate text-sm"
-                            >
-                              {attribute.name}
-                            </Typography.Text>
-                            <Typography.Text
-                              className="block truncate text-xs"
-                              type="secondary"
-                            >
-                              {attribute.code}
-                            </Typography.Text>
-                          </div>
-                          <Tag color="arcoblue">{attribute.dataType}</Tag>
-                          {attribute.required && (
-                            <Tag color="green">
-                              {t("ontology.editor.required")}
-                            </Tag>
-                          )}
-                          <Button
-                            size="mini"
-                            onClick={() =>
-                              onEditAttribute(selectedObject.id, attribute)
-                            }
-                          >
-                            {t("ontology.editor.edit")}
-                          </Button>
-                          <Button
-                            size="mini"
-                            status="danger"
-                            onClick={() =>
-                              void onDeleteAttribute({
-                                objectId: selectedObject.id,
-                                attributeId: attribute.id,
-                              })
-                            }
-                          >
-                            {t("ontology.editor.delete")}
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <ObjectAttributeList
+                  object={selectedObject}
+                  isDisabled={isEditingModel}
+                  onEditAttribute={onEditAttribute}
+                  onDeleteAttribute={onDeleteAttribute}
+                />
               </div>
             ) : (
               <div className="flex min-h-96 flex-col items-center justify-center gap-3 p-8">
@@ -4621,19 +4757,16 @@ function GuidedObjectBuilder({
   onBack,
   onFinish,
 }: IGuidedObjectBuilderProps) {
-  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [businessGoal, setBusinessGoal] = useState("");
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
-  const [importedDocumentIds, setImportedDocumentIds] = useState<string[]>([]);
   const [templateAssetIds, setTemplateAssetIds] = useState<string[]>([]);
+  const { t } = useTranslation();
   const structuredAssets = snapshot.assets.filter((asset) =>
     ["database", "schema", "table"].includes(asset.kind),
   );
-  const documentAssets = snapshot.assets.filter(
-    (asset) => asset.kind === "document",
-  );
+  const documentAssets = snapshot.assets.filter(isOntologyDocumentAsset);
   const steps =
     method === "template"
       ? (["template", "review", "hydrate"] as const)
@@ -4655,8 +4788,13 @@ function GuidedObjectBuilder({
             "hydrate",
           ] as const);
   const currentStep = steps[step];
-  const allDocumentIds = Array.from(
-    new Set([...selectedDocumentIds, ...importedDocumentIds]),
+  const isBusy = isGenerating || isApproving || isChecking;
+  const allDocumentIds = Array.from(new Set(selectedDocumentIds));
+  const allAssetIds = Array.from(
+    new Set([
+      ...(method === "document" ? [] : selectedAssetIds),
+      ...allDocumentIds,
+    ]),
   );
 
   const onToggleSelection = (
@@ -4687,20 +4825,17 @@ function GuidedObjectBuilder({
   const onImportDocuments = async () => {
     const assetIds = await onImportFiles("document");
     if (assetIds.length > 0)
-      setImportedDocumentIds((ids) =>
+      setSelectedDocumentIds((ids) =>
         Array.from(new Set([...ids, ...assetIds])),
       );
   };
 
   const onExtract = async () => {
-    const assetIds =
-      method === "document"
-        ? allDocumentIds
-        : [...selectedAssetIds, ...allDocumentIds];
-    if (assetIds.length === 0) return;
+    if (allAssetIds.length === 0 || !businessGoal.trim()) return;
     if (
       await onGenerateDraft({
-        assetIds,
+        assetIds: allAssetIds,
+        documentAssetIds: allDocumentIds,
         businessGoal: businessGoal.trim(),
         mode: "merge",
       })
@@ -4713,14 +4848,21 @@ function GuidedObjectBuilder({
       setStep((value) => Math.min(value + 1, steps.length - 1));
   };
 
-  const onNext = () =>
-    setStep((value) => Math.min(value + 1, steps.length - 1));
-  const onPrevious = () => setStep((value) => Math.max(value - 1, 0));
+  const onNext = () => {
+    if (!isBusy) setStep((value) => Math.min(value + 1, steps.length - 1));
+  };
+  const onPrevious = () => {
+    if (!isBusy) setStep((value) => Math.max(value - 1, 0));
+  };
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-[1500px] flex-col gap-4">
       <div className="flex items-center gap-4 border-b border-[var(--color-border-2)] pb-4">
-        <Button icon={<ArrowLeft size={16} />} onClick={onBack}>
+        <Button
+          icon={<ArrowLeft size={16} />}
+          disabled={isBusy}
+          onClick={onBack}
+        >
           {t("ontology.objectBuilder.backToObjects")}
         </Button>
         <div>
@@ -4806,12 +4948,16 @@ function GuidedObjectBuilder({
                   })}
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button onClick={() => void onImportTemplate()}>
+                  <Button
+                    disabled={isBusy}
+                    onClick={() => void onImportTemplate()}
+                  >
                     {t("ontology.objectBuilder.reselectTemplate")}
                   </Button>
                   <Button
                     type="primary"
                     loading={isGenerating}
+                    disabled={isBusy}
                     onClick={() => void onConfirmTemplate()}
                   >
                     {t("ontology.objectBuilder.confirmTemplate")}
@@ -4870,6 +5016,7 @@ function GuidedObjectBuilder({
             description={t("ontology.objectBuilder.documentStepDescription")}
             assets={documentAssets}
             selectedIds={selectedDocumentIds}
+            isDisabled={isBusy}
             emptyText={t("ontology.objectBuilder.emptyDocuments")}
             onToggle={(assetId, isChecked) =>
               onToggleSelection(
@@ -4888,8 +5035,10 @@ function GuidedObjectBuilder({
                 >
                   <TextArea
                     value={businessGoal}
+                    disabled={isBusy}
+                    maxLength={ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS}
                     placeholder={t(
-                      "ontology.objectBuilder.businessGoalPlaceholder",
+                      "ontology.documentBuilder.documentGoalPlaceholder",
                     )}
                     autoSize={{ minRows: 3, maxRows: 6 }}
                     onChange={setBusinessGoal}
@@ -4901,24 +5050,26 @@ function GuidedObjectBuilder({
               <Button
                 icon={<FilePlus2 size={14} />}
                 loading={isGenerating}
+                disabled={isBusy}
                 onClick={() => void onImportDocuments()}
               >
                 {t("ontology.objectBuilder.chooseDocumentFiles")}
               </Button>
               <Space>
                 {step > 0 && (
-                  <Button onClick={onPrevious}>
+                  <Button disabled={isBusy} onClick={onPrevious}>
                     {t("ontology.objectBuilder.previous")}
                   </Button>
                 )}
                 {method === "asset" && (
-                  <Button onClick={onNext}>
+                  <Button disabled={isBusy} onClick={onNext}>
                     {t("ontology.objectBuilder.skipDocuments")}
                   </Button>
                 )}
                 <Button
                   type="primary"
                   disabled={
+                    isBusy ||
                     allDocumentIds.length === 0 ||
                     (method === "document" && businessGoal.trim().length === 0)
                   }
@@ -4927,6 +5078,28 @@ function GuidedObjectBuilder({
                   {t("ontology.objectBuilder.next")}
                 </Button>
               </Space>
+            </div>
+            <div className="mt-3 flex flex-col gap-1 text-xs text-[var(--color-text-3)]">
+              <span>
+                {t("ontology.documentBuilder.documentFormatsHint", {
+                  formats: ONTOLOGY_DOCUMENT_EXTENSIONS.map((extension) =>
+                    extension.toUpperCase(),
+                  ).join(" / "),
+                })}
+              </span>
+              <span>
+                {t("ontology.documentBuilder.documentLimitsHint", {
+                  files: ONTOLOGY_DOCUMENT_MAX_FILES,
+                  fileMiB: ONTOLOGY_DOCUMENT_MAX_FILE_BYTES / (1024 * 1024),
+                  totalMiB: ONTOLOGY_DOCUMENT_MAX_TOTAL_BYTES / (1024 * 1024),
+                })}
+              </span>
+              <span>{t("ontology.documentBuilder.documentParsingHint")}</span>
+              <span>
+                {t("ontology.documentBuilder.documentModelHint", {
+                  chars: ONTOLOGY_DOCUMENT_MAX_TEXT_CHARS,
+                })}
+              </span>
             </div>
           </BuilderSelectionStep>
         )}
@@ -4942,7 +5115,7 @@ function GuidedObjectBuilder({
             <div className="grid w-full max-w-2xl grid-cols-3 gap-3">
               <MiniMetric
                 label={t("ontology.stats.assets")}
-                value={selectedAssetIds.length + allDocumentIds.length}
+                value={allAssetIds.length}
               />
               <MiniMetric
                 label={t("ontology.stats.objects")}
@@ -4953,13 +5126,21 @@ function GuidedObjectBuilder({
                 value={snapshot.relations.length}
               />
             </div>
+            {allDocumentIds.length > 0 && (
+              <Typography.Paragraph type="secondary" className="max-w-2xl">
+                {t("ontology.documentBuilder.documentModelHint", {
+                  chars: ONTOLOGY_DOCUMENT_MAX_TEXT_CHARS,
+                })}
+              </Typography.Paragraph>
+            )}
             <Space>
-              <Button onClick={onPrevious}>
+              <Button disabled={isBusy} onClick={onPrevious}>
                 {t("ontology.objectBuilder.previous")}
               </Button>
               <Button
                 type="primary"
                 loading={isGenerating}
+                disabled={isBusy}
                 onClick={() => void onExtract()}
               >
                 {t("ontology.objectBuilder.startExtraction")}
@@ -5116,6 +5297,7 @@ function BuilderSelectionStep({
   description,
   assets,
   selectedIds,
+  isDisabled,
   emptyText,
   onToggle,
   children,
@@ -5140,6 +5322,7 @@ function BuilderSelectionStep({
             >
               <Checkbox
                 checked={selectedIds.includes(asset.id)}
+                disabled={isDisabled}
                 onChange={(isChecked) => onToggle(asset.id, isChecked)}
               />
               <div className="min-w-0 flex-1">
@@ -5506,16 +5689,16 @@ function PublishPage({
                     }
                   }}
                 >
-                  <div className="mb-4 flex items-start gap-3">
+                  <div className="mb-4 flex flex-wrap items-start gap-3">
                     <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-[rgb(var(--primary-2))] bg-[rgb(var(--primary-1))] text-[rgb(var(--primary-6))]">
                       <Rocket size={23} />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                    <div className="min-w-0 flex-1 basis-40">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1 basis-24">
                           <Typography.Text
                             bold
-                            className="block truncate text-base"
+                            className="block truncate text-size-base"
                           >
                             {workspaceSnapshot.draft.title ||
                               t("ontology.list.defaultName")}
@@ -7063,6 +7246,97 @@ function Panel({ title, description, icon, children }: IPanelProps) {
   );
 }
 
+function ObjectAttributeList({
+  object,
+  isDisabled,
+  onEditAttribute,
+  onDeleteAttribute,
+}: IObjectAttributeListProps) {
+  const { t } = useTranslation();
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <Typography.Text bold>
+          {t("ontology.objectBuilder.attributes", {
+            count: object.attributes.length,
+          })}
+        </Typography.Text>
+        <Button
+          size="mini"
+          disabled={isDisabled}
+          onClick={() => onEditAttribute(object.id)}
+        >
+          {t("ontology.editor.addAttributeShort")}
+        </Button>
+      </div>
+      {object.attributes.length === 0 ? (
+        <Empty description={t("ontology.objectBuilder.emptyAttributes")} />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {object.attributes.map((attribute) => (
+            <div
+              key={attribute.id}
+              className="flex flex-wrap items-center gap-3 rounded-lg bg-fill-1 px-3 py-2"
+            >
+              <div className="min-w-0 flex-1 basis-36">
+                <Typography.Text
+                  bold
+                  className="block !truncate text-sm"
+                  title={attribute.name}
+                >
+                  {attribute.name}
+                </Typography.Text>
+                <Typography.Text
+                  className="block !truncate text-xs"
+                  type="secondary"
+                  title={attribute.code}
+                >
+                  {attribute.code}
+                </Typography.Text>
+              </div>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <Tag
+                  color="arcoblue"
+                  className="max-w-32"
+                  title={attribute.dataType}
+                >
+                  <span>{attribute.dataType}</span>
+                </Tag>
+                {attribute.required && (
+                  <Tag color="green">{t("ontology.editor.required")}</Tag>
+                )}
+              </div>
+              <div className="flex max-w-full flex-wrap gap-2">
+                <Button
+                  size="mini"
+                  disabled={isDisabled}
+                  onClick={() => onEditAttribute(object.id, attribute)}
+                >
+                  {t("ontology.editor.edit")}
+                </Button>
+                <Button
+                  size="mini"
+                  status="danger"
+                  disabled={isDisabled}
+                  onClick={() =>
+                    void onDeleteAttribute({
+                      objectId: object.id,
+                      attributeId: attribute.id,
+                    })
+                  }
+                >
+                  {t("ontology.editor.delete")}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ObjectTable({
   objects,
   selectedObjectIds,
@@ -7121,6 +7395,12 @@ function ObjectTable({
           title: t("ontology.objectBuilder.columns.code"),
           dataIndex: "code",
           ellipsis: true,
+        },
+        {
+          title: t("ontology.generate.columns.attributes"),
+          width: 100,
+          render: (_: unknown, object: IOntologyObjectDraft) =>
+            object.attributes.length,
         },
         {
           title: t("ontology.objectBuilder.columns.status"),
@@ -8680,6 +8960,21 @@ function parseJsonObject<T extends Record<string, unknown>>(
   throw new Error(errorMessage);
 }
 
+function showDocumentBuildError(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  err: unknown,
+): void {
+  const key = ONTOLOGY_DOCUMENT_ERROR_KEYS.find(
+    (item) =>
+      err instanceof Error && err.message === `ontology.documentErrors.${item}`,
+  );
+  if (key) {
+    Message.error(t(`ontology.documentErrors.${key}`));
+    return;
+  }
+  showError(t, err);
+}
+
 function showError(
   t: (key: string, options?: Record<string, unknown>) => string,
   err: unknown,
@@ -8690,11 +8985,35 @@ function showError(
 
 interface IOntologyWorkbenchProps {
   api: IOntologyWorkbenchApi;
+  /**
+   * Optional render slot for the "AI 构建" sidebar entry. When provided, the
+   * sidebar shows an extra nav item in the "本体" section (before "本体列表"),
+   * and selecting it renders whatever this callback returns in the main
+   * content area. The workbench itself stays agnostic of AI internals.
+   */
+  renderAiBuilder?: (workspaceId: string | null) => ReactNode;
+  /**
+   * Optional callback that receives an imperative view-switcher, so hosts
+   * (e.g. the ontology page shell) can activate the AI 构建 tab from a
+   * floating bubble without re-plumbing view state.
+   */
+  onExposeActivateView?: (
+    activate: (
+      view:
+        | "connections"
+        | "assets"
+        | "ai_builder"
+        | "ontology"
+        | "publish"
+        | "agent",
+    ) => void,
+  ) => void;
 }
 
 interface IOntologyConsoleSidebarProps {
   activeView: OntologyConsoleView;
   onActiveViewChange: (view: OntologyConsoleView) => void;
+  isAiBuilderVisible: boolean;
 }
 
 interface IConsolePageHeaderProps {
@@ -8885,6 +9204,7 @@ interface IBuilderSelectionStepProps {
   description: string;
   assets: IOntologyEnvironmentAsset[];
   selectedIds: string[];
+  isDisabled?: boolean;
   emptyText: string;
   onToggle: (assetId: string, isChecked: boolean) => void;
   children: ReactNode;
@@ -9069,6 +9389,16 @@ interface IPanelProps {
   description: string;
   icon: ReactNode;
   children: ReactNode;
+}
+
+interface IObjectAttributeListProps {
+  object: IOntologyObjectDraft;
+  isDisabled: boolean;
+  onEditAttribute: (
+    objectId: string,
+    attribute?: IOntologyObjectDraft["attributes"][number],
+  ) => void;
+  onDeleteAttribute: (input: IOntologyDeleteAttributeInput) => Promise<void>;
 }
 
 interface IObjectTableProps {

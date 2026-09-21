@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { isDeepStrictEqual } from 'node:util';
+import { describe, expect, it, vi } from 'vitest';
 import { OntologyEngine } from '@sudowork/ontology-engine';
 import { summarizeOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyRepository } from '@sudowork/ontology-engine';
-import type { IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
+import type { IOntologyDocumentExtraction, IOntologyGenerateDraftInput, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 
 class MemoryOntologyRepository implements IOntologyRepository {
   private readonly snapshots = new Map<string, IOntologyWorkbenchSnapshot>();
@@ -18,7 +19,10 @@ class MemoryOntologyRepository implements IOntologyRepository {
       .map((snapshot) => structuredClone(snapshot));
   }
 
-  saveSnapshot(snapshot: IOntologyWorkbenchSnapshot): void {
+  saveSnapshot(snapshot: IOntologyWorkbenchSnapshot, expectedSnapshot?: IOntologyWorkbenchSnapshot): void {
+    if (expectedSnapshot && !isDeepStrictEqual(this.snapshots.get(snapshot.workspaceId), expectedSnapshot)) {
+      throw new Error('ontology.documentErrors.conflict');
+    }
     this.snapshots.set(snapshot.workspaceId, structuredClone(snapshot));
   }
 
@@ -30,6 +34,358 @@ class MemoryOntologyRepository implements IOntologyRepository {
     this.snapshots.delete(workspaceId);
   }
 }
+
+async function createAttributeWorkbench(engine: OntologyEngine): Promise<IOntologyWorkbenchSnapshot> {
+  await engine.importFiles({ filePaths: ['/tmp/customer.csv', '/tmp/order.csv'] }, [
+    {
+      path: '/tmp/customer.csv',
+      name: 'customer.csv',
+      sizeBytes: 128,
+      extension: '.csv',
+      fields: [
+        { name: 'customer_id', dataType: 'string', nullable: false },
+        { name: 'customer_name', dataType: 'string', nullable: true },
+      ],
+    },
+    {
+      path: '/tmp/order.csv',
+      name: 'order.csv',
+      sizeBytes: 128,
+      extension: '.csv',
+      fields: [
+        { name: 'order_id', dataType: 'string', nullable: false },
+        { name: 'customer_id', dataType: 'string', nullable: false },
+      ],
+    },
+  ]);
+  return engine.generateDraft();
+}
+
+async function createDocumentWorkbench() {
+  const repository = new MemoryOntologyRepository();
+  const engine = new OntologyEngine(repository);
+  const imported = await engine.importFiles({ filePaths: ['/tmp/model.md', '/tmp/context.txt', '/tmp/records.csv'] }, [
+    { path: '/tmp/model.md', name: 'model.md', sizeBytes: 128, extension: '.md' },
+    { path: '/tmp/context.txt', name: 'context.txt', sizeBytes: 128, extension: '.txt' },
+    { path: '/tmp/records.csv', name: 'records.csv', sizeBytes: 128, extension: '.csv', fields: [{ name: 'reference', dataType: 'string' }] },
+  ]);
+  const documentAssetIds = imported.files.slice(0, 2).map((file) => file.id);
+  const tableId = imported.files[2].id;
+  const extraction: IOntologyDocumentExtraction = {
+    objects: [
+      {
+        code: 'customer',
+        name: 'Customer',
+        description: 'A customer described in the document.',
+        sourceAssetIds: documentAssetIds,
+        attributes: [{ code: 'reference', name: 'Reference', dataType: 'string', required: true, description: 'Customer reference.' }],
+      },
+      { code: 'order', name: 'Order', description: 'A customer order.', sourceAssetIds: [documentAssetIds[1]], attributes: [] },
+    ],
+    relations: [{ code: 'customer_orders', name: 'Customer orders', description: 'Orders placed by customers.', from: 'customer', to: 'order', cardinality: 'one_to_many' }],
+  };
+  const generate = (result = extraction, input: IOntologyGenerateDraftInput = {}) => engine.generateDraft({ assetIds: documentAssetIds, documentAssetIds, mode: 'merge', ...input }, 'default', { extraction: result, expectedSnapshot: repository.getSnapshot('default')! });
+  return { repository, engine, imported, documentAssetIds, tableId, extraction, generate };
+}
+
+describe('OntologyEngine document extraction', () => {
+  it('uses different extracted models for the same assets without filename-based fields or relations', async () => {
+    const { generate, extraction, documentAssetIds } = await createDocumentWorkbench();
+    const first = await generate();
+    expect(first.objects.map((object) => object.code)).toEqual(['customer', 'order']);
+    expect(first.objects[0]).toMatchObject({ tier: 3, status: 'active', reviewDecision: 'pending', sourceAssetIds: expect.arrayContaining(documentAssetIds) });
+    expect(first.objects[0].attributes).toEqual([expect.objectContaining(extraction.objects[0].attributes[0])]);
+    expect(first.objects[0].attributes[0].mappedField).toBeUndefined();
+    expect(first.objects[1].attributes).toEqual([]);
+    expect(first.relations).toEqual([expect.objectContaining({ code: 'customer_orders', fromObjectId: first.objects[0].id, toObjectId: first.objects[1].id })]);
+
+    const second = await generate(
+      {
+        objects: [{ code: 'shipment', name: 'Shipment', description: 'A delivery.', sourceAssetIds: documentAssetIds, attributes: [] }],
+        relations: [],
+      },
+      { businessGoal: '  Track delivery operations.  ' }
+    );
+    expect(second.objects.map((object) => object.code)).toEqual(['shipment']);
+    expect(second.objects[0].attributes).toEqual([]);
+    expect(second.relations).toEqual([]);
+    expect(second.mappings).toEqual([]);
+    expect(second.qualityRules).toEqual([]);
+    expect(second.draft.businessGoal).toBe('Track delivery operations.');
+    expect(second.businessDocuments[0].content).toContain('Track delivery operations.');
+  });
+
+  it('keeps empty relations explicit even with multiple extracted objects', async () => {
+    const { generate, extraction } = await createDocumentWorkbench();
+    await generate();
+    const generated = await generate({ ...extraction, objects: extraction.objects.map((object) => ({ ...object, attributes: [] })), relations: [] });
+    expect(generated.objects).toHaveLength(2);
+    expect(generated.objects.every((object) => object.attributes.length === 0)).toBe(true);
+    expect(generated.relations).toEqual([]);
+    expect(generated.mappings).toEqual([]);
+  });
+
+  it('preserves IDs, source sets, manual metadata and unchanged reviews across regeneration', async () => {
+    const { repository, engine, generate, extraction, tableId } = await createDocumentWorkbench();
+    const first = await generate();
+    const customer = first.objects[0];
+    const attribute = customer.attributes[0];
+    await engine.upsertObject({ ...customer, namespace: 'crm', tier: 1, status: 'warning' });
+    await engine.upsertAttribute({
+      ...attribute,
+      objectId: customer.id,
+      constraints: { minLength: 2, maxLength: 24 },
+      example: 'C-1',
+      mappedField: { assetId: tableId, fieldName: 'reference' },
+    });
+    const withMapping = await engine.getWorkbench();
+    await engine.upsertMapping({ ...withMapping.mappings[0], strategy: 'manual', confidence: 0.75, status: 'pending' });
+    await engine.approveAll();
+    const before = repository.getSnapshot('default')!;
+    const normalizedExtraction = structuredClone(extraction);
+    normalizedExtraction.objects[0].sourceAssetIds.reverse();
+    normalizedExtraction.objects[0].code = 'Customer';
+    normalizedExtraction.objects[0].attributes[0].code = ' Reference ';
+    const second = await generate(normalizedExtraction);
+    expect(second.objects).toEqual(before.objects);
+    expect(second.relations).toEqual(before.relations);
+    expect(second.mappings).toEqual(before.mappings);
+    expect(second.objects[0].attributes[0]).toMatchObject({ id: attribute.id, example: 'C-1', constraints: { minLength: 2, maxLength: 24 }, mappedField: { assetId: tableId, fieldName: 'reference' } });
+
+    const changed = structuredClone(extraction);
+    changed.objects[0].attributes[0].required = false;
+    changed.objects[0].description = 'Updated customer description.';
+    changed.relations[0].cardinality = 'many_to_many';
+    const third = await generate(changed);
+    expect(third.objects[0]).toMatchObject({ id: customer.id, namespace: 'crm', tier: 1, status: 'warning', reviewDecision: 'pending' });
+    expect(third.objects[0].attributes[0].id).toBe(attribute.id);
+    expect(third.objects[1].reviewDecision).toBe('approved');
+    expect(third.relations[0]).toMatchObject({ id: first.relations[0].id, reviewDecision: 'pending', cardinality: 'many_to_many' });
+    expect(third.qualityRules).toEqual([]);
+  });
+
+  it('prunes removed attributes and invalid mappings while keeping valid manual mappings', async () => {
+    const { repository, engine, generate, extraction, tableId } = await createDocumentWorkbench();
+    const first = await generate();
+    const customer = first.objects[0];
+    const reference = customer.attributes[0];
+    await engine.upsertMapping({ objectId: customer.id, attributeId: reference.id, assetId: tableId, fieldName: 'reference', strategy: 'manual' });
+    const withExtra = await engine.upsertAttribute({ objectId: customer.id, code: 'obsolete', name: 'Obsolete', dataType: 'string', mappedField: { assetId: tableId, fieldName: 'reference' } });
+    const removedAttributeId = withExtra.objects[0].attributes[1].id;
+    const stale = repository.getSnapshot('default')!;
+    stale.objects[0].attributes[0].mappedField = { assetId: tableId, fieldName: 'missing' };
+    repository.saveSnapshot(stale);
+    const generated = await generate();
+    expect(generated.objects[0].attributes).toHaveLength(1);
+    expect(generated.objects[0].attributes[0].mappedField).toBeUndefined();
+    expect(generated.mappings).toEqual([expect.objectContaining({ attributeId: reference.id, strategy: 'manual', fieldName: 'reference' })]);
+    expect(generated.mappings.some((mapping) => mapping.attributeId === removedAttributeId)).toBe(false);
+    const withoutAttributes = await generate({ ...extraction, objects: extraction.objects.map((object) => ({ ...object, attributes: [] })) });
+    expect(withoutAttributes.mappings).toEqual([]);
+    expect(withoutAttributes.qualityRules).toEqual([]);
+  });
+
+  it('removes stale internal and dangling relations while preserving unrelated objects and external relations', async () => {
+    const { engine, generate, extraction } = await createDocumentWorkbench();
+    const first = await generate();
+    const customer = first.objects[0];
+    const order = first.objects[1];
+    const manual = await engine.upsertObject({ code: 'manual', name: 'Manual' });
+    const manualId = manual.objects[2].id;
+    await engine.upsertObject({ code: 'other', name: 'Other' });
+    const otherId = (await engine.getWorkbench()).objects[3].id;
+    await engine.upsertRelation({ code: 'external', name: 'External', fromObjectId: customer.id, toObjectId: manualId, cardinality: 'one_to_one' });
+    await engine.upsertRelation({ code: 'dangling', name: 'Dangling', fromObjectId: order.id, toObjectId: manualId, cardinality: 'one_to_one' });
+    const before = await engine.upsertRelation({ code: 'unrelated', name: 'Unrelated', fromObjectId: manualId, toObjectId: otherId, cardinality: 'one_to_one' });
+    const generated = await generate({ objects: [extraction.objects[0]], relations: [] }, { mode: 'replace' });
+    expect(generated.objects.map((object) => object.code)).toEqual(['manual', 'other', 'customer']);
+    expect(generated.objects.slice(0, 2)).toEqual(before.objects.slice(2));
+    expect(generated.relations).toEqual(before.relations.filter((relation) => ['external', 'unrelated'].includes(relation.code)));
+    expect(generated.relations.some((relation) => relation.fromObjectId === order.id || relation.toObjectId === order.id)).toBe(false);
+    expect(generated.logicFunctions.every((item) => !item.objectIds.includes(order.id))).toBe(true);
+    expect((await engine.runConsistencyCheck()).isValid).toBe(true);
+  });
+
+  it.each(['manual', 'ambiguous', 'source-set', 'partial-source'] as const)('rejects %s object conflicts without writes', async (scenario) => {
+    const { repository, engine, extraction, documentAssetIds, generate } = await createDocumentWorkbench();
+    if (scenario === 'manual') {
+      await engine.upsertObject({ code: 'Customer', name: 'Unrelated Customer' });
+    } else {
+      await generate();
+    }
+    if (scenario === 'ambiguous') {
+      const snapshot = repository.getSnapshot('default')!;
+      snapshot.objects.push({ ...snapshot.objects[0], id: 'duplicate-customer' });
+      repository.saveSnapshot(snapshot);
+    }
+    const result = structuredClone(extraction);
+    const input: IOntologyGenerateDraftInput = {};
+    if (scenario === 'source-set') result.objects[0].sourceAssetIds = [documentAssetIds[0]];
+    if (scenario === 'partial-source') {
+      input.assetIds = [documentAssetIds[0]];
+      input.documentAssetIds = [documentAssetIds[0]];
+      result.objects = [{ ...result.objects[0], sourceAssetIds: [documentAssetIds[0]] }];
+      result.relations = [];
+    }
+    const before = repository.getSnapshot('default');
+    const save = vi.spyOn(repository, 'saveSnapshot');
+    await expect(generate(result, input)).rejects.toThrow('ontology.documentErrors.conflict');
+    expect(repository.getSnapshot('default')).toEqual(before);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('rejects extracted relation codes colliding with external relations', async () => {
+    const { repository, engine, extraction, generate } = await createDocumentWorkbench();
+    const first = await generate({ ...extraction, relations: [] });
+    const manual = await engine.upsertObject({ code: 'manual', name: 'Manual' });
+    await engine.upsertRelation({ code: 'customer_orders', name: 'Manual link', fromObjectId: first.objects[0].id, toObjectId: manual.objects[2].id, cardinality: 'one_to_one' });
+    const before = repository.getSnapshot('default');
+    await expect(generate()).rejects.toThrow('ontology.documentErrors.conflict');
+    expect(repository.getSnapshot('default')).toEqual(before);
+  });
+
+  it('matches sources beyond the first source and retains objects from unselected documents', async () => {
+    const { repository, extraction, generate, documentAssetIds } = await createDocumentWorkbench();
+    const first = await generate({ objects: [{ ...extraction.objects[0], sourceAssetIds: [documentAssetIds[0]] }, extraction.objects[1]], relations: [] });
+    const generated = await generate({ objects: [extraction.objects[1]], relations: [] }, { assetIds: [documentAssetIds[1]], documentAssetIds: [documentAssetIds[1]] });
+    expect(generated.objects).toEqual(first.objects);
+    const multiSource = repository.getSnapshot('default')!;
+    multiSource.objects[1].sourceAssetIds = [documentAssetIds[0], documentAssetIds[1]];
+    repository.saveSnapshot(multiSource);
+    await expect(generate({ objects: [extraction.objects[1]], relations: [] }, { assetIds: [documentAssetIds[1]], documentAssetIds: [documentAssetIds[1]] })).rejects.toThrow('ontology.documentErrors.conflict');
+    expect(repository.getSnapshot('default')).toEqual(multiSource);
+  });
+
+  it('keeps mixed structured generation separate and routes explicitly selected CSV documents through extraction only', async () => {
+    const { engine, generate, extraction, documentAssetIds, tableId } = await createDocumentWorkbench();
+    const more = await engine.importFiles({ filePaths: ['/tmp/warehouse.csv'] }, [{ path: '/tmp/warehouse.csv', name: 'warehouse.csv', sizeBytes: 32, extension: '.csv', fields: [{ name: 'stock', dataType: 'number' }] }]);
+    const warehouseId = more.files[0].id;
+    const first = await generate({ ...extraction, relations: [] }, { assetIds: [...documentAssetIds, tableId, warehouseId] });
+    expect(first.objects.map((object) => object.code)).toEqual(['records', 'warehouse', 'customer', 'order']);
+    expect(first.objects[0].attributes[0].mappedField).toEqual({ assetId: tableId, fieldName: 'reference' });
+    expect(first.relations).toEqual([expect.objectContaining({ code: 'records_to_warehouse', fromObjectId: first.objects[0].id, toObjectId: first.objects[1].id })]);
+    const second = await generate({ objects: [{ ...extraction.objects[0], code: 'record_domain', sourceAssetIds: [tableId] }], relations: [] }, { assetIds: [tableId], documentAssetIds: [tableId] });
+    expect(second.objects.some((object) => object.code === 'records')).toBe(false);
+    expect(second.objects.find((object) => object.code === 'record_domain')?.attributes[0].mappedField).toBeUndefined();
+    expect(second.relations).toEqual([]);
+  });
+
+  it.each(['missing-context', 'empty-selection', 'unknown-selection', 'unselected-document', 'unknown-source', 'empty-sources', 'empty-result', 'unknown-endpoint', 'workspace-mismatch', 'implicit-document'] as const)('rejects %s without mutation', async (scenario) => {
+    const { repository, engine, extraction, documentAssetIds } = await createDocumentWorkbench();
+    const result = structuredClone(extraction);
+    const input: IOntologyGenerateDraftInput = { assetIds: documentAssetIds, documentAssetIds, mode: 'merge' };
+    let expectedError = 'invalidResult';
+    if (scenario === 'empty-selection') {
+      input.documentAssetIds = [];
+      expectedError = 'invalidSelection';
+    }
+    if (scenario === 'unknown-selection') {
+      input.assetIds = ['missing'];
+      input.documentAssetIds = ['missing'];
+      expectedError = 'invalidSelection';
+    }
+    if (scenario === 'unselected-document') {
+      input.assetIds = [documentAssetIds[0]];
+      expectedError = 'invalidSelection';
+    }
+    if (scenario === 'unknown-source') result.objects[0].sourceAssetIds = ['missing'];
+    if (scenario === 'empty-sources') result.objects[0].sourceAssetIds = [];
+    if (scenario === 'empty-result') result.objects = [];
+    if (scenario === 'unknown-endpoint') result.relations[0].to = 'missing';
+    if (scenario === 'workspace-mismatch') {
+      input.workspaceId = 'other';
+      expectedError = 'invalidSelection';
+    }
+    if (scenario === 'implicit-document') {
+      input.documentAssetIds = [];
+      expectedError = 'invalidSelection';
+    }
+    const before = repository.getSnapshot('default')!;
+    const save = vi.spyOn(repository, 'saveSnapshot');
+    await expect(engine.generateDraft(input, 'default', scenario === 'missing-context' || scenario === 'implicit-document' ? undefined : { extraction: result, expectedSnapshot: before })).rejects.toThrow(`ontology.documentErrors.${expectedError}`);
+    expect(repository.getSnapshot('default')).toEqual(before);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it.each(['delete', 'edit'] as const)('rejects workspace %s during extraction without overwriting or recreating it', async (scenario) => {
+    const { repository, engine, extraction, documentAssetIds } = await createDocumentWorkbench();
+    const expectedSnapshot = repository.getSnapshot('default')!;
+    if (scenario === 'delete') repository.deleteSnapshot('default');
+    else repository.saveSnapshot({ ...expectedSnapshot, draft: { ...expectedSnapshot.draft, title: 'Concurrent edit' } });
+    const before = repository.getSnapshot('default');
+    const save = vi.spyOn(repository, 'saveSnapshot');
+    await expect(engine.generateDraft({ assetIds: documentAssetIds, documentAssetIds }, 'default', { extraction, expectedSnapshot })).rejects.toThrow('ontology.documentErrors.conflict');
+    expect(repository.getSnapshot('default')).toEqual(before);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it.each(['delete', 'edit'] as const)('enforces atomic CAS when workspace %s occurs after the initial comparison', async (scenario) => {
+    const { repository, engine, extraction, documentAssetIds } = await createDocumentWorkbench();
+    const expectedSnapshot = repository.getSnapshot('default')!;
+    const concurrent = { ...expectedSnapshot, draft: { ...expectedSnapshot.draft, title: 'Concurrent edit' } };
+    const saveSnapshot = repository.saveSnapshot.bind(repository);
+    const save = vi.spyOn(repository, 'saveSnapshot').mockImplementationOnce((snapshot, expected) => {
+      expect(expected).toBe(expectedSnapshot);
+      if (scenario === 'delete') repository.deleteSnapshot('default');
+      else saveSnapshot(concurrent);
+      saveSnapshot(snapshot, expected);
+    });
+    await expect(engine.generateDraft({ assetIds: documentAssetIds, documentAssetIds }, 'default', { extraction, expectedSnapshot })).rejects.toThrow('ontology.documentErrors.conflict');
+    expect(repository.getSnapshot('default')).toEqual(scenario === 'delete' ? null : concurrent);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['attribute', 'relation'] as const)('rejects ambiguous existing %s matches without changing the draft', async (scenario) => {
+    const { repository, generate } = await createDocumentWorkbench();
+    await generate();
+    const before = repository.getSnapshot('default')!;
+    if (scenario === 'attribute') before.objects[0].attributes.push({ ...before.objects[0].attributes[0], id: 'duplicate-attribute' });
+    else before.relations.push({ ...before.relations[0], id: 'duplicate-relation' });
+    repository.saveSnapshot(before);
+    await expect(generate()).rejects.toThrow('ontology.documentErrors.conflict');
+    expect(repository.getSnapshot('default')).toEqual(before);
+  });
+
+  it.each(['object', 'relation'] as const)('rejects mixed generation %s code collisions', async (scenario) => {
+    const { repository, engine, generate, extraction, tableId, documentAssetIds } = await createDocumentWorkbench();
+    const imported = await engine.importFiles({ filePaths: ['/tmp/warehouse.csv'] }, [{ path: '/tmp/warehouse.csv', name: 'warehouse.csv', sizeBytes: 32, extension: '.csv' }]);
+    const result = structuredClone(extraction);
+    if (scenario === 'object') result.objects[0].code = 'records';
+    else result.relations[0].code = 'records_to_warehouse';
+    const before = repository.getSnapshot('default');
+    await expect(generate(result, { assetIds: [...documentAssetIds, tableId, imported.files[0].id] })).rejects.toThrow('ontology.documentErrors.conflict');
+    expect(repository.getSnapshot('default')).toEqual(before);
+  });
+
+  it('does not treat switching workbenches as permission to write to a different workspace', async () => {
+    const { repository, engine, extraction, documentAssetIds } = await createDocumentWorkbench();
+    const expectedSnapshot = repository.getSnapshot('default')!;
+    const other = await engine.createWorkbench({ name: 'Other workbench' });
+    const beforeOther = repository.getSnapshot(other.snapshot.workspaceId);
+    const generated = await engine.generateDraft({ assetIds: documentAssetIds, documentAssetIds, workspaceId: 'default' }, 'default', { extraction, expectedSnapshot });
+    expect(generated.workspaceId).toBe('default');
+    expect(repository.getSnapshot(other.snapshot.workspaceId)).toEqual(beforeOther);
+    expect(generated.objects).toHaveLength(2);
+  });
+
+  it('compares the raw snapshot and forwards it unchanged to a single conditional save', async () => {
+    const { repository, engine, extraction, documentAssetIds } = await createDocumentWorkbench();
+    await engine.upsertObject({ name: 'Legacy manual object' });
+    const legacy = repository.getSnapshot('default')!;
+    delete (legacy.objects[0] as Partial<(typeof legacy.objects)[0]>).tier;
+    legacy.stats.objectCount = 0;
+    repository.saveSnapshot(legacy);
+    const expectedSnapshot = repository.getSnapshot('default')!;
+    const original = structuredClone(expectedSnapshot);
+    const save = vi.spyOn(repository, 'saveSnapshot');
+    const generated = await engine.generateDraft({ assetIds: documentAssetIds, documentAssetIds }, 'default', { extraction, expectedSnapshot });
+    expect(save).toHaveBeenCalledExactlyOnceWith(generated, expectedSnapshot);
+    expect(save.mock.calls[0][1]).toBe(expectedSnapshot);
+    expect(expectedSnapshot).toEqual(original);
+    expect(generated.objects[0].tier).toBe(3);
+    expect(repository.getSnapshot('default')).toEqual(generated);
+  });
+});
 
 describe('OntologyEngine', () => {
   it('imports a structured ontology template without flattening it into one file object', async () => {
@@ -235,6 +591,126 @@ describe('OntologyEngine', () => {
 
     const withoutAgent = await engine.deleteAgentBlueprint({ id: registered.blueprint.id });
     expect(withoutAgent.agentBlueprints).toHaveLength(0);
+  });
+
+  it('updates an existing attribute without replacing its ID or changing unrelated attributes and objects', async () => {
+    const repository = new MemoryOntologyRepository();
+    const engine = new OntologyEngine(repository);
+    const generated = await createAttributeWorkbench(engine);
+    const [customer, order] = generated.objects;
+    const [identifier, attribute] = customer.attributes;
+
+    const updated = await engine.upsertAttribute({
+      id: attribute.id,
+      objectId: customer.id,
+      name: 'Customer Display Name',
+      code: 'display_name',
+      dataType: 'string',
+      required: true,
+      mappedField: attribute.mappedField,
+    });
+
+    expect(updated.objects).toEqual([
+      {
+        ...customer,
+        attributes: [identifier, { ...attribute, name: 'Customer Display Name', code: 'display_name', required: true }],
+        updatedAt: expect.any(Number),
+      },
+      order,
+    ]);
+    expect(repository.getSnapshot(generated.workspaceId)).toEqual(updated);
+  });
+
+  it('persists explicitly submitted attribute metadata and constraints when updating an existing attribute', async () => {
+    const repository = new MemoryOntologyRepository();
+    const engine = new OntologyEngine(repository);
+    const generated = await createAttributeWorkbench(engine);
+    const customer = generated.objects[0];
+    const attribute = customer.attributes[1];
+    const description = 'Customer display name from the CRM export.';
+    const mappedField = { assetId: customer.sourceAssetIds[0], fieldName: 'customer_name' };
+    const constraints = { minLength: 1, maxLength: 80, pattern: '^[A-Za-z ]+$' };
+
+    await engine.upsertAttribute({
+      id: attribute.id,
+      objectId: customer.id,
+      name: 'Display Name',
+      code: 'display_name',
+      dataType: 'string',
+      required: true,
+      description,
+      mappedField,
+      constraints,
+    });
+
+    const persisted = repository.getSnapshot(generated.workspaceId);
+    expect(persisted?.objects[0].attributes[1]).toEqual({
+      ...attribute,
+      name: 'Display Name',
+      code: 'display_name',
+      required: true,
+      description,
+      mappedField,
+      constraints,
+    });
+  });
+
+  it('rejects a duplicate normalized attribute code without changing the persisted snapshot', async () => {
+    const repository = new MemoryOntologyRepository();
+    const engine = new OntologyEngine(repository);
+    const generated = await createAttributeWorkbench(engine);
+    const customer = generated.objects[0];
+    const attribute = customer.attributes[1];
+    const before = repository.getSnapshot(generated.workspaceId);
+
+    await expect(
+      engine.upsertAttribute({
+        id: attribute.id,
+        objectId: customer.id,
+        name: 'Renamed Customer',
+        code: ' Customer-ID ',
+        dataType: 'string',
+        required: true,
+      })
+    ).rejects.toThrow('Attribute code "customer_id" already exists.');
+
+    expect(repository.getSnapshot(generated.workspaceId)).toEqual(before);
+    expect(await engine.getWorkbench(generated.workspaceId)).toEqual(generated);
+  });
+
+  it('deletes only the target attribute and its mappings while preserving unrelated mappings and objects', async () => {
+    const repository = new MemoryOntologyRepository();
+    const engine = new OntologyEngine(repository);
+    const generated = await createAttributeWorkbench(engine);
+    const [customer, order] = generated.objects;
+    const [attribute, sibling] = customer.attributes;
+    await engine.upsertMapping({
+      objectId: customer.id,
+      attributeId: attribute.id,
+      assetId: order.sourceAssetIds[0],
+      fieldName: 'customer_id',
+      strategy: 'manual',
+      status: 'approved',
+    });
+    const before = await engine.upsertMapping({
+      objectId: order.id,
+      attributeId: order.attributes[1].id,
+      assetId: customer.sourceAssetIds[0],
+      fieldName: 'customer_id',
+      strategy: 'manual',
+      status: 'approved',
+    });
+    const remainingMappings = before.mappings.filter((mapping) => mapping.attributeId !== attribute.id);
+    expect(before.mappings.filter((mapping) => mapping.attributeId === attribute.id)).toHaveLength(2);
+    expect(remainingMappings).toHaveLength(4);
+
+    const deleted = await engine.deleteAttribute({ objectId: customer.id, attributeId: attribute.id });
+
+    expect(deleted.objects).toEqual([{ ...customer, attributes: [sibling], updatedAt: expect.any(Number) }, order]);
+    expect(deleted.mappings.some((mapping) => mapping.attributeId === attribute.id)).toBe(false);
+    expect(deleted.mappings).toEqual(remainingMappings.map((mapping) => (mapping.strategy === 'manual' ? mapping : { ...mapping, id: expect.any(String), updatedAt: expect.any(Number) })));
+    expect(deleted.assets).toEqual(before.assets);
+    expect(repository.getSnapshot(generated.workspaceId)).toEqual(deleted);
   });
 
   it('publishes without object approval and still requires a published version for Agent blueprints', async () => {
