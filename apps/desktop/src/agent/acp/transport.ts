@@ -49,6 +49,7 @@ export interface StdioTransportOptions {
   useLspFraming: boolean;
   backend: string;
   events: AcpTransportEvents;
+  isSensitive?: boolean;
 }
 
 /**
@@ -75,7 +76,7 @@ export class StdioAcpTransport implements AcpTransport {
     // kill this child if the parent exits unexpectedly.
     processSupervisor.track(this.child, this.isDetached);
 
-    this.wireHandlers(options.backend, options.events);
+    this.wireHandlers(options.backend, options.events, options.isSensitive);
   }
 
   get connected(): boolean {
@@ -119,13 +120,14 @@ export class StdioAcpTransport implements AcpTransport {
 
   // ── Internal wiring ────────────────────────────────────────────
 
-  private wireHandlers(backend: string, events: AcpTransportEvents): void {
+  private wireHandlers(backend: string, events: AcpTransportEvents, isSensitive = false): void {
     const child = this.child!;
     const STDERR_HEAD_MAX = 512;
     const STDERR_TAIL_MAX = 1536;
 
     // Stderr collection for diagnostics on early crash
     child.stderr?.on('data', (data: Buffer) => {
+      if (isSensitive) return;
       const chunk = data.toString();
       console.error(`[ACP ${backend} STDERR]:`, chunk);
       if (this.stderrHead.length < STDERR_HEAD_MAX) {

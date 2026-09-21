@@ -206,6 +206,8 @@ extraResources:
     to: team-mcp/index.js
   - from: resources/ontology-mcp/index.js
     to: ontology-mcp/index.js
+  - from: resources/ontology-builder-mcp/index.js
+    to: ontology-builder-mcp/index.js
   # Nexus binary - versioned, optional (may not be available for all platforms)
   # Copy from the resources directory with filters; using a glob in `from`
   # is not reliable for electron-builder file-set matching.

@@ -180,6 +180,8 @@ export interface AcpAgentData {
   presetAssistantId?: string;
   /** Per-member team MCP server config (K2 wire, injected via session/new.mcp_servers, see A1); undefined for non-team conversations */
   teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
+  /** Extra MCP configs injected into session/new.mcp_servers (e.g. ontology-builder). Same wire shape as teamMcpConfig; kept separate so team-only behaviour (auto-approval, sleep-nudge) does not fire for these. */
+  extraMcpConfigs?: Array<{ name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> }>;
   /** Team id this conversation belongs to (mirrors extra.teamId); undefined for non-team conversations. Routes team deliverables aggregation. */
   teamId?: string;
 }
@@ -635,7 +637,13 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   private async createOrResumeSession(): Promise<void> {
     const resumeSessionId = this.extra.acpSessionId;
     // A1: inject per-member team MCP server (K2 wire) when this is a team member conversation.
-    const memberMcpServers = this.options.teamMcpConfig ? [this.options.teamMcpConfig] : undefined;
+    // A2: inject ontology-builder / other extra MCP configs so the AI Builder chat can
+    // call ontology_* tools. Merged into a single mcp_servers list because ACP session/new
+    // takes one array; the individual configs are already stable stdio-transport records.
+    const mcpConfigs: Array<{ name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> }> = [];
+    if (this.options.teamMcpConfig) mcpConfigs.push(this.options.teamMcpConfig);
+    if (this.options.extraMcpConfigs?.length) mcpConfigs.push(...this.options.extraMcpConfigs);
+    const memberMcpServers: unknown[] | undefined = mcpConfigs.length > 0 ? mcpConfigs : undefined;
 
     if (resumeSessionId) {
       try {

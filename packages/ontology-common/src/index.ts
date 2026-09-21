@@ -536,9 +536,65 @@ export interface IOntologyPhaseTransitionInput {
   blockingReason?: string;
 }
 
+export const ONTOLOGY_DOCUMENT_EXTENSIONS = [
+  "md",
+  "markdown",
+  "txt",
+  "pdf",
+  "doc",
+  "docx",
+  "ppt",
+  "pptx",
+  "csv",
+  "xls",
+  "xlsx",
+] as const;
+export const ONTOLOGY_DOCUMENT_MAX_FILES = 10;
+export const ONTOLOGY_DOCUMENT_MAX_FILE_BYTES = 50 * 1024 * 1024;
+export const ONTOLOGY_DOCUMENT_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+export const ONTOLOGY_DOCUMENT_MAX_TEXT_CHARS = 60_000;
+export const ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS = 2_000;
+export const ONTOLOGY_DOCUMENT_ERROR_KEYS = [
+  "unsupportedFormat",
+  "fileUnavailable",
+  "fileTooLarge",
+  "batchTooLarge",
+  "textTooLarge",
+  "emptyDocument",
+  "parseFailed",
+  "modelUnavailable",
+  "modelFailed",
+  "modelTimeout",
+  "invalidResult",
+  "noObjects",
+  "conflict",
+  "busy",
+  "invalidSelection",
+] as const;
+
+export function isOntologyDocumentAsset(
+  asset: IOntologyEnvironmentAsset,
+): boolean {
+  if (
+    !asset.path ||
+    asset.metadata.connectorId ||
+    asset.metadata.ontologyTemplate
+  )
+    return false;
+  if (!/^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(asset.path)) return false;
+  const extension = asset.path
+    .split(/[\\/]/)
+    .pop()
+    ?.split(".")
+    .pop()
+    ?.toLowerCase();
+  return ONTOLOGY_DOCUMENT_EXTENSIONS.some((item) => item === extension);
+}
+
 export interface IOntologyImportFilesInput {
   filePaths: string[];
   purpose?: "asset" | "template" | "document";
+  workspaceId?: string;
 }
 
 export interface IOntologyConnectorInput {
@@ -621,8 +677,34 @@ export interface IOntologyImportedFile {
 
 export interface IOntologyGenerateDraftInput {
   assetIds?: string[];
+  documentAssetIds?: string[];
+  workspaceId?: string;
   businessGoal?: string;
   mode?: "replace" | "merge";
+}
+
+export interface IOntologyDocumentExtraction {
+  objects: Array<{
+    code: string;
+    name: string;
+    description: string;
+    sourceAssetIds: string[];
+    attributes: Array<{
+      code: string;
+      name: string;
+      dataType: string;
+      required: boolean;
+      description: string;
+    }>;
+  }>;
+  relations: Array<{
+    code: string;
+    name: string;
+    description: string;
+    from: string;
+    to: string;
+    cardinality: IOntologyRelationDraft["cardinality"];
+  }>;
 }
 
 export interface IOntologyReviewTargetInput {

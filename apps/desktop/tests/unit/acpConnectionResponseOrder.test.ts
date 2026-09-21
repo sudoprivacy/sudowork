@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events';
+import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 
 type AcpConnectionCtor = typeof import('@/agent/acp/AcpConnection');
@@ -51,6 +53,38 @@ async function loadAcpConnection() {
 
   return await import('@/agent/acp/AcpConnection');
 }
+
+describe('sensitive ACP diagnostics', () => {
+  it('does not log response bodies in sensitive connections', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const { mainLog } = await import('@process/utils/mainLogger');
+    const connection = new AcpConnection({ isSensitive: true });
+    const harness = connection as unknown as { transport: { send: ReturnType<typeof vi.fn> }; sendResponseMessage: (response: unknown) => void };
+    harness.transport = { send: vi.fn() };
+    harness.sendResponseMessage({ jsonrpc: '2.0', id: 1, result: { content: 'private document' } });
+    expect(harness.transport.send).toHaveBeenCalledOnce();
+    expect(mainLog).not.toHaveBeenCalled();
+  });
+
+  it('drains sensitive child stderr without logging or retaining it', async () => {
+    vi.resetModules();
+    vi.doMock('@process/ProcessSupervisor', () => ({ processSupervisor: { track: vi.fn(), untrack: vi.fn() } }));
+    vi.doMock('@/agent/acp/utils', () => ({ killChild: vi.fn().mockResolvedValue(undefined) }));
+    vi.doMock('@common/nexus/nexusVfsGrpcClient', () => ({ NexusVfsGrpcClient: class {} }));
+    const { StdioAcpTransport } = await import('@/agent/acp/transport');
+    const child = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), stdin: { write: vi.fn() }, killed: false, pid: 12 });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const transport = new StdioAcpTransport({ child: child as unknown as ChildProcess, isDetached: false, useLspFraming: false, backend: 'scode', isSensitive: true, events: { onMessage: vi.fn(), onClose: vi.fn(), onSetupError: vi.fn() } });
+    try {
+      child.stderr.emit('data', Buffer.from('secret document and credential'));
+      expect(log).not.toHaveBeenCalled();
+      expect(transport.getStderr()).toBe('');
+    } finally {
+      await transport.close();
+      log.mockRestore();
+    }
+  });
+});
 
 describe('AcpConnection prompt response ordering', () => {
   it('emits usage before end_turn for completed prompt responses', async () => {

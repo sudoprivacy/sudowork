@@ -58,6 +58,8 @@ function formatAcpErrorMessage(error: AcpResponse['error']): string {
 }
 
 export class AcpConnection {
+  constructor(private readonly options: { isSensitive?: boolean } = {}) {}
+
   private transport: AcpTransport | null = null;
   private pendingRequests = new Map<number, PendingRequest<unknown>>();
   private nextRequestId = 0;
@@ -132,6 +134,7 @@ export class AcpConnection {
       child: result.child,
       isDetached: result.isDetached,
       useLspFraming: false,
+      isSensitive: this.options.isSensitive,
       backend,
       events: {
         onMessage: (msg) => this.handleMessage(msg),
@@ -572,7 +575,7 @@ export class AcpConnection {
   private sendResponseMessage(response: AcpResponse): void {
     if (this.transport) {
       try {
-        mainLog('[ACP-DIAG]', `sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`);
+        if (!this.options.isSensitive) mainLog('[ACP-DIAG]', `sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`);
       } catch {
         // ignore log errors
       }
@@ -829,7 +832,7 @@ export class AcpConnection {
     this.parseSessionCapabilities(response);
 
     // Debug: log full session/new response only when ACP_PERF=1
-    if (ACP_PERF_LOG) {
+    if (ACP_PERF_LOG && !this.options.isSensitive) {
       console.log(`[ACP ${this.backend}] session/new response:`, JSON.stringify(response, null, 2));
     }
 

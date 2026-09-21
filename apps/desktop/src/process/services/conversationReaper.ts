@@ -145,6 +145,19 @@ export async function reapConversation(id: string, opts: ReapOptions): Promise<R
 
   if (!conversation) {
     mainWarn('ConversationReaper', `[${opts.reason}] conversation ${id} not found; nothing to reap`);
+    // Even when the conversation itself is gone, orphaned registry rows
+    // (e.g. ontology AI-构建 sessions whose conversation was deleted from
+    // the sider first) MUST be swept — otherwise the AI 构建 list shows a
+    // dangling card that "delete" appears to succeed on but keeps returning.
+    // Keep this before the early return; the cleanup is a pure DB delete
+    // that doesn't need the conversation record.
+    try {
+      const { removeOntologyAiSessionForConversation } = await import('@process/services/ontology/OntologyAiSessionRegistry');
+      removeOntologyAiSessionForConversation(id);
+    } catch (err) {
+      mainLog('ConversationReaper', `[${opts.reason}] orphan ontology-ai session cleanup skipped: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    ipcBridge.conversation.reaped.emit({ id });
     return result;
   }
 
@@ -218,6 +231,19 @@ export async function reapConversation(id: string, opts: ReapOptions): Promise<R
       mainLog('ConversationReaper', `[${opts.reason}] deleted workspace folder: ${workspacePath}`);
     });
   }
+
+  // 9b. Clear the ontology AI-构建 session registry entry (if any) so the
+  // Builder page never shows a card that points at a reaped conversation.
+  // Kept idempotent + best-effort: any failure is logged but not propagated,
+  // since the primary deletion has already succeeded by this point.
+  await runStep('ontology-ai-session-rm', async () => {
+    try {
+      const { removeOntologyAiSessionForConversation } = await import('@process/services/ontology/OntologyAiSessionRegistry');
+      removeOntologyAiSessionForConversation(id);
+    } catch (err) {
+      mainLog('ConversationReaper', `[${opts.reason}] ontology-ai session cleanup skipped: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
 
   // 10. Consolidated broadcast so renderer-side caches drop their entries.
   await runStep('emit-reaped', () => {

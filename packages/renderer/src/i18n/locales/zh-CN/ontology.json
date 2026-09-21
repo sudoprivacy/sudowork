@@ -1,4 +1,30 @@
 {
+  "documentBuilder.documentFiles": "业务文档",
+  "documentBuilder.documentGoalPlaceholder": "描述业务范围、关键对象，以及希望从这些文档中建模的内容",
+  "documentBuilder.documentFormatsHint": "支持格式：{{formats}}。",
+  "documentBuilder.documentLimitsHint": "每批最多 {{files}} 个文件，单文件不超过 {{fileMiB}} MiB，总计不超过 {{totalMiB}} MiB。",
+  "documentBuilder.documentParsingHint": "PDF 必须包含可提取文字，不支持 OCR。旧版 DOC/PPT 文件可能需要 LibreOffice。",
+  "documentBuilder.documentModelHint": "提取时会将文档正文发送给当前配置的模型。正文合计不得超过 {{chars}} 个字符；超出时请拆分文档后重试。",
+  "documentErrors.unsupportedFormat": "不支持此文档格式，请选择列出的支持格式。",
+  "documentErrors.fileUnavailable": "所选文件不可用或不是本地普通文件，请重新选择。",
+  "documentErrors.fileTooLarge": "文件超过 50 MiB 限制，请拆分后重试。",
+  "documentErrors.batchTooLarge": "每批最多选择 10 个文件，总大小不得超过 100 MiB。",
+  "documentErrors.textTooLarge": "文档正文合计超过 60000 个字符，请拆分文档后重试。",
+  "documentErrors.emptyDocument": "文档没有可提取的文字。扫描版 PDF 需要先在其他工具中进行文字识别。",
+  "documentErrors.parseFailed": "无法解析文档，请检查是否加密或损坏；旧版 DOC/PPT 文件可能需要 LibreOffice。",
+  "documentErrors.modelUnavailable": "尚未配置可用模型，请配置模型后重试。",
+  "documentErrors.modelFailed": "模型未能完成提取，已保留当前选择，请重试。",
+  "documentErrors.modelTimeout": "模型提取超时，请减少文档数量或大小后重试。",
+  "documentErrors.invalidResult": "模型返回的对象或关系结构无效，请重试。",
+  "documentErrors.noObjects": "未提取到业务对象，请明确业务目标或选择其他文档。",
+  "documentErrors.conflict": "工作区已发生变化，或提取对象与现有对象冲突。请检查当前工作区后重试。",
+  "documentErrors.busy": "此工作区正在提取文档，请等待完成。",
+  "documentErrors.invalidSelection": "请检查所选文档和业务目标（必填，最多 2000 个字符）后重试。",
+  "objectEditor.saveBasicInfo": "保存基本信息",
+  "objectEditor.close": "关闭",
+  "objectEditor.attributeSaveHint": "属性操作立即保存，关闭窗口不会撤销；基本信息需单独保存。",
+  "objectEditor.deleteAttributeTitle": "删除属性",
+  "objectEditor.deleteAttributeContent": "确定删除属性 {{name}} 吗？关联的字段映射将一并删除。",
   "header": {
     "kicker": "本体工作台",
     "title": "本体工作台",
@@ -380,6 +406,10 @@
       "assets": {
         "title": "资产目录",
         "description": "统一管理可用于本体生成、字段映射和服务发布的数据资产。"
+      },
+      "ai_builder": {
+        "title": "AI 构建",
+        "description": "通过 SudoWork 智能会话引导完成本体构建。"
       },
       "ontology": {
         "title": "本体列表",
@@ -837,5 +867,44 @@
     "agentFailed": "创建 Agent 蓝图失败",
     "resetFailed": "重置失败",
     "withMessage": "操作失败：{{message}}"
+  },
+  "aiBuilder": {
+    "title": "AI 构建",
+    "description": "通过 SudoWork 智能会话引导完成本体构建。所有会话与 SudoWork 主会话共用一套模型体系。",
+    "bubbleTooltip": "AI 构建",
+    "new": "AI 构建",
+    "open": "打开",
+    "empty": "还没有 AI 构建会话，点击右上角开始一个吧。",
+    "deleted": "会话已删除",
+    "updatedAt": "更新于 {{time}}",
+    "sessionTitle": "AI 构建 · {{title}}",
+    "initialPrompt": "请以「本体智能构建助手」的角色协助我完成本体「{{title}}」的构建。先调用 ontology_get_snapshot 了解当前状态，然后按 明确目标 → 确认数据资产 → 抽取对象/关系 → 补齐映射与质量规则 → 一致性校验 → 发布 → 生成 Agent 的顺序推进，每一步都用相应的 ontology_* 工具真正落到数据库里。",
+    "initialPromptGoalLine": "业务目标：{{goal}}",
+    "presetContext": "你正在通过 SudoWork 本体工作台的「AI 构建」入口帮助用户构建本体「{{title}}」（workspace_id: {{workspaceId}}）。\n\n**关键规则**：你必须使用 `ontology-builder` MCP 提供的 `ontology_*` 工具真实地在数据库中创建/修改对象、属性、关系、映射、质量规则、逻辑函数与动作。所有写操作都会同步反映在用户看到的本体工作台 UI 中；只在聊天里描述结构而不调工具，用户是看不到任何变化的。\n\n**可用工具**：ontology_get_snapshot, ontology_update_draft, ontology_upsert_object, ontology_upsert_attribute, ontology_upsert_relation, ontology_upsert_mapping, ontology_upsert_quality_rule, ontology_upsert_logic_function, ontology_upsert_action, ontology_generate_draft_from_assets, ontology_run_consistency_check, ontology_publish_current_draft, ontology_create_agent_blueprint, ontology_register_agent_blueprint。\n\n**工作流**：\n1. 会话开始时先 ontology_get_snapshot 摸清当前状态。\n2. 若用户没描述业务目标，主动询问；确认后 ontology_update_draft 存下来。\n3. 抽取对象：优先用 ontology_upsert_object 逐个创建（同时可批量并行调用），name 用中文，code 用 snake_case。\n4. 为每个对象加属性：ontology_upsert_attribute（必带 objectId、name、dataType）；如已知资产字段，顺手绑 mappedField。\n5. 建立对象间关系：ontology_upsert_relation。\n6. 补映射与质量规则。\n7. 完成后 ontology_run_consistency_check；若 isValid=false，读 issues[] 修复并再校验。\n8. **审阅由用户人工完成**：告诉用户「请打开工作台预览并点击'全部通过'」，你不能自动 approve。\n9. 用户确认审阅通过后再 ontology_publish_current_draft。\n10. 发布成功后可 ontology_create_agent_blueprint + ontology_register_agent_blueprint。\n\n每次调工具都用 workspace_id: \"{{workspaceId}}\" 参数（除非用户明确切换本体）。回复保持简洁：一段话说明这一轮做了什么、下一步建议。",
+    "modal": {
+      "title": "开始新的 AI 构建",
+      "confirm": "开始",
+      "confirmOpen": "打开已有会话",
+      "hasExistingSessions": "已有 {{count}} 个会话",
+      "cancel": "取消",
+      "existing": "已有本体",
+      "new": "新建本体",
+      "existingHint": "选择要 AI 构建的目标本体：",
+      "selectPlaceholder": "选择本体",
+      "newName": "本体名称",
+      "newNamePlaceholder": "例如：项目管理本体",
+      "newCode": "本体标识（英文，全局唯一）",
+      "newCodePlaceholder": "例如：project_management",
+      "newCodeHint": "只能包含小写字母、数字、下划线和中划线；不填时会根据名称自动生成。",
+      "newCodeInvalid": "标识需以字母开头，且仅包含小写字母、数字、下划线或中划线（2-64 位）。",
+      "newCodeConflict": "该标识已被其他本体使用，请更换。",
+      "businessGoal": "业务目标（可选）",
+      "businessGoalPlaceholder": "例如：项目、任务、成员的协同管理"
+    },
+    "errors": {
+      "createFailed": "创建 AI 构建会话失败",
+      "deleteFailed": "删除失败",
+      "noWorkspace": "无法确定要构建的本体，请重试"
+    }
   }
 }

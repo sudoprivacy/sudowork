@@ -10,11 +10,16 @@
 // transport-coupled `ConfigStorage` runtime. The runtime stays app-side and
 // re-exports everything here for backward-compatible `@/common/storage` imports.
 
-import type { AcpBackend, AcpBackendAll, AcpBackendConfig, AcpModelInfo } from './acpTypes.js';
-import type { IBlacklistConfig } from './types/security.js';
+import type {
+  AcpBackend,
+  AcpBackendAll,
+  AcpBackendConfig,
+  AcpModelInfo,
+} from "./acpTypes.js";
+import type { IBlacklistConfig } from "./types/security.js";
 
 export interface IConfigStorageRefer {
-  'gemini.config': {
+  "gemini.config": {
     authType: string;
     proxy: string;
     GOOGLE_GEMINI_BASE_URL?: string;
@@ -26,11 +31,11 @@ export interface IConfigStorageRefer {
     /** Preferred session mode for new conversations / 新会话的默认模式 */
     preferredMode?: string;
   };
-  'codex.config'?: {
+  "codex.config"?: {
     cliPath?: string;
     yoloMode?: boolean;
   };
-  'acp.config': {
+  "acp.config": {
     [backend in AcpBackend]?: {
       authMethodId?: string;
       authToken?: string;
@@ -43,66 +48,66 @@ export interface IConfigStorageRefer {
       preferredModelId?: string;
     };
   };
-  'acp.customAgents'?: AcpBackendConfig[];
+  "acp.customAgents"?: AcpBackendConfig[];
   // Cached model lists per ACP backend for Guid page pre-selection
-  'acp.cachedModels'?: Record<string, AcpModelInfo>;
-  'model.config': IProvider[];
-  'mcp.config': IMcpServer[];
-  'mcp.agentInstallStatus': Record<string, string[]>;
+  "acp.cachedModels"?: Record<string, AcpModelInfo>;
+  "model.config": IProvider[];
+  "mcp.config": IMcpServer[];
+  "mcp.agentInstallStatus": Record<string, string[]>;
   language: string;
   theme: string;
-  'gemini.defaultModel': string | { id: string; useModel: string };
-  'tools.imageGenerationModel': TProviderWithModel & {
+  "gemini.defaultModel": string | { id: string; useModel: string };
+  "tools.imageGenerationModel": TProviderWithModel & {
     switch: boolean;
   };
   // 是否在粘贴文件到工作区时询问确认（true = 不再询问）
-  'workspace.pasteConfirm'?: boolean;
+  "workspace.pasteConfirm"?: boolean;
   // 图像下采样经济模式 / Image downsample economy mode.
   // OFF (default, undefined/false): use model-driven cap (`_meta.imageCapability.downsampleTargetBytes`
   // from the ACP backend, or 512 KB sudowork default if unadvertised). Optimised for quality.
   // ON (true): force-cap to 128 KB regardless of advertised value, trading image fidelity for
   // lower input-token cost on metered plans. See `image-handling-non-user-facing.html` Decision 3.
-  'image.economyMode'?: boolean;
+  "image.economyMode"?: boolean;
   // 已安装 hub skill 自动更新到最新版 / Auto-update installed hub skills to latest.
   // Default ON (unset = enabled); explicit `false` opts out (manual updates only).
-  'skill.autoUpdate'?: boolean;
+  "skill.autoUpdate"?: boolean;
   // guid 页面上次选择的 agent 类型 / Last selected agent type on guid page
-  'guid.lastSelectedAgent'?: string;
+  "guid.lastSelectedAgent"?: string;
   // guid 页面 session 模式（E端 Local/Remote 切换）/ Guid page session mode (Enterprise Local/Remote toggle)
-  'guid.sessionMode'?: 'remote' | 'local';
+  "guid.sessionMode"?: "remote" | "local";
   // 迁移标记：修复老版本中助手 enabled 默认值问题 / Migration flag: fix assistant enabled default value issue
-  'migration.assistantEnabledFixed'?: boolean;
+  "migration.assistantEnabledFixed"?: boolean;
   // 迁移标记：旧版硬编码默认图像生成模型（gpt-image-1.5）一次性迁移到当前默认；迁移后用户显式选择不再被覆盖
   // Migration flag: one-time migration of the legacy hardcoded image generation model (gpt-image-1.5) to the current default; after migration, explicit user selections are preserved
-  'migration.imageGenerationModelDefaultMigrated'?: boolean;
+  "migration.imageGenerationModelDefaultMigrated"?: boolean;
   // 迁移标记：为 cowork 助手添加默认启用的 skills / Migration flag: add default enabled skills for cowork assistant
   /** @deprecated Use migration.builtinDefaultSkillsAdded_v2 instead */
-  'migration.coworkDefaultSkillsAdded'?: boolean;
+  "migration.coworkDefaultSkillsAdded"?: boolean;
   // 迁移标记：为所有内置助手添加默认启用的 skills / Migration flag: add default enabled skills for all builtin assistants
-  'migration.builtinDefaultSkillsAdded_v2'?: boolean;
+  "migration.builtinDefaultSkillsAdded_v2"?: boolean;
   // 迁移标记：为所有内置助手添加 promptsI18n / Migration flag: add promptsI18n for all builtin assistants
-  'migration.promptsI18nAdded'?: boolean;
+  "migration.promptsI18nAdded"?: boolean;
   /** Locally hidden remote cron execution sessions keyed by Moss session ID. */
-  'remote.hiddenCronSessionIds'?: Record<string, number>;
+  "remote.hiddenCronSessionIds"?: Record<string, number>;
   /** Migration flag: skill subdirectory restructuring completed */
-  'migration.skillSubdirectoriesMigrated'?: boolean;
+  "migration.skillSubdirectoriesMigrated"?: boolean;
   /** Migration flag: channel agent migrated to scode (Sudo Code) */
-  'migration.channelAgentMigratedToScode'?: boolean;
+  "migration.channelAgentMigratedToScode"?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
-  'system.closeToTray'?: boolean;
+  "system.closeToTray"?: boolean;
   // 每轮消息下方是否显示 token / 积分用量 / Whether to show per-turn token / points usage badges
-  'system.showTokenUsageBadges'?: boolean;
+  "system.showTokenUsageBadges"?: boolean;
   // 对话流中是否显示工具调用（缺省 = 跟随默认值：个人版显示，企业版跟随 Moss 租户配置）
   // Show tool calls in the chat stream (absent = follow default: consumer shows, enterprise follows Moss tenant config)
-  'system.showToolCalls'?: boolean;
+  "system.showToolCalls"?: boolean;
   // 右栏浏览器新建标签页的默认主页 / Default homepage for new tabs in the right-panel browser
-  'system.browserDefaultUrl'?: string;
+  "system.browserDefaultUrl"?: string;
   // 桌面 avatar 浮窗开关 / Floating desktop avatar window enabled
-  'avatar.enabled'?: boolean;
+  "avatar.enabled"?: boolean;
   // Avatar 浮窗最近一次的位置（屏幕坐标）/ Last-known avatar window bounds (screen coords)
-  'avatar.bounds'?: { x: number; y: number; width: number; height: number };
+  "avatar.bounds"?: { x: number; y: number; width: number; height: number };
   // 内置资源最后复制的版本号，用于优化启动速度 / Last copied version of builtin resources for startup optimization
-  'system.lastBuiltinResourcesVersion'?: string;
+  "system.lastBuiltinResourcesVersion"?: string;
   /**
    * @deprecated Superseded by `system.sudoworkServerUrl` below. The current sudowork-server URL
    * is resolved at runtime via `src/common/sudoworkServer.ts` (renderer `getSudoworkServerBaseUrl`)
@@ -110,7 +115,7 @@ export interface IConfigStorageRefer {
    * user setting > build-time `__SUDOWORK_SERVER_BASE_URL__` define > literal fallback.
    * This key is kept for backward compatibility but is no longer read or written.
    */
-  'sudowork.server'?: {
+  "sudowork.server"?: {
     baseUrl: string;
     enterpriseCode?: string;
   };
@@ -120,62 +125,62 @@ export interface IConfigStorageRefer {
    * `src/process/initStorage.ts#getSudoworkServerBaseUrlSync` (main).
    * Empty / absent → fall back to build-time define, then to literal.
    */
-  'system.sudoworkServerUrl'?: string;
+  "system.sudoworkServerUrl"?: string;
   /** Administrator-distributed Moss origin. Takes precedence when locked. */
-  'system.managedMossServerUrl'?: string;
+  "system.managedMossServerUrl"?: string;
   /** Prevent users from overriding the administrator/build supplied Moss origin. */
-  'system.mossServerUrlLocked'?: boolean;
+  "system.mossServerUrlLocked"?: boolean;
   // Telegram assistant default model / Telegram 助手默认模型
-  'assistant.telegram.defaultModel'?: {
+  "assistant.telegram.defaultModel"?: {
     id: string;
     useModel: string;
   };
   // Telegram assistant agent selection / Telegram 助手所使用的 Agent
-  'assistant.telegram.agent'?: {
+  "assistant.telegram.agent"?: {
     backend: AcpBackendAll;
     customAgentId?: string;
     name?: string;
   };
   // Lark assistant default model / Lark 助手默认模型
-  'assistant.lark.defaultModel'?: {
+  "assistant.lark.defaultModel"?: {
     id: string;
     useModel: string;
   };
   // Lark assistant agent selection / Lark 助手所使用的 Agent
-  'assistant.lark.agent'?: {
+  "assistant.lark.agent"?: {
     backend: AcpBackendAll;
     customAgentId?: string;
     name?: string;
   };
   // DingTalk assistant default model / DingTalk 助手默认模型
-  'assistant.dingtalk.defaultModel'?: {
+  "assistant.dingtalk.defaultModel"?: {
     id: string;
     useModel: string;
   };
   // DingTalk assistant agent selection / DingTalk 助手所使用的 Agent
-  'assistant.dingtalk.agent'?: {
+  "assistant.dingtalk.agent"?: {
     backend: AcpBackendAll;
     customAgentId?: string;
     name?: string;
   };
   // WeChat assistant default model / 微信助手默认模型
-  'assistant.wechat.defaultModel'?: {
+  "assistant.wechat.defaultModel"?: {
     id: string;
     useModel: string;
   };
   // WeChat assistant agent selection / 微信助手所使用的 Agent
-  'assistant.wechat.agent'?: {
+  "assistant.wechat.agent"?: {
     backend: AcpBackendAll;
     customAgentId?: string;
     name?: string;
   };
   // WeCom assistant default model / 企业微信助手默认模型
-  'assistant.wecom.defaultModel'?: {
+  "assistant.wecom.defaultModel"?: {
     id: string;
     useModel: string;
   };
   // WeCom assistant agent selection / 企业微信助手所使用的 Agent
-  'assistant.wecom.agent'?: {
+  "assistant.wecom.agent"?: {
     backend: AcpBackendAll;
     customAgentId?: string;
     name?: string;
@@ -183,7 +188,7 @@ export interface IConfigStorageRefer {
   // pwd_login auto-fill credential entries (non-secret selector metadata; the
   // username+password live in the Nexus secret store at service:pwdlogin/{title}).
   // Agent-registered custom sites; built-in sites come from pwdAdapters.ts.
-  'pwdLogin.entries'?: Array<{
+  "pwdLogin.entries"?: Array<{
     title: string;
     url: string;
     usernameSelector: string;
@@ -191,70 +196,83 @@ export interface IConfigStorageRefer {
     submitSelector: string;
     captchaSelector?: string;
     captchaImageSelector?: string;
-    strategy: 'single_step' | 'two_step';
+    strategy: "single_step" | "two_step";
   }>;
   // Channel voice transcription / 频道语音转写配置 (shared TranscriptionService)
-  'assistant.transcription.engine'?: 'local' | 'cloud'; // 引擎类型：本地(默认)或云端 / engine kind: local (default) or cloud
-  'assistant.transcription.localEngine'?: 'faster-whisper' | 'sensevoice'; // 本地 ASR 后端 / local ASR backend
-  'assistant.transcription.model'?: string; // 引擎模型名 / engine-specific model name
-  'assistant.transcription.language'?: string; // 语言提示 (留空自动检测) / language hint, empty = auto
+  "assistant.transcription.engine"?: "local" | "cloud"; // 引擎类型：本地(默认)或云端 / engine kind: local (default) or cloud
+  "assistant.transcription.localEngine"?: "faster-whisper" | "sensevoice"; // 本地 ASR 后端 / local ASR backend
+  "assistant.transcription.model"?: string; // 引擎模型名 / engine-specific model name
+  "assistant.transcription.language"?: string; // 语言提示 (留空自动检测) / language hint, empty = auto
   // Safety hook enabled state / 安全 Hook 启用状态
-  'safetyHook.enabled'?: boolean;
+  "safetyHook.enabled"?: boolean;
   // Safety hook blacklist configuration / 安全 Hook 黑名单配置
-  'safetyHook.blacklist'?: IBlacklistConfig;
+  "safetyHook.blacklist"?: IBlacklistConfig;
   // 建设库 enabled state / 建设库启用状态
-  'settings.jsb.enabled'?: boolean;
-  'settings.tenant.enabled'?: Record<number, boolean>;
+  "settings.jsb.enabled"?: boolean;
+  "settings.tenant.enabled"?: Record<number, boolean>;
   // LLM request timeout in seconds / LLM 请求超时（秒）
-  'agent.promptTimeout'?: number;
+  "agent.promptTimeout"?: number;
   // Agent idle timeout in minutes for recycling / Agent 空闲超时（分钟）用于回收
-  'agent.idleTimeout'?: number;
+  "agent.idleTimeout"?: number;
   // Auto-interrupt: sending a new message while the agent is responding cancels the
   // current turn and sends the new one. Default OFF on sudowork (gray-release first).
   // 自动打断：回复中发送新消息会中断当前轮并立即处理。sudowork 默认关闭（先灰度）。
-  'agent.autoInterrupt'?: boolean;
+  "agent.autoInterrupt"?: boolean;
   // Message queue: while responding, new messages are held and replayed in submission
   // order after the turn finishes (instead of being blocked). Default ON.
   // 消息队列：回复中新消息入队，结束后按提交顺序依次发送。默认开启。
-  'agent.messageQueue'?: boolean;
+  "agent.messageQueue"?: boolean;
   // Whether the user has answered the first-time auto-interrupt confirmation
   // (是/否/以后都自动). Once set, the confirm dialog is not shown again.
   // 是否已回答首次“自动打断”确认弹窗；置位后不再弹出。
-  'agent.autoInterruptConfirmed'?: boolean;
+  "agent.autoInterruptConfirmed"?: boolean;
   // Remote agent idle detach timeout in minutes. After a finished remote session is idle for
   // this long, the client tears down the WebSocket (detach only — does NOT terminate the Moss
   // session). 0 disables detach. undefined ⇒ default (30 min).
   // 远程会话空闲 detach 超时（分钟）。会话结束并空闲该时长后，客户端仅断开 WebSocket（不调用 terminate）。
   // 0 表示禁用；未设置时使用默认值（30 分钟）。
-  'remote.idleDetachMinutes'?: number;
+  "remote.idleDetachMinutes"?: number;
   // Telemetry configuration / 遥测配置
-  'telemetry.enabled'?: boolean; // 是否启用遥测上报 / Whether telemetry reporting is enabled
-  'telemetry.optInShown'?: boolean; // 是否已显示 opt-in 弹窗 / Whether opt-in dialog has been shown
-  'telemetry.serverUrl'?: string; // 遥测服务器地址 (可选，默认使用内置地址) / Telemetry server URL
-  'telemetry.installId'?: string; // 安装 ID / Install ID
-  'telemetry.previousVersion'?: string; // 之前的版本 (用于判断安装类型) / Previous version for install type detection
+  "telemetry.enabled"?: boolean; // 是否启用遥测上报 / Whether telemetry reporting is enabled
+  "telemetry.optInShown"?: boolean; // 是否已显示 opt-in 弹窗 / Whether opt-in dialog has been shown
+  "telemetry.serverUrl"?: string; // 遥测服务器地址 (可选，默认使用内置地址) / Telemetry server URL
+  "telemetry.installId"?: string; // 安装 ID / Install ID
+  "telemetry.previousVersion"?: string; // 之前的版本 (用于判断安装类型) / Previous version for install type detection
   // Internal execution context: 'c' for offline/local, 'e' for online/Moss.
   // Kept for compatibility; it is no longer a user-facing account type.
-  'system.appMode'?: 'c' | 'e';
+  "system.appMode"?: "c" | "e";
   // Enterprise server URL / 企业服务器地址
-  'eeclaw.serverUrl'?: string;
+  "eeclaw.serverUrl"?: string;
   // Enterprise tenant name / 企业租户名称
-  'eeclaw.tenantName'?: string;
+  "eeclaw.tenantName"?: string;
   // Enterprise user info / 企业用户信息
-  'eeclaw.userInfo'?: { id: string; username: string; role?: string };
+  "eeclaw.userInfo"?: { id: string; username: string; role?: string };
   // Whether enterprise local mode is available for the current user / 当前用户是否可用企业本地模式
-  'eeclaw.localModeAvailable'?: boolean;
+  "eeclaw.localModeAvailable"?: boolean;
   // Enterprise auth token for main process (no user field, unlike localStorage eeclaw_auth_v1)
-  'eeclaw.authStorage'?: { access_token: string; refresh_token: string; expires_at: number; device_id: string; session_type?: 'password' | 'api_key' | 'oauth2' | 'phone';
+  "eeclaw.authStorage"?: {
+    access_token: string;
+    refresh_token: string;
+    expires_at: number;
+    device_id: string;
+    session_type?: "password" | "api_key" | "oauth2" | "phone";
   };
   // Last resolved tenant config (main-process offline fallback for policy flags like client_cron_enabled)
-  'eeclaw.tenantConfig'?: { client_cron_enabled?: boolean; [key: string]: unknown };
+  "eeclaw.tenantConfig"?: {
+    client_cron_enabled?: boolean;
+    [key: string]: unknown;
+  };
   // Consumer (personal) mode user info for telemetry / 个人模式用户信息（用于遥测）
-  'consumer.userInfo'?: { id: string; nickname?: string; phone?: string; tenant_id?: string };
+  "consumer.userInfo"?: {
+    id: string;
+    nickname?: string;
+    phone?: string;
+    tenant_id?: string;
+  };
 }
 
 export interface IEnvStorageRefer {
-  'nexus.dir': {
+  "nexus.dir": {
     workDir: string;
     cacheDir: string;
   };
@@ -264,7 +282,13 @@ export interface IEnvStorageRefer {
  * Conversation source type - identifies where the conversation was created
  * 会话来源类型 - 标识会话创建的来源
  */
-export type ConversationSource = 'sudowork' | 'telegram' | 'lark' | 'dingtalk' | 'wechat' | (string & NonNullable<unknown>);
+export type ConversationSource =
+  | "sudowork"
+  | "telegram"
+  | "lark"
+  | "dingtalk"
+  | "wechat"
+  | (string & NonNullable<unknown>);
 
 interface IChatConversation<T, Extra> {
   createTime: number;
@@ -275,7 +299,7 @@ interface IChatConversation<T, Extra> {
   type: T;
   extra: Extra;
   model: TProviderWithModel;
-  status?: 'pending' | 'running' | 'finished' | undefined;
+  status?: "pending" | "running" | "finished" | undefined;
   /** 处理开始时间戳（毫秒），用于恢复计时器 / Processing start timestamp in milliseconds for timer restoration */
   processingStartTime?: number;
   /** 会话来源，默认为 sudowork / Conversation source, defaults to sudowork */
@@ -292,7 +316,7 @@ export interface TokenUsageData {
 export type TChatConversation =
   | Omit<
       IChatConversation<
-        'acp',
+        "acp",
         {
           workspace?: string;
           backend: AcpBackend;
@@ -321,7 +345,10 @@ export type TChatConversation =
           /** ACP runtime context health after recoverable model context errors */
           acpContextHealth?: {
             poisoned: boolean;
-            reason?: 'context_window_exceeded' | 'request_body_too_large' | 'single_request_too_large';
+            reason?:
+              | "context_window_exceeded"
+              | "request_body_too_large"
+              | "single_request_too_large";
             poisonedAt?: number;
             recoverableByNewSession?: boolean;
           };
@@ -350,14 +377,26 @@ export type TChatConversation =
           /** Team ID this member conversation belongs to */
           teamId?: string;
           /** Per-member team MCP server config (K2 wire for session/new.mcp_servers, see A1); undefined for non-team conversations */
-          teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
+          teamMcpConfig?: {
+            name: string;
+            command: string;
+            args?: string[];
+            env?: Array<{ name: string; value: string }>;
+          };
+          /** Extra MCP configs injected into session/new.mcp_servers (e.g. ontology-builder from the AI 构建 flow). Kept separate from teamMcpConfig so team-only side effects don't fire. */
+          extraMcpConfigs?: Array<{
+            name: string;
+            command: string;
+            args?: string[];
+            env?: Array<{ name: string; value: string }>;
+          }>;
         }
       >,
-      'model'
+      "model"
     >
   | Omit<
       IChatConversation<
-        'remote-agent',
+        "remote-agent",
         {
           workspace?: string;
           /** Moss Server URL (e.g. http://127.0.0.1:43127) */
@@ -380,7 +419,7 @@ export type TChatConversation =
           /** Skip permission confirmation */
           dangerouslySkipPermissions?: boolean;
           /** Runtime type */
-          runtimeType?: 'host' | 'docker';
+          runtimeType?: "host" | "docker";
           /** Backend type for compatibility */
           backend?: AcpBackendAll;
           /** Enterprise code */
@@ -429,23 +468,23 @@ export type TChatConversation =
           mossWorkDir?: string;
         }
       >,
-      'model'
+      "model"
     >;
 
 export type IChatConversationRefer = {
-  'chat.history': TChatConversation[];
+  "chat.history": TChatConversation[];
 };
 
 export type ModelType =
-  | 'text' // 文本对话
-  | 'vision' // 视觉理解
-  | 'function_calling' // 工具调用
-  | 'image_generation' // 图像生成
-  | 'web_search' // 网络搜索
-  | 'reasoning' // 推理模型
-  | 'embedding' // 嵌入模型
-  | 'rerank' // 重排序模型
-  | 'excludeFromPrimary'; // 排除：不适合作为主力模型
+  | "text" // 文本对话
+  | "vision" // 视觉理解
+  | "function_calling" // 工具调用
+  | "image_generation" // 图像生成
+  | "web_search" // 网络搜索
+  | "reasoning" // 推理模型
+  | "embedding" // 嵌入模型
+  | "rerank" // 重排序模型
+  | "excludeFromPrimary"; // 排除：不适合作为主力模型
 
 export type ModelCapability = {
   type: ModelType;
@@ -483,7 +522,7 @@ export interface IProvider {
    * Only used when platform is 'bedrock'
    */
   bedrockConfig?: {
-    authMethod: 'accessKey' | 'profile';
+    authMethod: "accessKey" | "profile";
     region: string;
     // For access key method
     accessKeyId?: string;
@@ -508,7 +547,7 @@ export interface IProvider {
   modelHealth?: Record<
     string,
     {
-      status: 'unknown' | 'healthy' | 'unhealthy';
+      status: "unknown" | "healthy" | "unhealthy";
       lastCheck?: number; // 时间戳 / timestamp
       latency?: number; // 延迟时间（毫秒）/ latency in milliseconds
       error?: string; // 错误信息 / error message
@@ -516,43 +555,49 @@ export interface IProvider {
   >;
 }
 
-export type TProviderWithModel = Omit<IProvider, 'model'> & { useModel: string };
+export type TProviderWithModel = Omit<IProvider, "model"> & {
+  useModel: string;
+};
 
 /** Default model used for image parsing/understanding (看图) via SudoRouter */
-export const DEFAULT_IMAGE_PARSING_MODEL = 'gemini-3.5-flash';
+export const DEFAULT_IMAGE_PARSING_MODEL = "gemini-3.5-flash";
 
 /** Default model used for image generation (生图) */
-export const DEFAULT_IMAGE_GENERATION_MODEL = 'gemini-3.1-flash-image';
+export const DEFAULT_IMAGE_GENERATION_MODEL = "gemini-3.1-flash-image";
 
 // MCP Server Configuration Types
-export type McpTransportType = 'stdio' | 'sse' | 'http';
+export type McpTransportType = "stdio" | "sse" | "http";
 
 export interface IMcpServerTransportStdio {
-  type: 'stdio';
+  type: "stdio";
   command: string;
   args?: string[];
   env?: Record<string, string>;
 }
 
 export interface IMcpServerTransportSSE {
-  type: 'sse';
+  type: "sse";
   url: string;
   headers?: Record<string, string>;
 }
 
 export interface IMcpServerTransportHTTP {
-  type: 'http';
+  type: "http";
   url: string;
   headers?: Record<string, string>;
 }
 
 export interface IMcpServerTransportStreamableHTTP {
-  type: 'streamable_http';
+  type: "streamable_http";
   url: string;
   headers?: Record<string, string>;
 }
 
-export type IMcpServerTransport = IMcpServerTransportStdio | IMcpServerTransportSSE | IMcpServerTransportHTTP | IMcpServerTransportStreamableHTTP;
+export type IMcpServerTransport =
+  | IMcpServerTransportStdio
+  | IMcpServerTransportSSE
+  | IMcpServerTransportHTTP
+  | IMcpServerTransportStreamableHTTP;
 
 export interface IMcpServer {
   id: string;
@@ -561,7 +606,7 @@ export interface IMcpServer {
   enabled: boolean; // 是否已安装到 CLI agents（控制 Switch 状态）
   transport: IMcpServerTransport;
   tools?: IMcpTool[];
-  status?: 'connected' | 'disconnected' | 'error' | 'testing'; // 连接状态（同时表示服务可用性）
+  status?: "connected" | "disconnected" | "error" | "testing"; // 连接状态（同时表示服务可用性）
   lastConnected?: number;
   createdAt: number;
   updatedAt: number;

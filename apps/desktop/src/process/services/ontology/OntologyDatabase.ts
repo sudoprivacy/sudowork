@@ -1,5 +1,6 @@
 import path from 'path';
 import { renameSync, rmSync, writeFileSync } from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import { safeStorage } from 'electron';
 import BetterSqlite3 from 'better-sqlite3';
 import type Database from 'better-sqlite3';
@@ -49,6 +50,15 @@ interface IScenarioRow {
 
 interface ISystemConfigRow {
   value: string | null;
+}
+
+interface IOntologyAiSessionRow {
+  id: string;
+  workspace_id: string;
+  conversation_id: string;
+  title: string;
+  created_at: number;
+  updated_at: number;
 }
 
 interface IConnectionRow {
@@ -356,8 +366,11 @@ export class OntologyDatabase implements IOntologyRepository {
     return rows.map((row) => this.readWorkbench(row));
   }
 
-  saveSnapshot(snapshot: IOntologyWorkbenchSnapshot): void {
+  saveSnapshot(snapshot: IOntologyWorkbenchSnapshot, expectedSnapshot?: IOntologyWorkbenchSnapshot): void {
     const writeWorkbench = this.db.transaction((workbench: IOntologyWorkbenchSnapshot) => {
+      if (expectedSnapshot && !isDeepStrictEqual(this.getSnapshot(workbench.workspaceId), expectedSnapshot)) {
+        throw new Error('ontology.documentErrors.conflict');
+      }
       const normalized = {
         ...workbench,
         stats: recalculateOntologyStats(workbench),
@@ -419,6 +432,31 @@ export class OntologyDatabase implements IOntologyRepository {
          DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
       )
       .run(`system:${ACTIVE_WORKSPACE_KEY}`, 'ontology', ACTIVE_WORKSPACE_KEY, workspaceId, 'Active ontology workspace', Date.now(), 'sudowork');
+  }
+
+  listAiSessions(workspaceId?: string): IOntologyAiSessionRow[] {
+    const stmt = workspaceId ? this.db.prepare('SELECT * FROM t_ontology_ai_session WHERE workspace_id = ? ORDER BY updated_at DESC') : this.db.prepare('SELECT * FROM t_ontology_ai_session ORDER BY updated_at DESC');
+    return (workspaceId ? stmt.all(workspaceId) : stmt.all()) as IOntologyAiSessionRow[];
+  }
+
+  getAiSessionByConversationId(conversationId: string): IOntologyAiSessionRow | undefined {
+    return this.db.prepare('SELECT * FROM t_ontology_ai_session WHERE conversation_id = ?').get(conversationId) as IOntologyAiSessionRow | undefined;
+  }
+
+  getAiSessionById(id: string): IOntologyAiSessionRow | undefined {
+    return this.db.prepare('SELECT * FROM t_ontology_ai_session WHERE id = ?').get(id) as IOntologyAiSessionRow | undefined;
+  }
+
+  createAiSession(row: IOntologyAiSessionRow): void {
+    this.db.prepare('INSERT INTO t_ontology_ai_session (id, workspace_id, conversation_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(row.id, row.workspace_id, row.conversation_id, row.title, row.created_at, row.updated_at);
+  }
+
+  deleteAiSession(id: string): void {
+    this.db.prepare('DELETE FROM t_ontology_ai_session WHERE id = ?').run(id);
+  }
+
+  touchAiSession(conversationId: string, updatedAt: number): void {
+    this.db.prepare('UPDATE t_ontology_ai_session SET updated_at = ? WHERE conversation_id = ?').run(updatedAt, conversationId);
   }
 
   close(): void {
@@ -1389,7 +1427,7 @@ export class OntologyDatabase implements IOntologyRepository {
   private readPublishedVersions(workspaceId: string): IOntologyPublishedVersion[] {
     const rows = this.db.prepare('SELECT * FROM ontology_versions WHERE ontology_id = ? ORDER BY version_number ASC').all(workspaceId) as IVersionRow[];
     return rows.map((row) => {
-      const versionSnapshot = this.readVersionSnapshot(row.id);
+      const versionSnapshot = this.readVersionSnapshot(row.id, fromDbTime(row.created_at));
       const diff = parseJson<IOntologyVersionDiff>(row.reject_reason, createEmptyVersionDiff(row.id));
       return {
         id: row.id,
@@ -1410,7 +1448,7 @@ export class OntologyDatabase implements IOntologyRepository {
     });
   }
 
-  private readVersionSnapshot(versionId: string): IOntologyVersionSnapshot {
+  private readVersionSnapshot(versionId: string, createdAt: number): IOntologyVersionSnapshot {
     const entityRows = this.db.prepare('SELECT * FROM ontology_version_entities WHERE version_id = ? ORDER BY id ASC').all(versionId) as IVersionEntityRow[];
     const attributeRows = entityRows.length > 0 ? (this.db.prepare(`SELECT * FROM ontology_version_attributes WHERE version_entity_id IN (${placeholders(entityRows)})`).all(...entityRows.map((row) => row.id)) as IVersionAttributeRow[]) : [];
     const attributesByEntity = groupBy(attributeRows, (row) => row.version_entity_id);
@@ -1441,7 +1479,7 @@ export class OntologyDatabase implements IOntologyRepository {
           };
         }),
         reviewDecision: reviewDecision(config.reviewDecision),
-        updatedAt: numberValue(config.updatedAt) ?? Date.now(),
+        updatedAt: numberValue(config.updatedAt) ?? createdAt,
       };
     });
     const relationRows = this.db.prepare('SELECT * FROM ontology_version_relations WHERE version_id = ? ORDER BY id ASC').all(versionId) as IVersionRelationRow[];
@@ -1457,7 +1495,7 @@ export class OntologyDatabase implements IOntologyRepository {
       isAcyclic: Boolean(row.acyclic),
       description: row.description ?? undefined,
       reviewDecision: 'approved',
-      updatedAt: Date.now(),
+      updatedAt: createdAt,
     }));
     const functionRows = this.db.prepare('SELECT * FROM ontology_version_functions WHERE version_id = ? ORDER BY id ASC').all(versionId) as IVersionComponentRow[];
     const actionRows = this.db.prepare('SELECT * FROM ontology_version_actions WHERE version_id = ? ORDER BY id ASC').all(versionId) as IVersionComponentRow[];
@@ -1467,8 +1505,8 @@ export class OntologyDatabase implements IOntologyRepository {
       relations,
       mappings: parseJson<IOntologyFieldMapping[]>(metadata?.mappings, []),
       qualityRules: parseJson<IOntologyQualityRule[]>(metadata?.quality_rules, []),
-      logicFunctions: functionRows.map((row) => parseJson<IOntologyLogicFunction>(row.config_json, fallbackVersionFunction(row))),
-      actions: actionRows.map((row) => parseJson<IOntologyActionDefinition>(row.config_json, fallbackVersionAction(row))),
+      logicFunctions: functionRows.map((row) => parseJson<IOntologyLogicFunction>(row.config_json, fallbackVersionFunction(row, createdAt))),
+      actions: actionRows.map((row) => parseJson<IOntologyActionDefinition>(row.config_json, fallbackVersionAction(row, createdAt))),
       serviceEndpoints: parseJson<IOntologyServiceEndpoint[]>(metadata?.service_endpoints, []),
       businessDocuments: parseJson<IOntologyBusinessDocument[]>(metadata?.business_documents, []),
     };
@@ -1706,7 +1744,7 @@ function fromDbTime(value: number | string | null | undefined): number {
     const parsed = Date.parse(value);
     if (Number.isFinite(parsed)) return parsed;
   }
-  return Date.now();
+  return 0;
 }
 
 function fromOptionalDbTime(value: number | string | null | undefined): number | undefined {
@@ -1892,7 +1930,7 @@ function createEmptyVersionDiff(versionId?: string): IOntologyVersionDiff {
   };
 }
 
-function fallbackVersionFunction(row: IVersionComponentRow): IOntologyLogicFunction {
+function fallbackVersionFunction(row: IVersionComponentRow, createdAt: number): IOntologyLogicFunction {
   return {
     id: row.source_id ?? row.id,
     code: row.name,
@@ -1907,11 +1945,11 @@ function fallbackVersionFunction(row: IVersionComponentRow): IOntologyLogicFunct
     origin: 'generated',
     status: 'active',
     executionCount: 0,
-    updatedAt: Date.now(),
+    updatedAt: createdAt,
   };
 }
 
-function fallbackVersionAction(row: IVersionComponentRow): IOntologyActionDefinition {
+function fallbackVersionAction(row: IVersionComponentRow, createdAt: number): IOntologyActionDefinition {
   return {
     id: row.source_id ?? row.id,
     code: row.name,
@@ -1925,7 +1963,7 @@ function fallbackVersionAction(row: IVersionComponentRow): IOntologyActionDefini
     origin: 'generated',
     status: 'active',
     executionCount: 0,
-    updatedAt: Date.now(),
+    updatedAt: createdAt,
   };
 }
 
@@ -2565,4 +2603,13 @@ CREATE TABLE IF NOT EXISTS t_mcp_call_log (
 );
 CREATE INDEX IF NOT EXISTS ix_mcp_call_log_called_at ON t_mcp_call_log (called_at);
 CREATE INDEX IF NOT EXISTS ix_mcp_call_log_tool_name ON t_mcp_call_log (tool_name);
+CREATE TABLE IF NOT EXISTS t_ontology_ai_session (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  conversation_id TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_ontology_ai_session_workspace ON t_ontology_ai_session (workspace_id, updated_at DESC);
 `;

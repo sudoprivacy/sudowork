@@ -51,7 +51,7 @@ export function inferMimeType(fileName: string): string {
   }
 }
 
-export async function parseLocalKbDocument(filePath: string, fileName: string): Promise<ILocalKbParseResult> {
+export async function parseLocalKbDocument(filePath: string, fileName: string, options: { isSensitive?: boolean } = {}): Promise<ILocalKbParseResult> {
   const ext = path.extname(fileName).toLowerCase();
   if (ext === '.md' || ext === '.markdown' || ext === '.txt') {
     return { markdown: await fs.readFile(filePath, 'utf8'), via: 'passthrough' };
@@ -64,16 +64,16 @@ export async function parseLocalKbDocument(filePath: string, fileName: string): 
   }
 
   if (ext === '.pdf') {
-    const officeParsed = await parseWithOfficeParser(filePath, fileName);
+    const officeParsed = await parseWithOfficeParser(filePath, fileName, options.isSensitive);
     if (officeParsed) return officeParsed;
     const pdftotextParsed = await parsePdfWithPdftotext(filePath);
     if (pdftotextParsed) return pdftotextParsed;
   }
 
-  const officeParsed = await parseWithOfficeParser(filePath, fileName);
+  const officeParsed = await parseWithOfficeParser(filePath, fileName, options.isSensitive);
   if (officeParsed) return officeParsed;
 
-  const libreOfficeParsed = await parseWithLibreOffice(filePath, fileName);
+  const libreOfficeParsed = await parseWithLibreOffice(filePath, fileName, options.isSensitive);
   if (libreOfficeParsed) return libreOfficeParsed;
 
   const raw = await fs.readFile(filePath).catch((): Buffer => Buffer.alloc(0));
@@ -89,12 +89,12 @@ export async function parseLocalKbDocument(filePath: string, fileName: string): 
   };
 }
 
-async function parseWithOfficeParser(filePath: string, fileName: string): Promise<ILocalKbParseResult | null> {
+async function parseWithOfficeParser(filePath: string, fileName: string, isSensitive = false): Promise<ILocalKbParseResult | null> {
   try {
     const text = (await parseOfficeAsync(filePath, { newlineDelimiter: '\n', outputErrorToConsole: false })).trim();
     return text ? { markdown: `# ${path.basename(fileName)}\n\n${text}\n`, via: 'officeparser' } : null;
   } catch (err) {
-    mainWarn('LocalKbParser', 'officeparser unavailable or failed:', err);
+    if (!isSensitive) mainWarn('LocalKbParser', 'officeparser unavailable or failed:', err);
     return null;
   }
 }
@@ -149,7 +149,7 @@ async function resolveLibreOfficeBin(): Promise<string | null> {
   return null;
 }
 
-async function parseWithLibreOffice(filePath: string, fileName: string): Promise<ILocalKbParseResult | null> {
+async function parseWithLibreOffice(filePath: string, fileName: string, isSensitive = false): Promise<ILocalKbParseResult | null> {
   const soffice = await resolveLibreOfficeBin();
   if (!soffice) return null;
   const workDir = path.join(os.tmpdir(), `sudowork-local-kb-conv-${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -165,7 +165,7 @@ async function parseWithLibreOffice(filePath: string, fileName: string): Promise
       via: 'libreoffice',
     };
   } catch (err) {
-    mainWarn('LocalKbParser', 'LibreOffice parse failed:', err);
+    if (!isSensitive) mainWarn('LocalKbParser', 'LibreOffice parse failed:', err);
     return null;
   } finally {
     await fs.rm(workDir, { recursive: true, force: true }).catch((): undefined => undefined);

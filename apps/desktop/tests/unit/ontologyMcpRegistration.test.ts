@@ -5,10 +5,24 @@ const removeMcpServer = vi.fn();
 
 vi.mock('node:fs', () => ({ existsSync: () => true }));
 vi.mock('electron', () => ({
-  app: { isPackaged: false, getAppPath: () => '/mock/app' },
+  app: {
+    isPackaged: false,
+    getAppPath: () => '/mock/app',
+    getPath: (name: string) => `/mock/${name}`,
+  },
+  safeStorage: {
+    encryptString: (value: string) => Buffer.from(value),
+    decryptString: (buffer: Buffer) => buffer.toString(),
+    isEncryptionAvailable: () => true,
+  },
 }));
 vi.mock('@process/services/claudeCli/NodeRuntimeService', () => ({
   getNodeBinaryPath: () => '/mock/node',
+}));
+// Break the heavy import chain that OntologyWriteBridge → ontologyService pulls in.
+// The tests only care about the MCP install call, not the write endpoint.
+vi.mock('@process/services/ontology/OntologyWriteBridge', () => ({
+  ensureOntologyWriteBridge: async () => ({ port: 45678, token: 'test-token' }),
 }));
 vi.mock('@process/services/mcpServices/agents/ScodeMcpAgent', () => ({
   ScodeMcpAgent: class {
@@ -53,5 +67,36 @@ describe('OntologyMcpRegistration', () => {
     const { removeOntologyMcpServer } = await import('@process/services/ontology/OntologyMcpRegistration');
     await removeOntologyMcpServer('blueprint-1');
     expect(removeMcpServer).toHaveBeenCalledWith('ontology-blueprint-1');
+  });
+
+  it('registers the write-capable builder MCP with a bridge URL + token', async () => {
+    const { ensureOntologyBuilderMcpServer } = await import('@process/services/ontology/OntologyMcpRegistration');
+    const config = await ensureOntologyBuilderMcpServer();
+    expect(installMcpServers).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: 'ontology-builder',
+        enabled: true,
+        transport: expect.objectContaining({
+          type: 'stdio',
+          command: '/mock/node',
+          args: ['/mock/app/resources/ontology-builder-mcp/index.js'],
+          env: {
+            ONTOLOGY_WRITE_BASE_URL: 'http://127.0.0.1:45678',
+            ONTOLOGY_WRITE_TOKEN: 'test-token',
+          },
+        }),
+      }),
+    ]);
+    // The returned config is what the AI Builder page injects into
+    // conversation.create's extra.extraMcpConfigs, so pin its exact shape.
+    expect(config).toEqual({
+      name: 'ontology-builder',
+      command: '/mock/node',
+      args: ['/mock/app/resources/ontology-builder-mcp/index.js'],
+      env: [
+        { name: 'ONTOLOGY_WRITE_BASE_URL', value: 'http://127.0.0.1:45678' },
+        { name: 'ONTOLOGY_WRITE_TOKEN', value: 'test-token' },
+      ],
+    });
   });
 });

@@ -257,6 +257,8 @@ export default defineConfig(({ mode }) => {
           { find: /^@sudowork\/ontology-common$/, replacement: resolve('../../packages/ontology-common/src/index.ts') },
           { find: /^@sudowork\/ontology-ui\/(.*)$/, replacement: resolve('../../packages/ontology-ui/src') + '/$1' },
           { find: /^@sudowork\/ontology-ui$/, replacement: resolve('../../packages/ontology-ui/src/index.ts') },
+          { find: /^@sudowork\/ontology-ai\/(.*)$/, replacement: resolve('../../packages/ontology-ai/src') + '/$1' },
+          { find: /^@sudowork\/ontology-ai$/, replacement: resolve('../../packages/ontology-ai/src/index.ts') },
           { find: '@', replacement: resolve('src') },
         ],
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.css'],

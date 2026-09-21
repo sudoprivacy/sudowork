@@ -323,6 +323,22 @@
         "@types/ws": "^8.18.1",
       },
     },
+    "packages/ontology-ai": {
+      "name": "@sudowork/ontology-ai",
+      "version": "0.0.0",
+      "dependencies": {
+        "@arco-design/web-react": "^2.66.1",
+        "@sudowork/host-bridge": "workspace:*",
+        "@sudowork/ontology-common": "workspace:*",
+        "lucide-react": "^1.21.0",
+        "react": "^19.1.0",
+        "react-i18next": "^14.0.5",
+      },
+      "devDependencies": {
+        "@types/react": "^19.1.6",
+        "typescript": "^5.8.3",
+      },
+    },
     "packages/ontology-common": {
       "name": "@sudowork/ontology-common",
       "version": "0.0.0",
@@ -379,6 +395,7 @@
         "@office-ai/platform": "^0.3.16",
         "@sudowork/common": "workspace:*",
         "@sudowork/host-bridge": "workspace:*",
+        "@sudowork/ontology-ai": "workspace:*",
         "@sudowork/ontology-common": "workspace:*",
         "@sudowork/ontology-ui": "workspace:*",
         "@uiw/react-codemirror": "^4.25.2",
@@ -1697,6 +1714,8 @@
     "@sudowork/host-bridge": ["@sudowork/host-bridge@workspace:packages/host-bridge"],
 
     "@sudowork/moss-client": ["@sudowork/moss-client@workspace:packages/moss-client"],
+
+    "@sudowork/ontology-ai": ["@sudowork/ontology-ai@workspace:packages/ontology-ai"],
 
     "@sudowork/ontology-common": ["@sudowork/ontology-common@workspace:packages/ontology-common"],
 

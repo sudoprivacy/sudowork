@@ -136,6 +136,7 @@ export default defineConfig({
         'src/process/services/ffmpeg/ffmpegSkillGate.ts',
         'src/process/services/nexus-vfs/FusePluginClient.ts',
         'src/process/services/ontology/ontologyTemplateParser.ts',
+        'src/process/services/ontology/ontologyDocumentExtractor.ts',
         'src/process/telemetry/SudoLogTelemetryReporter.ts',
         'src/process/bridge/updateBridge.ts',
         'src/process/bridge/applicationBridge.ts',

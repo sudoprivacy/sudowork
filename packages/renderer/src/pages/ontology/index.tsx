@@ -1,8 +1,15 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { OntologyWorkbench } from '@sudowork/ontology-ui';
+import { ONTOLOGY_DOCUMENT_EXTENSIONS } from '@sudowork/ontology-common';
 import type { IOntologyWorkbenchApi } from '@sudowork/ontology-ui/OntologyWorkbench';
+import { OntologyAIBuilderPage } from '@sudowork/ontology-ai';
+import type { IOntologyAIBuilderApi } from '@sudowork/ontology-ai';
+
+type WorkbenchView = 'connections' | 'assets' | 'ai_builder' | 'ontology' | 'publish' | 'agent';
 
 function unwrap<T>(res: { success: boolean; data?: T; msg?: string }, fallback: string): T {
   if (!res.success || res.data === undefined) throw new Error(res.msg || fallback);
@@ -11,6 +18,11 @@ function unwrap<T>(res: { success: boolean; data?: T; msg?: string }, fallback: 
 
 export default function OntologyPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  // Bumped by the floating bubble to signal the AI 构建 tab to auto-open the new-session modal.
+  const [openNewSessionSignal, setOpenNewSessionSignal] = useState(0);
+  const activateViewRef = useRef<(view: WorkbenchView) => void>(() => {});
+
   const api = useMemo<IOntologyWorkbenchApi>(
     () => ({
       listWorkbenches: async () => unwrap(await ipcBridge.ontology.listWorkbenches.invoke(), t('ontology.errors.loadFailed')),
@@ -24,7 +36,7 @@ export default function OntologyPage() {
         const result = unwrap(
           await ipcBridge.dialog.showOpen.invoke({
             properties: method === 'document' ? ['openFile', 'multiSelections'] : ['openFile'],
-            filters: [method === 'document' ? { name: t('ontology.objectBuilder.documentFiles'), extensions: ['md', 'txt', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'csv', 'xls', 'xlsx'] } : { name: t('ontology.objectBuilder.templateFiles'), extensions: ['json', 'xls', 'xlsx', 'owl', 'rdf', 'ttl'] }],
+            filters: [method === 'document' ? { name: t('ontology.documentBuilder.documentFiles'), extensions: [...ONTOLOGY_DOCUMENT_EXTENSIONS] } : { name: t('ontology.objectBuilder.templateFiles'), extensions: ['json', 'xls', 'xlsx', 'owl', 'rdf', 'ttl'] }],
           }),
           t('ontology.errors.importFailed')
         );
@@ -69,5 +81,83 @@ export default function OntologyPage() {
     [t]
   );
 
-  return <OntologyWorkbench api={api} />;
+  const aiBuilderApi = useMemo<Omit<IOntologyAIBuilderApi, 'openNewSessionSignal'>>(
+    () => ({
+      listWorkbenches: async () => unwrap(await ipcBridge.ontology.listWorkbenches.invoke(), t('ontology.errors.loadFailed')),
+      createWorkbench: async (input) => unwrap(await ipcBridge.ontology.createWorkbench.invoke(input), t('ontology.errors.operationFailed')),
+      selectWorkbench: async (workspaceId) => {
+        await ipcBridge.ontology.selectWorkbench.invoke({ workspaceId });
+      },
+      navigateToConversation: (id) => {
+        void navigate(`/conversation/${id}`);
+      },
+    }),
+    [t, navigate]
+  );
+
+  const renderAiBuilder = useCallback((workspaceId: string | null) => <OntologyAIBuilderPage workspaceId={workspaceId} api={{ ...aiBuilderApi, openNewSessionSignal }} />, [aiBuilderApi, openNewSessionSignal]);
+
+  const onBubbleClick = useCallback(() => {
+    activateViewRef.current('ai_builder');
+    setOpenNewSessionSignal((value) => value + 1);
+  }, []);
+
+  return (
+    <>
+      <OntologyWorkbench
+        api={api}
+        renderAiBuilder={renderAiBuilder}
+        onExposeActivateView={(activate) => {
+          activateViewRef.current = activate;
+        }}
+      />
+      <FloatingBubble label={t('ontology.aiBuilder.bubbleTooltip')} onClick={onBubbleClick} />
+    </>
+  );
+}
+
+interface IFloatingBubbleProps {
+  label: string;
+  onClick: () => void;
+}
+
+/**
+ * Simple sparkle bubble that opens the "AI 构建" tab and asks it to pop the
+ * new-session modal. All state coordination happens in the parent page.
+ */
+function FloatingBubble({ label, onClick }: IFloatingBubbleProps) {
+  return (
+    <button
+      type='button'
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      style={{
+        position: 'fixed',
+        right: '24px',
+        bottom: '80px',
+        zIndex: 999,
+        width: '56px',
+        height: '56px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: '9999px',
+        border: 'none',
+        cursor: 'pointer',
+        background: 'linear-gradient(135deg, #ff7d00 0%, #ff5000 100%)',
+        color: '#ffffff',
+        boxShadow: '0 6px 20px rgba(255, 125, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.1)',
+        transition: 'transform 120ms ease',
+      }}
+      onMouseEnter={(event) => {
+        event.currentTarget.style.transform = 'scale(1.06)';
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.transform = 'scale(1)';
+      }}
+    >
+      <Sparkles size={24} color='#ffffff' strokeWidth={2.4} />
+    </button>
+  );
 }

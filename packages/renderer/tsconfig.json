@@ -22,7 +22,9 @@
       "@sudowork/ontology-common": ["../ontology-common/src/index.ts"],
       "@sudowork/ontology-common/*": ["../ontology-common/src/*"],
       "@sudowork/ontology-ui": ["../ontology-ui/src/index.ts"],
-      "@sudowork/ontology-ui/*": ["../ontology-ui/src/*"]
+      "@sudowork/ontology-ui/*": ["../ontology-ui/src/*"],
+      "@sudowork/ontology-ai": ["../ontology-ai/src/index.ts"],
+      "@sudowork/ontology-ai/*": ["../ontology-ai/src/*"]
     }
   },
   "include": ["src"]
