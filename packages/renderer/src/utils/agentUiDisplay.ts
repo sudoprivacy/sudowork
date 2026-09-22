@@ -5,8 +5,7 @@
  */
 
 export const isDefaultModel = (value?: string | null, label?: string | null): boolean => {
-  const text = `${value || ''} ${label || ''}`.toLowerCase();
-  return text.includes('default') || text.includes('recommended') || text.includes('默认');
+  return [value, label].some((text) => /^(default(?: model)?|recommended|默认(?:模型)?)$/i.test(text?.trim() || ''));
 };
 
 export const getModelDisplayLabel = ({ selectedValue, selectedLabel, defaultModelLabel, fallbackLabel }: { selectedValue?: string | null; selectedLabel?: string | null; defaultModelLabel: string; fallbackLabel: string }): string => {
