@@ -731,7 +731,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
 
         const availableModels = modelsResult.data.map((m: any) => ({
           id: m.id,
-          label: m.label || m.id,
+          label: m.label || m.name || m.id,
         }));
 
         // Also get user preference and system default

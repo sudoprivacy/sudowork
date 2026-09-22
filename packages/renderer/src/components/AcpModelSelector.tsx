@@ -142,7 +142,7 @@ const AcpModelSelector: React.FC<{
 
         const availableModels = modelsResult.data.map((m: any) => ({
           id: m.id,
-          label: m.label || m.id,
+          label: m.label || m.name || m.id,
         }));
 
         // Fetch user's current model preference
