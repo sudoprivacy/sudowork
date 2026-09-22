@@ -154,6 +154,18 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     })
   })
 
+  test('context accepts persisted top-level thinking messages', async () => {
+    const context = {
+      context: {
+        messages: [{ type: 'thinking', uuid: 'thinking-1', content: 'reasoning' }],
+      },
+    }
+    const mock = vi.fn().mockResolvedValue(context)
+    const port = createMossSessionPort(mock)
+
+    await expect(port.context(CTX, 's1')).resolves.toEqual(context)
+  })
+
   test('session ids are uri-encoded once', async () => {
     const mock = vi.fn().mockResolvedValue({ ok: true })
     const port = createMossSessionPort(mock)

@@ -18,6 +18,7 @@ COPY packages/common/package.json packages/common/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/host-bridge/package.json packages/host-bridge/
 COPY packages/moss-client/package.json packages/moss-client/
+COPY packages/ontology-ai/package.json packages/ontology-ai/
 COPY packages/ontology-common/package.json packages/ontology-common/
 COPY packages/ontology-engine/package.json packages/ontology-engine/
 COPY packages/ontology-ui/package.json packages/ontology-ui/
@@ -62,6 +63,7 @@ COPY packages/common/package.json packages/common/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/host-bridge/package.json packages/host-bridge/
 COPY packages/moss-client/package.json packages/moss-client/
+COPY packages/ontology-ai/package.json packages/ontology-ai/
 COPY packages/ontology-common/package.json packages/ontology-common/
 COPY packages/ontology-engine/package.json packages/ontology-engine/
 COPY packages/ontology-ui/package.json packages/ontology-ui/

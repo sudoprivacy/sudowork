@@ -5,7 +5,8 @@ import { z } from 'zod'
  * 浏览器 DTO 严格白名单：不返回 ws_url、work_dir/cwd/fullPath、Moss origin、原始错误 body。
  * 上游协议事实（2026-08 基线 acpBridge）：assistant 为增量(delta:true)；result 是 turn
  * 结束唯一权威信号；AskUserQuestion 以 tool_use(name='AskUserQuestion') 到达，回答用
- * parent_tool_use_id 指向该 tool_use 的 uuid；当前上游不发射 thinking/turn 级 interrupt。
+ * parent_tool_use_id 指向该 tool_use 的 uuid；上游实时事件当前不发射 turn 级 interrupt，
+ * 但持久化历史可包含顶层 thinking 消息。
  */
 
 // ---------- Moss 上游类型（服务端内部，宽松白名单） ----------
@@ -54,7 +55,7 @@ export const MossContextResponseSchema = z.object({
         .array(
           z
             .object({
-              type: z.enum(['user', 'assistant', 'tool_use', 'tool_result']),
+              type: z.enum(['user', 'assistant', 'thinking', 'tool_use', 'tool_result']),
               uuid: z.string().optional(),
             })
             .passthrough(),
