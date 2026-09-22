@@ -37,6 +37,14 @@ export default defineConfig({
         find: /^@sudowork\/host-bridge$/,
         replacement: abs('../../packages/host-bridge/src/index.ts'),
       },
+      {
+        find: /^@sudowork\/ontology-ai\/(.*)$/,
+        replacement: abs('../../packages/ontology-ai/src') + '/$1',
+      },
+      {
+        find: /^@sudowork\/ontology-ai$/,
+        replacement: abs('../../packages/ontology-ai/src/index.ts'),
+      },
       { find: /^@office-ai\/platform$/, replacement: officeAiPlatformEntry },
     ],
     // Single React across the webui app and the shared-renderer graph.
