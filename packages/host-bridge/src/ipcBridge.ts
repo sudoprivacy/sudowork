@@ -114,6 +114,7 @@ import type {
   IOntologyDeleteConnectorInput,
   IOntologyDeleteInput,
   IOntologyDeleteWorkbenchInput,
+  IOntologyExecuteRuntimeInput,
   IOntologyFieldMappingInput,
   IOntologyGenerateDraftInput,
   IOntologyImportedFile,
@@ -134,6 +135,7 @@ import type {
   IOntologyRelationDraftInput,
   IOntologyReviewTargetInput,
   IOntologyRollbackInput,
+  IOntologyRuntimeExecutionResult,
   IOntologySelectWorkbenchInput,
   IOntologySyncAssetSchemaInput,
   IOntologyWorkbenchDraftInput,
@@ -1680,6 +1682,18 @@ export const ontology = {
     IBridgeResponse<IOntologyWorkbenchSnapshot>,
     IOntologyDeleteInput
   >("ontology.action.delete"),
+  executeLogicFunction: bridge.buildProvider<
+    IBridgeResponse<IOntologyRuntimeExecutionResult>,
+    IOntologyExecuteRuntimeInput
+  >("ontology.logic-function.execute"),
+  executeRelation: bridge.buildProvider<
+    IBridgeResponse<IOntologyRuntimeExecutionResult>,
+    IOntologyExecuteRuntimeInput
+  >("ontology.relation.execute"),
+  executeAction: bridge.buildProvider<
+    IBridgeResponse<IOntologyRuntimeExecutionResult>,
+    IOntologyExecuteRuntimeInput
+  >("ontology.action.execute"),
   reviewTarget: bridge.buildProvider<
     IBridgeResponse<IOntologyWorkbenchSnapshot>,
     IOntologyReviewTargetInput

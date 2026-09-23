@@ -37,7 +37,7 @@ describe('OntologyMcpRegistration', () => {
     removeMcpServer.mockReset().mockResolvedValue({ success: true });
   });
 
-  it('registers a version-pinned read-only server with Sudocode', async () => {
+  it('registers a version-pinned runtime server with Sudocode', async () => {
     const { installOntologyMcpServer } = await import('@process/services/ontology/OntologyMcpRegistration');
     await installOntologyMcpServer({
       blueprintId: 'blueprint-1',
@@ -57,6 +57,9 @@ describe('OntologyMcpRegistration', () => {
           env: {
             ONTOLOGY_EXPORT_FILE: '/data/ontology/mcp-crm.json',
             ONTOLOGY_VERSION_ID: 'version-1',
+            ONTOLOGY_RUNTIME_BASE_URL: 'http://127.0.0.1:45678',
+            ONTOLOGY_RUNTIME_TOKEN: 'test-token',
+            ONTOLOGY_WORKSPACE_ID: 'crm',
           },
         }),
       }),

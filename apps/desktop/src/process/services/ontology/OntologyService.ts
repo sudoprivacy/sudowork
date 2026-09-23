@@ -1,8 +1,10 @@
 import fs from 'fs/promises';
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
-import { isOntologyDocumentAsset, ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS } from '@sudowork/ontology-common';
+import { createContext, Script } from 'node:vm';
+import { compileQualityRuleExpression, isOntologyDocumentAsset, ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS, ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT } from '@sudowork/ontology-common';
 import BetterSqlite3 from 'better-sqlite3';
 import { Client as FtpClient } from 'basic-ftp';
 import { Kafka, logLevel, type KafkaConfig } from 'kafkajs';
@@ -17,6 +19,7 @@ import { parse as parseCsv } from 'csv-parse/sync';
 import { OntologyEngine, createFileStat } from '@sudowork/ontology-engine';
 import type {
   IOntologyActionDefinitionInput,
+  IOntologyActionDefinition,
   IOntologyAgentBlueprint,
   IOntologyAgentBlueprintInput,
   IOntologyAssetField,
@@ -30,10 +33,13 @@ import type {
   IOntologyDeleteConnectorInput,
   IOntologyDeleteInput,
   IOntologyEnvironmentAsset,
+  IOntologyExecuteRuntimeInput,
   IOntologyFieldMappingInput,
   IOntologyGenerateDraftInput,
   IOntologyImportFilesInput,
   IOntologyLogicFunctionInput,
+  IOntologyLogicFunction,
+  IOntologyObjectDraft,
   IOntologyObjectDraftInput,
   IOntologyPhaseTransitionInput,
   IOntologyProfileAssetInput,
@@ -42,18 +48,24 @@ import type {
   IOntologyPreviewAssetResult,
   IOntologyPublishApprovalInput,
   IOntologyQualityRuleInput,
+  IOntologyQualityRuleRunResult,
   IOntologyRejectVersionInput,
   IOntologyRegisterAgentInput,
+  IOntologyRelationDraft,
   IOntologyRelationDraftInput,
   IOntologyReviewTargetInput,
   IOntologyRollbackInput,
+  IOntologyRuntimeExecutionResult,
   IOntologySelectWorkbenchInput,
   IOntologySyncAssetSchemaInput,
   IOntologyVersionSnapshot,
   IOntologyWorkbenchDraftInput,
+  IOntologyWorkbenchSnapshot,
+  OntologyJsonValue,
 } from '@sudowork/ontology-common';
 import { DEFAULT_PRESET_AGENT_TYPE } from '@sudowork/common/acpTypes';
 import { assistantManager } from '@process/AssistantManager';
+import { pythonRuntimeService } from '@process/services/python/PythonRuntimeService';
 import { mainError } from '@process/utils/mainLogger';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { OntologyDatabase } from './OntologyDatabase';
@@ -241,6 +253,27 @@ export class OntologyService {
     return this.engine.deleteRelation(input, await this.getActiveWorkspaceId());
   }
 
+  async executeRelation(input: IOntologyExecuteRuntimeInput): Promise<IOntologyRuntimeExecutionResult> {
+    const workspaceId = input.workspaceId ?? (await this.getActiveWorkspaceId());
+    const snapshot = await this.engine.getWorkbench(workspaceId);
+    const runtimeSnapshot = selectRuntimeSnapshot(snapshot, input.versionId);
+    const relation = findRuntimeArtifact(runtimeSnapshot.relations, input, 'Relation');
+    const startedAt = Date.now();
+    const output = await executeRelationDefinition(relation, snapshot, runtimeSnapshot, input.arguments ?? {});
+    const executedAt = Date.now();
+    return {
+      snapshot,
+      execution: {
+        kind: 'relation',
+        artifactId: relation.id,
+        code: relation.code,
+        output: toOntologyJsonValue(output),
+        durationMs: executedAt - startedAt,
+        executedAt,
+      },
+    };
+  }
+
   async upsertMapping(input: IOntologyFieldMappingInput) {
     return this.engine.upsertMapping(input, await this.getActiveWorkspaceId());
   }
@@ -273,6 +306,59 @@ export class OntologyService {
     return this.engine.deleteAction(input, await this.getActiveWorkspaceId());
   }
 
+  async executeLogicFunction(input: IOntologyExecuteRuntimeInput): Promise<IOntologyRuntimeExecutionResult> {
+    const workspaceId = input.workspaceId ?? (await this.getActiveWorkspaceId());
+    const snapshot = await this.engine.getWorkbench(workspaceId);
+    const runtimeSnapshot = selectRuntimeSnapshot(snapshot, input.versionId);
+    const logicFunction = findRuntimeArtifact(runtimeSnapshot.logicFunctions, input, 'Logic function');
+    if (logicFunction.status !== 'active') throw new Error('Logic function is not active.');
+    const runtimeArguments = input.arguments ?? {};
+    validateRuntimeArguments(logicFunction.parameters, runtimeArguments);
+    const startedAt = Date.now();
+    const output = await executeLogicFunctionDefinition(logicFunction, snapshot, runtimeSnapshot, runtimeArguments);
+    const executedAt = Date.now();
+    const nextSnapshot = snapshot.logicFunctions.some((item) => item.id === logicFunction.id) ? await this.engine.recordLogicFunctionExecution(logicFunction.id, executedAt, workspaceId) : snapshot;
+    return {
+      snapshot: nextSnapshot,
+      execution: {
+        kind: 'logic',
+        artifactId: logicFunction.id,
+        code: logicFunction.code,
+        output: toOntologyJsonValue(output),
+        durationMs: executedAt - startedAt,
+        executedAt,
+      },
+    };
+  }
+
+  async executeAction(input: IOntologyExecuteRuntimeInput): Promise<IOntologyRuntimeExecutionResult> {
+    const workspaceId = input.workspaceId ?? (await this.getActiveWorkspaceId());
+    const snapshot = await this.engine.getWorkbench(workspaceId);
+    const runtimeSnapshot = selectRuntimeSnapshot(snapshot, input.versionId);
+    const action = findRuntimeArtifact(runtimeSnapshot.actions, input, 'Action');
+    if (action.status !== 'active') throw new Error('Action is not active.');
+    const runtimeArguments = input.arguments ?? {};
+    validateRuntimeArguments(action.parameters, runtimeArguments);
+    const startedAt = Date.now();
+    const output = await executeActionDefinition(action, snapshot, runtimeSnapshot, runtimeArguments, async (logicCode, args) => {
+      const result = await this.executeLogicFunction({ code: logicCode, workspaceId, versionId: input.versionId, arguments: args });
+      return result.execution.output;
+    });
+    const executedAt = Date.now();
+    const nextSnapshot = (await this.engine.getWorkbench(workspaceId)).actions.some((item) => item.id === action.id) ? await this.engine.recordActionExecution(action.id, executedAt, workspaceId) : await this.engine.getWorkbench(workspaceId);
+    return {
+      snapshot: nextSnapshot,
+      execution: {
+        kind: 'action',
+        artifactId: action.id,
+        code: action.code,
+        output: toOntologyJsonValue(output),
+        durationMs: executedAt - startedAt,
+        executedAt,
+      },
+    };
+  }
+
   async reviewTarget(input: IOntologyReviewTargetInput) {
     return this.engine.reviewTarget(input, await this.getActiveWorkspaceId());
   }
@@ -282,11 +368,29 @@ export class OntologyService {
   }
 
   async runConsistencyCheck(input?: IOntologySelectWorkbenchInput) {
-    return this.engine.runConsistencyCheck(input?.workspaceId ?? (await this.getActiveWorkspaceId()));
+    const workspaceId = input?.workspaceId ?? (await this.getActiveWorkspaceId());
+    const snapshot = await this.engine.getWorkbench(workspaceId);
+    const structuralResult = await this.engine.runConsistencyCheck(workspaceId);
+    const qualityRuleResults = await evaluateOntologyQualityRules(snapshot, async (asset) => {
+      const connectorId = typeof asset.metadata.connectorId === 'string' ? asset.metadata.connectorId : undefined;
+      const connector = connectorId ? snapshot.connectors.find((item) => item.id === connectorId) : undefined;
+      return previewAsset(asset, connector, ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT);
+    });
+    const qualityRuleIssues = qualityRuleResults.flatMap((result) => qualityRuleIssue(result));
+    const relationIssues = await evaluateRelationDataBindings(snapshot);
+    return {
+      isValid: structuralResult.isValid && relationIssues.length === 0 && !qualityRuleResults.some(doesQualityRuleResultBlockPublishing),
+      checkedAt: Date.now(),
+      issues: [...structuralResult.issues, ...relationIssues, ...qualityRuleIssues],
+      qualityRuleResults,
+    };
   }
 
   async publishCurrentDraft(input?: IOntologySelectWorkbenchInput) {
-    return this.engine.publishCurrentDraft(input?.workspaceId ?? (await this.getActiveWorkspaceId()));
+    const workspaceId = input?.workspaceId ?? (await this.getActiveWorkspaceId());
+    const check = await this.runConsistencyCheck({ workspaceId });
+    if (!check.isValid) throw new Error(check.issues.map((issue) => issue.message).join('\n'));
+    return this.engine.publishCurrentDraft(workspaceId);
   }
 
   async approvePublishedVersion(input: IOntologyPublishApprovalInput) {
@@ -359,6 +463,27 @@ export class OntologyService {
       },
       workspaceId
     );
+  }
+
+  async restoreRegisteredMcpServers(): Promise<void> {
+    const { items: workbenches } = await this.engine.listWorkbenches();
+    for (const workbench of workbenches) {
+      const snapshot = await this.engine.getWorkbench(workbench.workspaceId);
+      for (const blueprint of snapshot.agentBlueprints.filter((item) => item.status === 'registered' && item.registeredAssistantId)) {
+        const version = snapshot.publishedVersions.find((item) => item.id === blueprint.ontologyVersionId && item.status === 'published');
+        if (!version) continue;
+        try {
+          await installOntologyMcpServer({
+            blueprintId: blueprint.id,
+            workspaceId: snapshot.workspaceId,
+            versionId: version.id,
+            exportFile: this.database.getMcpExportPath(snapshot.workspaceId),
+          });
+        } catch (error) {
+          mainError('OntologyService', `Failed to restore runtime MCP for ${blueprint.id}`, error);
+        }
+      }
+    }
   }
 
   async deleteAgentBlueprint(input: IOntologyDeleteInput) {
@@ -437,6 +562,860 @@ export class OntologyService {
 }
 
 export const ontologyService = new OntologyService();
+
+type OntologyRuntimeSnapshot = Pick<IOntologyWorkbenchSnapshot, 'objects' | 'relations' | 'mappings' | 'logicFunctions' | 'actions'>;
+
+function selectRuntimeSnapshot(snapshot: IOntologyWorkbenchSnapshot, versionId?: string): OntologyRuntimeSnapshot {
+  if (!versionId) return snapshot;
+  const version = snapshot.publishedVersions.find((item) => item.id === versionId && item.status === 'published');
+  if (!version) throw new Error('Published ontology version not found.');
+  return version.snapshot;
+}
+
+function findRuntimeArtifact<T extends { id: string; code: string }>(items: T[], input: IOntologyExecuteRuntimeInput, label: string): T {
+  const item = items.find((candidate) => (input.id ? candidate.id === input.id : candidate.code === input.code));
+  if (!item) throw new Error(`${label} not found.`);
+  return item;
+}
+
+function validateRuntimeArguments(parameters: IOntologyLogicFunction['parameters'], args: Record<string, OntologyJsonValue>): void {
+  for (const parameter of parameters) {
+    const value = args[parameter.name];
+    if (parameter.required && (value === undefined || value === null)) throw new Error(`Required argument "${parameter.name}" is missing.`);
+    if (value === undefined || value === null) continue;
+    const type = parameter.type.trim().toLowerCase();
+    const isValid =
+      type === 'unknown' ||
+      type === 'any' ||
+      (type === 'string' && typeof value === 'string') ||
+      (type === 'number' && typeof value === 'number') ||
+      (type === 'integer' && typeof value === 'number' && Number.isInteger(value)) ||
+      (type === 'boolean' && typeof value === 'boolean') ||
+      ((type === 'array' || type.endsWith('[]')) && Array.isArray(value)) ||
+      ((type === 'object' || type.includes('record')) && typeof value === 'object' && !Array.isArray(value));
+    if (!isValid) throw new Error(`Argument "${parameter.name}" must be ${parameter.type}.`);
+  }
+}
+
+async function executeLogicFunctionDefinition(logicFunction: IOntologyLogicFunction, snapshot: IOntologyWorkbenchSnapshot, runtimeSnapshot: OntologyRuntimeSnapshot, args: Record<string, OntologyJsonValue>): Promise<unknown> {
+  if (logicFunction.configuration.builtIn === 'lookup') return executeOntologyLookup(logicFunction, snapshot, runtimeSnapshot, args);
+  if (!logicFunction.body.trim()) throw new Error('Logic function implementation is required.');
+  if (logicFunction.runtime === 'typescript') return executeTypeScriptLogic(logicFunction, args);
+  if (logicFunction.runtime === 'python') return executePythonLogic(logicFunction, args);
+  const connector = resolveRuntimeConnector(snapshot, runtimeSnapshot, logicFunction.objectIds, logicFunction.configuration.connectorId);
+  return executeConnectorSql(connector, renderSqlTemplate(logicFunction.body, args), false);
+}
+
+async function executeActionDefinition(
+  action: IOntologyActionDefinition,
+  snapshot: IOntologyWorkbenchSnapshot,
+  runtimeSnapshot: OntologyRuntimeSnapshot,
+  args: Record<string, OntologyJsonValue>,
+  onExecuteLogic: (logicCode: string, args: Record<string, OntologyJsonValue>) => Promise<OntologyJsonValue>
+): Promise<unknown> {
+  if (action.executor === 'function') {
+    if (action.configuration.builtIn === 'update_attribute') return executeUpdateAttributeAction(action, snapshot, runtimeSnapshot, args);
+    const functionCode = runtimeConfigString(action.configuration, 'functionCode');
+    if (!functionCode) throw new Error('Function action requires configuration.functionCode.');
+    return onExecuteLogic(functionCode, args);
+  }
+  if (action.executor === 'api') return executeApiAction(action, args);
+  if (action.executor === 'sql') {
+    const statement = runtimeConfigString(action.configuration, 'statement');
+    if (!statement) throw new Error('SQL action requires configuration.statement.');
+    const connector = resolveRuntimeConnector(snapshot, runtimeSnapshot, action.objectIds, action.configuration.connectorId);
+    return executeConnectorSql(connector, renderSqlTemplate(statement, args), true);
+  }
+  if (action.executor === 'notification') return executeNotificationAction(action, args);
+  return executeCustomScriptAction(action, args);
+}
+
+async function executeOntologyLookup(logicFunction: IOntologyLogicFunction, snapshot: IOntologyWorkbenchSnapshot, runtimeSnapshot: OntologyRuntimeSnapshot, args: Record<string, OntologyJsonValue>): Promise<Array<Record<string, OntologyJsonValue>>> {
+  const objectId = runtimeConfigString(logicFunction.configuration, 'objectId') || logicFunction.objectIds[0];
+  const object = runtimeSnapshot.objects.find((item) => item.id === objectId);
+  if (!object) throw new Error('Lookup function object not found.');
+  const mappings = object.attributes.flatMap((attribute) => runtimeFieldCandidates(runtimeSnapshot, object.id, attribute.id, attribute.mappedField).map((mapping) => ({ ...mapping, attributeCode: attribute.code })));
+  const assetIds = [...new Set(mappings.map((mapping) => mapping.assetId))];
+  if (assetIds.length === 0) throw new Error('Lookup function has no mapped asset fields.');
+  const query = isJsonRecord(args.query) ? args.query : args;
+  const records: Array<Record<string, OntologyJsonValue>> = [];
+  for (const assetId of assetIds) {
+    const asset = snapshot.assets.find((item) => item.id === assetId);
+    if (!asset) continue;
+    const connectorId = typeof asset.metadata.connectorId === 'string' ? asset.metadata.connectorId : undefined;
+    const connector = connectorId ? snapshot.connectors.find((item) => item.id === connectorId) : undefined;
+    const preview = await previewAsset(asset, connector, ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT);
+    const columnIndexes = new Map(preview.columns.map((column, index) => [column.toLowerCase(), index]));
+    const assetMappings = mappings.filter((mapping) => mapping.assetId === assetId && columnIndexes.has(mapping.fieldName.toLowerCase()));
+    for (const row of preview.rows) {
+      const record = Object.fromEntries(assetMappings.map((mapping) => [mapping.attributeCode, toOntologyJsonValue(row[columnIndexes.get(mapping.fieldName.toLowerCase())!])])) as Record<string, OntologyJsonValue>;
+      if (Object.entries(query).every(([key, value]) => runtimeValuesEqual(record[key], value))) records.push(record);
+      if (records.length >= ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT) return records;
+    }
+  }
+  return records;
+}
+
+async function executeRelationDefinition(relation: IOntologyRelationDraft, snapshot: IOntologyWorkbenchSnapshot, runtimeSnapshot: OntologyRuntimeSnapshot, args: Record<string, OntologyJsonValue>): Promise<IRelationExecutionOutput> {
+  const binding = relation.dataBinding;
+  if (!binding || binding.mode === 'semantic_only') throw new Error('Relation has no executable data binding.');
+  if (binding.joinKeys.length === 0) throw new Error('Relation data binding has no join keys.');
+  const fromObject = runtimeSnapshot.objects.find((item) => item.id === relation.fromObjectId);
+  const toObject = runtimeSnapshot.objects.find((item) => item.id === relation.toObjectId);
+  if (!fromObject || !toObject) throw new Error('Relation endpoint object not found.');
+  if (args.direction !== undefined && args.direction !== 'forward' && args.direction !== 'reverse') throw new Error('Relation direction must be forward or reverse.');
+  if (args.query !== undefined && !isJsonRecord(args.query)) throw new Error('Relation query must be a JSON object.');
+  if (args.limit !== undefined && (typeof args.limit !== 'number' || !Number.isFinite(args.limit))) throw new Error('Relation limit must be a finite number.');
+  if (args.maxDepth !== undefined && (typeof args.maxDepth !== 'number' || !Number.isFinite(args.maxDepth))) throw new Error('Relation maxDepth must be a finite number.');
+  const direction = args.direction === 'reverse' ? 'reverse' : 'forward';
+  const query = isJsonRecord(args.query) ? args.query : {};
+  const limit = typeof args.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(Math.floor(args.limit), ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT)) : 20;
+  const maxDepth = typeof args.maxDepth === 'number' && Number.isFinite(args.maxDepth) ? Math.max(1, Math.min(Math.floor(args.maxDepth), 10)) : 5;
+  const fromAttributeCodes = relationJoinAttributeCodes(
+    fromObject,
+    binding.joinKeys.map((key) => key.fromAttributeId),
+    'source'
+  );
+  const toAttributeCodes = relationJoinAttributeCodes(
+    toObject,
+    binding.joinKeys.map((key) => key.toAttributeId),
+    'target'
+  );
+  const fromRecords = await loadMappedObjectRecords(
+    snapshot,
+    runtimeSnapshot,
+    fromObject,
+    binding.joinKeys.map((key) => key.fromAttributeId)
+  );
+  const toRecords = await loadMappedObjectRecords(
+    snapshot,
+    runtimeSnapshot,
+    toObject,
+    binding.joinKeys.map((key) => key.toAttributeId)
+  );
+  const junctionResult = binding.mode === 'junction' ? await joinJunctionRelationRecords(binding, snapshot, fromRecords.records, toRecords.records, fromAttributeCodes, toAttributeCodes) : null;
+  let pairs = junctionResult?.pairs ?? joinDirectRelationRecords(fromRecords.records, toRecords.records, fromAttributeCodes, toAttributeCodes);
+  const cardinalityViolations = countCardinalityViolations(pairs, relation.cardinality);
+  const cycleViolations = relation.isAcyclic ? countRelationCycles(pairs) : 0;
+  if (relation.relationType === 'symmetric_property') pairs = includeReverseRelationPairs(pairs);
+  if (relation.relationType === 'transitive_property') pairs = expandTransitiveRelationPairs(pairs, maxDepth);
+  const oriented = direction === 'reverse' ? pairs.map((pair) => ({ source: pair.to, target: pair.from, depth: pair.depth })) : pairs.map((pair) => ({ source: pair.from, target: pair.to, depth: pair.depth }));
+  const filtered = oriented.filter((pair) => Object.entries(query).every(([key, value]) => runtimeValuesEqual(pair.source[key], value)));
+  return {
+    relation: {
+      id: relation.id,
+      code: relation.code,
+      name: relation.name,
+      cardinality: relation.cardinality,
+      relationType: relation.relationType,
+      semanticType: relation.semanticType,
+      bindingMode: binding.mode,
+    },
+    direction,
+    rows: filtered.slice(0, limit),
+    totalMatches: filtered.length,
+    cardinalityViolations,
+    cycleViolations,
+    isTruncated: fromRecords.isTruncated || toRecords.isTruncated || Boolean(junctionResult?.isTruncated) || filtered.length > limit,
+  };
+}
+
+interface IRelationRecordPair {
+  from: Record<string, OntologyJsonValue>;
+  to: Record<string, OntologyJsonValue>;
+  depth: number;
+}
+
+interface IRelationExecutionOutput {
+  relation: {
+    id: string;
+    code: string;
+    name: string;
+    cardinality: IOntologyRelationDraft['cardinality'];
+    relationType: IOntologyRelationDraft['relationType'];
+    semanticType: IOntologyRelationDraft['semanticType'];
+    bindingMode: NonNullable<IOntologyRelationDraft['dataBinding']>['mode'];
+  };
+  direction: 'forward' | 'reverse';
+  rows: Array<{
+    source: Record<string, OntologyJsonValue>;
+    target: Record<string, OntologyJsonValue>;
+    depth: number;
+  }>;
+  totalMatches: number;
+  cardinalityViolations: number;
+  cycleViolations: number;
+  isTruncated: boolean;
+}
+
+interface IMappedObjectRecords {
+  records: Array<Record<string, OntologyJsonValue>>;
+  isTruncated: boolean;
+}
+
+async function loadMappedObjectRecords(snapshot: IOntologyWorkbenchSnapshot, runtimeSnapshot: OntologyRuntimeSnapshot, object: IOntologyObjectDraft, requiredAttributeIds: string[]): Promise<IMappedObjectRecords> {
+  const candidateSets = requiredAttributeIds.map((attributeId) => new Set(runtimeFieldCandidates(runtimeSnapshot, object.id, attributeId, object.attributes.find((attribute) => attribute.id === attributeId)?.mappedField).map((candidate) => candidate.assetId)));
+  const assetId = [...(candidateSets[0] ?? [])].find((candidate) => candidateSets.every((set) => set.has(candidate)));
+  if (!assetId) throw new Error(`Relation join attributes for "${object.name}" must map to one common data asset.`);
+  const asset = snapshot.assets.find((item) => item.id === assetId);
+  if (!asset) throw new Error(`Mapped data asset for "${object.name}" is unavailable.`);
+  const connectorId = typeof asset.metadata.connectorId === 'string' ? asset.metadata.connectorId : undefined;
+  const connector = connectorId ? snapshot.connectors.find((item) => item.id === connectorId) : undefined;
+  const preview = await previewAsset(asset, connector, ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT);
+  const columnIndexes = new Map(preview.columns.map((column, index) => [column.toLowerCase(), index]));
+  const mappings = object.attributes.flatMap((attribute) =>
+    runtimeFieldCandidates(runtimeSnapshot, object.id, attribute.id, attribute.mappedField)
+      .filter((candidate) => candidate.assetId === assetId)
+      .map((candidate) => ({ ...candidate, attributeCode: attribute.code }))
+  );
+  return {
+    records: preview.rows.map(
+      (row) =>
+        Object.fromEntries(
+          mappings.flatMap((mapping) => {
+            const columnIndex = columnIndexes.get(mapping.fieldName.toLowerCase());
+            return columnIndex === undefined ? [] : [[mapping.attributeCode, toOntologyJsonValue(row[columnIndex])]];
+          })
+        ) as Record<string, OntologyJsonValue>
+    ),
+    isTruncated: preview.truncated,
+  };
+}
+
+function relationJoinAttributeCodes(object: IOntologyObjectDraft, attributeIds: string[], endpoint: 'source' | 'target'): string[] {
+  return attributeIds.map((attributeId) => {
+    const attribute = object.attributes.find((item) => item.id === attributeId);
+    if (!attribute) throw new Error(`Relation ${endpoint} join attribute not found.`);
+    return attribute.code;
+  });
+}
+
+function joinDirectRelationRecords(fromRecords: Array<Record<string, OntologyJsonValue>>, toRecords: Array<Record<string, OntologyJsonValue>>, fromAttributeCodes: string[], toAttributeCodes: string[]): IRelationRecordPair[] {
+  return fromRecords.flatMap((from) => toRecords.flatMap((to) => (fromAttributeCodes.every((code, index) => runtimeValuesEqual(from[code], to[toAttributeCodes[index]])) ? [{ from, to, depth: 1 }] : [])));
+}
+
+async function joinJunctionRelationRecords(
+  binding: NonNullable<IOntologyRelationDraft['dataBinding']>,
+  snapshot: IOntologyWorkbenchSnapshot,
+  fromRecords: Array<Record<string, OntologyJsonValue>>,
+  toRecords: Array<Record<string, OntologyJsonValue>>,
+  fromAttributeCodes: string[],
+  toAttributeCodes: string[]
+): Promise<{ pairs: IRelationRecordPair[]; isTruncated: boolean }> {
+  const junctionAsset = snapshot.assets.find((item) => item.id === binding.junctionAssetId);
+  if (!junctionAsset) throw new Error('Junction data asset is unavailable.');
+  const connectorId = typeof junctionAsset.metadata.connectorId === 'string' ? junctionAsset.metadata.connectorId : undefined;
+  const connector = connectorId ? snapshot.connectors.find((item) => item.id === connectorId) : undefined;
+  const preview = await previewAsset(junctionAsset, connector, ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT);
+  const columnIndexes = new Map(preview.columns.map((column, index) => [column.toLowerCase(), index]));
+  const junctionIndexes = binding.joinKeys.map((key) => ({
+    from: columnIndexes.get((key.junctionFromFieldName ?? '').toLowerCase()),
+    to: columnIndexes.get((key.junctionToFieldName ?? '').toLowerCase()),
+  }));
+  if (junctionIndexes.some((indexes) => indexes.from === undefined || indexes.to === undefined)) throw new Error('Junction data asset is missing a configured join field.');
+  const pairs: IRelationRecordPair[] = [];
+  for (const row of preview.rows) {
+    const matchingFrom = fromRecords.filter((record) => fromAttributeCodes.every((code, index) => runtimeValuesEqual(record[code], toOntologyJsonValue(row[junctionIndexes[index].from!]))));
+    const matchingTo = toRecords.filter((record) => toAttributeCodes.every((code, index) => runtimeValuesEqual(record[code], toOntologyJsonValue(row[junctionIndexes[index].to!]))));
+    for (const from of matchingFrom) {
+      for (const to of matchingTo) pairs.push({ from, to, depth: 1 });
+    }
+  }
+  return { pairs, isTruncated: preview.truncated };
+}
+
+function includeReverseRelationPairs(pairs: IRelationRecordPair[]): IRelationRecordPair[] {
+  const output = [...pairs];
+  const seen = new Set(output.map(relationPairKey));
+  for (const pair of pairs) {
+    const reversed = { from: pair.to, to: pair.from, depth: pair.depth };
+    const key = relationPairKey(reversed);
+    if (!seen.has(key)) {
+      seen.add(key);
+      output.push(reversed);
+    }
+  }
+  return output;
+}
+
+function expandTransitiveRelationPairs(pairs: IRelationRecordPair[], maxDepth: number): IRelationRecordPair[] {
+  const direct = [...pairs];
+  const output = [...pairs];
+  const seen = new Set(output.map(relationPairKey));
+  let frontier = [...pairs];
+  for (let depth = 2; depth <= maxDepth && frontier.length > 0; depth += 1) {
+    const next: IRelationRecordPair[] = [];
+    for (const prefix of frontier) {
+      for (const suffix of direct) {
+        if (!runtimeRecordsEqual(prefix.to, suffix.from)) continue;
+        const candidate = { from: prefix.from, to: suffix.to, depth };
+        const key = relationPairKey(candidate);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        output.push(candidate);
+        next.push(candidate);
+      }
+    }
+    frontier = next;
+  }
+  return output;
+}
+
+function relationPairKey(pair: IRelationRecordPair): string {
+  return `${JSON.stringify(pair.from)}=>${JSON.stringify(pair.to)}`;
+}
+
+function runtimeRecordsEqual(left: Record<string, OntologyJsonValue>, right: Record<string, OntologyJsonValue>): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function countCardinalityViolations(pairs: IRelationRecordPair[], cardinality: IOntologyRelationDraft['cardinality']): number {
+  if (cardinality === 'many_to_many') return 0;
+  const fromCounts = new Map<string, number>();
+  const toCounts = new Map<string, number>();
+  for (const pair of pairs) {
+    const fromKey = JSON.stringify(pair.from);
+    const toKey = JSON.stringify(pair.to);
+    fromCounts.set(fromKey, (fromCounts.get(fromKey) ?? 0) + 1);
+    toCounts.set(toKey, (toCounts.get(toKey) ?? 0) + 1);
+  }
+  const fromViolations = cardinality === 'one_to_one' || cardinality === 'many_to_one' ? [...fromCounts.values()].filter((count) => count > 1).length : 0;
+  const toViolations = cardinality === 'one_to_one' || cardinality === 'one_to_many' ? [...toCounts.values()].filter((count) => count > 1).length : 0;
+  return fromViolations + toViolations;
+}
+
+function countRelationCycles(pairs: IRelationRecordPair[]): number {
+  const adjacency = new Map<string, Set<string>>();
+  for (const pair of pairs) {
+    const fromKey = JSON.stringify(pair.from);
+    const toKey = JSON.stringify(pair.to);
+    const targets = adjacency.get(fromKey) ?? new Set<string>();
+    targets.add(toKey);
+    adjacency.set(fromKey, targets);
+  }
+  let cycles = 0;
+  for (const start of adjacency.keys()) {
+    const pending = [...(adjacency.get(start) ?? [])];
+    const visited = new Set<string>();
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      if (current === start) {
+        cycles += 1;
+        break;
+      }
+      if (visited.has(current)) continue;
+      visited.add(current);
+      pending.push(...(adjacency.get(current) ?? []));
+    }
+  }
+  return cycles;
+}
+
+async function executeTypeScriptLogic(logicFunction: IOntologyLogicFunction, args: Record<string, OntologyJsonValue>): Promise<unknown> {
+  if (logicFunction.body.length > 50_000) throw new Error('Logic function implementation is too large.');
+  const runtimeArguments = structuredClone(args);
+  const context = createContext(
+    {
+      input: runtimeArguments,
+      params: runtimeArguments,
+      console: Object.freeze({
+        log: (): void => undefined,
+        warn: (): void => undefined,
+        error: (): void => undefined,
+      }),
+    },
+    { codeGeneration: { strings: false, wasm: false } }
+  );
+  const script = new Script(`(async () => { "use strict"; ${logicFunction.body}\n})()`, {
+    filename: `ontology-logic-${logicFunction.code}.js`,
+  });
+  const output = script.runInContext(context, { timeout: 1_000 }) as Promise<unknown> | unknown;
+  return withRuntimeTimeout(Promise.resolve(output), 5_000);
+}
+
+async function executePythonLogic(logicFunction: IOntologyLogicFunction, args: Record<string, OntologyJsonValue>): Promise<unknown> {
+  const status = await pythonRuntimeService.checkInstalled();
+  if (!status.installed || !status.path) throw new Error('Python runtime is unavailable.');
+  const wrapper = [
+    'import json, sys',
+    'payload = json.loads(sys.stdin.read())',
+    "safe_builtins = {'abs': abs, 'all': all, 'any': any, 'bool': bool, 'dict': dict, 'enumerate': enumerate, 'float': float, 'int': int, 'len': len, 'list': list, 'max': max, 'min': min, 'range': range, 'round': round, 'sorted': sorted, 'str': str, 'sum': sum, 'tuple': tuple}",
+    "scope = {'input': payload['arguments'], 'params': payload['arguments'], 'result': None}",
+    "exec(payload['body'], {'__builtins__': safe_builtins}, scope)",
+    "print(json.dumps(scope.get('result'), default=str))",
+  ].join('\n');
+  const stdout = await runProcess(status.path, ['-I', '-c', wrapper], JSON.stringify({ body: logicFunction.body, arguments: args }), 5_000);
+  return stdout.trim() ? JSON.parse(stdout) : null;
+}
+
+async function executeApiAction(action: IOntologyActionDefinition, args: Record<string, OntologyJsonValue>): Promise<unknown> {
+  const rendered = renderRuntimeTemplate(action.configuration, args);
+  if (!isJsonRecord(rendered)) throw new Error('API action configuration is invalid.');
+  const url = typeof rendered.url === 'string' ? rendered.url : '';
+  const parsedUrl = new URL(url);
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') throw new Error('API action URL must use HTTP or HTTPS.');
+  const method = typeof rendered.method === 'string' ? rendered.method.toUpperCase() : 'POST';
+  if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) throw new Error(`Unsupported API action method: ${method}.`);
+  const headers = isJsonRecord(rendered.headers) ? Object.fromEntries(Object.entries(rendered.headers).map(([key, value]) => [key, String(value)])) : {};
+  const hasBody = method !== 'GET' && rendered.body !== undefined;
+  if (hasBody && !Object.keys(headers).some((key) => key.toLowerCase() === 'content-type')) headers['Content-Type'] = 'application/json';
+  const response = await fetch(parsedUrl, {
+    method,
+    headers,
+    body: hasBody ? (typeof rendered.body === 'string' ? rendered.body : JSON.stringify(rendered.body)) : undefined,
+    signal: AbortSignal.timeout(runtimeTimeout(action.configuration)),
+  });
+  const text = (await response.text()).slice(0, 1_048_576);
+  const body = parseJsonValue(text);
+  if (!response.ok) throw new Error(`API action returned HTTP ${response.status}: ${typeof body === 'string' ? body : JSON.stringify(body)}`);
+  return { status: response.status, headers: Object.fromEntries(response.headers.entries()), body };
+}
+
+async function executeNotificationAction(action: IOntologyActionDefinition, args: Record<string, OntologyJsonValue>): Promise<unknown> {
+  const rendered = renderRuntimeTemplate(action.configuration, args);
+  if (!isJsonRecord(rendered)) throw new Error('Notification action configuration is invalid.');
+  const title = typeof rendered.title === 'string' && rendered.title.trim() ? rendered.title : action.name;
+  const body = typeof rendered.message === 'string' ? rendered.message : '';
+  if (!body.trim()) throw new Error('Notification action requires configuration.message.');
+  const { Notification } = await import('electron');
+  if (!Notification?.isSupported()) throw new Error('Desktop notifications are unavailable.');
+  new Notification({ title, body }).show();
+  return { delivered: true, title, message: body };
+}
+
+async function executeCustomScriptAction(action: IOntologyActionDefinition, args: Record<string, OntologyJsonValue>): Promise<unknown> {
+  const command = runtimeConfigString(action.configuration, 'command');
+  if (!command || !path.isAbsolute(command)) throw new Error('Custom script action requires an absolute configuration.command path.');
+  const configuredArgs = Array.isArray(action.configuration.args) ? action.configuration.args : [];
+  if (!configuredArgs.every((value) => typeof value === 'string')) throw new Error('Custom script configuration.args must contain only strings.');
+  const renderedArgs = configuredArgs.map((value) => String(renderRuntimeTemplate(value, args)));
+  const stdout = await runProcess(command, renderedArgs, JSON.stringify(args), runtimeTimeout(action.configuration));
+  return parseJsonValue(stdout.trim());
+}
+
+async function executeUpdateAttributeAction(action: IOntologyActionDefinition, snapshot: IOntologyWorkbenchSnapshot, runtimeSnapshot: OntologyRuntimeSnapshot, args: Record<string, OntologyJsonValue>): Promise<unknown> {
+  const objectId = runtimeConfigString(action.configuration, 'objectId') || action.objectIds[0];
+  const object = runtimeSnapshot.objects.find((item) => item.id === objectId);
+  if (!object) throw new Error('Update action object not found.');
+  const attributeCode = typeof args.attributeCode === 'string' ? args.attributeCode : '';
+  const targetAttribute = object.attributes.find((item) => item.code === attributeCode);
+  const identityAttribute = object.attributes.find((item) => item.code === 'id') ?? object.attributes.find((item) => item.required);
+  if (!targetAttribute) throw new Error(`Unknown target attribute: ${attributeCode}.`);
+  if (!identityAttribute) throw new Error('Update action requires an id or required identity attribute.');
+  const targetMappings = runtimeFieldCandidates(runtimeSnapshot, object.id, targetAttribute.id, targetAttribute.mappedField);
+  const identityMappings = runtimeFieldCandidates(runtimeSnapshot, object.id, identityAttribute.id, identityAttribute.mappedField);
+  const targetMapping = targetMappings.find((mapping) => identityMappings.some((item) => item.assetId === mapping.assetId));
+  const identityMapping = targetMapping ? identityMappings.find((mapping) => mapping.assetId === targetMapping.assetId) : undefined;
+  if (!targetMapping || !identityMapping) throw new Error('Update action attributes must map to the same data asset.');
+  const asset = snapshot.assets.find((item) => item.id === targetMapping.assetId);
+  if (!asset) throw new Error('Update action asset not found.');
+  const connectorId = typeof asset.metadata.connectorId === 'string' ? asset.metadata.connectorId : undefined;
+  const connector = connectorId ? snapshot.connectors.find((item) => item.id === connectorId) : undefined;
+  if (!connector) throw new Error('Update action requires a database connector.');
+  const table = runtimeTableName(asset, connector);
+  const statement = `UPDATE ${table} SET ${runtimeQuoteIdentifier(targetMapping.fieldName, connector.sourceType)} = ${sqlLiteral(args.value)} WHERE ${runtimeQuoteIdentifier(identityMapping.fieldName, connector.sourceType)} = ${sqlLiteral(args.recordId)}`;
+  return executeConnectorSql(connector, statement, true);
+}
+
+function resolveRuntimeConnector(snapshot: IOntologyWorkbenchSnapshot, runtimeSnapshot: OntologyRuntimeSnapshot, objectIds: string[], configuredConnectorId: OntologyJsonValue | undefined): IOntologyConnectorConfig {
+  const connectorId = typeof configuredConnectorId === 'string' ? configuredConnectorId : undefined;
+  const inferredAssetId = runtimeSnapshot.mappings.find((mapping) => objectIds.includes(mapping.objectId) && mapping.status !== 'rejected')?.assetId;
+  const inferredAsset = inferredAssetId ? snapshot.assets.find((item) => item.id === inferredAssetId) : undefined;
+  const inferredConnectorId = typeof inferredAsset?.metadata.connectorId === 'string' ? inferredAsset.metadata.connectorId : undefined;
+  const connector = snapshot.connectors.find((item) => item.id === (connectorId ?? inferredConnectorId));
+  if (!connector) throw new Error('A database connector could not be resolved for this runtime artifact.');
+  return connector;
+}
+
+async function executeConnectorSql(connector: IOntologyConnectorConfig, rawStatement: string, isAction: boolean): Promise<unknown> {
+  const statement = singleSqlStatement(rawStatement);
+  const command = /^([A-Za-z]+)/.exec(statement)?.[1]?.toUpperCase();
+  const isReadOnly = command === 'SELECT';
+  if (!isReadOnly && (!isAction || connector.writable !== true)) throw new Error('SQL writes require an action and a connector marked writable.');
+  if (!['SELECT', 'INSERT', 'UPDATE', 'DELETE'].includes(command ?? '')) throw new Error('Only SELECT, INSERT, UPDATE, and DELETE statements are supported.');
+  if (connector.sourceType === 'sqlite') {
+    if (!connector.path) throw new Error('SQLite connector path is unavailable.');
+    const database = new BetterSqlite3(connector.path, { readonly: isReadOnly, fileMustExist: true });
+    try {
+      const prepared = database.prepare(statement);
+      return isReadOnly ? prepared.all() : prepared.run();
+    } finally {
+      database.close();
+    }
+  }
+  if (connector.sourceType === 'mysql') {
+    const connection = await mysql.createConnection({
+      host: connector.host,
+      port: connector.port ?? 3306,
+      database: connector.database,
+      user: connectorCredentialString(connector, 'username', connector.username),
+      password: connectorCredentialString(connector, 'password', connector.password),
+      connectTimeout: 8_000,
+    });
+    try {
+      const [result] = await connection.query(statement);
+      return result;
+    } finally {
+      await connection.end();
+    }
+  }
+  if (connector.sourceType === 'postgresql') {
+    const client = new PostgresClient({
+      host: connector.host,
+      port: connector.port ?? 5432,
+      database: connector.database,
+      user: connectorCredentialString(connector, 'username', connector.username),
+      password: connectorCredentialString(connector, 'password', connector.password),
+      connectionTimeoutMillis: 8_000,
+    });
+    await client.connect();
+    try {
+      const result = await client.query(statement);
+      return { rows: result.rows, rowCount: result.rowCount };
+    } finally {
+      await client.end();
+    }
+  }
+  if (connector.sourceType === 'oracle') {
+    const connection = await oracledb.getConnection({
+      user: connectorCredentialString(connector, 'username', connector.username),
+      password: connectorCredentialString(connector, 'password', connector.password),
+      connectString: `${connector.host}:${connector.port ?? 1521}/${connector.database}`,
+    });
+    try {
+      const result = await connection.execute(statement, [], { outFormat: oracledb.OUT_FORMAT_OBJECT, autoCommit: !isReadOnly });
+      return { rows: result.rows ?? [], rowsAffected: result.rowsAffected ?? 0 };
+    } finally {
+      await connection.close();
+    }
+  }
+  if (connector.sourceType === 'sqlserver') {
+    const pool = new sql.ConnectionPool({
+      server: connector.host ?? '',
+      port: connector.port ?? 1433,
+      database: connector.database,
+      user: connectorCredentialString(connector, 'username', connector.username),
+      password: connectorCredentialString(connector, 'password', connector.password),
+      connectionTimeout: 8_000,
+      requestTimeout: 10_000,
+      options: { encrypt: connector.params?.encrypt === true, trustServerCertificate: connector.params?.trust_server_certificate !== false },
+    });
+    await pool.connect();
+    try {
+      const result = await pool.request().query(statement);
+      return { rows: result.recordset ?? [], rowsAffected: result.rowsAffected ?? [] };
+    } finally {
+      await pool.close();
+    }
+  }
+  throw new Error(`SQL runtime does not support connector type ${connector.sourceType}.`);
+}
+
+function singleSqlStatement(statement: string): string {
+  const normalized = statement.trim().replace(/;\s*$/, '');
+  if (!normalized || normalized.includes(';')) throw new Error('Exactly one SQL statement is required.');
+  return normalized;
+}
+
+function renderSqlTemplate(statement: string, args: Record<string, OntologyJsonValue>): string {
+  return statement.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (_match, key: string) => {
+    if (!(key in args)) throw new Error(`SQL template argument "${key}" is missing.`);
+    return sqlLiteral(args[key]);
+  });
+}
+
+function sqlLiteral(value: OntologyJsonValue | undefined): string {
+  if (value === null || value === undefined) return 'NULL';
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('SQL numeric arguments must be finite.');
+    return String(value);
+  }
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
+  if (typeof value !== 'string') throw new Error('SQL template arguments must be scalar values.');
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function runtimeTableName(asset: IOntologyEnvironmentAsset, connector: IOntologyConnectorConfig): string {
+  const table = runtimeQuoteIdentifier(asset.name, connector.sourceType);
+  const schema = typeof asset.metadata.schema === 'string' ? asset.metadata.schema : undefined;
+  return schema ? `${runtimeQuoteIdentifier(schema, connector.sourceType)}.${table}` : table;
+}
+
+function runtimeQuoteIdentifier(value: string, sourceType: IOntologyConnectorConfig['sourceType']): string {
+  if (sourceType === 'mysql') return quoteMysqlIdentifier(value);
+  if (sourceType === 'sqlserver') return quoteSqlServerIdentifier(value);
+  return quoteSqlIdentifier(value);
+}
+
+function runtimeFieldCandidates(snapshot: OntologyRuntimeSnapshot, objectId: string, attributeId: string, mappedField?: { assetId: string; fieldName: string }): Array<{ assetId: string; fieldName: string }> {
+  const candidates = [...(mappedField ? [mappedField] : []), ...snapshot.mappings.filter((mapping) => mapping.objectId === objectId && mapping.attributeId === attributeId && mapping.status !== 'rejected').map((mapping) => ({ assetId: mapping.assetId, fieldName: mapping.fieldName }))];
+  return candidates.filter((candidate, index) => candidates.findIndex((item) => item.assetId === candidate.assetId && item.fieldName === candidate.fieldName) === index);
+}
+
+function runtimeConfigString(configuration: Record<string, OntologyJsonValue>, key: string): string {
+  const value = configuration[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function runtimeTimeout(configuration: Record<string, OntologyJsonValue>): number {
+  const value = configuration.timeoutMs;
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(100, Math.min(value, 30_000)) : 10_000;
+}
+
+function renderRuntimeTemplate(value: OntologyJsonValue, args: Record<string, OntologyJsonValue>): OntologyJsonValue {
+  if (typeof value === 'string') {
+    const exact = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/.exec(value);
+    if (exact && exact[1] in args) return args[exact[1]];
+    return value.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (_match, key: string) => String(args[key] ?? ''));
+  }
+  if (Array.isArray(value)) return value.map((item) => renderRuntimeTemplate(item, args));
+  if (isJsonRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, renderRuntimeTemplate(item, args)]));
+  return value;
+}
+
+function isJsonRecord(value: unknown): value is Record<string, OntologyJsonValue> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function runtimeValuesEqual(left: OntologyJsonValue | undefined, right: OntologyJsonValue): boolean {
+  if (typeof left === 'number' || typeof right === 'number') return Number(left) === Number(right);
+  return left === right;
+}
+
+function parseJsonValue(value: string): OntologyJsonValue {
+  if (!value) return '';
+  try {
+    return toOntologyJsonValue(JSON.parse(value));
+  } catch {
+    return value;
+  }
+}
+
+function toOntologyJsonValue(value: unknown): OntologyJsonValue {
+  if (value === null) return null;
+  if (typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
+  if (typeof value === 'bigint') return value.toString();
+  if (Array.isArray(value)) return value.map(toOntologyJsonValue);
+  if (typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, toOntologyJsonValue(item)]));
+  }
+  return value === undefined ? null : String(value);
+}
+
+async function withRuntimeTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`Runtime execution timed out after ${timeoutMs} ms.`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function runProcess(command: string, args: string[], input: string, timeoutMs: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        PATH: process.env.PATH,
+        LANG: process.env.LANG,
+        LC_ALL: process.env.LC_ALL,
+        SYSTEMROOT: process.env.SYSTEMROOT,
+      },
+    });
+    let stdout = '';
+    let stderr = '';
+    let isSettled = false;
+    const finish = (error?: Error) => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(stdout);
+    };
+    const append = (target: 'stdout' | 'stderr', chunk: Buffer) => {
+      if (target === 'stdout') stdout += chunk.toString();
+      else stderr += chunk.toString();
+      if (stdout.length + stderr.length > 1_048_576) {
+        child.kill();
+        finish(new Error('Runtime output exceeded 1 MiB.'));
+      }
+    };
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(new Error(`Runtime execution timed out after ${timeoutMs} ms.`));
+    }, timeoutMs);
+    child.stdout.on('data', (chunk: Buffer) => append('stdout', chunk));
+    child.stderr.on('data', (chunk: Buffer) => append('stderr', chunk));
+    child.on('error', (error) => finish(error));
+    child.on('close', (code) => finish(code === 0 ? undefined : new Error(stderr.trim() || `Runtime process exited with code ${code}.`)));
+    child.stdin.end(input);
+  });
+}
+
+export async function evaluateOntologyQualityRules(snapshot: IOntologyWorkbenchSnapshot, onPreviewAsset: (asset: IOntologyEnvironmentAsset) => Promise<IOntologyPreviewAssetResult>): Promise<IOntologyQualityRuleRunResult[]> {
+  const previews = new Map<string, Promise<IOntologyPreviewAssetResult>>();
+  const results: IOntologyQualityRuleRunResult[] = [];
+  for (const rule of snapshot.qualityRules.filter((item) => item.status === 'active')) {
+    const object = snapshot.objects.find((item) => item.id === rule.objectId);
+    const baseResult = {
+      ruleId: rule.id,
+      ruleCode: rule.code,
+      ruleName: rule.name,
+      objectId: rule.objectId,
+      severity: rule.severity,
+      evaluatedRows: 0,
+      failedRows: 0,
+      isTruncated: false,
+    };
+    if (!object) {
+      results.push({ ...baseResult, status: 'error', referencedAttributes: [], reason: 'invalid_expression' });
+      continue;
+    }
+    let compiled: ReturnType<typeof compileQualityRuleExpression>;
+    try {
+      compiled = compileQualityRuleExpression(
+        rule.expression,
+        object.attributes.map((attribute) => attribute.code)
+      );
+    } catch {
+      results.push({ ...baseResult, status: 'error', referencedAttributes: [], reason: 'invalid_expression' });
+      continue;
+    }
+    const mappedFields = compiled.referencedAttributes.map((attributeCode) => {
+      const attribute = object.attributes.find((item) => item.code === attributeCode);
+      if (!attribute) return [];
+      const candidates = [
+        ...(attribute.mappedField ? [attribute.mappedField] : []),
+        ...snapshot.mappings.filter((mapping) => mapping.objectId === object.id && mapping.attributeId === attribute.id && mapping.status !== 'rejected').map((mapping) => ({ assetId: mapping.assetId, fieldName: mapping.fieldName })),
+      ];
+      return candidates.filter((candidate, index) => candidates.findIndex((item) => item.assetId === candidate.assetId && item.fieldName === candidate.fieldName) === index);
+    });
+    if (mappedFields.some((candidates) => candidates.length === 0)) {
+      results.push({ ...baseResult, status: 'skipped', referencedAttributes: compiled.referencedAttributes, reason: 'unmapped_attributes' });
+      continue;
+    }
+    const assetId = mappedFields[0].find((candidate) => mappedFields.every((candidates) => candidates.some((item) => item.assetId === candidate.assetId)))?.assetId;
+    if (!assetId) {
+      results.push({ ...baseResult, status: 'skipped', referencedAttributes: compiled.referencedAttributes, reason: 'multiple_assets' });
+      continue;
+    }
+    const asset = snapshot.assets.find((item) => item.id === assetId);
+    if (!asset) {
+      results.push({ ...baseResult, status: 'error', referencedAttributes: compiled.referencedAttributes, assetId, reason: 'asset_unavailable' });
+      continue;
+    }
+    const fieldByAttribute = new Map(compiled.referencedAttributes.map((attributeCode, index) => [attributeCode, mappedFields[index].find((candidate) => candidate.assetId === assetId)!.fieldName]));
+    try {
+      const previewPromise = previews.get(assetId) ?? onPreviewAsset(asset);
+      previews.set(assetId, previewPromise);
+      const preview = await previewPromise;
+      const columnIndexes = new Map(preview.columns.map((column, index) => [column.toLowerCase(), index]));
+      if (preview.rows.length > 0 && [...fieldByAttribute.values()].some((fieldName) => !columnIndexes.has(fieldName.toLowerCase()))) {
+        results.push({ ...baseResult, status: 'error', referencedAttributes: compiled.referencedAttributes, assetId, isTruncated: preview.truncated, reason: 'field_unavailable' });
+        continue;
+      }
+      let failedRows = 0;
+      for (const row of preview.rows) {
+        const values = Object.fromEntries([...fieldByAttribute].map(([attributeCode, fieldName]) => [attributeCode, row[columnIndexes.get(fieldName.toLowerCase())!]]));
+        if (!compiled.evaluate(values)) failedRows += 1;
+      }
+      results.push({
+        ...baseResult,
+        status: failedRows > 0 ? 'failed' : 'passed',
+        referencedAttributes: compiled.referencedAttributes,
+        assetId,
+        evaluatedRows: preview.rows.length,
+        failedRows,
+        isTruncated: preview.truncated,
+      });
+    } catch {
+      results.push({ ...baseResult, status: 'error', referencedAttributes: compiled.referencedAttributes, assetId, reason: 'asset_unavailable' });
+    }
+  }
+  return results;
+}
+
+function doesQualityRuleResultBlockPublishing(result: IOntologyQualityRuleRunResult): boolean {
+  return result.reason === 'invalid_expression' || (result.severity === 'error' && (result.status === 'failed' || result.status === 'error'));
+}
+
+function qualityRuleIssue(result: IOntologyQualityRuleRunResult) {
+  if (result.status === 'failed' && result.severity !== 'info') {
+    return [
+      {
+        id: randomUUID(),
+        severity: result.severity === 'error' ? ('error' as const) : ('warning' as const),
+        message: `Quality rule "${result.ruleName}" failed for ${result.failedRows} of ${result.evaluatedRows} sampled rows.`,
+        targetType: 'object' as const,
+        targetId: result.objectId,
+      },
+    ];
+  }
+  if (result.status === 'error' && result.reason !== 'invalid_expression') {
+    return [
+      {
+        id: randomUUID(),
+        severity: result.severity === 'error' ? ('error' as const) : ('warning' as const),
+        message: `Quality rule "${result.ruleName}" could not be evaluated.`,
+        targetType: 'object' as const,
+        targetId: result.objectId,
+      },
+    ];
+  }
+  return [];
+}
+
+async function evaluateRelationDataBindings(snapshot: IOntologyWorkbenchSnapshot) {
+  const issues: Array<{
+    id: string;
+    severity: 'error';
+    message: string;
+    targetType: 'relation';
+    targetId: string;
+  }> = [];
+  for (const relation of snapshot.relations.filter((item) => item.dataBinding && item.dataBinding.mode !== 'semantic_only')) {
+    try {
+      const result = await executeRelationDefinition(relation, snapshot, snapshot, {
+        query: {},
+        limit: ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT,
+        maxDepth: 10,
+      });
+      if (result.cardinalityViolations > 0) {
+        issues.push({
+          id: randomUUID(),
+          severity: 'error',
+          message: `Relation "${relation.name}" violates ${relation.cardinality} cardinality in ${result.cardinalityViolations} sampled record(s).`,
+          targetType: 'relation',
+          targetId: relation.id,
+        });
+      }
+      if (result.cycleViolations > 0) {
+        issues.push({
+          id: randomUUID(),
+          severity: 'error',
+          message: `Relation "${relation.name}" contains ${result.cycleViolations} sampled cycle(s) but is marked acyclic.`,
+          targetType: 'relation',
+          targetId: relation.id,
+        });
+      }
+    } catch (error) {
+      issues.push({
+        id: randomUUID(),
+        severity: 'error',
+        message: `Relation "${relation.name}" could not be evaluated: ${error instanceof Error ? error.message : String(error)}`,
+        targetType: 'relation',
+        targetId: relation.id,
+      });
+    }
+  }
+  return issues;
+}
 
 async function scanConnectorAssets(input: IOntologyProbeConnectorInput): Promise<IOntologyEnvironmentAsset[]> {
   const connector = input.connector;
@@ -1228,10 +2207,30 @@ function inferKindFromPath(filePath: string): IOntologyEnvironmentAsset['kind'] 
   return 'document';
 }
 
+function describeRuntimeRelationBinding(snapshot: IOntologyVersionSnapshot, relation: IOntologyRelationDraft): string {
+  const binding = relation.dataBinding;
+  if (!binding || binding.mode === 'semantic_only') return 'semantic-only';
+  const fromObject = snapshot.objects.find((object) => object.id === relation.fromObjectId);
+  const toObject = snapshot.objects.find((object) => object.id === relation.toObjectId);
+  const junction = binding.junctionAssetId || 'junction';
+  return binding.joinKeys
+    .map((key) => {
+      const fromCode = fromObject?.attributes.find((attribute) => attribute.id === key.fromAttributeId)?.code ?? key.fromAttributeId;
+      const toCode = toObject?.attributes.find((attribute) => attribute.id === key.toAttributeId)?.code ?? key.toAttributeId;
+      return binding.mode === 'direct' ? `${fromCode} = ${toCode}` : `${fromCode} = ${junction}.${key.junctionFromFieldName}; ${junction}.${key.junctionToFieldName} = ${toCode}`;
+    })
+    .join(' AND ');
+}
+
 function createAssistantRuleContent(blueprint: IOntologyAgentBlueprint, snapshot: IOntologyVersionSnapshot): string {
   const objectLines = snapshot.objects.map((object) => `- ${object.name} (${object.code}): ${object.description}\n  Attributes: ${object.attributes.map((attribute) => `${attribute.name}:${attribute.dataType}${attribute.required ? ' required' : ''}`).join(', ') || 'none'}`).join('\n');
   const objectNameById = new Map(snapshot.objects.map((object) => [object.id, object.name]));
-  const relationLines = snapshot.relations.map((relation) => `- ${relation.name}: ${objectNameById.get(relation.fromObjectId) ?? relation.fromObjectId} -> ${objectNameById.get(relation.toObjectId) ?? relation.toObjectId} (${relation.cardinality})`).join('\n');
+  const relationLines = snapshot.relations
+    .map(
+      (relation) =>
+        `- ${relation.name}: ${objectNameById.get(relation.fromObjectId) ?? relation.fromObjectId} -> ${objectNameById.get(relation.toObjectId) ?? relation.toObjectId} (${relation.cardinality}, ${relation.relationType}, ${relation.semanticType}); ${describeRuntimeRelationBinding(snapshot, relation)}`
+    )
+    .join('\n');
   const mappingLines = snapshot.mappings.map((mapping) => `- ${mapping.objectId}/${mapping.attributeId} <- ${mapping.assetId}.${mapping.fieldName} (${mapping.strategy})`).join('\n');
   const ruleLines = snapshot.qualityRules.map((rule) => `- ${rule.name} [${rule.severity}]: ${rule.expression}`).join('\n');
   const functionLines = snapshot.logicFunctions.map((logicFunction) => `- ${logicFunction.code} (${logicFunction.runtime}): ${logicFunction.description}`).join('\n');
@@ -1274,6 +2273,7 @@ function createAssistantRuleContent(blueprint: IOntologyAgentBlueprint, snapshot
     '',
     toolLines || '- No tools.',
     '',
+    'Invoke the published logic_* tools for calculations and lookups, and action_* tools only when the user requests the corresponding side effect.',
     'When answering, cite the ontology object, relation, mapping, rule, function, or action that supports the answer.',
   ].join('\n');
 }

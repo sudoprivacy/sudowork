@@ -21,6 +21,13 @@ vi.mock('electron', () => ({
   },
   ipcMain: { on: () => {}, handle: () => {}, removeHandler: () => {} },
   BrowserWindow: vi.fn(),
+  Notification: class {
+    static isSupported() {
+      return true;
+    }
+
+    show() {}
+  },
   dialog: { showOpenDialog: vi.fn(), showSaveDialog: vi.fn() },
   shell: { openExternal: vi.fn() },
   nativeTheme: { shouldUseDarkColors: false, on: () => {} },

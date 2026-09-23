@@ -138,7 +138,7 @@
   },
   "generate": {
     "title": "Ontology Generation",
-    "description": "Generate ontology object, attribute, and relation drafts from business goals and selected assets.",
+    "description": "Define semantic object relations and executable data joins through direct fields or junction assets.",
     "summary": "{{objects}} objects, {{relations}} relations",
     "action": "Generate Draft",
     "emptyObjects": "No objects yet. Add an object to get started.",
@@ -151,7 +151,8 @@
       "actions": "Actions",
       "relation": "Relation",
       "endpoints": "Endpoints",
-      "relationSemantics": "Cardinality / Semantics"
+      "relationSemantics": "Cardinality / Semantics",
+      "relationBinding": "Field Join"
     }
   },
   "review": {
@@ -218,6 +219,12 @@
       "transitive_property": "Transitive property",
       "functional_property": "Functional property"
     },
+    "relationTypeHint": {
+      "object_property": "A directed business relation suitable for most foreign-key joins.",
+      "symmetric_property": "A bidirectional relation where reverse traversal is equivalent.",
+      "transitive_property": "A recursively traversable hierarchy between objects of the same type.",
+      "functional_property": "Each source object has at most one target; use one-to-one or many-to-one cardinality."
+    },
     "semanticType": {
       "composition": "Composition",
       "event": "Event",
@@ -225,14 +232,43 @@
       "dependency": "Dependency",
       "association": "Association"
     },
+    "semanticTypeHint": {
+      "composition": "Strong whole-part ownership; normally modeled as acyclic.",
+      "event": "Participation in or triggering of a business event.",
+      "inheritance": "Subtype-to-parent semantics, commonly without a physical join.",
+      "dependency": "The source depends on the target's existence or capability.",
+      "association": "General business association without lifecycle semantics."
+    },
     "dataType": "Data Type",
     "required": "Required",
     "expression": "Rule Expression",
+    "expressionHint": "Use attribute codes with SQL-style operators (=, !=, >, >=, <, <=, IS NULL, IN, LIKE, AND, OR, NOT). Available: {{attributes}}",
+    "expressionInvalid": "Enter a valid SQL-style condition.",
+    "expressionUnknownAttribute": "Unknown attribute code: {{attribute}}",
+    "expressionNoAttributes": "none",
     "fromObject": "Source Object",
     "toObject": "Target Object",
     "cardinalityLabel": "Cardinality",
     "relationTypeLabel": "Relation Type",
     "semanticTypeLabel": "Semantic Type",
+    "relationBindingMode": "Data Binding",
+    "relationBinding": {
+      "semantic_only": "Semantic only",
+      "direct": "Direct field join",
+      "junction": "Junction asset join"
+    },
+    "relationBindingHint": {
+      "semantic_only": "Used for graph and semantic context only; it cannot query related records.",
+      "direct": "Joins mapped source and target attributes by equality.",
+      "junction": "Connects source and target objects through a junction data asset, typically for many-to-many relations."
+    },
+    "relationJunctionAsset": "Junction Data Asset",
+    "relationJoinKeys": "Join Conditions",
+    "relationFromAttribute": "Source attribute",
+    "relationToAttribute": "Target attribute",
+    "relationJunctionFromField": "Junction source field",
+    "relationJunctionToField": "Junction target field",
+    "addRelationJoinKey": "Add Composite Key",
     "mappingObject": "Ontology Object",
     "mappingAttribute": "Object Attribute",
     "mappingAsset": "Data Asset",
@@ -358,6 +394,7 @@
     "description": "Manage hydration mappings from ontology attributes to asset fields and generate publish-time quality rules.",
     "mappings": "Mappings",
     "qualityRules": "Quality Rules",
+    "runQualityRules": "Run Rules",
     "documents": "Documents",
     "connections": "Connection Profiles",
     "emptyMappings": "No field mappings yet. Import assets with fields and generate a draft.",
@@ -366,6 +403,30 @@
       "field": "Asset Field",
       "confidence": "Confidence",
       "strategy": "Strategy"
+    }
+  },
+  "relationRuntime": {
+    "runTitle": "Run Relation {{name}}",
+    "semanticOnly": "Semantic only",
+    "toolDescription": "Traverse relation {{name}} through its field binding.",
+    "argumentsHint": "query filters the starting object; direction accepts forward/reverse; transitive relations accept maxDepth. Reads at most {{limit}} rows per endpoint."
+  },
+  "qualityRuleRun": {
+    "title": "Quality rule execution",
+    "summary": "{{failed}} of {{evaluated}} rows failed{{sample}}",
+    "sampled": " (first {{limit}} rows sampled)",
+    "status": {
+      "passed": "Passed",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "error": "Error"
+    },
+    "reason": {
+      "invalid_expression": "The expression is invalid.",
+      "unmapped_attributes": "Some referenced attributes are not mapped to asset fields.",
+      "multiple_assets": "Referenced attributes cannot be evaluated from one asset.",
+      "asset_unavailable": "The mapped asset could not be read.",
+      "field_unavailable": "A mapped field is missing from the asset preview."
     }
   },
   "mappingStrategy": {
@@ -588,6 +649,11 @@
     "emptyDocuments": "No business documents",
     "copy": "Copy",
     "copied": "Endpoint config copied",
+    "run": "Run",
+    "runTitle": "Run {{name}}",
+    "argumentsJson": "Arguments (JSON object)",
+    "executionResult": "Execution result · {{duration}} ms",
+    "executionCount": "run {{count}} times",
     "detailTitle": "{{name}} Details",
     "toolCount": "{{count}} tools",
     "summary": "{{functions}} functions, {{actions}} action definitions",
@@ -600,11 +666,20 @@
     "boundObjects": "Bound Objects",
     "signature": "Signature",
     "parametersJson": "Parameters (JSON array)",
+    "outputSchemaJson": "Output schema (JSON array)",
     "body": "Implementation",
     "executor": "Executor",
     "configurationJson": "Configuration (JSON object)",
     "invalidParameters": "Parameters must be a valid JSON array.",
     "invalidConfiguration": "Configuration must be a valid JSON object.",
+    "invalidOutputSchema": "Output schema must be a valid JSON array.",
+    "invalidArguments": "Arguments must be a valid JSON object.",
+    "logicConfigurationHint": "Generated lookups use {\"builtIn\":\"lookup\"}; SQL functions can select a connector with {\"connectorId\":\"...\"}.",
+    "logicBodyHints": {
+      "typescript": "JavaScript-compatible function body. Read arguments from input or params and return a JSON-serializable value.",
+      "python": "Python statements. Read arguments from input or params and assign the JSON-serializable output to result.",
+      "sql": "One read-only SELECT statement. Use {{parameter}} placeholders for arguments."
+    },
     "deleteFunctionTitle": "Delete Logic Function",
     "deleteFunctionContent": "Delete logic function {{name}}?",
     "deleteActionTitle": "Delete Action",
@@ -615,6 +690,13 @@
       "sql": "SQL Execution",
       "notification": "Notification",
       "custom_script": "Custom Script"
+    },
+    "actionConfigurationHints": {
+      "function": "Use {\"functionCode\":\"...\"} to invoke a logic function.",
+      "api": "Use {\"url\":\"https://...\",\"method\":\"POST\",\"headers\":{},\"body\":{}}. Values may contain {{parameter}} placeholders.",
+      "sql": "Use {\"connectorId\":\"...\",\"statement\":\"UPDATE ... WHERE id = {{recordId}}\"}. Writes require a writable connector.",
+      "notification": "Use {\"title\":\"...\",\"message\":\"... {{parameter}}\"}.",
+      "custom_script": "Use an absolute executable path: {\"command\":\"/...\",\"args\":[\"{{parameter}}\"]}. Arguments are also sent as JSON on stdin."
     }
   },
   "publish": {
@@ -767,6 +849,9 @@
     "actionToolDescription": "Execute {{executor}} action.",
     "paramDescriptions": {
       "query": "Query text or natural-language question.",
+      "relationQuery": "Attribute filters for the traversal starting object.",
+      "direction": "Traversal direction: forward or reverse.",
+      "maxDepth": "Maximum traversal depth for transitive relations.",
       "limit": "Maximum number of returned results.",
       "scope": "Capability scope.",
       "args": "Function arguments object.",
@@ -777,6 +862,7 @@
       "query": "Search ontology objects, relations, logic, actions, and quality rules.",
       "overview": "Describe the published ontology and its resource counts.",
       "object": "Get one object with its attributes, relations, mappings, and quality rules.",
+      "relations": "List relation definitions with cardinality, semantics, and field-level bindings.",
       "logic": "List logic functions in the published ontology.",
       "actions": "List action definitions without executing them.",
       "capabilities": "List the capabilities and tools exposed by this ontology service."
@@ -895,7 +981,7 @@
     "sessionTitle": "AI Build · {{title}}",
     "initialPrompt": "Please act as the Ontology AI Builder and help me construct the \"{{title}}\" ontology. Start by calling ontology_get_snapshot to inspect current state, then progress through: define goal → confirm data assets → extract objects/relations → add mappings & quality rules → consistency check → publish → register agent, using the corresponding ontology_* tools to actually persist every step to the database.",
     "initialPromptGoalLine": "Business goal: {{goal}}",
-    "presetContext": "You are helping the user build the ontology \"{{title}}\" (workspace_id: {{workspaceId}}) inside SudoWork's Ontology Workbench via the AI Builder entry.\n\n**Key rule**: You MUST use the `ontology-builder` MCP's `ontology_*` tools to actually create/update objects, attributes, relations, mappings, quality rules, logic functions and actions. Every write is reflected live in the workbench UI the user is looking at; describing structure only in chat means the user sees no change.\n\n**Available tools**: ontology_get_snapshot, ontology_update_draft, ontology_upsert_object, ontology_upsert_attribute, ontology_upsert_relation, ontology_upsert_mapping, ontology_upsert_quality_rule, ontology_upsert_logic_function, ontology_upsert_action, ontology_generate_draft_from_assets, ontology_run_consistency_check, ontology_publish_current_draft, ontology_create_agent_blueprint, ontology_register_agent_blueprint.\n\n**Workflow**:\n1. Call ontology_get_snapshot at session start.\n2. If the user hasn't given a business goal, ask; then ontology_update_draft to store it.\n3. Extract objects: ontology_upsert_object one at a time (parallel batches OK); name in the user's language, code in snake_case.\n4. Add attributes per object with ontology_upsert_attribute (objectId + name + dataType required); bind mappedField if you already know the asset field.\n5. Build relations with ontology_upsert_relation.\n6. Add mappings and quality rules.\n7. When done, ontology_run_consistency_check; on isValid=false, read issues[] and fix them.\n8. **Review is done by the human**: tell the user \"open the workbench preview and click Approve All\". Never approve on their behalf.\n9. After the user confirms approval, call ontology_publish_current_draft.\n10. After publish, ontology_create_agent_blueprint + ontology_register_agent_blueprint.\n\nAlways pass workspace_id: \"{{workspaceId}}\" (unless the user switches ontology explicitly). Keep replies concise — one line summarising the round and one line suggesting the next step.",
+    "presetContext": "You are helping the user build the ontology \"{{title}}\" (workspace_id: {{workspaceId}}) inside SudoWork's Ontology Workbench via the AI Builder entry.\n\n**Key rule**: You MUST use the `ontology-builder` MCP's `ontology_*` tools to actually create/update objects, attributes, relations, mappings, quality rules, logic functions and actions. Every write is reflected live in the workbench UI the user is looking at; describing structure only in chat means the user sees no change.\n\n**Available tools**: ontology_get_snapshot, ontology_update_draft, ontology_upsert_object, ontology_upsert_attribute, ontology_upsert_relation, ontology_upsert_mapping, ontology_upsert_quality_rule, ontology_upsert_logic_function, ontology_upsert_action, ontology_execute_logic_function, ontology_execute_relation, ontology_execute_action, ontology_generate_draft_from_assets, ontology_run_consistency_check, ontology_publish_current_draft, ontology_create_agent_blueprint, ontology_register_agent_blueprint.\n\n**Workflow**:\n1. Call ontology_get_snapshot at session start.\n2. If the user hasn't given a business goal, ask; then ontology_update_draft to store it.\n3. Extract objects: ontology_upsert_object one at a time (parallel batches OK); name in the user's language, code in snake_case.\n4. Add attributes per object with ontology_upsert_attribute (objectId + name + dataType required); bind mappedField if you already know the asset field.\n5. Build relations with ontology_upsert_relation; configure direct dataBinding when join keys are known, junction dataBinding for many-to-many bridge assets, and semantic_only only for conceptual relations.\n6. Add mappings and quality rules, then execute new logic, field-bound relations, and actions with test arguments before publishing.\n7. When done, ontology_run_consistency_check; on isValid=false, read issues[] and fix them.\n8. **Review is done by the human**: tell the user \"open the workbench preview and click Approve All\". Never approve on their behalf.\n9. After the user confirms approval, call ontology_publish_current_draft.\n10. After publish, ontology_create_agent_blueprint + ontology_register_agent_blueprint.\n\nAlways pass workspace_id: \"{{workspaceId}}\" (unless the user switches ontology explicitly). Keep replies concise — one line summarising the round and one line suggesting the next step.",
     "modal": {
       "title": "Start a new AI build",
       "confirm": "Start",

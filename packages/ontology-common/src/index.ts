@@ -1,4 +1,7 @@
-export const ONTOLOGY_SNAPSHOT_SCHEMA_VERSION = 2;
+export * from "./qualityRuleExpression.js";
+
+export const ONTOLOGY_SNAPSHOT_SCHEMA_VERSION = 3;
+export const ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT = 100;
 
 export const ONTOLOGY_WORKFLOW_PHASES = [
   "scan",
@@ -222,10 +225,25 @@ export interface IOntologyRelationDraft {
     | "inheritance"
     | "dependency"
     | "association";
+  dataBinding?: IOntologyRelationDataBinding;
   isAcyclic: boolean;
   description?: string;
   reviewDecision: OntologyReviewDecision;
   updatedAt: number;
+}
+
+export interface IOntologyRelationJoinKey {
+  fromAttributeId: string;
+  toAttributeId: string;
+  junctionFromFieldName?: string;
+  junctionToFieldName?: string;
+}
+
+export interface IOntologyRelationDataBinding {
+  mode: "semantic_only" | "direct" | "junction";
+  joinKeys: IOntologyRelationJoinKey[];
+  junctionAssetId?: string;
+  origin?: "inferred" | "manual";
 }
 
 export interface IOntologyReviewItem {
@@ -290,7 +308,7 @@ export interface IOntologyAgentBlueprint {
   toolManifest: Array<{
     name: string;
     description: string;
-    category: "ontology" | "logic" | "action" | "mcp";
+    category: "ontology" | "relation" | "logic" | "action" | "mcp";
   }>;
   createdAt: number;
   updatedAt: number;
@@ -332,6 +350,34 @@ export interface IOntologyQualityRule {
   updatedAt: number;
 }
 
+export type OntologyQualityRuleRunStatus =
+  | "passed"
+  | "failed"
+  | "skipped"
+  | "error";
+
+export type OntologyQualityRuleRunReason =
+  | "invalid_expression"
+  | "unmapped_attributes"
+  | "multiple_assets"
+  | "asset_unavailable"
+  | "field_unavailable";
+
+export interface IOntologyQualityRuleRunResult {
+  ruleId: string;
+  ruleCode: string;
+  ruleName: string;
+  objectId: string;
+  severity: IOntologyQualityRule["severity"];
+  status: OntologyQualityRuleRunStatus;
+  referencedAttributes: string[];
+  evaluatedRows: number;
+  failedRows: number;
+  isTruncated: boolean;
+  assetId?: string;
+  reason?: OntologyQualityRuleRunReason;
+}
+
 export interface IOntologyBusinessDocument {
   id: string;
   title: string;
@@ -352,6 +398,7 @@ export interface IOntologyLogicFunction {
   body: string;
   returnType: string;
   parameters: IOntologyFunctionParameter[];
+  configuration: Record<string, OntologyJsonValue>;
   origin: "generated" | "manual";
   status: OntologyArtifactStatus;
   executionCount: number;
@@ -750,6 +797,7 @@ export interface IOntologyRelationDraftInput {
   cardinality: IOntologyRelationDraft["cardinality"];
   relationType?: IOntologyRelationDraft["relationType"];
   semanticType?: IOntologyRelationDraft["semanticType"];
+  dataBinding?: IOntologyRelationDataBinding;
   isAcyclic?: boolean;
   description?: string;
 }
@@ -786,6 +834,7 @@ export interface IOntologyLogicFunctionInput {
   body?: string;
   returnType?: string;
   parameters?: IOntologyFunctionParameter[];
+  configuration?: Record<string, OntologyJsonValue>;
   status?: OntologyArtifactStatus;
 }
 
@@ -800,6 +849,28 @@ export interface IOntologyActionDefinitionInput {
   parameters?: IOntologyFunctionParameter[];
   outputSchema?: IOntologyActionDefinition["outputSchema"];
   status?: OntologyArtifactStatus;
+}
+
+export interface IOntologyExecuteRuntimeInput {
+  id?: string;
+  code?: string;
+  workspaceId?: string;
+  versionId?: string;
+  arguments?: Record<string, OntologyJsonValue>;
+}
+
+export interface IOntologyRuntimeExecution {
+  kind: "logic" | "action" | "relation";
+  artifactId: string;
+  code: string;
+  output: OntologyJsonValue;
+  durationMs: number;
+  executedAt: number;
+}
+
+export interface IOntologyRuntimeExecutionResult {
+  snapshot: IOntologyWorkbenchSnapshot;
+  execution: IOntologyRuntimeExecution;
 }
 
 export interface IOntologyDeleteInput {
@@ -835,7 +906,14 @@ export interface IOntologyConsistencyIssue {
   id: string;
   severity: "error" | "warning";
   message: string;
-  targetType?: "object" | "relation" | "version" | "agent";
+  targetType?:
+    | "object"
+    | "relation"
+    | "quality_rule"
+    | "logic"
+    | "action"
+    | "version"
+    | "agent";
   targetId?: string;
 }
 
@@ -843,6 +921,7 @@ export interface IOntologyConsistencyCheckResult {
   isValid: boolean;
   checkedAt: number;
   issues: IOntologyConsistencyIssue[];
+  qualityRuleResults?: IOntologyQualityRuleRunResult[];
 }
 
 export interface IOntologyAgentBlueprintInput {

@@ -19,6 +19,9 @@ describe('OntologyWriteBridge → ontologyService coverage', () => {
       'upsert_quality_rule',
       'upsert_logic_function',
       'upsert_action',
+      'execute_logic_function',
+      'execute_relation',
+      'execute_action',
       'generate_draft_from_assets',
       'approve_all',
       'run_consistency_check',
@@ -51,6 +54,9 @@ describe('ontology-builder-mcp bundle', () => {
       'ontology_upsert_quality_rule',
       'ontology_upsert_logic_function',
       'ontology_upsert_action',
+      'ontology_execute_logic_function',
+      'ontology_execute_relation',
+      'ontology_execute_action',
       'ontology_generate_draft_from_assets',
       'ontology_run_consistency_check',
       'ontology_publish_current_draft',
@@ -62,6 +68,8 @@ describe('ontology-builder-mcp bundle', () => {
     // Every tool call routes through the bridge — bundle must speak HTTP.
     expect(source).toContain('await fetch(url,');
     expect(source).toContain('Authorization: `Bearer ${token');
+    expect(source).toContain("relationType: { type: 'string', enum: ['object_property'] }");
+    expect(source).toContain("semanticType: { type: 'string', enum: ['association'] }");
   });
 });
 

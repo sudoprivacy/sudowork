@@ -41,7 +41,9 @@ void (async () => {
   try {
     const { ensureOntologyBuilderMcpServer } = await import('@process/services/ontology/OntologyMcpRegistration');
     await ensureOntologyBuilderMcpServer();
-    mainLog('initBridge', 'Ontology builder MCP registered with Sudocode');
+    const { ontologyService } = await import('@process/services/ontology/OntologyService');
+    await ontologyService.restoreRegisteredMcpServers();
+    mainLog('initBridge', 'Ontology builder and registered runtime MCP servers refreshed');
   } catch (error) {
     mainWarn('initBridge', 'Ontology builder MCP registration failed:', error instanceof Error ? error.message : String(error));
   }

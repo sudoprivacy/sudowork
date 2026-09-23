@@ -326,6 +326,34 @@ export function initOntologyBridge(): void {
     }
   });
 
+  ipcBridge.ontology.executeLogicFunction.provider(async (input) => {
+    try {
+      const result = await ontologyService.executeLogicFunction(input);
+      emitWorkbenchChanged(result.snapshot);
+      return ok(result);
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcBridge.ontology.executeRelation.provider(async (input) => {
+    try {
+      return ok(await ontologyService.executeRelation(input));
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcBridge.ontology.executeAction.provider(async (input) => {
+    try {
+      const result = await ontologyService.executeAction(input);
+      emitWorkbenchChanged(result.snapshot);
+      return ok(result);
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
   ipcBridge.ontology.reviewTarget.provider(async (input) => {
     try {
       const snapshot = await ontologyService.reviewTarget(input);
