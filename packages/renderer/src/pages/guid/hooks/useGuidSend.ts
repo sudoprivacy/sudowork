@@ -150,7 +150,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     const { agentType: effectiveAgentType } = getEffectiveAgentType(agentInfo);
 
-    const { rules: presetRules } = await resolvePresetRulesAndSkills(agentInfo);
+    const { rules: presetRules } = isEnterprise && sessionMode === 'local' ? {} : await resolvePresetRulesAndSkills(agentInfo);
     const enabledSkills = resolveEnabledSkills(agentInfo);
     const scodeAgentInfo = findAgentByKey('scode');
     const hasScodeCli = Boolean(scodeAgentInfo?.cliPath);
@@ -199,6 +199,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           },
         });
 
+        if ('__error' in conversation) throw new Error(conversation.__error);
         if (!conversation || !conversation.id) {
           alert('Failed to create remote agent conversation');
           return;
@@ -242,7 +243,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     }
 
     // Non-enterprise: scode availability check
-    if ((selectedAgent === 'scode' || finalEffectiveAgentType === 'scode') && !hasScodeCli) {
+    if (!(isEnterprise && sessionMode === 'local') && (selectedAgent === 'scode' || finalEffectiveAgentType === 'scode') && !hasScodeCli) {
       Message.error(
         t('guid.agentNotAvailable', {
           defaultValue: 'Sudo Code is not available. Please install or repair the runtime.',
@@ -296,6 +297,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           },
         });
 
+        if ('__error' in conversation) throw new Error(conversation.__error);
         if (!conversation || !conversation.id) {
           console.error('Failed to create ACP conversation - conversation object is null or missing id');
           return;
@@ -304,7 +306,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         // Bind the conversation to Dify enhancement when the chosen assistant
         // is a sudohub preset. Non-preset / custom assistants get a no-op since
         // resolveSudohubAssistantId returns null for them.
-        if (isPreset) {
+        if (isPreset && !(isEnterprise && sessionMode === 'local')) {
           try {
             const { bindAssistantSession } = await import('@renderer/shared/dify/sessionBinding');
             await bindAssistantSession({
@@ -368,6 +370,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
   const sendMessageHandler = useCallback(() => {
     setLoading(true);
+    const isPreparingLocal = isEnterprise && sessionMode === 'local';
+    const closePreparing = isPreparingLocal ? Message.loading({ content: t('guid.localPreparing'), duration: 0 }) : undefined;
     handleSend()
       .then(() => {
         setInput('');
@@ -383,11 +387,13 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       })
       .catch((error) => {
         console.error('Failed to send message:', error);
+        Message.error(isPreparingLocal ? t('guid.localPreparationFailed', { reason: error instanceof Error ? error.message : String(error) }) : String(error));
       })
       .finally(() => {
+        closePreparing?.();
         setLoading(false);
       });
-  }, [handleSend, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
+  }, [handleSend, isEnterprise, sessionMode, t, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
 
   // Calculate button disabled state
   const isButtonDisabled = !input.trim();

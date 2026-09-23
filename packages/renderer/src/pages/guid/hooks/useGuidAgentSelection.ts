@@ -23,7 +23,7 @@ import { resolveGuidModelBackendKey } from '../utils/modelBackendKey';
 
 // Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
 // 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取
-let rendererCachedSessionMode: 'remote' | 'local' = 'remote';
+let rendererCachedSessionMode: 'remote' | 'local' = 'local';
 
 /** 供 useConversations 等非 GuidPage 组件树同步读取当前 sessionMode */
 export function getRendererSessionMode(): 'remote' | 'local' {
@@ -61,14 +61,8 @@ type CloudAssistant = {
   tag?: string;
 };
 
-function getCloudAssistantSourceType(assistant: CloudAssistant): string {
-  return assistant.sourceType || assistant.tag || (assistant.isHubInstalled ? 'hub' : '');
-}
-
 function isSelectableCloudAssistant(assistant: CloudAssistant): boolean {
-  if (!assistant.key || assistant.isBuiltin) return false;
-  const sourceType = getCloudAssistantSourceType(assistant);
-  return assistant.isHubInstalled || sourceType === 'hub' || sourceType === 'custom' || sourceType === 'upload';
+  return Boolean(assistant.key) && !assistant.isBuiltin;
 }
 
 function getAssistantDisplayName(agent: Pick<AcpBackendConfig, 'name' | 'nameI18n'>): string {
@@ -108,7 +102,7 @@ function toCloudAssistantConfig(assistant: CloudAssistant): AcpBackendConfig {
   };
 }
 
-function mergeAssistantConfigs(localAgents: AcpBackendConfig[], cloudAssistants: CloudAssistant[]): AcpBackendConfig[] {
+function mergeAssistantConfigs(localAgents: AcpBackendConfig[], cloudAssistants: CloudAssistant[], isLocal = false): AcpBackendConfig[] {
   const merged = dedupeAssistantConfigs(localAgents);
   const seen = new Set<string>();
   for (const agent of merged) {
@@ -119,6 +113,7 @@ function mergeAssistantConfigs(localAgents: AcpBackendConfig[], cloudAssistants:
   for (const assistant of cloudAssistants) {
     if (!isSelectableCloudAssistant(assistant)) continue;
     const cloudConfig = toCloudAssistantConfig(assistant);
+    if (isLocal) cloudConfig.presetAgentType = 'scode';
     const keys = [cloudConfig.id, getAssistantDedupeKey(cloudConfig)].filter(Boolean);
     if (keys.some((key) => seen.has(key))) continue;
     merged.push(cloudConfig);
@@ -221,7 +216,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   // Session mode state (remote/local) - SSOT for enterprise mode
   // sessionMode 状态（remote/local）— 企业模式的唯一权威来源
-  const [sessionMode, _setSessionMode] = useState<'remote' | 'local'>('remote');
+  const [sessionMode, _setSessionMode] = useState<'remote' | 'local'>('local');
   const [selectedMode, _setSelectedMode] = useState<string>('default');
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
@@ -286,7 +281,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   useEffect(() => {
     if (!isEnterprise) return;
     void ConfigStorage.get('guid.sessionMode').then(async (stored) => {
-      let mode = stored ?? 'remote';
+      let mode = stored ?? 'local';
       // Validate localModeAvailable: fallback to remote if 'local' persisted but user lacks permission
       if (mode === 'local') {
         try {
@@ -565,15 +560,11 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
         return fetchAssistantsAsConfigs();
       }
     })();
-    Promise.all([
-      assistantsPromise,
-      ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]),
-      isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] }),
-    ])
+    Promise.all([assistantsPromise, ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]), isEnterprise ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })])
       .then(([agents, extAssistants, cloudAssistantsResult]) => {
         if (!isActive) return;
         const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
-        const mergedAgents = isEnterprise && sessionMode === 'remote' ? mergeAssistantConfigs(agents, cloudAssistants) : agents;
+        const mergedAgents = isEnterprise ? mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local') : agents;
         const list = mergedAgents.filter((agent: AcpBackendConfig) => {
           // Keep preset assistants (builtin + hub-installed) visible on Guid homepage
           // even when ACP detection has not produced custom IDs yet.
@@ -1070,9 +1061,9 @@ This identity statement takes priority over the default identity in USER.md.
         await mutate('acp.agents.available');
       }
 
-      const [agents, cloudAssistantsResult] = await Promise.all([fetchAssistantsAsConfigs(), isEnterprise && sessionMode === 'remote' ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })]);
+      const [agents, cloudAssistantsResult] = await Promise.all([fetchAssistantsAsConfigs(), isEnterprise ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })]);
       const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
-      const mergedAgents = isEnterprise && sessionMode === 'remote' ? mergeAssistantConfigs(agents, cloudAssistants) : agents;
+      const mergedAgents = isEnterprise ? mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local') : agents;
 
       // Apply presetAgentType fallback for builtin assistants
       for (const agent of mergedAgents) {

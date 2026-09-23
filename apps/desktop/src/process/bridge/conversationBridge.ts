@@ -11,6 +11,10 @@ import fs from 'fs/promises';
 import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { shouldSyncWorkspaceSkills } from '@sudowork/common/utils/workspaceSkillSync';
+import { assertConversationAccount } from '@process/services/mossExecutionContext';
+import { ensureScodeInstalled, getScodePath } from '@process/services/scode/ScodeInstallService';
+import { prepareMossResources, validateMossResourceSnapshot } from '@process/services/mossResourcePreparation';
+import { prepareMossLocalRuntime } from '@process/services/mossLocalRuntime';
 import { getDatabase } from '@process/database';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
@@ -30,7 +34,7 @@ import { INTERMEDIATE_DIR_SEGMENTS } from '../task/FileIntentClassifier';
 import WorkerManage from '../WorkerManage';
 import { skillManager } from '../SkillManager';
 import { ConversationManageWithDB } from '../message';
-import { getConversationProvider, isRemoteProvider } from '../providers';
+import { getProviderForConversation, getConversationProvider, isRemoteProvider } from '../providers';
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
 import { turnInputCoordinator } from '../task/turnInputCoordinator';
 import { reapConversation } from '../services/conversationReaper';
@@ -107,10 +111,23 @@ function getRemoteConversationMossApi(extra: RemoteConversationExtra) {
 }
 
 async function syncConversationWorkspaceSkills(conversation: TChatConversation | undefined, requestedSkillNames?: string[]): Promise<void> {
+  if (conversation?.type === 'acp' && conversation.extra.mossAccountScope) {
+    assertConversationAccount(conversation);
+    await validateMossResourceSnapshot(conversation.extra.mossResources || []);
+    const additions = requestedSkillNames?.filter((name) => !conversation.extra.enabledSkills?.includes(name)) || [];
+    if (additions.length) {
+      const prepared = await prepareMossResources(undefined, additions);
+      conversation.extra.enabledSkills = [...new Set([...(conversation.extra.enabledSkills || []), ...prepared.enabledSkills])];
+      conversation.extra.mossResources = [...(conversation.extra.mossResources || []), ...prepared.resources];
+      const update = getDatabase().updateConversation(conversation.id, { extra: conversation.extra } as Partial<TChatConversation>);
+      if (!update.success) throw new Error('Failed to save local skill preparation');
+      requestedSkillNames = conversation.extra.enabledSkills;
+    }
+  }
   if (!shouldSyncWorkspaceSkills(conversation, requestedSkillNames)) return;
   const workspace = conversation.extra.workspace;
   const startedAt = Date.now();
-  const latestEnabledSkills = await resolveLatestConversationEnabledSkills(conversation);
+  const latestEnabledSkills = conversation.type === 'acp' && conversation.extra.mossAccountScope ? conversation.extra.enabledSkills : await resolveLatestConversationEnabledSkills(conversation);
 
   if (conversation?.id && !areSkillSelectionsEqual(conversation.extra?.enabledSkills, latestEnabledSkills)) {
     const db = getDatabase();
@@ -303,33 +320,60 @@ function scheduleConversationWorkspaceSkillSync(conversation: TChatConversation 
 }
 
 export function initConversationBridge(): void {
-  ipcBridge.conversation.create.provider(async (params): Promise<TChatConversation> => {
-    // Use Provider abstraction layer for conversation creation
-    // 使用 Provider 抽象层创建会话
-    mainLog('conversationBridge', `Creating conversation: type=${params.type}, name=${params.name}`);
+  ipcBridge.conversation.create.provider(async (params): Promise<TChatConversation | { __error: string }> => {
+    try {
+      // Use Provider abstraction layer for conversation creation
+      // 使用 Provider 抽象层创建会话
+      mainLog('conversationBridge', `Creating conversation: type=${params.type}, name=${params.name}`);
 
-    // Read sessionMode from extra.sessionModeParam (rendered process passes it explicitly)
-    // 从 extra.sessionModeParam 读取 sessionMode（渲染进程显式传递）
-    const sessionMode = params.extra?.sessionModeParam as 'remote' | 'local' | undefined;
+      // Read sessionMode from extra.sessionModeParam (rendered process passes it explicitly)
+      // 从 extra.sessionModeParam 读取 sessionMode（渲染进程显式传递）
+      const sessionMode = params.extra?.sessionModeParam as 'remote' | 'local' | undefined;
 
-    // Enterprise mode Remote session: force remote-agent type for all conversations
-    // 企业模式 Remote 会话：强制使用 remote-agent 类型
-    // Local session in enterprise mode should NOT be forced to remote-agent
-    // 企业模式 Local 会话不应强制为 remote-agent
-    let finalParams = params;
-    if (isRemoteProvider(sessionMode) && params.type !== 'remote-agent') {
-      mainLog('conversationBridge', `Enterprise remote mode: forcing remote-agent type`);
-      finalParams = { ...params, type: 'remote-agent' };
+      // Enterprise mode Remote session: force remote-agent type for all conversations
+      // 企业模式 Remote 会话：强制使用 remote-agent 类型
+      // Local session in enterprise mode should NOT be forced to remote-agent
+      // 企业模式 Local 会话不应强制为 remote-agent
+      let finalParams = params;
+      if (isRemoteProvider(sessionMode) && params.type !== 'remote-agent') {
+        mainLog('conversationBridge', `Enterprise remote mode: forcing remote-agent type`);
+        finalParams = { ...params, type: 'remote-agent' };
+      }
+
+      const target = sessionMode || (params.type === 'remote-agent' ? 'remote' : 'local');
+      if (target === 'local' && ProcessConfig.getSync('eeclaw.accountScope')) await prepareMossLocalRuntime();
+      const execution = ProcessConfig.getSync('eeclaw.execution');
+      if (execution && (target === 'local' ? !execution.isLocalAllowed : !execution.isRemoteAllowed)) throw new Error('Execution mode is not allowed');
+      if (target === 'local' && ProcessConfig.getSync('eeclaw.accountScope')) {
+        let runtime = ProcessConfig.getSync('eeclaw.localRuntime');
+        if (runtime?.status !== 'ready') runtime = (await prepareMossLocalRuntime()).localRuntime;
+        if (runtime.status !== 'ready') throw new Error(`Local execution is unavailable: ${runtime.status}`);
+        if (!(await ensureScodeInstalled())) throw new Error('Local scode engine is unavailable');
+        const resources = await prepareMossResources(params.extra?.presetAssistantId, params.extra?.enabledSkills);
+        finalParams = {
+          ...params,
+          type: 'acp',
+          extra: {
+            ...params.extra,
+            backend: 'scode',
+            cliPath: getScodePath() || undefined,
+            presetContext: resources.presetContext || params.extra?.presetContext,
+            enabledSkills: resources.enabledSkills,
+            ...{ mossResources: resources.resources },
+          },
+        };
+      }
+      const provider = getConversationProvider(target);
+      const conversation = await provider.createConversation(finalParams);
+
+      mainLog('conversationBridge', `Conversation created successfully: id=${conversation.id}`);
+
+      scheduleConversationWorkspaceSkillSync(conversation);
+
+      return conversation;
+    } catch (error) {
+      return { __error: error instanceof Error ? error.message : String(error) };
     }
-
-    const provider = getConversationProvider(sessionMode);
-    const conversation = await provider.createConversation(finalParams);
-
-    mainLog('conversationBridge', `Conversation created successfully: id=${conversation.id}`);
-
-    scheduleConversationWorkspaceSkillSync(conversation);
-
-    return conversation;
   });
 
   // Reload context is not supported for ACP agents
@@ -472,6 +516,7 @@ export function initConversationBridge(): void {
 
   ipcBridge.conversation.remove.provider(async ({ id, deleteWorkspace }) => {
     try {
+      getProviderForConversation(id);
       // Route all cleanup through the reaper SSOT so every resource this
       // conversation owns is released in one ordered, DRY path.
       const res = await reapConversation(id, { reason: 'user-delete', deleteWorkspace });
@@ -492,7 +537,7 @@ export function initConversationBridge(): void {
       const modelChanged = !!nextModel && JSON.stringify(prevModel) !== JSON.stringify(nextModel);
 
       // Use Provider abstraction layer / 使用 Provider 抽象层
-      const provider = getConversationProvider();
+      const provider = getProviderForConversation(id);
       const success = await provider.updateConversation(id, updates, mergeExtra);
 
       // If model changed, kill running task to force rebuild with new model on next send
@@ -524,7 +569,7 @@ export function initConversationBridge(): void {
   ipcBridge.conversation.get.provider(async ({ id }): Promise<TChatConversation | undefined> => {
     try {
       // Use Provider abstraction layer / 使用 Provider 抽象层
-      const provider = getConversationProvider();
+      const provider = getProviderForConversation(id);
       const conversation = await provider.getConversation(id);
 
       if (conversation) {
@@ -792,6 +837,7 @@ export function initConversationBridge(): void {
 
     let task: AcpAgent | import('../task/RemoteAgent').default | undefined;
     try {
+      getProviderForConversation(conversation_id);
       task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | import('../task/RemoteAgent').default | undefined;
     } catch (err) {
       mainLog('conversationBridge', `sendMessage: failed to get/build task: ${conversation_id}`, err);
@@ -1025,7 +1071,7 @@ export function initConversationBridge(): void {
   // Sync messages from Moss Server to local DB (enterprise mode, triggered on conversation click)
   ipcBridge.conversation.syncMessages.provider(async ({ conversation_id }) => {
     try {
-      const provider = getConversationProvider();
+      const provider = getProviderForConversation(conversation_id);
       if (provider.type !== 'remote' || !provider.syncFromMossServer) {
         return { success: true, data: { syncedCount: 0, nameUpdated: false } };
       }

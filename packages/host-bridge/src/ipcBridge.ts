@@ -205,9 +205,10 @@ export const terminal = {
 
 //通用会话能力
 export const conversation = {
-  create: bridge.buildProvider<TChatConversation, ICreateConversationParams>(
-    "create-conversation",
-  ), // 创建对话
+  create: bridge.buildProvider<
+    TChatConversation | { __error: string },
+    ICreateConversationParams
+  >("create-conversation"), // 创建对话
   createWithConversation: bridge.buildProvider<
     TChatConversation,
     { conversation: TChatConversation; sourceConversationId?: string }
@@ -1889,10 +1890,7 @@ export const fuseT = {
 
 // Python runtime installer / Python 运行环境安装
 export type IPythonInstallPhase =
-  | "downloading"
-  | "installing"
-  | "configuring"
-  | "cleanup";
+  "downloading" | "installing" | "configuring" | "cleanup";
 
 export const pythonRuntime = {
   checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>(
@@ -1926,10 +1924,7 @@ export const pythonRuntime = {
 
 // Poppler runtime installer / Poppler PDF 工具安装
 export type IPopplerInstallPhase =
-  | "downloading"
-  | "extracting"
-  | "verifying"
-  | "cleanup";
+  "downloading" | "extracting" | "verifying" | "cleanup";
 
 export const popplerRuntime = {
   checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>(
@@ -2399,13 +2394,7 @@ export const browserPanel = {
     IBridgeResponse<
       Array<{
         level:
-          | "log"
-          | "info"
-          | "warn"
-          | "error"
-          | "debug"
-          | "verbose"
-          | "other";
+          "log" | "info" | "warn" | "error" | "debug" | "verbose" | "other";
         text: string;
         url?: string;
         lineNumber?: number;
@@ -2900,7 +2889,7 @@ export interface ICreateConversationParams {
   id?: string;
   name?: string;
   model: TProviderWithModel;
-  extra: {
+  extra: import("@sudowork/common/mossExecution").IMossConversationExecution & {
     workspace?: string;
     customWorkspace?: boolean;
     workspaceDisplayName?: string;
@@ -3072,12 +3061,7 @@ export interface IExtensionSettingsTab {
 }
 
 export type AgentActivityState =
-  | "idle"
-  | "writing"
-  | "researching"
-  | "executing"
-  | "syncing"
-  | "error";
+  "idle" | "writing" | "researching" | "executing" | "syncing" | "error";
 
 export interface IExtensionAgentActivityEvent {
   conversationId: string;
@@ -3718,12 +3702,7 @@ export const channel = {
   >("channel.lark-auth-who-am-i"),
   larkAuthLogin: bridge.buildEmitter<{
     phase:
-      | "initializing"
-      | "app-setup"
-      | "qrcode"
-      | "success"
-      | "error"
-      | "expired";
+      "initializing" | "app-setup" | "qrcode" | "success" | "error" | "expired";
     verificationUrl?: string;
     userCode?: string;
     expiresAt?: number;
@@ -4558,6 +4537,8 @@ export interface UserProfileData {
 }
 
 export interface IEeclawAuthenticatedLogin {
+  execution?: import("@sudowork/common/mossExecution").IMossExecutionCapabilities;
+  localRuntime?: import("@sudowork/common/mossExecution").TMossLocalRuntimeStatus;
   access_token: string;
   refresh_token?: string;
   expires_in: number;
@@ -4575,6 +4556,13 @@ export interface IEeclawAuthenticatedLogin {
 }
 
 export const eeclaw = {
+  prepareLocalRuntime: bridge.buildProvider<
+    IBridgeResponse<{
+      execution: import("@sudowork/common/mossExecution").IMossExecutionCapabilities;
+      localRuntime: import("@sudowork/common/mossExecution").TMossLocalRuntimeStatus;
+    }>,
+    void
+  >("eeclaw.prepare-local-runtime"),
   /** Fetch enterprise cloud assistants from the enterprise server */
   getCloudAssistants: bridge.buildProvider<
     IBridgeResponse<
@@ -4604,11 +4592,7 @@ export const eeclaw = {
       serverUrl: string;
       body: {
         grant_type:
-          | "password"
-          | "api_key"
-          | "oauth2"
-          | "phone"
-          | "phone_register";
+          "password" | "api_key" | "oauth2" | "phone" | "phone_register";
         username?: string;
         password?: string;
         api_key?: string;

@@ -107,6 +107,10 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/common/src/mossExecution.ts',
+        'src/process/services/mossLocalRuntime.ts',
+        'src/process/services/mossExecutionContext.ts',
+        'src/process/services/mossResourcePreparation.ts',
         // Process / bridge
         'src/process/database/corruptionError.ts',
         'src/process/database/workspaceQueries.ts',

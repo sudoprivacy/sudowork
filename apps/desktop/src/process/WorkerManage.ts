@@ -6,6 +6,7 @@
 
 import type { TChatConversation } from '@sudowork/common/storage';
 import { mainLog, mainError } from '@process/utils/mainLogger';
+import { assertConversationAccount } from './services/mossExecutionContext';
 import AcpAgent from './task/AcpAgent';
 import RemoteAgent from './task/RemoteAgent';
 import { ProcessChat, ProcessConfig } from './initStorage';
@@ -33,6 +34,7 @@ const getTaskById = (id: string) => {
 };
 
 const buildConversation = (conversation: TChatConversation, options?: BuildConversationOptions) => {
+  assertConversationAccount(conversation);
   // If not skipping cache, check for existing task
   if (!options?.skipCache) {
     const task = getTaskById(conversation.id);
@@ -160,6 +162,14 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
 const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationOptions): Promise<AgentBaseTask<unknown>> => {
   mainLog('WorkerManage', `getTaskByIdRollbackBuild: id=${id}, options=${JSON.stringify(options)}`);
 
+  const existingConversation = getDatabase().getConversation(id);
+  if (existingConversation.success && existingConversation.data) {
+    assertConversationAccount(existingConversation.data);
+    if (existingConversation.data.type !== 'remote-agent' && existingConversation.data.extra?.backend !== 'remote-agent') {
+      const { assertMossLocalExecutionAllowed } = await import('./services/mossLocalRuntime');
+      await assertMossLocalExecutionAllowed();
+    }
+  }
   // If not skipping cache, check for existing task
   if (!options?.skipCache) {
     const task = taskList.find((item) => item.id === id)?.task;
@@ -208,7 +218,7 @@ const kill = (id: string) => {
   taskList.splice(index, 1);
 };
 
-const clear = async (): Promise<void> => {
+const clear = async (isLocalOnly = false): Promise<void> => {
   // App exit / restart cleanup. For remote-agent tasks, we explicitly DETACH
   // (disconnect the local WS only) rather than terminate — Moss server reclaims
   // idle containers/sessions per its own policy, and we don't want a graceful
@@ -218,7 +228,8 @@ const clear = async (): Promise<void> => {
   // 应用退出/重启清理：对 remote-agent 显式 detach（仅断本地 WS），不调用
   // terminateSession——服务端 idle 回收由 Moss 自己负责。其它类型仍走 kill()，
   // 因为它们拥有需要真正退出的子进程。
-  const cleanupPromises = taskList.map((item) => {
+  const selectedTasks = taskList.filter((item) => !isLocalOnly || item.task.type !== 'remote-agent');
+  const cleanupPromises = selectedTasks.map((item) => {
     try {
       const task = item.task as AgentBaseTask<unknown> & { detach?: () => void };
       const result = task.type === 'remote-agent' && typeof task.detach === 'function' ? task.detach() : task.kill();
@@ -228,7 +239,8 @@ const clear = async (): Promise<void> => {
       return Promise.resolve();
     }
   });
-  taskList.length = 0;
+  const retainedTasks = isLocalOnly ? taskList.filter((item) => item.task.type === 'remote-agent') : [];
+  taskList.splice(0, taskList.length, ...retainedTasks);
   // Wait for all agent child processes to terminate.
   // This prevents orphaned scode processes on Windows when the app quits.
   await Promise.allSettled(cleanupPromises);

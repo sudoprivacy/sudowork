@@ -12,7 +12,7 @@ import type { TChatConversation } from '@sudowork/common/storage';
 import { getDefaultAcpModelId } from '@/common/acp/defaultModels';
 import { uuid } from '@/common/utils';
 import { DRAFTS_DIR_NAME } from '@/common/constants';
-import { getSystemDir } from './initStorage';
+import { getSystemDir, ProcessConfig } from './initStorage';
 import { SUDOCLAW_DIR } from './services/sudoclaw/SudoclawInstallService';
 import { ensureWorkspaceAgentsMdRules } from './services/scode/ScodeInstallService';
 import { filterEnabledSkillNames } from './utils/enabledSkillFilter';
@@ -48,6 +48,10 @@ const buildWorkspaceWidthFiles = async (defaultWorkspaceName: string, workspace?
 };
 
 export const createAcpAgent = async (options: ICreateConversationParams): Promise<TChatConversation> => {
+  if (ProcessConfig.getSync('eeclaw.accountScope')) {
+    const { assertMossLocalExecutionAllowed } = await import('./services/mossLocalRuntime');
+    await assertMossLocalExecutionAllowed();
+  }
   const { extra } = options;
   const { workspace, customWorkspace } = await buildWorkspaceWidthFiles(`${extra.backend}-temp-${Date.now()}`, extra.workspace, extra.defaultFiles, extra.customWorkspace);
   const enabledSkills = await filterEnabledSkillNames(extra.enabledSkills);
@@ -60,6 +64,9 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
   return {
     type: 'acp',
     extra: {
+      executionTarget: extra.executionTarget,
+      mossAccountScope: extra.mossAccountScope,
+      mossResources: extra.mossResources,
       workspace: workspace,
       customWorkspace,
       workspaceDisplayName: extra.workspaceDisplayName,

@@ -34,6 +34,8 @@ export interface AuthUser {
   phone?: string;
   localAuth?: boolean;
   localModeAvailable?: boolean;
+  execution?: import('@sudowork/common/mossExecution').IMossExecutionCapabilities;
+  localRuntime?: import('@sudowork/common/mossExecution').TMossLocalRuntimeStatus;
   points?: {
     total: number;
     used: number;
@@ -1054,6 +1056,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               refresh_token: finalRefreshToken,
               expires_at: finalExpiresAt,
               device_id: authStorage.device_id,
+              session_type: authStorage.session_type || existingConfig?.session_type,
             });
             await ConfigStorage.set('eeclaw.localModeAvailable', authStorage.user.localModeAvailable === true);
 
@@ -1067,6 +1070,16 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             }
           } catch (e) {
             console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage:', e);
+          }
+
+          if (isDesktopRuntime && authStorage.user.execution) {
+            const runtime = await ipcBridge.eeclaw.prepareLocalRuntime.invoke().catch((): null => null);
+            if (runtime?.success && runtime.data) {
+              authStorage.user.execution = runtime.data.execution;
+              authStorage.user.localRuntime = runtime.data.localRuntime;
+              authStorage.user.localModeAvailable = runtime.data.execution.isLocalAllowed;
+              localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(authStorage));
+            }
           }
 
           // Check if token needs refresh
@@ -1595,8 +1608,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const mappedUser = mapEnterpriseUser(data.user, data.access_token);
 
     // --- localModeAvailable calculation (before localStorage serialization) ---
-    const localModeAvailable = !!(data.user.localAuth && data.sudorouter_key && data.model_service_url && Array.isArray(data.models) && data.models.length > 0);
+    const localModeAvailable = data.execution?.isLocalAllowed ?? !!(data.user.localAuth && data.sudorouter_key && data.model_service_url && Array.isArray(data.models) && data.models.length > 0);
     mappedUser.localModeAvailable = localModeAvailable;
+    mappedUser.execution = data.execution;
+    mappedUser.localRuntime = data.localRuntime;
 
     // Save to localStorage (eeclaw_auth_v1, separate from C-side)
     const eeclawAuthStorage: EeclawAuthStorage = {
@@ -1611,7 +1626,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     // --- sudocode.json generation/cleanup + sessionMode reset ---
     if (isDesktopRuntime) {
-      if (localModeAvailable) {
+      if (data.localRuntime) {
+        const mode = data.execution?.defaultTarget || 'local';
+        await ConfigStorage.set('guid.sessionMode', mode);
+        await ipcBridge.eeclaw.setSessionMode.invoke({ mode });
+        await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
+      } else if (localModeAvailable) {
         const loginSudoclawPayload = extractLoginSudoclawPayload(result);
         if (loginSudoclawPayload) {
           const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
@@ -1634,9 +1654,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
         }
       } else {
-        await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
-        await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
-        await ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'remote' }).catch(() => {});
+        if (!user?.execution) await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
+        await ConfigStorage.set('guid.sessionMode', 'local').catch(() => {});
+        await ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'local' }).catch(() => {});
       }
     }
 
@@ -1646,6 +1666,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         id: data.user.id,
         username: data.user.name,
         role: data.user.role,
+        orgId: data.user.orgId,
       });
       await ConfigStorage.set('eeclaw.localModeAvailable', localModeAvailable);
     } catch (e) {
@@ -1851,9 +1872,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
       // Cleanup sudocode.json and reset sessionMode on enterprise logout
       if (isDesktopRuntime) {
-        await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
-        await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
-        await ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'remote' }).catch(() => {});
+        if (!user?.execution) await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
+        await ConfigStorage.set('guid.sessionMode', 'local').catch(() => {});
+        await ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'local' }).catch(() => {});
       }
 
       // Clear enterprise ConfigStorage (but keep system.appMode = 'e')
@@ -1909,8 +1930,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       try {
         await ipcBridge.sudoworkAuth.clearUserPhone.invoke();
         await ipcBridge.sudoworkAuth.clearConsumerUserId.invoke();
-        await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
-        await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
+        if (!user?.execution) await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
+        await ConfigStorage.set('guid.sessionMode', 'local').catch(() => {});
         // 清除 ConfigStorage 中的用户信息
         await ConfigStorage.set('consumer.userInfo', undefined);
         await openThirdPartyLogoutIfNeeded(session);
