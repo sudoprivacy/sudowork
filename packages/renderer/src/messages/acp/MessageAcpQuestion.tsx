@@ -349,7 +349,7 @@ const MessageAcpQuestion: React.FC<IMessageAcpQuestionProps> = React.memo(({ mes
         value: answer.submissionValue,
         label: answer.displayValue || undefined,
       }));
-      const toolCallId = message.content?.toolCallId ? message.content.responseToolCallId || message.content.toolCallId : undefined;
+      const toolCallId = message.content?.responseToolCallId || message.content?.toolCallId;
       const result = toolCallId
         ? onTeamAnswerQuestion
           ? await onTeamAnswerQuestion({ conversationId, toolCallId, answers })
