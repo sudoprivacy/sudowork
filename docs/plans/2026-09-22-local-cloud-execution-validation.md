@@ -1,6 +1,6 @@
 # Sudowork / Moss 本地与云端执行：实现及验证记录
 
-初次验收日期：2026-09-22。当时两仓库均未提交、未推送；后续授权修复及提交前验证见文末。
+初次验收日期：2026-09-22，最近功能验收日期：2026-09-23。当前验收基线为 Sudowork `f32b9c6c`、Moss `5056e02`；后续授权修复及 rebase 后验证见文末。最新架构、接口和能力边界见[设计与实现说明](./2026-09-22-moss-managed-local-execution-analysis.md)。
 
 | 仓库 | 分支 | 建分支时的 origin/dev |
 | --- | --- | --- |
@@ -41,14 +41,7 @@ Moss：`http://127.0.0.1:43147`，host/scode runtime。模型网关使用用户�
 | 退出与重新登录 | 个人 Key 从 scode 配置移除，登录前配置恢复；重新登录仍默认本地 |
 | 旧云端历史兼容 | 在测试记录上去除新增归属字段，Moss 验证归属后成功恢复为当前账号云端记录 |
 
-截图：
-
-- [登录后默认本地](/tmp/codex-sudowork-local-execution/default-local.png)
-- [本地聊天](/tmp/codex-sudowork-local-execution/local-clean.png)
-- [云端聊天](/tmp/codex-sudowork-local-execution/cloud-clean.png)
-- [智能体和技能在本地生成文件](/tmp/codex-sudowork-local-execution/resources-success.png)
-- [本地会话恢复](/tmp/codex-sudowork-local-execution/local-resume.png)
-- [云端会话恢复](/tmp/codex-sudowork-local-execution/cloud-resume.png)
+截图仅保留在本机验收环境，不随代码提交。上表记录了对应会话标识、回复和本地文件生成结果，供 PR 审阅时核对。
 
 ## 自动检查
 
@@ -95,12 +88,12 @@ Moss：`http://127.0.0.1:43147`，host/scode runtime。模型网关使用用户�
 - Sudowork desktop、renderer 的 `tsc --noEmit` 通过；相关改动文件 ESLint 无错误，Prettier 检查通过。
 - Moss 全量测试：**1214 通过、7 跳过**；独立 PostgreSQL 16 数据库测试另外 **34 项通过**，覆盖迁移、默认授权、保留撤销和重复运行迁移。
 - Moss Node 构建、管理页面构建以及既有类型基线检查通过；仍有仓库原有类型错误基线，未宣称全仓零错误。
-- 两仓库 `git diff --check` 和测试凭据扫描通过，无提交、无推送。
+- 两仓库 `git diff --check` 和测试凭据扫描通过。
 
-Moss 继续运行于 `http://127.0.0.1:43147`，Sudowork 测试桌面保持启动。测试期间临时撤销的 admin Local 权限已恢复，跨组织测试成员也已恢复授权。权限检查约束的是托管桌面的创建/发送操作；不等同于在模型网关撤销已复制到桌面外使用的个人 Key。
+验收时 Moss 运行于 `http://127.0.0.1:43147`，Sudowork 测试桌面正常启动。测试期间临时撤销的 admin Local 权限已恢复，跨组织测试成员也已恢复授权。权限检查约束的是托管桌面的创建/发送操作；不等同于在模型网关撤销已复制到桌面外使用的个人 Key。
 
 ## 用户验收后的 dev 同步
 
 2026-09-23 用户确认测试通过并授权提交。两个功能分支均执行 `git rebase origin/dev`：Sudowork 的 dev 仍为 `f0ecf394`；Moss 更新到 `d22a84a`，包含 Nexus 启动状态分类、重试退避及 VFS 客户端 0.3.2 更新。无冲突，Moss 依赖使用 `bun install --frozen-lockfile` 按最新 dev 同步。只提交本功能代码、测试及两份相关设计/验收文档；本地环境配置与其他未跟踪文件保留在工作区。
 
-rebase 后提交前全量测试：Sudowork **2591 通过、11 跳过**，Moss **1215 通过、7 跳过**（比上轮多出的 1 项来自 dev 更新）。Moss Node 构建及类型基线检查再次通过，两仓库暂存区的空白错误及测试凭据检查通过。没有执行推送。
+rebase 后提交前全量测试：Sudowork **2591 通过、11 跳过**，Moss **1215 通过、7 跳过**（比上轮多出的 1 项来自 dev 更新）。Moss Node 构建及类型基线检查再次通过，两仓库暂存区的空白错误及测试凭据检查通过。

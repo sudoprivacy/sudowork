@@ -1,181 +1,250 @@
-# Moss 管理资源、Sudowork 本地执行：设计分析
+# Moss 管理资源、Sudowork 本地执行：设计与实现
 
-日期：2026-09-22。依据本地 Sudowork `f0ecf394`、Moss `11c7571` 的源码分析；未连接实际部署验证登录响应、未修改业务代码。
+更新日期：2026-09-23。本文已由初始方案更新为当前实现说明，依据 Sudowork `f32b9c6c`、Moss `5056e02` 的源码及实际验证结果。
 
-## 结论与边界
+两个仓库的实现位于 `codex/moss-managed-local-execution`，提交前均已执行 `git rebase origin/dev`：Sudowork 基于 `f0ecf394`，Moss 基于 `d22a84a`。上述提交为本文的功能实现基线。详细测试过程见[实现及验证记录](./2026-09-22-local-cloud-execution-validation.md)。
 
-方案可行，而且已有本地 ACP/scode 会话、登录下发模型配置、云端资源下载的基础。主要工作是把这些能力连接成可靠的默认本地执行流程。
+## 1. 当前行为与执行边界
 
-本文按“桌面端新会话默认本地执行，保留云端执行选项”设计；用户已有会话保持原执行位置。已有明确选择可以按用户记忆，不能因为重新登录而迁移会话。
+用户登录 Moss 后，Sudowork 获取服务端执行能力和当前用户的个人模型配置。新用户默认获得 Local 授权，已有用户升级保留旧授权值；组织策略默认允许本地和云端，允许本地时默认选择本地。管理员可以按用户撤销 Local 授权，组织策略也可以限制执行能力或指定默认云端。
 
-需要区分三个独立概念：
+| 场景 | 当前行为 |
+| --- | --- |
+| 管理员新增用户、邀请码注册新用户 | 默认开启 Local 授权；最终能力仍受组织策略约束 |
+| 用户登录，允许本地且无特殊默认策略 | 首页默认本地，可选择云端 |
+| 用户登录，Local 授权被撤销 | 首页只显示云端执行，不显示本地选项；以云端策略仍允许为前提 |
+| 允许本地，但个人凭据或模型尚未就绪 | 本地入口保留，创建时提示准备失败及原因；不自动改成云端任务 |
+| 用户在首页切换模式 | 影响之后创建的会话，不改变已有会话的执行位置 |
+| 已登录用户在后台被撤销授权 | 下次创建或发送本地会话时重新向 Moss 校验并拒绝执行，包括已缓存的执行器 |
+| 管理员恢复授权 | 下次登录或刷新能力后恢复本地选项；旧会话保留原执行位置 |
 
-- 账号、组织、模型额度和资源目录由 Moss 管理。
-- 本地会话由 Sudowork 主进程与本机 scode 执行，消息、工作区、运行状态和恢复信息保存在本机；不创建 Moss session。
-- 模型推理可以继续调用 Sudorouter/模型服务。发送给模型的上下文仍会离开本机，因此这是“本地执行”，不是“完全离线”或“所有数据不出本机”。
+登录时按服务端 `execution.defaultTarget` 初始化模式；应用恢复时可读取已有选择，并校验本地权限。这里的“默认本地”不表示强制迁移旧会话，也不表示忽略组织设置的默认云端策略。
 
-如果要求登录和下载之后也完全不访问 Moss，需要排除或替代依赖 Moss 知识库、企业应用、服务端工作流和远程 MCP 的资源。第一阶段应明确支持哪些能力。
-
-## 1. 已有实现与真正缺口
-
-| 方面 | 当前源码事实 | 对方案的影响 |
-| --- | --- | --- |
-| 本地入口 | `AgentPillBar.tsx:41` 已支持云端/本地切换 | 不是从零增加按钮 |
-| 本地可用判断 | `AuthContext.tsx:1598`、`eeclawBridge.ts:352` 判断 `user.localAuth && sudorouter_key && model_service_url && 非空 models` | 截图只有云端，按当前代码说明本地能力未被判定可用；无法仅凭截图确定哪个条件缺失 |
-| 默认模式 | `useGuidAgentSelection.ts:288`、`enterpriseDebugConfig.ts:71` 缺省为 remote | 登录配置完成、主进程缓存、首页状态需一致地初始化 |
-| 模型配置 | `AuthContext.tsx:1614` 生成 scode 配置，`scodeBridge.ts:277` 写入 | 可复用，但不能把保存失败仍算本地就绪 |
-| 本地会话 | `useGuidSend.ts:278` 创建 `acp`，传 `sessionModeParam: local`；`LocalConversationProvider.ts:35` 使用本地会话服务 | 已具备本地 SQLite、WorkerManage、AcpAgent 链路 |
-| 本机 scode | `AcpAgent.ts:451` 支持本机 nexusd-cluster 管理进程；`AcpConnection.ts:288` 支持 tunnel，失败回本机 spawn | 两条本机执行路径可继续使用 |
-| 用户模型 Key | Moss `auth/service.ts:1992` 已有 `getUserModelCredential(userId)`，可从账号服务或旧库读取 | 不需要重新建设整套用户网关账号系统 |
-| 登录下发 Key | Moss `server.ts:1041` 的 `attachSudocodeFields` 仍返回 `settings.apiKey` | 当前下发的是组织/系统配置 Key，不是上述用户专属 Key |
-| 可用模型 | Moss `server.ts:7042` 已有 `/api/v1/models/available`，按组织和用户凭据发现模型 | 可复用，但需要保留 provider、协议、端点和凭据边界 |
-| 资源同步 | `eeclawBridge.ts:384` 登录后后台调用 `syncAllFromRemote`；Moss 已有 installed/tenant 下载接口 | 不缺基本下载能力，缺少使用前依赖检查及版本管理 |
-| 资源授权 | Moss `server.ts:3506` 统一进入 `withOrganizationResources`，目录查询进一步按可见性过滤 | 复用现有鉴权上下文，不要绕过它另建公共下载通道 |
-
-以上 Sudowork 路径分别位于 `packages/renderer/src/`、`apps/desktop/src/`；Moss 路径位于 `src/server/`。当前是 monorepo，旧文档中的顶层 `src/renderer` 路径不能直接用于实施。
-
-## 2. “用户 API Key”必须明确指模型凭据
-
-Moss 的 API Key 登录和模型调用不是同一个体系：
-
-- Moss `api_key` 用于换取 Moss access token、访问平台 API。`authCenter/db.ts:2058` 创建时返回一次明文，库内保存 secret hash，不能在登录后把旧 Key 明文重新取出来。
-- `sudorouter_key` 是模型网关凭据，本地 scode 需要它对应的 endpoint、协议和模型列表。
-- Moss access token 用于身份和资源 API，不应直接当作模型服务 Key 使用。
-
-建议登录成功后，由桌面主进程获取当前身份的本地运行配置：
-
-1. Moss 从已验证 access token 得到用户与组织，不接受客户端任意指定 userId 来取 Key。
-2. 调用已有 `getUserModelCredential`；如未开户，复用账号服务进行幂等准备。
-3. 返回当前用户可使用的模型路由与个人凭据；缺少个人凭据时返回可重试的准备状态。
-4. 不自动下发系统/组织共享 Key 兜底。确有共享模型的私有部署，应提供专门允许客户端使用的受限凭据或模型代理。
-5. 普通客户端不能依赖 `/users/:id/sudorouter-key/copy`：现有接口需要 `admin:users`，适用于管理用途。
-
-最小兼容改造可以修正 `attachSudocodeFields` 的凭据来源，暂时保留原字段。推荐最终提供独立的本地运行配置接口，例如 **拟新增** `GET /api/v1/client/local-runtime`，使密码、验证码、API Key、OAuth 和恢复登录都使用同一条初始化链路。该 URL 是设计建议，当前并不存在这一完整契约。
-
-该配置至少包含：协议版本、server/org/user 身份、允许的执行位置、默认位置、模型 provider/协议/baseUrl/模型列表、凭据状态或有效期、资源目录版本。凭据通过受认证接口提供给主进程，响应禁止缓存；渲染层只拿可用状态、模型标签和错误原因。
-
-不能把所有 provider 都配上用户 Sudorouter Key。Moss `runtimeService.ts:2176` 已区分 legacy provider 的个人网关凭据与其他 provider 凭据。第一阶段可限定已验证的 Sudorouter 路由，再扩展可下发的其他 provider。
-
-## 3. 将执行权限与密码身份拆开
-
-当前 `localAuth` 存在语义混用：
-
-- Moss `identity/unifiedIdentityService.ts:161` 按 `hasLocalPassword` 设置它。
-- Moss 管理界面又把它显示为“Local 授权”。
-- Sudowork 用它决定是否展示本地执行。
-
-因此不能简单把所有用户的 `localAuth` 批量设为 true 来实现默认本地。那会把身份认证属性和执行权限继续绑在一起，验证码/SSO 用户尤其容易出现不一致。
-
-建议独立表示：
-
-```text
-身份：serverId + organizationId + userId
-执行能力：allowedExecutionTargets = [local, remote]
-默认执行：defaultExecutionTarget = local
-本地状态：preparing / ready / unavailable
-失败原因：credential_pending / engine_missing / resource_missing / policy_denied
-```
-
-权限允许不等于机器已经准备好。能力由服务端政策决定；运行就绪由桌面主进程根据引擎、模型配置和选定资源判断。组织无特殊限制时可默认开放本地，升级旧策略时应明确保留已有禁止规则。
-
-本地初始化失败应保留“本地执行”及具体原因和重试入口。不能把用户已经选择的本地任务悄悄改成云端任务。
-
-## 4. 会话执行位置固定，首页选择只影响新会话
-
-建议会话至少记录：`executionTarget`、`engine`、`ownerScope`、`workspace`、`modelProviderId`、`resourceSnapshotId`，本地会话另存 ACP 恢复标识，云端会话另存 Moss session ID。
-
-本地流程：
+本地执行的范围是 **Sudowork 桌面端的会话运行、工具调用、工作区、消息存储及恢复状态**。本地会话使用本机 ACP/scode，不创建 Moss session，也不通过 Moss 会话 WebSocket 收发消息。模型请求仍使用个人 Key 访问模型网关；身份认证、执行权限检查及资源目录/下载仍访问 Moss。
 
 ```mermaid
 flowchart LR
-  M[Moss：登录、个人凭据、资源目录] -->|认证与资源下载| P[Sudowork 主进程]
-  U[新会话：本地执行] --> P
-  P --> R[检查引擎、模型与资源依赖]
-  R --> A[本机 ACP / scode]
-  A --> D[本地消息、工作区、恢复信息]
-  A -->|个人模型凭据| G[Sudorouter / 模型服务]
-  C[另选云端执行] --> S[Moss session / runner]
+  U[Sudowork 新会话] --> T{执行位置}
+  T -->|本地| P[桌面主进程]
+  P -->|登录及创建、发送前权限检查| M[Moss 身份与授权]
+  P -->|按需获取资源| R[Moss 智能体与技能目录]
+  P --> A[本机 ACP / scode]
+  A --> D[本地工作区、消息与恢复状态]
+  A -->|个人模型 Key| G[模型网关]
+  T -->|云端| C[Moss session / runner]
+  C --> G
 ```
 
-本地会话不调用 Moss session create/send/resume，也不建立 Moss 会话 WebSocket。Moss 的认证、模型目录及资源下载 API 可以继续使用。
+当前托管模式采用在线授权检查：即使资源已缓存，Moss 不可达时也不能继续创建或发送托管本地会话。它不提供离线授权宽限期，也没有后台推送撤销后立即中断每个正在执行轮次的承诺。撤销在下一次权限检查时生效。
 
-当前创建已传入执行模式，但 `conversationBridge.ts:495/527` 的更新、获取以及 `databaseBridge.ts:16` 的消息读取仍使用无参数 provider，即依赖全局当前模式。应统一改为根据会话持久化的执行位置路由。否则首页切换云端/本地后，旧会话的获取和更新可能走错 provider。
+## 2. Local 授权、密码身份与组织隔离
 
-`extra.sessionMode` 在现有 ACP 流程还承载权限/工作模式，不宜继续用它混装执行位置。可在边界兼容旧 `sessionModeParam`，内部使用含义明确的字段。
+### 2.1 独立持久化执行权限
 
-历史云端会话继续在云端恢复；可明确“复制上下文为本地新会话”，但不要直接修改原记录的执行位置。服务器的进程状态、路径、工具权限和文件并不会随一个字段迁移。
+旧 `localAuth` 同时被用于密码身份和管理页面的 Local 授权。当前新增独立的执行权限，避免撤销本地执行时影响用户密码登录。
 
-## 5. 资源下载改成“按需准备 + 会话快照”
-
-建议登录只加载可见资源目录与必要默认资源；用户选择智能体或技能后，提前下载依赖；第一次使用前由主进程执行 `ensureResourcesReady`。用户在运行中新增技能，也经过同一个准备服务，完成后再注入后续模型轮次。
-
-资源状态应明确为：可见、未下载、下载中、可用、更新可用、不兼容、失败。目录可见性、已缓存、本地启用和运行就绪是不同状态。
-
-准备内容不只是一份 Markdown：智能体规则、依赖技能、脚本、模板、参考文件、所需 Node/Python/二进制、平台要求、MCP 配置及授权方式均需检查。资源元数据至少包含稳定 ID、版本、内容摘要、依赖、兼容执行位置及最低引擎版本。
-
-现有同步需要补齐：
-
-- `remoteToLocalSync.ts:1067/1143/1255/1318` 按 ID 存在即跳过，不能识别同 ID 的规则/版本变化。改为比较版本与摘要，不能只比安装 ID。
-- `syncAllFromRemote` 的某一类列表请求失败会被转换成空结果；完成事件不能直接代表依赖已就绪。必须保留分项错误，使用前验证文件和快照完整性。
-- 当前技能主同步只取 `isHubInstalled`，另有 tenant 同步；Moss 自定义技能仍要补齐明确的同步/导出支持，不能假设所有 installed 资源均已落到本机。
-- `installSkillById` 会写 `enabled: true`，按需流程必须保留服务端和本地允许的启用状态。
-- `installAssistantById` 缺省写入 `presetAgentType: claude`，而当前本地入口偏向 scode；普通可兼容智能体应明确映射到 scode，特定引擎依赖应标注，不要靠缺省值或自动回退。
-- ID 下载安装路径需要使用对应摘要校验；当前旧 sourceUrl 安装流程有 checksum 验证，新 ID 流程未做同样校验。已有 ZIP 路径校验应保留。
-- 安装应先下载到临时目录、校验、完整解包，再原子切换；当前先删除旧目录再解包，失败会留下不完整资源。
-
-缓存按 server/org/user 和 resource ID/version 分区。会话引用固定版本，运行中的资源不能被后台同步删除或覆盖；无引用旧版本再清理。Moss 自己已有 `catalog/organizationResources.ts:209` 的会话资源快照设计，可对齐资源身份和撤销语义。
-
-本地资源准备由主进程或受控工具完成，避免让模型持有 Moss 平台凭据自行拼接下载 URL。
-
-## 6. 不是所有云端智能体都能直接本地化
-
-| 资源/依赖 | 第一阶段建议 |
+| 字段 | 当前含义 |
 | --- | --- |
-| 规则、技能说明、模板、参考文档 | 支持下载后本地使用 |
-| 脚本与本机工具 | 先检查操作系统、运行时、依赖与文件权限，再执行 |
-| 子智能体 | 同样检查其规则和技能依赖，固定版本；本机派生 |
-| 本机 MCP | 配置及可在客户端使用的授权准备完成后可支持 |
-| 远程 MCP、Moss wiki、企业应用 | 若继续调用，标明外部依赖；若要求不访问 Moss，需本地适配或禁用该能力 |
-| 服务端 workflow、共享记忆、事件触发器 | 单独迁移执行语义，不应当作普通 ZIP 资源即插即用 |
+| 数据库 `users.local_auth` / 用户 `localAuth` | 原有本地认证身份属性，继续保留 |
+| 数据库 `users.local_execution_allowed` / 用户 `localExecutionAllowed` | 用户是否获得桌面 Local 执行授权 |
+| `execution.isLocalAllowed` | 用户有效状态、用户执行授权和组织策略合成后的本地能力 |
+| `execution.isRemoteAllowed` | 组织策略决定的云端能力 |
+| `execution.defaultTarget` | 当前有效能力下的默认新会话位置：`local` 或 `remote` |
 
-Moss `runtimeService.ts:1816` 附近会处理 wiki、企业应用和 session token，`1958` 附近会解析 MCP 凭据；这些服务端运行上下文不会随智能体 ZIP 自动出现在本机。
+新用户在数据库创建路径默认写入 `local_execution_allowed=1`，不要求先具有密码身份。管理员添加、邀请码注册，以及其他复用此创建路径的用户均采用这一默认值。
 
-Sudowork 的本地预设会话还会尝试绑定 Dify 增强（`useGuidSend.ts:307`、`shared/dify/sessionBinding.ts`）。这不代表必然产生外部请求，但“本地执行”产品契约必须明确这些增强是否允许，不能仅检查没有 Moss session 就宣称所有处理都在本机。
+升级规则：
 
-## 7. 身份、凭据与用量生命周期
+- SQLite 在兼容迁移中新增执行权限列，并一次性从旧 `local_auth` 回填。
+- PostgreSQL 新增 v9 迁移，回填旧值后设置默认值 1 和非空约束，不修改旧迁移。
+- **新用户默认开启，已有用户保留旧值。** 原来为 false 的旧用户不会因升级统一变为 true；之后需要授权时由管理员明确开启。
+- 再次启动或再次执行迁移不会覆盖管理员后续的撤销操作。
 
-本地化引入的关键问题是同一台电脑切换账号：
+### 2.2 管理员范围与兼容接口
 
-- 现有资源目录为共享的 `~/.nexus/skills`、`~/.nexus/assistants`，没有 Moss 地址/组织/用户维度。
-- 本地数据库默认用户是 `system_default_user`（`database/index.ts:98`），不能当作已经按 Moss 用户隔离历史。
-- scode 使用共享 `~/.nexus/sudocode` 配置；`scodeBridge.ts` 已设置非 Windows 文件权限 0600，同时把个人 Key 镜像到 Nexus。
-- `authProxy/userKeySync.ts:33` 遇到缺失字段会跳过，而不会删除旧 Nexus Key，因此只把 scode 配置清空不足以证明所有凭据都已注销。
+管理页面继续使用“Local 授权 / 取消Local授权”，展示状态读取 `localExecutionAllowed ?? localAuth`。调用路径沿用原接口：
 
-建议给托管账号、资源和历史增加身份分区；切换账号时结束/隔离旧身份运行实例，避免会话续跑使用新用户的 Key。退出时清理相关凭据与缓存引用，历史会话保持归属，不自动删除用户工作文件。
+```http
+PUT /api/v1/users/:userId/local-auth
+Content-Type: application/json
+Authorization: Bearer <Moss access token>
 
-保留 scode 当前共享配置模型，使用已支持的账号选择或项目覆盖机制做隔离；如果现有契约不足，再显式扩展会话凭据注入。不要简单新建一套全局 config home，导致独立 scode 与桌面引擎配置再次分叉。若暂时只能安全支持单一活跃身份，应在第一阶段明确这一约束。
+{"local_auth": false}
+```
 
-access token 刷新与模型凭据刷新要统一编排。当前 `eeclawBridge` 的 refresh 主要持久化身份 token，没有把新模型配置完整应用到 scode。模型 Key 轮换或失效时应重新拉取当前身份配置，再重试一次可重试调用；不能用其他身份或共享 Key 兜底。
+参数和返回字段保留旧名称以兼容现有管理调用，实际更新的是 `local_execution_allowed`，不再修改密码身份字段。恢复授权时传 `true`。
 
-个人网关 Key 可用于网关已有额度扣减，但 Moss 的会话/用户/部门预算规则不一定自动覆盖本地执行。需要核对网关实际执行哪些限额。客户端上报用量可以做展示和对账，不能单独作为强制限额依据；强制限额必须由模型网关或必要的模型代理执行。此代理即使存在，也不需要成为 Moss 会话执行器。
+服务端要求 `admin:users` 权限，并读取数据库中的真实操作者角色和组织：
 
-权限撤销可在在线刷新和下次使用时检查，但已经下载到用户电脑的文件无法保证离线远程撤回。需在“允许断开 Moss 后继续使用”和“立即执行所有撤销策略”之间明确产品政策。
+- 组织管理员 `admin` 角色只能撤销或恢复本组织用户的授权；跨组织目标返回 404。
+- 超级管理员 `super_admin` 角色可操作任意组织用户；当前系统的超级管理员账号名为 `admin`，不是依据用户名字符串判定权限。
+- 普通用户不能通过伪造 role 或 orgId 调用服务绕过限制。
 
-## 8. 推荐实施顺序与验收
+撤销 Local 不改变云端权限，不修改用户密码、邀请码注册流程或用户组织归属。组织对本地执行的禁止仍优先于单个用户的授权；即使恢复用户 Local 授权，也不能绕过组织限制。
 
-1. **基础本地会话闭环**：拆分执行能力与 localAuth；接通个人模型凭据；统一主进程初始化；新会话默认本地；修正 provider 路由与账号归属。先验证普通 scode 会话。
-2. **智能体/技能闭环**：复用现有下载服务，补依赖检查、摘要、版本缓存、原子安装和会话快照；支持规则及脚本型智能体。所选资源不可用时给出原因。
-3. **复杂能力适配**：逐项支持 MCP、wiki、企业应用、子智能体及 workflow；再评估定时任务。当前企业定时任务页面仍偏向 remote，不能认为会话默认本地会自动改变定时任务执行位置。
+## 3. 已落地的个人模型配置接口
 
-最小验收集：
+### 3.1 凭据类型与来源
 
-- 密码、验证码、API Key、OAuth 登录及恢复登录均得到一致的执行能力；当前用户 Key 缺失时不下发共享 Key。
-- 创建本地会话到停止、重启、恢复全过程不调用 Moss session API/会话 WebSocket；scode 进程和 workspace 确认位于本机。
-- 模型调用使用当前用户的正确 provider 凭据；401、Key 轮换、无模型、引擎缺失都可解释和恢复。
-- 无缓存首次使用智能体、运行中新增技能、下载失败、同 ID 更新、平台不兼容均有正确状态；失败不留下可执行的半包。
-- 首页切换模式不改变旧会话的获取、更新、删除、读取消息和恢复位置。
-- 切换账号/组织/Moss 地址后，不显示另一身份的历史、不使用另一身份的资源授权和 Key；已有运行实例不串号。
-- 已缓存的纯本地资源，在 Moss 不可达而模型网关可达时是否允许继续执行，符合所选择的授权有效期政策。
-- 本地资源授权、模型扣费和云端会话保持现有正确行为；WebUI 没有本机 agent 桥接时继续使用云端，不把“本地”错误解释成 WebUI 服务器。
+Moss access token 用于平台身份、目录和下载 API；Moss 的 `api_key` 登录凭据用于换取平台 token；`sudorouter_key` 才是本地 scode 使用的个人模型网关 Key。三者用途不同。
 
-本轮只完成设计分析，未执行运行时测试，也未触发真实模型请求、登录或资源下载。已有 `docs/enterprise-local-moss-integration-plan.md` 中的注册、充值及旧服务迁移属于更大范围，且部分现状描述已落后于代码，不能作为本轮必须一并实现的依赖。
+Moss 已实现 `buildClientRuntime`，登录响应通过 `attachSudocodeFields` 附加本地运行配置，并提供独立接口：
+
+```http
+GET /api/v1/client/local-runtime
+Authorization: Bearer <Moss access token>
+```
+
+该接口根据已验证的用户与组织构建配置，不接受客户端指定其他 userId 获取凭据。它先检查最新执行权限，再通过 `getUserModelCredential` 获取个人 Key；缺少账号凭据时调用现有 `ensureUserSudorouterAccount` 进行准备。
+
+当前下发范围限定为组织启用的 `legacy-default` 模型 provider，使用个人 Sudorouter Key 发现模型，并过滤 embedding、rerank、语音、图像等非聊天模型。未将个人 Key 自动套用到其他 provider，也不使用组织或系统共享 Key 兜底。登录和运行配置响应设置 `Cache-Control: no-store`。
+
+### 3.2 实际响应契约
+
+以下是就绪响应的结构示例，示例值不包含真实凭据：
+
+```json
+{
+  "execution": {
+    "isLocalAllowed": true,
+    "isRemoteAllowed": true,
+    "defaultTarget": "local"
+  },
+  "localRuntime": {
+    "userId": "<current-user-id>",
+    "organizationId": "<current-organization-id>",
+    "status": "ready",
+    "protocol": "openai-responses"
+  },
+  "sudorouter_key": "<personal-model-key>",
+  "model_service_url": "https://model-gateway.example/v1",
+  "models": ["gpt-5.4"],
+  "scode_auto_model": "gpt-5.4"
+}
+```
+
+`protocol` 支持 `openai-completions`、`openai-responses`、`anthropic-messages`，具体值来自 provider。当前契约没有额外的协议版本号、凭据到期时间或统一资源目录版本字段。
+
+| `localRuntime.status` | 含义与行为 |
+| --- | --- |
+| `ready` | 个人 Key、provider 和聊天模型已准备好；不代表所选智能体、技能和本机运行依赖全部检查完毕 |
+| `policy_denied` | 用户未获有效 Local 授权或组织禁止本地执行；不下发个人 Key，本地入口隐藏 |
+| `credential_pending` | 个人凭据缺失或账号准备失败；保持原执行能力，使用前可再次尝试准备 |
+| `provider_unavailable` | 没有启用的受支持 provider |
+| `models_unavailable` | 没有发现可用聊天模型，或模型发现失败 |
+
+非 ready 响应包含执行能力、身份与状态，`models` 为空，不附带个人 Key。桌面用 Zod 校验响应边界。新托管登录路径在主进程应用凭据，传给 renderer 的登录结果移除 Key 和模型服务地址，保留执行能力、状态与模型列表。连接旧 Moss、未返回新契约时，客户端仍保留原兼容分支；不能把旧分支当成已具备新版全部授权行为。
+
+## 4. 桌面初始化、凭据刷新与撤销检查
+
+`mossLocalRuntime.ts` 负责托管配置生命周期：
+
+1. 以标准化 Moss 地址、organizationId、userId 的组合计算 SHA-256，作为 `mossAccountScope`。
+2. 首次进入托管身份时备份原 scode 配置到 `.before-moss` 文件，备份文件权限为 0600。
+3. 根据个人 Key、endpoint、协议和模型列表生成 scode 配置，同步 Nexus 凭据。相同身份刷新时保留仍有效的已选默认模型。
+4. 登录、token 刷新响应以及独立运行配置请求应用最新状态；相同配置用摘要避免重复写入，但本地执行前仍会向服务端检查权限。
+5. 切换身份时清理旧执行器；相同身份撤销权限、配置未就绪或 Key/endpoint 变化时，只清理本地执行器，保留云端连接。
+6. 退出托管身份时清理执行器，恢复进入托管前的 scode 配置，并同步清理或恢复 Nexus 凭据。
+
+异步配置准备在应用响应前校验 token 和服务器地址，资源准备也检查当前身份，避免切换账号后写入旧请求的结果。当前共享 scode 配置只支持一个活跃托管身份。
+
+Local 权限检查覆盖普通会话创建、执行器获取/重建以及 ACP 发送入口。`WorkerManage` 在返回缓存任务前也检查权限，不能仅凭旧的 ready 状态继续本地执行。网络失败、未授权或未就绪时会拒绝操作，不回退到其他用户或共享凭据。
+
+创建托管本地会话时，还会调用 `ensureScodeInstalled` 准备本机引擎，再准备所选资源；引擎不可用时返回错误，不创建该会话。因此服务端返回 `ready` 只完成了模型配置准备，不替代桌面引擎与资源检查。
+
+创建会话使用显式 IPC 错误响应 `{ "__error": "..." }`，调用方识别后显示错误、结束准备提示并保留草稿。这解决了 provider 直接抛错时 renderer 长时间停留在“正在准备”的问题。当前没有独立的完整资源状态管理页面或通用模型 401 自动重试机制。
+
+## 5. 会话归属与按会话路由
+
+当前实际持久化的是会话 `extra` 中的以下字段，并复用既有会话类型、引擎和恢复字段：
+
+| 字段 | 用途 |
+| --- | --- |
+| `executionTarget` | 固定会话的 `local` / `remote` 执行位置 |
+| `mossAccountScope` | 绑定创建时的 Moss 地址、组织和用户 |
+| `mossResources[]` | 所用资源的 `id`、`kind`、`digest`、本地 `path` |
+| `backend`、`workspace` 等既有字段 | 本地引擎、工作目录及相关运行配置；本轮托管本地使用 scode |
+| `mossSessionId` 等既有云端字段 | 关联 Moss 会话及云端恢复 |
+
+本地新会话使用 `type=acp`、`backend=scode`；云端使用 `remote-agent`。`extra.sessionMode` 继续承担 ACP 权限/工作模式，不用于替代 `executionTarget`。
+
+`resolveConversationExecutionTarget` 优先读取显式执行位置，缺少新字段的旧记录再根据 `remote-agent` 类型或 backend 推断。已有会话通过 `getProviderForConversation` 检查账号归属后选择 provider，读取、更新、删除、消息同步及恢复均沿会话本身的执行位置处理，不依赖首页当前模式。
+
+托管历史按当前 `mossAccountScope` 过滤。缺少归属字段的旧云端记录，只有在 Moss 确认 session 属于当前用户和组织、服务器地址也匹配后才补写归属；无法确认时保留原数据，不自动分配给当前账号。已有本地或其他身份记录也不会因为登录而批量改归属。
+
+## 6. 智能体和技能的按需准备
+
+现有登录后的资源同步仍保留，但托管本地会话另有 `prepareMossResources` 作为使用前的准备入口，不把后台同步完成等同于资源就绪。
+
+当前流程：
+
+1. 根据所选智能体和技能，获取当前身份可见的 `/api/v1/agents/installed`、`/api/v1/skills/installed` 目录；资源必须能唯一解析且未被禁用。
+2. 下载 `/api/v1/{agents|skills}/installed/:id/download`，核对响应的 `X-Content-SHA256` 与 ZIP 内容摘要。
+3. 智能体读取规则文件，并收集目录及元数据中的 `enabledSkills` / `skills` 依赖；准备所选技能和声明的技能依赖。
+4. 检查包体、解压条目和已声明的云端依赖，在临时目录解包，完成后原子发布到带内容摘要的目录。
+5. 保存 `mossResources`，把规则上下文和技能路径交给本机 scode。托管本地预设会话跳过原有 Dify 会话绑定。
+6. 在后续工作区技能同步/发送准备中检查资源当前可见性与快照标记；运行中新增技能也走相同准备流程，再追加到会话快照。
+
+资源缓存位于应用数据目录 `managed/<accountScope>/skills` 或 `assistants` 下的对应分类目录。版本目录由安全化名称和摘要前 16 位组成，快照记录完整 SHA-256。不同身份使用不同目录，同一资源的新内容使用新目录，已有会话保留原版本引用。
+
+已实现的下载与安装检查：
+
+- ZIP 最大 50 MiB，解压后累计最大 200 MiB，最多 5000 个文件条目。
+- 拒绝绝对路径、父目录跳转、Windows 盘符路径及 ZIP 中的符号链接。
+- 技能必须有 `SKILL.md`，智能体必须能找到规则文件；保留脚本可执行权限。
+- 临时目录完整准备后再发布，以 `.moss-ready` 记录摘要，失败时清理临时目录。
+- Moss 的资源 ZIP 输出固定时间戳与排序，使相同内容的摘要稳定；下载继续复用服务端组织和资源可见性检查。
+
+边界需要区分：恢复时校验的是当前可见性、本地路径范围和 `.moss-ready` 中的摘要标记，**没有对解压后的每个文件重新计算内容摘要**。当前也没有按会话引用计数自动回收旧版本；资源准备仍会请求目录并下载 ZIP 来确认内容，不是完全跳过网络的缓存命中。旧同步器没有整体重写，任意资源来源、任意依赖图也不能据此宣称已通用支持。
+
+## 7. 当前支持范围与后续适配
+
+| 能力 | 当前状态 |
+| --- | --- |
+| 普通 scode 会话、本地消息与工作区、重启续聊 | 已实现并实测 |
+| 规则、技能说明、模板、参考文件和脚本的下载 | 已实现；测试智能体及技能已在本机生成文件 |
+| 显式声明 workflow、enabledMcpServers、enabledWikis、enabledCorpApps 的资源 | 当前准备流程拒绝并提示需要云端服务 |
+| 任意 Node/Python/二进制依赖和操作系统兼容性 | 未建立通用检测、安装与版本约束机制；成功解包不等于运行依赖齐备 |
+| 本机/远程 MCP、wiki、企业应用、共享记忆和服务端工作流 | 仍需逐项适配，不能仅凭 ZIP 下载获得 Moss runner 的上下文和凭据 |
+| 递归子智能体依赖与完整资源依赖图 | 未建立通用准备契约 |
+| 离线继续执行与即时撤销推送 | 当前未实现；创建和发送前在线检查 |
+| 定时任务和 WebUI 本地执行 | 不属于本轮会话改造的验收范围，不能由桌面默认本地推断其执行位置已改变 |
+
+Moss 服务端注入的 session token、wiki、企业应用和 MCP 凭据不会自动迁移到桌面。元数据检查也不是任意脚本行为分析，不能承诺所有未声明依赖的资源都可完全本地运行。
+
+个人网关 Key 继续受网关自身的额度机制约束；本轮没有新增本地用量上报、部门预算等同强制执行或统一账务对账机制。撤销 Local 约束的是托管桌面执行流程，不等于撤销已经复制到桌面外使用的个人模型 Key，也不删除用户已经下载的资源或工作文件。
+
+## 8. 验证结果与源码入口
+
+用户已确认本地与云端测试通过。已完成的实机验证包括：密码登录默认本地、本地和云端真实模型回复、首页切换模式后原会话继续执行、重启恢复、智能体/技能首次下载并生成本地文件、退出后的凭据恢复，以及旧云端记录归属兼容。
+
+逐用户授权验证包括：管理员新增用户默认授权、组织管理员本组织撤销成功/跨组织拒绝、超级管理员跨组织撤销和恢复、旧 token 在撤销后不能获取本地凭据、撤销后密码登录正常、真实桌面仅显示云端、恢复后重新显示两个选项，以及邀请码注册默认授权并归属正确组织。
+
+| 检查 | 最近结果 |
+| --- | --- |
+| Sudowork 全量测试 | 2591 通过、11 跳过 |
+| Moss rebase 后全量测试 | 1215 通过、7 跳过；保留 runner 原有两个排除文件 |
+| PostgreSQL 16 独立迁移测试 | 34 项通过，含默认授权、保留旧值及重复迁移 |
+| Sudowork desktop / renderer 类型检查 | `tsc --noEmit` 通过 |
+| Moss Node / 管理页面构建 | 通过 |
+| Moss 类型基线检查 | 通过；server 105 条、基线 112 条，其他区域 1337 条，不是全仓零类型错误 |
+
+实机模型验证使用 `gpt-5.4`。短信、OAuth 等外部认证方式没有在本测试环境逐一实测；新建测试组织的邀请码注册证明了归属与默认授权，不代表该组织未配置的模型服务也已可用。完整证据与环境限制见[验证记录](./2026-09-22-local-cloud-execution-validation.md)。
+
+主要源码入口：
+
+| 范围 | 文件 |
+| --- | --- |
+| Moss 执行能力、个人 Key 与状态契约 | [clientRuntime.ts](https://github.com/sudoprivacy/moss/blob/5056e02/src/server/clientRuntime.ts) |
+| Moss 登录、运行配置及 Local 管理路由 | [server.ts](https://github.com/sudoprivacy/moss/blob/5056e02/src/server/server.ts) |
+| 管理员范围及实时用户授权检查 | [auth/service.ts](https://github.com/sudoprivacy/moss/blob/5056e02/src/server/auth/service.ts) |
+| 用户默认值、SQLite 与 PostgreSQL 迁移 | [authCenter/db.ts](https://github.com/sudoprivacy/moss/blob/5056e02/src/server/authCenter/db.ts)、[pg_schema.ts](https://github.com/sudoprivacy/moss/blob/5056e02/src/server/db/pg_schema.ts) |
+| Local 授权管理页面 | [users-page.tsx](https://github.com/sudoprivacy/moss/blob/5056e02/admin/src/pages/users-page.tsx) |
+| 桌面执行能力和会话扩展类型 | [mossExecution.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/packages/common/src/mossExecution.ts) |
+| 主进程登录、刷新与凭据应用 | [eeclawBridge.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/apps/desktop/src/process/bridge/eeclawBridge.ts)、[mossLocalRuntime.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/apps/desktop/src/process/services/mossLocalRuntime.ts) |
+| 界面能力及默认模式 | [AuthContext.tsx](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/packages/renderer/src/context/AuthContext.tsx)、[useGuidAgentSelection.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/packages/renderer/src/pages/guid/hooks/useGuidAgentSelection.ts) |
+| 会话归属和 provider 选择 | [mossExecutionContext.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/apps/desktop/src/process/services/mossExecutionContext.ts)、[providers/index.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/apps/desktop/src/process/providers/index.ts) |
+| 创建、资源准备和发送入口 | [conversationBridge.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/apps/desktop/src/process/bridge/conversationBridge.ts)、[mossResourcePreparation.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/apps/desktop/src/process/services/mossResourcePreparation.ts) |
+| 已缓存执行器及 ACP 发送授权 | [WorkerManage.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/apps/desktop/src/process/WorkerManage.ts)、[AcpAgent.ts](https://github.com/sudoprivacy/sudowork/blob/f32b9c6c/apps/desktop/src/process/task/AcpAgent.ts) |
+
+本轮文档描述上述已提交实现；原始方案中尚未落地的通用依赖管理、离线授权、复杂云端能力本地适配等事项，统一保留在第 7 节，不再作为已完成能力描述。
