@@ -271,6 +271,39 @@ describe('MessageAcpQuestion', () => {
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
+  it('should submit response tool call answers through the ACP answerQuestion API', () => {
+    mockSendMessage.mockClear();
+    mockAnswerQuestion.mockClear();
+
+    const message: IMessageAcpQuestion = {
+      id: 'msg-response-tool-call',
+      msg_id: 'msg-response-tool-call',
+      type: 'acp_question',
+      position: 'left',
+      conversation_id: 'conv-1',
+      createdAt: Date.now(),
+      content: {
+        question: 'Pick one',
+        options: [],
+        conversationId: 'conv-1',
+        responseToolCallId: 'response-tool-1',
+        items: [{ id: 'q1', prompt: 'Choose?', options: ['A', 'B'] }],
+      },
+    };
+
+    render(<MessageAcpQuestion message={message} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    expect(mockAnswerQuestion).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+      toolCallId: 'response-tool-1',
+      answers: [{ id: 'q1', value: 'A', label: 'A' }],
+    });
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
   it('should submit team tool call answers through the injected team handler', () => {
     mockSendMessage.mockClear();
     mockAnswerQuestion.mockClear();
