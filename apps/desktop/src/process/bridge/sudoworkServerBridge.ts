@@ -4,23 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BUILD_SUDOWORK_SERVER_BASE_URL, normalizeSudoworkServerUrl } from '@sudowork/common/sudoworkServer';
 import { sudoworkServer } from '@sudowork/host-bridge/ipcBridge';
-import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
+import { ProcessConfig } from '../initStorage';
 
 export function initSudoworkServerBridge(): void {
   sudoworkServer.getConfig.provider(async () => {
-    // The server that owns this client's identity — not a separately-resolved
-    // consumer address.
-    //
-    // Everything reached through this channel (points, usage, orders, tenant
-    // config, config items) is scoped to the signed-in user, so it has to be
-    // asked of the server that signed them in. While the two were resolved
-    // independently, anyone authenticated against a control plane sent that
-    // server's token to the consumer server, which does not know it: the points
-    // panel came back empty and nothing reported an error.
-    //
-    // Resolved on every call so a change of server takes effect immediately.
-    return { baseUrl: await getAuthServerBaseUrl() };
+    return { baseUrl: getAuthServerBaseUrl() };
   });
 
   sudoworkServer.updateConfig.provider(async (_config) => {
@@ -28,4 +18,22 @@ export function initSudoworkServerBridge(): void {
     // `system.sudoworkServerUrl` setting (ModeSetup writes ConfigStorage directly).
     // Kept for backward compatibility with renderer code that may still invoke it.
   });
+}
+
+function getAuthServerBaseUrl(): string {
+  if (ProcessConfig.getSync('system.appMode') === 'e') {
+    const enterpriseUrl = normalizeSudoworkServerUrl(ProcessConfig.getSync('eeclaw.serverUrl'));
+    if (enterpriseUrl && isUsableHttpUrl(enterpriseUrl)) return enterpriseUrl;
+  }
+
+  return normalizeSudoworkServerUrl(ProcessConfig.getSync('system.sudoworkServerUrl')) ?? BUILD_SUDOWORK_SERVER_BASE_URL;
+}
+
+function isUsableHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
