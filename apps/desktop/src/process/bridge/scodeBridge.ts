@@ -32,7 +32,7 @@ const SUDOCODE_CONFIG_PATH = SCODE_CONFIG_PATH;
 const SUDOCLAW_CONFIG_PATH = path.join(SUDOCLAW_DIR, 'sudoclaw.json');
 
 /** Read existing sudocode.json, returns empty object on failure */
-function readExistingConfig(): Record<string, unknown> {
+export function readExistingConfig(): Record<string, unknown> {
   try {
     return JSON.parse(fs.readFileSync(SUDOCODE_CONFIG_PATH, 'utf-8'));
   } catch {
@@ -41,7 +41,7 @@ function readExistingConfig(): Record<string, unknown> {
 }
 
 /** Write config to sudocode.json, ensuring directory exists */
-function writeConfig(config: Record<string, unknown>): void {
+export function writeConfig(config: Record<string, unknown>): void {
   fs.mkdirSync(path.dirname(SUDOCODE_CONFIG_PATH), { recursive: true });
   fs.writeFileSync(SUDOCODE_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
   if (process.platform !== 'win32') {

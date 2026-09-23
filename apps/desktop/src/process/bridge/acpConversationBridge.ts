@@ -18,7 +18,7 @@ import RemoteAgent from '@/process/task/RemoteAgent';
 import { mcpService } from '@/process/services/mcpServices/McpService';
 import { mainLog, mainWarn } from '@/process/utils/mainLogger';
 import { isEnterpriseMode, getCachedSessionMode } from '@/common/enterpriseDebugConfig';
-import { getConversationProvider } from '@/process/providers';
+import { getProviderForConversation } from '@/process/providers';
 import type RemoteConversationProvider from '@/process/providers/RemoteConversationProvider';
 import { ipcBridge } from '../../common';
 import { setAcpModelWithScodePersistence } from './acpModelSwitch';
@@ -271,7 +271,7 @@ export function initAcpConversationBridge(): void {
       mainLog('AcpConversationBridge', `No task found for ${conversationId}, checking provider cache`);
       // For remote-agent, check cached model info from provider
       // 对于 remote-agent，检查 provider 缓存的模型信息
-      const provider = getConversationProvider();
+      const provider = getProviderForConversation(conversationId);
       mainLog('AcpConversationBridge', `Provider type: ${provider.type}`);
       if (provider.type === 'remote') {
         const cachedInfo = await (provider as RemoteConversationProvider).getCachedModelInfo(conversationId);
@@ -285,7 +285,7 @@ export function initAcpConversationBridge(): void {
       mainLog('AcpConversationBridge', `Task is not AcpAgent, checking provider cache`);
       // Non-ACP agent (e.g., RemoteAgent) - check provider cache
       // 非 ACP agent（如 RemoteAgent）- 检查 provider 缓存
-      const provider = getConversationProvider();
+      const provider = getProviderForConversation(conversationId);
       if (provider.type === 'remote') {
         const cachedInfo = await (provider as RemoteConversationProvider).getCachedModelInfo(conversationId);
         mainLog('AcpConversationBridge', `Cached model info: ${JSON.stringify(cachedInfo)}`);

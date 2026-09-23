@@ -285,6 +285,7 @@ function NewSessionModal({ api, visible, currentWorkspaceId, onCancel, onCreated
           presetContext: buildPresetContext(t, ontologyTitle || workspaceId, workspaceId),
         },
       });
+      if ('__error' in conversation) throw new Error(conversation.__error);
       if (!conversation || !conversation.id) {
         Message.error(t('ontology.aiBuilder.errors.createFailed'));
         return;

@@ -33,7 +33,7 @@ import { closeTerminalsByConversation } from '../bridge/terminalBridge';
 import { closeBrowserTabsByConversation } from '../bridge/browserPanelBridge';
 import { disposeConversation } from '../message';
 import { stopConversationTracking } from '../telemetry';
-import { getConversationProvider } from '../providers';
+import { getProviderForConversation } from '../providers';
 import { getSystemDir } from '../initStorage';
 import { TEMP_WORKSPACE_REGEX } from '../task/draftsCleanup';
 import { cronService } from './cron/CronService';
@@ -214,7 +214,7 @@ export async function reapConversation(id: string, opts: ReapOptions): Promise<R
   //    the Moss session best-effort and clears cachedModelInfo).
   if (!opts.skipDbDelete) {
     await runStep('db-delete', async () => {
-      const provider = getConversationProvider();
+      const provider = getProviderForConversation(id);
       const success = await provider.deleteConversation(id);
       result.dbDeleted = success;
       if (!success) {

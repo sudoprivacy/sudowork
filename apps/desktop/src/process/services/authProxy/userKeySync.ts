@@ -11,10 +11,9 @@
  */
 
 import fs from 'fs';
-import path from 'path';
 import { extractSudorouterCreds } from '@sudowork/common/scodeConfig';
 import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
-import { resolveSecret, cachePut } from '@common/nexus/secret-cache';
+import { resolveSecret, cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { SCODE_CONFIG_PATH } from '@process/services/scode/scodePaths';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
@@ -30,17 +29,28 @@ const SUDOCODE_CONFIG_PATH = SCODE_CONFIG_PATH;
  * Reads `{ baseUrl, apiKey }`; writes whichever are present, skips whichever are missing.
  * Never throws.
  */
-export async function syncUserKeyFromScodeConfig(config: unknown): Promise<void> {
+let syncQueue: Promise<void> = Promise.resolve();
+
+export function syncUserKeyFromScodeConfig(config: unknown, isClearMissing = false): Promise<void> {
+  syncQueue = syncQueue.then(() => syncUserKey(config, isClearMissing));
+  return syncQueue;
+}
+
+async function syncUserKey(config: unknown, isClearMissing: boolean): Promise<void> {
   const creds = extractSudorouterCreds(config);
 
   if (creds.baseUrl) {
     await writeSecretIfChanged(KEY_BASE_URL, creds.baseUrl);
+  } else if (isClearMissing) {
+    await clearSecret(KEY_BASE_URL);
   } else {
     mainLog(TAG, 'baseUrl missing in sudocode.json, skip sync');
   }
 
   if (creds.apiKey) {
     await writeSecretIfChanged(KEY_API_KEY, creds.apiKey);
+  } else if (isClearMissing) {
+    await clearSecret(KEY_API_KEY);
   } else {
     mainLog(TAG, 'apiKey missing in sudocode.json, skip sync');
   }
@@ -83,9 +93,9 @@ async function writeSecretIfChanged(key: string, value: string): Promise<void> {
       return; // unchanged — avoid bumping Nexus version number on every save
     }
     const client = getNexusSecretClient();
-    client.putSecret(USER_KEY_NAMESPACE, key, value);
+    await client.putSecret(USER_KEY_NAMESPACE, key, value);
     try {
-      client.restoreSecret(USER_KEY_NAMESPACE, key);
+      await client.restoreSecret(USER_KEY_NAMESPACE, key);
     } catch {
       // First-time create (no soft-deleted state to clear) reports an error — expected, ignore.
     }
@@ -93,5 +103,15 @@ async function writeSecretIfChanged(key: string, value: string): Promise<void> {
     mainLog(TAG, `synced ${USER_KEY_NAMESPACE}/${key}`);
   } catch (err) {
     mainWarn(TAG, `failed to sync ${USER_KEY_NAMESPACE}/${key}`, err);
+  }
+}
+
+/** Invalidate memory even when the local vault is temporarily unavailable. */
+async function clearSecret(key: string): Promise<void> {
+  cacheDelete(USER_KEY_NAMESPACE, key);
+  try {
+    await getNexusSecretClient().deleteSecret(USER_KEY_NAMESPACE, key);
+  } catch (error) {
+    mainWarn(TAG, `failed to clear ${USER_KEY_NAMESPACE}/${key}`, error);
   }
 }

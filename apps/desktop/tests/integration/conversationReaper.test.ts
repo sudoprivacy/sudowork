@@ -42,7 +42,7 @@ vi.mock('@process/bridge/terminalBridge', () => ({ closeTerminalsByConversation:
 vi.mock('@process/bridge/browserPanelBridge', () => ({ closeBrowserTabsByConversation: h.closeBrowser }));
 vi.mock('@process/message', () => ({ disposeConversation: h.dispose }));
 vi.mock('@process/telemetry', () => ({ stopConversationTracking: h.stopTelemetry }));
-vi.mock('@process/providers', () => ({ getConversationProvider: () => ({ deleteConversation: h.deleteConversation }) }));
+vi.mock('@process/providers', () => ({ getProviderForConversation: () => ({ deleteConversation: h.deleteConversation }) }));
 vi.mock('@process/initStorage', () => ({ getSystemDir: () => ({ workDir: h.workDir }) }));
 vi.mock('@process/task/draftsCleanup', () => ({ TEMP_WORKSPACE_REGEX: /-temp-\d+$/ }));
 vi.mock('@process/services/cron/CronService', () => ({ cronService: { listJobsByConversation: h.listJobs, removeJob: h.removeJob } }));

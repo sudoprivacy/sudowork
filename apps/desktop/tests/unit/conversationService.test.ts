@@ -15,6 +15,7 @@ const h = vi.hoisted(() => {
   } as TChatConversation;
 
   return {
+    executionExtra: {} as Record<string, unknown>,
     conversation,
     createAcpAgent: vi.fn(async () => ({ ...conversation })),
     createConversation: vi.fn(() => ({ success: true, data: true })),
@@ -22,6 +23,7 @@ const h = vi.hoisted(() => {
   };
 });
 
+vi.mock('@process/services/mossExecutionContext', () => ({ getConversationExecutionExtra: () => h.executionExtra }));
 vi.mock('@process/initAgent', () => ({ createAcpAgent: h.createAcpAgent }));
 vi.mock('@process/database', () => ({ getDatabase: () => ({ createConversation: h.createConversation }) }));
 vi.mock('@process/WorkerManage', () => ({ default: { buildConversation: h.buildConversation } }));
@@ -29,9 +31,18 @@ vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn(
 
 describe('ConversationService.createConversation', () => {
   beforeEach(() => {
+    h.executionExtra = {};
     h.createAcpAgent.mockClear();
     h.createConversation.mockClear();
     h.buildConversation.mockClear();
+  });
+
+  it('persists managed ownership before registering direct service callers', async () => {
+    h.executionExtra = { executionTarget: 'local', mossAccountScope: 'account-a' };
+    const { ConversationService } = await import('@process/services/conversationService');
+    await ConversationService.createConversation({ type: 'acp', name: 'Managed', extra: { backend: 'scode' } });
+    expect(h.createConversation).toHaveBeenCalledWith(expect.objectContaining({ extra: expect.objectContaining(h.executionExtra) }));
+    expect(h.buildConversation).toHaveBeenCalledWith(expect.objectContaining({ extra: expect.objectContaining(h.executionExtra) }));
   });
 
   it('registers WorkerManage task by default', async () => {

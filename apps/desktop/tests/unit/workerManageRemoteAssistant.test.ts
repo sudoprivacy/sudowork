@@ -46,4 +46,18 @@ describe('WorkerManage remote assistant identity', () => {
     );
     expect(h.remoteAgent).toHaveBeenCalledWith(expect.objectContaining({ assistantName: expected, mossSessionPending: true }));
   });
+
+  it('clears local execution without disconnecting a cloud session', async () => {
+    const local = { type: 'acp', kill: vi.fn() } as unknown as Parameters<typeof WorkerManage.addTask>[1];
+    const remote = { type: 'remote-agent', kill: vi.fn(), detach: vi.fn() };
+    WorkerManage.addTask('local-grant-test', local);
+    WorkerManage.addTask('cloud-grant-test', remote as unknown as Parameters<typeof WorkerManage.addTask>[1]);
+    await WorkerManage.clear(true);
+    expect(local.kill).toHaveBeenCalledOnce();
+    expect(remote.kill).not.toHaveBeenCalled();
+    expect(remote.detach).not.toHaveBeenCalled();
+    expect(WorkerManage.getTaskById('cloud-grant-test')).toBe(remote);
+    expect(WorkerManage.getTaskById('local-grant-test')).toBeUndefined();
+    await WorkerManage.clear();
+  });
 });

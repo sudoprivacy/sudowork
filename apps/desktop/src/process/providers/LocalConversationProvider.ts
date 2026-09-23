@@ -7,6 +7,7 @@
 import type { ICreateConversationParams, IBridgeResponse, ISendMessageParams } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import type { TMessage } from '@sudowork/common/chatLib';
+import { getConversationExecutionExtra, isConversationInCurrentAccount } from '@process/services/mossExecutionContext';
 import { getDatabase } from '@process/database';
 import { ConversationService } from '@process/services/conversationService';
 import WorkerManage from '@process/WorkerManage';
@@ -39,6 +40,7 @@ export class LocalConversationProvider implements IConversationProvider {
     const result = await ConversationService.createConversation({
       ...params,
       source: 'sudowork',
+      extra: { ...params.extra, ...getConversationExecutionExtra('local') },
     });
 
     if (!result.success || !result.conversation) {
@@ -137,7 +139,7 @@ export class LocalConversationProvider implements IConversationProvider {
       // 过滤掉企业模式会话（remote-agent）
       // Local mode should only show acp types
       // 本地模式只显示 acp 类型
-      const localDbConversations = dbConversations.filter((c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as Record<string, unknown> | undefined)?.isTeamMember);
+      const localDbConversations = dbConversations.filter((c) => isConversationInCurrentAccount(c) && c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as { isTeamMember?: boolean } | undefined)?.isTeamMember);
 
       // Lazy migration from file storage / 从文件存储延迟迁移
       let fileConversations: TChatConversation[] = [];
@@ -148,7 +150,7 @@ export class LocalConversationProvider implements IConversationProvider {
       }
 
       // Filter file conversations too / 同时过滤文件存储的会话
-      const localFileConversations = fileConversations.filter((c) => c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as Record<string, unknown> | undefined)?.isTeamMember);
+      const localFileConversations = fileConversations.filter((c) => isConversationInCurrentAccount(c) && c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as { isTeamMember?: boolean } | undefined)?.isTeamMember);
 
       // Merge: database is primary, add missing from file / 合并：数据库为主，补充文件中缺失的
       const dbIds = new Set(localDbConversations.map((c) => c.id));

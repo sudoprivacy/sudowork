@@ -6,14 +6,14 @@
 
 import { mainError } from '@process/utils/mainLogger';
 import { ipcBridge } from '../../common';
-import { getConversationProvider } from '../providers';
+import { getProviderForConversation, getConversationProvider } from '../providers';
 
 export function initDatabaseBridge(): void {
   // Get conversation messages from database (or remote provider)
   // 从数据库获取会话消息（或远程 Provider）
   ipcBridge.database.getConversationMessages.provider(({ conversation_id, page = 0, pageSize = 10000 }) => {
     try {
-      const provider = getConversationProvider();
+      const provider = getProviderForConversation(conversation_id);
       // For remote provider, messages are now stored locally after sync
       // Local-first approach: reads from local DB first, falls back to Moss Server API
       // 对于远程 Provider，消息在同步后存储在本地

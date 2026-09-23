@@ -205,6 +205,7 @@ const ConversationTabs: React.FC = () => {
 
         // Use conversation.create (calls ConversationService) not createWithConversation (direct DB insert)
         const newConversation = await ipcBridge.conversation.create.invoke(applyDefaultConversationName(params, defaultConversationName));
+        if ('__error' in newConversation) throw new Error(newConversation.__error);
 
         // [BUG-5] Order matters: closeAllTabs() must come before openTab() to prevent append behavior
         closeAllTabs();

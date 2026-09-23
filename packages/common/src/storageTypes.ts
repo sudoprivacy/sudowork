@@ -246,7 +246,15 @@ export interface IConfigStorageRefer {
   // Enterprise tenant name / 企业租户名称
   "eeclaw.tenantName"?: string;
   // Enterprise user info / 企业用户信息
-  "eeclaw.userInfo"?: { id: string; username: string; role?: string };
+  "eeclaw.userInfo"?: {
+    id: string;
+    username: string;
+    role?: string;
+    orgId?: string;
+  };
+  "eeclaw.accountScope"?: string;
+  "eeclaw.execution"?: import("./mossExecution.js").IMossExecutionCapabilities;
+  "eeclaw.localRuntime"?: import("./mossExecution.js").TMossLocalRuntimeStatus;
   // Whether enterprise local mode is available for the current user / 当前用户是否可用企业本地模式
   "eeclaw.localModeAvailable"?: boolean;
   // Enterprise auth token for main process (no user field, unlike localStorage eeclaw_auth_v1)
@@ -317,7 +325,7 @@ export type TChatConversation =
   | Omit<
       IChatConversation<
         "acp",
-        {
+        import("./mossExecution.js").IMossConversationExecution & {
           workspace?: string;
           backend: AcpBackend;
           cliPath?: string;

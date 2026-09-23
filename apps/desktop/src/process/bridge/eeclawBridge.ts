@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import { ProcessConfig } from '@process/initStorage';
 import { mainWarn, mainLog, mainError } from '@process/utils/mainLogger';
 import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedLocalModeAvailable, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
+import { applyMossLocalRuntime, prepareMossLocalRuntime, clearMossLocalRuntime } from '@process/services/mossLocalRuntime';
 import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
@@ -46,6 +47,7 @@ async function markAuthRequired(reason: 'no_refresh_token' | 'refresh_failed'): 
   await withAuthStorageLock(async () => {
     await ProcessConfig.set('eeclaw.authStorage', null);
     await ProcessConfig.set('eeclaw.localModeAvailable', null);
+    await clearMossLocalRuntime();
     setCachedAuthToken('');
     setCachedLocalModeAvailable(null);
     resetConversationProvider();
@@ -87,7 +89,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
     throw new Error('AUTH_REQUIRED: session is not refreshable, please sign in again');
   }
 
-  mainLog('eeclawBridge', `[getValidToken] ${forceRefresh ? 'Force refresh requested' : `Token expired (remaining=${Math.round(remainingMs / 1000)}s)`}, starting refresh (refresh_token=${refresh_token.slice(0, 20)}...)`);
+  mainLog('eeclawBridge', `[getValidToken] ${forceRefresh ? 'Force refresh requested' : `Token expired (remaining=${Math.round(remainingMs / 1000)}s)`}, starting refresh`);
 
   refreshPromise = (async () => {
     try {
@@ -117,7 +119,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
           ProcessConfig.invalidateCache();
           const latestAuth = ProcessConfig.getSync('eeclaw.authStorage');
           if (latestAuth?.refresh_token && latestAuth.refresh_token !== refresh_token) {
-            mainLog('eeclawBridge', `[getValidToken] Found different refresh_token in file, retrying with ${latestAuth.refresh_token.slice(0, 20)}...`);
+            mainLog('eeclawBridge', `[getValidToken] Found rotated refresh token in file, retrying`);
             const retryBody = latestAuth.session_type === 'oauth2' ? { grant_type: 'oauth2_refresh_token', params: { refresh_token: latestAuth.refresh_token } } : { grant_type: 'refresh_token', refresh_token: latestAuth.refresh_token };
             const retryResponse = await fetch(`${serverUrl}/api/v1/auth/token`, {
               method: 'POST',
@@ -138,7 +140,11 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
                 session_type: latestAuth.session_type,
               };
               mainLog('eeclawBridge', `[getValidToken] Retry refresh successful! new_expires_at=${newAuthStorage.expires_at}`);
-              await withAuthStorageLock(() => ProcessConfig.set('eeclaw.authStorage', newAuthStorage));
+              await withAuthStorageLock(async () => {
+                if (ProcessConfig.getSync('eeclaw.authStorage')?.access_token !== latestAuth.access_token) throw new Error('Moss identity changed during refresh');
+                await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
+                if (retryData.execution && retryData.localRuntime) await applyMossLocalRuntime(retryData, serverUrl);
+              });
               setCachedAuthToken(retryData.access_token);
               try {
                 ipcBridge.eeclaw.tokenRefreshed.emit({
@@ -173,9 +179,13 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
         session_type: authStorage.session_type,
       };
 
-      mainLog('eeclawBridge', `[getValidToken] Refresh successful! new_expires_at=${newAuthStorage.expires_at}, new_refresh_token=${newAuthStorage.refresh_token ? newAuthStorage.refresh_token.slice(0, 20) + '...' : 'NONE'}`);
+      mainLog('eeclawBridge', `[getValidToken] Refresh successful! new_expires_at=${newAuthStorage.expires_at}`);
 
-      await withAuthStorageLock(() => ProcessConfig.set('eeclaw.authStorage', newAuthStorage));
+      await withAuthStorageLock(async () => {
+        if (ProcessConfig.getSync('eeclaw.authStorage')?.access_token !== access_token) throw new Error('Moss identity changed during refresh');
+        await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
+        if (data.execution && data.localRuntime) await applyMossLocalRuntime(data, serverUrl);
+      });
       setCachedAuthToken(data.access_token);
 
       // Notify renderer process about the refreshed token
@@ -248,11 +258,23 @@ export function initEeclawBridge(): void {
     }
   });
 
+  ipcBridge.eeclaw.prepareLocalRuntime.provider(async () => {
+    try {
+      return { success: true, data: await prepareMossLocalRuntime() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // Set session mode (remote/local) for enterprise mode
   // 设置 session 模式（remote/local），用于企业模式
   ipcBridge.eeclaw.setSessionMode.provider(async ({ mode }) => {
     const localModeAvailable = ProcessConfig.getSync('eeclaw.localModeAvailable');
-    const resolvedMode = mode === 'local' && localModeAvailable === false ? 'remote' : mode;
+    const execution = ProcessConfig.getSync('eeclaw.execution');
+    if (mode === 'local' && localModeAvailable === false) throw new Error('Local execution is not allowed');
+    if (mode === 'remote' && execution?.isRemoteAllowed === false) throw new Error('Cloud execution is not allowed');
+    const resolvedMode = mode;
+    await ProcessConfig.set('guid.sessionMode', resolvedMode);
     setCachedSessionMode(resolvedMode);
     resetConversationProvider();
     mainLog('eeclawBridge', `Session mode set to: ${resolvedMode}`);
@@ -349,11 +371,12 @@ export function initEeclawBridge(): void {
         return { success: false, error: (data?.msg || data?.error || 'login_failed') as string, data: undefined };
       }
 
-      const localModeAvailable = !!(authData.user.localAuth && authData.sudorouter_key && authData.model_service_url && Array.isArray(authData.models) && authData.models.length > 0);
+      const localModeAvailable = authData.execution?.isLocalAllowed ?? !!(authData.user.localAuth && authData.sudorouter_key && authData.model_service_url && Array.isArray(authData.models) && authData.models.length > 0);
 
       // Save server URL and auth storage to ProcessConfig
       // 将服务器 URL 和认证存储保存到 ProcessConfig
       const sessionType: 'password' | 'api_key' | 'oauth2' | 'phone' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : body.grant_type === 'phone' || body.grant_type === 'phone_register' ? 'phone' : 'password';
+      let runtime: Awaited<ReturnType<typeof applyMossLocalRuntime>> | undefined;
       await withAuthStorageLock(async () => {
         await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
         await ProcessConfig.set('eeclaw.authStorage', {
@@ -364,6 +387,8 @@ export function initEeclawBridge(): void {
           session_type: sessionType,
         });
         await ProcessConfig.set('eeclaw.localModeAvailable', localModeAvailable);
+        runtime = authData.execution && authData.localRuntime ? await applyMossLocalRuntime(authData, serverUrl) : undefined;
+        await ProcessConfig.set('eeclaw.userInfo', { id: authData.user.id, username: authData.user.name, role: authData.user.role, orgId: authData.user.orgId });
       });
 
       // Update enterprise cache for synchronous access
@@ -379,23 +404,10 @@ export function initEeclawBridge(): void {
 
       mainLog('eeclawBridge', 'Login successful, cache updated, provider reset');
 
-      // 【新增】后台静默同步，不阻塞登录流程
-      // Background silent sync after enterprise login, non-blocking
-      import('@process/sync/remoteToLocalSync')
-        .then(({ syncAllFromRemote }) => syncAllFromRemote())
-        .then((result) => {
-          mainLog('eeclawBridge', 'Background sync completed', {
-            hubSkills: result.skills.hub.installed.length,
-            tenantSkills: result.skills.tenant.installed.length,
-            hubAssistants: result.assistants.hub.installed.length,
-            tenantAssistants: result.assistants.tenant.installed.length,
-          });
-          // Emit sync completed event to notify renderer
-          ipcBridge.eeclaw.syncCompleted.emit(result);
-        })
-        .catch((err) => {
-          mainError('eeclawBridge', 'Background sync failed:', err);
-        });
+      // Managed credentials and model configuration stay in the main process.
+      const defaultMode = runtime?.execution.defaultTarget || (localModeAvailable ? 'local' : 'remote');
+      await ProcessConfig.set('guid.sessionMode', defaultMode);
+      setCachedSessionMode(defaultMode);
 
       return {
         success: true,
@@ -410,8 +422,10 @@ export function initEeclawBridge(): void {
             orgId: authData.user.orgId,
             localAuth: authData.user.localAuth === true,
           },
-          sudorouter_key: authData.sudorouter_key,
-          model_service_url: authData.model_service_url,
+          execution: runtime?.execution,
+          localRuntime: runtime?.localRuntime,
+          sudorouter_key: runtime ? undefined : authData.sudorouter_key,
+          model_service_url: runtime ? undefined : authData.model_service_url,
           models: Array.isArray(authData.models) ? authData.models : undefined,
           scode_auto_model: typeof authData.scode_auto_model === 'string' ? authData.scode_auto_model : undefined,
         },
@@ -580,6 +594,7 @@ export function initEeclawBridge(): void {
         // Always clear local state even if server request fails
         await ProcessConfig.set('eeclaw.authStorage', null);
         await ProcessConfig.set('eeclaw.localModeAvailable', null);
+        await clearMossLocalRuntime();
         setCachedAuthToken('');
         setCachedLocalModeAvailable(null);
         resetConversationProvider();

@@ -1,4 +1,6 @@
 {
+  "localPreparing": "Preparing the local engine and required resources…",
+  "localPreparationFailed": "Local execution preparation failed: {{reason}}",
   "promptTemplates": {
     "title": "Prompt Templates",
     "categories": {

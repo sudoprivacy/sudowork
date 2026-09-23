@@ -279,7 +279,8 @@ const chatMessageFile = conversationHistoryProxy(_chatMessageFile, cacheDir);
  * Get assistant rules directory path
  */
 const getAssistantsDir = () => {
-  return path.join(dataDir, 'assistants');
+  const scope = isEnterpriseMode() ? ProcessConfig.getSync('eeclaw.accountScope') : undefined;
+  return scope ? path.join(dataDir, 'managed', scope, 'assistants') : path.join(dataDir, 'assistants');
 };
 
 /**
@@ -320,7 +321,8 @@ const getCustomAssistantsDir = () => {
  * Get skills scripts directory path
  */
 const getSkillsDir = () => {
-  return path.join(dataDir, 'skills');
+  const scope = isEnterpriseMode() ? ProcessConfig.getSync('eeclaw.accountScope') : undefined;
+  return scope ? path.join(dataDir, 'managed', scope, 'skills') : path.join(dataDir, 'skills');
 };
 
 /**

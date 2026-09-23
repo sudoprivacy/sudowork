@@ -1,4 +1,6 @@
 {
+  "localPreparing": "正在準備本地引擎和所需資源…",
+  "localPreparationFailed": "本地執行準備失敗：{{reason}}",
   "promptTemplates": {
     "title": "常用提示詞",
     "categories": {

@@ -764,6 +764,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     message?: string;
   }> {
     const managerSendStart = Date.now();
+    if (ProcessConfig.getSync('eeclaw.accountScope')) {
+      const { assertMossLocalExecutionAllowed } = await import('@process/services/mossLocalRuntime');
+      await assertMossLocalExecutionAllowed();
+    }
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
     this.processingStartTime = Date.now();

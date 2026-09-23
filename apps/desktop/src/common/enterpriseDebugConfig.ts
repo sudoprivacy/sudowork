@@ -40,7 +40,7 @@ let cachedUserId: string = '';
 let cachedLocalModeAvailable: boolean | null = null;
 // Cache for guid session mode (remote/local), updated by refreshEnterpriseCache and setSessionMode IPC
 // guid session 模式缓存（remote/local），由 refreshEnterpriseCache 和 setSessionMode IPC 更新
-let cachedSessionMode: 'remote' | 'local' = 'remote';
+let cachedSessionMode: 'remote' | 'local' = 'local';
 
 // Dynamic import for ProcessConfig (main process only)
 // ProcessConfig 的动态导入（仅主进程）
@@ -68,7 +68,7 @@ export async function refreshEnterpriseCache(): Promise<void> {
     const authStorage = config.getSync('eeclaw.authStorage');
     cachedAuthToken = authStorage?.access_token || '';
     cachedServerUrl = config.getSync('eeclaw.serverUrl') || '';
-    cachedSessionMode = config.getSync('guid.sessionMode') || 'remote';
+    cachedSessionMode = config.getSync('guid.sessionMode') || 'local';
     const localModeAvailable = config.getSync('eeclaw.localModeAvailable');
     cachedLocalModeAvailable = typeof localModeAvailable === 'boolean' ? localModeAvailable : null;
     const userInfo = config.getSync('eeclaw.userInfo');

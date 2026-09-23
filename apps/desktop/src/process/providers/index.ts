@@ -1,16 +1,19 @@
+import { resolveConversationExecutionTarget } from '@sudowork/common/mossExecution';
+import { getDatabase } from '@process/database';
+import { assertConversationAccount } from '@process/services/mossExecutionContext';
 /**
  * @license
  * Copyright 2025 Sudowork (sudowork.ai)
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IConversationProvider, IProviderConfig } from './types';
-import { LocalConversationProvider } from './LocalConversationProvider';
-import { RemoteConversationProvider } from './RemoteConversationProvider';
 import { isEnterpriseMode, getEnterpriseConfig, getCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { mainLog } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@process/initStorage';
 import { resetMossApi } from '@process/remote/MossSessionApi';
+import { RemoteConversationProvider } from './RemoteConversationProvider';
+import { LocalConversationProvider } from './LocalConversationProvider';
+import type { IConversationProvider, IProviderConfig } from './types';
 
 let currentProvider: IConversationProvider | null = null;
 let currentProviderType: 'local' | 'remote' | null = null;
@@ -124,7 +127,7 @@ export function resetConversationProvider(): void {
 export function isRemoteProvider(sessionMode?: 'remote' | 'local'): boolean {
   if (!isEnterpriseMode()) return false;
   if (sessionMode !== undefined) return sessionMode === 'remote';
-  return true; // 兼容旧调用方（无参数时保持原行为：E端默认 remote）
+  return getCachedSessionMode() === 'remote';
 }
 
 /**
@@ -132,10 +135,18 @@ export function isRemoteProvider(sessionMode?: 'remote' | 'local'): boolean {
  * 获取 Provider 类型字符串
  */
 export function getProviderType(): 'local' | 'remote' {
-  return isEnterpriseMode() ? 'remote' : 'local';
+  return isEnterpriseMode() ? getCachedSessionMode() : 'local';
 }
 
 // Re-export types and providers / 重新导出类型和 Provider
 export type { IConversationProvider, IProviderConfig } from './types';
 export { LocalConversationProvider } from './LocalConversationProvider';
 export { RemoteConversationProvider } from './RemoteConversationProvider';
+
+/** Resolve existing conversations using their own persisted execution location. */
+export function getProviderForConversation(id: string): IConversationProvider {
+  const conversation = getDatabase().getConversation(id).data;
+  if (!conversation) throw new Error('Conversation not found');
+  assertConversationAccount(conversation);
+  return getConversationProvider(resolveConversationExecutionTarget(conversation));
+}

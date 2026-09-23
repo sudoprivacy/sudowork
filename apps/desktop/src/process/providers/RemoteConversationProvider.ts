@@ -9,6 +9,7 @@ import type { TChatConversation } from '@sudowork/common/storage';
 import type { TMessage } from '@sudowork/common/chatLib';
 import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib';
 import { isRemoteContainerPath } from '@sudowork/common/utils/workspaceSkillSync';
+import { getConversationExecutionExtra, isConversationInCurrentAccount } from '@process/services/mossExecutionContext';
 import { getDatabase } from '@process/database';
 import WorkerManage from '@process/WorkerManage';
 import { initMossApi, type MossSessionApi } from '@process/remote/MossSessionApi';
@@ -144,6 +145,7 @@ export class RemoteConversationProvider implements IConversationProvider {
       createTime: Date.now(),
       modifyTime: Date.now(),
       extra: {
+        ...getConversationExecutionExtra('remote'),
         workspace: params.extra?.workspace,
         backend: 'remote-agent',
         mossServerUrl: this.config.mossServerUrl,
@@ -320,9 +322,33 @@ export class RemoteConversationProvider implements IConversationProvider {
       return [];
     }
 
-    // Filter for remote-agent type conversations
-    // 只筛选 remote-agent 类型的会话
-    const conversations = result.data.filter((c) => c.type === 'remote-agent' || c.extra?.backend === 'remote-agent');
+    // Adopt legacy cloud records only after Moss confirms the same owner and organization.
+    const scope = ProcessConfig.getSync('eeclaw.accountScope');
+    const user = ProcessConfig.getSync('eeclaw.userInfo');
+    const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+    const legacy = result.data.filter((conversation) => {
+      const extra = conversation.extra as { mossAccountScope?: string; mossServerUrl?: string };
+      return conversation.type === 'remote-agent' && !extra.mossAccountScope && extra.mossServerUrl?.replace(/\/+$/, '') === serverUrl?.replace(/\/+$/, '');
+    });
+    if (scope && user?.id && legacy.length) {
+      try {
+        const sessions = await (await this.ensureMossApi()).listSessions();
+        const ownedIds = new Set(sessions.filter((session) => session.userId === user.id && session.orgId === user.orgId).map((session) => session.sessionId || session.session_id));
+        if (ProcessConfig.getSync('eeclaw.accountScope') === scope) {
+          for (const conversation of legacy) {
+            const sessionId = (conversation.extra as { mossSessionId?: string }).mossSessionId || conversation.id;
+            if (!ownedIds.has(sessionId)) continue;
+            const extra = { ...conversation.extra, ...getConversationExecutionExtra('remote') };
+            if (db.updateConversation(conversation.id, { extra } as Partial<TChatConversation>).success) conversation.extra = extra as TChatConversation['extra'];
+          }
+        }
+      } catch (error) {
+        mainError('RemoteProvider', 'Could not verify legacy cloud conversation ownership:', error);
+      }
+    }
+
+    // Filter for remote-agent type conversations.
+    const conversations = result.data.filter((c) => isConversationInCurrentAccount(c) && (c.type === 'remote-agent' || c.extra?.backend === 'remote-agent'));
 
     // Sort by modifyTime
     // 按 modifyTime 排序
@@ -394,6 +420,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         authToken: undefined,
         runtimeType: this.config.runtimeType,
         agentName: session.assistantName || session.assistant_name,
+        ...getConversationExecutionExtra('remote'),
         sessionMode: 'remote',
         mossSessionId,
         mossSessionPending: false,

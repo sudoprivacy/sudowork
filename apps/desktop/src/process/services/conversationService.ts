@@ -10,6 +10,7 @@ import { getDatabase } from '@process/database';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { createAcpAgent } from '../initAgent';
 import WorkerManage from '../WorkerManage';
+import { getConversationExecutionExtra } from './mossExecutionContext';
 
 /**
  * 创建会话的通用参数（基于 IPC 参数扩展）
@@ -87,6 +88,8 @@ export class ConversationService {
       if (params.channelChatId) {
         conversation.channelChatId = params.channelChatId;
       }
+
+      conversation.extra = { ...conversation.extra, ...getConversationExecutionExtra(conversation.type === 'remote-agent' ? 'remote' : 'local') } as TChatConversation['extra'];
 
       // Save to database
       const db = getDatabase();
