@@ -149,6 +149,7 @@ interface IRelationRow {
   rel_type: string;
   semantic_type: string | null;
   cardinality: string;
+  binding_json: string | null;
   acyclic: number | null;
   description: string | null;
   created_at: number | string | null;
@@ -284,6 +285,7 @@ interface IVersionRelationRow {
   relation_type: string | null;
   semantic_type: string | null;
   cardinality: string;
+  binding_json: string | null;
   acyclic: number | null;
   description: string | null;
 }
@@ -503,8 +505,10 @@ export class OntologyDatabase implements IOntologyRepository {
     this.db.exec(ONTOLOGY_SQLITE_SCHEMA);
     this.ensureColumn('entity_relations', 'code', "TEXT DEFAULT ''");
     this.ensureColumn('entity_relations', 'semantic_type', "TEXT DEFAULT 'association'");
+    this.ensureColumn('entity_relations', 'binding_json', 'TEXT');
     this.ensureColumn('ontology_version_relations', 'relation_type', "TEXT DEFAULT 'object_property'");
     this.ensureColumn('ontology_version_relations', 'semantic_type', "TEXT DEFAULT 'association'");
+    this.ensureColumn('ontology_version_relations', 'binding_json', 'TEXT');
   }
 
   private ensureColumn(tableName: string, columnName: string, definition: string): void {
@@ -913,11 +917,24 @@ export class OntologyDatabase implements IOntologyRepository {
   private insertRelations(snapshot: IOntologyWorkbenchSnapshot): void {
     const statement = this.db.prepare(
       `INSERT INTO entity_relations (
-        id, from_entity_id, to_entity_id, name, code, rel_type, semantic_type, cardinality, acyclic, description, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        id, from_entity_id, to_entity_id, name, code, rel_type, semantic_type, cardinality, binding_json, acyclic, description, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const relation of snapshot.relations) {
-      statement.run(relation.id, relation.fromObjectId, relation.toObjectId, relation.name, relation.code, relation.relationType, relation.semanticType, relation.cardinality, relation.isAcyclic ? 1 : 0, relation.description ?? null, relation.updatedAt);
+      statement.run(
+        relation.id,
+        relation.fromObjectId,
+        relation.toObjectId,
+        relation.name,
+        relation.code,
+        relation.relationType,
+        relation.semanticType,
+        relation.cardinality,
+        relation.dataBinding ? toJson(relation.dataBinding) : null,
+        relation.isAcyclic ? 1 : 0,
+        relation.description ?? null,
+        relation.updatedAt
+      );
     }
   }
 
@@ -936,6 +953,7 @@ export class OntologyDatabase implements IOntologyRepository {
       cardinality: relationCardinality(row.cardinality),
       relationType: relationType(row.rel_type),
       semanticType: relationSemanticType(row.semantic_type),
+      dataBinding: relationDataBinding(row.binding_json),
       isAcyclic: Boolean(row.acyclic),
       description: row.description ?? undefined,
       reviewDecision: reviewDecisions.get(row.id) ?? 'pending',
@@ -1146,7 +1164,14 @@ export class OntologyDatabase implements IOntologyRepository {
         fn.runtime,
         fn.body,
         fn.status,
-        toJson([{ code: fn.code, signature: fn.signature, origin: fn.origin }]),
+        toJson([
+          {
+            code: fn.code,
+            signature: fn.signature,
+            origin: fn.origin,
+            configuration: fn.configuration,
+          },
+        ]),
         fn.code,
         0,
         fn.executionCount,
@@ -1178,6 +1203,7 @@ export class OntologyDatabase implements IOntologyRepository {
         body: row.logic_body ?? '',
         returnType: row.return_type || 'unknown',
         parameters: parseJson<IOntologyLogicFunction['parameters']>(row.input_schema, []),
+        configuration: isRecord(metadata?.configuration) ? connectorConfigRecord(metadata.configuration) : {},
         origin: metadata?.origin === 'manual' ? 'manual' : 'generated',
         status: row.status === 'draft' || row.status === 'disabled' ? row.status : 'active',
         executionCount: row.execution_count ?? 0,
@@ -1316,8 +1342,8 @@ export class OntologyDatabase implements IOntologyRepository {
     const relationStatement = this.db.prepare(
       `INSERT INTO ontology_version_relations (
         id, version_id, source_relation_id, from_version_entity_id, to_version_entity_id,
-        name, rel_type, relation_type, semantic_type, cardinality, acyclic, description
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        name, rel_type, relation_type, semantic_type, cardinality, binding_json, acyclic, description
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     const functionStatement = this.db.prepare(
       `INSERT INTO ontology_version_functions (
@@ -1410,6 +1436,7 @@ export class OntologyDatabase implements IOntologyRepository {
           relation.relationType,
           relation.semanticType,
           relation.cardinality,
+          relation.dataBinding ? toJson(relation.dataBinding) : null,
           relation.isAcyclic ? 1 : 0,
           relation.description ?? null
         );
@@ -1492,6 +1519,7 @@ export class OntologyDatabase implements IOntologyRepository {
       cardinality: relationCardinality(row.cardinality),
       relationType: relationType(row.relation_type),
       semanticType: relationSemanticType(row.semantic_type),
+      dataBinding: relationDataBinding(row.binding_json),
       isAcyclic: Boolean(row.acyclic),
       description: row.description ?? undefined,
       reviewDecision: 'approved',
@@ -1881,6 +1909,31 @@ function relationSemanticType(value: string | null): IOntologyRelationDraft['sem
   return 'association';
 }
 
+function relationDataBinding(value: string | null): IOntologyRelationDraft['dataBinding'] {
+  if (!value) return undefined;
+  const binding = parseJson<JsonRecord>(value, {});
+  if (binding.mode !== 'semantic_only' && binding.mode !== 'direct' && binding.mode !== 'junction') return undefined;
+  const joinKeys = Array.isArray(binding.joinKeys)
+    ? binding.joinKeys.flatMap((candidate) => {
+        if (!isRecord(candidate) || typeof candidate.fromAttributeId !== 'string' || typeof candidate.toAttributeId !== 'string') return [];
+        return [
+          {
+            fromAttributeId: candidate.fromAttributeId,
+            toAttributeId: candidate.toAttributeId,
+            ...(typeof candidate.junctionFromFieldName === 'string' ? { junctionFromFieldName: candidate.junctionFromFieldName } : {}),
+            ...(typeof candidate.junctionToFieldName === 'string' ? { junctionToFieldName: candidate.junctionToFieldName } : {}),
+          },
+        ];
+      })
+    : [];
+  return {
+    mode: binding.mode,
+    joinKeys,
+    ...(typeof binding.junctionAssetId === 'string' ? { junctionAssetId: binding.junctionAssetId } : {}),
+    ...(binding.origin === 'inferred' || binding.origin === 'manual' ? { origin: binding.origin } : {}),
+  };
+}
+
 function reviewDecision(value: unknown): IOntologyReviewItem['decision'] {
   if (value === 'approved' || value === 'changes_requested' || value === 'rejected') return value;
   return 'pending';
@@ -1942,6 +1995,7 @@ function fallbackVersionFunction(row: IVersionComponentRow, createdAt: number): 
     body: '',
     returnType: 'unknown',
     parameters: [],
+    configuration: {},
     origin: 'generated',
     status: 'active',
     executionCount: 0,
@@ -2179,6 +2233,7 @@ CREATE TABLE IF NOT EXISTS entity_relations (
   rel_type TEXT NOT NULL,
   semantic_type TEXT DEFAULT 'association',
   cardinality TEXT NOT NULL,
+  binding_json TEXT,
   acyclic INTEGER DEFAULT 0,
   description TEXT,
   created_at INTEGER
@@ -2383,6 +2438,7 @@ CREATE TABLE IF NOT EXISTS ontology_version_relations (
   relation_type TEXT DEFAULT 'object_property',
   semantic_type TEXT DEFAULT 'association',
   cardinality TEXT NOT NULL,
+  binding_json TEXT,
   acyclic INTEGER DEFAULT 0,
   description TEXT
 );

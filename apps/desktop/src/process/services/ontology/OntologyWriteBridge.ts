@@ -7,6 +7,7 @@ import type {
   IOntologyAttributeDraftInput,
   IOntologyDeleteAttributeInput,
   IOntologyDeleteInput,
+  IOntologyExecuteRuntimeInput,
   IOntologyFieldMappingInput,
   IOntologyLogicFunctionInput,
   IOntologyObjectDraftInput,
@@ -46,16 +47,31 @@ const handlers: Record<string, Handler> = {
   delete_object: async ({ input }) => ontologyService.deleteObject(sanitize(input, ['id']) as unknown as IOntologyDeleteInput),
   upsert_attribute: async ({ input }) => ontologyService.upsertAttribute(sanitize(input, ['id', 'objectId', 'code', 'name', 'dataType', 'required', 'description', 'example', 'constraints', 'mappedField']) as unknown as IOntologyAttributeDraftInput),
   delete_attribute: async ({ input }) => ontologyService.deleteAttribute(sanitize(input, ['objectId', 'attributeId']) as unknown as IOntologyDeleteAttributeInput),
-  upsert_relation: async ({ input }) => ontologyService.upsertRelation(sanitize(input, ['id', 'code', 'name', 'fromObjectId', 'toObjectId', 'cardinality', 'relationType', 'semanticType', 'isAcyclic', 'description']) as unknown as IOntologyRelationDraftInput),
+  upsert_relation: async ({ input }) => ontologyService.upsertRelation(sanitize(input, ['id', 'code', 'name', 'fromObjectId', 'toObjectId', 'cardinality', 'relationType', 'semanticType', 'dataBinding', 'isAcyclic', 'description']) as unknown as IOntologyRelationDraftInput),
   delete_relation: async ({ input }) => ontologyService.deleteRelation(sanitize(input, ['id']) as unknown as IOntologyDeleteInput),
   upsert_mapping: async ({ input }) => ontologyService.upsertMapping(sanitize(input, ['id', 'objectId', 'attributeId', 'assetId', 'fieldName', 'confidence', 'strategy', 'status']) as unknown as IOntologyFieldMappingInput),
   delete_mapping: async ({ input }) => ontologyService.deleteMapping(sanitize(input, ['id']) as unknown as IOntologyDeleteInput),
   upsert_quality_rule: async ({ input }) => ontologyService.upsertQualityRule(sanitize(input, ['id', 'objectId', 'code', 'name', 'expression', 'severity', 'status']) as unknown as IOntologyQualityRuleInput),
   delete_quality_rule: async ({ input }) => ontologyService.deleteQualityRule(sanitize(input, ['id']) as unknown as IOntologyDeleteInput),
-  upsert_logic_function: async ({ input }) => ontologyService.upsertLogicFunction(sanitize(input, ['id', 'code', 'name', 'description', 'runtime', 'objectIds', 'signature', 'body', 'returnType', 'parameters', 'status']) as unknown as IOntologyLogicFunctionInput),
+  upsert_logic_function: async ({ input }) => ontologyService.upsertLogicFunction(sanitize(input, ['id', 'code', 'name', 'description', 'runtime', 'objectIds', 'signature', 'body', 'returnType', 'parameters', 'configuration', 'status']) as unknown as IOntologyLogicFunctionInput),
   delete_logic_function: async ({ input }) => ontologyService.deleteLogicFunction(sanitize(input, ['id']) as unknown as IOntologyDeleteInput),
   upsert_action: async ({ input }) => ontologyService.upsertAction(sanitize(input, ['id', 'code', 'name', 'executor', 'objectIds', 'description', 'configuration', 'parameters', 'outputSchema', 'status']) as unknown as IOntologyActionDefinitionInput),
   delete_action: async ({ input }) => ontologyService.deleteAction(sanitize(input, ['id']) as unknown as IOntologyDeleteInput),
+  execute_logic_function: async ({ workspaceId, input }) =>
+    ontologyService.executeLogicFunction({
+      ...(sanitize(input, ['id', 'code', 'versionId', 'arguments']) as unknown as IOntologyExecuteRuntimeInput),
+      workspaceId,
+    }),
+  execute_relation: async ({ workspaceId, input }) =>
+    ontologyService.executeRelation({
+      ...(sanitize(input, ['id', 'code', 'versionId', 'arguments']) as unknown as IOntologyExecuteRuntimeInput),
+      workspaceId,
+    }),
+  execute_action: async ({ workspaceId, input }) =>
+    ontologyService.executeAction({
+      ...(sanitize(input, ['id', 'code', 'versionId', 'arguments']) as unknown as IOntologyExecuteRuntimeInput),
+      workspaceId,
+    }),
   generate_draft_from_assets: async ({ input }) => ontologyService.generateDraft(sanitize(input, ['assetIds', 'businessGoal', 'mode'])),
   approve_all: async () => ontologyService.approveAll(),
   run_consistency_check: async ({ workspaceId }) => ontologyService.runConsistencyCheck({ workspaceId }),
@@ -175,9 +191,20 @@ function summarizeResult(data: unknown): unknown {
       reviewDecision: obj.reviewDecision,
       attributes: Array.isArray(obj.attributes) ? (obj.attributes as Array<Record<string, unknown>>).map((attr) => ({ id: attr.id, code: attr.code, name: attr.name, dataType: attr.dataType, required: attr.required })) : [],
     })),
-    relations: relations.slice(0, 30).map((rel) => ({ id: rel.id, code: rel.code, name: rel.name, fromObjectId: rel.fromObjectId, toObjectId: rel.toObjectId, cardinality: rel.cardinality })),
+    relations: relations.slice(0, 30).map((rel) => ({
+      id: rel.id,
+      code: rel.code,
+      name: rel.name,
+      fromObjectId: rel.fromObjectId,
+      toObjectId: rel.toObjectId,
+      cardinality: rel.cardinality,
+      relationType: rel.relationType,
+      semanticType: rel.semanticType,
+      dataBinding: rel.dataBinding,
+    })),
     ...('version' in record ? { publishedVersion: record.version } : {}),
     ...('blueprint' in record ? { blueprint: record.blueprint } : {}),
+    ...('execution' in record ? { execution: record.execution } : {}),
   };
 }
 

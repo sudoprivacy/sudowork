@@ -203,6 +203,39 @@ function createApi(): IOntologyWorkbenchApi {
     deleteLogicFunction: vi.fn().mockResolvedValue(snapshot),
     upsertAction: vi.fn().mockResolvedValue(snapshot),
     deleteAction: vi.fn().mockResolvedValue(snapshot),
+    executeLogicFunction: vi.fn().mockImplementation(async (input) => ({
+      snapshot: refreshSnapshot(),
+      execution: {
+        kind: 'logic' as const,
+        artifactId: input.id ?? 'logic',
+        code: 'customer_lookup',
+        output: [{ customer_id: 'customer-1' }],
+        durationMs: 2,
+        executedAt: Date.now(),
+      },
+    })),
+    executeRelation: vi.fn().mockImplementation(async (input) => ({
+      snapshot: refreshSnapshot(),
+      execution: {
+        kind: 'relation' as const,
+        artifactId: input.id ?? 'relation',
+        code: 'customer_orders',
+        output: { rows: [] },
+        durationMs: 2,
+        executedAt: Date.now(),
+      },
+    })),
+    executeAction: vi.fn().mockImplementation(async (input) => ({
+      snapshot: refreshSnapshot(),
+      execution: {
+        kind: 'action' as const,
+        artifactId: input.id ?? 'action',
+        code: 'notify_customer',
+        output: { delivered: true },
+        durationMs: 2,
+        executedAt: Date.now(),
+      },
+    })),
     reviewTarget: vi.fn().mockImplementation(async (input) => {
       if (input.targetType === 'object') {
         snapshot.objects = snapshot.objects.map((object) => (object.id === input.targetId ? { ...object, reviewDecision: input.decision } : object));
@@ -906,6 +939,234 @@ describe('OntologyWorkbench', () => {
       expect(within(parent).getByRole('button', { name: 'ontology.objectEditor.close' })).toBeEnabled();
       expect(api.upsertObject).not.toHaveBeenCalled();
     });
+  });
+
+  it('validates quality rule expressions and displays execution results', async () => {
+    const api = createApi();
+    const snapshot = await api.getWorkbench();
+    snapshot.objects[0].attributes = [createAttribute()];
+    snapshot.qualityRules = [
+      {
+        id: 'customer-id-required',
+        objectId: 'customer',
+        code: 'customer_id_required',
+        name: 'Customer ID required',
+        expression: 'customer_id IS NOT NULL',
+        severity: 'warning',
+        status: 'active',
+        updatedAt: Date.now(),
+      },
+    ];
+    vi.mocked(api.runConsistencyCheck).mockResolvedValue({
+      isValid: true,
+      checkedAt: Date.now(),
+      issues: [],
+      qualityRuleResults: [
+        {
+          ruleId: 'customer-id-required',
+          ruleCode: 'customer_id_required',
+          ruleName: 'Customer ID required',
+          objectId: 'customer',
+          severity: 'warning',
+          status: 'failed',
+          referencedAttributes: ['customer_id'],
+          evaluatedRows: 3,
+          failedRows: 1,
+          isTruncated: false,
+          assetId: 'customers_asset',
+        },
+      ],
+    });
+    render(<OntologyWorkbench api={api} />);
+
+    await screen.findAllByText('ontology.console.views.connections.title');
+    fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
+    fireEvent.click(await screen.findByText('ontology.list.detail'));
+    fireEvent.click(await screen.findByText('ontology.detail.tabs.mapping'));
+    fireEvent.click(screen.getByRole('button', { name: 'ontology.editor.addRule' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'ontology.editor.addRule' });
+    fireEvent.change(within(dialog).getByPlaceholderText('ontology.editor.name'), { target: { value: 'Valid customer ID' } });
+    const expression = within(dialog).getByPlaceholderText('ontology.editor.expression');
+    fireEvent.change(expression, { target: { value: 'missing IS NOT NULL' } });
+    expect(within(dialog).getByText('ontology.editor.expressionUnknownAttribute')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'ontology.editor.save' })).toBeDisabled();
+
+    fireEvent.change(expression, { target: { value: 'customer_id IS NOT NULL' } });
+    expect(within(dialog).queryByText('ontology.editor.expressionUnknownAttribute')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'ontology.editor.save' })).toBeEnabled();
+    await onCloseModal(within(dialog).getByRole('button', { name: 'ontology.reset.cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ontology.mapping.runQualityRules' }));
+    await waitFor(() => expect(api.runConsistencyCheck).toHaveBeenCalledWith({ workspaceId: 'customer_domain' }));
+    expect(await screen.findByText('ontology.qualityRuleRun.title')).toBeInTheDocument();
+    expect(screen.getByText('ontology.qualityRuleRun.status.failed')).toBeInTheDocument();
+  });
+
+  it('shows field-level relation bindings and executes relation traversal', async () => {
+    const api = createApi();
+    const snapshot = await api.getWorkbench();
+    snapshot.objects[0].attributes = [createAttribute({ id: 'customer-id', code: 'id', name: 'ID' })];
+    snapshot.objects.push({
+      id: 'order',
+      code: 'order',
+      name: 'Order',
+      description: 'Order object',
+      tier: 3,
+      status: 'active',
+      sourceAssetIds: [],
+      attributes: [createAttribute({ id: 'order-customer-id', code: 'customer_id', name: 'Customer ID' })],
+      reviewDecision: 'pending',
+      updatedAt: Date.now(),
+    });
+    snapshot.relations = [
+      {
+        id: 'customer-orders',
+        code: 'customer_orders',
+        name: 'Customer Orders',
+        fromObjectId: 'customer',
+        toObjectId: 'order',
+        cardinality: 'one_to_many',
+        relationType: 'object_property',
+        semanticType: 'association',
+        dataBinding: { mode: 'direct', joinKeys: [{ fromAttributeId: 'customer-id', toAttributeId: 'order-customer-id' }] },
+        isAcyclic: false,
+        reviewDecision: 'approved',
+        updatedAt: Date.now(),
+      },
+    ];
+    render(<OntologyWorkbench api={api} />);
+
+    await screen.findAllByText('ontology.console.views.connections.title');
+    fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
+    fireEvent.click(await screen.findByText('ontology.list.detail'));
+    fireEvent.click(await screen.findByText('ontology.detail.tabs.relations'));
+
+    const row = (await screen.findByText('Customer Orders')).closest('tr')!;
+    expect(within(row).getByText(/id .* = customer_id/)).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: 'ontology.editor.edit' }));
+    const editor = await screen.findByRole('dialog', { name: 'ontology.editor.editRelation' });
+    expect(within(editor).getByText('ontology.editor.relationBindingMode')).toBeInTheDocument();
+    expect(within(editor).getByText('ontology.editor.relationJoinKeys')).toBeInTheDocument();
+    const relationTypeSelect = within(editor).getByText('ontology.editor.relationTypeLabel').closest('.arco-form-item')?.querySelector('.arco-select-view');
+    fireEvent.click(relationTypeSelect as HTMLElement);
+    expect(screen.getAllByText('ontology.editor.relationType.object_property').length).toBeGreaterThan(0);
+    expect(screen.queryByText('ontology.editor.relationType.symmetric_property')).not.toBeInTheDocument();
+    expect(screen.queryByText('ontology.editor.relationType.transitive_property')).not.toBeInTheDocument();
+    expect(screen.queryByText('ontology.editor.relationType.functional_property')).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByText('ontology.editor.relationType.object_property').at(-1)!);
+    const semanticTypeSelect = within(editor).getByText('ontology.editor.semanticTypeLabel').closest('.arco-form-item')?.querySelector('.arco-select-view');
+    fireEvent.click(semanticTypeSelect as HTMLElement);
+    expect(screen.getAllByText('ontology.editor.semanticType.association').length).toBeGreaterThan(0);
+    expect(screen.queryByText('ontology.editor.semanticType.composition')).not.toBeInTheDocument();
+    expect(screen.queryByText('ontology.editor.semanticType.event')).not.toBeInTheDocument();
+    expect(screen.queryByText('ontology.editor.semanticType.inheritance')).not.toBeInTheDocument();
+    expect(screen.queryByText('ontology.editor.semanticType.dependency')).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByText('ontology.editor.semanticType.association').at(-1)!);
+    await onCloseModal(within(editor).getByRole('button', { name: 'ontology.reset.cancel' }));
+
+    fireEvent.click(within(row).getByRole('button', { name: 'ontology.runtime.run' }));
+    const runner = await screen.findByRole('dialog', { name: 'ontology.relationRuntime.runTitle' });
+    fireEvent.change(within(runner).getByRole('textbox'), { target: { value: '{"query":{"id":"customer-1"}}' } });
+    fireEvent.click(within(runner).getByRole('button', { name: 'ontology.runtime.run' }));
+    await waitFor(() =>
+      expect(api.executeRelation).toHaveBeenCalledWith({
+        id: 'customer-orders',
+        arguments: { query: { id: 'customer-1' } },
+      })
+    );
+    expect(await within(runner).findByText(/rows/)).toBeInTheDocument();
+  });
+
+  it('runs logic functions with JSON arguments and displays the result', async () => {
+    const api = createApi();
+    const snapshot = await api.getWorkbench();
+    snapshot.logicFunctions = [
+      {
+        id: 'customer-lookup',
+        code: 'customer_lookup',
+        name: 'Customer Lookup',
+        description: 'Look up customers.',
+        runtime: 'typescript',
+        objectIds: ['customer'],
+        signature: 'customerLookup(query)',
+        body: '',
+        returnType: 'object[]',
+        parameters: [{ name: 'query', type: 'object', required: true }],
+        configuration: { builtIn: 'lookup', objectId: 'customer' },
+        origin: 'generated',
+        status: 'active',
+        executionCount: 0,
+        updatedAt: Date.now(),
+      },
+    ];
+    snapshot.stats = recalculateOntologyStats(snapshot);
+    render(<OntologyWorkbench api={api} />);
+
+    await screen.findAllByText('ontology.console.views.connections.title');
+    fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
+    fireEvent.click(await screen.findByText('ontology.list.detail'));
+    fireEvent.click(await screen.findByText('ontology.detail.tabs.runtime'));
+    const functionRow = (await screen.findByText('Customer Lookup')).closest('.rounded') as HTMLElement;
+    fireEvent.click(within(functionRow).getByRole('button', { name: 'ontology.runtime.run' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'ontology.runtime.runTitle' });
+    expect(within(dialog).getByRole('textbox')).toHaveValue('{\n  "query": {}\n}');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'ontology.runtime.run' }));
+    await waitFor(() =>
+      expect(api.executeLogicFunction).toHaveBeenCalledWith({
+        id: 'customer-lookup',
+        arguments: { query: {} },
+      })
+    );
+    expect(await within(dialog).findByText(/customer-1/)).toBeInTheDocument();
+  });
+
+  it('edits complete action contracts and runs actions with JSON arguments', async () => {
+    const api = createApi();
+    const snapshot = await api.getWorkbench();
+    snapshot.actions = [
+      {
+        id: 'notify-customer',
+        code: 'notify_customer',
+        name: 'Notify Customer',
+        executor: 'notification',
+        objectIds: ['customer'],
+        description: 'Notify an account owner.',
+        configuration: { title: 'Customer', message: 'Customer {{customerId}} requires attention.' },
+        parameters: [{ name: 'customerId', type: 'string', required: true }],
+        outputSchema: [{ name: 'delivered', type: 'boolean' }],
+        origin: 'manual',
+        status: 'active',
+        executionCount: 0,
+        updatedAt: Date.now(),
+      },
+    ];
+    snapshot.stats = recalculateOntologyStats(snapshot);
+    render(<OntologyWorkbench api={api} />);
+
+    await screen.findAllByText('ontology.console.views.connections.title');
+    fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
+    fireEvent.click(await screen.findByText('ontology.list.detail'));
+    fireEvent.click(await screen.findByText('ontology.detail.tabs.runtime'));
+    const actionRow = (await screen.findByText('Notify Customer')).closest('.rounded') as HTMLElement;
+    fireEvent.click(within(actionRow).getByRole('button', { name: 'ontology.editor.edit' }));
+    const editor = await screen.findByRole('dialog', { name: 'ontology.runtime.editAction' });
+    expect(within(editor).getByText('ontology.runtime.parametersJson')).toBeInTheDocument();
+    expect(within(editor).getByText('ontology.runtime.outputSchemaJson')).toBeInTheDocument();
+    await onCloseModal(within(editor).getByRole('button', { name: 'ontology.reset.cancel' }));
+
+    fireEvent.click(within(actionRow).getByRole('button', { name: 'ontology.runtime.run' }));
+    const runner = await screen.findByRole('dialog', { name: 'ontology.runtime.runTitle' });
+    fireEvent.change(within(runner).getByRole('textbox'), { target: { value: '{"customerId":"customer-1"}' } });
+    fireEvent.click(within(runner).getByRole('button', { name: 'ontology.runtime.run' }));
+    await waitFor(() =>
+      expect(api.executeAction).toHaveBeenCalledWith({
+        id: 'notify-customer',
+        arguments: { customerId: 'customer-1' },
+      })
+    );
+    expect(await within(runner).findByText(/delivered/)).toBeInTheDocument();
   });
 
   it('opens the active ontology detail and exposes object modeling controls', async () => {

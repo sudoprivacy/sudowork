@@ -89,11 +89,22 @@ describe('OntologyDatabase schema', () => {
             async function verifyPublishedSnapshot() {
               const engine = new OntologyEngine(db);
               await engine.getWorkbench('versioned');
-              const first = await engine.upsertObject({code:'invoice',name:'Invoice'}, 'versioned');
-              const second = await engine.upsertObject({code:'line',name:'Line'}, 'versioned');
-              await engine.upsertRelation({code:'invoice_lines',name:'Invoice lines',fromObjectId:first.objects[0].id,toObjectId:second.objects.find(object=>object.code==='line').id,cardinality:'one_to_many'}, 'versioned');
+              const imported = await engine.importFiles({filePaths:['/tmp/invoice.csv','/tmp/line.csv']},[{path:'/tmp/invoice.csv',name:'invoice.csv',sizeBytes:10,extension:'.csv',fields:[{name:'id',dataType:'string'}]},{path:'/tmp/line.csv',name:'line.csv',sizeBytes:10,extension:'.csv',fields:[{name:'invoice_id',dataType:'string'}]}], 'versioned');
+              const invoiceAssetId = imported.files.find(file=>file.name==='invoice.csv').id;
+              const lineAssetId = imported.files.find(file=>file.name==='line.csv').id;
+              const first = await engine.upsertObject({code:'invoice',name:'Invoice',sourceAssetIds:[invoiceAssetId]}, 'versioned');
+              const second = await engine.upsertObject({code:'line',name:'Line',sourceAssetIds:[lineAssetId]}, 'versioned');
+              const invoiceId = first.objects[0].id;
+              const lineId = second.objects.find(object=>object.code==='line').id;
+              const withInvoiceId = await engine.upsertAttribute({objectId:invoiceId,code:'id',name:'ID',dataType:'string',mappedField:{assetId:invoiceAssetId,fieldName:'id'}}, 'versioned');
+              const invoiceAttributeId = withInvoiceId.objects.find(object=>object.id===invoiceId).attributes[0].id;
+              const withInvoiceReference = await engine.upsertAttribute({objectId:lineId,code:'invoice_id',name:'Invoice ID',dataType:'string',mappedField:{assetId:lineAssetId,fieldName:'invoice_id'}}, 'versioned');
+              const lineAttributeId = withInvoiceReference.objects.find(object=>object.id===lineId).attributes[0].id;
+              await engine.upsertRelation({code:'invoice_lines',name:'Invoice lines',fromObjectId:invoiceId,toObjectId:lineId,cardinality:'one_to_many',dataBinding:{mode:'direct',joinKeys:[{fromAttributeId:invoiceAttributeId,toAttributeId:lineAttributeId}]}}, 'versioned');
+              assert.deepEqual(db.getSnapshot('versioned').relations[0].dataBinding,{mode:'direct',joinKeys:[{fromAttributeId:invoiceAttributeId,toAttributeId:lineAttributeId}],origin:'manual'});
               await engine.publishCurrentDraft('versioned');
               const published = db.getSnapshot('versioned');
+              assert.deepEqual(published.publishedVersions[0].snapshot.relations[0].dataBinding,{mode:'direct',joinKeys:[{fromAttributeId:invoiceAttributeId,toAttributeId:lineAttributeId}],origin:'manual'});
               await new Promise(resolve=>setTimeout(resolve,5));
               assert.deepEqual(db.getSnapshot('versioned'),published);
               db.saveSnapshot(published,published);

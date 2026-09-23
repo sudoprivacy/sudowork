@@ -167,6 +167,7 @@ export default defineConfig({
         '../../packages/renderer/src/pages/team/components/TeamWarmupOverlay.tsx',
         '../../packages/renderer/src/pages/settings/recharge/components/CreditApplicationPanel.tsx',
         '../../packages/ontology-common/src/index.ts',
+        '../../packages/ontology-common/src/qualityRuleExpression.ts',
         '../../packages/ontology-engine/src/index.ts',
         '../../packages/ontology-ui/src/OntologyWorkbench.tsx',
         '../../packages/renderer/src/pages/ontology/index.tsx',

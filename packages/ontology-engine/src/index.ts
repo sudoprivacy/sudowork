@@ -45,6 +45,7 @@ import type {
   IOntologyRejectVersionInput,
   IOntologyRelationDraft,
   IOntologyRelationDraftInput,
+  IOntologyRelationDataBinding,
   IOntologyRegisterAgentInput,
   IOntologyReviewItem,
   IOntologyReviewTargetInput,
@@ -59,11 +60,14 @@ import type {
   IOntologyWorkbenchSnapshot,
   OntologyAssetKind,
   OntologyCapabilityId,
+  OntologyJsonValue,
 } from "@sudowork/ontology-common";
 import {
   createDefaultOntologyWorkbenchSnapshot,
+  ONTOLOGY_SNAPSHOT_SCHEMA_VERSION,
   recalculateOntologyStats,
   summarizeOntologyWorkbenchSnapshot,
+  validateQualityRuleExpression,
 } from "@sudowork/ontology-common";
 
 export interface IOntologyRepository {
@@ -126,7 +130,12 @@ export class OntologyEngine {
     workspaceId = "default",
   ): Promise<IOntologyWorkbenchSnapshot> {
     const stored = await this.repository.getSnapshot(workspaceId);
-    if (stored) return normalizeSnapshot(stored);
+    if (stored) {
+      const normalized = normalizeSnapshot(stored);
+      if (!isDeepStrictEqual(stored, normalized))
+        await this.repository.saveSnapshot(normalized, stored);
+      return normalized;
+    }
 
     const snapshot = createDefaultOntologyWorkbenchSnapshot(Date.now(), {
       workspaceId,
@@ -497,10 +506,14 @@ export class OntologyEngine {
     const isReferenced =
       snapshot.objects.some((object) =>
         object.sourceAssetIds.includes(asset.id),
-      ) || snapshot.mappings.some((mapping) => mapping.assetId === asset.id);
+      ) ||
+      snapshot.mappings.some((mapping) => mapping.assetId === asset.id) ||
+      snapshot.relations.some(
+        (relation) => relation.dataBinding?.junctionAssetId === asset.id,
+      );
     if (isReferenced)
       throw new Error(
-        `Asset "${asset.name}" is referenced by ontology objects or mappings.`,
+        `Asset "${asset.name}" is referenced by ontology objects, mappings, or relation bindings.`,
       );
 
     const now = Date.now();
@@ -794,6 +807,9 @@ export class OntologyEngine {
     snapshot.mappings = snapshot.mappings.filter(
       (mapping) => mapping.attributeId !== input.attributeId,
     );
+    snapshot.relations = snapshot.relations.map((relation) =>
+      removeAttributeFromRelationBinding(relation, input.attributeId),
+    );
     await this.afterModelEdit(
       snapshot,
       "ontology_modeling",
@@ -809,15 +825,25 @@ export class OntologyEngine {
   ): Promise<IOntologyWorkbenchSnapshot> {
     const snapshot = await this.getWorkbench(workspaceId);
     const now = Date.now();
-    if (
-      !snapshot.objects.some((object) => object.id === input.fromObjectId) ||
-      !snapshot.objects.some((object) => object.id === input.toObjectId)
-    ) {
+    const fromObject = snapshot.objects.find(
+      (object) => object.id === input.fromObjectId,
+    );
+    const toObject = snapshot.objects.find(
+      (object) => object.id === input.toObjectId,
+    );
+    if (!fromObject || !toObject) {
       throw new Error("Relation endpoints must reference existing objects.");
     }
     const existing = input.id
       ? snapshot.relations.find((item) => item.id === input.id)
       : undefined;
+    const isDataBindingSupplied = input.dataBinding !== undefined;
+    const normalizedDataBinding = isDataBindingSupplied
+      ? normalizeRelationDataBinding(input.dataBinding)
+      : (normalizeRelationDataBinding(existing?.dataBinding) ??
+        inferDirectRelationDataBinding(fromObject, toObject));
+    if (isDataBindingSupplied && !normalizedDataBinding)
+      throw new Error("Relation data binding is invalid.");
     const relation: IOntologyRelationDraft = {
       id: existing?.id ?? randomUUID(),
       code: toCode(input.code || input.name),
@@ -829,11 +855,19 @@ export class OntologyEngine {
         input.relationType ?? existing?.relationType ?? "object_property",
       semanticType:
         input.semanticType ?? existing?.semanticType ?? "association",
+      dataBinding: normalizedDataBinding
+        ? {
+            ...normalizedDataBinding,
+            origin: input.dataBinding ? "manual" : normalizedDataBinding.origin,
+          }
+        : undefined,
       isAcyclic: input.isAcyclic ?? existing?.isAcyclic ?? false,
       description: input.description?.trim() || undefined,
       reviewDecision: "pending",
       updatedAt: now,
     };
+    const relationIssue = relationDefinitionIssue(relation, snapshot);
+    if (relationIssue) throw new Error(relationIssue);
     assertUniqueCode(
       snapshot.relations,
       relation.id,
@@ -940,8 +974,17 @@ export class OntologyEngine {
     workspaceId = "default",
   ): Promise<IOntologyWorkbenchSnapshot> {
     const snapshot = await this.getWorkbench(workspaceId);
-    if (!snapshot.objects.some((object) => object.id === input.objectId))
-      throw new Error("Quality rule object not found.");
+    const object = snapshot.objects.find((item) => item.id === input.objectId);
+    if (!object) throw new Error("Quality rule object not found.");
+    const expressionValidation = validateQualityRuleExpression(
+      input.expression,
+      object.attributes.map((attribute) => attribute.code),
+    );
+    if (!expressionValidation.isValid) {
+      throw new Error(
+        expressionValidation.errorMessage ?? "Invalid quality rule expression.",
+      );
+    }
     const now = Date.now();
     const existing = input.id
       ? snapshot.qualityRules.find((item) => item.id === input.id)
@@ -1018,12 +1061,23 @@ export class OntologyEngine {
       parameters: structuredClone(
         input.parameters ?? existing?.parameters ?? [],
       ),
+      configuration: structuredClone(
+        input.configuration ?? existing?.configuration ?? {},
+      ),
       origin: "manual",
       status: input.status ?? existing?.status ?? "active",
       executionCount: existing?.executionCount ?? 0,
       lastExecutedAt: existing?.lastExecutedAt,
       updatedAt: now,
     };
+    const configurationIssue = runtimeFunctionConfigurationIssue(
+      logicFunction,
+      snapshot,
+    );
+    if (logicFunction.status === "active" && configurationIssue)
+      throw new Error(
+        `Logic function is not executable: ${configurationIssue}.`,
+      );
     assertUniqueCode(
       snapshot.logicFunctions,
       logicFunction.id,
@@ -1064,6 +1118,32 @@ export class OntologyEngine {
     return this.save(snapshot);
   }
 
+  async recordLogicFunctionExecution(
+    id: string,
+    executedAt: number,
+    workspaceId = "default",
+  ): Promise<IOntologyWorkbenchSnapshot> {
+    const snapshot = await this.getWorkbench(workspaceId);
+    let isFound = false;
+    snapshot.logicFunctions = snapshot.logicFunctions.map((item) => {
+      if (item.id !== id) return item;
+      isFound = true;
+      return {
+        ...item,
+        executionCount: item.executionCount + 1,
+        lastExecutedAt: executedAt,
+      };
+    });
+    if (!isFound) throw new Error("Logic function not found.");
+    addMonitorEvent(
+      snapshot,
+      "logic_modeling",
+      `Executed logic function ${id}.`,
+      executedAt,
+    );
+    return this.save(snapshot);
+  }
+
   async upsertAction(
     input: IOntologyActionDefinitionInput,
     workspaceId = "default",
@@ -1100,6 +1180,12 @@ export class OntologyEngine {
       lastExecutedAt: existing?.lastExecutedAt,
       updatedAt: now,
     };
+    const configurationIssue = runtimeActionConfigurationIssue(
+      action,
+      snapshot,
+    );
+    if (action.status === "active" && configurationIssue)
+      throw new Error(`Action is not executable: ${configurationIssue}.`);
     assertUniqueCode(snapshot.actions, action.id, action.code, "Action");
     snapshot.actions = existing
       ? snapshot.actions.map((item) => (item.id === action.id ? action : item))
@@ -1125,6 +1211,32 @@ export class OntologyEngine {
       snapshot,
       `Deleted action "${action.name}".`,
       now,
+    );
+    return this.save(snapshot);
+  }
+
+  async recordActionExecution(
+    id: string,
+    executedAt: number,
+    workspaceId = "default",
+  ): Promise<IOntologyWorkbenchSnapshot> {
+    const snapshot = await this.getWorkbench(workspaceId);
+    let isFound = false;
+    snapshot.actions = snapshot.actions.map((item) => {
+      if (item.id !== id) return item;
+      isFound = true;
+      return {
+        ...item,
+        executionCount: item.executionCount + 1,
+        lastExecutedAt: executedAt,
+      };
+    });
+    if (!isFound) throw new Error("Action not found.");
+    addMonitorEvent(
+      snapshot,
+      "logic_modeling",
+      `Executed action ${id}.`,
+      executedAt,
     );
     return this.save(snapshot);
   }
@@ -1645,16 +1757,31 @@ export class OntologyEngine {
           description: "Lookup ontology objects, attributes, and relations.",
           category: "ontology",
         },
-        ...version.snapshot.logicFunctions.map((logicFunction) => ({
-          name: `logic.${logicFunction.code}`,
-          description: logicFunction.description || logicFunction.name,
-          category: "logic" as const,
-        })),
-        ...version.snapshot.actions.map((action) => ({
-          name: `action.${action.code}`,
-          description: action.description || action.name,
-          category: "action" as const,
-        })),
+        ...version.snapshot.relations
+          .filter(
+            (relation) =>
+              relation.dataBinding &&
+              relation.dataBinding.mode !== "semantic_only",
+          )
+          .map((relation) => ({
+            name: `relation_${relation.code}`,
+            description: `Traverse ${relation.name} through its configured field-level join.`,
+            category: "relation" as const,
+          })),
+        ...version.snapshot.logicFunctions
+          .filter((logicFunction) => logicFunction.status === "active")
+          .map((logicFunction) => ({
+            name: `logic_${logicFunction.code}`,
+            description: logicFunction.description || logicFunction.name,
+            category: "logic" as const,
+          })),
+        ...version.snapshot.actions
+          .filter((action) => action.status === "active")
+          .map((action) => ({
+            name: `action_${action.code}`,
+            description: action.description || action.name,
+            category: "action" as const,
+          })),
       ],
       createdAt: now,
       updatedAt: now,
@@ -1868,10 +1995,14 @@ export class OntologyEngine {
 function normalizeSnapshot(
   snapshot: IOntologyWorkbenchSnapshot,
 ): IOntologyWorkbenchSnapshot {
-  const normalized = {
+  const objects = (snapshot.objects ?? []).map(normalizeObjectDraft);
+  const normalized: IOntologyWorkbenchSnapshot = {
     ...snapshot,
-    objects: (snapshot.objects ?? []).map(normalizeObjectDraft),
-    relations: (snapshot.relations ?? []).map(normalizeRelationDraft),
+    schemaVersion: ONTOLOGY_SNAPSHOT_SCHEMA_VERSION,
+    objects,
+    relations: (snapshot.relations ?? []).map((relation) =>
+      normalizeRelationDraft(relation, objects),
+    ),
     connectors: snapshot.connectors ?? [],
     connections: snapshot.connections ?? [],
     mappings: snapshot.mappings ?? [],
@@ -1882,30 +2013,35 @@ function normalizeSnapshot(
     serviceEndpoints: snapshot.serviceEndpoints ?? [],
     impactAnalyses: snapshot.impactAnalyses ?? [],
     monitorEvents: snapshot.monitorEvents ?? [],
-    publishedVersions: (snapshot.publishedVersions ?? []).map((version) => ({
-      ...version,
-      isActive: version.isActive ?? version.status === "published",
-      diff: version.diff ?? createEmptyVersionDiff(version.id),
-      snapshot: version.snapshot
-        ? {
-            ...version.snapshot,
-            objects: (version.snapshot.objects ?? []).map(normalizeObjectDraft),
-            relations: (version.snapshot.relations ?? []).map(
-              normalizeRelationDraft,
-            ),
-            mappings: version.snapshot.mappings ?? [],
-            qualityRules: version.snapshot.qualityRules ?? [],
-            logicFunctions: (version.snapshot.logicFunctions ?? []).map(
-              normalizeLogicFunction,
-            ),
-            actions: (version.snapshot.actions ?? []).map(
-              normalizeActionDefinition,
-            ),
-            serviceEndpoints: version.snapshot.serviceEndpoints ?? [],
-            businessDocuments: version.snapshot.businessDocuments ?? [],
-          }
-        : createVersionSnapshot(snapshot),
-    })),
+    publishedVersions: (snapshot.publishedVersions ?? []).map((version) => {
+      const versionObjects = (version.snapshot?.objects ?? []).map(
+        normalizeObjectDraft,
+      );
+      return {
+        ...version,
+        isActive: version.isActive ?? version.status === "published",
+        diff: version.diff ?? createEmptyVersionDiff(version.id),
+        snapshot: version.snapshot
+          ? {
+              ...version.snapshot,
+              objects: versionObjects,
+              relations: (version.snapshot.relations ?? []).map((relation) =>
+                normalizeRelationDraft(relation, versionObjects),
+              ),
+              mappings: version.snapshot.mappings ?? [],
+              qualityRules: version.snapshot.qualityRules ?? [],
+              logicFunctions: (version.snapshot.logicFunctions ?? []).map(
+                normalizeLogicFunction,
+              ),
+              actions: (version.snapshot.actions ?? []).map(
+                normalizeActionDefinition,
+              ),
+              serviceEndpoints: version.snapshot.serviceEndpoints ?? [],
+              businessDocuments: version.snapshot.businessDocuments ?? [],
+            }
+          : createVersionSnapshot(snapshot),
+      };
+    }),
   };
   return {
     ...normalized,
@@ -1983,24 +2119,290 @@ function connectorDisplayName(connector: IOntologyConnectorConfig): string {
 
 function normalizeRelationDraft(
   item: IOntologyRelationDraft,
+  objects: IOntologyObjectDraft[],
 ): IOntologyRelationDraft {
+  const fromObject = objects.find((object) => object.id === item.fromObjectId);
+  const toObject = objects.find((object) => object.id === item.toObjectId);
+  const storedDataBinding = normalizeRelationDataBinding(item.dataBinding);
+  const inferredDataBinding =
+    fromObject && toObject
+      ? inferDirectRelationDataBinding(fromObject, toObject)
+      : undefined;
+  const isLegacyGeneratedBinding =
+    Boolean(inferredDataBinding) &&
+    (!storedDataBinding ||
+      (!storedDataBinding.origin &&
+        item.description?.startsWith("Generated relation between ")));
+  const dataBinding = isLegacyGeneratedBinding
+    ? inferredDataBinding
+    : (storedDataBinding ?? inferredDataBinding);
   return {
     ...item,
+    cardinality:
+      isLegacyGeneratedBinding && inferredDataBinding && fromObject && toObject
+        ? inferRelationCardinality(fromObject, toObject, inferredDataBinding)
+        : item.cardinality,
     relationType: item.relationType ?? "object_property",
     semanticType: item.semanticType ?? "association",
+    ...(dataBinding ? { dataBinding } : {}),
     isAcyclic: item.isAcyclic ?? false,
   };
+}
+
+function normalizeRelationDataBinding(
+  binding: IOntologyRelationDataBinding | undefined,
+): IOntologyRelationDataBinding | undefined {
+  if (
+    !binding ||
+    !["semantic_only", "direct", "junction"].includes(binding.mode)
+  )
+    return undefined;
+  const joinKeys = (binding.joinKeys ?? [])
+    .filter(
+      (key) =>
+        typeof key.fromAttributeId === "string" &&
+        typeof key.toAttributeId === "string",
+    )
+    .map((key) => ({
+      fromAttributeId: key.fromAttributeId,
+      toAttributeId: key.toAttributeId,
+      ...(binding.mode === "junction" && key.junctionFromFieldName
+        ? { junctionFromFieldName: key.junctionFromFieldName }
+        : {}),
+      ...(binding.mode === "junction" && key.junctionToFieldName
+        ? { junctionToFieldName: key.junctionToFieldName }
+        : {}),
+    }));
+  return {
+    mode: binding.mode,
+    joinKeys: binding.mode === "semantic_only" ? [] : joinKeys,
+    ...(binding.mode === "junction" && binding.junctionAssetId
+      ? { junctionAssetId: binding.junctionAssetId }
+      : {}),
+    ...(binding.origin === "inferred" || binding.origin === "manual"
+      ? { origin: binding.origin }
+      : {}),
+  };
+}
+
+function inferDirectRelationDataBinding(
+  fromObject: IOntologyObjectDraft,
+  toObject: IOntologyObjectDraft,
+): IOntologyRelationDataBinding | undefined {
+  const fromIdentity = preferredIdentityAttribute(fromObject);
+  const toIdentity = preferredIdentityAttribute(toObject);
+  const fromReference = findReferenceAttribute(fromObject, toObject.code);
+  const toReference = findReferenceAttribute(toObject, fromObject.code);
+  const pair =
+    toReference && fromIdentity
+      ? { fromAttributeId: fromIdentity.id, toAttributeId: toReference.id }
+      : fromReference && toIdentity
+        ? { fromAttributeId: fromReference.id, toAttributeId: toIdentity.id }
+        : undefined;
+  const isMappedPair =
+    pair &&
+    fromObject.attributes.find(
+      (attribute) => attribute.id === pair.fromAttributeId,
+    )?.mappedField &&
+    toObject.attributes.find((attribute) => attribute.id === pair.toAttributeId)
+      ?.mappedField;
+  return isMappedPair
+    ? { mode: "direct", joinKeys: [pair], origin: "inferred" }
+    : undefined;
+}
+
+function inferRelationCardinality(
+  fromObject: IOntologyObjectDraft,
+  toObject: IOntologyObjectDraft,
+  binding: IOntologyRelationDataBinding,
+): IOntologyRelationDraft["cardinality"] {
+  const key = binding.joinKeys[0];
+  const fromAttribute = fromObject.attributes.find(
+    (attribute) => attribute.id === key?.fromAttributeId,
+  );
+  const toAttribute = toObject.attributes.find(
+    (attribute) => attribute.id === key?.toAttributeId,
+  );
+  const fromIdentity = preferredIdentityAttribute(fromObject);
+  const toIdentity = preferredIdentityAttribute(toObject);
+  if (fromAttribute?.id === fromIdentity?.id) return "one_to_many";
+  if (toAttribute?.id === toIdentity?.id) return "many_to_one";
+  return "many_to_many";
+}
+
+function preferredIdentityAttribute(
+  object: IOntologyObjectDraft,
+): IOntologyAttributeDraft | undefined {
+  return (
+    object.attributes.find(
+      (attribute) => attribute.code.toLowerCase() === "id",
+    ) ?? object.attributes.find((attribute) => attribute.required)
+  );
+}
+
+function findReferenceAttribute(
+  object: IOntologyObjectDraft,
+  referencedObjectCode: string,
+): IOntologyAttributeDraft | undefined {
+  const referenced = normalizeReferenceName(referencedObjectCode);
+  return object.attributes.find((attribute) => {
+    const code = normalizeReferenceName(attribute.code);
+    return code === `${referenced}id` || code === referenced;
+  });
+}
+
+function normalizeReferenceName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .replace(/s$/, "");
+}
+
+function relationDefinitionIssue(
+  relation: IOntologyRelationDraft,
+  snapshot: IOntologyWorkbenchSnapshot,
+): string | null {
+  if (
+    (relation.relationType === "symmetric_property" ||
+      relation.relationType === "transitive_property") &&
+    relation.fromObjectId !== relation.toObjectId
+  ) {
+    return `${relation.relationType === "symmetric_property" ? "Symmetric" : "Transitive"} relations must use the same source and target object.`;
+  }
+  if (
+    relation.relationType === "functional_property" &&
+    (relation.cardinality === "one_to_many" ||
+      relation.cardinality === "many_to_many")
+  ) {
+    return "Functional relations must use one-to-one or many-to-one cardinality.";
+  }
+  const binding = relation.dataBinding;
+  if (!binding || binding.mode === "semantic_only") return null;
+  if (binding.joinKeys.length === 0)
+    return "A data-bound relation requires at least one join key.";
+  const fromObject = snapshot.objects.find(
+    (object) => object.id === relation.fromObjectId,
+  );
+  const toObject = snapshot.objects.find(
+    (object) => object.id === relation.toObjectId,
+  );
+  if (!fromObject || !toObject) return "Relation endpoints are unavailable.";
+  if (binding.mode === "junction") {
+    const asset = snapshot.assets.find(
+      (item) => item.id === binding.junctionAssetId,
+    );
+    if (!asset)
+      return "A junction relation requires an existing junction asset.";
+    for (const key of binding.joinKeys) {
+      if (
+        !asset.fields.some(
+          (field) => field.name === key.junctionFromFieldName,
+        ) ||
+        !asset.fields.some((field) => field.name === key.junctionToFieldName)
+      ) {
+        return "Junction relation fields must exist in the selected asset.";
+      }
+    }
+  }
+  const usedPairs = new Set<string>();
+  for (const key of binding.joinKeys) {
+    const fromAttribute = fromObject.attributes.find(
+      (attribute) => attribute.id === key.fromAttributeId,
+    );
+    const toAttribute = toObject.attributes.find(
+      (attribute) => attribute.id === key.toAttributeId,
+    );
+    if (!fromAttribute || !toAttribute)
+      return "Relation join keys must reference attributes on their endpoint objects.";
+    const pairKey = `${key.fromAttributeId}:${key.toAttributeId}`;
+    if (usedPairs.has(pairKey)) return "Relation join keys must be unique.";
+    usedPairs.add(pairKey);
+    if (binding.mode === "direct") {
+      if (
+        !areRelationDataTypesCompatible(
+          fromAttribute.dataType,
+          toAttribute.dataType,
+        )
+      )
+        return `Relation join attributes "${fromAttribute.name}" and "${toAttribute.name}" use incompatible data types.`;
+      continue;
+    }
+    const junctionAsset = snapshot.assets.find(
+      (asset) => asset.id === binding.junctionAssetId,
+    );
+    const junctionFromField = junctionAsset?.fields.find(
+      (field) => field.name === key.junctionFromFieldName,
+    );
+    const junctionToField = junctionAsset?.fields.find(
+      (field) => field.name === key.junctionToFieldName,
+    );
+    if (
+      !junctionFromField ||
+      !junctionToField ||
+      !areRelationDataTypesCompatible(
+        fromAttribute.dataType,
+        junctionFromField.dataType,
+      ) ||
+      !areRelationDataTypesCompatible(
+        toAttribute.dataType,
+        junctionToField.dataType,
+      )
+    )
+      return "Junction relation fields must use data types compatible with their endpoint attributes.";
+  }
+  return null;
+}
+
+function areRelationDataTypesCompatible(left: string, right: string): boolean {
+  const family = (value: string): string => {
+    const normalized = value.toLowerCase();
+    if (/int|number|decimal|float|double|numeric/.test(normalized))
+      return "number";
+    if (/date|time/.test(normalized)) return "date";
+    if (/bool/.test(normalized)) return "boolean";
+    return "string";
+  };
+  return family(left) === family(right);
+}
+
+function removeAttributeFromRelationBinding(
+  relation: IOntologyRelationDraft,
+  attributeId: string,
+): IOntologyRelationDraft {
+  if (!relation.dataBinding) return relation;
+  const joinKeys = relation.dataBinding.joinKeys.filter(
+    (key) =>
+      key.fromAttributeId !== attributeId && key.toAttributeId !== attributeId,
+  );
+  return joinKeys.length > 0
+    ? { ...relation, dataBinding: { ...relation.dataBinding, joinKeys } }
+    : omitRelationDataBinding(relation);
+}
+
+function omitRelationDataBinding(
+  relation: IOntologyRelationDraft,
+): IOntologyRelationDraft {
+  const { dataBinding: _dataBinding, ...rest } = relation;
+  return rest;
 }
 
 function normalizeLogicFunction(
   item: IOntologyLogicFunction,
 ): IOntologyLogicFunction {
+  const origin = item.origin ?? "generated";
+  const configuration = item.configuration ?? {};
   return {
     ...item,
     body: item.body ?? "",
     returnType: item.returnType ?? "unknown",
     parameters: item.parameters ?? [],
-    origin: item.origin ?? "generated",
+    configuration:
+      origin === "generated" &&
+      item.code.endsWith("_lookup") &&
+      Object.keys(configuration).length === 0
+        ? { builtIn: "lookup", objectId: item.objectIds[0] ?? "" }
+        : configuration,
+    origin,
     executionCount: item.executionCount ?? 0,
   };
 }
@@ -2008,13 +2410,43 @@ function normalizeLogicFunction(
 function normalizeActionDefinition(
   item: IOntologyActionDefinition,
 ): IOntologyActionDefinition {
+  const origin = item.origin ?? "generated";
+  const configuration = item.configuration ?? {};
+  const isLegacyGenerated =
+    origin === "generated" && Object.keys(configuration).length === 0;
+  const normalizedConfiguration = isLegacyGenerated
+    ? item.code.endsWith("_update_attribute")
+      ? { builtIn: "update_attribute", objectId: item.objectIds[0] ?? "" }
+      : item.code.endsWith("_notify_owner")
+        ? {
+            title: `${item.name}`,
+            message: `Record {{recordId}} requires attention.`,
+          }
+        : configuration
+    : configuration;
+  const generatedParameters = item.code.endsWith("_update_attribute")
+    ? [
+        { name: "recordId", type: "unknown", required: true },
+        { name: "attributeCode", type: "string", required: true },
+        { name: "value", type: "unknown", required: true },
+      ]
+    : item.code.endsWith("_notify_owner")
+      ? [{ name: "recordId", type: "string", required: true }]
+      : [];
   return {
     ...item,
     description: item.description ?? "",
-    configuration: item.configuration ?? {},
-    parameters: item.parameters ?? [],
+    configuration: normalizedConfiguration,
+    parameters:
+      origin === "generated" && (item.parameters?.length ?? 0) === 0
+        ? generatedParameters
+        : (item.parameters ?? []),
     outputSchema: item.outputSchema ?? [],
-    origin: item.origin ?? "generated",
+    origin,
+    status:
+      isLegacyGenerated && item.code.endsWith("_update_attribute")
+        ? "draft"
+        : (item.status ?? "active"),
     executionCount: item.executionCount ?? 0,
   };
 }
@@ -2460,6 +2892,7 @@ function createRelationsFromTemplateAssets(
       const from = objectByCode.get(toCode(definition.from));
       const to = objectByCode.get(toCode(definition.to));
       if (!from || !to) return [];
+      const dataBinding = inferDirectRelationDataBinding(from, to);
       return [
         {
           id: randomUUID(),
@@ -2470,6 +2903,7 @@ function createRelationsFromTemplateAssets(
           cardinality: definition.cardinality,
           relationType: "object_property" as const,
           semanticType: "association" as const,
+          ...(dataBinding ? { dataBinding } : {}),
           isAcyclic: false,
           description: definition.description,
           reviewDecision: "pending" as const,
@@ -2565,17 +2999,23 @@ function createRelationsFromObjects(
   for (let i = 0; i < objects.length - 1; i += 1) {
     const from = objects[i];
     const to = objects[i + 1];
+    const dataBinding = inferDirectRelationDataBinding(from, to);
     relations.push({
       id: randomUUID(),
       code: `${from.code}_to_${to.code}`,
       name: `${from.name} to ${to.name}`,
       fromObjectId: from.id,
       toObjectId: to.id,
-      cardinality: "one_to_many",
+      cardinality: dataBinding
+        ? inferRelationCardinality(from, to, dataBinding)
+        : "one_to_many",
       relationType: "object_property",
       semanticType: "association",
+      ...(dataBinding ? { dataBinding } : {}),
       isAcyclic: false,
-      description: `Generated relation between ${from.name} and ${to.name}.`,
+      description: dataBinding
+        ? `Generated field-bound relation between ${from.name} and ${to.name}.`
+        : `Generated relation between ${from.name} and ${to.name}.`,
       reviewDecision: "pending",
       updatedAt: now,
     });
@@ -2756,6 +3196,7 @@ function createLogicFunctions(
     parameters: [
       { name: "query", type: "object", required: true, objectId: object.id },
     ],
+    configuration: { builtIn: "lookup", objectId: object.id },
     origin: "generated",
     status: "active",
     executionCount: 0,
@@ -2807,11 +3248,42 @@ function createActionDefinitions(
       executor: "function" as const,
       objectIds: [object.id],
       description: `Update an approved attribute on ${object.name}.`,
-      configuration: {},
-      parameters: [],
-      outputSchema: [],
+      configuration: {
+        builtIn: "update_attribute",
+        objectId: object.id,
+      },
+      parameters: [
+        {
+          name: "recordId",
+          type: "unknown",
+          required: true,
+          description: "Identity value of the record to update.",
+          objectId: object.id,
+        },
+        {
+          name: "attributeCode",
+          type: "string",
+          required: true,
+          description: "Ontology attribute code to update.",
+          objectId: object.id,
+        },
+        {
+          name: "value",
+          type: "unknown",
+          required: true,
+          description: "New attribute value.",
+          objectId: object.id,
+        },
+      ],
+      outputSchema: [
+        {
+          name: "changes",
+          type: "number",
+          description: "Number of updated rows.",
+        },
+      ],
       origin: "generated" as const,
-      status: "active" as const,
+      status: "draft" as const,
       executionCount: 0,
       updatedAt: now,
     },
@@ -2822,9 +3294,26 @@ function createActionDefinitions(
       executor: "notification" as const,
       objectIds: [object.id],
       description: `Notify the owner of ${object.name}.`,
-      configuration: {},
-      parameters: [],
-      outputSchema: [],
+      configuration: {
+        title: `${object.name} notification`,
+        message: `${object.name} {{recordId}} requires attention.`,
+      },
+      parameters: [
+        {
+          name: "recordId",
+          type: "string",
+          required: true,
+          description: "Identity value shown in the notification.",
+          objectId: object.id,
+        },
+      ],
+      outputSchema: [
+        {
+          name: "delivered",
+          type: "boolean",
+          description: "Whether the desktop notification was delivered.",
+        },
+      ],
       origin: "generated" as const,
       status: "active" as const,
       executionCount: 0,
@@ -2869,11 +3358,12 @@ function createServiceEndpoints(
   snapshot: IOntologyWorkbenchSnapshot,
   now: number,
 ): IOntologyServiceEndpoint[] {
-  const toolCount =
-    snapshot.objects.length +
-    snapshot.relations.length +
-    snapshot.logicFunctions.length +
-    snapshot.actions.length;
+  const runtimeToolCount =
+    snapshot.logicFunctions.filter((item) => item.status === "active").length +
+    snapshot.actions.filter((item) => item.status === "active").length +
+    snapshot.relations.filter(
+      (item) => item.dataBinding && item.dataBinding.mode !== "semantic_only",
+    ).length;
   return [
     {
       id:
@@ -2882,8 +3372,8 @@ function createServiceEndpoints(
         )?.id ?? randomUUID(),
       name: "Ontology MCP Tools",
       protocol: "mcp",
-      status: toolCount > 0 ? "active" : "draft",
-      toolCount,
+      status: snapshot.objects.length > 0 ? "active" : "draft",
+      toolCount: 6 + runtimeToolCount,
       updatedAt: now,
     },
     {
@@ -2904,8 +3394,8 @@ function createServiceEndpoints(
         )?.id ?? randomUUID(),
       name: "Ontology Runtime API",
       protocol: "api",
-      status: snapshot.agentBlueprints.length > 0 ? "active" : "draft",
-      toolCount: snapshot.agentBlueprints.length,
+      status: runtimeToolCount > 0 ? "active" : "draft",
+      toolCount: runtimeToolCount,
       updatedAt: now,
     },
   ];
@@ -3055,6 +3545,12 @@ function removeAssetsFromSnapshot(
   );
   snapshot.mappings = snapshot.mappings.filter(
     (mapping) => !removedIds.has(mapping.assetId),
+  );
+  snapshot.relations = snapshot.relations.map((relation) =>
+    relation.dataBinding?.junctionAssetId &&
+    removedIds.has(relation.dataBinding.junctionAssetId)
+      ? omitRelationDataBinding(relation)
+      : relation,
   );
   snapshot.objects = snapshot.objects.map((object) => ({
     ...object,
@@ -3291,6 +3787,53 @@ function checkConsistency(
         targetType: "relation",
         targetId: relation.id,
       });
+      continue;
+    }
+    const definitionIssue = relationDefinitionIssue(relation, snapshot);
+    if (definitionIssue) {
+      issues.push({
+        id: randomUUID(),
+        severity: "error",
+        message: `Relation "${relation.name}" is invalid: ${definitionIssue}`,
+        targetType: "relation",
+        targetId: relation.id,
+      });
+      continue;
+    }
+    if (
+      !relation.dataBinding ||
+      relation.dataBinding.mode === "semantic_only"
+    ) {
+      issues.push({
+        id: randomUUID(),
+        severity: "warning",
+        message: `Relation "${relation.name}" is semantic-only and cannot query related records.`,
+        targetType: "relation",
+        targetId: relation.id,
+      });
+      continue;
+    }
+    const hasUnmappedJoinAttribute = relation.dataBinding.joinKeys.some(
+      (key) =>
+        runtimeAttributeAssetIds(
+          snapshot,
+          relation.fromObjectId,
+          key.fromAttributeId,
+        ).length === 0 ||
+        runtimeAttributeAssetIds(
+          snapshot,
+          relation.toObjectId,
+          key.toAttributeId,
+        ).length === 0,
+    );
+    if (hasUnmappedJoinAttribute) {
+      issues.push({
+        id: randomUUID(),
+        severity: "error",
+        message: `Relation "${relation.name}" has join attributes without field mappings.`,
+        targetType: "relation",
+        targetId: relation.id,
+      });
     }
   }
   for (const mapping of snapshot.mappings) {
@@ -3323,11 +3866,26 @@ function checkConsistency(
     }
   }
   for (const rule of snapshot.qualityRules) {
-    if (!snapshot.objects.some((object) => object.id === rule.objectId)) {
+    const object = snapshot.objects.find((item) => item.id === rule.objectId);
+    if (!object) {
       issues.push({
         id: randomUUID(),
         severity: "error",
         message: `Quality rule "${rule.name}" is bound to a missing object.`,
+        targetType: "object",
+        targetId: rule.objectId,
+      });
+      continue;
+    }
+    const expressionValidation = validateQualityRuleExpression(
+      rule.expression,
+      object.attributes.map((attribute) => attribute.code),
+    );
+    if (!expressionValidation.isValid) {
+      issues.push({
+        id: randomUUID(),
+        severity: "error",
+        message: `Quality rule "${rule.name}" has an invalid expression: ${expressionValidation.errorMessage}`,
         targetType: "object",
         targetId: rule.objectId,
       });
@@ -3346,6 +3904,19 @@ function checkConsistency(
         targetId: missingObjectIds[0],
       });
     }
+    const configurationIssue = runtimeFunctionConfigurationIssue(
+      logicFunction,
+      snapshot,
+    );
+    if (logicFunction.status === "active" && configurationIssue) {
+      issues.push({
+        id: randomUUID(),
+        severity: "error",
+        message: `Logic function "${logicFunction.name}" is not executable: ${configurationIssue}`,
+        targetType: "logic",
+        targetId: logicFunction.id,
+      });
+    }
   }
   for (const action of snapshot.actions) {
     const missingObjectIds = action.objectIds.filter(
@@ -3358,6 +3929,19 @@ function checkConsistency(
         message: `Action "${action.name}" references missing ontology objects.`,
         targetType: "object",
         targetId: missingObjectIds[0],
+      });
+    }
+    const configurationIssue = runtimeActionConfigurationIssue(
+      action,
+      snapshot,
+    );
+    if (action.status === "active" && configurationIssue) {
+      issues.push({
+        id: randomUUID(),
+        severity: "error",
+        message: `Action "${action.name}" is not executable: ${configurationIssue}`,
+        targetType: "action",
+        targetId: action.id,
       });
     }
   }
@@ -3377,6 +3961,184 @@ function checkConsistency(
     checkedAt: Date.now(),
     issues,
   };
+}
+
+function runtimeFunctionConfigurationIssue(
+  logicFunction: IOntologyLogicFunction,
+  snapshot: IOntologyWorkbenchSnapshot,
+): string | null {
+  const parameterIssue = runtimeParameterIssue(logicFunction.parameters);
+  if (parameterIssue) return parameterIssue;
+  if (logicFunction.configuration.builtIn === "lookup") return null;
+  if (!logicFunction.body.trim()) return "implementation body is required";
+  if (
+    logicFunction.runtime === "sql" &&
+    !/^\s*SELECT\b/i.test(logicFunction.body)
+  ) {
+    return "SQL logic functions must use a SELECT statement";
+  }
+  if (
+    logicFunction.runtime === "sql" &&
+    !runtimeConnectorForArtifact(
+      snapshot,
+      logicFunction.objectIds,
+      logicFunction.configuration.connectorId,
+    )
+  ) {
+    return "a database connector could not be resolved";
+  }
+  return null;
+}
+
+function runtimeActionConfigurationIssue(
+  action: IOntologyActionDefinition,
+  snapshot: IOntologyWorkbenchSnapshot,
+): string | null {
+  const parameterIssue = runtimeParameterIssue(action.parameters);
+  if (parameterIssue) return parameterIssue;
+  const config = action.configuration;
+  if (action.executor === "function") {
+    if (config.builtIn === "update_attribute") {
+      const object = snapshot.objects.find(
+        (item) => item.id === action.objectIds[0],
+      );
+      if (!object) return "an object binding is required";
+      const identityAttribute =
+        object.attributes.find((attribute) => attribute.code === "id") ??
+        object.attributes.find((attribute) => attribute.required);
+      if (!identityAttribute)
+        return "an id or required identity attribute is required";
+      const identityAssetIds = new Set(
+        runtimeAttributeAssetIds(snapshot, object.id, identityAttribute.id),
+      );
+      const hasWritableAsset = object.attributes.some(
+        (attribute) =>
+          attribute.id !== identityAttribute.id &&
+          runtimeAttributeAssetIds(snapshot, object.id, attribute.id).some(
+            (assetId) => {
+              if (!identityAssetIds.has(assetId)) return false;
+              const asset = snapshot.assets.find((item) => item.id === assetId);
+              const connectorId =
+                typeof asset?.metadata.connectorId === "string"
+                  ? asset.metadata.connectorId
+                  : undefined;
+              return snapshot.connectors.some(
+                (connector) =>
+                  connector.id === connectorId && connector.writable === true,
+              );
+            },
+          ),
+      );
+      if (!hasWritableAsset)
+        return "identity and target attributes must share a writable database asset";
+      return null;
+    }
+    const functionCode =
+      typeof config.functionCode === "string" ? config.functionCode.trim() : "";
+    if (!functionCode) return "configuration.functionCode is required";
+    if (
+      !snapshot.logicFunctions.some(
+        (item) => item.code === functionCode && item.status === "active",
+      )
+    )
+      return `active logic function "${functionCode}" does not exist`;
+    return null;
+  }
+  if (action.executor === "api") {
+    if (typeof config.url !== "string" || !config.url.trim())
+      return "configuration.url is required";
+    if (!config.url.includes("{{")) {
+      try {
+        const url = new URL(config.url);
+        if (url.protocol !== "http:" && url.protocol !== "https:")
+          return "configuration.url must use HTTP or HTTPS";
+      } catch {
+        return "configuration.url is invalid";
+      }
+    }
+    return null;
+  }
+  if (action.executor === "sql") {
+    if (typeof config.statement !== "string" || !config.statement.trim())
+      return "configuration.statement is required";
+    const connector = runtimeConnectorForArtifact(
+      snapshot,
+      action.objectIds,
+      config.connectorId,
+    );
+    if (!connector) return "a database connector could not be resolved";
+    const command = /^\s*([A-Za-z]+)/
+      .exec(config.statement)?.[1]
+      ?.toUpperCase();
+    if (!["SELECT", "INSERT", "UPDATE", "DELETE"].includes(command ?? ""))
+      return "only SELECT, INSERT, UPDATE, and DELETE are supported";
+    if (command !== "SELECT" && connector.writable !== true)
+      return "SQL writes require a connector marked writable";
+    return null;
+  }
+  if (action.executor === "notification") {
+    if (typeof config.message !== "string" || !config.message.trim())
+      return "configuration.message is required";
+    return null;
+  }
+  if (typeof config.command !== "string" || !path.isAbsolute(config.command))
+    return "configuration.command must be an absolute path";
+  return null;
+}
+
+function runtimeAttributeAssetIds(
+  snapshot: IOntologyWorkbenchSnapshot,
+  objectId: string,
+  attributeId: string,
+): string[] {
+  const object = snapshot.objects.find((item) => item.id === objectId);
+  const mappedField = object?.attributes.find(
+    (attribute) => attribute.id === attributeId,
+  )?.mappedField;
+  return [
+    ...(mappedField ? [mappedField.assetId] : []),
+    ...snapshot.mappings
+      .filter(
+        (mapping) =>
+          mapping.objectId === objectId &&
+          mapping.attributeId === attributeId &&
+          mapping.status !== "rejected",
+      )
+      .map((mapping) => mapping.assetId),
+  ];
+}
+
+function runtimeConnectorForArtifact(
+  snapshot: IOntologyWorkbenchSnapshot,
+  objectIds: string[],
+  configuredConnectorId: OntologyJsonValue | undefined,
+): IOntologyConnectorConfig | undefined {
+  if (typeof configuredConnectorId === "string")
+    return snapshot.connectors.find(
+      (connector) => connector.id === configuredConnectorId,
+    );
+  const assetId = snapshot.mappings.find(
+    (mapping) =>
+      objectIds.includes(mapping.objectId) && mapping.status !== "rejected",
+  )?.assetId;
+  const asset = snapshot.assets.find((item) => item.id === assetId);
+  const connectorId =
+    typeof asset?.metadata.connectorId === "string"
+      ? asset.metadata.connectorId
+      : undefined;
+  return snapshot.connectors.find((connector) => connector.id === connectorId);
+}
+
+function runtimeParameterIssue(
+  parameters: IOntologyLogicFunction["parameters"],
+): string | null {
+  const names = parameters.map((parameter) => parameter.name.trim());
+  if (names.some((name) => !name)) return "parameter names are required";
+  if (names.some((name) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)))
+    return "parameter names must use letters, digits, and underscores";
+  if (new Set(names).size !== names.length)
+    return "parameter names must be unique";
+  return null;
 }
 
 function stripExtension(name: string): string {

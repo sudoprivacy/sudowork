@@ -138,7 +138,7 @@
   },
   "generate": {
     "title": "本体生成",
-    "description": "基于业务目标和已选择资产生成对象、属性和关系草稿。",
+    "description": "定义对象间语义关系，并通过字段直连或中间表配置可执行的数据关联。",
     "summary": "{{objects}} 个对象，{{relations}} 个关系",
     "action": "生成本体草稿",
     "emptyObjects": "暂无对象，请先新增对象",
@@ -151,7 +151,8 @@
       "actions": "操作",
       "relation": "关系",
       "endpoints": "端点",
-      "relationSemantics": "基数 / 语义"
+      "relationSemantics": "基数 / 语义",
+      "relationBinding": "字段关联"
     }
   },
   "review": {
@@ -209,15 +210,50 @@
     "acyclic": "无环关系",
     "objectStatus": { "active": "正常", "warning": "警告", "error": "错误" },
     "relationType": { "object_property": "对象属性", "symmetric_property": "对称属性", "transitive_property": "传递属性", "functional_property": "函数属性" },
+    "relationTypeHint": {
+      "object_property": "普通有向业务关系，适合大多数外键关联。",
+      "symmetric_property": "双向关系，反向查询与正向等价。",
+      "transitive_property": "同类对象间可递归传递的层级关系，运行时会按最大深度展开。",
+      "functional_property": "每个源对象最多关联一个目标对象，仅适用于一对一或多对一。"
+    },
     "semanticType": { "composition": "组合", "event": "事件", "inheritance": "继承", "dependency": "依赖", "association": "关联" },
+    "semanticTypeHint": {
+      "composition": "整体与组成部分的强归属关系，通常应保持无环。",
+      "event": "对象与业务事件之间的参与或触发关系。",
+      "inheritance": "子类型到父类型的继承关系，通常只表达语义。",
+      "dependency": "源对象依赖目标对象存在或提供能力。",
+      "association": "默认业务关联，不附加额外生命周期语义。"
+    },
     "dataType": "数据类型",
     "required": "必填",
     "expression": "规则表达式",
+    "expressionHint": "使用属性编码和类 SQL 运算符（=、!=、>、>=、<、<=、IS NULL、IN、LIKE、AND、OR、NOT）。可用属性：{{attributes}}",
+    "expressionInvalid": "请输入有效的类 SQL 条件表达式。",
+    "expressionUnknownAttribute": "未知的属性编码：{{attribute}}",
+    "expressionNoAttributes": "无",
     "fromObject": "源对象",
     "toObject": "目标对象",
     "cardinalityLabel": "关系基数",
     "relationTypeLabel": "关系类型",
     "semanticTypeLabel": "语义类型",
+    "relationBindingMode": "数据关联方式",
+    "relationBinding": {
+      "semantic_only": "仅语义关系",
+      "direct": "字段直接关联",
+      "junction": "通过中间表关联"
+    },
+    "relationBindingHint": {
+      "semantic_only": "仅用于图谱和语义描述，不执行跨对象数据查询。",
+      "direct": "通过源对象属性与目标对象属性的字段映射进行等值关联。",
+      "junction": "通过一个中间数据资产连接源对象与目标对象，适用于多对多关系。"
+    },
+    "relationJunctionAsset": "中间数据资产",
+    "relationJoinKeys": "字段关联条件",
+    "relationFromAttribute": "源对象属性",
+    "relationToAttribute": "目标对象属性",
+    "relationJunctionFromField": "中间表源字段",
+    "relationJunctionToField": "中间表目标字段",
+    "addRelationJoinKey": "新增联合字段",
     "mappingObject": "本体对象",
     "mappingAttribute": "对象属性",
     "mappingAsset": "数据资产",
@@ -343,6 +379,7 @@
     "description": "管理本体属性到资产字段的水合映射，并生成发布前质量规则。",
     "mappings": "字段映射",
     "qualityRules": "质量规则",
+    "runQualityRules": "运行规则",
     "documents": "业务文档",
     "connections": "连接画像",
     "emptyMappings": "暂无字段映射，导入带字段的资产后生成草稿",
@@ -351,6 +388,30 @@
       "field": "资产字段",
       "confidence": "置信度",
       "strategy": "策略"
+    }
+  },
+  "relationRuntime": {
+    "runTitle": "运行关系 {{name}}",
+    "semanticOnly": "仅语义关系",
+    "toolDescription": "通过字段关联遍历关系 {{name}}。",
+    "argumentsHint": "query 按起点对象属性过滤；direction 支持 forward/reverse；传递关系可设置 maxDepth。每端最多读取前 {{limit}} 行。"
+  },
+  "qualityRuleRun": {
+    "title": "质量规则执行结果",
+    "summary": "已检查 {{evaluated}} 行，其中 {{failed}} 行不符合{{sample}}",
+    "sampled": "（最多抽样前 {{limit}} 行）",
+    "status": {
+      "passed": "通过",
+      "failed": "不通过",
+      "skipped": "已跳过",
+      "error": "执行错误"
+    },
+    "reason": {
+      "invalid_expression": "规则表达式无效。",
+      "unmapped_attributes": "部分引用属性尚未映射到资产字段。",
+      "multiple_assets": "引用属性无法从同一个资产中执行校验。",
+      "asset_unavailable": "无法读取已映射的数据资产。",
+      "field_unavailable": "资产预览中缺少已映射字段。"
     }
   },
   "mappingStrategy": {
@@ -573,6 +634,11 @@
     "emptyDocuments": "暂无业务文档",
     "copy": "复制",
     "copied": "端点配置已复制",
+    "run": "运行",
+    "runTitle": "运行 {{name}}",
+    "argumentsJson": "参数（JSON 对象）",
+    "executionResult": "执行结果 · {{duration}} 毫秒",
+    "executionCount": "已运行 {{count}} 次",
     "detailTitle": "{{name}} 详情",
     "toolCount": "{{count}} 个工具",
     "summary": "{{functions}} 个函数，{{actions}} 个动作定义",
@@ -585,11 +651,20 @@
     "boundObjects": "绑定对象",
     "signature": "函数签名",
     "parametersJson": "参数（JSON 数组）",
+    "outputSchemaJson": "输出结构（JSON 数组）",
     "body": "实现代码",
     "executor": "执行器",
     "configurationJson": "配置（JSON 对象）",
     "invalidParameters": "参数必须是有效的 JSON 数组。",
     "invalidConfiguration": "配置必须是有效的 JSON 对象。",
+    "invalidOutputSchema": "输出结构必须是有效的 JSON 数组。",
+    "invalidArguments": "运行参数必须是有效的 JSON 对象。",
+    "logicConfigurationHint": "自动查询函数使用 {\"builtIn\":\"lookup\"}；SQL 函数可通过 {\"connectorId\":\"...\"} 指定连接。",
+    "logicBodyHints": {
+      "typescript": "填写兼容 JavaScript 的函数体；从 input 或 params 读取参数，并返回可序列化为 JSON 的值。",
+      "python": "填写 Python 语句；从 input 或 params 读取参数，并将可序列化为 JSON 的输出赋给 result。",
+      "sql": "填写单条只读 SELECT 语句，使用 {{parameter}} 占位符传入参数。"
+    },
     "deleteFunctionTitle": "删除逻辑函数",
     "deleteFunctionContent": "确认删除逻辑函数 {{name}}？",
     "deleteActionTitle": "删除动作",
@@ -600,6 +675,13 @@
       "sql": "SQL 执行",
       "notification": "通知",
       "custom_script": "自定义脚本"
+    },
+    "actionConfigurationHints": {
+      "function": "使用 {\"functionCode\":\"...\"} 调用逻辑函数。",
+      "api": "使用 {\"url\":\"https://...\",\"method\":\"POST\",\"headers\":{},\"body\":{}}；值中可使用 {{parameter}} 占位符。",
+      "sql": "使用 {\"connectorId\":\"...\",\"statement\":\"UPDATE ... WHERE id = {{recordId}}\"}；写操作要求连接已开启可写。",
+      "notification": "使用 {\"title\":\"...\",\"message\":\"... {{parameter}}\"}。",
+      "custom_script": "使用可执行文件绝对路径：{\"command\":\"/...\",\"args\":[\"{{parameter}}\"]}；参数还会以 JSON 写入标准输入。"
     }
   },
   "publish": {
@@ -752,6 +834,9 @@
     "actionToolDescription": "执行 {{executor}} 动作。",
     "paramDescriptions": {
       "query": "查询语句或自然语言问题。",
+      "relationQuery": "起点对象的属性过滤条件。",
+      "direction": "遍历方向：forward 或 reverse。",
+      "maxDepth": "传递关系的最大遍历深度。",
       "limit": "返回结果数量限制。",
       "scope": "能力范围。",
       "args": "函数入参对象。",
@@ -762,6 +847,7 @@
       "query": "搜索本体对象、关系、逻辑、动作和质量规则。",
       "overview": "查看已发布本体及其资源数量。",
       "object": "查看单个对象及属性、关系、映射和质量规则。",
+      "relations": "列出关系定义、关系基数、语义类型和字段关联配置。",
       "logic": "列出已发布本体中的逻辑函数。",
       "actions": "列出动作定义，但不执行动作。",
       "capabilities": "查看当前本体服务暴露的能力和工具清单。"
@@ -880,7 +966,7 @@
     "sessionTitle": "AI 构建 · {{title}}",
     "initialPrompt": "请以「本体智能构建助手」的角色协助我完成本体「{{title}}」的构建。先调用 ontology_get_snapshot 了解当前状态，然后按 明确目标 → 确认数据资产 → 抽取对象/关系 → 补齐映射与质量规则 → 一致性校验 → 发布 → 生成 Agent 的顺序推进，每一步都用相应的 ontology_* 工具真正落到数据库里。",
     "initialPromptGoalLine": "业务目标：{{goal}}",
-    "presetContext": "你正在通过 SudoWork 本体工作台的「AI 构建」入口帮助用户构建本体「{{title}}」（workspace_id: {{workspaceId}}）。\n\n**关键规则**：你必须使用 `ontology-builder` MCP 提供的 `ontology_*` 工具真实地在数据库中创建/修改对象、属性、关系、映射、质量规则、逻辑函数与动作。所有写操作都会同步反映在用户看到的本体工作台 UI 中；只在聊天里描述结构而不调工具，用户是看不到任何变化的。\n\n**可用工具**：ontology_get_snapshot, ontology_update_draft, ontology_upsert_object, ontology_upsert_attribute, ontology_upsert_relation, ontology_upsert_mapping, ontology_upsert_quality_rule, ontology_upsert_logic_function, ontology_upsert_action, ontology_generate_draft_from_assets, ontology_run_consistency_check, ontology_publish_current_draft, ontology_create_agent_blueprint, ontology_register_agent_blueprint。\n\n**工作流**：\n1. 会话开始时先 ontology_get_snapshot 摸清当前状态。\n2. 若用户没描述业务目标，主动询问；确认后 ontology_update_draft 存下来。\n3. 抽取对象：优先用 ontology_upsert_object 逐个创建（同时可批量并行调用），name 用中文，code 用 snake_case。\n4. 为每个对象加属性：ontology_upsert_attribute（必带 objectId、name、dataType）；如已知资产字段，顺手绑 mappedField。\n5. 建立对象间关系：ontology_upsert_relation。\n6. 补映射与质量规则。\n7. 完成后 ontology_run_consistency_check；若 isValid=false，读 issues[] 修复并再校验。\n8. **审阅由用户人工完成**：告诉用户「请打开工作台预览并点击'全部通过'」，你不能自动 approve。\n9. 用户确认审阅通过后再 ontology_publish_current_draft。\n10. 发布成功后可 ontology_create_agent_blueprint + ontology_register_agent_blueprint。\n\n每次调工具都用 workspace_id: \"{{workspaceId}}\" 参数（除非用户明确切换本体）。回复保持简洁：一段话说明这一轮做了什么、下一步建议。",
+    "presetContext": "你正在通过 SudoWork 本体工作台的「AI 构建」入口帮助用户构建本体「{{title}}」（workspace_id: {{workspaceId}}）。\n\n**关键规则**：你必须使用 `ontology-builder` MCP 提供的 `ontology_*` 工具真实地在数据库中创建/修改对象、属性、关系、映射、质量规则、逻辑函数与动作。所有写操作都会同步反映在用户看到的本体工作台 UI 中；只在聊天里描述结构而不调工具，用户是看不到任何变化的。\n\n**可用工具**：ontology_get_snapshot, ontology_update_draft, ontology_upsert_object, ontology_upsert_attribute, ontology_upsert_relation, ontology_upsert_mapping, ontology_upsert_quality_rule, ontology_upsert_logic_function, ontology_upsert_action, ontology_execute_logic_function, ontology_execute_relation, ontology_execute_action, ontology_generate_draft_from_assets, ontology_run_consistency_check, ontology_publish_current_draft, ontology_create_agent_blueprint, ontology_register_agent_blueprint。\n\n**工作流**：\n1. 会话开始时先 ontology_get_snapshot 摸清当前状态。\n2. 若用户没描述业务目标，主动询问；确认后 ontology_update_draft 存下来。\n3. 抽取对象：优先用 ontology_upsert_object 逐个创建（同时可批量并行调用），name 用中文，code 用 snake_case。\n4. 为每个对象加属性：ontology_upsert_attribute（必带 objectId、name、dataType）；如已知资产字段，顺手绑 mappedField。\n5. 建立对象间关系：ontology_upsert_relation；能确定关联键时配置 direct dataBinding，多对多中间表场景配置 junction dataBinding，纯业务语义才使用 semantic_only。\n6. 补映射与质量规则，并在发布前使用测试参数执行新增的逻辑函数、字段关系和动作。\n7. 完成后 ontology_run_consistency_check；若 isValid=false，读 issues[] 修复并再校验。\n8. **审阅由用户人工完成**：告诉用户「请打开工作台预览并点击'全部通过'」，你不能自动 approve。\n9. 用户确认审阅通过后再 ontology_publish_current_draft。\n10. 发布成功后可 ontology_create_agent_blueprint + ontology_register_agent_blueprint。\n\n每次调工具都用 workspace_id: \"{{workspaceId}}\" 参数（除非用户明确切换本体）。回复保持简洁：一段话说明这一轮做了什么、下一步建议。",
     "modal": {
       "title": "开始新的 AI 构建",
       "confirm": "开始",

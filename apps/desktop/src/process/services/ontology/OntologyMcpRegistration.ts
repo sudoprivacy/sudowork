@@ -27,11 +27,12 @@ export async function installOntologyMcpServer(input: IOntologyMcpRegistrationIn
   if (!existsSync(scriptPath)) throw new Error('Ontology MCP server bundle is unavailable. Rebuild the desktop resources and try again.');
   const nodePath = getNodeBinaryPath();
   if (!existsSync(nodePath)) throw new Error('Sudowork Node runtime is unavailable.');
+  const bridge = await ensureOntologyWriteBridge();
   const now = Date.now();
   const server: IMcpServer = {
     id: ontologyMcpServerName(input.blueprintId),
     name: ontologyMcpServerName(input.blueprintId),
-    description: `Read-only tools for ontology ${input.workspaceId} version ${input.versionId}.`,
+    description: `Ontology query, logic, and action tools for ${input.workspaceId} version ${input.versionId}.`,
     enabled: true,
     status: 'disconnected',
     transport: {
@@ -41,6 +42,9 @@ export async function installOntologyMcpServer(input: IOntologyMcpRegistrationIn
       env: {
         ONTOLOGY_EXPORT_FILE: input.exportFile,
         ONTOLOGY_VERSION_ID: input.versionId,
+        ONTOLOGY_RUNTIME_BASE_URL: `http://127.0.0.1:${bridge.port}`,
+        ONTOLOGY_RUNTIME_TOKEN: bridge.token,
+        ONTOLOGY_WORKSPACE_ID: input.workspaceId,
       },
     },
     createdAt: now,

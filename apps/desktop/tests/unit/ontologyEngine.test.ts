@@ -89,6 +89,181 @@ async function createDocumentWorkbench() {
 }
 
 describe('OntologyEngine document extraction', () => {
+  it('rejects quality rule expressions with invalid syntax or unknown object attributes', async () => {
+    const engine = new OntologyEngine(new MemoryOntologyRepository());
+    const snapshot = await engine.upsertObject({ name: 'Transaction', code: 'transaction' });
+    const withAmount = await engine.upsertAttribute({
+      objectId: snapshot.objects[0].id,
+      name: 'Amount',
+      code: 'amount',
+      dataType: 'number',
+    });
+
+    await expect(
+      engine.upsertQualityRule({
+        objectId: withAmount.objects[0].id,
+        name: 'Positive amount',
+        expression: 'amount >',
+        severity: 'error',
+      })
+    ).rejects.toThrow(/Expected an attribute or literal value/);
+    await expect(
+      engine.upsertQualityRule({
+        objectId: withAmount.objects[0].id,
+        name: 'Known attribute',
+        expression: 'missing > 0',
+        severity: 'error',
+      })
+    ).rejects.toThrow(/Unknown ontology attribute "missing"/);
+    await expect(
+      engine.upsertQualityRule({
+        objectId: withAmount.objects[0].id,
+        name: 'Positive amount',
+        expression: 'amount > 0',
+        severity: 'error',
+      })
+    ).resolves.toMatchObject({ qualityRules: [expect.objectContaining({ expression: 'amount > 0' })] });
+  });
+
+  it('rejects active runtime artifacts that have no executable implementation', async () => {
+    const engine = new OntologyEngine(new MemoryOntologyRepository());
+    const snapshot = await engine.upsertObject({ name: 'Customer', code: 'customer' });
+
+    await expect(
+      engine.upsertLogicFunction({
+        name: 'Empty Logic',
+        runtime: 'typescript',
+        objectIds: [snapshot.objects[0].id],
+        body: '',
+      })
+    ).rejects.toThrow(/implementation body is required/);
+    await expect(
+      engine.upsertAction({
+        name: 'Empty Notification',
+        executor: 'notification',
+        objectIds: [snapshot.objects[0].id],
+        configuration: {},
+      })
+    ).rejects.toThrow(/configuration\.message is required/);
+    await expect(
+      engine.upsertLogicFunction({
+        name: 'Draft Logic',
+        runtime: 'typescript',
+        objectIds: [snapshot.objects[0].id],
+        body: '',
+        status: 'draft',
+      })
+    ).resolves.toMatchObject({ logicFunctions: expect.arrayContaining([expect.objectContaining({ name: 'Draft Logic', status: 'draft' })]) });
+  });
+
+  it('validates field-level relation bindings and relation semantics', async () => {
+    const engine = new OntologyEngine(new MemoryOntologyRepository());
+    let snapshot = await engine.upsertObject({ name: 'Customer', code: 'customer' });
+    const customerId = snapshot.objects[0].id;
+    snapshot = await engine.upsertAttribute({ objectId: customerId, name: 'ID', code: 'id', dataType: 'string', required: true });
+    snapshot = await engine.upsertObject({ name: 'Order', code: 'order' });
+    const orderId = snapshot.objects.find((object) => object.code === 'order')!.id;
+    snapshot = await engine.upsertAttribute({ objectId: orderId, name: 'Customer ID', code: 'customer_id', dataType: 'string', required: true });
+    const customerAttributeId = snapshot.objects.find((object) => object.id === customerId)!.attributes[0].id;
+    const orderAttributeId = snapshot.objects.find((object) => object.id === orderId)!.attributes[0].id;
+
+    const withRelation = await engine.upsertRelation({
+      name: 'Customer Orders',
+      fromObjectId: customerId,
+      toObjectId: orderId,
+      cardinality: 'one_to_many',
+      relationType: 'object_property',
+      semanticType: 'association',
+      dataBinding: {
+        mode: 'direct',
+        joinKeys: [{ fromAttributeId: customerAttributeId, toAttributeId: orderAttributeId }],
+      },
+    });
+    expect(withRelation.relations[0].dataBinding).toEqual({
+      mode: 'direct',
+      joinKeys: [{ fromAttributeId: customerAttributeId, toAttributeId: orderAttributeId }],
+      origin: 'manual',
+    });
+
+    await expect(
+      engine.upsertRelation({
+        name: 'Broken Join',
+        fromObjectId: customerId,
+        toObjectId: orderId,
+        cardinality: 'one_to_many',
+        dataBinding: { mode: 'direct', joinKeys: [{ fromAttributeId: 'missing', toAttributeId: orderAttributeId }] },
+      })
+    ).rejects.toThrow(/join keys must reference attributes/);
+    await expect(
+      engine.upsertRelation({
+        name: 'Invalid Functional Relation',
+        fromObjectId: customerId,
+        toObjectId: orderId,
+        cardinality: 'one_to_many',
+        relationType: 'functional_property',
+      })
+    ).rejects.toThrow(/one-to-one or many-to-one/);
+    await expect(
+      engine.upsertRelation({
+        name: 'Invalid Transitive Relation',
+        fromObjectId: customerId,
+        toObjectId: orderId,
+        cardinality: 'many_to_many',
+        relationType: 'transitive_property',
+      })
+    ).rejects.toThrow(/same source and target object/);
+    for (const semanticType of ['association', 'composition', 'event', 'inheritance', 'dependency'] as const) {
+      await expect(
+        engine.upsertRelation({
+          code: `semantic_${semanticType}`,
+          name: `Semantic ${semanticType}`,
+          fromObjectId: customerId,
+          toObjectId: orderId,
+          cardinality: 'one_to_many',
+          relationType: 'object_property',
+          semanticType,
+          dataBinding: { mode: 'semantic_only', joinKeys: [] },
+        })
+      ).resolves.toEqual(expect.objectContaining({ relations: expect.arrayContaining([expect.objectContaining({ semanticType })]) }));
+    }
+    await expect(
+      engine.upsertRelation({
+        name: 'Functional Customer Order',
+        fromObjectId: customerId,
+        toObjectId: orderId,
+        cardinality: 'many_to_one',
+        relationType: 'functional_property',
+        dataBinding: { mode: 'semantic_only', joinKeys: [] },
+      })
+    ).resolves.toEqual(expect.objectContaining({ relations: expect.arrayContaining([expect.objectContaining({ relationType: 'functional_property' })]) }));
+    const withoutJoinAttribute = await engine.deleteAttribute({ objectId: orderId, attributeId: orderAttributeId });
+    expect(withoutJoinAttribute.relations[0].dataBinding).toBeUndefined();
+  });
+
+  it('upgrades legacy relation snapshots and infers unambiguous mapped join keys', async () => {
+    const repository = new MemoryOntologyRepository();
+    const snapshot = await createAttributeWorkbench(new OntologyEngine(repository));
+    const legacy = structuredClone(snapshot) as IOntologyWorkbenchSnapshot & { schemaVersion: number };
+    legacy.schemaVersion = 2;
+    legacy.relations = legacy.relations.map(({ dataBinding: _dataBinding, ...relation }) => relation);
+    repository.saveSnapshot(legacy as IOntologyWorkbenchSnapshot);
+
+    const normalized = await new OntologyEngine(repository).getWorkbench();
+
+    expect(normalized.schemaVersion).toBe(3);
+    expect(normalized.relations[0].dataBinding).toMatchObject({
+      mode: 'direct',
+      origin: 'inferred',
+      joinKeys: [
+        {
+          fromAttributeId: normalized.objects[0].attributes[0].id,
+          toAttributeId: normalized.objects[1].attributes[1].id,
+        },
+      ],
+    });
+    expect(repository.getSnapshot('default')?.schemaVersion).toBe(3);
+  });
+
   it('uses different extracted models for the same assets without filename-based fields or relations', async () => {
     const { generate, extraction, documentAssetIds } = await createDocumentWorkbench();
     const first = await generate();
@@ -487,6 +662,15 @@ describe('OntologyEngine', () => {
     expect(generated.objects[0].attributes.map((item) => item.code)).toEqual(['customer_id', 'customer_name']);
     expect(generated.connections.length).toBeGreaterThan(0);
     expect(generated.mappings.length).toBeGreaterThanOrEqual(4);
+    expect(generated.relations[0].dataBinding).toMatchObject({
+      mode: 'direct',
+      joinKeys: [
+        {
+          fromAttributeId: generated.objects[0].attributes[0].id,
+          toAttributeId: generated.objects[1].attributes[1].id,
+        },
+      ],
+    });
     expect(generated.qualityRules.length).toBeGreaterThan(0);
     expect(generated.logicFunctions).toHaveLength(2);
     expect(generated.actions).toHaveLength(4);
@@ -523,7 +707,7 @@ describe('OntologyEngine', () => {
       code: 'notify_account_owner_manual',
       executor: 'notification',
       objectIds: [generated.objects[0].id],
-      configuration: { channel: 'desktop' },
+      configuration: { channel: 'desktop', message: 'Account requires attention.' },
     });
     const manualActionId = withManualAction.actions.find((item) => item.code === 'notify_account_owner_manual')?.id;
 
@@ -536,7 +720,7 @@ describe('OntologyEngine', () => {
     });
     expect(edited.objects[0].code).toBe('customer_account');
     expect(edited.logicFunctions.find((item) => item.id === manualFunctionId)?.body).toBe('return 0;');
-    expect(edited.actions.find((item) => item.id === manualActionId)?.configuration).toEqual({ channel: 'desktop' });
+    expect(edited.actions.find((item) => item.id === manualActionId)?.configuration).toEqual({ channel: 'desktop', message: 'Account requires attention.' });
     await engine.upsertAttribute({
       objectId: edited.objects[0].id,
       name: 'Segment',

@@ -8,6 +8,8 @@ import {
   ONTOLOGY_DOCUMENT_MAX_TOTAL_BYTES,
   ONTOLOGY_DOCUMENT_MAX_TEXT_CHARS,
   ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS,
+  ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT,
+  validateQualityRuleExpression,
 } from "@sudowork/ontology-common";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -81,6 +83,7 @@ import type {
   IOntologyDeleteInput,
   IOntologyDeleteWorkbenchInput,
   IOntologyEnvironmentAsset,
+  IOntologyExecuteRuntimeInput,
   IOntologyFieldMapping,
   IOntologyFieldMappingInput,
   IOntologyGenerateDraftInput,
@@ -102,12 +105,16 @@ import type {
   IOntologyPublishedVersion,
   IOntologyQualityRule,
   IOntologyQualityRuleInput,
+  IOntologyQualityRuleRunResult,
   IOntologyRejectVersionInput,
   IOntologyRegisterAgentInput,
   IOntologyRelationDraft,
+  IOntologyRelationDataBinding,
   IOntologyRelationDraftInput,
   IOntologyReviewTargetInput,
   IOntologyRollbackInput,
+  IOntologyRuntimeExecution,
+  IOntologyRuntimeExecutionResult,
   IOntologySelectWorkbenchInput,
   IOntologyServiceEndpoint,
   IOntologySyncAssetSchemaInput,
@@ -116,8 +123,10 @@ import type {
   IOntologyWorkbenchMutationResult,
   IOntologyWorkbenchSnapshot,
   IOntologyWorkbenchSummary,
+  OntologyArtifactStatus,
   OntologyAssetKind,
   OntologyConnectionSourceType,
+  OntologyJsonValue,
   OntologyWorkflowPhase,
 } from "@sudowork/ontology-common";
 
@@ -338,6 +347,15 @@ export interface IOntologyWorkbenchApi {
   deleteAction: (
     input: IOntologyDeleteInput,
   ) => Promise<IOntologyWorkbenchSnapshot>;
+  executeLogicFunction: (
+    input: IOntologyExecuteRuntimeInput,
+  ) => Promise<IOntologyRuntimeExecutionResult>;
+  executeRelation: (
+    input: IOntologyExecuteRuntimeInput,
+  ) => Promise<IOntologyRuntimeExecutionResult>;
+  executeAction: (
+    input: IOntologyExecuteRuntimeInput,
+  ) => Promise<IOntologyRuntimeExecutionResult>;
   reviewTarget: (
     input: IOntologyReviewTargetInput,
   ) => Promise<IOntologyWorkbenchSnapshot>;
@@ -450,6 +468,7 @@ export default function OntologyWorkbench({
   const [isRelationModalVisible, setIsRelationModalVisible] = useState(false);
   const [relationNameValue, setRelationNameValue] = useState("");
   const [relationCodeValue, setRelationCodeValue] = useState("");
+  const [relationDescriptionValue, setRelationDescriptionValue] = useState("");
   const [relationFromObjectId, setRelationFromObjectId] = useState("");
   const [relationToObjectId, setRelationToObjectId] = useState("");
   const [relationCardinalityValue, setRelationCardinalityValue] =
@@ -458,6 +477,42 @@ export default function OntologyWorkbench({
     useState<IOntologyRelationDraft["relationType"]>("object_property");
   const [relationSemanticTypeValue, setRelationSemanticTypeValue] =
     useState<IOntologyRelationDraft["semanticType"]>("association");
+  const [relationBindingMode, setRelationBindingMode] =
+    useState<IOntologyRelationDataBinding["mode"]>("semantic_only");
+  const [relationJoinKeys, setRelationJoinKeys] = useState<
+    IOntologyRelationDataBinding["joinKeys"]
+  >([]);
+  const [relationJunctionAssetId, setRelationJunctionAssetId] = useState("");
+  const relationFromObject = snapshot?.objects.find(
+    (object) => object.id === relationFromObjectId,
+  );
+  const relationToObject = snapshot?.objects.find(
+    (object) => object.id === relationToObjectId,
+  );
+  const relationJunctionAsset = snapshot?.assets.find(
+    (asset) => asset.id === relationJunctionAssetId,
+  );
+  const isRelationBindingComplete =
+    relationBindingMode === "semantic_only" ||
+    (relationJoinKeys.length > 0 &&
+      relationJoinKeys.every(
+        (key) =>
+          key.fromAttributeId &&
+          key.toAttributeId &&
+          (relationBindingMode === "direct" ||
+            Boolean(
+              relationJunctionAssetId &&
+              key.junctionFromFieldName &&
+              key.junctionToFieldName,
+            )),
+      ));
+  const isRelationTypeCompatible =
+    ((relationTypeValue !== "symmetric_property" &&
+      relationTypeValue !== "transitive_property") ||
+      relationFromObjectId === relationToObjectId) &&
+    (relationTypeValue !== "functional_property" ||
+      relationCardinalityValue === "one_to_one" ||
+      relationCardinalityValue === "many_to_one");
   const [isRelationAcyclic, setIsRelationAcyclic] = useState(false);
   const [relationObjectIds, setRelationObjectIds] = useState<string[] | null>(
     null,
@@ -479,6 +534,24 @@ export default function OntologyWorkbench({
   const [ruleExpressionValue, setRuleExpressionValue] = useState("");
   const [ruleSeverityValue, setRuleSeverityValue] =
     useState<IOntologyQualityRule["severity"]>("warning");
+  const ruleObject = snapshot?.objects.find(
+    (object) => object.id === ruleObjectId,
+  );
+  const ruleAttributeCodes =
+    ruleObject?.attributes.map((attribute) => attribute.code) ?? [];
+  const ruleExpressionValidation = useMemo(
+    () =>
+      validateQualityRuleExpression(ruleExpressionValue, ruleAttributeCodes),
+    [ruleAttributeCodes, ruleExpressionValue],
+  );
+  const ruleExpressionError =
+    ruleExpressionValue.trim() && !ruleExpressionValidation.isValid
+      ? ruleExpressionValidation.errorCode === "unknown_attribute"
+        ? t("ontology.editor.expressionUnknownAttribute", {
+            attribute: ruleExpressionValidation.errorToken ?? "-",
+          })
+        : t("ontology.editor.expressionInvalid")
+      : undefined;
 
   const isBuildOperationPendingRef = useRef(false);
 
@@ -1061,22 +1134,32 @@ export default function OntologyWorkbench({
           objectIds.includes(object.id),
         )
       : (snapshot?.objects ?? []);
+    const fromObjectId =
+      relation?.fromObjectId ?? availableObjects[0]?.id ?? "";
+    const toObjectId =
+      relation?.toObjectId ??
+      availableObjects[1]?.id ??
+      availableObjects[0]?.id ??
+      "";
+    const suggestedBinding = suggestRelationDataBinding(
+      snapshot,
+      fromObjectId,
+      toObjectId,
+    );
+    const dataBinding = relation?.dataBinding ?? suggestedBinding;
     setEditingRelation(relation ?? null);
     setRelationObjectIds(objectIds ?? null);
     setRelationNameValue(relation?.name ?? "");
     setRelationCodeValue(relation?.code ?? "");
-    setRelationFromObjectId(
-      relation?.fromObjectId ?? availableObjects[0]?.id ?? "",
-    );
-    setRelationToObjectId(
-      relation?.toObjectId ??
-        availableObjects[1]?.id ??
-        availableObjects[0]?.id ??
-        "",
-    );
+    setRelationDescriptionValue(relation?.description ?? "");
+    setRelationFromObjectId(fromObjectId);
+    setRelationToObjectId(toObjectId);
     setRelationCardinalityValue(relation?.cardinality ?? "one_to_many");
     setRelationTypeValue(relation?.relationType ?? "object_property");
     setRelationSemanticTypeValue(relation?.semanticType ?? "association");
+    setRelationBindingMode(dataBinding?.mode ?? "semantic_only");
+    setRelationJoinKeys(dataBinding?.joinKeys ?? []);
+    setRelationJunctionAssetId(dataBinding?.junctionAssetId ?? "");
     setIsRelationAcyclic(relation?.isAcyclic ?? false);
     setIsRelationModalVisible(true);
   };
@@ -1093,8 +1176,17 @@ export default function OntologyWorkbench({
         cardinality: relationCardinalityValue,
         relationType: relationTypeValue,
         semanticType: relationSemanticTypeValue,
+        dataBinding: {
+          mode: relationBindingMode,
+          joinKeys:
+            relationBindingMode === "semantic_only" ? [] : relationJoinKeys,
+          origin: "manual",
+          ...(relationBindingMode === "junction"
+            ? { junctionAssetId: relationJunctionAssetId }
+            : {}),
+        },
         isAcyclic: isRelationAcyclic,
-        description: editingRelation?.description,
+        description: relationDescriptionValue,
       });
       setSnapshot(nextSnapshot);
       setConsistencyCheck(null);
@@ -1218,6 +1310,30 @@ export default function OntologyWorkbench({
     const nextSnapshot = await api.deleteAction({ id: action.id });
     setSnapshot(nextSnapshot);
     setConsistencyCheck(null);
+  };
+
+  const onExecuteLogicFunction = async (
+    input: IOntologyExecuteRuntimeInput,
+  ): Promise<IOntologyRuntimeExecution> => {
+    const result = await api.executeLogicFunction(input);
+    setSnapshot(result.snapshot);
+    return result.execution;
+  };
+
+  const onExecuteRelation = async (
+    input: IOntologyExecuteRuntimeInput,
+  ): Promise<IOntologyRuntimeExecution> => {
+    const result = await api.executeRelation(input);
+    setSnapshot(result.snapshot);
+    return result.execution;
+  };
+
+  const onExecuteAction = async (
+    input: IOntologyExecuteRuntimeInput,
+  ): Promise<IOntologyRuntimeExecution> => {
+    const result = await api.executeAction(input);
+    setSnapshot(result.snapshot);
+    return result.execution;
   };
 
   const onCompletePhase = async (
@@ -1675,8 +1791,11 @@ export default function OntologyWorkbench({
                 onDeleteRule={onDeleteRule}
                 onUpsertLogicFunction={onUpsertLogicFunction}
                 onDeleteLogicFunction={onDeleteLogicFunction}
+                onExecuteLogicFunction={onExecuteLogicFunction}
+                onExecuteRelation={onExecuteRelation}
                 onUpsertAction={onUpsertAction}
                 onDeleteAction={onDeleteAction}
+                onExecuteAction={onExecuteAction}
               />
             )}
 
@@ -1894,10 +2013,23 @@ export default function OntologyWorkbench({
           okText={t("ontology.editor.save")}
           cancelText={t("ontology.reset.cancel")}
           confirmLoading={isEditingModel}
+          okButtonProps={{
+            disabled:
+              isEditingModel ||
+              !relationNameValue.trim() ||
+              !relationFromObjectId ||
+              !relationToObjectId ||
+              !isRelationTypeCompatible ||
+              !isRelationBindingComplete,
+          }}
+          style={{ width: 820 }}
           onOk={() => void onSaveRelation()}
           onCancel={() => setIsRelationModalVisible(false)}
         >
-          <Form layout="vertical">
+          <Form
+            layout="vertical"
+            className="max-h-[min(72vh,calc(100dvh-10rem))] overflow-y-auto pr-1"
+          >
             <Form.Item label={t("ontology.editor.name")} required>
               <Input
                 value={relationNameValue}
@@ -1912,10 +2044,36 @@ export default function OntologyWorkbench({
                 onChange={setRelationCodeValue}
               />
             </Form.Item>
+            <Form.Item label={t("ontology.editor.description")}>
+              <TextArea
+                value={relationDescriptionValue}
+                placeholder={t("ontology.editor.description")}
+                autoSize={{ minRows: 2, maxRows: 4 }}
+                onChange={setRelationDescriptionValue}
+              />
+            </Form.Item>
             <Form.Item label={t("ontology.editor.fromObject")} required>
               <Select
                 value={relationFromObjectId}
-                onChange={(value) => setRelationFromObjectId(String(value))}
+                onChange={(value) => {
+                  const objectId = String(value);
+                  setRelationFromObjectId(objectId);
+                  if (relationBindingMode === "direct")
+                    setRelationJoinKeys(
+                      suggestRelationDataBinding(
+                        snapshot,
+                        objectId,
+                        relationToObjectId,
+                      )?.joinKeys ?? [],
+                    );
+                  else if (relationBindingMode === "junction")
+                    setRelationJoinKeys((current) =>
+                      current.map((key) => ({
+                        ...key,
+                        fromAttributeId: "",
+                      })),
+                    );
+                }}
               >
                 {snapshot.objects
                   .filter(
@@ -1933,7 +2091,25 @@ export default function OntologyWorkbench({
             <Form.Item label={t("ontology.editor.toObject")} required>
               <Select
                 value={relationToObjectId}
-                onChange={(value) => setRelationToObjectId(String(value))}
+                onChange={(value) => {
+                  const objectId = String(value);
+                  setRelationToObjectId(objectId);
+                  if (relationBindingMode === "direct")
+                    setRelationJoinKeys(
+                      suggestRelationDataBinding(
+                        snapshot,
+                        relationFromObjectId,
+                        objectId,
+                      )?.joinKeys ?? [],
+                    );
+                  else if (relationBindingMode === "junction")
+                    setRelationJoinKeys((current) =>
+                      current.map((key) => ({
+                        ...key,
+                        toAttributeId: "",
+                      })),
+                    );
+                }}
               >
                 {snapshot.objects
                   .filter(
@@ -1974,50 +2150,309 @@ export default function OntologyWorkbench({
             <Form.Item label={t("ontology.editor.relationTypeLabel")}>
               <Select
                 value={relationTypeValue}
-                onChange={(value) =>
-                  setRelationTypeValue(
-                    value as IOntologyRelationDraft["relationType"],
+                onChange={(value) => {
+                  const relationType =
+                    value as IOntologyRelationDraft["relationType"];
+                  setRelationTypeValue(relationType);
+                  if (
+                    relationType === "symmetric_property" ||
+                    relationType === "transitive_property"
+                  ) {
+                    setRelationToObjectId(relationFromObjectId);
+                    setRelationJoinKeys([]);
+                  }
+                  if (
+                    relationType === "functional_property" &&
+                    (relationCardinalityValue === "one_to_many" ||
+                      relationCardinalityValue === "many_to_many")
                   )
-                }
+                    setRelationCardinalityValue("many_to_one");
+                }}
               >
-                {(
-                  [
-                    "object_property",
-                    "symmetric_property",
-                    "transitive_property",
-                    "functional_property",
-                  ] as const
-                ).map((relationType) => (
+                {(["object_property"] as const).map((relationType) => (
                   <Option key={relationType} value={relationType}>
                     {t(`ontology.editor.relationType.${relationType}`)}
                   </Option>
                 ))}
               </Select>
+              <Typography.Text className="mt-1 block text-xs" type="secondary">
+                {t(`ontology.editor.relationTypeHint.${relationTypeValue}`)}
+              </Typography.Text>
             </Form.Item>
             <Form.Item label={t("ontology.editor.semanticTypeLabel")}>
               <Select
                 value={relationSemanticTypeValue}
-                onChange={(value) =>
-                  setRelationSemanticTypeValue(
-                    value as IOntologyRelationDraft["semanticType"],
+                onChange={(value) => {
+                  const semanticType =
+                    value as IOntologyRelationDraft["semanticType"];
+                  setRelationSemanticTypeValue(semanticType);
+                  if (
+                    semanticType === "composition" ||
+                    semanticType === "inheritance"
                   )
-                }
+                    setIsRelationAcyclic(true);
+                }}
               >
-                {(
-                  [
-                    "composition",
-                    "event",
-                    "inheritance",
-                    "dependency",
-                    "association",
-                  ] as const
-                ).map((semanticType) => (
+                {(["association"] as const).map((semanticType) => (
                   <Option key={semanticType} value={semanticType}>
                     {t(`ontology.editor.semanticType.${semanticType}`)}
                   </Option>
                 ))}
               </Select>
+              <Typography.Text className="mt-1 block text-xs" type="secondary">
+                {t(
+                  `ontology.editor.semanticTypeHint.${relationSemanticTypeValue}`,
+                )}
+              </Typography.Text>
             </Form.Item>
+            <Form.Item label={t("ontology.editor.relationBindingMode")}>
+              <Select
+                value={relationBindingMode}
+                onChange={(value) => {
+                  const mode = value as IOntologyRelationDataBinding["mode"];
+                  setRelationBindingMode(mode);
+                  if (mode === "semantic_only") {
+                    setRelationJoinKeys([]);
+                    setRelationJunctionAssetId("");
+                    return;
+                  }
+                  if (relationJoinKeys.length === 0) {
+                    setRelationJoinKeys(
+                      suggestRelationDataBinding(
+                        snapshot,
+                        relationFromObjectId,
+                        relationToObjectId,
+                      )?.joinKeys ?? [emptyRelationJoinKey()],
+                    );
+                  }
+                  if (mode === "junction" && !relationJunctionAssetId)
+                    setRelationJunctionAssetId(snapshot.assets[0]?.id ?? "");
+                }}
+              >
+                {(["semantic_only", "direct", "junction"] as const).map(
+                  (mode) => (
+                    <Option key={mode} value={mode}>
+                      {t(`ontology.editor.relationBinding.${mode}`)}
+                    </Option>
+                  ),
+                )}
+              </Select>
+              <Typography.Text className="mt-1 block text-xs" type="secondary">
+                {t(
+                  `ontology.editor.relationBindingHint.${relationBindingMode}`,
+                )}
+              </Typography.Text>
+            </Form.Item>
+            {relationBindingMode === "junction" && (
+              <Form.Item
+                label={t("ontology.editor.relationJunctionAsset")}
+                required
+              >
+                <Select
+                  value={relationJunctionAssetId}
+                  onChange={(value) => {
+                    setRelationJunctionAssetId(String(value));
+                    setRelationJoinKeys((current) =>
+                      current.map((key) => ({
+                        fromAttributeId: key.fromAttributeId,
+                        toAttributeId: key.toAttributeId,
+                      })),
+                    );
+                  }}
+                >
+                  {snapshot.assets.map((asset) => (
+                    <Option key={asset.id} value={asset.id}>
+                      {asset.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            )}
+            {relationBindingMode !== "semantic_only" && (
+              <Form.Item label={t("ontology.editor.relationJoinKeys")} required>
+                <div className="flex flex-col gap-2">
+                  {relationJoinKeys.map((key, index) => (
+                    <div
+                      key={`${index}:${key.fromAttributeId}:${key.toAttributeId}`}
+                      className="rounded border border-[var(--color-border-2)] p-3"
+                    >
+                      <div
+                        className={`grid grid-cols-1 items-center gap-2 ${relationBindingMode === "junction" ? "md:grid-cols-[1fr_auto_1fr]" : "md:grid-cols-[1fr_auto_1fr_auto]"}`}
+                      >
+                        <Select
+                          value={key.fromAttributeId}
+                          placeholder={t(
+                            "ontology.editor.relationFromAttribute",
+                          )}
+                          onChange={(value) =>
+                            setRelationJoinKeys((current) =>
+                              updateRelationJoinKey(current, index, {
+                                fromAttributeId: String(value),
+                              }),
+                            )
+                          }
+                        >
+                          {(relationFromObject?.attributes ?? []).map(
+                            (attribute) => (
+                              <Option key={attribute.id} value={attribute.id}>
+                                {relationAttributeOptionLabel(
+                                  snapshot,
+                                  relationFromObjectId,
+                                  attribute,
+                                )}
+                              </Option>
+                            ),
+                          )}
+                        </Select>
+                        <Typography.Text type="secondary">=</Typography.Text>
+                        {relationBindingMode === "direct" ? (
+                          <Select
+                            value={key.toAttributeId}
+                            placeholder={t(
+                              "ontology.editor.relationToAttribute",
+                            )}
+                            onChange={(value) =>
+                              setRelationJoinKeys((current) =>
+                                updateRelationJoinKey(current, index, {
+                                  toAttributeId: String(value),
+                                }),
+                              )
+                            }
+                          >
+                            {(relationToObject?.attributes ?? []).map(
+                              (attribute) => (
+                                <Option key={attribute.id} value={attribute.id}>
+                                  {relationAttributeOptionLabel(
+                                    snapshot,
+                                    relationToObjectId,
+                                    attribute,
+                                  )}
+                                </Option>
+                              ),
+                            )}
+                          </Select>
+                        ) : (
+                          <Select
+                            value={key.junctionFromFieldName}
+                            placeholder={t(
+                              "ontology.editor.relationJunctionFromField",
+                            )}
+                            onChange={(value) =>
+                              setRelationJoinKeys((current) =>
+                                updateRelationJoinKey(current, index, {
+                                  junctionFromFieldName: String(value),
+                                }),
+                              )
+                            }
+                          >
+                            {(relationJunctionAsset?.fields ?? []).map(
+                              (field) => (
+                                <Option key={field.name} value={field.name}>
+                                  {field.name}
+                                </Option>
+                              ),
+                            )}
+                          </Select>
+                        )}
+                        {relationBindingMode === "direct" && (
+                          <Button
+                            size="mini"
+                            type="text"
+                            status="danger"
+                            disabled={relationJoinKeys.length === 1}
+                            icon={<Trash2 size={13} />}
+                            onClick={() =>
+                              setRelationJoinKeys((current) =>
+                                current.filter(
+                                  (_candidate, keyIndex) => keyIndex !== index,
+                                ),
+                              )
+                            }
+                          />
+                        )}
+                      </div>
+                      {relationBindingMode === "junction" && (
+                        <div className="mt-2 grid grid-cols-1 items-center gap-2 md:grid-cols-[1fr_auto_1fr_auto]">
+                          <Select
+                            value={key.junctionToFieldName}
+                            placeholder={t(
+                              "ontology.editor.relationJunctionToField",
+                            )}
+                            onChange={(value) =>
+                              setRelationJoinKeys((current) =>
+                                updateRelationJoinKey(current, index, {
+                                  junctionToFieldName: String(value),
+                                }),
+                              )
+                            }
+                          >
+                            {(relationJunctionAsset?.fields ?? []).map(
+                              (field) => (
+                                <Option key={field.name} value={field.name}>
+                                  {field.name}
+                                </Option>
+                              ),
+                            )}
+                          </Select>
+                          <Typography.Text type="secondary">=</Typography.Text>
+                          <Select
+                            value={key.toAttributeId}
+                            placeholder={t(
+                              "ontology.editor.relationToAttribute",
+                            )}
+                            onChange={(value) =>
+                              setRelationJoinKeys((current) =>
+                                updateRelationJoinKey(current, index, {
+                                  toAttributeId: String(value),
+                                }),
+                              )
+                            }
+                          >
+                            {(relationToObject?.attributes ?? []).map(
+                              (attribute) => (
+                                <Option key={attribute.id} value={attribute.id}>
+                                  {relationAttributeOptionLabel(
+                                    snapshot,
+                                    relationToObjectId,
+                                    attribute,
+                                  )}
+                                </Option>
+                              ),
+                            )}
+                          </Select>
+                          <Button
+                            size="mini"
+                            type="text"
+                            status="danger"
+                            disabled={relationJoinKeys.length === 1}
+                            icon={<Trash2 size={13} />}
+                            onClick={() =>
+                              setRelationJoinKeys((current) =>
+                                current.filter(
+                                  (_candidate, keyIndex) => keyIndex !== index,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    size="small"
+                    type="outline"
+                    onClick={() =>
+                      setRelationJoinKeys((current) => [
+                        ...current,
+                        emptyRelationJoinKey(),
+                      ])
+                    }
+                  >
+                    {t("ontology.editor.addRelationJoinKey")}
+                  </Button>
+                </div>
+              </Form.Item>
+            )}
             <Form.Item>
               <Checkbox
                 checked={isRelationAcyclic}
@@ -2125,6 +2560,13 @@ export default function OntologyWorkbench({
           okText={t("ontology.editor.save")}
           cancelText={t("ontology.reset.cancel")}
           confirmLoading={isEditingModel}
+          okButtonProps={{
+            disabled:
+              isEditingModel ||
+              !ruleObjectId ||
+              !ruleNameValue.trim() ||
+              !ruleExpressionValidation.isValid,
+          }}
           onOk={() => void onSaveRule()}
           onCancel={() => setIsRuleModalVisible(false)}
         >
@@ -2155,7 +2597,17 @@ export default function OntologyWorkbench({
                 onChange={setRuleCodeValue}
               />
             </Form.Item>
-            <Form.Item label={t("ontology.editor.expression")} required>
+            <Form.Item
+              label={t("ontology.editor.expression")}
+              required
+              validateStatus={ruleExpressionError ? "error" : undefined}
+              help={ruleExpressionError}
+              extra={t("ontology.editor.expressionHint", {
+                attributes:
+                  ruleAttributeCodes.join(", ") ||
+                  t("ontology.editor.expressionNoAttributes"),
+              })}
+            >
               <TextArea
                 value={ruleExpressionValue}
                 autoSize={{ minRows: 3, maxRows: 6 }}
@@ -3492,14 +3944,17 @@ function OntologyDetailPage({
   onDeleteAttribute,
   onEditRelation,
   onDeleteRelation,
+  onExecuteRelation,
   onEditMapping,
   onDeleteMapping,
   onEditRule,
   onDeleteRule,
   onUpsertLogicFunction,
   onDeleteLogicFunction,
+  onExecuteLogicFunction,
   onUpsertAction,
   onDeleteAction,
+  onExecuteAction,
   onBackToList,
   onOpenPublish,
 }: IOntologyModelPageProps) {
@@ -3517,6 +3972,38 @@ function OntologyDetailPage({
     ObjectBuildMethod,
     "manual"
   > | null>(null);
+  const [executingRelation, setExecutingRelation] =
+    useState<IOntologyRelationDraft | null>(null);
+  const [relationRuntimeArguments, setRelationRuntimeArguments] = useState(
+    JSON.stringify({ query: {}, direction: "forward", limit: 20 }, null, 2),
+  );
+  const [relationExecution, setRelationExecution] =
+    useState<IOntologyRuntimeExecution | null>(null);
+  const [isExecutingRelation, setIsExecutingRelation] = useState(false);
+  const onOpenRelationExecution = (relation: IOntologyRelationDraft) => {
+    setExecutingRelation(relation);
+    setRelationRuntimeArguments(
+      JSON.stringify({ query: {}, direction: "forward", limit: 20 }, null, 2),
+    );
+    setRelationExecution(null);
+  };
+  const onRunRelation = async () => {
+    if (!executingRelation) return;
+    setIsExecutingRelation(true);
+    try {
+      const args = parseJsonObject<Record<string, OntologyJsonValue>>(
+        relationRuntimeArguments,
+        t("ontology.runtime.invalidArguments"),
+      );
+      setRelationExecution(
+        await onExecuteRelation({ id: executingRelation.id, arguments: args }),
+      );
+    } catch (err) {
+      showError(t, err);
+    } finally {
+      setIsExecutingRelation(false);
+    }
+  };
   const tabs: Array<{ key: OntologyDetailTab; label: string; count?: number }> =
     [
       { key: "overview", label: t("ontology.detail.tabs.overview") },
@@ -4030,8 +4517,11 @@ function OntologyDetailPage({
               <RelationTable
                 relations={snapshot.relations}
                 objects={snapshot.objects}
+                assets={snapshot.assets}
+                mappings={snapshot.mappings}
                 onEditRelation={onEditRelation}
                 onDeleteRelation={onDeleteRelation}
+                onExecuteRelation={onOpenRelationExecution}
               />
             </Panel>
           )}
@@ -4045,6 +4535,8 @@ function OntologyDetailPage({
               <OntologyGraph
                 objects={snapshot.objects}
                 relations={snapshot.relations}
+                assets={snapshot.assets}
+                mappings={snapshot.mappings}
               />
             </Panel>
           )}
@@ -4082,7 +4574,16 @@ function OntologyDetailPage({
                 description={t("ontology.mapping.description")}
                 icon={<ShieldCheck size={18} />}
               >
-                <div className="mb-3 flex justify-end">
+                <div className="mb-3 flex justify-end gap-2">
+                  <Button
+                    loading={isChecking}
+                    disabled={snapshot.qualityRules.length === 0}
+                    onClick={() =>
+                      void onRunConsistencyCheck(snapshot.workspaceId)
+                    }
+                  >
+                    {t("ontology.mapping.runQualityRules")}
+                  </Button>
                   <Button
                     type="primary"
                     icon={<FilePlus2 size={14} />}
@@ -4102,6 +4603,12 @@ function OntologyDetailPage({
                     onDeleteRule={onDeleteRule}
                   />
                 )}
+                {consistencyCheck &&
+                  (consistencyCheck.qualityRuleResults?.length ?? 0) > 0 && (
+                    <div className="mt-3">
+                      <ConsistencyCheckResult result={consistencyCheck} />
+                    </div>
+                  )}
               </Panel>
             </div>
           )}
@@ -4121,8 +4628,10 @@ function OntologyDetailPage({
                 stats={snapshot.stats}
                 onUpsertLogicFunction={onUpsertLogicFunction}
                 onDeleteLogicFunction={onDeleteLogicFunction}
+                onExecuteLogicFunction={onExecuteLogicFunction}
                 onUpsertAction={onUpsertAction}
                 onDeleteAction={onDeleteAction}
+                onExecuteAction={onExecuteAction}
               />
             </Panel>
           )}
@@ -4150,6 +4659,56 @@ function OntologyDetailPage({
           )}
         </div>
       </div>
+      <Modal
+        visible={executingRelation !== null}
+        title={
+          executingRelation
+            ? t("ontology.relationRuntime.runTitle", {
+                name: executingRelation.name,
+              })
+            : ""
+        }
+        okText={t("ontology.runtime.run")}
+        cancelText={t("ontology.reset.cancel")}
+        confirmLoading={isExecutingRelation}
+        okButtonProps={{ disabled: relationExecution !== null }}
+        cancelButtonProps={{ disabled: isExecutingRelation }}
+        closable={!isExecutingRelation}
+        maskClosable={!isExecutingRelation}
+        escToExit={!isExecutingRelation}
+        onOk={() => void onRunRelation()}
+        onCancel={() => {
+          if (!isExecutingRelation) setExecutingRelation(null);
+        }}
+      >
+        <Form layout="vertical">
+          <Form.Item label={t("ontology.runtime.argumentsJson")}>
+            <TextArea
+              value={relationRuntimeArguments}
+              disabled={isExecutingRelation || relationExecution !== null}
+              autoSize={{ minRows: 5, maxRows: 10 }}
+              onChange={setRelationRuntimeArguments}
+            />
+          </Form.Item>
+        </Form>
+        <Typography.Text className="mb-3 block text-xs" type="secondary">
+          {t("ontology.relationRuntime.argumentsHint", {
+            limit: ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT,
+          })}
+        </Typography.Text>
+        {relationExecution && (
+          <div>
+            <Typography.Text bold className="mb-2 block">
+              {t("ontology.runtime.executionResult", {
+                duration: relationExecution.durationMs,
+              })}
+            </Typography.Text>
+            <pre className="max-h-72 overflow-auto rounded bg-[var(--color-fill-2)] p-3 text-xs">
+              {JSON.stringify(relationExecution.output, null, 2)}
+            </pre>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -4661,7 +5220,12 @@ function ManualObjectBuilder({
         style={{ width: 980 }}
         onCancel={() => setIsGraphPreviewVisible(false)}
       >
-        <OntologyGraph objects={objects} relations={relations} />
+        <OntologyGraph
+          objects={objects}
+          relations={relations}
+          assets={snapshot.assets}
+          mappings={mappings}
+        />
       </Modal>
     </div>
   );
@@ -6612,6 +7176,184 @@ function ontologyObjectName(
   return objects.find((object) => object.id === objectId)?.name ?? objectId;
 }
 
+function emptyRelationJoinKey(): IOntologyRelationDataBinding["joinKeys"][number] {
+  return { fromAttributeId: "", toAttributeId: "" };
+}
+
+function updateRelationJoinKey(
+  keys: IOntologyRelationDataBinding["joinKeys"],
+  index: number,
+  patch: Partial<IOntologyRelationDataBinding["joinKeys"][number]>,
+): IOntologyRelationDataBinding["joinKeys"] {
+  return keys.map((key, keyIndex) =>
+    keyIndex === index ? { ...key, ...patch } : key,
+  );
+}
+
+function suggestRelationDataBinding(
+  snapshot: IOntologyWorkbenchSnapshot | null,
+  fromObjectId: string,
+  toObjectId: string,
+): IOntologyRelationDataBinding | undefined {
+  const fromObject = snapshot?.objects.find(
+    (object) => object.id === fromObjectId,
+  );
+  const toObject = snapshot?.objects.find((object) => object.id === toObjectId);
+  if (!snapshot || !fromObject || !toObject) return undefined;
+  const fromIdentity =
+    fromObject.attributes.find(
+      (attribute) => attribute.code.toLowerCase() === "id",
+    ) ?? fromObject.attributes.find((attribute) => attribute.required);
+  const toIdentity =
+    toObject.attributes.find(
+      (attribute) => attribute.code.toLowerCase() === "id",
+    ) ?? toObject.attributes.find((attribute) => attribute.required);
+  const normalizeReference = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")
+      .replace(/s$/, "");
+  const fromCode = normalizeReference(fromObject.code);
+  const toCode = normalizeReference(toObject.code);
+  const toReference = toObject.attributes.find((attribute) => {
+    const code = normalizeReference(attribute.code);
+    return code === `${fromCode}id` || code === fromCode;
+  });
+  const fromReference = fromObject.attributes.find((attribute) => {
+    const code = normalizeReference(attribute.code);
+    return code === `${toCode}id` || code === toCode;
+  });
+  const pair =
+    toReference && fromIdentity
+      ? {
+          fromAttributeId: fromIdentity.id,
+          toAttributeId: toReference.id,
+        }
+      : fromReference && toIdentity
+        ? {
+            fromAttributeId: fromReference.id,
+            toAttributeId: toIdentity.id,
+          }
+        : undefined;
+  const isMappedPair =
+    pair &&
+    relationMappedFieldLabel(
+      fromObject.id,
+      pair.fromAttributeId,
+      snapshot.objects,
+      snapshot.assets,
+      snapshot.mappings,
+    ) &&
+    relationMappedFieldLabel(
+      toObject.id,
+      pair.toAttributeId,
+      snapshot.objects,
+      snapshot.assets,
+      snapshot.mappings,
+    );
+  return isMappedPair ? { mode: "direct", joinKeys: [pair] } : undefined;
+}
+
+function relationBindingSummary(
+  relation: IOntologyRelationDraft,
+  objects: IOntologyObjectDraft[],
+  assets: IOntologyEnvironmentAsset[],
+  mappings: IOntologyFieldMapping[],
+  t: TranslateFn,
+): string {
+  const binding = relation.dataBinding;
+  if (!binding || binding.mode === "semantic_only")
+    return t("ontology.relationRuntime.semanticOnly");
+  const fromObject = objects.find(
+    (object) => object.id === relation.fromObjectId,
+  );
+  const toObject = objects.find((object) => object.id === relation.toObjectId);
+  const junctionName =
+    assets.find((asset) => asset.id === binding.junctionAssetId)?.name ??
+    binding.junctionAssetId ??
+    "-";
+  return binding.joinKeys
+    .map((key) => {
+      const fromCode =
+        fromObject?.attributes.find(
+          (attribute) => attribute.id === key.fromAttributeId,
+        )?.code ?? "-";
+      const toCode =
+        toObject?.attributes.find(
+          (attribute) => attribute.id === key.toAttributeId,
+        )?.code ?? "-";
+      const fromField = relationMappedFieldLabel(
+        relation.fromObjectId,
+        key.fromAttributeId,
+        objects,
+        assets,
+        mappings,
+      );
+      const toField = relationMappedFieldLabel(
+        relation.toObjectId,
+        key.toAttributeId,
+        objects,
+        assets,
+        mappings,
+      );
+      return binding.mode === "direct"
+        ? `${fromCode}${fromField ? ` [${fromField}]` : ""} = ${toCode}${toField ? ` [${toField}]` : ""}`
+        : `${fromCode}${fromField ? ` [${fromField}]` : ""} = ${junctionName}.${key.junctionFromFieldName ?? "-"}; ${junctionName}.${key.junctionToFieldName ?? "-"} = ${toCode}${toField ? ` [${toField}]` : ""}`;
+    })
+    .join(" AND ");
+}
+
+function relationMappedFieldLabel(
+  objectId: string,
+  attributeId: string,
+  objects: IOntologyObjectDraft[],
+  assets: IOntologyEnvironmentAsset[],
+  mappings: IOntologyFieldMapping[],
+): string | undefined {
+  const attribute = objects
+    .find((object) => object.id === objectId)
+    ?.attributes.find((item) => item.id === attributeId);
+  const mapped =
+    attribute?.mappedField ??
+    mappings.find(
+      (mapping) =>
+        mapping.objectId === objectId &&
+        mapping.attributeId === attributeId &&
+        mapping.status !== "rejected",
+    );
+  if (!mapped) return undefined;
+  const assetName =
+    assets.find((asset) => asset.id === mapped.assetId)?.name ?? mapped.assetId;
+  return `${assetName}/${mapped.fieldName}`;
+}
+
+function relationAttributeOptionLabel(
+  snapshot: IOntologyWorkbenchSnapshot,
+  objectId: string,
+  attribute: IOntologyObjectDraft["attributes"][number],
+): string {
+  const candidates = [
+    ...(attribute.mappedField ? [attribute.mappedField] : []),
+    ...snapshot.mappings
+      .filter(
+        (mapping) =>
+          mapping.objectId === objectId &&
+          mapping.attributeId === attribute.id &&
+          mapping.status !== "rejected",
+      )
+      .map((mapping) => ({
+        assetId: mapping.assetId,
+        fieldName: mapping.fieldName,
+      })),
+  ];
+  const mapped = candidates[0];
+  if (!mapped) return `${attribute.name} (${attribute.code})`;
+  const assetName =
+    snapshot.assets.find((asset) => asset.id === mapped.assetId)?.name ??
+    mapped.assetId;
+  return `${attribute.name} (${attribute.code}) · ${assetName}/${mapped.fieldName}`;
+}
+
 function versionStatusColor(
   status: IOntologyPublishedVersion["status"],
 ): string {
@@ -6630,10 +7372,10 @@ function agentManageStatus(
 }
 
 function buildMcpTools(
-  _snapshot: IOntologyWorkbenchSnapshot,
+  snapshot: IOntologyWorkbenchSnapshot,
   t: TranslateFn,
 ): IMcpToolDefinition[] {
-  return [
+  const baseTools: IMcpToolDefinition[] = [
     {
       name: "ontology_get_overview",
       description: t("ontology.mcpService.coreTools.overview"),
@@ -6675,11 +7417,75 @@ function buildMcpTools(
       inputSchema: { properties: {} },
     },
     {
+      name: "ontology_list_relations",
+      description: t("ontology.mcpService.coreTools.relations"),
+      inputSchema: { properties: {} },
+    },
+    {
       name: "ontology_list_actions",
       description: t("ontology.mcpService.coreTools.actions"),
       inputSchema: { properties: {} },
     },
   ];
+  const runtimeArtifactTools = [
+    ...snapshot.logicFunctions
+      .filter((item) => item.status === "active")
+      .map((item) => ({ prefix: "logic", item })),
+    ...snapshot.actions
+      .filter((item) => item.status === "active")
+      .map((item) => ({ prefix: "action", item })),
+  ].map(({ prefix, item }) => ({
+    name: `${prefix}_${item.code}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
+    description: item.description || item.name,
+    inputSchema: {
+      properties: Object.fromEntries(
+        item.parameters.map((parameter) => [
+          parameter.name,
+          {
+            type: parameter.type,
+            description: parameter.description || parameter.name,
+          },
+        ]),
+      ),
+      required: item.parameters
+        .filter((parameter) => parameter.required)
+        .map((parameter) => parameter.name),
+    },
+  }));
+  const relationTools = snapshot.relations
+    .filter(
+      (relation) =>
+        relation.dataBinding && relation.dataBinding.mode !== "semantic_only",
+    )
+    .map((relation) => ({
+      name: `relation_${relation.code}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      description: t("ontology.relationRuntime.toolDescription", {
+        name: relation.name,
+      }),
+      inputSchema: {
+        properties: {
+          query: {
+            type: "object",
+            description: t(
+              "ontology.mcpService.paramDescriptions.relationQuery",
+            ),
+          },
+          direction: {
+            type: "string",
+            description: t("ontology.mcpService.paramDescriptions.direction"),
+          },
+          limit: {
+            type: "number",
+            description: t("ontology.mcpService.paramDescriptions.limit"),
+          },
+          maxDepth: {
+            type: "number",
+            description: t("ontology.mcpService.paramDescriptions.maxDepth"),
+          },
+        },
+      },
+    }));
+  return [...baseTools, ...runtimeArtifactTools, ...relationTools];
 }
 
 function ConsoleStatistic({
@@ -7441,8 +8247,11 @@ function ObjectTable({
 function RelationTable({
   relations,
   objects,
+  assets,
+  mappings,
   onEditRelation,
   onDeleteRelation,
+  onExecuteRelation,
 }: IRelationTableProps) {
   const { t } = useTranslation();
   const objectNameById = useMemo(
@@ -7475,6 +8284,9 @@ function RelationTable({
           render: (_: unknown, relation: IOntologyRelationDraft) => (
             <Space size={4} wrap>
               <Tag>{t(`ontology.cardinality.${relation.cardinality}`)}</Tag>
+              <Tag color="blue">
+                {t(`ontology.editor.relationType.${relation.relationType}`)}
+              </Tag>
               <Tag color="purple">
                 {t(`ontology.editor.semanticType.${relation.semanticType}`)}
               </Tag>
@@ -7482,10 +8294,39 @@ function RelationTable({
           ),
         },
         {
+          title: t("ontology.generate.columns.relationBinding"),
+          width: 300,
+          render: (_: unknown, relation: IOntologyRelationDraft) => (
+            <Typography.Text
+              className="block text-xs"
+              type={
+                relation.dataBinding &&
+                relation.dataBinding.mode !== "semantic_only"
+                  ? undefined
+                  : "secondary"
+              }
+              ellipsis={{ rows: 2 }}
+            >
+              {relationBindingSummary(relation, objects, assets, mappings, t)}
+            </Typography.Text>
+          ),
+        },
+        {
           title: t("ontology.generate.columns.actions"),
-          width: 160,
+          width: 220,
           render: (_: unknown, relation: IOntologyRelationDraft) => (
             <Space>
+              <Button
+                size="mini"
+                type="primary"
+                disabled={
+                  !relation.dataBinding ||
+                  relation.dataBinding.mode === "semantic_only"
+                }
+                onClick={() => onExecuteRelation(relation)}
+              >
+                {t("ontology.runtime.run")}
+              </Button>
               <Button size="mini" onClick={() => onEditRelation(relation)}>
                 {t("ontology.editor.edit")}
               </Button>
@@ -7504,7 +8345,12 @@ function RelationTable({
   );
 }
 
-function OntologyGraph({ objects, relations }: IOntologyGraphProps) {
+function OntologyGraph({
+  objects,
+  relations,
+  assets,
+  mappings,
+}: IOntologyGraphProps) {
   const { t } = useTranslation();
   const option = useMemo(
     () => ({
@@ -7552,12 +8398,12 @@ function OntologyGraph({ objects, relations }: IOntologyGraphProps) {
           links: relations.map((relation) => ({
             source: relation.fromObjectId,
             target: relation.toObjectId,
-            value: `${relation.name} · ${relation.cardinality}`,
+            value: `${relation.name} · ${relation.cardinality}\n${relationBindingSummary(relation, objects, assets, mappings, t)}`,
           })),
         },
       ],
     }),
-    [objects, relations],
+    [assets, mappings, objects, relations, t],
   );
 
   if (objects.length === 0)
@@ -7718,8 +8564,10 @@ function RuntimeArtifacts({
   stats,
   onUpsertLogicFunction,
   onDeleteLogicFunction,
+  onExecuteLogicFunction,
   onUpsertAction,
   onDeleteAction,
+  onExecuteAction,
 }: IRuntimeArtifactsProps) {
   const { t } = useTranslation();
   const [detail, setDetail] = useState<RuntimeArtifactDetail | null>(null);
@@ -7739,7 +8587,11 @@ function RuntimeArtifacts({
   const [logicFunctionBody, setLogicFunctionBody] = useState("");
   const [logicFunctionReturnType, setLogicFunctionReturnType] =
     useState("unknown");
+  const [logicFunctionStatus, setLogicFunctionStatus] =
+    useState<OntologyArtifactStatus>("draft");
   const [logicFunctionParameters, setLogicFunctionParameters] = useState("[]");
+  const [logicFunctionConfiguration, setLogicFunctionConfiguration] =
+    useState("{}");
   const [editingAction, setEditingAction] =
     useState<IOntologyActionDefinition | null>(null);
   const [isActionModalVisible, setIsActionModalVisible] = useState(false);
@@ -7747,10 +8599,24 @@ function RuntimeArtifacts({
   const [actionCode, setActionCode] = useState("");
   const [actionDescription, setActionDescription] = useState("");
   const [actionExecutor, setActionExecutor] =
-    useState<IOntologyActionDefinition["executor"]>("function");
+    useState<IOntologyActionDefinition["executor"]>("notification");
   const [actionObjectIds, setActionObjectIds] = useState<string[]>([]);
   const [actionConfiguration, setActionConfiguration] = useState("{}");
+  const [actionParameters, setActionParameters] = useState("[]");
+  const [actionOutputSchema, setActionOutputSchema] = useState("[]");
+  const [actionStatus, setActionStatus] =
+    useState<OntologyArtifactStatus>("draft");
   const [isSavingRuntimeArtifact, setIsSavingRuntimeArtifact] = useState(false);
+  const [executingArtifact, setExecutingArtifact] = useState<
+    | { kind: "logic"; item: IOntologyLogicFunction }
+    | { kind: "action"; item: IOntologyActionDefinition }
+    | null
+  >(null);
+  const [runtimeArguments, setRuntimeArguments] = useState("{}");
+  const [runtimeExecution, setRuntimeExecution] =
+    useState<IOntologyRuntimeExecution | null>(null);
+  const [isExecutingRuntimeArtifact, setIsExecutingRuntimeArtifact] =
+    useState(false);
 
   const onOpenLogicFunctionEditor = (
     logicFunction?: IOntologyLogicFunction,
@@ -7764,8 +8630,12 @@ function RuntimeArtifacts({
     setLogicFunctionSignature(logicFunction?.signature ?? "");
     setLogicFunctionBody(logicFunction?.body ?? "");
     setLogicFunctionReturnType(logicFunction?.returnType ?? "unknown");
+    setLogicFunctionStatus(logicFunction?.status ?? "draft");
     setLogicFunctionParameters(
       JSON.stringify(logicFunction?.parameters ?? [], null, 2),
+    );
+    setLogicFunctionConfiguration(
+      JSON.stringify(logicFunction?.configuration ?? {}, null, 2),
     );
     setIsLogicFunctionModalVisible(true);
   };
@@ -7777,6 +8647,9 @@ function RuntimeArtifacts({
         logicFunctionParameters,
         t("ontology.runtime.invalidParameters"),
       );
+      const configuration = parseJsonObject<
+        IOntologyLogicFunction["configuration"]
+      >(logicFunctionConfiguration, t("ontology.runtime.invalidConfiguration"));
       await onUpsertLogicFunction({
         id: editingLogicFunction?.id,
         name: logicFunctionName,
@@ -7788,7 +8661,8 @@ function RuntimeArtifacts({
         body: logicFunctionBody,
         returnType: logicFunctionReturnType,
         parameters,
-        status: editingLogicFunction?.status ?? "active",
+        configuration,
+        status: logicFunctionStatus,
       });
       setIsLogicFunctionModalVisible(false);
     } catch (err) {
@@ -7803,11 +8677,19 @@ function RuntimeArtifacts({
     setActionName(action?.name ?? "");
     setActionCode(action?.code ?? "");
     setActionDescription(action?.description ?? "");
-    setActionExecutor(action?.executor ?? "function");
+    const executor = action?.executor ?? "notification";
+    setActionExecutor(executor);
     setActionObjectIds(action?.objectIds ?? []);
     setActionConfiguration(
-      JSON.stringify(action?.configuration ?? {}, null, 2),
+      JSON.stringify(
+        action?.configuration ?? defaultActionConfiguration(executor),
+        null,
+        2,
+      ),
     );
+    setActionParameters(JSON.stringify(action?.parameters ?? [], null, 2));
+    setActionOutputSchema(JSON.stringify(action?.outputSchema ?? [], null, 2));
+    setActionStatus(action?.status ?? "draft");
     setIsActionModalVisible(true);
   };
 
@@ -7817,6 +8699,12 @@ function RuntimeArtifacts({
       const configuration = parseJsonObject<
         IOntologyActionDefinition["configuration"]
       >(actionConfiguration, t("ontology.runtime.invalidConfiguration"));
+      const parameters = parseJsonArray<
+        IOntologyActionDefinition["parameters"]
+      >(actionParameters, t("ontology.runtime.invalidParameters"));
+      const outputSchema = parseJsonArray<
+        IOntologyActionDefinition["outputSchema"]
+      >(actionOutputSchema, t("ontology.runtime.invalidOutputSchema"));
       await onUpsertAction({
         id: editingAction?.id,
         name: actionName,
@@ -7825,15 +8713,53 @@ function RuntimeArtifacts({
         executor: actionExecutor,
         objectIds: actionObjectIds,
         configuration,
-        parameters: editingAction?.parameters ?? [],
-        outputSchema: editingAction?.outputSchema ?? [],
-        status: editingAction?.status ?? "active",
+        parameters,
+        outputSchema,
+        status: actionStatus,
       });
       setIsActionModalVisible(false);
     } catch (err) {
       showError(t, err);
     } finally {
       setIsSavingRuntimeArtifact(false);
+    }
+  };
+
+  const onOpenRuntimeExecution = (
+    target:
+      | { kind: "logic"; item: IOntologyLogicFunction }
+      | { kind: "action"; item: IOntologyActionDefinition },
+  ) => {
+    setExecutingArtifact(target);
+    setRuntimeArguments(
+      JSON.stringify(runtimeArgumentTemplate(target.item.parameters), null, 2),
+    );
+    setRuntimeExecution(null);
+  };
+
+  const onRunRuntimeArtifact = async () => {
+    if (!executingArtifact) return;
+    setIsExecutingRuntimeArtifact(true);
+    try {
+      const args = parseJsonObject<Record<string, OntologyJsonValue>>(
+        runtimeArguments,
+        t("ontology.runtime.invalidArguments"),
+      );
+      const execution =
+        executingArtifact.kind === "logic"
+          ? await onExecuteLogicFunction({
+              id: executingArtifact.item.id,
+              arguments: args,
+            })
+          : await onExecuteAction({
+              id: executingArtifact.item.id,
+              arguments: args,
+            });
+      setRuntimeExecution(execution);
+    } catch (err) {
+      showError(t, err);
+    } finally {
+      setIsExecutingRuntimeArtifact(false);
     }
   };
 
@@ -7975,10 +8901,31 @@ function RuntimeArtifacts({
                     className="block truncate text-xs"
                     type="secondary"
                   >
-                    {logicFunction.code} · {logicFunction.runtime}
+                    {logicFunction.code} · {logicFunction.runtime} ·{" "}
+                    {t("ontology.runtime.executionCount", {
+                      count: logicFunction.executionCount,
+                    })}
                   </Typography.Text>
                 </div>
                 <Space size={4}>
+                  <Tag
+                    color={logicFunction.status === "active" ? "green" : "gray"}
+                  >
+                    {t(`ontology.artifactStatus.${logicFunction.status}`)}
+                  </Tag>
+                  <Button
+                    size="mini"
+                    type="primary"
+                    disabled={logicFunction.status !== "active"}
+                    onClick={() =>
+                      onOpenRuntimeExecution({
+                        kind: "logic",
+                        item: logicFunction,
+                      })
+                    }
+                  >
+                    {t("ontology.runtime.run")}
+                  </Button>
                   <Button
                     size="mini"
                     onClick={() =>
@@ -8039,10 +8986,26 @@ function RuntimeArtifacts({
                     className="block truncate text-xs"
                     type="secondary"
                   >
-                    {action.code} · {action.executor}
+                    {action.code} · {action.executor} ·{" "}
+                    {t("ontology.runtime.executionCount", {
+                      count: action.executionCount,
+                    })}
                   </Typography.Text>
                 </div>
                 <Space size={4}>
+                  <Tag color={action.status === "active" ? "green" : "gray"}>
+                    {t(`ontology.artifactStatus.${action.status}`)}
+                  </Tag>
+                  <Button
+                    size="mini"
+                    type="primary"
+                    disabled={action.status !== "active"}
+                    onClick={() =>
+                      onOpenRuntimeExecution({ kind: "action", item: action })
+                    }
+                  >
+                    {t("ontology.runtime.run")}
+                  </Button>
                   <Button
                     size="mini"
                     onClick={() => setDetail({ kind: "action", item: action })}
@@ -8136,6 +9099,20 @@ function RuntimeArtifacts({
                 onChange={setLogicFunctionReturnType}
               />
             </Form.Item>
+            <Form.Item label={t("ontology.runtime.status")}>
+              <Select
+                value={logicFunctionStatus}
+                onChange={(value) =>
+                  setLogicFunctionStatus(value as OntologyArtifactStatus)
+                }
+              >
+                {(["draft", "active", "disabled"] as const).map((status) => (
+                  <Option key={status} value={status}>
+                    {t(`ontology.artifactStatus.${status}`)}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
           </div>
           <Form.Item label={t("ontology.runtime.boundObjects")}>
             <Select
@@ -8171,7 +9148,23 @@ function RuntimeArtifacts({
               onChange={setLogicFunctionParameters}
             />
           </Form.Item>
-          <Form.Item label={t("ontology.runtime.body")}>
+          <Form.Item
+            label={t("ontology.runtime.configurationJson")}
+            extra={t("ontology.runtime.logicConfigurationHint")}
+          >
+            <TextArea
+              value={logicFunctionConfiguration}
+              autoSize={{ minRows: 3, maxRows: 8 }}
+              onChange={setLogicFunctionConfiguration}
+            />
+          </Form.Item>
+          <Form.Item
+            label={t("ontology.runtime.body")}
+            extra={t(
+              `ontology.runtime.logicBodyHints.${logicFunctionRuntime}`,
+              { parameter: "{{parameter}}" },
+            )}
+          >
             <TextArea
               value={logicFunctionBody}
               autoSize={{ minRows: 7, maxRows: 16 }}
@@ -8206,11 +9199,13 @@ function RuntimeArtifacts({
           <Form.Item label={t("ontology.runtime.executor")}>
             <Select
               value={actionExecutor}
-              onChange={(value) =>
-                setActionExecutor(
-                  value as IOntologyActionDefinition["executor"],
-                )
-              }
+              onChange={(value) => {
+                const executor = value as IOntologyActionDefinition["executor"];
+                setActionExecutor(executor);
+                setActionConfiguration(
+                  JSON.stringify(defaultActionConfiguration(executor), null, 2),
+                );
+              }}
             >
               {(
                 [
@@ -8223,6 +9218,20 @@ function RuntimeArtifacts({
               ).map((executor) => (
                 <Option key={executor} value={executor}>
                   {t(`ontology.runtime.executors.${executor}`)}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item label={t("ontology.runtime.status")}>
+            <Select
+              value={actionStatus}
+              onChange={(value) =>
+                setActionStatus(value as OntologyArtifactStatus)
+              }
+            >
+              {(["draft", "active", "disabled"] as const).map((status) => (
+                <Option key={status} value={status}>
+                  {t(`ontology.artifactStatus.${status}`)}
                 </Option>
               ))}
             </Select>
@@ -8255,7 +9264,72 @@ function RuntimeArtifacts({
               onChange={setActionConfiguration}
             />
           </Form.Item>
+          <Form.Item label={t("ontology.runtime.parametersJson")}>
+            <TextArea
+              value={actionParameters}
+              autoSize={{ minRows: 3, maxRows: 8 }}
+              onChange={setActionParameters}
+            />
+          </Form.Item>
+          <Form.Item label={t("ontology.runtime.outputSchemaJson")}>
+            <TextArea
+              value={actionOutputSchema}
+              autoSize={{ minRows: 3, maxRows: 8 }}
+              onChange={setActionOutputSchema}
+            />
+          </Form.Item>
+          <Typography.Text className="block text-xs" type="secondary">
+            {t(`ontology.runtime.actionConfigurationHints.${actionExecutor}`, {
+              parameter: "{{parameter}}",
+              recordId: "{{recordId}}",
+            })}
+          </Typography.Text>
         </Form>
+      </Modal>
+      <Modal
+        visible={executingArtifact !== null}
+        title={
+          executingArtifact
+            ? t("ontology.runtime.runTitle", {
+                name: executingArtifact.item.name,
+              })
+            : ""
+        }
+        okText={t("ontology.runtime.run")}
+        cancelText={t("ontology.reset.cancel")}
+        confirmLoading={isExecutingRuntimeArtifact}
+        okButtonProps={{ disabled: runtimeExecution !== null }}
+        cancelButtonProps={{ disabled: isExecutingRuntimeArtifact }}
+        closable={!isExecutingRuntimeArtifact}
+        maskClosable={!isExecutingRuntimeArtifact}
+        escToExit={!isExecutingRuntimeArtifact}
+        onOk={() => void onRunRuntimeArtifact()}
+        onCancel={() => {
+          if (!isExecutingRuntimeArtifact) setExecutingArtifact(null);
+        }}
+      >
+        <Form layout="vertical">
+          <Form.Item label={t("ontology.runtime.argumentsJson")}>
+            <TextArea
+              value={runtimeArguments}
+              disabled={isExecutingRuntimeArtifact || runtimeExecution !== null}
+              autoSize={{ minRows: 5, maxRows: 12 }}
+              onChange={setRuntimeArguments}
+            />
+          </Form.Item>
+        </Form>
+        {runtimeExecution && (
+          <div>
+            <Typography.Text bold className="mb-2 block">
+              {t("ontology.runtime.executionResult", {
+                duration: runtimeExecution.durationMs,
+              })}
+            </Typography.Text>
+            <pre className="max-h-72 overflow-auto rounded bg-[var(--color-fill-2)] p-3 text-xs">
+              {JSON.stringify(runtimeExecution.output, null, 2)}
+            </pre>
+          </div>
+        )}
       </Modal>
     </div>
   );
@@ -8416,6 +9490,7 @@ function ReviewLog({ count }: IReviewLogProps) {
 
 function ConsistencyCheckResult({ result }: IConsistencyCheckResultProps) {
   const { t } = useTranslation();
+  const qualityRuleResults = result.qualityRuleResults ?? [];
   return (
     <div className="mb-3 rounded border border-[var(--color-border-2)] p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -8446,8 +9521,90 @@ function ConsistencyCheckResult({ result }: IConsistencyCheckResultProps) {
           ))}
         </div>
       )}
+      {qualityRuleResults.length > 0 && (
+        <div className="mt-3 border-t border-[var(--color-border-2)] pt-3">
+          <Typography.Text bold className="mb-2 block">
+            {t("ontology.qualityRuleRun.title")}
+          </Typography.Text>
+          <div className="flex flex-col gap-2">
+            {qualityRuleResults.map((ruleResult) => (
+              <div
+                key={ruleResult.ruleId}
+                className="flex items-start justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <Typography.Text className="block truncate">
+                    {ruleResult.ruleName}
+                  </Typography.Text>
+                  <Typography.Text className="block text-xs" type="secondary">
+                    {qualityRuleRunDescription(t, ruleResult)}
+                  </Typography.Text>
+                </div>
+                <Tag color={qualityRuleRunColor(ruleResult.status)}>
+                  {t(`ontology.qualityRuleRun.status.${ruleResult.status}`)}
+                </Tag>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function qualityRuleRunDescription(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  result: IOntologyQualityRuleRunResult,
+): string {
+  if (result.status === "passed" || result.status === "failed") {
+    return t("ontology.qualityRuleRun.summary", {
+      failed: result.failedRows,
+      evaluated: result.evaluatedRows,
+      sample: result.isTruncated
+        ? t("ontology.qualityRuleRun.sampled", {
+            limit: ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT,
+          })
+        : "",
+    });
+  }
+  return t(
+    `ontology.qualityRuleRun.reason.${result.reason ?? "asset_unavailable"}`,
+  );
+}
+
+function qualityRuleRunColor(
+  status: IOntologyQualityRuleRunResult["status"],
+): string {
+  if (status === "passed") return "green";
+  if (status === "failed" || status === "error") return "red";
+  return "gray";
+}
+
+function runtimeArgumentTemplate(
+  parameters: IOntologyLogicFunction["parameters"],
+): Record<string, OntologyJsonValue> {
+  return Object.fromEntries(
+    parameters.map((parameter): [string, OntologyJsonValue] => {
+      const type = parameter.type.trim().toLowerCase();
+      if (type === "number" || type === "integer") return [parameter.name, 0];
+      if (type === "boolean") return [parameter.name, false];
+      if (type === "array" || type.endsWith("[]")) return [parameter.name, []];
+      if (type === "object" || type.includes("record"))
+        return [parameter.name, {}];
+      return [parameter.name, ""];
+    }),
+  );
+}
+
+function defaultActionConfiguration(
+  executor: IOntologyActionDefinition["executor"],
+): Record<string, OntologyJsonValue> {
+  if (executor === "function") return { functionCode: "" };
+  if (executor === "api")
+    return { url: "", method: "POST", headers: {}, body: {} };
+  if (executor === "sql") return { connectorId: "", statement: "" };
+  if (executor === "notification") return { title: "", message: "" };
+  return { command: "", args: [] };
 }
 
 function connectorEndpoint(connector: IOntologyConnectorConfig): string {
@@ -9127,8 +10284,17 @@ interface IOntologyModelPageProps {
   onDeleteLogicFunction: (
     logicFunction: IOntologyLogicFunction,
   ) => Promise<void>;
+  onExecuteLogicFunction: (
+    input: IOntologyExecuteRuntimeInput,
+  ) => Promise<IOntologyRuntimeExecution>;
+  onExecuteRelation: (
+    input: IOntologyExecuteRuntimeInput,
+  ) => Promise<IOntologyRuntimeExecution>;
   onUpsertAction: (input: IOntologyActionDefinitionInput) => Promise<void>;
   onDeleteAction: (action: IOntologyActionDefinition) => Promise<void>;
+  onExecuteAction: (
+    input: IOntologyExecuteRuntimeInput,
+  ) => Promise<IOntologyRuntimeExecution>;
 }
 
 interface IManualObjectBuilderProps {
@@ -9414,13 +10580,18 @@ interface IObjectTableProps {
 interface IRelationTableProps {
   relations: IOntologyRelationDraft[];
   objects: IOntologyObjectDraft[];
+  assets: IOntologyEnvironmentAsset[];
+  mappings: IOntologyFieldMapping[];
   onEditRelation: (relation: IOntologyRelationDraft) => void;
   onDeleteRelation: (relation: IOntologyRelationDraft) => Promise<void>;
+  onExecuteRelation: (relation: IOntologyRelationDraft) => void;
 }
 
 interface IOntologyGraphProps {
   objects: IOntologyObjectDraft[];
   relations: IOntologyRelationDraft[];
+  assets: IOntologyEnvironmentAsset[];
+  mappings: IOntologyFieldMapping[];
 }
 
 interface IMiniMetricProps {
@@ -9454,8 +10625,14 @@ interface IRuntimeArtifactsProps {
   onDeleteLogicFunction: (
     logicFunction: IOntologyLogicFunction,
   ) => Promise<void>;
+  onExecuteLogicFunction: (
+    input: IOntologyExecuteRuntimeInput,
+  ) => Promise<IOntologyRuntimeExecution>;
   onUpsertAction: (input: IOntologyActionDefinitionInput) => Promise<void>;
   onDeleteAction: (action: IOntologyActionDefinition) => Promise<void>;
+  onExecuteAction: (
+    input: IOntologyExecuteRuntimeInput,
+  ) => Promise<IOntologyRuntimeExecution>;
 }
 
 interface IRuntimeArtifactSectionProps<TItem extends { id: string }> {
