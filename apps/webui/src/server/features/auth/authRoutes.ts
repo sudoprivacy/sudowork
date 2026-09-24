@@ -11,6 +11,7 @@ import {
   SendPhoneCodeRequestSchema,
 } from '@sudowork/contracts/auth'
 import {
+  AuthRequestRejectedError,
   InvalidCredentialsError,
   MossOriginNotAllowedError,
   PhoneNotRegisteredError,
@@ -52,6 +53,10 @@ function setSessionCookie(res: Response, config: AppConfig, token: string): void
 function authErrorHandler(err: unknown, res: Response, next: NextFunction): void {
   if (err instanceof ZodError) {
     res.status(400).json({ error: 'INVALID_REQUEST' })
+    return
+  }
+  if (err instanceof AuthRequestRejectedError) {
+    res.status(err.status).json({ error: 'AUTH_REQUEST_REJECTED', message: err.message })
     return
   }
   if (err instanceof InvalidCredentialsError) {

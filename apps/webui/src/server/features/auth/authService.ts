@@ -34,6 +34,16 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+export class AuthRequestRejectedError extends Error {
+  constructor(
+    readonly status: 400 | 403 | 404,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'AuthRequestRejectedError'
+  }
+}
+
 export class PhoneNotRegisteredError extends Error {
   constructor() {
     super('phone not registered')
@@ -84,6 +94,16 @@ interface StoredTokens {
 
 const refreshInFlight = new Map<string, Promise<StoredTokens>>()
 
+function readMossErrorMessage(err: MossHttpError): string | undefined {
+  try {
+    const body = JSON.parse(err.bodyText) as Record<string, unknown> | null
+    const message = body?.msg ?? body?.message ?? body?.error
+    return typeof message === 'string' && message.trim() ? message : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function mapLoginError(err: unknown): Error {
   if (err instanceof MossHttpError && err.status === 404) {
     try {
@@ -92,6 +112,10 @@ function mapLoginError(err: unknown): Error {
     } catch {
       // A non-JSON 404 is handled as a normal upstream error below.
     }
+  }
+  if (err instanceof MossHttpError && err.status === 403) {
+    const message = readMossErrorMessage(err)
+    if (message) return new AuthRequestRejectedError(403, message)
   }
   if (
     err instanceof MossHttpError &&
@@ -248,7 +272,18 @@ export async function sendPhoneCode(
   input: { phone: string; mossBaseUrl?: string },
 ): Promise<{ nextSendIn: number }> {
   const { baseUrl } = resolveLoginMoss(deps.config, input.mossBaseUrl)
-  return deps.mossAuth.sendPhoneCode(input.phone, baseUrl)
+  try {
+    return await deps.mossAuth.sendPhoneCode(input.phone, baseUrl)
+  } catch (err) {
+    if (
+      err instanceof MossHttpError &&
+      (err.status === 400 || err.status === 403 || err.status === 404)
+    ) {
+      const message = readMossErrorMessage(err)
+      if (message) throw new AuthRequestRejectedError(err.status, message)
+    }
+    throw mapLoginError(err)
+  }
 }
 
 /**
