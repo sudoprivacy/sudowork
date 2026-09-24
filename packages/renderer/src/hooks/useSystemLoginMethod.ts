@@ -23,14 +23,12 @@ export interface SystemLoginMethodState {
   error: Error | null;
 }
 
-// 模块级内存缓存 + 时间戳：登录页与用户中心复用，避免重复请求
-const CACHE_TTL_MS = 5 * 60 * 1000;
-let cachedLoginMethod: LoginMethod | null = null;
-let cachedSystemConfig: SystemConfig | null = null;
-let cachedAt = 0;
-// 进行中的请求去重，避免并发触发多次
-let cachedAuthMethods: AuthMethod[] = [];
-let inflight: Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null; authMethods: AuthMethod[] }> | null = null;
+// Login policy depends on both the server and organization. A failed lookup is
+// never cached, and a response from an earlier selection cannot update the view.
+const CACHE_TTL_MS = 30 * 1000;
+type LoginConfig = { loginMethod: LoginMethod; systemConfig: SystemConfig; authMethods: AuthMethod[] };
+const cache = new Map<string, { value: LoginConfig; at: number }>();
+const inflight = new Map<string, Promise<LoginConfig>>();
 
 export function resolveAuthMethods(data: SystemConfig | null): AuthMethod[] {
   const allowed = new Set<AuthMethod>(['phone', 'password', 'api_key', 'sso']);
@@ -41,66 +39,50 @@ export function resolveAuthMethods(data: SystemConfig | null): AuthMethod[] {
   return ['phone', 'password', 'api_key'];
 }
 
-async function fetchLoginMethod(): Promise<{ loginMethod: LoginMethod; systemConfig: SystemConfig | null; authMethods: AuthMethod[] }> {
-  if (cachedLoginMethod !== null && Date.now() - cachedAt < CACHE_TTL_MS) {
-    return { loginMethod: cachedLoginMethod, systemConfig: cachedSystemConfig, authMethods: cachedAuthMethods };
-  }
-  if (inflight) return inflight;
-  inflight = (async (): Promise<{
-    loginMethod: LoginMethod;
-    systemConfig: SystemConfig | null;
-    authMethods: AuthMethod[];
-  }> => {
-    try {
-      // Reuse the shared client; fetchSystemConfig() also fills the renderer's
-      // system-config module cache (setSystemConfigCache) so synchronous base-url
-      // helpers work for renderer consumers.
-      // Ask the server this client actually authenticates against. Reading the
-      // consumer server here while logging in against a control plane is what
-      // used to make a moss deployment unable to advertise its login method.
-      const customMossBaseUrl = typeof window !== 'undefined' && !window.electronAPI ? localStorage.getItem('login.mossBaseUrl') || undefined : undefined;
-      const data = await fetchSystemConfig(await getAuthServerBaseUrl(), customMossBaseUrl);
-      // Sync to main-process cache (see main.tsx for rationale).
-      if (data) {
-        void ipcBridge.systemConfig.syncFromRenderer.invoke({ data }).catch(() => {});
-      }
-      const loginMethod: LoginMethod = data?.login_method === THIRD_PARTY_LOGIN_METHOD ? 2 : data?.login_method === 1 ? 1 : 0;
-      cachedLoginMethod = loginMethod;
-      cachedSystemConfig = data;
-      cachedAuthMethods = resolveAuthMethods(data);
-      cachedAt = Date.now();
-      return { loginMethod, systemConfig: data, authMethods: cachedAuthMethods };
-    } catch (err) {
-      // 失败兜底：按手机验证码（login_method=0，即维持现状），控制台告警，不打断用户
-      console.warn('[useSystemLoginMethod] fetch system-config failed, fallback to login_method=0:', err);
-      return { loginMethod: 0, systemConfig: null, authMethods: resolveAuthMethods(null) };
-    } finally {
-      inflight = null;
-    }
+async function fetchLoginMethod(organizationCode: string, selectedBaseUrl?: string): Promise<LoginConfig> {
+  const baseUrl = await getAuthServerBaseUrl();
+  const customMossBaseUrl = selectedBaseUrl || (typeof window !== 'undefined' && !window.electronAPI ? localStorage.getItem('login.mossBaseUrl') || undefined : undefined);
+  const key = JSON.stringify([baseUrl, customMossBaseUrl || '', organizationCode]);
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.value;
+  const pending = inflight.get(key);
+  if (pending) return pending;
+  const request = (async (): Promise<LoginConfig> => {
+    const data = await fetchSystemConfig(baseUrl, customMossBaseUrl, organizationCode || undefined);
+    if (!data) throw new Error('无法获取登录方式，请检查企业码和服务器地址后重试');
+    if (!organizationCode) void ipcBridge.systemConfig.syncFromRenderer.invoke({ data }).catch(() => {});
+    const value: LoginConfig = {
+      loginMethod: data.login_method === THIRD_PARTY_LOGIN_METHOD ? 2 : data.login_method === 1 ? 1 : 0,
+      systemConfig: data,
+      authMethods: resolveAuthMethods(data),
+    };
+    if (cache.size > 50) cache.clear();
+    cache.set(key, { value, at: Date.now() });
+    return value;
   })();
-  return inflight;
+  inflight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    inflight.delete(key);
+  }
 }
 
-export function useSystemLoginMethod(): SystemLoginMethodState {
-  const [state, setState] = useState<SystemLoginMethodState>(() => ({
-    loginMethod: cachedLoginMethod,
-    systemConfig: cachedSystemConfig,
-    authMethods: cachedAuthMethods.length ? cachedAuthMethods : resolveAuthMethods(null),
-    isLoading: cachedLoginMethod === null,
-    error: null,
-  }));
-
+export function useSystemLoginMethod(organizationCode = '', selectedBaseUrl?: string, retry = 0): SystemLoginMethodState {
+  const [state, setState] = useState<SystemLoginMethodState>({ loginMethod: null, systemConfig: null, authMethods: [], isLoading: true, error: null });
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      const { loginMethod, systemConfig, authMethods } = await fetchLoginMethod();
-      if (cancelled) return;
-      setState({ loginMethod, systemConfig, authMethods, isLoading: false, error: null });
-    })();
+    setState({ loginMethod: null, systemConfig: null, authMethods: [], isLoading: true, error: null });
+    void fetchLoginMethod(organizationCode.trim(), selectedBaseUrl)
+      .then((value) => {
+        if (!cancelled) setState({ ...value, isLoading: false, error: null });
+      })
+      .catch((error) => {
+        if (!cancelled) setState({ loginMethod: null, systemConfig: null, authMethods: [], isLoading: false, error: error instanceof Error ? error : new Error(String(error)) });
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
-
+  }, [organizationCode, selectedBaseUrl, retry]);
   return state;
 }

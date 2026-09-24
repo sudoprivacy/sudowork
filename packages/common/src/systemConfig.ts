@@ -83,18 +83,19 @@ export function normalizeRechargeMode(value: unknown): RechargeMode {
 }
 
 // ---- fetch (public, no auth; fetch + res.json() work in both processes) ----
-export async function fetchSystemConfig(baseUrl?: string, mossBaseUrl?: string): Promise<SystemConfig | null> {
+export async function fetchSystemConfig(baseUrl?: string, mossBaseUrl?: string, organizationCode?: string): Promise<SystemConfig | null> {
   try {
     const base = baseUrl ?? (await getSudoworkServerBaseUrl());
     const url = new URL('/api/v1/system-config', base);
     if (mossBaseUrl) url.searchParams.set('mossBaseUrl', mossBaseUrl);
+    if (organizationCode?.trim()) url.searchParams.set('organization_code', organizationCode.trim());
     const res = await fetch(url);
     const json = (await res.json()) as {
       success?: boolean;
       data?: SystemConfig;
     };
     if (json?.success && json.data) {
-      setSystemConfigCache(json.data);
+      if (!organizationCode) setSystemConfigCache(json.data);
       return json.data;
     }
     return null;
