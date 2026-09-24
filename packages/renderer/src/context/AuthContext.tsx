@@ -1719,9 +1719,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             }),
           });
           if (!response.ok) {
-            const body = (await response.json().catch((): null => null)) as { error?: string } | null;
+            const body = (await response.json().catch((): null => null)) as { error?: string; message?: string } | null;
             const code = body?.error || `HTTP_${response.status}`;
-            const message = response.status === 503 || code === 'MOSS_UNAVAILABLE' ? t('login.errors.networkError') : t('login.errors.invalidCredentials');
+            const message = response.status === 503 || code === 'MOSS_UNAVAILABLE' ? t('login.errors.networkError') : body?.message || t('login.errors.invalidCredentials');
             return { success: false, message, code: 'invalidCredentials' };
           }
           const webUser = await fetchWebSession();

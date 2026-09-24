@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { Key, Link, Lock, Phone, Protect, Server, User } from '@icon-park/react';
-import type { AuthMethod } from '@sudowork/common/systemConfigTypes';
 import { getMossServerPolicy, normalizeHttpOrigin } from '@sudowork/common/sudoworkServer';
 import { ConfigStorage } from '@sudowork/common/storage';
 import { TENANT_CONFIG_STORAGE_KEY, DEFAULT_TENANT_CONFIG, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
@@ -50,12 +49,6 @@ function getCachedTenantConfig(): Required<typeof DEFAULT_TENANT_CONFIG> {
   return DEFAULT_TENANT_CONFIG;
 }
 
-function preferredTab(methods: AuthMethod[], legacyMethod: number | null): LoginTab {
-  const legacyPreferred: LoginTab = legacyMethod === 0 ? 'phone' : legacyMethod === 2 ? 'sso' : 'password';
-  if (methods.includes(legacyPreferred)) return legacyPreferred;
-  return (methods[0] as LoginTab | undefined) ?? 'password';
-}
-
 function generateOAuth2State(): string {
   const bytes = new Uint8Array(16);
   globalThis.crypto.getRandomValues(bytes);
@@ -66,14 +59,12 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { status, enterGuest, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
-  const [organizationCode, setOrganizationCode] = useState(() => localStorage.getItem('login.organizationCode') || '');
-  const [organizationDraft, setOrganizationDraft] = useState(organizationCode);
-  const [policyRetry, setPolicyRetry] = useState(0);
-  const { loginMethod, authMethods, systemConfig, isLoading: isBootstrapLoading, error: policyError } = useSystemLoginMethod(organizationCode, undefined, policyRetry);
+  const { authMethods, systemConfig } = useSystemLoginMethod();
   const tenantConfig = getCachedTenantConfig();
-  const availableMethods = useMemo(() => authMethods.filter((method) => method !== 'sso' || isElectronDesktop()), [authMethods]);
-  const isRegistrationEnabled = availableMethods.includes('phone') && (systemConfig?.registration?.phone_enabled ?? true);
-  const [loginTab, setLoginTab] = useState<LoginTab>(() => preferredTab(authMethods, loginMethod));
+  // Before login, the account's organization is unknown. Keep the standard
+  // entries available and let Moss enforce the policy when credentials arrive.
+  const isSsoAvailable = isElectronDesktop() && authMethods.includes('sso');
+  const [loginTab, setLoginTab] = useState<LoginTab>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [nickname, setNickname] = useState('');
@@ -93,13 +84,6 @@ export default function LoginPage() {
   } | null>(null);
   const [isOauth2Loading, setIsOauth2Loading] = useState(false);
   const oauth2StateRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (loginTab === 'register' && isRegistrationEnabled) return;
-    if (!availableMethods.includes(loginTab as AuthMethod)) {
-      setLoginTab(preferredTab(availableMethods, loginMethod));
-    }
-  }, [availableMethods, isRegistrationEnabled, loginMethod, loginTab]);
 
   useEffect(() => {
     if (!isElectronDesktop()) return;
@@ -240,11 +224,12 @@ export default function LoginPage() {
         nextSendIn?: number;
         msg?: string;
         message?: string;
+        error?: string;
       };
       const nextSendIn = body.next_send_in ?? body.nextSendIn;
       if (typeof nextSendIn === 'number') setCountdown(nextSendIn);
       if (response.ok && (body.success ?? body.ok)) Message.success(t('login.sendCodeSuccess'));
-      else Message.error(body.message || body.msg || t('login.errors.serverError'));
+      else Message.error(body.message || body.msg || body.error || t('login.errors.serverError'));
     } catch {
       Message.error(t('login.errors.networkError'));
     } finally {
@@ -374,106 +359,77 @@ export default function LoginPage() {
         </div>
 
         <div className='login-tabs'>
-          {availableMethods.includes('phone') && <LoginTabButton isActive={loginTab === 'phone'} label={t('login.phoneTab')} onClick={() => setLoginTab('phone')} />}
-          {availableMethods.includes('password') && <LoginTabButton isActive={loginTab === 'password'} label={t('login.passwordTab')} onClick={() => setLoginTab('password')} />}
-          {availableMethods.includes('api_key') && <LoginTabButton isActive={loginTab === 'api_key'} label={t('login.apiKeyTab')} onClick={() => setLoginTab('api_key')} />}
-          {isRegistrationEnabled && <LoginTabButton isActive={loginTab === 'register'} label={t('login.pwdRegisterTab')} onClick={() => setLoginTab('register')} />}
-          {availableMethods.includes('sso') && <LoginTabButton isActive={loginTab === 'sso'} label={t('login.ssoTab')} onClick={() => setLoginTab('sso')} />}
+          <LoginTabButton isActive={loginTab === 'phone'} label={t('login.phoneTab')} onClick={() => setLoginTab('phone')} />
+          <LoginTabButton isActive={loginTab === 'password'} label={t('login.passwordTab')} onClick={() => setLoginTab('password')} />
+          <LoginTabButton isActive={loginTab === 'api_key'} label={t('login.apiKeyTab')} onClick={() => setLoginTab('api_key')} />
+          <LoginTabButton isActive={loginTab === 'register'} label={t('login.pwdRegisterTab')} onClick={() => setLoginTab('register')} />
+          {isSsoAvailable && <LoginTabButton isActive={loginTab === 'sso'} label={t('login.ssoTab')} onClick={() => setLoginTab('sso')} />}
         </div>
 
         <div className='flex flex-col gap-20px mt-24px'>
-          <div className='flex flex-col gap-8px'>
-            <label htmlFor='login-organization-code' className='text-12px font-600 text-secondary'>
-              企业码（留空使用平台默认入口）
-            </label>
-            <div className='flex gap-8px'>
-              <Input id='login-organization-code' value={organizationDraft} onChange={setOrganizationDraft} placeholder='输入企业码' disabled={isLoading} />
-              <Button
-                disabled={isLoading || isBootstrapLoading}
-                onClick={() => {
-                  const code = organizationDraft.trim();
-                  localStorage.setItem('login.organizationCode', code);
-                  setOrganizationCode(code);
-                  setPolicyRetry((value) => value + 1);
-                }}
-              >
-                应用
-              </Button>
-            </div>
-            {isBootstrapLoading ? <div role='status'>正在获取该企业的登录方式…</div> : null}
-            {policyError ? (
-              <div role='alert' className='text-red-500'>
-                {policyError.message}
+          {loginTab === 'phone' && (
+            <>
+              <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder={t('login.phonePlaceholder')} value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
+              <div className='flex w-full'>
+                <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder={t('login.codePlaceholder')} value={code} onChange={setCode} maxLength={8} className='login-input !rd-l-12px h-48px flex-1' />
+                <Button size='large' disabled={countdown > 0 || isLoading} onClick={() => void onSendCode()} className='h-48px !rd-r-12px'>
+                  {countdown > 0 ? t('login.countingDown', { count: countdown }) : t('login.sendCode')}
+                </Button>
               </div>
-            ) : null}
-          </div>
-          <fieldset disabled={isBootstrapLoading || Boolean(policyError)} style={{ border: 0, padding: 0, display: 'contents' }}>
-            {loginTab === 'phone' && (
-              <>
-                <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder={t('login.phonePlaceholder')} value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
-                <div className='flex w-full'>
-                  <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder={t('login.codePlaceholder')} value={code} onChange={setCode} maxLength={8} className='login-input !rd-l-12px h-48px flex-1' />
-                  <Button size='large' disabled={countdown > 0 || isLoading} onClick={() => void onSendCode()} className='h-48px !rd-r-12px'>
-                    {countdown > 0 ? t('login.countingDown', { count: countdown }) : t('login.sendCode')}
-                  </Button>
-                </div>
-                <Button type='primary' size='large' loading={isLoading} onClick={() => void onPhoneSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
-                  {t('login.submit')}
-                </Button>
-              </>
-            )}
+              <Button type='primary' size='large' loading={isLoading} onClick={() => void onPhoneSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {t('login.submit')}
+              </Button>
+            </>
+          )}
 
-            {loginTab === 'password' && (
-              <>
-                <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdAccountPlaceholder')} value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
-                <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('login.pwdPasswordPlaceholder')} value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
-                <Button type='primary' size='large' loading={isLoading} onClick={() => void onCredentialSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
-                  {t('login.pwdLoginBtn')}
-                </Button>
-              </>
-            )}
+          {loginTab === 'password' && (
+            <>
+              <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdAccountPlaceholder')} value={username} onChange={setUsername} className='login-input !rd-12px h-48px' />
+              <Input.Password size='large' prefix={<Lock className='text-tertiary' />} placeholder={t('login.pwdPasswordPlaceholder')} value={password} onChange={setPassword} className='login-input !rd-12px h-48px' />
+              <Button type='primary' size='large' loading={isLoading} onClick={() => void onCredentialSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {t('login.pwdLoginBtn')}
+              </Button>
+            </>
+          )}
 
-            {loginTab === 'api_key' && (
-              <>
-                <Input.Password size='large' prefix={<Key className='text-tertiary' />} placeholder={t('login.apiKeyPlaceholder')} value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
-                <Button type='primary' size='large' loading={isLoading} onClick={() => void onCredentialSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
-                  {t('login.submit')}
-                </Button>
-              </>
-            )}
+          {loginTab === 'api_key' && (
+            <>
+              <Input.Password size='large' prefix={<Key className='text-tertiary' />} placeholder={t('login.apiKeyPlaceholder')} value={apiKey} onChange={setApiKey} className='login-input !rd-12px h-48px' />
+              <Button type='primary' size='large' loading={isLoading} onClick={() => void onCredentialSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {t('login.submit')}
+              </Button>
+            </>
+          )}
 
-            {loginTab === 'register' && (
-              <>
-                <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder={t('login.phonePlaceholder')} value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
-                <div className='flex w-full'>
-                  <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder={t('login.codePlaceholder')} value={code} onChange={setCode} maxLength={8} className='login-input !rd-l-12px h-48px flex-1' />
-                  <Button size='large' disabled={countdown > 0 || isLoading} onClick={() => void onSendCode()} className='h-48px !rd-r-12px'>
-                    {countdown > 0 ? t('login.countingDown', { count: countdown }) : t('login.sendCode')}
-                  </Button>
-                </div>
-                <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdNicknamePlaceholder')} value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' />
-                <Input size='large' prefix={<Key className='text-tertiary' />} placeholder={t('login.pwdInvitationCodePlaceholder')} value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' />
-                <Button type='primary' size='large' loading={isLoading} onClick={() => void onRegisterSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
-                  {t('login.pwdRegisterBtn')}
+          {loginTab === 'register' && (
+            <>
+              <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder={t('login.phonePlaceholder')} value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
+              <div className='flex w-full'>
+                <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder={t('login.codePlaceholder')} value={code} onChange={setCode} maxLength={8} className='login-input !rd-l-12px h-48px flex-1' />
+                <Button size='large' disabled={countdown > 0 || isLoading} onClick={() => void onSendCode()} className='h-48px !rd-r-12px'>
+                  {countdown > 0 ? t('login.countingDown', { count: countdown }) : t('login.sendCode')}
                 </Button>
-              </>
-            )}
+              </div>
+              <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('login.pwdNicknamePlaceholder')} value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' />
+              <Input size='large' prefix={<Key className='text-tertiary' />} placeholder={t('login.pwdInvitationCodePlaceholder')} value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' />
+              <Button type='primary' size='large' loading={isLoading} onClick={() => void onRegisterSubmit()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {t('login.pwdRegisterBtn')}
+              </Button>
+            </>
+          )}
 
-            {loginTab === 'sso' && systemConfig?.third_party_auth?.enabled ? (
-              <ThirdPartyAuthPanel compact appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} systemConfig={systemConfig} onBackToModeSelect={() => setLoginTab(preferredTab(availableMethods, loginMethod))} />
-            ) : null}
-            {loginTab === 'sso' && !systemConfig?.third_party_auth?.enabled && (
-              <>
-                <div className='login-third-party__icon'>
-                  <Link theme='outline' size={32} />
-                </div>
-                <Button type='primary' size='large' loading={isLoading} disabled={isOauth2Loading || !oauth2Config?.enabled} onClick={() => void onSsoLogin()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
-                  {isLoading ? t('login.thirdPartyWaiting') : t('login.ssoLogin')}
-                </Button>
-                {!isOauth2Loading && !oauth2Config?.enabled && <div className='text-center text-12px text-tertiary'>{t('login.thirdPartyUnavailable')}</div>}
-              </>
-            )}
-          </fieldset>
+          {loginTab === 'sso' && systemConfig?.third_party_auth?.enabled ? <ThirdPartyAuthPanel compact appName={tenantConfig.app_name} logo={tenantConfig.logo} defaultLogo={SudoworkIcon} systemConfig={systemConfig} onBackToModeSelect={() => setLoginTab('phone')} /> : null}
+          {loginTab === 'sso' && !systemConfig?.third_party_auth?.enabled && (
+            <>
+              <div className='login-third-party__icon'>
+                <Link theme='outline' size={32} />
+              </div>
+              <Button type='primary' size='large' loading={isLoading} disabled={isOauth2Loading || !oauth2Config?.enabled} onClick={() => void onSsoLogin()} className='login-btn-primary !rd-12px h-52px font-700 text-16px'>
+                {isLoading ? t('login.thirdPartyWaiting') : t('login.ssoLogin')}
+              </Button>
+              {!isOauth2Loading && !oauth2Config?.enabled && <div className='text-center text-12px text-tertiary'>{t('login.thirdPartyUnavailable')}</div>}
+            </>
+          )}
           {isServerExpanded ? (
             <div className='flex flex-col gap-8px'>
               <div className='text-12px font-600 text-secondary ml-4px'>{t('login.mossBaseUrlLabel')}</div>
