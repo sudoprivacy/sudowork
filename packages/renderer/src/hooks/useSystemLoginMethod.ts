@@ -61,7 +61,11 @@ async function fetchLoginMethod(organizationCode: string, selectedBaseUrl?: stri
     return value;
   })();
   inflight.set(key, request);
-  try { return await request; } finally { inflight.delete(key); }
+  try {
+    return await request;
+  } finally {
+    inflight.delete(key);
+  }
 }
 
 export function useSystemLoginMethod(organizationCode = '', selectedBaseUrl?: string, retry = 0): SystemLoginMethodState {
@@ -69,12 +73,16 @@ export function useSystemLoginMethod(organizationCode = '', selectedBaseUrl?: st
   useEffect(() => {
     let cancelled = false;
     setState({ loginMethod: null, systemConfig: null, authMethods: [], isLoading: true, error: null });
-    void fetchLoginMethod(organizationCode.trim(), selectedBaseUrl).then(value => {
-      if (!cancelled) setState({ ...value, isLoading: false, error: null });
-    }).catch(error => {
-      if (!cancelled) setState({ loginMethod: null, systemConfig: null, authMethods: [], isLoading: false, error: error instanceof Error ? error : new Error(String(error)) });
-    });
-    return () => { cancelled = true; };
+    void fetchLoginMethod(organizationCode.trim(), selectedBaseUrl)
+      .then((value) => {
+        if (!cancelled) setState({ ...value, isLoading: false, error: null });
+      })
+      .catch((error) => {
+        if (!cancelled) setState({ loginMethod: null, systemConfig: null, authMethods: [], isLoading: false, error: error instanceof Error ? error : new Error(String(error)) });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [organizationCode, selectedBaseUrl, retry]);
   return state;
 }

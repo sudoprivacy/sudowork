@@ -169,7 +169,8 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
           typeof req.query.mossBaseUrl === 'string' ? req.query.mossBaseUrl : undefined
         const { baseUrl } = resolveLoginMoss(config, requestedBaseUrl)
         const upstreamUrl = new URL('/api/v1/system-config', baseUrl)
-        if (typeof req.query.organization_code === 'string') upstreamUrl.searchParams.set('organization_code', req.query.organization_code.trim())
+        if (typeof req.query.organization_code === 'string')
+          upstreamUrl.searchParams.set('organization_code', req.query.organization_code.trim())
         const upstream = await fetch(upstreamUrl.toString())
         res.status(upstream.status).json(await upstream.json())
       } catch (error) {
