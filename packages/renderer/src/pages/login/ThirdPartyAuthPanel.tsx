@@ -15,7 +15,7 @@ import { buildCasLoginUrl, buildCasServiceUrl, parseCasCallbackAction, resolveTh
 import { useAuth } from '../../context/AuthContext';
 import './LoginPage.css';
 
-export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, systemConfig, onBackToModeSelect }: IThirdPartyAuthPanelProps) {
+export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, systemConfig, onBackToModeSelect, compact = false }: IThirdPartyAuthPanelProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { enterGuest, exchangeThirdPartyAuthCode, loginWithThirdPartyAuth } = useAuth();
@@ -129,14 +129,14 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
   };
 
   return (
-    <div className='login-page__card'>
-      <div className='login-page__header'>
+    <div className={compact ? '' : 'login-page__card'}>
+      {!compact ? <div className='login-page__header'>
         <div className='login-page__logo'>
           <img src={logo || defaultLogo} alt={appName} className='w-64px h-64px object-contain' />
         </div>
         <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{appName}</h1>
         <p className='text-13px text-secondary'>{t('login.thirdPartySubtitle')}</p>
-      </div>
+      </div> : null}
 
       <div className='flex flex-col gap-20px mt-24px'>
         <div className='login-third-party__icon'>
@@ -182,6 +182,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
 }
 
 interface IThirdPartyAuthPanelProps {
+  compact?: boolean;
   appName: string;
   logo?: string;
   defaultLogo: string;

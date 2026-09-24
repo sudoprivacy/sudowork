@@ -27,7 +27,7 @@ const UserProfile: React.FC = () => {
   const { isEnterprise } = useAppMode();
   const [editingNickname, setEditingNickname] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const { loginMethod } = useSystemLoginMethod();
+  const { loginMethod } = useSystemLoginMethod(currentUser?.enterprise_code || '');
   const [changePwdModalVisible, setChangePwdModalVisible] = useState(false);
 
   // Enterprise mode state
