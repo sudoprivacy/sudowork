@@ -1,5 +1,5 @@
 # PR gate for apps/webui: typecheck / lint / format:check / unit / contract / integration tests.
-# Mirrors pr-checks.yml conventions (trigger, concurrency, edited-skip, minimal deps).
+# Mirrors pr-checks.yml conventions (code-event triggers, concurrency, minimal deps).
 #
 # Integration runs here because leaving it out is what let it rot: two assertions
 # in conversations.test.ts sat red on dev for days after fields were added to the
@@ -15,7 +15,7 @@ name: '✓PR WebUI Checks'
 
 on:
   pull_request:
-    types: [opened, synchronize, edited]
+    types: [opened, synchronize, reopened]
     branches: [main, dev]
 
 concurrency:
@@ -31,7 +31,6 @@ env:
 jobs:
   webui-checks:
     name: WebUI Checks
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Same major as production (the deployed stack runs postgres:16-alpine), so a

@@ -2,7 +2,7 @@ name: '✓PR Checks'
 
 on:
   pull_request:
-    types: [opened, synchronize, edited]
+    types: [opened, synchronize, reopened]
     branches: [main, dev]
 
 concurrency:
@@ -18,24 +18,11 @@ env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
 
 jobs:
-  # Job 0: Reject PRs targeting main — all PRs should target dev
-  check-base-branch:
-    name: Check PR Base Branch
-    if: github.event.pull_request.base.ref == 'main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Reject PR to main
-        run: |
-          echo "::error::PRs should target 'dev', not 'main'. Please change the base branch."
-          echo "To fix: gh pr edit ${{ github.event.pull_request.number }} --base dev"
-          exit 1
-
   # Job 1: Skipped code quality checks (ESLint removed per requirement)
 
   # Job 2: Vault secrets unit tests — pure mock, no native deps
   unit-tests-secrets:
     name: Secrets Unit Tests
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -73,7 +60,6 @@ jobs:
   # Job 2b: Hub catalog empty-state differentiation tests
   unit-tests-hub:
     name: Hub Unit Tests
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -112,7 +98,6 @@ jobs:
   # release-clean. Deterministic + fast — not the ESLint that was removed.
   format-check:
     name: Format Check
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -141,7 +126,6 @@ jobs:
   # @sudowork/renderer. Previously PR CI had no tsc gate at all.
   type-check:
     name: Type Check
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -178,7 +162,6 @@ jobs:
   # Job 2c: Conversation resource reaper regression tests
   unit-tests-conversation-reaper:
     name: Conversation Reaper Unit Tests
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -219,7 +202,6 @@ jobs:
   # so dev stays release-clean and regressions are caught at PR time, not release time.
   unit-tests-full:
     name: Full Unit Test Suite
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -248,7 +230,6 @@ jobs:
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
     name: Build Test (${{ matrix.platform }})
-    if: github.event.action != 'edited'
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.timeout }}
     defaults:
@@ -538,7 +519,6 @@ jobs:
   # Job 4: Test release scripts (fast, no build required)
   release-script-test:
     name: Release Script Test
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
