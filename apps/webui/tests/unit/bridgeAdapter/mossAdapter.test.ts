@@ -703,3 +703,38 @@ describe('mossAdapter: chat.send.message shares msgId between the WS send frame 
     expect(echo?.msg_id).toBe('msg-uuid-9')
   })
 })
+
+describe('mossAdapter: an untitled session is not named after its id', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // The sidebar renders this value verbatim, and the renderer already shows
+  // "new conversation" when it is empty. Falling back to the id instead put a
+  // raw uuid where a name belongs — visible to the user, and on screenshots.
+  //
+  // All three cases share one stub because `listConversations` caches for three
+  // seconds: a second call inside that window would answer from the first.
+  it('falls back to empty, never to the id, and still prefers a real title', async () => {
+    const sessionId = '5ba1bc6e-cb93-49fa-8981-000000000000'
+    stubFetch({
+      '/api/conversations': {
+        conversations: [
+          { id: sessionId, status: 'finished', updatedAt: 1 },
+          { id: 'b', assistantName: 'scode', updatedAt: 1 },
+          { id: 'c', title: 'Quarterly review', assistantName: 'scode', updatedAt: 1 },
+        ],
+      },
+    })
+
+    const list = (await ipcBridge.database.getUserConversations.invoke(
+      undefined as never,
+    )) as Array<{ id: string; name: string }>
+
+    expect(list[0]?.id).toBe(sessionId)
+    expect(list[0]?.name).toBe('')
+    expect(list[0]?.name).not.toContain(sessionId)
+    expect(list[1]?.name).toBe('scode')
+    expect(list[2]?.name).toBe('Quarterly review')
+  })
+})
