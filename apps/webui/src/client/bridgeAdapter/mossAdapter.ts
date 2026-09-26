@@ -465,7 +465,10 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
     // 'remote-agent' (not 'acp') so ChatSider mounts the moss-session workspace
     // panel (readonly tree + deliverables); chat/model/stream all go through the
     // already-mapped remote-agent channels.
-    name: item.title ?? item.assistantName ?? item.id,
+    // Never the id: the sidebar renders this verbatim, so an untitled session
+    // showed a raw uuid where a name belongs. The renderer already falls back
+    // to "new conversation" for an empty name — this just stops overriding it.
+    name: item.title ?? item.assistantName ?? '',
     type: 'remote-agent',
     createTime: ts,
     modifyTime: ts,
