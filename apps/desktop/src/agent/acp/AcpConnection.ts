@@ -653,8 +653,8 @@ export class AcpConnection {
             const firstTokenLatency = Date.now() - this.lastPromptSentAt;
             if (ACP_PERF_LOG) console.log(`[ACP-PERF] stream: first chunk received ${firstTokenLatency}ms (since prompt sent)`);
             // Telemetry: record first token time
-            if (this.sessionId) {
-              recordFirstToken(this.sessionId, firstTokenLatency);
+            if (this.conversationId) {
+              recordFirstToken(this.conversationId, firstTokenLatency);
             }
           }
           // Reset timeout on streaming updates - LLM is still processing

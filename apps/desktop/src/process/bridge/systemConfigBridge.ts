@@ -19,16 +19,12 @@ import { decryptCredentials, setSystemConfigCache } from '@sudowork/common/syste
 import { mainError } from '@process/utils/mainLogger';
 import { setCredentialsCache } from '@/process/credentialsCache';
 import { flushCrashReporter } from '@/process/telemetry/CrashReporter';
-import { reinitTelemetryEncryptor } from '@/process/telemetry/TelemetryEncryptor';
 
 export function initSystemConfigBridge(): void {
   systemConfig.cacheCredentials.provider(async ({ nonce, ciphertext }) => {
     try {
       const credentials = await decryptCredentials(nonce, ciphertext);
       setCredentialsCache(credentials);
-      // Re-init the qms encryptor so an encryption_required=true dispatch swaps in the
-      // server's public key (D6); no-op effect when encryption_required is false.
-      void reinitTelemetryEncryptor().catch((err) => mainError('systemConfig', 'encryptor reinit failed:', err));
       // Credentials ready — flush any crash events queued before login (§6.3 backfill).
       void flushCrashReporter().catch((err) => mainError('systemConfig', 'post-credentials crash flush failed:', err));
       return { success: true, data: { cached: true } };

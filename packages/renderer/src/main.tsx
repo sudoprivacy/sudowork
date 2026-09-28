@@ -26,8 +26,8 @@ import { dropSlashCommandCache } from '@renderer/hooks/useSlashCommands';
  * Null result = fetch failure; do NOT propagate (would wipe whatever main-process
  * startup bootstrap previously cached).
  */
-async function fetchSystemConfigAndSync(): Promise<SystemConfig | null> {
-  const data = await fetchSystemConfig();
+async function fetchSystemConfigAndSync(accessToken: string): Promise<SystemConfig | null> {
+  const data = await fetchSystemConfig(undefined, undefined, undefined, { accessToken });
   if (data) {
     void ipcBridge.systemConfig.syncFromRenderer.invoke({ data }).catch(() => {});
   }
@@ -35,9 +35,10 @@ async function fetchSystemConfigAndSync(): Promise<SystemConfig | null> {
 }
 
 const Main = () => {
-  const { ready: authReady } = useAuth();
+  const { ready: authReady, user } = useAuth();
+  useAppMode();
   const { status, isReady: initReady, hasResolvedInitialStatus, isInitScreenSkipped } = useInit();
-  const { isEnterprise } = useAppMode();
+  const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
 
   // Product improvement opt-in dialog state (shown only on first install for new users)
   const [isOptInDialogOpen, setIsOptInDialogOpen] = useState(false);
@@ -45,15 +46,15 @@ const Main = () => {
 
   // Check if opt-in dialog should be shown when init is ready (only for new users)
   useEffect(() => {
-    if (isEnterprise) {
+    if (!isDesktopRuntime) {
       setIsOptInDialogOpen(false);
       return;
     }
 
-    if (initReady && !isOptInChecked) {
+    if (initReady && authReady && user?.token && !isOptInChecked) {
       // Fill the renderer system-config cache so the product_improvement switch
       // (server-driven) is accurate before deciding whether to show the opt-in dialog.
-      Promise.all([ipcBridge.telemetry.getOptInShown.invoke(), fetchSystemConfigAndSync()])
+      Promise.all([ipcBridge.telemetry.getOptInShown.invoke(), fetchSystemConfigAndSync(user.token)])
         .then(([result]) => {
           // §4.5: hide the opt-in dialog when product_improvement is disabled server-side.
           if (result.success && !result.data && isProductImprovementEnabled()) {
@@ -67,7 +68,7 @@ const Main = () => {
           setIsOptInChecked(true);
         });
     }
-  }, [initReady, isEnterprise, isOptInChecked]);
+  }, [initReady, authReady, user?.token, isDesktopRuntime, isOptInChecked]);
 
   // Global cleanup on the consolidated conversation.reaped broadcast from main.
   // This covers every delete path (user-delete AND preset-assistant uninstall,
@@ -131,8 +132,8 @@ const Main = () => {
         </div>
       )}
 
-      {/* Product Improvement Dialog - shown only on first install for non-enterprise users */}
-      {!isEnterprise && <OptInDialog isOpen={isOptInDialogOpen} onClose={handleOptInClose} />}
+      {/* Product Improvement Dialog - local desktop reporting consent */}
+      {isDesktopRuntime && <OptInDialog isOpen={isOptInDialogOpen} onClose={handleOptInClose} />}
     </div>
   );
 };

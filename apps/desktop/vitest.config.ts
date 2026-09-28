@@ -142,6 +142,7 @@ export default defineConfig({
         'src/process/services/ontology/ontologyTemplateParser.ts',
         'src/process/services/ontology/ontologyDocumentExtractor.ts',
         'src/process/telemetry/SudoLogTelemetryReporter.ts',
+        'src/process/telemetry/executionScope.ts',
         'src/process/bridge/updateBridge.ts',
         'src/process/bridge/applicationBridge.ts',
         'src/process/bridge/acpModelSwitch.ts',

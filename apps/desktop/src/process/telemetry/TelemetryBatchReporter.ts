@@ -17,7 +17,7 @@
 import { app } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { isProductImprovementEnabled } from '@sudowork/common/systemConfig';
+import { getQualityReportUrl, isProductImprovementEnabled } from '@sudowork/common/systemConfig';
 import { buildVersion } from '@common/buildInfo';
 import { ProcessConfig, getSudoworkServerBaseUrlSync } from '../initStorage';
 import type {
@@ -40,10 +40,9 @@ import type {
 import { mapElectronArch, DEFAULT_TELEMETRY_CONFIG } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { getProductImprovementApiKey } from '../credentialsCache';
-import { getTelemetryEncryptor, initTelemetryEncryptor, isEncryptionAvailable } from './TelemetryEncryptor';
-import { ENCRYPTION_CONFIG } from './keys';
 import { getUserContextSync } from './UserContext';
 import { getSudoLogTelemetryReporter } from './SudoLogTelemetryReporter';
+import { isLocalQualityEvent } from './executionScope';
 
 // ============================================================
 // 类型定义
@@ -72,22 +71,16 @@ const MAX_QUEUE_SIZE = 500;
 /** 存储事件最大年龄 (毫秒) - 超过此时间的事件将被丢弃 */
 const MAX_EVENT_AGE = 7 * 24 * 60 * 60 * 1000; // 7 天
 
-const isPersonalMode = (): boolean => getUserContextSync().login_mode === 'personal';
-
-function getPersonalTelemetryUserFields(): Pick<StoredTelemetryEvent, 'org_id' | 'user_id' | 'tenant_id' | 'login_mode' | 'user_nickname' | 'user_phone'> | null {
+function getTelemetryUserFields(): Pick<StoredTelemetryEvent, 'org_id' | 'user_id' | 'tenant_id' | 'login_mode' | 'user_nickname' | 'user_phone'> | null {
   const userContext = getUserContextSync();
-  if (userContext.login_mode !== 'personal') {
-    return null;
-  }
-
   const userId = userContext.user_id;
   const tenantId = userContext.tenant_id;
   if (!userId) {
-    mainWarn('Telemetry', 'User ID not resolved in personal mode, skipping telemetry event');
+    mainWarn('Telemetry', 'User ID not resolved, skipping telemetry event');
     return null;
   }
   if (!tenantId) {
-    mainWarn('Telemetry', 'Tenant ID not resolved in personal mode, skipping telemetry event');
+    mainWarn('Telemetry', 'Tenant ID not resolved, skipping telemetry event');
     return null;
   }
 
@@ -144,15 +137,6 @@ export class TelemetryBatchReporter {
       return;
     }
 
-    if (!isPersonalMode()) {
-      this.enabled = false;
-      this.initialized = true;
-      this.eventQueue = [];
-      await this.clearCacheFile();
-      mainLog('Telemetry', 'Telemetry disabled outside personal mode');
-      return;
-    }
-
     // 检查用户授权状态
     const enabled = await ProcessConfig.get('telemetry.enabled').catch(() => undefined as unknown as boolean | undefined);
     this.enabled = enabled ?? true; // 默认启用
@@ -165,7 +149,7 @@ export class TelemetryBatchReporter {
 
     // 获取自定义服务器地址 (可选)，否则用现读的 sudowork-server baseUrl 派生（与 sendBatch 一致）
     const customServerUrl = await ProcessConfig.get('telemetry.serverUrl').catch(() => undefined as unknown as string | undefined);
-    const serverUrl = customServerUrl || `${getSudoworkServerBaseUrlSync()}/api/v1/telemetry/batch`;
+    const serverUrl = getQualityReportUrl('telemetry', getSudoworkServerBaseUrlSync(), customServerUrl);
 
     this.config = {
       ...DEFAULT_TELEMETRY_CONFIG,
@@ -174,20 +158,6 @@ export class TelemetryBatchReporter {
 
     // 加载离线缓存
     await this.loadCachedEvents();
-
-    // 初始化加密器
-    if (ENCRYPTION_CONFIG.enabled) {
-      try {
-        await initTelemetryEncryptor();
-        if (isEncryptionAvailable()) {
-          mainLog('Telemetry', 'Encryption enabled (hybrid-v1)');
-        } else {
-          mainLog('Telemetry', 'Encryption disabled (no valid public key)');
-        }
-      } catch (error) {
-        mainWarn('Telemetry', 'Failed to initialize encryptor, fallback to plaintext:', error);
-      }
-    }
 
     // 启动定时上报
     this.startFlushTimer();
@@ -204,16 +174,17 @@ export class TelemetryBatchReporter {
    * @param agentType - Agent 类型 (sudocode, claude 等)
    */
   public record<K extends TelemetryEventType>(type: K, data: TelemetryEventPayloadMap[K], agentType?: string): void {
-    if (!isPersonalMode() || !isProductImprovementEnabled() || !this.enabled || !this.initialized) {
+    if (!isProductImprovementEnabled() || !this.enabled || !this.initialized || !isLocalQualityEvent({ type, data })) {
       return;
     }
 
-    const userFields = getPersonalTelemetryUserFields();
+    const userFields = getTelemetryUserFields();
     if (!userFields) {
       return;
     }
 
     const storedEvent: StoredTelemetryEvent = {
+      execution_target: 'local',
       id: this.generateEventId(),
       storedAt: Date.now(),
       retryCount: 0,
@@ -244,7 +215,7 @@ export class TelemetryBatchReporter {
    * 用于应用退出前上报剩余事件
    */
   public async flushAll(): Promise<void> {
-    if (!isPersonalMode() || !isProductImprovementEnabled()) {
+    if (!this.enabled || !isProductImprovementEnabled()) {
       this.eventQueue = [];
       await this.clearCacheFile();
       return;
@@ -263,22 +234,12 @@ export class TelemetryBatchReporter {
    * 更新启用状态
    */
   public async setEnabled(enabled: boolean): Promise<void> {
-    if (!isPersonalMode()) {
-      this.enabled = false;
-      this.stopFlushTimer();
-      this.eventQueue = [];
-      await this.clearCacheFile();
-      await ProcessConfig.set('telemetry.enabled', false);
-      mainLog('Telemetry', 'Telemetry remains disabled outside personal mode');
-      return;
-    }
-
     this.enabled = enabled;
     await getSudoLogTelemetryReporter().setEnabled(enabled);
 
     if (enabled && !this.flushTimer) {
       this.startFlushTimer();
-    } else if (!enabled && this.flushTimer) {
+    } else if (!enabled) {
       this.stopFlushTimer();
       // 禁用时清空队列但不上报
       this.eventQueue = [];
@@ -316,11 +277,13 @@ export class TelemetryBatchReporter {
 
   /** 判断事件是否满足上报身份要求 */
   private isReportableEvent(event: StoredTelemetryEvent): boolean {
-    return Boolean(event.user_id && event.tenant_id);
+    return Boolean(event.user_id && event.tenant_id) && isLocalQualityEvent(event);
   }
 
   private toTelemetryEvent(stored: StoredTelemetryEvent): TelemetryEvent {
     const baseEvent = {
+      id: stored.id,
+      execution_target: stored.execution_target,
       timestamp: stored.timestamp,
       version: stored.version,
       platform: stored.platform,
@@ -408,7 +371,7 @@ export class TelemetryBatchReporter {
 
   /** 执行批量上报 */
   private async flush(): Promise<void> {
-    if (!isPersonalMode() || !isProductImprovementEnabled()) {
+    if (!this.enabled || !isProductImprovementEnabled()) {
       this.eventQueue = [];
       await this.clearCacheFile();
       return;
@@ -468,10 +431,9 @@ export class TelemetryBatchReporter {
 
   /** 发送批量请求 */
   private async sendBatch(request: TelemetryBatchRequest): Promise<TelemetryBatchResponse> {
-    // 现读：用户自定义 telemetry.serverUrl 优先；否则用现读的 sudowork-server baseUrl 派生
+    // Read the current quality policy on every send; preserve explicit local overrides.
     const customServerUrl = await ProcessConfig.get('telemetry.serverUrl').catch(() => undefined as unknown as string | undefined);
-    const url = customServerUrl || `${getSudoworkServerBaseUrlSync()}/api/v1/telemetry/batch`;
-    const encryptor = getTelemetryEncryptor();
+    const url = getQualityReportUrl('telemetry', getSudoworkServerBaseUrlSync(), customServerUrl);
 
     try {
       const apiKey = getProductImprovementApiKey();
@@ -480,32 +442,15 @@ export class TelemetryBatchReporter {
         mainError('Telemetry', 'product_improvement api_key not provisioned, skip sendBatch');
         return { success: false, received: 0, error: 'product_improvement api_key missing' };
       }
-      let body: string;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-API-Key': apiKey,
       };
 
-      // 如果加密器可用，使用加密请求
-      if (encryptor.isEnabled()) {
-        const encryptedPayload = encryptor.encrypt(request);
-        if (encryptedPayload) {
-          body = JSON.stringify(encryptedPayload);
-          headers['X-Encryption'] = 'hybrid-v1';
-        } else {
-          // 加密失败，降级为明文上报
-          body = JSON.stringify(request);
-          mainWarn('Telemetry', 'Encryption failed, fallback to plaintext');
-        }
-      } else {
-        // 未启用加密，明文上报
-        body = JSON.stringify(request);
-      }
-
       const response = await fetch(url, {
         method: 'POST',
         headers,
-        body,
+        body: JSON.stringify(request),
       });
 
       if (!response.ok) {

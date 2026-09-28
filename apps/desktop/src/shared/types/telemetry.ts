@@ -183,6 +183,10 @@ export interface StepData {
 
 /** 遥测事件基础结构 */
 export interface TelemetryEventBase {
+  /** Execution scope captured locally before queuing; optional for older cached events. */
+  execution_target?: 'local' | 'remote';
+  /** Stable across retries so the server can deduplicate accepted batches. */
+  id?: string;
   type: TelemetryEventType;
   timestamp: number; // Unix milliseconds
   version: string; // 客户端版本
@@ -284,6 +288,7 @@ export const DEFAULT_TELEMETRY_CONFIG: TelemetryConfig = {
 
 /** 遥测存储事件 (带 ID) */
 export interface StoredTelemetryEvent {
+  execution_target?: 'local' | 'remote';
   id: string; // 本地存储 ID
   storedAt: number; // 存储时间
   retryCount: number; // 重试次数

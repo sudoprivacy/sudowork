@@ -12,7 +12,7 @@
 
 import { ipcBridge } from '../../common';
 import { ProcessConfig } from '../initStorage';
-import { getTelemetryReporter, getPerfTracker, getConversationTracker, flushTelemetry, getUserContextSync } from '../telemetry';
+import { getTelemetryReporter, getPerfTracker, getConversationTracker, flushTelemetry, getCrashReporter } from '../telemetry';
 
 export function initTelemetryBridge(): void {
   // 获取遥测状态
@@ -26,8 +26,8 @@ export function initTelemetryBridge(): void {
   ipcBridge.telemetry.setEnabled.provider(async ({ enabled }) => {
     const reporter = getTelemetryReporter();
     await reporter.setEnabled(enabled);
-    const isPersonal = getUserContextSync().login_mode === 'personal';
-    await ProcessConfig.set('telemetry.enabled', isPersonal ? enabled : false);
+    await getCrashReporter().setEnabled(enabled);
+    await ProcessConfig.set('telemetry.enabled', enabled);
     return { success: true };
   });
 

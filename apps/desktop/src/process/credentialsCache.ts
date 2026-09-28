@@ -45,11 +45,6 @@ export function getProductImprovementApiKey(): string | null {
   return nonEmpty(cached?.product_improvement?.api_key);
 }
 
-/** qms product-improvement encryption public key (PEM); null unless `encryption_required=true` + provisioned. */
-export function getProductImprovementPublicKey(): string | null {
-  return nonEmpty(cached?.product_improvement?.public_key);
-}
-
 /** Log-upload `X-API-Key`; null when not provisioned. */
 export function getLogReportKey(): string | null {
   return nonEmpty(cached?.log_report?.key);

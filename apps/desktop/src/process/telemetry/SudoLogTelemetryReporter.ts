@@ -8,13 +8,13 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
-import { isLogReportEnabled } from '@sudowork/common/systemConfig';
+import { isLogReportEnabled, isProductImprovementEnabled } from '@sudowork/common/systemConfig';
 import { getLogReportKey } from '@/process/credentialsCache';
 import type { CrashEvent } from '../../shared/types/crash';
 import type { ConversationData, InstallData, PerfData, StepData, TelemetryEvent, TurnData } from '../../shared/types/telemetry';
 import { mainError, mainLog, mainWarn } from '../utils/mainLogger';
 import { SUDO_LOG_API_KEY_HEADER, SUDO_LOG_ENVIRONMENT, SUDO_LOG_PRODUCT, SUDO_LOG_TENANT_ID, getSudoworkLogBatchUrl } from '../utils/sudoworkLogUploader';
-import { getUserContextSync } from './UserContext';
+import { isLocalQualityEvent } from './executionScope';
 
 type SudoLogLevel = 'info' | 'warn' | 'error';
 
@@ -72,10 +72,6 @@ const MAX_ATTRIBUTE_STRING_LENGTH = 2000;
 const MAX_ARRAY_ITEMS = 30;
 const MAX_OBJECT_KEYS = 80;
 const MAX_OBJECT_DEPTH = 5;
-
-function isPersonalMode(): boolean {
-  return getUserContextSync().login_mode === 'personal';
-}
 
 function hashIdentifier(value?: unknown): string | undefined {
   if (typeof value !== 'string' && typeof value !== 'number') return undefined;
@@ -374,7 +370,7 @@ export class SudoLogTelemetryReporter {
   public async initialize(enabled: boolean): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
-    this.enabled = enabled && isPersonalMode() && isLogReportEnabled();
+    this.enabled = enabled && isLogReportEnabled();
 
     if (!this.enabled) {
       await this.dropAndClear();
@@ -390,7 +386,7 @@ export class SudoLogTelemetryReporter {
   }
 
   public async setEnabled(enabled: boolean): Promise<void> {
-    this.enabled = enabled && isPersonalMode() && isLogReportEnabled();
+    this.enabled = enabled && isLogReportEnabled();
     if (!this.enabled) {
       await this.dropAndClear();
       return;
@@ -399,11 +395,11 @@ export class SudoLogTelemetryReporter {
   }
 
   public enqueueTelemetryEvent(event: TelemetryEvent): void {
-    this.enqueueLog(toTelemetryLog(event));
+    if (isLocalQualityEvent(event)) this.enqueueLog(toTelemetryLog({ ...event, execution_target: 'local' }));
   }
 
   public enqueueCrashEvent(event: CrashEvent): void {
-    this.enqueueLog(toCrashLog(event));
+    if (isLocalQualityEvent(event)) this.enqueueLog(toCrashLog({ ...event, execution_target: 'local' }));
   }
 
   public async flushAll(): Promise<void> {
@@ -422,7 +418,7 @@ export class SudoLogTelemetryReporter {
 
   private enqueueLog(log: SudoLogEntry | null): void {
     if (!log) return;
-    if (this.initialized && (!this.enabled || !isPersonalMode() || !isLogReportEnabled())) return;
+    if (this.initialized && (!this.enabled || !isLogReportEnabled() || !isProductImprovementEnabled())) return;
 
     this.enqueueChain = this.enqueueChain
       .then(async () => {
@@ -465,7 +461,7 @@ export class SudoLogTelemetryReporter {
       if (!content.trim()) return;
       const cached = JSON.parse(content) as StoredSudoLogTelemetryEntry[];
       const now = Date.now();
-      this.queue = cached.filter((entry) => entry.retryCount < MAX_RETRIES && now - entry.storedAt < MAX_EVENT_AGE_MS);
+      this.queue = cached.filter((entry) => entry.retryCount < MAX_RETRIES && now - entry.storedAt < MAX_EVENT_AGE_MS && isLocalQualityEvent(entry.log.attributes.qms_event));
       if (this.queue.length !== cached.length) {
         await this.persistOrClearCache();
       }
@@ -517,13 +513,14 @@ export class SudoLogTelemetryReporter {
   }
 
   private async flush(): Promise<void> {
-    if (!this.enabled || !isPersonalMode() || !isLogReportEnabled()) {
+    if (!this.enabled || !isLogReportEnabled() || !isProductImprovementEnabled()) {
       await this.dropAndClear();
       return;
     }
 
     await this.enqueueChain;
     await this.loadCachedQueue();
+    this.queue = this.queue.filter((entry) => isLocalQualityEvent(entry.log.attributes.qms_event));
     if (this.isFlushing || this.queue.length === 0) return;
 
     this.isFlushing = true;
@@ -560,7 +557,7 @@ export class SudoLogTelemetryReporter {
       entry.retryCount += 1;
     }
     const now = Date.now();
-    this.queue = this.queue.filter((entry) => entry.retryCount < MAX_RETRIES && now - entry.storedAt < MAX_EVENT_AGE_MS);
+    this.queue = this.queue.filter((entry) => entry.retryCount < MAX_RETRIES && now - entry.storedAt < MAX_EVENT_AGE_MS && isLocalQualityEvent(entry.log.attributes.qms_event));
     await this.persistOrClearCache();
     mainWarn('SudoLogTelemetry', `Upload failed: ${reason}, pending: ${this.queue.length}`);
   }

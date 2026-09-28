@@ -71,6 +71,8 @@ export interface CrashContext {
 
 /** Crash 事件基础结构 */
 export interface CrashEventBase {
+  /** Execution scope captured locally before queuing. */
+  execution_target?: 'local' | 'remote';
   /** 事件类型 */
   type: CrashEventType;
   /** 时间戳 (毫秒) */

@@ -50,6 +50,7 @@ const SystemSettings: React.FC = () => {
   const [modal, modalContextHolder] = Modal.useModal();
   const [error, setError] = useState<string | null>(null);
   const { isEnterprise } = useAppMode();
+  const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.electronAPI);
   const initializingRef = useRef(true);
 
   // 关闭到托盘状态 / Close to tray state
@@ -174,7 +175,7 @@ const SystemSettings: React.FC = () => {
 
   // 获取产品体验改进计划设置 / Fetch product improvement setting
   useEffect(() => {
-    if (isEnterprise) {
+    if (!isDesktopRuntime) {
       setProductImprovementEnabled(false);
       setProductImprovementLoading(false);
       setIsOptInDialogOpen(false);
@@ -192,7 +193,7 @@ const SystemSettings: React.FC = () => {
       .finally(() => {
         setProductImprovementLoading(false);
       });
-  }, [isEnterprise]);
+  }, [isDesktopRuntime]);
 
   // 处理产品体验改进计划开关变更 / Handle product improvement toggle change
   const handleProductImprovementChange = useCallback((checked: boolean) => {
@@ -380,7 +381,7 @@ const SystemSettings: React.FC = () => {
       hint: t('settings.avatarEnabledDesc'),
       component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' style={avatarEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
-    ...(isEnterprise || !isProductImprovementEnabled()
+    ...(!isDesktopRuntime || !isProductImprovementEnabled()
       ? []
       : [
           {

@@ -87,6 +87,23 @@ describe('sensitive ACP diagnostics', () => {
 });
 
 describe('AcpConnection prompt response ordering', () => {
+  it('associates first-token telemetry with the persisted task rather than the ACP session', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const { recordFirstToken } = await import('@process/telemetry');
+    const connection = new AcpConnection();
+    const harness = connection as unknown as { sessionId: string; conversationId: string | null; lastPromptSentAt: number; firstChunkReceived: boolean; handleIncomingRequest: (message: unknown) => Promise<void> };
+    harness.sessionId = 'acp-internal-session';
+    harness.conversationId = 'persisted-local-task';
+    harness.lastPromptSentAt = Date.now() - 100;
+    harness.firstChunkReceived = false;
+    await harness.handleIncomingRequest({ method: 'session/update', params: { sessionId: harness.sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hello' } } } });
+    expect(recordFirstToken).toHaveBeenCalledWith('persisted-local-task', expect.any(Number));
+    harness.conversationId = null;
+    harness.firstChunkReceived = false;
+    await harness.handleIncomingRequest({ method: 'session/update', params: { sessionId: harness.sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hello' } } } });
+    expect(recordFirstToken).toHaveBeenCalledOnce();
+  });
+
   it('emits usage before end_turn for completed prompt responses', async () => {
     const { AcpConnection } = await loadAcpConnection();
     const connection = new AcpConnection();

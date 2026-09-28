@@ -18,7 +18,7 @@
 import { app } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { isProductImprovementEnabled } from '@sudowork/common/systemConfig';
+import { getQualityReportUrl, isProductImprovementEnabled } from '@sudowork/common/systemConfig';
 import { buildVersion } from '@common/buildInfo';
 import { ProcessConfig, getSudoworkServerBaseUrlSync } from '../initStorage';
 import type { NativeCrashEvent, RendererCrashEvent, JsExceptionEvent, Breadcrumb, CrashContext, CrashEventBase, CrashBatchRequest, CrashBatchResponse, StoredCrashEvent, CrashReporterConfig, CrashProcessType, CrashReason } from '../../shared/types/crash';
@@ -26,10 +26,9 @@ import { DEFAULT_CRASH_REPORTER_CONFIG } from '../../shared/types/crash';
 import { mapElectronArch } from '../../shared/types/telemetry';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { getProductImprovementApiKey } from '../credentialsCache';
-import { getTelemetryEncryptor, initTelemetryEncryptor } from './TelemetryEncryptor';
 import { getUserContextSync } from './UserContext';
-import { ENCRYPTION_CONFIG } from './keys';
 import { getSudoLogTelemetryReporter } from './SudoLogTelemetryReporter';
+import { isLocalQualityContext, isLocalQualityEvent } from './executionScope';
 
 // ============================================================
 // 常量定义
@@ -44,22 +43,16 @@ const MAX_QUEUE_SIZE = 100;
 /** 存储事件最大年龄 (毫秒) - 超过此时间的事件将被丢弃 */
 const MAX_EVENT_AGE = 7 * 24 * 60 * 60 * 1000; // 7 天
 
-const isPersonalMode = (): boolean => getUserContextSync().login_mode === 'personal';
-
-function getPersonalCrashUserFields(): Pick<CrashEventBase, 'org_id' | 'user_id' | 'tenant_id' | 'login_mode' | 'user_nickname' | 'user_phone'> | null {
+function getCrashUserFields(): Pick<CrashEventBase, 'org_id' | 'user_id' | 'tenant_id' | 'login_mode' | 'user_nickname' | 'user_phone'> | null {
   const userContext = getUserContextSync();
-  if (userContext.login_mode !== 'personal') {
-    return null;
-  }
-
   const userId = userContext.user_id;
   const tenantId = userContext.tenant_id;
   if (!userId) {
-    mainWarn('CrashReporter', 'User ID not resolved in personal mode, skipping crash event');
+    mainWarn('CrashReporter', 'User ID not resolved, skipping crash event');
     return null;
   }
   if (!tenantId) {
-    mainWarn('CrashReporter', 'Tenant ID not resolved in personal mode, skipping crash event');
+    mainWarn('CrashReporter', 'Tenant ID not resolved, skipping crash event');
     return null;
   }
 
@@ -74,7 +67,7 @@ function getPersonalCrashUserFields(): Pick<CrashEventBase, 'org_id' | 'user_id'
 }
 
 function isReportableCrashEvent(event: StoredCrashEvent): boolean {
-  return Boolean(event.event.user_id && event.event.tenant_id);
+  return Boolean(event.event.user_id && event.event.tenant_id) && isLocalQualityEvent(event.event);
 }
 
 // ============================================================
@@ -128,17 +121,6 @@ export class CrashReporter {
       return;
     }
 
-    if (!isPersonalMode()) {
-      this.enabled = false;
-      this.initialized = true;
-      this.eventQueue = [];
-      this.cachedEvents = [];
-      this.breadcrumbs = [];
-      await this.clearCacheFile();
-      mainLog('CrashReporter', 'Crash reporting disabled outside personal mode');
-      return;
-    }
-
     // 检查遥测授权状态 (Crash 上报与遥测共享授权)
     const telemetryEnabled = await ProcessConfig.get('telemetry.enabled').catch(() => undefined as unknown as boolean | undefined);
     this.enabled = telemetryEnabled ?? true; // 默认启用
@@ -151,34 +133,13 @@ export class CrashReporter {
 
     // 获取自定义服务器地址 (可选)
     const customServerUrl = await ProcessConfig.get('telemetry.serverUrl').catch(() => undefined as unknown as string | undefined);
-    if (customServerUrl) {
-      // 将 telemetry 地址转换为 crash 地址
-      this.config = {
-        ...DEFAULT_CRASH_REPORTER_CONFIG,
-        serverUrl: customServerUrl.replace('/telemetry/batch', '/crash/events/batch'),
-      };
-    } else {
-      this.config = {
-        ...DEFAULT_CRASH_REPORTER_CONFIG,
-        serverUrl: `${getSudoworkServerBaseUrlSync()}/api/v1/crash/events/batch`,
-      };
-    }
+    this.config = {
+      ...DEFAULT_CRASH_REPORTER_CONFIG,
+      serverUrl: getQualityReportUrl('crash', getSudoworkServerBaseUrlSync(), customServerUrl),
+    };
 
     // 加载离线缓存
     await this.loadCachedEvents();
-
-    // 检查加密状态 (加密器在 Telemetry 模块初始化时已初始化)
-    if (ENCRYPTION_CONFIG.enabled) {
-      try {
-        // 确保 encryptor 已初始化
-        await initTelemetryEncryptor();
-        if (getTelemetryEncryptor().isEnabled()) {
-          mainLog('CrashReporter', 'Encryption enabled (hybrid-v1)');
-        }
-      } catch (error) {
-        mainWarn('CrashReporter', 'Encryptor not available, fallback to plaintext');
-      }
-    }
 
     // 启动定时上报
     this.startFlushTimer();
@@ -198,7 +159,7 @@ export class CrashReporter {
    */
   public captureNativeCrash(details: { reason: string; exitCode?: number; signal?: string | number }, processType: CrashProcessType): void {
     // 开发环境不上报
-    if (!app.isPackaged) {
+    if (!app.isPackaged || !isProductImprovementEnabled() || (this.initialized ? !this.enabled : ProcessConfig.getSync('telemetry.enabled') === false)) {
       return;
     }
 
@@ -209,7 +170,7 @@ export class CrashReporter {
       return;
     }
 
-    const userFields = getPersonalCrashUserFields();
+    const userFields = getCrashUserFields();
     if (!userFields) {
       return;
     }
@@ -221,6 +182,7 @@ export class CrashReporter {
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
       ...userFields,
+      execution_target: 'local',
       process_type: processType,
       crash_reason: crashReason,
       exit_code: details.exitCode,
@@ -252,7 +214,7 @@ export class CrashReporter {
    */
   public captureRendererCrash(details: Electron.RenderProcessGoneDetails): void {
     // 开发环境不上报
-    if (!app.isPackaged) {
+    if (!app.isPackaged || !isProductImprovementEnabled() || (this.initialized ? !this.enabled : ProcessConfig.getSync('telemetry.enabled') === false)) {
       return;
     }
 
@@ -263,7 +225,7 @@ export class CrashReporter {
       return;
     }
 
-    const userFields = getPersonalCrashUserFields();
+    const userFields = getCrashUserFields();
     if (!userFields) {
       return;
     }
@@ -275,6 +237,7 @@ export class CrashReporter {
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
       ...userFields,
+      execution_target: 'local',
       process_type: 'renderer',
       crash_reason: crashReason,
       exit_code: details.exitCode,
@@ -306,11 +269,13 @@ export class CrashReporter {
    */
   public captureException(error: Error, context?: Partial<CrashContext>): void {
     // 开发环境不上报
-    if (!app.isPackaged) {
+    if (!app.isPackaged || !isProductImprovementEnabled() || (this.initialized ? !this.enabled : ProcessConfig.getSync('telemetry.enabled') === false)) {
       return;
     }
 
-    const userFields = getPersonalCrashUserFields();
+    if (!isLocalQualityContext(context)) return;
+
+    const userFields = getCrashUserFields();
     if (!userFields) {
       return;
     }
@@ -322,6 +287,7 @@ export class CrashReporter {
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
       ...userFields,
+      execution_target: 'local',
       process_type: (context?.process_type as CrashProcessType) || 'main',
       error_name: error.name,
       error_message: error.message,
@@ -354,11 +320,13 @@ export class CrashReporter {
    */
   public captureRendererException(data: { error_name: string; error_message: string; stack_trace?: string; context?: CrashContext }): void {
     // 开发环境不上报
-    if (!app.isPackaged) {
+    if (!app.isPackaged || !isProductImprovementEnabled() || (this.initialized ? !this.enabled : ProcessConfig.getSync('telemetry.enabled') === false)) {
       return;
     }
 
-    const userFields = getPersonalCrashUserFields();
+    if (!isLocalQualityContext(data.context)) return;
+
+    const userFields = getCrashUserFields();
     if (!userFields) {
       return;
     }
@@ -370,6 +338,7 @@ export class CrashReporter {
       platform: process.platform as 'darwin' | 'win32',
       arch: mapElectronArch(process.arch),
       ...userFields,
+      execution_target: 'local',
       process_type: 'renderer',
       error_name: data.error_name,
       error_message: data.error_message,
@@ -404,7 +373,7 @@ export class CrashReporter {
    * @param level - 日志级别
    */
   public addBreadcrumb(category: string, message: string, data?: Record<string, unknown>, level?: 'debug' | 'info' | 'warning' | 'error'): void {
-    if (!isPersonalMode() || !this.enabled) {
+    if (!this.enabled || !isProductImprovementEnabled() || !isLocalQualityContext(data)) {
       return;
     }
 
@@ -437,7 +406,7 @@ export class CrashReporter {
    * 用于应用退出前上报剩余事件
    */
   public async flushAll(): Promise<void> {
-    if (!isPersonalMode() || !isProductImprovementEnabled()) {
+    if ((this.initialized && !this.enabled) || !isProductImprovementEnabled()) {
       this.eventQueue = [];
       this.cachedEvents = [];
       this.breadcrumbs = [];
@@ -458,26 +427,16 @@ export class CrashReporter {
    * 更新启用状态
    */
   public async setEnabled(enabled: boolean): Promise<void> {
-    if (!isPersonalMode()) {
-      this.enabled = false;
-      this.stopFlushTimer();
-      this.eventQueue = [];
-      this.cachedEvents = [];
-      this.breadcrumbs = [];
-      await this.clearCacheFile();
-      mainLog('CrashReporter', 'Crash reporting remains disabled outside personal mode');
-      return;
-    }
-
     this.enabled = enabled;
 
     if (enabled && !this.flushTimer) {
       this.startFlushTimer();
-    } else if (!enabled && this.flushTimer) {
+    } else if (!enabled) {
       this.stopFlushTimer();
       // 禁用时清空队列但不上报
       this.eventQueue = [];
       this.breadcrumbs = [];
+      this.cachedEvents = [];
       await this.clearCacheFile();
     }
 
@@ -522,7 +481,7 @@ export class CrashReporter {
    * 否则缓存事件，等待初始化后上报
    */
   private cacheOrAddEvent(event: StoredCrashEvent): void {
-    if (!isPersonalMode() || !isProductImprovementEnabled()) {
+    if ((this.initialized && !this.enabled) || !isProductImprovementEnabled()) {
       this.cachedEvents = [];
       return;
     }
@@ -550,11 +509,6 @@ export class CrashReporter {
    * 在初始化后调用，将缓存的事件添加到队列
    */
   private flushCachedEvents(): void {
-    if (!isPersonalMode()) {
-      this.cachedEvents = [];
-      return;
-    }
-
     if (this.cachedEvents.length === 0) {
       return;
     }
@@ -618,7 +572,7 @@ export class CrashReporter {
 
   /** 执行批量上报 */
   private async flush(): Promise<void> {
-    if (!isPersonalMode() || !isProductImprovementEnabled()) {
+    if ((this.initialized && !this.enabled) || !isProductImprovementEnabled()) {
       this.eventQueue = [];
       this.cachedEvents = [];
       this.breadcrumbs = [];
@@ -640,7 +594,7 @@ export class CrashReporter {
     try {
       // 取出一批事件
       const batch = this.eventQueue.slice(0, this.config.batchSize);
-      const events = batch.map((stored) => stored.event);
+      const events = batch.map((stored) => ({ ...stored.event, context: { ...stored.event.context, event_id: stored.id } }));
 
       const request: CrashBatchRequest = { events };
 
@@ -679,11 +633,9 @@ export class CrashReporter {
 
   /** 发送批量请求 */
   private async sendBatch(request: CrashBatchRequest): Promise<CrashBatchResponse> {
-    // 现读：用户自定义 telemetry.serverUrl 优先（转换 /telemetry/batch → /crash/events/batch）；
-    // 否则用现读的 sudowork-server baseUrl 派生 crash 上报地址
+    // Resolve the current reporting policy on every send, including after login.
     const customServerUrl = await ProcessConfig.get('telemetry.serverUrl').catch(() => undefined as unknown as string | undefined);
-    const url = customServerUrl ? customServerUrl.replace('/telemetry/batch', '/crash/events/batch') : `${getSudoworkServerBaseUrlSync()}/api/v1/crash/events/batch`;
-    const encryptor = getTelemetryEncryptor();
+    const url = getQualityReportUrl('crash', getSudoworkServerBaseUrlSync(), customServerUrl);
 
     try {
       const apiKey = getProductImprovementApiKey();
@@ -693,32 +645,15 @@ export class CrashReporter {
         return { success: false, received: 0, error: 'product_improvement api_key missing' };
       }
       // 构建请求体
-      let body: string;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-API-Key': apiKey,
       };
 
-      // 如果加密器可用，使用加密请求
-      if (encryptor.isEnabled()) {
-        const encryptedPayload = encryptor.encrypt(request);
-        if (encryptedPayload) {
-          body = JSON.stringify(encryptedPayload);
-          headers['X-Encryption'] = 'hybrid-v1';
-        } else {
-          // 加密失败，降级为明文上报
-          body = JSON.stringify(request);
-          mainWarn('CrashReporter', 'Encryption failed, fallback to plaintext');
-        }
-      } else {
-        // 未启用加密，明文上报
-        body = JSON.stringify(request);
-      }
-
       const response = await fetch(url, {
         method: 'POST',
         headers,
-        body,
+        body: JSON.stringify(request),
       });
 
       if (!response.ok) {

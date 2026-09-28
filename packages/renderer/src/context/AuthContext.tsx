@@ -11,7 +11,7 @@ import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
 import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
 import { ConfigStorage, type IConfigStorageRefer } from '@sudowork/common/storage';
 import { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } from '@sudowork/common/imageGenerationModelConfig';
-import { fetchSystemConfig } from '@sudowork/common/systemConfig';
+import { bootstrapClientReporting, fetchSystemConfig } from '@sudowork/common/systemConfig';
 import { buildCasLogoutServiceUrl, buildCasLogoutUrl, resolveThirdPartyAuthConfig } from '@sudowork/common/thirdPartyAuthConfig';
 import type { AcpModelInfo } from '@sudowork/common/acpTypes';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@sudowork/common/sudoclawModelConfig';
@@ -476,28 +476,14 @@ async function applyLoginImageModel(): Promise<void> {
   await ipcBridge.scode.setImageModel.invoke({ modelId: jsonModelId }).catch(() => {});
 }
 
-// 处理登录成功后的通用逻辑
-/**
- * Fetch the server-driven credentials envelope (with the renderer-held JWT) and forward
- * {nonce, ciphertext} to the main process for decryption + caching. Used by BOTH login
- * paths — active login (handleLoginSuccess) and restart restore (refresh) — per §6.4, so
- * reporters/skillhub keep working after a restart without a manual re-login.
- * The JWT never leaves the renderer; only the encrypted envelope crosses IPC.
- */
-async function fetchAndCacheCredentials(): Promise<void> {
-  if (!isDesktopRuntime) return;
+/** Rehydrate reporting after every desktop login/restore without exposing plaintext keys. */
+async function fetchAndCacheCredentials(accessToken: string): Promise<void> {
+  if (!isDesktopRuntime || !accessToken) return;
   try {
-    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!stored) return;
-    const authStorage = JSON.parse(stored) as AuthStorage;
-    const jwt = authStorage.access_token;
-    if (!jwt) return;
-    const res = await fetch(`${await getSudoworkServerBaseUrl()}/api/v1/system-config/credentials`, {
-      headers: { Authorization: `Bearer ${jwt}` },
+    await bootstrapClientReporting(await getSudoworkServerBaseUrl(), accessToken, {
+      syncConfig: (data) => ipcBridge.systemConfig.syncFromRenderer.invoke({ data }),
+      cacheCredentials: (envelope) => ipcBridge.systemConfig.cacheCredentials.invoke(envelope),
     });
-    const json = (await res.json()) as { success?: boolean; nonce?: string; ciphertext?: string };
-    if (!json?.success || !json.nonce || !json.ciphertext) return;
-    await ipcBridge.systemConfig.cacheCredentials.invoke({ nonce: json.nonce, ciphertext: json.ciphertext });
   } catch (err) {
     console.warn('[Auth] fetch/cache server credentials failed:', err);
   }
@@ -672,7 +658,7 @@ async function handleLoginSuccess(data: LoginSuccessResponse, setUser: SetAuthUs
   if (isDesktopRuntime) {
     // §6.4 active-login path: cache server-driven credentials BEFORE restarting the gateway
     // subprocess so env injection (skillhub url/token) sees the dispatched values.
-    await fetchAndCacheCredentials();
+    await fetchAndCacheCredentials(authStorage.access_token);
     void restartSudoclawGatewayIfInstalled();
   }
 }
@@ -1097,6 +1083,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             }
           }
           const latestAuth = JSON.parse(localStorage.getItem(EECLAW_AUTH_STORAGE_KEY) || JSON.stringify(authStorage)) as EeclawAuthStorage;
+          await fetchAndCacheCredentials(latestAuth.access_token);
           setUser({ ...latestAuth.user, token: latestAuth.access_token });
           setStatus('authenticated');
           setReady(true);
@@ -1197,7 +1184,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
         // §6.4 凭据注入必须在 token 刷新之后:冷启动时 access_token 可能已过期,
         // 若在刷新前注入,/system-config/credentials 会用过期 JWT 返回 401,凭据无法注入。
-        void fetchAndCacheCredentials();
+        void fetchAndCacheCredentials(latestAuth.access_token);
         return;
       } catch {
         localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -1692,6 +1679,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         console.error('[Auth] Failed to sync eeclaw auth to ConfigStorage after retry:', e2);
       }
     }
+
+    await fetchAndCacheCredentials(data.access_token);
 
     // Set auth state
     setUser(mappedUser);
