@@ -319,7 +319,7 @@ const AgentSettings: React.FC = () => {
           const results = await Promise.all(
             batch.map(async (assistant) => {
               try {
-                const res = await assistantHub.fetchAssistantDetail.invoke({ assistantId: assistant.id, silent: true });
+                const res = await assistantHub.fetchAssistantDetail.invoke({ assistantId: assistant.id, silent: true, sourceType: assistant.sourceType });
                 const detailAssistant = res.success ? res.data?.assistant || (res.data as IAssistantHubSkill | undefined) : undefined;
                 const latest: IAssistantHubVersionLike | undefined = res.success ? res.data?.versions?.[0] || res.data?.latestVersion || undefined : undefined;
                 const fallbackAssistant = {
@@ -784,13 +784,14 @@ const AgentSettings: React.FC = () => {
       setSyncStatus({ syncing: false, skills: mergedSkills, assistants: mergedAssistants });
       // Refresh installed list after sync
       void fetchInstalledAssistantNames();
+      if (activeTabRef.current === 'exclusive' || activeTabRef.current === 'store') void fetchHubAssistants();
       // Refresh local assistants list (for "我的助手" tab)
       void loadAssistants();
     };
 
     const unsubscribe = eeclaw.syncCompleted.on(handleSyncCompleted);
     return () => unsubscribe();
-  }, [isEnterprise, fetchInstalledAssistantNames, loadAssistants]);
+  }, [isEnterprise, fetchInstalledAssistantNames, loadAssistants, fetchHubAssistants]);
 
   // Install Hub assistant (defined after loadAssistants since it depends on it)
   const resolveAssistantVersionInfo = useCallback(

@@ -5,6 +5,7 @@
  */
 
 import type { IFileSendData, IResponseMessage, TMessage } from './chatTypes.js';
+import { mossFrameToResponses } from './mossResponse.js';
 import { uuid } from './utils.js';
 
 // The pure message/confirmation type surface (TMessage and its whole union tree,
@@ -102,6 +103,14 @@ export const convertMossMessagesToTMessages = (allMessages: any[], conversationI
 
     if (msgType === 'assistant' && msgModel) {
       foundModel = msgModel;
+    }
+
+    if (msgType === 'artifacts') {
+      for (const response of mossFrameToResponses(msg, { sessionId: mossSessionId, conversationId, nextMsgId: () => `${conversationId}-${messageIndex}` })) {
+        if (response.type === 'content')
+          messages.push({ id: `${conversationId}-${messageIndex++}`, msg_id: response.msg_id, conversation_id: conversationId, type: 'text', position: 'left', content: { content: String(response.data) }, create_time: timestamp, status: finishedMessageStatus } as TMessage);
+      }
+      continue;
     }
 
     if (msgType === 'tool_use') {

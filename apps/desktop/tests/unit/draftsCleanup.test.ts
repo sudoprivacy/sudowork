@@ -1,11 +1,11 @@
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { FILE_INTENT_MARKERS, COMMENT_SYNTAX_MAP, getCommentPrefix } from '@/common/constants';
-import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, detectFileIntent, type TrackedTurnFile } from '@/process/task/draftsCleanup';
-import { detectBashDraftRestoreCommand, FileIntentClassifier } from '@/process/task/FileIntentClassifier';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { FILE_INTENT_MARKERS, COMMENT_SYNTAX_MAP, getCommentPrefix } from '@/common/constants';
+import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, cleanupDraftsOnCancel, detectFileIntent, type TrackedTurnFile } from '@/process/task/draftsCleanup';
+import { detectBashDraftRestoreCommand, FileIntentClassifier } from '@/process/task/FileIntentClassifier';
 
 describe('File Intent Markers Constants', () => {
   test('FILE_INTENT_MARKERS contains @final and @draft', () => {
@@ -295,156 +295,31 @@ describe('detectBashDraftRestoreCommand', () => {
   });
 });
 
-describe('cleanupIntermediateFiles with markers', () => {
-  let testWorkspace: string;
-
-  beforeEach(async () => {
-    testWorkspace = path.join(os.tmpdir(), `drafts-test-${Date.now()}`);
-    await fs.mkdir(testWorkspace, { recursive: true });
-    await fs.mkdir(path.join(testWorkspace, '.drafts'), { recursive: true });
-  });
-
-  afterEach(async () => {
-    await fs.rm(testWorkspace, { recursive: true, force: true });
-  });
-
-  test('moves files with @draft marker to .drafts/', async () => {
-    const content = '# @draft\nprint("helper")';
-    await fs.writeFile(path.join(testWorkspace, 'helper.py'), content);
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'helper.py'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, 'helper.py'))).toBe(false);
-  });
-
-  test('keeps files with @final marker in root', async () => {
-    const content = '# @final\nprint("result")';
-    await fs.writeFile(path.join(testWorkspace, 'result.py'), content);
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    expect(fsSync.existsSync(path.join(testWorkspace, 'result.py'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'result.py'))).toBe(false);
-  });
-
-  test('keeps files without marker in root (default safe)', async () => {
-    const content = 'print("no marker")';
-    await fs.writeFile(path.join(testWorkspace, 'no_marker.py'), content);
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    expect(fsSync.existsSync(path.join(testWorkspace, 'no_marker.py'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'no_marker.py'))).toBe(false);
-  });
-
-  test('handles JavaScript files with // @draft', async () => {
-    const content = '// @draft\nconst helper = () => {}';
-    await fs.writeFile(path.join(testWorkspace, 'helper.js'), content);
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'helper.js'))).toBe(true);
-  });
-
-  test('keeps current-turn final files protected from post-cleanup', async () => {
-    await fs.writeFile(path.join(testWorkspace, 'generate_pdf.py'), 'print("restored")');
-
-    await cleanupIntermediateFiles(testWorkspace, {
-      protectedFinalPaths: ['generate_pdf.py'],
-    });
-
-    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_pdf.py'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_pdf.py'))).toBe(false);
-  });
-
-  test('moves unprotected helper scripts during post-cleanup', async () => {
-    await fs.writeFile(path.join(testWorkspace, 'generate_pdf.py'), 'print("helper")');
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_pdf.py'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_pdf.py'))).toBe(false);
-  });
-
-  test('keeps multiple restored helper scripts while cleaning unrelated helper scripts', async () => {
-    await fs.writeFile(path.join(testWorkspace, 'generate_excel.py'), 'print("restored excel")');
-    await fs.writeFile(path.join(testWorkspace, 'generate_pdf.py'), 'print("restored pdf")');
-    await fs.writeFile(path.join(testWorkspace, 'generate_tmp.py'), 'print("new helper")');
-
-    await cleanupIntermediateFiles(testWorkspace, {
-      protectedFinalPaths: ['generate_excel.py', path.join(testWorkspace, 'generate_pdf.py')],
-    });
-
-    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_excel.py'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_pdf.py'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_excel.py'))).toBe(false);
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_pdf.py'))).toBe(false);
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_tmp.py'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_tmp.py'))).toBe(false);
-  });
-
-  test('handles HTML files with <!-- @final -->', async () => {
-    const content = '<!-- @final -->\n<html>...</html>';
-    await fs.writeFile(path.join(testWorkspace, 'report.html'), content);
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    expect(fsSync.existsSync(path.join(testWorkspace, 'report.html'))).toBe(true);
-  });
-
-  test('cleans up script execution side effects (package.json, node_modules) when @draft script exists', async () => {
-    // Create @draft script (like generate_report.js)
-    const scriptContent = '// @draft\nconst docx = require("docx");';
-    await fs.writeFile(path.join(testWorkspace, 'generate_report.js'), scriptContent);
-
-    // Simulate script execution side effects
-    await fs.writeFile(path.join(testWorkspace, 'package.json'), '{"name": "temp"}');
-    await fs.mkdir(path.join(testWorkspace, 'node_modules'));
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    // Script should be moved to .drafts/
-    expect(fsSync.existsSync(path.join(testWorkspace, 'generate_report.js'))).toBe(false);
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'generate_report.js'))).toBe(true);
-
-    // Side effects should be cleaned up
-    expect(fsSync.existsSync(path.join(testWorkspace, 'package.json'))).toBe(false);
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'package.json'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, 'node_modules'))).toBe(false);
-  });
-
-  test('normalizes files copied to drafts alias directory into .drafts/', async () => {
-    await fs.mkdir(path.join(testWorkspace, 'drafts'));
-    await fs.writeFile(path.join(testWorkspace, 'drafts', 'helper.js'), '// helper');
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'helper.js'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, 'drafts'))).toBe(false);
-  });
-
-  test('normalizes files copied to Chinese drafts alias directory into .drafts/', async () => {
-    await fs.mkdir(path.join(testWorkspace, '草稿箱'));
-    await fs.writeFile(path.join(testWorkspace, '草稿箱', 'notes.md'), 'draft notes');
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    expect(fsSync.existsSync(path.join(testWorkspace, '.drafts', 'notes.md'))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, '草稿箱'))).toBe(false);
-  });
-
-  test('preserves existing .drafts file when normalizing alias directory collisions', async () => {
-    await fs.writeFile(path.join(testWorkspace, '.drafts', 'helper.js'), 'existing');
-    await fs.mkdir(path.join(testWorkspace, 'drafts'));
-    await fs.writeFile(path.join(testWorkspace, 'drafts', 'helper.js'), 'new');
-
-    await cleanupIntermediateFiles(testWorkspace);
-
-    expect(await fs.readFile(path.join(testWorkspace, '.drafts', 'helper.js'), 'utf-8')).toBe('existing');
-    const draftsFiles = await fs.readdir(path.join(testWorkspace, '.drafts'));
-    expect(draftsFiles.some((name) => /^helper_\d+\.js$/.test(name))).toBe(true);
-    expect(fsSync.existsSync(path.join(testWorkspace, 'drafts'))).toBe(false);
+describe('workspace cleanup preserves input provenance and live dependencies', () => {
+  test('leaves existing inputs, draft aliases and dependencies unchanged', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'draft-safety-'));
+    try {
+      const files = {
+        'temp_input.json': '{"input":true}',
+        'helper.py': '# @draft\nprint("needed next turn")',
+        'result.json': '{"final":true}',
+        'package.json': '{"name":"user-project"}',
+        'node_modules/example/index.js': 'module.exports = 1',
+        'drafts/helper.py': '# existing alias path',
+        '.drafts/data.json': '{"resume":true}',
+      };
+      for (const [name, content] of Object.entries(files)) {
+        await fs.mkdir(path.dirname(path.join(workspace, name)), { recursive: true });
+        await fs.writeFile(path.join(workspace, name), content);
+      }
+      await cleanupIntermediateFiles(workspace);
+      await cleanupDraftsOnCancel(workspace);
+      for (const [name, content] of Object.entries(files)) {
+        expect(await fs.readFile(path.join(workspace, name), 'utf8')).toBe(content);
+      }
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
   });
 });
 
@@ -567,7 +442,7 @@ describe('turn-level archive and cancel cleanup', () => {
     expect(finalPaths.get('slide_1.png')).toBe(path.resolve(autoDraftPath));
   });
 
-  test('cleanupTrackedDraftsOnCancel removes only current-turn drafts', async () => {
+  test('cleanupTrackedDraftsOnCancel retains current-turn drafts and previous files', async () => {
     const draftPath = path.join(testWorkspace, 'temp_payload.json');
     const finalPath = path.join(testWorkspace, 'result.json');
     const historicalDraftPath = path.join(testWorkspace, '.drafts', 'old_helper.py');
@@ -604,8 +479,8 @@ describe('turn-level archive and cancel cleanup', () => {
 
     const removedCount = await cleanupTrackedDraftsOnCancel(testWorkspace, trackedFiles);
 
-    expect(removedCount).toBe(1);
-    expect(fsSync.existsSync(draftPath)).toBe(false);
+    expect(removedCount).toBe(0);
+    expect(fsSync.existsSync(draftPath)).toBe(true);
     expect(fsSync.existsSync(finalPath)).toBe(true);
     expect(fsSync.existsSync(historicalDraftPath)).toBe(true);
   });

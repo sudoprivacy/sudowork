@@ -29,6 +29,8 @@ const normalizeLargeTextPreview = (content: string, contentType: PreviewContentT
  * 预览启动选项 / Preview launch options
  */
 interface PreviewLaunchOptions {
+  /** Cloud preview must resolve through the authorized session, never local fs. */
+  remoteConversationId?: string;
   /** 相对工作区路径 / Workspace-relative path */
   relativePath?: string;
   /** 备用路径（如绝对路径）/ Fallback path (absolute or provided path) */
@@ -70,7 +72,7 @@ export const usePreviewLauncher = () => {
    * 启动预览面板 / Launch preview panel
    */
   const launchPreview = useCallback(
-    async ({ relativePath, originalPath, fileName, title, language, contentType, editable, fallbackContent, diffContent }: PreviewLaunchOptions) => {
+    async ({ relativePath, originalPath, fileName, title, language, contentType, editable, fallbackContent, diffContent, remoteConversationId }: PreviewLaunchOptions) => {
       setLoading(true);
 
       // 路径解析 / Path resolution
@@ -103,6 +105,32 @@ export const usePreviewLauncher = () => {
       }
 
       try {
+        if (remoteConversationId && relativePath) {
+          const response = await ipcBridge.conversation.previewRemoteWorkspaceFile.invoke({ conversation_id: remoteConversationId, path: relativePath });
+          if (!response?.success || !response.data) throw new Error(response?.msg || 'Remote preview unavailable');
+          const file = response.data;
+          let content = file.kind === 'text' ? file.content : file.contentBase64;
+          let localPreviewFilePath: string | undefined;
+          if (contentType === 'image') {
+            content = file.kind === 'base64' ? `data:${file.mime || 'application/octet-stream'};base64,${file.contentBase64}` : `data:${file.mime || 'text/plain'};charset=utf-8,${encodeURIComponent(file.content)}`;
+          } else if (file.kind === 'base64' || contentType === 'excel' || contentType === 'html') {
+            localPreviewFilePath = await ipcBridge.fs.createTempFile.invoke({ fileName: computedFileName || previewTitle });
+            const isWritten = await ipcBridge.fs.writeFile.invoke({ path: localPreviewFilePath, data: file.kind === 'base64' ? Uint8Array.from(atob(file.contentBase64), (character) => character.charCodeAt(0)) : file.content });
+            if (!isWritten) throw new Error('Could not prepare remote file preview');
+          }
+          openPreview(content, contentType, {
+            ...metadata,
+            filePath: undefined,
+            remote: true,
+            relativePath,
+            localPreviewFilePath,
+            editable: false,
+            downloadBase64: file.kind === 'base64' ? file.contentBase64 : undefined,
+            downloadMime: file.mime,
+          });
+          return;
+        }
+
         // 2. 尝试读取实际文件内容（覆盖乐观预览） / Try to read actual file content (override optimistic preview)
         if (absolutePath || originalPath) {
           try {

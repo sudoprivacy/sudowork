@@ -86,6 +86,17 @@ describe('MossWsConnection resume (issue #849)', () => {
     vi.unstubAllGlobals();
   });
 
+  it('reports a failed bootstrap once through rejection and permits a fresh retry', async () => {
+    wsScript.push('socket hang up', 'open');
+    const { MossWsConnection } = await import('@/agent/remote/MossWsConnection');
+    const onError = vi.fn();
+    const connection = new MossWsConnection(resumeConfig(), { onMessage: vi.fn(), onPermissionRequest: vi.fn(), onError });
+    await expect(connection.connect()).rejects.toThrow('socket hang up');
+    expect(onError).not.toHaveBeenCalled();
+    await expect(connection.connect()).resolves.toBeUndefined();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it('sources the token from auth storage instead of the pinned JWT', async () => {
     wsScript.push('open');
     const { MossWsConnection } = await import('@/agent/remote/MossWsConnection');
