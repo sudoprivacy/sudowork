@@ -14,7 +14,7 @@ vi.mock('@process/initStorage', () => ({
 }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: async () => 'token' }));
 vi.mock('@process/task/AcpSkillManager', () => ({ AcpSkillManager: { resetInstance: vi.fn() } }));
-import { prepareMossResources, safeResourcePath, validateMossResourceSnapshot } from '@process/services/mossResourcePreparation';
+import { prepareMossResources, readMossAssistantSnapshot, safeResourcePath, validateMossResourceSnapshot } from '@process/services/mossResourcePreparation';
 
 beforeEach(async () => {
   state.root = await fs.mkdtemp(path.join(os.tmpdir(), 'moss-resource-'));
@@ -42,6 +42,62 @@ describe('Moss resource preparation', () => {
     vi.stubGlobal('fetch', request);
     expect((await prepareMossResources()).resources).toEqual([]);
     expect(request).not.toHaveBeenCalled();
+  });
+  it('reloads the selected assistant snapshot even when another version with the same ID is installed', async () => {
+    let rules = '你是大白，我是小白';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.endsWith('/installed')) return Response.json([{ id: 'agent-id', name: '大白', enabledSkills: [] }]);
+        const bytes = await new JSZip()
+          .file('system.md', rules)
+          .file('_moss_meta.json', JSON.stringify({ display_name: '大白', ruleFile: 'system.md', skills: [] }))
+          .generateAsync({ type: 'nodebuffer' });
+        return new Response(bytes, { headers: { 'X-Content-SHA256': createHash('sha256').update(bytes).digest('hex') } });
+      })
+    );
+    const original = await prepareMossResources('agent-id');
+    rules = '你是大黑';
+    const updated = await prepareMossResources('agent-id');
+    expect(original.resources[0].path).not.toBe(updated.resources[0].path);
+
+    const extra = { mossAccountScope: 'account', presetAssistantId: 'agent-id', mossResources: original.resources };
+    const first = await readMossAssistantSnapshot(extra);
+    const resumed = await readMossAssistantSnapshot(extra);
+    expect(first?.meta.display_name).toBe('大白');
+    expect(first?.directory).toBe(original.resources[0].path);
+    expect(first?.presetContext).toBe(original.presetContext);
+    expect(first?.presetContext).toContain('你是大白，我是小白');
+    expect(first?.presetContext).not.toContain('你是大黑');
+    expect(resumed).toEqual(first);
+    expect((await readMossAssistantSnapshot({ ...extra, mossResources: updated.resources }))?.presetContext).toContain('你是大黑');
+  });
+  it('does not fall back to unrelated presets for missing, invalid or cross-account snapshots', async () => {
+    await expect(readMossAssistantSnapshot({ presetAssistantId: 'builtin-cowork' })).resolves.toBeUndefined();
+    await expect(readMossAssistantSnapshot({ mossAccountScope: 'another-account', presetAssistantId: 'agent-id' })).rejects.toThrow('different Moss account');
+    await expect(readMossAssistantSnapshot({ mossAccountScope: 'account', presetAssistantId: 'agent-id', mossResources: [] })).rejects.toThrow('snapshot is missing');
+    const extra = {
+      mossAccountScope: 'account',
+      presetAssistantId: 'agent-id',
+      mossResources: [{ id: 'agent-id', kind: 'agents' as const, digest: 'digest', path: path.join(state.root, '..', 'outside') }],
+    };
+    await expect(readMossAssistantSnapshot(extra)).rejects.toThrow('Unsafe resource archive path');
+
+    extra.mossResources[0].path = state.root;
+    await fs.writeFile(path.join(state.root, '.moss-ready'), 'digest');
+    await fs.writeFile(path.join(state.root, '_moss_meta.json'), JSON.stringify({ id: 'wrong-agent', name: 'wrong-agent', ruleFile: 'system.md', mossDigest: 'digest' }));
+    await expect(readMossAssistantSnapshot(extra)).rejects.toThrow('metadata does not match');
+  });
+  it('supports prepared archives without ruleFile and refuses rule paths outside the snapshot', async () => {
+    const extra = { mossAccountScope: 'account', presetAssistantId: 'agent-id', mossResources: [{ id: 'agent-id', kind: 'agents' as const, digest: 'digest', path: state.root }] };
+    const meta = { id: 'agent-id', name: 'assistant--digest', mossDigest: 'digest' };
+    await fs.writeFile(path.join(state.root, '.moss-ready'), 'digest');
+    await fs.writeFile(path.join(state.root, '_moss_meta.json'), JSON.stringify(meta));
+    await fs.writeFile(path.join(state.root, 'README.md'), 'Installation instructions');
+    await fs.writeFile(path.join(state.root, 'system.md'), 'You are the selected assistant.');
+    expect((await readMossAssistantSnapshot(extra))?.presetContext).toContain('You are the selected assistant.');
+    await fs.writeFile(path.join(state.root, '_moss_meta.json'), JSON.stringify({ ...meta, ruleFile: '../outside.md' }));
+    await expect(readMossAssistantSnapshot(extra)).rejects.toThrow('Unsafe resource archive path');
   });
   it('installs immutable content, preserves executable scripts, and reuses its version', async () => {
     await serveArchive();
