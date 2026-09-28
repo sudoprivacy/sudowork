@@ -19,7 +19,7 @@ import { skillManager } from '@/process/SkillManager';
 import { getDatabase } from '@/process/database';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS } from '@/process/constants/enterpriseStorage';
+import { getEnterpriseHubAssistantsDir, getEnterpriseTenantAssistantsDir } from '@/process/constants/enterpriseStorage';
 import { getSkillhubToken } from '@/process/credentialsCache';
 import { tokenMissingResponse } from '@common/nexus/hubErrors';
 import { reapConversation } from '@/process/services/conversationReaper';
@@ -868,7 +868,7 @@ export function initAssistantHubBridge(): void {
         // sourceType='tenant' 表示专属助手，从 tenant/ 目录加载
         // 其他情况从 hub/ 目录加载
         const dirType = sourceType === 'tenant' ? 'tenant' : 'hub';
-        const assistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS[dirType]);
+        const assistantsDir = dirType === 'tenant' ? getEnterpriseTenantAssistantsDir() : getEnterpriseHubAssistantsDir();
 
         mainLog('AssistantHub', `Enterprise mode: dirType=${dirType}, loading assistants from ${assistantsDir}`);
 
@@ -915,6 +915,7 @@ export function initAssistantHubBridge(): void {
               const promptsI18n = normalizePromptsI18n(meta.promptsI18n);
 
               assistants.push({
+                sourceType: dirType,
                 id: meta.id || assistantName,
                 name: assistantName,
                 display_name: displayName,
@@ -1051,31 +1052,29 @@ export function initAssistantHubBridge(): void {
     try {
       // 企业模式：从本地 hub/ 目录的 meta 文件中提取分类
       if (isEnterpriseMode()) {
-        const hubAssistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.hub);
-
-        mainLog('AssistantHub', `Enterprise mode: extracting categories from ${hubAssistantsDir}`);
-
         const categoriesSet = new Set<string>();
+        for (const hubAssistantsDir of [getEnterpriseHubAssistantsDir(), getEnterpriseTenantAssistantsDir()]) {
+          mainLog('AssistantHub', `Enterprise mode: extracting categories from ${hubAssistantsDir}`);
 
-        if (existsSync(hubAssistantsDir)) {
-          const entries = await fs.readdir(hubAssistantsDir, { withFileTypes: true });
-          for (const entry of entries) {
-            if (!entry.isDirectory()) continue;
+          if (existsSync(hubAssistantsDir)) {
+            const entries = await fs.readdir(hubAssistantsDir, { withFileTypes: true });
+            for (const entry of entries) {
+              if (!entry.isDirectory()) continue;
 
-            const assistantName = entry.name;
-            const assistantDir = path.join(hubAssistantsDir, assistantName);
+              const assistantName = entry.name;
+              const assistantDir = path.join(hubAssistantsDir, assistantName);
 
-            const metaResult = await readAssistantMetaFileWithFallback(assistantDir);
-            if (metaResult) {
-              const meta = JSON.parse(metaResult.content) as AssistantHubMeta;
-              const assistantCategories = meta.categories || [];
-              for (const cat of assistantCategories) {
-                if (cat) categoriesSet.add(cat);
+              const metaResult = await readAssistantMetaFileWithFallback(assistantDir);
+              if (metaResult) {
+                const meta = JSON.parse(metaResult.content) as AssistantHubMeta;
+                const assistantCategories = meta.categories || [];
+                for (const cat of assistantCategories) {
+                  if (cat) categoriesSet.add(cat);
+                }
               }
             }
           }
         }
-
         return { success: true, data: Array.from(categoriesSet) };
       }
 
@@ -1097,26 +1096,30 @@ export function initAssistantHubBridge(): void {
   });
 
   // Fetch assistant detail from Hub API
-  ipcBridge.assistantHub.fetchAssistantDetail.provider(async ({ assistantId, silent }) => {
+  ipcBridge.assistantHub.fetchAssistantDetail.provider(async ({ assistantId, silent, sourceType }) => {
     try {
       // 企业模式：从本地 hub/ 目录读取详情
       if (isEnterpriseMode()) {
-        const hubAssistantsDir = path.join(ASSISTANTS_ROOT_DIR, ENTERPRISE_ASSISTANT_SUBDIRS.hub);
-        const assistantDir = path.join(hubAssistantsDir, assistantId);
-
-        mainLog('AssistantHub', `Enterprise mode: loading assistant detail from ${assistantDir}`);
-
-        const metaResult = await readAssistantMetaFileWithFallback(assistantDir);
-        if (!metaResult) {
-          return { success: false, msg: `Assistant "${assistantId}" not found in local hub` };
+        const matches: Array<{ name: string; meta: AssistantHubMeta }> = [];
+        for (const root of sourceType === 'tenant' ? [getEnterpriseTenantAssistantsDir()] : sourceType === 'hub' ? [getEnterpriseHubAssistantsDir()] : [getEnterpriseTenantAssistantsDir(), getEnterpriseHubAssistantsDir()]) {
+          if (!existsSync(root)) continue;
+          for (const entry of await fs.readdir(root, { withFileTypes: true })) {
+            if (!entry.isDirectory() || entry.name.startsWith('_')) continue;
+            const result = await readAssistantMetaFileWithFallback(path.join(root, entry.name));
+            if (!result) continue;
+            const candidate = JSON.parse(result.content) as AssistantHubMeta;
+            if (candidate.id === assistantId || (!candidate.id && entry.name === assistantId)) {
+              matches.push({ name: entry.name, meta: candidate });
+            }
+          }
         }
-
-        const meta = JSON.parse(metaResult.content) as AssistantHubMeta;
+        if (matches.length !== 1) return { success: false, msg: `Assistant "${assistantId}" is unavailable or ambiguous in this account` };
+        const { name: assistantName, meta } = matches[0];
         const promptsI18n = normalizePromptsI18n(meta.promptsI18n);
 
         const assistant: IAssistantHubSkill = {
           id: meta.id || assistantId,
-          name: assistantId,
+          name: assistantName,
           display_name: meta.nameI18n?.['en-US'] || meta.nameI18n?.['zh-CN'] || assistantId,
           description: meta.descriptionI18n?.['en-US'] || meta.descriptionI18n?.['zh-CN'] || '',
           avatar: meta.avatar || null,

@@ -318,6 +318,22 @@ describe('RemoteAgent idle detach', () => {
     expect(terminateSessionSpy).not.toHaveBeenCalled();
   });
 
+  it('retries initialization after a configuration failure in the same task', async () => {
+    vi.useRealTimers();
+    const RemoteAgent = await loadRemoteAgent();
+    const agent = makePendingAgent(RemoteAgent);
+    const connect = vi.spyOn(FakeMossWsConnection.prototype, 'connect');
+    connect.mockRejectedValueOnce(new Error('Bound skill not available'));
+    await agent.sendMessage({ content: 'first attempt', msg_id: 'failed' });
+    expect(internals(agent).bootstrap).toBeUndefined();
+    expect(internals(agent).connection).toBeNull();
+    await agent.sendMessage({ content: 'configuration repaired', msg_id: 'retry' });
+    expect(connect).toHaveBeenCalledTimes(2);
+    expect(FakeMossWsConnection.instances[1].sendMessageCalls).toBe(1);
+    connect.mockRestore();
+    agent.detach();
+  });
+
   it('next sendMessage after detach rebuilds the connection via resume path', async () => {
     const RemoteAgent = await loadRemoteAgent();
     const agent = makeAgent(RemoteAgent);
@@ -386,8 +402,7 @@ describe('RemoteConversationProvider.deleteConversation', () => {
     ]);
 
     const dbMock = {
-      getConversation: (id: string) =>
-        conversationsById.has(id) ? { success: true, data: conversationsById.get(id) } : { success: false, data: undefined },
+      getConversation: (id: string) => (conversationsById.has(id) ? { success: true, data: conversationsById.get(id) } : { success: false, data: undefined }),
       updateConversation: vi.fn(() => ({ success: true })),
       deleteConversation: vi.fn(() => {
         conversationsById.delete('conv-with-session');

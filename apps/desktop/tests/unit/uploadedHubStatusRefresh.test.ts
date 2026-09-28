@@ -121,6 +121,8 @@ vi.mock('@/common/enterpriseDebugConfig', () => ({
 vi.mock('@/process/constants/enterpriseStorage', () => ({
   SKILLS_ROOT_DIR: '/enterprise/skills',
   ASSISTANTS_ROOT_DIR: '/enterprise/assistants',
+  getEnterpriseHubAssistantsDir: () => h.hubAssistantsDir,
+  getEnterpriseTenantAssistantsDir: () => h.customAssistantsDir,
   ENTERPRISE_SKILL_SUBDIRS: { hub: 'hub', custom: 'custom', tenant: 'tenant', system: 'system' },
   ENTERPRISE_ASSISTANT_SUBDIRS: { hub: 'hub', custom: 'custom', tenant: 'tenant', system: 'system' },
 }));
@@ -210,6 +212,27 @@ async function serveBuffer(buffer: Buffer): Promise<{ url: string; close: () => 
 }
 
 describe('uploaded Hub status refresh', () => {
+  it('reads tenant lists, categories and stable-id details from the current account only', async () => {
+    h.isEnterprise = true;
+    const dir = path.join(h.customAssistantsDir, 'slug-differs-from-id');
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, '_moss_meta.json'), JSON.stringify({ id: 'stable-id', name: 'quote', display_name: 'Quote', categories: ['business'], enabledSkills: ['skill-id'] }));
+    const { initAssistantHubBridge } = await import('@/process/bridge/assistantHubBridge');
+    initAssistantHubBridge();
+    const list = await h.providers.get('assistantHub.fetchAssistants.provider')?.({ sourceType: 'tenant' });
+    expect(list.data.assistants.map((item: any) => item.id)).toEqual(['stable-id']);
+    const categories = await h.providers.get('assistantHub.fetchCategories.provider')?.();
+    expect(categories.data).toContain('business');
+    const detail = await h.providers.get('assistantHub.fetchAssistantDetail.provider')?.({ assistantId: 'stable-id', sourceType: 'tenant' });
+    expect(detail.data.assistant.name).toBe('slug-differs-from-id');
+    expect(detail.data.assistant.skills).toEqual(['skill-id']);
+    h.customAssistantsDir = path.join(tempRoot, 'other-account', 'tenant');
+    const switched = await h.providers.get('assistantHub.fetchAssistants.provider')?.({ sourceType: 'tenant' });
+    expect(switched.data.assistants).toEqual([]);
+    const unavailable = await h.providers.get('assistantHub.fetchAssistantDetail.provider')?.({ assistantId: 'stable-id', sourceType: 'tenant' });
+    expect(unavailable.success).toBe(false);
+  });
+
   it('clears approved skill upload status when the remote skill detail is empty', async () => {
     const skillDir = path.join(h.customSkillsDir, 'local-skill');
     const meta = {

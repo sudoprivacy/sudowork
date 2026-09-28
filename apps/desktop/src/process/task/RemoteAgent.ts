@@ -353,7 +353,15 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       mainLog('RemoteAgent', `initAgent completed for conversation ${this.conversation_id}`);
     })();
 
-    return this.bootstrap;
+    try {
+      await this.bootstrap;
+    } catch (error) {
+      // A rejected bootstrap must not poison all later attempts on this task.
+      this.bootstrap = undefined;
+      this.connection?.disconnect();
+      this.connection = null;
+      throw error;
+    }
   }
 
   private async updateConversationWithResumeInfo(mossSessionId: string, wsUrl: string, sessionData: unknown): Promise<void> {
@@ -797,21 +805,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       mainLog('RemoteAgent', 'Interrupt confirmation timeout or not connected, proceeding anyway');
     }
 
-    // Clean up all tracked files on cancel (precise cleanup)
-    // 取消时精确清理追踪到的所有文件（包括 draft 和 final）
-    if (this.workspace) {
-      mainLog('RemoteAgent', `[STOP] currentTurnFiles size: ${this.currentTurnFiles.size}`);
-      if (this.currentTurnFiles.size > 0) {
-        for (const [path, file] of this.currentTurnFiles) {
-          mainLog('RemoteAgent', `[STOP] Tracked file: ${path}, intent: ${file.intent}`);
-        }
-        this.cleanupTrackedFiles().catch((err) => {
-          mainError('RemoteAgent', 'Failed to cleanup tracked files:', err);
-        });
-      } else {
-        mainLog('RemoteAgent', '[STOP] No tracked files to cleanup');
-      }
-    }
+    // Moss owns cloud files. Cancellation must preserve drafts and prior outputs.
+    this.currentTurnFiles.clear();
 
     // Emit user cancelled message before finish
     this.emitUserCancelledMessage();
@@ -820,38 +815,6 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.turnActive = false;
     this.processingStartTime = undefined;
     this.emitFinishMessage();
-  }
-
-  /**
-   * Clean up all tracked files from current turn (both draft and final)
-   * 清理当前 Turn 追踪到的所有文件（包括 draft 和 final）
-   */
-  private async cleanupTrackedFiles(): Promise<number> {
-    let removedCount = 0;
-
-    for (const [requestedPath, file] of this.currentTurnFiles) {
-      try {
-        const fullPath = file.path;
-        if (fs.existsSync(fullPath)) {
-          await fs.promises.unlink(fullPath);
-          removedCount++;
-          mainLog('RemoteAgent', `[CLEANUP] Removed tracked file: ${requestedPath} (intent: ${file.intent}, actual: ${fullPath})`);
-        } else {
-          mainLog('RemoteAgent', `[CLEANUP] File already removed: ${fullPath}`);
-        }
-      } catch (err) {
-        mainError('RemoteAgent', `Failed to remove file ${requestedPath}:`, err);
-      }
-    }
-
-    // Clear tracking
-    this.currentTurnFiles.clear();
-
-    if (removedCount > 0) {
-      mainLog('RemoteAgent', `[CLEANUP] Total tracked files removed: ${removedCount}`);
-    }
-
-    return removedCount;
   }
 
   /**

@@ -7,7 +7,6 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { DRAFTS_DIR_NAME } from '@/common/constants';
 import { getBuiltinSkillsDir, loadSkillsContent } from '@process/initStorage';
 import { CRON_RESTRICTED_INSTRUCTION, isCronSkillAllowed } from '@process/services/cron/cronPolicy';
 import type { PresetAgentType } from '@/types/acpTypes';
@@ -141,89 +140,24 @@ export interface FirstMessageConfig {
 }
 
 export function buildDraftsInstruction(workspace: string): string {
-  const draftsPath = `${workspace}/${DRAFTS_DIR_NAME}`;
+  return `[Workspace files]
+Workspace: ${workspace}
+Drafts (草稿箱): ${workspace}/.drafts
 
-  return `[CRITICAL: File Intent Marking System - MANDATORY]
-
-Your workspace is: ${workspace}
-A drafts directory exists at: ${draftsPath}
-
-**Drafts path mapping**:
-- "草稿箱" and "Drafts" are UI display names only.
-- The real filesystem directory is always ${draftsPath}
-- When the user says "copy/move to 草稿箱" or "copy/move to Drafts", use ${DRAFTS_DIR_NAME}/
-- Never create or use "drafts/", "Drafts/", or "草稿箱/" directories.
-- Correct command example: \`cp file.ext ${DRAFTS_DIR_NAME}/\`
-
-**CORE RULE: When creating files using write() tool, ALWAYS add intent markers**
-
-**Intent Markers** (add as FIRST LINE in file content):
-- '# @final' → Final deliverable (user-requested output)
-- '# @draft' → Intermediate/temporary file (helper scripts, temp data)
-
-**Language-specific comment syntax**:
-- Python/Shell/Ruby/Perl: '#' prefix (e.g., '# @final')
-- JavaScript/TypeScript/Go/C++: '//' prefix (e.g., '// @final')
-- HTML/XML: '<!-- ... -->' format (e.g., '<!-- @final -->')
-- Markdown/Config files: '#' prefix (default)
-
-**Decision Logic** (apply to EVERY file you create):
-
-Ask yourself: "Is this file what the user ultimately wants?"
-
-**YES → @final** (this file IS what user requested)
-- User requests "Python script for X" → script.py = @final
-- User requests "Word document about X" → report.docx = @final
-- User requests "PDF report" → report.pdf = @final
-- User requests "data analysis script" → analysis.py = @final
-
-**NO → @draft** (this file HELPS produce what user wants)
-- User requests Word document, you create JS script to generate it → script.js = @draft
-- User requests PDF, you create Python conversion script → convert.py = @draft
-- User requests analysis report, you create data processing script → process.py = @draft
-- User requests output in format X, you create script to produce X → script = @draft
-
-**Key rule**: If you create a SCRIPT that produces user's final output → SCRIPT = @draft, OUTPUT = @final
-
-**Examples for write() tool**:
-
-✅ Correct - User requests Python script:
-  write(file_path="analysis.py", content="# @final\nimport pandas...")
-
-✅ Correct - User requests Word document, you create generation script:
-  write(file_path="generate_report.js", content="// @draft - generates report.docx\n...")
-  write(file_path="report.docx", content="...") ← @final or no marker
-
-✅ Correct - User requests PDF, you create conversion script:
-  write(file_path="convert_to_pdf.py", content="# @draft - converts docx to pdf\n...")
-
-❌ Wrong - User requests Word document, script marked as @final:
-  write(file_path="generate_report.js", content="// @final\n...") ← WRONG!
-
-❌ Wrong - Missing marker:
-  write(file_path="script.py", content="import pandas...")
-
-**Post-processing behavior**:
-- Files with @draft marker → Automatically moved to ${draftsPath}/
-- Files with @final marker → Stay in ${workspace}/
-- Files WITHOUT marker → Stay in ${workspace}/ (default safe)
-
-**CRITICAL REMINDERS**:
-1. Add marker as the FIRST LINE (not second or third line)
-2. This rule applies EVERY time you call write() tool
-3. Only mark files you CREATE (not files you READ)
-4. No marker = @final (safe default, but explicit marking is better)
-5. **Script execution side effects**: When you execute a script (e.g., via bash/exec), it may produce intermediate files (package.json, node_modules, temp files). After execution, you should cleanup these by:
-   - Removing unnecessary dependency files: package.json, package-lock.json, node_modules
-   - Or moving them to ${draftsPath}/ if they might be reused
-   - Use bash commands like: \`rm -rf node_modules package.json package-lock.json\` or \`mv package.json .drafts/\`
-
-**Special cases for script execution**:
-- If script needs npm/bun install → dependencies are intermediate → cleanup after script runs
-- If script produces multiple outputs → only keep what user requested, move others to .drafts/
-- Example: \`node generate_report.js && rm -rf node_modules package.json\`
-
-[End of File Intent Marking System Rules]`;
+Create temporary scripts, intermediate data and dependencies directly in .drafts/.
+Keep final deliverables at the user-requested workspace path. Scripts in .drafts must
+use explicit workspace output paths, not derive outputs from the script directory.
+Keep file contents valid: never add @final/@draft markers to JSON, CSV or binary
+files. No intent comments are required in any format. Preserve shebangs, encoding
+and XML declarations, uploaded inputs, and existing workspace files.
+Keep reusable drafts after a turn or cancellation. Do not delete dependencies or
+move files still needed by another step. Use .drafts/ for the 草稿箱 UI name.
+Before finishing, use moss_declare_artifacts when available to declare each newly
+generated final or draft file. Mark release=true only for drafts that no later step
+needs at the current path; this allows safe physical archival. Declare final files
+only after validating their contents; JSON must parse with a standard JSON parser.
+If validation fails, repair once and revalidate, otherwise report the failure.
+[End workspace files]`;
 }
 
 /**
@@ -255,22 +189,11 @@ user's request:
 Do NOT use placeholder names like "final.pptx", "output.docx", "result.csv",
 "untitled.pdf". The filename must describe the content.
 
-INTERMEDIATE files — slide frames being composed, helper scripts you wrote
-to drive a tool, working JSON, debug renders, draft data. Save them ANYWHERE
-EXCEPT the workspace root:
-
-  - Preferred: system temp directory (Python tempfile.mkdtemp(),
-    shell mktemp -d, Node os.tmpdir()) — these are auto-cleaned by the OS.
-  - Acceptable: a subdirectory under ${workspace}/ (e.g. ppt_outputs/,
-    _tmp/, build/). Sudowork hides these subdirectories from the user.
-
-Sudowork handles intermediate-file lifecycle for you. Do NOT delete them
-yourself between turns — multi-turn workflows (e.g. generating slide images
-across several turns before composing the .pptx) need them to remain
-accessible.
-
-NEVER put intermediate files at the workspace root — anything written there
-is treated as a deliverable and shown to the user.
+INTERMEDIATE files — helper scripts, working JSON and temporary data — belong
+in ${workspace}/.drafts/ from creation. Preserve them across turns and cancellation.
+Use explicit workspace paths for final outputs produced by scripts in .drafts/.
+Keep all file formats valid. Do not insert classification comments into JSON,
+CSV or binary files. A file at the workspace root is not automatically final.
 
 [End of Output Convention]`;
 }

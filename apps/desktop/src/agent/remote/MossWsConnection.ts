@@ -152,7 +152,6 @@ export class MossWsConnection {
       this.state = 'idle';
       const err = error instanceof Error ? error : new Error(String(error));
       mainError('MossWsConnection', `Connection failed: ${err.message}`);
-      this.callbacks.onError?.(err);
       throw err;
     }
   }
@@ -262,6 +261,12 @@ export class MossWsConnection {
     if (!response.ok) {
       const text = await response.text();
       mainError('MossWsConnection', `Create session failed: ${response.status}`);
+      try {
+        const body = JSON.parse(text);
+        if (body.startup?.message) throw Object.assign(new Error(body.startup.message), body.startup);
+      } catch (error) {
+        if (error instanceof Error && !(error instanceof SyntaxError)) throw error;
+      }
       throw new Error(`Failed to create Moss session: ${response.status} ${text}`);
     }
 
@@ -301,10 +306,35 @@ export class MossWsConnection {
         resolve();
       });
 
+      this.ws.on('unexpected-response', (_request, response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk: string) => {
+          if (body.length < 65536) body += chunk;
+        });
+        response.on('end', () => {
+          clearTimeout(timeout);
+          try {
+            const parsed = JSON.parse(body);
+            if (parsed.startup?.message) {
+              reject(Object.assign(new Error(parsed.startup.message), parsed.startup));
+              return;
+            }
+          } catch {
+            /* Older servers may return an empty handshake body. */
+          }
+          reject(new Error(`WebSocket handshake failed: ${response.statusCode}`));
+        });
+        response.on('error', (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+      });
+
       this.ws.on('message', (data) => this.handleMessage(data.toString()));
       this.ws.on('error', (err) => {
         clearTimeout(timeout);
-        this.callbacks.onError?.(err);
+        if (this.state === 'connected') this.callbacks.onError?.(err);
         // Settle the connect promise — a handshake failure (e.g. 401/404)
         // must fail fast, not strand connect() awaiting forever.
         reject(err);
@@ -362,7 +392,7 @@ export class MossWsConnection {
       return;
     }
 
-    if (msg.type === 'system') {
+    if (msg.type === 'system' || msg.type === 'artifacts') {
       for (const m of mossFrameToResponses(msg, { sessionId: this.sessionId || '', nextMsgId: () => uuid(36) })) {
         this.callbacks.onMessage(m);
       }

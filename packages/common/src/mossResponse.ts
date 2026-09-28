@@ -23,6 +23,7 @@
  * request payload into an `IConfirmation`; routing/effect stays caller-side.
  */
 
+import { appendGeneratedFilesMarker, extractExtension } from './generatedFiles.js';
 import type { IConfirmation, IResponseMessage } from './chatTypes.js';
 
 export interface MossResponseCtx {
@@ -86,6 +87,36 @@ export function mossFrameToResponses(frame: any, ctx: MossResponseCtx): IRespons
 
   // Stateful / effectful frames are the caller's job.
   if (frame.type === 'hello' || frame.type === 'control_response' || frame.type === 'control_request') {
+    return out;
+  }
+
+  if (frame.type === 'artifacts' && frame.v === 1 && Array.isArray(frame.records)) {
+    const files = frame.records
+      .filter(
+        (record: any) =>
+          record?.sessionId === ctx.sessionId &&
+          record.intent === 'final' &&
+          record.origin === 'generated' &&
+          !record.error &&
+          typeof record.relativePath === 'string' &&
+          !record.relativePath.startsWith('/') &&
+          !record.relativePath.split(/[\\/]/).some((part: string) => part === '..' || part === '.drafts')
+      )
+      .map((record: any) => ({
+        path: `${String(frame.workspace || '').replace(/\/$/, '')}/${record.relativePath}`,
+        relativePath: record.relativePath,
+        kind: 'create' as const,
+        ext: extractExtension(record.relativePath),
+        size: record.size,
+        createdAt: record.updatedAt,
+      }));
+    if (files.length)
+      out.push({
+        type: 'content',
+        msg_id: frame.uuid || ctx.nextMsgId(),
+        conversation_id: conversationId,
+        data: appendGeneratedFilesMarker('', files),
+      });
     return out;
   }
 
@@ -349,14 +380,13 @@ export function mossControlRequestToConfirmation(request: any, requestId: string
     callId: requestId,
     title: request.title || request.tool_name || 'Permission Required',
     description: JSON.stringify(request.rawInput || request.input || {}),
-    options:
-      request.options?.map((opt: any) => ({
-        label: opt.name || opt,
-        value: opt.optionId || opt,
-      })) || [
-        { label: 'Allow', value: 'allow_once' },
-        { label: 'Always Allow', value: 'allow_always' },
-        { label: 'Reject', value: 'reject_once' },
-      ],
+    options: request.options?.map((opt: any) => ({
+      label: opt.name || opt,
+      value: opt.optionId || opt,
+    })) || [
+      { label: 'Allow', value: 'allow_once' },
+      { label: 'Always Allow', value: 'allow_always' },
+      { label: 'Reject', value: 'reject_once' },
+    ],
   };
 }

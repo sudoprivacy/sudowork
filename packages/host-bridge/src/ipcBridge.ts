@@ -3390,6 +3390,7 @@ export const skillHub = {
 
 /** Assistant from Hub API (mirrors ISkillHubSkill pattern) */
 export interface IAssistantHubSkill {
+  sourceType?: "hub" | "tenant";
   id: string;
   name: string;
   display_name: string;
@@ -3558,7 +3559,7 @@ export const assistantHub = {
   /** Fetch assistant detail from Assistant Hub API */
   fetchAssistantDetail: bridge.buildProvider<
     IBridgeResponse<IAssistantHubDetail>,
-    { assistantId: string; silent?: boolean }
+    { assistantId: string; silent?: boolean; sourceType?: "hub" | "tenant" }
   >("assistant-hub.fetch-assistant-detail"),
   /** Fetch skill details by IDs from Skill Hub API (for installation preview) */
   fetchSkillDetailsByIds: bridge.buildProvider<

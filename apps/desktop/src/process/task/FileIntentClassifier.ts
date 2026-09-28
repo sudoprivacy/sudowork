@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { COMMENT_SYNTAX_MAP, DRAFTS_DIR_NAME, DRAFT_EXTENSIONS, DRAFT_FILE_PATTERNS, FILE_INTENT_MARKERS, FINAL_EXTENSIONS, FINAL_FILE_PATTERNS } from '@/common/constants';
 import path from 'path';
+import { COMMENT_SYNTAX_MAP, DRAFTS_DIR_NAME, DRAFT_EXTENSIONS, DRAFT_FILE_PATTERNS, FILE_INTENT_MARKERS, FINAL_EXTENSIONS, FINAL_FILE_PATTERNS } from '@/common/constants';
 
 export type FileIntent = 'final' | 'draft';
 export type FileIntentSource = 'write' | 'edit' | 'bash-generated' | 'cleanup';
@@ -38,14 +38,8 @@ export interface FileIntentClassification {
    * user / operation request (e.g. `operationIntent === 'move-to-drafts'`,
    * or the user message said "move X to drafts").
    *
-   * Used by archiveTurnFiles to decide between archive vs. delete:
-   *   - userInitiated drafts → archive to .drafts/<basename>
-   *   - all other drafts (classifier heuristics) → unlink
-   *
-   * Rationale: AI-generated intermediate files (PPT slide frames, etc.) have
-   * no recovery value — they're scaffolding the user never asked for. Keeping
-   * them in .drafts/ accumulates disk + cognitive noise. User-explicit moves
-   * still go to .drafts/ because the user might want to restore them.
+   * Explicit moves may be archived; inferred drafts remain at their original
+   * paths so later turns can reuse them. Cancellation never deletes drafts.
    */
   userInitiated?: boolean;
 }
@@ -136,6 +130,8 @@ function matchesFinalNamePattern(fileName: string): boolean {
 }
 
 export function detectFileIntent(filePath: string, content: string): ContentIntentResult {
+  if (filePath.split(/[\\/]/).includes(DRAFTS_DIR_NAME)) return { intent: 'draft', reason: 'Draft directory' };
+  if (['.json', '.csv'].includes(path.extname(filePath).toLowerCase())) return { intent: 'unknown', reason: 'Format does not support comments' };
   const ext = path.extname(filePath).toLowerCase();
   const commentPrefix = COMMENT_SYNTAX_MAP[ext] || COMMENT_SYNTAX_MAP.default;
   const lines = content.split('\n').slice(0, 10);
@@ -240,6 +236,8 @@ export class FileIntentClassifier {
     if (input.source !== 'cleanup' && isRestoreFromDraftsIntent(userMessage) && isRestoredRootFile(input.filePath, input.requestedPath) && !matchesExcludedFileName(userMessage, input.filePath, input.requestedPath)) {
       return { intent: 'final', reason: 'Restore from drafts to workspace root' };
     }
+
+    if (isDraftsPath(input.filePath, input.requestedPath)) return { intent: 'draft', reason: 'Draft directory' };
 
     if (content) {
       const markerResult = detectFileIntent(input.filePath, content);

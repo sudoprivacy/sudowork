@@ -1,3 +1,4 @@
+import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib';
 import { describe, expect, it } from 'vitest';
 
 import { extractTextFromContent, isUserAbortError, mossControlRequestToConfirmation, mossFrameToResponses, type MossResponseCtx } from '@sudowork/common/mossResponse';
@@ -227,4 +228,38 @@ describe('mossControlRequestToConfirmation', () => {
     expect(confirmation.title).toBe('Permission Required');
     expect(confirmation.description).toBe('{}');
   });
+});
+
+describe('validated cloud artifact delivery', () => {
+  it('renders only this session’s generated final files, including names with spaces', () => {
+    const ctx = { sessionId: 'cloud-session', nextMsgId: () => 'message' };
+    const base = { sessionId: 'cloud-session', origin: 'generated', updatedAt: 1, size: 2 };
+    const result = mossFrameToResponses(
+      {
+        type: 'artifacts',
+        v: 1,
+        workspace: '/workspace',
+        records: [
+          { ...base, relativePath: '报价 数据.json', intent: 'final' },
+          { ...base, relativePath: '.drafts/temp.json', intent: 'draft' },
+          { ...base, relativePath: 'unknown.json', intent: 'unknown' },
+          { ...base, relativePath: 'bad.json', intent: 'final', error: 'Invalid JSON' },
+          { ...base, relativePath: 'input.json', intent: 'final', origin: 'existing' },
+          { ...base, relativePath: '../outside.txt', intent: 'final' },
+          { ...base, relativePath: 'other.txt', intent: 'final', sessionId: 'other' },
+        ],
+      },
+      ctx
+    );
+    expect(result).toHaveLength(1);
+    const payload = JSON.parse(String(result[0].data).split('[[NEXUS_GENERATED_FILES]]')[1]);
+    expect(payload.files).toHaveLength(1);
+    expect(payload.files[0].path).toBe('/workspace/报价 数据.json');
+  });
+});
+
+it('restores validated artifact cards from persisted Moss history', () => {
+  const result = convertMossMessagesToTMessages([{ type: 'artifacts', v: 1, workspace: '/workspace', uuid: 'artifact-1', records: [{ sessionId: 's', origin: 'generated', intent: 'final', relativePath: '结果.json', updatedAt: 1 }] }], 'conversation', 's');
+  expect(result.messages).toHaveLength(1);
+  expect(result.messages[0]).toMatchObject({ type: 'text', msg_id: 'artifact-1', content: { content: expect.stringContaining('[[NEXUS_GENERATED_FILES]]') } });
 });

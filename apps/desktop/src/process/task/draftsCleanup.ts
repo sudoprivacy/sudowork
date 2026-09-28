@@ -15,11 +15,10 @@
 
 import fs from 'fs/promises';
 import fsSync from 'fs';
-import type { Dirent } from 'fs';
 import path from 'path';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { DRAFTS_DIR_ALIASES, DRAFTS_DIR_NAME } from '@/common/constants';
-import { FileIntentClassifier, detectFileIntent, matchesDraftPattern, matchesFinalPattern, type FileIntent, type FileIntentSource } from './FileIntentClassifier';
+import { detectFileIntent, matchesDraftPattern, matchesFinalPattern, type FileIntent, type FileIntentSource } from './FileIntentClassifier';
 
 /**
  * Files/directories that should never be moved
@@ -53,8 +52,6 @@ export interface CleanupIntermediateFilesOptions {
   protectedFinalPaths?: Iterable<string>;
 }
 
-const fileIntentClassifier = new FileIntentClassifier();
-
 function appendTimestamp(filePath: string, attempt: number = 0): string {
   const dir = path.dirname(filePath);
   const ext = path.extname(filePath);
@@ -83,21 +80,6 @@ function resolveTrackedPath(file: TrackedTurnFile): string {
   return file.path || file.actualPath;
 }
 
-function normalizeProtectedPath(workspace: string, protectedPath: string): string | null {
-  const trimmedPath = protectedPath.trim();
-  if (!trimmedPath) {
-    return null;
-  }
-
-  const resolvedPath = path.isAbsolute(trimmedPath) ? path.resolve(trimmedPath) : path.resolve(workspace, trimmedPath);
-  const relativePath = path.relative(workspace, resolvedPath);
-  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath) || relativePath.startsWith(`${DRAFTS_DIR_NAME}${path.sep}`)) {
-    return null;
-  }
-
-  return relativePath.replace(/\\/g, '/');
-}
-
 function resolveRootDestination(workspace: string, filePath: string, requestedPath: string): string {
   const relative = path.isAbsolute(requestedPath) ? path.basename(requestedPath) : requestedPath;
   const normalized = relative.replace(/\\/g, '/').replace(/^\.\//, '');
@@ -110,206 +92,9 @@ function resolveRootDestination(workspace: string, filePath: string, requestedPa
   return path.join(workspace, normalized);
 }
 
-function isScriptFile(fileName: string): boolean {
-  return ['.py', '.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs', '.sh', '.bash', '.zsh', '.rb', '.php', '.lua'].includes(path.extname(fileName).toLowerCase());
-}
-
-async function normalizeDraftsAliasDirectories(workspace: string, draftsDir: string, entries: Dirent[]): Promise<number> {
-  const aliasEntries = entries.filter((entry) => entry.isDirectory() && DRAFTS_DIR_ALIASES.some((alias) => alias.toLowerCase() === entry.name.toLowerCase()));
-  if (aliasEntries.length === 0) {
-    return 0;
-  }
-
-  await fs.mkdir(draftsDir, { recursive: true });
-
-  let movedCount = 0;
-  for (const aliasEntry of aliasEntries) {
-    const aliasDir = path.join(workspace, aliasEntry.name);
-    const children = await fs.readdir(aliasDir, { withFileTypes: true });
-
-    for (const child of children) {
-      const srcPath = path.join(aliasDir, child.name);
-      const destPath = path.join(draftsDir, child.name);
-      try {
-        const finalDestPath = await moveWithTimestampCollision(srcPath, destPath);
-        movedCount++;
-        mainLog('draftsCleanup', `Moved misplaced drafts alias entry ${aliasEntry.name}/${child.name} to ${path.relative(workspace, finalDestPath)}`);
-      } catch (err) {
-        mainError('draftsCleanup', `Failed to move misplaced drafts alias entry ${aliasEntry.name}/${child.name}:`, err);
-      }
-    }
-
-    try {
-      const remaining = await fs.readdir(aliasDir);
-      if (remaining.length === 0) {
-        await fs.rmdir(aliasDir);
-        mainLog('draftsCleanup', `Removed empty drafts alias directory ${aliasEntry.name}`);
-      }
-    } catch (err) {
-      mainError('draftsCleanup', `Failed to remove drafts alias directory ${aliasEntry.name}:`, err);
-    }
-  }
-
-  return movedCount;
-}
-
-/**
- * Move draft files from workspace root to .drafts/ directory
- * 将草稿文件从工作空间根目录移动到 .drafts/ 目录
- *
- * NEW LOGIC:
- * 1. Files with @draft marker → Move to .drafts/
- * 2. Files with @final marker → Keep in workspace root
- * 3. Files without marker → Keep in workspace root (default safe strategy)
- * 4. Script execution side effects (package.json/node_modules with @draft scripts) → Move to .drafts/
- *
- * @param workspace - The workspace root path
- */
-export async function cleanupIntermediateFiles(workspace: string, options: CleanupIntermediateFilesOptions = {}): Promise<void> {
-  try {
-    const workspaceRoot = path.resolve(workspace);
-    const draftsDir = path.join(workspaceRoot, DRAFTS_DIR_NAME);
-    const protectedFinalPaths = new Set(
-      Array.from(options.protectedFinalPaths || [])
-        .map((protectedPath) => normalizeProtectedPath(workspaceRoot, protectedPath))
-        .filter((protectedPath): protectedPath is string => protectedPath !== null)
-    );
-
-    // Read workspace root entries
-    if (!fsSync.existsSync(workspaceRoot)) {
-      return;
-    }
-
-    const entries = await fs.readdir(workspaceRoot, { withFileTypes: true });
-    const movedAliasCount = await normalizeDraftsAliasDirectories(workspaceRoot, draftsDir, entries);
-    const filesToMove: Array<{ name: string; reason: string }> = [];
-    const filesToKeep: Array<{ name: string; reason: string }> = [];
-
-    // Track if there are @draft scripts (indicates script execution scenario)
-    let hasDraftScripts = false;
-
-    for (const entry of entries) {
-      // Skip directories and excluded names
-      if (!entry.isFile()) continue;
-      if (EXCLUDED_NAMES.has(entry.name)) continue;
-
-      const filePath = path.join(workspaceRoot, entry.name);
-      const relativePath = path.relative(workspaceRoot, filePath).replace(/\\/g, '/');
-      if (protectedFinalPaths.has(relativePath)) {
-        filesToKeep.push({
-          name: entry.name,
-          reason: 'Protected current-turn final file',
-        });
-        mainLog('draftsCleanup', `[CLASSIFY] ${entry.name}: final (Protected current-turn final file), keeping in workspace root`);
-        continue;
-      }
-
-      // Try to read file content for marker detection
-      let content: string | null = null;
-      try {
-        content = await fs.readFile(filePath, 'utf-8');
-      } catch (readErr) {
-        // Binary or locked file - use pattern detection only
-        mainLog('draftsCleanup', `Cannot read ${entry.name}, using pattern detection only`);
-      }
-
-      const classification = fileIntentClassifier.classify({
-        filePath,
-        requestedPath: entry.name,
-        content,
-        source: 'cleanup',
-      });
-
-      if (classification.intent === 'draft') {
-        filesToMove.push({
-          name: entry.name,
-          reason: classification.reason,
-        });
-        hasDraftScripts ||= isScriptFile(entry.name);
-        mainLog('draftsCleanup', `[CLASSIFY] ${entry.name}: draft (${classification.reason}), will move to .drafts/`);
-        continue;
-      }
-
-      filesToKeep.push({
-        name: entry.name,
-        reason: classification.reason,
-      });
-      mainLog('draftsCleanup', `[CLASSIFY] ${entry.name}: final (${classification.reason}), keeping in workspace root`);
-    }
-
-    // 如果没有需要移动的文件，直接返回
-    if (filesToMove.length === 0) {
-      if (movedAliasCount > 0) {
-        mainLog('draftsCleanup', `Cleanup completed: normalized ${movedAliasCount} misplaced drafts alias entr${movedAliasCount === 1 ? 'y' : 'ies'}`);
-      }
-      return;
-    }
-
-    // Ensure .drafts/ directory exists
-    if (!fsSync.existsSync(draftsDir)) {
-      await fs.mkdir(draftsDir, { recursive: true });
-    }
-
-    // Move draft files
-    let movedCount = 0;
-    for (const { name, reason } of filesToMove) {
-      const srcPath = path.join(workspaceRoot, name);
-      let destPath = path.join(draftsDir, name);
-
-      // Handle name collision: append timestamp
-      if (fsSync.existsSync(destPath)) {
-        destPath = appendTimestamp(destPath);
-      }
-
-      try {
-        await fs.rename(srcPath, destPath);
-        movedCount++;
-        mainLog('draftsCleanup', `Moved ${name} to ${DRAFTS_DIR_NAME}/ (${reason})`);
-      } catch (err) {
-        mainError('draftsCleanup', `Failed to move ${name} to drafts:`, err);
-      }
-    }
-
-    if (movedCount > 0) {
-      mainLog('draftsCleanup', `Cleanup completed: moved ${movedCount} draft file(s), kept ${filesToKeep.length} final file(s)`);
-    }
-
-    // Script execution side effects cleanup
-    // When @draft scripts exist, their execution may have created package.json, node_modules, etc.
-    // These should be moved to .drafts/ or deleted
-    // Note: These files are in EXCLUDED_NAMES for normal file handling, but we explicitly clean them up here
-    if (hasDraftScripts) {
-      const sideEffectFiles = ['package.json', 'package-lock.json', 'bun.lockb'];
-      const sideEffectDirs = ['node_modules'];
-
-      for (const fileName of sideEffectFiles) {
-        const filePath = path.join(workspaceRoot, fileName);
-        if (fsSync.existsSync(filePath)) {
-          const destPath = path.join(draftsDir, fileName);
-          try {
-            await fs.rename(filePath, destPath);
-            mainLog('draftsCleanup', `Moved script side effect ${fileName} to ${DRAFTS_DIR_NAME}/`);
-          } catch (err) {
-            mainError('draftsCleanup', `Failed to move ${fileName}:`, err);
-          }
-        }
-      }
-
-      for (const dirName of sideEffectDirs) {
-        const dirPath = path.join(workspaceRoot, dirName);
-        if (fsSync.existsSync(dirPath)) {
-          try {
-            await fs.rm(dirPath, { recursive: true, force: true });
-            mainLog('draftsCleanup', `Deleted script side effect directory ${dirName}`);
-          } catch (err) {
-            mainError('draftsCleanup', `Failed to delete ${dirName}:`, err);
-          }
-        }
-      }
-    }
-  } catch (err) {
-    mainError('draftsCleanup', 'Cleanup failed:', err);
-  }
+/** Ensure the draft directory without sweeping inputs or relocating live dependencies. */
+export async function cleanupIntermediateFiles(workspace: string, _options: CleanupIntermediateFilesOptions = {}): Promise<void> {
+  if (fsSync.existsSync(workspace)) await fs.mkdir(path.join(workspace, DRAFTS_DIR_NAME), { recursive: true });
 }
 
 /**
@@ -358,7 +143,7 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
     }
 
     const inDrafts = isPathInside(draftsDir, srcPath);
-    const destPath = file.intent === 'draft' ? path.join(draftsDir, path.basename(srcPath)) : resolveRootDestination(workspaceRoot, srcPath, file.requestedPath || trackedKey);
+    const destPath = file.intent === 'draft' ? path.join(draftsDir, path.relative(workspaceRoot, srcPath)) : resolveRootDestination(workspaceRoot, srcPath, file.requestedPath || trackedKey);
 
     const resolvedDestPath = path.resolve(destPath);
     if (srcPath === resolvedDestPath) {
@@ -391,33 +176,9 @@ export async function archiveTurnFiles(workspace: string, trackedFiles: Readonly
 }
 
 export async function cleanupTrackedDraftsOnCancel(workspace: string, trackedFiles: ReadonlyMap<string, TrackedTurnFile>): Promise<number> {
-  if (!fsSync.existsSync(workspace)) {
-    return 0;
-  }
-
-  const workspaceRoot = path.resolve(workspace);
-  let removedCount = 0;
-
-  for (const [trackedKey, file] of trackedFiles) {
-    if (file.intent !== 'draft') {
-      continue;
-    }
-
-    const filePath = path.resolve(resolveTrackedPath(file));
-    if (!isPathInside(workspaceRoot, filePath) || !fsSync.existsSync(filePath)) {
-      continue;
-    }
-
-    try {
-      await fs.rm(filePath, { recursive: true, force: true });
-      removedCount++;
-      mainLog('draftsCleanup', `[CANCEL] Removed current-turn draft: ${trackedKey}`);
-    } catch (err) {
-      mainError('draftsCleanup', `Failed to remove current-turn draft ${trackedKey}:`, err);
-    }
-  }
-
-  return removedCount;
+  // Cancellation stops execution, not retention. Preserve drafts and live dependencies.
+  await archiveTurnFiles(workspace, trackedFiles);
+  return 0;
 }
 
 /**
@@ -532,74 +293,7 @@ export async function cleanupMisplacedFiles(sessionWorkspace: string, parentWork
   }
 }
 
-/**
- * Clean up draft files when session is cancelled/aborted
- * 会话取消/中止时清理草稿文件
- *
- * This function is called when the user cancels a session.
- * It removes all files in the .drafts/ directory and optionally
- * removes draft files from the workspace root.
- *
- * @param workspace - The workspace root path
- * @param removeDraftsFromRoot - Also remove draft files from workspace root (default: true)
- * @returns Number of files removed
- */
-export async function cleanupDraftsOnCancel(workspace: string, removeDraftsFromRoot: boolean = true): Promise<number> {
-  let removedCount = 0;
-
-  try {
-    const draftsDir = path.join(workspace, DRAFTS_DIR_NAME);
-
-    // 1. Remove all files in .drafts/ directory
-    if (fsSync.existsSync(draftsDir)) {
-      const draftEntries = await fs.readdir(draftsDir, { withFileTypes: true });
-
-      for (const entry of draftEntries) {
-        const entryPath = path.join(draftsDir, entry.name);
-        try {
-          if (entry.isDirectory()) {
-            await fs.rm(entryPath, { recursive: true, force: true });
-          } else {
-            await fs.unlink(entryPath);
-          }
-          removedCount++;
-          mainLog('draftsCleanup', `[CANCEL] Removed draft file: ${entry.name}`);
-        } catch (err) {
-          mainError('draftsCleanup', `Failed to remove draft file ${entry.name}:`, err);
-        }
-      }
-
-      mainLog('draftsCleanup', `[CANCEL] Cleaned up ${removedCount} draft file(s) from .drafts/`);
-    }
-
-    // 2. Optionally remove draft files from workspace root
-    if (removeDraftsFromRoot && fsSync.existsSync(workspace)) {
-      const entries = await fs.readdir(workspace, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (!entry.isFile()) continue;
-        if (EXCLUDED_NAMES.has(entry.name)) continue;
-
-        // Check if file matches draft pattern
-        if (matchesDraftPattern(entry.name)) {
-          const filePath = path.join(workspace, entry.name);
-          try {
-            await fs.unlink(filePath);
-            removedCount++;
-            mainLog('draftsCleanup', `[CANCEL] Removed draft file from root: ${entry.name}`);
-          } catch (err) {
-            mainError('draftsCleanup', `Failed to remove draft file ${entry.name}:`, err);
-          }
-        }
-      }
-    }
-
-    if (removedCount > 0) {
-      mainLog('draftsCleanup', `[CANCEL] Total draft files removed: ${removedCount}`);
-    }
-  } catch (err) {
-    mainError('draftsCleanup', 'Draft cleanup on cancel failed:', err);
-  }
-
-  return removedCount;
+/** Cancellation preserves drafts so the next turn can resume the task. */
+export async function cleanupDraftsOnCancel(_workspace: string, _removeDraftsFromRoot: boolean = true): Promise<number> {
+  return 0;
 }

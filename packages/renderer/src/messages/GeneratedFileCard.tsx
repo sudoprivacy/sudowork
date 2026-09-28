@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { GeneratedFileEntry } from '@sudowork/common/generatedFiles';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { useConversationContextSafe } from '@renderer/context/ConversationContext';
 import { usePreviewLauncher } from '@renderer/hooks/usePreviewLauncher';
 import { getContentTypeByExtension } from '@renderer/pages/conversation/preview/utils/fileUtils';
 import { formatFileSize } from '@renderer/services/FileService';
@@ -36,6 +37,8 @@ interface GeneratedFileCardProps {
  */
 const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth = false }) => {
   const { t } = useTranslation();
+  const conversation = useConversationContextSafe();
+  const isRemote = conversation?.type === 'remote-agent';
   const fileName = (entry.relativePath ?? entry.path).split(/[\\/]/).pop() || entry.path;
   const directory = (() => {
     const display = entry.relativePath ?? entry.path;
@@ -51,6 +54,7 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
   const { launchPreview, loading } = usePreviewLauncher();
 
   useEffect(() => {
+    if (isRemote) return;
     let cancelled = false;
     ipcBridge.fs.getFileMetadata
       .invoke({ path: entry.path })
@@ -64,14 +68,14 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
     return () => {
       cancelled = true;
     };
-  }, [entry.path]);
+  }, [entry.path, isRemote]);
 
   const handleClick = useCallback(() => {
     // Web host: html click would target the filtered-out browser tab and other
     // previews depend on local fs. Both dead-end, so the card is display-only.
     if (!isElectronDesktop()) return;
     if (missing || loading) return;
-    if (isHtml) {
+    if (isHtml && !isRemote) {
       // Same channel that AI-write-HTML auto-open uses (browser-panel-cdp PR).
       // BrowserPanel's subscriber pushes a new tab + activates; ChatSider's
       // subscriber switches the right-panel selection to the browser tab.
@@ -80,12 +84,14 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
     }
     const contentType = getContentTypeByExtension(entry.path);
     void launchPreview({
-      originalPath: entry.path,
+      originalPath: isRemote ? undefined : entry.path,
+      relativePath: entry.relativePath,
+      remoteConversationId: isRemote ? conversation?.conversationId : undefined,
       fileName,
       contentType,
       editable: false,
     });
-  }, [missing, loading, isHtml, entry.path, fileName, launchPreview]);
+  }, [missing, loading, isHtml, isRemote, entry.path, entry.relativePath, conversation?.conversationId, fileName, launchPreview]);
 
   const handleOpenExternal = useCallback(
     (e: React.MouseEvent) => {
@@ -151,7 +157,7 @@ const GeneratedFileCard: React.FC<GeneratedFileCardProps> = ({ entry, fullWidth 
             {directory && ext ? <span className='ml-6px rounded-full bg-fill-1 px-6px py-1px text-[10px] leading-4 uppercase tracking-wide text-secondary'>{ext}</span> : null}
           </div>
         </div>
-        {!missing && (
+        {!missing && !isRemote && (
           // Secondary actions: open with system app + reveal in OS file manager.
           // Hidden by default to keep the card visually quiet; revealed on
           // group-hover. stopPropagation in handlers so they don't trigger
