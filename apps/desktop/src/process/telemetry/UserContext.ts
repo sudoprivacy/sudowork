@@ -4,21 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * User Context - 用户上下文获取
- *
- * 从 ConfigStorage 获取用户信息 (user_id, org_id, tenant_id, login_mode)
- *
- * 企业模式和个人模式的用户信息存储位置不同：
- * - 企业模式: eeclaw.userInfo (ConfigStorage) + JWT payload
- * - 个人模式: consumer.userInfo (ConfigStorage)
- */
+/** Resolve reporting identity from the current Moss session, with a legacy-client fallback. */
 
 import { app } from 'electron';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { getSystemConfigCache } from '@sudowork/common/systemConfig';
 import { ProcessConfig } from '../initStorage';
-import { mainLog, mainWarn } from '../utils/mainLogger';
+import { mainWarn } from '../utils/mainLogger';
 import type { LoginMode } from '../../shared/types/telemetry';
 
 const TAG = 'UserContext';
@@ -80,77 +73,32 @@ function parseJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-/**
- * 获取用户上下文信息
- *
- * 根据登录模式从不同位置获取用户信息：
- * - 企业模式: eeclaw.userInfo (ConfigStorage) + JWT payload
- * - 个人模式: consumer.userInfo (ConfigStorage)
- *
- * 数据来源：
- * - user_id:
- *   - 企业模式: eeclaw.userInfo.id
- *   - 个人模式: consumer.userInfo.id
- * - org_id: JWT payload 中的 org_id/orgId (仅企业模式)
- * - tenant_id: JWT payload 中的 tenant_id/tenantId (仅企业模式)
- * - login_mode: 根据 appMode ('e' = enterprise, 'c' = personal) 确定
- */
+/** Account identity is independent of a task's local or remote execution target. */
 export function getUserContext(): UserContext {
   try {
-    // 获取应用模式 (企业/个人)
-    const appMode = ProcessConfig.getSync('system.appMode') as 'c' | 'e' | undefined;
-
-    // 根据应用模式确定登录模式
-    const login_mode: LoginMode = appMode === 'e' ? 'enterprise' : 'personal';
-
-    let user_id: string | undefined;
-    let org_id: string | undefined;
-    let tenant_id: string | undefined;
-    let user_nickname: string | undefined;
-    let user_phone: string | undefined;
-
-    // 企业模式: 从 eeclaw.userInfo 获取用户 ID
-    if (appMode === 'e') {
-      const userInfo = ProcessConfig.getSync('eeclaw.userInfo') as { id?: string; username?: string; role?: string } | undefined;
-      user_id = normalizeString(userInfo?.id);
-      user_nickname = normalizeString(userInfo?.username); // 企业模式用 username 作为 nickname
-      mainLog(TAG, `[DEBUG] Enterprise mode - userInfo from ConfigStorage: ${JSON.stringify(userInfo)}`);
-
-      // 企业模式: 从 JWT token 解析 org_id 和 tenant_id
-      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
-      if (authStorage?.access_token) {
-        const payload = parseJwtPayload(authStorage.access_token);
-        mainLog(TAG, `[DEBUG] Enterprise JWT payload: ${JSON.stringify(payload)}`);
-        if (payload) {
-          org_id = normalizeString(payload.org_id) || normalizeString(payload.orgId);
-          tenant_id = normalizeString(payload.tenant_id) || normalizeString(payload.tenantId);
-        }
-      }
+    const auth = ProcessConfig.getSync('eeclaw.authStorage');
+    const userInfo = ProcessConfig.getSync('eeclaw.userInfo');
+    const configuredTenant = normalizeString(getSystemConfigCache()?.product_improvement?.tenant_id);
+    if (auth?.access_token || userInfo) {
+      if (!auth?.access_token) return {};
+      const payload = parseJwtPayload(auth.access_token);
+      const userId = normalizeString(payload?.sub) || normalizeString(userInfo?.id);
+      // A stale profile from another account must not label the current principal.
+      const isMatchingProfile = userId === normalizeString(userInfo?.id);
+      return {
+        user_id: userId,
+        org_id: normalizeString(payload?.org_id) || normalizeString(payload?.orgId) || (isMatchingProfile ? normalizeString(userInfo?.orgId) : undefined),
+        tenant_id: configuredTenant || normalizeString(payload?.tenant_id) || normalizeString(payload?.tenantId),
+        user_nickname: isMatchingProfile ? normalizeString(userInfo?.username) : undefined,
+      };
     }
 
-    // 个人模式: 从 consumer.userInfo 获取用户 ID
-    if (appMode === 'c' || !user_id) {
-      const consumerUserInfo = ProcessConfig.getSync('consumer.userInfo') as { id?: string; nickname?: string; phone?: string; tenant_id?: string } | undefined;
-      user_id = normalizeString(consumerUserInfo?.id) || readConsumerUserIdFromFile();
-      user_nickname = normalizeString(consumerUserInfo?.nickname);
-      user_phone = normalizeString(consumerUserInfo?.phone);
-      tenant_id = normalizeString(consumerUserInfo?.tenant_id); // 个人模式下也可能有 tenant_id
-
-      // 个人模式下，org_id 应为空
-      org_id = undefined;
-    }
-
-    if (!user_id) {
-      mainWarn(TAG, `User context not resolved: appMode=${appMode}, login_mode=${login_mode}`);
-    }
-
+    const consumer = ProcessConfig.getSync('consumer.userInfo');
     return {
-      user_id,
-      org_id,
-      tenant_id,
-      login_mode,
-      user_nickname,
-      user_phone,
+      user_id: normalizeString(consumer?.id) || readConsumerUserIdFromFile(),
+      tenant_id: configuredTenant || normalizeString(consumer?.tenant_id),
+      user_nickname: normalizeString(consumer?.nickname),
+      user_phone: normalizeString(consumer?.phone),
     };
   } catch (error) {
     mainWarn(TAG, 'Failed to get user context:', error);

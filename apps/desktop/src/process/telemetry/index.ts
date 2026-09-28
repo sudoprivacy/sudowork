@@ -75,7 +75,6 @@ export { InstallTracker, getInstallTracker, initInstallTracking, markInstallSucc
 // 统一初始化方法
 // ============================================================
 
-import { initTelemetryEncryptor } from './TelemetryEncryptor';
 import { getPerfTracker } from './PerfTracker';
 
 /**
@@ -84,9 +83,6 @@ import { getPerfTracker } from './PerfTracker';
  * 在 app.whenReady() 之后调用
  */
 export async function initializeTelemetry(): Promise<void> {
-  // 初始化加密器 (如果公钥可用)
-  await initTelemetryEncryptor();
-
   // 初始化批量上报器
   await getTelemetryReporter().initialize();
 
@@ -117,18 +113,6 @@ export async function shutdownTelemetry(): Promise<void> {
 
   await getSudoLogTelemetryReporter().flushAll();
 }
-
-// ============================================================
-// 加密器导出
-// ============================================================
-
-export { TelemetryEncryptor, getTelemetryEncryptor, initTelemetryEncryptor, encryptTelemetryPayload, isEncryptionAvailable } from './TelemetryEncryptor';
-
-export type { EncryptedPayload } from './TelemetryEncryptor';
-
-export { TELEMETRY_PUBLIC_KEY_PEM, ENCRYPTION_CONFIG, DEFAULT_ENCRYPTION_OPTIONS } from './keys';
-
-export type { TelemetryEncryptionOptions } from './keys';
 
 // ============================================================
 // CrashReporter 导出

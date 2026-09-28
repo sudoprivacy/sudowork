@@ -33,7 +33,11 @@ export interface SystemConfig {
   third_party_auth?: ThirdPartyAuthConfig;
   log_report?: { enabled: number; baseurl?: string };
   version_update?: { enabled: number; cos_domain?: string };
-  product_improvement?: { enabled: number; encryption_required?: boolean };
+  product_improvement?: {
+    enabled: number;
+    baseurl?: string;
+    tenant_id?: string;
+  };
   sudorouter_baseurl?: string;
   skillhub_baseurl?: string;
   scode_auto_model?: string;

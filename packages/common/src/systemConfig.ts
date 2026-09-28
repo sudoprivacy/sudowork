@@ -56,7 +56,7 @@ export * from '@sudowork/common/systemConfigTypes';
 export interface DecryptedCredentials {
   skillhub?: { token: string };
   log_report?: { key: string };
-  product_improvement?: { api_key: string; public_key?: string };
+  product_improvement?: { api_key: string };
 }
 
 // ---- module-level cache (per-process instance; resides for the process lifetime) ----
@@ -82,20 +82,24 @@ export function normalizeRechargeMode(value: unknown): RechargeMode {
   return value === 'approve' || value === 'disabled' || value === 'pay' ? value : 'pay';
 }
 
-// ---- fetch (public, no auth; fetch + res.json() work in both processes) ----
-export async function fetchSystemConfig(baseUrl?: string, mossBaseUrl?: string, organizationCode?: string): Promise<SystemConfig | null> {
+// Organization discovery and authenticated reporting use separate inputs and cache policies.
+export interface SystemConfigRequestOptions {
+  accessToken?: string;
+  signal?: AbortSignal;
+}
+
+export async function fetchSystemConfig(baseUrl?: string, mossBaseUrl?: string, organizationCode?: string, options: SystemConfigRequestOptions = {}): Promise<SystemConfig | null> {
   try {
     const base = baseUrl ?? (await getSudoworkServerBaseUrl());
     const url = new URL('/api/v1/system-config', base);
     if (mossBaseUrl) url.searchParams.set('mossBaseUrl', mossBaseUrl);
-    if (organizationCode?.trim()) url.searchParams.set('organization_code', organizationCode.trim());
-    const res = await fetch(url);
-    const json = (await res.json()) as {
-      success?: boolean;
-      data?: SystemConfig;
-    };
+    const code = organizationCode?.trim();
+    if (code) url.searchParams.set('organization_code', code);
+    const { accessToken, signal } = options;
+    const res = await fetch(url, accessToken || signal ? { ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}), ...(signal ? { signal } : {}) } : undefined);
+    const json = (await res.json()) as { success?: boolean; data?: SystemConfig };
     if (json?.success && json.data) {
-      if (!organizationCode) setSystemConfigCache(json.data);
+      if (!code) setSystemConfigCache(json.data);
       return json.data;
     }
     return null;
@@ -162,6 +166,17 @@ export function getLogReportBaseUrl(): string {
   return resolve(getSystemConfigCache()?.log_report?.baseurl, BUILD_LOG_REPORT_BASE_URL);
 }
 
+/** Resolve on every upload so a newly dispatched quality address takes effect immediately. */
+export function getQualityReportUrl(kind: 'telemetry' | 'crash', serverBaseUrl: string, customTelemetryUrl?: string): string {
+  if (customTelemetryUrl?.trim()) {
+    const customUrl = customTelemetryUrl.trim();
+    return kind === 'crash' ? customUrl.replace('/telemetry/batch', '/crash/events/batch') : customUrl;
+  }
+  const configured = normalizeSudoworkServerUrl(getSystemConfigCache()?.product_improvement?.baseurl);
+  const base = configured || normalizeSudoworkServerUrl(serverBaseUrl) || serverBaseUrl;
+  return `${base}/api/v1/${kind === 'crash' ? 'crash/events' : 'telemetry'}/batch`;
+}
+
 export function getCosReleaseBase(): string {
   // `cos_domain` is dispatched as a bare host (no scheme); prepend https:// so callers can
   // fetch()/setFeedURL() it directly. Without this the URL fails to parse and update checks silently no-op.
@@ -185,4 +200,37 @@ export function isProductImprovementEnabled(): boolean {
 export function isLogReportEnabled(): boolean {
   const cache = getSystemConfigCache();
   return cache ? cache.log_report?.enabled !== 0 : true;
+}
+
+/** Install the authenticated reporting policy before its encrypted credentials on login or restore. */
+export async function bootstrapClientReporting(
+  baseUrl: string,
+  accessToken: string,
+  bridge: {
+    syncConfig: (data: SystemConfig) => Promise<unknown>;
+    cacheCredentials: (envelope: { nonce: string; ciphertext: string }) => Promise<unknown>;
+  }
+): Promise<void> {
+  if (!accessToken) return;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const [config, envelope] = await Promise.all([
+      fetchSystemConfig(baseUrl, undefined, undefined, { accessToken, signal: controller.signal }),
+      fetch(new URL('/api/v1/system-config/credentials', baseUrl), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: controller.signal,
+      }).then(async (response) => {
+        if (!response.ok) throw new Error(`Credentials request failed: ${response.status}`);
+        return (await response.json()) as { success?: boolean; nonce?: string; ciphertext?: string };
+      }),
+    ]);
+    if (!config) return;
+    await bridge.syncConfig(config);
+    if (envelope.success && envelope.nonce && envelope.ciphertext) {
+      await bridge.cacheCredentials({ nonce: envelope.nonce, ciphertext: envelope.ciphertext });
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
 }
