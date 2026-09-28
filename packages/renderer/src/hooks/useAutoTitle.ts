@@ -29,11 +29,12 @@ export const useAutoTitle = () => {
       try {
         const conversation = await ipcBridge.conversation.get.invoke({ id: conversationId });
         // Only update if current name matches default titles or is too long (user message as title)
+        const isUnnamedUuid = conversation && conversation.name === conversation.id;
         const isDefaultName = conversation && (conversation.name === defaultTitle || conversation.name === remoteAgentDefaultTitle);
         // Also check if name is too long (> 50 chars) - likely full user message, should truncate
         const isTooLong = conversation && conversation.name && conversation.name.length > 50;
 
-        if (conversation && (isDefaultName || isTooLong)) {
+        if (conversation && (isDefaultName || isUnnamedUuid || isTooLong)) {
           // Strip think tags before extracting title to avoid thinking content in conversation name
           const cleanContent = hasThinkTags(messageContent) ? stripThinkTags(messageContent) : messageContent;
           // Create title from message: take first 50 chars, remove newlines

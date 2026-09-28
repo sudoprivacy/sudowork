@@ -498,19 +498,43 @@ function toMossSession(item: ConversationListItem): Record<string, unknown> {
 // uncached impl re-fetches the whole collection on the critical open path.
 // Short TTL + invalidation on any conversation mutation (see apiFetch).
 let convCache: { at: number; items: ConversationListItem[] } | null = null
+let listFetchSeq = 0
 const CONV_CACHE_MS = 3000
+const PENDING_CREATED_TTL_MS = 60_000
+const pendingCreatedConversations = new Map<string, ConversationListItem>()
 
 function invalidateConversations(): void {
   convCache = null
+  ++listFetchSeq
+}
+
+function mergePendingCreated(items: ConversationListItem[]): ConversationListItem[] {
+  if (pendingCreatedConversations.size === 0) return items
+  const merged = [...items]
+  for (const [id, item] of pendingCreatedConversations) {
+    if (Date.now() - (item.lastActiveAt ?? 0) > PENDING_CREATED_TTL_MS) {
+      pendingCreatedConversations.delete(id)
+    } else if (merged.some((conversation) => conversation.id === id)) {
+      pendingCreatedConversations.delete(id)
+    } else {
+      merged.push(item)
+    }
+  }
+  return merged
 }
 
 async function listConversations(): Promise<ConversationListItem[]> {
-  if (convCache && Date.now() - convCache.at < CONV_CACHE_MS) return convCache.items
+  if (convCache && Date.now() - convCache.at < CONV_CACHE_MS) {
+    return mergePendingCreated(convCache.items)
+  }
+  const seq = ++listFetchSeq
   const { conversations } = await apiFetch<{ conversations: ConversationListItem[] }>(
     '/api/conversations',
   )
-  convCache = { at: Date.now(), items: conversations }
-  return conversations
+  if (seq === listFetchSeq) {
+    convCache = { at: Date.now(), items: conversations }
+  }
+  return mergePendingCreated(conversations)
 }
 
 // ---------------------------------------------------------------------------
@@ -1178,7 +1202,13 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     // moss agents — passing them yields SELECTION_NOT_AVAILABLE, so fall back to
     // an empty assistantName and let moss pick its default agent.
     const extra = req?.extra as
-      { presetAssistantId?: unknown; agentName?: unknown; enabledSkills?: unknown } | undefined
+      | {
+          presetAssistantId?: unknown
+          agentName?: unknown
+          enabledSkills?: unknown
+          nameIsFirstMessage?: unknown
+        }
+      | undefined
     const raw = typeof extra?.presetAssistantId === 'string' ? extra.presetAssistantId : ''
     const agent =
       raw && raw !== 'Remote Agent' && raw !== 'Moss Server' ? raw.replace(/^builtin-/, '') : ''
@@ -1199,10 +1229,31 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       extra.agentName !== 'Moss Server'
         ? extra.agentName
         : agent || null
+    const rawName =
+      extra?.nameIsFirstMessage === true && typeof req?.name === 'string' ? req.name.trim() : ''
+    const createdTitle = rawName ? (rawName.split('\n')[0] ?? '').slice(0, 50).trim() : ''
+    if (createdTitle) {
+      await apiFetch(`/api/conversations/${encodeURIComponent(created.id)}/meta`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title: createdTitle }),
+      }).catch(() => {})
+    }
+    pendingCreatedConversations.set(created.id, {
+      id: created.id,
+      taskId: created.taskId,
+      status: 'detached',
+      assistantName: displayName ?? null,
+      source: null,
+      lastActiveAt: Date.now(),
+      title: createdTitle || null,
+      pinned: false,
+      pinnedAt: null,
+    })
     return toChatConversation({
       id: created.id,
       taskId: created.taskId,
       assistantName: displayName,
+      title: createdTitle || null,
     })
   },
   'moss.create-session': async (req) => {
@@ -1252,12 +1303,14 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.sessionId ?? ''))}`, {
       method: 'DELETE',
     })
+    pendingCreatedConversations.delete(String(req?.sessionId ?? ''))
     return ok()
   },
   'remove-conversation': async (req) => {
     await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.id ?? ''))}`, {
       method: 'DELETE',
     })
+    pendingCreatedConversations.delete(String(req?.id ?? ''))
     return true
   },
 

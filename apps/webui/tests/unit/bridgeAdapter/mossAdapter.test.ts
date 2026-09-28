@@ -647,6 +647,192 @@ describe('mossAdapter: create-conversation binds the selected assistant', () => 
     expect(readBody(fetchMock)).toEqual({ assistantName: '', enabledSkills: [] })
     expect(conversation).toMatchObject({ id: 'sess-4' })
   })
+
+  it('persists the first message as the title before returning the conversation', async () => {
+    const fetchMock = stubFetch({
+      '/meta': { ok: true },
+      '/api/conversations': { id: 'sess-title' },
+    })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'Hello from WebUI',
+      model: {},
+      extra: { nameIsFirstMessage: true },
+    } as never)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/sess-title/meta')
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('PATCH')
+    expect(readBody(fetchMock, 1)).toEqual({ title: 'Hello from WebUI' })
+    expect(conversation).toMatchObject({ name: 'Hello from WebUI' })
+  })
+
+  it('uses only the first line and first 50 characters of a long message', async () => {
+    const fetchMock = stubFetch({
+      '/meta': { ok: true },
+      '/api/conversations': { id: 'sess-long' },
+    })
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: `${'a'.repeat(55)}\nsecond line`,
+      model: {},
+      extra: { nameIsFirstMessage: true },
+    } as never)
+
+    expect(readBody(fetchMock, 1)).toEqual({ title: 'a'.repeat(50) })
+  })
+
+  it('does not persist a placeholder name without the first-message marker', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-placeholder' } })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'New conversation',
+      model: {},
+      extra: { agentName: 'Selected assistant' },
+    } as never)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(conversation).toMatchObject({ name: 'Selected assistant' })
+  })
+
+  it('does not abort creation when persisting the title fails', async () => {
+    const fetchMock = stubFetch({
+      '/meta': { status: 500, body: { error: 'PERSIST_FAILED' } },
+      '/api/conversations': { id: 'sess-title-failed' },
+    })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'Local title',
+      model: {},
+      extra: { nameIsFirstMessage: true },
+    } as never)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(conversation).toMatchObject({ id: 'sess-title-failed', name: 'Local title' })
+  })
+})
+
+describe('mossAdapter: newly created conversation list reads', () => {
+  class FakeWebSocket {
+    constructor(public url: string) {}
+    addEventListener() {}
+    close() {}
+  }
+
+  let ipc: typeof import('@sudowork/host-bridge/ipcBridge')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    localStorage.clear()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    await import('@client/bridgeAdapter/mossAdapter')
+    ipc = await import('@sudowork/host-bridge/ipcBridge')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('opens a conversation immediately after creation when the server list is still empty', async () => {
+    stubFetch({
+      '/meta': { ok: true },
+      '/api/conversations': { id: 'sess-pending', conversations: [] },
+    })
+    await ipc.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'Pending title',
+      model: {},
+      extra: { nameIsFirstMessage: true },
+    } as never)
+
+    const conversation = await ipc.conversation.get.invoke({ id: 'sess-pending' })
+    expect(conversation).toMatchObject({ id: 'sess-pending', name: 'Pending title' })
+  })
+
+  it('keeps the newer list response in the cache when requests finish out of order', async () => {
+    const pending: Array<(response: Response) => void> = []
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          pending.push(resolve)
+        }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const oldRead = ipc.database.getUserConversations.invoke({})
+    const newRead = ipc.database.getUserConversations.invoke({})
+    pending[1]?.(new Response(JSON.stringify({ conversations: [{ id: 'newer' }] })))
+    expect((await newRead).map((item) => item.id)).toEqual(['newer'])
+    pending[0]?.(new Response(JSON.stringify({ conversations: [{ id: 'older' }] })))
+    expect((await oldRead).map((item) => item.id)).toEqual(['older'])
+
+    expect((await ipc.database.getUserConversations.invoke({})).map((item) => item.id)).toEqual([
+      'newer',
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache an old list response after creation invalidates the cache', async () => {
+    let resolveOldList: ((response: Response) => void) | undefined
+    let listFetchCount = 0
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(JSON.stringify({ id: 'sess-after-post' })))
+      }
+      if (String(input) === '/api/conversations') {
+        listFetchCount += 1
+        if (listFetchCount === 1) {
+          return new Promise<Response>((resolve) => {
+            resolveOldList = resolve
+          })
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ conversations: [{ id: 'sess-after-post' }] })),
+        )
+      }
+      return Promise.resolve(new Response('{}'))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const oldRead = ipc.database.getUserConversations.invoke({})
+    await ipc.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'Unused',
+      model: {},
+      extra: {},
+    } as never)
+    resolveOldList?.(new Response(JSON.stringify({ conversations: [] })))
+    await oldRead
+    expect((await ipc.database.getUserConversations.invoke({})).map((item) => item.id)).toEqual([
+      'sess-after-post',
+    ])
+    expect(listFetchCount).toBe(2)
+  })
+
+  it('removes pending entries through both deletion channels', async () => {
+    stubFetch({ '/api/conversations': { id: 'sess-delete', conversations: [] } })
+    const create = () =>
+      ipc.conversation.create.invoke({
+        type: 'remote-agent',
+        name: 'Unused',
+        model: {},
+        extra: {},
+      } as never)
+
+    await create()
+    expect((await ipc.database.getUserConversations.invoke({})).map((item) => item.id)).toEqual([
+      'sess-delete',
+    ])
+    await ipc.conversation.remove.invoke({ id: 'sess-delete' })
+    expect(await ipc.database.getUserConversations.invoke({})).toEqual([])
+
+    await create()
+    expect((await ipc.database.getUserConversations.invoke({})).map((item) => item.id)).toEqual([
+      'sess-delete',
+    ])
+    await ipc.moss.deleteSession.invoke({ sessionId: 'sess-delete' })
+    expect(await ipc.database.getUserConversations.invoke({})).toEqual([])
+  })
 })
 
 describe('mossAdapter: chat.send.message shares msgId between the WS send frame and the user echo', () => {

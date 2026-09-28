@@ -196,6 +196,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             dangerouslySkipPermissions: selectedMode === 'yolo',
             currentModelId: selectedAcpModel || undefined,
             sessionModeParam: 'remote',
+            nameIsFirstMessage: true,
           },
         });
 
