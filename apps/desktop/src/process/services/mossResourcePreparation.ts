@@ -3,6 +3,8 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import JSZip from 'jszip';
 import { z } from 'zod';
+import type { IAssistantMeta } from '@sudowork/common/assistantTypes';
+import type { IMossConversationExecution } from '@sudowork/common/mossExecution';
 import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir, clearSkillsCache } from '@process/initStorage';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { AcpSkillManager } from '@process/task/AcpSkillManager';
@@ -31,6 +33,30 @@ export function safeResourcePath(root: string, relative: string): string {
   const result = path.resolve(root, normalized);
   if (result !== path.resolve(root) && !result.startsWith(`${path.resolve(root)}${path.sep}`)) throw new Error('Unsafe resource archive path');
   return result;
+}
+
+/** Read the exact assistant version bound to a managed conversation. */
+export async function readMossAssistantSnapshot(extra: IMossConversationExecution & { presetAssistantId?: string }): Promise<{ meta: IAssistantMeta; directory: string; presetContext: string } | undefined> {
+  if (!extra.mossAccountScope || !extra.presetAssistantId) return;
+  if (extra.mossAccountScope !== ProcessConfig.getSync('eeclaw.accountScope')) throw new Error('Conversation belongs to a different Moss account');
+  const resource = extra.mossResources?.find((item) => item.kind === 'agents' && item.id === extra.presetAssistantId);
+  if (!resource) throw new Error('Assistant snapshot is missing');
+  const root = getHubAssistantsDir();
+  const directory = safeResourcePath(root, path.relative(root, resource.path));
+  if ((await fs.readFile(path.join(directory, '.moss-ready'), 'utf8')) !== resource.digest) throw new Error('Local resource snapshot is incomplete');
+  const meta = resourceSchema.extend({ ruleFile: z.string().min(1).optional(), mossDigest: z.string() }).parse(JSON.parse(await fs.readFile(path.join(directory, '_moss_meta.json'), 'utf8')));
+  if (meta.id !== resource.id || meta.mossDigest !== resource.digest) throw new Error('Assistant snapshot metadata does not match the conversation');
+  const files = await fs.readdir(directory);
+  const ruleFile = meta.ruleFile || files.find((file) => file === `${meta.name}.md`) || files.find((file) => file.endsWith('.md') && !/^(?:SKILLS?|README)(?:\.|$)/i.test(file));
+  if (!ruleFile) throw new Error('Assistant rules are missing');
+  let presetContext = `${await fs.readFile(safeResourcePath(directory, ruleFile), 'utf8')}\n\nAssistant resources: ${directory}`;
+  for (const skill of extra.mossResources || []) {
+    if (skill.kind !== 'skills') continue;
+    const skillsRoot = getHubSkillsDir();
+    const skillDir = safeResourcePath(skillsRoot, path.relative(skillsRoot, skill.path));
+    presetContext += `\nSkill ${path.basename(skillDir)}: ${path.join(skillDir, 'SKILL.md')}`;
+  }
+  return { meta: meta as IAssistantMeta, directory, presetContext };
 }
 
 /** Prepare only selected resources and their dependencies, using immutable content versions. */

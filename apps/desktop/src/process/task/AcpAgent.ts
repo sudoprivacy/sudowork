@@ -13,6 +13,7 @@ import { app } from 'electron';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpQuestionData, CronMessageMeta, TMessage, TurnTokenUsage } from '@sudowork/common/chatLib';
 import { transformMessage } from '@sudowork/common/chatLib';
+import type { IMossConversationExecution } from '@sudowork/common/mossExecution';
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
@@ -48,7 +49,8 @@ import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError, getAcpResumeStrategy } 
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { dynamicNexusVfsService } from '@process/services/nexus-vfs/DynamicNexusVfsService';
-import { applyPresetRuntime } from '@process/task/presetRuntime';
+import { applyPresetRuntime, applyPresetRuntimeFromMeta } from '@process/task/presetRuntime';
+import { readMossAssistantSnapshot } from '@process/services/mossResourcePreparation';
 import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
@@ -162,7 +164,7 @@ function normalizeToolCallStatus(status: string | undefined): 'pending' | 'in_pr
   return status as 'pending' | 'in_progress' | 'completed' | 'failed';
 }
 
-export interface AcpAgentData {
+export interface AcpAgentData extends IMossConversationExecution {
   workspace?: string;
   backend: AcpBackend;
   cliPath?: string;
@@ -424,12 +426,14 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Apply preset-specific runtime configuration (env vars, scripts, model configs)
       const cdpPort = chromiumCdpPort || 9230;
-      const presetResult = await applyPresetRuntime({
+      const presetRuntimeContext = {
         presetAssistantId: this.extra.presetAssistantId,
         backend: this.extra.backend,
         workspace: this.extra.workspace,
         cdpPort,
-      });
+      };
+      const assistantSnapshot = await readMossAssistantSnapshot(this.options);
+      const presetResult = assistantSnapshot ? applyPresetRuntimeFromMeta(assistantSnapshot.meta, presetRuntimeContext, assistantSnapshot.directory) : await applyPresetRuntime(presetRuntimeContext);
       customEnv = { ...customEnv, ...presetResult.envOverrides };
       // Always fold the runtime context appendix (auto-discovered scripts /
       // ops entry point) into presetContext — even when presetContext started
@@ -910,9 +914,17 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         await this.initAgent(this.options);
       }
 
-      // Dynamic reload of presetContext with latest assistant name (on every message, not just init)
-      // 每次发送消息时动态重新加载 presetContext，确保使用最新的助手名称
-      if (this.options.presetAssistantId) {
+      // Managed chats use their prepared version; ID-based lookup can find a
+      // different tenant copy or miss the digest-named snapshot entirely.
+      if (this.options.mossAccountScope && this.options.presetAssistantId) {
+        const snapshot = await readMossAssistantSnapshot(this.options);
+        if (!snapshot) throw new Error('Assistant snapshot is missing');
+        const governanceBlock = extractGovernanceBlock(this.options.presetContext);
+        const presetResult = applyPresetRuntimeFromMeta(snapshot.meta, { presetAssistantId: this.options.presetAssistantId, backend: this.extra.backend, workspace: this.extra.workspace, cdpPort: chromiumCdpPort || 9230 }, snapshot.directory);
+        this.options.presetContext = [snapshot.presetContext, governanceBlock].filter(Boolean).join('\n\n') + presetResult.contextAppendix;
+        this.options.agentName = snapshot.meta.display_name || snapshot.meta.nameI18n?.[app.getLocale()] || snapshot.meta.name || this.options.agentName;
+      } else if (this.options.presetAssistantId) {
+        // Non-managed presets continue to pick up local edits between turns.
         try {
           const strippedId = this.options.presetAssistantId.startsWith('builtin-') ? this.options.presetAssistantId.slice('builtin-'.length) : this.options.presetAssistantId;
 
