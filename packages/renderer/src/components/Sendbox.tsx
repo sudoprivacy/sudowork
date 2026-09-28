@@ -21,7 +21,7 @@ import type { WorkspaceFileItem } from '@renderer/hooks/useWorkspaceFiles';
 import { usePreviewContext } from '@renderer/pages/conversation/preview';
 import ContextMenu, { type ContextMenuItem } from '@renderer/components/ContextMenu';
 import ActionChip from '@renderer/components/ui/ActionChip';
-import { isElectronDesktop } from '@renderer/utils/platform';
+import { isElectronDesktop, isWebBridgeAvailable } from '@renderer/utils/platform';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@renderer/utils/skillDisplay';
 import { addEventListener } from '@renderer/utils/emitter';
 import { allSupportedExts } from '../services/FileService';
@@ -269,7 +269,7 @@ const SendBox: React.FC<{
   // Fetch installed skills on mount and after agent-created skills are installed.
   useEffect(() => {
     const fetchInstalledSkills = async () => {
-      if (!isElectronDesktop()) return;
+      if (!isElectronDesktop() && !isWebBridgeAvailable()) return;
       setLoadingSkills(true);
       try {
         const res = await skillHub.getInstalledSkills.invoke();
@@ -387,54 +387,55 @@ const SendBox: React.FC<{
     }
   }, [skillSelectorController.isOpen]);
 
-  // Skill trigger button - shown when running in Electron desktop
-  const skillTriggerButton = isElectronDesktop() ? (
-    <SkillSelectorPopover
-      popupVisible={isSkillPopoverOpen}
-      onVisibleChange={(v) => {
-        if (!v) onSkillPopoverClose();
-      }}
-      onAfterClose={() => containerRef.current?.querySelector('textarea')?.focus()}
-      skills={skillSelectorItems}
-      selectedKeys={selectedSkills}
-      loading={loadingSkills}
-      onSelectItem={(skill) => {
-        if (!selectedSkills.includes(skill.name)) {
-          setSelectedSkills((prev) => [...prev, skill.name]);
-        }
-        // Strip @query from input when opened via @ trigger (safe no-op if no @ in input)
-        setInput(stripAtQuery(input, cursorPosition));
-        if (skillSelectorController.isOpen) {
-          skillSelectorController.setDismissed(true);
-        }
-        onSkillPopoverClose();
-      }}
-      onDismiss={() => {
-        setInput(stripAtQuery(input, cursorPosition));
-        if (skillSelectorController.isOpen) {
-          skillSelectorController.setDismissed(true);
-        }
-        onSkillPopoverClose();
-      }}
-      workspaceFiles={workspaceFiles ?? undefined}
-      onSelectFile={(file) => {
-        if (skillSelectorController.isOpen) {
-          // Opened via @ trigger: replace @query with @filepath
-          const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
-          setInput(newInput);
-          skillSelectorController.setDismissed(true);
-        }
-        onAtFileSelected?.(file);
-        onSkillPopoverClose();
-      }}
-    >
-      <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
-        <span className='inline-flex ml-3'>
-          <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={() => setIsSkillPopoverOpen(true)} />
-        </span>
-      </Tooltip>
-    </SkillSelectorPopover>
-  ) : null;
+  // Skill trigger button - shown when running in Electron desktop or the WebUI web bridge host
+  const skillTriggerButton =
+    isElectronDesktop() || isWebBridgeAvailable() ? (
+      <SkillSelectorPopover
+        popupVisible={isSkillPopoverOpen}
+        onVisibleChange={(v) => {
+          if (!v) onSkillPopoverClose();
+        }}
+        onAfterClose={() => containerRef.current?.querySelector('textarea')?.focus()}
+        skills={skillSelectorItems}
+        selectedKeys={selectedSkills}
+        loading={loadingSkills}
+        onSelectItem={(skill) => {
+          if (!selectedSkills.includes(skill.name)) {
+            setSelectedSkills((prev) => [...prev, skill.name]);
+          }
+          // Strip @query from input when opened via @ trigger (safe no-op if no @ in input)
+          setInput(stripAtQuery(input, cursorPosition));
+          if (skillSelectorController.isOpen) {
+            skillSelectorController.setDismissed(true);
+          }
+          onSkillPopoverClose();
+        }}
+        onDismiss={() => {
+          setInput(stripAtQuery(input, cursorPosition));
+          if (skillSelectorController.isOpen) {
+            skillSelectorController.setDismissed(true);
+          }
+          onSkillPopoverClose();
+        }}
+        workspaceFiles={workspaceFiles ?? undefined}
+        onSelectFile={(file) => {
+          if (skillSelectorController.isOpen) {
+            // Opened via @ trigger: replace @query with @filepath
+            const newInput = replaceAtQuery(input, `@${file.relativePath}`, cursorPosition);
+            setInput(newInput);
+            skillSelectorController.setDismissed(true);
+          }
+          onAtFileSelected?.(file);
+          onSkillPopoverClose();
+        }}
+      >
+        <Tooltip content={t('conversation.welcome.addSkill', { defaultValue: '添加技能 / 文件' })} position='top'>
+          <span className='inline-flex ml-3'>
+            <ActionChip icon={<span className='text-14px font-700 leading-none'>@</span>} label={t('messages.skills.triggerLabel', { defaultValue: 'Skills / Files' })} onClick={() => setIsSkillPopoverOpen(true)} />
+          </span>
+        </Tooltip>
+      </SkillSelectorPopover>
+    ) : null;
 
   // 使用共享的输入法合成处理
   const { compositionHandlers, createKeyDownHandler } = useCompositionInput();

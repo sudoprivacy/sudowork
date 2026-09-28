@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import AgentModeSelector from '@renderer/components/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@renderer/utils/agentModes';
+import { pickLocalFilePaths } from '@renderer/utils/webFilePicker';
 import BdpanLogo from '@renderer/assets/logos/bdpan.png';
 import BdpanImportFilePicker from '@renderer/components/base/BdpanImportFilePicker';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
@@ -91,16 +92,11 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                   className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
                   onClick={() => {
                     setFileMenuOpen(false);
-                    ipcBridge.dialog.showOpen
-                      .invoke({ properties: ['openFile', 'multiSelections'] })
-                      .then((res) => {
-                        if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
-                          onFilesUploaded(res.data.filePaths);
-                        }
-                      })
-                      .catch((error) => {
-                        console.error('Failed to open file dialog:', error);
-                      });
+                    void pickLocalFilePaths().then((paths) => {
+                      if (paths && paths.length > 0) {
+                        onFilesUploaded(paths);
+                      }
+                    });
                   }}
                 >
                   <Upload size={16} color='var(--text-secondary)' />

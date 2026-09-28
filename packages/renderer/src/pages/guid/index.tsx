@@ -23,7 +23,7 @@ import SkillSelectorPopover from '@renderer/pages/guid/components/SkillSelectorP
 import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery } from '@renderer/pages/guid/hooks/useSkillSelectorController';
 import { getInstalledSkillDisplay, resolveSkillIcon } from '@renderer/utils/skillDisplay';
 import { useConversationTabs } from '@renderer/pages/conversation/context/ConversationTabsContext';
-import { openExternalUrl, isElectronDesktop, resolveExtensionAssetUrl } from '@renderer/utils/platform';
+import { openExternalUrl, isElectronDesktop, isWebBridgeAvailable, resolveExtensionAssetUrl } from '@renderer/utils/platform';
 import { useInputFocusRing } from '@renderer/hooks/useInputFocusRing';
 import ActionChip from '@renderer/components/ui/ActionChip';
 import PageWrapper from '@renderer/components/base/PageWrapper';
@@ -259,7 +259,7 @@ const GuidPage: React.FC = () => {
   const isAssistantMode = selectedAssistantConfig !== null;
 
   useEffect(() => {
-    if (!isElectronDesktop()) return;
+    if (!isElectronDesktop() && !isWebBridgeAvailable()) return;
     const fetchInstalledSkills = async () => {
       try {
         const res = await skillHub.getInstalledSkills.invoke();
@@ -279,7 +279,7 @@ const GuidPage: React.FC = () => {
 
   // Re-fetch installed skills when skills are changed (install, uninstall, update, import, toggle)
   useAddEventListener('skills.changed', async () => {
-    if (!isElectronDesktop()) return;
+    if (!isElectronDesktop() && !isWebBridgeAvailable()) return;
     try {
       const res = await skillHub.getInstalledSkills.invoke();
       if (res.success && res.data) {

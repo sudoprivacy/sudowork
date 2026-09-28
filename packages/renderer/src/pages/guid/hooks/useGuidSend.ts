@@ -13,6 +13,7 @@ import type { TProviderWithModel } from '@sudowork/common/storage';
 import { isAcpRoutedPresetType, type AcpModelInfo, type PresetAgentType } from '@sudowork/common/acpTypes';
 import { getPresetByAgentId, resolveSessionMode } from '@sudowork/common/presets/presetResolver';
 import { emitter } from '@renderer/utils/emitter';
+import { isWebBridgeAvailable } from '@renderer/utils/platform';
 import { updateWorkspaceTime } from '@renderer/utils/workspaceHistory';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useHasAvailableModel } from '@renderer/hooks/useHasAvailableModel';
@@ -191,7 +192,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             backend: 'remote-agent',
             agentName: agentInfo?.name || 'Moss Server',
             presetAssistantId: agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
-            enabledSkills: isEnterprise && isPreset ? enabledSkills : undefined,
+            enabledSkills: isWebBridgeAvailable() ? [...new Set(selectedSkills)] : isEnterprise && isPreset ? enabledSkills : undefined,
             sessionMode: selectedMode,
             dangerouslySkipPermissions: selectedMode === 'yolo',
             currentModelId: selectedAcpModel || undefined,
@@ -290,7 +291,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             agentName: acpAgentInfo?.name,
             customAgentId: acpAgentInfo?.customAgentId,
             presetContext: isPreset ? presetRules : undefined,
-            enabledSkills: isPreset ? enabledSkills : undefined,
+            enabledSkills: isWebBridgeAvailable() ? [...new Set(selectedSkills)] : isPreset ? enabledSkills : undefined,
             presetAssistantId: isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined,
             sessionMode: isPreset ? resolveSessionMode(getPresetByAgentId(agentInfo?.customAgentId)?.defaultMode, acpBackend, selectedMode) : selectedMode,
             currentModelId: effectiveAcpModelId,

@@ -44,6 +44,8 @@ declare global {
   interface Window {
     /** Set by this adapter to mark a shared-renderer web host (read by the renderer's isWebBridgeAvailable). */
     __sudoworkWebBridge?: boolean
+    /** Staged web-upload files written by the renderer's webFilePicker; consumed by chat.send.message. */
+    __sudoworkWebFileStaging?: Map<string, File>
   }
 }
 
@@ -378,6 +380,148 @@ function extractText(req: AnyReq): string {
     return req.content.map((p: AnyReq) => (typeof p?.text === 'string' ? p.text : '')).join('')
   }
   return ''
+}
+
+// --- web upload attachments (staged by the renderer's webFilePicker) ---
+
+const WEB_UPLOAD_PREFIX = '/webupload/'
+const IMAGE_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+// Contract caps for send-frame images: 15,000,000 base64 chars per image → 11,250,000
+// raw bytes (10^6-based; 1024-based math would let (11,250,000, 11,796,480] slip past
+// the precheck and get rejected as INVALID_MESSAGE), and at most 4 images per message.
+const IMAGE_MAX_BYTES = 11_250_000
+const IMAGE_MAX_COUNT = 4
+const DEFAULT_UPLOAD_LIMIT_BYTES = 20_000_000
+
+interface StagedUpload {
+  webPath: string
+  file: File
+}
+
+function extractStagedUploads(req: AnyReq): StagedUpload[] {
+  const staging = typeof window !== 'undefined' ? window.__sudoworkWebFileStaging : undefined
+  if (!staging || staging.size === 0) return []
+  const files = Array.isArray(req?.files) ? req.files : []
+  const staged: StagedUpload[] = []
+  for (const item of files) {
+    if (typeof item !== 'string' || !item.startsWith(WEB_UPLOAD_PREFIX)) continue
+    const file = staging.get(item)
+    if (file) staged.push({ webPath: item, file })
+  }
+  return staged
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () =>
+      resolve(typeof reader.result === 'string' ? (reader.result.split(',')[1] ?? '') : '')
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
+let cachedUploadLimitBytes: number | undefined
+
+async function fetchUploadLimitBytes(): Promise<number> {
+  if (typeof cachedUploadLimitBytes === 'number') return cachedUploadLimitBytes
+  try {
+    const raw = await apiFetch<Record<string, unknown>>('/api/v1/tenant/config')
+    const payload = (
+      raw && typeof raw === 'object' && 'data' in raw ? (raw as { data?: unknown }).data : raw
+    ) as Record<string, unknown> | null
+    const limit = payload?.workspace_upload_limit_bytes ?? payload?.workspaceUploadLimitBytes
+    if (typeof limit === 'number' && limit > 0) {
+      cachedUploadLimitBytes = limit
+      return limit
+    }
+  } catch {
+    // fall back to the conservative default
+  }
+  return DEFAULT_UPLOAD_LIMIT_BYTES
+}
+
+interface StagedUploadResult {
+  images: Array<{ mediaType: string; data: string }>
+  refs: string[]
+  error?: string
+}
+
+// Mirrors the desktop RemoteAgent flow: images are inlined as vision blocks (never
+// uploaded — the agent cannot Read an image back as vision), other files are uploaded
+// to the session workspace and @-referenced so the agent can Read them.
+async function processStagedUploads(
+  sessionId: string,
+  staged: StagedUpload[],
+): Promise<StagedUploadResult> {
+  const images: Array<{ mediaType: string; data: string }> = []
+  const refs: string[] = []
+  const imageFiles = staged.filter((item) => IMAGE_MEDIA_TYPES.has(item.file.type))
+  const otherFiles = staged.filter((item) => !IMAGE_MEDIA_TYPES.has(item.file.type))
+
+  // Fail fast before any base64 work (mirrors desktop RemoteAgent prechecks).
+  if (imageFiles.length > IMAGE_MAX_COUNT) {
+    return {
+      images,
+      refs,
+      error:
+        '附件发送失败 / Attachment send failed — 最多附带 4 张图片 / at most 4 images per message',
+    }
+  }
+  const oversizedImage = imageFiles.find((item) => item.file.size > IMAGE_MAX_BYTES)
+  if (oversizedImage) {
+    return {
+      images,
+      refs,
+      error: `附件发送失败 / Attachment send failed — ${oversizedImage.file.name} 超过 11,250,000 字节上限 / exceeds the 11,250,000-byte image limit`,
+    }
+  }
+  const limitBytes = otherFiles.length > 0 ? await fetchUploadLimitBytes() : 0
+  const oversizedFile = otherFiles.find((item) => item.file.size > limitBytes)
+  if (oversizedFile) {
+    const limitMb = Math.round(limitBytes / 1_000_000)
+    return {
+      images,
+      refs,
+      error: `附件发送失败 / Attachment send failed — ${oversizedFile.file.name} 超出大小上限 ${limitMb}MB / exceeds size limit (${limitMb}MB)`,
+    }
+  }
+
+  try {
+    for (const item of imageFiles) {
+      images.push({ mediaType: item.file.type, data: await readFileAsBase64(item.file) })
+    }
+  } catch (err) {
+    return { images, refs, error: `附件读取失败 / Attachment read failed — ${errMessage(err)}` }
+  }
+  for (const item of otherFiles) {
+    try {
+      const basename = item.file.name
+      const uploaded = await apiFetch<{ relativePath?: unknown }>(
+        `/api/conversations/${encodeURIComponent(sessionId)}/workspace/file`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            path: basename,
+            content_base64: await readFileAsBase64(item.file),
+          }),
+        },
+      )
+      const relativePath =
+        typeof uploaded?.relativePath === 'string' && uploaded.relativePath
+          ? uploaded.relativePath
+          : basename
+      refs.push(relativePath.includes(' ') ? `@"${relativePath}"` : `@${relativePath}`)
+    } catch (err) {
+      console.warn('[mossAdapter] workspace file upload failed:', item.webPath, err)
+      return {
+        images,
+        refs,
+        error: `附件上传失败 / Attachment upload failed — ${item.file.name}: ${errMessage(err)}`,
+      }
+    }
+  }
+  return { images, refs }
 }
 
 // ---------------------------------------------------------------------------
@@ -1342,9 +1486,37 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const sessionId = String(req?.conversation_id ?? req?.sessionId ?? '')
     if (!sessionId) return fail('NO_SESSION')
     abortedSessions.delete(sessionId)
-    const text = extractText(req)
     const msgId = String(req?.msg_id ?? nextMsgId())
-    sendOverStream(sessionId, { kind: 'send', text, msgId })
+    let text = extractText(req)
+    // Attachments staged by the renderer's webFilePicker (pseudo /webupload/ paths);
+    // any other files entries keep being ignored, as before.
+    const staged = extractStagedUploads(req)
+    let images: Array<{ mediaType: string; data: string }> = []
+    if (staged.length > 0) {
+      const result = await processStagedUploads(sessionId, staged)
+      if (result.error) {
+        // Abort the send: the renderer already cleared the input (same as the desktop
+        // abort path), so this error frame is the only feedback the user gets.
+        emitterRef?.emit('chat.response.stream', {
+          type: 'error',
+          msg_id: nextMsgId(),
+          conversation_id: sessionId,
+          data: result.error,
+        })
+        return ok()
+      }
+      images = result.images
+      if (result.refs.length > 0) {
+        text = `${result.refs.join(' ')} ${text}`
+      }
+      for (const item of staged) {
+        window.__sudoworkWebFileStaging?.delete(item.webPath)
+      }
+    }
+    sendOverStream(
+      sessionId,
+      images.length > 0 ? { kind: 'send', text, msgId, images } : { kind: 'send', text, msgId },
+    )
     // Echo the user's own message back so its bubble shows: the shared renderer does
     // no optimistic insert and relies on a user_content frame (desktop RemoteAgent does
     // the same). moss's user echo frame is dropped by mossFrameToResponses, so synthesize
