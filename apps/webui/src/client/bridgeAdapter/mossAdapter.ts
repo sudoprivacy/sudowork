@@ -581,10 +581,31 @@ interface ConversationListItem {
   status?: string
   assistantName?: string | null
   source?: string | null
+  createdAt?: number | null
   lastActiveAt?: number | null
   title?: string | null
   pinned?: boolean
   pinnedAt?: number | null
+}
+
+/**
+ * cron 运行记录会话标题：与桌面端 RemoteConversationProvider.formatCronSessionTitle
+ * 逐字符保持同步（查看者本地时区，`<jobName> YYYY-MM-DD HH:mm`）。
+ */
+function formatCronRunTitle(jobName: string | undefined, timestamp: number): string {
+  const name = jobName || 'Cron Session'
+  const date = new Date(timestamp || Date.now())
+  const runTime = date
+    .toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    .replace(/\//g, '-')
+  return `${name} ${runTime}`
 }
 
 /** Minimal TChatConversation projection (enough for the sider + open flow). */
@@ -594,11 +615,15 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
   // buildScheduledGroups 靠 extra.cronJobId 把运行记录归到对应定时任务分组，缺失则
   // 「定时任务」tab 为空。仅对字符串 source 容错解析，非 cron 会话不写入。
   let cronJobId: string | undefined
+  let cronJobName: string | undefined
+  let isCron = false
   if (typeof item.source === 'string') {
     try {
-      const parsed = JSON.parse(item.source) as { source?: unknown; cronJobId?: unknown }
-      if (parsed.source === 'cron' && typeof parsed.cronJobId === 'string') {
-        cronJobId = parsed.cronJobId
+      const parsed = JSON.parse(item.source) as { source?: unknown; cronJobId?: unknown; cronJobName?: unknown }
+      if (parsed.source === 'cron') {
+        isCron = true
+        if (typeof parsed.cronJobId === 'string') cronJobId = parsed.cronJobId
+        if (typeof parsed.cronJobName === 'string') cronJobName = parsed.cronJobName
       }
     } catch {
       // 非 JSON / 非 cron 会话：忽略
@@ -609,9 +634,17 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
     // 'remote-agent' (not 'acp') so ChatSider mounts the moss-session workspace
     // panel (readonly tree + deliverables); chat/model/stream all go through the
     // already-mapped remote-agent channels.
-    name: item.title ?? item.assistantName ?? item.id,
+    // 标题优先级与桌面端对齐：本地已有 title（含用户改名）优先，其次 cron 会话按
+    // 「任务名 + 运行时间」组装（时间基准 = 会话创建时间），非 cron 会话保持原兜底链。
+    name:
+      item.title ??
+      (isCron
+        ? formatCronRunTitle(cronJobName, item.createdAt ?? item.lastActiveAt ?? Date.now())
+        : undefined) ??
+      item.assistantName ??
+      item.id,
     type: 'remote-agent',
-    createTime: ts,
+    createTime: isCron && item.createdAt ? item.createdAt : ts,
     modifyTime: ts,
     status: item.status === 'running' ? 'running' : 'finished',
     extra: {
