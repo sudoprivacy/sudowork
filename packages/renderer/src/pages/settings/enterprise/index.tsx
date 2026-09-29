@@ -8,10 +8,14 @@ import React, { useEffect, useState } from 'react';
 import { Button, Input, Message, Spin } from '@arco-design/web-react';
 import { Building2, CheckCircle, XCircle } from 'lucide-react';
 import { ConfigStorage } from '@sudowork/common/storage';
+import { normalizeHttpOrigin } from '@sudowork/common/sudoworkServer';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { TENANT_CONFIG_STORAGE_KEY, resolveTenantConfig } from '@sudowork/common/types/tenantConfig';
 import { useAuth } from '@renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+
+const MOSS_URL_STORAGE_KEY = 'login.mossBaseUrl';
+const isWebRuntime = typeof window !== 'undefined' && !window.electronAPI;
 
 const EnterpriseSettings: React.FC = () => {
   const { logout } = useAuth();
@@ -25,7 +29,22 @@ const EnterpriseSettings: React.FC = () => {
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const [name, url] = await Promise.all([ConfigStorage.get('eeclaw.tenantName'), ConfigStorage.get('eeclaw.serverUrl')]);
+        const name = await ConfigStorage.get('eeclaw.tenantName');
+        let url: string | undefined;
+        if (isWebRuntime) {
+          // Web：本地自定义 moss 地址优先，未设置则回退 webui 服务器配置的 moss 地址。
+          // 桌面兼容键 eeclaw.serverUrl 在 web 上是 origin 占位种子，不作为显示来源。
+          url = localStorage.getItem(MOSS_URL_STORAGE_KEY) || undefined;
+          if (!url) {
+            const response = await fetch('/api/settings/about', { credentials: 'include' });
+            if (response.ok) {
+              const data = (await response.json()) as { mossBaseUrl?: string };
+              url = data.mossBaseUrl;
+            }
+          }
+        } else {
+          url = await ConfigStorage.get('eeclaw.serverUrl');
+        }
         setTenantName(name || '');
         setServerUrl(url || '');
         setEditingServerUrl(url || '');
@@ -52,7 +71,29 @@ const EnterpriseSettings: React.FC = () => {
     setConnectionStatus('checking');
 
     try {
-      // Step 1: Verify and get new tenantName from server via IPC bridge
+      if (isWebRuntime) {
+        // Web：复用登录页的白名单校验链路（服务端校验 origin 允许且 moss 可达），
+        // 通过后写入本地 moss 地址并强制重登，对齐桌面「校验 → 持久化 → 重登」语义。
+        const normalizedOrigin = normalizeHttpOrigin(normalizedUrl);
+        if (!normalizedOrigin) {
+          Message.error('服务器响应异常，请检查地址是否正确');
+          setConnectionStatus('disconnected');
+          return;
+        }
+        const response = await fetch(`/api/v1/system-config?mossBaseUrl=${encodeURIComponent(normalizedOrigin)}`);
+        if (!response.ok) {
+          Message.error('服务器响应异常，请检查地址是否正确');
+          setConnectionStatus('disconnected');
+          return;
+        }
+        localStorage.setItem(MOSS_URL_STORAGE_KEY, normalizedOrigin);
+        await logout();
+        setConnectionStatus('connected');
+        Message.success('服务器地址已更新，请重新登录');
+        return;
+      }
+
+      // Step 1: Verify and get new tenantName from server via IPC bridge (desktop only)
       const result = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl: normalizedUrl });
 
       if (!result.success || !result.data) {

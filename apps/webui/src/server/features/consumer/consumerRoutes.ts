@@ -34,6 +34,14 @@ const FORWARDED = [
   { method: 'GET', path: '/user/model-usage-stats' },
   { method: 'GET', path: '/credit-applications' },
   { method: 'POST', path: '/credit-applications' },
+  // Recharge center: the shared renderer sends the full order flow to
+  // getConfig().baseUrl, which on the web is this origin.
+  { method: 'GET', path: '/recharge/packages' },
+  { method: 'GET', path: '/recharge/list' },
+  { method: 'POST', path: '/recharge/create' },
+  { method: 'POST', path: '/recharge/pay' },
+  { method: 'GET', path: '/recharge/query/:orderNo' },
+  { method: 'POST', path: '/recharge/cancel/:orderNo' },
 ] as const
 
 export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
@@ -47,22 +55,17 @@ export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
     ): Promise<void> => {
       try {
         const ctx = await getMossContext(deps.auth, req.webSession!)
-        // The query string is carried through: model-usage-stats is scoped by
-        // start_date/end_date, and the applications list is paged.
-        const query = req.originalUrl.includes('?')
-          ? req.originalUrl.slice(req.originalUrl.indexOf('?'))
-          : ''
-        const upstream = await fetch(
-          new URL(`/api/v1${route.path}${query}`, ctx.baseUrl).toString(),
-          {
-            method: route.method,
-            headers: {
-              Authorization: `Bearer ${ctx.accessToken}`,
-              ...(route.method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
-            },
-            ...(route.method === 'POST' ? { body: JSON.stringify(req.body ?? {}) } : {}),
+        // `originalUrl` keeps the mount prefix, the real path params and the
+        // query string, so param routes like /recharge/query/:orderNo forward
+        // with the actual order number and paged lists keep their query.
+        const upstream = await fetch(new URL(req.originalUrl, ctx.baseUrl).toString(), {
+          method: route.method,
+          headers: {
+            Authorization: `Bearer ${ctx.accessToken}`,
+            ...(route.method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
           },
-        )
+          ...(route.method === 'POST' ? { body: JSON.stringify(req.body ?? {}) } : {}),
+        })
         const text = await upstream.text()
         // Passed through verbatim, status included: these pages read moss's own
         // `{success, msg}` shape, and re-wrapping would lose the reason a

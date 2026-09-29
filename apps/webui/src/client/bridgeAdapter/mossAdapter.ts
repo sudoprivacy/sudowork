@@ -32,6 +32,7 @@ import { bridge } from '@office-ai/platform'
 // parallel copy.
 import type { IBridgeResponse } from '@sudowork/host-bridge/ipcBridge'
 import type { IConfirmation } from '@sudowork/common/chatLib'
+import type { IChannelPluginStatus } from '@sudowork/common/channelTypes'
 // The moss-frame → IResponseMessage mapping is the SAME implementation the desktop
 // MossWsConnection uses (shared leaf module, full stateless-frame coverage).
 import {
@@ -1057,6 +1058,206 @@ async function refreshDeliverables(conversationId: string): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Remote connections (`channel.*` wires): forwarded to this origin's
+// /api/channels/* routes, which proxy moss /api/v1/channels/* under the
+// session. Wire-shape translation (moss `{ok,...}` envelopes →
+// IBridgeResponse) lives HERE, next to the wires it serves.
+// ---------------------------------------------------------------------------
+
+interface ChannelFetchResult {
+  /** 0 = request itself failed (offline/Network error) — no status/body at all. */
+  status: number
+  body: AnyReq | null
+}
+
+/** Unlike apiFetch this never throws: channel callers map moss's per-endpoint
+ * envelopes (`{ok,message}` / `{success,error}` / bare rows) themselves, and a
+ * thrown HTTP_ code would drop the failure reason moss sent. */
+async function channelFetch(path: string, init?: RequestInit): Promise<ChannelFetchResult> {
+  try {
+    const res = await fetch(`/api/channels${path}`, {
+      credentials: 'include',
+      ...init,
+      headers: {
+        ...(init?.body !== undefined ? { 'content-type': 'application/json' } : {}),
+        ...init?.headers,
+      },
+    })
+    const text = await res.text()
+    let body: AnyReq | null = null
+    if (text) {
+      try {
+        body = JSON.parse(text) as AnyReq
+      } catch {
+        body = null
+      }
+    }
+    return { status: res.status, body }
+  } catch {
+    return { status: 0, body: null }
+  }
+}
+
+const CHANNEL_NETWORK_FAIL: IBridgeResponse = fail('network error')
+
+/** moss plugin row → the renderer's status shape. Full list, no per-type
+ * collapsing: ChannelPanel shows a type's first row as its main card and the
+ * rest as extra connections, so rows must survive intact. */
+function toPluginStatusRow(row: AnyReq): IChannelPluginStatus {
+  const configured = Array.isArray(row.configuredSecretFields)
+    ? row.configuredSecretFields.length
+    : 0
+  return {
+    id: String(row.id ?? ''),
+    type: String(row.type ?? '') as IChannelPluginStatus['type'],
+    name: String(row.name ?? ''),
+    enabled: Boolean(row.enabled),
+    connected: row.status === 'running',
+    status: String(row.status ?? 'stopped') as IChannelPluginStatus['status'],
+    lastConnected: typeof row.lastConnected === 'number' ? row.lastConnected : undefined,
+    activeUsers: 0,
+    hasToken: configured > 0,
+    isExtension: false,
+  }
+}
+
+/** Map the forms' uniform `{token, extraConfig:{appId,appSecret}}` onto the
+ * per-platform credential field names moss's testConnection reads — the same
+ * mapping the desktop's ChannelManager.testPlugin applies. */
+function testCredentialsFor(pluginId: string, req: AnyReq): Record<string, unknown> {
+  const extra = (req.extraConfig ?? {}) as { appId?: string; appSecret?: string }
+  if (pluginId.startsWith('telegram')) return { token: req.token }
+  if (pluginId.startsWith('dingtalk'))
+    return { clientId: extra.appId, clientSecret: extra.appSecret }
+  if (pluginId.startsWith('wecom')) return { botId: extra.appId, secret: extra.appSecret }
+  if (pluginId.startsWith('lark')) return { appId: extra.appId, appSecret: extra.appSecret }
+  // Unknown/extension types: forward whatever was provided.
+  const credentials: Record<string, unknown> = {}
+  if (req.token) credentials.token = req.token
+  if (extra.appId) credentials.appId = extra.appId
+  if (extra.appSecret) credentials.appSecret = extra.appSecret
+  return credentials
+}
+
+// --- WeChat QR login: qr-start + client-side 3s qr-poll, emitting the same
+// phase sequence the desktop's main process pushes over IPC. ---
+let wechatQrTimer: ReturnType<typeof setInterval> | null = null
+
+function stopWechatQrPolling(): void {
+  if (wechatQrTimer) {
+    clearInterval(wechatQrTimer)
+    wechatQrTimer = null
+  }
+}
+
+function emitWechatQrEvent(payload: Record<string, unknown>): void {
+  emitterRef?.emit('channel.wechat-qr-login', payload)
+}
+
+async function handleWechatStartQrLogin(): Promise<IBridgeResponse> {
+  // Cancel any previous attempt first (desktop abort semantics).
+  stopWechatQrPolling()
+  const start = await channelFetch('/wechat/qr-start', { method: 'POST', body: JSON.stringify({}) })
+  if (start.status !== 200 || !start.body?.ok) {
+    const message =
+      typeof start.body?.error === 'string' ? start.body.error : 'Failed to get QR code'
+    emitWechatQrEvent({ phase: 'error', message })
+    return fail(message)
+  }
+  const qrcodeToken = String(start.body.qrcode ?? '')
+  emitWechatQrEvent({ phase: 'qrcode', qrUrl: start.body.qrcodeImgContent })
+
+  let polls = 0
+  wechatQrTimer = setInterval(() => {
+    void (async () => {
+      polls++
+      if (polls > 100) {
+        // ~5 minutes, the same cap as the desktop flow.
+        stopWechatQrPolling()
+        emitWechatQrEvent({ phase: 'timeout', message: 'Login timed out. Please try again.' })
+        return
+      }
+      const poll = await channelFetch(`/wechat/qr-poll?qrcode=${encodeURIComponent(qrcodeToken)}`)
+      if (poll.status !== 200 || !poll.body?.ok) return // transient error: keep polling
+      const status = String(poll.body.status ?? '')
+      if (status === 'scaned') {
+        emitWechatQrEvent({ phase: 'scanned' })
+      } else if (status === 'confirmed') {
+        stopWechatQrPolling()
+        emitWechatQrEvent({
+          phase: 'confirmed',
+          botToken: poll.body.botToken,
+          accountId: poll.body.accountId,
+        })
+      } else if (status === 'expired') {
+        stopWechatQrPolling()
+        emitWechatQrEvent({ phase: 'timeout', message: 'QR code expired. Please try again.' })
+      }
+      // 'wait' and anything else: keep polling, same as the desktop loop.
+    })().catch(() => {
+      /* transient poll errors keep the loop alive */
+    })
+  }, 3000)
+  return ok()
+}
+
+// --- Channel events: moss has no push, so the server polls it per principal
+// and streams deltas over /ws/channels; re-emit them on the renderer's wires.
+// Opened lazily on the first `channel.*` invoke (the channels page's first
+// getPluginStatus), so tabs that never visit the page hold no socket. ---
+let channelWs: WebSocket | null = null
+let channelWsConnecting = false
+
+function ensureChannelEventsSocket(): void {
+  if (
+    channelWs ||
+    channelWsConnecting ||
+    typeof window === 'undefined' ||
+    typeof WebSocket === 'undefined'
+  )
+    return
+  channelWsConnecting = true
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  const ws = new WebSocket(`${protocol}://${window.location.host}/ws/channels`)
+  channelWs = ws
+  let wasOpen = false
+  ws.onopen = () => {
+    wasOpen = true
+  }
+  ws.onmessage = (event) => {
+    let frames: Array<{ type?: string; payload?: { pluginId?: unknown; plugin?: AnyReq } }>
+    try {
+      frames = JSON.parse(String(event.data))
+    } catch {
+      return
+    }
+    if (!Array.isArray(frames)) return
+    for (const frame of frames) {
+      if (frame?.type === 'pairingRequested') {
+        emitterRef?.emit('channel.pairing-requested', frame.payload)
+      } else if (frame?.type === 'userAuthorized') {
+        emitterRef?.emit('channel.user-authorized', frame.payload)
+      } else if (frame?.type === 'pluginStatusChanged' && frame.payload?.plugin) {
+        emitterRef?.emit('channel.plugin-status-changed', {
+          pluginId: frame.payload.pluginId,
+          status: toPluginStatusRow(frame.payload.plugin),
+        })
+      }
+    }
+  }
+  ws.onclose = () => {
+    channelWs = null
+    channelWsConnecting = false
+    // Simple reconnect once after a dropped link; if the page is gone the
+    // timer never fires, so no zombie socket.
+    if (wasOpen) window.setTimeout(ensureChannelEventsSocket, 5000)
+  }
+  ws.onerror = () => {
+    /* onclose follows */
+  }
+}
+
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // --- enterprise/session flags ---
   'moss.is-enterprise-mode': async () => true,
@@ -1767,6 +1968,166 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   'approval.check': async () => false,
   'acp.get-mode': async () => ok({ mode: 'default', initialized: true }),
   'conversation.flush-pending-messages': async () => undefined,
+
+  // --- remote connections: see the channelFetch section above for the
+  // envelope rationale. All paths are this origin's /api/channels forwards. ---
+  'channel.get-plugin-status': async () => {
+    const res = await channelFetch('/plugins')
+    if (res.status !== 200 || !Array.isArray(res.body?.plugins)) return CHANNEL_NETWORK_FAIL
+    return ok(res.body.plugins.map((row) => toPluginStatusRow(row as AnyReq)))
+  },
+  'channel.get-plugin-credentials': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/credentials`,
+    )
+    if (res.status === 404) return fail('Plugin not found')
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    // moss answers `{}` for an unconfigured plugin; the desktop wire uses null.
+    const data = res.body && Object.keys(res.body).length > 0 ? res.body : null
+    return ok(data)
+  },
+  'channel.test-plugin': async (req) => {
+    const pluginId = String(req.pluginId ?? '')
+    const res = await channelFetch(`/plugins/${encodeURIComponent(pluginId)}/test`, {
+      method: 'POST',
+      body: JSON.stringify(testCredentialsFor(pluginId, req)),
+    })
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    // moss `{ok, message}`: message is the error OR the bot username.
+    const isOk = Boolean(res.body?.ok)
+    const message = typeof res.body?.message === 'string' ? res.body.message : ''
+    return ok({
+      success: isOk,
+      ...(isOk ? { botUsername: message || undefined } : { error: message || 'Connection failed' }),
+    })
+  },
+  'channel.enable-plugin': async (req) => {
+    // moss replies 409 + `{ok:false, message}` when it refuses (e.g. the bot
+    // is already connected by someone else) — the reason must reach the form.
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/enable`,
+      {
+        method: 'POST',
+        body: JSON.stringify(req.config ?? {}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' && res.body.message
+        ? res.body.message
+        : 'Failed to enable plugin',
+    )
+  },
+  'channel.disable-plugin': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/disable`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to disable plugin',
+    )
+  },
+  'channel.create-plugin': async (req) => {
+    const res = await channelFetch('/plugins/create', {
+      method: 'POST',
+      body: JSON.stringify({ type: req.type, name: req.name }),
+    })
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok && res.body.id) return ok({ pluginId: String(res.body.id) })
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to add connection',
+    )
+  },
+  'channel.get-pending-pairings': async () => {
+    const res = await channelFetch('/pairings/pending')
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    return ok(Array.isArray(res.body?.pairings) ? res.body.pairings : [])
+  },
+  'channel.approve-pairing': async (req) => {
+    const res = await channelFetch(
+      `/pairings/${encodeURIComponent(String(req.code ?? ''))}/approve`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail('Failed to approve pairing')
+  },
+  'channel.reject-pairing': async (req) => {
+    const res = await channelFetch(
+      `/pairings/${encodeURIComponent(String(req.code ?? ''))}/reject`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    // Two moss envelopes here: the pairing service's `{success, error?}` and
+    // the cross-user guard's `{ok:false, message:'Forbidden'}`.
+    const isOk =
+      typeof res.body?.success === 'boolean' ? Boolean(res.body.success) : Boolean(res.body?.ok)
+    if (isOk) return ok()
+    const msg = res.body?.error ?? res.body?.message
+    return fail(typeof msg === 'string' && msg ? msg : 'Failed to reject pairing')
+  },
+  'channel.get-authorized-users': async () => {
+    const res = await channelFetch('/users')
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    return ok(Array.isArray(res.body?.users) ? res.body.users : [])
+  },
+  'channel.revoke-user': async (req) => {
+    const res = await channelFetch(`/users/${encodeURIComponent(String(req.userId ?? ''))}`, {
+      method: 'DELETE',
+    })
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(typeof res.body?.message === 'string' ? res.body.message : 'Failed to revoke user')
+  },
+  'channel.sync-channel-settings': async (req) => {
+    const res = await channelFetch('/settings/sync', {
+      method: 'POST',
+      body: JSON.stringify({ platform: req.platform, agent: req.agent, model: req.model }),
+    })
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to sync settings',
+    )
+  },
+  'channel.wechat-start-qr-login': () => handleWechatStartQrLogin(),
+  'channel.wechat-cancel-qr-login': async () => {
+    stopWechatQrPolling()
+    return ok()
+  },
+  'moss.get-channel-agents': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/agents`,
+    )
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    return ok({ agents: res.body?.agents ?? [], defaultAgent: res.body?.defaultAgent ?? null })
+  },
+  'moss.set-channel-default-agent': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/agents/default`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ agentName: req.agentName ?? null }),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to set default agent',
+    )
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -1774,6 +2135,8 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
 // ---------------------------------------------------------------------------
 
 function handleInvoke(channel: string, id: string, req: unknown): void {
+  // First channel wire use opens the events socket (lazily; see its section).
+  if (channel.startsWith('channel.')) ensureChannelEventsSocket()
   // Defer to a microtask: `invoke()` emits the request and THEN registers the
   // callback listener, both synchronously. A synchronous deliver (the
   // localStorage-backed storage ops) would fire the callback before that

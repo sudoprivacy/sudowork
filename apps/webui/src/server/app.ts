@@ -35,6 +35,8 @@ import {
 } from './features/auth/sessionMiddleware.js'
 import { ConversationCoordinator } from './features/conversations/ConversationCoordinator.js'
 import { createConversationRouter } from './features/conversations/conversationRoutes.js'
+import { createChannelsRouter } from './features/channels/channelsRoutes.js'
+import { attachChannelEvents } from './features/channels/channelEvents.js'
 import { createMossAgentPort, type MossAgentPort } from '@sudowork/moss-client'
 import { createMossSkillPort, type MossSkillPort } from '@sudowork/moss-client'
 import { createMossCronPort } from '@sudowork/moss-client'
@@ -145,6 +147,8 @@ export interface ApiDeps {
 export interface ApiHandles {
   coordinator: ConversationCoordinator
   mossSession: MossSessionPort
+  /** 供 /ws/channels 事件桥复用的会话依赖（pool + config + mossAuth）。 */
+  auth: { pool: Pool; config: AppConfig; mossAuth: MossAuthPort }
 }
 
 /** 挂载 /api 路由（登录后全部走 session middleware，计划 3.2）。 */
@@ -225,6 +229,9 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   // The consumer endpoints the points/usage/orders pages read, forwarded to
   // moss under this session. Allowlisted, not a blanket /api/v1 proxy.
   app.use('/api/v1', createConsumerRouter({ auth }))
+  // Remote-connections page: `channel.*` wires land here, forwarded to moss
+  // `/api/v1/channels/*` under this session (same allowlist model as above).
+  app.use('/api/channels', createChannelsRouter({ auth }))
   app.use('/api/agents', createAgentRouter({ pool, config, auth, agents }))
   app.use('/api/skills', createSkillRouter({ pool, config, auth, skills }))
 
@@ -297,7 +304,7 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
     },
   )
 
-  return { coordinator, mossSession }
+  return { coordinator, mossSession, auth }
 }
 
 export interface WsDeps {
@@ -306,6 +313,8 @@ export interface WsDeps {
   coordinator: ConversationCoordinator
   /** 终端管理器（可选注入便于测试；缺省全局共享一个实例） */
   terminals?: TerminalManager
+  /** /ws/channels 事件桥依赖；缺省时该端点拒绝升级（既有测试不传即不受影响） */
+  auth?: { pool: Pool; config: AppConfig; mossAuth: MossAuthPort }
 }
 
 /**
@@ -318,15 +327,23 @@ export interface WsDeps {
 export function attachConversationWebSocket(server: Server, deps: WsDeps): void {
   const wss = new WebSocketServer({ noServer: true })
   const terminalWss = new WebSocketServer({ noServer: true })
+  const channelWss = new WebSocketServer({ noServer: true })
   const { config, pool, coordinator } = deps
   const terminals = deps.terminals ?? globalTerminalManager
+  if (deps.auth) attachChannelEvents(channelWss, { auth: deps.auth })
 
   server.on('upgrade', (req, socket, head) => {
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://internal.invalid')
       const conversationMatch = url.pathname.match(/^\/ws\/conversations\/([^/]+)$/)
       const isTerminal = url.pathname === '/ws/terminal'
-      if (!conversationMatch && !isTerminal) {
+      const isChannels = url.pathname === '/ws/channels'
+      if (!conversationMatch && !isTerminal && !isChannels) {
+        socket.destroy()
+        return
+      }
+      if (isChannels && !deps.auth) {
+        socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n')
         socket.destroy()
         return
       }
@@ -365,6 +382,14 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
           })
           ws.on('close', () => void coordinator.unsubscribe(conn))
           ws.on('error', () => void coordinator.unsubscribe(conn))
+        })
+        return
+      }
+
+      // /ws/channels：事件桥按 principal 合并轮询，断开即停（无客户端消息）。
+      if (isChannels) {
+        channelWss.handleUpgrade(req, socket, head, (ws) => {
+          channelWss.emit('connection', ws, webSession)
         })
         return
       }

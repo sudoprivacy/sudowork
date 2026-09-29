@@ -910,3 +910,215 @@ describe('mossAdapter: chat.send.message shares msgId between the WS send frame 
     expect(echo?.msg_id).toBe('msg-uuid-9')
   })
 })
+
+describe('mossAdapter: channel wires (remote connections)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('get-plugin-status maps every moss row to IChannelPluginStatus (no per-type collapsing)', async () => {
+    const fetchMock = stubFetch({
+      '/api/channels/plugins': {
+        plugins: [
+          {
+            id: 'lark_default',
+            type: 'lark',
+            name: '飞书 Bot',
+            enabled: true,
+            status: 'running',
+            configuredSecretFields: ['appId', 'appSecret'],
+            lastConnected: 123,
+          },
+          {
+            id: 'lark_second',
+            type: 'lark',
+            name: '飞书 Bot 2',
+            enabled: false,
+            status: 'stopped',
+            configuredSecretFields: [],
+          },
+        ],
+      },
+    })
+    const result = await ipcBridge.channel.getPluginStatus.invoke()
+
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual([
+      {
+        id: 'lark_default',
+        type: 'lark',
+        name: '飞书 Bot',
+        enabled: true,
+        connected: true,
+        status: 'running',
+        lastConnected: 123,
+        activeUsers: 0,
+        hasToken: true,
+        isExtension: false,
+      },
+      {
+        id: 'lark_second',
+        type: 'lark',
+        name: '飞书 Bot 2',
+        enabled: false,
+        connected: false,
+        status: 'stopped',
+        activeUsers: 0,
+        hasToken: false,
+        isExtension: false,
+      },
+    ])
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/channels/plugins')
+  })
+
+  it('test-plugin remaps extraConfig per platform and maps the {ok,message} envelope', async () => {
+    const fetchMock = stubFetch({
+      '/test': { ok: true, message: 'bot-42' },
+    })
+    const result = await ipcBridge.channel.testPlugin.invoke({
+      pluginId: 'dingtalk_default',
+      token: '',
+      extraConfig: { appId: 'cli-1', appSecret: 'sec' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual({ success: true, botUsername: 'bot-42' })
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      '/api/channels/plugins/dingtalk_default/test',
+    )
+    // dingtalk reads clientId/clientSecret, not the forms' appId/appSecret.
+    expect(JSON.parse(String(init.body))).toEqual({ clientId: 'cli-1', clientSecret: 'sec' })
+  })
+
+  it('test-plugin maps a refused test to data.error', async () => {
+    stubFetch({ '/test': { ok: false, message: 'bad secret' } })
+    const result = await ipcBridge.channel.testPlugin.invoke({
+      pluginId: 'lark_default',
+      token: '',
+      extraConfig: { appId: 'a', appSecret: 's' },
+    })
+    expect(result.data).toEqual({ success: false, error: 'bad secret' })
+  })
+
+  it('enable-plugin surfaces the 409 refusal reason instead of an HTTP code', async () => {
+    stubFetch({
+      '/enable': {
+        status: 409,
+        body: { ok: false, message: '该飞书已被用户「bob」配置，无法重复配置。' },
+      },
+    })
+    const result = await ipcBridge.channel.enablePlugin.invoke({
+      pluginId: 'lark_default',
+      config: { appId: 'a', appSecret: 's' },
+    })
+    expect(result).toEqual({ success: false, msg: '该飞书已被用户「bob」配置，无法重复配置。' })
+  })
+
+  it('reject-pairing accepts both moss envelopes ({success,error} and {ok,message})', async () => {
+    stubFetch({ '/reject': { success: false, error: 'Invalid pairing code' } })
+    const first = await ipcBridge.channel.rejectPairing.invoke({ code: 'C1' })
+    expect(first).toEqual({ success: false, msg: 'Invalid pairing code' })
+
+    stubFetch({ '/reject': { status: 200, body: { ok: false, message: 'Forbidden' } } })
+    const second = await ipcBridge.channel.rejectPairing.invoke({ code: 'C2' })
+    expect(second).toEqual({ success: false, msg: 'Forbidden' })
+  })
+
+  it('get-plugin-credentials maps moss {} to null and 404 to a failure', async () => {
+    stubFetch({ '/credentials': {} })
+    const configured = await ipcBridge.channel.getPluginCredentials.invoke({
+      pluginId: 'lark_default',
+    })
+    expect(configured).toEqual({ success: true, data: null })
+
+    stubFetch({ '/credentials': { status: 404, body: { error: 'Plugin not found' } } })
+    const missing = await ipcBridge.channel.getPluginCredentials.invoke({ pluginId: 'nope' })
+    expect(missing).toEqual({ success: false, msg: 'Plugin not found' })
+  })
+
+  it('create-plugin returns the new pluginId', async () => {
+    stubFetch({ '/create': { ok: true, id: 'lark_ab12', type: 'lark', name: '飞书 Bot 2' } })
+    const result = await ipcBridge.channel.createPlugin.invoke({ type: 'lark' })
+    expect(result).toEqual({ success: true, data: { pluginId: 'lark_ab12' } })
+  })
+
+  it('get/set channel agents round-trip the moss envelope', async () => {
+    stubFetch({
+      '/agents': {
+        agents: [{ name: 'recruitment_expert', displayName: '招聘专家' }],
+        defaultAgent: 'recruitment_expert',
+      },
+    })
+    const agents = await ipcBridge.moss.getChannelAgents.invoke({ pluginId: 'lark_default' })
+    expect(agents).toEqual({
+      success: true,
+      data: {
+        agents: [{ name: 'recruitment_expert', displayName: '招聘专家' }],
+        defaultAgent: 'recruitment_expert',
+      },
+    })
+
+    stubFetch({ '/agents/default': { ok: true } })
+    const set = await ipcBridge.moss.setChannelDefaultAgent.invoke({
+      pluginId: 'lark_default',
+      agentName: null,
+    })
+    expect(set).toEqual({ success: true, data: undefined })
+  })
+
+  it('wechat-start-qr-login drives the phase sequence across qr-poll rounds', async () => {
+    vi.useFakeTimers()
+    try {
+      const polls = [
+        { ok: true, status: 'wait' },
+        { ok: true, status: 'scaned' },
+        { ok: true, status: 'confirmed', botToken: 'tok-9', accountId: 'acc-9' },
+      ]
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/wechat/qr-start')) {
+          expect(init?.method).toBe('POST')
+          return new Response(
+            JSON.stringify({ ok: true, qrcode: 'QR-1', qrcodeImgContent: 'data:img' }),
+            { status: 200 },
+          )
+        }
+        const poll = polls.shift() ?? { ok: true, status: 'expired' }
+        return new Response(JSON.stringify(poll), { status: 200 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const events: Array<Record<string, unknown>> = []
+      const off = ipcBridge.channel.wechatQrLogin.on((event) =>
+        events.push(event as Record<string, unknown>),
+      )
+
+      const started = await ipcBridge.channel.wechatStartQrLogin.invoke()
+      expect(started.success).toBe(true)
+      expect(events).toEqual([{ phase: 'qrcode', qrUrl: 'data:img' }])
+
+      await vi.advanceTimersByTimeAsync(3000) // wait → no event
+      expect(events).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(3000) // scaned
+      expect(events).toHaveLength(2)
+      expect(events[1]).toEqual({ phase: 'scanned' })
+      await vi.advanceTimersByTimeAsync(3000) // confirmed → stop
+      expect(events).toHaveLength(3)
+      expect(events[2]).toEqual({ phase: 'confirmed', botToken: 'tok-9', accountId: 'acc-9' })
+      await vi.advanceTimersByTimeAsync(9000) // timer cleared: no further polls
+      expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('qr-poll'))).toHaveLength(
+        3,
+      )
+
+      off()
+    } finally {
+      vi.useRealTimers()
+      await ipcBridge.channel.wechatCancelQrLogin.invoke()
+    }
+  })
+})
