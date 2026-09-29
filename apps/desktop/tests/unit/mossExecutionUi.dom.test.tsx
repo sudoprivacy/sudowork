@@ -14,7 +14,7 @@ vi.mock('@renderer/utils/workspaceHistory', () => ({ updateWorkspaceTime: vi.fn(
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@icon-park/react', () => ({ Robot: () => null }));
 vi.mock('@renderer/utils/agentLogo', () => ({ getAgentLogo: () => '/agent.svg' }));
-vi.mock('@renderer/utils/platform', () => ({ resolveExtensionAssetUrl: (url: string) => url }));
+vi.mock('@renderer/utils/platform', () => ({ resolveExtensionAssetUrl: (url: string) => url, isWebBridgeAvailable: () => false }));
 
 import AgentPillBar from '@renderer/pages/guid/components/AgentPillBar';
 import { useGuidSend, type GuidSendDeps } from '@renderer/pages/guid/hooks/useGuidSend';
