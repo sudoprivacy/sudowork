@@ -55,6 +55,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         mossSessionId?: string;
         mossSessionPending?: boolean;
         presetAssistantId?: string;
+        mossAssistantRef?: string;
         agentName?: string;
         dangerouslySkipPermissions?: boolean;
         runtimeType?: 'host' | 'docker';
@@ -106,7 +107,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
       const wsUrl = extra?.acpWsUrl;
       const mossSessionPending = extra?.mossSessionPending;
       const mossSessionId = extra?.mossSessionId;
-      const assistantReference = extra?.presetAssistantId || extra?.agentName;
+      const assistantReference = extra?.mossAssistantRef || extra?.presetAssistantId || extra?.agentName;
       // Generic cloud conversations also persist their display label as the
       // preset ID. These labels do not identify an installed Moss assistant.
       const isDefaultRemoteAgent = assistantReference === 'Remote Agent' || assistantReference === 'Moss Server';

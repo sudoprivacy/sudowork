@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import fsSync, { existsSync } from 'fs';
+import fsSync from 'fs';
 import type { Dirent } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
@@ -25,10 +25,10 @@ import { ipcBridge } from '@/common';
 import { buildSkillDisplayName, canonicalizeSkillMarkdownPath, findRootSkillMarkdownFileName, isSkillMarkdownFileName, parseSkillFrontmatter, resolveSkillIconFromFiles } from '@/process/utils/skillPackage';
 import { scanSkillDirectory, readAuditReport } from '@/process/services/safety/SkillAuditScanner';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
-import { SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/enterpriseStorage';
 import { getSkillhubToken } from '@/process/credentialsCache';
 import { tokenMissingResponse } from '@common/nexus/hubErrors';
 import { maybeProvisionFfmpegForSkill } from '@process/services/ffmpeg/ffmpegSkillGate';
+import { requestMossCatalog } from '../services/mossCatalogApi';
 import { getDataPath } from '../utils';
 
 const VERSION_FILE_NAME = 'sudowork-version';
@@ -1306,91 +1306,14 @@ export function initSkillHubBridge(): void {
   // Fetch skills list from Skill Hub API with cursor-based pagination
   ipcBridge.skillHub.fetchSkills.provider(async ({ cursor, limit = 20, query = '', category = '', tenantId }) => {
     try {
-      // 企业模式：从本地 hub/ 目录加载已同步的技能
       if (isEnterpriseMode()) {
-        // 企业模式下，技能库展示本地已同步的内容
-        // 专属技能 Tab (tenantId 存在时) 从本地 tenant/ 目录加载
-        const sourceType = tenantId ? 'tenant' : 'hub';
-        const skillsDir = sourceType === 'tenant' ? path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.tenant) : path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
-
-        mainLog('SkillHub', `Enterprise mode: loading skills from ${skillsDir}`);
-
-        // 读取本地目录中的技能
-        const skills: import('@sudowork/host-bridge/ipcBridge').ISkillHubSkill[] = [];
-
-        if (existsSync(skillsDir)) {
-          const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-          for (const entry of entries) {
-            if (!entry.isDirectory()) continue;
-            // Skip directories starting with _ (like _disable)
-            if (entry.name.startsWith('_')) continue;
-
-            const dirName = entry.name;
-            const skillDir = path.join(skillsDir, dirName);
-
-            // Read metadata first for search filtering
-            const metaResult = await readSkillMetaFileWithFallback(skillDir);
-            if (metaResult) {
-              let meta: SkillHubMeta;
-              try {
-                meta = JSON.parse(metaResult.content) as SkillHubMeta;
-              } catch {
-                mainWarn('SkillHub', `Invalid JSON in metadata file for skill "${dirName}" at ${skillDir}, skipping`);
-                continue;
-              }
-
-              // Use meta.name if available (same logic as SkillManager.readSkillInfo)
-              const skillName = meta.name?.trim() || dirName;
-              const displayName = meta.display_name || skillName;
-              const description = meta.description || '';
-
-              // Search filter: search by name, display_name, and description
-              if (query) {
-                const queryLower = query.toLowerCase();
-                const nameMatch = skillName.toLowerCase().includes(queryLower);
-                const displayNameMatch = displayName.toLowerCase().includes(queryLower);
-                const descriptionMatch = description.toLowerCase().includes(queryLower);
-                if (!nameMatch && !displayNameMatch && !descriptionMatch) continue;
-              }
-
-              // Category filter
-              if (category && category !== 'all') {
-                const skillCategories = meta.categories || [];
-                if (!skillCategories.includes(category)) continue;
-              }
-
-              skills.push({
-                id: meta.id || skillName,
-                name: skillName,
-                display_name: displayName,
-                description: description,
-                icon: meta.icon || '',
-                emoji: meta.emoji || null,
-                category: meta.category || '',
-                categories: meta.categories || [],
-                applicable_scenarios: meta.applicable_scenarios || null,
-                core_features: meta.core_features || null,
-                homepage: meta.homepage || null,
-                author_id: meta.author_id || '',
-                star_count: 0,
-                created_at: meta.installed_at || new Date().toISOString(),
-                updated_at: meta.installed_at || new Date().toISOString(),
-                visible_to: meta.visible_to || null,
-                version: meta.installed_version || '1.0.0',
-              });
-            }
-          }
+        if (tenantId) {
+          const skills = await (await requestMossCatalog('/api/v1/skills/tenant')).json();
+          return { success: true, data: { skills, next_cursor: null, has_more: false } };
         }
-
-        // 企业模式不支持分页，返回所有结果
-        return {
-          success: true,
-          data: {
-            skills,
-            next_cursor: null,
-            has_more: false,
-          },
-        };
+        const params = new URLSearchParams({ limit: String(limit), query, category });
+        if (cursor) params.set('cursor', cursor);
+        return { success: true, data: await (await requestMossCatalog(`/api/v1/skill-hub/skills/cursor?${params}`)).json() };
       }
 
       // 个人模式：从 SudoPrivacy Skill Hub API 获取数据
@@ -1422,35 +1345,7 @@ export function initSkillHubBridge(): void {
     try {
       mainLog('SkillHub', 'Fetching categories');
 
-      // 企业模式：从本地已安装的技能中提取分类
-      if (isEnterpriseMode()) {
-        const hubSkillsDir = path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
-        const categoriesSet = new Set<string>();
-
-        if (existsSync(hubSkillsDir)) {
-          const entries = await fs.readdir(hubSkillsDir, { withFileTypes: true });
-          for (const entry of entries) {
-            if (!entry.isDirectory()) continue;
-
-            const skillDir = path.join(hubSkillsDir, entry.name);
-            const metaResult = await readSkillMetaFileWithFallback(skillDir);
-            if (metaResult) {
-              try {
-                const meta = JSON.parse(metaResult.content) as SkillHubMeta;
-                if (meta.categories) {
-                  for (const cat of meta.categories) {
-                    categoriesSet.add(cat);
-                  }
-                }
-              } catch {
-                mainWarn('SkillHub', `Invalid JSON in metadata file for skill "${entry.name}" at ${skillDir}, skipping`);
-              }
-            }
-          }
-        }
-
-        return { success: true, data: Array.from(categoriesSet) };
-      }
+      if (isEnterpriseMode()) return { success: true, data: await (await requestMossCatalog('/api/v1/skill-hub/categories')).json() };
 
       // 个人模式：从 SudoPrivacy Skill Hub API 获取分类
       const token = getSkillhubToken();
@@ -1472,54 +1367,7 @@ export function initSkillHubBridge(): void {
   // Fetch skill detail from Skill Hub API
   ipcBridge.skillHub.fetchSkillDetail.provider(async ({ skillId }) => {
     try {
-      // 企业模式：从本地 hub/ 目录获取详情
-      if (isEnterpriseMode()) {
-        // 先尝试从 hub 目录查找
-        const hubSkillsDir = path.join(SKILLS_ROOT_DIR, ENTERPRISE_SKILL_SUBDIRS.hub);
-
-        if (existsSync(hubSkillsDir)) {
-          const entries = await fs.readdir(hubSkillsDir, { withFileTypes: true });
-          for (const entry of entries) {
-            if (!entry.isDirectory()) continue;
-
-            const skillDir = path.join(hubSkillsDir, entry.name);
-            const metaResult = await readSkillMetaFileWithFallback(skillDir);
-            if (metaResult) {
-              let meta: SkillHubMeta;
-              try {
-                meta = JSON.parse(metaResult.content) as SkillHubMeta;
-              } catch {
-                mainWarn('SkillHub', `Invalid JSON in metadata file for skill "${entry.name}" at ${skillDir}, skipping`);
-                continue;
-              }
-              // 匹配 id 或 name (use meta.name for name matching)
-              const skillName = meta.name?.trim() || entry.name;
-              if (meta.id === skillId || skillName === skillId || entry.name === skillId) {
-                const detail = {
-                  id: meta.id || entry.name,
-                  name: skillName,
-                  display_name: meta.display_name || skillName,
-                  description: meta.description || '',
-                  icon: meta.icon || '',
-                  emoji: meta.emoji || null,
-                  category: meta.category || '',
-                  categories: meta.categories || [],
-                  applicable_scenarios: meta.applicable_scenarios || null,
-                  core_features: meta.core_features || null,
-                  homepage: meta.homepage || null,
-                  author_id: meta.author_id || '',
-                  version: meta.installed_version || '1.0.0',
-                  visible_to: meta.visible_to || null,
-                };
-                return { success: true, data: detail };
-              }
-            }
-          }
-        }
-
-        // 未找到
-        return { success: false, msg: 'Skill not found in local hub directory' };
-      }
+      if (isEnterpriseMode()) return { success: true, data: await (await requestMossCatalog(`/api/v1/skill-hub/skills/${encodeURIComponent(skillId)}`)).json() };
 
       // 个人模式：从 SudoPrivacy Skill Hub API 获取详情
       const token = getSkillhubToken();

@@ -607,8 +607,8 @@ export function initEeclawBridge(): void {
   // Manual sync trigger (for Local mode or retry)
   ipcBridge.eeclaw.syncFromRemote.provider(async () => {
     try {
-      const { syncIncrementalFromRemote } = await import('@process/sync/remoteToLocalSync');
-      const result = await syncIncrementalFromRemote();
+      const empty = () => ({ installed: [] as string[], skipped: [] as string[], deleted: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> });
+      const result = { skills: { hub: empty(), tenant: empty() }, assistants: { hub: empty(), tenant: empty() } };
       // Emit sync completed event to notify renderer
       ipcBridge.eeclaw.syncCompleted.emit(result);
       return {

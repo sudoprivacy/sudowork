@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, existsSync as fsExistsSync } from 'fs';
 import { app } from 'electron';
 import { toAssetUrl } from '@/extensions/assetProtocol';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { isCatalogPathVisible } from './services/mossCatalogInstall';
 import { getSkillsDir, getSystemSkillsDir, getHubSkillsDir, getCustomSkillsDir } from './initStorage';
 import { mainLog, mainWarn, mainError } from './utils/mainLogger';
 import { MOSS_SKILL_META_FILE } from './constants/skillStorage';
@@ -168,7 +169,8 @@ export class SkillManager {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       // 排除 _ 开头的目录
-      if (entry.name.startsWith('_')) continue;
+      if (entry.name.startsWith('_') || entry.name.startsWith('.')) continue;
+      if (!(await isCatalogPathVisible(path.join(baseDir, entry.name)))) continue;
       dirs.push(path.join(baseDir, entry.name));
     }
     return dirs;

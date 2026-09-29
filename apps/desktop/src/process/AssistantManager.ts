@@ -1,3 +1,9 @@
+import fs from 'fs/promises';
+import path from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import type { AssistantCategory, IAssistantEnhancement, IAssistantInfo } from '@sudowork/common/assistantTypes';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { isCatalogPathVisible } from './services/mossCatalogInstall';
 /**
  * Assistant Manager - Unified management of assistant preset install, disable, enable, list.
  * Parallel to SkillManager.ts for skills.
@@ -6,10 +12,6 @@
  * Enable/disable = flip meta.enabled field (no directory moves).
  */
 
-import fs from 'fs/promises';
-import path from 'path';
-import { existsSync, mkdirSync } from 'fs';
-import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { getAssistantsDir, getHubAssistantsDir, getSystemAssistantsDir, getCustomAssistantsDir, getSudoworkServerBaseUrlSync } from './initStorage';
 import { ASSISTANT_META_FILE, MOSS_ASSISTANT_META_FILE } from './constants/assistantStorage';
 import { mainLog, mainWarn, mainError } from './utils/mainLogger';
@@ -20,7 +22,6 @@ import { getEnterpriseTenantAssistantsDir } from './constants/enterpriseStorage'
 // future shared renderer package) can consume them without importing a
 // main-process module. Imported for local use and re-exported for
 // backward-compatible `@/process/AssistantManager` import paths.
-import type { AssistantCategory, IAssistantEnhancement, IAssistantInfo } from '@sudowork/common/assistantTypes';
 export type { AssistantCategory, IAssistantEnhancement, IAssistantInfo };
 
 type AssistantPromptsI18n = Record<string, string[]>;
@@ -186,7 +187,8 @@ export class AssistantManager {
     const entries = await fs.readdir(baseDir, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith('_')) continue;
+      if (entry.name.startsWith('_') || entry.name.startsWith('.')) continue;
+      if (!(await isCatalogPathVisible(path.join(baseDir, entry.name)))) continue;
       dirs.push(path.join(baseDir, entry.name));
     }
     return dirs;

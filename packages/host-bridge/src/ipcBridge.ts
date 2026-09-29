@@ -1,3 +1,4 @@
+import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, MossCatalogKind, MossCatalogSource } from '@sudowork/common/mossCatalog';
 /**
  * @license
  * Copyright 2025 Sudowork (sudowork.ai)
@@ -4764,4 +4765,14 @@ export const eeclaw = {
     }>,
     { assistantId: string; publishNote?: string }
   >("eeclaw.publish-tenant-assistant"),
+};
+
+export const mossCatalog = {
+  list: bridge.buildProvider<IBridgeResponse<IMossCatalogPage>, { kind: MossCatalogKind; source: MossCatalogSource; query?: string; category?: string; cursor?: string }>('moss-catalog.list'),
+  detail: bridge.buildProvider<IBridgeResponse<IMossCatalogItem>, { kind: MossCatalogKind; source: MossCatalogSource; id: string; isLocal?: boolean }>('moss-catalog.detail'),
+  installed: bridge.buildProvider<IBridgeResponse<IMossCatalogInstallation[]>, void>('moss-catalog.installed'),
+  install: bridge.buildProvider<IBridgeResponse<IMossCatalogInstallation>, { kind: MossCatalogKind; source: MossCatalogSource; id: string; isUpdate?: boolean }>('moss-catalog.install'),
+  remove: bridge.buildProvider<IBridgeResponse<void>, { kind: MossCatalogKind; source: MossCatalogSource; id: string }>('moss-catalog.remove'),
+  setEnabled: bridge.buildProvider<IBridgeResponse<void>, { kind: MossCatalogKind; source: MossCatalogSource; id: string; isEnabled: boolean }>('moss-catalog.set-enabled'),
+  changed: bridge.buildEmitter<void>('moss-catalog.changed'),
 };

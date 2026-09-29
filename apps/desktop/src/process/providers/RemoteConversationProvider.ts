@@ -155,6 +155,8 @@ export class RemoteConversationProvider implements IConversationProvider {
         runtimeType: this.config.runtimeType,
         agentName: params.extra?.agentName || params.extra?.presetAssistantId,
         presetAssistantId: params.extra?.presetAssistantId,
+        enabledSkills: params.extra?.enabledSkills,
+        mossAssistantRef: params.extra?.mossAssistantRef,
         dangerouslySkipPermissions: params.extra?.dangerouslySkipPermissions ?? false,
         sessionMode: params.extra?.sessionMode,
         // Mark as pending Moss session creation

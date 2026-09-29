@@ -506,7 +506,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     }
   }
 
-  async sendMessage(data: { content: string; files?: string[]; msg_id?: string }): Promise<{ success: boolean; msg?: string }> {
+  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; skills?: string[] }): Promise<{ success: boolean; msg?: string }> {
     mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
     mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
     // Activity: cancel any pending idle detach before we start work.
@@ -526,6 +526,11 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     mainLog('RemoteAgent', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
 
     try {
+      if (data.skills?.length && ProcessConfig.getSync('eeclaw.accountScope')) {
+        const { resolveMossCatalogSelection } = await import('../services/mossCatalogSelection');
+        const selection = await resolveMossCatalogSelection(undefined, data.skills);
+        this.options.enabledSkills = [...new Set([...(this.options.enabledSkills || []), ...selection.skillReferences])];
+      }
       mainLog('RemoteAgent', 'Calling initAgent...');
       await this.initAgent();
       mainLog('RemoteAgent', 'initAgent completed');
@@ -711,6 +716,19 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         } catch (err) {
           mainError('RemoteAgent', `Failed to build cron instruction: ${err}`);
         }
+      }
+
+      const preparedSkills = (this.options.enabledSkills || []).filter((reference) => reference.startsWith('moss-prepared:'));
+      if (preparedSkills.length || this.options.assistantName?.startsWith('moss-prepared:')) {
+        if (!this.mossSessionId) throw new Error('Moss session is unavailable');
+        const { requestMossCatalog } = await import('../services/mossCatalogApi');
+        const response = await requestMossCatalog(`/api/v1/sessions/${encodeURIComponent(this.mossSessionId)}/catalog-skills`, { skills: preparedSkills });
+        const body = (await response.json()) as { skills: { path: string; name: string }[] };
+        if (!Array.isArray(body.skills) || body.skills.some((skill) => !skill.path.startsWith('.nexus/catalog-skills/'))) throw new Error('Invalid prepared skill response');
+        if (body.skills.length) contentToSend = `[Selected skills]\nRead and follow these skill instructions for this request. Relative paths use the session workspace:\n${body.skills.map((skill) => JSON.stringify(skill.path)).join('\n')}\n\n[User request]\n${contentToSend}`;
+        const db = getDatabase();
+        const current = db.getConversation(this.conversation_id);
+        if (current.success && current.data?.type === 'remote-agent') db.updateConversation(this.conversation_id, { ...current.data, extra: { ...current.data.extra, enabledSkills: this.options.enabledSkills } });
       }
 
       // Send to Moss Server

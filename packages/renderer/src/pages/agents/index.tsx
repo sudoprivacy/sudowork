@@ -1,3 +1,4 @@
+import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -140,7 +141,6 @@ const AgentSettings: React.FC = () => {
   const [publishingAssistantName, setPublishingAssistantName] = useState<string | null>(null);
 
   // Track if sync has been triggered for current tab session (avoid loop)
-  const syncTriggeredRef = useRef(false);
   // Skip the debounced-search effect's first mount run — initial load is handled by the category-change effect
   const searchInitializedRef = useRef(false);
 
@@ -375,6 +375,7 @@ const AgentSettings: React.FC = () => {
         hubRequestIdRef.current = requestId;
       }
       const isLatestHubRequest = () => requestId === hubRequestIdRef.current;
+      if (isEnterprise) return;
       try {
         if (append) {
           hubLoadingMoreRef.current = true;
@@ -480,6 +481,7 @@ const AgentSettings: React.FC = () => {
 
   // Fetch Hub categories
   useEffect(() => {
+    if (isEnterprise) return;
     const fetchCategories = async () => {
       try {
         if (isElectronDesktop()) {
@@ -493,7 +495,7 @@ const AgentSettings: React.FC = () => {
       }
     };
     void fetchCategories();
-  }, []);
+  }, [isEnterprise]);
 
   // Reload Hub assistants when category changes
   useEffect(() => {
@@ -521,38 +523,6 @@ const AgentSettings: React.FC = () => {
     }, 300);
     return () => clearTimeout(timer);
   }, [hubSearchQuery, fetchHubAssistants]);
-
-  // Trigger sync when switching to store tab in enterprise mode
-  // Only trigger once per tab session, not on every syncStatus change
-  useEffect(() => {
-    if (!isEnterprise || activeTab !== 'store' || !isElectronDesktop()) {
-      // Reset ref when leaving store tab
-      syncTriggeredRef.current = false;
-      return;
-    }
-
-    // Skip if already triggered for this tab session
-    if (syncTriggeredRef.current) return;
-
-    // Mark as triggered and start sync
-    syncTriggeredRef.current = true;
-    setSyncStatus({ syncing: true, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
-
-    eeclaw.syncFromRemote
-      .invoke()
-      .then((res) => {
-        if (!res.success) {
-          // Sync failed, reset status (syncCompleted event won't be emitted)
-          console.error('Sync failed:', res.msg);
-          setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
-        }
-        // If success, syncCompleted event will be emitted and handled separately
-      })
-      .catch((err) => {
-        console.error('Failed to trigger sync:', err);
-        setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
-      });
-  }, [isEnterprise, activeTab]);
 
   // IntersectionObserver for infinite scroll
   const findScrollParent = useCallback((el: HTMLElement | null): HTMLElement | null => {
@@ -1722,268 +1692,290 @@ const AgentSettings: React.FC = () => {
   return (
     <PageWrapper>
       <div className='flex flex-col h-full w-full'>
-        {/* Header: tabs + search + create button */}
-        <div className='flex items-center gap-6 mb-3'>
-          {/* Tab switcher */}
-          <Tabs
-            variant='line'
-            className='flex-shrink-0'
-            value={activeTab}
-            onChange={(value) => {
-              if (value === 'installed' && activeTab === 'installed') {
-                void loadAssistantsWithUploadedStatuses();
-                return;
-              }
-              setActiveTab(value as AssistantStoreTab);
+        {isEnterprise && isElectronDesktop() ? (
+          <MossCatalogBrowser
+            kind='agents'
+            customContent={renderCustomAssistantGridWithEnterpriseActions(customAssistants)}
+            onCreate={() => {
+              void handleCreate();
             }}
-            items={[
-              { value: 'store', label: t('settings.assistant.storeTab', '智能体库') },
-              { value: 'exclusive', label: t('settings.assistant.exclusiveTab', '专属智能体') },
-              {
-                value: 'installed',
-                label: (
-                  <>
-                    {t('settings.assistant.installedTab', '我的智能体')}
-                    {assistants.length > 0 && <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{assistants.length}</span>}
-                  </>
-                ),
-              },
-            ]}
+            onInstalled={async () => {
+              await loadAssistants();
+              await refreshAgentDetection();
+            }}
           />
-
-          {/* Sync status indicator for enterprise mode - compact inline style */}
-          {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px flex-shrink-0'>
-              <Spin size={12} />
-              <span className='text-11px text-primary'>{t('settings.assistant.syncing', '同步中...')}</span>
-            </div>
-          )}
-          {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.assistants.installed.length > 0 || syncStatus.assistants.skipped.length > 0 || syncStatus.assistants.failed.length > 0) && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-soft rd-6px flex-shrink-0'>
-              <Check size={12} className='text-success' />
-              <span className='text-11px text-success'>{t('settings.assistant.syncCompleted', '已同步')}</span>
-            </div>
-          )}
-
-          {/* Search - for store/exclusive tabs */}
-          <Input placeholder={t('settings.assistant.searchPlaceholder', '搜索...')} value={hubSearchQuery} onChange={setHubSearchQuery} prefix={<Search size={14} className='text-tertiary' />} className={classNames('flex-1 min-w-0 assistant-hub-input', activeTab === 'installed' && 'invisible')} />
-
-          {/* Create button — only on installed tab */}
-          {activeTab === 'installed' && canManage && (
-            <Tooltip content={t('settings.customAssistants', '自定义智能体')}>
-              <Button icon={<Plus size={13} />} onClick={() => void handleCreate()} className='rd-full flex-shrink-0'>
-                {t('settings.createAssistant', '创建')}
-              </Button>
-            </Tooltip>
-          )}
-        </div>
-
-        {/* ===== STORE TAB ===== */}
-        {(activeTab === 'store' || activeTab === 'exclusive') && (
+        ) : (
           <>
-            {/* Category filter */}
-            <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
-              {[{ key: 'all', label: t('settings.assistant.allCategories', '全部分类') }, ...hubCategories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
-                <span key={key} className={classNames('category-chip', selectedHubCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedHubCategory(key)}>
-                  {label}
-                </span>
-              ))}
-            </div>
+            {/* Header: tabs + search + create button */}
+            <div className='flex items-center gap-6 mb-3'>
+              {/* Tab switcher */}
+              <Tabs
+                variant='line'
+                className='flex-shrink-0'
+                value={activeTab}
+                onChange={(value) => {
+                  if (value === 'installed' && activeTab === 'installed') {
+                    void loadAssistantsWithUploadedStatuses();
+                    return;
+                  }
+                  setActiveTab(value as AssistantStoreTab);
+                }}
+                items={[
+                  { value: 'store', label: t('settings.assistant.storeTab', '智能体库') },
+                  { value: 'exclusive', label: t('settings.assistant.exclusiveTab', '专属智能体') },
+                  {
+                    value: 'installed',
+                    label: (
+                      <>
+                        {t('settings.assistant.installedTab', '我的智能体')}
+                        {assistants.length > 0 && <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{assistants.length}</span>}
+                      </>
+                    ),
+                  },
+                ]}
+              />
 
-            {/* Assistant grid */}
-            <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleHubScroll}>
-              {/* Enterprise mode: show tenant assistants from local tenant/ directory */}
-              {activeTab === 'exclusive' && isEnterprise ? (
-                hubLoading ? (
-                  <div className='flex justify-center items-center py-12'>
-                    <Spin size={28} />
-                  </div>
-                ) : hubAssistantList.length === 0 ? (
-                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                    <Shield size={32} className='text-tertiary' />
-                    <span className='text-13px'>{t('settings.assistant.noTenantAssistants', '暂无专属智能体')}</span>
-                  </div>
-                ) : (
-                  <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                    {hubAssistantList.map((assistant) => {
-                      return (
-                        <HubAssistantCard
-                          key={assistant.id}
-                          assistant={assistant}
-                          isInstalled={true}
-                          installing={false}
-                          installProgress={installProgress}
-                          onInstall={(e) => {
-                            e.stopPropagation();
-                            setHubDetailAssistant(assistant);
-                            setHubDetailVisible(true);
-                          }}
-                          onDuplicate={(e) => {
-                            e.stopPropagation();
-                            handleOpenDuplicateModal(assistant);
-                          }}
-                          onClick={() => {
-                            setHubDetailAssistant(assistant);
-                            setHubDetailVisible(true);
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                )
-              ) : activeTab === 'exclusive' && !enterpriseCode ? (
-                isGuest ? (
-                  <HubEmptyState onLogin={() => navigate('/login')} />
-                ) : (
-                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                    <Shield size={32} className='text-tertiary' />
-                    <span className='text-13px'>{t('settings.assistant.noEnterpriseCode', '当前账号没有企业编码，无法加载专属智能体。')}</span>
-                  </div>
-                )
-              ) : hubLoading || !hubInstalledSkillsReady ? (
-                <div className='flex justify-center items-center py-12'>
-                  <Spin size={28} />
+              {/* Sync status indicator for enterprise mode - compact inline style */}
+              {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
+                <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px flex-shrink-0'>
+                  <Spin size={12} />
+                  <span className='text-11px text-primary'>{t('settings.assistant.syncing', '同步中...')}</span>
                 </div>
-              ) : hubAssistantList.length === 0 ? (
-                isGuest ? (
-                  <HubEmptyState onLogin={() => navigate('/login')} />
-                ) : (
-                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                    <Bot size={32} className='text-tertiary' />
-                    <span className='text-13px'>{t('settings.assistant.noResults', '暂无智能体')}</span>
-                  </div>
-                )
-              ) : (
-                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                  {hubAssistantList.map((assistant) => {
-                    const isInstalled = isEnterprise ? hubInstalledAssistants.has(assistant.name) : isHubAssistantInstalled(assistant);
-                    const isInstalling = installingAssistantId === assistant.id;
-                    const isUpdating = !isEnterprise && updatingAssistantId === assistant.id;
-                    const latestVersion = getResolvedAssistantLatestVersion(assistant);
-                    const latestVersionValue = latestVersion?.version || normalizeAssistantVersion(assistant.version);
-                    const installedVersion = !isEnterprise ? getHubAssistantInstalledVersion(assistant) : '';
-                    const hasUpdate = !isEnterprise && isInstalled && isAssistantVersionNewer(latestVersionValue, installedVersion);
-                    return (
-                      <HubAssistantCard
-                        key={assistant.id}
-                        assistant={assistant}
-                        isInstalled={isInstalled}
-                        installing={isInstalling}
-                        installProgress={installProgress}
-                        onInstall={(e) => {
-                          e.stopPropagation();
-                          // Open detail modal for install options
-                          setHubDetailAssistant(assistant);
-                          setHubDetailVisible(true);
-                        }}
-                        onUpdate={
-                          !isEnterprise
-                            ? (e) => {
-                                e.stopPropagation();
-                                void handleUpdateHubAssistant(assistant.id, assistant.skills || []);
-                              }
-                            : undefined
-                        }
-                        hasUpdate={!isEnterprise && hasUpdate}
-                        updating={isUpdating}
-                        onDuplicate={(e) => {
-                          e.stopPropagation();
-                          handleOpenDuplicateModal(assistant);
-                        }}
-                        latestVersion={!isEnterprise ? latestVersionValue : undefined}
-                        onClick={() => {
-                          setHubDetailAssistant(assistant);
-                          setHubDetailVisible(true);
-                        }}
-                      />
-                    );
-                  })}
+              )}
+              {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.assistants.installed.length > 0 || syncStatus.assistants.skipped.length > 0 || syncStatus.assistants.failed.length > 0) && (
+                <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-soft rd-6px flex-shrink-0'>
+                  <Check size={12} className='text-success' />
+                  <span className='text-11px text-success'>{t('settings.assistant.syncCompleted', '已同步')}</span>
                 </div>
               )}
 
-              {/* Loading skeleton cards */}
-              {activeTab === 'store' && hubLoadingMore && (
-                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-3 flex items-start gap-3 animate-pulse'>
-                      <div className='size-12 flex-shrink-0 rd-8px bg-fill-3' />
-                      <div className='flex-1 min-w-0 flex flex-col gap-1.5 pt-0.5'>
-                        <div className='h-14px w-3/5 rd-4px bg-fill-3' />
-                        <div className='h-10px w-full rd-4px bg-fill-3' />
-                        <div className='h-10px w-4/5 rd-4px bg-fill-3' />
-                      </div>
-                    </div>
+              {/* Search - for store/exclusive tabs */}
+              <Input
+                placeholder={t('settings.assistant.searchPlaceholder', '搜索...')}
+                value={hubSearchQuery}
+                onChange={setHubSearchQuery}
+                prefix={<Search size={14} className='text-tertiary' />}
+                className={classNames('flex-1 min-w-0 assistant-hub-input', activeTab === 'installed' && 'invisible')}
+              />
+
+              {/* Create button — only on installed tab */}
+              {activeTab === 'installed' && canManage && (
+                <Tooltip content={t('settings.customAssistants', '自定义智能体')}>
+                  <Button icon={<Plus size={13} />} onClick={() => void handleCreate()} className='rd-full flex-shrink-0'>
+                    {t('settings.createAssistant', '创建')}
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+
+            {/* ===== STORE TAB ===== */}
+            {(activeTab === 'store' || activeTab === 'exclusive') && (
+              <>
+                {/* Category filter */}
+                <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
+                  {[{ key: 'all', label: t('settings.assistant.allCategories', '全部分类') }, ...hubCategories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
+                    <span key={key} className={classNames('category-chip', selectedHubCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedHubCategory(key)}>
+                      {label}
+                    </span>
                   ))}
                 </div>
-              )}
 
-              {/* Sentinel for IntersectionObserver */}
-              {hubHasMore && <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />}
-            </AionScrollArea>
-          </>
-        )}
-
-        {/* ===== INSTALLED TAB ===== */}
-        {activeTab === 'installed' && (
-          <AionScrollArea className='flex-1 min-h-0' disableOverflow>
-            {assistants.length === 0 ? (
-              <div className='flex flex-col items-center justify-center py-12 gap-2'>
-                <Bot size={32} className='text-tertiary' />
-                <div className='text-13px text-secondary'>{t('settings.assistantsEmpty', '暂无智能体')}</div>
-                <div className='text-12px text-tertiary'>{t('settings.assistantsEmptyHint', '点击下方"创建智能体"按钮添加你的智能体')}</div>
-                {canManage && (
-                  <Button size='small' type='outline' className='mt-1' onClick={() => handleCreate()}>
-                    {t('settings.createAssistant', '创建智能体')}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className='pb-4 space-y-5'>
-                {/* Custom assistants section */}
-                <section>
-                  <div className='flex items-center justify-between gap-2 mb-2.5'>
-                    <div className='text-13px font-medium text-foreground'>{t('settings.customAssistants', '自定义智能体')}</div>
-                    <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
-                  </div>
-                  {customAssistants.length > 0 ? (
-                    isEnterprise ? (
-                      renderCustomAssistantGridWithEnterpriseActions(customAssistants)
+                {/* Assistant grid */}
+                <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleHubScroll}>
+                  {/* Enterprise mode: show tenant assistants from local tenant/ directory */}
+                  {activeTab === 'exclusive' && isEnterprise ? (
+                    hubLoading ? (
+                      <div className='flex justify-center items-center py-12'>
+                        <Spin size={28} />
+                      </div>
+                    ) : hubAssistantList.length === 0 ? (
+                      <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                        <Shield size={32} className='text-tertiary' />
+                        <span className='text-13px'>{t('settings.assistant.noTenantAssistants', '暂无专属智能体')}</span>
+                      </div>
                     ) : (
-                      renderAssistantGrid(customAssistants)
+                      <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                        {hubAssistantList.map((assistant) => {
+                          return (
+                            <HubAssistantCard
+                              key={assistant.id}
+                              assistant={assistant}
+                              isInstalled={true}
+                              installing={false}
+                              installProgress={installProgress}
+                              onInstall={(e) => {
+                                e.stopPropagation();
+                                setHubDetailAssistant(assistant);
+                                setHubDetailVisible(true);
+                              }}
+                              onDuplicate={(e) => {
+                                e.stopPropagation();
+                                handleOpenDuplicateModal(assistant);
+                              }}
+                              onClick={() => {
+                                setHubDetailAssistant(assistant);
+                                setHubDetailVisible(true);
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : activeTab === 'exclusive' && !enterpriseCode ? (
+                    isGuest ? (
+                      <HubEmptyState onLogin={() => navigate('/login')} />
+                    ) : (
+                      <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                        <Shield size={32} className='text-tertiary' />
+                        <span className='text-13px'>{t('settings.assistant.noEnterpriseCode', '当前账号没有企业编码，无法加载专属智能体。')}</span>
+                      </div>
+                    )
+                  ) : hubLoading || !hubInstalledSkillsReady ? (
+                    <div className='flex justify-center items-center py-12'>
+                      <Spin size={28} />
+                    </div>
+                  ) : hubAssistantList.length === 0 ? (
+                    isGuest ? (
+                      <HubEmptyState onLogin={() => navigate('/login')} />
+                    ) : (
+                      <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                        <Bot size={32} className='text-tertiary' />
+                        <span className='text-13px'>{t('settings.assistant.noResults', '暂无智能体')}</span>
+                      </div>
                     )
                   ) : (
-                    <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary text-center'>{t('settings.noCustomAssistants', '暂无自定义智能体')}</div>
-                  )}
-                </section>
-
-                {/* Tenant assistants section - enterprise mode only */}
-                {isEnterprise && (
-                  <section>
-                    <div className='flex items-center justify-between gap-2 mb-2.5'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.tenantAssistants', '专属智能体')}</div>
-                      <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
+                    <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                      {hubAssistantList.map((assistant) => {
+                        const isInstalled = isEnterprise ? hubInstalledAssistants.has(assistant.name) : isHubAssistantInstalled(assistant);
+                        const isInstalling = installingAssistantId === assistant.id;
+                        const isUpdating = !isEnterprise && updatingAssistantId === assistant.id;
+                        const latestVersion = getResolvedAssistantLatestVersion(assistant);
+                        const latestVersionValue = latestVersion?.version || normalizeAssistantVersion(assistant.version);
+                        const installedVersion = !isEnterprise ? getHubAssistantInstalledVersion(assistant) : '';
+                        const hasUpdate = !isEnterprise && isInstalled && isAssistantVersionNewer(latestVersionValue, installedVersion);
+                        return (
+                          <HubAssistantCard
+                            key={assistant.id}
+                            assistant={assistant}
+                            isInstalled={isInstalled}
+                            installing={isInstalling}
+                            installProgress={installProgress}
+                            onInstall={(e) => {
+                              e.stopPropagation();
+                              // Open detail modal for install options
+                              setHubDetailAssistant(assistant);
+                              setHubDetailVisible(true);
+                            }}
+                            onUpdate={
+                              !isEnterprise
+                                ? (e) => {
+                                    e.stopPropagation();
+                                    void handleUpdateHubAssistant(assistant.id, assistant.skills || []);
+                                  }
+                                : undefined
+                            }
+                            hasUpdate={!isEnterprise && hasUpdate}
+                            updating={isUpdating}
+                            onDuplicate={(e) => {
+                              e.stopPropagation();
+                              handleOpenDuplicateModal(assistant);
+                            }}
+                            latestVersion={!isEnterprise ? latestVersionValue : undefined}
+                            onClick={() => {
+                              setHubDetailAssistant(assistant);
+                              setHubDetailVisible(true);
+                            }}
+                          />
+                        );
+                      })}
                     </div>
-                    {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true, true) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noTenantAssistants', '暂无专属智能体')}</div>}
-                  </section>
-                )}
-
-                {/* Hub/store assistants section */}
-                <section>
-                  <div className='flex items-center justify-between gap-2 mb-2.5'>
-                    <div className='text-13px font-medium text-foreground'>{t('settings.hubAssistants', '智能体库')}</div>
-                    <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
-                  </div>
-                  {hubAssistants.length > 0 ? (
-                    renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise)
-                  ) : hubError ? (
-                    <HubEmptyState error={hubError} onRetry={() => void fetchHubAssistants()} />
-                  ) : (
-                    <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary text-center'>{t('settings.noHubAssistants', '暂无智能体库智能体')}</div>
                   )}
-                </section>
-              </div>
+
+                  {/* Loading skeleton cards */}
+                  {activeTab === 'store' && hubLoadingMore && (
+                    <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-3 flex items-start gap-3 animate-pulse'>
+                          <div className='size-12 flex-shrink-0 rd-8px bg-fill-3' />
+                          <div className='flex-1 min-w-0 flex flex-col gap-1.5 pt-0.5'>
+                            <div className='h-14px w-3/5 rd-4px bg-fill-3' />
+                            <div className='h-10px w-full rd-4px bg-fill-3' />
+                            <div className='h-10px w-4/5 rd-4px bg-fill-3' />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Sentinel for IntersectionObserver */}
+                  {hubHasMore && <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />}
+                </AionScrollArea>
+              </>
             )}
-          </AionScrollArea>
+
+            {/* ===== INSTALLED TAB ===== */}
+            {activeTab === 'installed' && (
+              <AionScrollArea className='flex-1 min-h-0' disableOverflow>
+                {assistants.length === 0 ? (
+                  <div className='flex flex-col items-center justify-center py-12 gap-2'>
+                    <Bot size={32} className='text-tertiary' />
+                    <div className='text-13px text-secondary'>{t('settings.assistantsEmpty', '暂无智能体')}</div>
+                    <div className='text-12px text-tertiary'>{t('settings.assistantsEmptyHint', '点击下方"创建智能体"按钮添加你的智能体')}</div>
+                    {canManage && (
+                      <Button size='small' type='outline' className='mt-1' onClick={() => handleCreate()}>
+                        {t('settings.createAssistant', '创建智能体')}
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className='pb-4 space-y-5'>
+                    {/* Custom assistants section */}
+                    <section>
+                      <div className='flex items-center justify-between gap-2 mb-2.5'>
+                        <div className='text-13px font-medium text-foreground'>{t('settings.customAssistants', '自定义智能体')}</div>
+                        <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{customAssistants.length}</span>
+                      </div>
+                      {customAssistants.length > 0 ? (
+                        isEnterprise ? (
+                          renderCustomAssistantGridWithEnterpriseActions(customAssistants)
+                        ) : (
+                          renderAssistantGrid(customAssistants)
+                        )
+                      ) : (
+                        <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary text-center'>{t('settings.noCustomAssistants', '暂无自定义智能体')}</div>
+                      )}
+                    </section>
+
+                    {/* Tenant assistants section - enterprise mode only */}
+                    {isEnterprise && (
+                      <section>
+                        <div className='flex items-center justify-between gap-2 mb-2.5'>
+                          <div className='text-13px font-medium text-foreground'>{t('settings.tenantAssistants', '专属智能体')}</div>
+                          <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{filteredTenantAssistants.length}</span>
+                        </div>
+                        {filteredTenantAssistants.length > 0 ? renderAssistantGrid(filteredTenantAssistants, true, true) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noTenantAssistants', '暂无专属智能体')}</div>}
+                      </section>
+                    )}
+
+                    {/* Hub/store assistants section */}
+                    <section>
+                      <div className='flex items-center justify-between gap-2 mb-2.5'>
+                        <div className='text-13px font-medium text-foreground'>{t('settings.hubAssistants', '智能体库')}</div>
+                        <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
+                      </div>
+                      {hubAssistants.length > 0 ? (
+                        renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise)
+                      ) : hubError ? (
+                        <HubEmptyState error={hubError} onRetry={() => void fetchHubAssistants()} />
+                      ) : (
+                        <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary text-center'>{t('settings.noHubAssistants', '暂无智能体库智能体')}</div>
+                      )}
+                    </section>
+                  </div>
+                )}
+              </AionScrollArea>
+            )}
+          </>
         )}
 
         {/* ==================== Edit Drawer ==================== */}

@@ -202,7 +202,7 @@ export async function installTenantSkill(skillId: string): Promise<{ success: bo
       core_features: null,
       homepage: null,
       author_id: skill.author || '',
-      source_type: 'hub', // Tenant skills are also hub-type
+      source_type: 'tenant',
       is_builtin: false,
       enabled: true,
       installed_version: skill.version || '1.0.0',
