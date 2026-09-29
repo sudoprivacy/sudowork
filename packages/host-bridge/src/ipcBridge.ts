@@ -2953,6 +2953,8 @@ export interface ICreateConversationParams {
     sessionMode?: string;
     /** Session mode (remote/local) for enterprise mode Provider selection - distinct from sessionMode (yolo/auto) */
     sessionModeParam?: "remote" | "local";
+    /** The name is the first message text in the guid send flow. */
+    nameIsFirstMessage?: boolean;
     /** Pre-selected ACP model from Guid page (cached model list) */
     currentModelId?: string;
     /** Runtime validation snapshot used for post-switch strong checks */

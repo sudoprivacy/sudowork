@@ -148,6 +148,10 @@ export async function listConversations(
       status: s.status,
       assistantName: s.assistantName ?? null,
       source: s.source ?? null,
+      createdAt:
+        typeof (s as { createdAt?: unknown }).createdAt === 'number'
+          ? (s as { createdAt?: number }).createdAt!
+          : null,
       lastActiveAt:
         typeof (s as { lastActiveAt?: unknown }).lastActiveAt === 'number'
           ? (s as { lastActiveAt?: number }).lastActiveAt!

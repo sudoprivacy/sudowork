@@ -126,6 +126,8 @@ export const ConversationListItemSchema = z.object({
   status: z.string(),
   assistantName: z.string().nullable(),
   source: z.string().nullable(),
+  /** 上游 epoch 毫秒时间戳（会话创建时间，moss sessions 列表 passthrough 字段）；未知时为 null */
+  createdAt: z.number().nullable(),
   /** 上游 epoch 毫秒时间戳；未知时为 null */
   lastActiveAt: z.number().nullable(),
   /** webui 本地元数据（Moss 无标题/置顶字段；无记录时 title=null / pinned=false） */

@@ -33,7 +33,12 @@ const server = app.listen({ port: config.server.port, host: config.server.host }
   )
 })
 
-attachConversationWebSocket(server, { config, pool, coordinator: handles.coordinator })
+attachConversationWebSocket(server, {
+  config,
+  pool,
+  coordinator: handles.coordinator,
+  auth: handles.auth,
+})
 
 // 启动恢复：遗留 running 锁 → uncertain（计划 2.1）
 void handles.coordinator.startupRecovery(pool).catch((err: unknown) => {

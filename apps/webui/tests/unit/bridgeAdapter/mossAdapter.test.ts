@@ -334,6 +334,27 @@ describe('mossAdapter: assistant/skill management channels', () => {
     expect(result.data?.[1]?.isBuiltin).toBe(true)
   })
 
+  it('get-installed-skills derives tenant category from meta.source_type when moss omits it', async () => {
+    stubFetch({
+      '/api/skills': [
+        // moss returns an empty category on tenant rows; the marker is in meta.source_type
+        { name: 'tenant-s', version: '1.0.0', category: '', meta: { source_type: 'tenant' } },
+        // non-tenant rows with an empty category must stay 'custom'
+        { name: 'custom-s', version: '1.0.0', category: '', meta: { source_type: 'hub' } },
+        // an explicit category keeps passing through unchanged
+        { name: 'explicit-tenant-s', version: '1.0.0', category: 'tenant' },
+        { name: 'explicit-sys-s', version: '1.0.0', category: 'system' },
+      ],
+    })
+    const result = await ipcBridge.skillHub.getInstalledSkills.invoke()
+
+    expect(result.success).toBe(true)
+    expect(result.data?.[0]?.category).toBe('tenant')
+    expect(result.data?.[1]?.category).toBe('custom')
+    expect(result.data?.[2]?.category).toBe('tenant')
+    expect(result.data?.[3]?.category).toBe('system')
+  })
+
   it('set-skill-enabled patches {name, enabled}', async () => {
     const fetchMock = stubFetch({ '/api/skills/enabled': { ok: true } })
     const result = await ipcBridge.skillHub.setSkillEnabled.invoke({
@@ -647,6 +668,192 @@ describe('mossAdapter: create-conversation binds the selected assistant', () => 
     expect(readBody(fetchMock)).toEqual({ assistantName: '', enabledSkills: [] })
     expect(conversation).toMatchObject({ id: 'sess-4' })
   })
+
+  it('persists the first message as the title before returning the conversation', async () => {
+    const fetchMock = stubFetch({
+      '/meta': { ok: true },
+      '/api/conversations': { id: 'sess-title' },
+    })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'Hello from WebUI',
+      model: {},
+      extra: { nameIsFirstMessage: true },
+    } as never)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/sess-title/meta')
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('PATCH')
+    expect(readBody(fetchMock, 1)).toEqual({ title: 'Hello from WebUI' })
+    expect(conversation).toMatchObject({ name: 'Hello from WebUI' })
+  })
+
+  it('uses only the first line and first 50 characters of a long message', async () => {
+    const fetchMock = stubFetch({
+      '/meta': { ok: true },
+      '/api/conversations': { id: 'sess-long' },
+    })
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: `${'a'.repeat(55)}\nsecond line`,
+      model: {},
+      extra: { nameIsFirstMessage: true },
+    } as never)
+
+    expect(readBody(fetchMock, 1)).toEqual({ title: 'a'.repeat(50) })
+  })
+
+  it('does not persist a placeholder name without the first-message marker', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-placeholder' } })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'New conversation',
+      model: {},
+      extra: { agentName: 'Selected assistant' },
+    } as never)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(conversation).toMatchObject({ name: 'Selected assistant' })
+  })
+
+  it('does not abort creation when persisting the title fails', async () => {
+    const fetchMock = stubFetch({
+      '/meta': { status: 500, body: { error: 'PERSIST_FAILED' } },
+      '/api/conversations': { id: 'sess-title-failed' },
+    })
+    const conversation = await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'Local title',
+      model: {},
+      extra: { nameIsFirstMessage: true },
+    } as never)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(conversation).toMatchObject({ id: 'sess-title-failed', name: 'Local title' })
+  })
+})
+
+describe('mossAdapter: newly created conversation list reads', () => {
+  class FakeWebSocket {
+    constructor(public url: string) {}
+    addEventListener() {}
+    close() {}
+  }
+
+  let ipc: typeof import('@sudowork/host-bridge/ipcBridge')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    localStorage.clear()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    await import('@client/bridgeAdapter/mossAdapter')
+    ipc = await import('@sudowork/host-bridge/ipcBridge')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('opens a conversation immediately after creation when the server list is still empty', async () => {
+    stubFetch({
+      '/meta': { ok: true },
+      '/api/conversations': { id: 'sess-pending', conversations: [] },
+    })
+    await ipc.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'Pending title',
+      model: {},
+      extra: { nameIsFirstMessage: true },
+    } as never)
+
+    const conversation = await ipc.conversation.get.invoke({ id: 'sess-pending' })
+    expect(conversation).toMatchObject({ id: 'sess-pending', name: 'Pending title' })
+  })
+
+  it('keeps the newer list response in the cache when requests finish out of order', async () => {
+    const pending: Array<(response: Response) => void> = []
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          pending.push(resolve)
+        }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const oldRead = ipc.database.getUserConversations.invoke({})
+    const newRead = ipc.database.getUserConversations.invoke({})
+    pending[1]?.(new Response(JSON.stringify({ conversations: [{ id: 'newer' }] })))
+    expect((await newRead).map((item) => item.id)).toEqual(['newer'])
+    pending[0]?.(new Response(JSON.stringify({ conversations: [{ id: 'older' }] })))
+    expect((await oldRead).map((item) => item.id)).toEqual(['older'])
+
+    expect((await ipc.database.getUserConversations.invoke({})).map((item) => item.id)).toEqual([
+      'newer',
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache an old list response after creation invalidates the cache', async () => {
+    let resolveOldList: ((response: Response) => void) | undefined
+    let listFetchCount = 0
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(JSON.stringify({ id: 'sess-after-post' })))
+      }
+      if (String(input) === '/api/conversations') {
+        listFetchCount += 1
+        if (listFetchCount === 1) {
+          return new Promise<Response>((resolve) => {
+            resolveOldList = resolve
+          })
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ conversations: [{ id: 'sess-after-post' }] })),
+        )
+      }
+      return Promise.resolve(new Response('{}'))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const oldRead = ipc.database.getUserConversations.invoke({})
+    await ipc.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'Unused',
+      model: {},
+      extra: {},
+    } as never)
+    resolveOldList?.(new Response(JSON.stringify({ conversations: [] })))
+    await oldRead
+    expect((await ipc.database.getUserConversations.invoke({})).map((item) => item.id)).toEqual([
+      'sess-after-post',
+    ])
+    expect(listFetchCount).toBe(2)
+  })
+
+  it('removes pending entries through both deletion channels', async () => {
+    stubFetch({ '/api/conversations': { id: 'sess-delete', conversations: [] } })
+    const create = () =>
+      ipc.conversation.create.invoke({
+        type: 'remote-agent',
+        name: 'Unused',
+        model: {},
+        extra: {},
+      } as never)
+
+    await create()
+    expect((await ipc.database.getUserConversations.invoke({})).map((item) => item.id)).toEqual([
+      'sess-delete',
+    ])
+    await ipc.conversation.remove.invoke({ id: 'sess-delete' })
+    expect(await ipc.database.getUserConversations.invoke({})).toEqual([])
+
+    await create()
+    expect((await ipc.database.getUserConversations.invoke({})).map((item) => item.id)).toEqual([
+      'sess-delete',
+    ])
+    await ipc.moss.deleteSession.invoke({ sessionId: 'sess-delete' })
+    expect(await ipc.database.getUserConversations.invoke({})).toEqual([])
+  })
 })
 
 describe('mossAdapter: chat.send.message shares msgId between the WS send frame and the user echo', () => {
@@ -701,5 +908,217 @@ describe('mossAdapter: chat.send.message shares msgId between the WS send frame 
     expect(ws?.sent).toEqual([{ kind: 'send', text: 'hello', msgId: 'msg-uuid-9' }])
     const echo = echoFrames.find((frame) => frame.type === 'user_content')
     expect(echo?.msg_id).toBe('msg-uuid-9')
+  })
+})
+
+describe('mossAdapter: channel wires (remote connections)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('get-plugin-status maps every moss row to IChannelPluginStatus (no per-type collapsing)', async () => {
+    const fetchMock = stubFetch({
+      '/api/channels/plugins': {
+        plugins: [
+          {
+            id: 'lark_default',
+            type: 'lark',
+            name: '飞书 Bot',
+            enabled: true,
+            status: 'running',
+            configuredSecretFields: ['appId', 'appSecret'],
+            lastConnected: 123,
+          },
+          {
+            id: 'lark_second',
+            type: 'lark',
+            name: '飞书 Bot 2',
+            enabled: false,
+            status: 'stopped',
+            configuredSecretFields: [],
+          },
+        ],
+      },
+    })
+    const result = await ipcBridge.channel.getPluginStatus.invoke()
+
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual([
+      {
+        id: 'lark_default',
+        type: 'lark',
+        name: '飞书 Bot',
+        enabled: true,
+        connected: true,
+        status: 'running',
+        lastConnected: 123,
+        activeUsers: 0,
+        hasToken: true,
+        isExtension: false,
+      },
+      {
+        id: 'lark_second',
+        type: 'lark',
+        name: '飞书 Bot 2',
+        enabled: false,
+        connected: false,
+        status: 'stopped',
+        activeUsers: 0,
+        hasToken: false,
+        isExtension: false,
+      },
+    ])
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/channels/plugins')
+  })
+
+  it('test-plugin remaps extraConfig per platform and maps the {ok,message} envelope', async () => {
+    const fetchMock = stubFetch({
+      '/test': { ok: true, message: 'bot-42' },
+    })
+    const result = await ipcBridge.channel.testPlugin.invoke({
+      pluginId: 'dingtalk_default',
+      token: '',
+      extraConfig: { appId: 'cli-1', appSecret: 'sec' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual({ success: true, botUsername: 'bot-42' })
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      '/api/channels/plugins/dingtalk_default/test',
+    )
+    // dingtalk reads clientId/clientSecret, not the forms' appId/appSecret.
+    expect(JSON.parse(String(init.body))).toEqual({ clientId: 'cli-1', clientSecret: 'sec' })
+  })
+
+  it('test-plugin maps a refused test to data.error', async () => {
+    stubFetch({ '/test': { ok: false, message: 'bad secret' } })
+    const result = await ipcBridge.channel.testPlugin.invoke({
+      pluginId: 'lark_default',
+      token: '',
+      extraConfig: { appId: 'a', appSecret: 's' },
+    })
+    expect(result.data).toEqual({ success: false, error: 'bad secret' })
+  })
+
+  it('enable-plugin surfaces the 409 refusal reason instead of an HTTP code', async () => {
+    stubFetch({
+      '/enable': {
+        status: 409,
+        body: { ok: false, message: '该飞书已被用户「bob」配置，无法重复配置。' },
+      },
+    })
+    const result = await ipcBridge.channel.enablePlugin.invoke({
+      pluginId: 'lark_default',
+      config: { appId: 'a', appSecret: 's' },
+    })
+    expect(result).toEqual({ success: false, msg: '该飞书已被用户「bob」配置，无法重复配置。' })
+  })
+
+  it('reject-pairing accepts both moss envelopes ({success,error} and {ok,message})', async () => {
+    stubFetch({ '/reject': { success: false, error: 'Invalid pairing code' } })
+    const first = await ipcBridge.channel.rejectPairing.invoke({ code: 'C1' })
+    expect(first).toEqual({ success: false, msg: 'Invalid pairing code' })
+
+    stubFetch({ '/reject': { status: 200, body: { ok: false, message: 'Forbidden' } } })
+    const second = await ipcBridge.channel.rejectPairing.invoke({ code: 'C2' })
+    expect(second).toEqual({ success: false, msg: 'Forbidden' })
+  })
+
+  it('get-plugin-credentials maps moss {} to null and 404 to a failure', async () => {
+    stubFetch({ '/credentials': {} })
+    const configured = await ipcBridge.channel.getPluginCredentials.invoke({
+      pluginId: 'lark_default',
+    })
+    expect(configured).toEqual({ success: true, data: null })
+
+    stubFetch({ '/credentials': { status: 404, body: { error: 'Plugin not found' } } })
+    const missing = await ipcBridge.channel.getPluginCredentials.invoke({ pluginId: 'nope' })
+    expect(missing).toEqual({ success: false, msg: 'Plugin not found' })
+  })
+
+  it('create-plugin returns the new pluginId', async () => {
+    stubFetch({ '/create': { ok: true, id: 'lark_ab12', type: 'lark', name: '飞书 Bot 2' } })
+    const result = await ipcBridge.channel.createPlugin.invoke({ type: 'lark' })
+    expect(result).toEqual({ success: true, data: { pluginId: 'lark_ab12' } })
+  })
+
+  it('get/set channel agents round-trip the moss envelope', async () => {
+    stubFetch({
+      '/agents': {
+        agents: [{ name: 'recruitment_expert', displayName: '招聘专家' }],
+        defaultAgent: 'recruitment_expert',
+      },
+    })
+    const agents = await ipcBridge.moss.getChannelAgents.invoke({ pluginId: 'lark_default' })
+    expect(agents).toEqual({
+      success: true,
+      data: {
+        agents: [{ name: 'recruitment_expert', displayName: '招聘专家' }],
+        defaultAgent: 'recruitment_expert',
+      },
+    })
+
+    stubFetch({ '/agents/default': { ok: true } })
+    const set = await ipcBridge.moss.setChannelDefaultAgent.invoke({
+      pluginId: 'lark_default',
+      agentName: null,
+    })
+    expect(set).toEqual({ success: true, data: undefined })
+  })
+
+  it('wechat-start-qr-login drives the phase sequence across qr-poll rounds', async () => {
+    vi.useFakeTimers()
+    try {
+      const polls = [
+        { ok: true, status: 'wait' },
+        { ok: true, status: 'scaned' },
+        { ok: true, status: 'confirmed', botToken: 'tok-9', accountId: 'acc-9' },
+      ]
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/wechat/qr-start')) {
+          expect(init?.method).toBe('POST')
+          return new Response(
+            JSON.stringify({ ok: true, qrcode: 'QR-1', qrcodeImgContent: 'data:img' }),
+            { status: 200 },
+          )
+        }
+        const poll = polls.shift() ?? { ok: true, status: 'expired' }
+        return new Response(JSON.stringify(poll), { status: 200 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const events: Array<Record<string, unknown>> = []
+      const off = ipcBridge.channel.wechatQrLogin.on((event) =>
+        events.push(event as Record<string, unknown>),
+      )
+
+      const started = await ipcBridge.channel.wechatStartQrLogin.invoke()
+      expect(started.success).toBe(true)
+      expect(events).toEqual([{ phase: 'qrcode', qrUrl: 'data:img' }])
+
+      await vi.advanceTimersByTimeAsync(3000) // wait → no event
+      expect(events).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(3000) // scaned
+      expect(events).toHaveLength(2)
+      expect(events[1]).toEqual({ phase: 'scanned' })
+      await vi.advanceTimersByTimeAsync(3000) // confirmed → stop
+      expect(events).toHaveLength(3)
+      expect(events[2]).toEqual({ phase: 'confirmed', botToken: 'tok-9', accountId: 'acc-9' })
+      await vi.advanceTimersByTimeAsync(9000) // timer cleared: no further polls
+      expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('qr-poll'))).toHaveLength(
+        3,
+      )
+
+      off()
+    } finally {
+      vi.useRealTimers()
+      await ipcBridge.channel.wechatCancelQrLogin.invoke()
+    }
   })
 })

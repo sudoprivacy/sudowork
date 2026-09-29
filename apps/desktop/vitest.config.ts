@@ -211,6 +211,7 @@ export default defineConfig({
         '../../packages/renderer/src/messages/RuntimeErrorBanner.tsx',
         '../../packages/renderer/src/messages/useAutoScroll.ts',
         '../../packages/renderer/src/utils/emitter.ts',
+        '../../packages/renderer/src/utils/webFilePicker.ts',
         '../../packages/renderer/src/pages/guid/utils/modelBackendKey.ts',
         // Preview components
         '../../packages/renderer/src/pages/conversation/preview/components/viewers/WordViewer.tsx',

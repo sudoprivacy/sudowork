@@ -32,6 +32,7 @@ import { bridge } from '@office-ai/platform'
 // parallel copy.
 import type { IBridgeResponse } from '@sudowork/host-bridge/ipcBridge'
 import type { IConfirmation } from '@sudowork/common/chatLib'
+import type { IChannelPluginStatus } from '@sudowork/common/channelTypes'
 // The moss-frame → IResponseMessage mapping is the SAME implementation the desktop
 // MossWsConnection uses (shared leaf module, full stateless-frame coverage).
 import {
@@ -44,6 +45,8 @@ declare global {
   interface Window {
     /** Set by this adapter to mark a shared-renderer web host (read by the renderer's isWebBridgeAvailable). */
     __sudoworkWebBridge?: boolean
+    /** Staged web-upload files written by the renderer's webFilePicker; consumed by chat.send.message. */
+    __sudoworkWebFileStaging?: Map<string, File>
   }
 }
 
@@ -380,6 +383,148 @@ function extractText(req: AnyReq): string {
   return ''
 }
 
+// --- web upload attachments (staged by the renderer's webFilePicker) ---
+
+const WEB_UPLOAD_PREFIX = '/webupload/'
+const IMAGE_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+// Contract caps for send-frame images: 15,000,000 base64 chars per image → 11,250,000
+// raw bytes (10^6-based; 1024-based math would let (11,250,000, 11,796,480] slip past
+// the precheck and get rejected as INVALID_MESSAGE), and at most 4 images per message.
+const IMAGE_MAX_BYTES = 11_250_000
+const IMAGE_MAX_COUNT = 4
+const DEFAULT_UPLOAD_LIMIT_BYTES = 20_000_000
+
+interface StagedUpload {
+  webPath: string
+  file: File
+}
+
+function extractStagedUploads(req: AnyReq): StagedUpload[] {
+  const staging = typeof window !== 'undefined' ? window.__sudoworkWebFileStaging : undefined
+  if (!staging || staging.size === 0) return []
+  const files = Array.isArray(req?.files) ? req.files : []
+  const staged: StagedUpload[] = []
+  for (const item of files) {
+    if (typeof item !== 'string' || !item.startsWith(WEB_UPLOAD_PREFIX)) continue
+    const file = staging.get(item)
+    if (file) staged.push({ webPath: item, file })
+  }
+  return staged
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () =>
+      resolve(typeof reader.result === 'string' ? (reader.result.split(',')[1] ?? '') : '')
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
+let cachedUploadLimitBytes: number | undefined
+
+async function fetchUploadLimitBytes(): Promise<number> {
+  if (typeof cachedUploadLimitBytes === 'number') return cachedUploadLimitBytes
+  try {
+    const raw = await apiFetch<Record<string, unknown>>('/api/v1/tenant/config')
+    const payload = (
+      raw && typeof raw === 'object' && 'data' in raw ? (raw as { data?: unknown }).data : raw
+    ) as Record<string, unknown> | null
+    const limit = payload?.workspace_upload_limit_bytes ?? payload?.workspaceUploadLimitBytes
+    if (typeof limit === 'number' && limit > 0) {
+      cachedUploadLimitBytes = limit
+      return limit
+    }
+  } catch {
+    // fall back to the conservative default
+  }
+  return DEFAULT_UPLOAD_LIMIT_BYTES
+}
+
+interface StagedUploadResult {
+  images: Array<{ mediaType: string; data: string }>
+  refs: string[]
+  error?: string
+}
+
+// Mirrors the desktop RemoteAgent flow: images are inlined as vision blocks (never
+// uploaded — the agent cannot Read an image back as vision), other files are uploaded
+// to the session workspace and @-referenced so the agent can Read them.
+async function processStagedUploads(
+  sessionId: string,
+  staged: StagedUpload[],
+): Promise<StagedUploadResult> {
+  const images: Array<{ mediaType: string; data: string }> = []
+  const refs: string[] = []
+  const imageFiles = staged.filter((item) => IMAGE_MEDIA_TYPES.has(item.file.type))
+  const otherFiles = staged.filter((item) => !IMAGE_MEDIA_TYPES.has(item.file.type))
+
+  // Fail fast before any base64 work (mirrors desktop RemoteAgent prechecks).
+  if (imageFiles.length > IMAGE_MAX_COUNT) {
+    return {
+      images,
+      refs,
+      error:
+        '附件发送失败 / Attachment send failed — 最多附带 4 张图片 / at most 4 images per message',
+    }
+  }
+  const oversizedImage = imageFiles.find((item) => item.file.size > IMAGE_MAX_BYTES)
+  if (oversizedImage) {
+    return {
+      images,
+      refs,
+      error: `附件发送失败 / Attachment send failed — ${oversizedImage.file.name} 超过 11,250,000 字节上限 / exceeds the 11,250,000-byte image limit`,
+    }
+  }
+  const limitBytes = otherFiles.length > 0 ? await fetchUploadLimitBytes() : 0
+  const oversizedFile = otherFiles.find((item) => item.file.size > limitBytes)
+  if (oversizedFile) {
+    const limitMb = Math.round(limitBytes / 1_000_000)
+    return {
+      images,
+      refs,
+      error: `附件发送失败 / Attachment send failed — ${oversizedFile.file.name} 超出大小上限 ${limitMb}MB / exceeds size limit (${limitMb}MB)`,
+    }
+  }
+
+  try {
+    for (const item of imageFiles) {
+      images.push({ mediaType: item.file.type, data: await readFileAsBase64(item.file) })
+    }
+  } catch (err) {
+    return { images, refs, error: `附件读取失败 / Attachment read failed — ${errMessage(err)}` }
+  }
+  for (const item of otherFiles) {
+    try {
+      const basename = item.file.name
+      const uploaded = await apiFetch<{ relativePath?: unknown }>(
+        `/api/conversations/${encodeURIComponent(sessionId)}/workspace/file`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            path: basename,
+            content_base64: await readFileAsBase64(item.file),
+          }),
+        },
+      )
+      const relativePath =
+        typeof uploaded?.relativePath === 'string' && uploaded.relativePath
+          ? uploaded.relativePath
+          : basename
+      refs.push(relativePath.includes(' ') ? `@"${relativePath}"` : `@${relativePath}`)
+    } catch (err) {
+      console.warn('[mossAdapter] workspace file upload failed:', item.webPath, err)
+      return {
+        images,
+        refs,
+        error: `附件上传失败 / Attachment upload failed — ${item.file.name}: ${errMessage(err)}`,
+      }
+    }
+  }
+  return { images, refs }
+}
+
 // ---------------------------------------------------------------------------
 // Model surface for the renderer's AcpModelSelector (web conversations project
 // backend 'scode', so the selector's standard path consumes these channels).
@@ -437,10 +582,31 @@ interface ConversationListItem {
   status?: string
   assistantName?: string | null
   source?: string | null
+  createdAt?: number | null
   lastActiveAt?: number | null
   title?: string | null
   pinned?: boolean
   pinnedAt?: number | null
+}
+
+/**
+ * cron 运行记录会话标题：与桌面端 RemoteConversationProvider.formatCronSessionTitle
+ * 逐字符保持同步（查看者本地时区，`<jobName> YYYY-MM-DD HH:mm`）。
+ */
+function formatCronRunTitle(jobName: string | undefined, timestamp: number): string {
+  const name = jobName || 'Cron Session'
+  const date = new Date(timestamp || Date.now())
+  const runTime = date
+    .toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    .replace(/\//g, '-')
+  return `${name} ${runTime}`
 }
 
 /** Minimal TChatConversation projection (enough for the sider + open flow). */
@@ -450,11 +616,19 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
   // buildScheduledGroups 靠 extra.cronJobId 把运行记录归到对应定时任务分组，缺失则
   // 「定时任务」tab 为空。仅对字符串 source 容错解析，非 cron 会话不写入。
   let cronJobId: string | undefined
+  let cronJobName: string | undefined
+  let isCron = false
   if (typeof item.source === 'string') {
     try {
-      const parsed = JSON.parse(item.source) as { source?: unknown; cronJobId?: unknown }
-      if (parsed.source === 'cron' && typeof parsed.cronJobId === 'string') {
-        cronJobId = parsed.cronJobId
+      const parsed = JSON.parse(item.source) as {
+        source?: unknown
+        cronJobId?: unknown
+        cronJobName?: unknown
+      }
+      if (parsed.source === 'cron') {
+        isCron = true
+        if (typeof parsed.cronJobId === 'string') cronJobId = parsed.cronJobId
+        if (typeof parsed.cronJobName === 'string') cronJobName = parsed.cronJobName
       }
     } catch {
       // 非 JSON / 非 cron 会话：忽略
@@ -465,9 +639,17 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
     // 'remote-agent' (not 'acp') so ChatSider mounts the moss-session workspace
     // panel (readonly tree + deliverables); chat/model/stream all go through the
     // already-mapped remote-agent channels.
-    name: item.title ?? item.assistantName ?? item.id,
+    // 标题优先级与桌面端对齐：本地已有 title（含用户改名）优先，其次 cron 会话按
+    // 「任务名 + 运行时间」组装（时间基准 = 会话创建时间），非 cron 会话保持原兜底链。
+    name:
+      item.title ??
+      (isCron
+        ? formatCronRunTitle(cronJobName, item.createdAt ?? item.lastActiveAt ?? Date.now())
+        : undefined) ??
+      item.assistantName ??
+      item.id,
     type: 'remote-agent',
-    createTime: ts,
+    createTime: isCron && item.createdAt ? item.createdAt : ts,
     modifyTime: ts,
     status: item.status === 'running' ? 'running' : 'finished',
     extra: {
@@ -498,19 +680,43 @@ function toMossSession(item: ConversationListItem): Record<string, unknown> {
 // uncached impl re-fetches the whole collection on the critical open path.
 // Short TTL + invalidation on any conversation mutation (see apiFetch).
 let convCache: { at: number; items: ConversationListItem[] } | null = null
+let listFetchSeq = 0
 const CONV_CACHE_MS = 3000
+const PENDING_CREATED_TTL_MS = 60_000
+const pendingCreatedConversations = new Map<string, ConversationListItem>()
 
 function invalidateConversations(): void {
   convCache = null
+  ++listFetchSeq
+}
+
+function mergePendingCreated(items: ConversationListItem[]): ConversationListItem[] {
+  if (pendingCreatedConversations.size === 0) return items
+  const merged = [...items]
+  for (const [id, item] of pendingCreatedConversations) {
+    if (Date.now() - (item.lastActiveAt ?? 0) > PENDING_CREATED_TTL_MS) {
+      pendingCreatedConversations.delete(id)
+    } else if (merged.some((conversation) => conversation.id === id)) {
+      pendingCreatedConversations.delete(id)
+    } else {
+      merged.push(item)
+    }
+  }
+  return merged
 }
 
 async function listConversations(): Promise<ConversationListItem[]> {
-  if (convCache && Date.now() - convCache.at < CONV_CACHE_MS) return convCache.items
+  if (convCache && Date.now() - convCache.at < CONV_CACHE_MS) {
+    return mergePendingCreated(convCache.items)
+  }
+  const seq = ++listFetchSeq
   const { conversations } = await apiFetch<{ conversations: ConversationListItem[] }>(
     '/api/conversations',
   )
-  convCache = { at: Date.now(), items: conversations }
-  return conversations
+  if (seq === listFetchSeq) {
+    convCache = { at: Date.now(), items: conversations }
+  }
+  return mergePendingCreated(conversations)
 }
 
 // ---------------------------------------------------------------------------
@@ -592,13 +798,19 @@ function mossSkillToInstalledInfo(s: MossSkillItem): unknown {
   const isHub = s.isHubInstalled === true
   const rawMeta = (s.meta && typeof s.meta === 'object' ? s.meta : {}) as Record<string, unknown>
   const displayName = s.display_name ?? s.displayName ?? s.name
+  // toWebCategory folds a missing/unknown moss category into 'custom', but the
+  // tenant marker lives in meta.source_type (moss returns an empty category on
+  // tenant rows) — without this fallback tenant skills land in the custom panel.
+  const resolvedCategory = toWebCategory(s.category)
+  const category =
+    resolvedCategory === 'custom' && rawMeta.source_type === 'tenant' ? 'tenant' : resolvedCategory
   return {
     name: s.name,
     version: String(s.version ?? ''),
     isHubInstalled: isHub,
     isBuiltin: s.isBuiltin === true,
     enabled: s.enabled !== false,
-    category: toWebCategory(s.category),
+    category,
     meta: {
       ...rawMeta,
       id: rawMeta.id ?? s.id ?? s.name,
@@ -843,6 +1055,206 @@ async function refreshDeliverables(conversationId: string): Promise<void> {
     emitterRef?.emit('deliverables.changed', { conversationId, files })
   } catch {
     /* best-effort — the panel keeps its last list */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Remote connections (`channel.*` wires): forwarded to this origin's
+// /api/channels/* routes, which proxy moss /api/v1/channels/* under the
+// session. Wire-shape translation (moss `{ok,...}` envelopes →
+// IBridgeResponse) lives HERE, next to the wires it serves.
+// ---------------------------------------------------------------------------
+
+interface ChannelFetchResult {
+  /** 0 = request itself failed (offline/Network error) — no status/body at all. */
+  status: number
+  body: AnyReq | null
+}
+
+/** Unlike apiFetch this never throws: channel callers map moss's per-endpoint
+ * envelopes (`{ok,message}` / `{success,error}` / bare rows) themselves, and a
+ * thrown HTTP_ code would drop the failure reason moss sent. */
+async function channelFetch(path: string, init?: RequestInit): Promise<ChannelFetchResult> {
+  try {
+    const res = await fetch(`/api/channels${path}`, {
+      credentials: 'include',
+      ...init,
+      headers: {
+        ...(init?.body !== undefined ? { 'content-type': 'application/json' } : {}),
+        ...init?.headers,
+      },
+    })
+    const text = await res.text()
+    let body: AnyReq | null = null
+    if (text) {
+      try {
+        body = JSON.parse(text) as AnyReq
+      } catch {
+        body = null
+      }
+    }
+    return { status: res.status, body }
+  } catch {
+    return { status: 0, body: null }
+  }
+}
+
+const CHANNEL_NETWORK_FAIL: IBridgeResponse = fail('network error')
+
+/** moss plugin row → the renderer's status shape. Full list, no per-type
+ * collapsing: ChannelPanel shows a type's first row as its main card and the
+ * rest as extra connections, so rows must survive intact. */
+function toPluginStatusRow(row: AnyReq): IChannelPluginStatus {
+  const configured = Array.isArray(row.configuredSecretFields)
+    ? row.configuredSecretFields.length
+    : 0
+  return {
+    id: String(row.id ?? ''),
+    type: String(row.type ?? '') as IChannelPluginStatus['type'],
+    name: String(row.name ?? ''),
+    enabled: Boolean(row.enabled),
+    connected: row.status === 'running',
+    status: String(row.status ?? 'stopped') as IChannelPluginStatus['status'],
+    lastConnected: typeof row.lastConnected === 'number' ? row.lastConnected : undefined,
+    activeUsers: 0,
+    hasToken: configured > 0,
+    isExtension: false,
+  }
+}
+
+/** Map the forms' uniform `{token, extraConfig:{appId,appSecret}}` onto the
+ * per-platform credential field names moss's testConnection reads — the same
+ * mapping the desktop's ChannelManager.testPlugin applies. */
+function testCredentialsFor(pluginId: string, req: AnyReq): Record<string, unknown> {
+  const extra = (req.extraConfig ?? {}) as { appId?: string; appSecret?: string }
+  if (pluginId.startsWith('telegram')) return { token: req.token }
+  if (pluginId.startsWith('dingtalk'))
+    return { clientId: extra.appId, clientSecret: extra.appSecret }
+  if (pluginId.startsWith('wecom')) return { botId: extra.appId, secret: extra.appSecret }
+  if (pluginId.startsWith('lark')) return { appId: extra.appId, appSecret: extra.appSecret }
+  // Unknown/extension types: forward whatever was provided.
+  const credentials: Record<string, unknown> = {}
+  if (req.token) credentials.token = req.token
+  if (extra.appId) credentials.appId = extra.appId
+  if (extra.appSecret) credentials.appSecret = extra.appSecret
+  return credentials
+}
+
+// --- WeChat QR login: qr-start + client-side 3s qr-poll, emitting the same
+// phase sequence the desktop's main process pushes over IPC. ---
+let wechatQrTimer: ReturnType<typeof setInterval> | null = null
+
+function stopWechatQrPolling(): void {
+  if (wechatQrTimer) {
+    clearInterval(wechatQrTimer)
+    wechatQrTimer = null
+  }
+}
+
+function emitWechatQrEvent(payload: Record<string, unknown>): void {
+  emitterRef?.emit('channel.wechat-qr-login', payload)
+}
+
+async function handleWechatStartQrLogin(): Promise<IBridgeResponse> {
+  // Cancel any previous attempt first (desktop abort semantics).
+  stopWechatQrPolling()
+  const start = await channelFetch('/wechat/qr-start', { method: 'POST', body: JSON.stringify({}) })
+  if (start.status !== 200 || !start.body?.ok) {
+    const message =
+      typeof start.body?.error === 'string' ? start.body.error : 'Failed to get QR code'
+    emitWechatQrEvent({ phase: 'error', message })
+    return fail(message)
+  }
+  const qrcodeToken = String(start.body.qrcode ?? '')
+  emitWechatQrEvent({ phase: 'qrcode', qrUrl: start.body.qrcodeImgContent })
+
+  let polls = 0
+  wechatQrTimer = setInterval(() => {
+    void (async () => {
+      polls++
+      if (polls > 100) {
+        // ~5 minutes, the same cap as the desktop flow.
+        stopWechatQrPolling()
+        emitWechatQrEvent({ phase: 'timeout', message: 'Login timed out. Please try again.' })
+        return
+      }
+      const poll = await channelFetch(`/wechat/qr-poll?qrcode=${encodeURIComponent(qrcodeToken)}`)
+      if (poll.status !== 200 || !poll.body?.ok) return // transient error: keep polling
+      const status = String(poll.body.status ?? '')
+      if (status === 'scaned') {
+        emitWechatQrEvent({ phase: 'scanned' })
+      } else if (status === 'confirmed') {
+        stopWechatQrPolling()
+        emitWechatQrEvent({
+          phase: 'confirmed',
+          botToken: poll.body.botToken,
+          accountId: poll.body.accountId,
+        })
+      } else if (status === 'expired') {
+        stopWechatQrPolling()
+        emitWechatQrEvent({ phase: 'timeout', message: 'QR code expired. Please try again.' })
+      }
+      // 'wait' and anything else: keep polling, same as the desktop loop.
+    })().catch(() => {
+      /* transient poll errors keep the loop alive */
+    })
+  }, 3000)
+  return ok()
+}
+
+// --- Channel events: moss has no push, so the server polls it per principal
+// and streams deltas over /ws/channels; re-emit them on the renderer's wires.
+// Opened lazily on the first `channel.*` invoke (the channels page's first
+// getPluginStatus), so tabs that never visit the page hold no socket. ---
+let channelWs: WebSocket | null = null
+let channelWsConnecting = false
+
+function ensureChannelEventsSocket(): void {
+  if (
+    channelWs ||
+    channelWsConnecting ||
+    typeof window === 'undefined' ||
+    typeof WebSocket === 'undefined'
+  )
+    return
+  channelWsConnecting = true
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  const ws = new WebSocket(`${protocol}://${window.location.host}/ws/channels`)
+  channelWs = ws
+  let wasOpen = false
+  ws.onopen = () => {
+    wasOpen = true
+  }
+  ws.onmessage = (event) => {
+    let frames: Array<{ type?: string; payload?: { pluginId?: unknown; plugin?: AnyReq } }>
+    try {
+      frames = JSON.parse(String(event.data))
+    } catch {
+      return
+    }
+    if (!Array.isArray(frames)) return
+    for (const frame of frames) {
+      if (frame?.type === 'pairingRequested') {
+        emitterRef?.emit('channel.pairing-requested', frame.payload)
+      } else if (frame?.type === 'userAuthorized') {
+        emitterRef?.emit('channel.user-authorized', frame.payload)
+      } else if (frame?.type === 'pluginStatusChanged' && frame.payload?.plugin) {
+        emitterRef?.emit('channel.plugin-status-changed', {
+          pluginId: frame.payload.pluginId,
+          status: toPluginStatusRow(frame.payload.plugin),
+        })
+      }
+    }
+  }
+  ws.onclose = () => {
+    channelWs = null
+    channelWsConnecting = false
+    // Simple reconnect once after a dropped link; if the page is gone the
+    // timer never fires, so no zombie socket.
+    if (wasOpen) window.setTimeout(ensureChannelEventsSocket, 5000)
+  }
+  ws.onerror = () => {
+    /* onclose follows */
   }
 }
 
@@ -1178,7 +1590,13 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     // moss agents — passing them yields SELECTION_NOT_AVAILABLE, so fall back to
     // an empty assistantName and let moss pick its default agent.
     const extra = req?.extra as
-      { presetAssistantId?: unknown; agentName?: unknown; enabledSkills?: unknown } | undefined
+      | {
+          presetAssistantId?: unknown
+          agentName?: unknown
+          enabledSkills?: unknown
+          nameIsFirstMessage?: unknown
+        }
+      | undefined
     const raw = typeof extra?.presetAssistantId === 'string' ? extra.presetAssistantId : ''
     const agent =
       raw && raw !== 'Remote Agent' && raw !== 'Moss Server' ? raw.replace(/^builtin-/, '') : ''
@@ -1199,10 +1617,31 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       extra.agentName !== 'Moss Server'
         ? extra.agentName
         : agent || null
+    const rawName =
+      extra?.nameIsFirstMessage === true && typeof req?.name === 'string' ? req.name.trim() : ''
+    const createdTitle = rawName ? (rawName.split('\n')[0] ?? '').slice(0, 50).trim() : ''
+    if (createdTitle) {
+      await apiFetch(`/api/conversations/${encodeURIComponent(created.id)}/meta`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title: createdTitle }),
+      }).catch(() => {})
+    }
+    pendingCreatedConversations.set(created.id, {
+      id: created.id,
+      taskId: created.taskId,
+      status: 'detached',
+      assistantName: displayName ?? null,
+      source: null,
+      lastActiveAt: Date.now(),
+      title: createdTitle || null,
+      pinned: false,
+      pinnedAt: null,
+    })
     return toChatConversation({
       id: created.id,
       taskId: created.taskId,
       assistantName: displayName,
+      title: createdTitle || null,
     })
   },
   'moss.create-session': async (req) => {
@@ -1252,12 +1691,14 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.sessionId ?? ''))}`, {
       method: 'DELETE',
     })
+    pendingCreatedConversations.delete(String(req?.sessionId ?? ''))
     return ok()
   },
   'remove-conversation': async (req) => {
     await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.id ?? ''))}`, {
       method: 'DELETE',
     })
+    pendingCreatedConversations.delete(String(req?.id ?? ''))
     return true
   },
 
@@ -1289,9 +1730,37 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const sessionId = String(req?.conversation_id ?? req?.sessionId ?? '')
     if (!sessionId) return fail('NO_SESSION')
     abortedSessions.delete(sessionId)
-    const text = extractText(req)
     const msgId = String(req?.msg_id ?? nextMsgId())
-    sendOverStream(sessionId, { kind: 'send', text, msgId })
+    let text = extractText(req)
+    // Attachments staged by the renderer's webFilePicker (pseudo /webupload/ paths);
+    // any other files entries keep being ignored, as before.
+    const staged = extractStagedUploads(req)
+    let images: Array<{ mediaType: string; data: string }> = []
+    if (staged.length > 0) {
+      const result = await processStagedUploads(sessionId, staged)
+      if (result.error) {
+        // Abort the send: the renderer already cleared the input (same as the desktop
+        // abort path), so this error frame is the only feedback the user gets.
+        emitterRef?.emit('chat.response.stream', {
+          type: 'error',
+          msg_id: nextMsgId(),
+          conversation_id: sessionId,
+          data: result.error,
+        })
+        return ok()
+      }
+      images = result.images
+      if (result.refs.length > 0) {
+        text = `${result.refs.join(' ')} ${text}`
+      }
+      for (const item of staged) {
+        window.__sudoworkWebFileStaging?.delete(item.webPath)
+      }
+    }
+    sendOverStream(
+      sessionId,
+      images.length > 0 ? { kind: 'send', text, msgId, images } : { kind: 'send', text, msgId },
+    )
     // Echo the user's own message back so its bubble shows: the shared renderer does
     // no optimistic insert and relies on a user_content frame (desktop RemoteAgent does
     // the same). moss's user echo frame is dropped by mossFrameToResponses, so synthesize
@@ -1499,6 +1968,166 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   'approval.check': async () => false,
   'acp.get-mode': async () => ok({ mode: 'default', initialized: true }),
   'conversation.flush-pending-messages': async () => undefined,
+
+  // --- remote connections: see the channelFetch section above for the
+  // envelope rationale. All paths are this origin's /api/channels forwards. ---
+  'channel.get-plugin-status': async () => {
+    const res = await channelFetch('/plugins')
+    if (res.status !== 200 || !Array.isArray(res.body?.plugins)) return CHANNEL_NETWORK_FAIL
+    return ok(res.body.plugins.map((row) => toPluginStatusRow(row as AnyReq)))
+  },
+  'channel.get-plugin-credentials': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/credentials`,
+    )
+    if (res.status === 404) return fail('Plugin not found')
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    // moss answers `{}` for an unconfigured plugin; the desktop wire uses null.
+    const data = res.body && Object.keys(res.body).length > 0 ? res.body : null
+    return ok(data)
+  },
+  'channel.test-plugin': async (req) => {
+    const pluginId = String(req.pluginId ?? '')
+    const res = await channelFetch(`/plugins/${encodeURIComponent(pluginId)}/test`, {
+      method: 'POST',
+      body: JSON.stringify(testCredentialsFor(pluginId, req)),
+    })
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    // moss `{ok, message}`: message is the error OR the bot username.
+    const isOk = Boolean(res.body?.ok)
+    const message = typeof res.body?.message === 'string' ? res.body.message : ''
+    return ok({
+      success: isOk,
+      ...(isOk ? { botUsername: message || undefined } : { error: message || 'Connection failed' }),
+    })
+  },
+  'channel.enable-plugin': async (req) => {
+    // moss replies 409 + `{ok:false, message}` when it refuses (e.g. the bot
+    // is already connected by someone else) — the reason must reach the form.
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/enable`,
+      {
+        method: 'POST',
+        body: JSON.stringify(req.config ?? {}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' && res.body.message
+        ? res.body.message
+        : 'Failed to enable plugin',
+    )
+  },
+  'channel.disable-plugin': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/disable`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to disable plugin',
+    )
+  },
+  'channel.create-plugin': async (req) => {
+    const res = await channelFetch('/plugins/create', {
+      method: 'POST',
+      body: JSON.stringify({ type: req.type, name: req.name }),
+    })
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok && res.body.id) return ok({ pluginId: String(res.body.id) })
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to add connection',
+    )
+  },
+  'channel.get-pending-pairings': async () => {
+    const res = await channelFetch('/pairings/pending')
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    return ok(Array.isArray(res.body?.pairings) ? res.body.pairings : [])
+  },
+  'channel.approve-pairing': async (req) => {
+    const res = await channelFetch(
+      `/pairings/${encodeURIComponent(String(req.code ?? ''))}/approve`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail('Failed to approve pairing')
+  },
+  'channel.reject-pairing': async (req) => {
+    const res = await channelFetch(
+      `/pairings/${encodeURIComponent(String(req.code ?? ''))}/reject`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    // Two moss envelopes here: the pairing service's `{success, error?}` and
+    // the cross-user guard's `{ok:false, message:'Forbidden'}`.
+    const isOk =
+      typeof res.body?.success === 'boolean' ? Boolean(res.body.success) : Boolean(res.body?.ok)
+    if (isOk) return ok()
+    const msg = res.body?.error ?? res.body?.message
+    return fail(typeof msg === 'string' && msg ? msg : 'Failed to reject pairing')
+  },
+  'channel.get-authorized-users': async () => {
+    const res = await channelFetch('/users')
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    return ok(Array.isArray(res.body?.users) ? res.body.users : [])
+  },
+  'channel.revoke-user': async (req) => {
+    const res = await channelFetch(`/users/${encodeURIComponent(String(req.userId ?? ''))}`, {
+      method: 'DELETE',
+    })
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(typeof res.body?.message === 'string' ? res.body.message : 'Failed to revoke user')
+  },
+  'channel.sync-channel-settings': async (req) => {
+    const res = await channelFetch('/settings/sync', {
+      method: 'POST',
+      body: JSON.stringify({ platform: req.platform, agent: req.agent, model: req.model }),
+    })
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to sync settings',
+    )
+  },
+  'channel.wechat-start-qr-login': () => handleWechatStartQrLogin(),
+  'channel.wechat-cancel-qr-login': async () => {
+    stopWechatQrPolling()
+    return ok()
+  },
+  'moss.get-channel-agents': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/agents`,
+    )
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    return ok({ agents: res.body?.agents ?? [], defaultAgent: res.body?.defaultAgent ?? null })
+  },
+  'moss.set-channel-default-agent': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/agents/default`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ agentName: req.agentName ?? null }),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to set default agent',
+    )
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -1506,6 +2135,8 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
 // ---------------------------------------------------------------------------
 
 function handleInvoke(channel: string, id: string, req: unknown): void {
+  // First channel wire use opens the events socket (lazily; see its section).
+  if (channel.startsWith('channel.')) ensureChannelEventsSocket()
   // Defer to a microtask: `invoke()` emits the request and THEN registers the
   // callback listener, both synchronously. A synchronous deliver (the
   // localStorage-backed storage ops) would fire the callback before that

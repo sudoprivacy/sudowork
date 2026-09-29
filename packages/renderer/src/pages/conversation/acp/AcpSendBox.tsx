@@ -37,6 +37,7 @@ import AgentModeSelector from '@renderer/components/AgentModeSelector';
 import AcpConfigSelector from '@renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@renderer/utils/messageFiles';
+import { isElectronDesktop } from '@renderer/utils/platform';
 import { useWorkspaceFiles } from '@renderer/hooks/useWorkspaceFiles';
 import { shouldCancelAcpFinishTimeout } from './acpFinishTimeout';
 
@@ -1063,16 +1064,20 @@ const AcpSendBox: React.FC<{
                     <UploadOne theme='outline' size='16' fill={'var(--text-secondary)'} style={{ lineHeight: 0 }} />
                     <span>{t('conversation.welcome.downloadLocalFile')}</span>
                   </div>
-                  <div
-                    className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
-                    onClick={() => {
-                      setFileMenuOpen(false);
-                      setBdpanSelectorVisible(true);
-                    }}
-                  >
-                    <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
-                    <span>{t('conversation.welcome.downloadBdpanFile')}</span>
-                  </div>
+                  {/* bdpan is a desktop-only bridge (mossAdapter has no bdpan.* mappings on the
+                      web host), so hide this entry there. */}
+                  {isElectronDesktop() && (
+                    <div
+                      className='flex items-center gap-10px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active'
+                      onClick={() => {
+                        setFileMenuOpen(false);
+                        setBdpanSelectorVisible(true);
+                      }}
+                    >
+                      <img src={BdpanLogo} alt='Bdpan' style={{ width: 16, height: 16 }} />
+                      <span>{t('conversation.welcome.downloadBdpanFile')}</span>
+                    </div>
+                  )}
                 </div>
               }
             >
