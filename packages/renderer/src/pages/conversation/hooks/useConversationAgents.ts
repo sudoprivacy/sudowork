@@ -12,7 +12,7 @@ import { AVAILABLE_AGENTS_SWR_KEY, filterAvailableAgentsForUi, splitConversation
 
 export type UseConversationAgentsResult = {
   /** CLI Agents (non-custom, non-preset backends, excluding gemini-CLI) */
-  cliAgents: AvailableAgent[];
+  cliEngines: AvailableAgent[];
   /** Preset assistants (isPreset === true) */
   presetAssistants: AvailableAgent[];
   /** Loading state */
@@ -38,9 +38,9 @@ export const useConversationAgents = (): UseConversationAgentsResult => {
     return [];
   });
 
-  const { cliAgents, presetAssistants } = useMemo(() => {
+  const { cliEngines, presetAssistants } = useMemo(() => {
     if (!availableAgents) {
-      return { cliAgents: [], presetAssistants: [] };
+      return { cliEngines: [], presetAssistants: [] };
     }
     return splitConversationDropdownAgents(availableAgents);
   }, [availableAgents]);
@@ -50,7 +50,7 @@ export const useConversationAgents = (): UseConversationAgentsResult => {
   };
 
   return {
-    cliAgents,
+    cliEngines,
     presetAssistants,
     isLoading,
     refresh,

@@ -83,7 +83,7 @@
     "scheduledTab": "예약 작업"
   },
   "dropdown": {
-    "cliAgents": "CLI Agents",
+    "cliEngines": "CLI Agents",
     "presetAssistants": "프리셋 어시스턴트"
   },
   "noAgentsAvailable": "사용 가능한 에이전트가 없습니다",

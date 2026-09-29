@@ -31,9 +31,9 @@ describe('availableAgents helpers', () => {
     ]);
   });
 
-  it('splits conversation dropdown agents into cli and preset groups', () => {
+  it('splits conversation dropdown agents into cli engine and preset groups', () => {
     expect(splitConversationDropdownAgents(filterAvailableAgentsForUi(agents))).toEqual({
-      cliAgents: [{ backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' }],
+      cliEngines: [{ backend: 'claude', name: 'Claude Code', cliPath: '/usr/local/bin/claude' }],
       presetAssistants: [
         { backend: 'custom', name: 'Preset Assistant', customAgentId: 'builtin-writer', isPreset: true },
         { backend: 'codex', name: 'Code Review Assistant', isPreset: true, customAgentId: 'preset-1' },
