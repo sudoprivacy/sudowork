@@ -107,6 +107,10 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        'src/process/services/mossCatalog*.ts',
+        'src/process/services/mossResourcePath.ts',
+        'src/process/bridge/mossCatalogBridge.ts',
+        '../../packages/renderer/src/components/MossCatalogBrowser.tsx',
         '../../packages/common/src/mossExecution.ts',
         'src/process/services/mossLocalRuntime.ts',
         'src/process/services/mossExecutionContext.ts',

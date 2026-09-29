@@ -7,7 +7,10 @@ import type { IAssistantMeta } from '@sudowork/common/assistantTypes';
 import type { IMossConversationExecution } from '@sudowork/common/mossExecution';
 import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir, clearSkillsCache } from '@process/initStorage';
 import { getValidToken } from '@process/bridge/eeclawBridge';
+import { getEnterpriseTenantSkillsDir, getEnterpriseTenantAssistantsDir } from '@process/constants/enterpriseStorage';
 import { AcpSkillManager } from '@process/task/AcpSkillManager';
+import { safeResourcePath } from './mossResourcePath';
+export { safeResourcePath } from './mossResourcePath';
 
 const resourceSchema = z
   .object({
@@ -23,16 +26,7 @@ type Resource = z.infer<typeof resourceSchema>;
 export interface IMossPreparedResources {
   presetContext: string;
   enabledSkills: string[];
-  resources: Array<{ id: string; kind: 'agents' | 'skills'; digest: string; path: string }>;
-}
-
-/** Resolve ZIP paths before writing anything, including Windows archive paths. */
-export function safeResourcePath(root: string, relative: string): string {
-  const normalized = relative.replace(/\\/g, '/');
-  if (normalized.startsWith('/') || /^[a-z]:/i.test(normalized) || normalized.split('/').includes('..')) throw new Error('Unsafe resource archive path');
-  const result = path.resolve(root, normalized);
-  if (result !== path.resolve(root) && !result.startsWith(`${path.resolve(root)}${path.sep}`)) throw new Error('Unsafe resource archive path');
-  return result;
+  resources: Array<{ id: string; kind: 'agents' | 'skills'; source?: 'hub' | 'tenant'; digest: string; path: string }>;
 }
 
 /** Read the exact assistant version bound to a managed conversation. */
@@ -41,7 +35,7 @@ export async function readMossAssistantSnapshot(extra: IMossConversationExecutio
   if (extra.mossAccountScope !== ProcessConfig.getSync('eeclaw.accountScope')) throw new Error('Conversation belongs to a different Moss account');
   const resource = extra.mossResources?.find((item) => item.kind === 'agents' && item.id === extra.presetAssistantId);
   if (!resource) throw new Error('Assistant snapshot is missing');
-  const root = getHubAssistantsDir();
+  const root = resource.source === 'tenant' ? getEnterpriseTenantAssistantsDir() : getHubAssistantsDir();
   const directory = safeResourcePath(root, path.relative(root, resource.path));
   if ((await fs.readFile(path.join(directory, '.moss-ready'), 'utf8')) !== resource.digest) throw new Error('Local resource snapshot is incomplete');
   const meta = resourceSchema.extend({ ruleFile: z.string().min(1).optional(), mossDigest: z.string() }).parse(JSON.parse(await fs.readFile(path.join(directory, '_moss_meta.json'), 'utf8')));
@@ -52,7 +46,7 @@ export async function readMossAssistantSnapshot(extra: IMossConversationExecutio
   let presetContext = `${await fs.readFile(safeResourcePath(directory, ruleFile), 'utf8')}\n\nAssistant resources: ${directory}`;
   for (const skill of extra.mossResources || []) {
     if (skill.kind !== 'skills') continue;
-    const skillsRoot = getHubSkillsDir();
+    const skillsRoot = skill.source === 'tenant' ? getEnterpriseTenantSkillsDir() : getHubSkillsDir();
     const skillDir = safeResourcePath(skillsRoot, path.relative(skillsRoot, skill.path));
     presetContext += `\nSkill ${path.basename(skillDir)}: ${path.join(skillDir, 'SKILL.md')}`;
   }
@@ -60,7 +54,21 @@ export async function readMossAssistantSnapshot(extra: IMossConversationExecutio
 }
 
 /** Prepare only selected resources and their dependencies, using immutable content versions. */
-export async function prepareMossResources(assistantId?: string, skillIds: string[] = []): Promise<IMossPreparedResources> {
+export async function prepareMossResources(assistantId?: string, skillIds: string[] = [], isLegacyOnly = false): Promise<IMossPreparedResources> {
+  if (!isLegacyOnly && (assistantId || skillIds.length)) {
+    const { prepareLocalCatalogSelection } = await import('./mossCatalogSelection');
+    const catalog = await prepareLocalCatalogSelection(assistantId, skillIds);
+    if (catalog) {
+      const legacy = catalog.unresolved.length
+        ? await prepareMossResources(
+            assistantId && catalog.unresolved.includes(assistantId) ? assistantId : undefined,
+            skillIds.filter((id) => catalog.unresolved.includes(id)),
+            true
+          )
+        : undefined;
+      return { presetContext: [catalog.presetContext, legacy?.presetContext].filter(Boolean).join('\n\n'), enabledSkills: [...catalog.enabledSkills, ...(legacy?.enabledSkills || [])], resources: [...catalog.resources, ...(legacy?.resources || [])] };
+    }
+  }
   const result: IMossPreparedResources = { presetContext: '', enabledSkills: [], resources: [] };
   if (!assistantId && !skillIds.length) return result;
   const server = ProcessConfig.getSync('eeclaw.serverUrl');
@@ -182,7 +190,7 @@ export async function validateMossResourceSnapshot(resources: IMossPreparedResou
     const available = z.array(resourceSchema).parse(await response.json());
     for (const resource of resources.filter((item) => item.kind === kind)) {
       if (!available.some((item) => item.id === resource.id && item.enabled !== false)) throw new Error('Resource access has been revoked');
-      const root = kind === 'skills' ? getHubSkillsDir() : getHubAssistantsDir();
+      const root = resource.source === 'tenant' ? (kind === 'skills' ? getEnterpriseTenantSkillsDir() : getEnterpriseTenantAssistantsDir()) : kind === 'skills' ? getHubSkillsDir() : getHubAssistantsDir();
       safeResourcePath(root, path.relative(root, resource.path));
       if ((await fs.readFile(path.join(resource.path, '.moss-ready'), 'utf8')) !== resource.digest) throw new Error('Local resource snapshot is incomplete');
     }

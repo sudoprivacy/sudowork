@@ -460,6 +460,7 @@ export type TChatConversation =
           acpWsUrl?: string;
           /** Whether Moss session is pending creation (lazy creation pattern) / Moss session 是否待创建（延迟创建模式） */
           mossSessionPending?: boolean;
+          mossAssistantRef?: string;
           /** Display name override for workspace */
           workspaceDisplayName?: string;
           /** Cron job ID that created this conversation */

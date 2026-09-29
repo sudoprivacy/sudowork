@@ -12,6 +12,7 @@ vi.mock('@process/initStorage', () => ({
   getHubAssistantsDir: () => state.root,
   clearSkillsCache: vi.fn(),
 }));
+vi.mock('@process/services/mossCatalogSelection', () => ({ prepareLocalCatalogSelection: async () => undefined }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: async () => 'token' }));
 vi.mock('@process/task/AcpSkillManager', () => ({ AcpSkillManager: { resetInstance: vi.fn() } }));
 import { prepareMossResources, readMossAssistantSnapshot, safeResourcePath, validateMossResourceSnapshot } from '@process/services/mossResourcePreparation';

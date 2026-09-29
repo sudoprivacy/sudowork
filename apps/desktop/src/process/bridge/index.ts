@@ -6,6 +6,7 @@
 
 import { mainError } from '@process/utils/mainLogger';
 import { acpDetector } from '@/agent/acp/AcpDetector';
+import { initMossCatalogBridge } from './mossCatalogBridge';
 import { initAcpConversationBridge } from './acpConversationBridge';
 import { initApplicationBridge } from './applicationBridge';
 import { initAuthBridge } from './authBridge';
@@ -105,6 +106,7 @@ export function initAllBridges(): void {
   initLibreOfficeBridge();
   initSkillHubBridge();
   initAssistantHubBridge();
+  initMossCatalogBridge();
   initSudoclawBridge();
   initNodeRuntimeBridge();
   initPythonRuntimeBridge();

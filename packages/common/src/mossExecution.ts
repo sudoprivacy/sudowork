@@ -44,10 +44,12 @@ export function resolveConversationExecutionTarget(conversation: {
 export interface IMossConversationExecution {
   executionTarget?: "local" | "remote";
   mossAccountScope?: string;
+  mossAssistantRef?: string;
   mossResources?: Array<{
     id: string;
     kind: "agents" | "skills";
     digest: string;
+    source?: "hub" | "tenant";
     path: string;
   }>;
 }

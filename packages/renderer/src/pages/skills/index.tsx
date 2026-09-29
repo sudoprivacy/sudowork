@@ -1,3 +1,4 @@
+import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -137,7 +138,6 @@ const SkillSettings: React.FC = () => {
   const [uploadingSkillName, setUploadingSkillName] = useState<string | null>(null);
 
   // Track if sync has been triggered for current tab session (avoid loop)
-  const syncTriggeredRef = useRef(false);
   // Skip the debounced-search effect's first mount run — initial load is handled by the category-change effect
   const searchInitializedRef = useRef(false);
 
@@ -505,6 +505,7 @@ const SkillSettings: React.FC = () => {
   // Only recreated when fetchLatestVersions or t change (both are stable).
   const fetchSkills = useCallback(
     async (cursor?: string, append = false) => {
+      if (isEnterprise) return;
       try {
         if (append) setLoadingMore(true);
         else setLoading(true);
@@ -723,35 +724,6 @@ const SkillSettings: React.FC = () => {
 
   // Trigger sync when switching to store tab in enterprise mode
   // Only trigger once per tab session, not on every syncStatus change
-  useEffect(() => {
-    if (!isEnterprise || activeTab !== 'store' || !isElectronDesktop()) {
-      // Reset ref when leaving store tab
-      syncTriggeredRef.current = false;
-      return;
-    }
-
-    // Skip if already triggered for this tab session
-    if (syncTriggeredRef.current) return;
-
-    // Mark as triggered and start sync
-    syncTriggeredRef.current = true;
-    setSyncStatus({ syncing: true, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
-
-    eeclaw.syncFromRemote
-      .invoke()
-      .then((res) => {
-        if (!res.success) {
-          // Sync failed, reset status (syncCompleted event won't be emitted)
-          console.error('Sync failed:', res.msg);
-          setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
-        }
-        // If success, syncCompleted event will be emitted and handled separately
-      })
-      .catch((err) => {
-        console.error('Failed to trigger sync:', err);
-        setSyncStatus({ syncing: false, skills: { installed: [], skipped: [], deleted: [], failed: [] }, assistants: { installed: [], skipped: [], deleted: [], failed: [] } });
-      });
-  }, [isEnterprise, activeTab]);
 
   // Load installed list when switching to installed tab
   useEffect(() => {
@@ -1206,253 +1178,269 @@ const SkillSettings: React.FC = () => {
   return (
     <PageWrapper>
       <div ref={containerRef} className='flex flex-col h-full w-full'>
-        {/* Header: tabs + search + create button */}
-        <div className='flex items-center gap-6 mb-3'>
-          {/* Tab switcher */}
-          <Tabs
-            variant='line'
-            className='flex-shrink-0'
-            value={activeTab}
-            onChange={(value) => {
-              if (value === 'installed' && activeTab === 'installed') {
-                void refreshInstalledListWithUploadedStatuses();
-                return;
-              }
-              setActiveTab(value as SkillStoreTab);
+        {isEnterprise && isElectronDesktop() ? (
+          <MossCatalogBrowser
+            kind='skills'
+            customContent={renderCustomSkillGridWithEnterpriseActions(customInstalledSkills)}
+            builtinContent={renderInstalledSkillGrid(builtinInstalledSkills)}
+            onCreate={onImportButtonClick}
+            onInstalled={async () => {
+              await fetchInstalledList();
+              await fetchInstalledSkills();
+              emitter.emit('skills.changed');
             }}
-            items={[
-              { value: 'store', label: t('settings.skill.storeTab', '技能库') },
-              { value: 'exclusive', label: t('settings.skill.exclusiveTab', '专属技能') },
-              {
-                value: 'installed',
-                label: (
-                  <span className='f-center'>
-                    {t('settings.skill.installedTab', '我的技能')}
-                    {getInstalledSkillBadgeCount(installedList) > 0 && <span className='f-center min-w-4 h-4 ml-[5px] px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{getInstalledSkillBadgeCount(installedList)}</span>}
-                  </span>
-                ),
-              },
-            ]}
           />
-
-          {/* Sync status indicator for enterprise mode - compact inline style */}
-          {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px flex-shrink-0'>
-              <Spin size={12} />
-              <span className='text-11px text-primary'>{t('settings.skill.syncing', '同步中...')}</span>
-            </div>
-          )}
-          {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.skills.installed.length > 0 || syncStatus.skills.failed.length > 0) && (
-            <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-light rd-6px flex-shrink-0'>
-              <Check size={12} className='text-success' />
-              <span className='text-11px text-success'>{t('settings.skill.syncCompleted', '已同步')}</span>
-            </div>
-          )}
-
-          {/* Search - always rendered to preserve layout, hidden on installed tab */}
-          <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-tertiary' />} className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
-          {activeTab === 'installed' && isElectronDesktop() && (
-            <Tooltip content={t('settings.customSkills', '自定义技能')}>
-              <Button icon={isEnterprise ? <Plus size={13} /> : <Upload size={13} />} onClick={onImportButtonClick} className='rd-full flex-shrink-0'>
-                {isEnterprise ? t('common.create', '创建') : t('common.upload', '上传')}
-              </Button>
-            </Tooltip>
-          )}
-        </div>
-
-        {/* ===== STORE TAB ===== */}
-        {(activeTab === 'store' || activeTab === 'exclusive') && (
+        ) : (
           <>
-            {/* Category filter */}
-            <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
-              {[{ key: 'all', label: t('settings.skill.allCategories', '精选') }, ...categories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
-                <span key={key} className={classNames('category-chip', selectedCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedCategory(key)}>
-                  {label}
-                </span>
-              ))}
-            </div>
+            {/* Header: tabs + search + create button */}
+            <div className='flex items-center gap-6 mb-3'>
+              {/* Tab switcher */}
+              <Tabs
+                variant='line'
+                className='flex-shrink-0'
+                value={activeTab}
+                onChange={(value) => {
+                  if (value === 'installed' && activeTab === 'installed') {
+                    void refreshInstalledListWithUploadedStatuses();
+                    return;
+                  }
+                  setActiveTab(value as SkillStoreTab);
+                }}
+                items={[
+                  { value: 'store', label: t('settings.skill.storeTab', '技能库') },
+                  { value: 'exclusive', label: t('settings.skill.exclusiveTab', '专属技能') },
+                  {
+                    value: 'installed',
+                    label: (
+                      <span className='f-center'>
+                        {t('settings.skill.installedTab', '我的技能')}
+                        {getInstalledSkillBadgeCount(installedList) > 0 && <span className='f-center min-w-4 h-4 ml-[5px] px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{getInstalledSkillBadgeCount(installedList)}</span>}
+                      </span>
+                    ),
+                  },
+                ]}
+              />
 
-            {/* Skill grid */}
-            <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleScroll}>
-              {/* Enterprise mode: show tenant skills from local tenant/ directory */}
-              {activeTab === 'exclusive' && isEnterprise ? (
-                filteredTenantSkills.length === 0 ? (
-                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                    <Shield size={32} className='text-tertiary' />
-                    <span className='text-13px'>{t('settings.skill.noTenantSkills', '暂无专属技能')}</span>
-                  </div>
-                ) : (
-                  <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                    {filteredTenantSkills.map((skill) => {
-                      // Tenant skills have category 'tenant'
-                      return (
-                        <InstalledSkillCard
-                          key={`${skill.name}:${installedListRevision}`}
-                          skill={skill}
-                          onUninstall={() => void handleUninstall(skill.name, 'tenant')}
-                          uninstalling={uninstallingSkillName === skill.name}
-                          onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled, 'tenant')}
-                          togglingEnabled={togglingSkillName === skill.name}
-                          canManage={canManage}
-                          hasUpdate={false}
-                          hideUninstall={true}
-                          onClick={
-                            skill.meta
-                              ? () => {
-                                  setInstalledDetailInfo(skill);
-                                  setInstalledDetailVisible(true);
-                                }
-                              : undefined
-                          }
-                        />
-                      );
-                    })}
-                  </div>
-                )
-              ) : activeTab === 'exclusive' && !enterpriseCode ? (
-                isGuest ? (
-                  <HubEmptyState onLogin={() => navigate('/login')} />
-                ) : (
-                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                    <Shield size={32} className='text-tertiary' />
-                    <span className='text-13px'>{t('settings.skill.noEnterpriseCode', '当前账号没有企业编码，无法加载专属技能。')}</span>
-                  </div>
-                )
-              ) : loading || !installedSkillsReady ? (
-                <div className='flex justify-center items-center py-12'>
-                  <Spin size={28} />
+              {/* Sync status indicator for enterprise mode - compact inline style */}
+              {isEnterprise && activeTab === 'store' && syncStatus.syncing && (
+                <div className='flex items-center gap-1.5 px-2.5 py-1 bg-primary-light-1 rd-6px flex-shrink-0'>
+                  <Spin size={12} />
+                  <span className='text-11px text-primary'>{t('settings.skill.syncing', '同步中...')}</span>
                 </div>
-              ) : skills.length === 0 ? (
-                isGuest ? (
-                  <HubEmptyState onLogin={() => navigate('/login')} />
-                ) : hubError ? (
-                  <HubEmptyState error={hubError} onRetry={() => void fetchSkills()} />
-                ) : (
-                  <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
-                    <Zap size={32} className='text-tertiary' />
-                    <span className='text-13px'>{t('settings.skill.noResults', '暂无技能')}</span>
-                  </div>
-                )
-              ) : (
-                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                  {skills.map((skill) => {
-                    const isInstalled = installedSkills.has(skill.name) || installedSkills.has(skill.id);
-                    const latestVer = latestVersions.get(skill.id);
-                    const hasVersion = !!latestVer;
-                    const isInstalling = installingSkillId === skill.id;
-                    const isUpdating = updatingSkillId === skill.id;
-                    const installedVer = normalizeSkillVersion(installedSkills.get(skill.id) || installedSkills.get(skill.name));
-                    const skillHasUpdate = isInstalled && !!latestVer && (!installedVer || latestVer.version !== installedVer);
-                    return (
-                      <SkillCard
-                        key={skill.id}
-                        skill={skill}
-                        isInstalled={isInstalled}
-                        hasVersion={hasVersion}
-                        installing={isInstalling}
-                        installProgress={installProgress}
-                        onInstall={() => {
-                          void handleInstall(skill.id);
-                        }}
-                        onClick={() => openDetail(skill)}
-                        hasUpdate={skillHasUpdate}
-                        onUpdate={() => {
-                          void handleUpdate(skill.id);
-                        }}
-                        updating={isUpdating}
-                        latestVersion={latestVer?.version}
-                      />
-                    );
-                  })}
+              )}
+              {isEnterprise && activeTab === 'store' && !syncStatus.syncing && (syncStatus.skills.installed.length > 0 || syncStatus.skills.failed.length > 0) && (
+                <div className='flex items-center gap-1.5 px-2.5 py-1 bg-success-light rd-6px flex-shrink-0'>
+                  <Check size={12} className='text-success' />
+                  <span className='text-11px text-success'>{t('settings.skill.syncCompleted', '已同步')}</span>
                 </div>
               )}
 
-              {/* Loading skeleton cards — match grid layout for a seamless feel */}
-              {loadingMore && (
-                <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-3 flex items-start gap-3 animate-pulse'>
-                      <div className='size-12 flex-shrink-0 rd-8px bg-fill-3' />
-                      <div className='flex-1 min-w-0 flex flex-col gap-1.5 pt-0.5'>
-                        <div className='h-3.5 w-3/5 rd-4px bg-fill-3' />
-                        <div className='h-2.5 w-full rd-4px bg-fill-3' />
-                        <div className='h-2.5 w-4/5 rd-4px bg-fill-3' />
-                      </div>
-                    </div>
+              {/* Search - always rendered to preserve layout, hidden on installed tab */}
+              <Input placeholder={t('settings.skill.searchPlaceholder', '搜索...')} value={searchQuery} onChange={setSearchQuery} prefix={<IconSearch style={{ fontSize: 14 }} className='text-tertiary' />} className={classNames('flex-1 min-w-0', activeTab === 'installed' && 'invisible')} />
+              {activeTab === 'installed' && isElectronDesktop() && (
+                <Tooltip content={t('settings.customSkills', '自定义技能')}>
+                  <Button icon={isEnterprise ? <Plus size={13} /> : <Upload size={13} />} onClick={onImportButtonClick} className='rd-full flex-shrink-0'>
+                    {isEnterprise ? t('common.create', '创建') : t('common.upload', '上传')}
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+
+            {/* ===== STORE TAB ===== */}
+            {(activeTab === 'store' || activeTab === 'exclusive') && (
+              <>
+                {/* Category filter */}
+                <div className='flex gap-1.5 mb-3.5 overflow-x-auto pb-0.5 flex-shrink-0 scrollbar-hide'>
+                  {[{ key: 'all', label: t('settings.skill.allCategories', '精选') }, ...categories.map((c) => ({ key: c, label: c }))].map(({ key, label }) => (
+                    <span key={key} className={classNames('category-chip', selectedCategory === key ? 'category-chip-active' : 'category-chip-idle')} onClick={() => setSelectedCategory(key)}>
+                      {label}
+                    </span>
                   ))}
                 </div>
-              )}
-              {/* Sentinel for IntersectionObserver — triggers loadMore when scrolled into view */}
-              {hasMore && <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />}
-            </AionScrollArea>
-          </>
-        )}
 
-        {/* ===== INSTALLED TAB ===== */}
-        {activeTab === 'installed' && (
-          <>
-            {/* Installed grid */}
-            <AionScrollArea className='flex-1 min-h-0' disableOverflow>
-              {installedLoading ? (
-                <div className='flex justify-center items-center py-12'>
-                  <Spin size={28} />
-                </div>
-              ) : installedList.length === 0 ? (
-                <div className='flex flex-col items-center justify-center py-12 gap-2'>
-                  <Zap size={32} className='text-tertiary' />
-                  <div className='text-13px text-secondary'>{t('settings.skill.noInstalledSkills', '暂无已安装的技能')}</div>
-                  <div className='text-12px text-tertiary'>{t('settings.skill.noInstalledSkillsHint', '前往技能库安装你需要的技能')}</div>
-                  <Button size='small' type='outline' className='mt-1' onClick={() => setActiveTab('store')}>
-                    {t('settings.skill.browseStore', '浏览技能库')}
-                  </Button>
-                </div>
-              ) : (
-                <div className='pb-4 space-y-5'>
-                  <section>
-                    <div className='flex items-center justify-between gap-2 mb-2.5'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.customSkills', '自定义技能')}</div>
-                      <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
-                    </div>
-                    {customInstalledSkills.length > 0 ? (
-                      isEnterprise ? (
-                        renderCustomSkillGridWithEnterpriseActions(customInstalledSkills)
-                      ) : (
-                        renderInstalledSkillGrid(customInstalledSkills)
-                      )
-                    ) : (
-                      <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary f-center'>{t('settings.noCustomSkills', '暂无自定义技能')}</div>
-                    )}
-                  </section>
-
-                  {/* Tenant skills section - enterprise mode only */}
-                  {isEnterprise && (
-                    <section>
-                      <div className='flex items-center justify-between gap-2 mb-2.5'>
-                        <div className='text-13px font-medium text-foreground'>{t('settings.tenantSkills', '专属技能')}</div>
-                        <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
+                {/* Skill grid */}
+                <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleScroll}>
+                  {/* Enterprise mode: show tenant skills from local tenant/ directory */}
+                  {activeTab === 'exclusive' && isEnterprise ? (
+                    filteredTenantSkills.length === 0 ? (
+                      <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                        <Shield size={32} className='text-tertiary' />
+                        <span className='text-13px'>{t('settings.skill.noTenantSkills', '暂无专属技能')}</span>
                       </div>
-                      {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noTenantSkills', '暂无专属技能')}</div>}
-                    </section>
+                    ) : (
+                      <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                        {filteredTenantSkills.map((skill) => {
+                          // Tenant skills have category 'tenant'
+                          return (
+                            <InstalledSkillCard
+                              key={`${skill.name}:${installedListRevision}`}
+                              skill={skill}
+                              onUninstall={() => void handleUninstall(skill.name, 'tenant')}
+                              uninstalling={uninstallingSkillName === skill.name}
+                              onToggleEnabled={(enabled) => void handleToggleSkillEnabled(skill.name, enabled, 'tenant')}
+                              togglingEnabled={togglingSkillName === skill.name}
+                              canManage={canManage}
+                              hasUpdate={false}
+                              hideUninstall={true}
+                              onClick={
+                                skill.meta
+                                  ? () => {
+                                      setInstalledDetailInfo(skill);
+                                      setInstalledDetailVisible(true);
+                                    }
+                                  : undefined
+                              }
+                            />
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : activeTab === 'exclusive' && !enterpriseCode ? (
+                    isGuest ? (
+                      <HubEmptyState onLogin={() => navigate('/login')} />
+                    ) : (
+                      <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                        <Shield size={32} className='text-tertiary' />
+                        <span className='text-13px'>{t('settings.skill.noEnterpriseCode', '当前账号没有企业编码，无法加载专属技能。')}</span>
+                      </div>
+                    )
+                  ) : loading || !installedSkillsReady ? (
+                    <div className='flex justify-center items-center py-12'>
+                      <Spin size={28} />
+                    </div>
+                  ) : skills.length === 0 ? (
+                    isGuest ? (
+                      <HubEmptyState onLogin={() => navigate('/login')} />
+                    ) : hubError ? (
+                      <HubEmptyState error={hubError} onRetry={() => void fetchSkills()} />
+                    ) : (
+                      <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
+                        <Zap size={32} className='text-tertiary' />
+                        <span className='text-13px'>{t('settings.skill.noResults', '暂无技能')}</span>
+                      </div>
+                    )
+                  ) : (
+                    <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                      {skills.map((skill) => {
+                        const isInstalled = installedSkills.has(skill.name) || installedSkills.has(skill.id);
+                        const latestVer = latestVersions.get(skill.id);
+                        const hasVersion = !!latestVer;
+                        const isInstalling = installingSkillId === skill.id;
+                        const isUpdating = updatingSkillId === skill.id;
+                        const installedVer = normalizeSkillVersion(installedSkills.get(skill.id) || installedSkills.get(skill.name));
+                        const skillHasUpdate = isInstalled && !!latestVer && (!installedVer || latestVer.version !== installedVer);
+                        return (
+                          <SkillCard
+                            key={skill.id}
+                            skill={skill}
+                            isInstalled={isInstalled}
+                            hasVersion={hasVersion}
+                            installing={isInstalling}
+                            installProgress={installProgress}
+                            onInstall={() => {
+                              void handleInstall(skill.id);
+                            }}
+                            onClick={() => openDetail(skill)}
+                            hasUpdate={skillHasUpdate}
+                            onUpdate={() => {
+                              void handleUpdate(skill.id);
+                            }}
+                            updating={isUpdating}
+                            latestVersion={latestVer?.version}
+                          />
+                        );
+                      })}
+                    </div>
                   )}
 
-                  <section>
-                    <div className='flex items-center justify-between gap-2 mb-2.5'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.hubSkills', '商店技能')}</div>
-                      <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
+                  {/* Loading skeleton cards — match grid layout for a seamless feel */}
+                  {loadingMore && (
+                    <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={`skel-${i}`} className='bg-fill-1 rd-12px border p-3 flex items-start gap-3 animate-pulse'>
+                          <div className='size-12 flex-shrink-0 rd-8px bg-fill-3' />
+                          <div className='flex-1 min-w-0 flex flex-col gap-1.5 pt-0.5'>
+                            <div className='h-3.5 w-3/5 rd-4px bg-fill-3' />
+                            <div className='h-2.5 w-full rd-4px bg-fill-3' />
+                            <div className='h-2.5 w-4/5 rd-4px bg-fill-3' />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noHubSkills', '暂无商店安装的技能')}</div>}
-                  </section>
+                  )}
+                  {/* Sentinel for IntersectionObserver — triggers loadMore when scrolled into view */}
+                  {hasMore && <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />}
+                </AionScrollArea>
+              </>
+            )}
 
-                  <section>
-                    <div className='flex items-center justify-between gap-2 mb-2.5'>
-                      <div className='text-13px font-medium text-foreground'>{t('settings.builtinSkills', '内置技能')}</div>
-                      <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
+            {/* ===== INSTALLED TAB ===== */}
+            {activeTab === 'installed' && (
+              <>
+                {/* Installed grid */}
+                <AionScrollArea className='flex-1 min-h-0' disableOverflow>
+                  {installedLoading ? (
+                    <div className='flex justify-center items-center py-12'>
+                      <Spin size={28} />
                     </div>
-                    {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noBuiltinSkills', '暂无可用的内置技能')}</div>}
-                  </section>
-                </div>
-              )}
-            </AionScrollArea>
+                  ) : installedList.length === 0 ? (
+                    <div className='flex flex-col items-center justify-center py-12 gap-2'>
+                      <Zap size={32} className='text-tertiary' />
+                      <div className='text-13px text-secondary'>{t('settings.skill.noInstalledSkills', '暂无已安装的技能')}</div>
+                      <div className='text-12px text-tertiary'>{t('settings.skill.noInstalledSkillsHint', '前往技能库安装你需要的技能')}</div>
+                      <Button size='small' type='outline' className='mt-1' onClick={() => setActiveTab('store')}>
+                        {t('settings.skill.browseStore', '浏览技能库')}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className='pb-4 space-y-5'>
+                      <section>
+                        <div className='flex items-center justify-between gap-2 mb-2.5'>
+                          <div className='text-13px font-medium text-foreground'>{t('settings.customSkills', '自定义技能')}</div>
+                          <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{customInstalledSkills.length}</span>
+                        </div>
+                        {customInstalledSkills.length > 0 ? (
+                          isEnterprise ? (
+                            renderCustomSkillGridWithEnterpriseActions(customInstalledSkills)
+                          ) : (
+                            renderInstalledSkillGrid(customInstalledSkills)
+                          )
+                        ) : (
+                          <div className='bg-base border border-dashed rd-12px px-3.5 py-4.5 text-12px text-secondary f-center'>{t('settings.noCustomSkills', '暂无自定义技能')}</div>
+                        )}
+                      </section>
+
+                      {/* Tenant skills section - enterprise mode only */}
+                      {isEnterprise && (
+                        <section>
+                          <div className='flex items-center justify-between gap-2 mb-2.5'>
+                            <div className='text-13px font-medium text-foreground'>{t('settings.tenantSkills', '专属技能')}</div>
+                            <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{localTenantSkills.length}</span>
+                          </div>
+                          {localTenantSkills.length > 0 ? renderInstalledSkillGrid(localTenantSkills, true) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noTenantSkills', '暂无专属技能')}</div>}
+                        </section>
+                      )}
+
+                      <section>
+                        <div className='flex items-center justify-between gap-2 mb-2.5'>
+                          <div className='text-13px font-medium text-foreground'>{t('settings.hubSkills', '商店技能')}</div>
+                          <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{hubInstalledSkills.length}</span>
+                        </div>
+                        {hubInstalledSkills.length > 0 ? renderInstalledSkillGrid(hubInstalledSkills, isEnterprise) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noHubSkills', '暂无商店安装的技能')}</div>}
+                      </section>
+
+                      <section>
+                        <div className='flex items-center justify-between gap-2 mb-2.5'>
+                          <div className='text-13px font-medium text-foreground'>{t('settings.builtinSkills', '内置技能')}</div>
+                          <span className='px-1.5 py-0 bg-fill-2 text-secondary text-11px rd-full leading-18px'>{builtinInstalledSkills.length}</span>
+                        </div>
+                        {builtinInstalledSkills.length > 0 ? renderInstalledSkillGrid(builtinInstalledSkills) : <div className='bg-fill-1 border border-dashed rd-12px px-3.5 py-4.5 text-12px text-tertiary'>{t('settings.noBuiltinSkills', '暂无可用的内置技能')}</div>}
+                      </section>
+                    </div>
+                  )}
+                </AionScrollArea>
+              </>
+            )}
           </>
         )}
 

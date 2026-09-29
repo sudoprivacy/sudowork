@@ -363,6 +363,11 @@ export function initConversationBridge(): void {
           },
         };
       }
+      if (target === 'remote' && ProcessConfig.getSync('eeclaw.accountScope')) {
+        const { resolveMossCatalogSelection } = await import('@process/services/mossCatalogSelection');
+        const selection = await resolveMossCatalogSelection(params.extra?.presetAssistantId, params.extra?.enabledSkills);
+        finalParams = { ...finalParams, extra: { ...finalParams.extra, mossAssistantRef: selection.assistantReference, enabledSkills: selection.skillReferences } };
+      }
       const provider = getConversationProvider(target);
       const conversation = await provider.createConversation(finalParams);
 
