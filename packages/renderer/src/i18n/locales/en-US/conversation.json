@@ -129,7 +129,7 @@
     "expandConversation": "Expand conversation"
   },
   "dropdown": {
-    "cliAgents": "CLI Agents",
+    "cliEngines": "CLI Agents",
     "presetAssistants": "Preset Agents"
   },
   "noAgentsAvailable": "No agents available",

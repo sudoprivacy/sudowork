@@ -18,11 +18,11 @@ export function filterAvailableAgentsForUi(availableAgents: AvailableAgent[]): A
 }
 
 export function splitConversationDropdownAgents(availableAgents: AvailableAgent[]): {
-  cliAgents: AvailableAgent[];
+  cliEngines: AvailableAgent[];
   presetAssistants: AvailableAgent[];
 } {
   return {
-    cliAgents: availableAgents.filter((agent) => agent.backend !== 'custom' && !agent.isPreset),
+    cliEngines: availableAgents.filter((agent) => agent.backend !== 'custom' && !agent.isPreset),
     presetAssistants: availableAgents.filter((agent) => agent.isPreset === true),
   };
 }

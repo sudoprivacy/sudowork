@@ -71,7 +71,7 @@ export function getConversationTypeForPreset(): ICreateConversationParams['type'
  * The backend will automatically fill in derived fields (gateway.cliPath, runtimeValidation, etc.).
  * [BUG-3 fix]: callers must invoke this inside a try block because getDefaultGeminiModel may throw.
  */
-export async function buildCliAgentParams(agent: AvailableAgent, workspace: string): Promise<ICreateConversationParams> {
+export async function buildCliEngineParams(agent: AvailableAgent, workspace: string): Promise<ICreateConversationParams> {
   const { backend, name: agentName, cliPath } = agent;
 
   const type = getConversationTypeForBackend();

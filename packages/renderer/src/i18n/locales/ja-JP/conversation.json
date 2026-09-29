@@ -83,7 +83,7 @@
     "scheduledTab": "スケジュールタスク"
   },
   "dropdown": {
-    "cliAgents": "CLI Agents",
+    "cliEngines": "CLI Agents",
     "presetAssistants": "プリセットアシスタント"
   },
   "noAgentsAvailable": "利用可能なエージェントはありません",

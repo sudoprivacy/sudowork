@@ -16,7 +16,7 @@ import { emitter } from '@renderer/utils/emitter';
 import { getAgentLogo } from '@renderer/utils/agentLogo';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@renderer/pages/guid/utils/constants';
 import { formatSessionTime } from '@renderer/utils/messageTime';
-import { buildCliAgentParams, buildPresetAssistantParams } from './utils/createConversationParams';
+import { buildCliEngineParams, buildPresetAssistantParams } from './utils/createConversationParams';
 import { applyDefaultConversationName } from './utils/newConversationName';
 import { useConversationAgents } from './hooks/useConversationAgents';
 import { useConversationTabs } from './context/ConversationTabsContext';
@@ -90,7 +90,7 @@ const ConversationTabs: React.FC = () => {
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabFadeState, setTabFadeState] = useState<TabFadeState>({ left: false, right: false });
 
-  const { cliAgents, presetAssistants, isLoading } = useConversationAgents();
+  const { cliEngines, presetAssistants, isLoading } = useConversationAgents();
   const defaultConversationName = t('conversation.welcome.newConversation');
   // 更新 Tab 溢出状态
   const updateTabOverflow = useCallback(() => {
@@ -184,12 +184,12 @@ const ConversationTabs: React.FC = () => {
         if (key.startsWith('cli:')) {
           const backend = key.slice(4);
           // [BUG-6] Null check: find() may return undefined
-          const agent = cliAgents.find((a) => a.backend === backend);
+          const agent = cliEngines.find((a) => a.backend === backend);
           if (!agent) {
             Message.error(t('conversation.createFailed'));
             return;
           }
-          params = await buildCliAgentParams(agent, workspace);
+          params = await buildCliEngineParams(agent, workspace);
         } else if (key.startsWith('preset:')) {
           const assistantId = key.slice(7);
           // [BUG-6] Null check: find() may return undefined
@@ -219,16 +219,16 @@ const ConversationTabs: React.FC = () => {
         Message.error(t('conversation.createFailed'));
       }
     },
-    [navigate, openTabs, activeTabId, cliAgents, presetAssistants, closeAllTabs, openTab, t, i18n.language, defaultConversationName]
+    [navigate, openTabs, activeTabId, cliEngines, presetAssistants, closeAllTabs, openTab, t, i18n.language, defaultConversationName]
   );
 
   // 渲染 Agent 下拉菜单
   const renderAgentDropdownMenu = useCallback(() => {
     return (
       <Menu onClickMenuItem={(key) => void handleCreateConversation(key)}>
-        {cliAgents.length > 0 && (
-          <Menu.ItemGroup title={t('conversation.dropdown.cliAgents')}>
-            {cliAgents.map((agent) => {
+        {cliEngines.length > 0 && (
+          <Menu.ItemGroup title={t('conversation.dropdown.cliEngines')}>
+            {cliEngines.map((agent) => {
               const logo = getAgentLogo(agent.backend);
               return (
                 <Menu.Item key={`cli:${agent.backend}`}>
@@ -259,7 +259,7 @@ const ConversationTabs: React.FC = () => {
         )}
       </Menu>
     );
-  }, [cliAgents, presetAssistants, handleCreateConversation, t]);
+  }, [cliEngines, presetAssistants, handleCreateConversation, t]);
 
   // 生成右键菜单内容
   const getContextMenu = useCallback(
@@ -318,7 +318,7 @@ const ConversationTabs: React.FC = () => {
     return null;
   }
 
-  const isDropdownDisabled = isLoading || (!cliAgents.length && !presetAssistants.length);
+  const isDropdownDisabled = isLoading || (!cliEngines.length && !presetAssistants.length);
 
   return (
     <div className='relative shrink-0 bg-2 min-h-40px'>

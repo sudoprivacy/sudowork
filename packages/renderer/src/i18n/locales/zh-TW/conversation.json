@@ -83,7 +83,7 @@
     "scheduledTab": "排程任務"
   },
   "dropdown": {
-    "cliAgents": "CLI Agents",
+    "cliEngines": "CLI Agents",
     "presetAssistants": "預設助手"
   },
   "noAgentsAvailable": "沒有可用的 Agent",

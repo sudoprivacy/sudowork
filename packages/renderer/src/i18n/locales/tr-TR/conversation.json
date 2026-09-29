@@ -270,7 +270,7 @@
     "preset_registered": "Ajan hazır ayarı başarıyla kaydedildi!"
   },
   "dropdown": {
-    "cliAgents": "CLI Agents",
+    "cliEngines": "CLI Agents",
     "presetAssistants": "Preset Assistants"
   },
   "noAgentsAvailable": "No agents available",
