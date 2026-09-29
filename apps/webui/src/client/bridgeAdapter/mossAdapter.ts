@@ -641,13 +641,15 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
     // already-mapped remote-agent channels.
     // 标题优先级与桌面端对齐：本地已有 title（含用户改名）优先，其次 cron 会话按
     // 「任务名 + 运行时间」组装（时间基准 = 会话创建时间），非 cron 会话保持原兜底链。
+    // 末级曾经是 item.id：会话既没标题又没助手时，侧栏直接显示一串 uuid。uuid 不是
+    // 名字，留空即可，由渲染层显示本地化的「新对话」。
     name:
       item.title ??
       (isCron
         ? formatCronRunTitle(cronJobName, item.createdAt ?? item.lastActiveAt ?? Date.now())
         : undefined) ??
       item.assistantName ??
-      item.id,
+      '',
     type: 'remote-agent',
     createTime: isCron && item.createdAt ? item.createdAt : ts,
     modifyTime: ts,

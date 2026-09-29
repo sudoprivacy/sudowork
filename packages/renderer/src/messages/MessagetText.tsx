@@ -17,7 +17,7 @@ import { isElectronDesktop } from '@renderer/utils/platform';
 import { getInstalledSkillDisplay } from '@renderer/utils/skillDisplay';
 import { filterUserVisibleFiles } from '@renderer/utils/messageFiles';
 import { copyText } from '@renderer/utils/clipboard';
-import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
+import { stripThinkTags, hasThinkTags } from '@sudowork/common/thinkTagFilter';
 import MarkdownView from '../components/Markdown';
 import HorizontalFileList from '../components/HorizontalFileList';
 import FilePreview from '../components/FilePreview';

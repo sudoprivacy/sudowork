@@ -7,16 +7,16 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { deriveConversationTitle, isUnnamedConversation } from '@sudowork/common/conversationTitle';
 import { useConversationTabs } from '@renderer/pages/conversation/context/ConversationTabsContext';
 import { emitter } from '@renderer/utils/emitter';
-import { stripThinkTags, hasThinkTags } from '@renderer/utils/thinkTagFilter';
 
 /**
  * useAutoTitle —— 自动为对话生成标题。
  *
  * 返回 checkAndUpdateTitle(conversationId, messageContent)：在用户发送消息时调用，
- * 当对话名仍为默认值（"新对话" / "Remote Agent"）或过长（> 50 字符，通常是误用整条消息当标题）时，
- * 取消息首行前 50 字符（先剥离 <think> 思考内容）作为新标题，写库并刷新 tab 名与历史列表。
+ * 对话还没有自己的名字时，用这条消息推导一个。推导规则与 WebUI 服务端共用
+ * （@sudowork/common/conversationTitle），两个端不会对同一个对话叫出不同名字。
  */
 export const useAutoTitle = () => {
   const { t } = useTranslation();
@@ -24,31 +24,27 @@ export const useAutoTitle = () => {
 
   const checkAndUpdateTitle = useCallback(
     async (conversationId: string, messageContent: string) => {
-      const defaultTitle = t('conversation.welcome.newConversation');
-      const remoteAgentDefaultTitle = 'Remote Agent';
       try {
         const conversation = await ipcBridge.conversation.get.invoke({ id: conversationId });
-        // Only update if current name matches default titles or is too long (user message as title)
-        const isUnnamedUuid = conversation && conversation.name === conversation.id;
-        const isDefaultName = conversation && (conversation.name === defaultTitle || conversation.name === remoteAgentDefaultTitle);
-        // Also check if name is too long (> 50 chars) - likely full user message, should truncate
-        const isTooLong = conversation && conversation.name && conversation.name.length > 50;
+        if (!conversation) return;
+        if (
+          !isUnnamedConversation(conversation.name, {
+            localizedDefaults: [t('conversation.welcome.newConversation')],
+            conversationId: conversation.id,
+          })
+        )
+          return;
 
-        if (conversation && (isDefaultName || isUnnamedUuid || isTooLong)) {
-          // Strip think tags before extracting title to avoid thinking content in conversation name
-          const cleanContent = hasThinkTags(messageContent) ? stripThinkTags(messageContent) : messageContent;
-          // Create title from message: take first 50 chars, remove newlines
-          const newTitle = cleanContent.split('\n')[0].substring(0, 50).trim();
-          if (!newTitle) return; // Don't update if empty
+        const newTitle = deriveConversationTitle(messageContent);
+        if (!newTitle) return;
 
-          await ipcBridge.conversation.update.invoke({
-            id: conversationId,
-            updates: { name: newTitle },
-          });
+        await ipcBridge.conversation.update.invoke({
+          id: conversationId,
+          updates: { name: newTitle },
+        });
 
-          updateTabName(conversationId, newTitle);
-          emitter.emit('chat.history.refresh');
-        }
+        updateTabName(conversationId, newTitle);
+        emitter.emit('chat.history.refresh');
       } catch (error) {
         console.error('Failed to auto-update conversation title:', error);
       }

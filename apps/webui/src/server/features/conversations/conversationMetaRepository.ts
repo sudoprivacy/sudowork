@@ -82,8 +82,14 @@ export async function upsertConversationModel(
   )
 }
 
-/** 标题写入（不存在则插入；不覆盖置顶字段） */
-export async function upsertConversationTitle(
+/**
+ * 首条消息命名：仅当会话尚未命名时写入（不存在则插入；不覆盖置顶字段）。
+ *
+ * 「尚未命名」这个条件放在 SQL 里而不是先读后写：命名发生在发送路径上，同一会话可能
+ * 有并发发送，用户也可能已经手动重命名过（updateConversationMeta）。读-判-写在这两种
+ * 情况下都会把已有的名字盖掉。
+ */
+export async function setConversationTitleIfUnset(
   pool: Pool,
   principalId: string,
   mossSessionId: string,
@@ -93,7 +99,8 @@ export async function upsertConversationTitle(
     `INSERT INTO conversation_meta (principal_id, moss_session_id, title, updated_at)
      VALUES ($1, $2, $3, now())
      ON CONFLICT (principal_id, moss_session_id) DO UPDATE
-       SET title = $3, updated_at = now()`,
+       SET title = $3, updated_at = now()
+       WHERE conversation_meta.title IS NULL`,
     [principalId, mossSessionId, title],
   )
 }

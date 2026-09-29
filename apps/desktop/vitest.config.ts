@@ -112,6 +112,7 @@ export default defineConfig({
         'src/process/bridge/mossCatalogBridge.ts',
         '../../packages/renderer/src/components/MossCatalogBrowser.tsx',
         '../../packages/common/src/mossExecution.ts',
+        '../../packages/common/src/conversationTitle.ts',
         'src/process/services/mossLocalRuntime.ts',
         'src/process/services/mossExecutionContext.ts',
         'src/process/services/mossResourcePreparation.ts',
