@@ -33,6 +33,7 @@ import { bridge } from '@office-ai/platform'
 import type { IBridgeResponse } from '@sudowork/host-bridge/ipcBridge'
 import type { IConfirmation } from '@sudowork/common/chatLib'
 import type { IChannelPluginStatus } from '@sudowork/common/channelTypes'
+import { deriveConversationTitle } from '@sudowork/common/conversationTitle'
 // The moss-frame → IResponseMessage mapping is the SAME implementation the desktop
 // MossWsConnection uses (shared leaf module, full stateless-frame coverage).
 import {
@@ -201,6 +202,34 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(code)
   }
   return body as T
+}
+
+/**
+ * 给还没有名字的历史会话补一个名字。
+ *
+ * 会话现在在第一条用户消息被接受时命名，但在那之前名字只在读路径产生，所以没人
+ * 打开过的会话一直是空的。继续聊的会话下一条消息就会被命名，剩下的缺口只有
+ * 「打开了但不再发消息」的那批——打开时消息本来就已经取回来了，用用户自己的
+ * 重命名接口补一次即可，不必在 GET 里藏一个写操作。
+ *
+ * 只对空标题生效，所以每个会话至多补一次；失败不影响打开会话。
+ */
+async function nameLegacyConversation(
+  sessionId: string,
+  title: string | null | undefined,
+  messages: unknown[],
+): Promise<void> {
+  if (title) return
+  const firstUser = messages.find((m) => (m as { role?: unknown })?.role === 'user') as
+    { content?: { content?: unknown } } | undefined
+  const text = firstUser?.content?.content
+  if (typeof text !== 'string') return
+  const derived = deriveConversationTitle(text)
+  if (!derived) return
+  await apiFetch(`/api/conversations/${encodeURIComponent(sessionId)}/meta`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title: derived }),
+  }).catch(() => {})
 }
 
 // ---------------------------------------------------------------------------
@@ -1540,10 +1569,12 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   'database.get-conversation-messages': async (req) => {
     const id = String(req?.conversation_id ?? '')
-    const ctx = await apiFetch<{ messages?: unknown[] }>(
+    const ctx = await apiFetch<{ messages?: unknown[]; title?: string | null }>(
       `/api/conversations/${encodeURIComponent(id)}/context`,
     )
-    return ctx.messages ?? []
+    const messages = ctx.messages ?? []
+    void nameLegacyConversation(id, ctx.title, messages)
+    return messages
   },
 
   // --- workspace / deliverables (moss-session right panel) ---

@@ -60,9 +60,17 @@ describe('isUnnamedConversation', () => {
   });
 
   it('recognises the caller-supplied localized default', () => {
-    expect(isUnnamedConversation('新对话', ['新对话'])).toBe(true);
+    expect(isUnnamedConversation('新对话', { localizedDefaults: ['新对话'] })).toBe(true);
     // The same conversation under a different UI language.
-    expect(isUnnamedConversation('New Conversation', ['新对话'])).toBe(false);
+    expect(isUnnamedConversation('New Conversation', { localizedDefaults: ['新对话'] })).toBe(false);
+  });
+
+  it('recognises a conversation named after its own id', () => {
+    const id = '53b79918-acd4-4f1e-9b0a-2c1d8f6e4a77';
+    expect(isUnnamedConversation(id, { conversationId: id })).toBe(true);
+    // A title that merely looks like an id, on a conversation with a different
+    // id, is still a title — the check is equality, not shape.
+    expect(isUnnamedConversation(id, { conversationId: 'some-other-id' })).toBe(false);
   });
 
   it('re-derives when a whole message was stored as the name', () => {
