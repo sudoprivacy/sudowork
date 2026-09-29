@@ -619,7 +619,11 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
   let isCron = false
   if (typeof item.source === 'string') {
     try {
-      const parsed = JSON.parse(item.source) as { source?: unknown; cronJobId?: unknown; cronJobName?: unknown }
+      const parsed = JSON.parse(item.source) as {
+        source?: unknown
+        cronJobId?: unknown
+        cronJobName?: unknown
+      }
       if (parsed.source === 'cron') {
         isCron = true
         if (typeof parsed.cronJobId === 'string') cronJobId = parsed.cronJobId
@@ -793,13 +797,19 @@ function mossSkillToInstalledInfo(s: MossSkillItem): unknown {
   const isHub = s.isHubInstalled === true
   const rawMeta = (s.meta && typeof s.meta === 'object' ? s.meta : {}) as Record<string, unknown>
   const displayName = s.display_name ?? s.displayName ?? s.name
+  // toWebCategory folds a missing/unknown moss category into 'custom', but the
+  // tenant marker lives in meta.source_type (moss returns an empty category on
+  // tenant rows) — without this fallback tenant skills land in the custom panel.
+  const resolvedCategory = toWebCategory(s.category)
+  const category =
+    resolvedCategory === 'custom' && rawMeta.source_type === 'tenant' ? 'tenant' : resolvedCategory
   return {
     name: s.name,
     version: String(s.version ?? ''),
     isHubInstalled: isHub,
     isBuiltin: s.isBuiltin === true,
     enabled: s.enabled !== false,
-    category: toWebCategory(s.category),
+    category,
     meta: {
       ...rawMeta,
       id: rawMeta.id ?? s.id ?? s.name,

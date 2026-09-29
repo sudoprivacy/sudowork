@@ -334,6 +334,27 @@ describe('mossAdapter: assistant/skill management channels', () => {
     expect(result.data?.[1]?.isBuiltin).toBe(true)
   })
 
+  it('get-installed-skills derives tenant category from meta.source_type when moss omits it', async () => {
+    stubFetch({
+      '/api/skills': [
+        // moss returns an empty category on tenant rows; the marker is in meta.source_type
+        { name: 'tenant-s', version: '1.0.0', category: '', meta: { source_type: 'tenant' } },
+        // non-tenant rows with an empty category must stay 'custom'
+        { name: 'custom-s', version: '1.0.0', category: '', meta: { source_type: 'hub' } },
+        // an explicit category keeps passing through unchanged
+        { name: 'explicit-tenant-s', version: '1.0.0', category: 'tenant' },
+        { name: 'explicit-sys-s', version: '1.0.0', category: 'system' },
+      ],
+    })
+    const result = await ipcBridge.skillHub.getInstalledSkills.invoke()
+
+    expect(result.success).toBe(true)
+    expect(result.data?.[0]?.category).toBe('tenant')
+    expect(result.data?.[1]?.category).toBe('custom')
+    expect(result.data?.[2]?.category).toBe('tenant')
+    expect(result.data?.[3]?.category).toBe('system')
+  })
+
   it('set-skill-enabled patches {name, enabled}', async () => {
     const fetchMock = stubFetch({ '/api/skills/enabled': { ok: true } })
     const result = await ipcBridge.skillHub.setSkillEnabled.invoke({
