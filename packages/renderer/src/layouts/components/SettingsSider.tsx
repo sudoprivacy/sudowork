@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@sudowork/host-bridge/ipcBridge';
-import { fetchSystemConfig, normalizeRechargeMode, type RechargeMode } from '@sudowork/common/systemConfig';
+import { useModelAccount } from '@renderer/pages/settings/model-account/useModelAccount';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useExtI18n } from '@renderer/hooks/useExtI18n';
@@ -51,7 +51,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const { isGuest } = useAuth();
 
   const [extensionTabs, setExtensionTabs] = useState<IExtensionSettingsTab[]>([]);
-  const [rechargeMode, setRechargeMode] = useState<RechargeMode>('pay');
+  const { account: modelAccount } = useModelAccount();
   const { resolveExtTabName } = useExtI18n();
 
   const loadExtensionTabs = useCallback(async (): Promise<IExtensionSettingsTab[]> => {
@@ -114,20 +114,6 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     };
   }, [loadExtensionTabs]);
 
-  useEffect(() => {
-    let isDisposed = false;
-
-    void fetchSystemConfig().then((config) => {
-      if (!isDisposed) {
-        setRechargeMode(normalizeRechargeMode(config?.recharge_mode));
-      }
-    });
-
-    return () => {
-      isDisposed = true;
-    };
-  }, []);
-
   const menus: SiderItem[] = useMemo(() => {
     // Build builtin items
     const builtinMap: Record<string, SiderItem> = {
@@ -136,10 +122,10 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       mcp: { id: 'mcp', label: t('settings.mcpService', { defaultValue: 'MCP 服务' }), icon: <Cable />, path: 'mcp' },
       recharge: {
         id: 'recharge',
-        label: rechargeMode === 'approve' ? t('settings.creditApplication.title', '积分申请') : t('settings.rechargeCenter') || '充值中心',
+        label: t('modelBilling.recharge'),
         icon: <CreditCard />,
         path: 'recharge',
-        hidden: rechargeMode === 'disabled',
+        hidden: modelAccount?.can_recharge !== true,
       },
       members: {
         id: 'members',
@@ -238,7 +224,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     }
 
     return result;
-  }, [t, rechargeMode, isDesktop, extensionTabs, resolveExtTabName, isEnterprise, isGuest]);
+  }, [t, modelAccount?.can_recharge, isDesktop, extensionTabs, resolveExtTabName, isEnterprise, isGuest]);
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   return (

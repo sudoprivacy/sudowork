@@ -10,7 +10,6 @@ import { useAuth } from './AuthContext';
 
 interface ConsumerUsageToday {
   tokens?: number | null;
-  cost_points?: number | null;
   requests?: number | null;
 }
 
@@ -50,15 +49,11 @@ export const DashboardStatsProvider: React.FC<React.PropsWithChildren> = ({ chil
         setError(null);
         try {
           const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-          const [profileRes, dashboardRes] = await Promise.all([authFetch(`${serverConfig.baseUrl}/api/v1/user/profile`), authFetch(`${serverConfig.baseUrl}/api/v1/user/dashboard`)]);
+          const profileRes = await authFetch(`${serverConfig.baseUrl}/api/v1/user/profile`);
 
           const profileData = await profileRes.json();
-          const dashboardData = await dashboardRes.json();
 
           if (profileData.success) setProfile(profileData.data);
-          if (dashboardData.success) {
-            setStats({ usage_today: dashboardData.data.usage_today });
-          }
           lastFetchedAtRef.current = Date.now();
         } catch (e) {
           console.error('[DashboardStats] refresh failed:', e);

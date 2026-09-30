@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Avatar, Button, Modal, Input, Message, Spin } from '@arco-design/web-react';
+import React, { useState, useEffect } from 'react';
+import { Avatar, Button, Modal, Input, Message } from '@arco-design/web-react';
 import { IconEdit, IconLock, IconMobile, IconUser } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import type { UserProfileData } from '@sudowork/host-bridge/ipcBridge';
-import { formatUsagePoints } from '@sudowork/common/tokenUsage';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import { useAuth } from '@renderer/context/AuthContext';
@@ -17,13 +16,13 @@ import { useDashboardStats } from '@renderer/context/DashboardStatsContext';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useSystemLoginMethod } from '@renderer/hooks/useSystemLoginMethod';
 import ConsumerAvatar from './components/ConsumerAvatar';
-import WeeklyModelUsageChart from './components/WeeklyModelUsageChart';
+import ModelAccountPanel from '../model-account';
 import ChangePasswordModal from './components/ChangePasswordModal';
 
 const UserProfile: React.FC = () => {
   const { t } = useTranslation();
   const { user: currentUser, refresh: refreshAuth, authFetch } = useAuth();
-  const { profile, stats, refresh: refreshDashboard } = useDashboardStats();
+  const { profile, refresh: refreshDashboard } = useDashboardStats();
   const { isEnterprise } = useAppMode();
   const [editingNickname, setEditingNickname] = useState('');
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -105,11 +104,6 @@ const UserProfile: React.FC = () => {
     }
   };
 
-  const todayPoints = useMemo(() => {
-    const usageToday = stats?.usage_today;
-    return formatUsagePoints(usageToday?.cost_points) ?? '0';
-  }, [stats?.usage_today]);
-
   return (
     <PageWrapper title={t('settings.profile', '用户中心')}>
       <div className='flex flex-col gap-6 pb-2'>
@@ -175,30 +169,9 @@ const UserProfile: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            {/* Consumer: Today Stats */}
-            <div className='p-6 rd-16px border border-light'>
-              <div className='text-14px font-600 text-foreground mb-4'>{t('settings.userProfile.todayUsage', '今日使用')}</div>
-              <div className='grid grid-cols-3 gap-4'>
-                <div className='text-center'>
-                  <div className='text-24px font-700 text-foreground min-h-8 f-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.tokens?.toLocaleString() ?? '0')}</div>
-                  <div className='text-12px text-secondary'>{t('settings.userProfile.tokens', 'Tokens')}</div>
-                </div>
-                <div className='text-center'>
-                  <div className='text-24px font-700 text-primary min-h-8 f-center'>{stats === null ? <Spin size={20} /> : todayPoints}</div>
-                  <div className='text-12px text-secondary'>{t('settings.userProfile.consumedPoints', '消耗积分')}</div>
-                </div>
-                <div className='text-center'>
-                  <div className='text-24px font-700 text-foreground min-h-8 f-center'>{stats === null ? <Spin size={20} /> : (stats.usage_today?.requests ?? 0)}</div>
-                  <div className='text-12px text-secondary'>{t('settings.userProfile.requests', '请求数')}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Consumer: Model Usage Chart */}
-            <WeeklyModelUsageChart />
           </>
         )}
+        <ModelAccountPanel />
       </div>
 
       {/* Edit Nickname Modal (consumer only) */}

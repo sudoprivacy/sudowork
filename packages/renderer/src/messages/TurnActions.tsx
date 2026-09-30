@@ -9,7 +9,6 @@ import { Copy, FileWord, ShareOne } from '@icon-park/react';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TurnTokenUsage } from '@sudowork/common/chatLib';
-import { costToUsagePoints, formatUsagePoints, resolveUsagePoints } from '@sudowork/common/tokenUsage';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { copyText } from '@renderer/utils/clipboard';
 import { emitter } from '@renderer/utils/emitter';
@@ -106,14 +105,6 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
   }, [turnTextsRaw, shareoneInstalled, sharing, t]);
 
   const totalTokens = formatTokenCount(tokenUsage?.totalTokens);
-  const points = formatUsagePoints(resolveUsagePoints(tokenUsage));
-  const hasExactUsagePoints = tokenUsage?.costCurrency === 'sudo_point' && costToUsagePoints(tokenUsage.costUnits) !== null;
-  const pointsTooltipLabel = points
-    ? t(hasExactUsagePoints ? 'messages.tokenUsagePointsExact' : 'messages.tokenUsagePointsEstimated', {
-        defaultValue: hasExactUsagePoints ? 'Points: {{value}} (exact)' : 'Points: {{value}} (estimated)',
-        value: points,
-      })
-    : null;
   const inputTokens = formatTokenCount(tokenUsage?.inputTokens);
   const outputTokens = formatTokenCount(tokenUsage?.outputTokens);
   const cachedReadTokens = tokenUsage?.cachedReadTokens ? formatTokenCount(tokenUsage.cachedReadTokens) : null;
@@ -122,7 +113,6 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
   const usageTooltip = tokenUsage ? (
     <div className='text-12px leading-18px'>
       <div>{t('messages.tokenUsageTotal', { defaultValue: 'Total: {{value}} tokens', value: new Intl.NumberFormat().format(tokenUsage.totalTokens) })}</div>
-      {pointsTooltipLabel && <div>{pointsTooltipLabel}</div>}
       {typeof tokenUsage.inputTokens === 'number' && <div>{t('messages.tokenUsageInput', { defaultValue: 'Input: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.inputTokens) })}</div>}
       {typeof tokenUsage.outputTokens === 'number' && <div>{t('messages.tokenUsageOutput', { defaultValue: 'Output: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.outputTokens) })}</div>}
       {typeof tokenUsage.thoughtTokens === 'number' && <div>{t('messages.tokenUsageThought', { defaultValue: 'Reasoning: {{value}}', value: new Intl.NumberFormat().format(tokenUsage.thoughtTokens) })}</div>}
@@ -153,7 +143,6 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
           <Tooltip content={usageTooltip}>
             <div className='ml-4px max-w-full truncate text-11px leading-18px px-6px py-1px rd-4px border border-light text-secondary bg-fill-1'>
               {t('messages.tokenUsageSummary', { defaultValue: '{{total}} tokens', total: totalTokens })}
-              {points ? ` · ${t('messages.tokenUsagePointsShort', { defaultValue: '{{value}} points', value: points })}` : ''}
               {inputTokens && outputTokens ? ` · ${t('messages.tokenUsageInOut', { defaultValue: 'in {{input}} / out {{output}}', input: inputTokens, output: outputTokens })}` : ''}
               {thoughtTokens ? ` · ${t('messages.tokenUsageReasoningShort', { defaultValue: 'reasoning {{value}}', value: thoughtTokens })}` : ''}
               {cachedReadTokens ? ` · ${t('messages.tokenUsageCacheReadShort', { defaultValue: 'cache {{value}}', value: cachedReadTokens })}` : ''}

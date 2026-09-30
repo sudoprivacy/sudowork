@@ -211,6 +211,8 @@ export default defineConfig({
         '../../packages/renderer/src/pages/team/hooks/useTeamWarmup.ts',
         '../../packages/renderer/src/pages/team/components/TeamWarmupOverlay.tsx',
         '../../packages/renderer/src/pages/settings/recharge/components/CreditApplicationPanel.tsx',
+        '../../packages/renderer/src/pages/settings/recharge/index.tsx',
+        '../../packages/renderer/src/pages/settings/model-account/**/*.{ts,tsx}',
         '../../packages/ontology-common/src/index.ts',
         '../../packages/ontology-common/src/studio.ts',
         '../../packages/ontology-engine/src/standardOntology.ts',
