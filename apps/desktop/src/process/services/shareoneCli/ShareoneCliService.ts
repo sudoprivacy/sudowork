@@ -1,22 +1,15 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { CliInstallService } from '../claudeCli/CliInstallService';
-import { ipcBridge } from '@/common';
-import { mainLog, mainError } from '@process/utils/mainLogger';
-import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
-import { isEnterpriseMode, getUserId, getMossServerUrl, getAuthToken } from '@/common/enterpriseDebugConfig';
-import { buildNamespace } from '@/common/nexus/namespace';
-import { MossSecretClient } from '@/common/nexus/moss-secret-client';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
 import { execFile } from 'child_process';
+import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
+import { mainLog, mainError } from '@process/utils/mainLogger';
+import { ipcBridge } from '@/common';
+import { CliInstallService } from '../claudeCli/CliInstallService';
 import { renderShareTemplate } from './shareTemplate';
+import { getShareoneApiKeyEnterprise } from './shareoneCredentials';
 
 const execFileAsync = promisify(execFile);
 
@@ -75,43 +68,6 @@ async function loadLocalResourceAsDataUrl(filePath: string): Promise<string> {
     return `data:${mime};base64,${base64}`;
   } catch {
     return '';
-  }
-}
-
-/**
- * Get ShareOne API key for enterprise mode.
- * Uses MossSecretClient to fetch from Moss Server.
- */
-async function getShareoneApiKeyEnterprise(): Promise<string | null> {
-  const userId = getUserId();
-  const mossServerUrl = getMossServerUrl();
-  const authToken = getAuthToken();
-
-  mainLog('ShareOne', `Enterprise mode: userId=${userId}, mossServerUrl=${mossServerUrl ? 'present' : 'missing'}, authToken=${authToken ? 'present' : 'missing'}`);
-
-  if (!userId || !mossServerUrl || !authToken) {
-    mainLog('ShareOne', 'Enterprise mode: missing userId, mossServerUrl, or authToken');
-    return null;
-  }
-
-  try {
-    const mossClient = new MossSecretClient(mossServerUrl, authToken, userId);
-    const namespace = buildNamespace('shareone', userId);
-    mainLog('ShareOne', `Enterprise mode: fetching API key from namespace ${namespace}`);
-    // Try shareone_key first (B端 convention), fallback to api_key
-    let apiKey = await mossClient.getSecret(namespace, 'shareone_key');
-    if (!apiKey) {
-      apiKey = await mossClient.getSecret(namespace, 'api_key');
-    }
-    if (apiKey) {
-      mainLog('ShareOne', `Enterprise mode: got API key from Moss Server (namespace: ${namespace})`);
-    } else {
-      mainLog('ShareOne', `Enterprise mode: no API key found in Moss Server (namespace: ${namespace})`);
-    }
-    return apiKey;
-  } catch (err) {
-    mainError('ShareOne', `Enterprise mode: failed to get API key from Moss Server: ${err instanceof Error ? err.message : String(err)}`);
-    return null;
   }
 }
 

@@ -1,10 +1,4 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
  * Backend-specific ACP connector logic and environment helpers.
  * Extracted from AcpConnection to keep the main class focused on
  * process lifecycle, messaging, and session management.
@@ -644,6 +638,14 @@ export async function buildGenericSpawnSpec(backend: string, cliPath: string, wo
   });
   if (customEnv) {
     Object.assign(cleanEnv, customEnv);
+  }
+
+  // Enterprise local sessions have no desktop auth proxy; skill subprocesses
+  // need the same user-scoped ShareOne credential as the desktop publish action.
+  if (backend === 'scode' && !cleanEnv.SHAREONE_API_KEY) {
+    const { getShareoneApiKeyEnterprise } = await import('@process/services/shareoneCli/shareoneCredentials');
+    const shareoneApiKey = await getShareoneApiKeyEnterprise();
+    if (shareoneApiKey) cleanEnv.SHAREONE_API_KEY = shareoneApiKey;
   }
 
   const requestedScodeModel = backend === 'scode' && typeof cleanEnv.SUDOCODE_CURRENT_MODEL_ID === 'string' && cleanEnv.SUDOCODE_CURRENT_MODEL_ID.trim() ? cleanEnv.SUDOCODE_CURRENT_MODEL_ID.trim() : null;

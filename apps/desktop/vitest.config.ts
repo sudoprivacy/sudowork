@@ -125,6 +125,8 @@ export default defineConfig({
         'src/process/services/orphanWorkspaceSweeper.ts',
         'src/process/services/conversionService.ts',
         'src/process/services/scode/scodeProxyModels.ts',
+        'src/process/services/shareoneCli/shareoneCredentials.ts',
+        'src/agent/acp/acpConnectors.ts',
         'src/process/services/sudoclaw/sudoclawRuntimeSync.ts',
         'src/process/services/pwdLogin/errors.ts',
         'src/process/services/pwdLogin/memorySafety.ts',
