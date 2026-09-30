@@ -211,6 +211,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Checkout ADR-005 contract fixtures
+        uses: actions/checkout@v6
+        with:
+          repository: sudoprivacy/sudostack
+          ref: 6a51190a0e08f673912967716629a2fdb424b85a
+          path: .contracts/sudostack
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -225,6 +232,8 @@ jobs:
         run: bun install --no-frozen-lockfile
 
       - name: Run full test suite
+        env:
+          SUDOSTACK_REPO: ${{ github.workspace }}/.contracts/sudostack
         run: bunx vitest run
 
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
