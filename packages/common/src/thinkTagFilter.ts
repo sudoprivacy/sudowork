@@ -5,9 +5,14 @@
  */
 
 /**
- * Frontend think tag filter
- * Filters think tags from message content before rendering
- * This handles historical messages that were saved before the filter was implemented
+ * Think tag filter.
+ *
+ * Models emit reasoning wrapped in `<think>` / `<thinking>` tags, and not all of
+ * them emit it well-formed. Anything that turns model output into something a
+ * person reads — a rendered bubble, a conversation title — has to strip it, so
+ * this lives in `common` rather than in the renderer: the WebUI server derives
+ * titles too and must not disagree with the desktop about what counts as
+ * thinking.
  */
 
 /**

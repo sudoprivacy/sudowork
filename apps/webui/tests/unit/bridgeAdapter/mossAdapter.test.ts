@@ -1122,3 +1122,74 @@ describe('mossAdapter: channel wires (remote connections)', () => {
     }
   })
 })
+
+describe('mossAdapter: naming conversations that predate write-path titling', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const openConversation = (id: string) =>
+    ipcBridge.database.getConversationMessages.invoke({ conversation_id: id })
+
+  const metaPatch = (fetchMock: FetchMock) =>
+    fetchMock.mock.calls.find(
+      ([url, init]) => String(url).includes('/meta') && (init as RequestInit)?.method === 'PATCH',
+    )
+
+  const userMessage = (text: string) => ({ role: 'user', content: { content: text } })
+
+  it('names an untitled conversation from its first user message', async () => {
+    const fetchMock = stubFetch({
+      '/context': { title: null, messages: [userMessage('帮我看下这个报错\n日志在下面')] },
+      '/meta': { ok: true },
+    })
+
+    await openConversation('sess-legacy-1')
+
+    const patch = metaPatch(fetchMock)
+    expect(patch).toBeDefined()
+    expect(String(patch?.[0])).toContain('sess-legacy-1')
+    expect(JSON.parse(String((patch?.[1] as RequestInit).body))).toEqual({
+      title: '帮我看下这个报错',
+    })
+  })
+
+  it('leaves a conversation that already has a title alone', async () => {
+    const fetchMock = stubFetch({
+      '/context': { title: '用户自己起的名字', messages: [userMessage('后来又说了点别的')] },
+      '/meta': { ok: true },
+    })
+
+    await openConversation('sess-named-1')
+
+    // Opening a conversation must never rename it — this is a one-off backfill,
+    // not a rule that the first message wins over what the user chose.
+    expect(metaPatch(fetchMock)).toBeUndefined()
+  })
+
+  it('does not name a conversation that has no user message to name it after', async () => {
+    const fetchMock = stubFetch({
+      '/context': { title: null, messages: [{ role: 'assistant', content: { content: 'hi' } }] },
+      '/meta': { ok: true },
+    })
+
+    await openConversation('sess-empty-1')
+
+    expect(metaPatch(fetchMock)).toBeUndefined()
+  })
+
+  it('still returns the messages when naming fails', async () => {
+    stubFetch({
+      '/context': { title: null, messages: [userMessage('开会记录')] },
+      '/meta': { status: 500, body: { error: 'BOOM' } },
+    })
+
+    // The backfill is fire-and-forget: a failed rename must not stop the
+    // conversation from opening.
+    await expect(openConversation('sess-fail-1')).resolves.toHaveLength(1)
+  })
+})

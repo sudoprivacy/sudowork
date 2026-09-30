@@ -36,6 +36,8 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const cronStatus = getJobStatus(conversation.id);
   const ptyActiveCount = useTerminalActiveCount(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
+  // 一个还没命名的会话显示本地化的「新对话」，而不是留白或漏出内部标识符
+  const displayName = conversation.name || t('conversation.welcome.newConversation');
   const inlineNameTooltipEnabled = !collapsed && !!conversation.name;
 
   const actionReserveClass = isPinned ? 'mr-9' : menuVisible ? 'mr-9' : 'group-hover:mr-9';
@@ -79,7 +81,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   };
 
   return (
-    <Tooltip key={conversation.id} {...siderTooltipProps} content={conversation.name || t('conversation.welcome.newConversation')} position='right'>
+    <Tooltip key={conversation.id} {...siderTooltipProps} content={displayName} position='right'>
       <div
         id={'c-' + conversation.id}
         className={classNames('chat-history__item px-3 py-2 rd-8px flex justify-start items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-0.5 min-w-0 transition-colors', {
@@ -110,7 +112,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
         )}
         <FlexFullContainer className={classNames('h-6 min-w-0 flex-1 collapsed-hidden ml-2.5', actionReserveClass)}>
           <Tooltip content={conversation.name} disabled={!inlineNameTooltipEnabled} trigger='hover' popupVisible={inlineNameTooltipEnabled ? undefined : false} unmountOnExit popupHoverStay={false} position='top'>
-            <div className={classNames('chat-history__item-name overflow-hidden text-ellipsis block w-full text-14px lh-24px whitespace-nowrap min-w-0 group-hover:text-1', selected && !batchMode ? 'text-1 font-medium' : 'text-2')}>{conversation.name}</div>
+            <div className={classNames('chat-history__item-name overflow-hidden text-ellipsis block w-full text-14px lh-24px whitespace-nowrap min-w-0 group-hover:text-1', selected && !batchMode ? 'text-1 font-medium' : 'text-2')}>{displayName}</div>
           </Tooltip>
         </FlexFullContainer>
         {!batchMode && (

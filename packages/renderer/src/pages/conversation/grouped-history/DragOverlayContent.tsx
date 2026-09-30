@@ -6,6 +6,7 @@
 
 import { MessageOne } from '@icon-park/react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { TChatConversation } from '@sudowork/common/storage';
 import { getAgentLogo } from '@renderer/utils/agentLogo';
@@ -16,6 +17,7 @@ type DragOverlayContentProps = {
 };
 
 const DragOverlayContent: React.FC<DragOverlayContentProps> = ({ conversation }) => {
+  const { t } = useTranslation();
   if (!conversation) return null;
 
   const backendKey = getBackendKeyFromConversation(conversation);
@@ -32,7 +34,7 @@ const DragOverlayContent: React.FC<DragOverlayContentProps> = ({ conversation })
       }}
     >
       {logo ? <img src={logo} alt={`${backendKey || 'agent'} logo`} className='w-20px h-20px rounded-50% flex-shrink-0' /> : <MessageOne theme='outline' size='20' className='line-height-0 flex-shrink-0' />}
-      <div className='text-14px lh-24px text-foreground truncate flex-1'>{conversation.name}</div>
+      <div className='text-14px lh-24px text-foreground truncate flex-1'>{conversation.name || t('conversation.welcome.newConversation')}</div>
     </div>
   );
 };

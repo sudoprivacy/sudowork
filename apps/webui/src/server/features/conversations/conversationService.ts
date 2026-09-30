@@ -27,7 +27,6 @@ import {
   reorderPinnedConversations as reorderPinnedRows,
   updateConversationMeta as updateConversationMetaRow,
   upsertConversationModel,
-  upsertConversationTitle,
 } from './conversationMetaRepository.js'
 
 /**
@@ -280,8 +279,6 @@ export async function getContext(
   const mossContext = (parsed as { context?: { customTitle?: string; messages?: unknown[] } })
     .context
   const messages = (mossContext?.messages ?? []).map((raw) => sanitizeMessage(raw))
-  // 标题生成读原始 moss 形状（type:'user'/content），须在转换前用 messages
-  await generateTitleIfMissing(deps, principal, sessionId, messages)
   const meta = await localMeta()
   // 转成渲染层 TMessage（与桌面 RemoteConversationProvider 共用），否则用户/AI 气泡无法渲染
   const { messages: tmessages } = convertMossMessagesToTMessages(messages, sessionId, sessionId)
@@ -290,39 +287,6 @@ export async function getContext(
     title: meta.title,
     modelId: meta.modelId,
     messages: tmessages,
-  }
-}
-
-/**
- * 标题自动生成（对齐 Sudowork useAutoTitle：首条 user 消息首行前 50 字符，剥 <think>）。
- * 失败隔离：写库失败仅告警不影响 getContext 返回（context 接口 5s 轮询，抛错会让接口 500）。
- */
-async function generateTitleIfMissing(
-  deps: ConversationDeps,
-  principal: Principal,
-  sessionId: string,
-  messages: Record<string, unknown>[],
-): Promise<void> {
-  try {
-    const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
-    if (meta?.title) return
-    const firstUser = messages.find((m) => m.type === 'user')
-    const raw =
-      typeof firstUser?.content === 'string'
-        ? firstUser.content
-        : Array.isArray(firstUser?.content)
-          ? (firstUser.content as { text?: string }[])
-              .map((b) => (typeof b?.text === 'string' ? b.text : ''))
-              .join('')
-          : ''
-    const stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
-    if (!stripped) return
-    const firstLine = stripped.split('\n')[0] ?? ''
-    const title = firstLine.slice(0, 50).trim()
-    if (!title) return
-    await upsertConversationTitle(deps.pool, principal.id, sessionId, title)
-  } catch {
-    // 标题生成失败不影响 context 返回（对齐 Sudowork useAutoTitle 吞错处理）
   }
 }
 

@@ -26,7 +26,7 @@ import { useShowToolCalls } from '@renderer/hooks/useShowToolCalls';
 import { shouldShowTimeSeparator } from '@renderer/utils/messageTime';
 import { uuid } from '../utils';
 import HOC from '../utils/HOC';
-import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
+import { stripThinkTags, hasThinkTags } from '@sudowork/common/thinkTagFilter';
 import MessageCodexToolCall from './codex/MessageCodexToolCall';
 import type { FileChangeInfo } from './codex/MessageFileChanges';
 import MessageFileChanges, { parseDiff } from './codex/MessageFileChanges';

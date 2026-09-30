@@ -28,7 +28,11 @@ import {
   releaseToIdle,
   releaseToIdleIfHeld,
 } from './lockRepository.js'
-import { upsertConversationModel } from './conversationMetaRepository.js'
+import {
+  setConversationTitleIfUnset,
+  upsertConversationModel,
+} from './conversationMetaRepository.js'
+import { deriveConversationTitle } from '@sudowork/common/conversationTitle'
 
 /**
  * 会话协调器（计划 3.3/3.8）：
@@ -321,6 +325,25 @@ export class ConversationCoordinator {
 
         if (!entry.upstream?.send(payload)) {
           this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
+          return
+        }
+
+        // 会话的名字是持久事实，在它产生的那一刻落库 —— 而不是等谁碰巧打开这个会话时
+        // 顺带补上。answer_question 不参与命名：它回答的是 agent 的提问，不是会话主题。
+        if (msg.kind === 'send') {
+          const title = deriveConversationTitle(msg.text)
+          if (title) {
+            await setConversationTitleIfUnset(
+              this.deps.pool,
+              conn.principalId,
+              entry.mossSessionId,
+              title,
+            ).catch((err: unknown) =>
+              console.warn(
+                `[coordinator] persist title failed (session=${entry.mossSessionId.slice(0, 8)}): ${(err as Error).message}`,
+              ),
+            )
+          }
         }
         return
       }
