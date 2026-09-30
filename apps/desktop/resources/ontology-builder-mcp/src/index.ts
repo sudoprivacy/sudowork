@@ -27,11 +27,16 @@ const objectIdArg = { type: 'string', description: 'Ontology object id (obtained
 
 const tools: Tool[] = [
   {
+    name: 'ontology_preview_asset',
+    description: 'Read a bounded sample of a data asset in the bound ontology. Use its observed fields as evidence before creating mappings or query functions.',
+    inputSchema: { type: 'object', properties: { workspace_id: { type: 'string' }, id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['id'], additionalProperties: false },
+  },
+  {
     name: 'ontology_get_snapshot',
     description: 'Read the current ontology draft state (objects, relations, attributes, mappings, stats). Call this at the start of every session and whenever you need to know current ids/codes.',
     inputSchema: {
       type: 'object',
-      properties: { workspace_id: { type: 'string', description: 'Optional; defaults to the active workspace.' } },
+      properties: { workspace_id: { type: 'string', description: 'Must match the ontology bound to this session.' }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 100 } },
       additionalProperties: false,
     },
   },
@@ -338,6 +343,7 @@ const tools: Tool[] = [
 ];
 
 const nameToRoute: Record<string, string> = {
+  ontology_preview_asset: 'preview_asset',
   ontology_get_snapshot: 'get_snapshot',
   ontology_update_draft: 'update_draft',
   ontology_upsert_object: 'upsert_object',
@@ -396,7 +402,7 @@ async function callBridge(route: string, workspaceId: string | undefined, input:
 
 const server = new Server({ name: 'sudowork-ontology-builder', version: '1.0.0' }, { capabilities: { tools: {} } });
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: envWorkspaceId ? tools.filter((tool) => !['ontology_execute_action', 'ontology_approve_all', 'ontology_publish_current_draft', 'ontology_register_agent_blueprint'].includes(tool.name)) : tools }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {

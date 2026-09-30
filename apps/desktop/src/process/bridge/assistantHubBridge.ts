@@ -839,7 +839,12 @@ export function initAssistantHubBridge(): void {
       mainWarn('AssistantHub', 'Error reaping associated conversations:', dbError);
     }
 
-    const result = await assistantManager.uninstallAssistant(name, category);
+    let isOntologyAgent = false;
+    if (name.startsWith('ontology-')) {
+      const { ontologyService } = await import('@process/services/ontology/OntologyService');
+      isOntologyAgent = await ontologyService.deleteRegisteredAssistant(name, category);
+    }
+    const result = isOntologyAgent ? { success: true } : await assistantManager.uninstallAssistant(name, category);
 
     // Emit conversationChanged events to notify renderer to refresh conversation list
     if (deletedConversationIds.length > 0) {

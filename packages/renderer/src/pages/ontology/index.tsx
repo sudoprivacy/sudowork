@@ -1,15 +1,14 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { Message } from '@arco-design/web-react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { OntologyWorkbench } from '@sudowork/ontology-ui';
+import { OntologyStudio } from '@sudowork/ontology-ui';
+import type { IOntologyStudioApi, IStudioChatContext } from '@sudowork/ontology-ui';
 import { ONTOLOGY_DOCUMENT_EXTENSIONS } from '@sudowork/ontology-common';
-import type { IOntologyWorkbenchApi } from '@sudowork/ontology-ui/OntologyWorkbench';
-import { OntologyAIBuilderPage } from '@sudowork/ontology-ai';
-import type { IOntologyAIBuilderApi } from '@sudowork/ontology-ai';
-
-type WorkbenchView = 'connections' | 'assets' | 'ai_builder' | 'ontology' | 'publish' | 'agent';
+import type { OntologyStudioPage } from '@sudowork/ontology-common';
+import { ensureDefaultStudioConversation } from './studioConversation';
+import StudioConversationPanel from './StudioConversationPanel';
 
 function unwrap<T>(res: { success: boolean; data?: T; msg?: string }, fallback: string): T {
   if (!res.success || res.data === undefined) throw new Error(res.msg || fallback);
@@ -19,15 +18,45 @@ function unwrap<T>(res: { success: boolean; data?: T; msg?: string }, fallback: 
 export default function OntologyPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  // Bumped by the floating bubble to signal the AI 构建 tab to auto-open the new-session modal.
-  const [openNewSessionSignal, setOpenNewSessionSignal] = useState(0);
-  const activateViewRef = useRef<(view: WorkbenchView) => void>(() => {});
-
-  const api = useMemo<IOntologyWorkbenchApi>(
+  const { ontologyId, view } = useParams<{ ontologyId: string; view: string }>();
+  const api = useMemo<IOntologyStudioApi>(
     () => ({
+      saveStudioModel: async (input) => unwrap(await ipcBridge.ontology.saveStudioModel.invoke(input), t('ontology.errors.saveFailed')),
+      previewStandardFile: async (input) => unwrap(await ipcBridge.ontology.previewStandardFile.invoke(input), t('ontology.errors.importFailed')),
+      importStandardFile: async (input) => unwrap(await ipcBridge.ontology.importStandardFile.invoke(input), t('ontology.errors.importFailed')),
+      exportStandardFile: async (input) => unwrap(await ipcBridge.ontology.exportStandardFile.invoke(input), t('ontology.errors.operationFailed')),
+      pickStandardFile: async () => {
+        const result = unwrap(await ipcBridge.dialog.showOpen.invoke({ properties: ['openFile'], filters: [{ name: t('ontology.studio.importFileFilter'), extensions: ['rdf', 'owl', 'xml'] }] }), t('ontology.errors.importFailed'));
+        return result.canceled ? undefined : result.filePaths[0];
+      },
+      pickDataFiles: async () => {
+        const result = unwrap(await ipcBridge.dialog.showOpen.invoke({ properties: ['openFile', 'multiSelections'] }), t('ontology.errors.importFailed'));
+        return result.canceled ? [] : result.filePaths;
+      },
+      pickSqliteFile: async () => {
+        const result = unwrap(
+          await ipcBridge.dialog.showOpen.invoke({
+            properties: ['openFile'],
+            filters: [
+              { name: t('ontology.studio.sqliteFiles'), extensions: ['db', 'sqlite', 'sqlite3', 'db3'] },
+              { name: t('ontology.studio.allFiles'), extensions: ['*'] },
+            ],
+          }),
+          t('ontology.errors.importFailed')
+        );
+        return result.canceled ? undefined : result.filePaths[0];
+      },
       listWorkbenches: async () => unwrap(await ipcBridge.ontology.listWorkbenches.invoke(), t('ontology.errors.loadFailed')),
       getWorkbench: async (input) => unwrap(await ipcBridge.ontology.getWorkbench.invoke(input), t('ontology.errors.loadFailed')),
-      createWorkbench: async (input) => unwrap(await ipcBridge.ontology.createWorkbench.invoke(input), t('ontology.errors.operationFailed')),
+      createWorkbench: async (input) => {
+        const result = unwrap(await ipcBridge.ontology.createWorkbench.invoke(input), t('ontology.errors.operationFailed'));
+        try {
+          await ensureDefaultStudioConversation({ workspaceId: result.snapshot.workspaceId, title: result.snapshot.draft.title });
+        } catch {
+          Message.warning(t('ontology.studio.errors.defaultSessionFailed'));
+        }
+        return result;
+      },
       selectWorkbench: async (input) => unwrap(await ipcBridge.ontology.selectWorkbench.invoke(input), t('ontology.errors.loadFailed')),
       deleteWorkbench: async (input) => unwrap(await ipcBridge.ontology.deleteWorkbench.invoke(input), t('ontology.errors.operationFailed')),
       updateDraft: async (input) => unwrap(await ipcBridge.ontology.updateDraft.invoke(input), t('ontology.errors.saveFailed')),
@@ -49,6 +78,7 @@ export default function OntologyPage() {
       deleteAsset: async (input) => unwrap(await ipcBridge.ontology.deleteAsset.invoke(input), t('ontology.errors.operationFailed')),
       profileAsset: async (input) => unwrap(await ipcBridge.ontology.profileAsset.invoke(input), t('ontology.errors.operationFailed')),
       syncAssetSchema: async (input) => unwrap(await ipcBridge.ontology.syncAssetSchema.invoke(input), t('ontology.errors.operationFailed')),
+      describeAssetFields: async (input) => unwrap(await ipcBridge.ontology.describeAssetFields.invoke(input), t('ontology.studio.dataErrors.meaningFailed')),
       previewAsset: async (input) => unwrap(await ipcBridge.ontology.previewAsset.invoke(input), t('ontology.errors.operationFailed')),
       generateDraft: async (input) => unwrap(await ipcBridge.ontology.generateDraft.invoke(input), t('ontology.errors.generateFailed')),
       upsertObject: async (input) => unwrap(await ipcBridge.ontology.upsertObject.invoke(input), t('ontology.errors.operationFailed')),
@@ -84,83 +114,14 @@ export default function OntologyPage() {
     [t]
   );
 
-  const aiBuilderApi = useMemo<Omit<IOntologyAIBuilderApi, 'openNewSessionSignal'>>(
-    () => ({
-      listWorkbenches: async () => unwrap(await ipcBridge.ontology.listWorkbenches.invoke(), t('ontology.errors.loadFailed')),
-      createWorkbench: async (input) => unwrap(await ipcBridge.ontology.createWorkbench.invoke(input), t('ontology.errors.operationFailed')),
-      selectWorkbench: async (workspaceId) => {
-        await ipcBridge.ontology.selectWorkbench.invoke({ workspaceId });
-      },
-      navigateToConversation: (id) => {
-        void navigate(`/conversation/${id}`);
-      },
-    }),
-    [t, navigate]
+  const renderChat = useCallback((workspaceId: string, workspaceName: string, context?: IStudioChatContext) => <StudioConversationPanel key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} context={context} />, []);
+  const onNavigate = useCallback(
+    (workspaceId?: string, page: OntologyStudioPage = 'model') => {
+      const query = workspaceId === ontologyId ? window.location.search : '';
+      void navigate(workspaceId ? `/app/ontology/${encodeURIComponent(workspaceId)}/${page}${query}` : '/app/ontology');
+    },
+    [navigate, ontologyId]
   );
-
-  const renderAiBuilder = useCallback((workspaceId: string | null) => <OntologyAIBuilderPage workspaceId={workspaceId} api={{ ...aiBuilderApi, openNewSessionSignal }} />, [aiBuilderApi, openNewSessionSignal]);
-
-  const onBubbleClick = useCallback(() => {
-    activateViewRef.current('ai_builder');
-    setOpenNewSessionSignal((value) => value + 1);
-  }, []);
-
-  return (
-    <>
-      <OntologyWorkbench
-        api={api}
-        renderAiBuilder={renderAiBuilder}
-        onExposeActivateView={(activate) => {
-          activateViewRef.current = activate;
-        }}
-      />
-      <FloatingBubble label={t('ontology.aiBuilder.bubbleTooltip')} onClick={onBubbleClick} />
-    </>
-  );
-}
-
-interface IFloatingBubbleProps {
-  label: string;
-  onClick: () => void;
-}
-
-/**
- * Simple sparkle bubble that opens the "AI 构建" tab and asks it to pop the
- * new-session modal. All state coordination happens in the parent page.
- */
-function FloatingBubble({ label, onClick }: IFloatingBubbleProps) {
-  return (
-    <button
-      type='button'
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      style={{
-        position: 'fixed',
-        right: '24px',
-        bottom: '80px',
-        zIndex: 999,
-        width: '56px',
-        height: '56px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: '9999px',
-        border: 'none',
-        cursor: 'pointer',
-        background: 'linear-gradient(135deg, #ff7d00 0%, #ff5000 100%)',
-        color: '#ffffff',
-        boxShadow: '0 6px 20px rgba(255, 125, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.1)',
-        transition: 'transform 120ms ease',
-      }}
-      onMouseEnter={(event) => {
-        event.currentTarget.style.transform = 'scale(1.06)';
-      }}
-      onMouseLeave={(event) => {
-        event.currentTarget.style.transform = 'scale(1)';
-      }}
-    >
-      <Sparkles size={24} color='#ffffff' strokeWidth={2.4} />
-    </button>
-  );
+  const page = ['model', 'data', 'capabilities', 'checks', 'release'].includes(view || '') ? (view as OntologyStudioPage) : 'model';
+  return <OntologyStudio api={api} workspaceId={ontologyId} page={page} onNavigate={onNavigate} renderChat={renderChat} />;
 }

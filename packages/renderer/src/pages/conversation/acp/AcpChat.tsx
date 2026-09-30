@@ -51,7 +51,7 @@ const AcpChat: React.FC<{
   showEmptyStateWhenNoMessages?: boolean;
   onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
   /** Team override: when set, sends go through the team API instead of the single-chat ACP API (附录 II.8). */
-  teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+  teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string; skills?: string[] }) => Promise<void>;
   /** Team override: when set, the stop button goes through the team API (pauseMember) instead of
    * conversation.stop — team agents are built with skipCache and are invisible to that path. */
   teamStop?: () => Promise<void>;

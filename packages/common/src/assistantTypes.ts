@@ -32,6 +32,8 @@ export interface IAssistantEnhancement {
  * Agent rules are always stored as `AGENT.md` in the assistant directory.
  */
 export interface IAssistantMeta {
+  /** Stable ownership of an agent generated from a published ontology version. */
+  ontologyBinding?: { workspaceId: string; versionId: string; blueprintId: string };
   id?: string;
   /** Assistant name (directory name, used as identifier) */
   name?: string;

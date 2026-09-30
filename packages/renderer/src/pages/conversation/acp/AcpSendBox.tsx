@@ -595,7 +595,7 @@ const AcpSendBox: React.FC<{
   sessionMode?: string;
   agentName?: string;
   /** Team override: when set, sends route through the team API instead of the single-chat ACP API (附录 II.8). */
-  teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string }) => Promise<void>;
+  teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string; skills?: string[] }) => Promise<void>;
   /** Team override: when set, the stop button routes through the team API (pauseMember) — team
    * agents are built with skipCache and are invisible to conversation.stop. */
   teamStop?: () => Promise<void>;
@@ -725,7 +725,7 @@ const AcpSendBox: React.FC<{
 
         // Send the message
         if (teamSendMessage) {
-          await teamSendMessage({ input, files, msg_id });
+          await teamSendMessage({ input, files, msg_id, ...(skills.length ? { skills } : {}) });
           return;
         }
         const result = await ipcBridge.acpConversation.sendMessage.invoke({
@@ -849,7 +849,7 @@ const AcpSendBox: React.FC<{
     // Send message via ACP
     try {
       if (teamSendMessage) {
-        await teamSendMessage({ input: message, files: allFiles, msg_id });
+        await teamSendMessage({ input: message, files: allFiles, msg_id, ...(activeSkills?.length ? { skills: activeSkills } : {}) });
         return;
       }
       await ipcBridge.acpConversation.sendMessage.invoke({

@@ -774,7 +774,10 @@ describe('OntologyEngine', () => {
     expect(registered.blueprint.registeredAssistantId).toBe('ontology-customer-agent');
 
     const withoutAgent = await engine.deleteAgentBlueprint({ id: registered.blueprint.id });
-    expect(withoutAgent.agentBlueprints).toHaveLength(0);
+    expect(withoutAgent.agentBlueprints).toHaveLength(1);
+    expect(withoutAgent.agentBlueprints[0]).toMatchObject({ id: registered.blueprint.id, status: 'deleted', registeredAssistantId: 'ontology-customer-agent' });
+    const restored = await engine.createAgentBlueprint({ name: 'Customer Service Agent', ontologyVersionId: published.version.id });
+    expect(restored.blueprint.id).toBe(registered.blueprint.id);
   });
 
   it('updates an existing attribute without replacing its ID or changing unrelated attributes and objects', async () => {

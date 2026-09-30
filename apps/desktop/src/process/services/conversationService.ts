@@ -75,6 +75,10 @@ export class ConversationService {
         return { success: false, error: `Invalid conversation type: ${type}` };
       }
 
+      if (extra?.purpose === 'ontology') {
+        conversation.extra = { ...conversation.extra, purpose: 'ontology', ontologyId: extra.ontologyId };
+      }
+
       // Apply custom ID, name, source, and channelChatId
       if (name) {
         conversation.name = name;

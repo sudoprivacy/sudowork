@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IOntologyAiBuilderSession } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
 import { mainError, mainLog } from '@process/utils/mainLogger';
-import { OntologyDatabase } from '@process/services/ontology/OntologyDatabase';
+import { OntologyStudioDatabase as OntologyDatabase } from '@process/services/ontology/OntologyStudioDatabase';
 import { ontologyService } from '@process/services/ontology/OntologyService';
 import { ensureOntologyBuilderMcpServer } from '@process/services/ontology/OntologyMcpRegistration';
 
@@ -49,6 +49,16 @@ export function initOntologyAiBuilderBridge(): void {
   ipcBridge.ontologyAiBuilder.listSessions.provider(async (input) => {
     try {
       const workspaceId = input?.workspaceId?.trim() || undefined;
+      // Recover an interrupted cross-database create from the persisted conversation ownership.
+      const { getDatabase } = await import('@process/database');
+      const { isConversationInCurrentAccount } = await import('@process/services/mossExecutionContext');
+      const conversations = getDatabase().getUserConversations(undefined, 0, 10000).data || [];
+      for (const conversation of conversations) {
+        const ontologyId = conversation.extra.ontologyId;
+        if (conversation.extra.purpose !== 'ontology' || !ontologyId || (workspaceId && ontologyId !== workspaceId) || !isConversationInCurrentAccount(conversation)) continue;
+        if (!getDb().getSnapshot(ontologyId) || getDb().getAiSessionByConversationId(conversation.id)) continue;
+        getDb().createAiSession({ id: `oai_${randomUUID()}`, workspace_id: ontologyId, conversation_id: conversation.id, title: conversation.name, created_at: conversation.createTime, updated_at: conversation.modifyTime });
+      }
       const rows = getDb().listAiSessions(workspaceId);
       return { success: true, data: { items: rows.map(toSession) } };
     } catch (err) {
@@ -61,6 +71,10 @@ export function initOntologyAiBuilderBridge(): void {
     try {
       if (!input?.conversationId?.trim()) return { success: false, msg: 'conversationId is required' };
       const workspaceId = input.workspaceId?.trim() || (await resolveActiveWorkspaceId());
+      if (!getDb().getSnapshot(workspaceId)) throw new Error('ontology.studio.errors.notFound');
+      const { getDatabase } = await import('@process/database');
+      const conversation = getDatabase().getConversation(input.conversationId).data;
+      if (conversation?.extra.purpose !== 'ontology' || conversation.extra.ontologyId !== workspaceId) throw new Error('Ontology conversation scope mismatch.');
       const existing = getDb().getAiSessionByConversationId(input.conversationId);
       if (existing) {
         // Idempotent: creating a session for a conversation that already has
@@ -73,7 +87,7 @@ export function initOntologyAiBuilderBridge(): void {
       // Best-effort: if MCP install fails (e.g. bundle missing during dev),
       // the session is still created — the chat just won't be able to write.
       try {
-        await ensureOntologyBuilderMcpServer();
+        await ensureOntologyBuilderMcpServer(workspaceId);
       } catch (err) {
         mainLog('OntologyAiBuilderBridge', `builder MCP registration skipped: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -131,9 +145,9 @@ export function initOntologyAiBuilderBridge(): void {
     }
   });
 
-  ipcBridge.ontologyAiBuilder.ensureBuilderMcp.provider(async () => {
+  ipcBridge.ontologyAiBuilder.ensureBuilderMcp.provider(async (input) => {
     try {
-      const mcpConfig = await ensureOntologyBuilderMcpServer();
+      const mcpConfig = await ensureOntologyBuilderMcpServer(input?.workspaceId);
       return { success: true, data: { ready: true, mcpConfig } };
     } catch (err) {
       mainError('OntologyAiBuilderBridge', 'ensureBuilderMcp failed', err);

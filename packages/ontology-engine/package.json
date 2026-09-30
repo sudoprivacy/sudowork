@@ -22,9 +22,13 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@sudowork/ontology-common": "workspace:*"
+    "@rdfjs/types": "^2.0.1",
+    "@sudowork/ontology-common": "workspace:*",
+    "@xmldom/xmldom": "0.8.11",
+    "rdfxml-streaming-parser": "3.3.0"
   },
   "devDependencies": {
-    "@types/node": "^24.3.1"
+    "@types/node": "^24.3.1",
+    "rdflib": "2.4.1"
   }
 }

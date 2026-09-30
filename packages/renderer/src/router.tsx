@@ -79,6 +79,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/app/skills', component: Skills },
   { path: '/app/local-kb', component: LocalKnowledgeBase },
   { path: '/app/ontology', component: OntologyPage },
+  { path: '/app/ontology/:ontologyId/:view?', component: OntologyPage },
   { path: '/settings/skill', component: Skills },
   { path: '/app/security', component: SecurityPage },
   { path: '/app/channels', component: ChannelsPage },
