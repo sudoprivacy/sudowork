@@ -5,14 +5,14 @@
   "type": "module",
   "exports": {
     ".": {
-      "bun": "./src/index.ts",
       "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "bun": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./*": {
-      "bun": "./src/*",
       "types": "./dist/*.d.ts",
-      "default": "./dist/*.js"
+      "bun": "./src/*",
+      "default": "./src/*"
     }
   },
   "files": [
