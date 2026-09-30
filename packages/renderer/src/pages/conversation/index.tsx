@@ -1,3 +1,4 @@
+import { isOntologyConversation, ontologyConversationPath } from '@sudowork/common/conversationPurpose';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -6,7 +7,7 @@
 
 import { Spin } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import useSWR from 'swr';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { shouldSyncWorkspaceSkills } from '@sudowork/common/utils/workspaceSkillSync';
@@ -130,7 +131,7 @@ const ChatConversationIndex: React.FC = () => {
   // 当会话数据加载完成后，自动打开 tab
   // Automatically open tab when conversation data is loaded
   useEffect(() => {
-    if (data) {
+    if (data && !isOntologyConversation(data)) {
       openTab(data);
       if (shouldSyncWorkspaceSkills(data)) {
         void ipcBridge.conversation.syncWorkspaceSkills.invoke({ conversation_id: data.id }).catch((error) => {
@@ -164,6 +165,8 @@ const ChatConversationIndex: React.FC = () => {
     })();
   }, [data?.id, data?.extra]);
 
+  const ontologyPath = data ? ontologyConversationPath(data) : undefined;
+  if (ontologyPath) return <Navigate to={ontologyPath} replace />;
   if (isLoading) return <Spin loading></Spin>;
   return <ChatConversation conversation={data}></ChatConversation>;
 };

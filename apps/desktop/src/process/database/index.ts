@@ -951,11 +951,12 @@ export class SudoworkDatabase {
     }
   }
 
-  getUserConversations(userId?: string, page = 0, pageSize = 50): IPaginatedResult<TChatConversation> {
+  getUserConversations(userId?: string, page = 0, pageSize = 50, purpose: 'general' | 'all' = 'all'): IPaginatedResult<TChatConversation> {
     try {
       const finalUserId = userId || this.defaultUserId;
 
-      const countResult = this.db.prepare("SELECT COUNT(*) as count FROM conversations WHERE user_id = ? AND json_extract(extra, '$.isTeamMember') IS NULL").get(finalUserId) as {
+      const purposeClause = purpose === 'general' ? " AND COALESCE(json_extract(extra, '$.purpose'), 'general') != 'ontology'" : '';
+      const countResult = this.db.prepare("SELECT COUNT(*) as count FROM conversations WHERE user_id = ? AND json_extract(extra, '$.isTeamMember') IS NULL" + purposeClause).get(finalUserId) as {
         count: number;
       };
 
@@ -964,7 +965,7 @@ export class SudoworkDatabase {
           `
             SELECT *
             FROM conversations
-            WHERE user_id = ? AND json_extract(extra, '$.isTeamMember') IS NULL
+            WHERE user_id = ? AND json_extract(extra, '$.isTeamMember') IS NULL ${purposeClause}
             ORDER BY updated_at DESC LIMIT ?
             OFFSET ?
           `

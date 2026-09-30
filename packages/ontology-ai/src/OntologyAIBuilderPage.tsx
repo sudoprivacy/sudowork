@@ -264,7 +264,7 @@ function NewSessionModal({ api, visible, currentWorkspaceId, onCancel, onCreated
       // Scode reads settings.json at process start, so if we registered after
       // conversation.create the freshly-spawned scode would miss the write
       // tools and the AI would report "ontology_* not found".
-      const mcpRes = await ipcBridge.ontologyAiBuilder.ensureBuilderMcp.invoke();
+      const mcpRes = await ipcBridge.ontologyAiBuilder.ensureBuilderMcp.invoke({ workspaceId });
       if (!mcpRes.success || !mcpRes.data) {
         Message.error(mcpRes.msg ?? t('ontology.aiBuilder.errors.createFailed'));
         return;
@@ -276,6 +276,8 @@ function NewSessionModal({ api, visible, currentWorkspaceId, onCancel, onCreated
         model: {} as never,
         extra: {
           backend: 'scode',
+          purpose: 'ontology',
+          ontologyId: workspaceId,
           workspace: '',
           sessionModeParam: 'local',
           // Inject the ontology-builder MCP into session/new so scode actually

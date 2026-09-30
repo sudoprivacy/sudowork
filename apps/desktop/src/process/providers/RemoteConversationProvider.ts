@@ -1,3 +1,4 @@
+import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 /**
  * @license
  * Copyright 2025 Sudowork (sudowork.ai)
@@ -317,7 +318,7 @@ export class RemoteConversationProvider implements IConversationProvider {
     await this.syncCronSessions().catch((error) => {
       mainError('RemoteProvider', `Failed to sync cron sessions: ${error instanceof Error ? error.message : String(error)}`);
     });
-    const result = db.getUserConversations(undefined, page, pageSize);
+    const result = db.getUserConversations(undefined, page, pageSize, 'general');
 
     if (!result.data || result.data.length === 0) {
       mainLog('RemoteProvider', 'No conversations found in local DB');
@@ -350,7 +351,7 @@ export class RemoteConversationProvider implements IConversationProvider {
     }
 
     // Filter for remote-agent type conversations.
-    const conversations = result.data.filter((c) => isConversationInCurrentAccount(c) && (c.type === 'remote-agent' || c.extra?.backend === 'remote-agent'));
+    const conversations = result.data.filter((c) => !isOntologyConversation(c) && isConversationInCurrentAccount(c) && (c.type === 'remote-agent' || c.extra?.backend === 'remote-agent'));
 
     // Sort by modifyTime
     // 按 modifyTime 排序

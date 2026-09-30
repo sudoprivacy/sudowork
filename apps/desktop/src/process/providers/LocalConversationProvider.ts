@@ -1,3 +1,4 @@
+import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 /**
  * @license
  * Copyright 2025 Sudowork (sudowork.ai)
@@ -132,14 +133,14 @@ export class LocalConversationProvider implements IConversationProvider {
   async listConversations(page = 0, pageSize = 10000): Promise<TChatConversation[]> {
     try {
       const db = getDatabase();
-      const result = db.getUserConversations(undefined, page, pageSize);
+      const result = db.getUserConversations(undefined, page, pageSize, 'general');
       const dbConversations = result.data || [];
 
       // Filter out enterprise mode conversations (remote-agent)
       // 过滤掉企业模式会话（remote-agent）
       // Local mode should only show acp types
       // 本地模式只显示 acp 类型
-      const localDbConversations = dbConversations.filter((c) => isConversationInCurrentAccount(c) && c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as { isTeamMember?: boolean } | undefined)?.isTeamMember);
+      const localDbConversations = dbConversations.filter((c) => !isOntologyConversation(c) && isConversationInCurrentAccount(c) && c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as { isTeamMember?: boolean } | undefined)?.isTeamMember);
 
       // Lazy migration from file storage / 从文件存储延迟迁移
       let fileConversations: TChatConversation[] = [];
@@ -150,7 +151,7 @@ export class LocalConversationProvider implements IConversationProvider {
       }
 
       // Filter file conversations too / 同时过滤文件存储的会话
-      const localFileConversations = fileConversations.filter((c) => isConversationInCurrentAccount(c) && c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as { isTeamMember?: boolean } | undefined)?.isTeamMember);
+      const localFileConversations = fileConversations.filter((c) => !isOntologyConversation(c) && isConversationInCurrentAccount(c) && c.type !== 'remote-agent' && c.extra?.backend !== 'remote-agent' && !(c.extra as { isTeamMember?: boolean } | undefined)?.isTeamMember);
 
       // Merge: database is primary, add missing from file / 合并：数据库为主，补充文件中缺失的
       const dbIds = new Set(localDbConversations.map((c) => c.id));

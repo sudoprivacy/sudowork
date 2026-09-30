@@ -1,5 +1,5 @@
 import { ipcBridge } from '@/common';
-import { OntologyDatabase } from '@process/services/ontology/OntologyDatabase';
+import { OntologyStudioDatabase as OntologyDatabase } from '@process/services/ontology/OntologyStudioDatabase';
 
 /**
  * Shared handle for the AI-构建 session table. Both the AI Builder bridge and

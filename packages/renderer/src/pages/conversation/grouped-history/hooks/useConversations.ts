@@ -1,3 +1,4 @@
+import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -48,7 +49,7 @@ export const useConversations = () => {
         .then((data) => {
           if (data && Array.isArray(data)) {
             // Filter out health check conversations / 只过滤显式标记的健康检测临时会话，避免误伤用户自定义同名前缀会话
-            const filteredData = data.filter((conv) => (conv.extra as { isHealthCheck?: boolean } | undefined)?.isHealthCheck !== true);
+            const filteredData = data.filter((conv) => !isOntologyConversation(conv) && (conv.extra as { isHealthCheck?: boolean } | undefined)?.isHealthCheck !== true);
             console.log('[useConversations] Fetched conversations:', filteredData.length);
             setConversations(filteredData);
           } else {

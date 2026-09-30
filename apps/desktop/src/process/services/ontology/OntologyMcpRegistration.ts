@@ -81,12 +81,23 @@ export interface IOntologyBuilderMcpConfig {
  * only exposes MCPs listed in the `mcpServers` array, so passing the config
  * through settings.json alone is not enough.
  */
-export async function ensureOntologyBuilderMcpServer(): Promise<IOntologyBuilderMcpConfig> {
+export async function ensureOntologyBuilderMcpServer(workspaceId?: string): Promise<IOntologyBuilderMcpConfig> {
   const scriptPath = getOntologyBuilderMcpScriptPath();
   if (!existsSync(scriptPath)) throw new Error('Ontology builder MCP bundle is unavailable. Run `bun run ontology-builder-mcp:build` and retry.');
   const nodePath = getNodeBinaryPath();
   if (!existsSync(nodePath)) throw new Error('Sudowork Node runtime is unavailable.');
-  const bridge = await ensureOntologyWriteBridge();
+  const bridge = await ensureOntologyWriteBridge(workspaceId ? { workspaceId, role: 'builder' } : undefined);
+  if (workspaceId)
+    return {
+      name: ONTOLOGY_BUILDER_MCP_SERVER_NAME,
+      command: nodePath,
+      args: [scriptPath],
+      env: [
+        { name: 'ONTOLOGY_WRITE_BASE_URL', value: `http://127.0.0.1:${bridge.port}` },
+        { name: 'ONTOLOGY_WRITE_TOKEN', value: bridge.token },
+        { name: 'ONTOLOGY_WORKSPACE_ID', value: workspaceId },
+      ],
+    };
   const now = Date.now();
   const server: IMcpServer = {
     id: ONTOLOGY_BUILDER_MCP_SERVER_NAME,

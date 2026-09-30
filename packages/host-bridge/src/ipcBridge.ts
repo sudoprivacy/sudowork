@@ -5,87 +5,29 @@ import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, Moss
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { bridge } from "@office-ai/platform";
-import type {
-  IConfirmation,
-  IResponseMessage,
-} from "@sudowork/common/chatTypes";
-import type {
-  IAssistantInfo,
-  IAssistantMeta,
-} from "@sudowork/common/assistantTypes";
-import type {
-  IChannelPairingRequest,
-  IChannelPluginStatus,
-  IChannelSession,
-  IChannelUser,
-  IPluginCredentials,
-} from "@sudowork/common/channelTypes";
-import type {
-  ISafetyStatus,
-  IBlacklistConfig,
-} from "@sudowork/common/types/security";
-import type { AuthProxyRule } from "@sudowork/common/types/authProxy";
-import type { SystemConfig } from "@sudowork/common/systemConfigTypes";
-import type { McpSource } from "@sudowork/common/mcpTypes";
-import type {
-  AcpBackend,
-  AcpBackendAll,
-  AcpModelInfo,
-  PresetAgentType,
-} from "@sudowork/common/acpTypes";
-import type { SyncAllResult } from "@sudowork/common/syncTypes";
-import type {
-  ScodeConfig,
-  ScodeCustomModelProvider,
-  ScodeModelEntry,
-  ScodeModelProvider,
-  SpecificImagePricingItem,
-  SpecificPricingItem,
-} from "@sudowork/common/scodeTypes";
-import type {
-  ISudoclawStatus,
-  SudoclawConfig,
-  SudoclawProvider,
-  SudoclawProviderModel,
-  SudoclawTestGatewayResult,
-} from "@sudowork/common/sudoclawTypes";
+import { bridge } from '@office-ai/platform';
+import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
+import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
+import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@sudowork/common/channelTypes';
+import type { ISafetyStatus, IBlacklistConfig } from '@sudowork/common/types/security';
+import type { AuthProxyRule } from '@sudowork/common/types/authProxy';
+import type { SystemConfig } from '@sudowork/common/systemConfigTypes';
+import type { McpSource } from '@sudowork/common/mcpTypes';
+import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '@sudowork/common/acpTypes';
+import type { SyncAllResult } from '@sudowork/common/syncTypes';
+import type { ScodeConfig, ScodeCustomModelProvider, ScodeModelEntry, ScodeModelProvider, SpecificImagePricingItem, SpecificPricingItem } from '@sudowork/common/scodeTypes';
+import type { ISudoclawStatus, SudoclawConfig, SudoclawProvider, SudoclawProviderModel, SudoclawTestGatewayResult } from '@sudowork/common/sudoclawTypes';
 // Re-exported so existing `@sudowork/host-bridge/ipcBridge` type importers keep
 // resolving after these pure value types moved to @sudowork/common.
 export type { ScodeConfig, ScodeModelEntry, ScodeModelProvider };
-export type {
-  ISudoclawStatus,
-  SudoclawConfig,
-  SudoclawProvider,
-  SudoclawProviderModel,
-  SudoclawTestGatewayResult,
-};
-import type { SlashCommandItem } from "@sudowork/common/slash/types";
-import type {
-  IMcpServer,
-  IProvider,
-  TChatConversation,
-  TProviderWithModel,
-  ICssTheme,
-} from "@sudowork/common/storageTypes";
-import type { SecretMetadata } from "@sudowork/common/secretTypes";
-import type { FusePluginStatus } from "@sudowork/common/nexus/fuse-plugin-status";
-import type {
-  PreviewHistoryTarget,
-  PreviewSnapshotInfo,
-} from "@sudowork/common/types/preview";
-import type {
-  UpdateCheckRequest,
-  UpdateCheckResult,
-  UpdateDownloadProgressEvent,
-  UpdateDownloadRequest,
-  UpdateDownloadResult,
-  AutoUpdateStatus,
-} from "@sudowork/common/updateTypes";
-import type {
-  ProtocolDetectionRequest,
-  ProtocolDetectionResponse,
-} from "@sudowork/common/utils/protocolDetector";
+export type { ISudoclawStatus, SudoclawConfig, SudoclawProvider, SudoclawProviderModel, SudoclawTestGatewayResult };
+import type { SlashCommandItem } from '@sudowork/common/slash/types';
+import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from '@sudowork/common/storageTypes';
+import type { SecretMetadata } from '@sudowork/common/secretTypes';
+import type { FusePluginStatus } from '@sudowork/common/nexus/fuse-plugin-status';
+import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@sudowork/common/types/preview';
+import type { UpdateCheckRequest, UpdateCheckResult, UpdateDownloadProgressEvent, UpdateDownloadRequest, UpdateDownloadResult, AutoUpdateStatus } from '@sudowork/common/updateTypes';
+import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '@sudowork/common/utils/protocolDetector';
 import type {
   ILocalKbAddFilesInput,
   ILocalKbBuildJob,
@@ -101,7 +43,7 @@ import type {
   ILocalKbSetDirectoryInput,
   ILocalKbSpace,
   ILocalKbUpdateSpaceInput,
-} from "@sudowork/common/types/localKnowledgeBase";
+} from '@sudowork/common/types/localKnowledgeBase';
 import type {
   IOntologyActionDefinitionInput,
   IOntologyAgentBlueprint,
@@ -143,12 +85,12 @@ import type {
   IOntologyWorkbenchListResult,
   IOntologyWorkbenchMutationResult,
   IOntologyWorkbenchSnapshot,
-} from "@sudowork/ontology-common";
+} from '@sudowork/ontology-common';
 
 export const shell = {
-  openFile: bridge.buildProvider<void, string>("open-file"), // 使用系统默认程序打开文件
-  showItemInFolder: bridge.buildProvider<void, string>("show-item-in-folder"), // 打开文件夹
-  openExternal: bridge.buildProvider<void, string>("open-external"), // 使用系统默认程序打开外部链接
+  openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
+  showItemInFolder: bridge.buildProvider<void, string>('show-item-in-folder'), // 打开文件夹
+  openExternal: bridge.buildProvider<void, string>('open-external'), // 使用系统默认程序打开外部链接
 };
 
 export interface ITerminalCreateResult {
@@ -180,90 +122,43 @@ export interface ITerminalActiveCountEvent {
 }
 
 export const terminal = {
-  create: bridge.buildProvider<
-    IBridgeResponse<ITerminalCreateResult>,
-    { cwd?: string; shell?: string; conversationId?: string } | undefined
-  >("terminal.create"),
-  write: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { sessionId: string; data: string }
-  >("terminal.write"),
-  resize: bridge.buildProvider<IBridgeResponse<void>, ITerminalResizeParams>(
-    "terminal.resize",
-  ),
-  dispose: bridge.buildProvider<IBridgeResponse<void>, { sessionId: string }>(
-    "terminal.dispose",
-  ),
+  create: bridge.buildProvider<IBridgeResponse<ITerminalCreateResult>, { cwd?: string; shell?: string; conversationId?: string } | undefined>('terminal.create'),
+  write: bridge.buildProvider<IBridgeResponse<void>, { sessionId: string; data: string }>('terminal.write'),
+  resize: bridge.buildProvider<IBridgeResponse<void>, ITerminalResizeParams>('terminal.resize'),
+  dispose: bridge.buildProvider<IBridgeResponse<void>, { sessionId: string }>('terminal.dispose'),
   /** Kill all PTYs whose `conversationId` matches. SIGTERM with a 2s grace then SIGKILL. */
-  closeByConversation: bridge.buildProvider<
-    IBridgeResponse<{ killed: number }>,
-    { conversationId: string }
-  >("terminal.closeByConversation"),
-  output: bridge.buildEmitter<ITerminalOutputEvent>("terminal.output"),
-  exit: bridge.buildEmitter<ITerminalExitEvent>("terminal.exit"),
-  activeCountChanged: bridge.buildEmitter<ITerminalActiveCountEvent>(
-    "terminal.activeCountChanged",
-  ),
+  closeByConversation: bridge.buildProvider<IBridgeResponse<{ killed: number }>, { conversationId: string }>('terminal.closeByConversation'),
+  output: bridge.buildEmitter<ITerminalOutputEvent>('terminal.output'),
+  exit: bridge.buildEmitter<ITerminalExitEvent>('terminal.exit'),
+  activeCountChanged: bridge.buildEmitter<ITerminalActiveCountEvent>('terminal.activeCountChanged'),
 };
 
 //通用会话能力
 export const conversation = {
-  create: bridge.buildProvider<
-    TChatConversation | { __error: string },
-    ICreateConversationParams
-  >("create-conversation"), // 创建对话
-  createWithConversation: bridge.buildProvider<
-    TChatConversation,
-    { conversation: TChatConversation; sourceConversationId?: string }
-  >("create-conversation-with-conversation"), // Create new conversation from history (supports migration) / 通过历史会话创建新对话（支持迁移）
-  get: bridge.buildProvider<TChatConversation | undefined, { id: string }>(
-    "get-conversation",
-  ), // 获取对话信息
-  getAssociateConversation: bridge.buildProvider<
-    TChatConversation[],
-    { conversation_id: string }
-  >("get-associated-conversation"), // 获取关联对话
-  remove: bridge.buildProvider<
-    boolean,
-    { id: string; deleteWorkspace?: boolean }
-  >("remove-conversation"), // 删除对话
+  create: bridge.buildProvider<TChatConversation | { __error: string }, ICreateConversationParams>('create-conversation'), // 创建对话
+  createWithConversation: bridge.buildProvider<TChatConversation, { conversation: TChatConversation; sourceConversationId?: string }>('create-conversation-with-conversation'), // Create new conversation from history (supports migration) / 通过历史会话创建新对话（支持迁移）
+  get: bridge.buildProvider<TChatConversation | undefined, { id: string }>('get-conversation'), // 获取对话信息
+  getAssociateConversation: bridge.buildProvider<TChatConversation[], { conversation_id: string }>('get-associated-conversation'), // 获取关联对话
+  remove: bridge.buildProvider<boolean, { id: string; deleteWorkspace?: boolean }>('remove-conversation'), // 删除对话
   // Broadcast from main after a conversation is reaped (all resources released). SSOT
   // cleanup signal so renderer-side caches can drop their entries regardless of which
   // delete path (user-delete / assistant-uninstall) triggered it.
-  reaped: bridge.buildEmitter<{ id: string }>("conversation.reaped"),
-  update: bridge.buildProvider<
-    boolean,
-    { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }
-  >("update-conversation"), // 更新对话信息
-  reset: bridge.buildProvider<void, IResetConversationParams>(
-    "reset-conversation",
-  ), // 重置对话
-  stop: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { conversation_id: string }
-  >("chat.stop.stream"), // 停止会话
-  sendMessage: bridge.buildProvider<IBridgeResponse<void>, ISendMessageParams>(
-    "chat.send.message",
-  ), // 发送消息（统一接口）
-  getSlashCommands: bridge.buildProvider<
-    IBridgeResponse<{ commands: SlashCommandItem[] }>,
-    { conversation_id: string }
-  >("conversation.get-slash-commands"),
-  confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>(
-    "conversation.confirm.message",
-  ), // 通用确认消息
-  responseStream: bridge.buildEmitter<IResponseMessage>("chat.response.stream"), // 接收消息（统一接口）
+  reaped: bridge.buildEmitter<{ id: string }>('conversation.reaped'),
+  update: bridge.buildProvider<boolean, { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }>('update-conversation'), // 更新对话信息
+  reset: bridge.buildProvider<void, IResetConversationParams>('reset-conversation'), // 重置对话
+  stop: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
+  sendMessage: bridge.buildProvider<IBridgeResponse<void>, ISendMessageParams>('chat.send.message'), // 发送消息（统一接口）
+  getSlashCommands: bridge.buildProvider<IBridgeResponse<{ commands: SlashCommandItem[] }>, { conversation_id: string }>('conversation.get-slash-commands'),
+  confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('conversation.confirm.message'), // 通用确认消息
+  responseStream: bridge.buildEmitter<IResponseMessage>('chat.response.stream'), // 接收消息（统一接口）
   // Input queue (interrupt / message-queue): pending user inputs held while a turn runs.
   // Process is the SSOT (turnInputCoordinator); the renderer only reflects this for the queue chips.
   inputQueueUpdate: bridge.buildEmitter<{
     conversation_id: string;
     queue: Array<{ id: string; preview: string }>;
-  }>("conversation.input-queue-update"),
+  }>('conversation.input-queue-update'),
   // Pull a queued input back out (Up-arrow): removes it from the process queue and returns its content.
-  dequeueInput: bridge.buildProvider<
-    IBridgeResponse<{ content: string } | null>,
-    { conversation_id: string; id?: string }
-  >("conversation.dequeue-input"),
+  dequeueInput: bridge.buildProvider<IBridgeResponse<{ content: string } | null>, { conversation_id: string; id?: string }>('conversation.dequeue-input'),
   getWorkspace: bridge.buildProvider<
     IDirOrFile[],
     {
@@ -272,15 +167,9 @@ export const conversation = {
       path: string;
       search?: string;
     }
-  >("conversation.get-workspace"),
-  getRemoteWorkspace: bridge.buildProvider<
-    IRemoteWorkspaceResponse,
-    { conversation_id: string; path?: string; search?: string }
-  >("conversation.get-remote-workspace"),
-  previewRemoteWorkspaceFile: bridge.buildProvider<
-    IBridgeResponse<MossWorkspaceFilePreview>,
-    { conversation_id: string; path: string }
-  >("conversation.preview-remote-workspace-file"),
+  >('conversation.get-workspace'),
+  getRemoteWorkspace: bridge.buildProvider<IRemoteWorkspaceResponse, { conversation_id: string; path?: string; search?: string }>('conversation.get-remote-workspace'),
+  previewRemoteWorkspaceFile: bridge.buildProvider<IBridgeResponse<MossWorkspaceFilePreview>, { conversation_id: string; path: string }>('conversation.preview-remote-workspace-file'),
   copyFilesToRemoteWorkspace: bridge.buildProvider<
     IBridgeResponse<{
       copiedFiles: string[];
@@ -292,43 +181,23 @@ export const conversation = {
       targetDir?: string;
       sourceRoot?: string;
     }
-  >("conversation.copy-files-to-remote-workspace"),
-  getRemoteAvailableSkills: bridge.buildProvider<
-    IRemoteAvailableSkillsResponse,
-    { conversation_id: string }
-  >("conversation.get-remote-available-skills"),
-  responseSearchWorkSpace: bridge.buildProvider<
-    void,
-    { file: number; dir: number; match?: IDirOrFile }
-  >("conversation.response.search.workspace"),
-  reloadContext: bridge.buildProvider<
-    IBridgeResponse,
-    { conversation_id: string }
-  >("conversation.reload-context"),
-  getConnectionStatus: bridge.buildProvider<
-    IBridgeResponse<{ status: string | null }>,
-    { conversation_id: string }
-  >("conversation.get-connection-status"),
-  restartAndConnect: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { conversation_id: string }
-  >("conversation.restart-and-connect"),
-  syncWorkspaceSkills: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { conversation_id: string }
-  >("conversation.sync-workspace-skills"),
+  >('conversation.copy-files-to-remote-workspace'),
+  getRemoteAvailableSkills: bridge.buildProvider<IRemoteAvailableSkillsResponse, { conversation_id: string }>('conversation.get-remote-available-skills'),
+  responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
+  reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
+  getConnectionStatus: bridge.buildProvider<IBridgeResponse<{ status: string | null }>, { conversation_id: string }>('conversation.get-connection-status'),
+  restartAndConnect: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('conversation.restart-and-connect'),
+  syncWorkspaceSkills: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('conversation.sync-workspace-skills'),
   // Flush all pending messages to database immediately (used before reading from DB)
-  flushPendingMessages: bridge.buildProvider<void, { conversation_id: string }>(
-    "conversation.flush-pending-messages",
-  ),
+  flushPendingMessages: bridge.buildProvider<void, { conversation_id: string }>('conversation.flush-pending-messages'),
   // Add a single message to the database (used for saving pending messages before unmount)
   addMessage: bridge.buildProvider<
     void,
     {
       conversation_id: string;
-      message: import("@sudowork/common/chatTypes").TMessage;
+      message: import('@sudowork/common/chatTypes').TMessage;
     }
-  >("conversation.add-message"),
+  >('conversation.add-message'),
   // Sync messages from Moss Server to local DB (enterprise mode, triggered on conversation click)
   syncMessages: bridge.buildProvider<
     IBridgeResponse<{
@@ -337,35 +206,20 @@ export const conversation = {
       conversationStatus?: string;
     }>,
     { conversation_id: string }
-  >("conversation.sync-messages"),
+  >('conversation.sync-messages'),
   confirmation: {
-    add: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>(
-      "confirmation.add",
-    ),
-    update: bridge.buildEmitter<
-      IConfirmation<any> & { conversation_id: string }
-    >("confirmation.update"),
-    confirm: bridge.buildProvider<
-      IBridgeResponse,
-      { conversation_id: string; msg_id: string; data: any; callId: string }
-    >("confirmation.confirm"),
-    list: bridge.buildProvider<
-      IConfirmation<any>[],
-      { conversation_id: string }
-    >("confirmation.list"),
-    remove: bridge.buildEmitter<{ conversation_id: string; id: string }>(
-      "confirmation.remove",
-    ),
+    add: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.add'),
+    update: bridge.buildEmitter<IConfirmation<any> & { conversation_id: string }>('confirmation.update'),
+    confirm: bridge.buildProvider<IBridgeResponse, { conversation_id: string; msg_id: string; data: any; callId: string }>('confirmation.confirm'),
+    list: bridge.buildProvider<IConfirmation<any>[], { conversation_id: string }>('confirmation.list'),
+    remove: bridge.buildEmitter<{ conversation_id: string; id: string }>('confirmation.remove'),
   },
   // Session-level approval memory for "always allow" decisions
   // 会话级别的权限记忆，用于 "always allow" 决策
   approval: {
     // Check if action is approved (keys are parsed from action+commandType in backend)
     // 检查操作是否已批准（keys 由后端从 action+commandType 解析）
-    check: bridge.buildProvider<
-      boolean,
-      { conversation_id: string; action: string; commandType?: string }
-    >("approval.check"),
+    check: bridge.buildProvider<boolean, { conversation_id: string; action: string; commandType?: string }>('approval.check'),
   },
 };
 
@@ -397,73 +251,42 @@ export interface ICdpConfig {
 }
 
 export const application = {
-  restart: bridge.buildProvider<void, void>("restart-app"), // 重启应用
+  restart: bridge.buildProvider<void, void>('restart-app'), // 重启应用
   /** Start consumer-mode services (serviceManager + ChannelManager) without restarting the app. */
-  startConsumerServices: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "start-consumer-services",
-  ),
-  openDevTools: bridge.buildProvider<boolean, void>("open-dev-tools"), // 打开/关闭开发者工具，返回操作后的状态
-  isDevToolsOpened: bridge.buildProvider<boolean, void>("is-dev-tools-opened"), // 获取 DevTools 当前状态
-  systemInfo: bridge.buildProvider<
-    { cacheDir: string; workDir: string; platform: string; arch: string },
-    void
-  >("system.info"), // 获取系统信息
-  getPath: bridge.buildProvider<
-    string,
-    { name: "desktop" | "home" | "downloads" }
-  >("app.get-path"), // 获取系统路径
-  updateSystemInfo: bridge.buildProvider<
-    IBridgeResponse,
-    { cacheDir: string; workDir: string }
-  >("system.update-info"), // 更新系统信息
-  getZoomFactor: bridge.buildProvider<number, void>("app.get-zoom-factor"),
-  setZoomFactor: bridge.buildProvider<number, { factor: number }>(
-    "app.set-zoom-factor",
-  ),
+  startConsumerServices: bridge.buildProvider<IBridgeResponse<void>, void>('start-consumer-services'),
+  openDevTools: bridge.buildProvider<boolean, void>('open-dev-tools'), // 打开/关闭开发者工具，返回操作后的状态
+  isDevToolsOpened: bridge.buildProvider<boolean, void>('is-dev-tools-opened'), // 获取 DevTools 当前状态
+  systemInfo: bridge.buildProvider<{ cacheDir: string; workDir: string; platform: string; arch: string }, void>('system.info'), // 获取系统信息
+  getPath: bridge.buildProvider<string, { name: 'desktop' | 'home' | 'downloads' }>('app.get-path'), // 获取系统路径
+  updateSystemInfo: bridge.buildProvider<IBridgeResponse, { cacheDir: string; workDir: string }>('system.update-info'), // 更新系统信息
+  getZoomFactor: bridge.buildProvider<number, void>('app.get-zoom-factor'),
+  setZoomFactor: bridge.buildProvider<number, { factor: number }>('app.set-zoom-factor'),
   // CDP (Chrome DevTools Protocol) management
-  getCdpStatus: bridge.buildProvider<IBridgeResponse<ICdpStatus>, void>(
-    "app.get-cdp-status",
-  ), // 获取 CDP 状态
-  updateCdpConfig: bridge.buildProvider<
-    IBridgeResponse<ICdpConfig>,
-    Partial<ICdpConfig>
-  >("app.update-cdp-config"), // 更新 CDP 配置
+  getCdpStatus: bridge.buildProvider<IBridgeResponse<ICdpStatus>, void>('app.get-cdp-status'), // 获取 CDP 状态
+  updateCdpConfig: bridge.buildProvider<IBridgeResponse<ICdpConfig>, Partial<ICdpConfig>>('app.update-cdp-config'), // 更新 CDP 配置
   // Bridge Main Process logs to Renderer F12 Console
   logStream: bridge.buildEmitter<{
-    level: "log" | "warn" | "error";
+    level: 'log' | 'warn' | 'error';
     tag: string;
     message: string;
     data?: unknown;
-  }>("app.log-stream"),
+  }>('app.log-stream'),
   // DevTools state change notification
-  devToolsStateChanged: bridge.buildEmitter<{ isOpen: boolean }>(
-    "app.devtools-state-changed",
-  ),
+  devToolsStateChanged: bridge.buildEmitter<{ isOpen: boolean }>('app.devtools-state-changed'),
   // Execute shell command
-  execCommand: bridge.buildProvider<
-    IBridgeResponse<{ stdout?: string; stderr?: string }>,
-    { command: string; cwd?: string }
-  >("app.exec-command"),
+  execCommand: bridge.buildProvider<IBridgeResponse<{ stdout?: string; stderr?: string }>, { command: string; cwd?: string }>('app.exec-command'),
 };
 
 // Manual (opt-in) updates via GitHub Releases
 export const update = {
   /** Ask the renderer to open the update UI (e.g. from app menu). */
-  open: bridge.buildEmitter<{ source?: "menu" | "about" }>("update.open"),
+  open: bridge.buildEmitter<{ source?: 'menu' | 'about' }>('update.open'),
   /** Check GitHub releases and return latest version info. */
-  check: bridge.buildProvider<
-    IBridgeResponse<UpdateCheckResult>,
-    UpdateCheckRequest
-  >("update.check"),
+  check: bridge.buildProvider<IBridgeResponse<UpdateCheckResult>, UpdateCheckRequest>('update.check'),
   /** Download a chosen release asset (explicit user action). */
-  download: bridge.buildProvider<
-    IBridgeResponse<UpdateDownloadResult>,
-    UpdateDownloadRequest
-  >("update.download"),
+  download: bridge.buildProvider<IBridgeResponse<UpdateDownloadResult>, UpdateDownloadRequest>('update.download'),
   /** Download progress events emitted by main process. */
-  downloadProgress: bridge.buildEmitter<UpdateDownloadProgressEvent>(
-    "update.download.progress",
-  ),
+  downloadProgress: bridge.buildEmitter<UpdateDownloadProgressEvent>('update.download.progress'),
 };
 
 // Auto-updater (electron-updater) API
@@ -478,32 +301,21 @@ export const autoUpdate = {
       };
     }>,
     { includePrerelease?: boolean }
-  >("auto-update.check"),
+  >('auto-update.check'),
   /** Download update using electron-updater */
-  download: bridge.buildProvider<IBridgeResponse, void>("auto-update.download"),
+  download: bridge.buildProvider<IBridgeResponse, void>('auto-update.download'),
   /** Quit and install the downloaded update */
-  quitAndInstall: bridge.buildProvider<void, void>(
-    "auto-update.quit-and-install",
-  ),
+  quitAndInstall: bridge.buildProvider<void, void>('auto-update.quit-and-install'),
   /** Get the path to the downloaded update file, if any */
-  getDownloadedFilePath: bridge.buildProvider<
-    IBridgeResponse<{ path: string | null }>,
-    void
-  >("auto-update.get-downloaded-file-path"),
+  getDownloadedFilePath: bridge.buildProvider<IBridgeResponse<{ path: string | null }>, void>('auto-update.get-downloaded-file-path'),
   /** Auto-update status events */
-  status: bridge.buildEmitter<AutoUpdateStatus>("auto-update.status"),
+  status: bridge.buildEmitter<AutoUpdateStatus>('auto-update.status'),
   /** Get current mirror source status (for Chinese users) */
-  getMirrorStatus: bridge.buildProvider<
-    IBridgeResponse<{ useMirror: boolean; reason: string }>,
-    void
-  >("auto-update.get-mirror-status"),
+  getMirrorStatus: bridge.buildProvider<IBridgeResponse<{ useMirror: boolean; reason: string }>, void>('auto-update.get-mirror-status'),
 };
 
 export const starOffice = {
-  detectUrl: bridge.buildProvider<
-    IBridgeResponse<{ url: string | null }>,
-    { preferredUrl?: string; force?: boolean; timeoutMs?: number }
-  >("star-office.detect-url"),
+  detectUrl: bridge.buildProvider<IBridgeResponse<{ url: string | null }>, { preferredUrl?: string; force?: boolean; timeoutMs?: number }>('star-office.detect-url'),
 };
 
 export interface IOpenDialogResult {
@@ -513,16 +325,7 @@ export interface IOpenDialogResult {
 
 /** Open-dialog `properties` values — mirrors Electron's `OpenDialogOptions['properties']`
  *  element type so this bridge no longer depends on the `electron` module. */
-export type OpenDialogProperty =
-  | "openFile"
-  | "openDirectory"
-  | "multiSelections"
-  | "showHiddenFiles"
-  | "createDirectory"
-  | "promptToCreate"
-  | "noResolveAliases"
-  | "treatPackageAsDirectory"
-  | "dontAddToRecent";
+export type OpenDialogProperty = 'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory' | 'dontAddToRecent';
 
 /** File type filter — mirrors Electron's `FileFilter`. */
 export interface IOpenDialogFileFilter {
@@ -539,7 +342,7 @@ export const dialog = {
         filters?: IOpenDialogFileFilter[];
       }
     | undefined
-  >("show-open"), // 打开文件/文件夹选择窗口
+  >('show-open'), // 打开文件/文件夹选择窗口
 };
 
 export interface BdpanFileEntry {
@@ -559,65 +362,27 @@ export const bdpan = {
       error?: string;
     }>,
     void
-  >("bdpan.whoami"),
-  loginGetAuthUrl: bridge.buildProvider<
-    IBridgeResponse<{ auth_url?: string; error?: string }>,
-    void
-  >("bdpan.loginGetAuthUrl"),
-  loginSetCode: bridge.buildProvider<
-    IBridgeResponse<{ type: string; message?: string }>,
-    { code: string }
-  >("bdpan.loginSetCode"),
-  ls: bridge.buildProvider<
-    IBridgeResponse<{ files: BdpanFileEntry[]; error?: string }>,
-    { path: string }
-  >("bdpan.ls"),
-  logout: bridge.buildProvider<IBridgeResponse<{ success: boolean }>, void>(
-    "bdpan.logout",
-  ),
-  download: bridge.buildProvider<
-    IBridgeResponse<{ localPath: string }>,
-    { remotePath: string; destDir: string }
-  >("bdpan.download"),
-  upload: bridge.buildProvider<
-    IBridgeResponse<{ error?: string }>,
-    { localPath: string; remotePath: string }
-  >("bdpan.upload"),
-  mkdir: bridge.buildProvider<
-    IBridgeResponse<{ error?: string }>,
-    { path: string }
-  >("bdpan.mkdir"),
-  downloadResult: bridge.buildEmitter<{ success: boolean; error?: string }>(
-    "bdpan.downloadResult",
-  ),
+  >('bdpan.whoami'),
+  loginGetAuthUrl: bridge.buildProvider<IBridgeResponse<{ auth_url?: string; error?: string }>, void>('bdpan.loginGetAuthUrl'),
+  loginSetCode: bridge.buildProvider<IBridgeResponse<{ type: string; message?: string }>, { code: string }>('bdpan.loginSetCode'),
+  ls: bridge.buildProvider<IBridgeResponse<{ files: BdpanFileEntry[]; error?: string }>, { path: string }>('bdpan.ls'),
+  logout: bridge.buildProvider<IBridgeResponse<{ success: boolean }>, void>('bdpan.logout'),
+  download: bridge.buildProvider<IBridgeResponse<{ localPath: string }>, { remotePath: string; destDir: string }>('bdpan.download'),
+  upload: bridge.buildProvider<IBridgeResponse<{ error?: string }>, { localPath: string; remotePath: string }>('bdpan.upload'),
+  mkdir: bridge.buildProvider<IBridgeResponse<{ error?: string }>, { path: string }>('bdpan.mkdir'),
+  downloadResult: bridge.buildEmitter<{ success: boolean; error?: string }>('bdpan.downloadResult'),
 };
 export const fs = {
-  getFilesByDir: bridge.buildProvider<
-    Array<IDirOrFile>,
-    { dir: string; root: string }
-  >("get-file-by-dir"), // 获取指定文件夹下所有文件夹和文件列表
-  listDir: bridge.buildProvider<string[], { dir: string }>("fs.list-dir"), // 列出目录下的直接子项名称（不递归）
-  getImageBase64: bridge.buildProvider<string, { path: string }>(
-    "get-image-base64",
-  ), // 获取图片base64
-  fetchRemoteImage: bridge.buildProvider<string, { url: string }>(
-    "fetch-remote-image",
-  ), // 远程图片转base64
-  readFile: bridge.buildProvider<string, { path: string }>("read-file"), // 读取文件内容（UTF-8）
-  readFileBuffer: bridge.buildProvider<ArrayBuffer, { path: string }>(
-    "read-file-buffer",
-  ), // 读取二进制文件为 ArrayBuffer
-  readFileBase64: bridge.buildProvider<string, { path: string }>(
-    "read-file-base64",
-  ), // 读取二进制文件为 Base64 字符串（适用于 IPC JSON 序列化场景）
-  createTempFile: bridge.buildProvider<string, { fileName: string }>(
-    "create-temp-file",
-  ), // 创建临时文件
-  createDir: bridge.buildProvider<boolean, { path: string }>("create-dir"), // 创建目录
-  writeFile: bridge.buildProvider<
-    boolean,
-    { path: string; data: Uint8Array | string }
-  >("write-file"), // 写入文件
+  getFilesByDir: bridge.buildProvider<Array<IDirOrFile>, { dir: string; root: string }>('get-file-by-dir'), // 获取指定文件夹下所有文件夹和文件列表
+  listDir: bridge.buildProvider<string[], { dir: string }>('fs.list-dir'), // 列出目录下的直接子项名称（不递归）
+  getImageBase64: bridge.buildProvider<string, { path: string }>('get-image-base64'), // 获取图片base64
+  fetchRemoteImage: bridge.buildProvider<string, { url: string }>('fetch-remote-image'), // 远程图片转base64
+  readFile: bridge.buildProvider<string, { path: string }>('read-file'), // 读取文件内容（UTF-8）
+  readFileBuffer: bridge.buildProvider<ArrayBuffer, { path: string }>('read-file-buffer'), // 读取二进制文件为 ArrayBuffer
+  readFileBase64: bridge.buildProvider<string, { path: string }>('read-file-base64'), // 读取二进制文件为 Base64 字符串（适用于 IPC JSON 序列化场景）
+  createTempFile: bridge.buildProvider<string, { fileName: string }>('create-temp-file'), // 创建临时文件
+  createDir: bridge.buildProvider<boolean, { path: string }>('create-dir'), // 创建目录
+  writeFile: bridge.buildProvider<boolean, { path: string; data: Uint8Array | string }>('write-file'), // 写入文件
   createZip: bridge.buildProvider<
     boolean,
     {
@@ -632,13 +397,9 @@ export const fs = {
         sourcePath?: string;
       }>;
     }
-  >("create-zip-file"), // 创建 zip 文件
-  cancelZip: bridge.buildProvider<boolean, { requestId: string }>(
-    "cancel-zip-file",
-  ), // 取消 zip 创建任务
-  getFileMetadata: bridge.buildProvider<IFileMetadata, { path: string }>(
-    "get-file-metadata",
-  ), // 获取文件元数据
+  >('create-zip-file'), // 创建 zip 文件
+  cancelZip: bridge.buildProvider<boolean, { requestId: string }>('cancel-zip-file'), // 取消 zip 创建任务
+  getFileMetadata: bridge.buildProvider<IFileMetadata, { path: string }>('get-file-metadata'), // 获取文件元数据
   copyFilesToWorkspace: bridge.buildProvider<
     // 返回成功与部分失败的详细状态，便于前端提示用户 / Return details for successful and failed copies for better UI feedback
     IBridgeResponse<{
@@ -646,44 +407,19 @@ export const fs = {
       failedFiles?: Array<{ path: string; error: string }>;
     }>,
     { filePaths: string[]; workspace: string; sourceRoot?: string }
-  >("copy-files-to-workspace"), // 复制文件到工作空间 (Copy files into workspace)
-  removeEntry: bridge.buildProvider<IBridgeResponse, { path: string }>(
-    "remove-entry",
-  ), // 删除文件或文件夹
-  renameEntry: bridge.buildProvider<
-    IBridgeResponse<{ newPath: string }>,
-    { path: string; newName: string }
-  >("rename-entry"), // 重命名文件或文件夹
-  readBuiltinRule: bridge.buildProvider<string, { fileName: string }>(
-    "read-builtin-rule",
-  ), // 读取内置 rules 文件
-  readBuiltinSkill: bridge.buildProvider<string, { fileName: string }>(
-    "read-builtin-skill",
-  ), // 读取内置 skills 文件
+  >('copy-files-to-workspace'), // 复制文件到工作空间 (Copy files into workspace)
+  removeEntry: bridge.buildProvider<IBridgeResponse, { path: string }>('remove-entry'), // 删除文件或文件夹
+  renameEntry: bridge.buildProvider<IBridgeResponse<{ newPath: string }>, { path: string; newName: string }>('rename-entry'), // 重命名文件或文件夹
+  readBuiltinRule: bridge.buildProvider<string, { fileName: string }>('read-builtin-rule'), // 读取内置 rules 文件
+  readBuiltinSkill: bridge.buildProvider<string, { fileName: string }>('read-builtin-skill'), // 读取内置 skills 文件
   // 助手规则文件操作 / Assistant rule file operations
-  readAssistantRule: bridge.buildProvider<
-    string,
-    { assistantId: string; locale?: string }
-  >("read-assistant-rule"), // 读取助手规则文件
-  writeAssistantRule: bridge.buildProvider<
-    boolean,
-    { assistantId: string; content: string; locale?: string }
-  >("write-assistant-rule"), // 写入助手规则文件
-  deleteAssistantRule: bridge.buildProvider<boolean, { assistantId: string }>(
-    "delete-assistant-rule",
-  ), // 删除助手规则文件
+  readAssistantRule: bridge.buildProvider<string, { assistantId: string; locale?: string }>('read-assistant-rule'), // 读取助手规则文件
+  writeAssistantRule: bridge.buildProvider<boolean, { assistantId: string; content: string; locale?: string }>('write-assistant-rule'), // 写入助手规则文件
+  deleteAssistantRule: bridge.buildProvider<boolean, { assistantId: string }>('delete-assistant-rule'), // 删除助手规则文件
   // 助手技能文件操作 / Assistant skill file operations
-  readAssistantSkill: bridge.buildProvider<
-    string,
-    { assistantId: string; locale?: string }
-  >("read-assistant-skill"), // 读取助手技能文件
-  writeAssistantSkill: bridge.buildProvider<
-    boolean,
-    { assistantId: string; content: string; locale?: string }
-  >("write-assistant-skill"), // 写入助手技能文件
-  deleteAssistantSkill: bridge.buildProvider<boolean, { assistantId: string }>(
-    "delete-assistant-skill",
-  ), // 删除助手技能文件
+  readAssistantSkill: bridge.buildProvider<string, { assistantId: string; locale?: string }>('read-assistant-skill'), // 读取助手技能文件
+  writeAssistantSkill: bridge.buildProvider<boolean, { assistantId: string; content: string; locale?: string }>('write-assistant-skill'), // 写入助手技能文件
+  deleteAssistantSkill: bridge.buildProvider<boolean, { assistantId: string }>('delete-assistant-skill'), // 删除助手技能文件
   // 获取可用 skills 列表 / List available skills from skills directory
   listAvailableSkills: bridge.buildProvider<
     Array<{
@@ -693,17 +429,11 @@ export const fs = {
       isCustom: boolean;
     }>,
     void
-  >("list-available-skills"),
+  >('list-available-skills'),
   // 读取 skill 信息（不导入）/ Read skill info without importing
-  readSkillInfo: bridge.buildProvider<
-    IBridgeResponse<{ name: string; description: string }>,
-    { skillPath: string }
-  >("read-skill-info"),
+  readSkillInfo: bridge.buildProvider<IBridgeResponse<{ name: string; description: string }>, { skillPath: string }>('read-skill-info'),
   // 导入 skill 目录 / Import skill directory
-  importSkill: bridge.buildProvider<
-    IBridgeResponse<{ skillName: string }>,
-    { skillPath: string }
-  >("import-skill"),
+  importSkill: bridge.buildProvider<IBridgeResponse<{ skillName: string }>, { skillPath: string }>('import-skill'),
   // 扫描目录下的 skills / Scan directory for skills
   scanForSkills: bridge.buildProvider<
     IBridgeResponse<
@@ -719,41 +449,25 @@ export const fs = {
       }>
     >,
     { folderPath: string }
-  >("scan-for-skills"),
+  >('scan-for-skills'),
   // 检测常见的 skills 路径 / Detect common skills paths
-  detectCommonSkillPaths: bridge.buildProvider<
-    IBridgeResponse<Array<{ name: string; path: string }>>,
-    void
-  >("detect-common-skill-paths"),
+  detectCommonSkillPaths: bridge.buildProvider<IBridgeResponse<Array<{ name: string; path: string }>>, void>('detect-common-skill-paths'),
 };
 
 export const fileWatch = {
-  startWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>(
-    "file-watch-start",
-  ), // 开始监听文件变化
-  stopWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>(
-    "file-watch-stop",
-  ), // 停止监听文件变化
-  stopAllWatches: bridge.buildProvider<IBridgeResponse, void>(
-    "file-watch-stop-all",
-  ), // 停止所有文件监听
-  fileChanged: bridge.buildEmitter<{ filePath: string; eventType: string }>(
-    "file-changed",
-  ), // 文件变化事件
+  startWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-start'), // 开始监听文件变化
+  stopWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-stop'), // 停止监听文件变化
+  stopAllWatches: bridge.buildProvider<IBridgeResponse, void>('file-watch-stop-all'), // 停止所有文件监听
+  fileChanged: bridge.buildEmitter<{ filePath: string; eventType: string }>('file-changed'), // 文件变化事件
   // 目录监听 / Directory watching (inotify-style auto refresh)
-  startWatchDir: bridge.buildProvider<
-    IBridgeResponse<{ watchId: string }>,
-    { dirPath: string; recursive?: boolean }
-  >("file-watch-dir-start"),
-  stopWatchDir: bridge.buildProvider<IBridgeResponse, { watchId: string }>(
-    "file-watch-dir-stop",
-  ),
+  startWatchDir: bridge.buildProvider<IBridgeResponse<{ watchId: string }>, { dirPath: string; recursive?: boolean }>('file-watch-dir-start'),
+  stopWatchDir: bridge.buildProvider<IBridgeResponse, { watchId: string }>('file-watch-dir-stop'),
   dirChanged: bridge.buildEmitter<{
     watchId: string;
     dirPath: string;
     eventType: string;
     changedPath?: string;
-  }>("dir-changed"),
+  }>('dir-changed'),
 };
 
 // 文件流式更新（Agent 写入文件时实时推送内容）/ File streaming updates (real-time content push when agent writes)
@@ -763,22 +477,14 @@ export const fileStream = {
     content: string; // 新内容 / New content
     workspace: string; // 工作空间根目录 / Workspace root directory
     relativePath: string; // 相对路径 / Relative path
-    operation: "write" | "delete"; // 操作类型 / Operation type
-  }>("file-stream-content-update"), // Agent 写入文件时的流式内容更新 / Streaming content update when agent writes file
+    operation: 'write' | 'delete'; // 操作类型 / Operation type
+  }>('file-stream-content-update'), // Agent 写入文件时的流式内容更新 / Streaming content update when agent writes file
 };
 
 export const googleAuth = {
-  login: bridge.buildProvider<
-    IBridgeResponse<{ account: string }>,
-    { proxy?: string }
-  >("google.auth.login"),
-  logout: bridge.buildProvider<void, Record<string, never>>(
-    "google.auth.logout",
-  ),
-  status: bridge.buildProvider<
-    IBridgeResponse<{ account: string }>,
-    { proxy?: string }
-  >("google.auth.status"),
+  login: bridge.buildProvider<IBridgeResponse<{ account: string }>, { proxy?: string }>('google.auth.login'),
+  logout: bridge.buildProvider<void, Record<string, never>>('google.auth.logout'),
+  status: bridge.buildProvider<IBridgeResponse<{ account: string }>, { proxy?: string }>('google.auth.status'),
 };
 
 // 订阅状态查询：用于动态决定是否展示 gemini-3.1-pro-preview / subscription check for Gemini models
@@ -791,7 +497,7 @@ export const gemini = {
       message?: string;
     }>,
     { proxy?: string }
-  >("gemini.subscription-status"),
+  >('gemini.subscription-status'),
 };
 
 // AWS Bedrock 相关接口 / AWS Bedrock interfaces
@@ -800,14 +506,14 @@ export const bedrock = {
     IBridgeResponse<{ msg?: string }>,
     {
       bedrockConfig: {
-        authMethod: "accessKey" | "profile";
+        authMethod: 'accessKey' | 'profile';
         region: string;
         accessKeyId?: string;
         secretAccessKey?: string;
         profile?: string;
       };
     }
-  >("bedrock.test-connection"),
+  >('bedrock.test-connection'),
 };
 
 // Moss Server (Enterprise) interfaces - 企业模式下会话由 Moss Server 管理
@@ -816,7 +522,7 @@ export interface MossSessionInfo {
   wsUrl: string;
   workDir?: string;
   assistantName?: string;
-  status?: "active" | "idle" | "terminated" | "ended";
+  status?: 'active' | 'idle' | 'terminated' | 'ended';
   createdAt?: number;
   updatedAt?: number;
 }
@@ -834,17 +540,17 @@ export interface MossWorkspaceNode {
 
 export type MossWorkspaceFilePreview =
   | {
-      kind: "text";
+      kind: 'text';
       name: string;
       relativePath: string;
       mime: string;
-      encoding: "utf8";
+      encoding: 'utf8';
       content: string;
       size: number;
       truncated: boolean;
     }
   | {
-      kind: "base64";
+      kind: 'base64';
       name: string;
       relativePath: string;
       mime: string;
@@ -876,9 +582,7 @@ export type IRemoteAvailableSkillsResponse = IBridgeResponse<{
 
 export const moss = {
   /** Check if enterprise mode is enabled */
-  isEnterpriseMode: bridge.buildProvider<boolean, void>(
-    "moss.is-enterprise-mode",
-  ),
+  isEnterpriseMode: bridge.buildProvider<boolean, void>('moss.is-enterprise-mode'),
   /** Get Moss Server URL and auth config */
   getConfig: bridge.buildProvider<
     {
@@ -886,18 +590,16 @@ export const moss = {
       hasToken: boolean;
     },
     void
-  >("moss.get-config"),
+  >('moss.get-config'),
   /** Set JWT auth token directly (no conversion needed) */
   setAuthToken: bridge.buildProvider<
     IBridgeResponse,
     {
       authToken: string;
     }
-  >("moss.set-auth-token"),
+  >('moss.set-auth-token'),
   /** List all sessions from Moss Server */
-  listSessions: bridge.buildProvider<IBridgeResponse<MossSessionInfo[]>, void>(
-    "moss.list-sessions",
-  ),
+  listSessions: bridge.buildProvider<IBridgeResponse<MossSessionInfo[]>, void>('moss.list-sessions'),
   /** Create a new session on Moss Server */
   createSession: bridge.buildProvider<
     IBridgeResponse<MossSessionInfo>,
@@ -905,28 +607,17 @@ export const moss = {
       cwd?: string;
       assistantName?: string;
       dangerouslySkipPermissions?: boolean;
-      runtimeType?: "host" | "docker";
+      runtimeType?: 'host' | 'docker';
     }
-  >("moss.create-session"),
+  >('moss.create-session'),
   /** Get session details */
-  getSession: bridge.buildProvider<
-    IBridgeResponse<MossSessionInfo>,
-    { sessionId: string }
-  >("moss.get-session"),
+  getSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, { sessionId: string }>('moss.get-session'),
   /** Delete a session */
-  deleteSession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>(
-    "moss.delete-session",
-  ),
+  deleteSession: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('moss.delete-session'),
   /** Update session metadata (e.g., title) */
-  updateSession: bridge.buildProvider<
-    IBridgeResponse<MossSessionInfo>,
-    { sessionId: string; title?: string }
-  >("moss.update-session"),
+  updateSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, { sessionId: string; title?: string }>('moss.update-session'),
   /** Resume an existing session to get WebSocket URL */
-  resumeSession: bridge.buildProvider<
-    IBridgeResponse<{ wsUrl: string; session: MossSessionInfo }>,
-    { sessionId: string }
-  >("moss.resume-session"),
+  resumeSession: bridge.buildProvider<IBridgeResponse<{ wsUrl: string; session: MossSessionInfo }>, { sessionId: string }>('moss.resume-session'),
   /** Send message to session (WebSocket) */
   sendMessage: bridge.buildProvider<
     IBridgeResponse,
@@ -936,25 +627,17 @@ export const moss = {
       content: string;
       files?: string[];
     }
-  >("moss.send-message"),
+  >('moss.send-message'),
   /** Stream response from Moss Server */
-  responseStream: bridge.buildEmitter<IResponseMessage>("moss.response-stream"),
+  responseStream: bridge.buildEmitter<IResponseMessage>('moss.response-stream'),
   /** Stop/interrupt current operation */
-  stop: bridge.buildProvider<IBridgeResponse, { sessionId: string }>(
-    "moss.stop",
-  ),
+  stop: bridge.buildProvider<IBridgeResponse, { sessionId: string }>('moss.stop'),
   /** Respond to permission request */
-  respondPermission: bridge.buildProvider<
-    IBridgeResponse,
-    { sessionId: string; requestId: string; optionId: string }
-  >("moss.respond-permission"),
+  respondPermission: bridge.buildProvider<IBridgeResponse, { sessionId: string; requestId: string; optionId: string }>('moss.respond-permission'),
 
   // === Model Management ===
   /** Get available models from Moss Server */
-  getAvailableModels: bridge.buildProvider<
-    IBridgeResponse<Array<{ id: string; name: string; ratio: number }>>,
-    void
-  >("moss.get-available-models"),
+  getAvailableModels: bridge.buildProvider<IBridgeResponse<Array<{ id: string; name: string; ratio: number }>>, void>('moss.get-available-models'),
   /** Get user's model preference */
   getUserModel: bridge.buildProvider<
     IBridgeResponse<{
@@ -963,12 +646,9 @@ export const moss = {
       systemDefaultModel: string;
     } | null>,
     void
-  >("moss.get-user-model"),
+  >('moss.get-user-model'),
   /** Set user's model preference */
-  setUserModel: bridge.buildProvider<
-    IBridgeResponse<{ modelId: string; updatedAt: number }>,
-    { modelId: string }
-  >("moss.set-user-model"),
+  setUserModel: bridge.buildProvider<IBridgeResponse<{ modelId: string; updatedAt: number }>, { modelId: string }>('moss.set-user-model'),
 
   /** Agents an IM channel can use + its current default (enterprise mode: served by moss). */
   getChannelAgents: bridge.buildProvider<
@@ -981,22 +661,14 @@ export const moss = {
       defaultAgent: string | null;
     }>,
     { pluginId: string }
-  >("moss.get-channel-agents"),
+  >('moss.get-channel-agents'),
 
   /** Set/clear the agent new chats on an IM channel start with. */
-  setChannelDefaultAgent: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { pluginId: string; agentName: string | null }
-  >("moss.set-channel-default-agent"),
+  setChannelDefaultAgent: bridge.buildProvider<IBridgeResponse<void>, { pluginId: string; agentName: string | null }>('moss.set-channel-default-agent'),
   /** Set model for current session (via WebSocket) */
-  setModel: bridge.buildProvider<
-    IBridgeResponse,
-    { sessionId: string; modelId: string }
-  >("moss.set-model"),
+  setModel: bridge.buildProvider<IBridgeResponse, { sessionId: string; modelId: string }>('moss.set-model'),
   /** Model changed event (emitted when model switch completes) */
-  modelChanged: bridge.buildEmitter<{ sessionId: string; model: string }>(
-    "moss.model-changed",
-  ),
+  modelChanged: bridge.buildEmitter<{ sessionId: string; model: string }>('moss.model-changed'),
 };
 
 export const mode = {
@@ -1011,25 +683,18 @@ export const mode = {
       try_fix?: boolean;
       platform?: string;
       bedrockConfig?: {
-        authMethod: "accessKey" | "profile";
+        authMethod: 'accessKey' | 'profile';
         region: string;
         accessKeyId?: string;
         secretAccessKey?: string;
         profile?: string;
       };
     }
-  >("mode.get-model-list"),
-  saveModelConfig: bridge.buildProvider<IBridgeResponse, IProvider[]>(
-    "mode.save-model-config",
-  ),
-  getModelConfig: bridge.buildProvider<IProvider[], void>(
-    "mode.get-model-config",
-  ),
+  >('mode.get-model-list'),
+  saveModelConfig: bridge.buildProvider<IBridgeResponse, IProvider[]>('mode.save-model-config'),
+  getModelConfig: bridge.buildProvider<IProvider[], void>('mode.get-model-config'),
   /** 协议检测接口 - 自动检测 API 端点使用的协议类型 / Protocol detection - auto-detect API protocol type */
-  detectProtocol: bridge.buildProvider<
-    IBridgeResponse<ProtocolDetectionResponse>,
-    ProtocolDetectionRequest
-  >("mode.detect-protocol"),
+  detectProtocol: bridge.buildProvider<IBridgeResponse<ProtocolDetectionResponse>, ProtocolDetectionRequest>('mode.detect-protocol'),
 };
 
 // ACP对话相关接口 - 复用统一的conversation接口
@@ -1043,11 +708,8 @@ export const acpConversation = {
       toolCallId: string;
       answers: Array<{ id: string; value: string; label?: string }>;
     }
-  >("acp.answer-question"),
-  detectCliPath: bridge.buildProvider<
-    IBridgeResponse<{ path?: string }>,
-    { backend: AcpBackend }
-  >("acp.detect-cli-path"),
+  >('acp.answer-question'),
+  detectCliPath: bridge.buildProvider<IBridgeResponse<{ path?: string }>, { backend: AcpBackend }>('acp.detect-cli-path'),
   getAvailableAgents: bridge.buildProvider<
     IBridgeResponse<
       Array<{
@@ -1066,92 +728,65 @@ export const acpConversation = {
         // Enterprise-specific metadata for remote-agent
         enterpriseMetadata?: {
           mossServerUrl?: string;
-          authMode?: "api_key" | "password" | "access_token";
-          runtimeType?: "host" | "docker";
+          authMode?: 'api_key' | 'password' | 'access_token';
+          runtimeType?: 'host' | 'docker';
         };
       }>
     >,
     void
-  >("acp.get-available-agents"),
-  checkEnv: bridge.buildProvider<{ env: Record<string, string> }, void>(
-    "acp.check.env",
-  ),
-  refreshCustomAgents: bridge.buildProvider<IBridgeResponse, void>(
-    "acp.refresh-custom-agents",
-  ),
+  >('acp.get-available-agents'),
+  checkEnv: bridge.buildProvider<{ env: Record<string, string> }, void>('acp.check.env'),
+  refreshCustomAgents: bridge.buildProvider<IBridgeResponse, void>('acp.refresh-custom-agents'),
   /** Re-run full CLI agent detection (after install/uninstall) */
-  rescanAgents: bridge.buildProvider<IBridgeResponse, void>(
-    "acp.rescan-agents",
-  ),
-  checkAgentHealth: bridge.buildProvider<
-    IBridgeResponse<{ available: boolean; latency?: number; error?: string }>,
-    { backend: AcpBackend }
-  >("acp.check-agent-health"),
+  rescanAgents: bridge.buildProvider<IBridgeResponse, void>('acp.rescan-agents'),
+  checkAgentHealth: bridge.buildProvider<IBridgeResponse<{ available: boolean; latency?: number; error?: string }>, { backend: AcpBackend }>('acp.check-agent-health'),
   // Set session mode for ACP agents (claude, qwen, etc.)
   // 设置 ACP 代理的会话模式（claude、qwen 等）
-  setMode: bridge.buildProvider<
-    IBridgeResponse<{ mode: string }>,
-    { conversationId: string; mode: string }
-  >("acp.set-mode"),
+  setMode: bridge.buildProvider<IBridgeResponse<{ mode: string }>, { conversationId: string; mode: string }>('acp.set-mode'),
   // Get current session mode for ACP agents
   // 获取 ACP 代理的当前会话模式
-  getMode: bridge.buildProvider<
-    IBridgeResponse<{ mode: string; initialized: boolean }>,
-    { conversationId: string }
-  >("acp.get-mode"),
+  getMode: bridge.buildProvider<IBridgeResponse<{ mode: string; initialized: boolean }>, { conversationId: string }>('acp.get-mode'),
   // Get model info for ACP agents (model name and available models)
   // 获取 ACP 代理的模型信息（模型名称和可用模型）
-  getModelInfo: bridge.buildProvider<
-    IBridgeResponse<{ modelInfo: AcpModelInfo | null }>,
-    { conversationId: string }
-  >("acp.get-model-info"),
+  getModelInfo: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null }>, { conversationId: string }>('acp.get-model-info'),
   // Probe model info for an ACP backend without creating a visible conversation
   // 预探测 ACP 后端的模型信息，不创建可见会话
-  probeModelInfo: bridge.buildProvider<
-    IBridgeResponse<{ modelInfo: AcpModelInfo | null }>,
-    { backend: AcpBackend }
-  >("acp.probe-model-info"),
+  probeModelInfo: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null }>, { backend: AcpBackend }>('acp.probe-model-info'),
   // Set model for ACP agents
   // 设置 ACP 代理的模型
-  setModel: bridge.buildProvider<
-    IBridgeResponse<{ modelInfo: AcpModelInfo | null }>,
-    { conversationId: string; modelId: string }
-  >("acp.set-model"),
+  setModel: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null }>, { conversationId: string; modelId: string }>('acp.set-model'),
   // Get non-model config options for ACP agents (e.g., reasoning effort)
   // 获取 ACP 代理的非模型配置选项（如推理级别）
   getConfigOptions: bridge.buildProvider<
     IBridgeResponse<{
-      configOptions: import("@sudowork/common/acpTypes").AcpSessionConfigOption[];
+      configOptions: import('@sudowork/common/acpTypes').AcpSessionConfigOption[];
     }>,
     { conversationId: string }
-  >("acp.get-config-options"),
+  >('acp.get-config-options'),
   // Set a config option value for ACP agents (e.g., reasoning effort)
   // 设置 ACP 代理的配置选项值（如推理级别）
   setConfigOption: bridge.buildProvider<
     IBridgeResponse<{
-      configOptions: import("@sudowork/common/acpTypes").AcpSessionConfigOption[];
+      configOptions: import('@sudowork/common/acpTypes').AcpSessionConfigOption[];
     }>,
     { conversationId: string; configId: string; value: string }
-  >("acp.set-config-option"),
+  >('acp.set-config-option'),
 };
 
 // MCP 服务相关接口
 export const mcpService = {
-  getAgentMcpConfigs: bridge.buildProvider<
-    IBridgeResponse<Array<{ source: McpSource; servers: IMcpServer[] }>>,
-    Array<{ backend: AcpBackend; name: string; cliPath?: string }>
-  >("mcp.get-agent-configs"),
+  getAgentMcpConfigs: bridge.buildProvider<IBridgeResponse<Array<{ source: McpSource; servers: IMcpServer[] }>>, Array<{ backend: AcpBackend; name: string; cliPath?: string }>>('mcp.get-agent-configs'),
   testMcpConnection: bridge.buildProvider<
     IBridgeResponse<{
       success: boolean;
       tools?: Array<{ name: string; description?: string }>;
       error?: string;
       needsAuth?: boolean;
-      authMethod?: "oauth" | "basic";
+      authMethod?: 'oauth' | 'basic';
       wwwAuthenticate?: string;
     }>,
     IMcpServer
-  >("mcp.test-connection"),
+  >('mcp.test-connection'),
   syncMcpToAgents: bridge.buildProvider<
     IBridgeResponse<{
       success: boolean;
@@ -1161,7 +796,7 @@ export const mcpService = {
       mcpServers: IMcpServer[];
       agents: Array<{ backend: AcpBackend; name: string; cliPath?: string }>;
     }
-  >("mcp.sync-to-agents"),
+  >('mcp.sync-to-agents'),
   removeMcpFromAgents: bridge.buildProvider<
     IBridgeResponse<{
       success: boolean;
@@ -1171,7 +806,7 @@ export const mcpService = {
       mcpServerName: string;
       agents: Array<{ backend: AcpBackend; name: string; cliPath?: string }>;
     }
-  >("mcp.remove-from-agents"),
+  >('mcp.remove-from-agents'),
   // OAuth 相关接口
   checkOAuthStatus: bridge.buildProvider<
     IBridgeResponse<{
@@ -1180,18 +815,10 @@ export const mcpService = {
       error?: string;
     }>,
     IMcpServer
-  >("mcp.check-oauth-status"),
-  loginMcpOAuth: bridge.buildProvider<
-    IBridgeResponse<{ success: boolean; error?: string }>,
-    { server: IMcpServer; config?: any }
-  >("mcp.login-oauth"),
-  logoutMcpOAuth: bridge.buildProvider<IBridgeResponse, string>(
-    "mcp.logout-oauth",
-  ),
-  getAuthenticatedServers: bridge.buildProvider<
-    IBridgeResponse<string[]>,
-    void
-  >("mcp.get-authenticated-servers"),
+  >('mcp.check-oauth-status'),
+  loginMcpOAuth: bridge.buildProvider<IBridgeResponse<{ success: boolean; error?: string }>, { server: IMcpServer; config?: any }>('mcp.login-oauth'),
+  logoutMcpOAuth: bridge.buildProvider<IBridgeResponse, string>('mcp.logout-oauth'),
+  getAuthenticatedServers: bridge.buildProvider<IBridgeResponse<string[]>, void>('mcp.get-authenticated-servers'),
 };
 
 // mcporter 服务相关接口
@@ -1203,64 +830,32 @@ export interface IMcporterDaemonStatus {
 }
 
 export const mcporterService = {
-  isAvailable: bridge.buildProvider<IBridgeResponse<boolean>, void>(
-    "mcporter.is-available",
-  ),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "mcporter.install",
-  ),
-  syncConfig: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>(
-    "mcporter.sync-config",
-  ),
-  startDaemon: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "mcporter.start-daemon",
-  ),
-  stopDaemon: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "mcporter.stop-daemon",
-  ),
-  getDaemonStatus: bridge.buildProvider<
-    IBridgeResponse<IMcporterDaemonStatus>,
-    void
-  >("mcporter.get-daemon-status"),
-  getConfigPath: bridge.buildProvider<IBridgeResponse<string>, void>(
-    "mcporter.get-config-path",
-  ),
-  initialize: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>(
-    "mcporter.initialize",
-  ),
+  isAvailable: bridge.buildProvider<IBridgeResponse<boolean>, void>('mcporter.is-available'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.install'),
+  syncConfig: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.sync-config'),
+  startDaemon: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.start-daemon'),
+  stopDaemon: bridge.buildProvider<IBridgeResponse<void>, void>('mcporter.stop-daemon'),
+  getDaemonStatus: bridge.buildProvider<IBridgeResponse<IMcporterDaemonStatus>, void>('mcporter.get-daemon-status'),
+  getConfigPath: bridge.buildProvider<IBridgeResponse<string>, void>('mcporter.get-config-path'),
+  initialize: bridge.buildProvider<IBridgeResponse<void>, IMcpServer[]>('mcporter.initialize'),
 };
 
 // Database operations
 export const database = {
-  getConversationMessages: bridge.buildProvider<
-    import("@sudowork/common/chatTypes").TMessage[],
-    { conversation_id: string; page?: number; pageSize?: number }
-  >("database.get-conversation-messages"),
-  getUserConversations: bridge.buildProvider<
-    import("@sudowork/common/storageTypes").TChatConversation[],
-    { page?: number; pageSize?: number; sessionMode?: "remote" | "local" }
-  >("database.get-user-conversations"),
+  getConversationMessages: bridge.buildProvider<import('@sudowork/common/chatTypes').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
+  getUserConversations: bridge.buildProvider<import('@sudowork/common/storageTypes').TChatConversation[], { page?: number; pageSize?: number; sessionMode?: 'remote' | 'local' }>('database.get-user-conversations'),
   /** 渠道对话创建/更新/删除时，主进程通知渲染进程刷新对话列表 */
   conversationChanged: bridge.buildEmitter<{
     conversationId: string;
     source?: string;
-    action: "created" | "updated" | "deleted";
-  }>("database.conversation-changed"),
+    action: 'created' | 'updated' | 'deleted';
+  }>('database.conversation-changed'),
 };
 
 export const previewHistory = {
-  list: bridge.buildProvider<
-    PreviewSnapshotInfo[],
-    { target: PreviewHistoryTarget }
-  >("preview-history.list"),
-  save: bridge.buildProvider<
-    PreviewSnapshotInfo,
-    { target: PreviewHistoryTarget; content: string }
-  >("preview-history.save"),
-  getContent: bridge.buildProvider<
-    { snapshot: PreviewSnapshotInfo; content: string } | null,
-    { target: PreviewHistoryTarget; snapshotId: string }
-  >("preview-history.get-content"),
+  list: bridge.buildProvider<PreviewSnapshotInfo[], { target: PreviewHistoryTarget }>('preview-history.list'),
+  save: bridge.buildProvider<PreviewSnapshotInfo, { target: PreviewHistoryTarget; content: string }>('preview-history.save'),
+  getContent: bridge.buildProvider<{ snapshot: PreviewSnapshotInfo; content: string } | null, { target: PreviewHistoryTarget; snapshotId: string }>('preview-history.get-content'),
 };
 
 // 预览面板相关接口 / Preview panel API
@@ -1268,12 +863,12 @@ export const preview = {
   // Agent 触发打开预览（如 ai-dev-browser page_goto 导航到 URL）/ Agent triggers open preview (e.g., ai-dev-browser page_goto)
   open: bridge.buildEmitter<{
     content: string; // URL 或内容 / URL or content
-    contentType: import("@sudowork/common/types/preview").PreviewContentType; // 内容类型 / Content type
+    contentType: import('@sudowork/common/types/preview').PreviewContentType; // 内容类型 / Content type
     metadata?: {
       title?: string;
       fileName?: string;
     };
-  }>("preview.open"),
+  }>('preview.open'),
 };
 
 // Right-panel BrowserPanel "open URL" event. Fired from the main process when
@@ -1284,15 +879,13 @@ export const rightPanelBrowser = {
     url: string;
     switchTab?: boolean;
     conversationId?: string;
-  }>("right-panel.browser.open"),
+  }>('right-panel.browser.open'),
   /**
    * Broadcast from main when a conversation is deleted so renderer-side
    * per-conversation BrowserPanel state can drop its entry. Mirrors the
    * direct cleanup main does via BrowserPanelCdpService.closeTabsByConversation.
    */
-  convClosed: bridge.buildEmitter<{ conversationId: string }>(
-    "right-panel.browser.conv-closed",
-  ),
+  convClosed: bridge.buildEmitter<{ conversationId: string }>('right-panel.browser.conv-closed'),
 };
 
 // AI-generated file deliverables for a conversation. The list is built by
@@ -1305,7 +898,7 @@ export const deliverables = {
       Array<{
         path: string;
         relativePath?: string;
-        kind: "create" | "edit";
+        kind: 'create' | 'edit';
         ext: string;
         mime?: string;
         size?: number;
@@ -1313,87 +906,61 @@ export const deliverables = {
       }>
     >,
     { conversationId?: string; teamId?: string }
-  >("deliverables.list"),
+  >('deliverables.list'),
   changed: bridge.buildEmitter<{
     conversationId: string;
     teamId?: string;
     files: Array<{
       path: string;
       relativePath?: string;
-      kind: "create" | "edit";
+      kind: 'create' | 'edit';
       ext: string;
       mime?: string;
       size?: number;
       createdAt: number;
     }>;
-  }>("deliverables.changed"),
+  }>('deliverables.changed'),
 };
 
 export const document = {
-  convert: bridge.buildProvider<
-    import("@sudowork/common/types/conversion").DocumentConversionResponse,
-    import("@sudowork/common/types/conversion").DocumentConversionRequest
-  >("document.convert"),
+  convert: bridge.buildProvider<import('@sudowork/common/types/conversion').DocumentConversionResponse, import('@sudowork/common/types/conversion').DocumentConversionRequest>('document.convert'),
   /** 将内容保存为 Word 文档并返回保存路径 / Save content as Word and return path */
-  saveAsDocx: bridge.buildProvider<
-    IBridgeResponse<string>,
-    { markdown: string; conversationId: string; fileName?: string }
-  >("document.save-as-docx"),
+  saveAsDocx: bridge.buildProvider<IBridgeResponse<string>, { markdown: string; conversationId: string; fileName?: string }>('document.save-as-docx'),
   libreOffice: {
-    isAvailable: bridge.buildProvider<boolean, void>(
-      "document.libreoffice.is-available",
-    ),
+    isAvailable: bridge.buildProvider<boolean, void>('document.libreoffice.is-available'),
   },
   /** 获取文件最后修改时间 (mtime) / Get file last modification time */
-  getFileMtime: bridge.buildProvider<number, { filePath: string }>(
-    "document.get-file-mtime",
-  ),
+  getFileMtime: bridge.buildProvider<number, { filePath: string }>('document.get-file-mtime'),
 };
 
 export interface ICliStatus {
   installed: boolean;
   path?: string;
   version?: string;
-  source: "managed" | "system" | "none";
+  source: 'managed' | 'system' | 'none';
 }
 
 // Claude CLI installer / 安装 claude 命令行工具
 export const claudeCli = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>(
-    "claude-cli.check-installed",
-  ),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "claude-cli.install",
-  ),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "claude-cli.uninstall",
-  ),
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('claude-cli.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('claude-cli.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('claude-cli.uninstall'),
   /** Emitted by main process when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "claude-cli.install-result",
-  ),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('claude-cli.install-result'),
   /** Emitted during installation to report progress */
   installProgress: bridge.buildEmitter<{
-    phase: "downloading" | "extracting" | "configuring";
+    phase: 'downloading' | 'extracting' | 'configuring';
     percent?: number;
-  }>("claude-cli.install-progress"),
+  }>('claude-cli.install-progress'),
 };
 
 // Bundled Node.js runtime
 export const nodeRuntime = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>(
-    "node-runtime.check-installed",
-  ),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "node-runtime.install",
-  ),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "node-runtime.uninstall",
-  ),
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('node-runtime.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('node-runtime.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('node-runtime.uninstall'),
   /** Emitted by main process when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "node-runtime.install-result",
-  ),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('node-runtime.install-result'),
 };
 
 // ShareOne CLI installer & publish
@@ -1403,55 +970,27 @@ export type IShareoneResponse = {
   code?: string;
 };
 export const shareoneCli = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>(
-    "shareone.check-installed",
-  ),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "shareone.install",
-  ),
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "shareone.install-result",
-  ),
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('shareone.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('shareone.install'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('shareone.install-result'),
   installProgress: bridge.buildEmitter<{
-    phase: "downloading" | "extracting" | "configuring";
+    phase: 'downloading' | 'extracting' | 'configuring';
     percent?: number;
-  }>("shareone.install-progress"),
-  publishTurn: bridge.buildProvider<
-    IShareoneResponse & IBridgeResponse<{ url: string }>,
-    { markdown: string; title: string }
-  >("shareone.publish-turn"),
-  publishFile: bridge.buildProvider<
-    IShareoneResponse & IBridgeResponse<{ url: string }>,
-    { filePath: string }
-  >("shareone.publish-file"),
+  }>('shareone.install-progress'),
+  publishTurn: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { markdown: string; title: string }>('shareone.publish-turn'),
+  publishFile: bridge.buildProvider<IShareoneResponse & IBridgeResponse<{ url: string }>, { filePath: string }>('shareone.publish-file'),
 };
 
 // LibreOffice installer / LibreOffice 在线安装
-export type ILibreOfficeInstallPhase =
-  | "downloading"
-  | "mounting"
-  | "copying"
-  | "unmounting"
-  | "installing"
-  | "extracting"
-  | "cleanup";
-export type ISudoclawInstallPhase = "extracting" | "installing" | "configuring";
+export type ILibreOfficeInstallPhase = 'downloading' | 'mounting' | 'copying' | 'unmounting' | 'installing' | 'extracting' | 'cleanup';
+export type ISudoclawInstallPhase = 'extracting' | 'installing' | 'configuring';
 
 export const libreOffice = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>(
-    "libreoffice.check-installed",
-  ),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "libreoffice.install",
-  ),
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('libreoffice.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('libreoffice.install'),
   /** Install LibreOffice from a local file */
-  installFromLocalFile: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { filePath: string }
-  >("libreoffice.install-from-local-file"),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "libreoffice.uninstall",
-  ),
+  installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('libreoffice.install-from-local-file'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('libreoffice.uninstall'),
   /** Returns the current install state so the UI can restore progress after navigation */
   getInstallState: bridge.buildProvider<
     IBridgeResponse<{
@@ -1460,297 +999,124 @@ export const libreOffice = {
       percent?: number;
     }>,
     void
-  >("libreoffice.get-install-state"),
+  >('libreoffice.get-install-state'),
   /** Emitted periodically during installation with current phase and download percent */
   installProgress: bridge.buildEmitter<{
     phase: ILibreOfficeInstallPhase;
     percent?: number;
-  }>("libreoffice.install-progress"),
+  }>('libreoffice.install-progress'),
   /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "libreoffice.install-result",
-  ),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('libreoffice.install-result'),
 };
 
 export const localKnowledgeBase = {
-  listCategories: bridge.buildProvider<
-    IBridgeResponse<ILocalKbCategory[]>,
-    void
-  >("local-kb.categories.list"),
-  createCategory: bridge.buildProvider<
-    IBridgeResponse<ILocalKbCategory>,
-    ILocalKbCreateCategoryInput
-  >("local-kb.categories.create"),
-  updateCategory: bridge.buildProvider<
-    IBridgeResponse<ILocalKbCategory>,
-    { id: string; updates: Partial<ILocalKbCreateCategoryInput> }
-  >("local-kb.categories.update"),
-  deleteCategory: bridge.buildProvider<IBridgeResponse<void>, { id: string }>(
-    "local-kb.categories.delete",
-  ),
-  listSpaces: bridge.buildProvider<
-    IBridgeResponse<ILocalKbSpace[]>,
-    { categoryId?: string | null } | undefined
-  >("local-kb.spaces.list"),
-  createSpace: bridge.buildProvider<
-    IBridgeResponse<ILocalKbSpace>,
-    ILocalKbCreateSpaceInput
-  >("local-kb.spaces.create"),
-  updateSpace: bridge.buildProvider<
-    IBridgeResponse<ILocalKbSpace>,
-    { id: string; updates: ILocalKbUpdateSpaceInput }
-  >("local-kb.spaces.update"),
-  deleteSpace: bridge.buildProvider<IBridgeResponse<void>, { id: string }>(
-    "local-kb.spaces.delete",
-  ),
-  listDocuments: bridge.buildProvider<
-    IBridgeResponse<ILocalKbDocument[]>,
-    { spaceId: string }
-  >("local-kb.documents.list"),
-  addFiles: bridge.buildProvider<
-    IBridgeResponse<ILocalKbDocument[]>,
-    ILocalKbAddFilesInput
-  >("local-kb.documents.add-files"),
-  setDirectory: bridge.buildProvider<
-    IBridgeResponse<ILocalKbDocument[]>,
-    ILocalKbSetDirectoryInput
-  >("local-kb.documents.set-directory"),
-  deleteDocument: bridge.buildProvider<
-    IBridgeResponse<void>,
-    ILocalKbDeleteDocumentInput
-  >("local-kb.documents.delete"),
-  queueBuild: bridge.buildProvider<
-    IBridgeResponse<ILocalKbBuildJob>,
-    { spaceId: string }
-  >("local-kb.build.queue"),
+  listCategories: bridge.buildProvider<IBridgeResponse<ILocalKbCategory[]>, void>('local-kb.categories.list'),
+  createCategory: bridge.buildProvider<IBridgeResponse<ILocalKbCategory>, ILocalKbCreateCategoryInput>('local-kb.categories.create'),
+  updateCategory: bridge.buildProvider<IBridgeResponse<ILocalKbCategory>, { id: string; updates: Partial<ILocalKbCreateCategoryInput> }>('local-kb.categories.update'),
+  deleteCategory: bridge.buildProvider<IBridgeResponse<void>, { id: string }>('local-kb.categories.delete'),
+  listSpaces: bridge.buildProvider<IBridgeResponse<ILocalKbSpace[]>, { categoryId?: string | null } | undefined>('local-kb.spaces.list'),
+  createSpace: bridge.buildProvider<IBridgeResponse<ILocalKbSpace>, ILocalKbCreateSpaceInput>('local-kb.spaces.create'),
+  updateSpace: bridge.buildProvider<IBridgeResponse<ILocalKbSpace>, { id: string; updates: ILocalKbUpdateSpaceInput }>('local-kb.spaces.update'),
+  deleteSpace: bridge.buildProvider<IBridgeResponse<void>, { id: string }>('local-kb.spaces.delete'),
+  listDocuments: bridge.buildProvider<IBridgeResponse<ILocalKbDocument[]>, { spaceId: string }>('local-kb.documents.list'),
+  addFiles: bridge.buildProvider<IBridgeResponse<ILocalKbDocument[]>, ILocalKbAddFilesInput>('local-kb.documents.add-files'),
+  setDirectory: bridge.buildProvider<IBridgeResponse<ILocalKbDocument[]>, ILocalKbSetDirectoryInput>('local-kb.documents.set-directory'),
+  deleteDocument: bridge.buildProvider<IBridgeResponse<void>, ILocalKbDeleteDocumentInput>('local-kb.documents.delete'),
+  queueBuild: bridge.buildProvider<IBridgeResponse<ILocalKbBuildJob>, { spaceId: string }>('local-kb.build.queue'),
   getBuildStatus: bridge.buildProvider<
     IBridgeResponse<{
       space: ILocalKbSpace;
       latestJob: ILocalKbBuildJob | null;
     }>,
     { spaceId: string }
-  >("local-kb.build.status"),
-  listBuildJobs: bridge.buildProvider<
-    IBridgeResponse<ILocalKbBuildJob[]>,
-    { spaceId: string; limit?: number }
-  >("local-kb.build.jobs"),
-  search: bridge.buildProvider<
-    IBridgeResponse<ILocalKbSearchResult>,
-    { spaceId: string; query: string }
-  >("local-kb.search"),
-  searchMany: bridge.buildProvider<
-    IBridgeResponse<ILocalKbSearchResult>,
-    { spaceIds: string[]; query: string }
-  >("local-kb.search-many"),
-  getDependencyStatus: bridge.buildProvider<
-    IBridgeResponse<ILocalKbDependencyStatus>,
-    void
-  >("local-kb.dependencies.status"),
-  installEmbeddingModel: bridge.buildProvider<
-    IBridgeResponse<void>,
-    ILocalKbInstallEmbeddingModelInput | undefined
-  >("local-kb.dependencies.embedding.install"),
-  installEmbeddingModelProgress: bridge.buildEmitter<ILocalKbInstallProgress>(
-    "local-kb.dependencies.embedding.install-progress",
-  ),
+  >('local-kb.build.status'),
+  listBuildJobs: bridge.buildProvider<IBridgeResponse<ILocalKbBuildJob[]>, { spaceId: string; limit?: number }>('local-kb.build.jobs'),
+  search: bridge.buildProvider<IBridgeResponse<ILocalKbSearchResult>, { spaceId: string; query: string }>('local-kb.search'),
+  searchMany: bridge.buildProvider<IBridgeResponse<ILocalKbSearchResult>, { spaceIds: string[]; query: string }>('local-kb.search-many'),
+  getDependencyStatus: bridge.buildProvider<IBridgeResponse<ILocalKbDependencyStatus>, void>('local-kb.dependencies.status'),
+  installEmbeddingModel: bridge.buildProvider<IBridgeResponse<void>, ILocalKbInstallEmbeddingModelInput | undefined>('local-kb.dependencies.embedding.install'),
+  installEmbeddingModelProgress: bridge.buildEmitter<ILocalKbInstallProgress>('local-kb.dependencies.embedding.install-progress'),
   installEmbeddingModelResult: bridge.buildEmitter<{
     success: boolean;
     msg?: string;
-  }>("local-kb.dependencies.embedding.install-result"),
+  }>('local-kb.dependencies.embedding.install-result'),
 };
 
 export const ontology = {
-  listWorkbenches: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchListResult>,
-    void
-  >("ontology.workbench.list"),
-  getWorkbench: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologySelectWorkbenchInput | undefined
-  >("ontology.workbench.get"),
-  createWorkbench: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchMutationResult>,
-    IOntologyCreateWorkbenchInput
-  >("ontology.workbench.create"),
-  selectWorkbench: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologySelectWorkbenchInput
-  >("ontology.workbench.select"),
-  deleteWorkbench: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchMutationResult>,
-    IOntologyDeleteWorkbenchInput
-  >("ontology.workbench.delete"),
-  updateDraft: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyWorkbenchDraftInput
-  >("ontology.workbench.update-draft"),
-  transitionPhase: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyPhaseTransitionInput
-  >("ontology.workflow.transition-phase"),
+  saveStudioModel: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStudioSaveInput>('ontology.studio.save-model'),
+  previewStandardFile: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStandardPreview>, { filePath: string }>('ontology.studio.preview-file'),
+  importStandardFile: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStandardImportInput>('ontology.studio.import-file'),
+  exportStandardFile: bridge.buildProvider<IBridgeResponse<{ content: string; format: import('@sudowork/ontology-common').OntologyFileFormat }>, import('@sudowork/ontology-common').IOntologyStandardExportInput>('ontology.studio.export-file'),
+  listWorkbenches: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchListResult>, void>('ontology.workbench.list'),
+  getWorkbench: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologySelectWorkbenchInput | undefined>('ontology.workbench.get'),
+  createWorkbench: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchMutationResult>, IOntologyCreateWorkbenchInput>('ontology.workbench.create'),
+  selectWorkbench: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologySelectWorkbenchInput>('ontology.workbench.select'),
+  deleteWorkbench: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchMutationResult>, IOntologyDeleteWorkbenchInput>('ontology.workbench.delete'),
+  updateDraft: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyWorkbenchDraftInput>('ontology.workbench.update-draft'),
+  transitionPhase: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyPhaseTransitionInput>('ontology.workflow.transition-phase'),
   importFiles: bridge.buildProvider<
     IBridgeResponse<{
       snapshot: IOntologyWorkbenchSnapshot;
       files: IOntologyImportedFile[];
     }>,
     IOntologyImportFilesInput
-  >("ontology.assets.import-files"),
-  probeConnector: bridge.buildProvider<
-    IBridgeResponse<IOntologyProbeConnectorResult>,
-    IOntologyProbeConnectorInput
-  >("ontology.connectors.probe"),
-  browseConnectorAssets: bridge.buildProvider<
-    IBridgeResponse<IOntologyBrowseConnectorAssetsResult>,
-    IOntologyBrowseConnectorAssetsInput
-  >("ontology.connectors.browse-assets"),
-  deleteConnector: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteConnectorInput
-  >("ontology.connectors.delete"),
-  deleteAsset: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteInput
-  >("ontology.assets.delete"),
-  profileAsset: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyProfileAssetInput
-  >("ontology.assets.profile"),
-  syncAssetSchema: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologySyncAssetSchemaInput
-  >("ontology.assets.sync-schema"),
-  previewAsset: bridge.buildProvider<
-    IBridgeResponse<IOntologyPreviewAssetResult>,
-    IOntologyPreviewAssetInput
-  >("ontology.assets.preview"),
-  generateDraft: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyGenerateDraftInput | undefined
-  >("ontology.builder.generate-draft"),
-  upsertObject: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyObjectDraftInput
-  >("ontology.model.object.upsert"),
-  deleteObject: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteInput
-  >("ontology.model.object.delete"),
-  upsertAttribute: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyAttributeDraftInput
-  >("ontology.model.attribute.upsert"),
-  deleteAttribute: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteAttributeInput
-  >("ontology.model.attribute.delete"),
-  upsertRelation: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyRelationDraftInput
-  >("ontology.model.relation.upsert"),
-  deleteRelation: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteInput
-  >("ontology.model.relation.delete"),
-  upsertMapping: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyFieldMappingInput
-  >("ontology.mapping.upsert"),
-  deleteMapping: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteInput
-  >("ontology.mapping.delete"),
-  upsertQualityRule: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyQualityRuleInput
-  >("ontology.quality-rule.upsert"),
-  deleteQualityRule: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteInput
-  >("ontology.quality-rule.delete"),
-  upsertLogicFunction: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyLogicFunctionInput
-  >("ontology.logic-function.upsert"),
-  deleteLogicFunction: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteInput
-  >("ontology.logic-function.delete"),
-  upsertAction: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyActionDefinitionInput
-  >("ontology.action.upsert"),
-  deleteAction: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteInput
-  >("ontology.action.delete"),
-  executeLogicFunction: bridge.buildProvider<
-    IBridgeResponse<IOntologyRuntimeExecutionResult>,
-    IOntologyExecuteRuntimeInput
-  >("ontology.logic-function.execute"),
-  executeRelation: bridge.buildProvider<
-    IBridgeResponse<IOntologyRuntimeExecutionResult>,
-    IOntologyExecuteRuntimeInput
-  >("ontology.relation.execute"),
-  executeAction: bridge.buildProvider<
-    IBridgeResponse<IOntologyRuntimeExecutionResult>,
-    IOntologyExecuteRuntimeInput
-  >("ontology.action.execute"),
-  reviewTarget: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyReviewTargetInput
-  >("ontology.review.target"),
-  approveAll: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    void
-  >("ontology.review.approve-all"),
-  runConsistencyCheck: bridge.buildProvider<
-    IBridgeResponse<IOntologyConsistencyCheckResult>,
-    IOntologySelectWorkbenchInput | undefined
-  >("ontology.publish.consistency-check"),
+  >('ontology.assets.import-files'),
+  probeConnector: bridge.buildProvider<IBridgeResponse<IOntologyProbeConnectorResult>, IOntologyProbeConnectorInput>('ontology.connectors.probe'),
+  browseConnectorAssets: bridge.buildProvider<IBridgeResponse<IOntologyBrowseConnectorAssetsResult>, IOntologyBrowseConnectorAssetsInput>('ontology.connectors.browse-assets'),
+  deleteConnector: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteConnectorInput>('ontology.connectors.delete'),
+  deleteAsset: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteInput>('ontology.assets.delete'),
+  profileAsset: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyProfileAssetInput>('ontology.assets.profile'),
+  syncAssetSchema: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologySyncAssetSchemaInput>('ontology.assets.sync-schema'),
+  describeAssetFields: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyDescribeAssetFieldsInput>('ontology.assets.describe-fields'),
+  previewAsset: bridge.buildProvider<IBridgeResponse<IOntologyPreviewAssetResult>, IOntologyPreviewAssetInput>('ontology.assets.preview'),
+  generateDraft: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyGenerateDraftInput | undefined>('ontology.builder.generate-draft'),
+  upsertObject: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyObjectDraftInput>('ontology.model.object.upsert'),
+  deleteObject: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteInput>('ontology.model.object.delete'),
+  upsertAttribute: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyAttributeDraftInput>('ontology.model.attribute.upsert'),
+  deleteAttribute: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteAttributeInput>('ontology.model.attribute.delete'),
+  upsertRelation: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyRelationDraftInput>('ontology.model.relation.upsert'),
+  deleteRelation: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteInput>('ontology.model.relation.delete'),
+  upsertMapping: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyFieldMappingInput>('ontology.mapping.upsert'),
+  deleteMapping: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteInput>('ontology.mapping.delete'),
+  upsertQualityRule: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyQualityRuleInput>('ontology.quality-rule.upsert'),
+  deleteQualityRule: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteInput>('ontology.quality-rule.delete'),
+  upsertLogicFunction: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyLogicFunctionInput>('ontology.logic-function.upsert'),
+  deleteLogicFunction: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteInput>('ontology.logic-function.delete'),
+  upsertAction: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyActionDefinitionInput>('ontology.action.upsert'),
+  deleteAction: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteInput>('ontology.action.delete'),
+  executeLogicFunction: bridge.buildProvider<IBridgeResponse<IOntologyRuntimeExecutionResult>, IOntologyExecuteRuntimeInput>('ontology.logic-function.execute'),
+  executeRelation: bridge.buildProvider<IBridgeResponse<IOntologyRuntimeExecutionResult>, IOntologyExecuteRuntimeInput>('ontology.relation.execute'),
+  executeAction: bridge.buildProvider<IBridgeResponse<IOntologyRuntimeExecutionResult>, IOntologyExecuteRuntimeInput>('ontology.action.execute'),
+  reviewTarget: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyReviewTargetInput>('ontology.review.target'),
+  approveAll: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, void>('ontology.review.approve-all'),
+  runConsistencyCheck: bridge.buildProvider<IBridgeResponse<IOntologyConsistencyCheckResult>, IOntologySelectWorkbenchInput | undefined>('ontology.publish.consistency-check'),
   publishCurrentDraft: bridge.buildProvider<
     IBridgeResponse<{
       snapshot: IOntologyWorkbenchSnapshot;
       version: IOntologyPublishedVersion;
     }>,
     IOntologySelectWorkbenchInput | undefined
-  >("ontology.publish.current-draft"),
-  approvePublishedVersion: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyPublishApprovalInput
-  >("ontology.publish.approve-version"),
-  rejectPublishedVersion: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyRejectVersionInput
-  >("ontology.publish.reject-version"),
-  rollbackToVersion: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyRollbackInput
-  >("ontology.publish.rollback-version"),
+  >('ontology.publish.current-draft'),
+  approvePublishedVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyPublishApprovalInput>('ontology.publish.approve-version'),
+  rejectPublishedVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyRejectVersionInput>('ontology.publish.reject-version'),
+  rollbackToVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyRollbackInput>('ontology.publish.rollback-version'),
   createAgentBlueprint: bridge.buildProvider<
     IBridgeResponse<{
       snapshot: IOntologyWorkbenchSnapshot;
       blueprint: IOntologyAgentBlueprint;
     }>,
     IOntologyAgentBlueprintInput
-  >("ontology.agent.create-blueprint"),
+  >('ontology.agent.create-blueprint'),
   registerAgentBlueprint: bridge.buildProvider<
     IBridgeResponse<{
       snapshot: IOntologyWorkbenchSnapshot;
       blueprint: IOntologyAgentBlueprint;
     }>,
     IOntologyRegisterAgentInput
-  >("ontology.agent.register-blueprint"),
-  deleteAgentBlueprint: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    IOntologyDeleteInput
-  >("ontology.agent.delete-blueprint"),
-  resetWorkbench: bridge.buildProvider<
-    IBridgeResponse<IOntologyWorkbenchSnapshot>,
-    void
-  >("ontology.workbench.reset"),
-  workbenchChanged: bridge.buildEmitter<IOntologyWorkbenchSnapshot>(
-    "ontology.workbench.changed",
-  ),
+  >('ontology.agent.register-blueprint'),
+  deleteAgentBlueprint: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyDeleteInput>('ontology.agent.delete-blueprint'),
+  resetWorkbench: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, void>('ontology.workbench.reset'),
+  workbenchChanged: bridge.buildEmitter<IOntologyWorkbenchSnapshot>('ontology.workbench.changed'),
 };
 
 /**
@@ -1775,24 +1141,11 @@ export interface IOntologyAiBuilderCreateSessionInput {
 }
 
 export const ontologyAiBuilder = {
-  listSessions: bridge.buildProvider<
-    IBridgeResponse<{ items: IOntologyAiBuilderSession[] }>,
-    { workspaceId?: string } | undefined
-  >("ontology-ai-builder.list-sessions"),
-  createSession: bridge.buildProvider<
-    IBridgeResponse<IOntologyAiBuilderSession>,
-    IOntologyAiBuilderCreateSessionInput
-  >("ontology-ai-builder.create-session"),
-  deleteSession: bridge.buildProvider<IBridgeResponse<void>, { id: string }>(
-    "ontology-ai-builder.delete-session",
-  ),
-  getSessionByConversation: bridge.buildProvider<
-    IBridgeResponse<IOntologyAiBuilderSession | null>,
-    { conversationId: string }
-  >("ontology-ai-builder.get-session-by-conversation"),
-  sessionsChanged: bridge.buildEmitter<{ workspaceId: string }>(
-    "ontology-ai-builder.sessions-changed",
-  ),
+  listSessions: bridge.buildProvider<IBridgeResponse<{ items: IOntologyAiBuilderSession[] }>, { workspaceId?: string } | undefined>('ontology-ai-builder.list-sessions'),
+  createSession: bridge.buildProvider<IBridgeResponse<IOntologyAiBuilderSession>, IOntologyAiBuilderCreateSessionInput>('ontology-ai-builder.create-session'),
+  deleteSession: bridge.buildProvider<IBridgeResponse<void>, { id: string }>('ontology-ai-builder.delete-session'),
+  getSessionByConversation: bridge.buildProvider<IBridgeResponse<IOntologyAiBuilderSession | null>, { conversationId: string }>('ontology-ai-builder.get-session-by-conversation'),
+  sessionsChanged: bridge.buildEmitter<{ workspaceId: string }>('ontology-ai-builder.sessions-changed'),
   /**
    * Ensure the write-capable ontology-builder MCP is registered with Sudocode
    * and return the mcpConfig payload the caller should inject into
@@ -1810,8 +1163,8 @@ export const ontologyAiBuilder = {
         env?: Array<{ name: string; value: string }>;
       };
     }>,
-    void
-  >("ontology-ai-builder.ensure-builder-mcp"),
+    { workspaceId: string } | undefined
+  >('ontology-ai-builder.ensure-builder-mcp'),
 };
 
 // FUSE-T installer (macOS) / FUSE-T 安装（macOS 专用）
@@ -1821,7 +1174,7 @@ export const ontologyAiBuilder = {
 // a FUSE mount. First call prompts for admin password; subsequent calls are
 // no-ops once the system bundle exists at /Library/Filesystems/fuse-t.fs.
 // See sudowork issue #915 + nexi-lab/nexus PR #4409 for rationale.
-export type IFuseTInstallPhase = "downloading" | "installing" | "cleanup";
+export type IFuseTInstallPhase = 'downloading' | 'installing' | 'cleanup';
 
 export interface IFuseTStatus {
   installed: boolean;
@@ -1836,14 +1189,7 @@ export interface IFuseTStatus {
  * right toast (install fired vs already mounted vs cluster down)
  * without re-parsing free-form strings.
  */
-export type IFuseTLazyInstallOutcome =
-  | "already-mounted"
-  | "unmounted-no-prereq-action"
-  | "installed-and-mounted"
-  | "installed-but-not-mounted"
-  | "plugin-unreachable"
-  | "platform-unsupported"
-  | "install-failed";
+export type IFuseTLazyInstallOutcome = 'already-mounted' | 'unmounted-no-prereq-action' | 'installed-and-mounted' | 'installed-but-not-mounted' | 'plugin-unreachable' | 'platform-unsupported' | 'install-failed';
 
 // `FusePluginStatus` (imported above + re-exported below) is the
 // canonical wire-format union — it mirrors the bytes the Rust plugin's
@@ -1852,7 +1198,7 @@ export type IFuseTLazyInstallOutcome =
 // (via `@process/services/nexus-vfs/FusePluginClient`) both consume
 // the SAME literal set — no parallel `IFusePluginStatus` drifting
 // against `FusePluginStatus`.
-export type { FusePluginStatus } from "@sudowork/common/nexus/fuse-plugin-status";
+export type { FusePluginStatus } from '@sudowork/common/nexus/fuse-plugin-status';
 
 export interface IFuseTLazyInstallResult {
   outcome: IFuseTLazyInstallOutcome;
@@ -1863,12 +1209,8 @@ export interface IFuseTLazyInstallResult {
 }
 
 export const fuseT = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<IFuseTStatus>, void>(
-    "fuse-t.check-installed",
-  ),
-  ensureInstalled: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "fuse-t.ensure-installed",
-  ),
+  checkInstalled: bridge.buildProvider<IBridgeResponse<IFuseTStatus>, void>('fuse-t.check-installed'),
+  ensureInstalled: bridge.buildProvider<IBridgeResponse<void>, void>('fuse-t.ensure-installed'),
   /** Returns the current install state so the UI can restore progress after navigation */
   getInstallState: bridge.buildProvider<
     IBridgeResponse<{
@@ -1877,16 +1219,14 @@ export const fuseT = {
       percent?: number;
     }>,
     void
-  >("fuse-t.get-install-state"),
+  >('fuse-t.get-install-state'),
   /** Emitted periodically during installation with current phase and download percent */
   installProgress: bridge.buildEmitter<{
     phase: IFuseTInstallPhase;
     percent?: number;
-  }>("fuse-t.install-progress"),
+  }>('fuse-t.install-progress'),
   /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "fuse-t.install-result",
-  ),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('fuse-t.install-result'),
   /**
    * Explicit-trigger lazy install probe — the only path that ends in
    * an admin-password prompt when the supervisor decides FUSE-T is
@@ -1897,26 +1237,16 @@ export const fuseT = {
    * proactively at app startup would re-introduce the admin-prompt
    * regression the lazy split exists to avoid.
    */
-  runLazyInstallProbe: bridge.buildProvider<
-    IBridgeResponse<IFuseTLazyInstallResult>,
-    void
-  >("fuse-t.run-lazy-install-probe"),
+  runLazyInstallProbe: bridge.buildProvider<IBridgeResponse<IFuseTLazyInstallResult>, void>('fuse-t.run-lazy-install-probe'),
 };
 
 // Python runtime installer / Python 运行环境安装
-export type IPythonInstallPhase =
-  "downloading" | "installing" | "configuring" | "cleanup";
+export type IPythonInstallPhase = 'downloading' | 'installing' | 'configuring' | 'cleanup';
 
 export const pythonRuntime = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>(
-    "python-runtime.check-installed",
-  ),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "python-runtime.install",
-  ),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "python-runtime.uninstall",
-  ),
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('python-runtime.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('python-runtime.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('python-runtime.uninstall'),
   /** Returns the current install state so the UI can restore progress after navigation */
   getInstallState: bridge.buildProvider<
     IBridgeResponse<{
@@ -1925,32 +1255,23 @@ export const pythonRuntime = {
       percent?: number;
     }>,
     void
-  >("python-runtime.get-install-state"),
+  >('python-runtime.get-install-state'),
   /** Emitted periodically during installation with current phase and download percent */
   installProgress: bridge.buildEmitter<{
     phase: IPythonInstallPhase;
     percent?: number;
-  }>("python-runtime.install-progress"),
+  }>('python-runtime.install-progress'),
   /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "python-runtime.install-result",
-  ),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('python-runtime.install-result'),
 };
 
 // Poppler runtime installer / Poppler PDF 工具安装
-export type IPopplerInstallPhase =
-  "downloading" | "extracting" | "verifying" | "cleanup";
+export type IPopplerInstallPhase = 'downloading' | 'extracting' | 'verifying' | 'cleanup';
 
 export const popplerRuntime = {
-  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>(
-    "poppler-runtime.check-installed",
-  ),
-  install: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "poppler-runtime.install",
-  ),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "poppler-runtime.uninstall",
-  ),
+  checkInstalled: bridge.buildProvider<IBridgeResponse<ICliStatus>, void>('poppler-runtime.check-installed'),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('poppler-runtime.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('poppler-runtime.uninstall'),
   getInstallState: bridge.buildProvider<
     IBridgeResponse<{
       installing: boolean;
@@ -1958,14 +1279,12 @@ export const popplerRuntime = {
       percent?: number;
     }>,
     void
-  >("poppler-runtime.get-install-state"),
+  >('poppler-runtime.get-install-state'),
   installProgress: bridge.buildEmitter<{
     phase: IPopplerInstallPhase;
     percent?: number;
-  }>("poppler-runtime.install-progress"),
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "poppler-runtime.install-result",
-  ),
+  }>('poppler-runtime.install-progress'),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('poppler-runtime.install-result'),
 };
 
 // Sudoclaw config (~/.nexus/sudoclaw) / Sudoclaw 配置
@@ -1974,42 +1293,22 @@ export const popplerRuntime = {
 // and are imported + re-exported at the top of this file.
 export const sudoclaw = {
   /** Get Sudoclaw config from ~/.nexus/sudoclaw/sudoclaw.json */
-  getConfig: bridge.buildProvider<IBridgeResponse<SudoclawConfig | null>, void>(
-    "sudoclaw.get-config",
-  ),
+  getConfig: bridge.buildProvider<IBridgeResponse<SudoclawConfig | null>, void>('sudoclaw.get-config'),
   /** Save Sudoclaw config */
-  saveConfig: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { config: SudoclawConfig }
-  >("sudoclaw.save-config"),
+  saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: SudoclawConfig }>('sudoclaw.save-config'),
   /** Get Sudoclaw install status */
-  getStatus: bridge.buildProvider<IBridgeResponse<ISudoclawStatus>, void>(
-    "sudoclaw.get-status",
-  ),
+  getStatus: bridge.buildProvider<IBridgeResponse<ISudoclawStatus>, void>('sudoclaw.get-status'),
   /** Test Sudoclaw gateway connection (start gateway, verify ready, then stop) */
-  testGateway: bridge.buildProvider<
-    IBridgeResponse<SudoclawTestGatewayResult>,
-    void
-  >("sudoclaw.test-gateway"),
+  testGateway: bridge.buildProvider<IBridgeResponse<SudoclawTestGatewayResult>, void>('sudoclaw.test-gateway'),
   /** Restart Sudoclaw gateway */
-  restartGateway: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "sudoclaw.restart-gateway",
-  ),
+  restartGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.restart-gateway'),
   /** Start Sudoclaw gateway */
-  startGateway: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "sudoclaw.start-gateway",
-  ),
+  startGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.start-gateway'),
   /** Stop Sudoclaw gateway */
-  stopGateway: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "sudoclaw.stop-gateway",
-  ),
+  stopGateway: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.stop-gateway'),
   /** Install Sudoclaw manually from About page */
-  install: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "sudoclaw.install",
-  ),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "sudoclaw.uninstall",
-  ),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('sudoclaw.uninstall'),
   /** Returns the current install state so the UI can restore progress after navigation */
   getInstallState: bridge.buildProvider<
     IBridgeResponse<{
@@ -2018,33 +1317,25 @@ export const sudoclaw = {
       percent?: number;
     }>,
     void
-  >("sudoclaw.get-install-state"),
+  >('sudoclaw.get-install-state'),
   /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "sudoclaw.install-result",
-  ),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('sudoclaw.install-result'),
   /** Emitted during installation to report progress */
   installProgress: bridge.buildEmitter<{
     phase: ISudoclawInstallPhase;
     percent?: number;
-  }>("sudoclaw.install-progress"),
+  }>('sudoclaw.install-progress'),
   /** Install WeChat plugin to Sudoclaw via npx CLI */
-  installWechatPlugin: bridge.buildProvider<
-    IBridgeResponse<{ output: string }>,
-    void
-  >("sudoclaw.install-wechat-plugin"),
+  installWechatPlugin: bridge.buildProvider<IBridgeResponse<{ output: string }>, void>('sudoclaw.install-wechat-plugin'),
   /** Get WeChat plugin installation status */
-  getWechatStatus: bridge.buildProvider<
-    IBridgeResponse<{ installed: boolean }>,
-    void
-  >("sudoclaw.get-wechat-status"),
+  getWechatStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('sudoclaw.get-wechat-status'),
   /** Emitted during WeChat plugin install — delivers QR code data and progress */
   wechatInstallProgress: bridge.buildEmitter<{
-    phase: "installing" | "qrcode" | "scanning" | "success" | "error";
+    phase: 'installing' | 'qrcode' | 'scanning' | 'success' | 'error';
     message?: string;
     qrData?: string;
     qrUrl?: string;
-  }>("sudoclaw.wechat-install-progress"),
+  }>('sudoclaw.wechat-install-progress'),
 };
 
 // Scode config (~/.nexus/sudowork/sudocode/sudocode.json)
@@ -2052,68 +1343,36 @@ export const sudoclaw = {
 // @sudowork/common/scodeTypes and are imported + re-exported at the top of this file.
 export const scode = {
   /** Read scode config from ~/.nexus/sudowork/sudocode/sudocode.json */
-  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>(
-    "scode.get-config",
-  ),
+  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>('scode.get-config'),
   /** Save full scode config to ~/.nexus/sudowork/sudocode/sudocode.json (overwrite) */
-  saveConfig: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { config: ScodeConfig }
-  >("scode.save-config"),
+  saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
   /** Save custom OpenAI-compatible scode model providers for the signed-in user */
-  saveCustomModelProviders: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { userId: string; providers: ScodeCustomModelProvider[] }
-  >("scode.save-custom-model-providers"),
+  saveCustomModelProviders: bridge.buildProvider<IBridgeResponse<void>, { userId: string; providers: ScodeCustomModelProvider[] }>('scode.save-custom-model-providers'),
   /** Restore signed-in user's custom scode model providers into sudocode.json */
-  restoreCustomModelProviders: bridge.buildProvider<
-    IBridgeResponse<ScodeConfig>,
-    { userId: string; baseConfig?: ScodeConfig }
-  >("scode.restore-custom-model-providers"),
+  restoreCustomModelProviders: bridge.buildProvider<IBridgeResponse<ScodeConfig>, { userId: string; baseConfig?: ScodeConfig }>('scode.restore-custom-model-providers'),
   /** Update only the default_model field in sudocode.json */
-  setDefaultModel: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { modelId: string }
-  >("scode.set-default-model"),
+  setDefaultModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string }>('scode.set-default-model'),
   /** Read the pre-connection model list from sudocode.json (fallback before ACP is connected) */
-  refreshModels: bridge.buildProvider<IBridgeResponse<AcpModelInfo>, void>(
-    "scode.refresh-models",
-  ),
+  refreshModels: bridge.buildProvider<IBridgeResponse<AcpModelInfo>, void>('scode.refresh-models'),
   /** Read-only fetch of sudorouter specific_pricing items (no write to sudocode.json) */
-  fetchSpecificPricing: bridge.buildProvider<
-    IBridgeResponse<SpecificPricingItem[]>,
-    void
-  >("scode.fetch-specific-pricing"),
+  fetchSpecificPricing: bridge.buildProvider<IBridgeResponse<SpecificPricingItem[]>, void>('scode.fetch-specific-pricing'),
   /** Read-only fetch of sudorouter specific_image_pricing items (image models) */
-  fetchSpecificImagePricing: bridge.buildProvider<
-    IBridgeResponse<SpecificImagePricingItem[]>,
-    void
-  >("scode.fetch-specific-image-pricing"),
+  fetchSpecificImagePricing: bridge.buildProvider<IBridgeResponse<SpecificImagePricingItem[]>, void>('scode.fetch-specific-image-pricing'),
   /** Sync image generation model to sudocode.json tools.imageGenerationModel */
-  setImageModel: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { modelId: string | null }
-  >("scode.set-image-model"),
+  setImageModel: bridge.buildProvider<IBridgeResponse<void>, { modelId: string | null }>('scode.set-image-model'),
   /** Get scode installation status */
-  getStatus: bridge.buildProvider<
-    IBridgeResponse<{ installed: boolean; version?: string }>,
-    void
-  >("scode.get-status"),
+  getStatus: bridge.buildProvider<IBridgeResponse<{ installed: boolean; version?: string }>, void>('scode.get-status'),
   /** Install or reinstall scode binary */
-  install: bridge.buildProvider<IBridgeResponse<void>, void>("scode.install"),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('scode.install'),
   /** Emitted during installation to report progress */
-  installProgress: bridge.buildEmitter<{ phase: string; percent?: number }>(
-    "scode.install-progress",
-  ),
+  installProgress: bridge.buildEmitter<{ phase: string; percent?: number }>('scode.install-progress'),
   /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "scode.install-result",
-  ),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('scode.install-result'),
 };
 
 // Initialization status for runtime dependencies
-export type InitPhase = "pending" | "installing" | "ready" | "error";
-export type InitStepStatus = "pending" | "active" | "done" | "error";
+export type InitPhase = 'pending' | 'installing' | 'ready' | 'error';
+export type InitStepStatus = 'pending' | 'active' | 'done' | 'error';
 
 export interface InitRetryStatus {
   attempt: number;
@@ -2126,7 +1385,7 @@ export interface InitStatus {
   message: string;
   progress: number;
   /** Which loading UI should be rendered. */
-  displayMode?: "full" | "startup";
+  displayMode?: 'full' | 'startup';
   error?: string;
   /** Current installation step id: 'git' | 'node' | 'claude' | 'scode' | 'nexus' | 'bdpan' */
   step?: string;
@@ -2146,33 +1405,19 @@ export interface InitStatus {
 
 export const init = {
   /** Get initialization status */
-  getStatus: bridge.buildProvider<IBridgeResponse<InitStatus>, void>(
-    "init.get-status",
-  ),
+  getStatus: bridge.buildProvider<IBridgeResponse<InitStatus>, void>('init.get-status'),
   /** Retry startup checks without reinstalling runtimes */
-  retryStartup: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "init.retry-startup",
-  ),
+  retryStartup: bridge.buildProvider<IBridgeResponse<void>, void>('init.retry-startup'),
   /** Manually reinstall a failed runtime component and rerun startup checks */
-  reinstallComponent: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { component: "scode" | "nexus" }
-  >("init.reinstall-component"),
+  reinstallComponent: bridge.buildProvider<IBridgeResponse<void>, { component: 'scode' | 'nexus' }>('init.reinstall-component'),
   /** Subscribe to initialization status changes */
-  onStatusChange: bridge.buildEmitter<InitStatus>("init.status-change"),
+  onStatusChange: bridge.buildEmitter<InitStatus>('init.status-change'),
   /** Quit the entire application */
-  quitApp: bridge.buildProvider<void, void>("init.quit-app"),
+  quitApp: bridge.buildProvider<void, void>('init.quit-app'),
 };
 
 // Nexus Python server / 内置 Python 服务
-export type NexusInstallPhase =
-  | "checking"
-  | "downloading"
-  | "extracting"
-  | "unpacking"
-  | "starting"
-  | "ready"
-  | "error";
+export type NexusInstallPhase = 'checking' | 'downloading' | 'extracting' | 'unpacking' | 'starting' | 'ready' | 'error';
 
 export const nexus = {
   /** Get the current status of the Nexus server */
@@ -2185,36 +1430,26 @@ export const nexus = {
       version?: string;
     }>,
     void
-  >("nexus.get-status"),
+  >('nexus.get-status'),
   /** Check if Nexus is installed */
-  checkInstalled: bridge.buildProvider<
-    IBridgeResponse<{ installed: boolean }>,
-    void
-  >("nexus.check-installed"),
+  checkInstalled: bridge.buildProvider<IBridgeResponse<{ installed: boolean }>, void>('nexus.check-installed'),
   /** Install Nexus server */
-  install: bridge.buildProvider<IBridgeResponse<void>, void>("nexus.install"),
-  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "nexus.uninstall",
-  ),
+  install: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.install'),
+  uninstall: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.uninstall'),
   /** Emitted periodically during installation with current phase and optional download percent */
   installProgress: bridge.buildEmitter<{
     phase: NexusInstallPhase;
     message: string;
     percent?: number;
-  }>("nexus.install-progress"),
+  }>('nexus.install-progress'),
   /** Emitted once when installation completes (success or failure) */
-  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>(
-    "nexus.install-result",
-  ),
+  installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('nexus.install-result'),
   /** Install Nexus server from local file */
-  installFromLocalFile: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { filePath: string }
-  >("nexus.install-from-local-file"),
+  installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('nexus.install-from-local-file'),
   /** Start Nexus server */
-  start: bridge.buildProvider<IBridgeResponse<void>, void>("nexus.start"),
+  start: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.start'),
   /** Stop Nexus server */
-  stop: bridge.buildProvider<IBridgeResponse<void>, void>("nexus.stop"),
+  stop: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.stop'),
 };
 
 // Deep link protocol handling / 深度链接协议处理
@@ -2223,73 +1458,41 @@ export const deepLink = {
   received: bridge.buildEmitter<{
     action: string; // e.g. 'add-provider'
     params: Record<string, string>; // parsed query params
-  }>("deep-link.received"),
+  }>('deep-link.received'),
 };
 
 // 窗口控制相关接口 / Window controls API
 export const windowControls = {
-  minimize: bridge.buildProvider<void, void>("window-controls:minimize"),
-  maximize: bridge.buildProvider<void, void>("window-controls:maximize"),
-  unmaximize: bridge.buildProvider<void, void>("window-controls:unmaximize"),
-  close: bridge.buildProvider<void, void>("window-controls:close"),
-  isMaximized: bridge.buildProvider<boolean, void>(
-    "window-controls:is-maximized",
-  ),
-  maximizedChanged: bridge.buildEmitter<{ isMaximized: boolean }>(
-    "window-controls:maximized-changed",
-  ),
+  minimize: bridge.buildProvider<void, void>('window-controls:minimize'),
+  maximize: bridge.buildProvider<void, void>('window-controls:maximize'),
+  unmaximize: bridge.buildProvider<void, void>('window-controls:unmaximize'),
+  close: bridge.buildProvider<void, void>('window-controls:close'),
+  isMaximized: bridge.buildProvider<boolean, void>('window-controls:is-maximized'),
+  maximizedChanged: bridge.buildEmitter<{ isMaximized: boolean }>('window-controls:maximized-changed'),
 };
 
 // 系统设置接口 / System settings API
 export const systemSettings = {
-  getCloseToTray: bridge.buildProvider<boolean, void>(
-    "system-settings:get-close-to-tray",
-  ),
-  setCloseToTray: bridge.buildProvider<void, { enabled: boolean }>(
-    "system-settings:set-close-to-tray",
-  ),
-  getShowTokenUsageBadges: bridge.buildProvider<boolean, void>(
-    "system-settings:get-show-token-usage-badges",
-  ),
-  setShowTokenUsageBadges: bridge.buildProvider<void, { enabled: boolean }>(
-    "system-settings:set-show-token-usage-badges",
-  ),
-  showTokenUsageBadgesChanged: bridge.buildEmitter<{ enabled: boolean }>(
-    "system-settings:show-token-usage-badges-changed",
-  ),
+  getCloseToTray: bridge.buildProvider<boolean, void>('system-settings:get-close-to-tray'),
+  setCloseToTray: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-close-to-tray'),
+  getShowTokenUsageBadges: bridge.buildProvider<boolean, void>('system-settings:get-show-token-usage-badges'),
+  setShowTokenUsageBadges: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-show-token-usage-badges'),
+  showTokenUsageBadgesChanged: bridge.buildEmitter<{ enabled: boolean }>('system-settings:show-token-usage-badges-changed'),
   // 对话流工具调用显示开关；get 返回 null 表示未设置（跟随默认值），由渲染层解析
   // Show-tool-calls toggle; get returns null when unset (follow default), resolved in the renderer
-  getShowToolCalls: bridge.buildProvider<boolean | null, void>(
-    "system-settings:get-show-tool-calls",
-  ),
-  setShowToolCalls: bridge.buildProvider<void, { enabled: boolean }>(
-    "system-settings:set-show-tool-calls",
-  ),
-  showToolCallsChanged: bridge.buildEmitter<{ enabled: boolean }>(
-    "system-settings:show-tool-calls-changed",
-  ),
+  getShowToolCalls: bridge.buildProvider<boolean | null, void>('system-settings:get-show-tool-calls'),
+  setShowToolCalls: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-show-tool-calls'),
+  showToolCallsChanged: bridge.buildEmitter<{ enabled: boolean }>('system-settings:show-tool-calls-changed'),
   // Floating desktop avatar window — independent transparent BrowserWindow
   // that reflects active ACP conversation state. See src/process/avatarWindow.ts.
-  getAvatarEnabled: bridge.buildProvider<boolean, void>(
-    "system-settings:get-avatar-enabled",
-  ),
-  setAvatarEnabled: bridge.buildProvider<void, { enabled: boolean }>(
-    "system-settings:set-avatar-enabled",
-  ),
-  changeLanguage: bridge.buildProvider<void, { language: string }>(
-    "system-settings:change-language",
-  ),
+  getAvatarEnabled: bridge.buildProvider<boolean, void>('system-settings:get-avatar-enabled'),
+  setAvatarEnabled: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-avatar-enabled'),
+  changeLanguage: bridge.buildProvider<void, { language: string }>('system-settings:change-language'),
   // Broadcast language change to all renderers (desktop + WebUI) for real-time sync
-  languageChanged: bridge.buildEmitter<{ language: string }>(
-    "system-settings:language-changed",
-  ),
+  languageChanged: bridge.buildEmitter<{ language: string }>('system-settings:language-changed'),
   // Default URL for new tabs in the right-panel BrowserPanel
-  getBrowserDefaultUrl: bridge.buildProvider<string, void>(
-    "system-settings:get-browser-default-url",
-  ),
-  setBrowserDefaultUrl: bridge.buildProvider<void, { url: string }>(
-    "system-settings:set-browser-default-url",
-  ),
+  getBrowserDefaultUrl: bridge.buildProvider<string, void>('system-settings:get-browser-default-url'),
+  setBrowserDefaultUrl: bridge.buildProvider<void, { url: string }>('system-settings:set-browser-default-url'),
 };
 
 export const logs = {
@@ -2299,16 +1502,14 @@ export const logs = {
       files: Array<{ name: string; path: string; size: number }>;
     }>,
     void
-  >("logs:list-files"),
+  >('logs:list-files'),
 };
 
 // Right-panel BrowserPanel control API. The panel itself lives in the renderer
 // (Electron <webview>); these IPCs let the main process clear its partition
 // cache and (later) attach CDP-based agent tooling.
 export const browserPanel = {
-  clearCache: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "browser-panel:clear-cache",
-  ),
+  clearCache: bridge.buildProvider<IBridgeResponse<void>, void>('browser-panel:clear-cache'),
 
   // ── Tab registry ────────────────────────────────────────────────────────
   // Renderer reports (tabId ↔ webContentsId) on dom-ready so the main process
@@ -2318,17 +1519,9 @@ export const browserPanel = {
   // the global bucket (matches behavior before the per-conv refactor and the
   // browser-panel MCP child's /tab/open path, which doesn't know which
   // conversation triggered the call).
-  registerTab: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { tabId: string; webContentsId: number; conversationId?: string }
-  >("browser-panel:register-tab"),
-  unregisterTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>(
-    "browser-panel:unregister-tab",
-  ),
-  setActiveTab: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { tabId: string; conversationId?: string }
-  >("browser-panel:set-active-tab"),
+  registerTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string; webContentsId: number; conversationId?: string }>('browser-panel:register-tab'),
+  unregisterTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string }>('browser-panel:unregister-tab'),
+  setActiveTab: bridge.buildProvider<IBridgeResponse<void>, { tabId: string; conversationId?: string }>('browser-panel:set-active-tab'),
   listTabs: bridge.buildProvider<
     IBridgeResponse<
       Array<{
@@ -2340,7 +1533,7 @@ export const browserPanel = {
       }>
     >,
     void
-  >("browser-panel:list-tabs"),
+  >('browser-panel:list-tabs'),
 
   // ── CDP action API ──────────────────────────────────────────────────────
   // Each call resolves the target webview from `tabId` (renderer tab id) or
@@ -2354,28 +1547,25 @@ export const browserPanel = {
       errorDetail?: string;
     }>,
     { tabId?: string; expression: string; timeoutMs?: number }
-  >("browser-panel:evaluate-script"),
+  >('browser-panel:evaluate-script'),
   takeScreenshot: bridge.buildProvider<
-    IBridgeResponse<{ format: "png" | "jpeg"; base64: string }>,
+    IBridgeResponse<{ format: 'png' | 'jpeg'; base64: string }>,
     {
       tabId?: string;
-      format?: "png" | "jpeg";
+      format?: 'png' | 'jpeg';
       quality?: number;
       fullPage?: boolean;
     }
-  >("browser-panel:take-screenshot"),
+  >('browser-panel:take-screenshot'),
   navigate: bridge.buildProvider<
     IBridgeResponse<{ ok: boolean; finalUrl?: string; errorText?: string }>,
     {
       tabId?: string;
       url: string;
-      waitUntil?: "load" | "domcontentloaded" | "networkidle";
+      waitUntil?: 'load' | 'domcontentloaded' | 'networkidle';
     }
-  >("browser-panel:navigate"),
-  getDomSnapshot: bridge.buildProvider<
-    IBridgeResponse<{ snapshot: string | null }>,
-    { tabId?: string; selector?: string; format: "outerHTML" | "innerText" }
-  >("browser-panel:get-dom-snapshot"),
+  >('browser-panel:navigate'),
+  getDomSnapshot: bridge.buildProvider<IBridgeResponse<{ snapshot: string | null }>, { tabId?: string; selector?: string; format: 'outerHTML' | 'innerText' }>('browser-panel:get-dom-snapshot'),
   listNetworkRequests: bridge.buildProvider<
     IBridgeResponse<
       Array<{
@@ -2404,12 +1594,11 @@ export const browserPanel = {
       };
       limit?: number;
     }
-  >("browser-panel:list-network-requests"),
+  >('browser-panel:list-network-requests'),
   listConsoleMessages: bridge.buildProvider<
     IBridgeResponse<
       Array<{
-        level:
-          "log" | "info" | "warn" | "error" | "debug" | "verbose" | "other";
+        level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'verbose' | 'other';
         text: string;
         url?: string;
         lineNumber?: number;
@@ -2419,102 +1608,56 @@ export const browserPanel = {
     >,
     {
       tabId?: string;
-      levels?: Array<
-        "log" | "info" | "warn" | "error" | "debug" | "verbose" | "other"
-      >;
+      levels?: Array<'log' | 'info' | 'warn' | 'error' | 'debug' | 'verbose' | 'other'>;
       limit?: number;
     }
-  >("browser-panel:list-console-messages"),
-  clearBuffers: bridge.buildProvider<IBridgeResponse<void>, { tabId?: string }>(
-    "browser-panel:clear-buffers",
-  ),
+  >('browser-panel:list-console-messages'),
+  clearBuffers: bridge.buildProvider<IBridgeResponse<void>, { tabId?: string }>('browser-panel:clear-buffers'),
 };
 
 // Cron job management API / 定时任务管理接口
 export const cron = {
   // Query
-  listJobs: bridge.buildProvider<ICronJob[], void>("cron.list-jobs"),
-  listJobsByConversation: bridge.buildProvider<
-    ICronJob[],
-    { conversationId: string }
-  >("cron.list-jobs-by-conversation"),
-  getJob: bridge.buildProvider<ICronJob | null, { jobId: string }>(
-    "cron.get-job",
-  ),
+  listJobs: bridge.buildProvider<ICronJob[], void>('cron.list-jobs'),
+  listJobsByConversation: bridge.buildProvider<ICronJob[], { conversationId: string }>('cron.list-jobs-by-conversation'),
+  getJob: bridge.buildProvider<ICronJob | null, { jobId: string }>('cron.get-job'),
   // CRUD
-  addJob: bridge.buildProvider<ICronJob, ICreateCronJobParams>("cron.add-job"),
-  updateJob: bridge.buildProvider<
-    ICronJob,
-    { jobId: string; updates: Partial<ICronJob> }
-  >("cron.update-job"),
-  removeJob: bridge.buildProvider<void, { jobId: string }>("cron.remove-job"),
-  triggerJob: bridge.buildProvider<void, { jobId: string }>("cron.trigger-job"),
+  addJob: bridge.buildProvider<ICronJob, ICreateCronJobParams>('cron.add-job'),
+  updateJob: bridge.buildProvider<ICronJob, { jobId: string; updates: Partial<ICronJob> }>('cron.update-job'),
+  removeJob: bridge.buildProvider<void, { jobId: string }>('cron.remove-job'),
+  triggerJob: bridge.buildProvider<void, { jobId: string }>('cron.trigger-job'),
   // Power management
-  getPowerSaveActive: bridge.buildProvider<boolean, void>(
-    "cron.get-power-save-active",
-  ),
-  setPowerSave: bridge.buildProvider<void, { enabled: boolean }>(
-    "cron.set-power-save",
-  ),
+  getPowerSaveActive: bridge.buildProvider<boolean, void>('cron.get-power-save-active'),
+  setPowerSave: bridge.buildProvider<void, { enabled: boolean }>('cron.set-power-save'),
   // Events
-  onJobCreated: bridge.buildEmitter<ICronJob>("cron.job-created"),
-  onJobUpdated: bridge.buildEmitter<ICronJob>("cron.job-updated"),
-  onJobRemoved: bridge.buildEmitter<{ jobId: string }>("cron.job-removed"),
+  onJobCreated: bridge.buildEmitter<ICronJob>('cron.job-created'),
+  onJobUpdated: bridge.buildEmitter<ICronJob>('cron.job-updated'),
+  onJobRemoved: bridge.buildEmitter<{ jobId: string }>('cron.job-removed'),
   onJobExecuted: bridge.buildEmitter<{
     jobId: string;
-    status: "ok" | "error" | "skipped" | "missed";
+    status: 'ok' | 'error' | 'skipped' | 'missed';
     error?: string;
-  }>("cron.job-executed"),
+  }>('cron.job-executed'),
 };
 
 // Team collaboration API / 多 Agent 团队协作接口
 export const team = {
   // Team CRUD
-  listTeams: bridge.buildProvider<ITeam[], void>("team.list-teams"),
-  getTeam: bridge.buildProvider<ITeam | null, { teamId: string }>(
-    "team.get-team",
-  ),
-  listMembers: bridge.buildProvider<ITeamMember[], { teamId: string }>(
-    "team.list-members",
-  ),
-  listAssistants: bridge.buildProvider<ITeamAssistantCandidate[], void>(
-    "team.list-assistants",
-  ),
-  createTeam: bridge.buildProvider<ITeam, ICreateTeamParams>(
-    "team.create-team",
-  ),
-  updateTeam: bridge.buildProvider<
-    ITeam,
-    { teamId: string; updates: Partial<ITeam> }
-  >("team.update-team"),
-  removeTeam: bridge.buildProvider<
-    void,
-    { teamId: string; deleteWorkspace?: boolean }
-  >("team.remove-team"),
-  renameTeam: bridge.buildProvider<ITeam, { teamId: string; name: string }>(
-    "team.rename-team",
-  ),
+  listTeams: bridge.buildProvider<ITeam[], void>('team.list-teams'),
+  getTeam: bridge.buildProvider<ITeam | null, { teamId: string }>('team.get-team'),
+  listMembers: bridge.buildProvider<ITeamMember[], { teamId: string }>('team.list-members'),
+  listAssistants: bridge.buildProvider<ITeamAssistantCandidate[], void>('team.list-assistants'),
+  createTeam: bridge.buildProvider<ITeam, ICreateTeamParams>('team.create-team'),
+  updateTeam: bridge.buildProvider<ITeam, { teamId: string; updates: Partial<ITeam> }>('team.update-team'),
+  removeTeam: bridge.buildProvider<void, { teamId: string; deleteWorkspace?: boolean }>('team.remove-team'),
+  renameTeam: bridge.buildProvider<ITeam, { teamId: string; name: string }>('team.rename-team'),
   // Member management
-  addMember: bridge.buildProvider<ITeamMember, IAddTeamMemberParams>(
-    "team.add-member",
-  ),
-  removeMember: bridge.buildProvider<
-    void,
-    { teamId: string; memberId: string }
-  >("team.remove-member"),
-  renameMember: bridge.buildProvider<
-    ITeamMember,
-    { memberId: string; name: string }
-  >("team.rename-member"),
-  reorderMembers: bridge.buildProvider<
-    ITeamMember[],
-    { teamId: string; memberIds: string[] }
-  >("team.reorder-members"),
+  addMember: bridge.buildProvider<ITeamMember, IAddTeamMemberParams>('team.add-member'),
+  removeMember: bridge.buildProvider<void, { teamId: string; memberId: string }>('team.remove-member'),
+  renameMember: bridge.buildProvider<ITeamMember, { memberId: string; name: string }>('team.rename-member'),
+  reorderMembers: bridge.buildProvider<ITeamMember[], { teamId: string; memberIds: string[] }>('team.reorder-members'),
   // Messaging
-  sendMessage: bridge.buildProvider<
-    ITeamRunAck,
-    { teamId: string; input: string; files?: string[]; msgId?: string }
-  >("team.send-message"),
+  sendMessage: bridge.buildProvider<ITeamRunAck, { teamId: string; input: string; files?: string[]; msgId?: string }>('team.send-message'),
   sendMessageToMember: bridge.buildProvider<
     ITeamRunAck,
     {
@@ -2524,7 +1667,7 @@ export const team = {
       files?: string[];
       msgId?: string;
     }
-  >("team.send-message-to-member"),
+  >('team.send-message-to-member'),
   answerQuestion: bridge.buildProvider<
     IBridgeResponse<void>,
     {
@@ -2534,108 +1677,62 @@ export const team = {
       toolCallId: string;
       answers: Array<{ id: string; value: string; label?: string }>;
     }
-  >("team.answer-question"),
+  >('team.answer-question'),
   // Run lifecycle
-  cancelRun: bridge.buildProvider<void, { teamId: string; reason?: string }>(
-    "team.cancel-run",
-  ),
-  cancelChildTurn: bridge.buildProvider<
-    void,
-    { teamId: string; slotId: string; turnId?: string }
-  >("team.cancel-child-turn"),
-  pauseMember: bridge.buildProvider<void, { teamId: string; slotId: string }>(
-    "team.pause-member",
-  ),
-  retryMemberStart: bridge.buildProvider<
-    void,
-    { teamId: string; slotId: string }
-  >("team.retry-member-start"),
-  ensureSession: bridge.buildProvider<void, { teamId: string }>(
-    "team.ensure-session",
-  ),
-  stopSession: bridge.buildProvider<void, { teamId: string }>(
-    "team.stop-session",
-  ),
-  getRunState: bridge.buildProvider<ITeamRunState, { teamId: string }>(
-    "team.get-run-state",
-  ),
-  renewActiveLease: bridge.buildProvider<
-    void,
-    { teamId: string; leaseId: string }
-  >("team.renew-active-lease"),
-  setSessionMode: bridge.buildProvider<
-    void,
-    { teamId: string; sessionMode: string }
-  >("team.set-session-mode"),
+  cancelRun: bridge.buildProvider<void, { teamId: string; reason?: string }>('team.cancel-run'),
+  cancelChildTurn: bridge.buildProvider<void, { teamId: string; slotId: string; turnId?: string }>('team.cancel-child-turn'),
+  pauseMember: bridge.buildProvider<void, { teamId: string; slotId: string }>('team.pause-member'),
+  retryMemberStart: bridge.buildProvider<void, { teamId: string; slotId: string }>('team.retry-member-start'),
+  ensureSession: bridge.buildProvider<void, { teamId: string }>('team.ensure-session'),
+  stopSession: bridge.buildProvider<void, { teamId: string }>('team.stop-session'),
+  getRunState: bridge.buildProvider<ITeamRunState, { teamId: string }>('team.get-run-state'),
+  renewActiveLease: bridge.buildProvider<void, { teamId: string; leaseId: string }>('team.renew-active-lease'),
+  setSessionMode: bridge.buildProvider<void, { teamId: string; sessionMode: string }>('team.set-session-mode'),
   // Events
-  onAgentStatusChanged: bridge.buildEmitter<ITeamAgentStatusEvent>(
-    "team.agent-status-changed",
-  ),
-  onMemberSpawned: bridge.buildEmitter<ITeamAgentSpawnedEvent>(
-    "team.member-spawned",
-  ),
-  onMemberRemoved: bridge.buildEmitter<ITeamAgentRemovedEvent>(
-    "team.member-removed",
-  ),
-  onMemberRenamed: bridge.buildEmitter<ITeamAgentRenamedEvent>(
-    "team.member-renamed",
-  ),
-  onTeammateMessage: bridge.buildEmitter<ITeamTeammateMessageEvent>(
-    "team.teammate-message",
-  ),
-  onMcpStatus: bridge.buildEmitter<ITeamMcpStatusEvent>("team.mcp-status"),
-  onTaskChanged: bridge.buildEmitter<{ teamId: string; task: ITeamTask }>(
-    "team.task-changed",
-  ),
-  onListChanged:
-    bridge.buildEmitter<ITeamListChangedEvent>("team.list-changed"),
-  onSessionChanged: bridge.buildEmitter<ITeamSessionChangedEvent>(
-    "team.session-changed",
-  ),
-  onRunAccepted: bridge.buildEmitter<ITeamRunEvent>("team.run-accepted"),
-  onRunStarted: bridge.buildEmitter<ITeamRunEvent>("team.run-started"),
-  onRunUpdated: bridge.buildEmitter<ITeamRunEvent>("team.run-updated"),
-  onRunCompleted: bridge.buildEmitter<ITeamRunEvent>("team.run-completed"),
-  onRunCancelled: bridge.buildEmitter<ITeamRunEvent>("team.run-cancelled"),
-  onRunFailed: bridge.buildEmitter<ITeamRunEvent>("team.run-failed"),
-  onChildTurnStarted: bridge.buildEmitter<ITeamChildTurnEvent>(
-    "team.child-turn-started",
-  ),
-  onChildTurnCompleted: bridge.buildEmitter<ITeamChildTurnEvent>(
-    "team.child-turn-completed",
-  ),
-  onChildTurnCancelled: bridge.buildEmitter<ITeamChildTurnEvent>(
-    "team.child-turn-cancelled",
-  ),
+  onAgentStatusChanged: bridge.buildEmitter<ITeamAgentStatusEvent>('team.agent-status-changed'),
+  onMemberSpawned: bridge.buildEmitter<ITeamAgentSpawnedEvent>('team.member-spawned'),
+  onMemberRemoved: bridge.buildEmitter<ITeamAgentRemovedEvent>('team.member-removed'),
+  onMemberRenamed: bridge.buildEmitter<ITeamAgentRenamedEvent>('team.member-renamed'),
+  onTeammateMessage: bridge.buildEmitter<ITeamTeammateMessageEvent>('team.teammate-message'),
+  onMcpStatus: bridge.buildEmitter<ITeamMcpStatusEvent>('team.mcp-status'),
+  onTaskChanged: bridge.buildEmitter<{ teamId: string; task: ITeamTask }>('team.task-changed'),
+  onListChanged: bridge.buildEmitter<ITeamListChangedEvent>('team.list-changed'),
+  onSessionChanged: bridge.buildEmitter<ITeamSessionChangedEvent>('team.session-changed'),
+  onRunAccepted: bridge.buildEmitter<ITeamRunEvent>('team.run-accepted'),
+  onRunStarted: bridge.buildEmitter<ITeamRunEvent>('team.run-started'),
+  onRunUpdated: bridge.buildEmitter<ITeamRunEvent>('team.run-updated'),
+  onRunCompleted: bridge.buildEmitter<ITeamRunEvent>('team.run-completed'),
+  onRunCancelled: bridge.buildEmitter<ITeamRunEvent>('team.run-cancelled'),
+  onRunFailed: bridge.buildEmitter<ITeamRunEvent>('team.run-failed'),
+  onChildTurnStarted: bridge.buildEmitter<ITeamChildTurnEvent>('team.child-turn-started'),
+  onChildTurnCompleted: bridge.buildEmitter<ITeamChildTurnEvent>('team.child-turn-completed'),
+  onChildTurnCancelled: bridge.buildEmitter<ITeamChildTurnEvent>('team.child-turn-cancelled'),
 };
 
 // Realtime transport events (附录 §1.7). Fired by the WS adapter on reconnect so subscribers
 // (e.g. the team run view) can reconcile state they may have missed while disconnected.
 export const realtime = {
-  reconnected: bridge.buildEmitter<void>("realtime.reconnected"),
+  reconnected: bridge.buildEmitter<void>('realtime.reconnected'),
 };
 
 // Cron job types for IPC
-export type ICronSchedule =
-  | { kind: "at"; atMs: number; description: string }
-  | { kind: "every"; everyMs: number; description: string }
-  | { kind: "cron"; expr: string; tz?: string; description: string };
+export type ICronSchedule = { kind: 'at'; atMs: number; description: string } | { kind: 'every'; everyMs: number; description: string } | { kind: 'cron'; expr: string; tz?: string; description: string };
 
 export interface ICronJob {
   id: string;
   name: string;
   enabled: boolean;
   schedule: ICronSchedule;
-  target: { payload: { kind: "message"; text: string } };
+  target: { payload: { kind: 'message'; text: string } };
   metadata: {
     conversationId: string;
     conversationTitle?: string;
     agentType: AcpBackendAll;
-    createdBy: "user" | "agent";
+    createdBy: 'user' | 'agent';
     createdAt: number;
     updatedAt: number;
     /** Execution mode: 'new' creates a fresh conversation each run (default), 'reuse' appends to the bound conversation */
-    conversationMode?: "new" | "reuse";
+    conversationMode?: 'new' | 'reuse';
     /** Working directory to use for execution */
     workspace?: string;
     /** Preset assistant ID (e.g. 'builtin-doctor') — rules/skills re-resolved at execution time.
@@ -2645,7 +1742,7 @@ export interface ICronJob {
   state: {
     nextRunAtMs?: number;
     lastRunAtMs?: number;
-    lastStatus?: "ok" | "error" | "skipped" | "missed";
+    lastStatus?: 'ok' | 'error' | 'skipped' | 'missed';
     lastError?: string;
     runCount: number;
     retryCount: number;
@@ -2662,14 +1759,14 @@ export interface ICreateCronJobParams {
   conversationId: string;
   conversationTitle?: string;
   agentType: AcpBackendAll;
-  createdBy: "user" | "agent";
-  conversationMode?: "new" | "reuse";
+  createdBy: 'user' | 'agent';
+  conversationMode?: 'new' | 'reuse';
   workspace?: string;
   presetAssistantId?: string | null;
 }
 
 // Team collaboration types for IPC
-export type ITeamWorkspaceKind = "custom" | "temporary";
+export type ITeamWorkspaceKind = 'custom' | 'temporary';
 
 export interface ITeam {
   id: string;
@@ -2688,10 +1785,10 @@ export interface ITeam {
 export interface ITeamMember {
   id: string;
   team_id: string;
-  role: "lead" | "teammate";
+  role: 'lead' | 'teammate';
   name: string;
   assistant_id?: string | null;
-  source?: "agent" | "assistant" | null;
+  source?: 'agent' | 'assistant' | null;
   backend: AcpBackendAll;
   preset_agent_type?: PresetAgentType | null;
   skills: string[];
@@ -2710,7 +1807,7 @@ export interface ITeamAssistantCandidate {
   preset_agent_type: string | null;
   avatar: string | null;
   is_preset: boolean;
-  source: "agent" | "assistant";
+  source: 'agent' | 'assistant';
   description?: string | null;
 }
 
@@ -2719,7 +1816,7 @@ export interface ITeamMail {
   team_id: string;
   to_member_id: string;
   from_member_id: string;
-  type: "message" | "idle_notification" | "shutdown_request";
+  type: 'message' | 'idle_notification' | 'shutdown_request';
   content: string;
   summary?: string | null;
   files: string[] | null;
@@ -2732,13 +1829,7 @@ export interface ITeamTask {
   team_id: string;
   subject: string;
   description?: string | null;
-  status:
-    | "pending"
-    | "in_progress"
-    | "completed"
-    | "failed"
-    | "cancelled"
-    | "deleted";
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled' | 'deleted';
   owner?: string | null;
   blocked_by: string[];
   blocks: string[];
@@ -2751,7 +1842,7 @@ export interface ICreateTeamMemberParams {
   assistant_id: string;
   name: string;
   model?: string;
-  role: "lead" | "teammate";
+  role: 'lead' | 'teammate';
 }
 
 export interface ICreateTeamParams {
@@ -2765,23 +1856,23 @@ export interface IAddTeamMemberParams {
   assistant_id: string;
   name: string;
   model?: string;
-  role?: "lead" | "teammate";
+  role?: 'lead' | 'teammate';
 }
 
 export interface ITeamRunAck {
   team_run_id: string;
   team_id: string;
   target_slot_id: string;
-  target_role: "lead" | "teammate";
+  target_role: 'lead' | 'teammate';
   accepted_slot_id: string;
-  accepted_role: "lead" | "teammate";
-  status: "accepted" | "rejected";
+  accepted_role: 'lead' | 'teammate';
+  status: 'accepted' | 'rejected';
   message_id?: string;
 }
 
 export interface ITeamSlotWork {
   slot_id: string;
-  role: "lead" | "teammate";
+  role: 'lead' | 'teammate';
   pending_wake_count: number;
   starting_child_count: number;
   paused?: boolean;
@@ -2790,21 +1881,15 @@ export interface ITeamSlotWork {
   active_turn_started_at_ms?: number;
   active_turn_elapsed_ms?: number;
   active_turn_slow?: boolean;
-  runtime_health?: "Disconnected" | "Unhealthy" | null;
+  runtime_health?: 'Disconnected' | 'Unhealthy' | null;
 }
 
 export interface ITeamRunEvent {
   team_id: string;
   team_run_id: string;
   target_slot_id: string;
-  target_role: "lead" | "teammate";
-  status:
-    | "accepted"
-    | "running"
-    | "cancelling"
-    | "completed"
-    | "cancelled"
-    | "failed";
+  target_role: 'lead' | 'teammate';
+  status: 'accepted' | 'running' | 'cancelling' | 'completed' | 'cancelled' | 'failed';
   active_child_count: number;
   pending_wake_count: number;
   starting_child_count: number;
@@ -2819,10 +1904,10 @@ export interface ITeamChildTurnEvent {
   team_id: string;
   team_run_id: string;
   slot_id: string;
-  role: "lead" | "teammate";
+  role: 'lead' | 'teammate';
   conversation_id: string;
   turn_id: string;
-  status: "started" | "completed" | "cancelled" | "failed";
+  status: 'started' | 'completed' | 'cancelled' | 'failed';
 }
 
 export interface ITeamAgentStatusEvent {
@@ -2834,7 +1919,7 @@ export interface ITeamAgentStatusEvent {
 
 export interface ITeamSessionChangedEvent {
   teamId: string;
-  status?: "starting" | "ready" | "failed";
+  status?: 'starting' | 'ready' | 'failed';
   error?: string;
 }
 
@@ -2856,13 +1941,7 @@ export interface ITeamAgentRenamedEvent {
 
 export interface ITeamListChangedEvent {
   team_id: string;
-  action:
-    | "created"
-    | "removed"
-    | "renamed"
-    | "updated"
-    | "agent_added"
-    | "agent_removed";
+  action: 'created' | 'removed' | 'renamed' | 'updated' | 'agent_added' | 'agent_removed';
 }
 
 export interface ITeamTeammateMessageEvent {
@@ -2900,105 +1979,106 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: "acp" | "remote-agent";
+  type: 'acp' | 'remote-agent';
   id?: string;
   name?: string;
   model: TProviderWithModel;
-  extra: import("@sudowork/common/mossExecution").IMossConversationExecution & {
-    workspace?: string;
-    customWorkspace?: boolean;
-    workspaceDisplayName?: string;
-    teamOwnedWorkspace?: boolean;
-    isTeamMember?: boolean;
-    teamId?: string;
-    teamMcpConfig?: {
-      name: string;
-      command: string;
-      args?: string[];
-      env?: Array<{ name: string; value: string }>;
+  extra: import('@sudowork/common/mossExecution').IMossConversationExecution &
+    import('@sudowork/common/conversationPurpose').IConversationPurposeMetadata & {
+      workspace?: string;
+      customWorkspace?: boolean;
+      workspaceDisplayName?: string;
+      teamOwnedWorkspace?: boolean;
+      isTeamMember?: boolean;
+      teamId?: string;
+      teamMcpConfig?: {
+        name: string;
+        command: string;
+        args?: string[];
+        env?: Array<{ name: string; value: string }>;
+      };
+      /**
+       * MCP configs to inject into the ACP `session/new` request. Used by the
+       * ontology AI Builder to attach `ontology-builder` so the AI can call
+       * ontology_* tools. Same wire shape as teamMcpConfig, but a separate slot
+       * so team semantics stay isolated.
+       */
+      extraMcpConfigs?: Array<{
+        name: string;
+        command: string;
+        args?: string[];
+        env?: Array<{ name: string; value: string }>;
+      }>;
+      defaultFiles?: string[];
+      backend?: AcpBackendAll;
+      cliPath?: string;
+      webSearchEngine?: 'google' | 'default';
+      agentName?: string;
+      customAgentId?: string;
+      context?: string;
+      contextFileName?: string; // For preset agents
+      // System rules for smart assistants
+      presetRules?: string; // system rules injected at initialization
+      /** Enabled skills list for filtering SkillManager skills */
+      enabledSkills?: string[];
+      /**
+       * Preset context/rules to inject into the first message.
+       * Used by smart assistants to provide custom prompts/rules.
+       * Injected via contextContent or <system_instruction> tag in first message
+       */
+      presetContext?: string;
+      /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
+      presetAssistantId?: string;
+      /** Initial session mode selected on Guid page (from AgentModeSelector) */
+      sessionMode?: string;
+      /** Session mode (remote/local) for enterprise mode Provider selection - distinct from sessionMode (yolo/auto) */
+      sessionModeParam?: 'remote' | 'local';
+      /** The name is the first message text in the guid send flow. */
+      nameIsFirstMessage?: boolean;
+      /** Pre-selected ACP model from Guid page (cached model list) */
+      currentModelId?: string;
+      /** Runtime validation snapshot used for post-switch strong checks */
+      runtimeValidation?: {
+        expectedWorkspace?: string;
+        expectedBackend?: string;
+        expectedAgentName?: string;
+        expectedCliPath?: string;
+        expectedModel?: string;
+        expectedIdentityHash?: string | null;
+        switchedAt?: number;
+      };
+      /** Explicit marker for temporary health-check conversations */
+      isHealthCheck?: boolean;
+      /** Cron job ID that created this conversation (for "new conversation per run" mode) */
+      cronJobId?: string;
+      /** Cron job name that created this conversation */
+      cronJobName?: string;
+      /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
+      cronJobBoundId?: string;
+      /** Cron job name this conversation is pre-bound to */
+      cronJobBoundName?: string;
+      // ========== Remote-agent (Moss Server) specific fields ==========
+      /** Moss Server URL (e.g. http://127.0.0.1:43127) */
+      mossServerUrl?: string;
+      /** Auth token for Moss Server (API Key or JWT access_token) */
+      authToken?: string;
+      /** Username for password login (when authToken is empty) */
+      username?: string;
+      /** Password for password login (when authToken is empty) */
+      password?: string;
+      /** Runtime type for Moss Server */
+      runtimeType?: 'host' | 'docker';
+      /** Enterprise code */
+      enterpriseCode?: string;
+      /** Organization ID */
+      orgId?: string;
+      /** User ID */
+      userId?: string;
+      /** Skip permission confirmation */
+      dangerouslySkipPermissions?: boolean;
+      /** WebSocket URL from Moss Server session (for reconnecting) */
+      acpWsUrl?: string;
     };
-    /**
-     * MCP configs to inject into the ACP `session/new` request. Used by the
-     * ontology AI Builder to attach `ontology-builder` so the AI can call
-     * ontology_* tools. Same wire shape as teamMcpConfig, but a separate slot
-     * so team semantics stay isolated.
-     */
-    extraMcpConfigs?: Array<{
-      name: string;
-      command: string;
-      args?: string[];
-      env?: Array<{ name: string; value: string }>;
-    }>;
-    defaultFiles?: string[];
-    backend?: AcpBackendAll;
-    cliPath?: string;
-    webSearchEngine?: "google" | "default";
-    agentName?: string;
-    customAgentId?: string;
-    context?: string;
-    contextFileName?: string; // For preset agents
-    // System rules for smart assistants
-    presetRules?: string; // system rules injected at initialization
-    /** Enabled skills list for filtering SkillManager skills */
-    enabledSkills?: string[];
-    /**
-     * Preset context/rules to inject into the first message.
-     * Used by smart assistants to provide custom prompts/rules.
-     * Injected via contextContent or <system_instruction> tag in first message
-     */
-    presetContext?: string;
-    /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
-    presetAssistantId?: string;
-    /** Initial session mode selected on Guid page (from AgentModeSelector) */
-    sessionMode?: string;
-    /** Session mode (remote/local) for enterprise mode Provider selection - distinct from sessionMode (yolo/auto) */
-    sessionModeParam?: "remote" | "local";
-    /** The name is the first message text in the guid send flow. */
-    nameIsFirstMessage?: boolean;
-    /** Pre-selected ACP model from Guid page (cached model list) */
-    currentModelId?: string;
-    /** Runtime validation snapshot used for post-switch strong checks */
-    runtimeValidation?: {
-      expectedWorkspace?: string;
-      expectedBackend?: string;
-      expectedAgentName?: string;
-      expectedCliPath?: string;
-      expectedModel?: string;
-      expectedIdentityHash?: string | null;
-      switchedAt?: number;
-    };
-    /** Explicit marker for temporary health-check conversations */
-    isHealthCheck?: boolean;
-    /** Cron job ID that created this conversation (for "new conversation per run" mode) */
-    cronJobId?: string;
-    /** Cron job name that created this conversation */
-    cronJobName?: string;
-    /** Cron job ID this conversation is pre-bound to (reuse mode, user-selected existing conversation) */
-    cronJobBoundId?: string;
-    /** Cron job name this conversation is pre-bound to */
-    cronJobBoundName?: string;
-    // ========== Remote-agent (Moss Server) specific fields ==========
-    /** Moss Server URL (e.g. http://127.0.0.1:43127) */
-    mossServerUrl?: string;
-    /** Auth token for Moss Server (API Key or JWT access_token) */
-    authToken?: string;
-    /** Username for password login (when authToken is empty) */
-    username?: string;
-    /** Password for password login (when authToken is empty) */
-    password?: string;
-    /** Runtime type for Moss Server */
-    runtimeType?: "host" | "docker";
-    /** Enterprise code */
-    enterpriseCode?: string;
-    /** Organization ID */
-    orgId?: string;
-    /** User ID */
-    userId?: string;
-    /** Skip permission confirmation */
-    dangerouslySkipPermissions?: boolean;
-    /** WebSocket URL from Moss Server session (for reconnecting) */
-    acpWsUrl?: string;
-  };
 }
 interface IResetConversationParams {
   id?: string;
@@ -3050,7 +2130,7 @@ export interface IExtensionInfo {
   /** Whether the extension is currently enabled */
   enabled: boolean;
   /** Overall permission risk level */
-  riskLevel: "safe" | "moderate" | "dangerous";
+  riskLevel: 'safe' | 'moderate' | 'dangerous';
   /** Whether the extension has lifecycle hooks */
   hasLifecycle: boolean;
 }
@@ -3059,7 +2139,7 @@ export interface IExtensionInfo {
 export interface IExtensionPermissionSummary {
   name: string;
   description: string;
-  level: "safe" | "moderate" | "dangerous";
+  level: 'safe' | 'moderate' | 'dangerous';
   granted: boolean;
 }
 
@@ -3071,19 +2151,18 @@ export interface IExtensionSettingsTab {
   /** aion-asset:// local page or external https:// URL */
   entryUrl: string;
   /** Position anchor relative to a built-in or other extension tab */
-  position?: { anchor: string; placement: "before" | "after" };
+  position?: { anchor: string; placement: 'before' | 'after' };
   /** Fallback numeric order when multiple tabs share the same anchor+placement. Lower = first */
   order: number;
   _extensionName: string;
 }
 
-export type AgentActivityState =
-  "idle" | "writing" | "researching" | "executing" | "syncing" | "error";
+export type AgentActivityState = 'idle' | 'writing' | 'researching' | 'executing' | 'syncing' | 'error';
 
 export interface IExtensionAgentActivityEvent {
   conversationId: string;
   at: number;
-  kind: "status" | "tool" | "message";
+  kind: 'status' | 'tool' | 'message';
   text: string;
 }
 
@@ -3092,7 +2171,7 @@ export interface IExtensionAgentActivityItem {
   backend: string;
   agentName: string;
   state: AgentActivityState;
-  runtimeStatus: "pending" | "running" | "finished" | "unknown";
+  runtimeStatus: 'pending' | 'running' | 'finished' | 'unknown';
   conversations: number;
   activeConversations: number;
   lastActiveAt: number;
@@ -3110,72 +2189,41 @@ export interface IExtensionAgentActivitySnapshot {
 
 export const extensions = {
   /** Get all extension-contributed CSS themes */
-  getThemes: bridge.buildProvider<ICssTheme[], void>("extensions.get-themes"),
+  getThemes: bridge.buildProvider<ICssTheme[], void>('extensions.get-themes'),
   /** Get summary of all loaded extensions */
-  getLoadedExtensions: bridge.buildProvider<IExtensionInfo[], void>(
-    "extensions.get-loaded-extensions",
-  ),
+  getLoadedExtensions: bridge.buildProvider<IExtensionInfo[], void>('extensions.get-loaded-extensions'),
   /** Get all extension-contributed assistants */
-  getAssistants: bridge.buildProvider<Record<string, unknown>[], void>(
-    "extensions.get-assistants",
-  ),
+  getAssistants: bridge.buildProvider<Record<string, unknown>[], void>('extensions.get-assistants'),
   /** Get all extension-contributed agents (autonomous agent presets) */
-  getAgents: bridge.buildProvider<Record<string, unknown>[], void>(
-    "extensions.get-agents",
-  ),
+  getAgents: bridge.buildProvider<Record<string, unknown>[], void>('extensions.get-agents'),
   /** Get all extension-contributed ACP adapters */
-  getAcpAdapters: bridge.buildProvider<Record<string, unknown>[], void>(
-    "extensions.get-acp-adapters",
-  ),
+  getAcpAdapters: bridge.buildProvider<Record<string, unknown>[], void>('extensions.get-acp-adapters'),
   /** Get all extension-contributed MCP servers */
-  getMcpServers: bridge.buildProvider<Record<string, unknown>[], void>(
-    "extensions.get-mcp-servers",
-  ),
+  getMcpServers: bridge.buildProvider<Record<string, unknown>[], void>('extensions.get-mcp-servers'),
   /** Get all extension-contributed skills */
-  getSkills: bridge.buildProvider<
-    Array<{ name: string; description: string; location: string }>,
-    void
-  >("extensions.get-skills"),
+  getSkills: bridge.buildProvider<Array<{ name: string; description: string; location: string }>, void>('extensions.get-skills'),
   /** Get all extension-contributed settings tabs */
-  getSettingsTabs: bridge.buildProvider<IExtensionSettingsTab[], void>(
-    "extensions.get-settings-tabs",
-  ),
+  getSettingsTabs: bridge.buildProvider<IExtensionSettingsTab[], void>('extensions.get-settings-tabs'),
   /** Snapshot of all agent activities, for extension settings tabs */
-  getAgentActivitySnapshot: bridge.buildProvider<
-    IExtensionAgentActivitySnapshot,
-    void
-  >("extensions.get-agent-activity-snapshot"),
+  getAgentActivitySnapshot: bridge.buildProvider<IExtensionAgentActivitySnapshot, void>('extensions.get-agent-activity-snapshot'),
   /** Get merged extension i18n translations for a specific locale (falls back to en-US) */
-  getExtI18nForLocale: bridge.buildProvider<
-    Record<string, unknown>,
-    { locale: string }
-  >("extensions.get-ext-i18n-for-locale"),
+  getExtI18nForLocale: bridge.buildProvider<Record<string, unknown>, { locale: string }>('extensions.get-ext-i18n-for-locale'),
 
   // --- Extension Management API (NocoBase-inspired) ---
   /** Enable a disabled extension */
-  enableExtension: bridge.buildProvider<IBridgeResponse, { name: string }>(
-    "extensions.enable",
-  ),
+  enableExtension: bridge.buildProvider<IBridgeResponse, { name: string }>('extensions.enable'),
   /** Disable an extension */
-  disableExtension: bridge.buildProvider<
-    IBridgeResponse,
-    { name: string; reason?: string }
-  >("extensions.disable"),
+  disableExtension: bridge.buildProvider<IBridgeResponse, { name: string; reason?: string }>('extensions.disable'),
   /** Get permission summary for an extension (Figma-inspired) */
-  getPermissions: bridge.buildProvider<
-    IExtensionPermissionSummary[],
-    { name: string }
-  >("extensions.get-permissions"),
+  getPermissions: bridge.buildProvider<IExtensionPermissionSummary[], { name: string }>('extensions.get-permissions'),
   /** Get overall risk level for an extension */
-  getRiskLevel: bridge.buildProvider<string, { name: string }>(
-    "extensions.get-risk-level",
-  ),
+  getRiskLevel: bridge.buildProvider<string, { name: string }>('extensions.get-risk-level'),
   /** Extension state change events (push to renderer when enable/disable happens) */
   stateChanged: bridge.buildEmitter<{
     name: string;
     enabled: boolean;
     reason?: string;
-  }>("extensions.state-changed"),
+  }>('extensions.state-changed'),
 };
 
 // ==================== Skill Hub API ====================
@@ -3229,7 +2277,7 @@ export interface ISkillDownloadResult {
 export interface ISkillUploadResult {
   id: string;
   name: string;
-  status: "pending" | "approved";
+  status: 'pending' | 'approved';
 }
 
 export interface ISkillHubDetail {
@@ -3260,7 +2308,7 @@ export interface ISkillHubMeta {
   core_features: string | null;
   homepage: string | null;
   author_id: string;
-  source_type?: "hub" | "upload" | "custom" | "tenant";
+  source_type?: 'hub' | 'upload' | 'custom' | 'tenant';
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version: string;
@@ -3272,7 +2320,7 @@ export interface ISkillHubMeta {
   /** Timestamp when uploaded to Moss Server */
   uploaded_at?: string;
   /** Publish status for tenant-exclusive skills */
-  publish_status?: "pending" | "approved" | "rejected";
+  publish_status?: 'pending' | 'approved' | 'rejected';
   /** Timestamp when published as tenant-exclusive */
   published_at?: string;
 }
@@ -3291,7 +2339,7 @@ export interface IInstalledSkillInfo {
   /** Whether this skill is currently enabled at runtime */
   enabled: boolean;
   /** Category of the skill (custom, hub, system, tenant) */
-  category?: "custom" | "hub" | "system" | "tenant";
+  category?: 'custom' | 'hub' | 'system' | 'tenant';
   /** Rich metadata from _sudowork_meta.json (hub-installed only) */
   meta?: ISkillHubMeta;
 }
@@ -3307,21 +2355,16 @@ export const skillHub = {
       category?: string;
       tenantId?: string;
     }
-  >("skill-hub.fetch-skills"),
+  >('skill-hub.fetch-skills'),
   /** Emitted when installed skills change outside renderer-initiated actions */
   changed: bridge.buildEmitter<{
     skillName?: string;
-    source?: "workspace" | "hub" | "import" | "toggle" | "uninstall";
-  }>("skill-hub.changed"),
+    source?: 'workspace' | 'hub' | 'import' | 'toggle' | 'uninstall';
+  }>('skill-hub.changed'),
   /** Fetch skill categories from Skill Hub API */
-  fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>(
-    "skill-hub.fetch-categories",
-  ),
+  fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('skill-hub.fetch-categories'),
   /** Fetch skill detail from Skill Hub API */
-  fetchSkillDetail: bridge.buildProvider<
-    IBridgeResponse<ISkillHubDetail>,
-    { skillId: string }
-  >("skill-hub.fetch-skill-detail"),
+  fetchSkillDetail: bridge.buildProvider<IBridgeResponse<ISkillHubDetail>, { skillId: string }>('skill-hub.fetch-skill-detail'),
   /** Download and install skill from URL, saving full metadata */
   downloadAndInstallSkill: bridge.buildProvider<
     IBridgeResponse<ISkillInstallResult>,
@@ -3333,67 +2376,39 @@ export const skillHub = {
       checksum: string;
       skillMeta?: ISkillHubSkill;
     }
-  >("skill-hub.download-and-install-skill"),
+  >('skill-hub.download-and-install-skill'),
   /** Download skill zip to local Downloads folder */
-  downloadSkillZip: bridge.buildProvider<
-    IBridgeResponse<ISkillDownloadResult>,
-    { skillName: string; version: string; sourceUrl: string; checksum?: string }
-  >("skill-hub.download-skill-zip"),
+  downloadSkillZip: bridge.buildProvider<IBridgeResponse<ISkillDownloadResult>, { skillName: string; version: string; sourceUrl: string; checksum?: string }>('skill-hub.download-skill-zip'),
   /** Import a local skill zip package or directory and synthesize metadata from SKILL.md */
-  importLocalSkill: bridge.buildProvider<
-    IBridgeResponse<ISkillInstallResult>,
-    { sourcePath: string }
-  >("skill-hub.import-local-skill"),
+  importLocalSkill: bridge.buildProvider<IBridgeResponse<ISkillInstallResult>, { sourcePath: string }>('skill-hub.import-local-skill'),
   /** Upload a personal-mode custom skill to SkillHub as a tenant-exclusive skill pending approval */
-  uploadSkillToHub: bridge.buildProvider<
-    IBridgeResponse<ISkillUploadResult>,
-    { skillName: string; tenantId: string }
-  >("skill-hub.upload-skill-to-hub"),
+  uploadSkillToHub: bridge.buildProvider<IBridgeResponse<ISkillUploadResult>, { skillName: string; tenantId: string }>('skill-hub.upload-skill-to-hub'),
   /** Refresh local approval status for custom skills uploaded to SkillHub */
-  refreshUploadedSkillStatuses: bridge.buildProvider<
-    IBridgeResponse<{ checked: number; updated: number }>,
-    void
-  >("skill-hub.refresh-uploaded-skill-statuses"),
+  refreshUploadedSkillStatuses: bridge.buildProvider<IBridgeResponse<{ checked: number; updated: number }>, void>('skill-hub.refresh-uploaded-skill-statuses'),
   /** Get installed skills with rich metadata */
-  getInstalledSkills: bridge.buildProvider<
-    IBridgeResponse<IInstalledSkillInfo[]>,
-    void
-  >("skill-hub.get-installed-skills"),
+  getInstalledSkills: bridge.buildProvider<IBridgeResponse<IInstalledSkillInfo[]>, void>('skill-hub.get-installed-skills'),
   /** Enable or disable a custom installed skill. Optionally specify category to disambiguate skills with same name in different directories. */
   setSkillEnabled: bridge.buildProvider<
     IBridgeResponse<void>,
     {
       skillName: string;
       enabled: boolean;
-      category?: "custom" | "hub" | "system" | "tenant";
+      category?: 'custom' | 'hub' | 'system' | 'tenant';
     }
-  >("skill-hub.set-skill-enabled"),
+  >('skill-hub.set-skill-enabled'),
   /** Uninstall a hub-installed skill by directory name (builtin skills are rejected). Optionally specify category to disambiguate skills with same name in different directories. */
-  uninstallSkill: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { skillName: string; category?: "custom" | "hub" | "system" | "tenant" }
-  >("skill-hub.uninstall-skill"),
+  uninstallSkill: bridge.buildProvider<IBridgeResponse<void>, { skillName: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('skill-hub.uninstall-skill'),
   /** Get security audit report for a skill */
-  getSkillAuditReport: bridge.buildProvider<
-    IBridgeResponse<
-      import("@sudowork/common/skillAuditTypes").SkillAuditReport
-    >,
-    { skillName: string }
-  >("skill-hub.get-skill-audit-report"),
+  getSkillAuditReport: bridge.buildProvider<IBridgeResponse<import('@sudowork/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.get-skill-audit-report'),
   /** Run security audit for a skill (re-scan) */
-  runSkillAudit: bridge.buildProvider<
-    IBridgeResponse<
-      import("@sudowork/common/skillAuditTypes").SkillAuditReport
-    >,
-    { skillName: string }
-  >("skill-hub.run-skill-audit"),
+  runSkillAudit: bridge.buildProvider<IBridgeResponse<import('@sudowork/common/skillAuditTypes').SkillAuditReport>, { skillName: string }>('skill-hub.run-skill-audit'),
 };
 
 // ==================== Assistant Hub API ====================
 
 /** Assistant from Hub API (mirrors ISkillHubSkill pattern) */
 export interface IAssistantHubSkill {
-  sourceType?: "hub" | "tenant";
+  sourceType?: 'hub' | 'tenant';
   id: string;
   name: string;
   display_name: string;
@@ -3406,7 +2421,7 @@ export interface IAssistantHubSkill {
   /** Associated skill IDs (skills guaranteed to exist in Skill Hub) */
   skills: string[];
   /** Source tag: 'hub' (store), 'custom' (user-created), 'system' (builtin) */
-  tag: "hub" | "custom" | "system";
+  tag: 'hub' | 'custom' | 'system';
   homepage: string | null;
   author_id: string;
   star_count: number;
@@ -3487,59 +2502,35 @@ export interface IAssistantInstallResult {
 
 export const assistantHub = {
   /** Get all installed assistants (enabled + disabled) with full metadata */
-  getInstalledAssistants: bridge.buildProvider<
-    IBridgeResponse<IAssistantInfo[]>,
-    void
-  >("assistant-hub.get-installed-assistants"),
+  getInstalledAssistants: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, void>('assistant-hub.get-installed-assistants'),
   /** Refresh local approval status for custom assistants uploaded to Assistant Hub */
-  refreshUploadedAssistantStatuses: bridge.buildProvider<
-    IBridgeResponse<{ checked: number; updated: number }>,
-    void
-  >("assistant-hub.refresh-uploaded-assistant-statuses"),
+  refreshUploadedAssistantStatuses: bridge.buildProvider<IBridgeResponse<{ checked: number; updated: number }>, void>('assistant-hub.refresh-uploaded-assistant-statuses'),
   /**
    * Same as `getInstalledAssistants` but reconciles with sudowork-server's
    * `/agents/visible` to filter out hub/tenant assistants the current user is
    * not allowed to see, and annotates each entry with Dify `enhancement`.
    * Falls back to the unfiltered list if the server is unreachable.
    */
-  getInstalledAssistantsWithVisibility: bridge.buildProvider<
-    IBridgeResponse<IAssistantInfo[]>,
-    { accessToken: string }
-  >("assistant-hub.get-installed-assistants-with-visibility"),
+  getInstalledAssistantsWithVisibility: bridge.buildProvider<IBridgeResponse<IAssistantInfo[]>, { accessToken: string }>('assistant-hub.get-installed-assistants-with-visibility'),
   /** Enable an assistant (set meta.enabled = true). Optionally specify category to disambiguate assistants with same name in different directories. */
-  enableAssistant: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { name: string; category?: "custom" | "hub" | "system" | "tenant" }
-  >("assistant-hub.enable-assistant"),
+  enableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.enable-assistant'),
   /** Disable an assistant (set meta.enabled = false). Optionally specify category to disambiguate assistants with same name in different directories. */
-  disableAssistant: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { name: string; category?: "custom" | "hub" | "system" | "tenant" }
-  >("assistant-hub.disable-assistant"),
+  disableAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.disable-assistant'),
   /** Merge partial updates into an assistant's _sudowork_meta.json */
   updateAssistantMeta: bridge.buildProvider<
     IBridgeResponse<void>,
     {
       name: string;
       updates: Partial<IAssistantMeta>;
-      category?: "custom" | "hub" | "system" | "tenant";
+      category?: 'custom' | 'hub' | 'system' | 'tenant';
     }
-  >("assistant-hub.update-assistant-meta"),
+  >('assistant-hub.update-assistant-meta'),
   /** Read _sudowork_meta.json for a specific assistant */
-  getAssistantMeta: bridge.buildProvider<
-    IBridgeResponse<IAssistantMeta | null>,
-    { name: string }
-  >("assistant-hub.get-assistant-meta"),
+  getAssistantMeta: bridge.buildProvider<IBridgeResponse<IAssistantMeta | null>, { name: string }>('assistant-hub.get-assistant-meta'),
   /** Create a new custom assistant with metadata and optional rule content */
-  createAssistant: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { meta: IAssistantMeta; ruleContent?: string }
-  >("assistant-hub.create-assistant"),
+  createAssistant: bridge.buildProvider<IBridgeResponse<void>, { meta: IAssistantMeta; ruleContent?: string }>('assistant-hub.create-assistant'),
   /** Uninstall an assistant (delete directory; blocks builtins). Optionally specify category to disambiguate assistants with same name in different directories. */
-  uninstallAssistant: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { name: string; category?: "custom" | "hub" | "system" | "tenant" }
-  >("assistant-hub.uninstall-assistant"),
+  uninstallAssistant: bridge.buildProvider<IBridgeResponse<void>, { name: string; category?: 'custom' | 'hub' | 'system' | 'tenant' }>('assistant-hub.uninstall-assistant'),
 
   // === Hub API methods (parallel to skillHub) ===
   /** Fetch assistants list from Assistant Hub API with cursor-based pagination */
@@ -3551,24 +2542,16 @@ export const assistantHub = {
       query?: string;
       category?: string;
       tenantId?: string;
-      sourceType?: "hub" | "tenant";
+      sourceType?: 'hub' | 'tenant';
       accessToken?: string;
     }
-  >("assistant-hub.fetch-assistants"),
+  >('assistant-hub.fetch-assistants'),
   /** Fetch assistant categories from Assistant Hub API (type=1 for assistants) */
-  fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>(
-    "assistant-hub.fetch-categories",
-  ),
+  fetchCategories: bridge.buildProvider<IBridgeResponse<string[]>, void>('assistant-hub.fetch-categories'),
   /** Fetch assistant detail from Assistant Hub API */
-  fetchAssistantDetail: bridge.buildProvider<
-    IBridgeResponse<IAssistantHubDetail>,
-    { assistantId: string; silent?: boolean; sourceType?: "hub" | "tenant" }
-  >("assistant-hub.fetch-assistant-detail"),
+  fetchAssistantDetail: bridge.buildProvider<IBridgeResponse<IAssistantHubDetail>, { assistantId: string; silent?: boolean; sourceType?: 'hub' | 'tenant' }>('assistant-hub.fetch-assistant-detail'),
   /** Fetch skill details by IDs from Skill Hub API (for installation preview) */
-  fetchSkillDetailsByIds: bridge.buildProvider<
-    IBridgeResponse<ISkillHubSkill[]>,
-    { skillIds: string[] }
-  >("assistant-hub.fetch-skill-details-by-ids"),
+  fetchSkillDetailsByIds: bridge.buildProvider<IBridgeResponse<ISkillHubSkill[]>, { skillIds: string[] }>('assistant-hub.fetch-skill-details-by-ids'),
   /** Download and install assistant from Hub, optionally installing selected associated skills */
   downloadAndInstallAssistant: bridge.buildProvider<
     IBridgeResponse<IAssistantInstallResult>,
@@ -3581,7 +2564,7 @@ export const assistantHub = {
       assistantMeta: IAssistantHubSkill;
       selectedSkillIds?: string[];
     }
-  >("assistant-hub.download-and-install-assistant"),
+  >('assistant-hub.download-and-install-assistant'),
   /** Upload custom assistant to Hub (create zip and POST to /api/assistants) */
   uploadAssistantToHub: bridge.buildProvider<
     IBridgeResponse<{ success: boolean; message?: string }>,
@@ -3594,37 +2577,21 @@ export const assistantHub = {
       skills?: string[];
       tenantId: string;
     }
-  >("assistant-hub.upload-assistant-to-hub"),
+  >('assistant-hub.upload-assistant-to-hub'),
 };
 
 // ==================== Channel API ====================
 
 export const channel = {
   // Plugin Management
-  getPluginStatus: bridge.buildProvider<
-    IBridgeResponse<IChannelPluginStatus[]>,
-    void
-  >("channel.get-plugin-status"),
-  getPluginCredentials: bridge.buildProvider<
-    IBridgeResponse<IPluginCredentials | null>,
-    { pluginId: string }
-  >("channel.get-plugin-credentials"),
-  enablePlugin: bridge.buildProvider<
-    IBridgeResponse,
-    { pluginId: string; config: Record<string, unknown> }
-  >("channel.enable-plugin"),
-  disablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string }>(
-    "channel.disable-plugin",
-  ),
+  getPluginStatus: bridge.buildProvider<IBridgeResponse<IChannelPluginStatus[]>, void>('channel.get-plugin-status'),
+  getPluginCredentials: bridge.buildProvider<IBridgeResponse<IPluginCredentials | null>, { pluginId: string }>('channel.get-plugin-credentials'),
+  enablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string; config: Record<string, unknown> }>('channel.enable-plugin'),
+  disablePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('channel.disable-plugin'),
   /** Allocate an additional connection of a channel type; resolves with its plugin id. */
-  createPlugin: bridge.buildProvider<
-    IBridgeResponse<{ pluginId: string } | null>,
-    { type: string; name?: string }
-  >("channel.create-plugin"),
+  createPlugin: bridge.buildProvider<IBridgeResponse<{ pluginId: string } | null>, { type: string; name?: string }>('channel.create-plugin'),
   /** Delete one connection, with the authorizations scoped to it. */
-  removePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string }>(
-    "channel.remove-plugin",
-  ),
+  removePlugin: bridge.buildProvider<IBridgeResponse, { pluginId: string }>('channel.remove-plugin'),
   testPlugin: bridge.buildProvider<
     IBridgeResponse<{ success: boolean; botUsername?: string; error?: string }>,
     {
@@ -3632,34 +2599,19 @@ export const channel = {
       token: string;
       extraConfig?: { appId?: string; appSecret?: string };
     }
-  >("channel.test-plugin"),
+  >('channel.test-plugin'),
 
   // Pairing Management
-  getPendingPairings: bridge.buildProvider<
-    IBridgeResponse<IChannelPairingRequest[]>,
-    void
-  >("channel.get-pending-pairings"),
-  approvePairing: bridge.buildProvider<IBridgeResponse, { code: string }>(
-    "channel.approve-pairing",
-  ),
-  rejectPairing: bridge.buildProvider<IBridgeResponse, { code: string }>(
-    "channel.reject-pairing",
-  ),
+  getPendingPairings: bridge.buildProvider<IBridgeResponse<IChannelPairingRequest[]>, void>('channel.get-pending-pairings'),
+  approvePairing: bridge.buildProvider<IBridgeResponse, { code: string }>('channel.approve-pairing'),
+  rejectPairing: bridge.buildProvider<IBridgeResponse, { code: string }>('channel.reject-pairing'),
 
   // User Management
-  getAuthorizedUsers: bridge.buildProvider<
-    IBridgeResponse<IChannelUser[]>,
-    void
-  >("channel.get-authorized-users"),
-  revokeUser: bridge.buildProvider<IBridgeResponse, { userId: string }>(
-    "channel.revoke-user",
-  ),
+  getAuthorizedUsers: bridge.buildProvider<IBridgeResponse<IChannelUser[]>, void>('channel.get-authorized-users'),
+  revokeUser: bridge.buildProvider<IBridgeResponse, { userId: string }>('channel.revoke-user'),
 
   // Session Management (MVP: read-only view)
-  getActiveSessions: bridge.buildProvider<
-    IBridgeResponse<IChannelSession[]>,
-    void
-  >("channel.get-active-sessions"),
+  getActiveSessions: bridge.buildProvider<IBridgeResponse<IChannelSession[]>, void>('channel.get-active-sessions'),
 
   // Settings Sync
   syncChannelSettings: bridge.buildProvider<
@@ -3669,65 +2621,48 @@ export const channel = {
       agent: { backend: string; customAgentId?: string; name?: string };
       model?: { id: string; useModel: string };
     }
-  >("channel.sync-channel-settings"),
+  >('channel.sync-channel-settings'),
 
   // Events
-  pairingRequested: bridge.buildEmitter<IChannelPairingRequest>(
-    "channel.pairing-requested",
-  ),
+  pairingRequested: bridge.buildEmitter<IChannelPairingRequest>('channel.pairing-requested'),
   pluginStatusChanged: bridge.buildEmitter<{
     pluginId: string;
     status: IChannelPluginStatus;
-  }>("channel.plugin-status-changed"),
-  userAuthorized: bridge.buildEmitter<IChannelUser>("channel.user-authorized"),
+  }>('channel.plugin-status-changed'),
+  userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 
   // WeChat QR Login
-  wechatStartQrLogin: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "channel.wechat-start-qr-login",
-  ),
-  wechatCancelQrLogin: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "channel.wechat-cancel-qr-login",
-  ),
+  wechatStartQrLogin: bridge.buildProvider<IBridgeResponse<void>, void>('channel.wechat-start-qr-login'),
+  wechatCancelQrLogin: bridge.buildProvider<IBridgeResponse<void>, void>('channel.wechat-cancel-qr-login'),
   wechatQrLogin: bridge.buildEmitter<{
-    phase: "qrcode" | "scanned" | "confirmed" | "error" | "timeout";
+    phase: 'qrcode' | 'scanned' | 'confirmed' | 'error' | 'timeout';
     qrUrl?: string;
     botToken?: string;
     accountId?: string;
     message?: string;
-  }>("channel.wechat-qr-login"),
+  }>('channel.wechat-qr-login'),
 
   // Lark QR Login (direct device flow)
-  larkAuthStart: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { brand?: "feishu" | "lark" }
-  >("channel.lark-auth-start"),
-  larkAuthCancel: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "channel.lark-auth-cancel",
-  ),
+  larkAuthStart: bridge.buildProvider<IBridgeResponse<void>, { brand?: 'feishu' | 'lark' }>('channel.lark-auth-start'),
+  larkAuthCancel: bridge.buildProvider<IBridgeResponse<void>, void>('channel.lark-auth-cancel'),
   larkAuthStatus: bridge.buildProvider<
     IBridgeResponse<{
       loggedIn: boolean;
       user?: { id?: string; name?: string };
     }>,
     void
-  >("channel.lark-auth-status"),
-  larkAuthLogout: bridge.buildProvider<IBridgeResponse<void>, void>(
-    "channel.lark-auth-logout",
-  ),
-  larkAuthWhoAmI: bridge.buildProvider<
-    IBridgeResponse<{ name?: string; openId?: string; email?: string } | null>,
-    void
-  >("channel.lark-auth-who-am-i"),
+  >('channel.lark-auth-status'),
+  larkAuthLogout: bridge.buildProvider<IBridgeResponse<void>, void>('channel.lark-auth-logout'),
+  larkAuthWhoAmI: bridge.buildProvider<IBridgeResponse<{ name?: string; openId?: string; email?: string } | null>, void>('channel.lark-auth-who-am-i'),
   larkAuthLogin: bridge.buildEmitter<{
-    phase:
-      "initializing" | "app-setup" | "qrcode" | "success" | "error" | "expired";
+    phase: 'initializing' | 'app-setup' | 'qrcode' | 'success' | 'error' | 'expired';
     verificationUrl?: string;
     userCode?: string;
     expiresAt?: number;
     user?: { id?: string; name?: string };
     appId?: string;
     appSecret?: string;
-    brand?: "feishu" | "lark";
+    brand?: 'feishu' | 'lark';
     token?: {
       accessToken: string;
       refreshToken?: string;
@@ -3736,7 +2671,7 @@ export const channel = {
       scope?: string;
     };
     message?: string;
-  }>("channel.lark-auth-login"),
+  }>('channel.lark-auth-login'),
 };
 
 export interface ISudoworkServerConfig {
@@ -3745,12 +2680,8 @@ export interface ISudoworkServerConfig {
 }
 
 export const sudoworkServer = {
-  getConfig: bridge.buildProvider<ISudoworkServerConfig, void>(
-    "sudowork-server.get-config",
-  ),
-  updateConfig: bridge.buildProvider<void, Partial<ISudoworkServerConfig>>(
-    "sudowork-server.update-config",
-  ),
+  getConfig: bridge.buildProvider<ISudoworkServerConfig, void>('sudowork-server.get-config'),
+  updateConfig: bridge.buildProvider<void, Partial<ISudoworkServerConfig>>('sudowork-server.update-config'),
 };
 
 // ==================== Dify (RAG + Agent) API ====================
@@ -3760,7 +2691,7 @@ export const sudoworkServer = {
  * alongside local assistants. */
 export interface IDifyAgent {
   assistant_id: string;
-  runtime: "dify";
+  runtime: 'dify';
   dify_app_id: string;
   dify_app_mode: string;
   dify_tenant_id: string;
@@ -3828,7 +2759,7 @@ export interface IDifyMessage {
   inputs?: Record<string, unknown>;
   query?: string;
   answer?: string;
-  feedback?: { rating: "like" | "dislike" | null };
+  feedback?: { rating: 'like' | 'dislike' | null };
   retriever_resources?: unknown[];
   message_files?: unknown[];
   agent_thoughts?: unknown[];
@@ -3869,10 +2800,7 @@ export const dify = {
   /** List the agents the current user can see.
    * `accessToken` is the SudoWork-server JWT held by the renderer; passing it
    * per-call matches how authProxyBridge already works (token is renderer-owned). */
-  getVisibleAgents: bridge.buildProvider<
-    IBridgeResponse<IDifyAgent[]>,
-    { accessToken: string }
-  >("dify.get-visible-agents"),
+  getVisibleAgents: bridge.buildProvider<IBridgeResponse<IDifyAgent[]>, { accessToken: string }>('dify.get-visible-agents'),
 
   /** Start a streaming chat. The provider returns immediately; chunks/end
    * events are emitted via `chunk` / `end` below. Caller correlates by streamId. */
@@ -3885,24 +2813,19 @@ export const dify = {
       files?: unknown[];
       autoGenerateName?: boolean;
     }
-  >("dify.start-chat"),
+  >('dify.start-chat'),
 
   /** Cancel an in-flight chat stream from the renderer side. */
-  cancelChat: bridge.buildProvider<IBridgeResponse<void>, { streamId: string }>(
-    "dify.cancel-chat",
-  ),
+  cancelChat: bridge.buildProvider<IBridgeResponse<void>, { streamId: string }>('dify.cancel-chat'),
 
   /** Tell Dify itself to stop generation for an in-flight task id. */
-  stopChatTask: bridge.buildProvider<
-    IBridgeResponse<unknown>,
-    IDifyAuthArgs & { taskId: string }
-  >("dify.stop-chat-task"),
+  stopChatTask: bridge.buildProvider<IBridgeResponse<unknown>, IDifyAuthArgs & { taskId: string }>('dify.stop-chat-task'),
 
   /** Per-frame SSE event (Main -> Renderer). */
-  chunk: bridge.buildEmitter<IDifyChatChunk>("dify.chunk"),
+  chunk: bridge.buildEmitter<IDifyChatChunk>('dify.chunk'),
 
   /** Stream finished (success or error). */
-  end: bridge.buildEmitter<IDifyChatStreamEnd>("dify.end"),
+  end: bridge.buildEmitter<IDifyChatStreamEnd>('dify.end'),
 
   // ===== Conversations =====
   listConversations: bridge.buildProvider<
@@ -3910,9 +2833,9 @@ export const dify = {
     IDifyAuthArgs & {
       lastId?: string;
       limit?: number;
-      sortBy?: "created_at" | "-created_at" | "updated_at" | "-updated_at";
+      sortBy?: 'created_at' | '-created_at' | 'updated_at' | '-updated_at';
     }
-  >("dify.list-conversations"),
+  >('dify.list-conversations'),
 
   renameConversation: bridge.buildProvider<
     IBridgeResponse<IDifyConversation>,
@@ -3921,42 +2844,28 @@ export const dify = {
       name?: string;
       autoGenerate?: boolean;
     }
-  >("dify.rename-conversation"),
+  >('dify.rename-conversation'),
 
-  deleteConversation: bridge.buildProvider<
-    IBridgeResponse<void>,
-    IDifyAuthArgs & { conversationId: string }
-  >("dify.delete-conversation"),
+  deleteConversation: bridge.buildProvider<IBridgeResponse<void>, IDifyAuthArgs & { conversationId: string }>('dify.delete-conversation'),
 
   // ===== Messages =====
-  listMessages: bridge.buildProvider<
-    IBridgeResponse<IDifyMessageList>,
-    IDifyAuthArgs & { conversationId: string; firstId?: string; limit?: number }
-  >("dify.list-messages"),
+  listMessages: bridge.buildProvider<IBridgeResponse<IDifyMessageList>, IDifyAuthArgs & { conversationId: string; firstId?: string; limit?: number }>('dify.list-messages'),
 
   sendFeedback: bridge.buildProvider<
     IBridgeResponse<unknown>,
     IDifyAuthArgs & {
       messageId: string;
-      rating: "like" | "dislike" | null;
+      rating: 'like' | 'dislike' | null;
       content?: string;
     }
-  >("dify.send-feedback"),
+  >('dify.send-feedback'),
 
-  getSuggested: bridge.buildProvider<
-    IBridgeResponse<{ result: string; data: string[] }>,
-    IDifyAuthArgs & { messageId: string }
-  >("dify.get-suggested"),
+  getSuggested: bridge.buildProvider<IBridgeResponse<{ result: string; data: string[] }>, IDifyAuthArgs & { messageId: string }>('dify.get-suggested'),
 
   // ===== App-level meta =====
-  getParameters: bridge.buildProvider<
-    IBridgeResponse<IDifyParameters>,
-    IDifyAuthArgs
-  >("dify.get-parameters"),
+  getParameters: bridge.buildProvider<IBridgeResponse<IDifyParameters>, IDifyAuthArgs>('dify.get-parameters'),
 
-  getMeta: bridge.buildProvider<IBridgeResponse<IDifyMeta>, IDifyAuthArgs>(
-    "dify.get-meta",
-  ),
+  getMeta: bridge.buildProvider<IBridgeResponse<IDifyMeta>, IDifyAuthArgs>('dify.get-meta'),
 
   // ===== File upload =====
   /** Upload a file from the renderer. `bytes` is the raw content; `name` and
@@ -3968,14 +2877,11 @@ export const dify = {
       mimeType: string;
       bytes: ArrayBuffer | Uint8Array;
     }
-  >("dify.upload-file"),
+  >('dify.upload-file'),
 
   /** Upload a file from a local path (when the renderer already has it on disk).
    * Avoids round-tripping bytes through IPC. */
-  uploadFileFromPath: bridge.buildProvider<
-    IBridgeResponse<IDifyFileUploadResult>,
-    IDifyAuthArgs & { filePath: string; mimeType?: string }
-  >("dify.upload-file-from-path"),
+  uploadFileFromPath: bridge.buildProvider<IBridgeResponse<IDifyFileUploadResult>, IDifyAuthArgs & { filePath: string; mimeType?: string }>('dify.upload-file-from-path'),
 
   // ===== Audio =====
   audioToText: bridge.buildProvider<
@@ -3985,7 +2891,7 @@ export const dify = {
       mimeType: string;
       bytes: ArrayBuffer | Uint8Array;
     }
-  >("dify.audio-to-text"),
+  >('dify.audio-to-text'),
 
   /** Text-to-audio: main process writes the upstream binary to a temp file and
    * returns its path so the renderer can <audio src=…> it without IPC chunking. */
@@ -3997,7 +2903,7 @@ export const dify = {
       voice?: string;
       streaming?: boolean;
     }
-  >("dify.text-to-audio"),
+  >('dify.text-to-audio'),
 
   // ===== Enhancement (pre-injection) =====
 
@@ -4005,10 +2911,10 @@ export const dify = {
   getEnhancement: bridge.buildProvider<
     IBridgeResponse<{
       enabled: boolean;
-      mode?: "agent-chat" | "workflow" | "rag-only";
+      mode?: 'agent-chat' | 'workflow' | 'rag-only';
     }>,
     IDifyAuthArgs
-  >("dify.get-enhancement"),
+  >('dify.get-enhancement'),
 
   /**
    * Run a blocking enhancement call. Used for `agent-chat` and `rag-only`
@@ -4018,12 +2924,12 @@ export const dify = {
   invokeEnhancement: bridge.buildProvider<
     IBridgeResponse<{
       text: string;
-      mode: "agent-chat" | "workflow" | "rag-only";
+      mode: 'agent-chat' | 'workflow' | 'rag-only';
       elapsedMs: number;
       citations?: unknown[];
     }>,
     IDifyAuthArgs & { query: string; conversationId?: string }
-  >("dify.invoke-enhancement"),
+  >('dify.invoke-enhancement'),
 
   /**
    * Run a streaming enhancement call (workflow mode). The provider returns a
@@ -4032,10 +2938,7 @@ export const dify = {
    * `enhancementEnd`. The caller awaits `enhancementResult` before sending
    * the user's message into the local ACP.
    */
-  startEnhancement: bridge.buildProvider<
-    IBridgeResponse<{ streamId: string }>,
-    IDifyAuthArgs & { query: string; conversationId?: string }
-  >("dify.start-enhancement"),
+  startEnhancement: bridge.buildProvider<IBridgeResponse<{ streamId: string }>, IDifyAuthArgs & { query: string; conversationId?: string }>('dify.start-enhancement'),
 
   /** Per-node progress (Main -> Renderer). */
   enhancementProgress: bridge.buildEmitter<{
@@ -4043,23 +2946,23 @@ export const dify = {
     step: string;
     nodeId?: string;
     nodeType?: string;
-  }>("dify.enhancement-progress"),
+  }>('dify.enhancement-progress'),
 
   /** Final injection text (Main -> Renderer). */
   enhancementResult: bridge.buildEmitter<{
     streamId: string;
     text: string;
-    mode: "agent-chat" | "workflow" | "rag-only";
+    mode: 'agent-chat' | 'workflow' | 'rag-only';
     elapsedMs: number;
     citations?: unknown[];
-  }>("dify.enhancement-result"),
+  }>('dify.enhancement-result'),
 
   /** Stream lifecycle terminator (Main -> Renderer). */
   enhancementEnd: bridge.buildEmitter<{
     streamId: string;
     ok: boolean;
     error?: string;
-  }>("dify.enhancement-end"),
+  }>('dify.enhancement-end'),
 
   /**
    * Register an Acp conversation as enhanced. Renderer calls this once after
@@ -4069,16 +2972,10 @@ export const dify = {
    *
    * Calling with the same conversationId overwrites the previous binding.
    */
-  bindSession: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { conversationId: string; accessToken: string; assistantId: string }
-  >("dify.bind-session"),
+  bindSession: bridge.buildProvider<IBridgeResponse<void>, { conversationId: string; accessToken: string; assistantId: string }>('dify.bind-session'),
 
   /** Tear down a previously bound session (called when conversation is closed). */
-  unbindSession: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { conversationId: string }
-  >("dify.unbind-session"),
+  unbindSession: bridge.buildProvider<IBridgeResponse<void>, { conversationId: string }>('dify.unbind-session'),
 };
 
 // ==================== System Config (server-driven) ====================
@@ -4088,10 +2985,7 @@ export const dify = {
 
 export const systemConfig = {
   /** Decrypt + cache the credentials envelope; triggers CrashReporter.flushAll() backfill. */
-  cacheCredentials: bridge.buildProvider<
-    IBridgeResponse<{ cached: boolean }>,
-    { nonce: string; ciphertext: string }
-  >("system-config.cache-credentials"),
+  cacheCredentials: bridge.buildProvider<IBridgeResponse<{ cached: boolean }>, { nonce: string; ciphertext: string }>('system-config.cache-credentials'),
   /**
    * Sync a renderer-fetched systemConfig snapshot into the main-process cache.
    * The `systemConfig` module has ONE instance per process; without this channel, a
@@ -4100,10 +2994,7 @@ export const systemConfig = {
    * Payload is non-null SystemConfig — callers MUST NOT invoke when fetchSystemConfig
    * returned null (renderer fetch failure), as that would wipe main-side cache.
    */
-  syncFromRenderer: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { data: SystemConfig }
-  >("system-config.sync-from-renderer"),
+  syncFromRenderer: bridge.buildProvider<IBridgeResponse<void>, { data: SystemConfig }>('system-config.sync-from-renderer'),
 };
 
 // ==================== Safety Hook API ====================
@@ -4121,58 +3012,37 @@ export const tools = {
       size?: string;
       n?: number;
     }
-  >("tools.generate-image"),
+  >('tools.generate-image'),
   /** Generate a user-center avatar image; saves to userData and returns local path + dataUrl */
-  generateUserAvatar: bridge.buildProvider<
-    IBridgeResponse<{ localPath: string; dataUrl: string }>,
-    { prompt: string }
-  >("tools.generate-user-avatar"),
+  generateUserAvatar: bridge.buildProvider<IBridgeResponse<{ localPath: string; dataUrl: string }>, { prompt: string }>('tools.generate-user-avatar'),
 };
 
 export const safety = {
   /** Get current safety status */
-  getStatus: bridge.buildProvider<IBridgeResponse<ISafetyStatus>, void>(
-    "safety.get-status",
-  ),
+  getStatus: bridge.buildProvider<IBridgeResponse<ISafetyStatus>, void>('safety.get-status'),
   /** Get service enabled status */
-  getEnabled: bridge.buildProvider<IBridgeResponse<{ enabled: boolean }>, void>(
-    "safety.get-enabled",
-  ),
+  getEnabled: bridge.buildProvider<IBridgeResponse<{ enabled: boolean }>, void>('safety.get-enabled'),
   /** User confirmation action (allow/deny) */
-  confirm: bridge.buildProvider<
-    IBridgeResponse,
-    { allow: boolean; reason?: string }
-  >("safety.confirm"),
+  confirm: bridge.buildProvider<IBridgeResponse, { allow: boolean; reason?: string }>('safety.confirm'),
   /** Enable/disable safety hook service */
-  setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>(
-    "safety.set-enabled",
-  ),
+  setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>('safety.set-enabled'),
   /** Safety status change event (Main -> Renderer) */
-  onStatusChange: bridge.buildEmitter<ISafetyStatus>("safety.status-change"),
+  onStatusChange: bridge.buildEmitter<ISafetyStatus>('safety.status-change'),
   /** Get blacklist configuration */
-  getBlacklist: bridge.buildProvider<IBridgeResponse<IBlacklistConfig>, void>(
-    "safety.get-blacklist",
-  ),
+  getBlacklist: bridge.buildProvider<IBridgeResponse<IBlacklistConfig>, void>('safety.get-blacklist'),
   /** Set blacklist configuration */
-  setBlacklist: bridge.buildProvider<
-    IBridgeResponse,
-    { config: IBlacklistConfig }
-  >("safety.set-blacklist"),
+  setBlacklist: bridge.buildProvider<IBridgeResponse, { config: IBlacklistConfig }>('safety.set-blacklist'),
 };
 
 // ==================== Health Monitor API ====================
 
 export const healthMonitor = {
   /** Get health monitor status */
-  getStatus: bridge.buildProvider<IBridgeResponse<{ enabled: boolean }>, void>(
-    "health-monitor.get-status",
-  ),
+  getStatus: bridge.buildProvider<IBridgeResponse<{ enabled: boolean }>, void>('health-monitor.get-status'),
   /** Enable health monitor */
-  enable: bridge.buildProvider<IBridgeResponse, void>("health-monitor.enable"),
+  enable: bridge.buildProvider<IBridgeResponse, void>('health-monitor.enable'),
   /** Disable health monitor */
-  disable: bridge.buildProvider<IBridgeResponse, void>(
-    "health-monitor.disable",
-  ),
+  disable: bridge.buildProvider<IBridgeResponse, void>('health-monitor.disable'),
 };
 
 // ==================== Workspace Management API ====================
@@ -4180,29 +3050,15 @@ export const healthMonitor = {
 
 export const workspaceManage = {
   /** Rename workspace directory (physical rename + DB update) / 重命名工作空间目录 */
-  renameDirectory: bridge.buildProvider<
-    IBridgeResponse<{ newPath: string }>,
-    { oldPath: string; newName: string }
-  >("workspace-manage.rename-directory"),
+  renameDirectory: bridge.buildProvider<IBridgeResponse<{ newPath: string }>, { oldPath: string; newName: string }>('workspace-manage.rename-directory'),
   /** List drafts files / 列出草稿箱文件 */
-  listDrafts: bridge.buildProvider<
-    IBridgeResponse<Array<{ name: string; size: number; modifiedAt: number }>>,
-    { workspace: string }
-  >("workspace-manage.list-drafts"),
+  listDrafts: bridge.buildProvider<IBridgeResponse<Array<{ name: string; size: number; modifiedAt: number }>>, { workspace: string }>('workspace-manage.list-drafts'),
   /** Clear all drafts / 清空草稿箱 */
-  clearDrafts: bridge.buildProvider<IBridgeResponse, { workspace: string }>(
-    "workspace-manage.clear-drafts",
-  ),
+  clearDrafts: bridge.buildProvider<IBridgeResponse, { workspace: string }>('workspace-manage.clear-drafts'),
   /** Delete a specific draft file / 删除指定草稿文件 */
-  deleteDraft: bridge.buildProvider<
-    IBridgeResponse,
-    { workspace: string; fileName: string }
-  >("workspace-manage.delete-draft"),
+  deleteDraft: bridge.buildProvider<IBridgeResponse, { workspace: string; fileName: string }>('workspace-manage.delete-draft'),
   /** Update workspace display name (no physical rename) / 更新工作空间显示名（不改物理路径） */
-  updateDisplayName: bridge.buildProvider<
-    IBridgeResponse,
-    { workspace: string; displayName: string }
-  >("workspace-manage.update-display-name"),
+  updateDisplayName: bridge.buildProvider<IBridgeResponse, { workspace: string; displayName: string }>('workspace-manage.update-display-name'),
 };
 
 // ==================== User Phone Storage API ====================
@@ -4211,41 +3067,23 @@ export const workspaceManage = {
 
 export const sudoworkAuth = {
   /** Save user phone to config file (RSA encrypted with public key) */
-  saveUserPhone: bridge.buildProvider<IBridgeResponse, { phone: string }>(
-    "sudowork-auth.save-user-phone",
-  ),
+  saveUserPhone: bridge.buildProvider<IBridgeResponse, { phone: string }>('sudowork-auth.save-user-phone'),
   /** Get stored user phone (encrypted) from config file */
-  getUserPhone: bridge.buildProvider<IBridgeResponse<string | null>, void>(
-    "sudowork-auth.get-user-phone",
-  ),
+  getUserPhone: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-user-phone'),
   /** Clear stored user phone on logout */
-  clearUserPhone: bridge.buildProvider<IBridgeResponse, void>(
-    "sudowork-auth.clear-user-phone",
-  ),
+  clearUserPhone: bridge.buildProvider<IBridgeResponse, void>('sudowork-auth.clear-user-phone'),
   /** Get public key for encryption */
-  getPublicKey: bridge.buildProvider<IBridgeResponse<string>, void>(
-    "sudowork-auth.get-public-key",
-  ),
+  getPublicKey: bridge.buildProvider<IBridgeResponse<string>, void>('sudowork-auth.get-public-key'),
   /** Save user nickname - triggers USER.md update for AI addressing */
-  saveUserNickname: bridge.buildProvider<IBridgeResponse, { nickname: string }>(
-    "sudowork-auth.save-user-nickname",
-  ),
+  saveUserNickname: bridge.buildProvider<IBridgeResponse, { nickname: string }>('sudowork-auth.save-user-nickname'),
   /** Get stored user nickname */
-  getUserNickname: bridge.buildProvider<IBridgeResponse<string | null>, void>(
-    "sudowork-auth.get-user-nickname",
-  ),
+  getUserNickname: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-user-nickname'),
   /** Save consumer mode user ID for telemetry */
-  saveConsumerUserId: bridge.buildProvider<IBridgeResponse, { userId: string }>(
-    "sudowork-auth.save-consumer-user-id",
-  ),
+  saveConsumerUserId: bridge.buildProvider<IBridgeResponse, { userId: string }>('sudowork-auth.save-consumer-user-id'),
   /** Get stored consumer mode user ID */
-  getConsumerUserId: bridge.buildProvider<IBridgeResponse<string | null>, void>(
-    "sudowork-auth.get-consumer-user-id",
-  ),
+  getConsumerUserId: bridge.buildProvider<IBridgeResponse<string | null>, void>('sudowork-auth.get-consumer-user-id'),
   /** Clear stored consumer mode user ID on logout */
-  clearConsumerUserId: bridge.buildProvider<IBridgeResponse, void>(
-    "sudowork-auth.clear-consumer-user-id",
-  ),
+  clearConsumerUserId: bridge.buildProvider<IBridgeResponse, void>('sudowork-auth.clear-consumer-user-id'),
 };
 
 // ==================== Secret Management API ====================
@@ -4260,30 +3098,15 @@ export type ISecretMetadata = SecretMetadata;
 
 export const secret = {
   /** Get a secret value by namespace and key */
-  get: bridge.buildProvider<
-    IBridgeResponse<string | null>,
-    { namespace: string; key: string }
-  >("secret.get"),
+  get: bridge.buildProvider<IBridgeResponse<string | null>, { namespace: string; key: string }>('secret.get'),
   /** Put (create or update) a secret value */
-  put: bridge.buildProvider<
-    IBridgeResponse,
-    { namespace: string; key: string; value: string; description?: string }
-  >("secret.put"),
+  put: bridge.buildProvider<IBridgeResponse, { namespace: string; key: string; value: string; description?: string }>('secret.put'),
   /** List all secrets in a namespace */
-  list: bridge.buildProvider<
-    IBridgeResponse<ISecretMetadata[]>,
-    { namespace: string }
-  >("secret.list"),
+  list: bridge.buildProvider<IBridgeResponse<ISecretMetadata[]>, { namespace: string }>('secret.list'),
   /** Soft-delete a secret */
-  delete: bridge.buildProvider<
-    IBridgeResponse<boolean>,
-    { namespace: string; key: string }
-  >("secret.delete"),
+  delete: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.delete'),
   /** Restore a soft-deleted secret */
-  restore: bridge.buildProvider<
-    IBridgeResponse<boolean>,
-    { namespace: string; key: string }
-  >("secret.restore"),
+  restore: bridge.buildProvider<IBridgeResponse<boolean>, { namespace: string; key: string }>('secret.restore'),
 };
 
 /**
@@ -4304,7 +3127,7 @@ export interface IPwdLoginParams {
    * returns {ok: false, error: approval_rejected} and expects the renderer
    * to open the approval modal first.
    */
-  optionId?: "allow_once" | "allow_always" | "reject_once" | "reject_always";
+  optionId?: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
   /** Conversation context for logging / audit only; no permission scoping */
   conversation_id?: string;
   /**
@@ -4332,46 +3155,34 @@ export interface IPwdLoginEntry {
   submitSelector: string;
   captchaSelector?: string;
   captchaImageSelector?: string;
-  strategy: "single_step" | "two_step";
+  strategy: 'single_step' | 'two_step';
 }
 
 /** UI status row for the 秘钥管理 "网站自动登录" section. */
 export interface IPwdLoginEntryStatus {
   title: string;
   url: string;
-  strategy: "single_step" | "two_step";
+  strategy: 'single_step' | 'two_step';
   hasCaptcha: boolean;
-  source: "builtin" | "custom";
+  source: 'builtin' | 'custom';
   hasCredential: boolean;
 }
 
 export const pwdLogin = {
   /** Kick off pwd_login flow. Renderer calls with optionId after the approval modal resolves. */
-  start: bridge.buildProvider<IPwdLoginResult, IPwdLoginParams>(
-    "pwd.login.start",
-  ),
+  start: bridge.buildProvider<IPwdLoginResult, IPwdLoginParams>('pwd.login.start'),
   /** List all pwd_login sites (custom registry + built-in) for the 秘钥管理 UI. */
-  listEntries: bridge.buildProvider<
-    IBridgeResponse<IPwdLoginEntryStatus[]>,
-    void
-  >("pwd.login.list-entries"),
+  listEntries: bridge.buildProvider<IBridgeResponse<IPwdLoginEntryStatus[]>, void>('pwd.login.list-entries'),
   /** Register/update a custom site (agent-facing programmable interface). No password. */
-  registerEntry: bridge.buildProvider<IBridgeResponse, IPwdLoginEntry>(
-    "pwd.login.register-entry",
-  ),
+  registerEntry: bridge.buildProvider<IBridgeResponse, IPwdLoginEntry>('pwd.login.register-entry'),
   /** Remove a custom site entry. */
-  deleteEntry: bridge.buildProvider<IBridgeResponse, { title: string }>(
-    "pwd.login.delete-entry",
-  ),
+  deleteEntry: bridge.buildProvider<IBridgeResponse, { title: string }>('pwd.login.delete-entry'),
   /**
    * Save credentials for an entry. The password flows renderer(form)→main→Vault
    * only — never the agent/LLM. Stored as JSON {username,password} at
    * service:pwdlogin/{title}.
    */
-  saveCredential: bridge.buildProvider<
-    IBridgeResponse,
-    { title: string; username: string; password: string }
-  >("pwd.login.save-credential"),
+  saveCredential: bridge.buildProvider<IBridgeResponse, { title: string; username: string; password: string }>('pwd.login.save-credential'),
 };
 
 // ==================== Telemetry API ====================
@@ -4385,7 +3196,7 @@ export interface ITelemetryStatus {
 }
 
 export interface ITelemetryPerfData {
-  metric: "cold_start" | "first_screen" | "first_token";
+  metric: 'cold_start' | 'first_screen' | 'first_token';
   value_ms: number;
   session_id?: string;
 }
@@ -4398,7 +3209,7 @@ export interface ITelemetryConversationStartData {
 
 export interface ITelemetryConversationEndData {
   session_id: string;
-  status: "success" | "error" | "user_cancel";
+  status: 'success' | 'error' | 'user_cancel';
   error_code?: string; // 错误码如 E001-E010
   tokens_used?: number;
   input_tokens?: number;
@@ -4414,47 +3225,25 @@ export interface ITelemetryTokenUpdateData {
 
 export const telemetry = {
   /** Get telemetry status */
-  getStatus: bridge.buildProvider<IBridgeResponse<ITelemetryStatus>, void>(
-    "telemetry.get-status",
-  ),
+  getStatus: bridge.buildProvider<IBridgeResponse<ITelemetryStatus>, void>('telemetry.get-status'),
   /** Enable/disable telemetry */
-  setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>(
-    "telemetry.set-enabled",
-  ),
+  setEnabled: bridge.buildProvider<IBridgeResponse, { enabled: boolean }>('telemetry.set-enabled'),
   /** Check if opt-in dialog has been shown */
-  getOptInShown: bridge.buildProvider<IBridgeResponse<boolean>, void>(
-    "telemetry.get-opt-in-shown",
-  ),
+  getOptInShown: bridge.buildProvider<IBridgeResponse<boolean>, void>('telemetry.get-opt-in-shown'),
   /** Mark opt-in dialog as shown */
-  setOptInShown: bridge.buildProvider<IBridgeResponse, void>(
-    "telemetry.set-opt-in-shown",
-  ),
+  setOptInShown: bridge.buildProvider<IBridgeResponse, void>('telemetry.set-opt-in-shown'),
   /** Mark renderer ready (first screen time) */
-  markRendererReady: bridge.buildProvider<IBridgeResponse, void>(
-    "telemetry.mark-renderer-ready",
-  ),
+  markRendererReady: bridge.buildProvider<IBridgeResponse, void>('telemetry.mark-renderer-ready'),
   /** Record first token time */
-  recordFirstToken: bridge.buildProvider<
-    IBridgeResponse,
-    { session_id: string; duration_ms?: number }
-  >("telemetry.record-first-token"),
+  recordFirstToken: bridge.buildProvider<IBridgeResponse, { session_id: string; duration_ms?: number }>('telemetry.record-first-token'),
   /** Start conversation tracking */
-  startConversation: bridge.buildProvider<
-    IBridgeResponse,
-    ITelemetryConversationStartData
-  >("telemetry.start-conversation"),
+  startConversation: bridge.buildProvider<IBridgeResponse, ITelemetryConversationStartData>('telemetry.start-conversation'),
   /** Update conversation tokens */
-  updateConversationTokens: bridge.buildProvider<
-    IBridgeResponse,
-    ITelemetryTokenUpdateData
-  >("telemetry.update-conversation-tokens"),
+  updateConversationTokens: bridge.buildProvider<IBridgeResponse, ITelemetryTokenUpdateData>('telemetry.update-conversation-tokens'),
   /** End conversation tracking */
-  endConversation: bridge.buildProvider<
-    IBridgeResponse,
-    ITelemetryConversationEndData
-  >("telemetry.end-conversation"),
+  endConversation: bridge.buildProvider<IBridgeResponse, ITelemetryConversationEndData>('telemetry.end-conversation'),
   /** Flush all pending telemetry events */
-  flush: bridge.buildProvider<IBridgeResponse, void>("telemetry.flush"),
+  flush: bridge.buildProvider<IBridgeResponse, void>('telemetry.flush'),
 };
 
 // ==================== Auth Proxy API ====================
@@ -4462,23 +3251,13 @@ export const telemetry = {
 
 export const authProxy = {
   /** Get all cached Config Items rules */
-  getRules: bridge.buildProvider<IBridgeResponse<AuthProxyRule[]>, void>(
-    "authProxy.getRules",
-  ),
+  getRules: bridge.buildProvider<IBridgeResponse<AuthProxyRule[]>, void>('authProxy.getRules'),
   /** Refresh Config Items rules from sudowork-server */
-  refreshRules: bridge.buildProvider<
-    IBridgeResponse<void>,
-    { accessToken: string; enabledConfigItemIds: number[] }
-  >("authProxy.refreshRules"),
+  refreshRules: bridge.buildProvider<IBridgeResponse<void>, { accessToken: string; enabledConfigItemIds: number[] }>('authProxy.refreshRules'),
   /** Get Auth Proxy server running status and port */
-  getStatus: bridge.buildProvider<
-    IBridgeResponse<{ running: boolean; port: number | null }>,
-    void
-  >("authProxy.getStatus"),
+  getStatus: bridge.buildProvider<IBridgeResponse<{ running: boolean; port: number | null }>, void>('authProxy.getStatus'),
   /** Emitted when enabled state changes via Auth Proxy secrets API */
-  enabledStateChanged: bridge.buildEmitter<void>(
-    "authProxy.enabledStateChanged",
-  ),
+  enabledStateChanged: bridge.buildEmitter<void>('authProxy.enabledStateChanged'),
 };
 
 // ==================== Crash API ====================
@@ -4496,7 +3275,7 @@ export interface ICrashBreadcrumbData {
   category: string;
   message: string;
   data?: Record<string, unknown>;
-  level?: "debug" | "info" | "warning" | "error";
+  level?: 'debug' | 'info' | 'warning' | 'error';
 }
 
 export interface ICrashReporterStatus {
@@ -4508,23 +3287,15 @@ export interface ICrashReporterStatus {
 
 export const crash = {
   /** Report JS exception from renderer */
-  reportException: bridge.buildProvider<IBridgeResponse, ICrashExceptionData>(
-    "crash.report-exception",
-  ),
+  reportException: bridge.buildProvider<IBridgeResponse, ICrashExceptionData>('crash.report-exception'),
   /** Add breadcrumb from renderer */
-  addBreadcrumb: bridge.buildProvider<IBridgeResponse, ICrashBreadcrumbData>(
-    "crash.add-breadcrumb",
-  ),
+  addBreadcrumb: bridge.buildProvider<IBridgeResponse, ICrashBreadcrumbData>('crash.add-breadcrumb'),
   /** Get crash reporter status */
-  getStatus: bridge.buildProvider<IBridgeResponse<ICrashReporterStatus>, void>(
-    "crash.get-status",
-  ),
+  getStatus: bridge.buildProvider<IBridgeResponse<ICrashReporterStatus>, void>('crash.get-status'),
   /** Clear breadcrumbs */
-  clearBreadcrumbs: bridge.buildProvider<IBridgeResponse, void>(
-    "crash.clear-breadcrumbs",
-  ),
+  clearBreadcrumbs: bridge.buildProvider<IBridgeResponse, void>('crash.clear-breadcrumbs'),
   /** Flush all pending crash events */
-  flush: bridge.buildProvider<IBridgeResponse, void>("crash.flush"),
+  flush: bridge.buildProvider<IBridgeResponse, void>('crash.flush'),
 };
 
 // --- Enterprise mode (eeclaw) IPC namespace ---
@@ -4555,8 +3326,8 @@ export interface UserProfileData {
 }
 
 export interface IEeclawAuthenticatedLogin {
-  execution?: import("@sudowork/common/mossExecution").IMossExecutionCapabilities;
-  localRuntime?: import("@sudowork/common/mossExecution").TMossLocalRuntimeStatus;
+  execution?: import('@sudowork/common/mossExecution').IMossExecutionCapabilities;
+  localRuntime?: import('@sudowork/common/mossExecution').TMossLocalRuntimeStatus;
   access_token: string;
   refresh_token?: string;
   expires_in: number;
@@ -4576,11 +3347,11 @@ export interface IEeclawAuthenticatedLogin {
 export const eeclaw = {
   prepareLocalRuntime: bridge.buildProvider<
     IBridgeResponse<{
-      execution: import("@sudowork/common/mossExecution").IMossExecutionCapabilities;
-      localRuntime: import("@sudowork/common/mossExecution").TMossLocalRuntimeStatus;
+      execution: import('@sudowork/common/mossExecution').IMossExecutionCapabilities;
+      localRuntime: import('@sudowork/common/mossExecution').TMossLocalRuntimeStatus;
     }>,
     void
-  >("eeclaw.prepare-local-runtime"),
+  >('eeclaw.prepare-local-runtime'),
   /** Fetch enterprise cloud assistants from the enterprise server */
   getCloudAssistants: bridge.buildProvider<
     IBridgeResponse<
@@ -4593,24 +3364,18 @@ export const eeclaw = {
       }>
     >,
     void
-  >("eeclaw.get-cloud-assistants"),
+  >('eeclaw.get-cloud-assistants'),
   /** Verify enterprise server connectivity via /api/v1/tenant/config (runs in main process to avoid CORS) */
-  verifyServer: bridge.buildProvider<
-    IBridgeResponse<TenantConfigData>,
-    { serverUrl: string }
-  >("eeclaw.verify-server"),
+  verifyServer: bridge.buildProvider<IBridgeResponse<TenantConfigData>, { serverUrl: string }>('eeclaw.verify-server'),
   /** Get current user profile from enterprise server (runs in main process to avoid CORS) */
-  getUserProfile: bridge.buildProvider<IBridgeResponse<UserProfileData>, void>(
-    "eeclaw.get-user-profile",
-  ),
+  getUserProfile: bridge.buildProvider<IBridgeResponse<UserProfileData>, void>('eeclaw.get-user-profile'),
   /** Login to MOSS enterprise server (runs in main process to avoid CORS) */
   login: bridge.buildProvider<
     IBridgeResponse<IEeclawAuthenticatedLogin>,
     {
       serverUrl: string;
       body: {
-        grant_type:
-          "password" | "api_key" | "oauth2" | "phone" | "phone_register";
+        grant_type: 'password' | 'api_key' | 'oauth2' | 'phone' | 'phone_register';
         username?: string;
         password?: string;
         api_key?: string;
@@ -4622,7 +3387,7 @@ export const eeclaw = {
       };
       deviceId: string;
     }
-  >("eeclaw.login"),
+  >('eeclaw.login'),
   /** Check whether OAuth2 login is enabled on the MOSS server and get the ready-to-open authorize URL (runs in main process to avoid CORS) */
   oauth2Config: bridge.buildProvider<
     IBridgeResponse<{
@@ -4631,29 +3396,23 @@ export const eeclaw = {
       require_state?: boolean;
     }>,
     { serverUrl: string }
-  >("eeclaw.oauth2-config"),
+  >('eeclaw.oauth2-config'),
   /** Set app mode and update main process cache */
-  setAppMode: bridge.buildProvider<void, { mode: "c" | "e" }>(
-    "eeclaw.set-app-mode",
-  ),
+  setAppMode: bridge.buildProvider<void, { mode: 'c' | 'e' }>('eeclaw.set-app-mode'),
   /** Set session mode (remote/local) for enterprise mode and update main process cache */
-  setSessionMode: bridge.buildProvider<void, { mode: "remote" | "local" }>(
-    "eeclaw.set-session-mode",
-  ),
+  setSessionMode: bridge.buildProvider<void, { mode: 'remote' | 'local' }>('eeclaw.set-session-mode'),
   /** Logout from enterprise server and clear local credentials */
-  logout: bridge.buildProvider<IBridgeResponse<Record<string, never>>, void>(
-    "eeclaw.logout",
-  ),
+  logout: bridge.buildProvider<IBridgeResponse<Record<string, never>>, void>('eeclaw.logout'),
   /** Emitted when the main process refreshes the enterprise auth token */
   tokenRefreshed: bridge.buildEmitter<{
     access_token: string;
     refresh_token: string;
     expires_at: number;
-  }>("eeclaw.token-refreshed"),
+  }>('eeclaw.token-refreshed'),
   /** Emitted when the enterprise token is invalid and cannot be refreshed (e.g. OAuth2 session without a refresh token) — the user must sign in again */
   authRequired: bridge.buildEmitter<{
-    reason: "no_refresh_token" | "refresh_failed";
-  }>("eeclaw.auth-required"),
+    reason: 'no_refresh_token' | 'refresh_failed';
+  }>('eeclaw.auth-required'),
   /** Refresh enterprise auth token via main process (single entry point to avoid race conditions) */
   refreshToken: bridge.buildProvider<
     IBridgeResponse<{
@@ -4662,13 +3421,11 @@ export const eeclaw = {
       expires_at: number;
     }>,
     void
-  >("eeclaw.refresh-token"),
+  >('eeclaw.refresh-token'),
   /** Trigger manual sync of remote skills and assistants to local (for Local mode) */
-  syncFromRemote: bridge.buildProvider<IBridgeResponse<SyncAllResult>, void>(
-    "eeclaw.sync-from-remote",
-  ),
+  syncFromRemote: bridge.buildProvider<IBridgeResponse<SyncAllResult>, void>('eeclaw.sync-from-remote'),
   /** Emitted when background sync completes after enterprise login */
-  syncCompleted: bridge.buildEmitter<SyncAllResult>("eeclaw.sync-completed"),
+  syncCompleted: bridge.buildEmitter<SyncAllResult>('eeclaw.sync-completed'),
 
   // === Custom Skill/Assistant Upload ===
   /** Upload custom skill to Moss Server */
@@ -4681,7 +3438,7 @@ export const eeclaw = {
       version?: string;
       sourcePath?: string;
     }
-  >("eeclaw.upload-custom-skill"),
+  >('eeclaw.upload-custom-skill'),
   /** Upload custom assistant to Moss Server */
   uploadCustomAssistant: bridge.buildProvider<
     IBridgeResponse<{ id: string; name: string; status: string }>,
@@ -4692,10 +3449,10 @@ export const eeclaw = {
       description?: string;
       version?: string;
       enabledSkills?: string[];
-      memoryMode?: "session" | "user";
+      memoryMode?: 'session' | 'user';
       sourcePath?: string;
     }
-  >("eeclaw.upload-custom-assistant"),
+  >('eeclaw.upload-custom-assistant'),
 
   // === Tenant Skill/Assistant ===
   /** Fetch tenant-exclusive skills from Moss Server */
@@ -4707,7 +3464,7 @@ export const eeclaw = {
         displayName?: string;
         description?: string;
         version?: string;
-        status: "pending" | "approved" | "rejected";
+        status: 'pending' | 'approved' | 'rejected';
         author?: string;
         authorName?: string;
         approvedAt?: string;
@@ -4715,7 +3472,7 @@ export const eeclaw = {
       }>
     >,
     void
-  >("eeclaw.get-tenant-skills"),
+  >('eeclaw.get-tenant-skills'),
   /** Fetch tenant-exclusive assistants from Moss Server */
   getTenantAssistants: bridge.buildProvider<
     IBridgeResponse<
@@ -4725,7 +3482,7 @@ export const eeclaw = {
         displayName?: string;
         description?: string;
         version?: string;
-        status: "pending" | "approved" | "rejected";
+        status: 'pending' | 'approved' | 'rejected';
         author?: string;
         authorName?: string;
         enabledSkills?: string[];
@@ -4734,17 +3491,11 @@ export const eeclaw = {
       }>
     >,
     void
-  >("eeclaw.get-tenant-assistants"),
+  >('eeclaw.get-tenant-assistants'),
   /** Install tenant skill to local */
-  installTenantSkill: bridge.buildProvider<
-    IBridgeResponse<{ name: string }>,
-    { skillId: string }
-  >("eeclaw.install-tenant-skill"),
+  installTenantSkill: bridge.buildProvider<IBridgeResponse<{ name: string }>, { skillId: string }>('eeclaw.install-tenant-skill'),
   /** Install tenant assistant to local */
-  installTenantAssistant: bridge.buildProvider<
-    IBridgeResponse<{ name: string }>,
-    { assistantId: string }
-  >("eeclaw.install-tenant-assistant"),
+  installTenantAssistant: bridge.buildProvider<IBridgeResponse<{ name: string }>, { assistantId: string }>('eeclaw.install-tenant-assistant'),
   /** Publish skill as tenant-exclusive */
   publishTenantSkill: bridge.buildProvider<
     IBridgeResponse<{
@@ -4755,7 +3506,7 @@ export const eeclaw = {
       message?: string;
     }>,
     { skillId: string; publishNote?: string }
-  >("eeclaw.publish-tenant-skill"),
+  >('eeclaw.publish-tenant-skill'),
   /** Publish assistant as tenant-exclusive */
   publishTenantAssistant: bridge.buildProvider<
     IBridgeResponse<{
@@ -4766,7 +3517,7 @@ export const eeclaw = {
       message?: string;
     }>,
     { assistantId: string; publishNote?: string }
-  >("eeclaw.publish-tenant-assistant"),
+  >('eeclaw.publish-tenant-assistant'),
 };
 
 export const mossCatalog = {

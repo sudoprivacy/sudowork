@@ -1,3 +1,4 @@
+import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -102,6 +103,7 @@ export const ConversationTabsProvider: React.FC<{ children: React.ReactNode }> =
   const activeTab = openTabs.find((tab) => tab.id === activeTabId) || null;
 
   const openTab = useCallback((conversation: TChatConversation) => {
+    if (isOntologyConversation(conversation)) return;
     // 只有用户指定的工作空间才显示在 tabs 中，临时工作空间不显示
     // Only show tabs for user-specified workspaces, not temporary workspaces
     const customWorkspace = conversation.extra?.customWorkspace;

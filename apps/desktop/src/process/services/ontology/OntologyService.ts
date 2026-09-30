@@ -1,23 +1,15 @@
+import { pathToFileURL } from 'node:url';
 import fs from 'fs/promises';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { createContext, Script } from 'node:vm';
-import { compileQualityRuleExpression, isOntologyDocumentAsset, ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS, ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT } from '@sudowork/ontology-common';
-import BetterSqlite3 from 'better-sqlite3';
-import { Client as FtpClient } from 'basic-ftp';
-import { Kafka, logLevel, type KafkaConfig } from 'kafkajs';
-import mysql from 'mysql2/promise';
-import type { RowDataPacket } from 'mysql2';
-import sql from 'mssql';
-import oracledb from 'oracledb';
-import { Client as PostgresClient } from 'pg';
-import SftpClient from 'ssh2-sftp-client';
-import { GetObjectCommand, HeadBucketCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
-import { parse as parseCsv } from 'csv-parse/sync';
-import { OntologyEngine, createFileStat } from '@sudowork/ontology-engine';
+import { z } from 'zod';
 import type {
+  IOntologyStudioSaveInput,
+  IOntologyStandardImportInput,
+  IOntologyStandardExportInput,
   IOntologyActionDefinitionInput,
   IOntologyActionDefinition,
   IOntologyAgentBlueprint,
@@ -46,6 +38,7 @@ import type {
   IOntologyProbeConnectorInput,
   IOntologyPreviewAssetInput,
   IOntologyPreviewAssetResult,
+  IOntologyDescribeAssetFieldsInput,
   IOntologyPublishApprovalInput,
   IOntologyQualityRuleInput,
   IOntologyQualityRuleRunResult,
@@ -63,70 +56,201 @@ import type {
   IOntologyWorkbenchSnapshot,
   OntologyJsonValue,
 } from '@sudowork/ontology-common';
+import {
+  ontologyFieldSignature,
+  projectSemanticDocument,
+  uniqueStatements,
+  reconcileSemanticModel,
+  createSemanticDocument,
+  STUDIO_MAX_FILE_BYTES,
+  compileQualityRuleExpression,
+  isOntologyDocumentAsset,
+  ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS,
+  ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT,
+} from '@sudowork/ontology-common';
+import { parseStandardOntology, exportStandardOntology, OntologyEngine, createFileStat } from '@sudowork/ontology-engine';
+import { Client as FtpClient } from 'basic-ftp';
+import { Kafka, logLevel, type KafkaConfig } from 'kafkajs';
+import mysql from 'mysql2/promise';
+import type { RowDataPacket } from 'mysql2';
+import sql from 'mssql';
+import oracledb from 'oracledb';
+import { Client as PostgresClient } from 'pg';
+import SftpClient from 'ssh2-sftp-client';
+import { GetObjectCommand, HeadBucketCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { parse as parseCsv } from 'csv-parse/sync';
 import { DEFAULT_PRESET_AGENT_TYPE } from '@sudowork/common/acpTypes';
 import { assistantManager } from '@process/AssistantManager';
 import { pythonRuntimeService } from '@process/services/python/PythonRuntimeService';
 import { mainError } from '@process/utils/mainLogger';
 import { acpDetector } from '@/agent/acp/AcpDetector';
-import { OntologyDatabase } from './OntologyDatabase';
+import { studioSaveSchema } from './studioValidation';
+import { OntologyStudioDatabase as OntologyDatabase } from './OntologyStudioDatabase';
 import { installOntologyMcpServer, removeOntologyMcpServer } from './OntologyMcpRegistration';
 import { parseOntologyTemplateFile } from './ontologyTemplateParser';
 import { extractOntologyDocuments, readOntologyDocuments, validateOntologyDocumentFiles } from './ontologyDocumentExtractor';
+import { describeOntologyFields } from './ontologyFieldMeaning';
+import { OntologyAgentRegistry } from './OntologyAgentRegistry';
+import { inspectOntologySqlite, withOntologySqlite, sqliteRows, executeOntologySqlite, lookupOntologySqlite, queryOntologySqliteRelation } from './ontologySqlite';
 
 export class OntologyService {
   private readonly database: OntologyDatabase;
   private readonly engine: OntologyEngine;
+  private readonly agentRegistry: OntologyAgentRegistry;
   private readonly generatingWorkspaces = new Set<string>();
+  private readonly describingAssets = new Map<string, Promise<IOntologyWorkbenchSnapshot>>();
 
   constructor(
     database = new OntologyDatabase(),
     engine = new OntologyEngine(database),
-    private readonly extractDocuments = extractOntologyDocuments
+    private readonly extractDocuments = extractOntologyDocuments,
+    private readonly describeFields = describeOntologyFields
   ) {
     this.database = database;
     this.engine = engine;
+    this.agentRegistry = new OntologyAgentRegistry(database, engine, {
+      isInstalled: async (id) => (await assistantManager.getAssistantMetaWithDir(id))?.category === 'custom',
+      install: (blueprint, snapshot) => this.installRegisteredAgent(blueprint, snapshot),
+      suspend: async (blueprint) => {
+        const installed = blueprint.registeredAssistantId ? await assistantManager.getAssistantMetaWithDir(blueprint.registeredAssistantId) : null;
+        if (installed?.category === 'custom' && installed.meta.ontologyBinding?.blueprintId === blueprint.id) {
+          const result = await assistantManager.disableAssistant(blueprint.registeredAssistantId!, 'custom');
+          if (!result.success) throw new Error(result.msg);
+        }
+        await removeOntologyMcpServer(blueprint.id);
+      },
+      retire: async (blueprint) => {
+        if (blueprint.registeredAssistantId) {
+          const installed = await assistantManager.getAssistantMetaWithDir(blueprint.registeredAssistantId);
+          if (installed?.category === 'custom') {
+            const result = await assistantManager.disableAssistant(blueprint.registeredAssistantId, 'custom');
+            if (!result.success) throw new Error(result.msg);
+          }
+        }
+        await removeOntologyMcpServer(blueprint.id);
+      },
+      remove: (blueprint) => this.uninstallRegisteredAgent(blueprint),
+      refresh: () => acpDetector.refreshCustomAgents(),
+    });
+  }
+
+  onAgentRegistrationChanged(onChanged: (snapshot: IOntologyWorkbenchSnapshot) => void): void {
+    this.agentRegistry.onChanged = onChanged;
+  }
+
+  async saveStudioModel(raw: IOntologyStudioSaveInput) {
+    const parsed = studioSaveSchema.safeParse(raw);
+    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || 'ontology.studio.errors.invalidModel');
+    const input = parsed.data as IOntologyStudioSaveInput;
+    const snapshot = this.database.getSnapshot(input.workspaceId);
+    if (!snapshot) throw new Error('ontology.studio.errors.notFound');
+    const operation = { id: input.operationId, payload: JSON.stringify(input) };
+    if (this.database.hasOperation(input.workspaceId, operation)) return snapshot;
+    if ((snapshot.revision || 0) !== input.expectedRevision) throw new Error('ontology.studio.errors.conflict');
+    const before = structuredClone(snapshot);
+    snapshot.objects = input.objects;
+    snapshot.relations = input.relations;
+    const objectIds = new Set(input.objects.map((item) => item.id));
+    const attributeIds = new Set(input.objects.flatMap((item) => item.attributes.map((attr) => attr.id)));
+    if ([...snapshot.logicFunctions, ...snapshot.actions].some((item) => item.objectIds.some((id) => !objectIds.has(id)))) throw new Error('ontology.studio.errors.referencedCapability');
+    snapshot.mappings = snapshot.mappings.filter((item) => objectIds.has(item.objectId) && attributeIds.has(item.attributeId));
+    snapshot.qualityRules = snapshot.qualityRules.filter((item) => objectIds.has(item.objectId));
+    this.database.saveSnapshot(snapshot, before, operation);
+    return snapshot;
+  }
+
+  async previewStandardFile(input: { filePath: string }) {
+    const stat = await fs.stat(input.filePath);
+    if (!stat.isFile() || stat.size > STUDIO_MAX_FILE_BYTES) throw new Error('ontology.studio.errors.fileTooLarge');
+    const content = await fs.readFile(input.filePath, 'utf8');
+    return parseStandardOntology(content, pathToFileURL(path.resolve(input.filePath)).href, path.basename(input.filePath));
+  }
+
+  async importStandardFile(input: IOntologyStandardImportInput) {
+    const preview = await this.previewStandardFile(input);
+    if (preview.fingerprint !== input.fingerprint) throw new Error('ontology.studio.errors.fileChanged');
+    const snapshot = this.database.getSnapshot(input.workspaceId);
+    if (!snapshot) throw new Error('ontology.studio.errors.notFound');
+    const operation = { id: input.operationId, payload: JSON.stringify(input) };
+    if (this.database.hasOperation(input.workspaceId, operation)) return snapshot;
+    if ((snapshot.revision || 0) !== input.expectedRevision) throw new Error('ontology.studio.errors.conflict');
+    const before = structuredClone(snapshot);
+    const current = snapshot.semanticDocument || createSemanticDocument(snapshot.workspaceId);
+    const isEmpty = snapshot.objects.length === 0 && current.statements.length <= 1;
+    snapshot.semanticDocument = isEmpty
+      ? preview.document
+      : {
+          ...current,
+          prefixes: { ...current.prefixes, ...preview.document.prefixes },
+          statements: uniqueStatements([...current.statements, ...preview.document.statements]),
+          imports: [...new Set([...current.imports, ...preview.document.imports])],
+          owlAxioms: [...(current.owlAxioms || []), ...(preview.document.owlAxioms || [])].filter((item, index, all) => all.findIndex((other) => other.xml === item.xml) === index),
+        };
+    const model = projectSemanticDocument(snapshot.semanticDocument, snapshot);
+    snapshot.objects = model.objects;
+    snapshot.relations = model.relations;
+    this.database.saveSnapshot(snapshot, before, operation);
+    return snapshot;
+  }
+
+  async exportStandardFile(input: IOntologyStandardExportInput) {
+    const snapshot = this.database.getSnapshot(input.workspaceId);
+    if (!snapshot) throw new Error('ontology.studio.errors.notFound');
+    const version = input.versionId ? snapshot.publishedVersions.find((item) => item.id === input.versionId) : undefined;
+    if (input.versionId && !version) throw new Error('ontology.studio.errors.notFound');
+    let document = version?.snapshot.semanticDocument || snapshot.semanticDocument || createSemanticDocument(snapshot.workspaceId);
+    if (input.model) {
+      if (input.versionId || (snapshot.revision || 0) !== input.expectedRevision) throw new Error('ontology.studio.errors.conflict');
+      const model = studioSaveSchema.parse({ ...input.model, workspaceId: input.workspaceId, expectedRevision: input.expectedRevision, operationId: 'export-preview' }) as IOntologyStudioSaveInput;
+      document = reconcileSemanticModel(document, snapshot, model, snapshot.workspaceId);
+    }
+    return { content: exportStandardOntology(document, input.format), format: input.format };
   }
 
   async listWorkbenches() {
-    const activeWorkspaceId = await this.getActiveWorkspaceId();
+    const activeWorkspaceId = this.database.getActiveWorkspaceId() || '';
     return this.engine.listWorkbenches(activeWorkspaceId);
   }
 
   async getWorkbench(input?: IOntologySelectWorkbenchInput) {
+    if (input?.workspaceId && !this.database.getSnapshot(input.workspaceId)) throw new Error('ontology.studio.errors.notFound');
     const workspaceId = input?.workspaceId?.trim() || (await this.getActiveWorkspaceId());
-    return this.engine.getWorkbench(workspaceId);
+    return this.agentRegistry.refresh(await this.engine.getWorkbench(workspaceId));
   }
 
   async createWorkbench(input: IOntologyCreateWorkbenchInput) {
-    const activeWorkspaceId = await this.getActiveWorkspaceId();
-    const result = await this.engine.createWorkbench(input, activeWorkspaceId);
+    const result = await this.engine.createWorkbench(input, '');
     this.database.setActiveWorkspaceId(result.activeWorkspaceId);
     return result;
   }
 
   async selectWorkbench(input: IOntologySelectWorkbenchInput) {
-    const snapshot = await this.engine.getWorkbench(input.workspaceId);
+    const snapshot = await this.agentRegistry.refresh(await this.engine.getWorkbench(input.workspaceId));
     this.database.setActiveWorkspaceId(snapshot.workspaceId);
     return snapshot;
   }
 
   async deleteWorkbench(input: IOntologyDeleteWorkbenchInput) {
-    const activeWorkspaceId = await this.getActiveWorkspaceId();
-    const snapshot = await this.engine.getWorkbench(input.workspaceId);
-    for (const blueprint of snapshot.agentBlueprints) {
-      await this.uninstallRegisteredAgent(blueprint);
-    }
-    const result = await this.engine.deleteWorkbench(input, activeWorkspaceId);
-    this.database.setActiveWorkspaceId(result.activeWorkspaceId);
-    return result;
+    return this.agentRegistry.withLock(input.workspaceId, async () => {
+      const activeWorkspaceId = this.database.getActiveWorkspaceId() || '';
+      const { reapConversation } = await import('@process/services/conversationReaper');
+      for (const session of this.database.listAiSessions(input.workspaceId)) await reapConversation(session.conversation_id, { reason: 'user-delete' });
+      const snapshot = await this.engine.getWorkbench(input.workspaceId);
+      for (const blueprint of snapshot.agentBlueprints.flatMap((item) => [item, ...(item.retiredRegistrations || [])])) {
+        await this.uninstallRegisteredAgent(blueprint);
+      }
+      const result = await this.engine.deleteWorkbench(input, activeWorkspaceId);
+      this.database.setActiveWorkspaceId(result.activeWorkspaceId);
+      return result;
+    });
   }
 
   async updateDraft(input: IOntologyWorkbenchDraftInput) {
-    return this.engine.updateDraft(input, await this.getActiveWorkspaceId());
+    return this.engine.updateDraft(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async transitionPhase(input: IOntologyPhaseTransitionInput) {
-    return this.engine.transitionPhase(input, await this.getActiveWorkspaceId());
+    return this.engine.transitionPhase(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async importFiles(input: IOntologyImportFilesInput) {
@@ -163,7 +287,7 @@ export class OntologyService {
   }
 
   async probeConnector(input: IOntologyProbeConnectorInput) {
-    const workspaceId = await this.getActiveWorkspaceId();
+    const workspaceId = input.workspaceId || (await this.getActiveWorkspaceId());
     const snapshot = await this.engine.getWorkbench(workspaceId);
     const existing = input.connector.id ? snapshot.connectors.find((connector) => connector.id === input.connector.id) : undefined;
     const connector = mergeConnectorSecrets(input.connector, existing);
@@ -173,35 +297,67 @@ export class OntologyService {
   }
 
   async browseConnectorAssets(input: IOntologyBrowseConnectorAssetsInput) {
-    return this.engine.browseConnectorAssets(input, await this.getActiveWorkspaceId());
+    return this.engine.browseConnectorAssets(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async deleteConnector(input: IOntologyDeleteConnectorInput) {
-    return this.engine.deleteConnector(input, await this.getActiveWorkspaceId());
+    return this.engine.deleteConnector(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async deleteAsset(input: IOntologyDeleteInput) {
-    return this.engine.deleteAsset(input, await this.getActiveWorkspaceId());
+    return this.engine.deleteAsset(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async profileAsset(input: IOntologyProfileAssetInput) {
-    const workspaceId = await this.getActiveWorkspaceId();
+    const workspaceId = input.workspaceId || (await this.getActiveWorkspaceId());
     return this.engine.profileAsset(input, workspaceId, await this.scanCurrentAsset(input.id, workspaceId));
   }
 
   async syncAssetSchema(input: IOntologySyncAssetSchemaInput) {
-    const workspaceId = await this.getActiveWorkspaceId();
+    const workspaceId = input.workspaceId || (await this.getActiveWorkspaceId());
     return this.engine.syncAssetSchema(input, workspaceId, await this.scanCurrentAsset(input.id, workspaceId));
   }
 
   async previewAsset(input: IOntologyPreviewAssetInput): Promise<IOntologyPreviewAssetResult> {
-    const workspaceId = await this.getActiveWorkspaceId();
+    const workspaceId = input.workspaceId || (await this.getActiveWorkspaceId());
     const snapshot = await this.engine.getWorkbench(workspaceId);
     const asset = snapshot.assets.find((item) => item.id === input.id);
     if (!asset) throw new Error('Asset not found.');
     const connectorId = typeof asset.metadata.connectorId === 'string' ? asset.metadata.connectorId : undefined;
     const connector = connectorId ? snapshot.connectors.find((item) => item.id === connectorId) : undefined;
     return previewAsset(asset, connector, Math.max(1, Math.min(input.limit ?? 20, 100)));
+  }
+
+  describeAssetFields(raw: IOntologyDescribeAssetFieldsInput): Promise<IOntologyWorkbenchSnapshot> {
+    const input = z.object({ workspaceId: z.string().trim().min(1).max(200), id: z.string().trim().min(1).max(200), language: z.string().trim().min(2).max(40), isRefresh: z.boolean().optional() }).parse(raw) as IOntologyDescribeAssetFieldsInput;
+    const key = JSON.stringify([input.workspaceId, input.id, input.language]);
+    const pending = this.describingAssets.get(key);
+    if (pending) return pending;
+    const operation = this.describeCurrentAssetFields(input).finally(() => this.describingAssets.delete(key));
+    this.describingAssets.set(key, operation);
+    return operation;
+  }
+
+  private async describeCurrentAssetFields(input: IOntologyDescribeAssetFieldsInput): Promise<IOntologyWorkbenchSnapshot> {
+    const snapshot = this.database.getSnapshot(input.workspaceId);
+    const asset = snapshot?.assets.find((item) => item.id === input.id);
+    if (!snapshot || !asset) throw new Error('ontology.studio.dataErrors.schemaUnavailable');
+    const fields = asset.fields.filter((field) => input.isRefresh || !field.businessMeaning?.text || field.businessMeaning.language !== input.language);
+    if (!fields.length) return snapshot;
+    const described = await this.describeFields({ tableName: asset.name, ontologyTitle: snapshot.draft.title, businessGoal: snapshot.draft.businessGoal, language: input.language, fields });
+    // Merge into the latest snapshot so a model response cannot overwrite edits made while it ran.
+    const latest = this.database.getSnapshot(input.workspaceId);
+    const current = latest?.assets.find((item) => item.id === asset.id);
+    if (!latest || !current) throw new Error('ontology.studio.dataErrors.schemaUnavailable');
+    if (current.name !== asset.name || JSON.stringify(current.fields.map(ontologyFieldSignature)) !== JSON.stringify(asset.fields.map(ontologyFieldSignature)) || latest.draft.title !== snapshot.draft.title || latest.draft.businessGoal !== snapshot.draft.businessGoal) {
+      throw new Error('ontology.studio.dataErrors.schemaChanged');
+    }
+    const before = structuredClone(latest);
+    const meanings = new Map(described.map((field) => [field.name, field.businessMeaning]));
+    current.fields = current.fields.map((field) => (meanings.has(field.name) ? { ...field, businessMeaning: meanings.get(field.name) } : field));
+    current.updatedAt = Date.now();
+    this.database.saveSnapshot(latest, before);
+    return latest;
   }
 
   async generateDraft(input: IOntologyGenerateDraftInput = {}) {
@@ -230,27 +386,27 @@ export class OntologyService {
   }
 
   async upsertObject(input: IOntologyObjectDraftInput) {
-    return this.engine.upsertObject(input, await this.getActiveWorkspaceId());
+    return this.engine.upsertObject(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async deleteObject(input: IOntologyDeleteInput) {
-    return this.engine.deleteObject(input, await this.getActiveWorkspaceId());
+    return this.engine.deleteObject(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async upsertAttribute(input: IOntologyAttributeDraftInput) {
-    return this.engine.upsertAttribute(input, await this.getActiveWorkspaceId());
+    return this.engine.upsertAttribute(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async deleteAttribute(input: IOntologyDeleteAttributeInput) {
-    return this.engine.deleteAttribute(input, await this.getActiveWorkspaceId());
+    return this.engine.deleteAttribute(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async upsertRelation(input: IOntologyRelationDraftInput) {
-    return this.engine.upsertRelation(input, await this.getActiveWorkspaceId());
+    return this.engine.upsertRelation(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async deleteRelation(input: IOntologyDeleteInput) {
-    return this.engine.deleteRelation(input, await this.getActiveWorkspaceId());
+    return this.engine.deleteRelation(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async executeRelation(input: IOntologyExecuteRuntimeInput): Promise<IOntologyRuntimeExecutionResult> {
@@ -275,35 +431,35 @@ export class OntologyService {
   }
 
   async upsertMapping(input: IOntologyFieldMappingInput) {
-    return this.engine.upsertMapping(input, await this.getActiveWorkspaceId());
+    return this.engine.upsertMapping(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async deleteMapping(input: IOntologyDeleteInput) {
-    return this.engine.deleteMapping(input, await this.getActiveWorkspaceId());
+    return this.engine.deleteMapping(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async upsertQualityRule(input: IOntologyQualityRuleInput) {
-    return this.engine.upsertQualityRule(input, await this.getActiveWorkspaceId());
+    return this.engine.upsertQualityRule(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async deleteQualityRule(input: IOntologyDeleteInput) {
-    return this.engine.deleteQualityRule(input, await this.getActiveWorkspaceId());
+    return this.engine.deleteQualityRule(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async upsertLogicFunction(input: IOntologyLogicFunctionInput) {
-    return this.engine.upsertLogicFunction(input, await this.getActiveWorkspaceId());
+    return this.engine.upsertLogicFunction(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async deleteLogicFunction(input: IOntologyDeleteInput) {
-    return this.engine.deleteLogicFunction(input, await this.getActiveWorkspaceId());
+    return this.engine.deleteLogicFunction(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async upsertAction(input: IOntologyActionDefinitionInput) {
-    return this.engine.upsertAction(input, await this.getActiveWorkspaceId());
+    return this.engine.upsertAction(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async deleteAction(input: IOntologyDeleteInput) {
-    return this.engine.deleteAction(input, await this.getActiveWorkspaceId());
+    return this.engine.deleteAction(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async executeLogicFunction(input: IOntologyExecuteRuntimeInput): Promise<IOntologyRuntimeExecutionResult> {
@@ -360,7 +516,7 @@ export class OntologyService {
   }
 
   async reviewTarget(input: IOntologyReviewTargetInput) {
-    return this.engine.reviewTarget(input, await this.getActiveWorkspaceId());
+    return this.engine.reviewTarget(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async approveAll() {
@@ -388,125 +544,108 @@ export class OntologyService {
 
   async publishCurrentDraft(input?: IOntologySelectWorkbenchInput) {
     const workspaceId = input?.workspaceId ?? (await this.getActiveWorkspaceId());
+    const expectedRevision = this.database.getSnapshot(workspaceId)?.revision;
     const check = await this.runConsistencyCheck({ workspaceId });
     if (!check.isValid) throw new Error(check.issues.map((issue) => issue.message).join('\n'));
-    return this.engine.publishCurrentDraft(workspaceId);
+    return this.engine.publishCurrentDraft(workspaceId, expectedRevision);
   }
 
   async approvePublishedVersion(input: IOntologyPublishApprovalInput) {
-    return this.engine.approvePublishedVersion(input, input.workspaceId ?? (await this.getActiveWorkspaceId()));
+    return this.engine.approvePublishedVersion(input, input.workspaceId ?? (input.workspaceId || (await this.getActiveWorkspaceId())));
   }
 
   async rejectPublishedVersion(input: IOntologyRejectVersionInput) {
-    return this.engine.rejectPublishedVersion(input, input.workspaceId ?? (await this.getActiveWorkspaceId()));
+    return this.engine.rejectPublishedVersion(input, input.workspaceId ?? (input.workspaceId || (await this.getActiveWorkspaceId())));
   }
 
   async rollbackToVersion(input: IOntologyRollbackInput) {
-    return this.engine.rollbackToVersion(input, input.workspaceId ?? (await this.getActiveWorkspaceId()));
+    return this.engine.rollbackToVersion(input, input.workspaceId ?? (input.workspaceId || (await this.getActiveWorkspaceId())));
   }
 
   async createAgentBlueprint(input: IOntologyAgentBlueprintInput) {
-    return this.engine.createAgentBlueprint(input, input.workspaceId ?? (await this.getActiveWorkspaceId()));
+    return this.agentRegistry.create(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
   async registerAgentBlueprint(input: IOntologyRegisterAgentInput) {
-    const workspaceId = input.workspaceId ?? (await this.getActiveWorkspaceId());
-    const snapshot = await this.engine.getWorkbench(workspaceId);
-    const blueprint = input.blueprintId ? snapshot.agentBlueprints.find((item) => item.id === input.blueprintId) : snapshot.agentBlueprints.at(-1);
-    if (!blueprint) throw new Error('Agent blueprint not found.');
-    const assistantId = input.assistantId?.trim() || `ontology-${blueprint.id.slice(0, 8)}`;
-    const assistantName = input.name?.trim() || blueprint.name;
+    return this.agentRegistry.register(input, input.workspaceId || (await this.getActiveWorkspaceId()));
+  }
+
+  async deleteRegisteredAssistant(assistantId: string, category?: string): Promise<boolean> {
+    if (category && category !== 'custom') return false;
+    const installed = await assistantManager.getAssistantMetaWithDir(assistantId);
+    if (installed && !installed.meta.ontologyBinding && !this.database.listSnapshots().some((snapshot) => snapshot.agentBlueprints.some((item) => item.registeredAssistantId === assistantId && item.registeredAt !== undefined))) return false;
+    return this.agentRegistry.deleteByAssistant(assistantId);
+  }
+
+  private async installRegisteredAgent(blueprint: IOntologyAgentBlueprint, snapshot: IOntologyWorkbenchSnapshot): Promise<void> {
+    const assistantId = blueprint.registeredAssistantId!;
+    const version = snapshot.publishedVersions.find((item) => item.id === blueprint.ontologyVersionId && item.status === 'published');
+    if (!version) throw new Error('ontology.studio.agentErrors.versionUnavailable');
+    const ownership = { workspaceId: snapshot.workspaceId, versionId: version.id, blueprintId: blueprint.id };
+    const installed = await assistantManager.getAssistantMetaWithDir(assistantId);
+    if (installed && (installed.category !== 'custom' || !isDeepStrictEqual(installed.meta.ontologyBinding, ownership))) throw new Error('ontology.studio.agentErrors.identityConflict');
     const meta = {
       id: assistantId,
-      nameI18n: {
-        'zh-CN': assistantName,
-        'en-US': assistantName,
-      },
-      descriptionI18n: {
-        'zh-CN': `基于已发布本体 ${blueprint.ontologyVersionId} 的 Agent。`,
-        'en-US': `Agent generated from published ontology ${blueprint.ontologyVersionId}.`,
-      },
+      nameI18n: { 'zh-CN': blueprint.name, 'en-US': blueprint.name },
+      descriptionI18n: { 'zh-CN': `${snapshot.draft.title} · ${version.version}`, 'en-US': `${snapshot.draft.title} · ${version.version}` },
       avatar: '🧩',
       presetAgentType: DEFAULT_PRESET_AGENT_TYPE,
-      enabled: true,
+      enabled: false,
       source_type: 'custom' as const,
-      defaultInitPrompt: '请基于已发布本体回答业务问题，并说明使用到的对象、关系、规则和动作。',
+      ontologyBinding: ownership,
     };
-    const publishedVersion = snapshot.publishedVersions.find((version) => version.id === blueprint.ontologyVersionId);
-    if (!publishedVersion) throw new Error('Published ontology version not found.');
-    const ruleContent = createAssistantRuleContent(blueprint, publishedVersion.snapshot);
-    const createResult = await assistantManager.createAssistant(meta, ruleContent);
-    if (!createResult.success && !createResult.msg?.includes('already exists')) {
-      throw new Error(createResult.msg || 'Failed to register ontology Agent.');
+    if (!installed) {
+      const result = await assistantManager.createAssistant(meta, createAssistantRuleContent(blueprint, version.snapshot));
+      if (!result.success) {
+        if (!result.msg?.includes('already exists')) await assistantManager.uninstallAssistant(assistantId, 'custom');
+        throw new Error(result.msg || 'ontology.studio.agentErrors.registrationFailed');
+      }
     }
-    if (!createResult.success) {
-      const updateResult = await assistantManager.updateAssistantMeta(assistantId, meta, 'custom');
-      if (!updateResult.success) throw new Error(updateResult.msg || 'Failed to update registered ontology Agent.');
-    }
-    try {
-      await installOntologyMcpServer({
-        blueprintId: blueprint.id,
-        workspaceId,
-        versionId: blueprint.ontologyVersionId,
-        exportFile: this.database.getMcpExportPath(workspaceId),
-      });
-    } catch (error) {
-      if (createResult.success) await assistantManager.uninstallAssistant(assistantId, 'custom');
-      throw error;
-    }
-    await acpDetector.refreshCustomAgents();
-    return this.engine.registerAgentBlueprint(
-      {
-        ...input,
-        assistantId,
-        name: assistantName,
-      },
-      workspaceId
-    );
+    await installOntologyMcpServer({ blueprintId: blueprint.id, workspaceId: snapshot.workspaceId, versionId: version.id, exportFile: this.database.getMcpExportPath(snapshot.workspaceId) });
+    const enabled = await assistantManager.enableAssistant(assistantId, 'custom');
+    if (!enabled.success) throw new Error(enabled.msg || 'ontology.studio.agentErrors.registrationFailed');
   }
 
   async restoreRegisteredMcpServers(): Promise<void> {
     const { items: workbenches } = await this.engine.listWorkbenches();
     for (const workbench of workbenches) {
-      const snapshot = await this.engine.getWorkbench(workbench.workspaceId);
-      for (const blueprint of snapshot.agentBlueprints.filter((item) => item.status === 'registered' && item.registeredAssistantId)) {
-        const version = snapshot.publishedVersions.find((item) => item.id === blueprint.ontologyVersionId && item.status === 'published');
-        if (!version) continue;
-        try {
-          await installOntologyMcpServer({
-            blueprintId: blueprint.id,
-            workspaceId: snapshot.workspaceId,
-            versionId: version.id,
-            exportFile: this.database.getMcpExportPath(snapshot.workspaceId),
-          });
-        } catch (error) {
-          mainError('OntologyService', `Failed to restore runtime MCP for ${blueprint.id}`, error);
+      await this.agentRegistry.refresh(await this.engine.getWorkbench(workbench.workspaceId));
+      await this.agentRegistry.withLock(workbench.workspaceId, async () => {
+        const snapshot = await this.engine.getWorkbench(workbench.workspaceId);
+        for (const blueprint of snapshot.agentBlueprints.filter((item) => item.status === 'registered' && item.registeredAssistantId)) {
+          const version = snapshot.publishedVersions.find((item) => item.id === blueprint.ontologyVersionId && item.status === 'published');
+          if (!version) continue;
+          try {
+            await installOntologyMcpServer({
+              blueprintId: blueprint.id,
+              workspaceId: snapshot.workspaceId,
+              versionId: version.id,
+              exportFile: this.database.getMcpExportPath(snapshot.workspaceId),
+            });
+          } catch (error) {
+            mainError('OntologyService', `Failed to restore runtime MCP for ${blueprint.id}`, error);
+          }
         }
-      }
+      });
     }
   }
 
   async deleteAgentBlueprint(input: IOntologyDeleteInput) {
-    const workspaceId = input.workspaceId ?? (await this.getActiveWorkspaceId());
-    const snapshot = await this.engine.getWorkbench(workspaceId);
-    const blueprint = snapshot.agentBlueprints.find((item) => item.id === input.id);
-    if (!blueprint) throw new Error('Agent blueprint not found.');
-    await this.uninstallRegisteredAgent(blueprint);
-    const nextSnapshot = await this.engine.deleteAgentBlueprint(input, workspaceId);
-    await acpDetector.refreshCustomAgents();
-    return nextSnapshot;
+    return this.agentRegistry.delete(input.workspaceId || (await this.getActiveWorkspaceId()), input.id);
   }
 
   async resetWorkbench() {
     const workspaceId = await this.getActiveWorkspaceId();
-    const currentSnapshot = await this.engine.getWorkbench(workspaceId);
-    for (const blueprint of currentSnapshot.agentBlueprints) {
-      await this.uninstallRegisteredAgent(blueprint);
-    }
-    const snapshot = await this.engine.resetWorkbench(workspaceId);
-    await acpDetector.refreshCustomAgents();
-    this.database.setActiveWorkspaceId(snapshot.workspaceId);
-    return snapshot;
+    return this.agentRegistry.withLock(workspaceId, async () => {
+      const currentSnapshot = await this.engine.getWorkbench(workspaceId);
+      for (const blueprint of currentSnapshot.agentBlueprints.flatMap((item) => [item, ...(item.retiredRegistrations || [])])) {
+        await this.uninstallRegisteredAgent(blueprint);
+      }
+      const snapshot = await this.engine.resetWorkbench(workspaceId);
+      await acpDetector.refreshCustomAgents();
+      this.database.setActiveWorkspaceId(snapshot.workspaceId);
+      return snapshot;
+    });
   }
 
   close() {
@@ -533,8 +672,10 @@ export class OntologyService {
     const connectorId = typeof asset.metadata.connectorId === 'string' ? asset.metadata.connectorId : undefined;
     const connector = connectorId ? snapshot.connectors.find((item) => item.id === connectorId) : undefined;
     if (connector) {
-      const scannedAssets = await scanConnectorAssets({ connector, maxAssets: 1000 });
-      return scannedAssets.find((item) => item.path === asset.path) ?? scannedAssets.find((item) => item.name === asset.name);
+      const scannedAssets = await scanConnectorAssets({ connector, maxAssets: 1000 }, asset.name);
+      const scanned = scannedAssets.find((item) => item.path === asset.path) ?? scannedAssets.find((item) => item.name === asset.name);
+      if (!scanned) throw new Error('ontology.studio.dataErrors.schemaUnavailable');
+      return scanned;
     }
     if (asset.path) {
       const filePath = asset.path.split('#', 1)[0];
@@ -548,12 +689,14 @@ export class OntologyService {
         };
       }
     }
-    return undefined;
+    throw new Error('ontology.studio.dataErrors.schemaUnavailable');
   }
 
-  private async uninstallRegisteredAgent(blueprint: IOntologyAgentBlueprint): Promise<void> {
+  private async uninstallRegisteredAgent(blueprint: Pick<IOntologyAgentBlueprint, 'id' | 'registeredAssistantId' | 'registeredAt'>): Promise<void> {
     if (!blueprint.registeredAssistantId) return;
     await removeOntologyMcpServer(blueprint.id);
+    const installed = await assistantManager.getAssistantMetaWithDir(blueprint.registeredAssistantId);
+    if (installed && (installed.category !== 'custom' || (installed.meta.ontologyBinding ? installed.meta.ontologyBinding.blueprintId !== blueprint.id : blueprint.registeredAt === undefined))) return;
     const result = await assistantManager.uninstallAssistant(blueprint.registeredAssistantId, 'custom');
     if (!result.success && result.msg !== 'Assistant not found') {
       throw new Error(result.msg || 'Failed to uninstall registered ontology Agent.');
@@ -644,6 +787,20 @@ async function executeOntologyLookup(logicFunction: IOntologyLogicFunction, snap
     if (!asset) continue;
     const connectorId = typeof asset.metadata.connectorId === 'string' ? asset.metadata.connectorId : undefined;
     const connector = connectorId ? snapshot.connectors.find((item) => item.id === connectorId) : undefined;
+    if (connector?.sourceType === 'sqlite') {
+      const remaining = ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT - records.length;
+      records.push(
+        ...lookupOntologySqlite(
+          connector.path,
+          asset.name,
+          mappings.filter((mapping) => mapping.assetId === assetId),
+          query,
+          remaining
+        )
+      );
+      if (records.length >= ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT) return records;
+      continue;
+    }
     const preview = await previewAsset(asset, connector, ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT);
     const columnIndexes = new Map(preview.columns.map((column, index) => [column.toLowerCase(), index]));
     const assetMappings = mappings.filter((mapping) => mapping.assetId === assetId && columnIndexes.has(mapping.fieldName.toLowerCase()));
@@ -681,6 +838,41 @@ async function executeRelationDefinition(relation: IOntologyRelationDraft, snaps
     binding.joinKeys.map((key) => key.toAttributeId),
     'target'
   );
+  if (!relation.isAcyclic && !['transitive_property', 'symmetric_property'].includes(relation.relationType)) {
+    const from = sqliteRelationSide(
+      snapshot,
+      runtimeSnapshot,
+      fromObject,
+      binding.joinKeys.map((key) => key.fromAttributeId)
+    );
+    const to = sqliteRelationSide(
+      snapshot,
+      runtimeSnapshot,
+      toObject,
+      binding.joinKeys.map((key) => key.toAttributeId)
+    );
+    const junction = binding.mode === 'junction' ? snapshot.assets.find((asset) => asset.id === binding.junctionAssetId) : undefined;
+    const junctionConnector = junction ? snapshot.connectors.find((connector) => connector.id === junction.metadata.connectorId) : undefined;
+    if (from && to && from.filePath === to.filePath && (binding.mode === 'direct' || (junction && junctionConnector?.sourceType === 'sqlite' && junctionConnector.path === from.filePath))) {
+      const result = queryOntologySqliteRelation({
+        filePath: from.filePath,
+        from,
+        to,
+        direction,
+        query,
+        limit,
+        cardinality: relation.cardinality,
+        junction: junction?.name,
+        keys: binding.joinKeys.map((key, index) => ({
+          from: from.fields.find((field) => field.attributeCode === fromAttributeCodes[index])!.fieldName,
+          to: to.fields.find((field) => field.attributeCode === toAttributeCodes[index])!.fieldName,
+          junctionFrom: key.junctionFromFieldName,
+          junctionTo: key.junctionToFieldName,
+        })),
+      });
+      return { relation: { id: relation.id, code: relation.code, name: relation.name, cardinality: relation.cardinality, relationType: relation.relationType, semanticType: relation.semanticType, bindingMode: binding.mode }, direction, ...result };
+    }
+  }
   const fromRecords = await loadMappedObjectRecords(
     snapshot,
     runtimeSnapshot,
@@ -751,6 +943,20 @@ interface IRelationExecutionOutput {
 interface IMappedObjectRecords {
   records: Array<Record<string, OntologyJsonValue>>;
   isTruncated: boolean;
+}
+
+function sqliteRelationSide(snapshot: IOntologyWorkbenchSnapshot, runtimeSnapshot: OntologyRuntimeSnapshot, object: IOntologyObjectDraft, requiredAttributeIds: string[]) {
+  const candidates = requiredAttributeIds.map((id) => runtimeFieldCandidates(runtimeSnapshot, object.id, id, object.attributes.find((attribute) => attribute.id === id)?.mappedField));
+  const common = candidates[0]?.find((candidate) => candidates.every((items) => items.some((item) => item.assetId === candidate.assetId)));
+  const asset = snapshot.assets.find((item) => item.id === common?.assetId);
+  const connector = asset ? snapshot.connectors.find((item) => item.id === asset.metadata.connectorId) : undefined;
+  if (!asset || connector?.sourceType !== 'sqlite' || !connector.path) return undefined;
+  const fields = object.attributes.flatMap((attribute) =>
+    runtimeFieldCandidates(runtimeSnapshot, object.id, attribute.id, attribute.mappedField)
+      .filter((candidate) => candidate.assetId === asset.id)
+      .map((candidate) => ({ attributeCode: attribute.code, fieldName: candidate.fieldName }))
+  );
+  return { filePath: connector.path, table: asset.name, fields };
 }
 
 async function loadMappedObjectRecords(snapshot: IOntologyWorkbenchSnapshot, runtimeSnapshot: OntologyRuntimeSnapshot, object: IOntologyObjectDraft, requiredAttributeIds: string[]): Promise<IMappedObjectRecords> {
@@ -1028,21 +1234,12 @@ function resolveRuntimeConnector(snapshot: IOntologyWorkbenchSnapshot, runtimeSn
 }
 
 async function executeConnectorSql(connector: IOntologyConnectorConfig, rawStatement: string, isAction: boolean): Promise<unknown> {
+  if (connector.sourceType === 'sqlite') return executeOntologySqlite(connector.path, rawStatement, isAction && connector.writable === true);
   const statement = singleSqlStatement(rawStatement);
   const command = /^([A-Za-z]+)/.exec(statement)?.[1]?.toUpperCase();
   const isReadOnly = command === 'SELECT';
   if (!isReadOnly && (!isAction || connector.writable !== true)) throw new Error('SQL writes require an action and a connector marked writable.');
   if (!['SELECT', 'INSERT', 'UPDATE', 'DELETE'].includes(command ?? '')) throw new Error('Only SELECT, INSERT, UPDATE, and DELETE statements are supported.');
-  if (connector.sourceType === 'sqlite') {
-    if (!connector.path) throw new Error('SQLite connector path is unavailable.');
-    const database = new BetterSqlite3(connector.path, { readonly: isReadOnly, fileMustExist: true });
-    try {
-      const prepared = database.prepare(statement);
-      return isReadOnly ? prepared.all() : prepared.run();
-    } finally {
-      database.close();
-    }
-  }
   if (connector.sourceType === 'mysql') {
     const connection = await mysql.createConnection({
       host: connector.host,
@@ -1417,13 +1614,13 @@ async function evaluateRelationDataBindings(snapshot: IOntologyWorkbenchSnapshot
   return issues;
 }
 
-async function scanConnectorAssets(input: IOntologyProbeConnectorInput): Promise<IOntologyEnvironmentAsset[]> {
+async function scanConnectorAssets(input: IOntologyProbeConnectorInput, tableName?: string): Promise<IOntologyEnvironmentAsset[]> {
   const connector = input.connector;
   const maxAssets = Math.max(1, Math.min(input.maxAssets ?? 200, 1000));
   if (connector.sourceType === 'directory') return scanDirectoryConnector(connector, input.recursive ?? true, input.maxAssets ?? 200);
-  if (connector.sourceType === 'sqlite') return scanSqliteConnector(connector);
-  if (connector.sourceType === 'mysql') return scanMysqlConnector(connector, maxAssets);
-  if (connector.sourceType === 'postgresql') return scanPostgresqlConnector(connector, maxAssets);
+  if (connector.sourceType === 'sqlite') return scanSqliteConnector(connector, tableName);
+  if (connector.sourceType === 'mysql') return scanMysqlConnector(connector, maxAssets, tableName);
+  if (connector.sourceType === 'postgresql') return scanPostgresqlConnector(connector, maxAssets, tableName);
   if (connector.sourceType === 'oracle') return scanOracleConnector(connector, maxAssets);
   if (connector.sourceType === 'sqlserver') return scanSqlServerConnector(connector, maxAssets);
   if (connector.sourceType === 'openapi') return scanApiConnector(connector);
@@ -1470,34 +1667,19 @@ async function walkDirectory(directoryPath: string, recursive: boolean, maxAsset
   }
 }
 
-function scanSqliteConnector(connector: IOntologyConnectorInput): IOntologyEnvironmentAsset[] {
-  if (!connector.path) throw new Error('SQLite connector requires path.');
-  const db = new BetterSqlite3(connector.path, { readonly: true, fileMustExist: true });
-  try {
-    const tables = db.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as Array<{ name: string; type: string }>;
-    return tables.map((table) => {
-      const columns = db.prepare(`PRAGMA table_info(${JSON.stringify(table.name)})`).all() as Array<{ name: string; type: string; notnull: number; pk: number }>;
-      return createScannedAsset(connector, {
-        kind: 'table',
-        name: table.name,
-        path: `${connector.path}#${table.name}`,
-        fields: columns.map((column) => ({
-          name: column.name,
-          dataType: column.type || 'string',
-          nullable: column.notnull !== 1 && column.pk !== 1,
-        })),
-        metadata: {
-          sqlitePath: connector.path,
-          tableType: table.type,
-        },
-      });
-    });
-  } finally {
-    db.close();
-  }
+function scanSqliteConnector(connector: IOntologyConnectorInput, tableName?: string): IOntologyEnvironmentAsset[] {
+  return inspectOntologySqlite(connector.path, tableName).map((table) =>
+    createScannedAsset(connector, {
+      kind: 'table',
+      name: table.name,
+      path: `${connector.path}#${table.name}`,
+      fields: table.fields,
+      metadata: { sqlitePath: connector.path!, tableType: table.type, sourceMissing: false },
+    })
+  );
 }
 
-async function scanMysqlConnector(connector: IOntologyConnectorInput, maxAssets: number): Promise<IOntologyEnvironmentAsset[]> {
+async function scanMysqlConnector(connector: IOntologyConnectorInput, maxAssets: number, targetTable?: string): Promise<IOntologyEnvironmentAsset[]> {
   if (!connector.host || !connector.database) throw new Error('MySQL connector requires host and database.');
   const connection = await mysql.createConnection({
     host: connector.host,
@@ -1511,10 +1693,10 @@ async function scanMysqlConnector(connector: IOntologyConnectorInput, maxAssets:
     const [tables] = await connection.query<RowDataPacket[]>(
       `SELECT TABLE_NAME AS tableName, TABLE_TYPE AS tableType
        FROM information_schema.TABLES
-       WHERE TABLE_SCHEMA = ?
+       WHERE TABLE_SCHEMA = ? ${targetTable ? 'AND TABLE_NAME = ?' : ''}
        ORDER BY TABLE_NAME
        LIMIT ?`,
-      [connector.database, maxAssets]
+      targetTable ? [connector.database, targetTable, maxAssets] : [connector.database, maxAssets]
     );
     const assets: IOntologyEnvironmentAsset[] = [];
     for (const table of tables) {
@@ -1548,7 +1730,7 @@ async function scanMysqlConnector(connector: IOntologyConnectorInput, maxAssets:
   }
 }
 
-async function scanPostgresqlConnector(connector: IOntologyConnectorInput, maxAssets: number): Promise<IOntologyEnvironmentAsset[]> {
+async function scanPostgresqlConnector(connector: IOntologyConnectorInput, maxAssets: number, targetTable?: string): Promise<IOntologyEnvironmentAsset[]> {
   if (!connector.host || !connector.database) throw new Error('PostgreSQL connector requires host and database.');
   const client = new PostgresClient({
     host: connector.host,
@@ -1564,18 +1746,21 @@ async function scanPostgresqlConnector(connector: IOntologyConnectorInput, maxAs
     const tables = await client.query<{ table_name: string; table_type: string }>(
       `SELECT table_name, table_type
        FROM information_schema.tables
-       WHERE table_schema = $1
+       WHERE table_schema = $1 ${targetTable ? 'AND table_name = $3' : ''}
        ORDER BY table_name
        LIMIT $2`,
-      [schema, maxAssets]
+      targetTable ? [schema, maxAssets, targetTable] : [schema, maxAssets]
     );
     const assets: IOntologyEnvironmentAsset[] = [];
     for (const table of tables.rows) {
-      const columns = await client.query<{ column_name: string; data_type: string; is_nullable: string }>(
-        `SELECT column_name, data_type, is_nullable
-         FROM information_schema.columns
-         WHERE table_schema = $1 AND table_name = $2
-         ORDER BY ordinal_position`,
+      const columns = await client.query<{ column_name: string; data_type: string; is_nullable: string; description?: string }>(
+        `SELECT c.column_name, c.data_type, c.is_nullable, pg_catalog.col_description(pc.oid, pa.attnum) AS description
+         FROM information_schema.columns c
+         JOIN pg_catalog.pg_namespace pn ON pn.nspname = c.table_schema
+         JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.oid AND pc.relname = c.table_name
+         JOIN pg_catalog.pg_attribute pa ON pa.attrelid = pc.oid AND pa.attname = c.column_name
+         WHERE c.table_schema = $1 AND c.table_name = $2
+         ORDER BY c.ordinal_position`,
         [schema, table.table_name]
       );
       assets.push(
@@ -1587,6 +1772,7 @@ async function scanPostgresqlConnector(connector: IOntologyConnectorInput, maxAs
             name: column.column_name,
             dataType: column.data_type || 'string',
             nullable: column.is_nullable.toUpperCase() === 'YES',
+            description: column.description || undefined,
           })),
           metadata: { database: connector.database ?? '', schema, tableType: table.table_type },
         })
@@ -1985,14 +2171,15 @@ async function previewAsset(asset: IOntologyEnvironmentAsset, connector: IOntolo
 
 function previewSqliteAsset(asset: IOntologyEnvironmentAsset, connector: IOntologyConnectorConfig, limit: number): IOntologyPreviewAssetResult {
   const sqlitePath = typeof asset.metadata.sqlitePath === 'string' ? asset.metadata.sqlitePath : connector.path;
-  if (!sqlitePath) throw new Error('SQLite asset path is unavailable.');
-  const db = new BetterSqlite3(sqlitePath, { readonly: true, fileMustExist: true });
-  try {
-    const rows = db.prepare(`SELECT * FROM ${quoteSqlIdentifier(asset.name)} LIMIT ${limit + 1}`).all() as Array<Record<string, unknown>>;
-    return previewFromRecords(asset.id, rows, limit);
-  } finally {
-    db.close();
-  }
+  return withOntologySqlite(sqlitePath, (database) => {
+    const statement = database.prepare(`SELECT * FROM ${quoteSqlIdentifier(asset.name)} LIMIT ${limit + 1}`);
+    return previewFromRecords(
+      asset.id,
+      sqliteRows(statement),
+      limit,
+      statement.columns().map((column) => column.name)
+    );
+  });
 }
 
 async function previewMysqlAsset(asset: IOntologyEnvironmentAsset, connector: IOntologyConnectorConfig, limit: number): Promise<IOntologyPreviewAssetResult> {
@@ -2005,8 +2192,13 @@ async function previewMysqlAsset(asset: IOntologyEnvironmentAsset, connector: IO
     connectTimeout: 8000,
   });
   try {
-    const [rows] = await connection.query<RowDataPacket[]>(`SELECT * FROM ${quoteMysqlIdentifier(asset.name)} LIMIT ${limit + 1}`);
-    return previewFromRecords(asset.id, rows, limit);
+    const [rows, fields] = await connection.query<RowDataPacket[]>(`SELECT * FROM ${quoteMysqlIdentifier(asset.name)} LIMIT ${limit + 1}`);
+    return previewFromRecords(
+      asset.id,
+      rows,
+      limit,
+      fields.map((field) => field.name)
+    );
   } finally {
     await connection.end();
   }
@@ -2025,7 +2217,12 @@ async function previewPostgresqlAsset(asset: IOntologyEnvironmentAsset, connecto
   try {
     const schema = typeof asset.metadata.schema === 'string' ? asset.metadata.schema : 'public';
     const result = await client.query<Record<string, unknown>>(`SELECT * FROM ${quoteSqlIdentifier(schema)}.${quoteSqlIdentifier(asset.name)} LIMIT ${limit + 1}`);
-    return previewFromRecords(asset.id, result.rows, limit);
+    return previewFromRecords(
+      asset.id,
+      result.rows,
+      limit,
+      result.fields.map((field) => field.name)
+    );
   } finally {
     await client.end();
   }
@@ -2141,8 +2338,8 @@ function previewStructuredText(assetId: string, fileName: string, text: string, 
   return { assetId, columns: ['content'], rows, rowsReturned: rows.length, truncated: text.split(/\r?\n/).filter(Boolean).length > limit };
 }
 
-function previewFromRecords(assetId: string, records: Array<Record<string, unknown>>, limit: number): IOntologyPreviewAssetResult {
-  const columns = Array.from(new Set(records.flatMap((record) => Object.keys(record))));
+function previewFromRecords(assetId: string, records: Array<Record<string, unknown>>, limit: number, fieldNames: string[] = []): IOntologyPreviewAssetResult {
+  const columns = Array.from(new Set([...fieldNames, ...records.flatMap((record) => Object.keys(record))]));
   const truncated = records.length > limit;
   const rows = records.slice(0, limit).map((record) => columns.map((column) => previewValue(record[column])));
   return { assetId, columns, rows, rowsReturned: rows.length, truncated };

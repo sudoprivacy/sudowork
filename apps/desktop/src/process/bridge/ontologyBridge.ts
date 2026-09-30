@@ -1,4 +1,5 @@
 import type { IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
+import { redactOntologySecrets } from '@process/services/ontology/ontologySnapshot';
 import { ipcBridge } from '@/common';
 import { ontologyService } from '@process/services/ontology/OntologyService';
 import { mainError } from '@process/utils/mainLogger';
@@ -16,22 +17,40 @@ function emitWorkbenchChanged(snapshot: IOntologyWorkbenchSnapshot): void {
   ipcBridge.ontology.workbenchChanged.emit(redactOntologySecrets(snapshot));
 }
 
-function redactOntologySecrets<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((item) => redactOntologySecrets(item)) as T;
-  if (!value || typeof value !== 'object') return value;
-
-  const record = value as Record<string, unknown>;
-  const isConnector = typeof record.sourceType === 'string' && typeof record.probeStatus === 'string';
-  return Object.fromEntries(
-    Object.entries(record).flatMap(([key, item]) => {
-      if (isConnector && (key === 'password' || key === 'credential' || key === 'headers')) return [];
-      if (isConnector && key === 'credentialRef') return item ? [[key, 'stored']] : [];
-      return [[key, redactOntologySecrets(item)]];
-    })
-  ) as T;
-}
-
 export function initOntologyBridge(): void {
+  ontologyService.onAgentRegistrationChanged(emitWorkbenchChanged);
+  ipcBridge.ontology.saveStudioModel.provider(async (input) => {
+    try {
+      const snapshot = await ontologyService.saveStudioModel(input);
+      emitWorkbenchChanged(snapshot);
+      return ok(snapshot);
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.previewStandardFile.provider(async (input) => {
+    try {
+      return ok(await ontologyService.previewStandardFile(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.importStandardFile.provider(async (input) => {
+    try {
+      const snapshot = await ontologyService.importStandardFile(input);
+      emitWorkbenchChanged(snapshot);
+      return ok(snapshot);
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.exportStandardFile.provider(async (input) => {
+    try {
+      return ok(await ontologyService.exportStandardFile(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
   ipcBridge.ontology.listWorkbenches.provider(async () => {
     try {
       return ok(await ontologyService.listWorkbenches());
@@ -161,6 +180,16 @@ export function initOntologyBridge(): void {
   ipcBridge.ontology.syncAssetSchema.provider(async (input) => {
     try {
       const snapshot = await ontologyService.syncAssetSchema(input);
+      emitWorkbenchChanged(snapshot);
+      return ok(snapshot);
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcBridge.ontology.describeAssetFields.provider(async (input) => {
+    try {
+      const snapshot = await ontologyService.describeAssetFields(input);
       emitWorkbenchChanged(snapshot);
       return ok(snapshot);
     } catch (err) {

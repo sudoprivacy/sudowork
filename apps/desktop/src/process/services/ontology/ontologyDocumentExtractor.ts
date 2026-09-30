@@ -226,6 +226,14 @@ export async function extractOntologyDocuments(documents: IOntologyDocument[], b
   if (businessGoal.length > ONTOLOGY_DOCUMENT_MAX_GOAL_CHARS || documents.reduce((total, document) => total + document.text.length, 0) > ONTOLOGY_DOCUMENT_MAX_TEXT_CHARS) throw documentError('textTooLarge');
   if (documents.some((document) => !document.text.trim())) throw documentError('emptyDocument');
 
+  return validateOntologyDocumentResponse(
+    await runOntologyModelPrompt(extractionPrompt(documents, businessGoal)),
+    documents.map((document) => document.assetId)
+  );
+}
+
+/** Run a bounded prompt in the selected model's ephemeral session without tool access. */
+export async function runOntologyModelPrompt(prompt: string): Promise<string> {
   const connection = new AcpConnection({ isSensitive: true });
   let privateDir: string | undefined;
   let sessionId: string | undefined;
@@ -328,13 +336,10 @@ export async function extractOntologyDocuments(documents: IOntologyDocument[], b
       assertActive();
       if (typeof session.sessionId !== 'string' || !session.sessionId) throw documentError('modelFailed');
       sessionId = session.sessionId;
-      const response: unknown = await connection.sendPrompt(extractionPrompt(documents, businessGoal));
+      const response: unknown = await connection.sendPrompt(prompt);
       assertActive();
       if (!isRecord(response) || response.stopReason !== 'end_turn') throw documentError('modelFailed');
-      return validateOntologyDocumentResponse(
-        output,
-        documents.map((document) => document.assetId)
-      );
+      return output;
     } catch (error) {
       if (failure) throw failure;
       if (error instanceof Error && ['modelUnavailable', 'modelFailed', 'invalidResult', 'noObjects'].some((key) => error.message === `ontology.documentErrors.${key}`)) throw error;

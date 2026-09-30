@@ -9,10 +9,10 @@ import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-commo
 import type { IOntologyDocumentExtraction, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import { OntologyEngine } from '@sudowork/ontology-engine';
 import { OntologyService } from '@process/services/ontology/OntologyService';
-import type { OntologyDatabase } from '@process/services/ontology/OntologyDatabase';
+import type { OntologyStudioDatabase as OntologyDatabase } from '@process/services/ontology/OntologyStudioDatabase';
 
-vi.mock('@process/services/ontology/OntologyDatabase', () => ({
-  OntologyDatabase: class {},
+vi.mock('@process/services/ontology/OntologyStudioDatabase', () => ({
+  OntologyStudioDatabase: class {},
 }));
 vi.mock('@/agent/acp/AcpConnection', () => ({ AcpConnection: class {} }));
 vi.mock('@process/services/scode/ScodeInstallService', () => ({ getScodePath: () => null }));
@@ -25,6 +25,7 @@ describe('OntologyService workspace selection', () => {
     });
     const database = {
       setActiveWorkspaceId: vi.fn(),
+      getSnapshot: vi.fn().mockReturnValue(snapshot),
     } as unknown as OntologyDatabase;
     const engine = {
       getWorkbench: vi.fn().mockResolvedValue(snapshot),

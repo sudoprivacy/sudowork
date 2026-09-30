@@ -15,8 +15,10 @@ import type {
   IOntologyRegisterAgentInput,
   IOntologyRelationDraftInput,
 } from '@sudowork/ontology-common';
+import { ipcBridge } from '@/common';
 import { mainError, mainLog } from '@process/utils/mainLogger';
 import { ontologyService } from '@process/services/ontology/OntologyService';
+import { redactOntologySecrets } from './ontologySnapshot';
 
 interface IHandlerContext {
   workspaceId: string;
@@ -39,8 +41,10 @@ type Handler = (ctx: IHandlerContext) => Promise<unknown>;
 let serverInstance: http.Server | null = null;
 let bearerToken: string | null = null;
 let boundPort: number | null = null;
+const scopedTokens = new Map<string, { workspaceId: string; role: 'builder' }>();
 
 const handlers: Record<string, Handler> = {
+  preview_asset: async ({ workspaceId, input }) => ontologyService.previewAsset({ workspaceId, id: String(input.id || ''), limit: typeof input.limit === 'number' ? input.limit : 20 }),
   get_snapshot: async ({ workspaceId }) => ontologyService.getWorkbench({ workspaceId }),
   update_draft: async ({ input }) => ontologyService.updateDraft(sanitize(input, ['title', 'description', 'businessGoal', 'selectedAssetIds'])),
   upsert_object: async ({ input }) => ontologyService.upsertObject(sanitize(input, ['id', 'code', 'name', 'description', 'tier', 'status', 'namespace', 'sourceAssetIds']) as unknown as IOntologyObjectDraftInput),
@@ -81,7 +85,7 @@ const handlers: Record<string, Handler> = {
 };
 
 function sanitize(input: Record<string, unknown>, allowedKeys: string[]): Record<string, unknown> {
-  const output: Record<string, unknown> = {};
+  const output: Record<string, unknown> = input.workspaceId ? { workspaceId: input.workspaceId } : {};
   for (const key of allowedKeys) {
     if (input[key] !== undefined) output[key] = input[key];
   }
@@ -103,7 +107,13 @@ async function readBody(req: http.IncomingMessage): Promise<string> {
  * the existing endpoint. Also returns the token so the caller can push it
  * into the MCP subprocess env.
  */
-export async function ensureOntologyWriteBridge(): Promise<{ port: number; token: string }> {
+export async function ensureOntologyWriteBridge(scope?: { workspaceId: string; role: 'builder' }): Promise<{ port: number; token: string }> {
+  if (scope) {
+    const bridge = await ensureOntologyWriteBridge();
+    const token = randomBytes(24).toString('hex');
+    scopedTokens.set(token, scope);
+    return { port: bridge.port, token };
+  }
   if (serverInstance && bearerToken && boundPort) {
     return { port: boundPort, token: bearerToken };
   }
@@ -135,7 +145,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     const auth = req.headers['authorization'];
-    if (!bearerToken || auth !== `Bearer ${bearerToken}`) {
+    const scoped = typeof auth === 'string' ? scopedTokens.get(auth.replace(/^Bearer /, '')) : undefined;
+    if (!scoped && (!bearerToken || auth !== `Bearer ${bearerToken}`)) {
       writeJson(res, 401, { ok: false, message: 'Unauthorized' });
       return;
     }
@@ -146,6 +157,10 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     const toolName = match[1];
+    if (scoped?.role === 'builder' && ['execute_action', 'approve_all', 'publish_current_draft', 'register_agent_blueprint'].includes(toolName)) {
+      writeJson(res, 403, { ok: false, message: 'This operation requires the workbench review or execution interface.' });
+      return;
+    }
     const handler = handlers[toolName];
     if (!handler) {
       writeJson(res, 404, { ok: false, message: `Unknown tool: ${toolName}` });
@@ -153,10 +168,25 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     const bodyText = await readBody(req);
     const body = bodyText ? (JSON.parse(bodyText) as { workspaceId?: string; input?: Record<string, unknown> }) : {};
-    const workspaceId = typeof body.workspaceId === 'string' && body.workspaceId ? body.workspaceId : await resolveActiveWorkspaceId();
+    if (scoped && body.workspaceId && body.workspaceId !== scoped.workspaceId) {
+      writeJson(res, 403, { ok: false, message: 'Ontology scope mismatch.' });
+      return;
+    }
+    const workspaceId = scoped?.workspaceId || (typeof body.workspaceId === 'string' && body.workspaceId ? body.workspaceId : await resolveActiveWorkspaceId());
     const input = (body.input && typeof body.input === 'object' ? body.input : {}) as Record<string, unknown>;
-    const data = await handler({ workspaceId, input });
-    writeJson(res, 200, { ok: true, data: summarizeResult(data) });
+    if (scoped && toolName === 'execute_logic_function') {
+      const snapshot = await ontologyService.getWorkbench({ workspaceId });
+      const fn = snapshot.logicFunctions.find((item) => (input.id ? item.id === input.id : item.code === input.code));
+      if (fn && fn.runtime !== 'sql' && fn.configuration.builtIn !== 'lookup') {
+        writeJson(res, 403, { ok: false, message: 'Builder validation only executes read-only queries.' });
+        return;
+      }
+    }
+    if (scoped) await ontologyService.getWorkbench({ workspaceId });
+    const data = await handler({ workspaceId, input: { ...input, workspaceId } });
+    const changed = data && typeof data === 'object' && 'snapshot' in data ? data.snapshot : data;
+    if (toolName !== 'get_snapshot' && changed && typeof changed === 'object' && 'workspaceId' in changed && 'objects' in changed) ipcBridge.ontology.workbenchChanged.emit(redactOntologySecrets(changed as import('@sudowork/ontology-common').IOntologyWorkbenchSnapshot));
+    writeJson(res, 200, { ok: true, data: summarizeResult(data, input) });
   } catch (err) {
     mainError('OntologyWriteBridge', 'request failed', err);
     writeJson(res, 500, { ok: false, message: err instanceof Error ? err.message : String(err) });
@@ -168,7 +198,7 @@ async function resolveActiveWorkspaceId(): Promise<string> {
   return summary.activeWorkspaceId || summary.items[0]?.workspaceId || 'default';
 }
 
-function summarizeResult(data: unknown): unknown {
+function summarizeResult(data: unknown, input: Record<string, unknown> = {}): unknown {
   // Snapshots are enormous; return only counts + top-level lists so the LLM
   // context doesn't balloon. Anything that isn't a snapshot passes through.
   if (!data || typeof data !== 'object') return data;
@@ -179,19 +209,30 @@ function summarizeResult(data: unknown): unknown {
   if (!target) return data;
   const objects = Array.isArray(target.objects) ? (target.objects as Array<Record<string, unknown>>) : [];
   const relations = Array.isArray(target.relations) ? (target.relations as Array<Record<string, unknown>>) : [];
+  const offset = typeof input.offset === 'number' ? Math.max(0, Math.floor(input.offset)) : 0;
+  const limit = typeof input.limit === 'number' ? Math.max(1, Math.min(100, Math.floor(input.limit))) : 30;
   return {
+    totalObjects: objects.length,
+    totalRelations: relations.length,
+    offset,
+    limit,
+    hasMore: offset + limit < Math.max(objects.length, relations.length),
+    logicFunctions: target.logicFunctions,
     workspaceId: target.workspaceId,
+    revision: target.revision,
+    assets: target.assets,
     stats: target.stats,
     draft: target.draft,
-    objects: objects.slice(0, 30).map((obj) => ({
+    objects: objects.slice(offset, offset + limit).map((obj) => ({
       id: obj.id,
+      iri: obj.iri,
       code: obj.code,
       name: obj.name,
       tier: obj.tier,
       reviewDecision: obj.reviewDecision,
-      attributes: Array.isArray(obj.attributes) ? (obj.attributes as Array<Record<string, unknown>>).map((attr) => ({ id: attr.id, code: attr.code, name: attr.name, dataType: attr.dataType, required: attr.required })) : [],
+      attributes: Array.isArray(obj.attributes) ? (obj.attributes as Array<Record<string, unknown>>).map((attr) => ({ id: attr.id, code: attr.code, name: attr.name, dataType: attr.dataType, required: attr.required, iri: attr.iri, mappedField: attr.mappedField })) : [],
     })),
-    relations: relations.slice(0, 30).map((rel) => ({
+    relations: relations.slice(offset, offset + limit).map((rel) => ({
       id: rel.id,
       code: rel.code,
       name: rel.name,
@@ -212,4 +253,14 @@ function writeJson(res: http.ServerResponse, status: number, body: unknown): voi
   const text = JSON.stringify(body);
   res.writeHead(status, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(text) });
   res.end(text);
+}
+
+/** Release the local bridge and all session-scoped credentials. */
+export async function closeOntologyWriteBridge(): Promise<void> {
+  const server = serverInstance;
+  serverInstance = null;
+  bearerToken = null;
+  boundPort = null;
+  scopedTokens.clear();
+  if (server) await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 }
