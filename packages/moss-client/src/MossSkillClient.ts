@@ -11,7 +11,7 @@ export interface MossSkillPort {
   hubList(ctx: MossCallContext, searchParams: Record<string, string>): Promise<unknown>
   hubDetail(ctx: MossCallContext, id: string): Promise<unknown>
   installed(ctx: MossCallContext): Promise<unknown>
-  install(ctx: MossCallContext, body: unknown): Promise<unknown>
+  install(ctx: MossCallContext, id: string): Promise<unknown>
   setEnabled(ctx: MossCallContext, body: { skillName: string; enabled: boolean }): Promise<unknown>
   uploadCustom(ctx: MossCallContext, body: { file: string }): Promise<unknown>
   uninstall(ctx: MossCallContext, body: unknown): Promise<unknown>
@@ -48,8 +48,13 @@ export function createMossSkillPort(mossFetch: MossFetch): MossSkillPort {
       }),
     installed: (ctx) =>
       mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/skills/installed', accessToken: ctx.accessToken }),
-    install: (ctx, body) =>
-      mossFetch(ctx.baseUrl, { method: 'POST', path: '/api/v1/skills/install', accessToken: ctx.accessToken, body }),
+    install: (ctx, id) =>
+      mossFetch(ctx.baseUrl, {
+        method: 'POST',
+        path: '/api/v1/client/catalog/install',
+        accessToken: ctx.accessToken,
+        body: { kind: 'skills', source: 'hub', id },
+      }),
     setEnabled: (ctx, body) =>
       mossFetch(ctx.baseUrl, { method: 'PATCH', path: '/api/v1/skills/enabled', accessToken: ctx.accessToken, body }),
     uploadCustom: (ctx, body) =>

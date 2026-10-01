@@ -310,6 +310,44 @@ describe('mossAdapter: assistant/skill management channels', () => {
     expect(content).toBe('')
   })
 
+  it('installs by catalog ID without forwarding browser package URLs or versions', async () => {
+    const fetchMock = stubFetch({ '/api/skills/install': { name: 'video-subtitles' } })
+    const result = await ipcBridge.skillHub.downloadAndInstallSkill.invoke({
+      skillName: 'video-subtitles',
+      displayName: 'Video subtitles',
+      version: 'untrusted',
+      sourceUrl: 'http://untrusted/package.zip',
+      checksum: 'untrusted',
+      skillMeta: { id: 'skill-id' } as NonNullable<
+        Parameters<typeof ipcBridge.skillHub.downloadAndInstallSkill.invoke>[0]['skillMeta']
+      >,
+    })
+    expect(result.success).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/skills/install',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ id: 'skill-id' }),
+      }),
+    )
+  })
+
+  it('reads skill versions and categories from authenticated WebUI routes', async () => {
+    stubFetch({
+      '/api/skills/hub/categories': ['Creation'],
+      '/api/skills/hub/skill-id': { versions: [{ version: '1.0.1' }] },
+    })
+    expect(await ipcBridge.skillHub.fetchCategories.invoke()).toEqual({
+      success: true,
+      data: ['Creation'],
+    })
+    expect(await ipcBridge.skillHub.fetchSkillDetail.invoke({ skillId: 'skill-id' })).toEqual({
+      success: true,
+      data: { versions: [{ version: '1.0.1' }] },
+    })
+  })
+
   it('get-installed-skills maps rows and backfills meta.source_type', async () => {
     stubFetch({
       '/api/skills': [

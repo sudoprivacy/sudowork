@@ -168,8 +168,10 @@ function createFakeSkills(): MossSkillPort {
     async installed(tk) {
       return installedByToken[tk.accessToken] ?? []
     },
-    async install() {
-      return { ok: true }
+    async install(ctx, id) {
+      if (id === 'private-skill') throw new MossHttpError(403, '', '')
+      if (id === 'missing-skill') throw new MossHttpError(404, '', '')
+      return { id, userToken: ctx.accessToken }
     },
     async setEnabled() {
       return { ok: true }
@@ -319,6 +321,25 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
       .set('Origin', testConfig.publicOrigin)
       .send({ name: 'helper', updates: { description: 'x' } })
     expect(ok.status).toBe(200)
+  })
+
+  test('ordinary users install catalog IDs while Moss denies private or missing skills', async () => {
+    const install = (body: Record<string, unknown>) =>
+      request(app)
+        .post('/api/skills/install')
+        .set('Cookie', cookieA)
+        .set('Origin', testConfig.publicOrigin)
+        .send(body)
+    const result = await install({
+      id: 'public-skill',
+      sourceUrl: 'http://untrusted/package.zip',
+      source: 'tenant',
+    })
+    expect(result.status).toBe(200)
+    expect(result.body).toEqual({ id: 'public-skill', userToken: 'at-a' })
+    expect((await install({ id: 'private-skill' })).status).toBe(403)
+    expect((await install({ id: 'missing-skill' })).status).toBe(404)
+    expect((await install({ name: 'missing-id' })).status).toBe(400)
   })
 
   test('skill enabled forwards single object and requires admin scope', async () => {

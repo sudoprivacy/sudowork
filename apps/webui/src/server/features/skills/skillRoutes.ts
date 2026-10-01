@@ -124,7 +124,7 @@ export function createSkillRouter(deps: SkillDeps): Router {
     requireSession,
     wrap(async (req) => {
       const body = InstallRequestSchema.parse(req.body)
-      return installFromHub(deps, await token(req), body.name)
+      return installFromHub(deps, await token(req), body.id)
     }),
   )
   router.patch(

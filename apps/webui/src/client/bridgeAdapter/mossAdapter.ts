@@ -1515,6 +1515,19 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok()
   },
   // --- skill-hub: browse store (hub) & exclusive (tenant) lists ---
+  'skill-hub.fetch-categories': async () => ok(await apiFetch('/api/skills/hub/categories')),
+  'skill-hub.fetch-skill-detail': async (req) =>
+    ok(await apiFetch(`/api/skills/hub/${encodeURIComponent(String(req?.skillId ?? ''))}`)),
+  'skill-hub.download-and-install-skill': async (req) => {
+    const meta = req?.skillMeta as { id?: unknown } | undefined
+    if (typeof meta?.id !== 'string' || !meta.id.trim()) return fail('INVALID_REQUEST')
+    const result = await apiFetch('/api/skills/install', {
+      method: 'POST',
+      body: JSON.stringify({ id: meta.id }),
+    })
+    emitterRef?.emit('skill-hub.changed', { source: 'hub' })
+    return ok(result)
+  },
   'skill-hub.fetch-skills': async (req) => {
     if (req?.tenantId) {
       // 专属：/tenant 为 session 维度，moss 按登录企业身份返回，无需 tenant_id
