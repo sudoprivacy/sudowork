@@ -114,7 +114,7 @@ export class LocalPythonEngine implements ITranscriptionEngine {
     if (this.config.localEngine === 'sensevoice') {
       return [...base, 'funasr'];
     }
-    return [...base, 'faster-whisper'];
+    return [...base, 'faster-whisper==1.2.1', 'av==16.1.0'];
   }
 
   /** Best-effort: ensure ASR pip deps are present. Returns false if Python is
@@ -132,7 +132,7 @@ export class LocalPythonEngine implements ITranscriptionEngine {
   private async provisionDeps(pythonPath: string): Promise<boolean> {
     // Probe the interpreter itself: a marker from an older Python install does
     // not establish that this interpreter can import the required packages.
-    const imports = this.config.localEngine === 'sensevoice' ? 'import pysilk, funasr' : 'import pysilk, faster_whisper';
+    const imports = this.config.localEngine === 'sensevoice' ? 'import pysilk, funasr' : "import pysilk, faster_whisper, av; assert int(av.__version__.split('.')[0]) < 17";
     try {
       await execFileAsync(pythonPath, ['-c', imports], { timeout: 30_000, windowsHide: true });
       return true;
