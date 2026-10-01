@@ -420,12 +420,25 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
     return withTimeSeparators;
   }, [list, aiProcessing, showToolCalls]);
 
+  // Actions render inside the preceding message. A null virtual row at the
+  // initial scroll target prevents Virtuoso from measuring the chat history.
+  const { visibleItems, actionsByMessageId } = useMemo(() => {
+    const actions = new Map<string, Extract<IMessageVO, { type: 'turn_actions' }>>();
+    const items = processedList.filter((item, index) => {
+      if (item.type !== 'turn_actions') return true;
+      const previous = processedList[index - 1];
+      if (previous) actions.set(previous.id, item);
+      return false;
+    });
+    return { visibleItems: items, actionsByMessageId: actions };
+  }, [processedList]);
+
   const isShowingEmptyState = Boolean(isEmptyStateReady && emptyState && processedList.length === 0 && !aiProcessing);
 
   // Use auto-scroll hook
   const { virtuosoRef, handleScroll, handleAtBottomStateChange, handleFollowOutput, handleScrollerRef, showScrollButton, scrollToBottom, hideScrollButton, bottomSpacerHeight } = useAutoScroll({
     messages: list,
-    items: processedList,
+    items: visibleItems,
   });
 
   useEffect(() => {
@@ -434,7 +447,7 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
       if (!detail || !detail.conversationId) return;
       if (!conversationContext?.conversationId || detail.conversationId !== conversationContext.conversationId) return;
 
-      const targetIndex = processedList.findIndex((item) => {
+      const targetIndex = visibleItems.findIndex((item) => {
         if ((item as { type?: string }).type === 'file_summary' || (item as { type?: string }).type === 'tool_summary' || (item as { type?: string }).type === 'turn_actions' || (item as { type?: string }).type === 'time_separator' || (item as { type?: string }).type === 'loading_indicator') {
           return false;
         }
@@ -459,7 +472,7 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
     return () => {
       window.removeEventListener(CHAT_MESSAGE_JUMP_EVENT, handleMessageJump);
     };
-  }, [conversationContext?.conversationId, hideScrollButton, processedList, virtuosoRef]);
+  }, [conversationContext?.conversationId, hideScrollButton, visibleItems, virtuosoRef]);
 
   // Click scroll button
   const handleScrollButtonClick = () => {
@@ -468,7 +481,7 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
   };
 
   const renderItem = (_index: number, item: (typeof processedList)[0]) => {
-    const nextItem = processedList[_index + 1];
+    const nextItem = actionsByMessageId.get(item.id);
     const turnActionsNode = 'type' in item && nextItem?.type === 'turn_actions' ? <TurnActions turnTexts={nextItem.turnTexts} turnTextsRaw={nextItem.turnTextsRaw} conversationId={nextItem.conversationId} tokenUsage={nextItem.tokenUsage} showTokenUsageBadge={showTokenUsageBadges} /> : undefined;
 
     if ('type' in item && item.type === 'loading_indicator') {
@@ -488,7 +501,7 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
                 (() => {
                   // Check if this summary is part of the ongoing AI response
                   // 检查这个汇总是否是当前正在进行的 AI 响应的一部分
-                  const isLastItem = _index >= processedList.length - 2; // last or second to last (actions)
+                  const isLastItem = _index === visibleItems.length - 1;
                   const isStreaming = item.messages.some((m) => m.id === lastAiMessageId) || (aiProcessing && isLastItem);
 
                   return (
@@ -537,8 +550,8 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
             ref={virtuosoRef}
             scrollerRef={handleScrollerRef}
             className='flex-1 h-full pb-10px box-border'
-            data={processedList}
-            initialTopMostItemIndex={processedList.length - 1}
+            data={visibleItems}
+            initialTopMostItemIndex={Math.max(0, visibleItems.length - 1)}
             // atBottom must encompass the dynamic spacer so "at bottom" still
             // means "the last message is in view" while the user prompt is
             // pinned at the top with an empty canvas below it.
