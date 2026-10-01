@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 type ConnectImpl = () => Promise<void>;
 type SpawnImpl = () => Promise<unknown>;
 
-async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric: SpawnImpl }) {
+async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric: SpawnImpl; localApiPort?: number }) {
   vi.resetModules();
   vi.doMock('@process/telemetry', () => ({ recordFirstToken: vi.fn() }));
   const mainLog = vi.fn();
@@ -16,7 +16,8 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
   vi.doMock('@process/utils/mainLogger', () => ({ mainLog, mainWarn }));
   vi.doMock('@process/utils/shellEnv', () => ({ resolveNpxPath: vi.fn(() => 'npx') }));
   vi.doMock('@process/services/authProxy', () => ({
-    getAuthProxyPort: vi.fn(() => null),
+    ensureLocalAgentApiPort: vi.fn(async () => opts.localApiPort ?? null),
+    getCredentialProxyUrl: vi.fn(() => null),
     registerToken: vi.fn(),
     revokeToken: vi.fn(),
   }));
@@ -78,6 +79,17 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
 }
 
 describe('AcpConnection nexus-tunnel routing', () => {
+  it('gives online local agents a media endpoint without a credential proxy', async () => {
+    const { AcpConnection, spawnGeneric } = await loadAcpConnection({
+      localApiPort: 43210,
+      grpcConnect: () => Promise.resolve(),
+      spawnGeneric: () => Promise.reject(new Error('LOCAL_SPAWN_REACHED')),
+    });
+    await expect(new AcpConnection().connect('scode', '/opt/scode', '/tmp/ws', [], {})).rejects.toThrow('LOCAL_SPAWN_REACHED');
+    expect(spawnGeneric).toHaveBeenCalledWith('scode', '/opt/scode', '/tmp/ws', [], expect.objectContaining({ SUDOWORK_AUTH_PROXY_BASE_URL: 'http://127.0.0.1:43210', SUDOWORK_AUTH_PROXY_TOKEN: expect.any(String) }));
+    expect(spawnGeneric.mock.calls[0]).not.toEqual(expect.arrayContaining([expect.objectContaining({ SUDOWORK_AUTH_PROXY_URL: expect.anything() })]));
+  });
+
   it('falls back to a local spawn when the tunnel connect fails', async () => {
     // grpc tunnel unavailable (e.g. daemon lacks managed_agent) → the local
     // spawn path must run. It rejects with a distinct marker so we can prove

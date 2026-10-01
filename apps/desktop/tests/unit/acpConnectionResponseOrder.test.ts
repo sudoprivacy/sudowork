@@ -34,7 +34,8 @@ async function loadAcpConnection() {
     resolveNpxPath: vi.fn(() => 'npx'),
   }));
   vi.doMock('@process/services/authProxy', () => ({
-    getAuthProxyPort: vi.fn(() => null),
+    ensureLocalAgentApiPort: vi.fn(async () => null),
+    getCredentialProxyUrl: vi.fn(() => null),
     registerToken: vi.fn(),
     revokeToken: vi.fn(),
   }));

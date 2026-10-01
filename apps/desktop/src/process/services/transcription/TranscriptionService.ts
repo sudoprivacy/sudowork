@@ -20,10 +20,10 @@
  *   - cloud (opt-in): config switch for weak machines — NOT wired by default
  *     because audio would leave the device (privacy tradeoff).
  *
- * Failure policy: every public call resolves to a string. On any failure
+ * Failure policy for channel voice messages: transcribe resolves to a string. On failure
  * (no Python, missing deps, ASR error, timeout) it returns an empty string so the
  * caller can fall back to the `[voice message]` placeholder and never break the
- * channel. It must never throw or hang.
+ * channel. Subtitle generation instead reports failures to the requesting agent.
  */
 
 import { execFile } from 'child_process';
@@ -31,8 +31,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
 import { promisify } from 'util';
+import { z } from 'zod';
 import { ProcessConfig } from '@/process/initStorage';
-import { getDataPath } from '@/process/utils';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { pythonRuntimeService } from '@/process/services/python/PythonRuntimeService';
 
@@ -45,6 +45,19 @@ const TAG = 'Transcription';
 const TRANSCRIBE_TIMEOUT_MS = 5 * 60 * 1000;
 /** First-run pip install of the ASR deps can be slow on China mirrors. */
 const PROVISION_TIMEOUT_MS = 10 * 60 * 1000;
+const SUBTITLE_TIMEOUT_MS = 45 * 60 * 1000;
+const dependencyInstalls = new Map<string, Promise<boolean>>();
+
+const transcriptSchema = z.object({ text: z.string() });
+const subtitleSchema = transcriptSchema.extend({ format: z.literal('srt'), srt: z.string(), language: z.string().min(1) });
+
+export type SubtitleTranscript = z.infer<typeof subtitleSchema>;
+
+export interface SubtitleTranscriptionOptions {
+  model?: string;
+  language?: string;
+  signal?: AbortSignal;
+}
 
 export type LocalEngineName = 'faster-whisper' | 'sensevoice';
 
@@ -85,8 +98,7 @@ function getScriptPath(): string {
 
 /**
  * Local CPU ASR engine. Spawns the provisioned Python with transcribe.py.
- * pip deps (faster-whisper / pilk, or funasr for SenseVoice) are installed lazily
- * on first use and remembered via a marker file so we don't reinstall every call.
+ * Dependencies are checked in the selected interpreter and installed lazily.
  */
 export class LocalPythonEngine implements ITranscriptionEngine {
   readonly name = 'local';
@@ -105,18 +117,28 @@ export class LocalPythonEngine implements ITranscriptionEngine {
     return [...base, 'faster-whisper'];
   }
 
-  private markerPath(): string {
-    const dir = path.join(getDataPath(), 'transcription');
-    fs.mkdirSync(dir, { recursive: true });
-    return path.join(dir, `.deps-${this.config.localEngine}`);
-  }
-
   /** Best-effort: ensure ASR pip deps are present. Returns false if Python is
    *  unavailable (caller then falls back). A failed install is non-fatal — the
    *  transcribe step will surface a structured error and we fall back anyway. */
   private async ensureDeps(pythonPath: string): Promise<boolean> {
-    const marker = this.markerPath();
-    if (fs.existsSync(marker)) return true;
+    const key = `${pythonPath}:${this.config.localEngine}`;
+    const pending = dependencyInstalls.get(key);
+    if (pending) return pending;
+    const install = this.provisionDeps(pythonPath).finally(() => dependencyInstalls.delete(key));
+    dependencyInstalls.set(key, install);
+    return install;
+  }
+
+  private async provisionDeps(pythonPath: string): Promise<boolean> {
+    // Probe the interpreter itself: a marker from an older Python install does
+    // not establish that this interpreter can import the required packages.
+    const imports = this.config.localEngine === 'sensevoice' ? 'import pysilk, funasr' : 'import pysilk, faster_whisper';
+    try {
+      await execFileAsync(pythonPath, ['-c', imports], { timeout: 30_000, windowsHide: true });
+      return true;
+    } catch {
+      // Install only after an import failed, including on the first call.
+    }
 
     const pkgs = this.requiredPackages();
     mainLog(TAG, `Provisioning ASR deps (${pkgs.join(', ')}) — first run, may be slow`);
@@ -124,8 +146,8 @@ export class LocalPythonEngine implements ITranscriptionEngine {
     try {
       await execFileAsync(pythonPath, ['-m', 'pip', 'install', '-i', mirror, '--extra-index-url', 'https://pypi.org/simple', ...pkgs], {
         timeout: PROVISION_TIMEOUT_MS,
+        windowsHide: true,
       });
-      fs.writeFileSync(marker, new Date().toISOString());
       return true;
     } catch (err) {
       mainWarn(TAG, 'Failed to provision ASR deps; will attempt transcription anyway', err);
@@ -134,39 +156,64 @@ export class LocalPythonEngine implements ITranscriptionEngine {
   }
 
   async transcribe(audioPath: string, codec?: string): Promise<string> {
-    const status = await pythonRuntimeService.checkInstalled();
-    if (!status.installed || !status.path) {
-      mainWarn(TAG, 'Python runtime not installed — cannot transcribe');
+    try {
+      return parseTranscriptOutput(await this.run(audioPath, codec));
+    } catch (err) {
+      mainWarn(TAG, 'Transcription failed', err instanceof Error ? err.message : String(err));
       return '';
+    }
+  }
+
+  /** Generate subtitles with strict errors; a failed job must never look like an empty success. */
+  async transcribeSubtitles(audioPath: string, signal?: AbortSignal): Promise<SubtitleTranscript> {
+    const output = await this.run(audioPath, undefined, 'srt', signal);
+    const result = subtitleSchema.parse(parseHelperOutput(output));
+    if (!result.srt.trim()) throw new Error('No speech was detected in this media file.');
+    return result;
+  }
+
+  private async run(audioPath: string, codec?: string, format: 'text' | 'srt' = 'text', signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted();
+    let status = await pythonRuntimeService.checkInstalled();
+    if ((!status.installed || !status.path) && format === 'srt') {
+      mainLog(TAG, 'Preparing Python for subtitle generation');
+      await pythonRuntimeService.install((phase) => mainLog(TAG, `Python setup: ${phase}`));
+      status = await pythonRuntimeService.checkInstalled();
+    }
+    if (!status.installed || !status.path) {
+      throw new Error('Python is unavailable. Install Python in Sudowork Settings > Tools, then retry.');
     }
     const python = status.path;
 
     const script = getScriptPath();
     if (!fs.existsSync(script)) {
-      mainWarn(TAG, `transcribe.py not found at ${script}`);
-      return '';
+      throw new Error(`Transcription helper not found: ${script}`);
     }
 
     // Provisioning failure is non-fatal; the script reports a structured error.
-    await this.ensureDeps(python);
+    const isReady = await this.ensureDeps(python);
+    if (!isReady && format === 'srt') throw new Error('Could not install speech recognition dependencies. Check the network and retry.');
+    signal?.throwIfAborted();
 
     const argv = [script, '--audio', audioPath, '--engine', this.config.localEngine];
     if (codec) argv.push('--codec', codec);
     if (this.config.model) argv.push('--model', this.config.model);
     if (this.config.language) argv.push('--language', this.config.language);
+    if (format === 'srt') argv.push('--format', 'srt');
 
     try {
       const { stdout } = await execFileAsync(python, argv, {
-        timeout: TRANSCRIBE_TIMEOUT_MS,
+        timeout: format === 'srt' ? SUBTITLE_TIMEOUT_MS : TRANSCRIBE_TIMEOUT_MS,
         maxBuffer: 16 * 1024 * 1024,
+        windowsHide: true,
+        signal,
+        env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
       });
-      return parseTranscriptOutput(stdout);
-    } catch (err: any) {
-      // execFile rejects on non-zero exit; the script still prints JSON on stdout.
-      const text = parseTranscriptOutput(err?.stdout ?? '');
-      if (text) return text;
-      mainWarn(TAG, 'Transcription failed', err?.stderr || err?.message || err);
-      return '';
+      return stdout;
+    } catch (err) {
+      const stdout = (err as { stdout?: string }).stdout;
+      if (stdout) parseHelperOutput(stdout);
+      throw err;
     }
   }
 }
@@ -186,26 +233,33 @@ export class CloudEngine implements ITranscriptionEngine {
 
 /** Parse the helper's stdout (a single JSON object) into transcript text. */
 export function parseTranscriptOutput(stdout: string): string {
+  try {
+    return transcriptSchema.parse(parseHelperOutput(stdout)).text.trim();
+  } catch {
+    return '';
+  }
+}
+
+/** Read the last JSON result while preserving helper failures for subtitle callers. */
+function parseHelperOutput(stdout: string): unknown {
   const trimmed = (stdout || '').trim();
-  if (!trimmed) return '';
   // The helper prints exactly one JSON object; tolerate trailing log lines by
   // scanning for the last line that parses as JSON.
   const lines = trimmed.split(/\r?\n/);
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
     if (!line.startsWith('{')) continue;
+    let obj: unknown;
     try {
-      const obj = JSON.parse(line) as { text?: string; error?: string };
-      if (obj.error) {
-        mainWarn(TAG, `Transcription helper error: ${obj.error}`);
-        return '';
-      }
-      return (obj.text || '').trim();
+      obj = JSON.parse(line);
     } catch {
-      // keep scanning earlier lines
+      continue;
     }
+    const error = z.object({ error: z.string() }).safeParse(obj);
+    if (error.success) throw new Error(error.data.error);
+    return obj;
   }
-  return '';
+  throw new Error('Speech recognition returned no valid result.');
 }
 
 async function loadConfig(): Promise<TranscriptionConfig> {
@@ -232,6 +286,12 @@ export class TranscriptionService {
 
   private buildEngine(config: TranscriptionConfig): ITranscriptionEngine {
     return config.engine === 'cloud' ? new CloudEngine() : new LocalPythonEngine(config);
+  }
+
+  /** Use the timestamp-capable local engine without changing channel voice settings. */
+  async transcribeSubtitles(audioPath: string, options: SubtitleTranscriptionOptions = {}): Promise<SubtitleTranscript> {
+    const engine = new LocalPythonEngine({ ...DEFAULT_CONFIG, model: options.model ?? '', language: options.language ?? '' });
+    return engine.transcribeSubtitles(audioPath, options.signal);
   }
 
   /**

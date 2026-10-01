@@ -90,7 +90,7 @@ import { injectSkillsDirectoryHint, prepareFirstMessageWithSkillsIndex } from '.
 import { AcpSkillManager } from './AcpSkillManager';
 import { archiveTurnFiles, cleanupIntermediateFiles, cleanupTrackedDraftsOnCancel, type TrackedTurnFile } from './draftsCleanup';
 import { detectBashDraftRestoreCommand, FileIntentClassifier, type BashDraftRestoreDetection, type FileIntentSource, type FileOperationIntent } from './FileIntentClassifier';
-import { applyHiddenPromptPrefix, buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
+import { applyHiddenPromptPrefix, buildAcpModelIdentityReminder, resolveAcpTrackedWorkspacePath, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from './acpWorkspaceTracking';
 import { installWorkspaceSkillsFromTrackedFiles } from './workspaceSkillInstaller';
 import { buildGeneratedFileEntries as buildGeneratedFileEntriesFromTracked, resolveFinalFileDisplayPath as resolveFinalFileDisplayPathPure } from './generatedFileEntries';
 import BaseAgent from './BaseAgent';
@@ -2060,35 +2060,21 @@ This identity statement takes priority over the default identity in USER.md.
     return typeof content === 'string' && content.trim().length > 0;
   }
 
-  private resolveWorkspacePath(requestedPath: string, intent: 'draft' | 'final' = 'final'): string {
-    const workspaceRoot = nodePath.resolve(this.workspace);
-    const trimmedPath = requestedPath.trim();
-    const resolvedPath = nodePath.isAbsolute(trimmedPath) ? nodePath.resolve(trimmedPath) : nodePath.resolve(workspaceRoot, trimmedPath);
-    const relativePath = nodePath.relative(workspaceRoot, resolvedPath);
-
-    if (relativePath && !relativePath.startsWith('..') && !nodePath.isAbsolute(relativePath)) {
-      return resolvedPath;
-    }
-
-    const fallbackDir = intent === 'draft' ? nodePath.join(workspaceRoot, DRAFTS_DIR_NAME) : workspaceRoot;
-    return nodePath.join(fallbackDir, nodePath.basename(trimmedPath));
-  }
-
   private trackTurnFile(input: { requestedPath: string; actualPath?: string; content?: string | null; source: FileIntentSource; kind: 'create' | 'edit'; operationIntent?: FileOperationIntent }): void {
     if (!this.workspace || !input.requestedPath) {
       return;
     }
 
-    const preliminaryPath = input.actualPath || this.resolveWorkspacePath(input.requestedPath);
+    const actualPath = input.actualPath || resolveAcpTrackedWorkspacePath(this.workspace, input.requestedPath);
+    if (!actualPath) return;
     const classification = this.fileIntentClassifier.classify({
-      filePath: preliminaryPath,
+      filePath: actualPath,
       requestedPath: input.requestedPath,
       content: input.content,
       userMessage: this.lastUserMessage,
       source: input.source,
       operationIntent: input.operationIntent,
     });
-    const actualPath = input.actualPath || this.resolveWorkspacePath(input.requestedPath);
     const workspaceRoot = nodePath.resolve(this.workspace);
     const relativePath = nodePath.relative(workspaceRoot, nodePath.resolve(actualPath));
     const trackingKey = relativePath && !relativePath.startsWith('..') && !nodePath.isAbsolute(relativePath) ? relativePath : input.requestedPath;

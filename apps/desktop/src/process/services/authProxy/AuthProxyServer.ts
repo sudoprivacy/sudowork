@@ -11,15 +11,15 @@ import http from 'http';
 import https from 'https';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { URL } from 'url';
-import { mainLog } from '@process/utils/mainLogger';
+import { mainLog, mainError } from '@process/utils/mainLogger';
+import { resolveSecret } from '@/common/nexus/secret-cache';
+import type { AuthProxyRule } from '@/common/types/authProxy';
 import { injectAuth, injectMultiAuth } from './authInjectors';
 import { validateRemoteUrl } from './ssrfGuard';
-import { findRuleForUrl, getRules } from './configItemsLoader';
+import { findRuleForUrl } from './configItemsLoader';
 import { parseSecretKeys, parseSecretMap } from './secretHeaderParser';
 import { handleSecretsRequest } from './secretsApi';
 import { handlePwdLoginRequest } from './pwdLoginApi';
-import { resolveSecret } from '@/common/nexus/secret-cache';
-import type { AuthProxyRule } from '@/common/types/authProxy';
 
 // ============================================================================
 // Types
@@ -54,7 +54,10 @@ export class AuthProxyServer {
   private port: number | null = null;
   private minimatchFn: (str: string, pattern: string) => boolean;
 
-  constructor(minimatchFn: (str: string, pattern: string) => boolean) {
+  constructor(
+    minimatchFn: (str: string, pattern: string) => boolean,
+    private readonly isCredentialProxyEnabled: () => boolean = () => true
+  ) {
     this.minimatchFn = minimatchFn;
   }
 
@@ -133,6 +136,34 @@ export class AuthProxyServer {
     // Secrets CRUD endpoints (token-authenticated)
     const parsedUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
     const pathname = parsedUrl.pathname;
+
+    if (pathname === '/subtitles' || pathname.startsWith('/subtitles/')) {
+      const info = this.parseRequestInfo(req);
+      if (!info.token || !this.isValidToken(info.token)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, msg: 'Invalid or missing proxy token' }));
+        return;
+      }
+      try {
+        const { onSubtitleRequest } = await import('./subtitleApi');
+        await onSubtitleRequest(req, res, pathname);
+      } catch (err) {
+        mainError('AuthProxy', 'Subtitle service unavailable', err);
+        if (!res.destroyed && !res.writableEnded) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, msg: 'Subtitle service is unavailable. Restart Sudowork and retry.' }));
+        }
+      }
+      return;
+    }
+
+    // Online accounts use Moss for credentials. Local media remains available
+    // to their desktop agents; recheck the mode after account switches too.
+    if (!this.isCredentialProxyEnabled()) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Credential requests are handled by Moss in online mode.' }));
+      return;
+    }
 
     if (pathname === '/secrets' || pathname.startsWith('/secrets/')) {
       const info = this.parseRequestInfo(req);

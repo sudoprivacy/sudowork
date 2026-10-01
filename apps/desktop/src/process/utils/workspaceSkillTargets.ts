@@ -26,7 +26,7 @@ export function resolveConversationEnabledSkillNames(conversation?: TChatConvers
   return new Set([...normalizedEnabledSkills, ...normalizedRequestedSkills]);
 }
 
-export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillNames?: ReadonlySet<string>): Promise<Map<string, string>> {
+export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillNames?: ReadonlySet<string>, builtinSkillsDir = path.join(skillsDir, SKILL_SUBDIRS.system, SKILL_SUBDIRS.legacyBuiltin)): Promise<Map<string, string>> {
   const startedAt = Date.now();
   const targets = new Map<string, string>();
 
@@ -85,8 +85,7 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
   };
 
   // 扫描子目录（排除 _disable 目录）
-  const scanSubdir = async (subdirName: string, forceBuiltin: boolean): Promise<void> => {
-    const dir = path.join(skillsDir, subdirName);
+  const scanDir = async (dir: string, forceBuiltin: boolean): Promise<void> => {
     const entries = await fs.readdir(dir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
@@ -104,10 +103,10 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
     // install has a stale `_system/<skill>/` (from before the skill moved into
     // `_builtin/`), the new `_system/_builtin/<skill>/` wins — avoiding a
     // workspace symlink that points at the stale copy.
-    await scanSubdir(SKILL_SUBDIRS.custom, false);
-    await scanSubdir(SKILL_SUBDIRS.hub, false);
-    await scanSubdir(path.join(SKILL_SUBDIRS.system, SKILL_SUBDIRS.legacyBuiltin), true);
-    await scanSubdir(SKILL_SUBDIRS.system, false);
+    await scanDir(path.join(skillsDir, SKILL_SUBDIRS.custom), false);
+    await scanDir(path.join(skillsDir, SKILL_SUBDIRS.hub), false);
+    await scanDir(builtinSkillsDir, true);
+    await scanDir(path.join(skillsDir, SKILL_SUBDIRS.system), false);
 
     // Legacy: scan flat directories for backward compatibility
     const entries = await fs.readdir(skillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);

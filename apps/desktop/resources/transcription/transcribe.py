@@ -3,18 +3,18 @@
 Invoked by the TypeScript TranscriptionService (local engine) as:
 
     python3 transcribe.py --audio <path> [--codec silk|amr|mp3|...] \
-        [--engine faster-whisper|sensevoice] [--model <name>] [--language <lang>]
+        [--engine faster-whisper|sensevoice] [--model <name>] [--language <lang>] \
+        [--format text|srt]
 
 Pipeline:
   1. Decode the input to a 16-bit mono WAV the ASR engine can read.
-     - SILK (Tencent/WeChat voice) is decoded via `pilk`; nothing else can read it.
+     - SILK (Tencent/WeChat voice) is decoded via `pysilk`.
      - Everything else is left to the engine's own ffmpeg/PyAV decoder.
   2. Run the selected CPU-only ASR engine. Models download lazily on first run.
   3. Emit a single JSON object to stdout: {"text": "...", "engine": "...", "language": "..."}.
 
-On failure, emit {"error": "..."} to stdout and exit non-zero. The caller treats
-any non-zero exit (or unparseable stdout) as "transcription unavailable" and falls
-back to the `[voice message]` placeholder, so this script must never hang.
+On failure, emit {"error": "..."} to stdout and exit non-zero. Channel voice callers
+fall back to a placeholder; subtitle callers surface the error to the agent.
 
 This file is intentionally dependency-light at import time: heavy ASR libraries are
 imported lazily inside the engine functions so `--help` / arg errors stay fast and a
@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import tempfile
@@ -82,21 +83,32 @@ def _decode_silk_to_wav(silk_path: str, pcm_rate: int = 24000) -> str:
     return wav_path
 
 
-def _transcribe_faster_whisper(audio_path: str, model: str, language: str | None) -> str:
-    """Transcribe with faster-whisper (CTranslate2, CPU int8)."""
+def _segments_faster_whisper(audio_path: str, model: str, language: str | None) -> tuple[list[tuple[float, float, str]], str]:
+    """Run faster-whisper (CTranslate2, CPU int8) and return timestamped segments.
+
+    faster-whisper already yields per-utterance segments with `.start` / `.end`
+    timestamps; we surface them so callers can build subtitles (SRT). The text-only
+    path just joins the segment texts, so both modes share one ASR pass.
+    """
     from faster_whisper import WhisperModel  # type: ignore
 
     # Default to "small": "base" badly mis-recognizes Mandarin (e.g. 测试→做事 on a
     # real WeChat clip), while "small" is accurate and emits Simplified Chinese for
     # only ~1s more on CPU. Override via the assistant.transcription.model config.
     whisper = WhisperModel(model or "small", device="cpu", compute_type="int8")
-    segments, _info = whisper.transcribe(
+    segments, info = whisper.transcribe(
         audio_path,
         language=language or None,
         beam_size=5,
         vad_filter=True,
     )
-    return "".join(seg.text for seg in segments).strip()
+    return [(float(seg.start or 0.0), float(seg.end or 0.0), seg.text or "") for seg in segments], info.language
+
+
+def _transcribe_faster_whisper(audio_path: str, model: str, language: str | None) -> str:
+    """Transcribe with faster-whisper, returning plain joined text."""
+    segments, _language = _segments_faster_whisper(audio_path, model, language)
+    return "".join(text for _s, _e, text in segments).strip()
 
 
 def _transcribe_sensevoice(audio_path: str, model: str, language: str | None) -> str:
@@ -120,6 +132,42 @@ _ENGINES = {
     "sensevoice": _transcribe_sensevoice,
 }
 
+# Engines that expose timestamped segments (required for SRT subtitle output).
+# SenseVoice via FunASR's simple `generate` call returns one text blob without
+# reliable segment timings, so subtitle generation uses faster-whisper.
+_SEGMENT_ENGINES = {
+    "faster-whisper": _segments_faster_whisper,
+}
+
+
+def _format_timestamp_srt(seconds: float) -> str:
+    """Format a time offset as an SRT timestamp: HH:MM:SS,mmm."""
+    if not math.isfinite(seconds):
+        raise ValueError("Subtitle timestamps must be finite")
+    ms = int(round(max(0.0, seconds) * 1000))
+    hours, ms = divmod(ms, 3_600_000)
+    minutes, ms = divmod(ms, 60_000)
+    secs, ms = divmod(ms, 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
+
+
+def _build_srt(segments: list[tuple[float, float, str]]) -> str:
+    """Build an SRT document from (start, end, text) segments (1-based cue index,
+    empty cues skipped, trailing newline). Returns '' when nothing transcribed."""
+    cues: list[str] = []
+    index = 1
+    for start, end, text in segments:
+        text = " ".join((text or "").split())
+        if not text:
+            continue
+        start_stamp = _format_timestamp_srt(start)
+        end_stamp = _format_timestamp_srt(end)
+        if end <= max(0.0, start) or start_stamp == end_stamp:
+            continue
+        cues.append(f"{index}\n{start_stamp} --> {end_stamp}\n{text}")
+        index += 1
+    return "\n\n".join(cues) + "\n" if cues else ""
+
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="sudowork voice transcription helper")
@@ -128,10 +176,21 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--engine", default="faster-whisper", choices=sorted(_ENGINES))
     parser.add_argument("--model", default="", help="engine-specific model name/path")
     parser.add_argument("--language", default=None, help="language hint (e.g. zh, en); auto if omitted")
+    parser.add_argument(
+        "--format",
+        dest="fmt",
+        default="text",
+        choices=("text", "srt"),
+        help="output shape: 'text' (joined transcript, default) or 'srt' (timestamped subtitles)",
+    )
     args = parser.parse_args(argv)
 
     if not os.path.isfile(args.audio):
         print(json.dumps({"error": f"audio not found: {args.audio}"}))
+        return 2
+
+    if args.fmt == "srt" and args.engine not in _SEGMENT_ENGINES:
+        print(json.dumps({"error": f"srt output requires a segment engine ({', '.join(sorted(_SEGMENT_ENGINES))}); got '{args.engine}'"}))
         return 2
 
     wav_to_clean: str | None = None
@@ -140,6 +199,13 @@ def main(argv: list[str]) -> int:
         if _is_silk(audio_path, args.codec):
             audio_path = _decode_silk_to_wav(audio_path)
             wav_to_clean = audio_path
+
+        if args.fmt == "srt":
+            segments, detected_language = _SEGMENT_ENGINES[args.engine](audio_path, args.model, args.language)
+            text = "".join(seg_text for _s, _e, seg_text in segments).strip()
+            srt = _build_srt(segments)
+            print(json.dumps({"format": "srt", "srt": srt, "text": text, "engine": args.engine, "language": detected_language}))
+            return 0
 
         engine_fn = _ENGINES[args.engine]
         text = engine_fn(audio_path, args.model, args.language)

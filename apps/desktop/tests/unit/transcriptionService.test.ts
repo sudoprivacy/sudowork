@@ -25,9 +25,11 @@ vi.mock('@process/utils/mainLogger', () => ({
 
 // ---- Mock the provisioned Python runtime ----
 const checkInstalled = vi.fn();
+const installPython = vi.fn();
 vi.mock('@/process/services/python/PythonRuntimeService', () => ({
   pythonRuntimeService: {
     checkInstalled: () => checkInstalled(),
+    install: () => installPython(),
   },
 }));
 
@@ -65,8 +67,10 @@ beforeEach(() => {
   execFileCalls.length = 0;
   for (const k of Object.keys(configStore)) delete configStore[k];
   checkInstalled.mockReset();
+  installPython.mockReset().mockResolvedValue({ success: true });
   // Default: pip install (ensureDeps) succeeds; transcription returns a transcript.
   execHandler = (_file, args) => {
+    if (args[0] === '-c') return new Error('dependencies not installed');
     if (args.includes('pip')) return { stdout: '' };
     return { stdout: JSON.stringify({ text: 'hello world', engine: 'faster-whisper' }) };
   };
@@ -103,6 +107,48 @@ describe('TranscriptionService', () => {
     return f;
   };
 
+  it('generates subtitles with auto language independently of channel preferences', async () => {
+    configStore['assistant.transcription.localEngine'] = 'sensevoice';
+    configStore['assistant.transcription.language'] = 'zh';
+    checkInstalled.mockResolvedValue({ installed: true, path: '/usr/bin/python3' });
+    execHandler = (_file, args) => {
+      if (args[0] === '-c') return { stdout: '' };
+      return { stdout: JSON.stringify({ format: 'srt', text: 'Hello', srt: '1\n00:00:00,000 --> 00:00:02,000\nHello\n', language: 'en' }) };
+    };
+    const result = await new TranscriptionService().transcribeSubtitles(audioFile());
+    expect(result.language).toBe('en');
+    const args = execFileCalls.at(-1)!.args;
+    expect(args).toContain('faster-whisper');
+    expect(args).toContain('srt');
+    expect(args).not.toContain('--language');
+    expect(execFileCalls.some((call) => call.args.includes('pip'))).toBe(false);
+  });
+
+  it('rejects failed and silent subtitle jobs instead of returning success', async () => {
+    checkInstalled.mockResolvedValue({ installed: true, path: '/usr/bin/python3' });
+    execHandler = (_file, args) => (args[0] === '-c' ? { stdout: '' } : { stdout: JSON.stringify({ error: 'audio has no stream' }) });
+    await expect(new TranscriptionService().transcribeSubtitles(audioFile())).rejects.toThrow('audio has no stream');
+    execHandler = (_file, args) => (args[0] === '-c' ? { stdout: '' } : { stdout: JSON.stringify({ format: 'srt', text: '', srt: '', language: 'en' }) });
+    await expect(new TranscriptionService().transcribeSubtitles(audioFile())).rejects.toThrow('No speech');
+  });
+
+  it('prepares Python on first subtitle use and rechecks the installed interpreter', async () => {
+    checkInstalled.mockResolvedValueOnce({ installed: false }).mockResolvedValue({ installed: true, path: '/managed/python' });
+    execHandler = (_file, args) => (args[0] === '-c' ? { stdout: '' } : { stdout: JSON.stringify({ format: 'srt', text: 'Hello', srt: '1\n00:00:00,000 --> 00:00:02,000\nHello\n', language: 'en' }) });
+    await new TranscriptionService().transcribeSubtitles(audioFile());
+    expect(installPython).toHaveBeenCalledOnce();
+    expect(checkInstalled).toHaveBeenCalledTimes(2);
+    expect(execFileCalls.at(-1)!.file).toBe('/managed/python');
+  });
+
+  it('retries missing dependencies despite a stale installation marker', async () => {
+    checkInstalled.mockResolvedValue({ installed: true, path: '/usr/bin/python3' });
+    fs.mkdirSync(path.join(tmpDataDir, 'transcription'));
+    fs.writeFileSync(path.join(tmpDataDir, 'transcription', '.deps-faster-whisper'), 'old interpreter');
+    await new TranscriptionService().transcribe(audioFile());
+    expect(execFileCalls.some((call) => call.args.includes('pip'))).toBe(true);
+  });
+
   it('returns empty string when the audio file is missing', async () => {
     checkInstalled.mockResolvedValue({ installed: true, path: '/usr/bin/python3' });
     const svc = new TranscriptionService();
@@ -113,6 +159,7 @@ describe('TranscriptionService', () => {
     checkInstalled.mockResolvedValue({ installed: false });
     const svc = new TranscriptionService();
     expect(await svc.transcribe(audioFile(), 'silk')).toBe('');
+    expect(installPython).not.toHaveBeenCalled();
   });
 
   it('transcribes via the local engine and forwards codec + engine args', async () => {

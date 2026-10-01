@@ -1,7 +1,21 @@
+import path from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { buildAcpModelIdentityReminder, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from '@/process/task/acpWorkspaceTracking';
+import { buildAcpModelIdentityReminder, resolveAcpTrackedWorkspacePath, SCODE_COMPLETION_REMINDER, shouldInjectLanguageReminder, shouldRunCurrentTurnPostCleanup, shouldSkipAcpWorkspaceTrackingPath } from '@/process/task/acpWorkspaceTracking';
 
 describe('acpWorkspaceTracking', () => {
+  test('keeps the actual path of files written inside the workspace', () => {
+    const workspace = path.resolve('workspace');
+    expect(resolveAcpTrackedWorkspacePath(workspace, 'output/captions.srt')).toBe(path.join(workspace, 'output', 'captions.srt'));
+    expect(resolveAcpTrackedWorkspacePath(workspace, path.join(workspace, 'captions.srt'))).toBe(path.join(workspace, 'captions.srt'));
+  });
+
+  test('does not fabricate workspace cards or cleanup targets for external deliverables', () => {
+    const workspace = path.resolve('workspace');
+    expect(resolveAcpTrackedWorkspacePath(workspace, path.resolve('deliverables', 'captions.srt'))).toBeNull();
+    expect(resolveAcpTrackedWorkspacePath(workspace, '../deliverables/captions.srt')).toBeNull();
+    expect(resolveAcpTrackedWorkspacePath(workspace, workspace)).toBeNull();
+  });
+
   test('skips sandbox runtime side effects', () => {
     expect(shouldSkipAcpWorkspaceTrackingPath('.sandbox-home/.rustup/settings.toml')).toBe(true);
     expect(shouldSkipAcpWorkspaceTrackingPath('.sandbox-tmp/node-compile-cache/v24.13.0-arm64/00bf0630')).toBe(true);

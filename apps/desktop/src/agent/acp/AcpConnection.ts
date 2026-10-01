@@ -14,7 +14,7 @@ import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPe
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
 import { recordFirstToken } from '@process/telemetry';
-import { getAuthProxyPort, registerToken, revokeToken } from '@process/services/authProxy';
+import { ensureLocalAgentApiPort, getCredentialProxyUrl, registerToken, revokeToken } from '@process/services/authProxy';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
 import { StdioAcpTransport, GrpcAcpTransport } from './transport';
 import type { AcpTransport } from './transport';
@@ -264,11 +264,12 @@ export class AcpConnection {
     }
 
     // Auth Proxy: generate token and inject into child process env
-    const authProxyPort = getAuthProxyPort();
+    const authProxyPort = await ensureLocalAgentApiPort();
     if (authProxyPort) {
       this.proxyToken = crypto.randomUUID();
       const envWithProxy = { ...customEnv };
-      envWithProxy.SUDOWORK_AUTH_PROXY_URL = `http://127.0.0.1:${authProxyPort}/proxy`;
+      const credentialProxyUrl = getCredentialProxyUrl();
+      if (credentialProxyUrl) envWithProxy.SUDOWORK_AUTH_PROXY_URL = credentialProxyUrl;
       envWithProxy.SUDOWORK_AUTH_PROXY_BASE_URL = `http://127.0.0.1:${authProxyPort}`;
       envWithProxy.SUDOWORK_AUTH_PROXY_TOKEN = this.proxyToken;
       customEnv = envWithProxy;

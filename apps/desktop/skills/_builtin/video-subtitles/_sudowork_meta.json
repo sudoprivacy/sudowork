@@ -1,0 +1,8 @@
+{
+  "id": "video-subtitles",
+  "name": "video-subtitles",
+  "display_name": "视频字幕翻译",
+  "description": "自动转写视频语音、翻译字幕，并交付带字幕的视频和 SRT；支持桌面端与 WebUI 云端会话。",
+  "is_builtin": true,
+  "installed_version": "1.0.0"
+}
