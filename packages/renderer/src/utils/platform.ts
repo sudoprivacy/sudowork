@@ -144,6 +144,18 @@ export const openExternalUrl = async (url: string): Promise<void> => {
 
   if (isElectronDesktop()) {
     const ipcBridge = await import('@sudowork/host-bridge/ipcBridge');
+    // Markdown file links can arrive as /C:/... after the file:// prefix is removed.
+    const localPath = url.replace(/^file:\/\/(?:localhost)?(?=\/)/i, '');
+    if (/^(?:\/?[A-Za-z]:[/\\]|\/(?!\/))/.test(localPath)) {
+      let decodedPath = localPath.replace(/^\/([A-Za-z]:[/\\])/, '$1');
+      try {
+        decodedPath = decodeURIComponent(decodedPath);
+      } catch {
+        // Literal percent signs in local filenames do not need URL decoding.
+      }
+      await ipcBridge.shell.openFile.invoke(decodedPath);
+      return;
+    }
     await ipcBridge.shell.openExternal.invoke(url);
   } else {
     window.open(url, '_blank', 'noopener,noreferrer');

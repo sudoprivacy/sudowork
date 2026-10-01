@@ -1,5 +1,14 @@
 import * as nodePath from 'node:path';
 
+/** Track real workspace files without inventing a local copy of an external output. */
+export function resolveAcpTrackedWorkspacePath(workspace: string, requestedPath: string): string | null {
+  const root = nodePath.resolve(workspace);
+  const absolute = nodePath.resolve(root, requestedPath.trim());
+  const relative = nodePath.relative(root, absolute);
+  if (!relative || relative === '..' || relative.startsWith(`..${nodePath.sep}`) || nodePath.isAbsolute(relative)) return null;
+  return absolute;
+}
+
 export const ACP_WORKSPACE_TRACKING_SKIP_DIRS = new Set(['.codex', '.drafts', '.git', '.nexus', '.sandbox-home', '.sandbox-tmp', '.scode', 'node_modules', '__pycache__', '.venv', 'venv']);
 
 export const ACP_WORKSPACE_TRACKING_SKIP_FILES = new Set(['.gitignore', '.env', '.env.local', '.DS_Store', 'Thumbs.db']);

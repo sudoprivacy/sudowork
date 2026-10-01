@@ -342,7 +342,8 @@ const getSystemSkillsDir = () => {
  * Skills in this directory are automatically injected for ALL agents and scenarios
  */
 const getBuiltinSkillsDir = () => {
-  return path.join(getSystemSkillsDir(), SKILL_SUBDIRS.legacyBuiltin);
+  // Bundled skills contain no account data and must survive a login/mode switch.
+  return path.join(dataDir, 'skills', SKILL_SUBDIRS.system, SKILL_SUBDIRS.legacyBuiltin);
 };
 
 /**
@@ -509,9 +510,8 @@ const resolveBuiltinResourceDir = (dirPath: string): string => {
 
 /**
  * Absolute path of a bundled builtin skill's directory in the app resources
- * (e.g. `skills/_builtin/cron`). This is the install SOURCE — stable across
- * personal/enterprise mode, unlike getBuiltinSkillsDir() which points at the
- * user's synced `_system`/`system` dir and differs by mode. Use this when code
+ * (e.g. `skills/_builtin/cron`). This is the install source. The runtime cache
+ * returned by getBuiltinSkillsDir() can be absent before startup sync. Use this when code
  * must read a builtin skill file directly (not just point an agent at a path).
  */
 export const getBundledBuiltinSkillDir = (skillName: string): string => {
@@ -631,14 +631,8 @@ const syncBuiltinSkillsToUserDir = async (): Promise<void> => {
   try {
     // 确保用户技能目录和 _system 子目录存在
     // Ensure user skills dir and _system subdir exist
-    const userSkillsDir = getSkillsDir();
-    if (!existsSync(userSkillsDir)) {
-      mkdirSync(userSkillsDir);
-    }
-    const userSystemSkillsDir = getSystemSkillsDir();
-    if (!existsSync(userSystemSkillsDir)) {
-      mkdirSync(userSystemSkillsDir);
-    }
+    const userSystemSkillsDir = path.dirname(getBuiltinSkillsDir());
+    await fs.mkdir(userSystemSkillsDir, { recursive: true });
     // Mirror bundled skills into _system/. This removes stale builtin skills
     // that existed in an older app version but no longer ship in the bundle.
     await clearBuiltinSkillsCacheDir(userSystemSkillsDir);

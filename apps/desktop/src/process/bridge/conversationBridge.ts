@@ -22,7 +22,7 @@ import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { uuid } from '@common/utils';
 import { ipcBridge } from '../../common';
-import { getSkillsDir, ProcessChat, ProcessConfig } from '../initStorage';
+import { getSkillsDir, getBuiltinSkillsDir, ProcessChat, ProcessConfig } from '../initStorage';
 import type AcpAgent from '../task/AcpAgent';
 import type RemoteAgent from '../task/RemoteAgent';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../utils/workspaceSkillTargets';
@@ -188,7 +188,7 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
     }
   }
 
-  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), allowedSkillNames);
+  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), allowedSkillNames, getBuiltinSkillsDir());
   const existingEntries = await fs.readdir(workspaceSkillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
   const existingNames = new Set(existingEntries.map((entry) => entry.name));
   let removedCount = 0;

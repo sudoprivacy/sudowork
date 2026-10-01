@@ -7,10 +7,10 @@
  * - Config Items cache refresh (for URL pattern matching)
  */
 
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { mainLog, mainError } from '@process/utils/mainLogger';
+import { isEnterpriseMode } from '@common/enterpriseDebugConfig';
 import { AuthProxyServer } from './AuthProxyServer';
 import { refreshRules, getRules } from './configItemsLoader';
-import { isEnterpriseMode } from '@common/enterpriseDebugConfig';
 
 // ============================================================================
 // Module state
@@ -18,6 +18,7 @@ import { isEnterpriseMode } from '@common/enterpriseDebugConfig';
 
 let server: AuthProxyServer | null = null;
 let serverPort: number | null = null;
+let serverStartPromise: Promise<number> | null = null;
 
 // ============================================================================
 // Public API - Server lifecycle
@@ -25,25 +26,26 @@ let serverPort: number | null = null;
 
 /**
  * Start the Auth Proxy server.
- * Must be called after secretCache.preload() completes.
+ * Consumer credential calls start after secretCache.preload(). Online desktop
+ * agents can start earlier because only local media routes are enabled.
  * Returns the port the server is listening on.
  */
 export async function startAuthProxy(): Promise<number> {
-  if (isEnterpriseMode()) {
-    mainLog('AuthProxy', 'Enterprise mode - skipping local Auth Proxy (handled by Moss Server)');
-    return 0;
-  }
+  if (serverPort !== null) return serverPort;
+  if (serverStartPromise) return serverStartPromise;
+  serverStartPromise = startServer().finally(() => {
+    serverStartPromise = null;
+  });
+  return serverStartPromise;
+}
 
-  if (server) {
-    return server.getPort()!;
-  }
-
+async function startServer(): Promise<number> {
   try {
     // Dynamic import minimatch to avoid bundling issues
     const minimatchModule = (await import('minimatch' as string)) as unknown as Record<string, unknown>;
     const minimatchFn = typeof minimatchModule.minimatch === 'function' ? minimatchModule.minimatch : typeof minimatchModule.default === 'function' ? minimatchModule.default : (minimatchModule as unknown as (str: string, pattern: string) => boolean);
 
-    server = new AuthProxyServer(minimatchFn as (str: string, pattern: string) => boolean);
+    server = new AuthProxyServer(minimatchFn as (str: string, pattern: string) => boolean, () => !isEnterpriseMode());
     serverPort = await server.start();
     return serverPort;
   } catch (error) {
@@ -56,6 +58,7 @@ export async function startAuthProxy(): Promise<number> {
  * Stop the Auth Proxy server gracefully.
  */
 export async function stopAuthProxy(): Promise<void> {
+  if (serverStartPromise) await serverStartPromise.catch((): void => undefined);
   if (!server) return;
   const port = serverPort;
   await server.stop();
@@ -69,6 +72,16 @@ export async function stopAuthProxy(): Promise<void> {
  */
 export function getAuthProxyPort(): number | null {
   return serverPort;
+}
+
+/** Make online local-media APIs ready before the agent receives its environment. */
+export async function ensureLocalAgentApiPort(): Promise<number | null> {
+  return isEnterpriseMode() ? startAuthProxy() : getAuthProxyPort();
+}
+
+/** Advertise the credential proxy only when credentials are managed locally. */
+export function getCredentialProxyUrl(): string | null {
+  return serverPort && !isEnterpriseMode() ? `http://127.0.0.1:${serverPort}/proxy` : null;
 }
 
 // ============================================================================
