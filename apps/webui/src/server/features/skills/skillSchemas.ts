@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const InstallRequestSchema = z.object({
-  name: z.string().trim().min(1).max(255),
+  id: z.string().trim().min(1).max(255),
 })
 
 export const SetEnabledRequestSchema = z.object({

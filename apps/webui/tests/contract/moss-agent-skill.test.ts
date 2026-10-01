@@ -79,6 +79,17 @@ describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', (
 })
 
 describe('MossSkillPort request shapes（修订版 3.9：skill-hub 前缀、enabled 单对象）', () => {
+  test('installs a public catalog ID in the authenticated user scope', async () => {
+    const mock = vi.fn().mockResolvedValue({ name: 'video-subtitles' })
+    await createMossSkillPort(mock).install(CTX, 'skill-id')
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/client/catalog/install',
+      accessToken: TK,
+      body: { kind: 'skills', source: 'hub', id: 'skill-id' },
+    })
+  })
+
   test('hub endpoints use /api/v1/skill-hub/* prefix', async () => {
     const mock = vi.fn().mockResolvedValue({})
     const port = createMossSkillPort(mock)

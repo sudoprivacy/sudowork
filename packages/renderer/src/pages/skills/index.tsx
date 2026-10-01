@@ -435,12 +435,10 @@ const SkillSettings: React.FC = () => {
 
   // ---- Enterprise mode: Install tenant skill ----
   // ---- Fetch latest versions ----
-  // Only used in personal mode to check for skill updates
-  // Enterprise mode doesn't need this - versions are managed by Moss Server
+  // Desktop enterprise mode uses MossCatalogBrowser; WebUI uses the bridge below.
   const fetchLatestVersions = useCallback(
     async (skillList: ISkillHubSkill[], existingMap?: Map<string, SkillLatestVersion>) => {
-      // Skip in enterprise mode
-      if (isEnterprise) {
+      if (isEnterprise && isElectronDesktop()) {
         return existingMap || new Map<string, SkillLatestVersion>();
       }
 
@@ -467,7 +465,7 @@ const SkillSettings: React.FC = () => {
           batch.map(async (skill) => {
             try {
               let res: SkillDetailResponse;
-              if (isElectronDesktop()) {
+              if (isElectronDesktop() || isWebBridgeAvailable()) {
                 res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
               } else {
                 res = await fetchSkillDetailHttp(skill.id);
@@ -505,7 +503,7 @@ const SkillSettings: React.FC = () => {
   // Only recreated when fetchLatestVersions or t change (both are stable).
   const fetchSkills = useCallback(
     async (cursor?: string, append = false) => {
-      if (isEnterprise) return;
+      if (isEnterprise && isElectronDesktop()) return;
       try {
         if (append) setLoadingMore(true);
         else setLoading(true);
@@ -566,7 +564,7 @@ const SkillSettings: React.FC = () => {
       }
     },
     // Minimal stable deps — selectedCategory/searchQuery/latestVersions read from refs
-    [fetchLatestVersions, t]
+    [fetchLatestVersions, isEnterprise, t]
   );
 
   // ---- Load more ----
@@ -657,7 +655,7 @@ const SkillSettings: React.FC = () => {
     const fetchCategoriesData = async () => {
       try {
         let res: { success: boolean; data?: string[] };
-        if (isElectronDesktop()) {
+        if (isElectronDesktop() || isWebBridgeAvailable()) {
           res = await skillHub.fetchCategories.invoke();
         } else {
           res = await fetchCategoriesHttp();
@@ -677,7 +675,7 @@ const SkillSettings: React.FC = () => {
 
   // Refresh installed skills after agent-created skill changes.
   useEffect(() => {
-    if (!isElectronDesktop()) return;
+    if (!isElectronDesktop() && !isWebBridgeAvailable()) return;
 
     const refreshInstalledList = () => {
       void fetchInstalledList();
@@ -755,7 +753,7 @@ const SkillSettings: React.FC = () => {
   // Fetch latest hub versions for installed hub skills so we can detect updates
   // Only in personal mode (not enterprise) - enterprise mode doesn't interact with SkillHub
   useEffect(() => {
-    if (isEnterprise) return; // Skip in enterprise mode
+    if (isEnterprise && isElectronDesktop()) return;
     if (installedList.length === 0) return;
     const hubInstalled = installedList.filter((s) => s.isHubInstalled && s.meta?.id);
     if (hubInstalled.length === 0) return;
@@ -774,7 +772,7 @@ const SkillSettings: React.FC = () => {
   // ---- Install handler ----
   const handleInstall = useCallback(
     async (skillId: string) => {
-      if (!isElectronDesktop()) {
+      if (!isElectronDesktop() && !isWebBridgeAvailable()) {
         Message.warning(t('settings.skill.desktopOnly', '技能安装仅在桌面端可用'));
         return;
       }
@@ -925,7 +923,7 @@ const SkillSettings: React.FC = () => {
   // ---- Update handler (reuses install flow to replace installed skill with newer version) ----
   const handleUpdate = useCallback(
     async (skillId: string, skillName?: string, skillMeta?: ISkillHubMeta) => {
-      if (!isElectronDesktop()) return;
+      if (!isElectronDesktop() && !isWebBridgeAvailable()) return;
 
       const versionInfo = latestVersions.get(skillId);
       if (!versionInfo) return;

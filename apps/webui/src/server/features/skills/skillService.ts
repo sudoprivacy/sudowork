@@ -82,8 +82,11 @@ export async function hubList(
   searchParams: Record<string, string>,
 ): Promise<unknown> {
   // moss 上游返回 { skills, next_cursor, has_more }（skillStore.ts fetchSkillHubSkills），
-  // 与 installFromHub 的兼容读取一致，统一归一化为 items 供前端消费
-  const hub = (await mapErr(() => deps.skills.hubList(ctx, searchParams))) as {
+  // Normalize Moss pagination and translate the WebUI search field.
+  const { search, ...params } = searchParams
+  const hub = (await mapErr(() =>
+    deps.skills.hubList(ctx, { ...params, ...(search ? { query: search } : {}) }),
+  )) as {
     items?: Record<string, unknown>[]
     skills?: Record<string, unknown>[]
     next_cursor?: unknown
@@ -116,17 +119,11 @@ export async function tenantList(deps: SkillDeps, ctx: MossCallContext): Promise
 export async function installFromHub(
   deps: SkillDeps,
   ctx: MossCallContext,
-  name: string,
+  id: string,
 ): Promise<unknown> {
-  await requireAnyScope(deps, ctx, ['admin:settings'])
-  const hub = (await mapErr(() => deps.skills.hubList(ctx, { limit: '100' }))) as {
-    items?: Record<string, unknown>[]
-    skills?: Record<string, unknown>[]
-  }
-  const items = hub?.items ?? hub?.skills ?? []
-  const meta = items.find((it) => it && (it.name === name || it.id === name))
-  if (!meta) throw new NotFoundError()
-  return mapErr(() => deps.skills.install(ctx, { skillMeta: meta }))
+  // Moss resolves the published package and installs it for the authenticated user.
+  // Download URLs, versions and ownership are never supplied by the browser.
+  return mapErr(() => deps.skills.install(ctx, id))
 }
 
 export async function setEnabled(
