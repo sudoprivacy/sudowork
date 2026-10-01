@@ -149,6 +149,19 @@ describe('TranscriptionService', () => {
     expect(execFileCalls.some((call) => call.args.includes('pip'))).toBe(true);
   });
 
+  it('repairs an installed but incompatible audio decoder before transcription', async () => {
+    checkInstalled.mockResolvedValue({ installed: true, path: '/usr/bin/python3' });
+    execHandler = (_file, args) => {
+      if (args[0] === '-c') return new Error('AssertionError: incompatible PyAV');
+      if (args.includes('pip')) return { stdout: '' };
+      return { stdout: JSON.stringify({ text: 'decoded speech' }) };
+    };
+    expect(await new TranscriptionService().transcribe(audioFile())).toBe('decoded speech');
+    const install = execFileCalls.find((call) => call.args.includes('pip'))!;
+    expect(install.args).toContain('av==16.1.0');
+    expect(install.args).toContain('faster-whisper==1.2.1');
+  });
+
   it('returns empty string when the audio file is missing', async () => {
     checkInstalled.mockResolvedValue({ installed: true, path: '/usr/bin/python3' });
     const svc = new TranscriptionService();

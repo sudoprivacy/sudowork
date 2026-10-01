@@ -5,7 +5,7 @@ description: Generate timed subtitles from video or audio, translate their text,
 
 # Video subtitles
 
-Run this skill's CLI from this directory. Desktop local conversations use the app's managed speech recognition and encoder. WebUI cloud conversations process uploaded media inside the cloud runtime. Dependencies and the speech model may take several minutes to prepare on first use.
+Run this skill's CLI from this directory. Start with the CLI command below; it selects the prepared Python environment automatically. Desktop local conversations use the app's managed speech recognition and encoder, which may take several minutes to prepare on first use. WebUI cloud conversations process uploaded media with dependencies and a speech model preinstalled in the cloud runtime.
 
 In WebUI, use the uploaded file's workspace path supplied by the conversation. Put all outputs inside that same conversation workspace so the user can download them. Never use a path from the user's computer in a cloud command.
 
