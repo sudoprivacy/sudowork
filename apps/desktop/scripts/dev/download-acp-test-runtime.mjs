@@ -16,7 +16,7 @@ if (!platform) throw new Error(`Unsupported scode platform: ${process.platform}-
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sudowork-acp-artifacts-'));
 const artifacts = [
-  { repo: 'nexi-lab/nexus', tag: `nexusd-cluster-v${versions['nexusd-cluster']}`, archive: getClusterArtifact(process.platform, process.arch), binary: getClusterBinary(process.platform), variable: 'NEXUS_CLUSTER_BIN' },
+  { repo: 'nexi-lab/nexus-vfs', tag: `v${versions['nexusd-cluster']}`, archive: getClusterArtifact(process.platform, process.arch), binary: getClusterBinary(process.platform), variable: 'NEXUS_CLUSTER_BIN' },
   { repo: 'sudoprivacy/sudocode', tag: `v${versions.scode}`, archive: `scode-${platform.os}-${platform.arch}${platform.ext}`, binary: process.platform === 'win32' ? 'scode.exe' : 'scode', variable: 'SCODE_BIN' },
 ];
 

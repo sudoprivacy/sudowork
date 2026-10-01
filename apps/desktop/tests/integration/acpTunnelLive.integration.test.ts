@@ -176,7 +176,7 @@ suite('published scode over the real ACP tunnel', () => {
     fs.writeFileSync(path.join(configHome, 'sudocode.json'), JSON.stringify({ auth_modes: { proxy: { e2e: account } }, models: { [model]: { name: model, providers: { proxy: { model } } } } }), { mode: 0o600 });
     fs.writeFileSync(path.join(configHome, 'settings.json'), JSON.stringify({ auth_profile: 'e2e', model }));
     endpoint = `127.0.0.1:${await freePort()}`;
-    daemon = spawn(cluster, ['--bind-addr', endpoint, '--data-dir', path.join(root, 'daemon'), '--no-tls', '--insecure-no-auth'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    daemon = spawn(cluster, ['--bind-addr', endpoint, '--data-dir', path.join(root, 'daemon'), '--no-tls', '--insecure-no-auth'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, NEXUS_IDENTITY_DIR: path.join(root, 'identity'), NEXUS_PEERS: '' } });
     daemon.stdout!.on('data', (chunk: Buffer) => {
       daemonLog = (daemonLog + chunk.toString()).slice(-12_000);
     });

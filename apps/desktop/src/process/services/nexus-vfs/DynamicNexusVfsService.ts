@@ -16,7 +16,7 @@ import runtimeSha256 from '@/shared/runtime-sha256.json';
 import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
 import { getNexusRpcClient } from '@common/nexus/nexus-vfs-client';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
-import { vaultPluginInstaller } from './VaultPluginInstaller';
+import { vaultPluginInstaller, nexusPluginInstallers } from './VaultPluginInstaller';
 
 const execAsync = promisify(exec);
 
@@ -72,8 +72,9 @@ const NEXUS_VFS_READY_MARKER = '.nexus-vfs-bin-ready';
 /** COS mirrors hosting the nexus-vfs artifacts. Runtime bucket is primary; the
  *  legacy bucket stays live as a fallback during deprecation. Both serve the same
  *  bytes (server-side copy), so the SHA256 check below holds for either source. */
-const NEXUS_VFS_RUNTIME_BASE_URL = `${COS_RUNTIME_BASE}/nexusd-cluster/release`;
-const NEXUS_VFS_LEGACY_BASE_URL = `${COS_LEGACY_NEXUS_VFS_BASE}/nexusd-cluster/release`;
+const NEXUS_VFS_RUNTIME_BASE_URL = `${COS_RUNTIME_BASE}/nexus-vfs/release`;
+const NEXUS_VFS_LEGACY_BASE_URL = `${COS_LEGACY_NEXUS_VFS_BASE}/nexus-vfs/release`;
+const NEXUS_VFS_GITHUB_BASE_URL = 'https://github.com/nexi-lab/nexus-vfs/releases/download';
 
 /** Node.js process.platform → artifact OS token. */
 const OS_NAME_MAP: Record<string, string> = { darwin: 'macos', win32: 'windows', linux: 'linux' };
@@ -233,6 +234,7 @@ class DynamicNexusVfsService {
     return [
       { label: 'Runtime COS', url: `${NEXUS_VFS_RUNTIME_BASE_URL}/${tail}` },
       { label: 'Legacy COS', url: `${NEXUS_VFS_LEGACY_BASE_URL}/${tail}` },
+      { label: 'GitHub Release', url: `${NEXUS_VFS_GITHUB_BASE_URL}/${tail}` },
     ];
   }
 
@@ -249,7 +251,7 @@ class DynamicNexusVfsService {
   }
 
   checkInstalledSync(): boolean {
-    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent() && (!vaultPluginInstaller.isPlatformSupported() || vaultPluginInstaller.checkInstalledSync());
+    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent() && nexusPluginInstallers.every((installer) => !installer.isPlatformSupported() || installer.checkInstalledSync());
   }
 
   async checkInstalled(): Promise<boolean> {
@@ -347,9 +349,8 @@ class DynamicNexusVfsService {
   }
 
   /**
-   * Downloads nexus-vfs from the COS mirror and installs the binary to
-   * ~/.nexus-vfs/bin. A missing platform artifact (HTTP 404) surfaces a clear
-   * error — no GitHub fallback, no guessing alternate paths.
+   * Downloads the pinned nexus-vfs release from COS or GitHub and installs
+   * the SHA-verified binary to ~/.nexus-vfs/bin.
    */
   async install(): Promise<void> {
     if (this._running) {
@@ -393,7 +394,7 @@ class DynamicNexusVfsService {
 
       if (!downloaded) {
         if (allNotFound) {
-          const msg = `nexus-vfs binary not available for ${process.platform}-${process.arch} in v${this.getBundledVersion()} (all COS mirrors → HTTP 404)`;
+          const msg = `nexus-vfs binary not available for ${process.platform}-${process.arch} in v${this.getBundledVersion()} (all release sources → HTTP 404)`;
           this.emit('error', msg);
           throw new Error(msg);
         }
@@ -455,7 +456,9 @@ class DynamicNexusVfsService {
 
     this.emit('idle', `nexus-vfs installed: ${targetBinary}`, 100);
 
-    await vaultPluginInstaller.install((stage, message, percent) => this.emit(stage, message, percent));
+    for (const installer of nexusPluginInstallers) {
+      await installer.install((stage, message, percent) => this.emit(stage, message, percent));
+    }
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────

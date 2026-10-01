@@ -10,7 +10,8 @@
  * array + OS/arch maps. Same data, two surfaces — exactly the shape that
  * caused PR #918's SHA drift before the SSOT cleanup.
  *
- * After: one PLUGINS array + a single set of OS/arch maps live here.
+ * The plugin table lives in src/shared/runtime-plugins.json; naming helpers
+ * and OS/arch maps live here.
  *
  *   - download-nexus-vfs.js consumes `getClusterArtifact`, `getPluginArtifact`,
  *     `getPluginDylib`, `getPluginSig` to drive its download loop.
@@ -28,7 +29,8 @@
  *     vs `nexus-vault-macos-arm64.tar.gz`). Encoded here as two distinct arch
  *     maps so consumers can't accidentally cross-wire them.
  *
- *   - `publishedPlatforms` per plugin records which (platform, arch) combos
+ *   - `src/shared/runtime-plugins.json` is shared with the runtime installer.
+ *     `publishedPlatforms` per plugin records which (platform, arch) combos
  *     have a published artifact. fuse-plugin specifically does NOT publish
  *     for Windows — Win is on WinFsp via a separate adapter, not this release.
  *     `getPluginArtifact()` returns `null` for unpublished combos, mirroring
@@ -43,39 +45,7 @@ const CLUSTER_ARCH = { arm64: 'aarch64', x64: 'x86_64' };
 // Plugin archives — use the human/brand name; not a typo, see header note.
 const PLUGIN_ARCH = { arm64: 'arm64', x64: 'x86_64' };
 
-const PLUGINS = [
-  {
-    name: 'nexus_vault',
-    artifactPrefix: 'nexus-vault',
-    publishedPlatforms: ['darwin-arm64', 'darwin-x64', 'linux-x64', 'win32-x64'],
-    dylib: {
-      darwin: 'libnexus_vault.dylib',
-      linux: 'libnexus_vault.so',
-      win32: 'nexus_vault.dll',
-    },
-  },
-  {
-    name: 'nexus_local_connector',
-    artifactPrefix: 'nexus-local-connector',
-    publishedPlatforms: ['darwin-arm64', 'darwin-x64', 'linux-x64', 'win32-x64'],
-    dylib: {
-      darwin: 'libnexus_local_connector.dylib',
-      linux: 'libnexus_local_connector.so',
-      win32: 'nexus_local_connector.dll',
-    },
-  },
-  {
-    name: 'nexus_fuse_plugin',
-    artifactPrefix: 'nexus-fuse-plugin',
-    // Intentionally no win32 — Windows uses WinFsp via a separate adapter,
-    // not this release. Matches the legacy getFusePluginArtifactName behavior.
-    publishedPlatforms: ['darwin-arm64', 'darwin-x64', 'linux-x64'],
-    dylib: {
-      darwin: 'libnexus_fuse_plugin.dylib',
-      linux: 'libnexus_fuse_plugin.so',
-    },
-  },
-];
+const PLUGINS = require('../src/shared/runtime-plugins.json');
 
 // Every (platform, arch) combination the cluster publishes for. Same shape
 // as PLUGINS.publishedPlatforms — enumerated so the integration test can

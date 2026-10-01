@@ -78,3 +78,36 @@ workflows also passed on both platforms with real proxy credentials.
 The published pin must include that scode fix before the opt-in live CI job can
 pass against release artifacts. The ordinary protocol CI job does not make a
 claim about model/tool cancellation.
+
+## Runtime release migration
+
+The daemon now comes from `nexi-lab/nexus-vfs` (`v0.7.25`, plugin ABI 7),
+with vault `0.5.66`, local-connector `0.4.64`, and fuse `0.6.64` from
+`nexi-lab/nexus`. COS uses `nexus-vfs/release/vVERSION`; the discontinued
+`nexusd-cluster/release` assembly is no longer the download source.
+Versions and SHA256 digests must change together. Plugin platform metadata
+lives in `src/shared/runtime-plugins.json` and is shared by packaging and
+the app's runtime installers.
+
+From `apps/desktop`, run the actual installation workflow:
+
+```sh
+SUDOWORK_RUNTIME_E2E=1 bunx vitest run tests/integration/vault-signed-download.integration.test.ts
+```
+
+On PowerShell, set `$env:SUDOWORK_RUNTIME_E2E='1'` before the Vitest command.
+It uses temporary installation, resource, data, and identity directories.
+It downloads and verifies the published archives, loads every platform plugin,
+writes a randomized secret through the production client, restarts the daemon,
+reads and rotates that secret, then exercises bundled and remote reinstallation
+with stale daemon and plugin markers. The PR Integration Smoke workflow runs
+this on Windows and Linux without model credentials.
+
+For isolated manual downloads, the production build script accepts
+`SUDOWORK_NEXUS_INSTALL_ROOT` and `SUDOWORK_NEXUS_RESOURCES_DIR`.
+
+The published scode `0.2.20` still needs the process-tree cancellation fix in
+sudoprivacy/sudocode#843. Protocol checks can use that published version;
+the complete real-model cancellation workflow must use a build containing
+that fix until its release is available. Do not report a source-build pass as
+validation of an unfixed release artifact.
