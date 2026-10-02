@@ -10,6 +10,10 @@ import {
 } from '@sudowork/contracts/conversations'
 import { type MossCallContext, type MossFetch } from './MossHttpClient.js'
 
+// Workspace I/O may wait for a cold container and then run a bounded pod exec.
+// Keep ordinary metadata requests on the shorter HTTP client's default timeout.
+const WORKSPACE_TIMEOUT_MS = 90_000
+
 /**
  * Moss Session REST 端口（计划 Task 5）：
  * list/create/get/context/resume/terminate + workspace tree/file。
@@ -23,7 +27,12 @@ export interface MossSessionPort {
   create(
     ctx: MossCallContext,
     input: { assistantName: string; enabledSkills: string[] },
-  ): Promise<{ sessionId: string; taskId?: string; attemptId?: string | null; wsUrl: string }>
+  ): Promise<{
+    sessionId: string
+    taskId?: string
+    attemptId?: string | null
+    wsUrl: string
+  }>
   /** 用户级模型偏好（Moss 无会话级模型接口，PUT /api/v1/users/me/model）；建会话前设置使新会话采用该模型 */
   setUserModel(ctx: MossCallContext, modelId: string): Promise<void>
   /**
@@ -32,13 +41,28 @@ export interface MossSessionPort {
    * 因为调用方的兜底顺序是「用户偏好 → 系统默认 → 列表首项」，丢掉后者会直接塌到首项。
    * 上游不可达/非 2xx 抛错，由调用方 catch。
    */
-  getUserModel(ctx: MossCallContext): Promise<{ modelId: string | null; systemDefaultModel: string | null }>
+  getUserModel(
+    ctx: MossCallContext,
+  ): Promise<{ modelId: string | null; systemDefaultModel: string | null }>
   context(ctx: MossCallContext, sessionId: string): Promise<unknown>
-  resume(ctx: MossCallContext, sessionId: string): Promise<{ session: MossSessionSummary; wsUrl: string }>
+  resume(
+    ctx: MossCallContext,
+    sessionId: string,
+  ): Promise<{ session: MossSessionSummary; wsUrl: string }>
   terminate(ctx: MossCallContext, sessionId: string): Promise<void>
-  workspaceTree(ctx: MossCallContext, sessionId: string, path: string, search?: string): Promise<unknown>
+  workspaceTree(
+    ctx: MossCallContext,
+    sessionId: string,
+    path: string,
+    search?: string,
+  ): Promise<unknown>
   workspaceFileGet(ctx: MossCallContext, sessionId: string, path: string): Promise<unknown>
-  workspaceFilePost(ctx: MossCallContext, sessionId: string, path: string, contentBase64: string): Promise<unknown>
+  workspaceFilePost(
+    ctx: MossCallContext,
+    sessionId: string,
+    path: string,
+    contentBase64: string,
+  ): Promise<unknown>
   /** 会话级可用技能（部署版实测 GET /api/v1/sessions/:id/skills/available 200） */
   sessionSkillsAvailable(ctx: MossCallContext, sessionId: string): Promise<unknown>
 }
@@ -55,7 +79,11 @@ function safeParse<T extends z.ZodTypeAny>(schema: T, json: unknown): z.infer<T>
 export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
   return {
     async list(ctx) {
-      const json = await mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/sessions', accessToken: ctx.accessToken })
+      const json = await mossFetch(ctx.baseUrl, {
+        method: 'GET',
+        path: '/api/v1/sessions',
+        accessToken: ctx.accessToken,
+      })
       const parsed = MossSessionListResponseSchema.parse(json)
       return parsed.sessions
     },
@@ -117,7 +145,10 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
         z
           .object({
             data: z
-              .object({ modelId: z.string().nullable().optional(), model_id: z.string().nullable().optional() })
+              .object({
+                modelId: z.string().nullable().optional(),
+                model_id: z.string().nullable().optional(),
+              })
               .passthrough()
               .nullable()
               .optional(),
@@ -163,32 +194,44 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
       const searchParams: Record<string, string> = {}
       if (path) searchParams.path = path
       if (search) searchParams.search = search
-      const json = await mossFetch(ctx.baseUrl, {
-        method: 'GET',
-        path: `/api/v1/sessions/${encodeSegment(sessionId)}/workspace/tree`,
-        accessToken: ctx.accessToken,
-        searchParams,
-      })
+      const json = await mossFetch(
+        ctx.baseUrl,
+        {
+          method: 'GET',
+          path: `/api/v1/sessions/${encodeSegment(sessionId)}/workspace/tree`,
+          accessToken: ctx.accessToken,
+          searchParams,
+        },
+        WORKSPACE_TIMEOUT_MS,
+      )
       const treeSchema = z.object({ root: MossWorkspaceNodeSchema })
       return safeParse(treeSchema, json)?.root ?? null
     },
 
     async workspaceFileGet(ctx, sessionId, path) {
-      return mossFetch(ctx.baseUrl, {
-        method: 'GET',
-        path: `/api/v1/sessions/${encodeSegment(sessionId)}/workspace/file`,
-        accessToken: ctx.accessToken,
-        searchParams: { path },
-      })
+      return mossFetch(
+        ctx.baseUrl,
+        {
+          method: 'GET',
+          path: `/api/v1/sessions/${encodeSegment(sessionId)}/workspace/file`,
+          accessToken: ctx.accessToken,
+          searchParams: { path },
+        },
+        WORKSPACE_TIMEOUT_MS,
+      )
     },
 
     async workspaceFilePost(ctx, sessionId, path, contentBase64) {
-      return mossFetch(ctx.baseUrl, {
-        method: 'POST',
-        path: `/api/v1/sessions/${encodeSegment(sessionId)}/workspace/file`,
-        accessToken: ctx.accessToken,
-        body: { path, content_base64: contentBase64 },
-      })
+      return mossFetch(
+        ctx.baseUrl,
+        {
+          method: 'POST',
+          path: `/api/v1/sessions/${encodeSegment(sessionId)}/workspace/file`,
+          accessToken: ctx.accessToken,
+          body: { path, content_base64: contentBase64 },
+        },
+        WORKSPACE_TIMEOUT_MS,
+      )
     },
 
     async sessionSkillsAvailable(ctx, sessionId) {
