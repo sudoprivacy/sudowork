@@ -69,6 +69,9 @@ export default defineConfig({
   test: {
     globals: true,
     testTimeout: 10000,
+    // Large Windows hosts otherwise launch CPU-count-minus-one workers. Bound
+    // import/DOM contention while retaining the same per-test timeout.
+    maxWorkers: process.platform === 'win32' ? 2 : undefined,
     server: {
       deps: {
         // zod 3.25+ uses ESM-only exports; force Vite to inline/transform it in SSR mode

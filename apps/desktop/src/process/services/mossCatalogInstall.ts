@@ -233,7 +233,11 @@ export async function installMossCatalog(input: { kind: MossCatalogKind; source:
         try {
           await fs.rename(staging, target);
         } catch (error) {
-          if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code || '')) throw error;
+          const code = (error as NodeJS.ErrnoException).code;
+          // Windows reports EPERM when the destination directory already exists.
+          // A missing destination, file, or symlink must still surface the error.
+          const isWindowsDirectoryCollision = process.platform === 'win32' && code === 'EPERM' && (await fs.lstat(target).catch((): null => null))?.isDirectory();
+          if (!['EEXIST', 'ENOTEMPTY'].includes(code || '') && !isWindowsDirectoryCollision) throw error;
           if (!(await isInstallationComplete({ ...resource, path: target, runtimeName, preparationId: preparation.preparationId, displayName, description: '', isEnabled: true }))) {
             const invalid = path.join(root, `_incomplete-${randomUUID()}`);
             await fs.rename(target, invalid);
