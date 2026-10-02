@@ -417,6 +417,9 @@ def upload(args):
 
 
 def download(args):
+    max_chunks = getattr(args, 'max_chunks', 0)
+    if max_chunks < 0:
+        raise ValueError('max-chunks must be zero or positive')
     cloud = Cloud(args.config)
     agent = urllib.parse.quote(args.agent, safe='')
     item = cloud.request('GET', '/' + agent)
@@ -454,7 +457,9 @@ def download(args):
         stream.seek(offset)
         stream.truncate()
         state['chunks'] = verified
-        for index in range(len(verified), (item['size'] + item['chunkBytes'] - 1) // item['chunkBytes']):
+        total_chunks = (item['size'] + item['chunkBytes'] - 1) // item['chunkBytes']
+        completed_this_call = 0
+        for index in range(len(verified), total_chunks):
             chunk = cloud.request('GET', f'/{agent}/chunks/{index}')
             expected = min(item['chunkBytes'], item['size'] - index * item['chunkBytes'])
             if not isinstance(chunk, bytes) or len(chunk) != expected:
@@ -464,6 +469,10 @@ def download(args):
             state['chunks'].append(hashlib.sha256(chunk).hexdigest())
             state_path.write_text(json.dumps(state), encoding='utf-8')
             print(f'Downloaded {stream.tell()}/{item["size"]} bytes', file=sys.stderr, flush=True)
+            completed_this_call += 1
+            if max_chunks and completed_this_call >= max_chunks and index + 1 < total_chunks:
+                return {'archive': str(output), 'status': 'downloading', 'verified': False,
+                        'downloadedBytes': stream.tell(), 'size': item['size'], 'agentName': item['agentName']}
     if sha_file(partial) != item['sha256'] or partial.stat().st_size != item['size']:
         raise ValueError('Downloaded archive checksum mismatch')
     verify_archive(partial)
@@ -491,6 +500,7 @@ def main():
     get = commands.add_parser('download')
     get.add_argument('--agent', required=True)
     get.add_argument('--output', required=True)
+    get.add_argument('--max-chunks', type=int, default=0, help='Stop after this many new chunks; repeat the same command until verified (0: unlimited)')
     recover = commands.add_parser('restore')
     recover.add_argument('--archive', required=True)
     recover.add_argument('--destination', required=True)

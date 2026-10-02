@@ -7,6 +7,8 @@ description: Save private Claude Code, Codex CLI, and Sudocode session records a
 
 Use the bundled Python 3.10+ script for filesystem and transfer operations. No third-party Python packages are needed. Run it on the computer whose files the user wants to save. A cloud conversation cannot scan a desktop computer. On a laptop, run the same skill locally to download to that laptop.
 
+Resolve every `scripts/agent_sessions.py` example relative to this skill's directory, not the conversation's working directory. On Windows, use the PowerShell tool; Bash may not be installed. For exports or uploads that take several minutes, use the execution tool's background-task option and poll it with short calls so the desktop connection remains active. Keep each transfer to a given output file sequential.
+
 The user can ask in ordinary language. You operate the commands below. An LLM chooses the requested scope and explains the results; the script preserves original data and verifies checksums. Do not use browser automation or send transcripts to a public skill catalog. Only the skill's code belongs in the catalog; backups use authenticated, private Moss endpoints.
 
 ## Save
@@ -30,9 +32,11 @@ The user can ask in ordinary language. You operate the commands below. An LLM ch
 
 ```sh
 python scripts/agent_sessions.py list
-python scripts/agent_sessions.py download --agent user-... --output /absolute/path/travel.zip
+python scripts/agent_sessions.py download --agent user-... --output /absolute/path/travel.zip --max-chunks 16
 python scripts/agent_sessions.py restore --archive /absolute/path/travel.zip --destination /absolute/path/restored-work
 ```
+
+Repeat the same download command while its result has `status: downloading` and `verified: false`. Each invocation resumes the verified prefix and downloads up to 16 new chunks, keeping individual tool calls short. Only run restore after download returns `verified: true`; a partial result is progress, not completion. If the network is slow, reduce `--max-chunks` to 4. Standalone CLI users can omit this option for one continuous transfer.
 
 The destination must not already exist. Download verifies the whole archive; restore verifies every file before publishing the destination. Existing CLI home directories are never overwritten. Give the user a link to `START_HERE.md` and the restored directory. An agent can read `readable/` and `sessions.json` to take over the work; `native/` holds engine-original files and SQLite snapshots.
 
