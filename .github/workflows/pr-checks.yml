@@ -232,6 +232,16 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Ensure Electron is installed for native SQLite tests
+        run: node node_modules/electron/install.js
+
+      - name: Rebuild SQLite for the desktop Electron ABI
+        # CI postinstall normally skips this. The native SQLite suite launches
+        # Electron, so a Node.js prebuild cannot satisfy its driver contract.
+        env:
+          SUDOWORK_FORCE_REBUILD: '1'
+        run: node scripts/postinstall.js
+
       - name: Run full test suite
         run: bunx vitest run
 
