@@ -3,15 +3,21 @@
 set -euo pipefail
 
 OUTPUT_DIR="${1:-release-assets}"
+MODE="${2:---all}"
+case "$MODE" in
+  --all) REQUIRED_METADATA=(latest.yml latest-mac.yml arm64-mac.yml) ;;
+  --windows-only) REQUIRED_METADATA=(latest.yml) ;;
+  *) echo "FAIL: unsupported verification mode: $MODE" >&2; exit 1 ;;
+esac
 
-for metadata in latest.yml latest-mac.yml arm64-mac.yml; do
+for metadata in "${REQUIRED_METADATA[@]}"; do
   if [ ! -f "$OUTPUT_DIR/$metadata" ]; then
     echo "FAIL: missing required metadata: $metadata"
     exit 1
   fi
 done
 
-python3 - "$OUTPUT_DIR" <<'PY'
+python3 - "$OUTPUT_DIR" "$MODE" <<'PY'
 import base64
 import gzip
 import hashlib
@@ -29,6 +35,11 @@ metadata_names = (
     'latest-linux.yml',
     'arm64-linux.yml',
 )
+if sys.argv[2] == '--windows-only':
+    metadata_names = ('latest.yml',)
+    unexpected = [p.name for p in output_dir.iterdir() if p.is_file() and p.name not in metadata_names and '-win-x64.' not in p.name]
+    if unexpected:
+        raise SystemExit(f'FAIL: Windows-only publication contains other assets: {unexpected}')
 metadata_files = [output_dir / name for name in metadata_names if (output_dir / name).is_file()]
 errors: list[str] = []
 primary_expectations = {

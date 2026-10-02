@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ASSETS_DIR="${1:-release-assets}"
+MODE="${2:---all}"
 COS_BUCKET="${COS_BUCKET:-sudowork-release-1309794936}"
 COS_REGION="${COS_REGION:-ap-beijing}"
 COS_PATH="${COS_PATH:-sudowork/release/latest}"
@@ -13,7 +14,7 @@ if ! command -v coscmd >/dev/null 2>&1; then
   exit 1
 fi
 
-bash scripts/verify-release-assets.sh "$ASSETS_DIR"
+bash scripts/verify-release-assets.sh "$ASSETS_DIR" "$MODE"
 
 VERSIONED_FILES=()
 while IFS= read -r -d '' file; do
