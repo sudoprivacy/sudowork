@@ -48,6 +48,9 @@ describe('applicationBridge CDP functionality', () => {
       },
     }));
 
+    // CDP registration does not start the channel integrations.
+    vi.doMock('@/channels', () => ({ getChannelManager: vi.fn() }));
+
     // Mock zoom utilities
     vi.doMock('@/process/utils/zoom', () => ({
       getZoomFactor: vi.fn(() => 1),
@@ -80,6 +83,7 @@ describe('applicationBridge CDP functionality', () => {
     vi.doUnmock('fs');
     vi.doUnmock('http');
     vi.doUnmock('@/process/WorkerManage');
+    vi.doUnmock('@/channels');
     vi.doUnmock('@/process/utils/zoom');
     vi.doUnmock('@/process/initStorage');
     vi.doUnmock('@/process/utils');

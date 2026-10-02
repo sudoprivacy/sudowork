@@ -524,6 +524,38 @@ describe('mossAdapter: assistant/skill management channels', () => {
     })
   })
 
+  it('fetch-categories reports request failures instead of returning a successful empty list', async () => {
+    stubFetch({ '/api/skills/hub/categories': { status: 403, body: { error: 'FORBIDDEN' } } })
+
+    const result = await ipcBridge.skillHub.fetchCategories.invoke()
+
+    expect(result).toMatchObject({ success: false, msg: 'FORBIDDEN' })
+  })
+
+  it('fetch-skill-detail preserves versions and encodes the skill id', async () => {
+    const detail = { id: 'hub/skill', name: 'Writer', versions: [{ version: '2.0.0' }] }
+    const fetchMock = stubFetch({ '/api/skills/hub/hub%2Fskill': detail })
+
+    const result = await ipcBridge.skillHub.fetchSkillDetail.invoke({ skillId: 'hub/skill' })
+
+    expect(result).toEqual({
+      success: true,
+      data: {
+        skill: { id: 'hub/skill', name: 'Writer' },
+        versions: detail.versions,
+      },
+    })
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/api/skills/hub/hub%2Fskill')
+  })
+
+  it('fetch-skill-detail reports a missing skill', async () => {
+    stubFetch({ '/api/skills/hub/missing': null })
+
+    const result = await ipcBridge.skillHub.fetchSkillDetail.invoke({ skillId: 'missing' })
+
+    expect(result).toMatchObject({ success: false, msg: 'NOT_FOUND' })
+  })
+
   it('get-installed-skills maps rows and backfills meta.source_type', async () => {
     stubFetch({
       '/api/skills': [
@@ -1215,6 +1247,83 @@ describe('mossAdapter: chat.send.message shares msgId between the WS send frame 
     const echo = echoFrames.find((frame) => frame.type === 'user_content')
     expect(echo?.msg_id).toBe('msg-uuid-9')
   })
+})
+
+describe('mossAdapter: remote model discovery and stream updates', () => {
+  class ModelWebSocket extends EventTarget {
+    static instances: ModelWebSocket[] = []
+    static readonly OPEN = 1
+    readonly readyState = 1
+
+    constructor(public url: string) {
+      super()
+      ModelWebSocket.instances.push(this)
+    }
+
+    send() {}
+
+    close() {}
+  }
+
+  let ipc: typeof import('@sudowork/host-bridge/ipcBridge')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    ModelWebSocket.instances = []
+    vi.stubGlobal('WebSocket', ModelWebSocket)
+    await import('@client/bridgeAdapter/mossAdapter')
+    ipc = await import('@sudowork/host-bridge/ipcBridge')
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each(['init', 'model_changed'])(
+    'keeps the remote model selector switchable after a %s frame',
+    async (subtype) => {
+      stubFetch({
+        '/api/conversations/options': {
+          models: [
+            { id: 'model-a', name: 'Model A' },
+            { id: 'model-b', name: 'Model B' },
+          ],
+        },
+      })
+      const models = await ipc.moss.getAvailableModels.invoke()
+      expect(models.data).toEqual([
+        { id: 'model-a', name: 'Model A', ratio: 1 },
+        { id: 'model-b', name: 'Model B', ratio: 1 },
+      ])
+      const frames: IResponseMessage[] = []
+      const offStream = ipc.acpConversation.responseStream.on((frame) => frames.push(frame))
+      try {
+        await ipc.acpConversation.sendMessage.invoke({
+          conversation_id: 'model-session',
+          input: 'hello',
+        } as never)
+        const ws = ModelWebSocket.instances[0]
+        expect(ws).toBeDefined()
+        ws!.dispatchEvent(
+          new MessageEvent('message', {
+            data: JSON.stringify({
+              kind: 'upstream',
+              event: { type: 'system', subtype, model: 'model-b' },
+            }),
+          }),
+        )
+        const modelFrame = frames.find((frame) => frame.type === 'acp_model_info')
+        expect(modelFrame?.data).toMatchObject({
+          currentModelId: 'model-b',
+          canSwitch: true,
+          availableModels: [
+            { id: 'model-a', label: 'Model A' },
+            { id: 'model-b', label: 'Model B' },
+          ],
+        })
+      } finally {
+        offStream()
+      }
+    },
+  )
 })
 
 describe('mossAdapter: channel wires (remote connections)', () => {

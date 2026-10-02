@@ -30,8 +30,8 @@ import { SkillAuditReportModal } from './components/SkillAuditReportModal';
 import SkillCard from './components/SkillCard';
 import InstalledSkillCard from './components/InstalledSkillCard';
 import SkillDetailModal from './components/SkillDetailModal';
-import { installedInfoToSkill, resolveSkillTenantId, getLocalSkillImportDialogOptions, getInstalledSkillBadgeCount, fetchCategoriesHttp, fetchSkillDetailHttp, VERSION_CACHE_TTL } from './utils';
-import type { SkillLatestVersion, SkillDetailResponse, SkillStoreTab, LocalSkillImportSource } from './types';
+import { installedInfoToSkill, resolveSkillTenantId, getLocalSkillImportDialogOptions, getInstalledSkillBadgeCount, VERSION_CACHE_TTL } from './utils';
+import type { SkillLatestVersion, SkillStoreTab, LocalSkillImportSource } from './types';
 
 // ==================== Main Component ====================
 
@@ -113,6 +113,7 @@ const SkillSettings: React.FC = () => {
 
   // Enterprise mode detection - use useAppMode hook for renderer process
   const { isEnterprise } = useAppMode();
+  const isMossCatalogVisible = isEnterprise && isElectronDesktop();
 
   // Web host only: the server gates skill enable/uninstall by the caller's scopes
   // (admin:settings). Desktop manages skills locally and always shows the controls.
@@ -464,12 +465,7 @@ const SkillSettings: React.FC = () => {
         const results = await Promise.all(
           batch.map(async (skill) => {
             try {
-              let res: SkillDetailResponse;
-              if (isElectronDesktop() || isWebBridgeAvailable()) {
-                res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
-              } else {
-                res = await fetchSkillDetailHttp(skill.id);
-              }
+              const res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
               if (res.success && res.data?.versions?.[0]) {
                 const latest = res.data.versions[0];
                 return {
@@ -503,7 +499,7 @@ const SkillSettings: React.FC = () => {
   // Only recreated when fetchLatestVersions or t change (both are stable).
   const fetchSkills = useCallback(
     async (cursor?: string, append = false) => {
-      if (isEnterprise && isElectronDesktop()) return;
+      if (isMossCatalogVisible) return;
       try {
         if (append) setLoadingMore(true);
         else setLoading(true);
@@ -564,7 +560,7 @@ const SkillSettings: React.FC = () => {
       }
     },
     // Minimal stable deps — selectedCategory/searchQuery/latestVersions read from refs
-    [fetchLatestVersions, isEnterprise, t]
+    [fetchLatestVersions, isMossCatalogVisible, t]
   );
 
   // ---- Load more ----
@@ -654,12 +650,7 @@ const SkillSettings: React.FC = () => {
   useEffect(() => {
     const fetchCategoriesData = async () => {
       try {
-        let res: { success: boolean; data?: string[] };
-        if (isElectronDesktop() || isWebBridgeAvailable()) {
-          res = await skillHub.fetchCategories.invoke();
-        } else {
-          res = await fetchCategoriesHttp();
-        }
+        const res = await skillHub.fetchCategories.invoke();
         if (res.success && res.data) setCategories(res.data);
       } catch (err) {
         console.error('Failed to fetch categories:', err);
@@ -1176,7 +1167,7 @@ const SkillSettings: React.FC = () => {
   return (
     <PageWrapper>
       <div ref={containerRef} className='flex flex-col h-full w-full'>
-        {isEnterprise && isElectronDesktop() ? (
+        {isMossCatalogVisible ? (
           <MossCatalogBrowser
             kind='skills'
             customContent={renderCustomSkillGridWithEnterpriseActions(customInstalledSkills)}
