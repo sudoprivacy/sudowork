@@ -61,6 +61,7 @@ const SystemSettings: React.FC = () => {
 
   // 获取关闭到托盘设置 / Fetch close-to-tray setting
   useEffect(() => {
+    if (!isDesktopRuntime) return;
     ipcBridge.systemSettings.getCloseToTray
       .invoke()
       .then((enabled) => setCloseToTray(enabled))
@@ -68,7 +69,7 @@ const SystemSettings: React.FC = () => {
       .finally(() => {
         setCloseToTrayLoading(false);
       });
-  }, []);
+  }, [isDesktopRuntime]);
 
   // 切换关闭到托盘 / Toggle close-to-tray
   const handleCloseToTrayChange = useCallback((checked: boolean) => {
@@ -117,11 +118,12 @@ const SystemSettings: React.FC = () => {
   const [avatarEnabled, setAvatarEnabled] = useState(false);
 
   useEffect(() => {
+    if (!isDesktopRuntime) return;
     ipcBridge.systemSettings.getAvatarEnabled
       .invoke()
       .then((enabled) => setAvatarEnabled(enabled))
       .catch(() => {});
-  }, []);
+  }, [isDesktopRuntime]);
 
   // 导出日志：打包 ~/.nexus/logs/ 下全部日志为 zip / Export all logs under ~/.nexus/logs/ as a zip
   const [isExporting, setIsExporting] = useState(false);
@@ -305,13 +307,14 @@ const SystemSettings: React.FC = () => {
   const [browserDefaultUrl, setBrowserDefaultUrl] = useState<string>('');
 
   useEffect(() => {
+    if (!isDesktopRuntime) return;
     ipcBridge.systemSettings.getBrowserDefaultUrl
       .invoke()
       .then((url) => {
         if (typeof url === 'string') setBrowserDefaultUrl(url);
       })
       .catch(() => {});
-  }, []);
+  }, [isDesktopRuntime]);
 
   const handleBrowserDefaultUrlBlur = useCallback(() => {
     const trimmed = browserDefaultUrl.trim();
@@ -320,7 +323,7 @@ const SystemSettings: React.FC = () => {
   }, [browserDefaultUrl]);
 
   // Get system directory info
-  const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
+  const { data: systemInfo } = useSWR(isDesktopRuntime ? 'system.dir.info' : null, () => ipcBridge.application.systemInfo.invoke());
 
   // Initialize form data
   useEffect(() => {
@@ -340,6 +343,7 @@ const SystemSettings: React.FC = () => {
     { key: 'language', label: t('settings.language'), component: <LanguageSwitcher /> },
     {
       key: 'closeToTray',
+      isDesktopOnly: true,
       label: t('settings.closeToTray'),
       component: closeToTrayLoading ? <div style={{ width: 44, height: 22 }} /> : <Switch checked={closeToTray} onChange={handleCloseToTrayChange} className='settings-accent-switch' style={closeToTray ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
     },
@@ -377,6 +381,7 @@ const SystemSettings: React.FC = () => {
     },
     {
       key: 'avatarEnabled',
+      isDesktopOnly: true,
       label: t('settings.avatarEnabled'),
       hint: t('settings.avatarEnabledDesc'),
       component: <Switch checked={avatarEnabled} onChange={handleAvatarEnabledChange} className='settings-accent-switch' style={avatarEnabled ? { backgroundColor: 'var(--ui-accent-orange)' } : undefined} />,
@@ -403,24 +408,28 @@ const SystemSettings: React.FC = () => {
     },
     {
       key: 'promptTimeout',
+      isDesktopOnly: true,
       label: t('settings.promptTimeout'),
       hint: t('settings.promptTimeoutDesc'),
       component: <InputNumber value={promptTimeout} onChange={setPromptTimeout} onBlur={handlePromptTimeoutBlur} min={PROMPT_TIMEOUT_MIN} max={PROMPT_TIMEOUT_MAX} step={30} style={{ width: 120 }} suffix='s' />,
     },
     {
       key: 'idleTimeout',
+      isDesktopOnly: true,
       label: t('settings.idleTimeout'),
       hint: t('settings.idleTimeoutDesc'),
       component: <InputNumber value={idleTimeout} onChange={setIdleTimeout} onBlur={handleIdleTimeoutBlur} min={IDLE_TIMEOUT_MIN} max={IDLE_TIMEOUT_MAX} step={5} style={{ width: 120 }} suffix='min' />,
     },
     {
       key: 'browserDefaultUrl',
+      isDesktopOnly: true,
       label: t('settings.browserDefaultUrl'),
       hint: t('settings.browserDefaultUrlDesc'),
       component: <Input value={browserDefaultUrl} onChange={setBrowserDefaultUrl} onBlur={handleBrowserDefaultUrlBlur} placeholder='https://www.baidu.com/' style={{ width: 260 }} />,
     },
     {
       key: 'exportLogs',
+      isDesktopOnly: true,
       label: t('settings.exportLogs'),
       hint: t('settings.exportLogsDesc'),
       component: (
@@ -429,7 +438,7 @@ const SystemSettings: React.FC = () => {
         </Button>
       ),
     },
-  ];
+  ].filter((item) => isDesktopRuntime || !item.isDesktopOnly);
 
   // 目录配置保存确认 / Directory configuration save confirmation
   const saveDirConfigValidate = (_values: { cacheDir: string; workDir: string }): Promise<unknown> => {
@@ -497,10 +506,12 @@ const SystemSettings: React.FC = () => {
                   </PreferenceRow>
                 ))}
               </div>
-              <Form form={form} layout='vertical' className='space-y-4' onValuesChange={handleValuesChange}>
-                <DirInputItem label={t('settings.workDir')} field='workDir' />
-                {error && <Alert className='mt-4' type='error' content={typeof error === 'string' ? error : JSON.stringify(error)} />}
-              </Form>
+              {isDesktopRuntime && (
+                <Form form={form} layout='vertical' className='space-y-4' onValuesChange={handleValuesChange}>
+                  <DirInputItem label={t('settings.workDir')} field='workDir' />
+                  {error && <Alert className='mt-4' type='error' content={typeof error === 'string' ? error : JSON.stringify(error)} />}
+                </Form>
+              )}
             </div>
           </div>
         </AionScrollArea>

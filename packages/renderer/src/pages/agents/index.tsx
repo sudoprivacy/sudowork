@@ -45,6 +45,12 @@ type AssistantStoreTab = 'store' | 'exclusive' | 'installed';
 const VERSION_CACHE_TTL = 5 * 60 * 1000;
 const VERSION_FAILURE_CACHE_TTL = 60 * 1000;
 
+/** Propagate bridge failures so create and duplicate keep the draft on error. */
+async function createAssistant(input: Parameters<typeof ipcBridge.assistantHub.createAssistant.invoke>[0]): Promise<void> {
+  const result = await ipcBridge.assistantHub.createAssistant.invoke(input);
+  if (!result.success) throw new Error(result.msg || 'Failed to create assistant');
+}
+
 const AgentSettings: React.FC = () => {
   const { t, i18n } = useTranslation();
   const localeKey = resolveLocaleKey(i18n.language);
@@ -64,6 +70,8 @@ const AgentSettings: React.FC = () => {
   const [editAvatar, setEditAvatar] = useState('');
   const [editAgent, setEditAgent] = useState<string>(DEFAULT_PRESET_AGENT_TYPE);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
   const [promptViewMode, setPromptViewMode] = useState<'edit' | 'preview'>('preview');
 
   // Web host only: the server gates agent create/uninstall by the caller's scopes
@@ -245,7 +253,7 @@ const AgentSettings: React.FC = () => {
 
   // Fetch installed assistants for comparison with Hub
   const fetchInstalledAssistantNames = useCallback(async () => {
-    if (!isElectronDesktop()) return;
+    if (!isElectronDesktop() && !isWebBridgeAvailable()) return;
     try {
       const res = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
       if (res.success && res.data) {
@@ -375,7 +383,7 @@ const AgentSettings: React.FC = () => {
         hubRequestIdRef.current = requestId;
       }
       const isLatestHubRequest = () => requestId === hubRequestIdRef.current;
-      if (isEnterprise) return;
+      if (isEnterprise && !isWebBridgeAvailable()) return;
       try {
         if (append) {
           hubLoadingMoreRef.current = true;
@@ -481,10 +489,10 @@ const AgentSettings: React.FC = () => {
 
   // Fetch Hub categories
   useEffect(() => {
-    if (isEnterprise) return;
+    if (isEnterprise && !isWebBridgeAvailable()) return;
     const fetchCategories = async () => {
       try {
-        if (isElectronDesktop()) {
+        if (isElectronDesktop() || isWebBridgeAvailable()) {
           const res = await assistantHub.fetchCategories.invoke();
           if (res.success && res.data) {
             setHubCategories(res.data);
@@ -803,7 +811,7 @@ const AgentSettings: React.FC = () => {
 
   const handleInstallHubAssistant = useCallback(
     async (assistantId: string, selectedSkillIds: string[] = []) => {
-      if (!isElectronDesktop()) {
+      if (!isElectronDesktop() && !isWebBridgeAvailable()) {
         Message.warning(t('settings.assistant.desktopOnly', '助手安装仅在桌面端可用'));
         return;
       }
@@ -811,9 +819,9 @@ const AgentSettings: React.FC = () => {
       const assistant = hubAssistantList.find((a) => a.id === assistantId);
       if (!assistant) return;
 
-      const versionInfo = await resolveAssistantVersionInfo(assistant);
+      const versionInfo = isWebBridgeAvailable() ? { sourceUrl: '', version: '', checksum: '' } : await resolveAssistantVersionInfo(assistant);
 
-      if (!versionInfo?.sourceUrl) {
+      if (!versionInfo || (!isWebBridgeAvailable() && !versionInfo.sourceUrl)) {
         Message.error(t('settings.assistant.noDownloadUrl', '该助手暂不支持安装，请联系管理员'));
         return;
       }
@@ -1134,7 +1142,7 @@ const AgentSettings: React.FC = () => {
         }
 
         // Create new custom assistant
-        await ipcBridge.assistantHub.createAssistant.invoke({
+        await createAssistant({
           meta: {
             id: customId,
             nameI18n: { 'zh-CN': customName },
@@ -1189,7 +1197,7 @@ const AgentSettings: React.FC = () => {
         }
 
         // Create new custom assistant
-        await ipcBridge.assistantHub.createAssistant.invoke({
+        await createAssistant({
           meta: {
             id: customId,
             nameI18n: { 'zh-CN': customName },
@@ -1244,7 +1252,7 @@ const AgentSettings: React.FC = () => {
         }
 
         // Create new custom assistant
-        await ipcBridge.assistantHub.createAssistant.invoke({
+        await createAssistant({
           meta: {
             id: customId,
             nameI18n: { 'zh-CN': customName },
@@ -1289,9 +1297,7 @@ const AgentSettings: React.FC = () => {
 
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
   // Only custom assistants can be edited; hub/tenant-installed, builtin, and extension assistants are readonly.
-  // On the web host every assistant is readonly (the moss meta endpoint cannot
-  // round-trip the edit fields, so the drawer opens in view-only mode).
-  const isReadonlyAssistant = !isElectronDesktop() || Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin || (isEnterprise && (activeAssistant._category === 'hub' || activeAssistant._category === 'tenant'))));
+  const isReadonlyAssistant = !canManage || Boolean(activeAssistant && (isExtensionAssistant(activeAssistant) || activeAssistant._isHubInstalled || activeAssistant.isBuiltin || (isEnterprise && (activeAssistant._category === 'hub' || activeAssistant._category === 'tenant'))));
 
   // ===== 分类逻辑：以目录分类（_category）为主，其他字段仅作兼容兜底 =====
   // Tenant assistants: 目录分类为 tenant
@@ -1435,7 +1441,10 @@ const AgentSettings: React.FC = () => {
     await loadInstalledSkills();
   };
 
-  const handleSave = async () => {
+  const onSave = async () => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+    setIsSaving(true);
     try {
       // Block saving for readonly assistants (hub, builtin, extension)
       if (!isCreating && isReadonlyAssistant) {
@@ -1449,11 +1458,11 @@ const AgentSettings: React.FC = () => {
           return;
         }
         const newId = uuid(36); // Generate UUID for assistant ID
-        await ipcBridge.assistantHub.createAssistant.invoke({
+        await createAssistant({
           meta: {
             id: newId,
             nameI18n: { 'zh-CN': editName },
-            descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
+            descriptionI18n: { 'zh-CN': editDescription },
             avatar: editAvatar,
             presetAgentType: normalizePresetAgentType(editAgent) || DEFAULT_PRESET_AGENT_TYPE,
             enabled: true,
@@ -1467,7 +1476,7 @@ const AgentSettings: React.FC = () => {
 
         // Enterprise mode: sync upload to Moss Server after create
         console.log('[AgentModalContent] isEnterprise:', isEnterprise);
-        if (isEnterprise) {
+        if (isEnterprise && isElectronDesktop()) {
           console.log('[AgentModalContent] Enterprise mode: starting sync upload to Moss Server');
           const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
           if (result.success && result.data) {
@@ -1505,7 +1514,7 @@ const AgentSettings: React.FC = () => {
           name: lookupName,
           updates: {
             nameI18n: { 'zh-CN': editName },
-            descriptionI18n: editDescription ? { 'zh-CN': editDescription } : undefined,
+            descriptionI18n: { 'zh-CN': editDescription },
             avatar: editAvatar,
             presetAgentType: normalizePresetAgentType(editAgent) || DEFAULT_PRESET_AGENT_TYPE,
             enabledSkills: sanitizeAssistantEnabledSkills(selectedSkills, installedSkills),
@@ -1516,12 +1525,13 @@ const AgentSettings: React.FC = () => {
           return;
         }
 
-        if (editContext.trim()) {
-          await ipcBridge.fs.writeAssistantRule.invoke({
+        if (editContext.trim() || isWebBridgeAvailable()) {
+          const isSaved = await ipcBridge.fs.writeAssistantRule.invoke({
             assistantId: activeAssistant.id,
             locale: localeKey,
             content: editContext,
           });
+          if (isSaved !== true) throw new Error('Failed to save assistant rules');
         }
 
         await loadAssistants();
@@ -1533,6 +1543,9 @@ const AgentSettings: React.FC = () => {
     } catch (error) {
       console.error('Failed to save assistant:', error);
       Message.error(t('common.failed', 'Failed'));
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -1541,8 +1554,10 @@ const AgentSettings: React.FC = () => {
       const lookupName = resolveAssistantName(assistant.id);
       // Pass category for precise assistant location
       const assistantCategory = assistant._category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
-      await ipcBridge.assistantHub.uninstallAssistant.invoke({ name: lookupName, category: assistantCategory });
+      const result = await ipcBridge.assistantHub.uninstallAssistant.invoke({ name: lookupName, category: assistantCategory });
+      if (!result.success) throw new Error(result.msg || 'Failed to delete assistant');
       await loadAssistants();
+      await fetchInstalledAssistantNames();
       Message.success(t('common.success', 'Success'));
       await refreshAgentDetection();
     } catch (error) {
@@ -1645,7 +1660,7 @@ const AgentSettings: React.FC = () => {
 
         // Enterprise publish button element - placed below delete button
         const enterprisePublishButton =
-          isEnterprise && !publishStatus ? (
+          isEnterprise && isElectronDesktop() && !publishStatus ? (
             <Tooltip content={t('settings.assistant.publishAsTenant', '发布为专属助手')}>
               <button
                 className='store-action-icon'
@@ -1920,7 +1935,7 @@ const AgentSettings: React.FC = () => {
                   <div className='flex flex-col items-center justify-center py-12 gap-2'>
                     <Bot size={32} className='text-tertiary' />
                     <div className='text-13px text-secondary'>{t('settings.assistantsEmpty', '暂无智能体')}</div>
-                    <div className='text-12px text-tertiary'>{t('settings.assistantsEmptyHint', '点击下方"创建智能体"按钮添加你的智能体')}</div>
+                    {canManage && <div className='text-12px text-tertiary'>{t('settings.assistantsEmptyHint', '点击下方"创建智能体"按钮添加你的智能体')}</div>}
                     {canManage && (
                       <Button size='small' type='outline' className='mt-1' onClick={() => handleCreate()}>
                         {t('settings.createAssistant', '创建智能体')}
@@ -1964,7 +1979,7 @@ const AgentSettings: React.FC = () => {
                         <span className='px-1.5 py-0 bg-control text-secondary text-11px rd-full leading-18px'>{hubAssistants.length}</span>
                       </div>
                       {hubAssistants.length > 0 ? (
-                        renderAssistantGrid(hubAssistants, isEnterprise, true, !isEnterprise)
+                        renderAssistantGrid(hubAssistants, isEnterprise && !isWebBridgeAvailable(), true, !isEnterprise || isWebBridgeAvailable())
                       ) : hubError ? (
                         <HubEmptyState error={hubError} onRetry={() => void fetchHubAssistants()} />
                       ) : (
@@ -1982,6 +1997,7 @@ const AgentSettings: React.FC = () => {
         <AssistantOperateDrawer
           visible={editVisible}
           isCreating={isCreating}
+          isSaving={isSaving}
           isReadonly={!isCreating && isReadonlyAssistant}
           editAvatar={editAvatar}
           editAvatarImage={editAvatarImage}
@@ -1993,7 +2009,7 @@ const AgentSettings: React.FC = () => {
           builtinSelectableSkills={builtinSelectableSkills}
           selectedSkills={selectedSkills}
           onClose={() => setEditVisible(false)}
-          onSave={handleSave}
+          onSave={onSave}
           onAvatarChange={(emoji) => setEditAvatar(emoji)}
           onNameChange={(value) => setEditName(value)}
           onDescriptionChange={(value) => setEditDescription(value)}
@@ -2030,6 +2046,8 @@ const AgentSettings: React.FC = () => {
 
         {/* Hub Agent Detail Modal */}
         <AssistantDetailModal
+          isCloudInstall={isWebBridgeAvailable()}
+          canManage={canManage}
           assistant={hubDetailAssistant}
           visible={hubDetailVisible}
           onClose={() => {

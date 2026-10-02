@@ -777,7 +777,7 @@ const SkillSettings: React.FC = () => {
         return;
       }
       const skill = skills.find((s) => s.id === skillId);
-      const versionInfo = latestVersions.get(skillId);
+      const versionInfo = isWebBridgeAvailable() ? { sourceUrl: '', version: '', checksum: '' } : latestVersions.get(skillId);
       if (!skill || !versionInfo) return;
 
       setInstallingSkillId(skillId);
@@ -1125,7 +1125,7 @@ const SkillSettings: React.FC = () => {
 
         // Enterprise publish button element - placed below delete button
         const enterprisePublishButton =
-          isEnterprise && !publishStatus ? (
+          isEnterprise && isElectronDesktop() && !publishStatus ? (
             <Tooltip content={t('settings.skill.publishAsTenant', '发布为专属技能')}>
               <button
                 className='store-action-icon'
@@ -1322,7 +1322,7 @@ const SkillSettings: React.FC = () => {
                       {skills.map((skill) => {
                         const isInstalled = installedSkills.has(skill.name) || installedSkills.has(skill.id);
                         const latestVer = latestVersions.get(skill.id);
-                        const hasVersion = !!latestVer;
+                        const hasVersion = isWebBridgeAvailable() || !!latestVer;
                         const isInstalling = installingSkillId === skill.id;
                         const isUpdating = updatingSkillId === skill.id;
                         const installedVer = normalizeSkillVersion(installedSkills.get(skill.id) || installedSkills.get(skill.name));
@@ -1444,6 +1444,8 @@ const SkillSettings: React.FC = () => {
 
         {/* Store skill detail modal */}
         <SkillDetailModal
+          isCloudInstall={isWebBridgeAvailable()}
+          canManage={canManage}
           skill={detailSkill}
           visible={detailVisible}
           onClose={() => setDetailVisible(false)}

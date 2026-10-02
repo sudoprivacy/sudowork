@@ -63,8 +63,10 @@ export default function SkillDetailModal({
   hideActions = false,
   auditSkillName,
   onViewAuditDetails,
+  isCloudInstall = false,
+  canManage = true,
 }: ISkillDetailModalProps) {
-  const canUninstall = isInstalled && isHubInstalled;
+  const canUninstall = canManage && isInstalled && isHubInstalled;
   const [detail, setDetail] = useState<ISkillHubDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const { t } = useTranslation();
@@ -217,23 +219,27 @@ export default function SkillDetailModal({
               <div className='flex-1'>
                 <Progress percent={installProgress} size='small' />
               </div>
-            ) : hasVersion ? (
+            ) : isCloudInstall || hasVersion ? (
               <>
                 <Button type='primary' long size='large' icon={<PackagePlus size={15} />} onClick={onInstall} disabled={downloading}>
                   {t('settings.skill.install', '安装')}
                 </Button>
-                <Button size='large' icon={<IconDownload style={{ fontSize: 15 }} />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
-                  {t('common.download', '下载')}
-                </Button>
+                {!isCloudInstall && (
+                  <Button size='large' icon={<IconDownload style={{ fontSize: 15 }} />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
+                    {t('common.download', '下载')}
+                  </Button>
+                )}
               </>
             ) : null}
           </div>
 
           {/* Security badge */}
-          <div className='f-center gap-2 mt-3'>
-            <Shield size={12} className='text-success flex-shrink-0' />
-            <span className='text-10px text-secondary'>{t('settings.skill.securityVerified', '已通过安全与合规验证，无恶意代码或数据泄露风险。')}</span>
-          </div>
+          {!isWebBridgeAvailable() && (
+            <div className='f-center gap-2 mt-3'>
+              <Shield size={12} className='text-success flex-shrink-0' />
+              <span className='text-10px text-secondary'>{t('settings.skill.securityVerified', '已通过安全与合规验证，无恶意代码或数据泄露风险。')}</span>
+            </div>
+          )}
         </div>
       </div>
     </Modal>
@@ -241,6 +247,8 @@ export default function SkillDetailModal({
 }
 
 interface ISkillDetailModalProps {
+  isCloudInstall?: boolean;
+  canManage?: boolean;
   skill: ISkillHubSkill | null;
   visible: boolean;
   onClose: () => void;

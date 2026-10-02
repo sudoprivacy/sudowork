@@ -19,7 +19,7 @@ import { useAppMode } from '@renderer/hooks/useAppMode';
 import type { AssistantLatestVersion } from '../types';
 import { isAssistantVersionNewer } from '../utils';
 
-const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, latestVersionInfo, installedVersion, onUpdate, updating = false, onGoUse, installedSkills }) => {
+const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, latestVersionInfo, installedVersion, onUpdate, updating = false, onGoUse, installedSkills, isCloudInstall = false, canManage = true }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [relatedSkillDetails, setRelatedSkillDetails] = useState<ISkillHubSkill[]>([]);
@@ -278,7 +278,9 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
               <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
                 {t('settings.skill.goUse', '去使用')}
               </Button>
-            ) : !hasDownloadUrl ? (
+            ) : !canManage ? (
+              <div className='flex-1 text-center text-secondary text-13px py-3'>{t('settings.storeAdminRequired')}</div>
+            ) : !isCloudInstall && !hasDownloadUrl ? (
               <div className='flex-1 text-center text-secondary text-13px py-12px'>{t('settings.assistant.noDownloadUrl', '该助手暂不支持安装，请联系管理员')}</div>
             ) : installing ? (
               <div className='flex-1'>
@@ -297,6 +299,8 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
 };
 
 type AssistantDetailModalProps = {
+  isCloudInstall?: boolean;
+  canManage?: boolean;
   assistant: IAssistantHubSkill | null;
   visible: boolean;
   onClose: () => void;

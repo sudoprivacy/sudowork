@@ -50,7 +50,11 @@ export async function requireAnyScope(
 
 export async function getScopes(deps: AgentDeps, ctx: MossCallContext): Promise<string[]> {
   const me = await mapErr(() => deps.auth.mossAuth.me(ctx.accessToken, ctx.baseUrl))
-  return Array.isArray(me.scopes) ? me.scopes : []
+  const scopes = Array.isArray(me.scopes) ? me.scopes : []
+  // Match requireAnyScope: admins may manage resources even when Moss returns
+  // only the wildcard scope. The renderer consumes explicit capabilities.
+  const isAdmin = me.role === 'admin' || me.role === 'super_admin' || me.isSuperAdmin === true
+  return isAdmin ? [...new Set([...scopes, 'admin:settings'])] : scopes
 }
 
 interface InstalledItem {
@@ -100,7 +104,10 @@ export async function hubList(
 ): Promise<unknown> {
   // moss 上游返回 { assistants, next_cursor, has_more }（agentStore.ts fetchAgentHubAssistants），
   // 与 installFromHub 的兼容读取一致，统一归一化为 items 供前端消费
-  const hub = (await mapErr(() => deps.agents.hubList(ctx, searchParams))) as {
+  const { search, ...params } = searchParams
+  const hub = (await mapErr(() =>
+    deps.agents.hubList(ctx, { ...params, ...(search ? { query: search } : {}) }),
+  )) as {
     items?: Record<string, unknown>[]
     assistants?: Record<string, unknown>[]
     next_cursor?: unknown
@@ -139,14 +146,34 @@ export async function installFromHub(
 ): Promise<unknown> {
   await requireAnyScope(deps, ctx, ['admin:settings'])
   // assistantMeta 由后端从 fresh hub 列表解析（不信任浏览器提交）
-  const hub = (await mapErr(() => deps.agents.hubList(ctx, { limit: '100' }))) as {
+  const hub = (await mapErr(() => deps.agents.hubList(ctx, { limit: '100', query: name }))) as {
     items?: Record<string, unknown>[]
     assistants?: Record<string, unknown>[]
   }
   const items = hub?.items ?? hub?.assistants ?? []
   const meta = items.find((it) => it && (it.name === name || it.id === name))
   if (!meta) throw new NotFoundError()
-  return mapErr(() => deps.agents.install(ctx, { assistantMeta: meta, selectedSkillIds: [] }))
+  const detail = (await mapErr(() => deps.agents.hubDetail(ctx, String(meta.id)))) as Record<
+    string,
+    unknown
+  > | null
+  const version = (Array.isArray(detail?.versions) ? detail.versions[0] : null) as Record<
+    string,
+    unknown
+  > | null
+  const sourceUrl =
+    version?.source_url ?? detail?._sourceUrl ?? detail?.sourceUrl ?? detail?.source_url
+  if (typeof sourceUrl !== 'string' || !sourceUrl) throw new NotFoundError()
+  return mapErr(() =>
+    deps.agents.install(ctx, {
+      assistantName: meta.name,
+      sourceUrl,
+      version: version?.version ?? detail?.version,
+      checksum: version?.checksum,
+      assistantMeta: detail ?? meta,
+      selectedSkillIds: Array.isArray(detail?.skills) ? detail.skills : [],
+    }),
+  )
 }
 
 export async function createAgent(
@@ -155,7 +182,15 @@ export async function createAgent(
   body: Record<string, unknown>,
 ): Promise<unknown> {
   await requireAnyScope(deps, ctx, ['admin:settings'])
-  return mapErr(() => deps.agents.create(ctx, body))
+  const me = await mapErr(() => deps.auth.mossAuth.me(ctx.accessToken, ctx.baseUrl))
+  const { prompt, ...fields } = body
+  return mapErr(() =>
+    deps.agents.create(ctx, {
+      ...fields,
+      rules: typeof prompt === 'string' ? prompt : '',
+      visible_to: { user_ids: [me.user.id] },
+    }),
+  )
 }
 
 export async function uploadCustom(

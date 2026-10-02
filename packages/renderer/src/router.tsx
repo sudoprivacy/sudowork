@@ -10,6 +10,7 @@ import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
 import { useCronAccess } from './hooks/useCronAccess';
+import { isElectronDesktop } from './utils/platform';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
@@ -109,6 +110,10 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
 
   if (status !== 'authenticated' && status !== 'guest') {
     return <Navigate to='/login' replace />;
+  }
+
+  if (!isElectronDesktop() && (location.pathname === '/app/security' || location.pathname === '/settings/security')) {
+    return <Navigate to='/guid' replace />;
   }
 
   // 游客态隐藏「用户中心」「充值中心」（需求 4）：直达这两个 URL 重定向到 /settings/model

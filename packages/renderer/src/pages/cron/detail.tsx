@@ -17,7 +17,7 @@ import { emitter } from '@renderer/utils/emitter';
 import { resolveExtensionAssetUrl } from '@renderer/utils/platform';
 import CronJobFormDrawer from '@renderer/pages/cron/components/CronJobFormDrawer';
 import { useAssistantsForCron } from '@renderer/pages/cron/hooks/useAssistantsForCron';
-import { formatNextRunRelative, getJobStatusFlags, unwrapCronResult } from '@renderer/pages/cron/utils';
+import { formatNextRunRelative, formatScheduleFrequency, getJobStatusFlags, unwrapCronResult } from '@renderer/pages/cron/utils';
 import { useConversationTabs } from '@renderer/pages/conversation/context/ConversationTabsContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
@@ -44,7 +44,18 @@ export default function CronJobDetailPage() {
   useEffect(() => {
     if (!jobId) return;
     void (async () => {
-      const result = await ipcBridge.cron.getJob.invoke({ jobId });
+      let result: ICronJob | null;
+      try {
+        result = unwrapCronResult(await ipcBridge.cron.getJob.invoke({ jobId }));
+      } catch (err) {
+        if (!String(err).includes('NOT_FOUND')) Message.error(String(err));
+        void navigate('/app/cron', { replace: true });
+        return;
+      }
+      if (!result) {
+        void navigate('/app/cron', { replace: true });
+        return;
+      }
       setJob(result);
       if (result) {
         const targetConvId = getCronJobConversationTarget(result);
@@ -59,7 +70,7 @@ export default function CronJobDetailPage() {
         }
       }
     })();
-  }, [jobId, openTab]);
+  }, [jobId, openTab, navigate]);
 
   // Keep job state in sync with background updates
   useEffect(() => {
@@ -84,7 +95,7 @@ export default function CronJobDetailPage() {
       unwrapCronResult(await ipcBridge.cron.removeJob.invoke({ jobId: id }));
       Message.success(t('cron.deleteSuccess', '任务已删除'));
       emitter.emit('cron.jobs.refresh');
-      void navigate(-1);
+      void navigate('/app/cron', { replace: true });
     } catch (err) {
       Message.error(String(err));
     }
@@ -128,7 +139,7 @@ export default function CronJobDetailPage() {
 
   return (
     <PageWrapper
-      back={{ label: t('cron.allScheduledTasks', '全部定时任务'), onClick: () => void navigate(-1) }}
+      back={{ label: t('cron.allScheduledTasks', '全部定时任务'), onClick: () => void navigate('/app/cron') }}
       title={job.name}
       subtitle={
         <div className='flex items-center gap-2 mt-1'>
@@ -205,7 +216,7 @@ export default function CronJobDetailPage() {
           <div className='text-13px text-secondary mb-2'>{t('cron.create.frequency', '频率')}</div>
           <div className='flex items-center gap-3'>
             <Switch size='small' checked={job.enabled} onChange={(checked) => void handleToggle(job.id, checked)} />
-            <span className='text-14px text-foreground'>{job.schedule.description}</span>
+            <span className='text-14px text-foreground'>{formatScheduleFrequency(job.schedule, t)}</span>
           </div>
         </div>
 

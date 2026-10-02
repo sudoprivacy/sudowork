@@ -1,4 +1,5 @@
 {
+  "storeAdminRequired": "请联系管理员安装到云端",
   "title": "设置",
   "authMethod": "认证",
   "geminiApiKey": "Gemini API 密钥",

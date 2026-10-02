@@ -240,6 +240,7 @@ async function nameLegacyConversation(
 // ---------------------------------------------------------------------------
 
 const openStreams = new Map<string, WebSocket>()
+const syncedHistory = new Map<string, string>()
 
 // Per-session interactive state (browser memory, mirrors the desktop main-process
 // maps; cleared with the session WS on close).
@@ -1290,6 +1291,39 @@ function ensureChannelEventsSocket(): void {
 }
 
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
+  'get-file-metadata': async (req) => {
+    const path = String(req.path ?? '')
+    const file = window.__sudoworkWebFileStaging?.get(path)
+    if (!file) throw new Error('FILE_NOT_STAGED')
+    return {
+      name: file.name,
+      path,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified,
+    }
+  },
+  'get-image-base64': async (req) => {
+    const file = window.__sudoworkWebFileStaging?.get(String(req.path ?? ''))
+    if (!file) throw new Error('FILE_NOT_STAGED')
+    return `data:${file.type};base64,${await readFileAsBase64(file)}`
+  },
+  'system-settings:get-show-tool-calls': async () => {
+    const value = storageGet('agent.config', 'system.showToolCalls')
+    return typeof value === 'boolean' ? value : null
+  },
+  'system-settings:set-show-tool-calls': async (req) => {
+    const isEnabled = req.enabled === true
+    storageSet('agent.config', 'system.showToolCalls', isEnabled)
+    emitterRef?.emit('system-settings:show-tool-calls-changed', { enabled: isEnabled })
+  },
+  'system-settings:get-show-token-usage-badges': async () =>
+    storageGet('agent.config', 'system.showTokenUsageBadges') === true,
+  'system-settings:set-show-token-usage-badges': async (req) => {
+    const isEnabled = req.enabled === true
+    storageSet('agent.config', 'system.showTokenUsageBadges', isEnabled)
+    emitterRef?.emit('system-settings:show-token-usage-badges-changed', { enabled: isEnabled })
+  },
   // --- enterprise/session flags ---
   'moss.is-enterprise-mode': async () => true,
   'moss.get-config': async () => ({ serverUrl: location.origin, hasToken: true }),
@@ -1432,19 +1466,62 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     // CreateAgentRequestSchema (name/displayName/description?/avatar?/prompt?) is
     // not .strict(): zod strips unknown keys, so we send only the minimal set.
     const meta = (req?.meta ?? {}) as Record<string, unknown>
-    const name = String(meta.name ?? '')
-    const displayName = String(meta.display_name ?? meta.name ?? '')
+    const name = String(meta.name ?? meta.id ?? '')
+    const names = (meta.nameI18n ?? {}) as Record<string, string>
+    const descriptions = (meta.descriptionI18n ?? {}) as Record<string, string>
+    const displayName = String(
+      meta.display_name ?? names['zh-CN'] ?? names['en-US'] ?? Object.values(names)[0] ?? name,
+    )
     await apiFetch('/api/agents/create', {
       method: 'POST',
       body: JSON.stringify({
         name,
         displayName,
-        description: typeof meta.description === 'string' ? meta.description : undefined,
+        description:
+          typeof meta.description === 'string'
+            ? meta.description
+            : (descriptions['zh-CN'] ?? descriptions['en-US'] ?? Object.values(descriptions)[0]),
         avatar: typeof meta.avatar === 'string' ? meta.avatar : undefined,
         prompt: typeof req?.ruleContent === 'string' ? req.ruleContent : undefined,
+        skills: Array.isArray(meta.enabledSkills) ? meta.enabledSkills : [],
       }),
     })
     return ok()
+  },
+  'assistant-hub.update-assistant-meta': async (req) => {
+    const updates = (req.updates ?? {}) as Record<string, unknown>
+    const names = (updates.nameI18n ?? {}) as Record<string, string>
+    const descriptions = (updates.descriptionI18n ?? {}) as Record<string, string>
+    await apiFetch('/api/agents/meta', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: req.name,
+        updates: {
+          display_name:
+            updates.display_name ?? names['zh-CN'] ?? names['en-US'] ?? Object.values(names)[0],
+          description:
+            updates.description ??
+            descriptions['zh-CN'] ??
+            descriptions['en-US'] ??
+            Object.values(descriptions)[0],
+          avatar: updates.avatar,
+          emoji: updates.emoji,
+          enabledSkills: updates.enabledSkills,
+        },
+      }),
+    })
+    return ok()
+  },
+  'write-assistant-rule': async (req) => {
+    try {
+      await apiFetch('/api/agents/meta', {
+        method: 'PATCH',
+        body: JSON.stringify({ name: req.assistantId, updates: { rules: req.content } }),
+      })
+      return true
+    } catch {
+      return false
+    }
   },
   'assistant-hub.uninstall-assistant': async (req) => {
     await apiFetch('/api/agents/uninstall', {
@@ -1454,6 +1531,15 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok()
   },
   // --- assistant-hub: browse store (hub) & exclusive (tenant) lists ---
+  'assistant-hub.download-and-install-assistant': async (req) =>
+    ok(
+      await apiFetch('/api/agents/install', {
+        method: 'POST',
+        body: JSON.stringify({ name: req.assistantName }),
+      }),
+    ),
+  'assistant-hub.fetch-categories': async () =>
+    ok(await apiFetch<string[]>('/api/agents/hub/categories')),
   'assistant-hub.fetch-assistants': async (req) => {
     if (String(req?.sourceType ?? '') === 'tenant') {
       // 专属：/tenant 为 session 维度，moss 按登录企业身份返回，无需 tenant_id
@@ -1516,8 +1602,14 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   // --- skill-hub: browse store (hub) & exclusive (tenant) lists ---
   'skill-hub.fetch-categories': async () => ok(await apiFetch('/api/skills/hub/categories')),
-  'skill-hub.fetch-skill-detail': async (req) =>
-    ok(await apiFetch(`/api/skills/hub/${encodeURIComponent(String(req?.skillId ?? ''))}`)),
+  'skill-hub.fetch-skill-detail': async (req) => {
+    const detail = await apiFetch<Record<string, unknown> | null>(
+      `/api/skills/hub/${encodeURIComponent(String(req?.skillId ?? ''))}`,
+    )
+    if (!detail) return fail('NOT_FOUND')
+    const { versions, ...skill } = detail
+    return ok({ skill, versions: Array.isArray(versions) ? versions : [] })
+  },
   'skill-hub.download-and-install-skill': async (req) => {
     const meta = req?.skillMeta as { id?: unknown } | undefined
     if (typeof meta?.id !== 'string' || !meta.id.trim()) return fail('INVALID_REQUEST')
@@ -1578,6 +1670,17 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     ).catch(() => null)
     if (model?.modelId)
       conv.extra = { ...(conv.extra as Record<string, unknown>), currentModelId: model.modelId }
+    if (found.assistantName) {
+      const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [])
+      const agent = agents.find(
+        (item) => item.name === found.assistantName || item.id === found.assistantName,
+      )
+      if (agent)
+        conv.extra = {
+          ...(conv.extra as Record<string, unknown>),
+          agentName: agent.displayName ?? agent.display_name ?? agent.name,
+        }
+    }
     return conv
   },
   'database.get-conversation-messages': async (req) => {
@@ -1588,6 +1691,19 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const messages = ctx.messages ?? []
     void nameLegacyConversation(id, ctx.title, messages)
     return messages
+  },
+  'conversation.sync-messages': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    // Attach before reading history so externally started turns (such as cron)
+    // keep streaming after the initial snapshot has been rendered.
+    ensureSessionStream(id)
+    const context = await apiFetch<{ messages?: unknown[] }>(
+      `/api/conversations/${encodeURIComponent(id)}/context`,
+    )
+    const fingerprint = JSON.stringify(context.messages ?? [])
+    const isChanged = syncedHistory.get(id) !== fingerprint
+    syncedHistory.set(id, fingerprint)
+    return ok({ syncedCount: isChanged ? (context.messages?.length ?? 0) : 0, nameUpdated: false })
   },
 
   // --- workspace / deliverables (moss-session right panel) ---

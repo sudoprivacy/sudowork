@@ -117,7 +117,15 @@ const Layout: React.FC = () => {
                 }}
                 aria-label={t('common.ariaLabel.newConversation', '新会话')}
               >
-                <img src={config.logo || SudoworkIcon} alt={config.app_name} className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130' style={{ objectFit: 'contain' }} />
+                <img
+                  src={config.logo || SudoworkIcon}
+                  alt={config.app_name}
+                  className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130'
+                  style={{ objectFit: 'contain' }}
+                  onError={(event) => {
+                    if (event.currentTarget.getAttribute('src') !== SudoworkIcon) event.currentTarget.src = SudoworkIcon;
+                  }}
+                />
               </div>
               <div className='flex-1 text-20px text-1 font-800 cursor-pointer' onClick={goToNewConversation}>
                 {config.app_name}

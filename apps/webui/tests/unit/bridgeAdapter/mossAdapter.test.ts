@@ -24,6 +24,32 @@ import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/ty
 type FetchMock = ReturnType<typeof vi.fn>
 type StatusRoute = { status: number; body: unknown }
 
+describe('mossAdapter: browser display preferences', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('uses the tenant tool-display default until explicitly overridden and emits changes', async () => {
+    expect(await ipcBridge.systemSettings.getShowToolCalls.invoke()).toBeNull()
+    const onChange = vi.fn()
+    const unsubscribe = ipcBridge.systemSettings.showToolCallsChanged.on(onChange)
+    try {
+      await ipcBridge.systemSettings.setShowToolCalls.invoke({ enabled: false })
+      expect(await ipcBridge.systemSettings.getShowToolCalls.invoke()).toBe(false)
+      expect(onChange).toHaveBeenLastCalledWith({ enabled: false })
+      await ipcBridge.systemSettings.setShowToolCalls.invoke({ enabled: true })
+      expect(await ipcBridge.systemSettings.getShowToolCalls.invoke()).toBe(true)
+      expect(onChange).toHaveBeenLastCalledWith({ enabled: true })
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it('returns a boolean token badge preference, never an unsupported-response object', async () => {
+    expect(await ipcBridge.systemSettings.getShowTokenUsageBadges.invoke()).toBe(false)
+    await ipcBridge.systemSettings.setShowTokenUsageBadges.invoke({ enabled: true })
+    expect(await ipcBridge.systemSettings.getShowTokenUsageBadges.invoke()).toBe(true)
+  })
+})
+
 function stubFetch(routes: Record<string, unknown | StatusRoute>): FetchMock {
   const fn = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
@@ -174,8 +200,83 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
 })
 
 describe('mossAdapter: assistant/skill management channels', () => {
+  it('installs cloud agents by name and leaves download resolution to the server', async () => {
+    const fetchMock = stubFetch({
+      '/api/agents/install': { assistantName: 'helper' },
+    })
+    expect(
+      (
+        await ipcBridge.assistantHub.downloadAndInstallAssistant.invoke({
+          assistantName: 'helper',
+          displayName: 'Helper',
+          sourceUrl: 'https://untrusted.test/file.zip',
+          version: '1',
+          checksum: '',
+          assistantMeta: {
+            id: 'helper',
+            name: 'helper',
+            display_name: 'Helper',
+            description: '',
+            avatar: null,
+            emoji: null,
+            category: '',
+            categories: [],
+            preset_agent_type: null,
+            skills: [],
+            tag: 'hub',
+            homepage: null,
+            author_id: 'author',
+            star_count: 0,
+            applicable_scenarios: null,
+            core_features: null,
+            created_at: '',
+            updated_at: '',
+          },
+        })
+      ).success,
+    ).toBe(true)
+    expect(
+      fetchMock.mock.calls.map((call) => JSON.parse(String((call[1] as RequestInit).body))),
+    ).toEqual([{ name: 'helper' }])
+  })
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('loads skill categories through the authenticated WebUI route', async () => {
+    const fetchMock = stubFetch({ '/api/skills/hub/categories': ['Writing', 'Development'] })
+    expect(await ipcBridge.skillHub.fetchCategories.invoke()).toEqual({
+      success: true,
+      data: ['Writing', 'Development'],
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/skills/hub/categories',
+      expect.objectContaining({ credentials: 'include' }),
+    )
+  })
+
+  it('restores the renderer detail envelope from the flattened Moss skill', async () => {
+    stubFetch({
+      '/api/skills/hub/skill%2Fone': {
+        id: 'skill/one',
+        name: 'writer',
+        versions: [{ version: '1.0', source_url: 'https://example.com/skill.zip' }],
+      },
+    })
+    expect(await ipcBridge.skillHub.fetchSkillDetail.invoke({ skillId: 'skill/one' })).toEqual({
+      success: true,
+      data: {
+        skill: { id: 'skill/one', name: 'writer' },
+        versions: [{ version: '1.0', source_url: 'https://example.com/skill.zip' }],
+      },
+    })
+  })
+
+  it('reports category errors instead of presenting an empty successful catalog', async () => {
+    stubFetch({
+      '/api/skills/hub/categories': { status: 503, body: { error: 'MOSS_UNAVAILABLE' } },
+    })
+    expect((await ipcBridge.skillHub.fetchCategories.invoke()).success).toBe(false)
   })
 
   it('get-installed-assistants projects moss rows into IAssistantInfo', async () => {
@@ -257,7 +358,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
         display_name: 'Writer',
         description: 'a writer',
         avatar: 'data:img',
-        // fields the server schema does not accept — must not be forwarded
+        // Runtime selection stays server-owned.
         presetAgentType: 'claude',
         enabledSkills: ['x'],
         nameI18n: { en: 'Writer' },
@@ -275,7 +376,78 @@ describe('mossAdapter: assistant/skill management channels', () => {
       description: 'a writer',
       avatar: 'data:img',
       prompt: 'You are a writer.',
+      skills: ['x'],
     })
+  })
+
+  it('creates an assistant from the shared drawer UUID and localized labels', async () => {
+    const fetchMock = stubFetch({ '/api/agents/create': { ok: true } })
+    const result = await ipcBridge.assistantHub.createAssistant.invoke({
+      meta: {
+        id: 'agent-id',
+        nameI18n: { 'zh-CN': 'Writer' },
+        descriptionI18n: { 'zh-CN': 'Draft documents' },
+        enabledSkills: ['writer'],
+      },
+      ruleContent: 'Reply with 323',
+    })
+    expect(result.success).toBe(true)
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toEqual({
+      name: 'agent-id',
+      displayName: 'Writer',
+      description: 'Draft documents',
+      prompt: 'Reply with 323',
+      skills: ['writer'],
+    })
+  })
+
+  it('saves localized assistant edits and explicit empty rules through the cloud API', async () => {
+    const fetchMock = stubFetch({ '/api/agents/meta': { ok: true } })
+    expect(
+      (
+        await ipcBridge.assistantHub.updateAssistantMeta.invoke({
+          name: 'agent-id',
+          updates: { nameI18n: { 'zh-CN': 'Renamed' }, enabledSkills: [] },
+        })
+      ).success,
+    ).toBe(true)
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toEqual({
+      name: 'agent-id',
+      updates: { display_name: 'Renamed', enabledSkills: [] },
+    })
+    expect(
+      await ipcBridge.fs.writeAssistantRule.invoke({ assistantId: 'agent-id', content: '' }),
+    ).toBe(true)
+    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body))).toEqual({
+      name: 'agent-id',
+      updates: { rules: '' },
+    })
+  })
+
+  it('returns a real failure when cloud rules cannot be saved', async () => {
+    stubFetch({ '/api/agents/meta': { status: 403, body: { error: 'FORBIDDEN' } } })
+    expect(
+      await ipcBridge.fs.writeAssistantRule.invoke({ assistantId: 'agent-id', content: 'draft' }),
+    ).toBe(false)
+  })
+
+  it('reads upload metadata and thumbnail bytes from the browser file', async () => {
+    const path = '/webupload/test/image.png'
+    window.__sudoworkWebFileStaging = new Map([
+      [path, new File(['abc'], 'image.png', { type: 'image/png', lastModified: 123 })],
+    ])
+    try {
+      expect(await ipcBridge.fs.getFileMetadata.invoke({ path })).toEqual({
+        name: 'image.png',
+        path,
+        size: 3,
+        type: 'image/png',
+        lastModified: 123,
+      })
+      expect(await ipcBridge.fs.getImageBase64.invoke({ path })).toBe('data:image/png;base64,YWJj')
+    } finally {
+      window.__sudoworkWebFileStaging = undefined
+    }
   })
 
   it('uninstall-assistant posts the bare name', async () => {
@@ -336,7 +508,11 @@ describe('mossAdapter: assistant/skill management channels', () => {
   it('reads skill versions and categories from authenticated WebUI routes', async () => {
     stubFetch({
       '/api/skills/hub/categories': ['Creation'],
-      '/api/skills/hub/skill-id': { versions: [{ version: '1.0.1' }] },
+      '/api/skills/hub/skill-id': {
+        id: 'skill-id',
+        name: 'writer',
+        versions: [{ version: '1.0.1' }],
+      },
     })
     expect(await ipcBridge.skillHub.fetchCategories.invoke()).toEqual({
       success: true,
@@ -344,7 +520,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
     })
     expect(await ipcBridge.skillHub.fetchSkillDetail.invoke({ skillId: 'skill-id' })).toEqual({
       success: true,
-      data: { versions: [{ version: '1.0.1' }] },
+      data: { skill: { id: 'skill-id', name: 'writer' }, versions: [{ version: '1.0.1' }] },
     })
   })
 
@@ -637,6 +813,27 @@ describe('mossAdapter: create-conversation binds the selected assistant', () => 
 
   const readBody = (fetchMock: FetchMock, call = 0): Record<string, unknown> =>
     JSON.parse(String((fetchMock.mock.calls[call]?.[1] as RequestInit).body))
+
+  it('attaches to an externally started conversation and requests a history refresh', async () => {
+    const sockets = vi.fn(function (this: FakeWebSocket, url: string) {
+      this.url = url
+      this.addEventListener = vi.fn()
+      this.close = vi.fn()
+    })
+    vi.stubGlobal('WebSocket', sockets)
+    stubFetch({ '/context': { messages: [{ id: 'cron-message' }] } })
+    const result = await ipcBridge.conversation.syncMessages.invoke({
+      conversation_id: 'cron-sync-test',
+    })
+    expect(result).toEqual({ success: true, data: { syncedCount: 1, nameUpdated: false } })
+    expect(sockets).toHaveBeenCalledWith(
+      expect.stringContaining('/ws/conversations/cron-sync-test'),
+    )
+    const unchanged = await ipcBridge.conversation.syncMessages.invoke({
+      conversation_id: 'cron-sync-test',
+    })
+    expect(unchanged.data?.syncedCount).toBe(0)
+  })
 
   it('forwards extra.presetAssistantId as moss assistantName and reports the display name', async () => {
     const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-1' } })

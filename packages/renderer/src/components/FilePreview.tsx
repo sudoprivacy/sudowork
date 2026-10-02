@@ -12,6 +12,7 @@ import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { getFileExtension } from '@renderer/services/FileService';
 import { resolveFileIcon } from '@renderer/utils/fileIcon';
 import { usePreviewLauncher } from '@renderer/hooks/usePreviewLauncher';
+import { isWebBridgeAvailable } from '@renderer/utils/platform';
 
 const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
 
@@ -93,6 +94,9 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
   useEffect(() => {
     // bdpan:// paths are remote — skip local fs operations
     if (path.startsWith('bdpan://')) return;
+    // Only pending browser uploads have local metadata. Cloud files are read
+    // through the conversation workspace API when their preview opens.
+    if (isWebBridgeAvailable() && !window.__sudoworkWebFileStaging?.has(path)) return;
 
     // Reset error state when path changes
     setFileError(false);
@@ -103,7 +107,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
     ipcBridge.fs.getFileMetadata
       .invoke({ path })
       .then((metadata) => {
-        if (!cancelled) setFileSize(formatFileSize(metadata.size));
+        if (!cancelled && Number.isFinite(metadata?.size)) setFileSize(formatFileSize(metadata.size));
       })
       .catch((error) => {
         if (!cancelled) {
@@ -118,7 +122,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
       ipcBridge.fs.getImageBase64
         .invoke({ path })
         .then((base64) => {
-          if (!cancelled) setImageUrl(base64);
+          if (!cancelled && typeof base64 === 'string') setImageUrl(base64);
         })
         .catch((error) => {
           if (!cancelled) {

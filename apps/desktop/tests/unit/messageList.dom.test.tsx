@@ -48,6 +48,22 @@ import MessageList from '@renderer/messages/MessageList';
 const message = (id: string, position: 'left' | 'right', content: string): TMessage => ({ id, msg_id: id, conversation_id: 'test', type: 'text', position, content: { content } });
 afterEach(cleanup);
 describe('chat virtual rows', () => {
+  it('omits permission prompts rendered outside the virtual list', () => {
+    state.messages = [
+      message('user', 'right', 'Run a command'),
+      {
+        id: 'permission',
+        msg_id: 'permission',
+        conversation_id: 'test',
+        type: 'codex_permission',
+        position: 'left',
+        content: { options: [], subtype: 'exec_approval_request', data: { call_id: 'tool', command: ['pwd'], cwd: '/', reason: null } },
+      },
+    ];
+    render(<MessageList />);
+    expect(state.rows.map((item) => item.id)).toEqual(['user']);
+    expect(state.initialIndex).toBe(0);
+  });
   it('starts empty at a valid index and accepts later history', () => {
     state.messages = [];
     const view = render(<MessageList />);
