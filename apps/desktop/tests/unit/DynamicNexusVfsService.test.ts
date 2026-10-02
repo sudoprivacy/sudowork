@@ -97,13 +97,14 @@ vi.mock('@process/services/archiveProgress', () => ({
   extractZipWithProgress: vi.fn(),
 }));
 
-vi.mock('@process/services/nexus-vfs/VaultPluginInstaller', () => ({
-  vaultPluginInstaller: {
+vi.mock('@process/services/nexus-vfs/VaultPluginInstaller', () => {
+  const vaultPluginInstaller = {
     checkInstalledSync: vi.fn(() => true),
     install: vi.fn(),
     isPlatformSupported: vi.fn(() => true),
-  },
-}));
+  };
+  return { vaultPluginInstaller, nexusPluginInstallers: [vaultPluginInstaller] };
+});
 
 function mockPortSequence(results: boolean[]): void {
   let callCount = 0;

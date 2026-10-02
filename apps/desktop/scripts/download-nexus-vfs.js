@@ -38,9 +38,8 @@ const {
   getPluginSig,
 } = require('./plugin-naming.js');
 
-// The daemon is now the nexus ASSEMBLY nexusd-cluster (VFS cluster + managed_agent),
-// pinned + published independently of nexus-vfs under the distinct COS prefix
-// `nexusd-cluster/`. Superset of the old pure-cluster pull.
+// nexus-vfs now publishes the cluster daemon with managed_agent + subprocess.
+// Its v0.7.x release replaces the discontinued nexus assembly v0.1.x.
 const VERSION = runtimeVersions['nexusd-cluster'];
 const VAULT_VERSION = runtimeVersions['nexus-vault'];
 const LOCAL_CONNECTOR_VERSION = runtimeVersions['nexus-local-connector'];
@@ -48,8 +47,8 @@ const FUSE_PLUGIN_VERSION = runtimeVersions['nexus-fuse-plugin'];
 
 // Runtime bucket is primary; legacy bucket stays live as a fallback during deprecation.
 const COS_BASE_URLS = [
-  `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexusd-cluster/release/v${VERSION}`,
-  `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexusd-cluster/release/v${VERSION}`,
+  `https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`,
+  `https://sudoclaw-download-1309794936.cos.ap-beijing.myqcloud.com/nexus-vfs/release/v${VERSION}`,
 ];
 
 // GitHub Release fallback for nexus-vfs cluster, mirroring the same pattern
@@ -59,7 +58,7 @@ const COS_BASE_URLS = [
 // release (`publish-github-release` step, `softprops/action-gh-release@v2`)
 // is unconditional on tag push, so the GH-release fallback is always
 // available even when the COS mirror is empty.
-const NEXUS_VFS_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/download/nexusd-cluster-v${VERSION}`;
+const NEXUS_VFS_GITHUB_URL = `https://github.com/nexi-lab/nexus-vfs/releases/download/v${VERSION}`;
 
 // Vault plugin is released from the nexus repo (separate from nexus-vfs).
 const VAULT_COS_BASE_URLS = [
@@ -101,8 +100,10 @@ const SHA256SUMS = Object.fromEntries(Object.entries(runtimeSha256).filter(([key
 
 
 
-const HOME = os.homedir();
-const INSTALL_ROOT = path.join(HOME, '.nexus-vfs');
+// Explicit roots support isolated cold-start verification without touching
+// the user's installation or packaging resources.
+const INSTALL_ROOT = path.resolve(process.env.SUDOWORK_NEXUS_INSTALL_ROOT || path.join(os.homedir(), '.nexus-vfs'));
+const RESOURCES_DIR = path.resolve(process.env.SUDOWORK_NEXUS_RESOURCES_DIR || path.join(__dirname, '..', 'resources'));
 const BIN_DIR = path.join(INSTALL_ROOT, 'bin');
 const PLUGIN_DIR = path.join(INSTALL_ROOT, 'plugins');
 const DOWNLOAD_DIR = path.join(INSTALL_ROOT, 'downloads');
@@ -365,7 +366,6 @@ async function installForPlatform(platform, arch, force) {
   // Stage the verified cluster archive into resources/ so electron-builder can
   // bundle it as an extraResource. This mirrors the vault staging below and
   // the scode/nexusd-cluster pattern in download-scode.js.
-  const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
   try {
     fs.mkdirSync(RESOURCES_DIR, { recursive: true });
     const stagedName = `v${VERSION}-${artifact}`;
@@ -469,7 +469,6 @@ async function installVaultPlugin(platform, arch, force) {
   // bundle it as an extraResource. This mirrors how scode/nexusd-cluster
   // archives are staged for packaging. The versioned filename follows the
   // same convention: v${VERSION}-${artifactName}.
-  const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
   try {
     fs.mkdirSync(RESOURCES_DIR, { recursive: true });
     const stagedName = `v${VAULT_VERSION}-${artifact}`;
@@ -602,6 +601,9 @@ async function installSignedKernelPlugin(spec, platform, arch, force) {
   }
 
   extractArchive(archivePath, extractDir);
+
+  fs.mkdirSync(RESOURCES_DIR, { recursive: true });
+  fs.copyFileSync(archivePath, path.join(RESOURCES_DIR, `v${version}-${artifactName}`));
 
   const extractedDylib = findBinaryInDir(extractDir, dylibName);
   if (!extractedDylib) {

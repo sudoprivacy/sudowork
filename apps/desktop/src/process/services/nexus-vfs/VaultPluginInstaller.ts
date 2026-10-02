@@ -8,313 +8,141 @@ import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@sudowork/common/co
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import runtimeVersions from '@/shared/runtime-versions.json';
 import runtimeSha256 from '@/shared/runtime-sha256.json';
+import runtimePlugins from '@/shared/runtime-plugins.json';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import type { NexusVfsStage } from './DynamicNexusVfsService';
 
-/**
- * nexus-vault plugin runtime installer.
- *
- * Mirrors the vault download path that already lives in
- * scripts/download-nexus-vfs.js (build-time only) so packaged users — who never
- * run that script — still receive the vault dylib on first launch. Keeps all
- * vault knowledge (URLs, SHA, platform map, dylib/sig naming, marker, cleanup)
- * inside this single file; the rest of the codebase only talks to the
- * `vaultPluginInstaller` instance through the four-method public API.
- */
-
-const VAULT_VERSION = (runtimeVersions as Record<string, string>)['nexus-vault'];
-
-/** Three mirrors in priority order; byte-for-byte identical to
- *  scripts/download-nexus-vfs.js:41-47. Keep these literals in sync if any of
- *  them change upstream. */
-const VAULT_RUNTIME_BASE_URL = `${COS_RUNTIME_BASE}/nexus-vault/release/v${VAULT_VERSION}`;
-const VAULT_LEGACY_BASE_URL = `${COS_LEGACY_NEXUS_VFS_BASE}/nexus-vault/release/v${VAULT_VERSION}`;
-const VAULT_GITHUB_URL = `https://github.com/nexi-lab/nexus/releases/download/vault-v${VAULT_VERSION}`;
-
-/** Marker file written next to the dylib once an install completes
- *  successfully. Contents = VAULT_VERSION. */
-const VAULT_READY_MARKER = '.nexus-vault-ready';
-
-/** `process.platform-process.arch` → archive basename (no extension).
- *  win32-arm64 / linux-arm64 are intentionally absent — upstream vault has no
- *  artifact for them, so isPlatformSupported() returns false for those. */
-const VAULT_PLATFORM_ARTIFACT_MAP: Record<string, string> = {
-  'darwin-arm64': 'nexus-vault-macos-arm64',
-  'darwin-x64': 'nexus-vault-macos-x86_64',
-  'linux-x64': 'nexus-vault-linux-x86_64',
-  'win32-x64': 'nexus-vault-windows-x86_64',
-};
-
-const VAULT_DYLIB_NAME_MAP: Record<string, string> = {
-  darwin: 'libnexus_vault.dylib',
-  linux: 'libnexus_vault.so',
-  win32: 'nexus_vault.dll',
-};
-
-/** Known-good SHA256 sums for vault. Sourced from
- *  `src/shared/runtime-sha256.json` so the build-time downloader
- *  (`scripts/download-nexus-vfs.js`) and this runtime re-installer always
- *  see the SAME bytes. The previous hand-maintained table here drifted
- *  silently when PR #918 bumped vault to v0.2.0 — runtime stayed on the
- *  v0.1.3 SHA and every Mac install hit a SHA-mismatch error. */
-export const NEXUS_VAULT_SHA256SUMS: Record<string, string> = runtimeSha256 as Record<string, string>;
-
-// ── Module-level pure functions (export so tests can call directly without
-//    poking class internals) ───────────────────────────────────────────────────
-
-/** Returns the archive filename for the given platform/arch, or null when
- *  upstream vault has no artifact (win-arm64 / linux-arm64). */
-export function getVaultArtifactName(platform: string, arch: string): string | null {
-  const key = `${platform}-${arch}`;
-  const base = VAULT_PLATFORM_ARTIFACT_MAP[key];
-  if (!base) return null;
-  const ext = platform === 'win32' ? '.zip' : '.tar.gz';
-  return `${base}${ext}`;
+interface IRuntimePlugin {
+  name: string;
+  artifactPrefix: string;
+  releaseTagPrefix: string;
+  publishedPlatforms: string[];
+  dylib: Partial<Record<string, string>>;
 }
-
-/** Returns the dylib filename inside the archive (e.g. libnexus_vault.dylib),
- *  or null if the platform has no vault dylib at all. */
-export function getVaultDylibName(platform: string): string | null {
-  return VAULT_DYLIB_NAME_MAP[platform] ?? null;
-}
-
-/** Returns the detached signature filename. Convention: dylib basename + `.sig`,
- *  matching nexus-vfs's PluginLoader. */
-export function getVaultSigName(platform: string): string | null {
-  const dylib = getVaultDylibName(platform);
-  return dylib ? `${dylib}.sig` : null;
-}
-
-// ── Installer class ──────────────────────────────────────────────────────────
 
 type EmitFn = (stage: NexusVfsStage, message: string, percent?: number) => void;
+const plugins: IRuntimePlugin[] = runtimePlugins;
+const vault = plugins.find((plugin) => plugin.name === 'nexus_vault')!;
+const versions: Record<string, string> = runtimeVersions;
+export const VAULT_VERSION = versions[vault.artifactPrefix];
+export const VAULT_READY_MARKER = '.nexus-vault-ready';
+export const NEXUS_VAULT_SHA256SUMS: Record<string, string> = runtimeSha256;
 
-class VaultPluginInstaller {
-  private readonly isWindows = process.platform === 'win32';
+/** Resolve only artifacts supported by the shared packaging platform matrix. */
+function getArtifactName(plugin: IRuntimePlugin, platform: string, arch: string): string | null {
+  if (!plugin.publishedPlatforms.includes(`${platform}-${arch}`)) return null;
+  const osName = { darwin: 'macos', linux: 'linux', win32: 'windows' }[platform];
+  const archName = { arm64: 'arm64', x64: 'x86_64' }[arch];
+  if (!osName || !archName) return null;
+  return `${plugin.artifactPrefix}-${osName}-${archName}${platform === 'win32' ? '.zip' : '.tar.gz'}`;
+}
 
-  /** ~/.nexus-vfs/plugins/. Must remain string-identical to
-   *  DynamicNexusVfsService.getPluginDir() — U10 unit test enforces this. */
+export function getVaultArtifactName(platform: string, arch: string): string | null {
+  return getArtifactName(vault, platform, arch);
+}
+
+export function getVaultDylibName(platform: string): string | null {
+  return vault.dylib[platform] ?? null;
+}
+
+export function getVaultSigName(platform: string): string | null {
+  const name = getVaultDylibName(platform);
+  return name ? `${name}.sig` : null;
+}
+
+/** Install every supported signed plugin alongside the matching daemon ABI. */
+class NexusPluginInstaller {
+  constructor(private readonly plugin: IRuntimePlugin) {}
+
+  private get version(): string {
+    return versions[this.plugin.artifactPrefix];
+  }
+
+  private get marker(): string {
+    return `.${this.plugin.artifactPrefix}-ready`;
+  }
+
   getPluginDir(): string {
     return path.join(app.getPath('home'), '.nexus-vfs', 'plugins');
   }
 
-  /** False on win-arm64 / linux-arm64 — vault has no upstream artifact there;
-   *  callers should skip vault checks entirely. */
   isPlatformSupported(): boolean {
-    return getVaultArtifactName(process.platform, process.arch) !== null;
+    return getArtifactName(this.plugin, process.platform, process.arch) !== null;
   }
 
-  /** True only when dylib + marker exist AND marker content == VAULT_VERSION.
-   *  Matches scripts/download-nexus-vfs.js:361 three-state semantics. */
   checkInstalledSync(): boolean {
-    const dylibName = getVaultDylibName(process.platform);
-    if (!dylibName) return false;
-    const pluginDir = this.getPluginDir();
-    const dylibPath = path.join(pluginDir, dylibName);
-    const markerPath = path.join(pluginDir, VAULT_READY_MARKER);
-    if (!fs.existsSync(dylibPath)) return false;
-    if (!fs.existsSync(markerPath)) return false;
+    const dylib = this.plugin.dylib[process.platform];
+    if (!dylib) return false;
+    const dir = this.getPluginDir();
     try {
-      return fs.readFileSync(markerPath, 'utf-8').trim() === VAULT_VERSION;
+      return fs.statSync(path.join(dir, dylib)).isFile() && fs.statSync(path.join(dir, `${dylib}.sig`)).size === 64 && fs.readFileSync(path.join(dir, this.marker), 'utf8').trim() === this.version;
     } catch {
       return false;
     }
   }
 
-  /** Versioned archive filename matching the extraResources filter in
-   *  electron-builder.yml. Pattern: v${VERSION}-${artifact} */
-  private getVersionedArchiveName(): string | null {
-    const artifact = getVaultArtifactName(process.platform, process.arch);
-    if (!artifact) return null;
-    return `v${VAULT_VERSION}-${artifact}`;
+  private getBundledPath(artifact: string): string | null {
+    const root = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
+    const candidate = path.join(root, `v${this.version}-${artifact}`);
+    return fs.existsSync(candidate) && fs.statSync(candidate).size >= 100_000 ? candidate : null;
   }
 
-  /** Find the locally bundled vault archive from the packaged app's
-   *  extraResources or the development resources directory. Returns null if
-   *  not found (caller should fall back to remote download). */
-  private getBundledVaultPath(): string | null {
-    const versionedName = this.getVersionedArchiveName();
-    if (!versionedName) return null;
-
-    if (app.isPackaged) {
-      const packagedPath = path.join(process.resourcesPath, versionedName);
-      if (fs.existsSync(packagedPath)) {
-        const stats = fs.statSync(packagedPath);
-        if (stats.size >= 1024 * 100) {
-          return packagedPath;
-        }
-      }
-    }
-
-    // Development mode
-    const devPath = path.join(app.getAppPath(), 'resources', versionedName);
-    if (fs.existsSync(devPath)) {
-      const stats = fs.statSync(devPath);
-      if (stats.size >= 1024 * 100) {
-        return devPath;
-      }
-    }
-
-    return null;
-  }
-
-  /** Download → SHA-verify → extract → install vault into ~/.nexus-vfs/plugins/.
-   *  - Unsupported platform → warn and return (cluster keeps starting without vault).
-   *  - All three mirrors 404 → throw with explicit not-available message.
-   *  - SHA mismatch / missing dylib → throw (aligned with cluster install policy).
-   *  - Missing .sig → warn + unlink any stale .sig (mirrors scripts:436). */
   async install(emit: EmitFn): Promise<void> {
-    if (!this.isPlatformSupported()) {
-      mainWarn('NexusVault', `Vault plugin not available for ${process.platform}-${process.arch}; skipping.`);
-      return;
-    }
-
-    if (this.checkInstalledSync()) {
-      mainLog('NexusVault', `Vault plugin already installed at v${VAULT_VERSION}; skipping.`);
-      return;
-    }
-
-    const artifact = getVaultArtifactName(process.platform, process.arch);
-    const dylibName = getVaultDylibName(process.platform);
-    const sigName = getVaultSigName(process.platform);
-    if (!artifact || !dylibName || !sigName) {
-      // Defensive: isPlatformSupported() check above should have already
-      // returned, so this branch is unreachable in practice.
-      mainWarn('NexusVault', `Vault platform metadata missing for ${process.platform}-${process.arch}; skipping.`);
-      return;
-    }
-
+    if (!this.isPlatformSupported() || this.checkInstalledSync()) return;
+    const artifact = getArtifactName(this.plugin, process.platform, process.arch)!;
+    const dylib = this.plugin.dylib[process.platform]!;
+    const sigName = `${dylib}.sig`;
     const pluginDir = this.getPluginDir();
+    const downloadDir = path.join(app.getPath('home'), '.nexus-vfs', 'downloads');
     fs.mkdirSync(pluginDir, { recursive: true });
-
-    // Try bundled local resource first, then fall back to remote download.
-    const bundledPath = this.getBundledVaultPath();
-    let archivePath: string;
-
-    if (bundledPath) {
-      archivePath = bundledPath;
-      mainLog('NexusVault', `Using bundled vault archive from ${bundledPath}`);
-      emit('downloading', `Using bundled vault from ${bundledPath}`, 0);
-    } else {
-      const downloadDir = path.join(app.getPath('home'), '.nexus-vfs', 'downloads');
-      fs.mkdirSync(downloadDir, { recursive: true });
-      archivePath = path.join(downloadDir, artifact);
-
-      const attempts = this.getDownloadUrls(artifact);
-      let downloaded = false;
-      let lastReason = 'unknown error';
-      let allNotFound = true;
-      for (const attempt of attempts) {
-        emit('downloading', `Downloading nexus-vault from ${attempt.label} (${attempt.url})`, 0);
-        try {
-          await this.downloadFile(attempt.url, archivePath, emit);
-          downloaded = true;
-          break;
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          lastReason = reason;
-          if (reason !== 'NOT_FOUND') allNotFound = false;
-          mainWarn('NexusVault', `${attempt.label} download failed: ${reason}`);
-        }
-      }
-
-      if (!downloaded) {
-        if (allNotFound) {
-          const msg = `nexus-vault not available for ${process.platform}-${process.arch} in v${VAULT_VERSION} (all mirrors → HTTP 404)`;
-          emit('error', msg);
-          throw new Error(msg);
-        }
-        emit('error', `Failed to download nexus-vault: ${lastReason}`);
-        throw new Error(lastReason);
-      }
-    }
-
-    // ── SHA256 integrity check ───────────────────────────────────────────────
-    // Bundled archives are already SHA-verified and signed during CI build; the
-    // re-sign step in afterPack.js changes the archive SHA, so we skip the check
-    // for bundled resources (trust the build pipeline) and only verify remote
-    // downloads (guard against MITM / corrupted downloads).
-    if (!bundledPath) {
-      const expectedSha = NEXUS_VAULT_SHA256SUMS[artifact];
-      if (!expectedSha) {
-        throw new Error(`No known SHA256 for ${artifact}; refusing to install an unverified artifact.`);
-      }
-      const actualSha = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
-      if (actualSha !== expectedSha) {
-        try {
-          fs.unlinkSync(archivePath);
-        } catch {
-          /* best-effort cleanup */
-        }
-        const msg = `nexus-vault SHA256 mismatch for ${artifact}: expected ${expectedSha}, got ${actualSha}`;
-        emit('error', msg);
-        throw new Error(msg);
-      }
-      mainLog('NexusVault', `SHA256 verified: ${actualSha}`);
-    }
-
-    // ── Extract ──────────────────────────────────────────────────────────────
-    emit('installing', 'Extracting nexus-vault...', 80);
-    const extractDir = path.join(pluginDir, `_vault-extract-${process.pid}-${process.hrtime.bigint()}`);
-    fs.mkdirSync(extractDir, { recursive: true });
-    await this.extractArchive(archivePath, extractDir);
-
-    const extractedDylib = this.findFileInDir(extractDir, dylibName);
-    if (!extractedDylib) {
-      throw new Error(`nexus-vault archive ${artifact} did not contain expected dylib ${dylibName}`);
-    }
-
-    // ── Install dylib ────────────────────────────────────────────────────────
-    const installedDylib = path.join(pluginDir, dylibName);
-    fs.copyFileSync(extractedDylib, installedDylib);
-    if (!this.isWindows) {
-      fs.chmodSync(installedDylib, 0o755);
-    }
-
-    // ── Install signature, or clean up stale one ─────────────────────────────
-    // Mirrors scripts/download-nexus-vfs.js:430-441: present in v0.1.2+ archives
-    // (cluster strict mode requires it); absent in v0.1.1 (warn, do not throw).
-    // Unlink any stale .sig in the latter case so a fresh unsigned dylib never
-    // ships next to a signature for a different build.
-    const installedSig = path.join(pluginDir, sigName);
-    const extractedSig = this.findFileInDir(extractDir, sigName);
-    if (extractedSig) {
-      fs.copyFileSync(extractedSig, installedSig);
-      mainLog('NexusVault', `Installed vault signature: ${installedSig}`);
-    } else {
-      try {
-        fs.unlinkSync(installedSig);
-      } catch {
-        /* best-effort cleanup */
-      }
-      mainWarn('NexusVault', `Archive ${artifact} contains no ${sigName}; cluster signature verification will reject this plugin.`);
-    }
-
-    // ── Marker + cleanup ─────────────────────────────────────────────────────
-    fs.writeFileSync(path.join(pluginDir, VAULT_READY_MARKER), VAULT_VERSION);
-
+    fs.mkdirSync(downloadDir, { recursive: true });
+    const bundledPath = this.getBundledPath(artifact);
+    const archivePath = bundledPath ?? path.join(downloadDir, artifact);
+    const extractDir = fs.mkdtempSync(path.join(downloadDir, `${this.plugin.artifactPrefix}-extract-`));
     try {
-      fs.rmSync(extractDir, { recursive: true, force: true });
-      // Only delete the downloaded archive, not a bundled resource.
       if (!bundledPath) {
-        fs.unlinkSync(archivePath);
+        let isDownloaded = false;
+        let lastError: unknown;
+        for (const url of this.getDownloadUrls(artifact)) {
+          emit('downloading', `Downloading ${this.plugin.artifactPrefix} from ${url}`, 0);
+          try {
+            await this.downloadFile(url, archivePath, emit);
+            isDownloaded = true;
+            break;
+          } catch (error) {
+            lastError = error;
+            mainWarn('NexusPlugins', `Download failed: ${String(error)}`);
+          }
+        }
+        if (!isDownloaded) throw new Error(`Failed to download ${artifact}: ${String(lastError)}`);
       }
-    } catch {
-      /* best-effort cleanup */
+      // afterPack preserves signed plugin archives byte-for-byte, so bundled
+      // and remote plugin archives can both be checked against the pinned SHA.
+      const expected = NEXUS_VAULT_SHA256SUMS[artifact];
+      if (!expected) throw new Error(`No known SHA256 for ${artifact}; refusing unverified plugin.`);
+      const actual = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
+      if (actual !== expected) throw new Error(`SHA256 mismatch for ${artifact}: expected ${expected}, got ${actual}`);
+      emit('installing', `Extracting ${this.plugin.artifactPrefix}...`, 80);
+      if (archivePath.endsWith('.zip')) await extractZipWithProgress(archivePath, extractDir);
+      else await extractTarGzWithProgress(archivePath, extractDir);
+      const extractedDylib = this.findFileInDir(extractDir, dylib);
+      const extractedSig = this.findFileInDir(extractDir, sigName);
+      if (!extractedDylib || !extractedSig || fs.statSync(extractedSig).size !== 64) throw new Error(`Archive ${artifact} must contain ${dylib} and its 64-byte signature`);
+      fs.copyFileSync(extractedDylib, path.join(pluginDir, dylib));
+      fs.copyFileSync(extractedSig, path.join(pluginDir, sigName));
+      if (process.platform !== 'win32') fs.chmodSync(path.join(pluginDir, dylib), 0o755);
+      fs.writeFileSync(path.join(pluginDir, this.marker), this.version);
+      mainLog('NexusPlugins', `Installed ${this.plugin.artifactPrefix} v${this.version}`);
+      emit('idle', `${this.plugin.artifactPrefix} installed`, 100);
+    } finally {
+      fs.rmSync(extractDir, { recursive: true, force: true });
+      if (!bundledPath) fs.rmSync(archivePath, { force: true });
     }
-
-    emit('idle', `nexus-vault installed: ${installedDylib}`, 100);
   }
 
-  // ── Internal helpers ───────────────────────────────────────────────────────
-
-  /** Three-mirror download chain in priority order. */
-  private getDownloadUrls(artifact: string): { label: string; url: string }[] {
-    return [
-      { label: 'Runtime COS', url: `${VAULT_RUNTIME_BASE_URL}/${artifact}` },
-      { label: 'Legacy COS', url: `${VAULT_LEGACY_BASE_URL}/${artifact}` },
-      { label: 'GitHub Release', url: `${VAULT_GITHUB_URL}/${artifact}` },
-    ];
+  private getDownloadUrls(artifact: string): string[] {
+    const tail = `${this.plugin.artifactPrefix}/release/v${this.version}/${artifact}`;
+    return [`${COS_RUNTIME_BASE}/${tail}`, `${COS_LEGACY_NEXUS_VFS_BASE}/${tail}`, `https://github.com/nexi-lab/nexus/releases/download/${this.plugin.releaseTagPrefix}-v${this.version}/${artifact}`];
   }
 
   /** HTTP(S) download with redirect chasing, content-length progress, and a
@@ -359,14 +187,13 @@ class VaultPluginInstaller {
               downloaded += chunk.length;
               if (totalSize > 0) {
                 const percent = Math.round((downloaded / totalSize) * 100);
-                emit('downloading', `Downloading nexus-vault... ${percent}%`, percent);
+                emit('downloading', `Downloading ${this.plugin.artifactPrefix}... ${percent}%`, percent);
               }
             });
 
             response.pipe(file);
             file.on('finish', () => {
-              file.close();
-              resolve();
+              file.close(() => resolve());
             });
             file.on('error', (err) => {
               try {
@@ -391,19 +218,6 @@ class VaultPluginInstaller {
     });
   }
 
-  /** Vault archives don't have a guaranteed top-level wrapper directory, so we
-   *  search recursively (mirrors scripts:findBinaryInDir) instead of relying on
-   *  --strip-components. */
-  private async extractArchive(archivePath: string, targetDir: string): Promise<void> {
-    if (archivePath.endsWith('.zip')) {
-      await extractZipWithProgress(archivePath, targetDir);
-    } else if (archivePath.endsWith('.tar.gz') || archivePath.endsWith('.tgz')) {
-      await extractTarGzWithProgress(archivePath, targetDir);
-    } else {
-      throw new Error(`Unsupported archive format: ${archivePath}`);
-    }
-  }
-
   /** Depth-first recursive lookup for `wanted` inside `dir`. Returns the
    *  absolute path of the first match or null. */
   private findFileInDir(dir: string, wanted: string): string | null {
@@ -421,5 +235,5 @@ class VaultPluginInstaller {
   }
 }
 
-export const vaultPluginInstaller = new VaultPluginInstaller();
-export { VAULT_VERSION, VAULT_READY_MARKER };
+export const nexusPluginInstallers = plugins.map((plugin) => new NexusPluginInstaller(plugin));
+export const vaultPluginInstaller = nexusPluginInstallers[plugins.indexOf(vault)];

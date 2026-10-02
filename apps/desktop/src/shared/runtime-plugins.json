@@ -1,0 +1,34 @@
+[
+  {
+    "name": "nexus_vault",
+    "artifactPrefix": "nexus-vault",
+    "releaseTagPrefix": "vault",
+    "publishedPlatforms": ["darwin-arm64", "darwin-x64", "linux-x64", "win32-x64"],
+    "dylib": {
+      "darwin": "libnexus_vault.dylib",
+      "linux": "libnexus_vault.so",
+      "win32": "nexus_vault.dll"
+    }
+  },
+  {
+    "name": "nexus_local_connector",
+    "artifactPrefix": "nexus-local-connector",
+    "releaseTagPrefix": "local-connector",
+    "publishedPlatforms": ["darwin-arm64", "darwin-x64", "linux-x64", "win32-x64"],
+    "dylib": {
+      "darwin": "libnexus_local_connector.dylib",
+      "linux": "libnexus_local_connector.so",
+      "win32": "nexus_local_connector.dll"
+    }
+  },
+  {
+    "name": "nexus_fuse_plugin",
+    "artifactPrefix": "nexus-fuse-plugin",
+    "releaseTagPrefix": "fuse",
+    "publishedPlatforms": ["darwin-arm64", "darwin-x64", "linux-x64"],
+    "dylib": {
+      "darwin": "libnexus_fuse_plugin.dylib",
+      "linux": "libnexus_fuse_plugin.so"
+    }
+  }
+]

@@ -255,6 +255,7 @@ win:
       to: .
       filter:
         - v*-nexus-vault-windows-*
+        - v*-nexus-local-connector-windows-*
 
 nsis:
   oneClick: false
