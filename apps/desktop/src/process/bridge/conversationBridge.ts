@@ -20,6 +20,7 @@ import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
 import { getSudoworkAcpSlashCommands } from '@/common/slash/sudoworkCommands';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
+import { ENTERPRISE_SKILL_SUBDIRS, SKILL_SUBDIRS } from '@process/constants/skillStorage';
 import { uuid } from '@common/utils';
 import { ipcBridge } from '../../common';
 import { getSkillsDir, getBuiltinSkillsDir, ProcessChat, ProcessConfig } from '../initStorage';
@@ -188,7 +189,7 @@ async function syncConversationWorkspaceSkills(conversation: TChatConversation |
     }
   }
 
-  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), allowedSkillNames, getBuiltinSkillsDir());
+  const expectedTargets = await listWorkspaceSkillTargets(getSkillsDir(), allowedSkillNames, getBuiltinSkillsDir(), isEnterpriseMode() ? ENTERPRISE_SKILL_SUBDIRS : SKILL_SUBDIRS);
   const existingEntries = await fs.readdir(workspaceSkillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);
   const existingNames = new Set(existingEntries.map((entry) => entry.name));
   let removedCount = 0;

@@ -59,6 +59,8 @@ async function writeRegistry(registry: Registry, identity: ReturnType<typeof mos
     await fs.rm(staging, { force: true });
   }
   clearSkillsCache();
+  const { AcpSkillManager } = await import('@process/task/AcpSkillManager');
+  AcpSkillManager.resetInstance();
 }
 
 /** Managers ignore uncommitted versions and removed snapshots, while old conversations retain their files. */

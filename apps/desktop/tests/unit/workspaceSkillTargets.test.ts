@@ -9,6 +9,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { TChatConversation } from '@sudowork/common/storage';
+import { ENTERPRISE_SKILL_SUBDIRS } from '../../src/process/constants/skillStorage';
 import { listWorkspaceSkillTargets, resolveConversationEnabledSkillNames } from '../../src/process/utils/workspaceSkillTargets';
 
 const createdDirs: string[] = [];
@@ -38,6 +39,23 @@ describe('listWorkspaceSkillTargets', () => {
         await fs.rm(dir, { recursive: true, force: true });
       })
     );
+  });
+
+  it('links managed hub and tenant skills while honoring Moss metadata and the selected skills', async () => {
+    const skillsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'workspace-managed-skills-'));
+    createdDirs.push(skillsDir);
+    for (const relative of ['hub/polish', 'tenant/private-skill', 'custom/disabled', '_hub/personal-only']) {
+      await createSkill(skillsDir, relative);
+    }
+    await fs.writeFile(path.join(skillsDir, 'custom/disabled/_moss_meta.json'), JSON.stringify({ enabled: false }));
+    await fs.writeFile(path.join(skillsDir, 'hub/polish/_moss_meta.json'), JSON.stringify({ name: 'resource-polish', enabled: true }));
+    const builtin = path.join(skillsDir, 'bundled');
+    await createSkill(builtin, 'cron');
+    const targets = await listWorkspaceSkillTargets(skillsDir, undefined, builtin, ENTERPRISE_SKILL_SUBDIRS);
+    expect([...targets.keys()].sort()).toEqual(['cron', 'private-skill', 'resource-polish']);
+    const selected = await listWorkspaceSkillTargets(skillsDir, new Set(['resource-polish']), builtin, ENTERPRISE_SKILL_SUBDIRS);
+    expect([...selected.keys()].sort()).toEqual(['cron', 'resource-polish']);
+    expect(selected.get('resource-polish')).toBe(path.join(skillsDir, 'hub/polish'));
   });
 
   it('includes enabled non-builtin skills when no assistant filter is provided', async () => {
