@@ -5,23 +5,13 @@
  */
 
 /**
- * End-to-end exercise of the real GrpcAcpTransport class against a live
- * nexusd-cluster (managed_agent + the VFS fd-stream tunnel).
- *
- * Unlike scripts/dev/acp-tunnel-smoke.mjs (a raw-client wire check), this drives
- * the actual production class: connect() → managed_agent.start_session_v1 →
- * readStdout (StreamReadAt + NdjsonParser) → onMessage; send() → StreamWriteNowait
- * to fd/0; close() → managed_agent.cancel_v1. The "agent" is a pure-sh NDJSON
- * responder, so no LLM / scode is needed in the daemon's environment.
- *
- * Gated on ACP_GRPC_ENDPOINT (host:port of a host-reachable nexusd-cluster, e.g.
- * a Docker daemon bound 0.0.0.0:2130 --no-tls --insecure-no-auth). Skips when
- * unset so the default suite stays green; the secrets-grpc-e2e-style CI job and
- * local Docker runs set it.
+ * Production NexusAcpTransport against a live daemon and subprocess adapter.
+ * ACP messages travel in session envelopes on the conversation transcript.
+ * Set ACP_GRPC_ENDPOINT to run; the agent is a shell fixture with no model.
  */
 
 import { describe, it, expect } from 'vitest';
-import { GrpcAcpTransport } from '../../src/agent/acp/transport';
+import { NexusAcpTransport } from '../../src/agent/acp/transport';
 import type { AcpMessage } from '../../src/types/acpTypes';
 
 const ENDPOINT = process.env.ACP_GRPC_ENDPOINT;
@@ -39,11 +29,11 @@ async function waitFor(pred: () => boolean, timeoutMs: number): Promise<void> {
 // fixed NDJSON response for every line received on stdin (round-trip proof).
 const MOCK_AGENT = [`printf '{"jsonrpc":"2.0","method":"hello","params":{"x":1}}\\n'`, `while IFS= read -r line; do printf '{"jsonrpc":"2.0","id":1,"result":"pong"}\\n'; done`].join('; ');
 
-suite('GrpcAcpTransport ↔ live nexusd-cluster', () => {
-  it('spawns via managed_agent, tunnels NDJSON both directions, cancels on close', async () => {
+suite('NexusAcpTransport ↔ live nexusd-cluster', () => {
+  it('spawns via managed_agent, exchanges session messages both directions, cancels on close', async () => {
     const messages: AcpMessage[] = [];
     let closed = false;
-    const transport = new GrpcAcpTransport({
+    const transport = new NexusAcpTransport({
       endpoint: ENDPOINT!,
       authToken: '',
       agentId: 'acp-transport-itest',
@@ -55,21 +45,19 @@ suite('GrpcAcpTransport ↔ live nexusd-cluster', () => {
         },
         onSetupError: () => {},
       },
-      longPollMs: 1000,
     });
 
     await transport.connect();
     expect(transport.connected).toBe(true);
 
-    // 1. Agent → client: the startup notification arrives, parsed by NdjsonParser.
+    // 1. Agent → client: the startup notification arrives, through the session mailbox.
     await waitFor(() => messages.some((m) => (m as { method?: string }).method === 'hello'), 5000);
     expect(messages.find((m) => (m as { method?: string }).method === 'hello')).toMatchObject({
       method: 'hello',
       params: { x: 1 },
     });
 
-    // 2. Client → agent → client round-trip: send() writes fd/0, the reply comes
-    //    back over fd/1. Proves StreamWriteNowait + the reader together.
+    // 2. Round-trip through the shared mailbox and internal subprocess adapter.
     transport.send({ jsonrpc: '2.0', id: 1, method: 'ping' });
     await waitFor(() => messages.some((m) => (m as { id?: number }).id === 1 && (m as { result?: string }).result === 'pong'), 5000);
 

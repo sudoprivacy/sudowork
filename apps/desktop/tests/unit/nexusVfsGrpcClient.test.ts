@@ -28,8 +28,7 @@ describe('NexusVfsGrpcClient', () => {
     const client = new NexusVfsGrpcClient('127.0.0.1:1', '');
     expect(client).toBeInstanceOf(NexusVfsGrpcClient);
     expect(typeof client.call).toBe('function');
-    expect(typeof client.streamReadAt).toBe('function');
-    expect(typeof client.streamWrite).toBe('function');
+    expect(typeof client.openSession).toBe('function');
     client.close();
   });
 

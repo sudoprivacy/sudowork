@@ -1,5 +1,5 @@
 /**
- * Published daemon -> production GrpcAcpTransport -> published scode -> real API.
+ * Published daemon -> production NexusAcpTransport -> published scode -> real API.
  * Opt in with SUDOWORK_ACP_TUNNEL_E2E=1 (protocol) or
  * SUDOWORK_ACP_TUNNEL_LIVE=1 (also spends API credits). See acp-tunnel-live.md.
  * No transport, daemon, agent, or model is substituted. Only Electron's shell
@@ -13,7 +13,7 @@ import os from 'os';
 import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { NexusVfsClient } from '@nexus-ai-fs/vfs-client';
-import { GrpcAcpTransport } from '../../src/agent/acp/transport';
+import { NexusAcpTransport } from '../../src/agent/acp/transport';
 import { killChild } from '../../src/agent/acp/utils';
 import versions from '../../src/shared/runtime-versions.json';
 
@@ -32,7 +32,7 @@ interface IRpcMessage {
 
 /** Drive the actual transport; reject outstanding requests on disconnect. */
 class TunnelClient {
-  readonly transport: GrpcAcpTransport;
+  readonly transport: NexusAcpTransport;
   readonly updates: IRpcMessage[] = [];
   private nextId = 1;
   private readonly pending = new Map<number, { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }>();
@@ -45,7 +45,7 @@ class TunnelClient {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'path'));
     env.PATH = [shellDir, process.env.PATH].filter(Boolean).join(path.delimiter);
     if (isLive) execFileSync('sh', ['-lc', 'exit 0'], { env, timeout: 10_000, windowsHide: true });
-    this.transport = new GrpcAcpTransport({
+    this.transport = new NexusAcpTransport({
       endpoint,
       authToken: '',
       agentId: `sudowork-e2e-${randomUUID()}`,
