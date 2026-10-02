@@ -1057,6 +1057,25 @@ describe('mossAdapter: newly created conversation list reads', () => {
     expect(conversation).toMatchObject({ id: 'sess-pending', name: 'Pending title' })
   })
 
+  it('opens a newly triggered cron conversation without reusing the previous list', async () => {
+    stubFetch({ '/api/conversations': { conversations: [] } })
+    expect(await ipc.database.getUserConversations.invoke({})).toEqual([])
+    stubFetch({
+      '/api/cron/job-1/trigger': { ok: true },
+      '/model': { modelId: null },
+      '/api/conversations': {
+        conversations: [
+          { id: 'cron-session', source: JSON.stringify({ source: 'cron', cronJobId: 'job-1' }) },
+        ],
+      },
+    })
+    await ipc.cron.triggerJob.invoke({ jobId: 'job-1' })
+    expect(await ipc.conversation.get.invoke({ id: 'cron-session' })).toMatchObject({
+      id: 'cron-session',
+      extra: { cronJobId: 'job-1' },
+    })
+  })
+
   it('keeps the newer list response in the cache when requests finish out of order', async () => {
     const pending: Array<(response: Response) => void> = []
     const fetchMock = vi.fn(
