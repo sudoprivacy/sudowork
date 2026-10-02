@@ -38,7 +38,10 @@ jobs:
           source = os.environ['SOURCE_SHA']
           def api(path):
               return json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/{path}']))
-          assert api('git/ref/tags/v0.2.21')['object']['sha'] == source
+          target = api('git/ref/tags/v0.2.21')['object']
+          while target['type'] == 'tag':
+              target = api(f"git/tags/{target['sha']}")['object']
+          assert target['type'] == 'commit' and target['sha'] == source
           proof = []
           for arch, run_id in [('arm64', 36988670492), ('x64', 36988675323)]:
               run = api(f'actions/runs/{run_id}')
