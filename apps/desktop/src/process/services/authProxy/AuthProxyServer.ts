@@ -137,6 +137,17 @@ export class AuthProxyServer {
     const parsedUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
     const pathname = parsedUrl.pathname;
 
+    if (pathname === '/agent-archives' || pathname.startsWith('/agent-archives/')) {
+      const info = this.parseRequestInfo(req);
+      if (!info.token || !this.isValidToken(info.token)) {
+        res.writeHead(401).end();
+        return;
+      }
+      const { onAgentArchiveRequest } = await import('./agentArchiveApi');
+      await onAgentArchiveRequest(req, res, pathname);
+      return;
+    }
+
     if (pathname === '/subtitles' || pathname.startsWith('/subtitles/')) {
       const info = this.parseRequestInfo(req);
       if (!info.token || !this.isValidToken(info.token)) {

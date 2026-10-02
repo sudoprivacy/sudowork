@@ -152,6 +152,7 @@ export default defineConfig({
         'src/process/services/transcription/TranscriptionService.ts',
         'src/process/services/transcription/SubtitleService.ts',
         'src/process/services/authProxy/subtitleApi.ts',
+        'src/process/services/authProxy/agentArchiveApi.ts',
         'src/process/services/authProxy/AuthProxyServer.ts',
         'src/process/services/authProxy/index.ts',
         'src/process/services/nexus-vfs/FusePluginClient.ts',

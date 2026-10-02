@@ -1,0 +1,8 @@
+{
+  "id": "agent-session-backup",
+  "name": "agent-session-backup",
+  "display_name": "Agent 会话备份与恢复",
+  "description": "把本机 Codex、Claude Code、Sudocode 会话和记忆保存到私有云端，在另一台电脑下载并校验，供 Agent 接手工作。",
+  "is_builtin": true,
+  "installed_version": "1.0.0"
+}
