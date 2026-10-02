@@ -1254,7 +1254,7 @@ const MOSS_SKILL_META_FILE = '_moss_meta.json';
  * Enterprise mode: _moss_meta.json (primary), _sudowork_meta.json (fallback)
  * Personal mode: _sudowork_meta.json (primary), _moss_meta.json (fallback)
  */
-async function readSkillMetaFileWithFallback(skillDir: string): Promise<{ enabled?: boolean } | null> {
+async function readSkillMetaFileWithFallback(skillDir: string): Promise<{ enabled?: boolean; catalogManaged?: boolean } | null> {
   const isEnterprise = isEnterpriseMode();
   const metaFiles = isEnterprise ? [MOSS_SKILL_META_FILE, SKILL_HUB_META_FILE] : [SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE];
 
@@ -1262,7 +1262,7 @@ async function readSkillMetaFileWithFallback(skillDir: string): Promise<{ enable
     const filePath = path.join(skillDir, fileName);
     try {
       const raw = await fs.readFile(filePath, 'utf-8');
-      return JSON.parse(raw) as { enabled?: boolean };
+      return JSON.parse(raw) as { enabled?: boolean; catalogManaged?: boolean };
     } catch {
       // Try next file
     }
@@ -1271,7 +1271,9 @@ async function readSkillMetaFileWithFallback(skillDir: string): Promise<{ enable
 }
 
 export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
-  const subdirs = [SKILL_SUBDIRS.custom, SKILL_SUBDIRS.hub, SKILL_SUBDIRS.system];
+  const layout = isEnterpriseMode() ? ENTERPRISE_SKILL_SUBDIRS : SKILL_SUBDIRS;
+  const subdirs: string[] = [layout.custom, layout.hub, layout.system];
+  if ('tenant' in layout) subdirs.push(layout.tenant);
 
   // First check if skill exists in any _disable directory (disabled via directory move)
   for (const subdir of subdirs) {
@@ -1286,6 +1288,10 @@ export async function isUserSkillEnabled(skillName: string): Promise<boolean> {
     const skillDir = path.join(getSkillsDir(), subdir, skillName);
     const meta = await readSkillMetaFileWithFallback(skillDir);
     if (meta) {
+      if (meta.catalogManaged) {
+        const { isCatalogPathVisible } = await import('@process/services/mossCatalogInstall');
+        if (!(await isCatalogPathVisible(skillDir))) return false;
+      }
       return meta.enabled !== false;
     }
   }

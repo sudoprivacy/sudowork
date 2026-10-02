@@ -7,7 +7,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import type { TChatConversation } from '@sudowork/common/storage';
-import { SKILL_SUBDIRS } from '@/process/constants/skillStorage';
+import type { ENTERPRISE_SKILL_SUBDIRS } from '@/process/constants/skillStorage';
+import { MOSS_SKILL_META_FILE, SKILL_SUBDIRS } from '@/process/constants/skillStorage';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { normalizeSkillNames } from './conversationAssistantSkills';
 
@@ -26,7 +27,12 @@ export function resolveConversationEnabledSkillNames(conversation?: TChatConvers
   return new Set([...normalizedEnabledSkills, ...normalizedRequestedSkills]);
 }
 
-export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillNames?: ReadonlySet<string>, builtinSkillsDir = path.join(skillsDir, SKILL_SUBDIRS.system, SKILL_SUBDIRS.legacyBuiltin)): Promise<Map<string, string>> {
+export async function listWorkspaceSkillTargets(
+  skillsDir: string,
+  allowedSkillNames?: ReadonlySet<string>,
+  builtinSkillsDir = path.join(skillsDir, SKILL_SUBDIRS.system, SKILL_SUBDIRS.legacyBuiltin),
+  layout: typeof SKILL_SUBDIRS | typeof ENTERPRISE_SKILL_SUBDIRS = SKILL_SUBDIRS
+): Promise<Map<string, string>> {
   const startedAt = Date.now();
   const targets = new Map<string, string>();
 
@@ -52,9 +58,18 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
     let enabled = true;
     const isAutoInjected = forceBuiltin;
 
-    try {
-      const raw = await fs.readFile(path.join(skillDir, SKILL_HUB_META_FILE), 'utf-8');
-      const meta = JSON.parse(raw) as { is_builtin?: boolean; enabled?: boolean; name?: string };
+    const metadataFiles = 'tenant' in layout ? [MOSS_SKILL_META_FILE, SKILL_HUB_META_FILE] : [SKILL_HUB_META_FILE, MOSS_SKILL_META_FILE];
+    for (const metadataFile of metadataFiles) {
+      let meta: { is_builtin?: boolean; enabled?: boolean; name?: string; catalogManaged?: boolean };
+      try {
+        meta = JSON.parse(await fs.readFile(path.join(skillDir, metadataFile), 'utf-8'));
+      } catch {
+        continue;
+      }
+      if (meta.catalogManaged) {
+        const { isCatalogPathVisible } = await import('@process/services/mossCatalogInstall');
+        if (!(await isCatalogPathVisible(skillDir))) return;
+      }
       if (meta.is_builtin !== undefined) {
         isBuiltin = meta.is_builtin === true;
       }
@@ -64,8 +79,7 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
       if (typeof meta.name === 'string' && meta.name.trim()) {
         skillName = meta.name.trim();
       }
-    } catch {
-      // No metadata file: treat as enabled custom skill unless forced builtin.
+      break;
     }
 
     if (!isBuiltin && !enabled) {
@@ -103,10 +117,11 @@ export async function listWorkspaceSkillTargets(skillsDir: string, allowedSkillN
     // install has a stale `_system/<skill>/` (from before the skill moved into
     // `_builtin/`), the new `_system/_builtin/<skill>/` wins — avoiding a
     // workspace symlink that points at the stale copy.
-    await scanDir(path.join(skillsDir, SKILL_SUBDIRS.custom), false);
-    await scanDir(path.join(skillsDir, SKILL_SUBDIRS.hub), false);
+    await scanDir(path.join(skillsDir, layout.custom), false);
+    await scanDir(path.join(skillsDir, layout.hub), false);
+    if ('tenant' in layout) await scanDir(path.join(skillsDir, layout.tenant), false);
     await scanDir(builtinSkillsDir, true);
-    await scanDir(path.join(skillsDir, SKILL_SUBDIRS.system), false);
+    await scanDir(path.join(skillsDir, layout.system), false);
 
     // Legacy: scan flat directories for backward compatibility
     const entries = await fs.readdir(skillsDir, { withFileTypes: true }).catch((): import('fs').Dirent[] => []);

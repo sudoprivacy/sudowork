@@ -556,8 +556,7 @@ async function processStagedUploads(
 }
 
 // ---------------------------------------------------------------------------
-// Model surface for the renderer's AcpModelSelector (web conversations project
-// backend 'scode', so the selector's standard path consumes these channels).
+// Model surface shared by the remote-agent and ACP selector channels.
 // The upstream acp_model_info stream only carries the CURRENT model (empty list),
 // so this side owns the available-models cache and merges it into stream frames
 // to keep the selector switchable after a model_changed confirmation.
@@ -1601,7 +1600,8 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok()
   },
   // --- skill-hub: browse store (hub) & exclusive (tenant) lists ---
-  'skill-hub.fetch-categories': async () => ok(await apiFetch('/api/skills/hub/categories')),
+  'skill-hub.fetch-categories': async () =>
+    ok(await apiFetch<string[]>('/api/skills/hub/categories')),
   'skill-hub.fetch-skill-detail': async (req) => {
     const detail = await apiFetch<Record<string, unknown> | null>(
       `/api/skills/hub/${encodeURIComponent(String(req?.skillId ?? ''))}`,
@@ -1867,10 +1867,8 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // --- models ---
   'mode.get-model-config': async () => [],
   'moss.get-available-models': async () => {
-    const opts = await apiFetch<{ models: { id: string; name: string }[] }>(
-      '/api/conversations/options',
-    )
-    return ok(opts.models.map((m) => ({ id: m.id, name: m.name, ratio: 1 })))
+    const models = await fetchAvailableModels()
+    return ok(models.map((m) => ({ id: m.id, name: m.label, ratio: 1 })))
   },
   'moss.get-user-model': async () => {
     const data = await apiFetch<{ modelId: string | null; systemDefaultModel: string | null }>(
