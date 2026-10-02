@@ -288,10 +288,15 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     await c1.waitFor(
       (e) => e.kind === 'upstream' && (e.event as { type?: string })?.type === 'assistant',
     )
-    await c1.waitFor(
+    const result = await c1.waitFor(
       (e) => e.kind === 'upstream' && (e.event as { type?: string })?.type === 'result',
     )
-    await c1.waitFor((e) => e.kind === 'lock' && e.state === 'idle')
+    // The initial idle event predates this turn. Wait for the database-backed
+    // unlock after its result before asking the observer to take over.
+    await c1.waitFor(
+      (e) =>
+        e.kind === 'lock' && e.state === 'idle' && c1.events.indexOf(e) > c1.events.indexOf(result),
+    )
 
     // observer 看到输出与 writer:false
     await c2.waitFor(
@@ -300,11 +305,13 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     await c2.waitFor((e) => e.kind === 'writer' && e.isWriter === false)
 
     // observer 在 idle 期发送 → 抢占成为新 writer（idle 乐观可写，先发先得）
+    const takeover1 = collector(ws1)
+    const takeover2 = collector(ws2)
     ws2.send(JSON.stringify({ kind: 'send', text: 'hack', images: [] }))
-    await c2.waitFor((e) => e.kind === 'lock' && e.state === 'running')
-    await c2.waitFor((e) => e.kind === 'writer' && e.isWriter === true)
+    await takeover2.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+    await takeover2.waitFor((e) => e.kind === 'writer' && e.isWriter === true)
     // 旧 writer 被切为观察者
-    await c1.waitFor((e) => e.kind === 'writer' && e.isWriter === false)
+    await takeover1.waitFor((e) => e.kind === 'writer' && e.isWriter === false)
 
     // upstream 收到抢占者的消息，且以新 writer 的 Bearer 重建连接
     // （waitFor 的事件在 broadcastLockState 同步发出，而抢占接管需 resume+握手后
