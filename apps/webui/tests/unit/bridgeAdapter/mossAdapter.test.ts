@@ -785,6 +785,58 @@ describe('mossAdapter: cron channels', () => {
     expect(body).not.toHaveProperty('assistantName')
   })
 
+  it('notifies mounted cron views after successful create, update and removal', async () => {
+    stubFetch({
+      '/api/cron': { id: 'job-2', name: 'j', schedule: { kind: 'every', value: '60m' } },
+    })
+    const onCreate = vi.fn()
+    const onUpdate = vi.fn()
+    const onRemove = vi.fn()
+    const unsubscribe = [
+      ipcBridge.cron.onJobCreated.on(onCreate),
+      ipcBridge.cron.onJobUpdated.on(onUpdate),
+      ipcBridge.cron.onJobRemoved.on(onRemove),
+    ]
+    try {
+      const created = await ipcBridge.cron.addJob.invoke({
+        name: 'j',
+        message: 'hello',
+        conversationId: 'sess-1',
+        agentType: 'scode',
+        schedule: { kind: 'every', everyMs: 3_600_000, description: 'hourly' },
+        createdBy: 'user',
+      })
+      expect(onCreate).toHaveBeenCalledExactlyOnceWith(created)
+      const updated = await ipcBridge.cron.updateJob.invoke({
+        jobId: 'job-2',
+        updates: { enabled: false },
+      })
+      expect(onUpdate).toHaveBeenCalledExactlyOnceWith(updated)
+      await ipcBridge.cron.removeJob.invoke({ jobId: 'job-2' })
+      expect(onRemove).toHaveBeenCalledExactlyOnceWith({ jobId: 'job-2' })
+
+      stubFetch({ '/api/cron': { status: 403, body: { error: 'FORBIDDEN' } } })
+      onCreate.mockClear()
+      onUpdate.mockClear()
+      onRemove.mockClear()
+      await ipcBridge.cron.addJob.invoke({
+        name: 'j',
+        message: 'hello',
+        conversationId: 'sess-1',
+        agentType: 'scode',
+        schedule: { kind: 'every', everyMs: 3_600_000, description: 'hourly' },
+        createdBy: 'user',
+      })
+      await ipcBridge.cron.updateJob.invoke({ jobId: 'job-2', updates: { enabled: false } })
+      await ipcBridge.cron.removeJob.invoke({ jobId: 'job-2' })
+      expect(onCreate).not.toHaveBeenCalled()
+      expect(onUpdate).not.toHaveBeenCalled()
+      expect(onRemove).not.toHaveBeenCalled()
+    } finally {
+      unsubscribe.forEach((off) => off())
+    }
+  })
+
   it('list-jobs returns the desktop { __error } envelope when the org disables cron', async () => {
     stubFetch({ '/api/cron': { status: 403, body: { error: 'CRON_DISABLED_BY_ORG' } } })
     const result = (await ipcBridge.cron.listJobs.invoke()) as unknown as { __error?: string }

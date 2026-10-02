@@ -174,9 +174,8 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
   let cookieA = ''
   let cookieB = ''
 
-  async function buildApp(): Promise<Express> {
+  async function buildApp(moss = createFakeMossSession()): Promise<Express> {
     const app = createApp({ publicOrigin: testConfig.publicOrigin })
-    const moss = createFakeMossSession()
     const auth = { pool, config: testConfig, mossAuth: fakeMossAuth }
     const coordinator = new ConversationCoordinator({ pool, config: testConfig, auth, moss })
     const mossFetch = async (_base: string, req: { path: string }): Promise<unknown> => {
@@ -288,6 +287,42 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     expect(empty.status).toBe(200)
     expect(empty.body).toEqual({ customTitle: null, title: null, modelId: null, messages: [] })
   })
+
+  test('GET deliverables returns an empty list for a new transcript and enforces ownership', async () => {
+    const app = await buildApp()
+    const empty = await request(app)
+      .get('/api/conversations/sess-empty/deliverables')
+      .set('Cookie', cookieA)
+    expect(empty.status).toBe(200)
+    expect(empty.body).toEqual({ items: [] })
+
+    const cross = await request(app)
+      .get('/api/conversations/sess-empty/deliverables')
+      .set('Cookie', cookieB)
+    expect(cross.status).toBe(403)
+    expect(cross.body).toEqual({ error: 'SESSION_FORBIDDEN' })
+
+    const missing = await request(app)
+      .get('/api/conversations/nope/deliverables')
+      .set('Cookie', cookieA)
+    expect(missing.status).toBe(404)
+    expect(missing.body).toEqual({ error: 'SESSION_NOT_FOUND' })
+  })
+
+  test.each([401, 403, 500])(
+    'GET deliverables preserves upstream context error %s',
+    async (status) => {
+      const moss = createFakeMossSession()
+      moss.context = async () => {
+        throw new MossHttpError(status, '', '')
+      }
+      const res = await request(await buildApp(moss))
+        .get('/api/conversations/sess-a1/deliverables')
+        .set('Cookie', cookieA)
+      expect(res.status).toBe(status === 500 ? 502 : 401)
+      expect(res.body).toEqual({ error: status === 500 ? 'MOSS_ERROR' : 'MOSS_UNAUTHORIZED' })
+    },
+  )
 
   test('POST create validates agent/skill names against fresh visible lists', async () => {
     const app = await buildApp()
