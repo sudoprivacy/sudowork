@@ -139,6 +139,30 @@ class BackupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Duplicate'):
             backup.verify_archive(bad)
 
+    def test_bounded_download_returns_progress_until_all_bytes_are_verified(self):
+        path, _ = self.export()
+        raw = path.read_bytes()
+        item = {'agentName': 'agent', 'sha256': hashlib.sha256(raw).hexdigest(), 'size': len(raw), 'chunkBytes': 200, 'status': 'ready'}
+        calls = []
+        class MockCloud:
+            def __init__(self, _config): pass
+            def request(self, method, suffix=''):
+                if suffix == '/agent': return item
+                index = int(suffix.rsplit('/', 1)[1]);calls.append(index)
+                return raw[index * 200:(index + 1) * 200]
+        args = argparse.Namespace(config=None, agent='agent', output=str(self.root / 'bounded.zip'), max_chunks=3)
+        with patch.object(backup, 'Cloud', MockCloud):
+            for _ in range(100):
+                before = len(calls)
+                result = backup.download(args)
+                self.assertLessEqual(len(calls) - before, 3)
+                if result['verified']: break
+                self.assertEqual(result['status'], 'downloading')
+                self.assertFalse(Path(args.output).exists())
+            else: self.fail('Download never completed')
+        self.assertEqual(calls, list(range((len(raw) + 199) // 200)))
+        self.assertEqual(Path(args.output).read_bytes(), raw)
+
 
 if __name__ == '__main__':
     unittest.main()
