@@ -157,19 +157,31 @@ export async function installMossCatalog(input: { kind: MossCatalogKind; source:
     const identity = mossCatalogIdentity();
     const existing = await getMossCatalogInstallations();
     const current = existing.find((item) => item.kind === input.kind && item.source === input.source && item.id === input.id);
+    let preparation: { preparationId: string; resources: IMossCatalogResource[] } | undefined;
     if (current?.preparationId && !input.isUpdate) {
       await validateCatalogInstallation(current);
-      return current;
+      const resources = current.preparationResources || [current];
+      const isCurrentLayout = await Promise.all(
+        resources.map((resource) => {
+          const runtimeName = catalogRuntimeName(resource);
+          return isInstallationComplete({ ...current, ...resource, runtimeName, path: path.join(catalogResourceRoot(resource.kind, resource.source), runtimeName) });
+        })
+      );
+      if (current.runtimeName === catalogRuntimeName(current) && isCurrentLayout.every(Boolean)) return current;
+      // Reuse the pinned preparation when repairing names hidden by native resource scanners.
+      preparation = { preparationId: current.preparationId, resources };
     }
     if (current && !current.preparationId && input.source === 'hub') {
       const tenantItems = (await (await requestMossCatalog(`/api/v1/${input.kind}/tenant`)).json()) as { id: string }[];
       if (tenantItems.some((item) => item.id === input.id)) input = { ...input, source: 'tenant' };
     }
-    const raw: unknown = await (await requestMossCatalog('/api/v1/client/catalog/install', { kind: input.kind, source: input.source, id: input.id })).json();
-    const parsed = preparationSchema.safeParse(raw);
-    if (!parsed.success) throw new Error('Moss catalog protocol is unavailable; update the Moss server');
+    if (!preparation) {
+      const raw: unknown = await (await requestMossCatalog('/api/v1/client/catalog/install', { kind: input.kind, source: input.source, id: input.id })).json();
+      const parsed = preparationSchema.safeParse(raw);
+      if (!parsed.success) throw new Error('Moss catalog protocol is unavailable; update the Moss server');
+      preparation = parsed.data as { preparationId: string; resources: IMossCatalogResource[] };
+    }
     assertMossCatalogIdentity(identity);
-    const preparation = parsed.data as { preparationId: string; resources: IMossCatalogResource[] };
     const installed: IMossCatalogInstallation[] = [];
     for (const resource of preparation.resources) {
       if (!resource.downloadRef.startsWith(`/api/v1/client/catalog/preparations/${preparation.preparationId}/`)) throw new Error('Invalid prepared resource URL');
@@ -312,7 +324,12 @@ export async function changeCatalogInstallation(input: { kind: MossCatalogKind; 
 }
 
 export function catalogRuntimeName(resource: IMossCatalogResource): string {
-  return `${resource.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'resource'}-${digest(resource.id).slice(0, 8)}--${resource.digest.slice(0, 16)}`;
+  const name =
+    resource.name
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/^_+/, '')
+      .slice(0, 40) || 'resource';
+  return `${name}-${digest(resource.id).slice(0, 8)}--${resource.digest.slice(0, 16)}`;
 }
 
 async function isInstallationComplete(item: IMossCatalogInstallation): Promise<boolean> {
