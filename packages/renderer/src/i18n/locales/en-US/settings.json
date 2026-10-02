@@ -1,4 +1,5 @@
 {
+  "storeAdminRequired": "Contact an administrator to install this in the cloud",
   "title": "Settings",
   "authMethod": "Authentication",
   "geminiApiKey": "Gemini API Key",

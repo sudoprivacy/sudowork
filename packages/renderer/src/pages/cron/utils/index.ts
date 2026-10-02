@@ -38,6 +38,14 @@ export function formatSchedule(job: ICronJob): string {
   return job.schedule.description;
 }
 
+/** Describe the frequency independently of the user-entered task description. */
+export function formatScheduleFrequency(schedule: ICronSchedule, t?: TFunction): string {
+  if (schedule.kind !== 'cron') return schedule.description;
+  const parsed = scheduleToFrequency(schedule);
+  const presetSchedule = frequencyToSchedule(parsed.preset, parsed, t);
+  return presetSchedule?.kind === 'cron' && presetSchedule.expr === schedule.expr ? presetSchedule.description : schedule.expr;
+}
+
 /**
  * Format next run time for display
  */

@@ -14,6 +14,7 @@ import { shouldSyncWorkspaceSkills } from '@sudowork/common/utils/workspaceSkill
 import { usePreviewContext } from '@renderer/pages/conversation/preview';
 import { addEventListener, emitter } from '@renderer/utils/emitter';
 import { useAppMode } from '@renderer/hooks/useAppMode';
+import { isWebBridgeAvailable } from '@renderer/utils/platform';
 import ChatConversation from './ChatConversation';
 import { useConversationTabs } from './context/ConversationTabsContext';
 
@@ -87,6 +88,22 @@ const ChatConversationIndex: React.FC = () => {
   useEffect(() => {
     void syncRemoteMessages();
   }, [data?.id, data?.type, syncRemoteMessages]);
+
+  const isCloudCron = isWebBridgeAvailable() && !!data?.extra?.cronJobId;
+  useEffect(() => {
+    if (!isCloudCron) return;
+    // Cron executes outside the browser connection. Poll its persisted history
+    // because upstream does not broadcast those turns to this WebSocket.
+    let isSyncing = false;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible' || isSyncing) return;
+      isSyncing = true;
+      void syncRemoteMessages().finally(() => {
+        isSyncing = false;
+      });
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [isCloudCron, syncRemoteMessages]);
 
   useEffect(() => {
     if (!id) return;

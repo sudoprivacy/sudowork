@@ -1,4 +1,5 @@
 {
+  "storeAdminRequired": "クラウドへのインストールは管理者にお問い合わせください",
   "title": "Settings",
   "authMethod": "認証",
   "geminiApiKey": "Gemini API キー",

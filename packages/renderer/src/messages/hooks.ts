@@ -9,6 +9,7 @@ import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TMessage } from '@sudowork/common/chatLib';
 import { composeMessage } from '@sudowork/common/chatLib';
 import { createContext } from '../utils/createContext';
+import { addEventListener } from '../utils/emitter';
 
 const [useMessageList, MessageListProvider, useUpdateMessageList] = createContext([] as TMessage[]);
 
@@ -364,6 +365,15 @@ export const useAddOrUpdateMessage = () => {
 export const useMessageLstCache = (key: string): { loaded: boolean } => {
   const update = useUpdateMessageList();
   const [loaded, setLoaded] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+
+  useEffect(
+    () =>
+      addEventListener('conversation.messages.refresh', (conversationId) => {
+        if (conversationId === key) setRefreshVersion((version) => version + 1);
+      }),
+    [key]
+  );
 
   useEffect(() => {
     if (!key) {
@@ -424,7 +434,7 @@ export const useMessageLstCache = (key: string): { loaded: boolean } => {
     return () => {
       cancelled = true;
     };
-  }, [key, update]);
+  }, [key, update, refreshVersion]);
 
   return { loaded };
 };

@@ -48,8 +48,16 @@ const EnterpriseSettings: React.FC = () => {
         setTenantName(name || '');
         setServerUrl(url || '');
         setEditingServerUrl(url || '');
-        // If we have a serverUrl, consider it connected
-        setConnectionStatus(url ? 'connected' : 'disconnected');
+        if (!url) {
+          setConnectionStatus('disconnected');
+        } else if (isWebRuntime) {
+          // Check the authenticated upstream, not just the saved address.
+          const response = await fetch('/api/settings/profile', { credentials: 'include' });
+          setConnectionStatus(response.ok ? 'connected' : 'disconnected');
+        } else {
+          const result = await ipcBridge.eeclaw.verifyServer.invoke({ serverUrl: url });
+          setConnectionStatus(result.success ? 'connected' : 'disconnected');
+        }
       } catch (error) {
         console.error('[EnterpriseSettings] Failed to load config:', error);
         setConnectionStatus('disconnected');

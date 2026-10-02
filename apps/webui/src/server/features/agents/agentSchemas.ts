@@ -12,6 +12,7 @@ export const CreateAgentRequestSchema = z.object({
   description: z.string().max(2000).optional(),
   avatar: z.string().max(500_000).optional(),
   prompt: z.string().max(100_000).optional(),
+  skills: z.array(z.string().min(1).max(255)).max(100).optional(),
 })
 
 export const UpdateAgentMetaRequestSchema = z.object({
@@ -22,6 +23,8 @@ export const UpdateAgentMetaRequestSchema = z.object({
       description: z.string().max(2000).optional(),
       avatar: z.string().max(500_000).optional(),
       emoji: z.string().max(16).optional(),
+      rules: z.string().max(100_000).optional(),
+      enabledSkills: z.array(z.string().min(1).max(255)).max(100).optional(),
     })
     .strip(),
 })

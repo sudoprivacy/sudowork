@@ -310,6 +310,8 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
       const message = list[i];
       // Skip available_commands messages
       if (message.type === 'available_commands') continue;
+      // Permission prompts render in ConversationChatConfirm, outside the list.
+      if (message.type === 'codex_permission') continue;
       // Hide agent_status badges from chat — shown via AgentStatusBanner instead
       if (message.type === 'agent_status') continue;
       // Hide gateway-disconnected tips from chat

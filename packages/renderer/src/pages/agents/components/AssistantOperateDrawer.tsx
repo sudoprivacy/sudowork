@@ -18,6 +18,7 @@ import SkillCard from './SkillCard';
 export default function AssistantOperateDrawer({
   visible,
   isCreating,
+  isSaving = false,
   isReadonly,
   editAvatar,
   editAvatarImage,
@@ -73,7 +74,7 @@ export default function AssistantOperateDrawer({
       footer={
         <div className='flex justify-end gap-2'>
           <Button onClick={onClose}>{t('common.cancel', 'Cancel')}</Button>
-          <Button type='primary' onClick={onSave} disabled={!isCreating && isReadonly}>
+          <Button type='primary' onClick={onSave} loading={isSaving} disabled={isSaving || (!isCreating && isReadonly)}>
             {isCreating ? t('common.create', 'Create') : t('common.save', 'Save')}
           </Button>
         </div>
@@ -199,6 +200,7 @@ export default function AssistantOperateDrawer({
 interface IAssistantOperateDrawerProps {
   visible: boolean;
   isCreating: boolean;
+  isSaving?: boolean;
   isReadonly: boolean;
   editAvatar: string;
   editAvatarImage: string | undefined;

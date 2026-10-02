@@ -1,4 +1,5 @@
 {
+  "storeAdminRequired": "클라우드 설치는 관리자에게 문의하세요",
   "title": "설정",
   "authMethod": "인증",
   "geminiApiKey": "Gemini API 키",

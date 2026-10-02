@@ -1,4 +1,5 @@
 {
+  "storeAdminRequired": "請聯絡管理員安裝到雲端",
   "title": "Settings",
   "authMethod": "驗證",
   "geminiApiKey": "Gemini API 金鑰",

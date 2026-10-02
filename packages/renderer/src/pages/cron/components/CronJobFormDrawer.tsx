@@ -131,7 +131,9 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
       const values = await form.validate();
       setSaving(true);
 
-      const schedule = frequencyToSchedule(frequency, { hour, minute, weekday }, t);
+      const frequencySchedule = frequencyToSchedule(frequency, { hour, minute, weekday }, t);
+      const baseSchedule = frequencySchedule || editJob?.schedule || { kind: 'cron' as const, expr: '0 9 * * *', description: values.name };
+      const schedule = { ...baseSchedule, description: values.description?.trim() || baseSchedule.description };
       const isManual = frequency === 'manual';
 
       // When a conversation is bound in reuse mode, assistant & workspace come from
@@ -162,7 +164,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
           updates: {
             name: values.name,
             enabled: isManual ? false : editJob.enabled,
-            schedule: schedule || editJob.schedule,
+            schedule,
             target: { payload: { kind: 'message', text: values.prompt } },
             metadata: {
               ...editJob.metadata,
@@ -180,7 +182,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
       } else {
         result = await ipcBridge.cron.addJob.invoke({
           name: values.name,
-          schedule: schedule || { kind: 'cron', expr: '0 9 * * *', description: values.description || values.name },
+          schedule,
           message: values.prompt,
           conversationId: reuseConvId,
           conversationTitle: reuseConvTitle,

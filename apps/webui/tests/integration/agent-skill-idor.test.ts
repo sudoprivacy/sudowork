@@ -90,7 +90,11 @@ function createFakeAgents(): MossAgentPort {
       return { assistants: [{ id: 'h1', name: 'hub-agent' }], next_cursor: null, has_more: false }
     },
     async hubDetail(_tk, id) {
-      return { id, name: 'hub-agent' }
+      return {
+        id,
+        name: 'hub-agent',
+        versions: [{ version: '1.0.0', source_url: 'https://hub.test/agent.zip' }],
+      }
     },
     async installed(tk) {
       return installedByToken[tk.accessToken] ?? []
