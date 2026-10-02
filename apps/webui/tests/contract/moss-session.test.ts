@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { createMossSessionPort } from '@sudowork/moss-client'
+import { createMossSessionPort, mossRequest } from '@sudowork/moss-client'
 import {
   buildAnswerQuestionMessage,
   buildControlResponseMessage,
@@ -146,13 +146,66 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     })
 
     await port.workspaceTree(CTX, 's1', '')
-    expect(mock).toHaveBeenLastCalledWith(BASE, {
-      method: 'GET',
-      path: '/api/v1/sessions/s1/workspace/tree',
-      accessToken: 'tk',
-      searchParams: {},
-    })
+    expect(mock).toHaveBeenLastCalledWith(
+      BASE,
+      {
+        method: 'GET',
+        path: '/api/v1/sessions/s1/workspace/tree',
+        accessToken: 'tk',
+        searchParams: {},
+      },
+      90_000,
+    )
   })
+
+  test.each(['tree', 'read', 'write'] as const)(
+    'workspace %s waits for cold runtime readiness',
+    async (operation) => {
+      vi.useFakeTimers()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_url: unknown, init: RequestInit) =>
+            new Promise<Response>((resolve, reject) => {
+              const timer = setTimeout(
+                () =>
+                  resolve(
+                    new Response(
+                      JSON.stringify({
+                        root: { name: 'workspace', relativePath: '', isFile: false, isDir: true },
+                      }),
+                    ),
+                  ),
+                20_000,
+              )
+              init.signal?.addEventListener(
+                'abort',
+                () => {
+                  clearTimeout(timer)
+                  reject(init.signal?.reason)
+                },
+                { once: true },
+              )
+            }),
+        ),
+      )
+      try {
+        const port = createMossSessionPort(mossRequest)
+        const pending =
+          operation === 'tree'
+            ? port.workspaceTree(CTX, 's1', '')
+            : operation === 'read'
+              ? port.workspaceFileGet(CTX, 's1', 'note.txt')
+              : port.workspaceFilePost(CTX, 's1', 'note.txt', 'b2s=')
+        const assertion = expect(pending).resolves.toBeDefined()
+        await vi.advanceTimersByTimeAsync(20_000)
+        await assertion
+      } finally {
+        vi.unstubAllGlobals()
+        vi.useRealTimers()
+      }
+    },
+  )
 
   test('context accepts persisted top-level thinking messages', async () => {
     const context = {
