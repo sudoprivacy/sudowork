@@ -208,7 +208,8 @@ jobs:
         include:
           - os: ubuntu-latest
             name: Full Unit Test Suite
-          - os: windows-latest
+          # Match the VS 2022 toolchain selected by rebuildNativeModules.js.
+          - os: windows-2022
             name: Full Unit Test Suite (Windows)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -234,6 +235,12 @@ jobs:
 
       - name: Ensure Electron is installed for native SQLite tests
         run: node node_modules/electron/install.js
+
+      - name: Setup MSBuild for native SQLite tests
+        if: runner.os == 'Windows'
+        uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: '17.0'
 
       - name: Rebuild SQLite for the desktop Electron ABI
         # CI postinstall normally skips this. The native SQLite suite launches
