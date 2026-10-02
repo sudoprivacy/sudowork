@@ -87,7 +87,9 @@ suite('published runtime installation and persistence', () => {
       stream.on('data', (chunk: Buffer) => {
         daemonLog = (daemonLog + stripVTControlCharacters(chunk.toString())).slice(-40_000);
       });
-    rpc = new NexusVfsClient(`127.0.0.1:${port}`, { connectTimeoutMs: 1000 });
+    // The client applies connectTimeoutMs to every unary RPC. Vault writes
+    // include durable disk I/O, so use the production deadline after startup.
+    rpc = new NexusVfsClient(`127.0.0.1:${port}`);
     const client = rpc;
     secrets = new NexusSecretClient({ callBinary: (method: string, payload: Buffer) => client.callBinary(method, payload, '') } as Nexus);
     const deadline = Date.now() + 30_000;

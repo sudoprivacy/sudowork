@@ -54,7 +54,7 @@ class TunnelClient {
         args: ['--auth', 'proxy', '--model', model, '--permission-mode', 'danger-full-access', 'acp'],
         cwd,
         shell: false,
-        env: { ...env, SUDO_CODE_CONFIG_HOME: configHome, NO_COLOR: '1', NEXUS_AGENT_ID: '', NEXUS_GRPC_ENDPOINT: '' },
+        env: { ...env, HOME: configHome, USERPROFILE: configHome, SUDO_CODE_CONFIG_HOME: configHome, NO_COLOR: '1', NEXUS_AGENT_ID: '', NEXUS_GRPC_ENDPOINT: '' },
       },
       events: {
         onMessage: (message) => this.onMessage(message as IRpcMessage),
@@ -281,7 +281,10 @@ suite('published scode over the real ACP tunnel', () => {
       const token = randomUUID();
       fs.writeFileSync(path.join(workspace, 'input.json'), JSON.stringify({ token, quantities: [13, 29, 7] }));
       const { client, sessionId } = await openSession();
-      const first = await client.prompt(sessionId, 'Read input.json from the working directory using your file tools. Write result.json with exactly {"token": <the token you read>, "total": <sum of quantities>}. Do the actual file operations, then briefly confirm.');
+      const first = await client.prompt(
+        sessionId,
+        'Use read_file with the relative path ./input.json in the current working directory. Use write_file to create ./result.json with exactly {"token": <the token you read>, "total": <sum of quantities>}. Do the actual file operations, then briefly confirm.'
+      );
       expect(first.stopReason).toBe('end_turn');
       expect(JSON.parse(fs.readFileSync(path.join(workspace, 'result.json'), 'utf8'))).toEqual({ token, total: 49 });
       expect(client.updates.some((message) => (message.params?.update as Record<string, unknown>)?.sessionUpdate === 'agent_message_chunk')).toBe(true);

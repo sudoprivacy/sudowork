@@ -81,7 +81,7 @@ claim about model/tool cancellation.
 
 ## Runtime release migration
 
-The daemon now comes from `nexi-lab/nexus-vfs` (`v0.7.25`, plugin ABI 7),
+The daemon now comes from `nexi-lab/nexus-vfs` (`v0.7.26`, plugin ABI 7),
 with vault `0.5.66`, local-connector `0.4.64`, and fuse `0.6.64` from
 `nexi-lab/nexus`. COS uses `nexus-vfs/release/vVERSION`; the discontinued
 `nexusd-cluster/release` assembly is no longer the download source.
