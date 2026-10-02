@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
 
@@ -28,7 +29,7 @@ afterEach(async () => {
 async function serveArchive(isBadChecksum = false, isSymlink = false) {
   const zip = new JSZip();
   zip.file('SKILL.md', '---\nname: test-skill\ndescription: test\n---\nRun the script.');
-  zip.file('scripts/check.sh', '#!/bin/sh\necho local', { unixPermissions: isSymlink ? 0o120777 : 0o100755 });
+  zip.file('scripts/check.cjs', '#!/usr/bin/env node\nprocess.stdout.write("local");', { unixPermissions: isSymlink ? 0o120777 : 0o100755 });
   const bytes = await zip.generateAsync({ type: 'nodebuffer', platform: 'UNIX' });
   const digest = createHash('sha256').update(bytes).digest('hex');
   const request = vi.fn(async (url: string) => (url.endsWith('/installed') ? Response.json([{ id: 'skill-1', name: 'test-skill', enabled: state.isEnabled }]) : new Response(bytes, { headers: { 'X-Content-SHA256': isBadChecksum ? 'wrong' : digest } })));
@@ -105,7 +106,12 @@ describe('Moss resource preparation', () => {
     const first = await prepareMossResources(undefined, ['skill-1']);
     const second = await prepareMossResources(undefined, ['skill-1']);
     expect(second.resources[0].path).toBe(first.resources[0].path);
-    expect((await fs.stat(path.join(first.resources[0].path, 'scripts/check.sh'))).mode & 0o100).toBe(0o100);
+    const scriptPath = path.join(first.resources[0].path, 'scripts/check.cjs');
+    const isWindows = process.platform === 'win32';
+    // Windows runs scripts through their interpreter; POSIX also requires the
+    // archived executable bit to survive extraction for direct execution.
+    if (!isWindows) expect((await fs.stat(scriptPath)).mode & 0o100).toBe(0o100);
+    expect(execFileSync(isWindows ? process.execPath : scriptPath, isWindows ? [scriptPath] : [], { encoding: 'utf8', timeout: 5000, windowsHide: true })).toBe('local');
     expect(await fs.readdir(state.root)).toHaveLength(1);
     await validateMossResourceSnapshot(first.resources);
     state.isEnabled = false;

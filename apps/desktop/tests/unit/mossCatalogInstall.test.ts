@@ -17,13 +17,6 @@ vi.mock('@process/constants/enterpriseStorage', () => ({
   getEnterpriseTenantAssistantsDir: () => path.join(state.root, state.scope, 'agents', 'tenant'),
 }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: async () => state.token }));
-vi.mock('@process/services/mossResourcePath', () => ({
-  safeResourcePath: (root: string, relative: string) => {
-    const result = path.resolve(root, relative.replace(/\\/g, '/'));
-    if (!result.startsWith(`${path.resolve(root)}/`)) throw new Error('Unsafe path');
-    return result;
-  },
-}));
 import { getMossCatalogInstallations, installMossCatalog, changeCatalogInstallation, isCatalogPathVisible, detailLocalMossCatalog } from '@process/services/mossCatalogInstall';
 import { listMossCatalog } from '@process/services/mossCatalogApi';
 
@@ -185,8 +178,11 @@ it('does not show a record as downloaded after its required files disappear', as
   const installed = await installMossCatalog(skill);
   await fs.unlink(path.join(installed.path, 'SKILL.md'));
   expect(await getMossCatalogInstallations()).toEqual([]);
-  await installMossCatalog(skill);
-  expect(await getMossCatalogInstallations()).toHaveLength(1);
+  const repaired = await installMossCatalog(skill);
+  expect(repaired.path).toBe(installed.path);
+  expect(await fs.readFile(path.join(repaired.path, 'SKILL.md'), 'utf8')).toBe('Resource skill-1 version 1');
+  expect(await getMossCatalogInstallations()).toEqual([repaired]);
+  expect(await fs.readdir(path.dirname(repaired.path))).toEqual([path.basename(repaired.path)]);
 });
 
 it('uses only account-isolated metadata caches offline and surfaces permission failures', async () => {
@@ -198,6 +194,22 @@ it('uses only account-isolated metadata caches offline and surfaces permission f
   state.scope = 'account-a';
   request.mockResolvedValue(new Response('', { status: 403 }));
   await expect(listMossCatalog({ kind: 'agents', source: 'tenant' })).rejects.toThrow('HTTP 403');
+});
+
+it('preserves a permission error when no destination directory exists', async () => {
+  const rename = fs.rename.bind(fs);
+  const error = Object.assign(new Error('Permission denied'), { code: 'EPERM' });
+  const onRename = vi.spyOn(fs, 'rename').mockImplementation(async (source, destination) => {
+    if (path.basename(String(source)).startsWith('_preparing-')) throw error;
+    return rename(source, destination);
+  });
+  try {
+    await expect(installMossCatalog(skill)).rejects.toBe(error);
+    expect(await getMossCatalogInstallations()).toEqual([]);
+    expect(await fs.readdir(path.join(state.root, state.scope, 'skills', 'tenant'))).toEqual([]);
+  } finally {
+    onRename.mockRestore();
+  }
 });
 
 it('shows downloaded instructions and packaged icons offline without requiring a new download', async () => {
