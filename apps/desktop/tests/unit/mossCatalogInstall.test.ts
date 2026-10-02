@@ -17,6 +17,7 @@ vi.mock('@process/constants/enterpriseStorage', () => ({
   getEnterpriseTenantAssistantsDir: () => path.join(state.root, state.scope, 'agents', 'tenant'),
 }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: async () => state.token }));
+vi.mock('@process/task/AcpSkillManager', () => ({ AcpSkillManager: { resetInstance: vi.fn() } }));
 import { getMossCatalogInstallations, installMossCatalog, changeCatalogInstallation, isCatalogPathVisible, detailLocalMossCatalog } from '@process/services/mossCatalogInstall';
 import { listMossCatalog } from '@process/services/mossCatalogApi';
 
@@ -201,6 +202,11 @@ describe('organization catalog and local installations', () => {
       expect(await fs.stat(oldPath)).toBeTruthy();
       expect(await isCatalogPathVisible(oldPath)).toBe(false);
     }
+    const { listWorkspaceSkillTargets } = await import('@process/utils/workspaceSkillTargets');
+    const { ENTERPRISE_SKILL_SUBDIRS } = await import('@process/constants/skillStorage');
+    const skillsRoot = path.join(state.root, state.scope, 'skills');
+    const workspaceSkills = await listWorkspaceSkillTargets(skillsRoot, undefined, path.join(state.root, 'builtin'), ENTERPRISE_SKILL_SUBDIRS);
+    expect([...workspaceSkills.keys()]).toEqual(context?.enabledSkills);
   });
 });
 

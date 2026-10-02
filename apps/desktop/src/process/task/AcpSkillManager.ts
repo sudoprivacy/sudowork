@@ -13,11 +13,11 @@
  */
 
 import fs from 'fs/promises';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import path from 'path';
 import { existsSync } from 'fs';
-import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, isUserSkillEnabled } from '../initStorage';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { ExtensionRegistry } from '@/extensions';
+import { getSkillsDir, getBuiltinSkillsDir, getHubSkillsDir, getCustomSkillsDir, isUserSkillEnabled } from '../initStorage';
 
 /**
  * Skill 定义（与 aioncli-core 兼容）
@@ -127,7 +127,8 @@ export class AcpSkillManager {
   static getInstance(enabledSkills?: string[]): AcpSkillManager {
     // Distinguish between undefined (non-preset → load all) and [] (preset with
     // no skills → load none).  An empty array must NOT map to 'all'.
-    const cacheKey = enabledSkills ? (enabledSkills.length > 0 ? [...enabledSkills].sort().join(',') : '__none__') : 'all';
+    const selectionKey = enabledSkills ? (enabledSkills.length > 0 ? [...enabledSkills].sort().join(',') : '__none__') : 'all';
+    const cacheKey = `${getSkillsDir()}:${selectionKey}`;
 
     // 如果缓存键变化，需要重新创建实例
     // If cache key changed, need to recreate instance
