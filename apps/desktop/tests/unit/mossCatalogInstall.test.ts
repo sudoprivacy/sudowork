@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import JSZip from 'jszip';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ root: '', scope: 'account-a', token: 'token-a', version: '1', isCorrupt: false, isSymlink: false, isSwitching: false, isAvailable: true }));
+const state = vi.hoisted(() => ({ root: '', scope: 'account-a', token: 'token-a', version: '1', name: 'shared-name', isCorrupt: false, isSymlink: false, isSwitching: false, isAvailable: true }));
 vi.mock('@process/initStorage', () => ({
   ProcessConfig: { getSync: (key: string) => ({ 'eeclaw.serverUrl': 'https://moss.test', 'eeclaw.accountScope': state.scope })[key] },
   getHubSkillsDir: () => path.join(state.root, state.scope, 'skills', 'hub'),
@@ -26,7 +26,7 @@ const skill = { kind: 'skills' as const, source: 'tenant' as const, id: 'skill-1
 const archives = new Map<string, Buffer>();
 
 beforeEach(async () => {
-  Object.assign(state, { root: await fs.mkdtemp(path.join(os.tmpdir(), 'moss-catalog-')), scope: 'account-a', token: 'token-a', version: '1', isCorrupt: false, isSymlink: false, isSwitching: false, isAvailable: true });
+  Object.assign(state, { root: await fs.mkdtemp(path.join(os.tmpdir(), 'moss-catalog-')), scope: 'account-a', token: 'token-a', version: '1', name: 'shared-name', isCorrupt: false, isSymlink: false, isSwitching: false, isAvailable: true });
   archives.clear();
   request.mockReset();
   request.mockImplementation(async (url: string, options?: { body?: string }) => {
@@ -44,7 +44,7 @@ beforeEach(async () => {
         const digest = createHash('sha256').update(bytes).digest('hex');
         const downloadRef = `/api/v1/client/catalog/preparations/${preparationId}/${item.kind}/${item.id}/download`;
         archives.set(`https://moss.test${downloadRef}`, bytes);
-        resources.push({ ...item, name: 'shared-name', version: state.version, digest, downloadRef, runtimeRef: `moss-prepared:${preparationId}:${item.kind}:${item.id}`, dependencies: item.kind === 'agents' ? ['skill-1'] : [], isLocalAllowed: true });
+        resources.push({ ...item, name: state.name, version: state.version, digest, downloadRef, runtimeRef: `moss-prepared:${preparationId}:${item.kind}:${item.id}`, dependencies: item.kind === 'agents' ? ['skill-1'] : [], isLocalAllowed: true });
       }
       return Response.json({ protocolVersion: 1, preparationId, resources });
     }
@@ -159,6 +159,48 @@ describe('organization catalog and local installations', () => {
     const second = await installMossCatalog({ ...skill, id: 'skill-2' });
     expect(first.path).not.toBe(second.path);
     expect(await getMossCatalogInstallations()).toHaveLength(2);
+  });
+
+  it.each(['文章润色', '_draft', '中文-skill'])('installs %s into a directory visible to native resource scanners', async (name) => {
+    state.name = name;
+    const installed = await installMossCatalog(skill);
+    expect(installed.runtimeName.startsWith('_')).toBe(false);
+    expect(await isCatalogPathVisible(installed.path)).toBe(true);
+    expect(await fs.readFile(path.join(installed.path, 'SKILL.md'), 'utf8')).toContain('Resource skill-1');
+  });
+
+  it('repairs hidden names and dependencies using the same pinned preparation', async () => {
+    state.name = '文章润色';
+    const installed = await installMossCatalog(agent);
+    const registryPath = path.join(state.root, state.scope, 'skills', '_catalog-installations.json');
+    const registry = JSON.parse(await fs.readFile(registryPath, 'utf8'));
+    const oldPaths: string[] = [];
+    for (const entry of registry.entries) {
+      const oldName = entry.runtimeName.replace(/^resource/, '____');
+      const oldPath = path.join(path.dirname(entry.path), oldName);
+      await fs.rename(entry.path, oldPath);
+      entry.path = oldPath;
+      entry.runtimeName = oldName;
+      oldPaths.push(oldPath);
+    }
+    await fs.writeFile(registryPath, JSON.stringify(registry));
+    const installRequests = request.mock.calls.filter(([url]) => url.endsWith('/client/catalog/install')).length;
+    state.version = '2';
+    const repaired = await installMossCatalog(agent);
+    expect(repaired.preparationId).toBe(installed.preparationId);
+    expect(repaired.version).toBe('1');
+    expect(request.mock.calls.filter(([url]) => url.endsWith('/client/catalog/install'))).toHaveLength(installRequests);
+    const { prepareLocalCatalogSelection } = await import('@process/services/mossCatalogSelection');
+    const context = await prepareLocalCatalogSelection(repaired.id);
+    expect(context?.enabledSkills).toHaveLength(1);
+    for (const resource of context!.resources) {
+      expect(path.basename(resource.path).startsWith('_')).toBe(false);
+      expect(await fs.stat(resource.path)).toBeTruthy();
+    }
+    for (const oldPath of oldPaths) {
+      expect(await fs.stat(oldPath)).toBeTruthy();
+      expect(await isCatalogPathVisible(oldPath)).toBe(false);
+    }
   });
 });
 
