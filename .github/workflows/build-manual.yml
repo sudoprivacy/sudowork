@@ -1,82 +1,146 @@
-name: '🔨 Manual Build'
-
-permissions:
-  contents: write
-  actions: write
+name: Recover macOS v0.2.21
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to build from'
-        required: true
-        default: 'main'
-        type: string
-      platform:
-        description: 'Platform to build'
-        required: true
-        type: choice
-        options:
-          - macos-arm64
-          - macos-x64
-          - windows-x64
-          - windows-arm64
-          - linux
-          - all
-        default: 'macos-arm64'
-      skip_code_quality:
-        description: 'Skip code quality checks (faster builds for debugging)'
-        required: false
-        type: boolean
-        default: false
 
-env:
-  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: macos-v0.2.21-recovery
+  cancel-in-progress: false
 
 jobs:
-  prepare-matrix:
-    name: Prepare Build Matrix
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-
+  verify-and-publish:
+    name: Verify notarized macOS packages and publish
+    runs-on: macos-15
+    environment: release
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      RELEASE_TAG: v0.2.21
+      SOURCE_SHA: 0ff4b21a6fcabc54ad39a84639d0ec1487c6c652
     steps:
-      - name: Generate build matrix
-        id: set-matrix
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install release tooling
+        run: python3 -m pip install coscmd pyyaml
+      - name: Download successful builds from the original release source
         shell: bash
         run: |
-          PLATFORM="${{ inputs.platform }}"
-
-          MACOS_ARM64='{"platform":"macos-arm64","os":"macos-15","command":"node scripts/build-with-builder.js arm64 --mac --arm64","artifact-name":"macos-build-arm64","arch":"arm64"}'
-          MACOS_X64='{"platform":"macos-x64","os":"macos-15-intel","command":"node scripts/build-with-builder.js x64 --mac --x64","artifact-name":"macos-build-x64","arch":"x64"}'
-          WINDOWS_X64='{"platform":"windows-x64","os":"windows-2022","command":"node scripts/build-with-builder.js x64 --win --x64","artifact-name":"windows-build-x64","arch":"x64"}'
-          WINDOWS_ARM64='{"platform":"windows-arm64","os":"windows-2022","command":"node scripts/build-with-builder.js arm64 --win --arm64","artifact-name":"windows-build-arm64","arch":"arm64"}'
-          LINUX='{"platform":"linux","os":"ubuntu-latest","command":"node scripts/build-with-builder.js auto --linux","artifact-name":"linux-build","arch":"x64-arm64"}'
-
-          if [ "$PLATFORM" = "all" ]; then
-            MATRIX="{\"include\":[$MACOS_ARM64,$MACOS_X64,$WINDOWS_X64,$WINDOWS_ARM64,$LINUX]}"
-          elif [ "$PLATFORM" = "macos-arm64" ]; then
-            MATRIX="{\"include\":[$MACOS_ARM64]}"
-          elif [ "$PLATFORM" = "macos-x64" ]; then
-            MATRIX="{\"include\":[$MACOS_X64]}"
-          elif [ "$PLATFORM" = "windows-x64" ]; then
-            MATRIX="{\"include\":[$WINDOWS_X64]}"
-          elif [ "$PLATFORM" = "windows-arm64" ]; then
-            MATRIX="{\"include\":[$WINDOWS_ARM64]}"
-          elif [ "$PLATFORM" = "linux" ]; then
-            MATRIX="{\"include\":[$LINUX]}"
-          fi
-
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-          echo "Generated matrix for platform '$PLATFORM':"
-          echo "$MATRIX" | python3 -m json.tool
-
-  build-pipeline:
-    needs: prepare-matrix
-    uses: ./.github/workflows/_build-reusable.yml
-    with:
-      matrix: ${{ needs.prepare-matrix.outputs.matrix }}
-      ref: ${{ inputs.branch }}
-      skip_code_quality: ${{ inputs.skip_code_quality }}
-      append_commit_hash: true
-    secrets: inherit
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess
+          repo = os.environ['GITHUB_REPOSITORY']
+          source = os.environ['SOURCE_SHA']
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/{path}']))
+          assert api('git/ref/tags/v0.2.21')['object']['sha'] == source
+          proof = []
+          for arch, run_id in [('arm64', 36988670492), ('x64', 36988675323)]:
+              run = api(f'actions/runs/{run_id}')
+              assert run['status'] == 'completed' and run['conclusion'] == 'success', f'{arch} build not successful'
+              assert run['path'] == '.github/workflows/build-manual.yml'
+              artifacts = api(f'actions/runs/{run_id}/artifacts')['artifacts']
+              matches = [a for a in artifacts if a['name'].startswith(f'macos-build-{arch}-') and not a['expired']]
+              assert len(matches) == 1
+              artifact = matches[0]
+              suffix = artifact['name'].rsplit('-', 1)[1]
+              assert re.fullmatch('[0-9a-f]{7,40}', suffix) and source.startswith(suffix), 'Unexpected source commit'
+              target = pathlib.Path('build-artifacts') / f'macos-build-{arch}'
+              target.mkdir(parents=True)
+              subprocess.run(['gh', 'run', 'download', str(run_id), '--repo', repo, '--name', artifact['name'], '--dir', str(target)], check=True)
+              proof.append({'arch': arch, 'run': run_id, 'artifactId': artifact['id'], 'sourceCommit': source})
+          pathlib.Path('recovery-builds.json').write_text(json.dumps(proof, indent=2))
+          PY
+          mkdir -p build-artifacts/windows-build-x64
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*-win-x64.*' --pattern latest.yml --dir build-artifacts/windows-build-x64
+          bash apps/desktop/scripts/prepare-release-assets.sh build-artifacts release-assets
+          bash apps/desktop/scripts/verify-release-assets.sh release-assets
+      - name: Verify signatures and notarization tickets in ZIP and DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          verify_app() {
+            local app="$1"
+            local arch="$2"
+            test -d "$app"
+            test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = com.sudowork.app
+            test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = 0.2.21
+            test "$(lipo -archs "$app/Contents/MacOS/Sudowork")" = "$arch"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            xcrun stapler validate "$app"
+            spctl --assess --type execute --verbose=4 "$app"
+          }
+          for arch in arm64 x64; do
+            expected="$arch"
+            if [ "$arch" = x64 ]; then expected=x86_64; fi
+            zip="release-assets/Sudowork-0.2.21-mac-${arch}.zip"
+            dmg="release-assets/Sudowork-0.2.21-mac-${arch}.dmg"
+            test -s "$zip"
+            test -s "$dmg"
+            test -s "${zip}.blockmap"
+            unpacked="$RUNNER_TEMP/verify-zip-${arch}"
+            ditto -x -k "$zip" "$unpacked"
+            verify_app "$unpacked/Sudowork.app" "$expected"
+            mount="$RUNNER_TEMP/verify-dmg-${arch}"
+            mkdir -p "$mount"
+            hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$dmg"
+            trap 'hdiutil detach "$mount" || true' EXIT
+            verify_app "$mount/Sudowork.app" "$expected"
+            hdiutil detach "$mount"
+            trap - EXIT
+          done
+      - name: Check current feeds before publishing
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib, urllib.request, yaml
+          base = 'https://sudowork-release-1309794936.cos.accelerate.myqcloud.com/sudowork/release/latest/'
+          expected = 'zs2J5SXjpH/PrR8rY7QCNMKdzJLwpyphEELcnw0PeJktLfLM3Pux0HdEGcTQo96m2nRaUVCis3Buup3fiOdGHg=='
+          for name in ['latest.yml', 'latest-mac.yml', 'arm64-mac.yml']:
+              local = yaml.safe_load((pathlib.Path('release-assets') / name).read_text())
+              assert str(local['version']) == '0.2.21'
+              with urllib.request.urlopen(base + name, timeout=30) as r:
+                  remote = yaml.safe_load(r.read())
+              if name == 'latest.yml':
+                  assert str(remote['version']) == '0.2.21'
+                  assert remote['sha512'] == local['sha512'] == expected, 'Windows release changed'
+              else:
+                  assert tuple(map(int, str(remote['version']).split('.'))) < (0, 2, 21), 'A macOS publisher already advanced this feed; review before overwriting'
+              print(name, 'current version:', remote['version'])
+          PY
+      - name: Publish verified macOS assets to GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            release-assets/*-mac-x64.* release-assets/*-mac-arm64.* \
+            release-assets/latest-mac.yml release-assets/arm64-mac.yml
+      - name: Publish verified update feeds to COS
+        shell: bash
+        env:
+          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+          COS_BUCKET: sudowork-release-1309794936
+          COS_PATH: sudowork/release/latest
+          COS_PUBLIC_BASE_URL: https://sudowork-release-1309794936.cos.accelerate.myqcloud.com/sudowork/release/latest
+        run: |
+          set -euo pipefail
+          coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" -b "$COS_BUCKET" -e cos.accelerate.myqcloud.com
+          cd apps/desktop
+          bash scripts/publish-release-to-cos.sh ../../release-assets
+      - name: Save recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-v0.2.21-recovery-evidence
+          path: |
+            recovery-builds.json
+            release-assets/latest.yml
+            release-assets/latest-mac.yml
+            release-assets/arm64-mac.yml
