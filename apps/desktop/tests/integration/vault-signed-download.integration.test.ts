@@ -218,23 +218,27 @@ suite('published runtime installation and persistence', () => {
       fs.mkdirSync(legacyPlugins);
       execFileSync('tar', ['-xf', legacyVaultArchive, '-C', legacyPlugins], { timeout: 30_000, windowsHide: true });
 
-      const namespace = `upgrade-${randomUUID()}`;
+      // Old Windows vaults require portable names; Linux also exercises colon
+      // names written by the previous release.
+      const isWindows = process.platform === 'win32';
+      const namespace = `upgrade${isWindows ? '-' : ':'}${randomUUID()}`;
+      const key = isWindows ? 'token' : 'CON:credential';
       const value = randomUUID();
       const legacyDataDir = path.join(root, 'legacy-state', 'data');
       await boot(legacyBinary, legacyPlugins, legacyDataDir);
       expect(daemonLog).not.toMatch(/plugin API version mismatch|signature did not verify|failed to load/);
-      expect((await secrets.putSecret(namespace, 'token', value)).currentVersion).toBe(1);
-      expect(await secrets.getSecret(namespace, 'token')).toBe(value);
+      expect((await secrets.putSecret(namespace, key, value)).currentVersion).toBe(1);
+      expect(await secrets.getSecret(namespace, key)).toBe(value);
       await stop();
       // Reuse the old daemon's actual data and identity directories unchanged.
       await boot(binary, path.join(installRoot, 'plugins'), legacyDataDir);
-      expect(await secrets.getSecret(namespace, 'token')).toBe(value);
-      expect((await secrets.putSecret(namespace, 'token', `${value}-upgraded`)).currentVersion).toBe(2);
+      expect(await secrets.getSecret(namespace, key)).toBe(value);
+      expect((await secrets.putSecret(namespace, key, `${value}-upgraded`)).currentVersion).toBe(2);
       await stop();
       await boot(binary, path.join(installRoot, 'plugins'), legacyDataDir);
-      expect(await secrets.getSecret(namespace, 'token')).toBe(`${value}-upgraded`);
-      expect(await secrets.getSecret(namespace, 'token', 1)).toBe(value);
-      expect(await secrets.deleteSecret(namespace, 'token')).toBe(true);
+      expect(await secrets.getSecret(namespace, key)).toBe(`${value}-upgraded`);
+      expect(await secrets.getSecret(namespace, key, 1)).toBe(value);
+      expect(await secrets.deleteSecret(namespace, key)).toBe(true);
       await stop();
     },
     120_000

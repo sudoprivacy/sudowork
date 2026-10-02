@@ -70,14 +70,19 @@ ACP reported cancellation while the shell's Node child kept running. The live
 suite fails on that release at `cancelled tool descendant exited`. Cleanup runs
 after the assertion so it cannot conceal the failure.
 
-With the scode process-group fix built from source (version 0.2.20), the three
-tunnel workflows passed on Windows and Docker Desktop Linux against the pinned
-nexusd-cluster 0.1.5. The companion scode live PTY cancellation and timeout
-workflows also passed on both platforms with real proxy credentials.
+The final published pair, scode `0.2.21` and nexusd-cluster `0.7.26`, passed
+all three tunnel workflows on Windows and Docker Desktop Linux with real
+`claude-sonnet-4-6` API calls and no version override. The release archives were
+checked against their published SHA256 manifests. Both platforms also passed
+the companion scode live PTY cancellation and timeout tests (2/2), using the
+same published binaries. Each test verifies descendant exit and a successful
+follow-up turn.
 
-The published pin must include that scode fix before the opt-in live CI job can
-pass against release artifacts. The ordinary protocol CI job does not make a
-claim about model/tool cancellation.
+[scode 0.2.21](https://github.com/sudoprivacy/sudocode/releases/tag/v0.2.21)
+contains the process-group fix from
+[sudocode#843](https://github.com/sudoprivacy/sudocode/pull/843).
+The ordinary protocol CI job covers process/session behavior; real model
+cancellation is covered by the explicit live workflow and these local runs.
 
 ## Runtime release migration
 
@@ -123,8 +128,8 @@ requires the secret to remain readable, rotates it, restarts again, checks both
 versions, and deletes it. The old plugin is extracted into its own directory;
 the fixture never uses the user's installed daemon, plugins, or vault data.
 
-The published scode `0.2.20` still needs the process-tree cancellation fix in
-sudoprivacy/sudocode#843. Protocol checks can use that published version;
-the complete real-model cancellation workflow must use a build containing
-that fix until its release is available. Do not report a source-build pass as
-validation of an unfixed release artifact.
+The installation suite passed on Windows and Docker Desktop Linux (3/3 on
+each), including the legacy upgrade. Linux additionally exercised a namespace
+and key containing colons, which the previous Linux release allowed. CI runs
+the two installation/reinstallation workflows; the legacy upgrade is an
+explicit local live test using the verified old release fixtures.
