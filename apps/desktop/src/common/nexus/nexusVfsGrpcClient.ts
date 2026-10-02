@@ -15,22 +15,9 @@
  * out, and stream reads that return a plain object.
  */
 
-import { NexusVfsClient } from '@nexus-ai-fs/vfs-client';
+import { NexusVfsClient, NexusSessionTransport, type NexusSessionEndpoint, type NexusSessionTransportOptions } from '@nexus-ai-fs/vfs-client';
 
-export interface StreamReadAtResult {
-  data: Buffer;
-  nextOffset: string;
-  /** Non-blocking: true means "no data available now", NOT stream end. */
-  eof: boolean;
-  /**
-   * A blocking read hit its timeout with no frame — a normal long-poll expiry,
-   * so re-read from the same offset. `eof` is also true, so a reader that only
-   * checks `eof` behaves as before; a real disconnect rejects instead.
-   */
-  timedOut: boolean;
-}
-
-/** The nexus VFS plane as the ACP tunnel uses it: Call + fd-stream read/write. */
+/** Nexus session control calls and the shared mailbox transport. */
 export class NexusVfsGrpcClient {
   private readonly client: NexusVfsClient;
   private readonly token: string;
@@ -51,19 +38,8 @@ export class NexusVfsGrpcClient {
     return body && typeof body === 'object' && 'result' in body ? (body as { result: T }).result : (body as T);
   }
 
-  /** Append bytes to the fd stream at `streamPath` (StreamWriteNowait). */
-  streamWrite(streamPath: string, data: Buffer): Promise<void> {
-    return this.client.streamWrite(streamPath, data, this.token);
-  }
-
-  /**
-   * Read bytes from `streamPath` at `offset` (non-blocking by default).
-   * Resolves `{data, nextOffset, eof, timedOut}` — `eof=true` means "no data
-   * now", NOT end. REJECTS on a stream error — that IS the real stream-closed /
-   * agent-exited signal.
-   */
-  streamReadAt(streamPath: string, offset: string, opts: { blocking?: boolean; timeoutMs?: number } = {}): Promise<StreamReadAtResult> {
-    return this.client.streamReadAt(streamPath, offset, this.token, opts);
+  openSession(endpoint: NexusSessionEndpoint, events: Pick<NexusSessionTransportOptions, 'onMessage' | 'onClose'>): NexusSessionTransport {
+    return new NexusSessionTransport({ client: this.client, endpoint, authToken: this.token, ...events });
   }
 
   close(): void {

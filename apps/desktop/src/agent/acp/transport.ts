@@ -8,11 +8,12 @@
  * ACP Transport abstraction — pluggable wire protocols for AcpConnection.
  *
  * StdioAcpTransport: spawn local CLI, communicate via stdin/stdout (default)
- * GrpcAcpTransport:  nexus spawns + supervises the agent; sudowork drives its
- *                    stdio over the nexus VFS gRPC plane (fd streams).
+ * NexusAcpTransport:  nexus spawns + supervises the agent; sudowork drives its
+ *                    session through its durable A2A conversation.
  */
 
 import type { ChildProcess } from 'child_process';
+import type { NexusSessionEndpoint, NexusSessionTransport, SessionRpcMessage } from '@nexus-ai-fs/vfs-client';
 import type { AcpMessage, AcpIncomingMessage } from '@/types/acpTypes';
 import { processSupervisor } from '@process/ProcessSupervisor';
 import { NexusVfsGrpcClient } from '@common/nexus/nexusVfsGrpcClient';
@@ -227,147 +228,94 @@ export class StdioAcpTransport implements AcpTransport {
   }
 }
 
-// ── gRPC tunnel transport (nexus ManagedAgentService) ──────────────
+// ── Session mailbox transport (nexus ManagedAgentService) ──────────────
 
-export interface GrpcTransportOptions {
-  /** nexus VFS gRPC address, host:port (e.g. 127.0.0.1:2130). */
+export interface NexusTransportOptions {
   endpoint: string;
-  /** Loopback plane authenticates with an empty token. */
   authToken: string;
-  /** `/agents/{id}/` name, e.g. `<node>-sudowork-<conversationId>`. */
   agentId: string;
-  /** What nexus spawns — sudowork owns this spec (SSOT). */
-  spawnSpec: GenericSpawnSpec;
+  spawnSpec?: GenericSpawnSpec;
+  model?: string;
+  resumeSessionId?: string;
   events: AcpTransportEvents;
-  /** Blocking long-poll timeout for the stdout reader (ms). Default 30_000. */
-  longPollMs?: number;
 }
 
-/**
- * ACP transport where nexus spawns + supervises the agent and exposes its
- * stdio as VFS fd streams. sudowork drives it over grpc-js:
- *   - start_session (Call) → session_id + os_pid; nexus spawns spawn_spec
- *   - reader: StreamReadAt (blocking long-poll) /proc/{sid}/fd/1 → NDJSON → onMessage
- *   - writer: StreamWriteNowait /proc/{sid}/fd/0 (agent stdin)
- *   - close:  cancel_v1
- * nexus never parses ACP; NDJSON framing stays here.
- */
-export class GrpcAcpTransport implements AcpTransport {
+/** Both hosting strategies use the shared session mailbox transport. */
+export class NexusAcpTransport implements AcpTransport {
   private client: NexusVfsGrpcClient | null = null;
-  private sessionId: string | null = null;
+  private mailbox: NexusSessionTransport | null = null;
+  private processId: string | null = null;
   private osPid: number | null = null;
-  private readonly options: GrpcTransportOptions;
-  private readonly longPollMs: number;
-  private _connected = false;
-  private closing = false;
+  private isClosing = false;
 
-  constructor(options: GrpcTransportOptions) {
-    this.options = options;
-    this.longPollMs = options.longPollMs ?? 30_000;
-  }
+  constructor(private readonly options: NexusTransportOptions) {}
 
   get connected(): boolean {
-    return this._connected;
+    return this.mailbox?.connected ?? false;
   }
-
-  /** OS pid of the nexus-spawned agent (auth-proxy token registration / bookkeeping). */
   get pid(): number | undefined {
     return this.osPid ?? undefined;
   }
 
-  /** start_session on nexus (it spawns spawn_spec), then begin the stdout reader. */
   async connect(): Promise<void> {
     try {
-      // SDK 0.3.0 applies connectTimeoutMs to every RPC, including blocking reads.
-      // Allow the daemon's long-poll timeout response to arrive before the RPC deadline.
-      const rpcTimeoutMs = Math.max(30_000, this.longPollMs + 15_000);
-      this.client = new NexusVfsGrpcClient(this.options.endpoint, this.options.authToken, rpcTimeoutMs);
-      const res = await this.client.call<{ session_id: string; os_pid?: number | null }>('managed_agent.start_session_v1', {
+      this.client = new NexusVfsGrpcClient(this.options.endpoint, this.options.authToken);
+      const spec = this.options.spawnSpec;
+      const response = await this.client.call<{
+        session_id: string;
+        os_pid?: number | null;
+        session_endpoint: NexusSessionEndpoint;
+      }>('managed_agent.start_session_v1', {
         agent_id: this.options.agentId,
-        spawn_spec: {
-          cmd: this.options.spawnSpec.cmd,
-          args: this.options.spawnSpec.args,
-          env: toStringEnv(this.options.spawnSpec.env),
-          cwd: this.options.spawnSpec.cwd,
+        ...(spec ? { spawn_spec: { cmd: spec.cmd, args: spec.args, env: toStringEnv(spec.env), cwd: spec.cwd } } : {}),
+        ...(this.options.model ? { model: this.options.model } : {}),
+        ...(this.options.resumeSessionId ? { resume_session_id: this.options.resumeSessionId } : {}),
+      });
+      this.processId = response.session_id;
+      this.osPid = response.os_pid ?? null;
+      if (!response.session_endpoint) throw new Error('Nexus daemon does not support session mailboxes');
+      this.mailbox = this.client.openSession(response.session_endpoint, {
+        onMessage: (message) => {
+          const params = message.params as { text?: unknown } | undefined;
+          if (message.method === '_nexus/diagnostic' && typeof params?.text === 'string') console.warn('[ACP stderr]', params.text);
+          else this.options.events.onMessage(message as AcpMessage);
+        },
+        onClose: (error) => {
+          if (this.isClosing) return;
+          if (error) console.error('[ACP mailbox]', error);
+          this.options.events.onClose({ code: null, signal: null });
+          void this.close();
         },
       });
-      this.sessionId = res.session_id;
-      this.osPid = res.os_pid ?? null;
-      this._connected = true;
-      void this.readStdout();
+      this.mailbox.start();
     } catch (error) {
-      this.client?.close();
-      this.client = null;
-      this._connected = false;
-      const err = error instanceof Error ? error : new Error(`nexus start_session failed: ${error}`);
-      this.options.events.onSetupError(err);
-      throw err;
+      await this.close();
+      const failure = error instanceof Error ? error : new Error(String(error));
+      this.options.events.onSetupError(failure);
+      throw failure;
     }
   }
 
-  /** Write one NDJSON-framed ACP message to the agent's stdin stream. */
   send(message: object): void {
-    if (!this.client || !this._connected || !this.sessionId) return;
-    const line = Buffer.from(JSON.stringify(message) + '\n', 'utf-8');
-    this.client.streamWrite(`/proc/${this.sessionId}/fd/0`, line).catch((error) => {
-      console.error('[ACP gRPC] stdin write failed:', error);
+    if (!this.mailbox) throw new Error('Session mailbox is not connected');
+    void this.mailbox.send(message as SessionRpcMessage).catch((error: unknown) => {
+      console.error('[ACP mailbox] send failed:', error);
     });
   }
 
-  /**
-   * Blocking long-poll read loop over the agent's stdout stream. The daemon
-   * holds each StreamReadAt until a frame is ready or longPollMs expires, so
-   * there is no client-side idle poll — zero wakeups when the agent is quiet
-   * and zero added latency when it speaks (a frame wakes the read at once).
-   * Per the DT_STREAM contract: data → deliver + advance offset + read again;
-   * empty (eof=true, both "nothing ready" and a long-poll timeout) → "no frame
-   * yet", re-issue the read at the SAME offset (next_offset == offset); a
-   * rejection (is_error=true = stream closed+drained = agent exited) is the
-   * real disconnect.
-   */
-  private async readStdout(): Promise<void> {
-    const stdoutPath = `/proc/${this.sessionId}/fd/1`;
-    const parser = new NdjsonParser();
-    let offset = '0';
-    while (this._connected && this.client) {
-      let res;
-      try {
-        res = await this.client.streamReadAt(stdoutPath, offset, { blocking: true, timeoutMs: this.longPollMs });
-      } catch {
-        this.handleClose();
-        return;
-      }
-      if (res.data.length > 0) {
-        for (const message of parser.push(res.data)) {
-          this.options.events.onMessage(message);
-        }
-        offset = res.nextOffset;
-      }
-      // else: eof (no frame within the long-poll window) — re-issue immediately
-      // at the same offset; the blocking read is itself the wait.
-    }
-  }
-
-  private handleClose(): void {
-    if (this.closing) return;
-    this._connected = false;
-    // code/signal not relayed over the tunnel yet (eof only); get_session_v1
-    // carries the terminal state when a caller needs crash-vs-clean.
-    this.options.events.onClose({ code: 0, signal: null });
-  }
-
   async close(): Promise<void> {
-    this.closing = true;
-    this._connected = false;
-    if (this.client && this.sessionId) {
-      try {
-        await this.client.call('managed_agent.cancel_v1', { session_id: this.sessionId, mode: 'session' });
-      } catch {
-        // best-effort cancel + reap
+    if (this.isClosing) return;
+    this.isClosing = true;
+    try {
+      await this.mailbox?.close().catch(() => {});
+      if (this.client && this.processId) {
+        await this.client.call('managed_agent.cancel_v1', { session_id: this.processId, mode: 'session' }).catch(() => {});
       }
+    } finally {
+      this.client?.close();
+      this.client = null;
+      this.mailbox = null;
     }
-    this.client?.close();
-    this.client = null;
   }
 }
 

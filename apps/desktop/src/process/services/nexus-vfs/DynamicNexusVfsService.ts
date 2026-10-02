@@ -121,7 +121,7 @@ class DynamicNexusVfsService {
   /**
    * Loopback gRPC endpoint (host:port) for the ACP-over-nexus tunnel, or null
    * when the daemon isn't serving. The nexusd-cluster assembly exposes
-   * managed_agent on this same port; AcpConnection's GrpcAcpTransport dials it
+   * managed_agent on this same port; AcpConnection's NexusAcpTransport dials it
    * via ACP_GRPC_ENDPOINT. Null ⇒ callers fall back to a local agent spawn.
    */
   get acpTunnelEndpoint(): string | null {
