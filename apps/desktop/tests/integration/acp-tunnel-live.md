@@ -106,6 +106,23 @@ this on Windows and Linux without model credentials.
 For isolated manual downloads, the production build script accepts
 `SUDOWORK_NEXUS_INSTALL_ROOT` and `SUDOWORK_NEXUS_RESOURCES_DIR`.
 
+### Data from the previous release
+
+The same suite has an additional live upgrade workflow for Windows/Linux x64.
+Set `SUDOWORK_RUNTIME_LEGACY_E2E=1`, with:
+
+- `SUDOWORK_LEGACY_CLUSTER_BIN`: the extracted `nexusd-cluster` from
+  [nexusd-cluster-v0.1.5](https://github.com/nexi-lab/nexus/releases/tag/nexusd-cluster-v0.1.5).
+- `SUDOWORK_LEGACY_VAULT_ARCHIVE`: the platform archive from
+  [vault-v0.5.56](https://github.com/nexi-lab/nexus/releases/tag/vault-v0.5.56).
+
+The test checks the old daemon version/ABI and the old vault archive's pinned
+SHA256. It boots that pair with fresh data and identity directories, writes a
+randomized secret, then boots the new pair with those same directories. It
+requires the secret to remain readable, rotates it, restarts again, checks both
+versions, and deletes it. The old plugin is extracted into its own directory;
+the fixture never uses the user's installed daemon, plugins, or vault data.
+
 The published scode `0.2.20` still needs the process-tree cancellation fix in
 sudoprivacy/sudocode#843. Protocol checks can use that published version;
 the complete real-model cancellation workflow must use a build containing

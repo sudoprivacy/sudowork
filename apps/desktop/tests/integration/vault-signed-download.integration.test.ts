@@ -4,7 +4,7 @@
  * Run locally with SUDOWORK_RUNTIME_E2E=1; CI runs the same isolated workflow.
  */
 import { execFileSync, spawn, type ChildProcess } from 'child_process';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import fs from 'fs';
 import net from 'net';
 import os from 'os';
@@ -23,7 +23,8 @@ vi.mock('electron', () => ({ app: { getPath: () => path.join(root, 'home'), getA
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: console.log, mainWarn: console.warn, mainError: console.error }));
 
 const desktopRoot = path.resolve(__dirname, '../..');
-const suite = process.env.SUDOWORK_RUNTIME_E2E === '1' ? describe : describe.skip;
+const isLegacyUpgradeEnabled = process.env.SUDOWORK_RUNTIME_LEGACY_E2E === '1';
+const suite = process.env.SUDOWORK_RUNTIME_E2E === '1' || isLegacyUpgradeEnabled ? describe : describe.skip;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { expectedPluginsFor } = require('../../scripts/expected-plugin-set.js') as {
   expectedPluginsFor: (platform: string, arch: string) => Array<{ name: string; dylib: string; artifact: string }>;
@@ -70,14 +71,13 @@ suite('published runtime installation and persistence', () => {
     daemon = undefined;
   }
 
-  async function boot(): Promise<void> {
+  async function boot(cluster = binary, pluginDir = path.join(installRoot, 'plugins'), dataDir = path.join(installRoot, 'data')): Promise<void> {
     const port = await freePort();
     daemonLog = '';
-    const dataDir = path.join(installRoot, 'data');
-    daemon = spawn(binary, ['serve-local', '--port', String(port), '--hostname', 'localhost', '--data-dir', dataDir, '--plugin-dir', path.join(installRoot, 'plugins')], {
+    daemon = spawn(cluster, ['serve-local', '--port', String(port), '--hostname', 'localhost', '--data-dir', dataDir, '--plugin-dir', pluginDir], {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
-      env: { ...process.env, NEXUS_DATA_DIR: dataDir, NEXUS_IDENTITY_DIR: path.join(installRoot, 'identity'), NEXUS_PEERS: '', RUST_LOG: 'info,kernel::kernel::plugins=debug' },
+      env: { ...process.env, NEXUS_DATA_DIR: dataDir, NEXUS_IDENTITY_DIR: path.join(dataDir, '..', 'identity'), NEXUS_PEERS: '', RUST_LOG: 'info,kernel::kernel::plugins=debug' },
     });
     let spawnError: Error | undefined;
     daemon.on('error', (error) => {
@@ -196,4 +196,47 @@ suite('published runtime installation and persistence', () => {
     expect(await secrets.getSecret('reinstalled', 'token')).toBe(value);
     await stop();
   }, 240_000);
+
+  it.skipIf(!isLegacyUpgradeEnabled)(
+    'reads and rotates a secret written by the previous published runtime',
+    async () => {
+      const legacyBinary = process.env.SUDOWORK_LEGACY_CLUSTER_BIN;
+      const legacyVaultArchive = process.env.SUDOWORK_LEGACY_VAULT_ARCHIVE;
+      if (!legacyBinary || !legacyVaultArchive) throw new Error('Legacy upgrade requires SUDOWORK_LEGACY_CLUSTER_BIN and SUDOWORK_LEGACY_VAULT_ARCHIVE');
+      const banner = execFileSync(legacyBinary, ['--version'], { encoding: 'utf8', timeout: 10_000, windowsHide: true });
+      expect(banner).toContain('v0.1.5');
+      expect(banner).toContain('plugin-abi 6');
+      // Archive digests from the previous runtime pin (vault 0.5.56).
+      const legacyDigests: Record<string, string> = {
+        'win32-x64': 'd3793400979ecb508c28a57610a5022089815bab2333777e2d547145f290e3e6',
+        'linux-x64': '93bb9c7744f1711a570bb309848b37769d9a8a7883c83d8a30ef407f97d73833',
+      };
+      const expectedDigest = legacyDigests[`${process.platform}-${process.arch}`];
+      expect(expectedDigest, 'Legacy fixture supports Windows/Linux x64').toBeTruthy();
+      expect(createHash('sha256').update(fs.readFileSync(legacyVaultArchive)).digest('hex')).toBe(expectedDigest);
+      const legacyPlugins = path.join(root, 'legacy-plugins');
+      fs.mkdirSync(legacyPlugins);
+      execFileSync('tar', ['-xf', legacyVaultArchive, '-C', legacyPlugins], { timeout: 30_000, windowsHide: true });
+
+      const namespace = `upgrade-${randomUUID()}`;
+      const value = randomUUID();
+      const legacyDataDir = path.join(root, 'legacy-state', 'data');
+      await boot(legacyBinary, legacyPlugins, legacyDataDir);
+      expect(daemonLog).not.toMatch(/plugin API version mismatch|signature did not verify|failed to load/);
+      expect((await secrets.putSecret(namespace, 'token', value)).currentVersion).toBe(1);
+      expect(await secrets.getSecret(namespace, 'token')).toBe(value);
+      await stop();
+      // Reuse the old daemon's actual data and identity directories unchanged.
+      await boot(binary, path.join(installRoot, 'plugins'), legacyDataDir);
+      expect(await secrets.getSecret(namespace, 'token')).toBe(value);
+      expect((await secrets.putSecret(namespace, 'token', `${value}-upgraded`)).currentVersion).toBe(2);
+      await stop();
+      await boot(binary, path.join(installRoot, 'plugins'), legacyDataDir);
+      expect(await secrets.getSecret(namespace, 'token')).toBe(`${value}-upgraded`);
+      expect(await secrets.getSecret(namespace, 'token', 1)).toBe(value);
+      expect(await secrets.deleteSecret(namespace, 'token')).toBe(true);
+      await stop();
+    },
+    120_000
+  );
 });
