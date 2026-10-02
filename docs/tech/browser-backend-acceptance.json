@@ -48,6 +48,23 @@
         950
       ],
       "preview_sha256": "58b842c5fb50d2a2119f0f42a2c06451cbccd3fba4e39a9a4af7040292a8a3f1"
+    },
+    {
+      "backend": "sudohand",
+      "status": "passed",
+      "scenario": "Final shared-skill wording with native shell fallback for hosts without ToolSearch; scode host exercised",
+      "conversation": "338d9903",
+      "shell_calls": 9,
+      "first_shell": "PowerShell",
+      "failed_tools": 0,
+      "receipt_count": 1,
+      "trusted_submission": true,
+      "visual_badge": "WNHGJE",
+      "preview_dimensions": [
+        1600,
+        950
+      ],
+      "preview_sha256": "3a0d56cd66d59c4fc2fe825157a3450abdc6392ff19587736b32659374433d9d"
     }
   ],
   "wrapper_live": {
@@ -83,6 +100,14 @@
         "ontologyMcpRegistration (2)"
       ],
       "baseline_commit": "0ff4b21a"
+    },
+    "full_suite_followup": {
+      "passed": 2725,
+      "failed": 16,
+      "skipped": 31,
+      "worker_start_timeouts": 4,
+      "additional_test_timeout": "applicationBridge initialization",
+      "targeted_recheck": "78 passed; applicationBridge and all four DOM workers ran. One ontologyWorkbench attribute test timed out at 10 seconds, also when run alone and on unchanged baseline 0ff4b21a."
     }
   },
   "issues_found_and_fixed": [
@@ -97,6 +122,20 @@
     "default Rust cutover",
     "other consumers and deep Python SDK migration",
     "remaining recording, PDF, download and extension behavior",
-    "release and archive gates"
+    "release and archive gates",
+    "Native-shell fallback on other ACP hosts has not received real-model acceptance"
+  ],
+  "steering_rejected_variant": {
+    "conversation": "36455ae8",
+    "change": "Leading conditional host wording instead of the direct ToolSearch instruction",
+    "first_shell": "Bash",
+    "failed_shell_calls": 2,
+    "business_completed": true,
+    "accepted": false,
+    "resolution": "Restore the direct Windows instruction and place the host fallback afterward; retested in conversation 338d9903"
+  },
+  "test_precondition_failures": [
+    "App initialization had not rendered the task input",
+    "Renderer reload cleared the disposable model configuration; no model request was made. Restored selected provider after the renderer loaded before the final run."
   ]
 }

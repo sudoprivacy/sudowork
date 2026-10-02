@@ -1,6 +1,6 @@
 ---
 name: browser
-description: 'Explore websites, take screenshots, and automate interactions. Windows: first call ToolSearch with query "PowerShell", then invoke the returned PowerShell tool for browser commands and skill lookup. macOS/Linux: use your shell execution tool.'
+description: 'Explore websites, take screenshots, and automate interactions. On Windows, first call ToolSearch with query "PowerShell", then invoke the returned PowerShell tool for browser commands and skill lookup. If the host has no ToolSearch, use its native Windows shell tool. On macOS/Linux use your shell execution tool.'
 ---
 
 # Browser
@@ -10,6 +10,9 @@ On Windows, call `ToolSearch` with `{"query":"PowerShell"}` to load the
 PowerShell is a separate tool: passing `powershell ...` to the Bash tool still
 requires Bash, which may be unavailable. Use PowerShell for file lookup too.
 If PowerShell is already loaded, call it directly.
+
+For a host without `ToolSearch`, use its native execution tool configured for
+Windows PowerShell to run `browser --list` and subsequent browser commands.
 
 On macOS/Linux, run the following with your shell execution tool:
 

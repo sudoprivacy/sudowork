@@ -107,3 +107,9 @@ and body. Workspace hints advertise the resolved skill file. Restart the app
 when validating description changes because the skill index is cached.
 The model acceptance test checks the first execution choice and retains
 failures in its report.
+
+The final shared skill also describes the native Windows shell path for hosts
+without `ToolSearch`. A fresh scode UI run with this wording passed with nine
+PowerShell calls and no failed tools. Other ACP hosts still require their own
+model acceptance. An earlier conditional opening led to two failed Bash calls;
+that variant was rejected even though the model eventually completed the task.
