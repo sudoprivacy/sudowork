@@ -17,13 +17,6 @@ vi.mock('@process/constants/enterpriseStorage', () => ({
   getEnterpriseTenantAssistantsDir: () => path.join(state.root, state.scope, 'agents', 'tenant'),
 }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: async () => state.token }));
-vi.mock('@process/services/mossResourcePath', () => ({
-  safeResourcePath: (root: string, relative: string) => {
-    const result = path.resolve(root, relative.replace(/\\/g, '/'));
-    if (!result.startsWith(`${path.resolve(root)}/`)) throw new Error('Unsafe path');
-    return result;
-  },
-}));
 import { getMossCatalogInstallations, installMossCatalog, changeCatalogInstallation, isCatalogPathVisible, detailLocalMossCatalog } from '@process/services/mossCatalogInstall';
 import { listMossCatalog } from '@process/services/mossCatalogApi';
 

@@ -392,8 +392,10 @@ describe('private model runtime', () => {
         PROXY_AUTH_TOKEN: mode === 'proxy' ? 'synthetic-secret' : '',
       });
       expect(await fs.readdir(cwd)).toEqual(['sudocode.json']);
-      expect((await fs.stat(cwd)).mode & 0o777).toBe(0o700);
-      expect((await fs.stat(env.SUDOCODE_CONFIG_PATH)).mode & 0o777).toBe(0o600);
+      if (process.platform !== 'win32') {
+        expect((await fs.stat(cwd)).mode & 0o777).toBe(0o700);
+        expect((await fs.stat(env.SUDOCODE_CONFIG_PATH)).mode & 0o777).toBe(0o600);
+      }
       const config = JSON.parse(await fs.readFile(env.SUDOCODE_CONFIG_PATH, 'utf8'));
       expect(config).toEqual({
         default_model: 'selected',

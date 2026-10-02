@@ -6,7 +6,7 @@
 
 import type { ISkillHubSkill, IInstalledSkillInfo, ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@renderer/utils/skillDisplay';
-import type { SkillDetailResponse, SkillStoreTab, LocalSkillImportSource, LocalSkillImportDialogOptions } from '../types';
+import type { SkillStoreTab, LocalSkillImportSource, LocalSkillImportDialogOptions } from '../types';
 
 /** Cache expiration time in milliseconds (5 minutes) */
 export const VERSION_CACHE_TTL = 5 * 60 * 1000;
@@ -69,16 +69,4 @@ export function getLocalSkillImportDialogOptions(source?: LocalSkillImportSource
 
 export function getInstalledSkillBadgeCount(installedList: IInstalledSkillInfo[]): number {
   return installedList.length;
-}
-
-// ==================== API Functions (web fallback) ====================
-
-export async function fetchSkillDetailHttp(skillId: string): Promise<SkillDetailResponse> {
-  const response = await fetch(`/api/skill-hub/skills/${skillId}`);
-  return response.json();
-}
-
-export async function fetchCategoriesHttp() {
-  const response = await fetch('/api/categories');
-  return response.json();
 }

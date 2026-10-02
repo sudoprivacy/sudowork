@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const installMcpServers = vi.fn();
@@ -53,7 +54,7 @@ describe('OntologyMcpRegistration', () => {
         transport: expect.objectContaining({
           type: 'stdio',
           command: '/mock/node',
-          args: ['/mock/app/resources/ontology-mcp/index.js'],
+          args: [path.join('/mock/app', 'resources', 'ontology-mcp', 'index.js')],
           env: {
             ONTOLOGY_EXPORT_FILE: '/data/ontology/mcp-crm.json',
             ONTOLOGY_VERSION_ID: 'version-1',
@@ -82,7 +83,7 @@ describe('OntologyMcpRegistration', () => {
         transport: expect.objectContaining({
           type: 'stdio',
           command: '/mock/node',
-          args: ['/mock/app/resources/ontology-builder-mcp/index.js'],
+          args: [path.join('/mock/app', 'resources', 'ontology-builder-mcp', 'index.js')],
           env: {
             ONTOLOGY_WRITE_BASE_URL: 'http://127.0.0.1:45678',
             ONTOLOGY_WRITE_TOKEN: 'test-token',
@@ -95,7 +96,7 @@ describe('OntologyMcpRegistration', () => {
     expect(config).toEqual({
       name: 'ontology-builder',
       command: '/mock/node',
-      args: ['/mock/app/resources/ontology-builder-mcp/index.js'],
+      args: [path.join('/mock/app', 'resources', 'ontology-builder-mcp', 'index.js')],
       env: [
         { name: 'ONTOLOGY_WRITE_BASE_URL', value: 'http://127.0.0.1:45678' },
         { name: 'ONTOLOGY_WRITE_TOKEN', value: 'test-token' },

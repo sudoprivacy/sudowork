@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setSystemConfigCache } from '@sudowork/common/systemConfig';
 import type { StoredTelemetryEvent } from '@/shared/types/telemetry';
@@ -140,7 +141,7 @@ describe('local task reporting scope', () => {
 
   it('filters old offline cache before reporting on restart', async () => {
     const common = { id: 'cached-local', storedAt: Date.now(), retryCount: 0, type: 'conversation', timestamp: Date.now(), user_id: 'moss-user', tenant_id: 'ORG-CODE', data: localConversation };
-    state.files.set('/quality-test/telemetry-cache.json', JSON.stringify([common, { ...common, id: 'cached-cloud', data: { ...localConversation, session_id: 'remote' } }]));
+    state.files.set(path.join('/quality-test', 'telemetry-cache.json'), JSON.stringify([common, { ...common, id: 'cached-cloud', data: { ...localConversation, session_id: 'remote' } }]));
     await telemetry().initialize();
     expect(telemetry().getStatus().queueSize).toBe(1);
     await telemetry().flushAll();

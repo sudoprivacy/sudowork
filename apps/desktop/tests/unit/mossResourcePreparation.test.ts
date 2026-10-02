@@ -105,7 +105,9 @@ describe('Moss resource preparation', () => {
     const first = await prepareMossResources(undefined, ['skill-1']);
     const second = await prepareMossResources(undefined, ['skill-1']);
     expect(second.resources[0].path).toBe(first.resources[0].path);
-    expect((await fs.stat(path.join(first.resources[0].path, 'scripts/check.sh'))).mode & 0o100).toBe(0o100);
+    const script = path.join(first.resources[0].path, 'scripts/check.sh');
+    expect(await fs.readFile(script, 'utf8')).toBe('#!/bin/sh\necho local');
+    if (process.platform !== 'win32') expect((await fs.stat(script)).mode & 0o100).toBe(0o100);
     expect(await fs.readdir(state.root)).toHaveLength(1);
     await validateMossResourceSnapshot(first.resources);
     state.isEnabled = false;

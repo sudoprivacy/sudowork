@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ISkillHubDetail } from '@sudowork/host-bridge/ipcBridge';
-
 export interface IBridgeResponse<D = unknown> {
   success: boolean;
   data?: D;
@@ -19,8 +17,6 @@ export interface SkillLatestVersion {
   /** Timestamp when this version info was fetched (for cache expiration) */
   fetchedAt: number;
 }
-
-export type SkillDetailResponse = { success: boolean; data?: ISkillHubDetail; msg?: string };
 
 export type SkillStoreTab = 'store' | 'exclusive' | 'installed';
 export type LocalSkillImportSource = 'zip' | 'directory';

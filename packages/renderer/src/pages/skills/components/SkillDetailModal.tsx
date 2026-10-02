@@ -16,8 +16,7 @@ import AionScrollArea from '@renderer/components/base/AionScrollArea';
 import { handleSkillIconError } from '@renderer/utils/skillDisplay';
 import { isElectronDesktop, isWebBridgeAvailable } from '@renderer/utils/platform';
 import { useAppMode } from '@renderer/hooks/useAppMode';
-import { fetchSkillDetailHttp } from '../utils';
-import type { SkillDetailResponse, SkillLatestVersion, CoreFeature } from '../types';
+import type { SkillLatestVersion, CoreFeature } from '../types';
 import SkillAuditSummary from './SkillAuditSummary';
 
 function parseJsonArray(jsonStr: string | null): string[] {
@@ -93,12 +92,7 @@ export default function SkillDetailModal({
       setLoading(true);
       const fetchDetail = async () => {
         try {
-          let res: SkillDetailResponse;
-          if (isElectronDesktop() || isWebBridgeAvailable()) {
-            res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
-          } else {
-            res = await fetchSkillDetailHttp(skill.id);
-          }
+          const res = await skillHub.fetchSkillDetail.invoke({ skillId: skill.id });
           if (res.success && res.data) {
             setDetail(res.data);
           }
