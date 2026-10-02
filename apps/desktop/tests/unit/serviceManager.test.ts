@@ -32,9 +32,14 @@ vi.mock('@/process/services/serviceManager/ComponentHealthMonitor', () => ({
   },
 }));
 
+vi.mock('@/process/services/sudoclaw/SudoclawInstallService', () => ({
+  ensureSudoworkBinDispatchers: vi.fn(),
+}));
+
 import { ServiceManager } from '@/process/services/serviceManager/ServiceManager';
 import { runtimeInstaller } from '@/process/services/serviceManager/RuntimeInstaller';
 import { initStatusManager } from '@/process/services/initStatus';
+import { ensureSudoworkBinDispatchers } from '@/process/services/sudoclaw/SudoclawInstallService';
 
 type TestableServiceManager = ServiceManager & {
   startNexusWithRetries: () => Promise<void>;
@@ -86,6 +91,7 @@ describe('ServiceManager', () => {
 
     await manager.startup();
 
+    expect(ensureSudoworkBinDispatchers).toHaveBeenCalledTimes(1);
     expect(runtimeInstaller.ensureAll).toHaveBeenCalledTimes(1);
     expect(runtimeInstaller.ensureAll).toHaveBeenCalledWith({
       startNexus: expect.any(Function),

@@ -1,3 +1,6 @@
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const discoverBuiltinSkills = vi.fn(async () => {});
@@ -134,5 +137,26 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     expect(result).toContain('[Skills Directory]');
     expect(result).toContain('/tmp/workspace/skills');
     expect(result.indexOf('[Skills Directory]')).toBeLessThan(result.indexOf('[User Request]'));
+  });
+
+  it('advertises readable skill targets through a real workspace junction', async () => {
+    const { injectSkillsDirectoryHint } = await import('../../src/process/task/agentUtils');
+    const root = mkdtempSync(path.join(tmpdir(), 'skill-discovery-'));
+    const installed = path.join(root, 'installed', 'browser');
+    const workspace = path.join(root, 'workspace', 'skills');
+    const link = path.join(workspace, 'browser');
+    mkdirSync(installed, { recursive: true });
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(path.join(installed, 'SKILL.md'), '# Browser');
+    symlinkSync(installed, link, process.platform === 'win32' ? 'junction' : 'dir');
+    try {
+      const result = await injectSkillsDirectoryHint('Browse a website', workspace, ['browser', 'installing']);
+      expect(result).toContain(`- browser: ${realpathSync(path.join(installed, 'SKILL.md'))}`);
+      expect(result).not.toContain(`${workspace}/browser/SKILL.md`);
+      expect(result).toContain(`${workspace}/installing/SKILL.md`);
+    } finally {
+      unlinkSync(link);
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

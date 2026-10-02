@@ -133,6 +133,11 @@ export class ServiceManager {
     }
 
     try {
+      // ACP agents use these wrappers even when the Sudoclaw gateway never
+      // starts. Install on every app startup so fresh profiles and upgrades
+      // receive the same browser entry point as existing gateway users.
+      const { ensureSudoworkBinDispatchers } = await import('../sudoclaw/SudoclawInstallService');
+      ensureSudoworkBinDispatchers();
       const ok = await runtimeInstaller.ensureAll({
         startNexus: this.startNexusForStartup.bind(this),
       });

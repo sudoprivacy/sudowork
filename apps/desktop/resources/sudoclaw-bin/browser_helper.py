@@ -6,8 +6,11 @@ Invoked by the thin `browser` (bash) / `browser.cmd` (Windows) wrappers as:
     python3 browser_helper.py --list
     python3 browser_helper.py --help
 
-Runs `ai_dev_browser.tools.<name>` under the hood, captures stdout/stderr,
-and POSTs results to the sudowork sidechannel.
+Runs the selected browser backend, captures stdout/stderr, and POSTs results
+to the sudowork sidechannel. The default remains ai-dev-browser. Set
+SUDOWORK_BROWSER_BACKEND=sudohand to opt in to the Rust backend; optionally
+set SUDOWORK_SUDOHAND_PATH to its executable. A failed call is never replayed
+through another backend.
 """
 
 from __future__ import annotations
@@ -17,7 +20,10 @@ import io
 import json
 import os
 import pathlib
+import re
 import runpy
+import shutil
+import subprocess
 import sys
 import time
 import urllib.request
@@ -57,9 +63,6 @@ def _ensure_ai_dev_browser_on_sys_path() -> None:
     if skill_dir_str in sys.path:
         return
     sys.path.insert(0, skill_dir_str)
-
-
-_ensure_ai_dev_browser_on_sys_path()
 
 
 def _tools_dir() -> pathlib.Path:
@@ -234,9 +237,95 @@ def _run_tool(tool: str, rest: list[str]) -> int:
     return exit_code
 
 
+def _backend_error(kind: str, message: str, hint: str, exit_code: int) -> tuple[int, str, str]:
+    error = {"error": {"kind": kind, "message": message, "hint": hint, "retryable": False}}
+    return exit_code, "", json.dumps(error, ensure_ascii=False) + "\n"
+
+
+def _run_sudohand(argv: list[str]) -> tuple[int, str, str]:
+    """Use native declarations, results and exits; only adapt the invocation name."""
+    if not argv or argv[0] in ("-h", "--help"):
+        return 0, (
+            "Usage: browser <tool> [args]\n"
+            "       browser --list              # tools and arguments from the selected backend\n"
+            "       browser <tool> --help       # full parameter help\n\n"
+            "Typical first-run sequence:\n"
+            "       browser browser_start       # start isolated Chrome once per session\n"
+            "       browser page_goto --url …   # navigate the running browser\n\n"
+            "Use --list and tool --help for supported operations and arguments.\n"
+        ), ""
+
+    is_listing = argv == ["--list"]
+    if argv[0] == "--list" and not is_listing:
+        return _backend_error("invalid_input", "browser --list takes no arguments",
+                              "Use browser <tool> --help for parameter help.", 2)
+    redirect = os.environ.get("AI_DEV_BROWSER_REDIRECT")
+    if redirect and not is_listing:
+        return _backend_error("access_redirected", "Direct browser tool access is disabled", redirect, 1)
+
+    requested = os.environ.get("SUDOWORK_SUDOHAND_PATH", "suh")
+    executable = shutil.which(os.path.expanduser(requested))
+    if executable is None:
+        return _backend_error(
+            "backend_unavailable", "The selected sudohand executable was not found",
+            "Set SUDOWORK_SUDOHAND_PATH to the installed suh executable or add suh to PATH. "
+            "The call has not run; no other backend was invoked.", 127)
+    command = ([executable, "describe", "--domain", "browser", "--with-args"] if is_listing else
+               [executable, "browser", argv[0].replace("-", "_"), *argv[1:]])
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False)
+    except OSError as error:
+        return _backend_error("backend_unavailable", f"Could not launch sudohand: {error}",
+                              "Check SUDOWORK_SUDOHAND_PATH and executable permissions before trying again.", 127)
+    stdout, stderr = result.stdout, result.stderr
+    if is_listing and result.returncode == 0:
+        # The native footer advertises unrelated `suh ext` commands. This
+        # wrapper exposes only the browser domain; keep its action/arg rows.
+        stdout = "\n".join(line for line in stdout.splitlines() if not line.startswith("# extensions:")) + "\n"
+    if not is_listing and result.returncode == 0 and any(flag in argv[1:] for flag in ("-h", "--help")):
+        # Clap renders the executable name in help. Agents must keep using this
+        # wrapper so screenshot/result correlation reaches the application.
+        stdout = re.sub(r"(?m)^Usage: \S+ browser ", "Usage: browser ", stdout)
+    if result.returncode == 2 and stderr.strip():
+        # Only adapt parser diagnostics. Page data and JavaScript results must
+        # remain untouched, even when they contain command examples.
+        try:
+            diagnostic = json.loads(stderr)
+            error = diagnostic.get("error", {})
+            if error.get("kind") == "invalid_input" and isinstance(error.get("message"), str):
+                error["message"] = re.sub(r"(?m)^Usage: \S+ browser ", "Usage: browser ", error["message"])
+                stderr = json.dumps(diagnostic, ensure_ascii=False) + "\n"
+        except (ValueError, AttributeError):
+            pass
+    exit_code = result.returncode if result.returncode >= 0 else 128 - result.returncode
+    return exit_code, stdout, stderr
+
+
+def _emit_backend_result(argv: list[str], result: tuple[int, str, str], started: int) -> int:
+    code, out, err = result
+    sys.stdout.write(out)
+    sys.stdout.flush()
+    sys.stderr.write(err)
+    sys.stderr.flush()
+    _post_sidechannel(argv=argv or ["--help"], stdout=out, stderr=err, exit_code=code,
+                      started_ms=started, finished_ms=int(time.time() * 1000))
+    return code
+
+
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     argv = sys.argv[1:]
     started = int(time.time() * 1000)
+    backend = os.environ.get("SUDOWORK_BROWSER_BACKEND", "ai-dev-browser")
+    if backend == "sudohand":
+        return _emit_backend_result(argv, _run_sudohand(argv), started)
+    if backend != "ai-dev-browser":
+        return _emit_backend_result(argv, _backend_error(
+            "invalid_input", f"Unknown browser backend: {backend}",
+            "Set SUDOWORK_BROWSER_BACKEND to ai-dev-browser or sudohand.", 2), started)
+    _ensure_ai_dev_browser_on_sys_path()
     if not argv or argv[0] in ("-h", "--help"):
         out = _print_help()
         _post_sidechannel(

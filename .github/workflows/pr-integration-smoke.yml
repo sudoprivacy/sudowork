@@ -12,6 +12,62 @@ permissions:
   contents: read
 
 jobs:
+  browser-backend-live:
+    name: Browser Backend Live (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Read pinned Rust browser reference
+        id: reference
+        shell: bash
+        run: |
+          node -e "const r=require('./apps/desktop/tests/integration/fixtures/sudohand-reference.json'); console.log('repository='+r.repository); console.log('commit='+r.commit)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ steps.reference.outputs.repository }}
+          ref: ${{ steps.reference.outputs.commit }}
+          path: .tmp/sudohand
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .tmp/sudohand
+      - name: Build pinned browser
+        working-directory: .tmp/sudohand
+        run: cargo build --locked -p sudohand-cli
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          bun install --frozen-lockfile
+          python -m pip install websockets websocket-client Pillow deprecated psutil
+      - name: Run real wrappers, Chrome and application result receiver
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          export BROWSER_TEST_PYTHON="$(python -c 'import sys; print(sys.executable)')"
+          export SUDOWORK_SUDOHAND_PATH="$(python -c 'import pathlib,sys; print((pathlib.Path("../../.tmp/sudohand/target/debug") / ("suh.exe" if sys.platform == "win32" else "suh")).resolve())')"
+          bun run test:browser-live
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: browser-backend-${{ matrix.os }}
+          path: .tmp/browser-migration
+
   browser-port-isolation:
     name: Browser Port Isolation
     runs-on: ubuntu-latest

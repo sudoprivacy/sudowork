@@ -550,7 +550,12 @@ export const getBundledBuiltinSkillDir = (skillName: string): string => {
 const resolveAiDevBrowserPackageDir = (): string | null => {
   const candidates = app.isPackaged
     ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')]
-    : [path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(app.getAppPath(), '..', 'ai-dev-browser', 'ai_dev_browser')];
+    : [
+        path.join(app.getAppPath(), 'vendor/ai-dev-browser/ai_dev_browser'),
+        path.join(app.getAppPath(), '../..', 'vendor/ai-dev-browser/ai_dev_browser'),
+        path.join(app.getAppPath(), '..', 'ai-dev-browser', 'ai_dev_browser'),
+        path.join(app.getAppPath(), '../../..', 'ai-dev-browser', 'ai_dev_browser'),
+      ];
   return candidates.find((p) => existsSync(p)) ?? null;
 };
 
