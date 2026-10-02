@@ -2098,7 +2098,9 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
         method: 'POST',
         body: JSON.stringify(cronCreateBody(req)),
       })
-      return toIcronJob(job)
+      const created = toIcronJob(job)
+      emitterRef?.emit('cron.job-created', created)
+      return created
     }),
   'cron.update-job': async (req) =>
     cronResult(async () => {
@@ -2107,13 +2109,16 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
         method: 'PATCH',
         body: JSON.stringify(cronUpdateBody((req?.updates ?? {}) as AnyReq)),
       })
-      return toIcronJob(job)
+      const updated = toIcronJob(job)
+      emitterRef?.emit('cron.job-updated', updated)
+      return updated
     }),
   'cron.remove-job': async (req) =>
     cronResult(async () => {
       await apiFetch(`/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}`, {
         method: 'DELETE',
       })
+      emitterRef?.emit('cron.job-removed', { jobId: String(req?.jobId ?? '') })
       return undefined
     }),
   'cron.trigger-job': async (req) =>
