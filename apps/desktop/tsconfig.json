@@ -180,6 +180,7 @@
     "src/**/*",
     "uno.config.ts",
     "electron.vite.config.ts",
+    "vitest.browser-live.config.ts",
     "../../packages/renderer/src/types.d.ts"
   ]
 }

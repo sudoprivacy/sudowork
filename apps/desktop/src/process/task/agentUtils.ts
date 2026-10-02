@@ -368,7 +368,15 @@ export async function injectSkillsDirectoryHint(content: string, skillsDir: stri
       ? enabledSkillNames
           .map((name) => {
             const desc = descriptionMap.get(name);
-            return desc ? `- ${name} (${desc}): ${skillsDir}/${name}/SKILL.md` : `- ${name}: ${skillsDir}/${name}/SKILL.md`;
+            let skillFile = `${skillsDir}/${name}/SKILL.md`;
+            try {
+              // Agent file tools can read the target but may not traverse a
+              // workspace junction through their virtual filesystem.
+              skillFile = fs.realpathSync(skillFile);
+            } catch {
+              // Preserve discovery for a skill that is still being installed.
+            }
+            return desc ? `- ${name} (${desc}): ${skillFile}` : `- ${name}: ${skillFile}`;
           })
           .join('\n')
       : null;

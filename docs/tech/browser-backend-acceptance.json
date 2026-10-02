@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "tested_at": "2026-10-02",
+  "platform": "Windows",
+  "chrome": "154.0.8037.92",
+  "scode": "0.2.21",
+  "model": "claude-opus-4-8",
+  "model_auth": "real API credentials from the selected local provider; secrets excluded",
+  "execution": "live PTY, isolated Electron profile, real application textbox and ACP conversation, actual Chrome and local HTTP fixture",
+  "source_base": "a7b8ae8af4c8f9238e5b3536d6826164cab9307f",
+  "sudohand": {
+    "commit": "ec9ae623938668bd75b3e39cb8a0acd6e9c37d5b",
+    "binary_sha256": "86d2a7adf5504302b688c3e5b48254763f1e7fe32caa7fe26b4341634d6c814b"
+  },
+  "python_backend": {
+    "vendored_commit": "ec3b215103da2284d2ccc80a8fcb4a2a0f100884",
+    "selection": "SUDOWORK_BROWSER_BACKEND and SUDOWORK_SUDOHAND_PATH removed before restarting the app"
+  },
+  "model_and_ui": [
+    {
+      "backend": "sudohand",
+      "status": "passed",
+      "conversation": "f2a1480d",
+      "shell_calls": 7,
+      "first_shell": "PowerShell",
+      "failed_tools": 0,
+      "receipt_count": 1,
+      "trusted_submission": true,
+      "visual_badge": "DBZX5K",
+      "preview_dimensions": [
+        1600,
+        950
+      ],
+      "preview_sha256": "a1ee7d9e4dce77b276b6102a49bde212ac7a7329a22d1d3458eec14f1ff004b0"
+    },
+    {
+      "backend": "ai-dev-browser",
+      "status": "passed",
+      "conversation": "58e6b33c",
+      "shell_calls": 11,
+      "first_shell": "PowerShell",
+      "failed_tools": 0,
+      "receipt_count": 1,
+      "trusted_submission": true,
+      "visual_badge": "SRTP7H",
+      "preview_dimensions": [
+        1600,
+        950
+      ],
+      "preview_sha256": "58b842c5fb50d2a2119f0f42a2c06451cbccd3fba4e39a9a4af7040292a8a3f1"
+    }
+  ],
+  "wrapper_live": {
+    "status": "passed",
+    "calls": {
+      "ai-dev-browser": 13,
+      "sudohand": 18
+    },
+    "assertions": [
+      "runtime catalog and tool help",
+      "Chinese text through discovered refs",
+      "one trusted server submission",
+      "real PNG with Chinese filename",
+      "receipt survives reload",
+      "every call correlated through the production HTTP sidechannel",
+      "stale target recovery without duplicate submission",
+      "Rust invalid arguments, missing executable, unsupported action, invalid backend and redirected access"
+    ]
+  },
+  "checks": {
+    "typecheck": "passed",
+    "application_build": "passed",
+    "targeted_service_and_skill_tests": "9 passed",
+    "full_suite": {
+      "passed": 2799,
+      "failed": 15,
+      "skipped": 31,
+      "baseline_reproduced_failures": [
+        "localQualityReporting (1)",
+        "mossCatalogInstall (9)",
+        "mossResourcePreparation (1)",
+        "ontologyDocumentExtractor (2)",
+        "ontologyMcpRegistration (2)"
+      ],
+      "baseline_commit": "0ff4b21a"
+    }
+  },
+  "issues_found_and_fixed": [
+    "ACP startup did not install browser wrappers until the legacy gateway started",
+    "monorepo development startup could not locate the vendored Python browser package",
+    "workspace skill junction was unreadable through the agent file tool",
+    "Windows model used unavailable Bash; explicit deferred PowerShell discovery now appears in the skill index and body",
+    "test preview lookup selected a workspace tree item before the chat attachment; wait for generated files and a painted frame before targeting the chat button"
+  ],
+  "unaccepted": [
+    "packaged application installation and distribution",
+    "default Rust cutover",
+    "other consumers and deep Python SDK migration",
+    "remaining recording, PDF, download and extension behavior",
+    "release and archive gates"
+  ]
+}
