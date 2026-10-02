@@ -2126,6 +2126,8 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       await apiFetch(`/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}/trigger`, {
         method: 'POST',
       })
+      // The trigger can create a session that is absent from the current list snapshot.
+      invalidateConversations()
       return undefined
     }),
   // The conversation view loads these on open; they return RAW arrays, so the
