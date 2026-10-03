@@ -17,6 +17,8 @@ import { app } from 'electron';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
+import semver from 'semver';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { getProxyAgent } from '@process/utils/proxyAgent';
 import runtimeVersions from '@/shared/runtime-versions.json';
@@ -165,25 +167,20 @@ function getReadyMarkerPath(): string {
   return path.join(SCODE_DIR, SCODE_READY_MARKER);
 }
 
-/** Check if marker file content matches current version */
-function isMarkerCurrent(): boolean {
-  const markerPath = getReadyMarkerPath();
-  if (!fs.existsSync(markerPath)) return false;
-  try {
-    const content = fs.readFileSync(markerPath, 'utf-8').trim();
-    return content === getScodeVersion();
-  } catch {
-    return false;
-  }
-}
+let installedVersionCache: { signature: string; version: string } | undefined;
 
-/** Get the installed scode version from marker */
+/** The marker is an install receipt; a manual CLI update can leave it stale. */
 function getInstalledScodeVersion(): string | undefined {
-  const markerPath = getReadyMarkerPath();
-  if (!fs.existsSync(markerPath)) return undefined;
   try {
-    const content = fs.readFileSync(markerPath, 'utf-8').trim();
-    return content || undefined;
+    const binary = getInstalledScodePath();
+    const stat = fs.statSync(binary);
+    const signature = `${binary}:${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
+    if (installedVersionCache?.signature === signature) return installedVersionCache.version;
+    const output = execFileSync(binary, ['--version'], { encoding: 'utf-8', timeout: 3000, maxBuffer: 4096, windowsHide: true }).trim();
+    const version = semver.valid(/^scode\s+(\S+)$/.exec(output)?.[1]);
+    if (!version) return undefined;
+    installedVersionCache = { signature, version };
+    return version;
   } catch {
     return undefined;
   }
@@ -206,14 +203,13 @@ export function getScodeVersionState(): { installedVersion?: string; bundledVers
   return {
     installedVersion,
     bundledVersion,
-    needsUpgrade: installedVersion !== bundledVersion,
+    needsUpgrade: !semver.valid(bundledVersion) || semver.lt(installedVersion, bundledVersion),
   };
 }
 
-/** Check if scode is installed and version matches */
+/** Keep a working user-updated CLI when it is newer than the bundled minimum. */
 export function isScodeInstalled(): boolean {
-  const scodePath = getInstalledScodePath();
-  return fs.existsSync(scodePath) && isMarkerCurrent();
+  return !getScodeVersionState().needsUpgrade;
 }
 
 /** Get the bundled scode resource path */
@@ -398,7 +394,7 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
   cleanupLegacyManagedScodeSkills();
 
   if (!forceReinstall && isScodeInstalled()) {
-    mainLog(TAG, `Scode ${getScodeVersion()} already installed, skipping`);
+    mainLog(TAG, `Scode ${getInstalledScodeVersion()} already installed, skipping`);
     options?.onProgress?.(100);
     return true;
   }
@@ -479,9 +475,14 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     // Set permissions
     setInstalledPermissions(binDir);
 
+    // Do not mark an unusable or older archive as a successful installation.
+    const installedVersion = getInstalledScodeVersion();
+    if (!installedVersion || semver.lt(installedVersion, getScodeVersion())) {
+      throw new Error('Installed scode did not report the required version');
+    }
     // Write version marker
     const markerFile = getReadyMarkerPath();
-    fs.writeFileSync(markerFile, getScodeVersion());
+    fs.writeFileSync(markerFile, installedVersion);
     options?.onProgress?.(100);
 
     mainLog(TAG, `Scode installation completed: ${binDir}`);
