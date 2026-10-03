@@ -100,6 +100,31 @@ class BackupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unsafe'):
             backup.verify_archive(bad)
 
+    def test_sudocode_native_format_restores_metadata_messages_and_compaction(self):
+        project = self.root / 'scode-work'
+        session = project / '.scode/sessions/fingerprint/session-one'
+        session.mkdir(parents=True)
+        rows = [
+            {'type': 'session_meta', 'session_id': 'scode-one', 'workspace_root': str(project), 'version': 2},
+            {'type': 'compaction', 'summary': 'Earlier decisions preserved'},
+            {'type': 'message', 'message': {'role': 'user', 'blocks': [{'type': 'text', 'text': 'Continue the project'}]}},
+            {'type': 'message', 'message': {'role': 'assistant', 'blocks': [{'type': 'text', 'text': 'Current progress'}]}},
+        ]
+        original = ''.join(json.dumps(row) + '\n' for row in rows)
+        (session / 'transcript.jsonl').write_text(original, encoding='utf-8')
+        archive = self.root / 'scode.zip'
+        backup.export_archive(argparse.Namespace(output=str(archive), home=str(self.home), engine=['sudocode'], project=[str(project)], name='Scode project'))
+        dest = self.root / 'scode-restored'
+        backup.restore(argparse.Namespace(archive=str(archive), destination=str(dest)))
+        index = json.loads((dest / 'sessions.json').read_text())
+        self.assertEqual(len(index), 1)
+        self.assertEqual(index[0]['cwd'], str(project))
+        self.assertEqual(index[0]['sessionId'], 'scode-one')
+        self.assertEqual((dest / index[0]['path']).read_text(), original)
+        readable = (dest / index[0]['readablePath']).read_text()
+        for text in ['Earlier decisions preserved', 'Continue the project', 'Current progress']:
+            self.assertIn(text, readable)
+
     def test_existing_output_not_overwritten(self):
         self.export()
         with self.assertRaisesRegex(ValueError, 'already exists'):

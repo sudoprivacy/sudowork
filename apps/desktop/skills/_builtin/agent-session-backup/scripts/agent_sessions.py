@@ -73,7 +73,7 @@ def metadata(path, engine):
                 data = row.get('payload', {}) if engine == 'codex' else row
                 if not isinstance(data, dict):
                     continue
-                for source, target in [('cwd', 'cwd'), ('sessionId', 'sessionId'), ('cli_version', 'version'), ('version', 'version')]:
+                for source, target in [('cwd', 'cwd'), ('workspace_root', 'cwd'), ('sessionId', 'sessionId'), ('session_id', 'sessionId'), ('cli_version', 'version'), ('version', 'version')]:
                     if data.get(source):
                         result[target] = data[source]
                 if engine == 'codex' and row.get('type') == 'session_meta':
@@ -207,7 +207,9 @@ def readable_transcript(source, target, engine):
             payload = row.get('payload', {}) if engine == 'codex' else row.get('message', row)
             if not isinstance(payload, dict):
                 continue
-            content = payload.get('content')
+            content = payload.get('content', payload.get('blocks'))
+            if engine == 'sudocode' and row.get('type') == 'compaction':
+                content = row.get('summary')
             role = payload.get('role', row.get('type', 'record'))
             texts = []
             if isinstance(content, str):
