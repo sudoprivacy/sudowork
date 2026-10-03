@@ -765,14 +765,15 @@ class DynamicNexusVfsService {
           .trim()
           .split('\n')
           .map((line) => line.trim().split(/\s+/).at(-1) ?? '')
-          .filter((pid) => /^\d+$/.test(pid) && pid !== '0');
+          .filter((pid) => /^\d+$/.test(pid) && pid !== '0' && pid !== String(process.pid));
       }
-      const { stdout } = await execAsync(`lsof -ti tcp:${port}`);
+      // Do not include connected clients: one of them may be the Electron main process.
+      const { stdout } = await execAsync(`lsof -nP -a -iTCP:${port} -sTCP:LISTEN -t`);
       return stdout
         .trim()
         .split('\n')
         .map((pid) => pid.trim())
-        .filter(Boolean);
+        .filter((pid) => /^\d+$/.test(pid) && pid !== '0' && pid !== String(process.pid));
     } catch {
       return [];
     }
