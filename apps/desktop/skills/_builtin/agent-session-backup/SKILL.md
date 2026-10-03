@@ -7,7 +7,7 @@ description: Save private Claude Code, Codex CLI, and Sudocode session records a
 
 Use the bundled Python 3.10+ script for filesystem and transfer operations. No third-party Python packages are needed. Run it on the computer whose files the user wants to save. A cloud conversation cannot scan a desktop computer. On a laptop, run the same skill locally to download to that laptop.
 
-Resolve every `scripts/agent_sessions.py` example relative to this skill's directory, not the conversation's working directory. On Windows, use the PowerShell tool; Bash may not be installed. For exports or uploads that take several minutes, use the execution tool's background-task option and poll it with short calls so the desktop connection remains active. Keep each transfer to a given output file sequential.
+Resolve every `scripts/agent_sessions.py` example relative to this skill's directory, not the conversation's working directory. On Windows, use the PowerShell tool; Bash may not be installed. Export, upload, verification, and restore can take several minutes. Use the execution tool's persistent background-task option and poll it with short calls so the desktop connection remains active. If it has no persistent task support, launch a hidden process with stdout/stderr redirected to files and track its PID. PowerShell `Start-Job` does not survive separate tool processes. A tool timeout does not prove its child process stopped: inspect the existing PID or task before retrying. Keep each operation for a given output file or restore directory sequential, and keep polling waits under 30 seconds.
 
 The user can ask in ordinary language. You operate the commands below. An LLM chooses the requested scope and explains the results; the script preserves original data and verifies checksums. Do not use browser automation or send transcripts to a public skill catalog. Only the skill's code belongs in the catalog; backups use authenticated, private Moss endpoints.
 
@@ -21,6 +21,8 @@ The user can ask in ordinary language. You operate the commands below. An LLM ch
    ```
 
    For standalone Sudocode, add `--engine sudocode --project /absolute/project/path` (repeat `--project` for multiple workspaces). For Claude Code, `--project` restricts project transcripts and project memory; shared plans and supporting files remain included. Do not select a subset and describe it as a whole-machine backup.
+
+   When the user names a VS Code `.code-workspace`, read its `folders` list and resolve relative paths against the workspace file's parent directory. Pass every requested folder as a separate `--project`; the workspace file itself is not a session directory. Check the resulting manifest against the requested folders and engines. Report folders with no session files explicitly.
 
 3. Upload using `python scripts/agent_sessions.py upload --archive /absolute/path/travel.zip`. The script uses the current local Sudowork login or `MOSS_SERVER_URL` + `MOSS_ACCESS_TOKEN` in the environment. Never print those tokens. If no valid login exists, ask the user to sign into Sudowork on this computer. Do not copy credentials from the backup machine to the laptop.
 
