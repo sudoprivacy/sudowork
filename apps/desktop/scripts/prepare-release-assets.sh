@@ -94,6 +94,43 @@ echo "==> Writing architecture-scoped metadata ..."
 [ -n "$WIN_ARM64_LATEST" ]   && cp -f "$WIN_ARM64_LATEST"   "$OUTPUT_DIR/win-arm64.yml"
 [ -n "$LINUX_ARM64_LATEST" ] && cp -f "$LINUX_ARM64_LATEST" "$OUTPUT_DIR/arm64-linux.yml"
 
+# electron-builder can choose the DMG as the legacy top-level update artifact.
+# macOS updates require the ZIP; keep its recorded digest without changing any
+# per-file metadata, which verify-release-assets.sh validates against the bytes.
+python3 - "$OUTPUT_DIR" <<'PY'
+import pathlib
+import re
+import sys
+
+for name, arch in [('latest-mac.yml', 'x64'), ('arm64-mac.yml', 'arm64')]:
+    metadata = pathlib.Path(sys.argv[1]) / name
+    if not metadata.is_file():
+        continue
+    text = metadata.read_text(encoding='utf-8')
+    files = {}
+    current = None
+    for line in text.splitlines():
+        entry = re.match(r'^\s*-\s+url:\s*(\S+)\s*$', line)
+        if entry:
+            current = entry.group(1)
+            files[current] = {}
+        field = re.match(r'^\s{4}sha512:\s*(\S+)\s*$', line)
+        if field and current is not None:
+            files[current]['sha512'] = field.group(1)
+    primary = re.search(r'^path:\s*(\S+)\s*$', text, re.MULTILINE)
+    digest = re.search(r'^sha512:\s*(\S+)\s*$', text, re.MULTILINE)
+    if not primary or not digest or files.get(primary.group(1), {}).get('sha512') != digest.group(1):
+        raise SystemExit(f'FAIL: {name}: primary artifact does not match file metadata')
+    candidates = [file for file in files if file.endswith(f'-{arch}.zip')]
+    if len(candidates) != 1 or 'sha512' not in files[candidates[0]]:
+        raise SystemExit(f'FAIL: {name}: expected one {arch} ZIP update artifact')
+    archive = candidates[0]
+    text = re.sub(r'^path:\s*\S+\s*$', f'path: {archive}', text, count=1, flags=re.MULTILINE)
+    text = re.sub(r'^sha512:\s*\S+\s*$', f"sha512: {files[archive]['sha512']}", text, count=1, flags=re.MULTILINE)
+    metadata.write_text(text, encoding='utf-8')
+    print(f'Normalized {name}: {archive}')
+PY
+
 [ -n "$WIN_X64_DEBUG" ]     && cp -f "$WIN_X64_DEBUG"     "$OUTPUT_DIR/builder-debug-win-x64.yml"
 [ -n "$WIN_ARM64_DEBUG" ]   && cp -f "$WIN_ARM64_DEBUG"   "$OUTPUT_DIR/builder-debug-win-arm64.yml"
 [ -n "$MAC_X64_DEBUG" ]     && cp -f "$MAC_X64_DEBUG"     "$OUTPUT_DIR/builder-debug-mac-x64.yml"

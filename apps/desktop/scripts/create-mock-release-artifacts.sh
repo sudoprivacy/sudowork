@@ -80,14 +80,14 @@ MAC_X64_DMG_SIZE=$(file_size "$MAC_X64_DMG")
 cat > "$ARTIFACTS_DIR/macos-build-x64/latest-mac.yml" <<EOF
 version: 1.0.0
 files:
-  - url: Sudowork-1.0.0-mac-x64.zip
-    sha512: $MAC_X64_ZIP_SHA
-    size: $MAC_X64_ZIP_SIZE
   - url: Sudowork-1.0.0-mac-x64.dmg
     sha512: $MAC_X64_DMG_SHA
     size: $MAC_X64_DMG_SIZE
-path: Sudowork-1.0.0-mac-x64.zip
-sha512: $MAC_X64_ZIP_SHA
+  - url: Sudowork-1.0.0-mac-x64.zip
+    sha512: $MAC_X64_ZIP_SHA
+    size: $MAC_X64_ZIP_SIZE
+path: Sudowork-1.0.0-mac-x64.dmg
+sha512: $MAC_X64_DMG_SHA
 releaseDate: '2025-01-01T00:00:00.000Z'
 EOF
 printf '%s\n' 'debug: mac-x64' > "$ARTIFACTS_DIR/macos-build-x64/builder-debug.yml"
