@@ -60,7 +60,15 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('[ErrorBoundary] Caught error:', error, errorInfo);
   }
 
-  handleRetry = (): void => {
+  onRetry = (): void => {
+    const error = this.state.error;
+    const isChunkLoadFailure = error?.name === 'ChunkLoadError' || /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading chunk .+ failed|Unable to preload CSS/i.test(error?.message ?? '');
+    if (isChunkLoadFailure) {
+      // React.lazy retains rejected imports; resetting the boundary retries the same rejection.
+      this.props.onRetry?.();
+      window.location.reload();
+      return;
+    }
     this.setState({
       hasError: false,
       error: null,
@@ -75,7 +83,7 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
-      return <ErrorFallback errorMessage={this.state.error?.message} onRetry={this.handleRetry} />;
+      return <ErrorFallback errorMessage={this.state.error?.message} onRetry={this.onRetry} />;
     }
 
     return this.props.children;

@@ -112,6 +112,11 @@ export function createApp(deps: AppDeps): Express {
 export function registerStaticSpa(app: Express, distClientDir: string): void {
   app.use(express.static(distClientDir, { index: false, fallthrough: true }))
   app.use((req, _res, next) => {
+    // A stale deployment chunk must not receive the SPA HTML with a 200 status.
+    if (req.path === '/assets' || req.path.startsWith('/assets/')) {
+      _res.sendStatus(404)
+      return
+    }
     if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/ws')) {
       next()
       return
