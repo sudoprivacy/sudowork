@@ -166,15 +166,19 @@ export class ConversationCoordinator {
         mossSessionId: conn.mossSessionId,
       })
       if (!current || current.state === 'idle') {
-        entry.upstream?.close()
-        this.entries.delete(k)
-      } else {
-        // 保留 entry 供 result 到达时收尾；result 处理器会在 idle 后清理
-        entry.upstream?.close()
+        this.closeUnusedEntry(entry)
       }
     }
 
     await this.broadcastLockState(entry)
+  }
+
+  /** Keep an active upstream through browser reconnects; release it once unused and idle. */
+  private closeUnusedEntry(entry: Entry): void {
+    const key = this.key(entry.principalId, entry.mossSessionId)
+    if (entry.subscribers.size > 0 || this.entries.get(key) !== entry) return
+    this.entries.delete(key)
+    entry.upstream?.close()
   }
 
   /** writer 首次写入时以其 token resume 并建立上游 WS。 */
@@ -261,6 +265,7 @@ export class ConversationCoordinator {
         mossSessionId: entry.mossSessionId,
       })
       await this.broadcastLockState(entry)
+      this.closeUnusedEntry(entry)
     }
   }
 
