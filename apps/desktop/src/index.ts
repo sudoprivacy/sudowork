@@ -587,13 +587,15 @@ const createWindow = (): void => {
   const disableAutoUpdater = process.env.NEXUS_DISABLE_AUTO_UPDATE === '1' || process.env.NEXUS_E2E_TEST === '1' || isCiRuntime;
   if (!disableAutoUpdater) {
     Promise.all([import('./process/services/autoUpdaterService'), import('./process/bridge/updateBridge'), import('@sudowork/common/systemConfig')])
-      .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }, { fetchSystemConfig, isVersionUpdateEnabled }]) => {
+      .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }, { isVersionUpdateEnabled }]) => {
         // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
         const statusBroadcast = createAutoUpdateStatusBroadcast();
         autoUpdaterService.initialize(statusBroadcast);
         // §4.1(3)/§4.4: fill the main-process system-config cache first (eliminates the startup
         // race where version_update.enabled is read before the cache is populated), then gate.
-        void fetchSystemConfig().then(() => {
+        // Resolve the server address through main-process storage. The renderer's
+        // ConfigStorage bridge can wait forever here before the window is ready.
+        void ensureMainSystemConfig().then(() => {
           // Skip auto-update check for nightly builds – nightly versions should only be
           // updated manually via the in-app update modal which already handles nightly isolation.
           if (isNightlyBuild) {
