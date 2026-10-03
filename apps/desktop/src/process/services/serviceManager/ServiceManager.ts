@@ -829,7 +829,8 @@ export class ServiceManager {
         const { stdout } = await execAsync(`netstat -ano | findstr :${port} | findstr LISTENING`);
         return stdout.trim().length > 0;
       }
-      const { stdout } = await execAsync(`lsof -ti tcp:${port}`);
+      // Established clients also match a bare port query, including Electron itself.
+      const { stdout } = await execAsync(`lsof -nP -a -iTCP:${port} -sTCP:LISTEN -t`);
       return stdout.trim().length > 0;
     } catch {
       return false;
@@ -846,17 +847,17 @@ export class ServiceManager {
         const { stdout } = await execAsync(`netstat -ano | findstr :${port} | findstr LISTENING`);
         for (const line of stdout.trim().split('\n')) {
           const pid = line.trim().split(/\s+/).at(-1) ?? '';
-          if (pid && /^\d+$/.test(pid) && pid !== '0') {
+          if (pid && /^\d+$/.test(pid) && pid !== '0' && pid !== String(process.pid)) {
             await execAsync(`taskkill /F /PID ${pid}`).catch(() => {});
           }
         }
       } else {
-        const { stdout } = await execAsync(`lsof -ti tcp:${port}`).catch(() => ({ stdout: '' }));
+        const { stdout } = await execAsync(`lsof -nP -a -iTCP:${port} -sTCP:LISTEN -t`).catch(() => ({ stdout: '' }));
         for (const pid of stdout
           .trim()
           .split('\n')
           .map((item) => item.trim())
-          .filter(Boolean)) {
+          .filter((pid) => /^\d+$/.test(pid) && pid !== '0' && pid !== String(process.pid))) {
           await execAsync(`kill -9 ${pid}`).catch(() => {});
         }
       }
@@ -946,21 +947,7 @@ export class ServiceManager {
     // Force-kill any orphaned process still holding the gateway port
     try {
       const { SUDOCLAW_DEFAULT_PORT } = await import('../sudoclaw/SudoclawInstallService');
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
-      if (process.platform === 'win32') {
-        const { stdout } = await execAsync(`netstat -ano | findstr :${SUDOCLAW_DEFAULT_PORT} | findstr LISTENING`);
-        for (const line of stdout.trim().split('\n')) {
-          const parts = line.trim().split(/\s+/);
-          const pid = parts[parts.length - 1];
-          if (pid && /^\d+$/.test(pid) && pid !== '0') {
-            await execAsync(`taskkill /F /PID ${pid}`).catch(() => {});
-          }
-        }
-      } else {
-        await execAsync(`lsof -ti tcp:${SUDOCLAW_DEFAULT_PORT} | xargs kill -9 2>/dev/null || true`);
-      }
+      await this.killProcessesOnPort(SUDOCLAW_DEFAULT_PORT, 'Sudoclaw');
       mainLog('ServiceManager', 'Force-killed orphaned processes on gateway port');
     } catch {
       /* port already free */
