@@ -73,6 +73,38 @@ class ReleaseVerificationTests(unittest.TestCase):
     def test_unknown_mode_is_rejected(self):
         self.assertNotEqual(self.run_verifier('--skip-validation').returncode, 0)
 
+    def prepare_mock_release(self, is_primary_tampered=False):
+        bash = r'C:\Program Files\Git\bin\bash.exe' if os.name == 'nt' else shutil.which('bash')
+        scripts = Path(__file__).parent
+        artifacts = self.root / 'build-artifacts'
+        output = self.root / 'prepared'
+        subprocess.run([bash, (scripts / 'create-mock-release-artifacts.sh').as_posix(), artifacts.as_posix()],
+                       check=True, capture_output=True, text=True, env=self.env)
+        if is_primary_tampered:
+            metadata = artifacts / 'macos-build-x64' / 'latest-mac.yml'
+            lines = metadata.read_text().splitlines()
+            metadata.write_text('\n'.join('sha512: invalid' if line.startswith('sha512:') else line for line in lines) + '\n')
+        result = subprocess.run([bash, (scripts / 'prepare-release-assets.sh').as_posix(), artifacts.as_posix(), output.as_posix()],
+                                capture_output=True, text=True, env=self.env)
+        return result, artifacts, output
+
+    def test_macos_dmg_primary_is_normalized_without_changing_file_checksums(self):
+        result, artifacts, output = self.prepare_mock_release()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for arch, feed in [('x64', 'latest-mac.yml'), ('arm64', 'arm64-mac.yml')]:
+            before = (artifacts / f'macos-build-{arch}' / 'latest-mac.yml').read_text()
+            after = (output / feed).read_text()
+            self.assertEqual(before.split('files:\n')[1].split('\npath:')[0], after.split('files:\n')[1].split('\npath:')[0])
+            self.assertIn(f'\npath: Sudowork-1.0.0-mac-{arch}.zip\n', after)
+        self.assets = output
+        validation = self.run_verifier('--all')
+        self.assertEqual(validation.returncode, 0, validation.stdout + validation.stderr)
+
+    def test_normalization_does_not_hide_corrupt_primary_checksums(self):
+        result, _, _ = self.prepare_mock_release(is_primary_tampered=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('primary artifact does not match file metadata', result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

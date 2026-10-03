@@ -564,3 +564,6 @@ jobs:
       - name: Validate script output
         shell: bash
         run: bash scripts/verify-release-assets.sh release-assets
+
+      - name: Test release validation regressions
+        run: python3 scripts/test-release-verification.py
