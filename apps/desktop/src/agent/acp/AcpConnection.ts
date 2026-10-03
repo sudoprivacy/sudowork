@@ -11,12 +11,12 @@ import os from 'os';
 import path from 'path';
 import { ACP_METHODS, getAcpResumeStrategy, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
-import { mainLog, mainWarn } from '@process/utils/mainLogger';
+import { mainLog } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
 import { recordFirstToken } from '@process/telemetry';
 import { ensureLocalAgentApiPort, getCredentialProxyUrl, registerToken, revokeToken } from '@process/services/authProxy';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
-import { StdioAcpTransport, GrpcAcpTransport } from './transport';
+import { StdioAcpTransport, NexusAcpTransport } from './transport';
 import type { AcpTransport } from './transport';
 import { buildGenericSpawnSpec, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import { ACP_PERF_LOG } from './perf';
@@ -286,25 +286,18 @@ export class AcpConnection {
       },
     };
 
-    // When a nexus agent-plane endpoint is configured, spawn the agent via
-    // nexus (ManagedAgentService) and tunnel its stdio over the VFS fd streams
-    // instead of spawning it locally. Covers the buildGenericSpawnSpec backends
-    // (scode + other generic CLIs); npx bridges keep the local spawn path.
+    // A configured Nexus session must stay on the mailbox transport. Connection
+    // failures are terminal: changing the execution host would change its policy.
     const nexusEndpoint = customEnv?.ACP_GRPC_ENDPOINT;
     if (nexusEndpoint && cliPath && !AcpConnection.NPX_BACKENDS.has(backend)) {
       try {
-        await this.connectViaNexusTunnel(backend, cliPath, workingDir, acpArgs, customEnv, nexusEndpoint);
+        await this.connectViaNexus(backend, cliPath, workingDir, acpArgs, customEnv, nexusEndpoint);
         return;
-      } catch (tunnelError) {
-        // The tunnel is an optimization, not a hard dependency: if nexus can't
-        // spawn/drive the agent (daemon missing managed_agent, start_session or
-        // initialize failed, …), degrade to a local spawn instead of failing the
-        // whole connection. close reaps any half-started managed_agent session
-        // (cancel_v1) + revokes the proxy token so the local retry starts clean.
-        mainWarn('[ACP]', `nexus tunnel connect failed for ${backend}, falling back to local spawn: ${tunnelError instanceof Error ? tunnelError.message : String(tunnelError)}`);
+      } catch (error) {
         await this.closeTransport();
-        this.failPendingRequests('nexus tunnel unavailable; retrying via local spawn');
+        this.failPendingRequests('Nexus session connection failed');
         this.isSetupComplete = false;
+        throw error;
       }
     }
 
@@ -352,16 +345,12 @@ export class AcpConnection {
     }
   }
 
-  /**
-   * Connect through the nexus tunnel: nexus spawns + supervises the agent from
-   * sudowork's spawn-spec and exposes its stdio as VFS fd streams. Same protocol
-   * handling as the local path — only the transport (spawn) differs.
-   */
-  private async connectViaNexusTunnel(backend: AcpBackend, cliPath: string, workingDir: string, acpArgs: string[] | undefined, customEnv: Record<string, string> | undefined, endpoint: string): Promise<void> {
+  /** Connect either hosting strategy through the shared session mailbox. */
+  private async connectViaNexus(backend: AcpBackend, cliPath: string, workingDir: string, acpArgs: string[] | undefined, customEnv: Record<string, string> | undefined, endpoint: string): Promise<void> {
     const spawnSpec = await buildGenericSpawnSpec(backend, cliPath, workingDir, acpArgs, customEnv);
     const agentId = `${os.hostname()}-sudowork-${backend}-${this.conversationId ?? crypto.randomUUID().slice(0, 8)}`;
 
-    const transport = new GrpcAcpTransport({
+    const transport = new NexusAcpTransport({
       endpoint,
       authToken: this.proxyToken || '',
       agentId,
@@ -372,7 +361,7 @@ export class AcpConnection {
           if (this.isSetupComplete) {
             this.handleProcessExit(info.code, info.signal as NodeJS.Signals | null);
           } else {
-            // Tunnel closed during setup (agent exited before initialize returned):
+            // Session closed during setup (agent exited before initialize returned):
             // reject the pending initialize so connect() fails fast with a clear
             // error instead of waiting out the request timeout.
             this.failPendingRequests('ACP agent exited before initialize completed');
@@ -384,8 +373,8 @@ export class AcpConnection {
       },
     });
 
-    await transport.connect();
     this.transport = transport;
+    await transport.connect();
 
     // auth-proxy is token-only: the token MUST be registered for the agent's
     // proxied calls to pass isValidToken. os_pid is only the bookkeeping value
@@ -396,10 +385,7 @@ export class AcpConnection {
 
     await this.initialize();
     this.isSetupComplete = true;
-    // Assert the positive. Every other outcome on this path is logged — the
-    // dial failing, the daemon not serving — so without a line here the one
-    // case that cannot be confirmed from a log is the one that worked.
-    mainLog('[ACP]', `${backend} connected over the nexus tunnel (${endpoint})`);
+    mainLog('[ACP]', `${backend} connected over the Nexus session mailbox (${endpoint})`);
   }
 
   /**
