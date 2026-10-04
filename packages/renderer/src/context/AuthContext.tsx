@@ -1011,10 +1011,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             }
           }
           const latestAuth = JSON.parse(localStorage.getItem(EECLAW_AUTH_STORAGE_KEY) || JSON.stringify(authStorage)) as EeclawAuthStorage;
-          await fetchAndCacheCredentials(latestAuth.access_token);
           setUser({ ...latestAuth.user, token: latestAuth.access_token });
           setStatus('authenticated');
           setReady(true);
+          void fetchAndCacheCredentials(latestAuth.access_token);
           await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
           return;
         }
