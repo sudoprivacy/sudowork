@@ -102,6 +102,9 @@ vi.mock('@process/services/nexus-vfs/VaultPluginInstaller', () => {
     checkInstalledSync: vi.fn(() => true),
     install: vi.fn(),
     isPlatformSupported: vi.fn(() => true),
+    isRuntimeSupported: vi.fn(() => true),
+    prepareForStartup: vi.fn(),
+    removeInstallation: vi.fn(),
   };
   return { vaultPluginInstaller, nexusPluginInstallers: [vaultPluginInstaller] };
 });

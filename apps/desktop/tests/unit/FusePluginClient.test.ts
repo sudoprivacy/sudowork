@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 vi.mock('@process/utils/mainLogger', () => ({
   mainLog: vi.fn(),
@@ -14,6 +14,10 @@ vi.mock('@common/nexus/nexus-vfs-client', () => ({
   getNexusRpcClient: () => ({ callBinary: vi.fn() }),
 }));
 
+const isFuseLibraryAvailable = vi.hoisted(() => vi.fn(() => true));
+vi.mock('@process/services/nexus-vfs/VaultPluginInstaller', () => ({ isFuseLibraryAvailable }));
+beforeEach(() => isFuseLibraryAvailable.mockReturnValue(true));
+
 import { FusePluginClient } from '../../src/process/services/nexus-vfs/FusePluginClient';
 
 function makeNexus(callBinary: (method: string, payload: Buffer) => Buffer | Error): { callBinary: ReturnType<typeof vi.fn> } {
@@ -26,6 +30,22 @@ function makeNexus(callBinary: (method: string, payload: Buffer) => Buffer | Err
 }
 
 describe('FusePluginClient.getStatus', () => {
+  it('reports a deferred FUSE library only after confirming the daemon is healthy', async () => {
+    isFuseLibraryAvailable.mockReturnValue(false);
+    const serverInfo = vi.fn().mockResolvedValue({ zone_id: 'root' });
+    const callBinary = vi.fn();
+    const client = new FusePluginClient({ serverInfo, callBinary } as never);
+    expect(await client.getStatus()).toEqual({ status: 'fuse-t-missing', raw: 'fuse-t-missing' });
+    expect(serverInfo).toHaveBeenCalledOnce();
+    expect(callBinary).not.toHaveBeenCalled();
+  });
+
+  it('does not ask to install FUSE when the daemon is unreachable', async () => {
+    isFuseLibraryAvailable.mockReturnValue(false);
+    const client = new FusePluginClient({ serverInfo: vi.fn().mockRejectedValue(new Error('daemon unavailable')) } as never);
+    expect(await client.getStatus()).toEqual({ status: 'unknown', raw: 'daemon unavailable' });
+  });
+
   it('dispatches to the `fuse.status` method with an empty payload', async () => {
     const nexus = makeNexus(() => Buffer.from('mounted', 'utf-8'));
     const client = new FusePluginClient(nexus as never);

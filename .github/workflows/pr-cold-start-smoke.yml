@@ -22,7 +22,7 @@ name: '✓PR Cold Start Smoke'
 #
 # What this does NOT test (intentional):
 #   - UI rendering (Electron headless is brittle in CI)
-#   - The actual FUSE-T install path (osascript installer -pkg) — that path is
+#   - The interactive FUSE-T install prompt (osascript installer -pkg) — that path is
 #     unit-tested in src/process/services/fuset/*.test.ts (9 cases) and
 #     manual-tested on a real Mac with macFUSE coexistence
 #   - Mount data flow
@@ -142,6 +142,12 @@ jobs:
         # SHA mismatches against src/shared/runtime-sha256.json fail fast here.
         run: bun run nexus-vfs:download
 
+      - name: Verify core startup and repair without FUSE-T (macOS)
+        if: matrix.platform == 'macos-arm64'
+        env:
+          SUDOWORK_NO_FUSE_E2E: '1'
+        run: bunx vitest run tests/integration/noFuseColdStart.integration.test.ts
+
       # ─── macOS-only prereq: install FUSE-T via .pkg ─────────────────────
       # fuse-plugin v0.4.2 (nexi-lab/nexus#4430) cut over to libfuse3 and
       # bakes two LC_RPATH entries:
@@ -158,11 +164,9 @@ jobs:
       # smoke step's admin-watcher arms, so the watcher still observes a
       # clean process tree for the cluster cold start it actually gates on.
       #
-      # Why not the pre-install (lazy) path: the lazy-install branch is
-      # already covered by 9 unit tests in src/process/services/fuset/*.test.ts.
-      # CI runners can't authentically simulate "first-mount triggers
-      # osascript password prompt", and we have no Mac dev with which to
-      # type the prompt anyway.
+      # The preceding real-daemon test covers a new Mac without FUSE-T.
+      # Keep this provisioned-host smoke too so both startup paths are gated.
+      # The interactive first-mount password prompt remains a manual check.
       - name: Install FUSE-T prereq via .pkg (macOS — production install path)
         if: matrix.platform == 'macos-arm64'
         shell: bash

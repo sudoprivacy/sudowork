@@ -39,27 +39,15 @@ export function initInitBridge(): void {
   ipcBridge.init.reinstallComponent.provider(async ({ component }) => {
     try {
       const { serviceManager } = await import('../services/serviceManager');
-      const fs = await import('fs');
-      const path = await import('path');
 
       initStatusManager.clearRetry();
 
       if (component === 'nexus') {
-        const { getDataPath } = await import('../utils');
-        const dataPath = getDataPath();
-        const binDir = path.join(dataPath, 'bin');
-        const envDir = path.join(dataPath, 'nexus_env');
-        const pidFile = path.join(dataPath, 'nexusd.pid');
-        const readyFile = path.join(dataPath, 'nexusd.ready');
+        const { dynamicNexusVfsService } = await import('../services/nexus-vfs/DynamicNexusVfsService');
 
         initStatusManager.addLog('↻ 手动触发 Nexus 重装...');
-        await serviceManager.stopNexus().catch(() => {});
-        // Clean new binary path
-        if (fs.existsSync(binDir)) fs.rmSync(binDir, { recursive: true, force: true });
-        // Clean legacy conda env path
-        if (fs.existsSync(envDir)) fs.rmSync(envDir, { recursive: true, force: true });
-        if (fs.existsSync(pidFile)) fs.rmSync(pidFile, { force: true });
-        if (fs.existsSync(readyFile)) fs.rmSync(readyFile, { force: true });
+        await serviceManager.stopNexus();
+        dynamicNexusVfsService.removeInstallation();
       } else {
         const { removeScodeInstallation } = await import('../services/scode/ScodeInstallService');
 

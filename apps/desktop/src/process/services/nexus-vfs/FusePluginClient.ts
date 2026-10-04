@@ -31,6 +31,7 @@
 import { mainWarn } from '@process/utils/mainLogger';
 import { type FusePluginStatus, type FusePluginStatusResult } from '@common/nexus/fuse-plugin-status';
 import { getNexusRpcClient, type Nexus } from '@common/nexus/nexus-vfs-client';
+import { isFuseLibraryAvailable } from './VaultPluginInstaller';
 
 export type { FusePluginStatus, FusePluginStatusResult } from '@common/nexus/fuse-plugin-status';
 
@@ -65,6 +66,12 @@ export class FusePluginClient {
   async getStatus(): Promise<FusePluginStatusResult> {
     let response: Buffer;
     try {
+      if (!isFuseLibraryAvailable()) {
+        // A deferred plugin cannot answer status. Verify the daemon is healthy
+        // before reporting a missing driver to the opt-in mount installer.
+        await this.nexus.serverInfo();
+        return { status: 'fuse-t-missing', raw: 'fuse-t-missing' };
+      }
       response = await this.nexus.callBinary(`${FUSE_PLUGIN_NAME}.status`, Buffer.alloc(0));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
