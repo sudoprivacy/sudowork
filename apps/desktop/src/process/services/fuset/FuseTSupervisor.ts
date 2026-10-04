@@ -67,9 +67,10 @@ interface InstallServiceLike {
   ensureInstalled(onProgress?: FuseTProgressCallback): Promise<void>;
 }
 
-/** Minimum surface the supervisor needs from the cluster — restart-only. */
+/** Minimum surface needed to provision the deferred plugin and restart the cluster. */
 interface ClusterControlLike {
   stop(): Promise<void>;
+  install(): Promise<void>;
   start(): Promise<void>;
   readonly isRunning: boolean;
 }
@@ -163,6 +164,8 @@ export class FuseTSupervisor {
         mainLog(TAG, 'stopping nexusd-cluster to re-run plugin create() with FUSE-T present');
         await this.cluster.stop();
       }
+      // The optional plugin was deferred on machines without the FUSE library.
+      await this.cluster.install();
       mainLog(TAG, 'starting nexusd-cluster post-install');
       await this.cluster.start();
     } catch (err) {

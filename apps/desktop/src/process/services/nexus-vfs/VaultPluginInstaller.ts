@@ -28,6 +28,17 @@ export const VAULT_VERSION = versions[vault.artifactPrefix];
 export const VAULT_READY_MARKER = '.nexus-vault-ready';
 export const NEXUS_VAULT_SHA256SUMS: Record<string, string> = runtimeSha256;
 
+/** The pinned macOS FUSE plugin links this library by its absolute install name. */
+export function isFuseLibraryAvailable(): boolean {
+  if (process.platform !== 'darwin') return true;
+  try {
+    fs.accessSync('/usr/local/lib/libfuse3.4.dylib', fs.constants.R_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Resolve only artifacts supported by the shared packaging platform matrix. */
 function getArtifactName(plugin: IRuntimePlugin, platform: string, arch: string): string | null {
   if (!plugin.publishedPlatforms.includes(`${platform}-${arch}`)) return null;
@@ -70,6 +81,28 @@ class NexusPluginInstaller {
     return getArtifactName(this.plugin, process.platform, process.arch) !== null;
   }
 
+  /** Filesystem mounting is optional; its system driver must not block core services. */
+  isRuntimeSupported(): boolean {
+    return this.isPlatformSupported() && (this.plugin.name !== 'nexus_fuse_plugin' || isFuseLibraryAvailable());
+  }
+
+  /** Remove only this managed plugin's reproducible files, preserving all user data. */
+  removeInstallation(): void {
+    const dylib = this.plugin.dylib[process.platform];
+    if (!dylib) return;
+    for (const name of [dylib, `${dylib}.sig`, this.marker]) {
+      fs.rmSync(path.join(this.getPluginDir(), name), { force: true });
+    }
+  }
+
+  /** Also handle plugins left behind by an earlier app installation. */
+  prepareForStartup(): void {
+    if (this.isPlatformSupported() && !this.isRuntimeSupported()) {
+      this.removeInstallation();
+      mainLog('NexusPlugins', `Deferring ${this.plugin.artifactPrefix} until its system library is installed`);
+    }
+  }
+
   checkInstalledSync(): boolean {
     const dylib = this.plugin.dylib[process.platform];
     if (!dylib) return false;
@@ -88,7 +121,8 @@ class NexusPluginInstaller {
   }
 
   async install(emit: EmitFn): Promise<void> {
-    if (!this.isPlatformSupported() || this.checkInstalledSync()) return;
+    this.prepareForStartup();
+    if (!this.isRuntimeSupported() || this.checkInstalledSync()) return;
     const artifact = getArtifactName(this.plugin, process.platform, process.arch)!;
     const dylib = this.plugin.dylib[process.platform]!;
     const sigName = `${dylib}.sig`;

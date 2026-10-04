@@ -251,7 +251,13 @@ class DynamicNexusVfsService {
   }
 
   checkInstalledSync(): boolean {
-    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent() && nexusPluginInstallers.every((installer) => !installer.isPlatformSupported() || installer.checkInstalledSync());
+    return fs.existsSync(this.getInstalledBinaryPath()) && this.isMarkerCurrent() && nexusPluginInstallers.every((installer) => !installer.isRuntimeSupported() || installer.checkInstalledSync());
+  }
+
+  /** Reset managed executables after stopping the daemon; retain databases and identity. */
+  removeInstallation(): void {
+    fs.rmSync(this.getBinDir(), { recursive: true, force: true });
+    for (const installer of nexusPluginInstallers) installer.removeInstallation();
   }
 
   async checkInstalled(): Promise<boolean> {
@@ -494,6 +500,8 @@ class DynamicNexusVfsService {
 
   async start(): Promise<void> {
     if (this._running) return;
+
+    for (const installer of nexusPluginInstallers) installer.prepareForStartup();
 
     this._port = NEXUS_VFS_DEFAULT_PORT;
     this._running = false;

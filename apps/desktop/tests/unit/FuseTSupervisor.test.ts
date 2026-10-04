@@ -13,6 +13,7 @@ vi.mock('@process/services/nexus-vfs/DynamicNexusVfsService', () => ({
   dynamicNexusVfsService: {
     stop: vi.fn(),
     start: vi.fn(),
+    install: vi.fn(),
     get isRunning() {
       return false;
     },
@@ -33,6 +34,7 @@ interface Mocks {
   ensureInstalled: ReturnType<typeof vi.fn>;
   clusterStop: ReturnType<typeof vi.fn>;
   clusterStart: ReturnType<typeof vi.fn>;
+  clusterInstall: ReturnType<typeof vi.fn>;
 }
 
 interface BuildOpts {
@@ -47,6 +49,7 @@ function build(opts: BuildOpts): { supervisor: FuseTSupervisor; mocks: Mocks } {
   const getStatus = vi.fn(() => Promise.resolve(statusQueue.shift() ?? { status: 'unknown' as FusePluginStatus, raw: '' }));
   const ensureInstalled = vi.fn(opts.ensureInstalledImpl ?? (() => Promise.resolve()));
   const clusterStop = vi.fn(() => Promise.resolve());
+  const clusterInstall = vi.fn(() => Promise.resolve());
   const clusterStart = vi.fn(() => Promise.resolve());
   const supervisor = new FuseTSupervisor({
     platform: opts.platform ?? 'darwin',
@@ -55,12 +58,13 @@ function build(opts: BuildOpts): { supervisor: FuseTSupervisor; mocks: Mocks } {
     cluster: {
       stop: clusterStop,
       start: clusterStart,
+      install: clusterInstall,
       get isRunning() {
         return opts.clusterIsRunning ?? true;
       },
     },
   });
-  return { supervisor, mocks: { getStatus, ensureInstalled, clusterStop, clusterStart } };
+  return { supervisor, mocks: { getStatus, ensureInstalled, clusterStop, clusterStart, clusterInstall } };
 }
 
 describe('FuseTSupervisor.runLazyInstallProbe', () => {
@@ -122,6 +126,8 @@ describe('FuseTSupervisor.runLazyInstallProbe', () => {
     // install.
     expect(mocks.clusterStop).toHaveBeenCalledTimes(1);
     expect(mocks.clusterStart).toHaveBeenCalledTimes(1);
+    expect(mocks.clusterInstall).toHaveBeenCalledTimes(1);
+    expect(mocks.clusterInstall.mock.invocationCallOrder[0]).toBeLessThan(mocks.clusterStart.mock.invocationCallOrder[0]);
   });
 
   it('skips cluster.stop() when cluster is not currently running, but still starts it', async () => {
@@ -135,6 +141,8 @@ describe('FuseTSupervisor.runLazyInstallProbe', () => {
     await supervisor.runLazyInstallProbe();
     expect(mocks.clusterStop).not.toHaveBeenCalled();
     expect(mocks.clusterStart).toHaveBeenCalledTimes(1);
+    expect(mocks.clusterInstall).toHaveBeenCalledTimes(1);
+    expect(mocks.clusterInstall.mock.invocationCallOrder[0]).toBeLessThan(mocks.clusterStart.mock.invocationCallOrder[0]);
   });
 
   it('returns `installed-but-not-mounted` when install succeeds but plugin still does not mount', async () => {
