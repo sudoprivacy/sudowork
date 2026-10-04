@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { LoginAttempt, LoginError } from '@sudowork/common/authLogin';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -84,6 +85,7 @@ export default function LoginPage() {
   } | null>(null);
   const [isOauth2Loading, setIsOauth2Loading] = useState(false);
   const oauth2StateRef = useRef<string | null>(null);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     if (!isElectronDesktop()) return;
@@ -163,8 +165,13 @@ export default function LoginPage() {
       return false;
     }
     if (isElectronDesktop()) {
-      await ConfigStorage.set('eeclaw.serverUrl', normalized);
-      await setAppMode('e');
+      const attempt = new LoginAttempt(10_000);
+      try {
+        await attempt.step('server-save', () => ConfigStorage.set('eeclaw.serverUrl', normalized));
+        await attempt.step('online-mode', () => setAppMode('e'));
+      } finally {
+        attempt.dispose();
+      }
     }
     localStorage.removeItem('sudowork_guest');
     return true;
@@ -202,17 +209,19 @@ export default function LoginPage() {
       Message.warning(t('login.phoneInvalid'));
       return;
     }
-    if (!(await onPrepareOnline())) return;
     setIsLoading(true);
     try {
+      if (!(await onPrepareOnline())) return;
       const response = isWebRuntime
         ? await fetch('/api/auth/send-code', {
+            signal: AbortSignal.timeout(15_000),
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ phone, ...(mossBaseUrl() ? { mossBaseUrl: mossBaseUrl() } : {}) }),
           })
         : await fetch(`${normalizeHttpOrigin(serverUrl)}/api/v1/auth/send-code`, {
+            signal: AbortSignal.timeout(15_000),
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone }),
@@ -237,23 +246,29 @@ export default function LoginPage() {
     }
   };
 
+  const onLoginSubmit = async (action: () => Promise<{ success: boolean; message?: string }>, failureKey: string) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsLoading(true);
+    try {
+      if (!(await onPrepareOnline())) return;
+      const result = await action();
+      if (result.success) onLoginSucceeded();
+      else Message.error(result.message || t(failureKey));
+    } catch (error) {
+      Message.error(t(error instanceof LoginError && error.code === 'timeout' ? 'login.errors.timeout' : 'login.errors.networkError'));
+    } finally {
+      isSubmittingRef.current = false;
+      setIsLoading(false);
+    }
+  };
+
   const onPhoneSubmit = async () => {
     if (!isValidPhone(phone) || !code.trim()) {
       Message.warning(t('login.requiredFields'));
       return;
     }
-    if (!(await onPrepareOnline())) return;
-    setIsLoading(true);
-    try {
-      const result = await login({ phone, code, mossBaseUrl: mossBaseUrl() });
-      if (result.success) {
-        onLoginSucceeded();
-      } else {
-        Message.error(result.message || t('login.errors.invalidCredentials'));
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    await onLoginSubmit(() => login({ phone, code, mossBaseUrl: mossBaseUrl() }), 'login.errors.invalidCredentials');
   };
 
   const onRegisterSubmit = async () => {
@@ -261,25 +276,10 @@ export default function LoginPage() {
       Message.warning(t('login.requiredFields'));
       return;
     }
-    if (!(await onPrepareOnline())) return;
-    setIsLoading(true);
-    try {
-      const result = await register({
-        phone,
-        code,
-        nickname: nickname.trim(),
-        invitation_code: invitationCode.trim(),
-        mossBaseUrl: mossBaseUrl(),
-      });
-      if (result.success) onLoginSucceeded();
-      else Message.error(result.message || t('login.pwdRegisterFailed'));
-    } finally {
-      setIsLoading(false);
-    }
+    await onLoginSubmit(() => register({ phone, code, nickname: nickname.trim(), invitation_code: invitationCode.trim(), mossBaseUrl: mossBaseUrl() }), 'login.pwdRegisterFailed');
   };
 
   const onCredentialSubmit = async () => {
-    if (!(await onPrepareOnline())) return;
     if (loginTab === 'password' && (!username.trim() || !password)) {
       Message.warning(t('login.requiredFields'));
       return;
@@ -288,31 +288,21 @@ export default function LoginPage() {
       Message.warning(t('login.apiKeyRequired'));
       return;
     }
-    setIsLoading(true);
-    try {
-      const result =
-        loginTab === 'api_key'
-          ? await enterpriseLogin({ api_key: apiKey.trim(), mossBaseUrl: mossBaseUrl() })
-          : await enterpriseLogin({
-              username: username.trim(),
-              password,
-              mossBaseUrl: mossBaseUrl(),
-            });
-      if (result.success) onLoginSucceeded();
-      else Message.error(result.message || t('login.pwdLoginFailed'));
-    } finally {
-      setIsLoading(false);
-    }
+    await onLoginSubmit(() => (loginTab === 'api_key' ? enterpriseLogin({ api_key: apiKey.trim(), mossBaseUrl: mossBaseUrl() }) : enterpriseLogin({ username: username.trim(), password, mossBaseUrl: mossBaseUrl() })), 'login.pwdLoginFailed');
   };
 
   const onSsoLogin = async () => {
-    if (!(await onPrepareOnline()) || !oauth2Config?.enabled || !oauth2Config.authorize_url) return;
-    const state = generateOAuth2State();
-    oauth2StateRef.current = state;
-    const separator = oauth2Config.authorize_url.includes('?') ? '&' : '?';
-    const url = oauth2Config.authorize_url.includes('{state}') ? oauth2Config.authorize_url.replace('{state}', encodeURIComponent(state)) : `${oauth2Config.authorize_url}${separator}state=${encodeURIComponent(state)}`;
+    if (!oauth2Config?.enabled || !oauth2Config.authorize_url) return;
     setIsLoading(true);
     try {
+      if (!(await onPrepareOnline())) {
+        setIsLoading(false);
+        return;
+      }
+      const state = generateOAuth2State();
+      oauth2StateRef.current = state;
+      const separator = oauth2Config.authorize_url.includes('?') ? '&' : '?';
+      const url = oauth2Config.authorize_url.includes('{state}') ? oauth2Config.authorize_url.replace('{state}', encodeURIComponent(state)) : `${oauth2Config.authorize_url}${separator}state=${encodeURIComponent(state)}`;
       await ipcBridge.shell.openExternal.invoke(url);
     } catch {
       setIsLoading(false);

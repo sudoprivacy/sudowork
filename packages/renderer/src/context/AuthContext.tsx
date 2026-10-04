@@ -4,18 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { runLogin, type LoginFailureCode, type LoginRequest } from '@sudowork/common/authLogin';
+import { desktopLoginPort, webLoginPort, WEB_SESSION_TOKEN } from '@sudowork/host-bridge/authLogin';
+import { applyLoginImageModel, fetchAndCacheCredentials, prepareDesktopLogin, syncScodeGuidModelPreference } from '@sudowork/host-bridge/desktopLoginSetup';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
 import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
-import { ConfigStorage, type IConfigStorageRefer } from '@sudowork/common/storage';
-import { pickDefaultImageModelFromPricing, pickImageGenerationModelId, resolveImageModelWithAvailability } from '@sudowork/common/imageGenerationModelConfig';
-import { bootstrapClientReporting, fetchSystemConfig } from '@sudowork/common/systemConfig';
+import { ConfigStorage } from '@sudowork/common/storage';
+import { fetchSystemConfig } from '@sudowork/common/systemConfig';
 import { buildCasLogoutServiceUrl, buildCasLogoutUrl, resolveThirdPartyAuthConfig } from '@sudowork/common/thirdPartyAuthConfig';
-import type { AcpModelInfo } from '@sudowork/common/acpTypes';
 import { getSudorouterPrimaryModelPath, mergeSudorouterProvidersIntoConfig } from '@sudowork/common/sudoclawModelConfig';
-import { buildScodeConfigFromLoginPayload, extractImageModelsFromScodeConfig, SCODE_AUTO_MODEL_ALIAS } from '@sudowork/common/scodeConfig';
+import { buildScodeConfigFromLoginPayload, SCODE_AUTO_MODEL_ALIAS } from '@sudowork/common/scodeConfig';
 import { extractLoginSudoclawPayload, mergeLoginUserData } from '@sudowork/common/sudoworkAuthLogin';
 
 type AuthStatus = 'checking' | 'syncing' | 'authenticated' | 'unauthenticated' | 'guest';
@@ -79,7 +79,7 @@ interface LoginParams {
   mossBaseUrl?: string;
 }
 
-type LoginErrorCode = 'invalidCredentials' | 'tooManyAttempts' | 'serverError' | 'networkError' | 'unknown';
+type LoginErrorCode = LoginFailureCode | 'tooManyAttempts' | 'serverError' | 'unknown';
 
 interface LoginResult {
   success: boolean;
@@ -133,39 +133,6 @@ interface ThirdPartyAuthLoginParams {
 interface ThirdPartyAuthExchangeParams {
   provider: string;
   code: string;
-}
-
-async function syncScodeGuidModelPreference(modelId: string): Promise<void> {
-  try {
-    const config = ((await ConfigStorage.get('acp.config').catch((): undefined => undefined)) || {}) as IConfigStorageRefer['acp.config'];
-    const backendConfig = config.scode || {};
-    await ConfigStorage.set('acp.config', {
-      ...config,
-      scode: {
-        ...backendConfig,
-        preferredModelId: modelId,
-      },
-    });
-  } catch {
-    /* best-effort */
-  }
-
-  try {
-    const cached = ((await ConfigStorage.get('acp.cachedModels').catch((): undefined => undefined)) || {}) as Record<string, AcpModelInfo>;
-    const scodeCached = cached.scode as AcpModelInfo | undefined;
-    if (!scodeCached?.availableModels?.length) return;
-    const match = scodeCached.availableModels.find((model) => model.id === modelId);
-    await ConfigStorage.set('acp.cachedModels', {
-      ...cached,
-      scode: {
-        ...scodeCached,
-        currentModelId: modelId,
-        currentModelLabel: match?.label || modelId,
-      },
-    });
-  } catch {
-    /* best-effort */
-  }
 }
 
 type LoginSuccessResponse = {
@@ -370,9 +337,6 @@ function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: st
 // ({ user: { id, name }, organization, role, scopes }). No real token is handed
 // to the browser — the storage below only satisfies the EeclawAuthStorage shape
 // the existing enterprise branches read.
-/** Stands in for a bearer on the web host, where the session cookie is the real credential. */
-const WEB_SESSION_TOKEN = 'web-session';
-
 async function fetchWebSession(): Promise<AuthUser | null> {
   try {
     const response = await fetch('/api/auth/session', {
@@ -451,42 +415,6 @@ function withAuthorizationHeader(headers: HeadersInit | undefined, token: string
   const nextHeaders = new Headers(headers);
   nextHeaders.set('Authorization', `Bearer ${token}`);
   return nextHeaders;
-}
-
-// 同步图像生成模型到 sudocode/sudoclaw：尊重用户已保存的选择，不再无条件覆盖为默认值
-// Apply the image model on login: respect the user's saved selection instead of unconditionally forcing the default.
-async function applyLoginImageModel(): Promise<void> {
-  const saved = await ConfigStorage.get('tools.imageGenerationModel').catch((): undefined => undefined);
-  const [res, scodeConfigRes] = await Promise.all([ipcBridge.scode.fetchSpecificImagePricing.invoke().catch((): null => null), ipcBridge.scode.getConfig.invoke().catch((): null => null)]);
-  const items = res?.success && Array.isArray(res.data) ? res.data : null; // null = 失败
-  const customImageModelValues = extractImageModelsFromScodeConfig(scodeConfigRes?.success ? scodeConfigRes.data : null).map((item) => item.value);
-  if (!saved) {
-    const def = items ? pickDefaultImageModelFromPricing(items) : '';
-    await ipcBridge.scode.setImageModel.invoke({ modelId: def || null }).catch(() => {});
-    return;
-  }
-  if (items === null || items.length === 0) {
-    await ipcBridge.scode.setImageModel.invoke({ modelId: pickImageGenerationModelId(saved) }).catch(() => {});
-    return;
-  }
-  const { jsonModelId, persistedUseModel, changed } = resolveImageModelWithAvailability(saved, items, customImageModelValues);
-  if (changed) {
-    await ConfigStorage.set('tools.imageGenerationModel', { ...saved, useModel: persistedUseModel }).catch(() => {});
-  }
-  await ipcBridge.scode.setImageModel.invoke({ modelId: jsonModelId }).catch(() => {});
-}
-
-/** Rehydrate reporting after every desktop login/restore without exposing plaintext keys. */
-async function fetchAndCacheCredentials(accessToken: string): Promise<void> {
-  if (!isDesktopRuntime || !accessToken) return;
-  try {
-    await bootstrapClientReporting(await getSudoworkServerBaseUrl(), accessToken, {
-      syncConfig: (data) => ipcBridge.systemConfig.syncFromRenderer.invoke({ data }),
-      cacheCredentials: (envelope) => ipcBridge.systemConfig.cacheCredentials.invoke(envelope),
-    });
-  } catch (err) {
-    console.warn('[Auth] fetch/cache server credentials failed:', err);
-  }
 }
 
 async function openThirdPartyLogoutIfNeeded(session: AuthSession | undefined): Promise<void> {
@@ -1316,144 +1244,51 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
   }, [expireAuth]);
 
-  const login = useCallback(async ({ phone, code, enterprise_code: _enterpriseCode, invitation_code: _invitationCode, remember: _remember, mossBaseUrl }: LoginParams): Promise<LoginResult> => {
-    const deviceId = getDeviceId();
-
-    // Web host: the browser must not hold moss tokens, so the webui server does
-    // the exchange and answers with a cookie session. Mirrors the enterprise
-    // password branch above rather than inventing a second web login path.
-    if (isWebRuntime) {
-      try {
-        const response = await fetch('/api/auth/login/phone', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ phone, code, ...(mossBaseUrl ? { mossBaseUrl } : {}) }),
-        });
-        const body = (await response.json().catch((): null => null)) as { ok?: boolean; error?: string; message?: string } | null;
-        if (!response.ok || !body?.ok) {
-          return { success: false, message: body?.message || t('login.errors.invalidCredentials'), code: 'invalidCredentials' };
-        }
-        const webUser = await fetchWebSession();
-        return finalizeEnterpriseLogin(
-          {
-            success: true,
-            data: {
-              // The cookie is the session on web; this placeholder keeps the
-              // shared finaliser's shape without handing the browser a real token.
-              access_token: WEB_SESSION_TOKEN,
-              refresh_token: '',
-              expires_in: 24 * 60 * 60,
-              user: {
-                id: webUser?.id || '',
-                name: webUser?.nickname || '',
-                role: (webUser?.role as string) || 'user',
-                orgId: '',
-                localAuth: false,
-              },
-            },
-          } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
-          deviceId,
-          'phone'
-        );
-      } catch (error) {
-        console.error('[Auth] Web phone login failed:', error);
-        return { success: false, message: t('login.errors.networkError'), code: 'networkError' };
-      }
-    }
-
-    try {
-      const serverUrl = await getAuthServerBaseUrl();
-      const result = await ipcBridge.eeclaw.login.invoke({
-        serverUrl,
-        body: { grant_type: 'phone', phone, code },
-        deviceId,
-      });
-      if (!result.success && result.error === 'phone_not_registered') {
-        return {
-          success: false,
-          message: t('login.registrationNeeded'),
-          code: 'invalidCredentials',
-        };
-      }
-
-      return finalizeEnterpriseLogin(result, deviceId, 'phone');
-    } catch (error) {
-      console.error('Login request failed:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : '连接到中控服务器失败',
-        code: 'networkError',
-      };
-    }
-  }, []);
-
-  const register = useCallback(async ({ phone, code, nickname, invitation_code, mossBaseUrl }: RegisterParams): Promise<RegisterResult> => {
-    const deviceId = getDeviceId();
-
-    if (isWebRuntime) {
-      try {
-        const response = await fetch('/api/auth/register/phone', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ phone, code, nickname, invitationCode: invitation_code, ...(mossBaseUrl ? { mossBaseUrl } : {}) }),
-        });
-        const body = (await response.json().catch((): null => null)) as { ok?: boolean; error?: string; message?: string } | null;
-        if (!response.ok || !body?.ok) {
-          return { success: false, message: body?.message || t('login.pwdRegisterFailed'), code: 'invalidCredentials' };
-        }
-        const webUser = await fetchWebSession();
-        return finalizeEnterpriseLogin(
-          {
-            success: true,
-            data: {
-              // The cookie is the session on web; this placeholder keeps the
-              // shared finaliser's shape without handing the browser a real token.
-              access_token: WEB_SESSION_TOKEN,
-              refresh_token: '',
-              expires_in: 24 * 60 * 60,
-              user: {
-                id: webUser?.id || '',
-                name: webUser?.nickname || '',
-                role: (webUser?.role as string) || 'user',
-                orgId: '',
-                localAuth: false,
-              },
-            },
-          } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
-          deviceId,
-          'phone'
-        );
-      } catch (error) {
-        console.error('[Auth] Web phone registration failed:', error);
-        return { success: false, message: t('login.errors.networkError'), code: 'networkError' };
-      }
-    }
-
-    try {
-      const serverUrl = await getAuthServerBaseUrl();
-      const result = await ipcBridge.eeclaw.login.invoke({
-        serverUrl,
-        body: {
-          grant_type: 'phone_register',
-          phone,
-          code,
-          nickname,
-          invitation_code,
+  const performLogin = useCallback(
+    async (request: LoginRequest): Promise<LoginResult> => {
+      const port = isWebRuntime ? webLoginPort : { ...desktopLoginPort, prepareSession: prepareDesktopLogin };
+      const result = await runLogin(
+        request,
+        getDeviceId(),
+        port,
+        (session) => {
+          const { data, deviceId, sessionType, expiresAt, isLocalAvailable } = session;
+          const mappedUser: AuthUser = {
+            ...mapEnterpriseUser(data.user, data.access_token),
+            enterprise_code: data.user.orgId || undefined,
+            localModeAvailable: isLocalAvailable,
+            execution: data.execution,
+            localRuntime: data.localRuntime,
+          };
+          const storage: EeclawAuthStorage = {
+            access_token: data.access_token,
+            refresh_token: data.refresh_token || '',
+            expires_at: expiresAt,
+            user: mappedUser,
+            device_id: deviceId,
+            session_type: sessionType,
+          };
+          localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(storage));
+          setUser(mappedUser);
+          setStatus('authenticated');
+          setReady(true);
+          void fetchAndCacheCredentials(data.access_token);
         },
-        deviceId,
-      });
-      return finalizeEnterpriseLogin(result, deviceId, 'phone');
-    } catch (error) {
-      console.error('Register request failed:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : '连接到中控服务器失败',
-        code: 'networkError',
-      };
-    }
-  }, []);
+        {
+          onFailure: (code, stage) => console.warn('[Auth] Login failed', { code, stage }),
+        }
+      );
+      if (result.success === true) return result;
+      const messageKey =
+        result.error === 'phone_not_registered' ? 'login.registrationNeeded' : result.code === 'timeout' ? 'login.errors.timeout' : result.code === 'setupError' ? 'login.errors.localSetup' : result.code === 'invalidCredentials' ? 'login.errors.invalidCredentials' : 'login.errors.networkError';
+      return { success: false, code: result.code, message: result.message || t(messageKey) };
+    },
+    [t]
+  );
+
+  const login = useCallback(({ phone, code, mossBaseUrl }: LoginParams): Promise<LoginResult> => performLogin({ grant_type: 'phone', phone, code, mossBaseUrl }), [performLogin]);
+
+  const register = useCallback(({ phone, code, nickname, invitation_code, mossBaseUrl }: RegisterParams): Promise<RegisterResult> => performLogin({ grant_type: 'phone_register', phone, code, nickname, invitation_code, mossBaseUrl }), [performLogin]);
 
   // 用户名密码登录（system login_method=1 时使用），复用 handleLoginSuccess
   const loginByPassword = useCallback(async ({ phone, password }: PasswordLoginParams): Promise<PasswordAuthResult> => {
@@ -1578,231 +1413,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     [ensureValidToken]
   );
 
-  // Shared post-login handling for all enterprise grant types (password / api_key / oauth2).
-  // Persists tokens, sets up scode/session mode, and updates auth state.
-  const finalizeEnterpriseLogin = useCallback(async (result: Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>, deviceId: string, sessionType: 'password' | 'api_key' | 'oauth2' | 'phone'): Promise<LoginResult> => {
-    if (!result.success || !result.data) {
-      return {
-        success: false,
-        message: result.error === 'network_error' ? '连接到企业服务器失败' : result.msg || result.error || '登录失败',
-        code: 'invalidCredentials',
-      };
-    }
-
-    const data = result.data;
-
-    // Map MOSS user to AuthUser compatible type
-    const mappedUser = mapEnterpriseUser(data.user, data.access_token);
-
-    // --- localModeAvailable calculation (before localStorage serialization) ---
-    const localModeAvailable = data.execution?.isLocalAllowed ?? !!(data.user.localAuth && data.sudorouter_key && data.model_service_url && Array.isArray(data.models) && data.models.length > 0);
-    mappedUser.localModeAvailable = localModeAvailable;
-    mappedUser.execution = data.execution;
-    mappedUser.localRuntime = data.localRuntime;
-
-    // Save to localStorage (eeclaw_auth_v1, separate from C-side)
-    const eeclawAuthStorage: EeclawAuthStorage = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token || '',
-      expires_at: Date.now() + (data.expires_in || 3600) * 1000,
-      user: mappedUser,
-      device_id: deviceId,
-      session_type: sessionType,
-    };
-    localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(eeclawAuthStorage));
-
-    // --- sudocode.json generation/cleanup + sessionMode reset ---
-    if (isDesktopRuntime) {
-      if (data.localRuntime) {
-        const mode = data.execution?.defaultTarget || 'local';
-        await ConfigStorage.set('guid.sessionMode', mode);
-        await ipcBridge.eeclaw.setSessionMode.invoke({ mode });
-        await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
-      } else if (localModeAvailable) {
-        const loginSudoclawPayload = extractLoginSudoclawPayload(result);
-        if (loginSudoclawPayload) {
-          const currentScodeConfig = await ipcBridge.scode.getConfig.invoke().catch((): null => null);
-          const pricingRes = await ipcBridge.scode.fetchSpecificPricing.invoke().catch((): null => null);
-          const pricingItems = pricingRes?.data ?? [];
-          const scodeConfig = buildScodeConfigFromLoginPayload(loginSudoclawPayload, currentScodeConfig?.data, pricingItems);
-          await ipcBridge.scode.saveConfig.invoke({ config: scodeConfig }).catch((err) => {
-            console.warn('[Auth] Failed to save scode config on enterprise login:', err);
-          });
-          const restoreRes = await ipcBridge.scode.restoreCustomModelProviders.invoke({ userId: mappedUser.id }).catch((err): null => {
-            console.warn('[Auth] Failed to restore custom scode models on enterprise login:', err);
-            return null;
-          });
-          await applyLoginImageModel();
-          // Sync settings.json to the merged default model while preserving a user-selected custom model.
-          const defaultModel = restoreRes?.data?.default_model || scodeConfig.default_model;
-          if (defaultModel) {
-            await ipcBridge.scode.setDefaultModel.invoke({ modelId: defaultModel }).catch(() => {});
-          }
-          await syncScodeGuidModelPreference(SCODE_AUTO_MODEL_ALIAS);
-        }
-      } else {
-        if (!user?.execution) await ipcBridge.scode.saveConfig.invoke({ config: {} }).catch(() => {});
-        await ConfigStorage.set('guid.sessionMode', 'local').catch(() => {});
-        await ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'local' }).catch(() => {});
-      }
-    }
-
-    // Save user info to ConfigStorage
-    try {
-      await ConfigStorage.set('eeclaw.userInfo', {
-        id: data.user.id,
-        username: data.user.name,
-        role: data.user.role,
-        orgId: data.user.orgId,
-      });
-      await ConfigStorage.set('eeclaw.localModeAvailable', localModeAvailable);
-    } catch (e) {
-      console.warn('[Auth] Failed to save enterprise user info:', e);
-    }
-
-    // Sync token to ConfigStorage for eeclawBridge
-    const configAuthStorage = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token || '',
-      expires_at: eeclawAuthStorage.expires_at,
-      device_id: deviceId,
-      session_type: sessionType,
-    };
-    try {
-      await ConfigStorage.set('eeclaw.authStorage', configAuthStorage);
-    } catch (e) {
-      console.warn('[Auth] Failed to sync eeclaw auth to ConfigStorage (will retry):', e);
-      // Retry once
-      try {
-        await ConfigStorage.set('eeclaw.authStorage', configAuthStorage);
-      } catch (e2) {
-        console.error('[Auth] Failed to sync eeclaw auth to ConfigStorage after retry:', e2);
-      }
-    }
-
-    await fetchAndCacheCredentials(data.access_token);
-
-    // Set auth state
-    setUser(mappedUser);
-    setStatus('authenticated');
-    setReady(true);
-
-    return { success: true };
-  }, []);
-
-  // Enterprise login — independent from C-side login flow
   const enterpriseLogin = useCallback(
-    async (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey): Promise<LoginResult> => {
-      // Web host: log in against the webui server's cookie-session endpoints
-      // instead of the eeclaw IPC channel.
-      if (isWebRuntime) {
-        try {
-          const isApiKeyLogin = 'api_key' in params;
-          const response = await fetch(isApiKeyLogin ? '/api/auth/login/api-key' : '/api/auth/login/password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              ...(isApiKeyLogin ? { apiKey: (params as EnterpriseLoginParamsByKey).api_key } : { username: (params as EnterpriseLoginParams).username, password: (params as EnterpriseLoginParams).password }),
-              ...(params.mossBaseUrl ? { mossBaseUrl: params.mossBaseUrl } : {}),
-            }),
-          });
-          if (!response.ok) {
-            const body = (await response.json().catch((): null => null)) as { error?: string; message?: string } | null;
-            const code = body?.error || `HTTP_${response.status}`;
-            const message = response.status === 503 || code === 'MOSS_UNAVAILABLE' ? t('login.errors.networkError') : body?.message || t('login.errors.invalidCredentials');
-            return { success: false, message, code: 'invalidCredentials' };
-          }
-          const webUser = await fetchWebSession();
-          return finalizeEnterpriseLogin(
-            {
-              success: true,
-              data: {
-                access_token: WEB_SESSION_TOKEN,
-                refresh_token: '',
-                expires_in: 24 * 60 * 60,
-                user: {
-                  id: webUser?.id || '',
-                  name: webUser?.nickname || '',
-                  role: (webUser?.role as string) || 'user',
-                  orgId: '',
-                  localAuth: false,
-                },
-              },
-            } as Awaited<ReturnType<typeof ipcBridge.eeclaw.login.invoke>>,
-            getDeviceId(),
-            isApiKeyLogin ? 'api_key' : 'password'
-          );
-        } catch (error) {
-          console.error('[Auth] Web enterprise login failed:', error);
-          return { success: false, message: t('login.errors.networkError'), code: 'networkError' };
-        }
-      }
-
-      try {
-        const serverUrl = await getAuthServerBaseUrl();
-
-        const deviceId = getDeviceId();
-        // Build MOSS-compatible request body with grant_type
-        const isApiKeyLogin = 'api_key' in params;
-        const requestBody = isApiKeyLogin
-          ? {
-              grant_type: 'api_key' as const,
-              api_key: (params as EnterpriseLoginParamsByKey).api_key,
-            }
-          : {
-              grant_type: 'password' as const,
-              username: (params as EnterpriseLoginParams).username,
-              password: (params as EnterpriseLoginParams).password,
-            };
-
-        // Use IPC bridge to avoid CORS (main process has no CORS restrictions)
-        const result = await ipcBridge.eeclaw.login.invoke({
-          serverUrl,
-          body: requestBody,
-          deviceId,
-        });
-
-        return finalizeEnterpriseLogin(result, deviceId, isApiKeyLogin ? 'api_key' : 'password');
-      } catch (error) {
-        console.error('[Auth] Enterprise login failed:', error);
-        return {
-          success: false,
-          message: error instanceof Error ? error.message : '连接到企业服务器失败',
-          code: 'networkError',
-        };
-      }
-    },
-    [finalizeEnterpriseLogin, t]
+    (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey): Promise<LoginResult> =>
+      performLogin('api_key' in params ? { grant_type: 'api_key', api_key: params.api_key, mossBaseUrl: params.mossBaseUrl } : { grant_type: 'password', username: params.username, password: params.password, mossBaseUrl: params.mossBaseUrl }),
+    [performLogin]
   );
 
-  // Enterprise OAuth2 login — completes after the browser redirects back via the
-  // sudowork:// deep link. `params` is the opaque dict of deep-link query params
-  // (code / access_token / refresh_token / …); moss hands it to the credential script.
-  const enterpriseLoginWithOAuth2 = useCallback(
-    async (params: Record<string, string>): Promise<LoginResult> => {
-      try {
-        const serverUrl = await getAuthServerBaseUrl();
-
-        const deviceId = getDeviceId();
-        const result = await ipcBridge.eeclaw.login.invoke({
-          serverUrl,
-          body: { grant_type: 'oauth2', params },
-          deviceId,
-        });
-
-        return finalizeEnterpriseLogin(result, deviceId, 'oauth2');
-      } catch (error) {
-        console.error('[Auth] Enterprise OAuth2 login failed:', error);
-        return {
-          success: false,
-          message: error instanceof Error ? error.message : '连接到企业服务器失败',
-          code: 'networkError',
-        };
-      }
-    },
-    [finalizeEnterpriseLogin]
-  );
+  const enterpriseLoginWithOAuth2 = useCallback((params: Record<string, string>): Promise<LoginResult> => performLogin({ grant_type: 'oauth2', params }), [performLogin]);
 
   const logout = useCallback(async () => {
     localStorage.removeItem(GUEST_FLAG_KEY);

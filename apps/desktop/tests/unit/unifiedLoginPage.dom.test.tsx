@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -66,6 +66,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
 }));
 
 import { Message } from '@arco-design/web-react';
+import { runLogin } from '@sudowork/common/authLogin';
 import LoginPage from '@renderer/pages/login';
 
 describe('unified login page', () => {
@@ -210,6 +211,52 @@ describe('unified login page', () => {
     fireEvent.change(screen.getByPlaceholderText('login.phonePlaceholder'), { target: { value: '13800138000' } });
     fireEvent.click(screen.getByRole('button', { name: 'login.sendCode' }));
     await waitFor(() => expect(onError).toHaveBeenCalledWith(message));
+  });
+
+  it('stops the login spinner when the shared flow times out and allows a retry', async () => {
+    mockIsDesktop.mockReturnValue(false);
+    const onError = vi.spyOn(Message, 'error').mockImplementation(() => undefined);
+    const commit = vi.fn();
+    mockLogin
+      .mockImplementationOnce(async () => {
+        const result = await runLogin({ grant_type: 'phone', phone: '13800138000', code: '123456' }, 'device', { authenticate: () => new Promise(() => {}) }, commit, { timeoutMs: 50 });
+        return { ...result, message: 'login.errors.timeout' };
+      })
+      .mockResolvedValueOnce({ success: false, message: 'Retry reached the server' });
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByPlaceholderText('login.phonePlaceholder'), { target: { value: '13800138000' } });
+    fireEvent.change(screen.getByPlaceholderText('login.codePlaceholder'), { target: { value: '123456' } });
+    const button = screen.getByRole('button', { name: 'login.submit' });
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(button).toHaveClass('arco-btn-loading');
+    await waitFor(() => expect(onError).toHaveBeenCalledWith('login.errors.timeout'));
+    expect(button).not.toHaveClass('arco-btn-loading');
+    expect(commit).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    await waitFor(() => expect(onError).toHaveBeenCalledWith('Retry reached the server'));
+    expect(mockLogin).toHaveBeenCalledTimes(2);
+  });
+
+  it('restores the submit button when login throws instead of returning a result', async () => {
+    mockIsDesktop.mockReturnValue(false);
+    mockLogin.mockRejectedValue(new Error('IPC disconnected'));
+    const onError = vi.spyOn(Message, 'error').mockImplementation(() => undefined);
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByPlaceholderText('login.phonePlaceholder'), { target: { value: '13800138000' } });
+    fireEvent.change(screen.getByPlaceholderText('login.codePlaceholder'), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: 'login.submit' }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith('login.errors.networkError'));
+    expect(screen.getByRole('button', { name: 'login.submit' })).not.toHaveClass('arco-btn-loading');
   });
 
   it('shows all Moss login capabilities and a separate offline entry', async () => {
