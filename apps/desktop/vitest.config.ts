@@ -110,6 +110,9 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/common/src/authLogin.ts',
+        '../../packages/host-bridge/src/authLogin.ts',
+        '../../packages/host-bridge/src/desktopLoginSetup.ts',
         'src/process/services/mossCatalog*.ts',
         'src/process/services/mossResourcePath.ts',
         'src/process/bridge/mossCatalogBridge.ts',

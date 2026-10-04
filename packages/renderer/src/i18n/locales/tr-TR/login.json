@@ -19,7 +19,9 @@
     "tooManyAttempts": "Çok fazla deneme, lütfen daha sonra tekrar deneyin",
     "networkError": "Bağlantı başarısız, lütfen tekrar deneyin",
     "serverError": "Sunucu hatası, lütfen daha sonra tekrar deneyin",
-    "unknown": "Giriş başarısız, lütfen tekrar deneyin"
+    "unknown": "Giriş başarısız, lütfen tekrar deneyin",
+    "timeout": "Giriş zaman aşımına uğradı. Yeniden deneyin; sorun sürerse uygulamayı kapatıp açın.",
+    "localSetup": "Yerel giriş kurulumu tamamlanamadı. Lütfen yeniden deneyin."
   },
   "pwdSubtitle": "Kullanıcı adı ve şifre ile giriş yapın",
   "pwdAccountLabel": "Hesap",

@@ -3325,24 +3325,7 @@ export interface UserProfileData {
   usage: UserProfileUsageData;
 }
 
-export interface IEeclawAuthenticatedLogin {
-  execution?: import('@sudowork/common/mossExecution').IMossExecutionCapabilities;
-  localRuntime?: import('@sudowork/common/mossExecution').TMossLocalRuntimeStatus;
-  access_token: string;
-  refresh_token?: string;
-  expires_in: number;
-  user: {
-    id: string;
-    name: string;
-    role: string;
-    orgId: string;
-    localAuth: boolean;
-  };
-  sudorouter_key?: string;
-  model_service_url?: string;
-  models?: string[];
-  scode_auto_model?: string;
-}
+export type IEeclawAuthenticatedLogin = import('@sudowork/common/authLogin').IAuthenticatedLogin;
 
 export const eeclaw = {
   prepareLocalRuntime: bridge.buildProvider<

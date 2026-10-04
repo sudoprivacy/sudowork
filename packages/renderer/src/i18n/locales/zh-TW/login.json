@@ -19,7 +19,9 @@
     "tooManyAttempts": "登入嘗試過多，請稍後再試",
     "networkError": "連線失敗，請稍後再試",
     "serverError": "伺服器發生錯誤，請稍後再試",
-    "unknown": "登入失敗，請稍後再試"
+    "unknown": "登入失敗，請稍後再試",
+    "timeout": "登入等候逾時，請重試。若仍失敗，請結束並重新開啟應用程式。",
+    "localSetup": "本機登入設定未完成，請重試。"
   },
   "pwdSubtitle": "帳號密碼登入，開始使用",
   "pwdAccountLabel": "帳號",
