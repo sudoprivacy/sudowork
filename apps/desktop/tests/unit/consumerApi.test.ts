@@ -58,3 +58,14 @@ it('supports cancellation before a payment request is sent', async () => {
 it.each([new Response('{}', { status: 503 }), new Response('<html>error</html>'), new Response('{"unexpected":true}')])('rejects an HTTP or malformed response instead of displaying empty data', async (response) => {
   await expect(requestConsumerApi(vi.fn().mockResolvedValue(response), '/api/v1/recharge/packages')).rejects.toBeDefined();
 });
+
+it('preserves a non-2xx business rejection for the shared page to explain to the user', async () => {
+  const failure = { success: false, msg: 'Order amount is below the minimum' };
+  const authFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(failure), { status: 400 }));
+  expect(await requestConsumerApi(authFetch, '/api/v1/recharge/create', { method: 'POST' })).toEqual(failure);
+});
+
+it('never accepts an HTTP failure that claims the order succeeded', async () => {
+  const authFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data: { order_no: 'invalid' } }), { status: 500 }));
+  await expect(requestConsumerApi(authFetch, '/api/v1/recharge/create', { method: 'POST' })).rejects.toThrow('Account request failed (500)');
+});

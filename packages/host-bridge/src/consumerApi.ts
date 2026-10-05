@@ -30,9 +30,10 @@ export async function requestConsumerApi<T>(authFetch: (url: string, options?: R
         signal.throwIfAborted();
         const response = await authFetch(`${baseUrl}${path}`, { ...options, signal });
         signal.throwIfAborted();
-        if (!response.ok) throw new Error(`Account request failed (${response.status})`);
         const body = responseSchema.parse(await response.json());
         signal.throwIfAborted();
+        // Preserve actionable business rejections (for example, invalid order amounts).
+        if (!response.ok && body.success) throw new Error(`Account request failed (${response.status})`);
         return body as IConsumerResponse<T>;
       })(),
     ]);
