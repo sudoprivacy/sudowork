@@ -943,6 +943,25 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       return;
     }
 
+    // Consume the main-process migration once, before any old token can be restored.
+    if (isDesktopRuntime) {
+      try {
+        const reset = await ConfigStorage.get('migration.hostedMossAuthReset');
+        if (reset && localStorage.getItem('migration.hostedMossAuthReset') !== reset) {
+          localStorage.removeItem(EECLAW_AUTH_STORAGE_KEY);
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+          localStorage.removeItem('sudowork_auth_v1');
+          localStorage.setItem('migration.hostedMossAuthReset', reset);
+        }
+      } catch {
+        // A failed migration read must not copy an unverified session to another host.
+        setUser(null);
+        setStatus('unauthenticated');
+        setReady(true);
+        return;
+      }
+    }
+
     // === Enterprise mode: restore from eeclaw_auth_v1 ===
     const eeclawStored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
     if (eeclawStored) {
@@ -1280,7 +1299,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       );
       if (result.success === true) return result;
       const messageKey =
-        result.error === 'phone_not_registered' ? 'login.registrationNeeded' : result.code === 'timeout' ? 'login.errors.timeout' : result.code === 'setupError' ? 'login.errors.localSetup' : result.code === 'invalidCredentials' ? 'login.errors.invalidCredentials' : 'login.errors.networkError';
+        result.error === 'phone_not_registered'
+          ? 'login.registrationNeeded'
+          : result.code === 'timeout'
+            ? 'login.errors.timeout'
+            : result.code === 'setupError'
+              ? 'login.errors.localSetup'
+              : result.code === 'invalidCredentials'
+                ? 'login.errors.invalidCredentials'
+                : result.code === 'invalidResponse'
+                  ? 'login.errors.serverError'
+                  : 'login.errors.networkError';
       return { success: false, code: result.code, message: result.message || t(messageKey) };
     },
     [t]

@@ -1,4 +1,7 @@
-import type { TenantConfig } from '@sudowork/common/types/tenantConfig';
+import { normalizeTenantLogo, type TenantConfig } from '@sudowork/common/types/tenantConfig';
+import defaultLogo from '@renderer/assets/sudowork-icon-dark.svg';
+
+let brandingRevision = 0;
 
 function inferIconType(src: string): string | undefined {
   const lower = src.toLowerCase();
@@ -20,18 +23,27 @@ function ensureIconLink(): HTMLLinkElement {
 }
 
 export function applyTenantBrowserBranding(config: Required<TenantConfig>): void {
+  const revision = ++brandingRevision;
   const title = config.top_name || config.app_name;
   if (title) {
     document.title = title;
   }
 
-  if (!config.logo) return;
-
   const link = ensureIconLink();
-  link.href = config.logo;
+  link.href = defaultLogo;
+  link.type = 'image/svg+xml';
+  const logo = normalizeTenantLogo(config.logo);
+  if (!logo) return;
 
-  const type = inferIconType(config.logo);
-  if (type) {
-    link.type = type;
-  }
+  // Verify remote/data images before replacing the working bundled favicon.
+  // A previous tenant's slower request must not overwrite newer branding.
+  const image = new Image();
+  image.onload = () => {
+    if (revision !== brandingRevision) return;
+    link.href = logo;
+    const type = inferIconType(logo);
+    if (type) link.type = type;
+    else link.removeAttribute('type');
+  };
+  image.src = logo;
 }

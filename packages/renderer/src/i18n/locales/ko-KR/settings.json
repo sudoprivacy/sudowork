@@ -967,6 +967,8 @@
     "noActiveSession": "활성 세션 없음"
   },
   "recharge": {
+    "loadFailed": "Could not load recharge information. Please retry.",
+    "cancelFailed": "Could not cancel the order. Please retry.",
     "selectPackageRecharge": "충전 패키지 선택",
     "selectPayment": "결제 방법",
     "alipay": "Alipay",

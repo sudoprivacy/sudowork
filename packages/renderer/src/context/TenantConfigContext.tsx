@@ -62,18 +62,18 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
   });
 
   const [loading, setLoading] = useState(false);
-  // Confirmed only after a successful enterprise server fetch this session.
-  // Personal mode has no enterprise policy, so it is always considered confirmed.
-  const [confirmed, setConfirmed] = useState(false);
+  // A confirmed response may intentionally clear custom branding. Before login,
+  // preserve the cached branding applied by bootstrap for the login page.
+  const [isConfirmed, setIsConfirmed] = useState(false);
   const isRefreshing = useRef(false);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const isCustomBranding = Boolean(config.logo) || config.app_name !== DEFAULT_TENANT_CONFIG.app_name || config.top_name !== DEFAULT_TENANT_CONFIG.top_name;
-    if (isCustomBranding) {
+    if (isCustomBranding || isConfirmed) {
       applyTenantBrowserBranding(config);
     }
-  }, [config]);
+  }, [config, isConfirmed]);
 
   /**
    * 从服务端获取租户配置
@@ -108,7 +108,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
         if (data.success && data.data) {
           const mergedConfig = resolveTenantConfig(data.data);
           setConfig(mergedConfig);
-          setConfirmed(true);
+          setIsConfirmed(true);
           localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(mergedConfig));
           await ConfigStorage.set('eeclaw.tenantName', mergedConfig.app_company_name);
           console.log('[TenantConfig] Enterprise config updated:', mergedConfig);
@@ -148,6 +148,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
       if (data.success && data.data) {
         const mergedConfig = resolveTenantConfig(data.data);
         setConfig(mergedConfig);
+        setIsConfirmed(true);
         // 缓存到 localStorage
         localStorage.setItem(TENANT_CONFIG_STORAGE_KEY, JSON.stringify(mergedConfig));
         console.log('[TenantConfig] Config updated:', mergedConfig);
@@ -196,7 +197,7 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
       // 登出 → 重置 config 为默认值，停止轮询
       // 注意：不清除 localStorage，保留缓存供下次启动登录页使用
       setConfig(DEFAULT_TENANT_CONFIG);
-      setConfirmed(false);
+      setIsConfirmed(false);
       stopPolling();
     }
   }, [status, isEnterprise, user?.enterprise_code, fetchConfig, startPolling, stopPolling]);
@@ -214,10 +215,10 @@ export const TenantConfigProvider: React.FC<React.PropsWithChildren> = ({ childr
       loading,
       // Personal mode has no enterprise policy to confirm; enterprise requires a
       // successful server fetch this session before policy flags are trusted.
-      confirmed: !isEnterprise || confirmed,
+      confirmed: !isEnterprise || isConfirmed,
       refresh: fetchConfig,
     }),
-    [config, loading, confirmed, isEnterprise, fetchConfig]
+    [config, loading, isConfirmed, isEnterprise, fetchConfig]
   );
 
   return <TenantConfigContext.Provider value={value}>{children}</TenantConfigContext.Provider>;

@@ -119,6 +119,11 @@ export interface ILoginPort {
   prepareSession?: (session: ILoginSession, attempt: LoginAttempt) => Promise<void>;
 }
 
+/** Validate identity before either host persists a successful authentication response. */
+export function hasValidLoginIdentity(data: IAuthenticatedLogin | undefined): data is IAuthenticatedLogin {
+  return typeof data?.access_token === 'string' && !!data.access_token.trim() && typeof data.user?.id === 'string' && !!data.user.id.trim();
+}
+
 /** One login transaction for every grant and host. Hosts supply only transport and local setup. */
 export async function runLogin(
   request: LoginRequest,
@@ -134,10 +139,11 @@ export async function runLogin(
   try {
     const result = await attempt.step('authenticate', () => port.authenticate(request, deviceId, attempt));
     if (!result.success) {
-      throw new LoginError(result.error === 'network_error' ? 'networkError' : 'invalidCredentials', result.error, result.msg);
+      const code: LoginFailureCode = result.error === 'network_error' ? 'networkError' : result.error === 'request_timeout' ? 'timeout' : result.error === 'invalid_response' ? 'invalidResponse' : result.error === 'local_setup_failed' ? 'setupError' : 'invalidCredentials';
+      throw new LoginError(code, result.error, result.msg);
     }
     const data = result.data;
-    if (!data?.access_token || typeof data.user?.id !== 'string' || !data.user.id.trim()) throw new LoginError('invalidResponse');
+    if (!hasValidLoginIdentity(data)) throw new LoginError('invalidResponse');
     const session: ILoginSession = {
       data,
       deviceId,

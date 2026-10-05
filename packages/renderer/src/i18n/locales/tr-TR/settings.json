@@ -963,6 +963,8 @@
     "noActiveSession": "Aktif oturum yok"
   },
   "recharge": {
+    "loadFailed": "Could not load recharge information. Please retry.",
+    "cancelFailed": "Could not cancel the order. Please retry.",
     "selectPackageRecharge": "Yükleme paketi seç",
     "selectPayment": "Ödeme yöntemi",
     "alipay": "Alipay",

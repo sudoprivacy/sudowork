@@ -9,35 +9,34 @@ import { IconRefresh } from '@arco-design/web-react/icon';
 import { CreditCard, MessageCircle } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { requestConsumerApi } from '@sudowork/host-bridge/consumerApi';
 import { useAuth } from '@renderer/context/AuthContext';
 import { OrderStatusEnum } from '../types';
 import type { Order } from '../types';
 import { formatAmount, formatDateTime } from '../utils';
 
-const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => {
+function OrderList({ onContinuePay, refreshKey }: IOrderListProps) {
   const { t } = useTranslation();
   const { user: currentUser, authFetch } = useAuth();
+  const [isLoadError, setIsLoadError] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     if (!currentUser?.token) return;
 
-    setLoading(true);
+    setIsLoading(true);
+    setIsLoadError(false);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/recharge/list?page=1&pageSize=100`);
-      const data = await response.json();
-
-      if (data.success) {
-        setOrders(data.data.list);
-      }
+      const data = await requestConsumerApi<{ list: Order[] }>(authFetch, '/api/v1/recharge/list?page=1&pageSize=100');
+      if (!data.success) throw new Error('Orders unavailable');
+      setOrders(data.data.list);
     } catch (err) {
       console.error('Failed to fetch orders:', err);
+      setIsLoadError(true);
       Message.error(t('settings.orders.loadFailed', '加载订单失败'));
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, [currentUser?.token, authFetch, t]);
 
@@ -83,13 +82,21 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
     };
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className='flex justify-center py-6'>
         <Spin />
       </div>
     );
   }
+
+  if (isLoadError)
+    return (
+      <div role='alert' className='py-6 text-center'>
+        <p>{t('settings.orders.loadFailed')}</p>
+        <Button onClick={() => void fetchOrders()}>{t('common.retry')}</Button>
+      </div>
+    );
 
   if (orders.length === 0) {
     return <div className='py-6 text-center text-tertiary text-14px'>{t('settings.orders.noOrders', '暂无订单记录')}</div>;
@@ -145,7 +152,7 @@ const OrderList: React.FC<IOrderListProps> = ({ onContinuePay, refreshKey }) => 
       </div>
     </div>
   );
-};
+}
 
 export default OrderList;
 

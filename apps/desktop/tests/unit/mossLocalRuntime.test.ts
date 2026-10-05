@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { net } from 'electron';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('electron', () => ({ net: { fetch: vi.fn() } }));
 
 const state = vi.hoisted(() => ({ values: new Map<string, unknown>(), config: {} as Record<string, unknown>, root: '', clear: vi.fn(), sync: vi.fn() }));
 vi.mock('@process/initStorage', () => ({ ProcessConfig: { getSync: (key: string) => state.values.get(key), set: async (key: string, value: unknown) => state.values.set(key, value) } }));
@@ -96,7 +99,7 @@ describe('managed local runtime lifecycle', () => {
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(denied)))
       .mockResolvedValueOnce(new Response(JSON.stringify(payload())));
-    vi.stubGlobal('fetch', fetch);
+    vi.mocked(net.fetch).mockImplementation(fetch);
     await expect(assertMossLocalExecutionAllowed()).rejects.toThrow('authorization has been revoked');
     expect(state.config).toEqual({});
     expect(state.clear).toHaveBeenLastCalledWith(true);
@@ -109,7 +112,7 @@ describe('managed local runtime lifecycle', () => {
     await applyMossLocalRuntime(payload(), 'https://moss.example');
     state.values.set('eeclaw.serverUrl', 'https://moss.example');
     state.values.set('eeclaw.authStorage', { access_token: 'test-token' });
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    vi.mocked(net.fetch).mockRejectedValue(new Error('offline'));
     await expect(assertMossLocalExecutionAllowed()).rejects.toThrow('offline');
   });
   it('leaves model selection and credentials untouched when repeated permission checks return unchanged configuration', async () => {

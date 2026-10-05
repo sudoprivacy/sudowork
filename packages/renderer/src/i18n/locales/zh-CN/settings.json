@@ -1004,6 +1004,8 @@
     }
   },
   "recharge": {
+    "loadFailed": "无法加载充值信息，请重试。",
+    "cancelFailed": "取消订单失败，请重试。",
     "title": "充值积分",
     "selectPackageRecharge": "选择套餐充值",
     "selectPackage": "选择套餐",

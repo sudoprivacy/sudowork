@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import TenantLogo from '@renderer/components/TenantLogo';
 import { Button, Typography } from '@arco-design/web-react';
 import { IconLink, IconSettings } from '@arco-design/web-react/icon';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { buildVersion, buildDate, buildCommit, isNightlyBuild } from '@sudowork/common/buildInfo';
-import sudoIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import { openExternalUrl, isElectronDesktop } from '@renderer/utils/platform';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import OpsModal from './components/OpsModal';
@@ -28,7 +28,7 @@ const About: React.FC = () => {
       <div className='f-center flex-col w-full min-h-[62vh] py-8 text-center'>
         {/* Logo 磁贴 / Logo tile */}
         <div className='f-center w-19 h-19 rd-18px border shadow-sm'>
-          <img src={config.logo || sudoIcon} alt={config.about_name} className='w-11.5 h-11.5' />
+          <TenantLogo src={config.logo} alt={config.about_name} className='w-11.5 h-11.5' />
         </div>
 
         <Typography.Title heading={4} className='text-20px font-700 text-foreground mb-1.5 mt-0 lh-28px'>

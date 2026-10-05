@@ -10,7 +10,7 @@ import path from 'path';
 import { app } from 'electron';
 import { application } from '@sudowork/host-bridge/ipcBridge';
 import type { TMessage } from '@sudowork/common/chatLib';
-import { BUILD_SUDOWORK_SERVER_BASE_URL, normalizeSudoworkServerUrl } from '@sudowork/common/sudoworkServer';
+import { BUILD_SUDOWORK_SERVER_BASE_URL, migrateHostedMossConfig, normalizeSudoworkServerUrl, resolveMossServerPolicy } from '@sudowork/common/sudoworkServer';
 import type { IChatConversationRefer, IConfigStorageRefer, IEnvStorageRefer, IMcpServer } from '@sudowork/common/storage';
 import { ChatMessageStorage, ChatStorage, ConfigStorage, EnvStorage } from '@sudowork/common/storage';
 import { isEnterpriseMode } from '@/common/enterpriseDebugConfig';
@@ -967,6 +967,13 @@ const initStorage = async () => {
   ChatMessageStorage.interceptor(chatMessageFile);
   EnvStorage.interceptor(envFile);
 
+  // Complete the URL and identity migration in one write before auth caches start.
+  const migratedMossConfig = migrateHostedMossConfig(await configFile.toJson());
+  if (migratedMossConfig) {
+    await configFile.setJson(migratedMossConfig);
+    mainLog('Sudowork', 'Migrated retired hosted login address; a fresh login is required');
+  }
+
   // 4. 初始化 MCP 配置（为所有用户提供默认配置）
   try {
     const existingMcpConfig = await configFile.get('mcp.config').catch((): undefined => undefined);
@@ -1210,18 +1217,9 @@ export const ProcessChatMessage = chatMessageFile;
 
 export const ProcessEnv = envFile;
 
-/**
- * Main-process sync resolver for the sudowork-server base URL.
- *
- * Mirrors the renderer-side `getSudoworkServerBaseUrl()` priority chain
- * (user setting > build define > literal fallback), but reads `ProcessConfig`
- * synchronously since main-process call sites are not necessarily async.
- *
- * Read on every call — do NOT cache the result.
- */
+/** Resolve the shared online server policy using local storage, without renderer IPC. */
 export function getSudoworkServerBaseUrlSync(): string {
-  const raw = configFile.getSync('system.sudoworkServerUrl');
-  return normalizeSudoworkServerUrl(raw) ?? BUILD_SUDOWORK_SERVER_BASE_URL;
+  return resolveMossServerPolicy(configFile.toJsonSync()).serverUrl;
 }
 
 export const getSystemDir = () => {

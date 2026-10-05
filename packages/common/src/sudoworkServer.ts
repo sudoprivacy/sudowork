@@ -20,6 +20,7 @@
  */
 
 import { ConfigStorage } from './storage.js';
+import type { IConfigStorageRefer } from './storageTypes.js';
 
 // Vite `define` injects this as a string literal at build time.
 // Empty string when the env var BUILD_SERVER_BASE_URL was not set during build.
@@ -60,8 +61,7 @@ export function normalizeSudoworkServerUrl(raw: string | null | undefined): stri
  * it at import time, before any of this runs.
  */
 function isWebHost(): boolean {
-  return typeof window !== 'undefined'
-    && Boolean((window as { __sudoworkWebBridge?: boolean }).__sudoworkWebBridge);
+  return typeof window !== 'undefined' && Boolean((window as { __sudoworkWebBridge?: boolean }).__sudoworkWebBridge);
 }
 
 /**
@@ -89,6 +89,20 @@ export async function getMossServerPolicy(): Promise<IMossServerPolicy> {
     ConfigStorage.get('eeclaw.serverUrl').catch((): string | undefined => undefined),
     ConfigStorage.get('system.sudoworkServerUrl').catch((): string | undefined => undefined),
   ]);
+  return resolveMossServerPolicy({
+    'system.managedMossServerUrl': managedRaw,
+    'system.mossServerUrlLocked': isManagedLocked,
+    'eeclaw.serverUrl': userRaw,
+    'system.sudoworkServerUrl': legacyRaw,
+  });
+}
+
+/** Shared policy; each host supplies config through its own storage adapter. */
+export function resolveMossServerPolicy(config: Pick<IConfigStorageRefer, 'system.managedMossServerUrl' | 'system.mossServerUrlLocked' | 'eeclaw.serverUrl' | 'system.sudoworkServerUrl'>): IMossServerPolicy {
+  const managedRaw = config['system.managedMossServerUrl'];
+  const isManagedLocked = config['system.mossServerUrlLocked'];
+  const userRaw = config['eeclaw.serverUrl'];
+  const legacyRaw = config['system.sudoworkServerUrl'];
   const managed = normalizeHttpOrigin(managedRaw);
   if (managed && isManagedLocked === true) {
     return { serverUrl: managed, isLocked: true, source: 'managed' };
@@ -124,4 +138,37 @@ export function normalizeHttpOrigin(raw: string | null | undefined): string | nu
   } catch {
     return null;
   }
+}
+
+/** Migrate only the retired public default; preserve private and managed deployments. */
+export function migrateHostedMossConfig(
+  config: IConfigStorageRefer,
+  buildPolicy = {
+    serverUrl: BUILD_SUDOWORK_SERVER_BASE_URL,
+    isLocked: BUILD_SUDOWORK_SERVER_LOCKED,
+  }
+): IConfigStorageRefer | null {
+  if (buildPolicy.isLocked || normalizeHttpOrigin(buildPolicy.serverUrl) !== FALLBACK_SUDOWORK_SERVER_BASE_URL || normalizeHttpOrigin(config['system.managedMossServerUrl'])) return null;
+  const isRetired = (url: string | undefined) => {
+    const origin = normalizeHttpOrigin(url);
+    return origin === 'https://sudowork-server.sudoprivacy.com' || origin === 'http://sudowork-server.sudoprivacy.com';
+  };
+  const effectiveUrl = normalizeHttpOrigin(config['eeclaw.serverUrl']) || normalizeHttpOrigin(config['system.sudoworkServerUrl']);
+  if (!isRetired(effectiveUrl || undefined)) return null;
+
+  const migrated = { ...config };
+  migrated['eeclaw.serverUrl'] = FALLBACK_SUDOWORK_SERVER_BASE_URL;
+  if (isRetired(config['system.sudoworkServerUrl'])) migrated['system.sudoworkServerUrl'] = FALLBACK_SUDOWORK_SERVER_BASE_URL;
+  // Persist the reset marker with the URL so the renderer cannot restore old tokens.
+  migrated['migration.hostedMossAuthReset'] = 'hosted-moss-v1';
+  delete migrated['eeclaw.authStorage'];
+  delete migrated['eeclaw.userInfo'];
+  delete migrated['eeclaw.accountScope'];
+  delete migrated['eeclaw.execution'];
+  delete migrated['eeclaw.localRuntime'];
+  delete migrated['eeclaw.localModeAvailable'];
+  delete migrated['eeclaw.tenantConfig'];
+  delete migrated['eeclaw.tenantName'];
+  delete migrated['consumer.userInfo'];
+  return migrated;
 }

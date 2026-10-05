@@ -1001,6 +1001,8 @@
     }
   },
   "recharge": {
+    "loadFailed": "Could not load recharge information. Please retry.",
+    "cancelFailed": "Could not cancel the order. Please retry.",
     "title": "Recharge Points",
     "selectPackageRecharge": "Select Package to Recharge",
     "selectPackage": "Select Package",

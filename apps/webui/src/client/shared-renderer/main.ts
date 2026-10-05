@@ -24,6 +24,7 @@ import {
   type TenantConfigInput,
 } from '@sudowork/common/types/tenantConfig'
 import { redirectLegacyPath } from './legacyPaths'
+import { applyTenantBrowserBranding } from '@sudowork/renderer/utils/tenantBranding'
 
 type PublicTenantConfigPayload = TenantConfigInput & {
   appName?: unknown
@@ -49,44 +50,6 @@ function normalizeTenantConfig(config: PublicTenantConfigPayload): TenantConfigI
     about_name: pickString(config.about_name, config.aboutName),
     app_company_name: pickString(config.app_company_name, config.appCompanyName),
     login_desp: pickString(config.login_desp, config.loginDesp),
-  }
-}
-
-function inferIconType(src: string): string | undefined {
-  const lower = src.toLowerCase()
-  if (lower.startsWith('data:image/svg+xml') || lower.endsWith('.svg')) return 'image/svg+xml'
-  if (lower.startsWith('data:image/png') || lower.endsWith('.png')) return 'image/png'
-  if (lower.startsWith('data:image/jpeg') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-    return 'image/jpeg'
-  }
-  if (lower.startsWith('data:image/webp') || lower.endsWith('.webp')) return 'image/webp'
-  return undefined
-}
-
-function ensureIconLink(): HTMLLinkElement {
-  const existing = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-  if (existing) return existing
-
-  const link = document.createElement('link')
-  link.rel = 'icon'
-  document.head.appendChild(link)
-  return link
-}
-
-function applyTenantBrowserBranding(config: ReturnType<typeof resolveTenantConfig>): void {
-  const title = config.top_name || config.app_name
-  if (title) {
-    document.title = title
-  }
-
-  if (!config.logo) return
-
-  const link = ensureIconLink()
-  link.href = config.logo
-
-  const type = inferIconType(config.logo)
-  if (type) {
-    link.type = type
   }
 }
 
