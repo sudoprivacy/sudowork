@@ -110,6 +110,9 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/common/src/types/tenantConfig.ts',
+        '../../packages/renderer/src/components/TenantLogo.tsx',
+        '../../packages/renderer/src/utils/tenantBranding.ts',
         '../../packages/common/src/authLogin.ts',
         '../../packages/common/src/sudoworkServer.ts',
         '../../packages/host-bridge/src/authLogin.ts',

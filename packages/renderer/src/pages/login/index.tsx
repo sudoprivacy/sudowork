@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import TenantLogo from '@renderer/components/TenantLogo';
 import { LoginAttempt, LoginError } from '@sudowork/common/authLogin';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -342,7 +343,7 @@ export default function LoginPage() {
       <div className='login-page__card'>
         <div className='login-page__header'>
           <div className='login-page__logo'>
-            <img src={tenantConfig.logo || SudoworkIcon} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
+            <TenantLogo src={tenantConfig.logo} alt={tenantConfig.app_name} className='w-64px h-64px object-contain' />
           </div>
           <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{tenantConfig.app_name}</h1>
           <p className='text-13px text-secondary'>{tenantConfig.login_desp}</p>

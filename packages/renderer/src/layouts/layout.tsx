@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import TenantLogo from '@renderer/components/TenantLogo';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -18,7 +19,6 @@ import { useDirectorySelection } from '@renderer/hooks/useDirectorySelection';
 import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
-import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import UpdateModal from '@renderer/layouts/components/UpdateModal';
 import DebugPanel from '@renderer/layouts/components/DebugPanel';
 import Sider from '@renderer/layouts/components/Sider';
@@ -117,15 +117,7 @@ const Layout: React.FC = () => {
                 }}
                 aria-label={t('common.ariaLabel.newConversation', '新会话')}
               >
-                <img
-                  src={config.logo || SudoworkIcon}
-                  alt={config.app_name}
-                  className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130'
-                  style={{ objectFit: 'contain' }}
-                  onError={(event) => {
-                    if (event.currentTarget.getAttribute('src') !== SudoworkIcon) event.currentTarget.src = SudoworkIcon;
-                  }}
-                />
+                <TenantLogo src={config.logo} alt={config.app_name} className='absolute inset-0 m-auto w-5 h-5 p-0.5 scale-130' style={{ objectFit: 'contain' }} />
               </div>
               <div className='flex-1 text-20px text-1 font-800 cursor-pointer' onClick={goToNewConversation}>
                 {config.app_name}

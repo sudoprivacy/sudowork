@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import TenantLogo from '@renderer/components/TenantLogo';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Message, Select } from '@arco-design/web-react';
 import { PeopleSafe, Link } from '@icon-park/react';
@@ -133,7 +134,7 @@ export default function ThirdPartyAuthPanel({ appName, logo, defaultLogo, system
       {!compact ? (
         <div className='login-page__header'>
           <div className='login-page__logo'>
-            <img src={logo || defaultLogo} alt={appName} className='w-64px h-64px object-contain' />
+            <TenantLogo src={logo} fallback={defaultLogo} alt={appName} className='w-64px h-64px object-contain' />
           </div>
           <h1 className='text-28px font-800 tracking-tighter bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent mb-8px'>{appName}</h1>
           <p className='text-13px text-secondary'>{t('login.thirdPartySubtitle')}</p>

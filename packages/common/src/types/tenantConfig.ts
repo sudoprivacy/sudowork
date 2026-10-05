@@ -84,9 +84,19 @@ export const DEFAULT_TENANT_CONFIG: Required<TenantConfig> = {
   workspace_upload_limit_bytes: DEFAULT_WORKSPACE_UPLOAD_LIMIT_BYTES,
 };
 
+/** Normalize server and cached logo values at the shared branding boundary. */
+export function normalizeTenantLogo(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  // Older uploads inferred MIME from the extension instead of the image type.
+  return value
+    .trim()
+    .replace(/^data:image\/svg(?=[;,])/i, 'data:image/svg+xml')
+    .replace(/^data:image\/jpg(?=[;,])/i, 'data:image/jpeg');
+}
+
 export function resolveTenantConfig(config?: TenantConfigInput | null): Required<TenantConfig> {
   return {
-    logo: (config?.logo as string | undefined) || DEFAULT_TENANT_CONFIG.logo,
+    logo: normalizeTenantLogo(config?.logo),
     app_name: (config?.app_name as string | undefined) || DEFAULT_TENANT_CONFIG.app_name,
     top_name: (config?.top_name as string | undefined) || DEFAULT_TENANT_CONFIG.top_name,
     login_desp: (config?.login_desp as string | undefined) || DEFAULT_TENANT_CONFIG.login_desp,
