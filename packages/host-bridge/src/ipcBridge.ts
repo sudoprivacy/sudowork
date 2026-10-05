@@ -291,6 +291,8 @@ export const update = {
 
 // Auto-updater (electron-updater) API
 export const autoUpdate = {
+  /** Snapshot for renderers mounted after a startup update event. */
+  getStatus: bridge.buildProvider<IBridgeResponse<AutoUpdateStatus | null>, void>('auto-update.get-status'),
   /** Check for updates using electron-updater */
   check: bridge.buildProvider<
     IBridgeResponse<{

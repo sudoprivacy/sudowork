@@ -82,6 +82,23 @@ describe('Auto-Update IPC Bridge Integration', () => {
   });
 
   describe('IPC Bridge Registration', () => {
+    it('replays startup availability to a renderer that subscribes after the check', async () => {
+      const { initUpdateBridge } = await import('@/process/bridge/updateBridge');
+      const { autoUpdaterService } = await import('@/process/services/autoUpdaterService');
+      const { ipcBridge } = await import('@/common');
+      autoUpdaterService.resetForTest();
+      autoUpdaterService.initialize();
+      initUpdateBridge();
+      const getStatus = vi.mocked(ipcBridge.autoUpdate.getStatus.provider).mock.calls[0][0];
+      expect(await getStatus()).toEqual({ success: true, data: null });
+      autoUpdaterService.triggerEventForTest('update-available', { version: '2.0.0', releaseNotes: 'Upgrade' });
+      expect(await getStatus()).toEqual({ success: true, data: { status: 'available', version: '2.0.0', releaseNotes: 'Upgrade' } });
+      autoUpdaterService.triggerEventForTest('update-downloaded', { version: '2.0.0', downloadedFile: '/private/update.zip' });
+      expect(await getStatus()).toEqual({ success: true, data: { status: 'downloaded', version: '2.0.0', downloadedFilePath: '/private/update.zip' } });
+      autoUpdaterService.reset();
+      expect(await getStatus()).toEqual({ success: true, data: null });
+    });
+
     it('should register all auto-update IPC handlers', async () => {
       const { ipcBridge } = await import('@/common');
 

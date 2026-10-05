@@ -11,6 +11,7 @@ import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
 import { useCronAccess } from './hooks/useCronAccess';
 import { isElectronDesktop } from './utils/platform';
+import UpdateModal from './layouts/components/UpdateModal';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
@@ -151,6 +152,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
 
   return (
     <HashRouter>
+      {isElectronDesktop() && <UpdateModal />}
       <Routes>
         <Route path='/login' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)} />
         <Route path='/register' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
