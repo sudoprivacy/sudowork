@@ -112,6 +112,7 @@ export default defineConfig({
       include: [
         '../../packages/common/src/types/tenantConfig.ts',
         '../../packages/renderer/src/components/TenantLogo.tsx',
+        '../../packages/renderer/src/context/TenantConfigContext.tsx',
         '../../packages/renderer/src/utils/tenantBranding.ts',
         '../../packages/common/src/authLogin.ts',
         '../../packages/common/src/sudoworkServer.ts',
