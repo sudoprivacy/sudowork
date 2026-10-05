@@ -5,22 +5,13 @@
  */
 
 import { sudoworkServer } from '@sudowork/host-bridge/ipcBridge';
-import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
+import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
 
 export function initSudoworkServerBridge(): void {
   sudoworkServer.getConfig.provider(async () => {
-    // The server that owns this client's identity — not a separately-resolved
-    // consumer address.
-    //
-    // Everything reached through this channel (points, usage, orders, tenant
-    // config, config items) is scoped to the signed-in user, so it has to be
-    // asked of the server that signed them in. While the two were resolved
-    // independently, anyone authenticated against a control plane sent that
-    // server's token to the consumer server, which does not know it: the points
-    // panel came back empty and nothing reported an error.
-    //
-    // Resolved on every call so a change of server takes effect immediately.
-    return { baseUrl: await getAuthServerBaseUrl() };
+    // Main-process storage is local. Calling the renderer storage adapter here
+    // emits an unanswered IPC request back to the renderer and deadlocks callers.
+    return { baseUrl: getSudoworkServerBaseUrlSync() };
   });
 
   sudoworkServer.updateConfig.provider(async (_config) => {

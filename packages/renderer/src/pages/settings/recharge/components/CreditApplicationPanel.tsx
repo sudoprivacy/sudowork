@@ -2,7 +2,7 @@ import { Button, Form, Input, InputNumber, Message, Spin, Tag } from '@arco-desi
 import { RefreshCw, Send } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { requestConsumerApi } from '@sudowork/host-bridge/consumerApi';
 import { useAuth } from '@renderer/context/AuthContext';
 import type { CreditApplication, CreditApplicationStatus } from '../types';
 
@@ -39,9 +39,7 @@ export default function CreditApplicationPanel({ onSubmitted }: ICreditApplicati
     if (!currentUser?.token) return;
     setIsLoading(true);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/credit-applications?page=1&pageSize=50`);
-      const data = await response.json();
+      const data = await requestConsumerApi<{ list: CreditApplication[] }>(authFetch, '/api/v1/credit-applications?page=1&pageSize=50');
       if (data.success) {
         setApplications(data.data?.list || []);
         return;
@@ -63,8 +61,7 @@ export default function CreditApplicationPanel({ onSubmitted }: ICreditApplicati
     if (!currentUser?.token) return;
     setIsSubmitting(true);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/credit-applications`, {
+      const data = await requestConsumerApi(authFetch, '/api/v1/credit-applications', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -74,7 +71,6 @@ export default function CreditApplicationPanel({ onSubmitted }: ICreditApplicati
           reason: values.reason,
         }),
       });
-      const data = await response.json();
       if (!data.success) {
         Message.error(data.msg || t('settings.creditApplication.submitFailed', '提交申请失败'));
         return;

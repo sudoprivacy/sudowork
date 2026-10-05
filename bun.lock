@@ -12,7 +12,7 @@
     },
     "apps/desktop": {
       "name": "sudowork",
-      "version": "0.2.24",
+      "version": "0.2.25",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.71.2",
         "@aws-sdk/client-bedrock": "^3.987.0",
@@ -309,6 +309,7 @@
         "@office-ai/platform": "^0.3.16",
         "@sudowork/common": "workspace:*",
         "@sudowork/ontology-common": "workspace:*",
+        "zod": "3.25.76",
       },
     },
     "packages/moss-client": {

@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { net } from 'electron';
+import { hasValidLoginIdentity } from '@sudowork/common/authLogin';
 import { ipcBridge } from '@/common';
+// Match renderer SMS requests: Chromium honors system proxies and certificate settings.
 import { ProcessConfig } from '@process/initStorage';
 import { mainWarn, mainLog, mainError } from '@process/utils/mainLogger';
 import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedLocalModeAvailable, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
@@ -99,7 +102,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
       const refreshBody = refreshGrantType === 'oauth2_refresh_token' ? { grant_type: refreshGrantType, params: { refresh_token } } : { grant_type: refreshGrantType, refresh_token };
 
       mainLog('eeclawBridge', `[getValidToken] Sending refresh request to ${serverUrl}/api/v1/auth/token`);
-      const response = await fetch(`${serverUrl}/api/v1/auth/token`, {
+      const response = await net.fetch(`${serverUrl}/api/v1/auth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -121,7 +124,7 @@ export async function getValidToken(forceRefresh = false): Promise<string> {
           if (latestAuth?.refresh_token && latestAuth.refresh_token !== refresh_token) {
             mainLog('eeclawBridge', `[getValidToken] Found rotated refresh token in file, retrying`);
             const retryBody = latestAuth.session_type === 'oauth2' ? { grant_type: 'oauth2_refresh_token', params: { refresh_token: latestAuth.refresh_token } } : { grant_type: 'refresh_token', refresh_token: latestAuth.refresh_token };
-            const retryResponse = await fetch(`${serverUrl}/api/v1/auth/token`, {
+            const retryResponse = await net.fetch(`${serverUrl}/api/v1/auth/token`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -295,7 +298,7 @@ export function initEeclawBridge(): void {
       } catch {
         // Missing/expired authentication is valid on the login screen.
       }
-      const response = await fetch(`${serverUrl}/api/v1/tenant/config`, {
+      const response = await net.fetch(`${serverUrl}/api/v1/tenant/config`, {
         method: 'GET',
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         signal: AbortSignal.timeout(10000),
@@ -316,7 +319,7 @@ export function initEeclawBridge(): void {
 
   ipcBridge.eeclaw.oauth2Config.provider(async ({ serverUrl }) => {
     try {
-      const response = await fetch(`${serverUrl}/api/v1/auth/oauth2/config`, {
+      const response = await net.fetch(`${serverUrl}/api/v1/auth/oauth2/config`, {
         method: 'GET',
         signal: AbortSignal.timeout(10000),
       });
@@ -341,9 +344,10 @@ export function initEeclawBridge(): void {
   });
 
   ipcBridge.eeclaw.login.provider(async ({ serverUrl, body, deviceId }) => {
+    let stage: 'request' | 'response' | 'persistence' | 'local-runtime' = 'request';
     try {
       const isPhoneRegistration = body.grant_type === 'phone_register';
-      const response = await fetch(`${serverUrl}${isPhoneRegistration ? '/api/v1/auth/register' : '/api/v1/auth/login'}`, {
+      const response = await net.fetch(`${serverUrl}${isPhoneRegistration ? '/api/v1/auth/register' : '/api/v1/auth/login'}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -353,6 +357,7 @@ export function initEeclawBridge(): void {
         signal: AbortSignal.timeout(15000),
       });
 
+      stage = 'response';
       const data = await response.json();
 
       if (!response.ok) {
@@ -367,8 +372,9 @@ export function initEeclawBridge(): void {
       // Password/API-key/OAuth2 responses are bare token payloads; phone login
       // and registration use the older { success, data } envelope.
       const authData = data?.success === true && data?.data ? data.data : data;
-      if (!authData?.access_token || !authData?.user) {
-        return { success: false, error: (data?.msg || data?.error || 'login_failed') as string, data: undefined };
+      if (!hasValidLoginIdentity(authData)) {
+        mainWarn('eeclawBridge', 'login error:', { stage, name: 'InvalidLoginIdentity' });
+        return { success: false, error: 'invalid_response', data: undefined };
       }
 
       const localModeAvailable = authData.execution?.isLocalAllowed ?? !!(authData.user.localAuth && authData.sudorouter_key && authData.model_service_url && Array.isArray(authData.models) && authData.models.length > 0);
@@ -377,6 +383,7 @@ export function initEeclawBridge(): void {
       // 将服务器 URL 和认证存储保存到 ProcessConfig
       const sessionType: 'password' | 'api_key' | 'oauth2' | 'phone' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : body.grant_type === 'phone' || body.grant_type === 'phone_register' ? 'phone' : 'password';
       let runtime: Awaited<ReturnType<typeof applyMossLocalRuntime>> | undefined;
+      stage = 'persistence';
       await withAuthStorageLock(async () => {
         await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
         await ProcessConfig.set('eeclaw.authStorage', {
@@ -387,7 +394,9 @@ export function initEeclawBridge(): void {
           session_type: sessionType,
         });
         await ProcessConfig.set('eeclaw.localModeAvailable', localModeAvailable);
+        stage = 'local-runtime';
         runtime = authData.execution && authData.localRuntime ? await applyMossLocalRuntime(authData, serverUrl) : undefined;
+        stage = 'persistence';
         await ProcessConfig.set('eeclaw.userInfo', { id: authData.user.id, username: authData.user.name, role: authData.user.role, orgId: authData.user.orgId });
       });
 
@@ -431,8 +440,15 @@ export function initEeclawBridge(): void {
         },
       };
     } catch (error) {
-      mainWarn('eeclawBridge', 'login error:', error);
-      return { success: false, error: 'network_error' as string, data: undefined };
+      const failure = error instanceof Error ? error : undefined;
+      const cause = failure?.cause;
+      const causeCode = cause && typeof cause === 'object' && 'code' in cause ? cause.code : undefined;
+      const networkCode = typeof causeCode === 'string' && /^[A-Z0-9_]{1,80}$/.test(causeCode) ? causeCode : failure?.message.match(/\bERR_[A-Z_]+\b/)?.[0];
+      // Do not log request bodies, tokens, or arbitrary response/error text.
+      mainWarn('eeclawBridge', 'login error:', { stage, name: failure?.name || 'UnknownError', networkCode });
+      const isRequestFailure = stage === 'request' || stage === 'response';
+      const isTimeout = isRequestFailure && (failure?.name === 'TimeoutError' || failure?.name === 'AbortError');
+      return { success: false, error: isTimeout ? 'request_timeout' : stage === 'request' ? 'network_error' : stage === 'response' ? 'invalid_response' : 'local_setup_failed', data: undefined };
     }
   });
 
@@ -445,7 +461,7 @@ export function initEeclawBridge(): void {
 
       let accessToken = await getValidToken();
 
-      let response = await fetch(`${serverUrl}/api/v1/user/profile`, {
+      let response = await net.fetch(`${serverUrl}/api/v1/user/profile`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -456,7 +472,7 @@ export function initEeclawBridge(): void {
 
       if (response.status === 401) {
         accessToken = await getValidToken(true);
-        response = await fetch(`${serverUrl}/api/v1/user/profile`, {
+        response = await net.fetch(`${serverUrl}/api/v1/user/profile`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -499,7 +515,7 @@ export function initEeclawBridge(): void {
 
       let accessToken = await getValidToken();
 
-      let response = await fetch(`${serverUrl}/api/v1/agents/installed`, {
+      let response = await net.fetch(`${serverUrl}/api/v1/agents/installed`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -510,7 +526,7 @@ export function initEeclawBridge(): void {
 
       if (response.status === 401) {
         accessToken = await getValidToken(true);
-        response = await fetch(`${serverUrl}/api/v1/agents/installed`, {
+        response = await net.fetch(`${serverUrl}/api/v1/agents/installed`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -578,17 +594,19 @@ export function initEeclawBridge(): void {
         const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
 
         if (serverUrl && authStorage?.access_token) {
-          await fetch(`${serverUrl}/api/v1/auth/logout`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${authStorage.access_token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              refresh_token: authStorage.refresh_token || undefined,
-            }),
-            signal: AbortSignal.timeout(5000),
-          }).catch((err) => mainWarn('eeclawBridge', 'Logout request failed:', err));
+          await net
+            .fetch(`${serverUrl}/api/v1/auth/logout`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${authStorage.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                refresh_token: authStorage.refresh_token || undefined,
+              }),
+              signal: AbortSignal.timeout(5000),
+            })
+            .catch((err) => mainWarn('eeclawBridge', 'Logout request failed:', err));
         }
       } finally {
         // Always clear local state even if server request fails

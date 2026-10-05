@@ -8,8 +8,8 @@ import { Button, Message, Spin } from '@arco-design/web-react';
 import { Check, CircleCheck, CircleX, CreditCard, MessageCircle, RefreshCw } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { fetchSystemConfig, normalizeRechargeMode } from '@sudowork/common/systemConfig';
+import { requestConsumerApi } from '@sudowork/host-bridge/consumerApi';
+import { normalizeRechargeMode, type SystemConfig } from '@sudowork/common/systemConfig';
 import { useAuth } from '@renderer/context/AuthContext';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import CreditApplicationPanel from './components/CreditApplicationPanel';
@@ -27,14 +27,16 @@ const QRCodeSVGLazy = React.lazy(async () => {
 
 const PANEL_CLASS = 'p-6 bg-muted rd-16px border border-light';
 
-const RechargeCenter: React.FC = () => {
+function RechargeCenter() {
   const { t } = useTranslation();
   const { user: currentUser, refresh, authFetch } = useAuth();
 
   // Points state
   const [stats, setStats] = useState<any>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
   const [rechargeMode, setRechargeMode] = useState<RechargeMode | null>(null);
+  const [isLoadError, setIsLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Recharge state
   const [step, setStep] = useState<RechargeStep>('select');
@@ -45,7 +47,7 @@ const RechargeCenter: React.FC = () => {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [, setOrderInfo] = useState<string | null>(null);
   const [expiredAt, setExpiredAt] = useState<Date | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderListRefreshKey, setOrderListRefreshKey] = useState(0);
 
@@ -57,37 +59,33 @@ const RechargeCenter: React.FC = () => {
   const fetchStats = useCallback(async () => {
     if (!currentUser?.token) return;
 
-    setStatsLoading(true);
+    setIsStatsLoading(true);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/user/dashboard`);
-      const data = await response.json();
-      if (data.success) {
-        setStats(data.data.points);
-      }
+      const data = await requestConsumerApi<{ points: { remaining: number; used: number; bonus: number } }>(authFetch, '/api/v1/user/dashboard');
+      if (!data.success) throw new Error('Dashboard unavailable');
+      setStats(data.data.points);
     } catch (err) {
       console.error('Failed to fetch stats:', err);
+      setIsLoadError(true);
     } finally {
-      setStatsLoading(false);
+      setIsStatsLoading(false);
     }
   }, [currentUser?.token, authFetch]);
 
   const fetchPackages = useCallback(async () => {
     if (!currentUser?.token) return;
 
-    setLoading(true);
+    setIsLoading(true);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const response = await authFetch(`${serverConfig.baseUrl}/api/v1/recharge/packages`);
-      const data = await response.json();
-      if (data.success) {
-        setPackages(data.data);
-      }
+      const data = await requestConsumerApi<RechargePackage[]>(authFetch, '/api/v1/recharge/packages');
+      if (!data.success) throw new Error('Packages unavailable');
+      setPackages(data.data);
     } catch (err) {
       console.error('Failed to fetch packages:', err);
+      setIsLoadError(true);
       Message.error(t('settings.recharge.loadPackagesFailed', '加载套餐失败'));
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, [currentUser?.token, authFetch, t]);
 
@@ -101,7 +99,7 @@ const RechargeCenter: React.FC = () => {
 
   // Start polling for order status
   const startPolling = useCallback(
-    (baseUrl: string, order: string) => {
+    (order: string) => {
       pollCountRef.current = 0;
 
       pollTimerRef.current = setInterval(async () => {
@@ -115,10 +113,7 @@ const RechargeCenter: React.FC = () => {
         }
 
         try {
-          const response = await fetch(`${baseUrl}/api/v1/recharge/query/${order}`, {
-            headers: { Authorization: `Bearer ${currentUser?.token}` },
-          });
-          const data = await response.json();
+          const data = await requestConsumerApi<OrderStatus>(authFetch, `/api/v1/recharge/query/${encodeURIComponent(order)}`);
 
           if (data.success) {
             const status: OrderStatus = data.data;
@@ -145,21 +140,18 @@ const RechargeCenter: React.FC = () => {
         }
       }, 3000);
     },
-    [currentUser?.token, t, refresh, fetchStats, stopPolling]
+    [authFetch, t, refresh, fetchStats, stopPolling]
   );
 
   // Create order and get QR code
-  const handleCreateOrder = useCallback(async () => {
+  const onCreateOrder = useCallback(async () => {
     if (!currentUser?.token || !selectedPackage) return;
 
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      const baseUrl = serverConfig.baseUrl;
-
       // Step 1: Create order
-      const createRes = await authFetch(`${baseUrl}/api/v1/recharge/create`, {
+      const createData = await requestConsumerApi<CreateOrderResponse>(authFetch, '/api/v1/recharge/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -167,7 +159,6 @@ const RechargeCenter: React.FC = () => {
           payment_method: paymentMethod,
         }),
       });
-      const createData = await createRes.json();
 
       if (!createData.success) {
         setError(createData.msg || t('settings.recharge.createOrderFailed', '创建订单失败'));
@@ -179,12 +170,11 @@ const RechargeCenter: React.FC = () => {
       setExpiredAt(new Date(order.expired_at));
 
       // Step 2: Get QR code
-      const payRes = await authFetch(`${baseUrl}/api/v1/recharge/pay`, {
+      const payData = await requestConsumerApi<PayOrderResponse>(authFetch, '/api/v1/recharge/pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_no: order.order_no }),
       });
-      const payData = await payRes.json();
 
       if (!payData.success) {
         setError(payData.msg || t('settings.recharge.getPaymentQrFailed', '获取支付二维码失败'));
@@ -196,27 +186,26 @@ const RechargeCenter: React.FC = () => {
       setOrderInfo(payResult.order_info);
       setStep('paying');
 
-      startPolling(baseUrl, order.order_no);
+      startPolling(order.order_no);
     } catch (err) {
       console.error('Failed to create order:', err);
       setError(t('settings.recharge.createOrderFailed', '创建订单失败'));
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, [currentUser?.token, selectedPackage, paymentMethod, authFetch, t, startPolling]);
 
   // Cancel order
-  const handleCancelOrder = useCallback(async () => {
+  const onCancelOrder = useCallback(async () => {
     if (!currentUser?.token || !orderNo) return;
 
     try {
-      const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-      await fetch(`${serverConfig.baseUrl}/api/v1/recharge/cancel/${orderNo}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${currentUser.token}` },
-      });
+      const result = await requestConsumerApi(authFetch, `/api/v1/recharge/cancel/${encodeURIComponent(orderNo)}`, { method: 'POST' });
+      if (!result.success) throw new Error('Cancellation rejected');
     } catch (err) {
       console.error('Failed to cancel order:', err);
+      setError(t('settings.recharge.cancelFailed'));
+      return;
     }
 
     stopPolling();
@@ -227,7 +216,7 @@ const RechargeCenter: React.FC = () => {
     setExpiredAt(null);
     setError(null);
     setOrderListRefreshKey((prev) => prev + 1);
-  }, [currentUser?.token, orderNo, stopPolling]);
+  }, [currentUser?.token, orderNo, stopPolling, authFetch, t]);
 
   // Reset state
   const resetState = useCallback(() => {
@@ -242,26 +231,20 @@ const RechargeCenter: React.FC = () => {
   }, []);
 
   // Handle continue pay from OrderList
-  const handleContinuePay = useCallback(
+  const onContinuePay = useCallback(
     async (orderNoParam: string) => {
       if (!currentUser?.token) return;
 
-      setLoading(true);
+      setIsLoading(true);
       setError(null);
       try {
-        const serverConfig = await ipcBridge.sudoworkServer.getConfig.invoke();
-        const baseUrl = serverConfig.baseUrl;
-
         // Query order details
-        const queryRes = await fetch(`${baseUrl}/api/v1/recharge/query/${orderNoParam}`, {
-          headers: { Authorization: `Bearer ${currentUser.token}` },
-        });
-        const queryData = await queryRes.json();
+        const queryData = await requestConsumerApi<OrderStatus & { expired_at: string; exchange_rate?: number }>(authFetch, `/api/v1/recharge/query/${encodeURIComponent(orderNoParam)}`);
 
         if (!queryData.success) {
           setError(queryData.msg || t('settings.recharge.getOrderInfoFailed', '获取订单信息失败'));
           setStep('failed');
-          setLoading(false);
+          setIsLoading(false);
           return;
         }
 
@@ -277,15 +260,13 @@ const RechargeCenter: React.FC = () => {
         setExpiredAt(new Date(orderDetails.expired_at));
 
         // Get QR code
-        const payRes = await fetch(`${baseUrl}/api/v1/recharge/pay`, {
+        const payData = await requestConsumerApi<PayOrderResponse>(authFetch, '/api/v1/recharge/pay', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${currentUser.token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ order_no: orderNoParam }),
         });
-        const payData = await payRes.json();
 
         if (!payData.success) {
           setError(payData.msg || t('settings.recharge.getPaymentQrFailed', '获取支付二维码失败'));
@@ -299,31 +280,32 @@ const RechargeCenter: React.FC = () => {
         setOrderInfo(payResult.order_info);
         setStep('paying');
 
-        startPolling(baseUrl, orderNoParam);
+        startPolling(orderNoParam);
       } catch (err) {
         console.error('Failed to continue payment:', err);
         setError(t('settings.recharge.continuePayFailed', '继续支付失败'));
         setStep('failed');
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     },
-    [currentUser?.token, startPolling, t]
+    [currentUser?.token, startPolling, authFetch, t]
   );
 
   useEffect(() => {
-    let isDisposed = false;
-
-    void fetchSystemConfig().then((config) => {
-      if (!isDisposed) {
-        setRechargeMode(normalizeRechargeMode(config?.recharge_mode));
-      }
-    });
-
-    return () => {
-      isDisposed = true;
-    };
-  }, []);
+    const controller = new AbortController();
+    setIsLoadError(false);
+    setRechargeMode(null);
+    void requestConsumerApi<SystemConfig>(authFetch, '/api/v1/system-config', { signal: controller.signal })
+      .then((result) => {
+        if (!result.success) throw new Error('Recharge configuration unavailable');
+        if (!controller.signal.aborted) setRechargeMode(normalizeRechargeMode(result.data?.recharge_mode));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setIsLoadError(true);
+      });
+    return () => controller.abort();
+  }, [authFetch, reloadKey]);
 
   // Initial fetch
   useEffect(() => {
@@ -351,7 +333,7 @@ const RechargeCenter: React.FC = () => {
     <div className='p-6 bg-muted rd-16px border border-light'>
       <div className='text-14px font-600 text-foreground mb-4'>{t('settings.recharge.selectPackageRecharge', '选择套餐充值')}</div>
 
-      {loading && packages.length === 0 ? (
+      {isLoading && packages.length === 0 ? (
         <div className='flex justify-center py-10'>
           <Spin />
         </div>
@@ -399,7 +381,7 @@ const RechargeCenter: React.FC = () => {
       {error && <div className='text-14px text-danger pt-4'>{error}</div>}
 
       <div className='flex justify-end gap-3 pt-4'>
-        <Button type='primary' loading={loading} disabled={!selectedPackage} onClick={handleCreateOrder}>
+        <Button type='primary' loading={isLoading} disabled={!selectedPackage} onClick={onCreateOrder}>
           {t('settings.recharge.createOrder', '创建订单')}
         </Button>
       </div>
@@ -438,6 +420,12 @@ const RechargeCenter: React.FC = () => {
           )}
         </div>
 
+        {error && (
+          <div role='alert' className='text-danger'>
+            {error}
+          </div>
+        )}
+
         {/* Status */}
         <div className='f-center gap-2 mt-4 text-14px text-secondary'>
           <RefreshCw size={16} className='animate-spin' />
@@ -446,7 +434,7 @@ const RechargeCenter: React.FC = () => {
 
         {/* Cancel Button */}
         <div className='mt-4'>
-          <Button type='text' onClick={handleCancelOrder}>
+          <Button type='text' onClick={onCancelOrder}>
             {t('settings.recharge.cancelOrder', '取消订单')}
           </Button>
         </div>
@@ -497,6 +485,17 @@ const RechargeCenter: React.FC = () => {
     }
   };
 
+  if (isLoadError) {
+    return (
+      <PageWrapper title={t('settings.rechargeCenter')}>
+        <div role='alert' className='p-6 text-center'>
+          <p>{t('settings.recharge.loadFailed')}</p>
+          <Button onClick={() => setReloadKey((key) => key + 1)}>{t('common.retry')}</Button>
+        </div>
+      </PageWrapper>
+    );
+  }
+
   if (!rechargeMode) {
     return (
       <PageWrapper title={t('settings.rechargeCenter', '充值中心')}>
@@ -511,7 +510,7 @@ const RechargeCenter: React.FC = () => {
     return (
       <PageWrapper title={t('settings.creditApplication.title', '积分申请')}>
         <div className='flex flex-col gap-6 pb-2'>
-          {statsLoading ? (
+          {isStatsLoading ? (
             <div className='flex justify-center py-10'>
               <Spin />
             </div>
@@ -529,7 +528,7 @@ const RechargeCenter: React.FC = () => {
     return (
       <PageWrapper title={t('settings.rechargeCenter', '充值中心')}>
         <div className='flex flex-col gap-6 pb-2'>
-          {statsLoading ? (
+          {isStatsLoading ? (
             <div className='flex justify-center py-10'>
               <Spin />
             </div>
@@ -548,7 +547,7 @@ const RechargeCenter: React.FC = () => {
   return (
     <PageWrapper title={t('settings.rechargeCenter', '充值中心')}>
       <div className='flex flex-col gap-6 pb-2'>
-        {statsLoading ? (
+        {isStatsLoading ? (
           <div className='flex justify-center py-10'>
             <Spin />
           </div>
@@ -560,10 +559,10 @@ const RechargeCenter: React.FC = () => {
         {renderRechargeContent()}
 
         {/* Order List */}
-        <OrderList onContinuePay={handleContinuePay} refreshKey={orderListRefreshKey} />
+        <OrderList onContinuePay={onContinuePay} refreshKey={orderListRefreshKey} />
       </div>
     </PageWrapper>
   );
-};
+}
 
 export default RechargeCenter;

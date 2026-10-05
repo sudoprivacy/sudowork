@@ -24,6 +24,7 @@
   "dependencies": {
     "@office-ai/platform": "^0.3.16",
     "@sudowork/common": "workspace:*",
-    "@sudowork/ontology-common": "workspace:*"
+    "@sudowork/ontology-common": "workspace:*",
+    "zod": "3.25.76"
   }
 }

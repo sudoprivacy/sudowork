@@ -111,7 +111,11 @@ export default defineConfig({
       // 例如: 'src/process/services/newService.ts'
       include: [
         '../../packages/common/src/authLogin.ts',
+        '../../packages/common/src/sudoworkServer.ts',
         '../../packages/host-bridge/src/authLogin.ts',
+        '../../packages/host-bridge/src/consumerApi.ts',
+        '../../packages/renderer/src/pages/settings/recharge/index.tsx',
+        '../../packages/renderer/src/pages/settings/recharge/components/OrderList.tsx',
         '../../packages/host-bridge/src/desktopLoginSetup.ts',
         'src/process/services/mossCatalog*.ts',
         'src/process/services/mossResourcePath.ts',
@@ -121,6 +125,8 @@ export default defineConfig({
         '../../packages/common/src/mossExecution.ts',
         '../../packages/common/src/conversationTitle.ts',
         'src/process/services/mossLocalRuntime.ts',
+        'src/process/bridge/eeclawBridge.ts',
+        'src/process/bridge/sudoworkServerBridge.ts',
         'src/process/services/mossExecutionContext.ts',
         'src/process/services/mossResourcePreparation.ts',
         // Process / bridge

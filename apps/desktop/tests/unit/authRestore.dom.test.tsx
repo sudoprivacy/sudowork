@@ -67,3 +67,48 @@ it('restores a managed desktop session after login reload even when reporting in
   expect(state.prepareRuntime).toHaveBeenCalledOnce();
   expect(state.reporting).toHaveBeenCalledWith('test-session');
 });
+
+it('discards retired-host sessions before they can overwrite migrated main-process state', async () => {
+  state.get.mockImplementation(async (key: string) => (key === 'migration.hostedMossAuthReset' ? 'hosted-moss-v1' : undefined));
+  localStorage.setItem('sudowork_auth_v2', 'old-consumer-session');
+  localStorage.setItem('sudowork_auth_v1', 'older-consumer-session');
+  localStorage.setItem('unrelated-preference', 'keep');
+  render(
+    <AuthProvider>
+      <SessionState />
+    </AuthProvider>
+  );
+  await waitFor(() => expect(screen.getByText('unauthenticated:true:')).toBeTruthy());
+  expect(localStorage.getItem('eeclaw_auth_v1')).toBeNull();
+  expect(localStorage.getItem('sudowork_auth_v2')).toBeNull();
+  expect(localStorage.getItem('sudowork_auth_v1')).toBeNull();
+  expect(localStorage.getItem('unrelated-preference')).toBe('keep');
+  expect(localStorage.getItem('migration.hostedMossAuthReset')).toBe('hosted-moss-v1');
+  expect(state.set).not.toHaveBeenCalled();
+  expect(state.prepareRuntime).not.toHaveBeenCalled();
+  expect(state.reporting).not.toHaveBeenCalled();
+});
+
+it('keeps a new session on later restarts after the migration was consumed', async () => {
+  state.get.mockImplementation(async (key: string) => (key === 'migration.hostedMossAuthReset' ? 'hosted-moss-v1' : undefined));
+  localStorage.setItem('migration.hostedMossAuthReset', 'hosted-moss-v1');
+  render(
+    <AuthProvider>
+      <SessionState />
+    </AuthProvider>
+  );
+  await waitFor(() => expect(screen.getByText('authenticated:true:user')).toBeTruthy());
+  expect(state.set).toHaveBeenCalledWith('eeclaw.authStorage', expect.objectContaining({ access_token: 'test-session' }));
+});
+
+it('does not restore an unchecked session if reading migration state fails', async () => {
+  state.get.mockRejectedValue(new Error('Storage unavailable'));
+  render(
+    <AuthProvider>
+      <SessionState />
+    </AuthProvider>
+  );
+  await waitFor(() => expect(screen.getByText('unauthenticated:true:')).toBeTruthy());
+  expect(state.set).not.toHaveBeenCalled();
+  expect(state.prepareRuntime).not.toHaveBeenCalled();
+});

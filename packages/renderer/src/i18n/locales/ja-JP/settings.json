@@ -967,6 +967,8 @@
     "noActiveSession": "アクティブなセッションはありません"
   },
   "recharge": {
+    "loadFailed": "Could not load recharge information. Please retry.",
+    "cancelFailed": "Could not cancel the order. Please retry.",
     "selectPackageRecharge": "チャージプランを選択",
     "selectPayment": "支払い方法",
     "alipay": "Alipay",

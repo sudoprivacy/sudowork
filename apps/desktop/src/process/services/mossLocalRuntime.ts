@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { net } from 'electron';
 import { z } from 'zod';
 import { buildScodeConfigFromLoginPayload, extractSudorouterCreds } from '@sudowork/common/scodeConfig';
 import type { TMossLocalRuntime } from '@sudowork/common/mossExecution';
@@ -107,7 +108,7 @@ export function prepareMossLocalRuntime(): Promise<Pick<TMossLocalRuntime, 'exec
     const token = await getValidToken();
     const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
     if (!serverUrl) throw new Error('Moss server is not configured');
-    const response = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/v1/client/local-runtime`, {
+    const response = await net.fetch(`${serverUrl.replace(/\/+$/, '')}/api/v1/client/local-runtime`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(30_000),
     });

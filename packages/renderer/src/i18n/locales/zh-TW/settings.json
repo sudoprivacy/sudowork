@@ -967,6 +967,8 @@
     "noActiveSession": "無活動會話"
   },
   "recharge": {
+    "loadFailed": "無法載入儲值資訊，請重試。",
+    "cancelFailed": "取消訂單失敗，請重試。",
     "selectPackageRecharge": "選擇套餐充值",
     "selectPayment": "支付方式",
     "alipay": "支付寶",

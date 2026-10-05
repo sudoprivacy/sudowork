@@ -158,3 +158,15 @@ it('honors the managed execution policy over legacy local credentials', async ()
   await runLogin(phone, 'device', { authenticate: async () => ({ success: true, data: { ...data, execution: { isLocalAllowed: false, isRemoteAllowed: true, defaultTarget: 'remote' } } }) }, commit);
   expect(commit.mock.calls[0][0].isLocalAvailable).toBe(false);
 });
+
+it.each([
+  ['network_error', 'networkError'],
+  ['request_timeout', 'timeout'],
+  ['invalid_response', 'invalidResponse'],
+  ['local_setup_failed', 'setupError'],
+])('preserves the desktop failure category %s through the shared flow', async (error, code) => {
+  mocks.login.mockResolvedValue({ success: false, error });
+  const commit = vi.fn();
+  expect(await runLogin(phone, 'device', desktopLoginPort, commit)).toMatchObject({ success: false, code });
+  expect(commit).not.toHaveBeenCalled();
+});
