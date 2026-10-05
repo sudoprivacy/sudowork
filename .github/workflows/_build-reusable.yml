@@ -498,8 +498,12 @@ jobs:
             exit 0
           fi
 
-          # Build failed - check if it's just notarization failure
-          if [ "$DMG_EXISTS" = true ]; then
+          # Notarization failure must not hide missing auto-update artifacts.
+          ZIP_EXISTS=false
+          if ls out/*-mac-${{ matrix.arch }}.zip out/*-mac-${{ matrix.arch }}.zip.blockmap 1> /dev/null 2>&1; then
+            ZIP_EXISTS=true
+          fi
+          if [ "$DMG_EXISTS" = true ] && [ "$ZIP_EXISTS" = true ]; then
             # DMG exists but build failed - likely notarization issue
             if grep -qiE "notariz|staple" "${RUNNER_TEMP}/build.log"; then
               echo "⚠️ DMG created but notarization failed"
