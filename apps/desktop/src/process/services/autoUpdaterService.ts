@@ -79,6 +79,7 @@ class AutoUpdaterService extends EventEmitter {
   private _eventHandlersSetup = false;
   private _allowPrerelease = false;
   private _statusBroadcastCallback: StatusBroadcastCallback | null = null;
+  private _currentStatus: AutoUpdateStatus | null = null;
   /** Stores registered autoUpdater event handlers for cleanup and test access */
   private readonly _autoUpdaterHandlers = new Map<string, (...args: unknown[]) => void>();
   /** Current mirror source status */
@@ -137,6 +138,7 @@ class AutoUpdaterService extends EventEmitter {
    * Reset the service state (for production use)
    */
   reset(): void {
+    this._currentStatus = null;
     this._isInitialized = false;
     // Note: _eventHandlersSetup is NOT reset to avoid duplicate handler registration
     this._allowPrerelease = false;
@@ -148,6 +150,7 @@ class AutoUpdaterService extends EventEmitter {
    * Use this only in tests where you need to reset handler state.
    */
   resetForTest(): void {
+    this._currentStatus = null;
     this._isInitialized = false;
     this._eventHandlersSetup = false;
     this._allowPrerelease = false;
@@ -295,6 +298,7 @@ class AutoUpdaterService extends EventEmitter {
    * Broadcast status to both EventEmitter listeners and the registered callback
    */
   private broadcastStatus(status: AutoUpdateStatus): void {
+    this._currentStatus = status;
     // Emit to internal listeners (for testing and extensibility)
     this.emit('update-status', status);
 
@@ -302,6 +306,11 @@ class AutoUpdaterService extends EventEmitter {
     if (this._statusBroadcastCallback) {
       this._statusBroadcastCallback(status);
     }
+  }
+
+  /** Replay startup progress when the renderer subscribes after the check. */
+  getStatus(): AutoUpdateStatus | null {
+    return this._currentStatus;
   }
 
   async checkForUpdates(): Promise<{ success: boolean; updateInfo?: UpdateInfo; error?: string }> {

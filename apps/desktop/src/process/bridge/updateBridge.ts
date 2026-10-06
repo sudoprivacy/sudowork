@@ -782,6 +782,8 @@ export function initUpdateBridge(): void {
   });
 
   // Auto-updater IPC handlers (electron-updater)
+  ipcBridge.autoUpdate.getStatus.provider(async () => ({ success: true, data: autoUpdaterService.getStatus() }));
+
   ipcBridge.autoUpdate.check.provider(async (params: AutoUpdateCheckParams): Promise<{ success: boolean; data?: { updateInfo?: { version: string; releaseDate?: string; releaseNotes?: string } }; msg?: string }> => {
     try {
       // Set prerelease preference before checking

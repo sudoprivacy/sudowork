@@ -5,7 +5,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Modal, Progress, Switch, Message } from '@arco-design/web-react';
+import { Button, Modal, Progress, Message } from '@arco-design/web-react';
 import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
 import { CircleCheck, CircleX, Download, FolderOpen, HardDriveDownload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -18,9 +18,9 @@ type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'dow
 
 type UpdateInfo = UpdateReleaseInfo;
 
-const UpdateModal: React.FC = () => {
+function UpdateModal() {
   const { t } = useTranslation();
-  const [visible, setVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const [status, setStatus] = useState<UpdateStatus>('checking');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [currentVersion, setCurrentVersion] = useState<string>('');
@@ -29,11 +29,14 @@ const UpdateModal: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
   const [releasePageUrl, setReleasePageUrl] = useState('');
-  const [useAutoUpdate, setUseAutoUpdate] = useState(true); // 默认使用自动更新
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
   const [autoUpdateDownloadedPath, setAutoUpdateDownloadedPath] = useState<string | null>(null);
+  const updateVersionRef = React.useRef<string | null>(null);
+  const releaseRequestRef = React.useRef(0);
 
   const resetState = () => {
+    updateVersionRef.current = null;
+    releaseRequestRef.current += 1;
     setStatus('checking');
     setUpdateInfo(null);
     setCurrentVersion('');
@@ -47,97 +50,69 @@ const UpdateModal: React.FC = () => {
   };
 
   const includePrerelease = localStorage.getItem('update.includePrerelease') === 'true';
-  const hasCompatibleManualAsset = Boolean(updateInfo?.recommendedAsset);
+  const isAutoUpdateAvailable = !isNightlyBuild && Boolean(autoUpdateInfo);
+  const isManualDownloadAvailable = Boolean(updateInfo?.recommendedAsset) && (!autoUpdateInfo || updateInfo?.version === autoUpdateInfo.version);
+  const isPlatformUnsupported = !isAutoUpdateAvailable && updateInfo !== null && !isManualDownloadAvailable;
 
-  const openReleasePage = () => {
+  const loadReleaseDetails = useCallback(
+    async (expectedVersion?: string) => {
+      const request = ++releaseRequestRef.current;
+      const res = await ipcBridge.update.check.invoke({ includePrerelease: isNightlyBuild || includePrerelease });
+      if (request !== releaseRequestRef.current) return undefined;
+      if (!res?.success || !res.data) throw new Error(res?.msg || t('update.checkFailed'));
+      setCurrentVersion(res.data.currentVersion);
+      // Release notes and manual installers are optional enrichment for an
+      // already validated updater feed. Never mix assets from another release.
+      if (expectedVersion && res.data.latest?.version !== expectedVersion) return undefined;
+      setUpdateInfo(res.data.latest || null);
+      setReleasePageUrl(res.data.latest?.htmlUrl || '');
+      return res.data;
+    },
+    [includePrerelease, t]
+  );
+
+  const onAutoUpdateAvailable = useCallback(
+    (info: { version: string; releaseNotes?: string }) => {
+      const isSameVersion = updateVersionRef.current === info.version;
+      setAutoUpdateInfo(info);
+      setIsVisible(true);
+      setStatus((previous) => (isSameVersion && (previous === 'downloading' || previous === 'downloaded') ? previous : 'available'));
+      if (isSameVersion) return;
+      updateVersionRef.current = info.version;
+      setUpdateInfo(null);
+      setReleasePageUrl('');
+      setErrorMsg('');
+      setAutoUpdateDownloadedPath(null);
+      // Startup events and explicit checks share the same candidate. A slow
+      // or failed release-details request must not block the native updater.
+      void loadReleaseDetails(info.version).catch((error) => console.warn('Failed to load optional update details:', error));
+    },
+    [loadReleaseDetails]
+  );
+
+  const onOpenReleasePage = () => {
     if (!releasePageUrl) return;
     void ipcBridge.shell.openExternal.invoke(releasePageUrl).catch((error) => {
       console.error('Failed to open release page:', error);
     });
   };
 
-  const checkForUpdates = async () => {
-    setStatus('checking');
+  const onCheckForUpdates = async () => {
+    resetState();
     try {
-      // Nightly builds: skip electron-updater, only use manual GitHub release check
-      if (isNightlyBuild) {
-        setUseAutoUpdate(false);
-        const res = await ipcBridge.update.check.invoke({ includePrerelease: true });
-        if (!res?.success) {
-          throw new Error(res?.msg || t('update.checkFailed'));
-        }
-        setCurrentVersion(res.data?.currentVersion || '');
-
-        if (res.data?.updateAvailable && res.data.latest) {
-          setUpdateInfo(res.data.latest);
-          setReleasePageUrl(res.data.latest.htmlUrl || '');
-          if (!res.data.latest.recommendedAsset) {
-            setErrorMsg(t('update.noCompatibleAssetManual'));
-          }
-          setStatus('available');
+      if (!isNightlyBuild) {
+        // A valid native feed is authoritative for platform compatibility.
+        // Only fall back to manual installation when this channel fails.
+        const res = await ipcBridge.autoUpdate.check.invoke({ includePrerelease }).catch((): null => null);
+        if (res?.success) {
+          if (res.data?.updateInfo) onAutoUpdateAvailable(res.data.updateInfo);
+          else setStatus('upToDate');
           return;
         }
-
-        setUpdateInfo(res.data?.latest || null);
-        setReleasePageUrl(res.data?.latest?.htmlUrl || '');
-        setStatus('upToDate');
-        return;
       }
-
-      // 优先使用自动更新模式
-      if (useAutoUpdate) {
-        const res = await ipcBridge.autoUpdate.check.invoke({ includePrerelease });
-        if (res?.success && res.data?.updateInfo) {
-          setAutoUpdateInfo({
-            version: res.data.updateInfo.version,
-            releaseNotes: res.data.updateInfo.releaseNotes,
-          });
-          // 获取当前版本和 markdown 格式的 release notes
-          const manualRes = await ipcBridge.update.check.invoke({ includePrerelease });
-          if (manualRes?.success) {
-            setCurrentVersion(manualRes.data?.currentVersion || '');
-            if (manualRes.data?.latest) {
-              setUpdateInfo(manualRes.data.latest);
-              setReleasePageUrl(manualRes.data.latest.htmlUrl || '');
-              if (!manualRes.data.latest.recommendedAsset) {
-                setUseAutoUpdate(false);
-                setErrorMsg(t('update.noCompatibleAssetManual'));
-              }
-            }
-          }
-          // Check if already downloaded
-          const cachedRes = await ipcBridge.autoUpdate.getDownloadedFilePath.invoke();
-          if (cachedRes?.success && cachedRes.data?.path) {
-            setAutoUpdateDownloadedPath(cachedRes.data.path);
-          }
-          setStatus('available');
-          return;
-        } else if (res?.msg) {
-          // 自动更新失败，尝试手动更新
-          console.warn('Auto-update check failed, falling back to manual mode:', res.msg);
-        }
-      }
-
-      // 手动更新模式
-      const res = await ipcBridge.update.check.invoke({ includePrerelease });
-      if (!res?.success) {
-        throw new Error(res?.msg || t('update.checkFailed'));
-      }
-      setCurrentVersion(res.data?.currentVersion || '');
-
-      if (res.data?.updateAvailable && res.data.latest) {
-        setUpdateInfo(res.data.latest);
-        setReleasePageUrl(res.data.latest.htmlUrl || '');
-        if (!res.data.latest.recommendedAsset) {
-          setErrorMsg(t('update.noCompatibleAssetManual'));
-        }
-        setStatus('available');
-        return;
-      }
-
-      setUpdateInfo(res.data?.latest || null);
-      setReleasePageUrl(res.data?.latest?.htmlUrl || '');
-      setStatus('upToDate');
+      setAutoUpdateInfo(null);
+      const data = await loadReleaseDetails();
+      if (data) setStatus(data.updateAvailable && data.latest ? 'available' : 'upToDate');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('Update check failed:', err);
@@ -146,14 +121,10 @@ const UpdateModal: React.FC = () => {
     }
   };
 
-  const startAutoDownload = async () => {
-    if (!updateInfo && !autoUpdateInfo) return;
+  const onStartAutoDownload = async () => {
+    if (!isAutoUpdateAvailable) return;
     setStatus('downloading');
     try {
-      if (updateInfo && !updateInfo.recommendedAsset) {
-        setUseAutoUpdate(false);
-        throw new Error(t('update.noCompatibleAssetManual'));
-      }
       const res = await ipcBridge.autoUpdate.download.invoke();
       if (!res?.success) {
         throw new Error(res?.msg || t('update.downloadStartFailed'));
@@ -166,8 +137,8 @@ const UpdateModal: React.FC = () => {
     }
   };
 
-  const startManualDownload = async () => {
-    if (!updateInfo) return;
+  const onStartManualDownload = async () => {
+    if (!isManualDownloadAvailable || !updateInfo) return;
     const asset = updateInfo.recommendedAsset;
     if (!asset) {
       setErrorMsg(t('update.noCompatibleAssetManual'));
@@ -202,7 +173,7 @@ const UpdateModal: React.FC = () => {
     }
   };
 
-  const quitAndInstall = async () => {
+  const onQuitAndInstall = async () => {
     try {
       await ipcBridge.autoUpdate.quitAndInstall.invoke();
     } catch (err: unknown) {
@@ -226,45 +197,42 @@ const UpdateModal: React.FC = () => {
     return `${(bytes / 1024).toFixed(1)} KB`;
   };
 
-  const checkForUpdatesRef = React.useRef(checkForUpdates);
-  checkForUpdatesRef.current = checkForUpdates;
+  const onCheckForUpdatesRef = React.useRef(onCheckForUpdates);
+  onCheckForUpdatesRef.current = onCheckForUpdates;
 
-  const handleOpenUpdateModal = useCallback(() => {
-    setVisible(true);
-    resetState();
-    void checkForUpdatesRef.current();
+  const onOpenUpdateModal = useCallback(() => {
+    setIsVisible(true);
+    void onCheckForUpdatesRef.current();
   }, []);
 
   useEffect(() => {
-    const removeOpenListener = ipcBridge.update.open.on(handleOpenUpdateModal);
-    window.addEventListener('sudowork-open-update-modal', handleOpenUpdateModal);
+    const removeOpenListener = ipcBridge.update.open.on(onOpenUpdateModal);
+    window.addEventListener('sudowork-open-update-modal', onOpenUpdateModal);
 
     return () => {
       removeOpenListener();
-      window.removeEventListener('sudowork-open-update-modal', handleOpenUpdateModal);
+      window.removeEventListener('sudowork-open-update-modal', onOpenUpdateModal);
     };
-  }, [handleOpenUpdateModal]);
+  }, [onOpenUpdateModal]);
 
   // 监听自动更新状态
   useEffect(() => {
-    const removeListener = ipcBridge.autoUpdate.status.on((evt: AutoUpdateStatus) => {
+    let isActive = true;
+    let isLiveStatusReceived = false;
+    const onStatus = (evt: AutoUpdateStatus) => {
       if (!evt) return;
 
       switch (evt.status) {
         case 'checking':
           break;
         case 'available':
-          setAutoUpdateInfo({
-            version: evt.version || '',
-            releaseNotes: evt.releaseNotes,
-          });
-          setStatus('available');
-          setVisible(true);
+          if (evt.version && !isNightlyBuild) onAutoUpdateAvailable({ version: evt.version, releaseNotes: evt.releaseNotes });
           break;
         case 'not-available':
           setStatus('upToDate');
           break;
         case 'downloading':
+          setStatus('downloading');
           if (evt.progress) {
             setProgress({
               percent: Math.round(evt.progress.percent),
@@ -285,12 +253,25 @@ const UpdateModal: React.FC = () => {
           setErrorMsg(evt.error || t('update.downloadFailed'));
           break;
       }
+    };
+    const removeListener = ipcBridge.autoUpdate.status.on((evt) => {
+      isLiveStatusReceived = true;
+      onStatus(evt);
     });
+    void ipcBridge.autoUpdate.getStatus
+      .invoke()
+      .then((res) => {
+        if (!isActive || isLiveStatusReceived || !res?.success || !res.data) return;
+        onStatus(res.data);
+        if (res.data.status === 'downloading' || res.data.status === 'downloaded') setIsVisible(true);
+      })
+      .catch((error) => console.warn('Failed to restore update status:', error));
 
     return () => {
+      isActive = false;
       removeListener();
     };
-  }, [t]);
+  }, [onAutoUpdateAvailable, t]);
 
   useEffect(() => {
     const removeProgressListener = ipcBridge.update.downloadProgress.on((evt: UpdateDownloadProgressEvent) => {
@@ -324,18 +305,18 @@ const UpdateModal: React.FC = () => {
   // Prevent accidental dismissal during active download
   const isDownloading = status === 'downloading';
 
-  const handleClose = () => {
-    setVisible(false);
+  const onClose = () => {
+    setIsVisible(false);
   };
 
-  const openFile = () => {
+  const onOpenFile = () => {
     if (!downloadPath) return;
     void ipcBridge.shell.openFile.invoke(downloadPath).catch((error) => {
       console.error('Failed to open file:', error);
     });
   };
 
-  const showInFolder = () => {
+  const onShowInFolder = () => {
     const pathToShow = downloadPath || autoUpdateDownloadedPath;
     if (!pathToShow) return;
     void ipcBridge.shell.showItemInFolder.invoke(pathToShow).catch((error) => {
@@ -377,24 +358,24 @@ const UpdateModal: React.FC = () => {
                 <div>
                   <div className='text-15px font-600 text-foreground'>{t('update.availableTitle')}</div>
                   <div className='text-12px text-tertiary mt-0.5'>
-                    {buildVersion || currentVersion} → <span className='text-[rgb(var(--primary-6))] font-500'>{updateInfo?.version || autoUpdateInfo?.version}</span>
+                    {buildVersion || currentVersion} → <span className='text-[rgb(var(--primary-6))] font-500'>{autoUpdateInfo?.version || updateInfo?.version}</span>
                   </div>
                 </div>
               </div>
               <div className='flex items-center gap-2'>
-                {!hasCompatibleManualAsset && releasePageUrl ? (
-                  <Button type='primary' size='small' onClick={openReleasePage} className='!px-4'>
+                {isPlatformUnsupported && releasePageUrl ? (
+                  <Button type='primary' size='small' onClick={onOpenReleasePage} className='!px-4'>
                     {t('update.goToRelease')}
                   </Button>
                 ) : (
                   <>
-                    {/* Manual download button - always show when asset is available */}
-                    <Button size='small' onClick={startManualDownload} icon={<IconDownload style={{ fontSize: 14 }} />} className='!px-3'>
-                      {t('update.downloadButton')}
-                    </Button>
-                    {/* Auto-update button */}
-                    {useAutoUpdate && (
-                      <Button type='primary' size='small' onClick={startAutoDownload} icon={<HardDriveDownload size={14} />} className='!px-3'>
+                    {isManualDownloadAvailable && (
+                      <Button size='small' onClick={onStartManualDownload} icon={<IconDownload style={{ fontSize: 14 }} />} className='!px-3'>
+                        {t('update.downloadButton')}
+                      </Button>
+                    )}
+                    {isAutoUpdateAvailable && (
+                      <Button type='primary' size='small' onClick={onStartAutoDownload} icon={<HardDriveDownload size={14} />} className='!px-3'>
                         {t('update.downloadAndInstall')}
                       </Button>
                     )}
@@ -403,18 +384,10 @@ const UpdateModal: React.FC = () => {
               </div>
             </div>
 
-            {/* 自动更新开关 / Auto update toggle (hidden for nightly builds) */}
-            {!isNightlyBuild && (
-              <div className='flex items-center justify-between px-6 py-3 bg-fill-1 border-b'>
-                <div className='text-13px text-secondary'>{t('update.autoUpdateMode')}</div>
-                <Switch checked={useAutoUpdate} onChange={setUseAutoUpdate} size='small' disabled={!hasCompatibleManualAsset} />
-              </div>
-            )}
-
             {/* Nightly build notice */}
             {isNightlyBuild && <div className='mx-6 mt-3 px-3 py-2.5 text-12px rounded-8px bg-orange-1 text-orange-6 dark:bg-orange-9/20'>{t('update.nightlyUpdateNotice', { defaultValue: 'This is a nightly build. Only manual download is supported for nightly updates.' })}</div>}
 
-            {!hasCompatibleManualAsset && <div className='mx-6 mt-3 px-3 py-2.5 text-12px rounded-8px bg-warning-soft text-warning'>{t('update.noCompatibleAssetManual')}</div>}
+            {isPlatformUnsupported && <div className='mx-6 mt-3 px-3 py-2.5 text-12px rounded-8px bg-warning-soft text-warning'>{t('update.noCompatibleAssetManual')}</div>}
 
             {/* 更新日志内容 / Release notes content */}
             <div className='flex-1 min-h-0 overflow-y-auto px-6 py-4 custom-scrollbar'>
@@ -458,10 +431,10 @@ const UpdateModal: React.FC = () => {
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.readyToInstall')}</div>
             <div className='text-13px text-tertiary mb-6 text-center max-w-90'>{t('update.readyToInstallDesc')}</div>
             <div className='flex gap-3'>
-              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
+              <Button size='small' onClick={onShowInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
                 {t('update.showInFolder')}
               </Button>
-              <Button type='primary' size='small' onClick={quitAndInstall} icon={<HardDriveDownload size={14} />} className='!px-4'>
+              <Button type='primary' size='small' onClick={onQuitAndInstall} icon={<HardDriveDownload size={14} />} className='!px-4'>
                 {t('update.installNow')}
               </Button>
             </div>
@@ -477,10 +450,10 @@ const UpdateModal: React.FC = () => {
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.downloadCompleteTitle')}</div>
             <div className='text-12px text-tertiary mb-6 text-center max-w-90 break-all line-clamp-2'>{downloadPath}</div>
             <div className='flex gap-3'>
-              <Button size='small' onClick={showInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
+              <Button size='small' onClick={onShowInFolder} icon={<FolderOpen size={14} />} className='!px-4'>
                 {t('update.showInFolder')}
               </Button>
-              <Button type='primary' size='small' onClick={openFile} className='!px-4'>
+              <Button type='primary' size='small' onClick={onOpenFile} className='!px-4'>
                 {t('update.openFile')}
               </Button>
             </div>
@@ -496,11 +469,11 @@ const UpdateModal: React.FC = () => {
             <div className='text-16px text-foreground font-600 mb-2'>{t('update.errorTitle')}</div>
             <div className='text-13px text-tertiary mb-6 text-center max-w-90'>{errorMsg}</div>
             <div className='flex gap-3'>
-              <Button size='small' onClick={checkForUpdates} icon={<IconRefresh style={{ fontSize: 14 }} />} className='!px-4'>
+              <Button size='small' onClick={onCheckForUpdates} icon={<IconRefresh style={{ fontSize: 14 }} />} className='!px-4'>
                 {t('common.retry')}
               </Button>
               {releasePageUrl && (
-                <Button type='primary' size='small' onClick={openReleasePage} className='!px-4'>
+                <Button type='primary' size='small' onClick={onOpenReleasePage} className='!px-4'>
                   {t('update.goToRelease')}
                 </Button>
               )}
@@ -511,10 +484,10 @@ const UpdateModal: React.FC = () => {
   };
 
   return (
-    <Modal visible={visible} onCancel={handleClose} maskClosable={!isDownloading} escToExit={!isDownloading} title={t('update.modalTitle')} footer={null} style={{ width: status === 'available' ? 600 : 480 }}>
+    <Modal visible={isVisible} onCancel={onClose} maskClosable={!isDownloading} escToExit={!isDownloading} title={t('update.modalTitle')} footer={null} style={{ width: status === 'available' ? 600 : 480 }}>
       <div className='flex flex-col h-full w-full'>{renderContent()}</div>
     </Modal>
   );
-};
+}
 
 export default UpdateModal;
