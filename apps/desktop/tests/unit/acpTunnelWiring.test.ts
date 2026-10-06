@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// Covers the ACP → nexus cutover wiring added alongside the nexusd-cluster
-// repoint: AcpConnection.doConnect routes scode through the managed_agent
-// tunnel when ACP_GRPC_ENDPOINT is set, and degrades to a local spawn if the
-// tunnel connect fails — the tunnel is an optimization, never a hard dep.
+// A configured Nexus endpoint uses the session mailbox and fails closed.
 
 type ConnectImpl = () => Promise<void>;
 type SpawnImpl = () => Promise<unknown>;
@@ -43,7 +40,7 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
   }));
 
   const grpcSent: Array<{ id?: number; method?: string }> = [];
-  class MockGrpcAcpTransport {
+  class MockNexusAcpTransport {
     connect = grpcConnect;
     close = grpcClose;
     send = vi.fn((message: { id?: number; method?: string }) => {
@@ -70,15 +67,15 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
     }
   }
   vi.doMock('@/agent/acp/transport', () => ({
-    GrpcAcpTransport: MockGrpcAcpTransport,
+    NexusAcpTransport: MockNexusAcpTransport,
     StdioAcpTransport: MockStdioAcpTransport,
   }));
 
   const mod = await import('@/agent/acp/AcpConnection');
-  return { AcpConnection: mod.AcpConnection, grpcConnect, spawnGeneric, buildSpec, mainLog, mainWarn, grpcSent };
+  return { AcpConnection: mod.AcpConnection, grpcClose, grpcConnect, spawnGeneric, buildSpec, mainLog, mainWarn, grpcSent };
 }
 
-describe('AcpConnection nexus-tunnel routing', () => {
+describe('AcpConnection Nexus session routing', () => {
   it('gives online local agents a media endpoint without a credential proxy', async () => {
     const { AcpConnection, spawnGeneric } = await loadAcpConnection({
       localApiPort: 43210,
@@ -90,35 +87,20 @@ describe('AcpConnection nexus-tunnel routing', () => {
     expect(spawnGeneric.mock.calls[0]).not.toEqual(expect.arrayContaining([expect.objectContaining({ SUDOWORK_AUTH_PROXY_URL: expect.anything() })]));
   });
 
-  it('falls back to a local spawn when the tunnel connect fails', async () => {
-    // grpc tunnel unavailable (e.g. daemon lacks managed_agent) → the local
-    // spawn path must run. It rejects with a distinct marker so we can prove
-    // control flow reached it after the tunnel failure.
-    const { AcpConnection, grpcConnect, spawnGeneric, buildSpec } = await loadAcpConnection({
-      grpcConnect: () => Promise.reject(new Error('TUNNEL_UNAVAILABLE')),
-      spawnGeneric: () => Promise.reject(new Error('LOCAL_SPAWN_REACHED')),
+  it('reports mailbox connection failure without spawning locally', async () => {
+    const { AcpConnection, grpcClose, grpcConnect, spawnGeneric, buildSpec } = await loadAcpConnection({
+      grpcConnect: () => Promise.reject(new Error('MAILBOX_UNAVAILABLE')),
+      spawnGeneric: () => Promise.reject(new Error('LOCAL_SPAWN_MUST_NOT_RUN')),
     });
     const connection = new AcpConnection();
-
-    await expect(connection.connect('scode', '/opt/scode', '/tmp/ws', [], { ACP_GRPC_ENDPOINT: '127.0.0.1:65535' })).rejects.toThrow('LOCAL_SPAWN_REACHED');
-
-    expect(buildSpec).toHaveBeenCalledTimes(1); // tunnel path built the spawn-spec
-    expect(grpcConnect).toHaveBeenCalledTimes(1); // tunnel connect was attempted
-    expect(spawnGeneric).toHaveBeenCalledTimes(1); // …then fell back to local spawn
+    await expect(connection.connect('scode', '/opt/scode', '/tmp/ws', [], { ACP_GRPC_ENDPOINT: '127.0.0.1:65535' })).rejects.toThrow('MAILBOX_UNAVAILABLE');
+    expect(buildSpec).toHaveBeenCalledTimes(1);
+    expect(grpcConnect).toHaveBeenCalledTimes(1);
+    expect(grpcClose).toHaveBeenCalledTimes(1);
+    expect(spawnGeneric).not.toHaveBeenCalled();
   });
 
-  it('says which path a session took, in both directions', async () => {
-    // The defect this pins: two of the three outcomes used to be silent, so a
-    // session that never reached nexus read exactly like one that ran wholly
-    // over the tunnel. Asserting the log IS the regression guard — there is no
-    // other artefact that distinguishes them after the fact.
-    const failed = await loadAcpConnection({
-      grpcConnect: () => Promise.reject(new Error('TUNNEL_UNAVAILABLE')),
-      spawnGeneric: () => Promise.reject(new Error('LOCAL_SPAWN_REACHED')),
-    });
-    await expect(new failed.AcpConnection().connect('scode', '/opt/scode', '/tmp/ws', [], { ACP_GRPC_ENDPOINT: '127.0.0.1:65535' })).rejects.toThrow('LOCAL_SPAWN_REACHED');
-    expect(failed.mainWarn).toHaveBeenCalledWith('[ACP]', expect.stringContaining('falling back to local spawn'));
-
+  it('logs the connected Nexus endpoint after initialize', async () => {
     const ok = await loadAcpConnection({
       grpcConnect: () => Promise.resolve(),
       spawnGeneric: () => Promise.reject(new Error('LOCAL_SPAWN_MUST_NOT_RUN')),

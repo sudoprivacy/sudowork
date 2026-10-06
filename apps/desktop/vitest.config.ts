@@ -85,6 +85,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'node',
+          ...(process.platform === 'win32' ? { sequence: { groupOrder: 0 } } : {}),
           environment: 'node',
           include: ['tests/unit/**/*.test.ts', 'tests/unit/**/test_*.ts', 'tests/integration/**/*.test.ts'],
           exclude: ['tests/unit/**/*.dom.test.ts', 'tests/unit/**/*.dom.test.tsx'],
@@ -96,6 +97,9 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'dom',
+          // jsdom layout in the ontology journeys exceeds the same 10s test
+          // deadline when competing with other DOM or SQLite test processes.
+          ...(process.platform === 'win32' ? { maxWorkers: 1, sequence: { groupOrder: 1 } } : {}),
           environment: 'jsdom',
           include: ['tests/unit/**/*.dom.test.ts', 'tests/unit/**/*.dom.test.tsx'],
           setupFiles: ['./tests/vitest.dom.setup.ts'],
