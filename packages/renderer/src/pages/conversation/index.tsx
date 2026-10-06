@@ -5,8 +5,9 @@ import { isOntologyConversation, ontologyConversationPath } from '@sudowork/comm
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Spin } from '@arco-design/web-react';
+import { Button, Result, Spin } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate, useParams } from 'react-router-dom';
 import useSWR from 'swr';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
@@ -19,6 +20,7 @@ import ChatConversation from './ChatConversation';
 import { useConversationTabs } from './context/ConversationTabsContext';
 
 const ChatConversationIndex: React.FC = () => {
+  const { t } = useTranslation();
   const { id } = useParams();
   const { isEnterprise } = useAppMode();
   const { closePreview } = usePreviewContext();
@@ -38,8 +40,8 @@ const ChatConversationIndex: React.FC = () => {
     previousConversationIdRef.current = id;
   }, [id, closePreview]);
 
-  const { data, isLoading, mutate } = useSWR(`conversation/${id}`, () => {
-    return ipcBridge.conversation.get.invoke({ id });
+  const { data, error, isLoading, mutate } = useSWR(`conversation/${id}`, async () => {
+    return (await ipcBridge.conversation.get.invoke({ id })) ?? null;
   });
   const conversationDataRef = useRef<typeof data>(undefined);
 
@@ -185,6 +187,21 @@ const ChatConversationIndex: React.FC = () => {
   const ontologyPath = data ? ontologyConversationPath(data) : undefined;
   if (ontologyPath) return <Navigate to={ontologyPath} replace />;
   if (isLoading) return <Spin loading></Spin>;
+  if (error && !data) {
+    return (
+      <Result
+        status='error'
+        title={t('common.errorBoundaryTitle')}
+        subTitle={t('common.errorBoundaryMessage')}
+        extra={
+          <Button type='primary' onClick={() => void mutate().catch((): undefined => undefined)}>
+            {t('common.retry')}
+          </Button>
+        }
+      />
+    );
+  }
+  if (!data) return <Navigate to='/guid' replace />;
   return <ChatConversation conversation={data}></ChatConversation>;
 };
 
