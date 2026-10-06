@@ -103,7 +103,7 @@ function UpdateModal() {
       if (!isNightlyBuild) {
         // A valid native feed is authoritative for platform compatibility.
         // Only fall back to manual installation when this channel fails.
-        const res = await ipcBridge.autoUpdate.check.invoke({ includePrerelease }).catch(() => null);
+        const res = await ipcBridge.autoUpdate.check.invoke({ includePrerelease }).catch((): null => null);
         if (res?.success) {
           if (res.data?.updateInfo) onAutoUpdateAvailable(res.data.updateInfo);
           else setStatus('upToDate');
