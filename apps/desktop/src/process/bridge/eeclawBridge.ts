@@ -506,6 +506,52 @@ export function initEeclawBridge(): void {
     }
   });
 
+  /**
+   * The agents this person has, for the sidebar's grouping.
+   *
+   * Distinct from `getCloudAssistants`, which lists templates — shared
+   * definitions anybody can instantiate. Moss assembles this one because only
+   * it knows which of the three kinds a stored reference is and where each
+   * kind's name lives.
+   */
+  ipcBridge.eeclaw.getMyAgents.provider(async () => {
+    try {
+      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      // Local mode has no moss to ask; the sidebar keeps its timeline view.
+      if (!serverUrl) return { success: true, data: [] };
+
+      let accessToken = await getValidToken();
+      const fetchAgents = () =>
+        net.fetch(`${serverUrl}/api/v1/agents/mine`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+
+      let response = await fetchAgents();
+      if (response.status === 401) {
+        accessToken = await getValidToken(true);
+        response = await fetchAgents();
+      }
+      if (!response.ok) {
+        mainWarn('eeclawBridge', `getMyAgents failed: ${response.status}`);
+        return { success: true, data: [] };
+      }
+
+      const body = await response.json();
+      const agents = Array.isArray(body) ? body : (body?.data ?? []);
+      return { success: true, data: Array.isArray(agents) ? agents : [] };
+    } catch (error) {
+      // An empty list leaves the sidebar on its timeline view. Failing loudly
+      // here would empty the sidebar over a transient network error.
+      mainWarn('eeclawBridge', 'getMyAgents error:', error);
+      return { success: true, data: [] };
+    }
+  });
+
   ipcBridge.eeclaw.getCloudAssistants.provider(async () => {
     try {
       const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
