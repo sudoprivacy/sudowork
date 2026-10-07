@@ -1432,6 +1432,17 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       },
     })
   },
+  // The agents this person has. Assembled by moss because only it knows which
+  // of the three kinds a stored reference is and where each kind's name lives;
+  // doing it here would put the template-is-not-an-agent distinction into the
+  // browser and give it a reason to read the organization catalog.
+  'eeclaw.get-my-agents': async () => {
+    const res = await apiFetch<{
+      data?: Array<{ ref: string; displayName: string; kind: 'default' | 'own' | 'template' }>
+    }>('/api/v1/agents/mine').catch(() => null)
+    return ok(res?.data ?? [])
+  },
+
   'eeclaw.get-cloud-assistants': async () => {
     const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(
       () => [] as MossAgentItem[],

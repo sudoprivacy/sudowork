@@ -330,5 +330,10 @@
     "failed": "Failed to generate",
     "preset_registered": "Agent preset registered successfully!"
   },
-  "userCancelled": "Request cancelled by user"
+  "userCancelled": "Request cancelled by user",
+  "sidebar": {
+    "recent": "Recent",
+    "myAgent": "My agent",
+    "agentHasNoConversations": "No conversations yet"
+  }
 }

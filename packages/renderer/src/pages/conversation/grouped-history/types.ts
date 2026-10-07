@@ -22,6 +22,20 @@ export type WorkspaceGroup = {
   conversations: ConversationItem[];
 };
 
+/**
+ * One agent and the conversations that belong to it.
+ *
+ * The group is the agent, not the template it came from: two people who picked
+ * 「招聘专家」 have two agents, and each sees only their own.
+ */
+export type AgentGroup = {
+  /** What a conversation stores in `extra.agentName`. */
+  ref: string;
+  displayName: string;
+  kind: 'default' | 'own' | 'template';
+  conversations: ConversationItem[];
+};
+
 export type ScheduledGroup = {
   jobId: string;
   jobName: string;
@@ -48,6 +62,19 @@ export type GroupedHistoryResult = {
   pinnedScheduled: ConversationItem[];
   timelineSections: TimelineSection[];
   scheduledGroups: ScheduledGroup[];
+  /**
+   * Grouped by the agent each conversation belongs to. Empty until the agent
+   * list has loaded, so the sidebar falls back to the timeline rather than
+   * flashing an ungrouped list.
+   */
+  agentGroups: AgentGroup[];
+  /**
+   * The most recent conversations across every agent, newest first.
+   *
+   * Grouping only by agent would make "find the one from last week" start with
+   * "remember whose it was". This keeps the by-time route open.
+   */
+  recent: ConversationItem[];
 };
 
 export type ExportZipFile = {

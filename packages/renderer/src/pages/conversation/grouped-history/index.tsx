@@ -30,6 +30,9 @@ import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
 
+/** Section key for the cross-agent recent list; cannot collide with an agent reference. */
+const RECENT_SECTION_KEY = '__recent__';
+
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();
   const { t } = useTranslation();
@@ -43,7 +46,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, handleToggleWorkspace } = useConversations();
+  const { conversations, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, recent, handleToggleWorkspace } = useConversations();
 
   // Select pinned list based on active tab
   const pinnedConversations = activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
@@ -275,15 +278,20 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     [collapsed, tooltipEnabled, batchMode, selectedConversationIds, id, dropdownVisibleId, toggleSelectedConversation, handleConversationClick, handleOpenMenu, handleMenuVisibleChange, handleEditStart, handleDeleteClick, handleExportConversation, handleTogglePin, getJobStatus]
   );
 
-  const renderConversation = (conversation: ConversationItem) => {
+  /**
+   * `scope` disambiguates the React key: a conversation appears both under its
+   * agent and in the cross-agent `最近` section, and the same key in two places
+   * makes React reuse one row's state for the other.
+   */
+  const renderConversation = (conversation: ConversationItem, scope?: string) => {
     const rowProps = getConversationRowProps(conversation);
-    return <ConversationRow key={conversation.id} {...rowProps} />;
+    return <ConversationRow key={scope ? `${scope}:${conversation.id}` : conversation.id} {...rowProps} />;
   };
 
   // Collect all sortable IDs for the pinned section
   const pinnedIds = useMemo(() => pinnedConversations.map((c) => c.id), [pinnedConversations]);
 
-  if (activeTab === 'timeline' && timelineSections.length === 0 && pinnedConversations.length === 0) {
+  if (activeTab === 'timeline' && agentGroups.length === 0 && timelineSections.length === 0 && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
         <div className='f-center'>
@@ -476,7 +484,58 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
           </div>
         )}
 
+        {/*
+          The agent layer, once the server has said which agents this person has.
+          A conversation belongs to an agent, and until now the sidebar had
+          nowhere to show that — so a user could neither see their agents nor
+          tell two conversations apart that differed only by whose they were.
+
+          `最近` crosses the groups on purpose: grouping only by agent would make
+          "find the one from last week" start with "remember whose it was".
+        */}
+        {activeTab === 'timeline' && agentGroups.length > 0 && (
+          <>
+            {recent.length > 0 && (
+              <div className='mb-8px min-w-0'>
+                {!collapsed && (
+                  <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(RECENT_SECTION_KEY)}>
+                    <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', isTimelineSectionExpanded(RECENT_SECTION_KEY) ? 'rotate-0' : '-rotate-90')} />
+                    <span>{t('conversation.sidebar.recent', '最近')}</span>
+                  </div>
+                )}
+                {(collapsed || isTimelineSectionExpanded(RECENT_SECTION_KEY)) && <div className='flex flex-col gap-2px min-w-0'>{recent.map((conversation) => renderConversation(conversation as ConversationItem, RECENT_SECTION_KEY))}</div>}
+              </div>
+            )}
+
+            {agentGroups.map((group) => {
+              const expanded = isTimelineSectionExpanded(group.ref);
+              // The implicit default agent is named after the person; an account
+              // with no name falls back to a label rather than showing a blank
+              // row or the internal reference.
+              const label = group.displayName || t('conversation.sidebar.myAgent', '我的智能体');
+              return (
+                <div key={group.ref} className='mb-8px min-w-0'>
+                  {!collapsed && (
+                    <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(group.ref)}>
+                      <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', expanded ? 'rotate-0' : '-rotate-90')} />
+                      <span className='truncate'>{label}</span>
+                    </div>
+                  )}
+                  {(collapsed || expanded) && (
+                    <div className='flex flex-col gap-2px min-w-0'>
+                      {group.conversations.length > 0
+                        ? group.conversations.map((conversation) => renderConversation(conversation as ConversationItem, group.ref))
+                        : !collapsed && <div className='px-12px py-6px text-12px text-secondary'>{t('conversation.sidebar.agentHasNoConversations', '还没有对话')}</div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
+
         {activeTab === 'timeline' &&
+          agentGroups.length === 0 &&
           timelineSections.map((section) => {
             const sectionExpanded = isTimelineSectionExpanded(section.timeline);
             return (

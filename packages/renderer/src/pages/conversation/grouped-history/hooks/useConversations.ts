@@ -16,6 +16,7 @@ import { getRendererSessionMode } from '@renderer/pages/guid/hooks/useGuidAgentS
 
 import type { GroupedHistoryResult } from '../types';
 import { buildGroupedHistory } from '../utils/groupingHelpers';
+import { useMyAgents } from './useMyAgents';
 
 const EXPANSION_STORAGE_KEY = 'sudowork_workspace_expansion';
 
@@ -102,13 +103,14 @@ export const useConversations = () => {
   }, [expandedWorkspaces]);
 
   const { jobs: cronJobs } = useAllCronJobs();
+  const myAgents = useMyAgents();
 
   const groupedHistory: GroupedHistoryResult = useMemo(() => {
-    const result = buildGroupedHistory(conversations, t, cronJobs);
+    const result = buildGroupedHistory(conversations, t, cronJobs, myAgents);
     return result;
-  }, [conversations, t, cronJobs]);
+  }, [conversations, t, cronJobs, myAgents]);
 
-  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups } = groupedHistory;
+  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, recent } = groupedHistory;
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {
@@ -164,6 +166,8 @@ export const useConversations = () => {
     pinnedScheduled,
     timelineSections,
     scheduledGroups,
+    agentGroups,
+    recent,
     handleToggleWorkspace,
   };
 };

@@ -275,5 +275,10 @@
   },
   "noAgentsAvailable": "No agents available",
   "noModelConfigured": "No model configured. Please configure in settings.",
-  "createFailed": "Failed to create conversation"
+  "createFailed": "Failed to create conversation",
+  "sidebar": {
+    "recent": "Son",
+    "myAgent": "Ajanım",
+    "agentHasNoConversations": "Henüz konuşma yok"
+  }
 }
