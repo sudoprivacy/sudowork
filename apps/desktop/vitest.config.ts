@@ -131,6 +131,7 @@ export default defineConfig({
         'src/process/bridge/mossCatalogBridge.ts',
         '../../packages/renderer/src/components/MossCatalogBrowser.tsx',
         '../../packages/renderer/src/utils/platform.ts',
+        '../../packages/renderer/src/hooks/useResponsiveSider.ts',
         '../../packages/common/src/mossExecution.ts',
         '../../packages/common/src/conversationTitle.ts',
         '../../packages/renderer/src/pages/conversation/grouped-history/utils/groupingHelpers.ts',

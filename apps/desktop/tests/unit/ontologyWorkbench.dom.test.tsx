@@ -498,47 +498,52 @@ describe('OntologyWorkbench', () => {
       expect(dialog).not.toBeVisible();
     });
 
-    it.each(['oracle', 'sqlserver'] as const)('preserves legacy %s edits and restores restricted options when creating next', async (sourceType) => {
-      const api = createApi();
-      const snapshot = await api.getWorkbench();
-      const fields = { host: `${sourceType}.example.invalid`, port: sourceType === 'oracle' ? 1522 : 1434, database: 'legacy_reporting', username: 'test_reader', password: 'fake-legacy-password', writable: true, poolSize: 7, rateLimitQps: 45, description: 'Legacy reporting connection' };
-      const metadata = { displayName: `Legacy ${sourceType}`, owner: 'test-fixture', host: fields.host, port: fields.port, database: fields.database };
-      const connector = { id: `legacy-${sourceType}`, name: `${sourceType}::stored-name`, sourceType, kind: 'database' as const, ...fields, metadata, probeStatus: 'reachable' as const, createdAt: 1, updatedAt: 1 };
-      snapshot.connectors = [connector];
-      vi.mocked(api.probeConnector).mockResolvedValue({ snapshot, connector, assets: [] });
-      render(<OntologyWorkbench api={api} />);
-      const row = (await screen.findByText(metadata.displayName)).closest('tr') as HTMLElement;
-      fireEvent.click(within(row).getByRole('button', { name: 'ontology.editor.edit' }));
-      const dialog = await screen.findByRole('dialog', { name: 'ontology.console.connectionForm.editTitle' });
-      expect(getConnectorField(dialog, 'name')).toHaveValue(metadata.displayName);
-      expect(getConnectorField(dialog, 'category')).toHaveValue('ontology.console.connectionPicker.categories.database.title');
-      expect(getConnectorFormItem(dialog, 'type')).toHaveTextContent(`ontology.connectorType.${sourceType}`);
-      for (const [field, value] of Object.entries(fields)) {
-        if (field !== 'writable') expect(getConnectorField(dialog, field)).toHaveValue(String(value));
-      }
-      expect(within(getConnectorFormItem(dialog, 'writable')).getByRole('switch')).toBeChecked();
-      const options = await openConnectorTypeOptions(dialog);
-      expect(options.map((option) => option.textContent)).toEqual(['ontology.connectorType.mysql', 'ontology.connectorType.postgresql', 'ontology.connectorType.oracle', 'ontology.connectorType.sqlserver']);
-      expect(screen.getByRole('option', { name: `ontology.connectorType.${sourceType}` })).toHaveAttribute('aria-selected', 'true');
-      await onCloseModal(within(dialog).getByRole('button', { name: 'ontology.connector.scan' }));
-      expect(api.probeConnector).toHaveBeenCalledExactlyOnceWith({
-        connector: { id: connector.id, name: connector.name, sourceType, kind: 'database', ...fields, credential: { username: fields.username, password: fields.password }, metadata },
-        recursive: true,
-        maxAssets: 300,
-      });
-      expect(dialog).not.toBeVisible();
+    it.each(['oracle', 'sqlserver'] as const)(
+      'preserves legacy %s edits and restores restricted options when creating next',
+      async (sourceType) => {
+        const api = createApi();
+        const snapshot = await api.getWorkbench();
+        const fields = { host: `${sourceType}.example.invalid`, port: sourceType === 'oracle' ? 1522 : 1434, database: 'legacy_reporting', username: 'test_reader', password: 'fake-legacy-password', writable: true, poolSize: 7, rateLimitQps: 45, description: 'Legacy reporting connection' };
+        const metadata = { displayName: `Legacy ${sourceType}`, owner: 'test-fixture', host: fields.host, port: fields.port, database: fields.database };
+        const connector = { id: `legacy-${sourceType}`, name: `${sourceType}::stored-name`, sourceType, kind: 'database' as const, ...fields, metadata, probeStatus: 'reachable' as const, createdAt: 1, updatedAt: 1 };
+        snapshot.connectors = [connector];
+        vi.mocked(api.probeConnector).mockResolvedValue({ snapshot, connector, assets: [] });
+        render(<OntologyWorkbench api={api} />);
+        const row = (await screen.findByText(metadata.displayName)).closest('tr') as HTMLElement;
+        fireEvent.click(within(row).getByRole('button', { name: 'ontology.editor.edit' }));
+        const dialog = await screen.findByRole('dialog', { name: 'ontology.console.connectionForm.editTitle' });
+        expect(getConnectorField(dialog, 'name')).toHaveValue(metadata.displayName);
+        expect(getConnectorField(dialog, 'category')).toHaveValue('ontology.console.connectionPicker.categories.database.title');
+        expect(getConnectorFormItem(dialog, 'type')).toHaveTextContent(`ontology.connectorType.${sourceType}`);
+        for (const [field, value] of Object.entries(fields)) {
+          if (field !== 'writable') expect(getConnectorField(dialog, field)).toHaveValue(String(value));
+        }
+        expect(within(getConnectorFormItem(dialog, 'writable')).getByRole('switch')).toBeChecked();
+        const options = await openConnectorTypeOptions(dialog);
+        expect(options.map((option) => option.textContent)).toEqual(['ontology.connectorType.mysql', 'ontology.connectorType.postgresql', 'ontology.connectorType.oracle', 'ontology.connectorType.sqlserver']);
+        expect(screen.getByRole('option', { name: `ontology.connectorType.${sourceType}` })).toHaveAttribute('aria-selected', 'true');
+        await onCloseModal(within(dialog).getByRole('button', { name: 'ontology.connector.scan' }));
+        expect(api.probeConnector).toHaveBeenCalledExactlyOnceWith({
+          connector: { id: connector.id, name: connector.name, sourceType, kind: 'database', ...fields, credential: { username: fields.username, password: fields.password }, metadata },
+          recursive: true,
+          maxAssets: 300,
+        });
+        expect(dialog).not.toBeVisible();
 
-      const newDialog = await openNewConnector();
-      expect(getConnectorFormItem(newDialog, 'type')).toHaveTextContent('ontology.connectorType.mysql');
-      for (const field of ['name', 'host', 'database', 'username', 'password', 'description']) {
-        expect(getConnectorField(newDialog, field)).toHaveValue('');
-      }
-      expect(getConnectorField(newDialog, 'port')).toHaveValue('3306');
-      expect(within(getConnectorFormItem(newDialog, 'writable')).getByRole('switch')).not.toBeChecked();
-      expect((await openConnectorTypeOptions(newDialog)).map((option) => option.textContent)).toEqual(['ontology.connectorType.mysql', 'ontology.connectorType.postgresql']);
-      expect(snapshot.connectors).toEqual([connector]);
-      expect(api.probeConnector).toHaveBeenCalledTimes(1);
-    });
+        const newDialog = await openNewConnector();
+        expect(getConnectorFormItem(newDialog, 'type')).toHaveTextContent('ontology.connectorType.mysql');
+        for (const field of ['name', 'host', 'database', 'username', 'password', 'description']) {
+          expect(getConnectorField(newDialog, field)).toHaveValue('');
+        }
+        expect(getConnectorField(newDialog, 'port')).toHaveValue('3306');
+        expect(within(getConnectorFormItem(newDialog, 'writable')).getByRole('switch')).not.toBeChecked();
+        expect((await openConnectorTypeOptions(newDialog)).map((option) => option.textContent)).toEqual(['ontology.connectorType.mysql', 'ontology.connectorType.postgresql']);
+        expect(snapshot.connectors).toEqual([connector]);
+        expect(api.probeConnector).toHaveBeenCalledTimes(1);
+        // This journey opens two full forms; allow for slower Windows DOM rendering.
+      },
+      process.platform === 'win32' ? 20_000 : 10_000
+    );
 
     it.each(['ftp', 'sftp'])('keeps file transfer options and %s fields available', async (sourceType) => {
       render(<OntologyWorkbench api={createApi()} />);

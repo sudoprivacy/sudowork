@@ -6,7 +6,7 @@ import type { AuthDeps } from '../auth/authService.js'
 import { getMossContext } from '../auth/authService.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
 import type { MossMcpPort } from '@sudowork/moss-client'
-import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
+import { MossNetworkError } from '@sudowork/moss-client'
 
 /**
  * 设置路由（计划 Task 8）：
@@ -42,10 +42,6 @@ export function createSettingsRouter(deps: SettingsDeps): Router {
     }
     if (err instanceof MossUnavailableError) {
       res.status(503).json({ error: 'MOSS_UNAVAILABLE' })
-      return
-    }
-    if (err instanceof MossHttpError) {
-      res.status(502).json({ error: 'MOSS_ERROR', status: err.status })
       return
     }
     next(err)

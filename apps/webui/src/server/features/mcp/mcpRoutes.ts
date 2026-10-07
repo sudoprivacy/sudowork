@@ -86,10 +86,6 @@ export function createMcpRouter(deps: McpDeps): Router {
       res.status(503).json({ error: 'MOSS_UNAVAILABLE' })
       return
     }
-    if (err instanceof MossHttpError) {
-      res.status(502).json({ error: 'MOSS_ERROR', status: err.status })
-      return
-    }
     next(err)
   }
 

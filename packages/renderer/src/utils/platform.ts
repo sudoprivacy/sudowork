@@ -17,6 +17,11 @@ export const isElectronDesktop = (): boolean => {
   return typeof window !== 'undefined' && Boolean(window.electronAPI);
 };
 
+/** Routes that require services supplied by the desktop host. */
+export function isDesktopOnlyRoute(pathname: string): boolean {
+  return ['/app/security', '/settings/security', '/app/local-kb', '/app/ontology'].some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
 /**
  * Whether the web bridge transport (webui mossAdapter) has been wired up.
  * True only in a browser host that side-effect-imported the mossAdapter —

@@ -17,6 +17,7 @@ import { useTenantConfig } from '@renderer/context/TenantConfigContext';
 import { useDeepLink } from '@renderer/hooks/useDeepLink';
 import { useDirectorySelection } from '@renderer/hooks/useDirectorySelection';
 import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
+import { useResponsiveSider } from '@renderer/hooks/useResponsiveSider';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
 import DebugPanel from '@renderer/layouts/components/DebugPanel';
@@ -55,10 +56,11 @@ const useDebug = () => {
 
 const DEFAULT_SIDER_WIDTH = 260;
 
-const Layout: React.FC = () => {
+function Layout() {
   const { t } = useTranslation();
   const { config } = useTenantConfig(); // 获取租户配置
-  const [collapsed, setCollapsed] = useState(false);
+  const location = useLocation();
+  const { isCollapsed, setIsCollapsed } = useResponsiveSider(location.pathname);
   const { onClick } = useDebug();
   const navigate = useNavigate();
   // 点击侧栏顶部 logo / 应用名时回到新会话页，行为与「新会话」按钮一致
@@ -74,13 +76,12 @@ const Layout: React.FC = () => {
   useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   useDeepLink();
-  const location = useLocation();
   const workspaceAvailable = location.pathname.startsWith('/conversation/');
 
   // 清理侧栏 Tooltip 残留节点，避免路由切换后浮层卡在左上角
   useEffect(() => {
     cleanupSiderTooltips();
-  }, [collapsed, location.pathname, location.search, location.hash]);
+  }, [isCollapsed, location.pathname, location.search, location.hash]);
 
   // Bridge Main Process logs to F12 Console
   useEffect(() => {
@@ -98,15 +99,15 @@ const Layout: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const layoutContextValue = useMemo(() => ({ siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }), [collapsed, setCollapsed]);
+  const layoutContextValue = useMemo(() => ({ siderCollapsed: isCollapsed, setSiderCollapsed: setIsCollapsed }), [isCollapsed, setIsCollapsed]);
 
   return (
     <LayoutContext.Provider value={layoutContextValue}>
-      <div className={classNames('app-shell relative flex flex-col size-full min-h-0', { 'app-shell--sider-divider': !collapsed })} style={{ '--layout-sider-width': `${DEFAULT_SIDER_WIDTH}px` } as React.CSSProperties}>
+      <div className={classNames('app-shell relative flex flex-col size-full min-h-0', { 'app-shell--sider-divider': !isCollapsed })} style={{ '--layout-sider-width': `${DEFAULT_SIDER_WIDTH}px` } as React.CSSProperties}>
         <Titlebar workspaceAvailable={workspaceAvailable} />
 
         <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
-          <ArcoLayout.Sider collapsedWidth={0} collapsed={collapsed} width={DEFAULT_SIDER_WIDTH} className='layout-sider'>
+          <ArcoLayout.Sider collapsedWidth={0} collapsed={isCollapsed} width={DEFAULT_SIDER_WIDTH} className='layout-sider'>
             <ArcoLayout.Header className='flex items-center justify-start py-2 px-4 pl-4.5 gap-2.5 layout-sider-header'>
               <div
                 className='shrink-0 size-8.5 relative rd-0.5rem f-center cursor-pointer'
@@ -136,6 +137,6 @@ const Layout: React.FC = () => {
       </div>
     </LayoutContext.Provider>
   );
-};
+}
 
 export default Layout;
