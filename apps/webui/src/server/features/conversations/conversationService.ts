@@ -63,6 +63,11 @@ export interface ConversationDeps {
 
 const NameListSchema = z.array(z.object({ name: z.string() }).passthrough())
 
+const MyAgentsSchema = z.object({
+  success: z.literal(true),
+  data: z.array(z.object({ ref: z.string(), kind: z.enum(['default', 'own', 'template']) })),
+})
+
 const AvailableModelsSchema = z
   .object({
     data: z.array(z.object({ id: z.string(), name: z.string().optional() }).passthrough()),
@@ -90,8 +95,22 @@ async function assertSelectionVisible(
   ctx: MossCallContext,
 ): Promise<void> {
   if (input.assistantName) {
-    const names = await fetchVisibleNames(deps, '/api/v1/agent-templates/installed', ctx)
-    if (!names.has(input.assistantName)) {
+    let isVisible: boolean
+    if (/^moss-agent:(user|own):/.test(input.assistantName)) {
+      const json = await deps.mossFetch(ctx.baseUrl, {
+        method: 'GET',
+        path: '/api/v1/agents/mine',
+        accessToken: ctx.accessToken,
+      })
+      const { data } = MyAgentsSchema.parse(json)
+      isVisible = data.some(
+        (agent) => agent.kind !== 'template' && agent.ref === input.assistantName,
+      )
+    } else {
+      const names = await fetchVisibleNames(deps, '/api/v1/agent-templates/installed', ctx)
+      isVisible = names.has(input.assistantName)
+    }
+    if (!isVisible) {
       throw new InvalidSelectionError('assistantName', input.assistantName)
     }
   }

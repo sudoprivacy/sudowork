@@ -10,7 +10,7 @@ import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
 import { useCronAccess } from './hooks/useCronAccess';
-import { isElectronDesktop } from './utils/platform';
+import { isDesktopOnlyRoute, isElectronDesktop } from './utils/platform';
 import UpdateModal from './layouts/components/UpdateModal';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
@@ -113,7 +113,7 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <Navigate to='/login' replace />;
   }
 
-  if (!isElectronDesktop() && (location.pathname === '/app/security' || location.pathname === '/settings/security')) {
+  if (!isElectronDesktop() && isDesktopOnlyRoute(location.pathname)) {
     return <Navigate to='/guid' replace />;
   }
 

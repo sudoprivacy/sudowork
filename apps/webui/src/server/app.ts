@@ -277,42 +277,49 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
 
   // 全局错误中间件：兜住各路由 next(err) 的未识别错误，统一返回 JSON（杜绝 Express 默认
   // HTML 错误页——前端对非 {error} JSON 只能显示 UNKNOWN）。必须注册在全部 /api 路由之后。
-  app.use(
-    (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-      if (res.headersSent) {
-        _next(err)
-        return
-      }
-      if (err instanceof MossUnauthorizedError) {
-        res.status(401).json({ error: 'MOSS_UNAUTHORIZED' })
-        return
-      }
-      if (err instanceof MossNetworkError) {
-        res.status(503).json({ error: 'MOSS_UNAVAILABLE' })
-        return
-      }
-      if (err instanceof MossHttpError) {
-        if (err.status === 401 || err.status === 403) {
-          res.status(401).json({ error: 'MOSS_UNAUTHORIZED' })
-        } else {
-          res.status(502).json({ error: 'MOSS_ERROR' })
-        }
-        return
-      }
-      // body-parser 超限（raw-body 的 413 entity.too.large）→ 明确的上传超限语义
-      if (
-        err !== null &&
-        typeof err === 'object' &&
-        (err as { type?: unknown }).type === 'entity.too.large'
-      ) {
-        res.status(413).json({ error: 'FILE_TOO_LARGE' })
-        return
-      }
-      res.status(500).json({ error: 'INTERNAL' })
-    },
-  )
+  app.use(onApiError)
 
   return { coordinator, mossSession, auth }
+}
+
+/** Preserve request failures without exposing upstream bodies or host paths. */
+export function onApiError(
+  err: unknown,
+  _req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  if (res.headersSent) {
+    next(err)
+    return
+  }
+  if (err instanceof MossUnauthorizedError) {
+    res.status(401).json({ error: 'MOSS_UNAUTHORIZED' })
+    return
+  }
+  if (err instanceof MossNetworkError) {
+    res.status(503).json({ error: 'MOSS_UNAVAILABLE' })
+    return
+  }
+  if (err instanceof MossHttpError) {
+    const status = err.status >= 400 && err.status < 500 ? err.status : 502
+    const error =
+      status === 401 ? 'MOSS_UNAUTHORIZED' : status === 403 ? 'MOSS_FORBIDDEN' : 'MOSS_ERROR'
+    res.status(status).json({ error })
+    return
+  }
+  if (err !== null && typeof err === 'object') {
+    const type = (err as { type?: unknown }).type
+    if (type === 'entity.too.large') {
+      res.status(413).json({ error: 'FILE_TOO_LARGE' })
+      return
+    }
+    if (type === 'entity.parse.failed') {
+      res.status(400).json({ error: 'INVALID_JSON' })
+      return
+    }
+  }
+  res.status(500).json({ error: 'INTERNAL' })
 }
 
 export interface WsDeps {

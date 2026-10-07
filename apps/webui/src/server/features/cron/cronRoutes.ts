@@ -92,7 +92,7 @@ export function createCronRouter(deps: CronDeps): Router {
         res.status(403).json({ error: 'CRON_DISABLED_BY_ORG' })
         return
       }
-      res.status(502).json({ error: 'MOSS_ERROR', status: err.status })
+      next(err)
       return
     }
     next(err)

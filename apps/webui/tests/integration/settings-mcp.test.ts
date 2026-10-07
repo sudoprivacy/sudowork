@@ -48,7 +48,9 @@ function createFakeMcp(): MossMcpPort {
     async installJson() {
       return { ok: true }
     },
-    async createServer() {
+    async createServer(_tk, body) {
+      if ((body as { invalid?: boolean }).invalid)
+        throw new MossHttpError(400, 'private upstream details', '/private')
       return { ok: true }
     },
     async setEnabled() {
@@ -289,6 +291,16 @@ describe('settings + mcp routes (real PostgreSQL + fake moss)', () => {
       .set('Origin', ORIGIN)
       .send({ json_config: '{"mcpServers":{}}' })
     expect(res.status).toBe(201)
+  })
+
+  test('upstream MCP validation retains a client status without exposing internal details', async () => {
+    const response = await request(app)
+      .post('/api/mcp/servers')
+      .set('Cookie', cookieA)
+      .set('Origin', ORIGIN)
+      .send({ invalid: true })
+    expect(response.status).toBe(400)
+    expect(response.body).toEqual({ error: 'MOSS_ERROR' })
   })
 
   test('policy is read-only projection', async () => {

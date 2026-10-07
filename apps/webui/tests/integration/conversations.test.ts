@@ -319,8 +319,11 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       const res = await request(await buildApp(moss))
         .get('/api/conversations/sess-a1/deliverables')
         .set('Cookie', cookieA)
-      expect(res.status).toBe(status === 500 ? 502 : 401)
-      expect(res.body).toEqual({ error: status === 500 ? 'MOSS_ERROR' : 'MOSS_UNAUTHORIZED' })
+      expect(res.status).toBe(status === 500 ? 502 : status)
+      expect(res.body).toEqual({
+        error:
+          status === 500 ? 'MOSS_ERROR' : status === 403 ? 'MOSS_FORBIDDEN' : 'MOSS_UNAUTHORIZED',
+      })
     },
   )
 

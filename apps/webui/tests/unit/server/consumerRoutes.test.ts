@@ -102,6 +102,53 @@ describe('consumer 转发：recharge 路径', () => {
   })
 })
 
+describe('personal Agent forwarding', () => {
+  test.each(['/agents/mine', '/user-agents'])(
+    'forwards only the current session token for %s',
+    async (path) => {
+      const response = await request(setupApp()).get(`/api/v1${path}`)
+      expect(response.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+        `http://moss.test/api/v1${path}`,
+        expect.objectContaining({ headers: { Authorization: 'Bearer tok-1' } }),
+      )
+    },
+  )
+
+  test('creates a personal Agent using a validated display name', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ success: true, data: { id: 'agent-1', displayName: 'Project' } }, 201),
+    )
+    const response = await request(setupApp())
+      .post('/api/v1/user-agents')
+      .send({ displayName: ' Project ' })
+    expect(response.status).toBe(201)
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'http://moss.test/api/v1/user-agents',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ displayName: 'Project' }) }),
+    )
+  })
+
+  test.each([
+    {},
+    { displayName: '' },
+    { displayName: '   ' },
+    { displayName: 'x'.repeat(61) },
+    { displayName: 'Project', userId: 'other' },
+    { displayName: 'Project', orgId: 'other' },
+  ])('rejects invalid names and caller-supplied ownership: %j', async (body) => {
+    const response = await request(setupApp()).post('/api/v1/user-agents').send(body)
+    expect(response.status).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  test('does not expose other Agent administration paths', async () => {
+    expect((await request(setupApp()).post('/api/v1/agents').send({})).status).toBe(404)
+    expect((await request(setupApp()).get('/api/v1/user-agents/foreign')).status).toBe(404)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
 describe('consumer 转发：既有路径回归', () => {
   test('GET /user/dashboard 转发目标不变', async () => {
     await request(setupApp()).get('/api/v1/user/dashboard')

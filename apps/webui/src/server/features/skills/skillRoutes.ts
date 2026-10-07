@@ -3,7 +3,6 @@ import { ZodError } from 'zod'
 import { getMossContext } from '../auth/authService.js'
 import type { MossCallContext } from '@sudowork/moss-client'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
-import { MossHttpError } from '@sudowork/moss-client'
 import {
   HubListQuerySchema,
   InstallRequestSchema,
@@ -57,10 +56,6 @@ export function createSkillRouter(deps: SkillDeps): Router {
     }
     if (err instanceof MossUnavailableError) {
       res.status(503).json({ error: 'MOSS_UNAVAILABLE' })
-      return
-    }
-    if (err instanceof MossHttpError) {
-      res.status(502).json({ error: 'MOSS_ERROR', status: err.status })
       return
     }
     next(err)

@@ -17,6 +17,7 @@
  * so whatever is reachable through it is reachable to any page on this origin.
  */
 import { Router, type NextFunction, type Response } from 'express'
+import { z } from 'zod'
 import { getMossContext } from '../auth/authService.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
 import type { AuthDeps } from '../auth/authService.js'
@@ -24,11 +25,13 @@ import type { AuthDeps } from '../auth/authService.js'
 /**
  * Paths this server will forward, exact match on the leading segments.
  *
- * Read-only except for credit applications, which a user submits for their own
- * account. Every one of these is scoped by moss to the calling user, so the
+ * Every one of these is scoped by moss to the calling user, so the
  * forward adds no authority beyond what the session already carries.
  */
 const FORWARDED = [
+  { method: 'GET', path: '/agents/mine' },
+  { method: 'GET', path: '/user-agents' },
+  { method: 'POST', path: '/user-agents' },
   { method: 'GET', path: '/user/dashboard' },
   { method: 'GET', path: '/user/profile' },
   { method: 'GET', path: '/user/model-usage-stats' },
@@ -44,6 +47,8 @@ const FORWARDED = [
   { method: 'POST', path: '/recharge/cancel/:orderNo' },
 ] as const
 
+const PersonalAgentSchema = z.object({ displayName: z.string().trim().min(1).max(60) }).strict()
+
 export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
   const router = Router()
 
@@ -54,6 +59,15 @@ export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
       next: NextFunction,
     ): Promise<void> => {
       try {
+        let body = req.body ?? {}
+        if (route.method === 'POST' && route.path === '/user-agents') {
+          const parsed = PersonalAgentSchema.safeParse(body)
+          if (!parsed.success) {
+            res.status(400).json({ error: 'INVALID_REQUEST' })
+            return
+          }
+          body = parsed.data
+        }
         const ctx = await getMossContext(deps.auth, req.webSession!)
         // `originalUrl` keeps the mount prefix, the real path params and the
         // query string, so param routes like /recharge/query/:orderNo forward
@@ -64,7 +78,7 @@ export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
             Authorization: `Bearer ${ctx.accessToken}`,
             ...(route.method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
           },
-          ...(route.method === 'POST' ? { body: JSON.stringify(req.body ?? {}) } : {}),
+          ...(route.method === 'POST' ? { body: JSON.stringify(body) } : {}),
         })
         const text = await upstream.text()
         // Passed through verbatim, status included: these pages read moss's own
