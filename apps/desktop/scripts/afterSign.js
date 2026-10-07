@@ -42,14 +42,20 @@ exports.default = async function afterSign(context) {
   const baseDelay = 30000; // 30 seconds
   const notarizeTimeout = 1800000; // 30 minutes per attempt
 
-  // Wrap notarize in a timeout promise
-  const notarizeWithTimeout = (options) =>
-    Promise.race([
-      notarize(options),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Notarization timed out after 30 minutes')), notarizeTimeout)
-      ),
-    ]);
+  // Clear the deadline after every attempt so it cannot keep the build alive.
+  const notarizeWithTimeout = async (options) => {
+    let timeout;
+    try {
+      return await Promise.race([
+        notarize(options),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Notarization timed out after 30 minutes')), notarizeTimeout);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
