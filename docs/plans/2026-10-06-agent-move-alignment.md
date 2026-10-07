@@ -276,19 +276,36 @@ Agent cert 表达身份；带 owner 的 session cert 还能表达代表谁执行
 
 不能将一次 RPC 成功当作联邦挂载已完成，也不能宣称仅带自己的 Agent 证书就能完成在线 share/mount。需要补齐受授权的在线控制入口，复用现有 kernel/DLC/协调器；挂载成功必须以实际路由与读取验证。
 
-#### 建议的 Agent 操作契约
+#### 底层操作清单与工具边界（2026-10-07）
 
-以下名称是设计建议，尚未实现：
+先确认底层接口，再决定模型入口。撤回提前确定三个 core tool 的建议；本轮不增加 core tool。`agent_list` 继续使用现有 mailbox Directory，不因 Move 增加 IP 字段或独立发现表。目标存储节点和运行环境应通过已有连接与授权信息解析。
 
-| 操作                | 职责                                                                  |
-| ------------------- | --------------------------------------------------------------------- |
-| `environment_list`  | 返回调用者可使用的存储/运行目标及能力；初版围绕已配置云端和已连接设备 |
-| `agent_move`        | 以稳定 Agent 身份和目标标识发起任务，返回任务 ID 与当前阶段           |
-| `agent_move_status` | 返回同一任务的进度、缺失对象、持久完成回执和恢复状态                  |
+| 所需能力 | 可复用实现 | 当前缺口或约束 |
+| --- | --- | --- |
+| 读取身份、路径和拓扑 | AgentHome、`Stat/Readdir`、`GetClusterInfo`、`DiscoverZones` | 拓扑结果不是用户可用设备清单，需按调用者授权解释 |
+| 将本地子树共享为 zone | `share_subtree_core_async`，CLI `share --mount-at` | CLI 独占数据目录；仅 share 不改变后续写入路由，mount 才改变路由 |
+| 加入已有 zone | `JoinZone`、`bootstrap_or_join_zone`，CLI `join` | CLI 默认 learner；仅 learner 不能在唯一 voter 离线时继续强一致写入 |
+| 安装挂载和委托权限 | kernel `sys_setattr(DT_MOUNT)`、现有身份与授权层 | 远端 federation Setattr 仍未贯通，普通 Agent cert 不具有节点管理权限 |
+| 复制热日志 | 现有 zone Raft/WAL 复制 | 不能代替附件 CAS、冷片段的完整持久复制 |
+| 获取普通内容和冷片段 | 现有 FetchContent、CAS 与冷片段读取/回填 | 需要显式持久保留、失败传播、引用闭包和完成确认 |
+| 查询进度与完成结果 | 可沿用持久任务/文件读取形式 | 当前没有经验证的完整 Agent 内容复制任务；工具设计等待该契约 |
+
+同一 zone 的成员才能接收该 zone 的 Raft 复制；已有合适的 zone 时直接加入即可。不能只修改 `zone_id` 标签，也不需要每次 Move 都新建 zone。`/agents/{name}` 的 share 不自动包含 `/sessions/{sid}` 链接目标，必须覆盖获授权的引用内容。笔记本不应未经设计就成为云端强一致操作依赖的 voter。
+
+成员资格还涉及隐私边界：授权复制某个 Agent，不能直接解释为允许私人设备接收整个租户 zone 的元数据。原型须先核查现有个人 namespace 对应的 zone 和授权范围；若需要独立共享边界，必须与既有不可变身份 zone 契约对齐，不能为了 Move 重写 Agent 的身份 zone。
+
+Python 层确实已有 `federation_share`、`federation_join`、`federation_mount`，因此不能笼统说没有接口。但沿当前源码追踪后发现：
+
+- `KernelClient._call` 将 `federation_share_zone` / `federation_join_zone` 发到 Rust generic Call；当前 `call_dispatch.rs` 没有这些方法，返回 unknown method。这些 Python 包装不能直接作为可用的线上实现。
+- Python `federation_mount` 使用 typed Setattr，仍会遇到上述 federation synthetic ack；传入 `source` 也不能补齐当前 wire 缺口。
+- Python `federation_join` 假定 root zone 的 share registry 已复制到本机，忽略 `peer_addr`，并请求 voter；不能直接拿它完成两台独立设备的初次接入。
+- Python zone export/import、cache warmer 和 hydrate 可提供复用思路，但没有证明它们保留完整 flat+link/stream/CAS 语义并提供源离线恢复保证。
+
+建议补齐现有 Nexus 控制面与复制完成契约，复用上述实现。模型最终可能只需要一个可按需发现的 Move 操作；目标参数和任务查询是否复用已有资源读取接口，待底层原型验证后共同确定，暂不注册三个常驻工具。
 
 授权与路径枚举由真实身份、现有 AgentHome/store 和 Nexus 权限决定。core tool 是已有全局工具注册/执行路径上的适配；cohost 与 standalone 使用同一个操作契约，通过各自的 host/client 连接同一底层能力。Moss REST 或之后的人类 UI 也调用该能力，不各自实现一套复制算法。
 
-`agent_move` 的后端必须先有真实实现，再向模型提供工具。初版至少覆盖授权对象集、版本截止位置、可重试复制、目标持久确认和源离线读取。复制阶段与运行交接阶段在返回值中明确呈现；自动停止/恢复的产品语义仍待对齐。
+Move 的后端必须先有真实实现，再向模型提供工具。初版至少覆盖授权对象集、版本截止位置、可重试复制、目标持久确认和源离线读取。复制阶段与运行交接阶段在返回值中明确呈现；自动停止/恢复的产品语义仍待对齐。
 
 迁移当前执行者自身时，任务不能只活在被迁移的进程内。由持久服务承载任务，先返回任务 ID，在会话安全边界 checkpoint；运行交接须能在调用者退出后查询与恢复。advisory lock 需要所有写入路径配合，并不提供网络分区下的 storage fencing。
 
@@ -313,6 +330,8 @@ Agent cert 表达身份；带 owner 的 session cert 还能表达代表谁执行
 | 内部 `ManagedAgentClient.startSession/cancel/openSession`                                     | 经 ACP mailbox 调用 managed-agent 的会话启动、取消与接入         | 启动返回运行句柄、durable SID 和 session endpoint；没有 Move 操作 |
 
 在上述版本中未找到个人 Agent 的改名/删除/详情路由、通用用户设备/目标列表，以及 Agent Move 任务接口。现有 `userAgentStore` 只存身份与归属，不能扩成保存第二份 session 正文的库。个人 Agent API、模板 API 和 session API 的现有职责继续保留。
+
+模板的统一英文名为 **Agent Template**。本轮将模板 API 改为 `/api/v1/agent-templates/*`，审批路径为 `/api/v1/admin/agent-templates/*`，WebUI 代理入口为 `/api/agent-templates/*`。旧 URL 在路由边界兼容，业务处理与权限校验只有一套。先部署兼容新旧入口的 Moss，再发布新客户端。现有 catalog kind、runtimeRef 和身份派生输入保留，以免 API 改名产生新 Agent 身份；`/api/v1/agents/private-archives` 是真实私人数据，不归类为模板。
 
 ## 7. 落地顺序和验收
 
@@ -371,6 +390,10 @@ Agent cert 表达身份；带 owner 的 session cert 还能表达代表谁执行
 - [Nexus gRPC mount permission and federation no-op](https://github.com/nexi-lab/nexus-vfs/blob/48215056d/rust/transport/src/grpc.rs)
 - [Nexus identity versus authorization](https://github.com/nexi-lab/nexus-vfs/blob/48215056d/rust/transport/src/auth.rs)
 - [Nexus cluster and zone discovery](https://github.com/nexi-lab/nexus-vfs/blob/48215056d/proto/nexus/raft/transport.proto)
+- [Nexus Call dispatch](https://github.com/nexi-lab/nexus-vfs/blob/48215056d/rust/transport/src/call_dispatch.rs)
+- [Existing share and join implementation](https://github.com/nexi-lab/nexus-vfs/blob/48215056d/rust/profiles/cluster/src/lib.rs)
+- [Python federation RPC wrappers](https://github.com/nexi-lab/nexus/blob/bc48b7c1d/src/nexus/server/rpc/services/federation_rpc.py)
+- [Python remote kernel client](https://github.com/nexi-lab/nexus/blob/bc48b7c1d/src/nexus/remote/kernel_client.py)
 - [Current Moss routes](https://github.com/sudoprivacy/moss/blob/6c08829/src/server/server.ts)
 - [Moss personal Agent store](https://github.com/sudoprivacy/moss/blob/6c08829/src/server/userAgentStore.ts)
 - [Moss managed-agent client](https://github.com/sudoprivacy/moss/blob/6c08829/src/server/nexus/managedAgentClient.ts)
@@ -381,9 +404,9 @@ Agent cert 表达身份；带 owner 的 session cert 还能表达代表谁执行
 
 ## 10. 本轮工作状态
 
-- 复用审计及重构边界已写入此文档；方案维护位置移至用户指定的 `sudowork-1`，分支 `feat/agent-move-foundation`。
+- 复用审计及重构边界已写入此文档；方案维护位置为用户指定的 `sudowork-1`。模板文案修正见 PR #1202；后续 API 对齐使用 `refactor/agent-template-api` 分支。
 - 没有新增复制协议、替换当前 daemon、迁移用户 session 或改动生产 Agent。
-- 模板页面、导航、目录标签及创建/编辑/发布提示已按实际对象修改，覆盖六种语言；Sudo Code 选择项标为运行引擎。现有 Agent 身份和 API 路径没有因文案更名改变。
+- 模板页面、导航、目录标签及创建/编辑/发布提示已按实际对象修改，覆盖六种语言；Sudo Code 选择项标为运行引擎。API 后续统一为 `agent-templates`，兼容旧模板 URL，保留现有 Agent 身份。
 - 已核查 Agent-facing 入口的现状与缺口；尚未新增或宣称 `agent_move` 工具可用。优先让 Agent 操作并在聊天中验收，再讨论专门的 Move UI。
 - 后续实现应以共享节点与持久状态接入为独立验收项，再依据复用测试结果补齐复制与在线挂载能力。运行交接须在 Move 的产品语义明确后实现。
 
@@ -394,3 +417,9 @@ Agent cert 表达身份；带 owner 的 session cert 还能表达代表谁执行
 - 首次 `bun run test` 出现安装套件超时/断言失败及一个 DOM worker 启动超时。两个异常套件独立复跑全部通过（16 项、53 项）。
 - `bun run test --maxWorkers=1` 全量复跑：296 个文件通过、8 个文件跳过；2938 项通过、35 项按现有配置跳过，无失败或未处理错误。
 - 上述是源码及命名修改的验证，不是 Agent Move、在线联邦挂载或跨设备恢复验收。
+
+### API 对齐的验证
+
+- Moss 服务端及管理端变更见 [PR #329](https://github.com/sudoprivacy/moss/pull/329)。`bun run test` 通过；真实 HTTP 覆盖新旧 URL 的鉴权、组织隔离、准备包下载和私人备份路径。服务端类型检查通过现有 ratchet（104 项基线错误未增加），管理端类型检查通过。
+- Sudowork 的桌面端、renderer、共享包和 WebUI 类型检查通过。WebUI 的契约与真实 PostgreSQL 集成测试通过；本机完整 WebUI 测试中部署脚本依赖 Linux 权限与用户环境，其验证交由 Ubuntu CI。
+- API 改名不会变更 catalog kind、prepared runtimeRef 或 Agent 身份派生输入。发布顺序为 Moss 兼容服务端先部署，再发布新客户端。

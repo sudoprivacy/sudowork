@@ -515,7 +515,7 @@ export function initEeclawBridge(): void {
 
       let accessToken = await getValidToken();
 
-      let response = await net.fetch(`${serverUrl}/api/v1/agents/installed`, {
+      let response = await net.fetch(`${serverUrl}/api/v1/agent-templates/installed`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -526,7 +526,7 @@ export function initEeclawBridge(): void {
 
       if (response.status === 401) {
         accessToken = await getValidToken(true);
-        response = await net.fetch(`${serverUrl}/api/v1/agents/installed`, {
+        response = await net.fetch(`${serverUrl}/api/v1/agent-templates/installed`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,

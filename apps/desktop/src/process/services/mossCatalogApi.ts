@@ -133,7 +133,7 @@ export async function detailMossCatalog(input: { kind: MossCatalogKind; source: 
     const item = (await listMossCatalog(input)).items.find((item) => item.id === input.id);
     if (!item) throw new Error('Resource is unavailable');
     if (input.kind === 'agents') {
-      const data = (await (await requestMossCatalog(`/api/v1/agents/tenant/${encodeURIComponent(input.id)}/rules`)).json()) as { rules?: string };
+      const data = (await (await requestMossCatalog(`/api/v1/agent-templates/tenant/${encodeURIComponent(input.id)}/rules`)).json()) as { rules?: string };
       assertMossCatalogIdentity(identity);
       return { ...item, content: data.rules };
     }

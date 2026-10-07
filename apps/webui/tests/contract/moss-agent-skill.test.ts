@@ -1,15 +1,15 @@
 import { describe, expect, test, vi } from 'vitest'
-import { createMossAgentPort } from '@sudowork/moss-client'
+import { createMossAgentTemplatePort } from '@sudowork/moss-client'
 import { createMossSkillPort } from '@sudowork/moss-client'
 
 const BASE = 'http://moss.test'
 const TK = 'tk'
 const CTX = { accessToken: TK, baseUrl: BASE }
 
-describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', () => {
+describe('MossAgentTemplatePort request shapes（修订版 3.9：agent-hub 前缀）', () => {
   test('hub endpoints use /api/v1/agent-hub/* prefix', async () => {
     const mock = vi.fn().mockResolvedValue({})
-    const port = createMossAgentPort(mock)
+    const port = createMossAgentTemplatePort(mock)
     await port.hubCategories(CTX)
     await port.hubList(CTX, { limit: '20' })
     await port.hubDetail(CTX, 'a1')
@@ -33,22 +33,22 @@ describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', (
 
   test('rules uses installed/:name/rules (not tenant/:id/rules)', async () => {
     const mock = vi.fn().mockResolvedValue({ rules: 'x' })
-    const port = createMossAgentPort(mock)
+    const port = createMossAgentTemplatePort(mock)
     await port.installedRules(CTX, 'helper')
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'GET',
-      path: '/api/v1/agents/installed/helper/rules',
+      path: '/api/v1/agent-templates/installed/helper/rules',
       accessToken: TK,
     })
   })
 
   test('uninstall posts assistantName only (no client sourcePath)', async () => {
     const mock = vi.fn().mockResolvedValue({ ok: true })
-    const port = createMossAgentPort(mock)
+    const port = createMossAgentTemplatePort(mock)
     await port.uninstall(CTX, { assistantName: 'helper' })
     expect(mock).toHaveBeenCalledWith(BASE, {
       method: 'POST',
-      path: '/api/v1/agents/uninstall',
+      path: '/api/v1/agent-templates/uninstall',
       accessToken: TK,
       body: { assistantName: 'helper' },
     })
@@ -56,7 +56,7 @@ describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', (
 
   test('tenant endpoints', async () => {
     const mock = vi.fn().mockResolvedValue([])
-    const port = createMossAgentPort(mock)
+    const port = createMossAgentTemplatePort(mock)
     await port.tenantList(CTX)
     await port.tenantCreate(CTX, { name: 'n' })
     await port.tenantUpdate(CTX, 't1', { description: 'd' })
@@ -68,12 +68,12 @@ describe('MossAgentPort request shapes（修订版 3.9：agent-hub 前缀）', (
         (c[1] as { method: string; path: string }).method + ' ' + (c[1] as { path: string }).path,
     )
     expect(paths).toEqual([
-      'GET /api/v1/agents/tenant',
-      'POST /api/v1/agents/tenant/create',
-      'PATCH /api/v1/agents/tenant/t1',
-      'DELETE /api/v1/agents/tenant/t1',
-      'GET /api/v1/agents/tenant/t1/download',
-      'POST /api/v1/agents/tenant/publish',
+      'GET /api/v1/agent-templates/tenant',
+      'POST /api/v1/agent-templates/tenant/create',
+      'PATCH /api/v1/agent-templates/tenant/t1',
+      'DELETE /api/v1/agent-templates/tenant/t1',
+      'GET /api/v1/agent-templates/tenant/t1/download',
+      'POST /api/v1/agent-templates/tenant/publish',
     ])
   })
 })

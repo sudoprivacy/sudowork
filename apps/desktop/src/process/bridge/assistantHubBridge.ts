@@ -470,7 +470,7 @@ async function fetchVisibleAssistantOverlayMap(accessToken?: string): Promise<Ma
   if (!accessToken?.trim()) return null;
 
   try {
-    const response = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/agents/visible`, {
+    const response = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/agent-templates/visible`, {
       headers: { Authorization: bearerHeader(accessToken) },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

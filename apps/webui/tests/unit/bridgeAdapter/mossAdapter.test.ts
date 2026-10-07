@@ -158,7 +158,7 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
 
   it('get-cloud-assistants maps agents and carries the guid-selector filter fields', async () => {
     stubFetch({
-      '/api/agents': [
+      '/api/agent-templates': [
         { name: 'hub-1', displayName: 'Hub One', tag: 'hub', description: 'd1' },
         { name: 'builtin-1', display_name: 'Builtin', isBuiltin: true, tag: 'system' },
         { name: 'mine', tag: 'custom' },
@@ -182,7 +182,7 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
   })
 
   it('get-cloud-assistants falls back to an empty list on server error', async () => {
-    stubFetch({ '/api/agents': { status: 503, body: { error: 'MOSS_UNAVAILABLE' } } })
+    stubFetch({ '/api/agent-templates': { status: 503, body: { error: 'MOSS_UNAVAILABLE' } } })
     const result = await ipcBridge.eeclaw.getCloudAssistants.invoke()
 
     expect(result.success).toBe(true)
@@ -202,7 +202,7 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
 describe('mossAdapter: assistant/skill management channels', () => {
   it('installs cloud agents by name and leaves download resolution to the server', async () => {
     const fetchMock = stubFetch({
-      '/api/agents/install': { assistantName: 'helper' },
+      '/api/agent-templates/install': { assistantName: 'helper' },
     })
     expect(
       (
@@ -281,7 +281,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
 
   it('get-installed-assistants projects moss rows into IAssistantInfo', async () => {
     stubFetch({
-      '/api/agents': [
+      '/api/agent-templates': [
         { name: 'hub-a', displayName: 'Hub A', tag: 'hub', isBuiltin: false },
         { name: 'sys-a', display_name: 'Sys A', tag: 'system', isBuiltin: true, enabled: false },
         { name: 'mine' },
@@ -312,7 +312,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
 
   it('get-installed-assistants maps avatar emoji fallback, promptsI18n dual-read and defaultInitPrompt', async () => {
     stubFetch({
-      '/api/agents': [
+      '/api/agent-templates': [
         {
           name: 'sys-emoji',
           displayName: 'Sys',
@@ -351,7 +351,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
   })
 
   it('create-assistant sends only the minimal schema fields (no extra keys)', async () => {
-    const fetchMock = stubFetch({ '/api/agents/create': { ok: true } })
+    const fetchMock = stubFetch({ '/api/agent-templates/create': { ok: true } })
     const result = await ipcBridge.assistantHub.createAssistant.invoke({
       meta: {
         name: 'writer',
@@ -381,7 +381,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
   })
 
   it('creates an assistant from the shared drawer UUID and localized labels', async () => {
-    const fetchMock = stubFetch({ '/api/agents/create': { ok: true } })
+    const fetchMock = stubFetch({ '/api/agent-templates/create': { ok: true } })
     const result = await ipcBridge.assistantHub.createAssistant.invoke({
       meta: {
         id: 'agent-id',
@@ -402,7 +402,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
   })
 
   it('saves localized assistant edits and explicit empty rules through the cloud API', async () => {
-    const fetchMock = stubFetch({ '/api/agents/meta': { ok: true } })
+    const fetchMock = stubFetch({ '/api/agent-templates/meta': { ok: true } })
     expect(
       (
         await ipcBridge.assistantHub.updateAssistantMeta.invoke({
@@ -425,7 +425,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
   })
 
   it('returns a real failure when cloud rules cannot be saved', async () => {
-    stubFetch({ '/api/agents/meta': { status: 403, body: { error: 'FORBIDDEN' } } })
+    stubFetch({ '/api/agent-templates/meta': { status: 403, body: { error: 'FORBIDDEN' } } })
     expect(
       await ipcBridge.fs.writeAssistantRule.invoke({ assistantId: 'agent-id', content: 'draft' }),
     ).toBe(false)
@@ -451,7 +451,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
   })
 
   it('uninstall-assistant posts the bare name', async () => {
-    const fetchMock = stubFetch({ '/api/agents/uninstall': { ok: true } })
+    const fetchMock = stubFetch({ '/api/agent-templates/uninstall': { ok: true } })
     const result = await ipcBridge.assistantHub.uninstallAssistant.invoke({
       name: 'writer',
     } as never)
@@ -462,7 +462,7 @@ describe('mossAdapter: assistant/skill management channels', () => {
   })
 
   it('read-assistant-rule unwraps {rules} and strips the builtin- id prefix (bare string)', async () => {
-    const fetchMock = stubFetch({ '/api/agents/rules/': { rules: '# writer rules' } })
+    const fetchMock = stubFetch({ '/api/agent-templates/rules/': { rules: '# writer rules' } })
     const content = await ipcBridge.fs.readAssistantRule.invoke({
       assistantId: 'builtin-a',
       locale: 'zh-CN',
@@ -470,12 +470,15 @@ describe('mossAdapter: assistant/skill management channels', () => {
 
     // Desktop provider contract: a bare string, not an IBridgeResponse envelope.
     expect(content).toBe('# writer rules')
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/agents/rules/a')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/agent-templates/rules/a')
   })
 
   it('read-assistant-rule degrades to an empty string on error (admin scope, 404)', async () => {
     stubFetch({
-      '/api/agents/rules/': { status: 403, body: { error: 'Missing scope: admin:settings' } },
+      '/api/agent-templates/rules/': {
+        status: 403,
+        body: { error: 'Missing scope: admin:settings' },
+      },
     })
     const content = await ipcBridge.fs.readAssistantRule.invoke({ assistantId: 'hub-a' })
 

@@ -10,7 +10,7 @@
  * 企业专属技能/助手模块
  *
  * 功能：
- * 1. 获取专属技能/助手列表（GET /api/v1/skills/tenant, /api/v1/agents/tenant）
+ * 1. 获取专属技能/助手列表（GET /api/v1/skills/tenant, /api/v1/agent-templates/tenant）
  * 2. 下载并安装专属内容（GET /api/v1/skills/tenant/{id}/download）
  * 3. 发布专属申请（POST /api/v1/skills/tenant/publish）
  */
@@ -289,7 +289,7 @@ export async function fetchTenantAssistants(): Promise<TenantAssistantInfo[]> {
     throw new Error('Moss Server not configured or not authenticated');
   }
 
-  const response = await fetch(`${serverUrl}/api/v1/agents/tenant`, {
+  const response = await fetch(`${serverUrl}/api/v1/agent-templates/tenant`, {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -333,7 +333,7 @@ export async function installTenantAssistant(assistantId: string): Promise<{ suc
     }
 
     // Download assistant package
-    const downloadUrl = `${serverUrl}/api/v1/agents/tenant/${assistantId}/download`;
+    const downloadUrl = `${serverUrl}/api/v1/agent-templates/tenant/${assistantId}/download`;
     mainLog('TenantSync', `Downloading tenant assistant: ${assistant.name} from ${downloadUrl}`);
 
     const zipBuffer = await downloadFileWithAuth(downloadUrl, token, (percent) => {
@@ -419,7 +419,7 @@ export async function publishTenantAssistant(assistantId: string, publishNote?: 
     return { success: false, error: 'Moss Server not configured or not authenticated' };
   }
 
-  const url = `${serverUrl}/api/v1/agents/tenant/publish`;
+  const url = `${serverUrl}/api/v1/agent-templates/tenant/publish`;
   const requestBody = {
     assistantId,
     publishNote: publishNote || '',

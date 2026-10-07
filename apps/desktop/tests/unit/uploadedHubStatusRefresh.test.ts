@@ -557,7 +557,7 @@ describe('assistant Hub install metadata', () => {
 
   it('filters tenant assistants after applying visible assistant category overlays', async () => {
     h.fetch.mockImplementation(async (url: string) => {
-      if (url.startsWith('https://server.example/api/v1/agents/visible')) {
+      if (url.startsWith('https://server.example/api/v1/agent-templates/visible')) {
         return {
           ok: true,
           json: vi.fn(async () => ({

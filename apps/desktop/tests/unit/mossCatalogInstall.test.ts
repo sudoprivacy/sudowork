@@ -43,7 +43,7 @@ beforeEach(async () => {
         if (state.isSymlink) zip.file('link', '/outside', { unixPermissions: 0o120777 });
         const bytes = await zip.generateAsync({ type: 'nodebuffer', platform: 'UNIX' });
         const digest = createHash('sha256').update(bytes).digest('hex');
-        const downloadRef = `/api/v1/client/catalog/preparations/${preparationId}/${item.kind}/${item.id}/download`;
+        const downloadRef = `/api/v1/client/catalog/preparations/${preparationId}/${item.kind === 'agents' ? 'agent-templates' : 'skills'}/${item.id}/download`;
         archives.set(`https://moss.test${downloadRef}`, bytes);
         resources.push({ ...item, name: state.name, version: state.version, digest, downloadRef, runtimeRef: `moss-prepared:${preparationId}:${item.kind}:${item.id}`, dependencies: item.kind === 'agents' ? ['skill-1'] : [], isLocalAllowed: true });
       }

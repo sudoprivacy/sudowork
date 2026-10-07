@@ -80,7 +80,7 @@ const AgentSettings: React.FC = () => {
   useEffect(() => {
     if (isElectronDesktop() || !isWebBridgeAvailable()) return;
     let alive = true;
-    void fetch('/api/agents/scopes', { credentials: 'include' })
+    void fetch('/api/agent-templates/scopes', { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : { scopes: [] as string[] }))
       .then((body: { scopes?: string[] }) => {
         if (alive) setCanManage(Array.isArray(body.scopes) && body.scopes.includes('admin:settings'));
