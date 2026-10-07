@@ -86,6 +86,10 @@ const mockAddEventListener = vi.fn((event: string, cb: (...args: unknown[]) => v
 
 vi.mock('@renderer/utils/emitter', () => ({
   addEventListener: (...args: unknown[]) => mockAddEventListener(...args),
+  // `useMyAgents` subscribes here too: the agent list changes when a new agent
+  // is made or a template is first used. A mock that covers only this file's
+  // own use breaks the moment another hook in the tree reaches for the module.
+  emitter: { on: () => {}, off: () => {}, emit: () => {} },
 }));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
