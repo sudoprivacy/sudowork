@@ -71,7 +71,7 @@
   "tray.showWindow": "Show Sudowork",
   "tray.quit": "Quit",
   "siderMenu": {
-    "agent": "Agent",
+    "agent": "Agent Templates",
     "skillStore": "Skill Store",
     "localKb": "Local KB",
     "ontology": "Ontology Workbench",

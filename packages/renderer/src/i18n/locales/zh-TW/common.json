@@ -64,7 +64,7 @@
   "tray.showWindow": "顯示 Sudowork",
   "tray.quit": "結束",
   "siderMenu": {
-    "agent": "數位助手",
+    "agent": "智能體範本",
     "skillStore": "技能商店",
     "security": "安全防護",
     "webui": "遠端連線",
