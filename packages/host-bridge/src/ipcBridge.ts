@@ -3337,6 +3337,25 @@ export const eeclaw = {
     }>,
     void
   >('eeclaw.prepare-local-runtime'),
+  /**
+   * The agents this person has — the one that exists because they do, the ones
+   * they made, and the templates they have actually opened a session with.
+   *
+   * Distinct from `getCloudAssistants`, which lists *templates*: shared
+   * definitions anybody can instantiate. A template the user has never used is
+   * not one of their agents, so it is not here.
+   */
+  getMyAgents: bridge.buildProvider<
+    IBridgeResponse<
+      Array<{
+        /** What a conversation stores, and what identifies the group it belongs to. */
+        ref: string;
+        displayName: string;
+        kind: 'default' | 'own' | 'template';
+      }>
+    >,
+    void
+  >('eeclaw.get-my-agents'),
   /** Fetch enterprise cloud assistants from the enterprise server */
   getCloudAssistants: bridge.buildProvider<
     IBridgeResponse<

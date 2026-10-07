@@ -133,6 +133,7 @@ export default defineConfig({
         '../../packages/renderer/src/utils/platform.ts',
         '../../packages/common/src/mossExecution.ts',
         '../../packages/common/src/conversationTitle.ts',
+        '../../packages/renderer/src/pages/conversation/grouped-history/utils/groupingHelpers.ts',
         'src/process/services/mossLocalRuntime.ts',
         'src/process/bridge/eeclawBridge.ts',
         'src/process/bridge/sudoworkServerBridge.ts',

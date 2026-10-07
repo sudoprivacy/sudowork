@@ -330,5 +330,10 @@
     "failed": "生成失败",
     "preset_registered": "已保存为全局预设"
   },
-  "userCancelled": "请求已被用户终止"
+  "userCancelled": "请求已被用户终止",
+  "sidebar": {
+    "recent": "最近",
+    "myAgent": "我的智能体",
+    "agentHasNoConversations": "还没有对话"
+  }
 }
