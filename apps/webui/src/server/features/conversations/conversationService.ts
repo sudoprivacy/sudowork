@@ -71,7 +71,7 @@ const AvailableModelsSchema = z
 
 async function fetchVisibleNames(
   deps: ConversationDeps,
-  path: '/api/v1/agents/installed' | '/api/v1/skills/installed',
+  path: '/api/v1/agent-templates/installed' | '/api/v1/skills/installed',
   ctx: MossCallContext,
 ): Promise<Set<string>> {
   const json = await deps.mossFetch(ctx.baseUrl, {
@@ -90,7 +90,7 @@ async function assertSelectionVisible(
   ctx: MossCallContext,
 ): Promise<void> {
   if (input.assistantName) {
-    const names = await fetchVisibleNames(deps, '/api/v1/agents/installed', ctx)
+    const names = await fetchVisibleNames(deps, '/api/v1/agent-templates/installed', ctx)
     if (!names.has(input.assistantName)) {
       throw new InvalidSelectionError('assistantName', input.assistantName)
     }
@@ -397,7 +397,7 @@ export async function getConversationOptions(
       }),
       deps.mossFetch(baseUrl, {
         method: 'GET',
-        path: '/api/v1/agents/installed',
+        path: '/api/v1/agent-templates/installed',
         accessToken: ctx.accessToken,
       }),
       deps.mossFetch(baseUrl, {

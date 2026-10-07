@@ -5,7 +5,7 @@ import { Pool } from 'pg'
 import { createApp, registerApiRoutes } from '@server/app'
 import type { AppConfig } from '@server/config'
 import type { MossAuthPort } from '@sudowork/moss-client'
-import type { MossAgentPort } from '@sudowork/moss-client'
+import type { MossAgentTemplatePort } from '@sudowork/moss-client'
 import type { MossSkillPort } from '@sudowork/moss-client'
 import { MossHttpError } from '@sudowork/moss-client'
 import { upsertPrincipal } from '@server/features/auth/principalRepository'
@@ -72,7 +72,7 @@ function createFakeAuth(): MossAuthPort {
 }
 
 /** installed：A 可见 helper；B 可见 helper+writer（可见性由 Moss 决定）。 */
-function createFakeAgents(): MossAgentPort {
+function createFakeAgents(): MossAgentTemplatePort {
   const installedByToken: Record<string, { name: string }[]> = {
     'at-a': [{ name: 'helper' }],
     'at-b': [{ name: 'helper' }, { name: 'writer' }],
@@ -264,16 +264,18 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
   })
 
   test('installed list is per-token（可见性来自 Moss fresh 列表）', async () => {
-    const a = await request(app).get('/api/agents').set('Cookie', cookieA)
+    const a = await request(app).get('/api/agent-templates').set('Cookie', cookieA)
     expect(a.status).toBe(200)
     expect(a.body).toEqual([{ name: 'helper' }])
 
-    const b = await request(app).get('/api/agents').set('Cookie', cookieB)
+    const b = await request(app).get('/api/agent-templates').set('Cookie', cookieB)
     expect(b.body.map((x: { name: string }) => x.name)).toEqual(['helper', 'writer'])
   })
 
   test('hub list normalizes moss assistants/skills shape to items', async () => {
-    const agents = await request(app).get('/api/agents/hub/list?limit=50').set('Cookie', cookieA)
+    const agents = await request(app)
+      .get('/api/agent-templates/hub/list?limit=50')
+      .set('Cookie', cookieA)
     expect(agents.status).toBe(200)
     expect(agents.body.items.map((x: { name: string }) => x.name)).toEqual(['hub-agent'])
     expect(agents.body.next_cursor).toBeNull()
@@ -286,16 +288,31 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
     expect(skills.body.has_more).toBe(false)
   })
 
+  test('legacy template URLs retain the same session and role checks', async () => {
+    for (const base of ['/api/agents', '/api/agent-templates']) {
+      expect((await request(app).get(base)).status).toBe(401)
+      const visible = await request(app).get(base).set('Cookie', cookieA)
+      expect(visible.status).toBe(200)
+      expect(visible.body.map((item: { name: string }) => item.name)).toEqual(['helper'])
+      const denied = await request(app)
+        .post(`${base}/install`)
+        .set('Cookie', cookieA)
+        .set('Origin', testConfig.publicOrigin)
+        .send({ name: 'hub-agent' })
+      expect(denied.status).toBe(403)
+    }
+  })
+
   test('admin-only mutation rejected for plain user (403), allowed for admin', async () => {
     const denied = await request(app)
-      .post('/api/agents/install')
+      .post('/api/agent-templates/install')
       .set('Cookie', cookieA)
       .set('Origin', testConfig.publicOrigin)
       .send({ name: 'hub-agent' })
     expect(denied.status).toBe(403)
 
     const allowed = await request(app)
-      .post('/api/agents/install')
+      .post('/api/agent-templates/install')
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
       .send({ name: 'hub-agent' })
@@ -304,7 +321,7 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
 
   test('uninstall of agent not in fresh visible list is 404 (IDOR)', async () => {
     const res = await request(app)
-      .post('/api/agents/uninstall')
+      .post('/api/agent-templates/uninstall')
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
       .send({ name: 'ghost-agent' })
@@ -313,14 +330,14 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
 
   test('meta update of invisible agent is 404; visible one passes through', async () => {
     const ghost = await request(app)
-      .patch('/api/agents/meta')
+      .patch('/api/agent-templates/meta')
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
       .send({ name: 'ghost', updates: { description: 'x' } })
     expect(ghost.status).toBe(404)
 
     const ok = await request(app)
-      .patch('/api/agents/meta')
+      .patch('/api/agent-templates/meta')
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
       .send({ name: 'helper', updates: { description: 'x' } })
@@ -373,14 +390,14 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
 
   test('tenant update of can_manage=false row is 403; unknown tenant 404', async () => {
     const forbidden = await request(app)
-      .patch('/api/agents/tenant/t2')
+      .patch('/api/agent-templates/tenant/t2')
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
       .send({ description: 'x' })
     expect(forbidden.status).toBe(403)
 
     const missing = await request(app)
-      .patch('/api/agents/tenant/t-missing')
+      .patch('/api/agent-templates/tenant/t-missing')
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
       .send({ description: 'x' })
@@ -389,14 +406,14 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
 
   test('tenant publish requires source in fresh visible installed list', async () => {
     const ghost = await request(app)
-      .post('/api/agents/tenant/publish')
+      .post('/api/agent-templates/tenant/publish')
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
       .send({ sourceName: 'ghost' })
     expect(ghost.status).toBe(404)
 
     const ok = await request(app)
-      .post('/api/agents/tenant/publish')
+      .post('/api/agent-templates/tenant/publish')
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
       .send({ sourceName: 'helper' })
@@ -406,7 +423,7 @@ describe('agent/skill routes: authorization and fresh-list IDOR defense (计划 
   test('client-supplied sourcePath is never forwarded (schema strips it)', async () => {
     // schema 不含 sourcePath 字段 → Zod strip 移除；body 里带也会被解析丢弃
     const res = await request(app)
-      .post('/api/agents/uninstall')
+      .post('/api/agent-templates/uninstall')
       .set('Cookie', cookieB)
       .set('Origin', testConfig.publicOrigin)
       .send({ name: 'helper', sourcePath: '/etc/passwd' })

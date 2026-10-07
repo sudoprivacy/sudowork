@@ -37,7 +37,7 @@ import { ConversationCoordinator } from './features/conversations/ConversationCo
 import { createConversationRouter } from './features/conversations/conversationRoutes.js'
 import { createChannelsRouter } from './features/channels/channelsRoutes.js'
 import { attachChannelEvents } from './features/channels/channelEvents.js'
-import { createMossAgentPort, type MossAgentPort } from '@sudowork/moss-client'
+import { createMossAgentTemplatePort, type MossAgentTemplatePort } from '@sudowork/moss-client'
 import { createMossSkillPort, type MossSkillPort } from '@sudowork/moss-client'
 import { createMossCronPort } from '@sudowork/moss-client'
 import { createMossMcpPort, type MossMcpPort } from '@sudowork/moss-client'
@@ -138,7 +138,7 @@ export interface ApiDeps {
   /** 测试注入桩 */
   coordinator?: ConversationCoordinator
   /** 测试注入桩 */
-  agents?: MossAgentPort
+  agents?: MossAgentTemplatePort
   /** 测试注入桩 */
   skills?: MossSkillPort
   /** 测试注入桩 */
@@ -215,7 +215,7 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   const mossSession = deps.mossSession ?? createMossSessionPort(mossFetch)
   const coordinator =
     deps.coordinator ?? new ConversationCoordinator({ pool, config, auth, moss: mossSession })
-  const agents = deps.agents ?? createMossAgentPort(mossFetch)
+  const agents = deps.agents ?? createMossAgentTemplatePort(mossFetch)
   const skills = deps.skills ?? createMossSkillPort(mossFetch)
 
   app.use(
@@ -237,7 +237,10 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   // Remote-connections page: `channel.*` wires land here, forwarded to moss
   // `/api/v1/channels/*` under this session (same allowlist model as above).
   app.use('/api/channels', createChannelsRouter({ auth }))
-  app.use('/api/agents', createAgentRouter({ pool, config, auth, agents }))
+  app.use(
+    ['/api/agent-templates', '/api/agents'],
+    createAgentRouter({ pool, config, auth, agents }),
+  )
   app.use('/api/skills', createSkillRouter({ pool, config, auth, skills }))
 
   const fetchVisibleAgentNames =
@@ -245,7 +248,7 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
     (async (ctx: MossCallContext): Promise<Set<string>> => {
       const list = (await mossFetch(ctx.baseUrl, {
         method: 'GET',
-        path: '/api/v1/agents/installed',
+        path: '/api/v1/agent-templates/installed',
         accessToken: ctx.accessToken,
       })) as { name?: string }[]
       const names = new Set<string>()

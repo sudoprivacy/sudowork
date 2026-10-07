@@ -1,13 +1,13 @@
 import { type MossCallContext, type MossFetch } from './MossHttpClient.js'
 
 /**
- * Moss Agent 端口（计划 3.9 修订版映射）：
+ * Moss Agent Template 端口：
  * Hub 前缀为 /api/v1/agent-hub/*；installed 无独立 enabled 接口；
- * rules 是 /api/v1/agents/installed/:name/rules（admin:settings）。
+ * rules 是 /api/v1/agent-templates/installed/:name/rules（admin:settings）。
  * 每次调用传入 MossCallContext（access token + 会话生效的 moss 地址）。
  */
 
-export interface MossAgentPort {
+export interface MossAgentTemplatePort {
   hubCategories(ctx: MossCallContext): Promise<unknown>
   hubList(ctx: MossCallContext, searchParams: Record<string, string>): Promise<unknown>
   hubDetail(ctx: MossCallContext, id: string): Promise<unknown>
@@ -32,10 +32,14 @@ function seg(value: string): string {
   return encodeURIComponent(value)
 }
 
-export function createMossAgentPort(mossFetch: MossFetch): MossAgentPort {
+export function createMossAgentTemplatePort(mossFetch: MossFetch): MossAgentTemplatePort {
   return {
     hubCategories: (ctx) =>
-      mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/agent-hub/categories', accessToken: ctx.accessToken }),
+      mossFetch(ctx.baseUrl, {
+        method: 'GET',
+        path: '/api/v1/agent-hub/categories',
+        accessToken: ctx.accessToken,
+      }),
     hubList: (ctx, searchParams) =>
       mossFetch(ctx.baseUrl, {
         method: 'GET',
@@ -50,59 +54,100 @@ export function createMossAgentPort(mossFetch: MossFetch): MossAgentPort {
         accessToken: ctx.accessToken,
       }),
     installed: (ctx) =>
-      mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/agents/installed', accessToken: ctx.accessToken }),
+      mossFetch(ctx.baseUrl, {
+        method: 'GET',
+        path: '/api/v1/agent-templates/installed',
+        accessToken: ctx.accessToken,
+      }),
     install: (ctx, body) =>
-      mossFetch(ctx.baseUrl, { method: 'POST', path: '/api/v1/agents/install', accessToken: ctx.accessToken, body }),
+      mossFetch(ctx.baseUrl, {
+        method: 'POST',
+        path: '/api/v1/agent-templates/install',
+        accessToken: ctx.accessToken,
+        body,
+      }),
     create: (ctx, body) =>
-      mossFetch(ctx.baseUrl, { method: 'POST', path: '/api/v1/agents/create', accessToken: ctx.accessToken, body }),
+      mossFetch(ctx.baseUrl, {
+        method: 'POST',
+        path: '/api/v1/agent-templates/create',
+        accessToken: ctx.accessToken,
+        body,
+      }),
     uploadCustom: (ctx, body) =>
-      mossFetch(ctx.baseUrl, { method: 'POST', path: '/api/v1/agents/custom', accessToken: ctx.accessToken, body }),
+      mossFetch(ctx.baseUrl, {
+        method: 'POST',
+        path: '/api/v1/agent-templates/custom',
+        accessToken: ctx.accessToken,
+        body,
+      }),
     updateMeta: (ctx, body) =>
-      mossFetch(ctx.baseUrl, { method: 'PATCH', path: '/api/v1/agents/meta', accessToken: ctx.accessToken, body }),
+      mossFetch(ctx.baseUrl, {
+        method: 'PATCH',
+        path: '/api/v1/agent-templates/meta',
+        accessToken: ctx.accessToken,
+        body,
+      }),
     uninstall: (ctx, body) =>
-      mossFetch(ctx.baseUrl, { method: 'POST', path: '/api/v1/agents/uninstall', accessToken: ctx.accessToken, body }),
+      mossFetch(ctx.baseUrl, {
+        method: 'POST',
+        path: '/api/v1/agent-templates/uninstall',
+        accessToken: ctx.accessToken,
+        body,
+      }),
     syncFromHub: (ctx) =>
-      mossFetch(ctx.baseUrl, { method: 'POST', path: '/api/v1/agents/sync-from-hub', accessToken: ctx.accessToken }),
+      mossFetch(ctx.baseUrl, {
+        method: 'POST',
+        path: '/api/v1/agent-templates/sync-from-hub',
+        accessToken: ctx.accessToken,
+      }),
     syncStatus: (ctx) =>
-      mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/agents/sync-status', accessToken: ctx.accessToken }),
+      mossFetch(ctx.baseUrl, {
+        method: 'GET',
+        path: '/api/v1/agent-templates/sync-status',
+        accessToken: ctx.accessToken,
+      }),
     installedRules: (ctx, assistantName) =>
       mossFetch(ctx.baseUrl, {
         method: 'GET',
-        path: `/api/v1/agents/installed/${seg(assistantName)}/rules`,
+        path: `/api/v1/agent-templates/installed/${seg(assistantName)}/rules`,
         accessToken: ctx.accessToken,
       }),
     tenantList: (ctx) =>
-      mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/agents/tenant', accessToken: ctx.accessToken }),
+      mossFetch(ctx.baseUrl, {
+        method: 'GET',
+        path: '/api/v1/agent-templates/tenant',
+        accessToken: ctx.accessToken,
+      }),
     tenantCreate: (ctx, body) =>
       mossFetch(ctx.baseUrl, {
         method: 'POST',
-        path: '/api/v1/agents/tenant/create',
+        path: '/api/v1/agent-templates/tenant/create',
         accessToken: ctx.accessToken,
         body,
       }),
     tenantUpdate: (ctx, id, body) =>
       mossFetch(ctx.baseUrl, {
         method: 'PATCH',
-        path: `/api/v1/agents/tenant/${seg(id)}`,
+        path: `/api/v1/agent-templates/tenant/${seg(id)}`,
         accessToken: ctx.accessToken,
         body,
       }),
     tenantDelete: (ctx, id) =>
       mossFetch(ctx.baseUrl, {
         method: 'DELETE',
-        path: `/api/v1/agents/tenant/${seg(id)}`,
+        path: `/api/v1/agent-templates/tenant/${seg(id)}`,
         accessToken: ctx.accessToken,
       }),
     tenantDownload: (ctx, id) =>
       mossFetch(ctx.baseUrl, {
         method: 'GET',
-        path: `/api/v1/agents/tenant/${seg(id)}/download`,
+        path: `/api/v1/agent-templates/tenant/${seg(id)}/download`,
         accessToken: ctx.accessToken,
       }),
     tenantPublish: (ctx, body) =>
       mossFetch(ctx.baseUrl, {
         method: 'POST',
-        path: '/api/v1/agents/tenant/publish',
+        path: '/api/v1/agent-templates/tenant/publish',
         accessToken: ctx.accessToken,
         body,
       }),

@@ -1,7 +1,7 @@
 import type { AppConfig } from '../../config.js'
 import type { Pool } from 'pg'
 import type { AuthDeps } from '../auth/authService.js'
-import type { MossAgentPort, MossCallContext } from '@sudowork/moss-client'
+import type { MossAgentTemplatePort, MossCallContext } from '@sudowork/moss-client'
 import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 
 /**
@@ -19,7 +19,7 @@ export interface AgentDeps {
   pool: Pool
   config: AppConfig
   auth: AuthDeps
-  agents: MossAgentPort
+  agents: MossAgentTemplatePort
 }
 
 async function mapErr<T>(fn: () => Promise<T>): Promise<T> {

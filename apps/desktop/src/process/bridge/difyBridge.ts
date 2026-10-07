@@ -13,13 +13,13 @@
  *
  * Chat lifecycle:
  *   1. renderer  → ipcBridge.dify.startChat({ accessToken, assistantId, query }) → { streamId }
- *   2. main process opens fetch(POST /api/v1/agents/:id/chat), parses SSE in chunks
+ *   2. main process opens fetch(POST /api/v1/agent-templates/:id/chat), parses SSE in chunks
  *   3. for each frame  → ipcBridge.dify.chunk.emit({ streamId, event, data })
  *   4. on completion / error  → ipcBridge.dify.end.emit({ streamId, ok, error? })
  *   5. renderer may call ipcBridge.dify.cancelChat({ streamId }) to abort early
  *
  * All non-streaming methods are thin wrappers around the matching sudowork-server
- * route under /api/v1/agents/:assistantId/*. We never call Dify directly.
+ * route under /api/v1/agent-templates/:assistantId/*. We never call Dify directly.
  */
 
 import { promises as fsp } from 'node:fs';
@@ -34,7 +34,7 @@ import { bindSession as orchestratorBind, unbindSession as orchestratorUnbind } 
 import { getSudoworkServerBaseUrlSync } from '@process/initStorage';
 
 function apiBase(): string {
-  return `${getSudoworkServerBaseUrlSync()}/api/v1/agents`;
+  return `${getSudoworkServerBaseUrlSync()}/api/v1/agent-templates`;
 }
 
 function agentUrl(assistantId: string, suffix = ''): string {

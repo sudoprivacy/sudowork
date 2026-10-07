@@ -179,7 +179,7 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     const auth = { pool, config: testConfig, mossAuth: fakeMossAuth }
     const coordinator = new ConversationCoordinator({ pool, config: testConfig, auth, moss })
     const mossFetch = async (_base: string, req: { path: string }): Promise<unknown> => {
-      if (req.path === '/api/v1/agents/installed')
+      if (req.path === '/api/v1/agent-templates/installed')
         return [{ name: 'helper' }, { name: 'builtin-agent', isBuiltin: true }]
       if (req.path === '/api/v1/skills/installed') return [{ name: 'known-skill' }]
       if (req.path === '/api/v1/models/available')

@@ -10,7 +10,7 @@
  * 企业登录后，将服务端已安装的 skill 和 assistant 同步到本地
  *
  * 同步流程：
- * 1. 获取远程已安装列表（/api/v1/skills/installed, /api/v1/agents/installed）
+ * 1. 获取远程已安装列表（/api/v1/skills/installed, /api/v1/agent-templates/installed）
  * 2. 计算本地与远程差异
  * 3. 下载技能/助手包（/api/v1/skills/installed/{id}/download）
  * 4. 解压安装到本地 hub/ 目录
@@ -213,7 +213,7 @@ async function getRemoteAssistantsInstalled(serverUrl: string, token: string): P
     return getRemoteAssistantsInstalledMock();
   }
 
-  const data = await fetchRemote<RemoteAssistantInfo[] | { data: RemoteAssistantInfo[] }>('/api/v1/agents/installed', serverUrl, token);
+  const data = await fetchRemote<RemoteAssistantInfo[] | { data: RemoteAssistantInfo[] }>('/api/v1/agent-templates/installed', serverUrl, token);
   return Array.isArray(data) ? data : (data.data ?? []);
 }
 
@@ -279,7 +279,7 @@ async function getAssistantInstallDetail(name: string, serverUrl: string, token:
     return getAssistantInstallDetailMock(name);
   }
 
-  return fetchRemote<AssistantInstallDetail>(`/api/v1/agents/installed-detail?name=${encodeURIComponent(name)}`, serverUrl, token);
+  return fetchRemote<AssistantInstallDetail>(`/api/v1/agent-templates/installed-detail?name=${encodeURIComponent(name)}`, serverUrl, token);
 }
 
 // ============ 新版 API（通过 ID 下载）============
@@ -310,7 +310,7 @@ async function downloadSkillById(skillId: string, serverUrl: string, token: stri
  * @returns Zip buffer
  */
 async function downloadAssistantById(assistantId: string, serverUrl: string, token: string, onProgress?: (percent: number) => void): Promise<Buffer> {
-  const downloadUrl = `${serverUrl}/api/v1/agents/installed/${assistantId}/download`;
+  const downloadUrl = `${serverUrl}/api/v1/agent-templates/installed/${assistantId}/download`;
   mainLog('remoteToLocalSync', `Downloading assistant by ID: ${assistantId} from ${downloadUrl}`);
 
   return downloadFileWithAuth(downloadUrl, token, onProgress);
@@ -784,7 +784,7 @@ async function installSkillById(skill: RemoteSkillInfo, serverUrl: string, token
 
 /**
  * 通过 ID 直接下载并安装助手
- * 新版 API：使用 /api/v1/agents/installed/{id}/download
+ * 新版 API：使用 /api/v1/agent-templates/installed/{id}/download
  */
 async function installAssistantById(assistant: RemoteAssistantInfo, serverUrl: string, token: string): Promise<void> {
   // Trim assistant name to avoid leading/trailing spaces in directory names
@@ -1107,7 +1107,7 @@ export async function syncRemoteSkillsToLocal(): Promise<SyncResult> {
  * 同步远程 assistants 到本地
  * 优先使用新版 API（通过 ID 下载），失败时回退到旧版 API
  *
- * 注意：同步 /api/v1/agents/installed 返回的 hub/custom/upload 助手。
+ * 注意：同步 /api/v1/agent-templates/installed 返回的 hub/custom/upload 助手。
  * system 助手不需要同步，tenant 助手由专属同步逻辑处理。
  */
 export async function syncRemoteAssistantsToLocal(): Promise<SyncResult> {

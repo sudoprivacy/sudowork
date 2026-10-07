@@ -2688,7 +2688,7 @@ export const sudoworkServer = {
 
 // ==================== Dify (RAG + Agent) API ====================
 
-/** A Dify-backed assistant as surfaced by sudowork-server /api/v1/agents/visible.
+/** A Dify-backed assistant as surfaced by sudowork-server /api/v1/agent-templates/visible.
  * Mirrors the response shape — kept flat so renderer code can render directly
  * alongside local assistants. */
 export interface IDifyAgent {

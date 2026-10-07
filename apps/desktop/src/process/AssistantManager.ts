@@ -288,7 +288,7 @@ export class AssistantManager {
 
     let visibleMap: Map<string, VisibleAssistantOverlay> | null = null;
     try {
-      const resp = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/agents/visible`, {
+      const resp = await fetch(`${getSudoworkServerBaseUrlSync()}/api/v1/agent-templates/visible`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

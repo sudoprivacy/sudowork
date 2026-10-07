@@ -390,7 +390,7 @@ export async function uploadCustomAssistant(params: CustomAssistantUploadParams)
     const zipBuffer = await createZipFromDirectory(assistantDir);
 
     // Upload to Moss Server
-    const uploadUrl = `${serverUrl}/api/v1/agents/custom`;
+    const uploadUrl = `${serverUrl}/api/v1/agent-templates/custom`;
     mainLog('CustomUpload', `Uploading assistant to: ${uploadUrl}`);
 
     const response = await uploadFile(

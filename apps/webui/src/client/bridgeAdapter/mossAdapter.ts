@@ -754,7 +754,7 @@ async function listConversations(): Promise<ConversationListItem[]> {
 // Channel mapping table. Everything not listed falls through to a default reject.
 // ---------------------------------------------------------------------------
 
-/** Moss installed-agent row as projected by GET /api/agents. */
+/** Moss installed-agent row as projected by GET /api/agent-templates. */
 interface MossAgentItem {
   id?: string
   name: string
@@ -1433,7 +1433,9 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     })
   },
   'eeclaw.get-cloud-assistants': async () => {
-    const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [] as MossAgentItem[])
+    const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(
+      () => [] as MossAgentItem[],
+    )
     // key/name/avatar/emoji/description satisfy the channel type; the extra
     // isBuiltin/isHubInstalled/sourceType fields feed the guid selector's
     // isSelectableCloudAssistant filter (it drops rows without them).
@@ -1453,12 +1455,16 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
 
   // --- assistant-hub: installed agents (management page) ---
   'assistant-hub.get-installed-assistants': async () => {
-    const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [] as MossAgentItem[])
+    const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(
+      () => [] as MossAgentItem[],
+    )
     return ok((Array.isArray(agents) ? agents : []).map(mossAgentToAssistantInfo))
   },
   // with-visibility ignores accessToken: the server already scopes rows by session.
   'assistant-hub.get-installed-assistants-with-visibility': async () => {
-    const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [] as MossAgentItem[])
+    const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(
+      () => [] as MossAgentItem[],
+    )
     return ok((Array.isArray(agents) ? agents : []).map(mossAgentToAssistantInfo))
   },
   'assistant-hub.create-assistant': async (req) => {
@@ -1471,7 +1477,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const displayName = String(
       meta.display_name ?? names['zh-CN'] ?? names['en-US'] ?? Object.values(names)[0] ?? name,
     )
-    await apiFetch('/api/agents/create', {
+    await apiFetch('/api/agent-templates/create', {
       method: 'POST',
       body: JSON.stringify({
         name,
@@ -1491,7 +1497,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const updates = (req.updates ?? {}) as Record<string, unknown>
     const names = (updates.nameI18n ?? {}) as Record<string, string>
     const descriptions = (updates.descriptionI18n ?? {}) as Record<string, string>
-    await apiFetch('/api/agents/meta', {
+    await apiFetch('/api/agent-templates/meta', {
       method: 'PATCH',
       body: JSON.stringify({
         name: req.name,
@@ -1513,7 +1519,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   'write-assistant-rule': async (req) => {
     try {
-      await apiFetch('/api/agents/meta', {
+      await apiFetch('/api/agent-templates/meta', {
         method: 'PATCH',
         body: JSON.stringify({ name: req.assistantId, updates: { rules: req.content } }),
       })
@@ -1523,7 +1529,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     }
   },
   'assistant-hub.uninstall-assistant': async (req) => {
-    await apiFetch('/api/agents/uninstall', {
+    await apiFetch('/api/agent-templates/uninstall', {
       method: 'POST',
       body: JSON.stringify({ name: String(req?.name ?? '') }),
     })
@@ -1532,17 +1538,17 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // --- assistant-hub: browse store (hub) & exclusive (tenant) lists ---
   'assistant-hub.download-and-install-assistant': async (req) =>
     ok(
-      await apiFetch('/api/agents/install', {
+      await apiFetch('/api/agent-templates/install', {
         method: 'POST',
         body: JSON.stringify({ name: req.assistantName }),
       }),
     ),
   'assistant-hub.fetch-categories': async () =>
-    ok(await apiFetch<string[]>('/api/agents/hub/categories')),
+    ok(await apiFetch<string[]>('/api/agent-templates/hub/categories')),
   'assistant-hub.fetch-assistants': async (req) => {
     if (String(req?.sourceType ?? '') === 'tenant') {
       // 专属：/tenant 为 session 维度，moss 按登录企业身份返回，无需 tenant_id
-      const rows = await apiFetch<unknown[]>('/api/agents/tenant')
+      const rows = await apiFetch<unknown[]>('/api/agent-templates/tenant')
       return ok({ assistants: Array.isArray(rows) ? rows : [], next_cursor: null, has_more: false })
     }
     const params = new URLSearchParams()
@@ -1554,7 +1560,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       items?: unknown[]
       next_cursor?: string | null
       has_more?: boolean
-    }>(`/api/agents/hub/list?${params.toString()}`)
+    }>(`/api/agent-templates/hub/list?${params.toString()}`)
     return ok({
       assistants: Array.isArray(body?.items) ? body.items : [],
       next_cursor: typeof body?.next_cursor === 'string' ? body.next_cursor : null,
@@ -1572,7 +1578,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const name = String(req?.assistantId ?? '').replace(/^builtin-/, '')
     try {
       const body = await apiFetch<{ rules?: unknown }>(
-        `/api/agents/rules/${encodeURIComponent(name)}`,
+        `/api/agent-templates/rules/${encodeURIComponent(name)}`,
       )
       return typeof body?.rules === 'string' ? body.rules : ''
     } catch {
@@ -1671,7 +1677,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     if (model?.modelId)
       conv.extra = { ...(conv.extra as Record<string, unknown>), currentModelId: model.modelId }
     if (found.assistantName) {
-      const agents = await apiFetch<MossAgentItem[]>('/api/agents').catch(() => [])
+      const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(() => [])
       const agent = agents.find(
         (item) => item.name === found.assistantName || item.id === found.assistantName,
       )
