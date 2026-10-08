@@ -20,6 +20,7 @@
  */
 
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 
 const CONSUMER_AUTH_KEY = 'sudowork_auth_v2';
 const ENTERPRISE_AUTH_KEY = 'eeclaw_auth_v1';
@@ -51,7 +52,7 @@ export function readAccessToken(): string | null {
  * (no server id) or the meta lookup fails.
  */
 export async function resolveSudohubAssistantId(presetAssistantIdOrName: string | undefined | null): Promise<string | null> {
-  if (!presetAssistantIdOrName) return null;
+  if (!presetAssistantIdOrName || isPersonalAgentRef(presetAssistantIdOrName)) return null;
   // 'builtin-*' prefix is added by toBackendConfig for system assistants;
   // strip it to get the directory name AssistantManager expects.
   const lookupName = presetAssistantIdOrName.startsWith('builtin-') ? presetAssistantIdOrName.slice('builtin-'.length) : presetAssistantIdOrName;

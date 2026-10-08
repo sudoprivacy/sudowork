@@ -26,5 +26,18 @@
     "noAlternatives": "사용 가능한 에이전트가 없습니다",
     "configureFirst": "먼저 설정에서 에이전트를 구성하세요.",
     "switching": "에이전트 전환 중..."
+  },
+  "mine": {
+    "title": "내 Agent",
+    "create": "Agent 만들기",
+    "description": "Agent는 현재 계정에 속합니다. Agent를 선택해 대화를 시작하거나 개인 Agent를 만들 수 있습니다.",
+    "loadFailed": "Agent를 불러오지 못했습니다. 다시 시도해 주세요.",
+    "retry": "다시 시도",
+    "default": "기본 Agent",
+    "personal": "개인 Agent",
+    "startConversation": "대화 시작",
+    "empty": "아직 개인 Agent가 없습니다",
+    "name": "Agent 이름",
+    "createFailed": "Agent를 만들지 못했습니다. 다시 시도해 주세요."
   }
 }

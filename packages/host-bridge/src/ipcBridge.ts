@@ -3356,6 +3356,8 @@ export const eeclaw = {
     >,
     void
   >('eeclaw.get-my-agents'),
+  /** Create an Agent owned by the currently authenticated user. */
+  createUserAgent: bridge.buildProvider<IBridgeResponse<{ id: string; displayName: string; createdAt: number }>, { displayName: string }>('eeclaw.create-user-agent'),
   /** Fetch enterprise cloud assistants from the enterprise server */
   getCloudAssistants: bridge.buildProvider<
     IBridgeResponse<

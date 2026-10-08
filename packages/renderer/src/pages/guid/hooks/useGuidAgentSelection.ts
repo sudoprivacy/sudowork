@@ -20,6 +20,9 @@ import { emitter } from '@renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@renderer/context/AuthContext';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { resolveGuidModelBackendKey } from '../utils/modelBackendKey';
+import { personalAgentConfigs } from '../utils/personalAgentSelection';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
+import type { IMyAgent } from '@sudowork/common/personalAgents';
 
 // Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
 // 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取
@@ -560,11 +563,11 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
         return fetchAssistantsAsConfigs();
       }
     })();
-    Promise.all([assistantsPromise, ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]), isEnterprise ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })])
-      .then(([agents, extAssistants, cloudAssistantsResult]) => {
+    Promise.all([assistantsPromise, ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]), isEnterprise ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] }), isEnterprise ? ipcBridge.eeclaw.getMyAgents.invoke().catch(() => ({ success: false, data: [] as IMyAgent[] })) : Promise.resolve({ success: true, data: [] as IMyAgent[] })])
+      .then(([agents, extAssistants, cloudAssistantsResult, myAgentsResult]) => {
         if (!isActive) return;
         const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
-        const mergedAgents = isEnterprise ? mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local') : agents;
+        const mergedAgents = isEnterprise ? [...personalAgentConfigs(myAgentsResult.success ? myAgentsResult.data || [] : [], sessionMode === 'local'), ...mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local')] : agents;
         const list = mergedAgents.filter((agent: AcpBackendConfig) => {
           // Keep preset assistants (builtin + hub-installed) visible on Guid homepage
           // even when ACP detection has not produced custom IDs yet.
@@ -878,6 +881,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
 
       const customAgentId = agentInfo.customAgentId;
       if (!customAgentId) return { rules: agentInfo.context };
+      if (isPersonalAgentRef(customAgentId)) return { rules: agentInfo.context };
 
       // Get agent name from agentInfo or customAgents list
       const agentName = agentInfo.name || customAgents.find((agent) => agent.id === customAgentId)?.name;

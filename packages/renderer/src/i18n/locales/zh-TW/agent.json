@@ -26,5 +26,18 @@
     "noAlternatives": "未找到可用的 Agent",
     "configureFirst": "請先在設定中配置一個 Agent。",
     "switching": "正在切換 Agent..."
+  },
+  "mine": {
+    "title": "我的 Agent",
+    "create": "建立 Agent",
+    "description": "Agent 屬於目前帳號。選擇一個 Agent 開始對話，也可以建立新的個人 Agent。",
+    "loadFailed": "載入 Agent 失敗，請重試。",
+    "retry": "重試",
+    "default": "預設 Agent",
+    "personal": "個人 Agent",
+    "startConversation": "開始對話",
+    "empty": "尚無個人 Agent",
+    "name": "Agent 名稱",
+    "createFailed": "建立失敗，請重試。"
   }
 }

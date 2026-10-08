@@ -14,6 +14,7 @@ import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpQuestionData, CronMessageMeta, TMessage, TurnTokenUsage } from '@sudowork/common/chatLib';
 import { transformMessage } from '@sudowork/common/chatLib';
 import type { IMossConversationExecution } from '@sudowork/common/mossExecution';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
@@ -51,6 +52,7 @@ import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { dynamicNexusVfsService } from '@process/services/nexus-vfs/DynamicNexusVfsService';
 import { applyPresetRuntime, applyPresetRuntimeFromMeta } from '@process/task/presetRuntime';
 import { readMossAssistantSnapshot } from '@process/services/mossResourcePreparation';
+import { requireMossPersonalAgent } from '@process/services/mossPersonalAgents';
 import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
@@ -427,7 +429,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Apply preset-specific runtime configuration (env vars, scripts, model configs)
       const cdpPort = chromiumCdpPort || 9230;
       const presetRuntimeContext = {
-        presetAssistantId: this.extra.presetAssistantId,
+        presetAssistantId: isPersonalAgentRef(this.extra.presetAssistantId) ? undefined : this.extra.presetAssistantId,
         backend: this.extra.backend,
         workspace: this.extra.workspace,
         cdpPort,
@@ -916,7 +918,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Managed chats use their prepared version; ID-based lookup can find a
       // different tenant copy or miss the digest-named snapshot entirely.
-      if (this.options.mossAccountScope && this.options.presetAssistantId) {
+      if (this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
+        const agent = await requireMossPersonalAgent(this.options.presetAssistantId!);
+        this.options.agentName = agent.displayName;
+      } else if (this.options.mossAccountScope && this.options.presetAssistantId) {
         const snapshot = await readMossAssistantSnapshot(this.options);
         if (!snapshot) throw new Error('Assistant snapshot is missing');
         const governanceBlock = extractGovernanceBlock(this.options.presetContext);

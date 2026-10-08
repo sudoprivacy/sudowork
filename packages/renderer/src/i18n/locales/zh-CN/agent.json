@@ -26,5 +26,18 @@
     "noAlternatives": "未找到可用的 Agent",
     "configureFirst": "请先在设置中配置一个 Agent。",
     "switching": "正在切换 Agent..."
+  },
+  "mine": {
+    "title": "我的 Agent",
+    "create": "创建 Agent",
+    "description": "Agent 属于当前账号。选择一个 Agent 开始会话，也可以创建新的个人 Agent。",
+    "loadFailed": "加载 Agent 失败，请重试。",
+    "retry": "重试",
+    "default": "默认 Agent",
+    "personal": "个人 Agent",
+    "startConversation": "开始会话",
+    "empty": "暂无个人 Agent",
+    "name": "Agent 名称",
+    "createFailed": "创建失败，请重试。"
   }
 }
