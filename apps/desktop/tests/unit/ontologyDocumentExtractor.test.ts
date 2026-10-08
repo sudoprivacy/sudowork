@@ -149,7 +149,7 @@ describe('ontology document reading', () => {
     expect((await readOntologyDocuments([asset(paths[0])]))[0].text).toBe('Changed after import');
   });
 
-  it('extracts text from a real synthetic DOCX and PDF through the existing parser', async () => {
+  it('extracts text from a real synthetic DOCX through the existing parser', async () => {
     const zip = new JSZip();
     zip.file(
       '[Content_Types].xml',
@@ -160,7 +160,10 @@ describe('ontology document reading', () => {
     const docxPath = path.join(tempDir, 'synthetic.docx');
     await fs.writeFile(docxPath, await zip.generateAsync({ type: 'nodebuffer' }));
     expect((await readOntologyDocuments([asset(docxPath)]))[0].text).toContain('Synthetic invoice has an amount.');
+  });
 
+  // The first PDF initializes the real parser/worker, which can exceed the unit-test budget on Windows CI.
+  it('extracts text from a real synthetic PDF through the existing parser', async () => {
     const stream = 'BT /F1 12 Tf 30 120 Td (Synthetic shipment has a tracking number.) Tj ET';
     const objects = [
       '<< /Type /Catalog /Pages 2 0 R >>',
@@ -180,7 +183,7 @@ describe('ontology document reading', () => {
     const pdfPath = path.join(tempDir, 'synthetic.pdf');
     await fs.writeFile(pdfPath, pdf);
     expect((await readOntologyDocuments([asset(pdfPath)]))[0].text).toContain('Synthetic shipment has a tracking number.');
-  });
+  }, 30_000);
 
   it('reads full CSV contents and all Excel sheets without evaluating formulas', async () => {
     const csvPath = path.join(tempDir, 'records.CSV');

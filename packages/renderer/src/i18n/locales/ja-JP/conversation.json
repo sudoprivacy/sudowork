@@ -12,7 +12,7 @@
     "linkFolder": "フォルダを追加",
     "newConversation": "新しいタスク",
     "execution": {
-      "cloud": "クラウド実行",
+      "cloud": "サーバーで実行",
       "local": "ローカル実行"
     },
     "multiAgentModeEnabled": "マルチエージェントモードに入ります",

@@ -12,7 +12,7 @@
     "linkFolder": "Open Folder",
     "newConversation": "New task",
     "execution": {
-      "cloud": "Cloud execution",
+      "cloud": "Server execution",
       "local": "Local execution"
     },
     "multiAgentModeEnabled": "Entering multi-agent mode",
