@@ -31,6 +31,7 @@ export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {
     avatar: meta.avatar,
     enabled: info.enabled,
     isPreset,
+    ...(meta.ontologyBinding ? { ontologyBinding: meta.ontologyBinding } : {}),
     presetAgentType: meta.presetAgentType,
     promptsI18n: meta.promptsI18n,
     enabledSkills: meta.enabledSkills ?? meta.defaultEnabledSkills,

@@ -580,6 +580,24 @@ export class OntologyService {
     return this.agentRegistry.deleteByAssistant(assistantId);
   }
 
+  /** Resolve locally registered business agents without treating them as remote catalog entries. */
+  async getRegisteredAgentRuntime(assistantId: string) {
+    const snapshot = this.database.listSnapshots().find((item) => item.agentBlueprints.some((agent) => agent.registeredAssistantId === assistantId));
+    if (!snapshot) return undefined;
+    const blueprint = snapshot.agentBlueprints.find((item) => item.registeredAssistantId === assistantId);
+    const version = snapshot.publishedVersions.find((item) => item.id === blueprint?.ontologyVersionId && item.status === 'published');
+    const installed = await assistantManager.getAssistantMetaWithDir(assistantId);
+    if (!blueprint || blueprint.status !== 'registered' || !version || !installed || installed.category !== 'custom' || !installed.meta.enabled) throw new Error('ontology.studio.agentErrors.notFound');
+    const ownership = { workspaceId: snapshot.workspaceId, versionId: version.id, blueprintId: blueprint.id };
+    if (!isDeepStrictEqual(installed.meta.ontologyBinding, ownership)) throw new Error('ontology.studio.agentErrors.identityConflict');
+    const directory = await fs.realpath(installed.dir);
+    const rulePath = await fs.realpath(path.resolve(directory, installed.meta.ruleFile || 'AGENT.md'));
+    if (!rulePath.startsWith(directory + path.sep)) throw new Error('ontology.studio.agentErrors.identityConflict');
+    const rules = await fs.readFile(rulePath, 'utf8');
+    if (!rules.trim()) throw new Error('ontology.studio.agentErrors.notFound');
+    return { meta: installed.meta, directory, presetContext: `${rules}\n\nAssistant resources: ${directory}` };
+  }
+
   private async installRegisteredAgent(blueprint: IOntologyAgentBlueprint, snapshot: IOntologyWorkbenchSnapshot): Promise<void> {
     const assistantId = blueprint.registeredAssistantId!;
     const version = snapshot.publishedVersions.find((item) => item.id === blueprint.ontologyVersionId && item.status === 'published');

@@ -118,5 +118,6 @@ export default function OntologyPage() {
     [navigate, ontologyId]
   );
   const page = ['model', 'data', 'capabilities', 'checks', 'release'].includes(view || '') ? (view as OntologyStudioPage) : 'model';
-  return <OntologyStudio api={api} workspaceId={ontologyId} page={page} onNavigate={onNavigate} renderChat={renderChat} />;
+  const onStartAgentConversation = useCallback((assistantId: string) => navigate(`/guid?assistant=${encodeURIComponent(assistantId)}&source=ontology`), [navigate]);
+  return <OntologyStudio api={api} workspaceId={ontologyId} page={page} onNavigate={onNavigate} renderChat={renderChat} onStartAgentConversation={onStartAgentConversation} />;
 }

@@ -6,7 +6,8 @@ import { execFileSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
 
-const state = vi.hoisted(() => ({ root: '', isEnabled: true, requireAgent: vi.fn() }));
+const state = vi.hoisted(() => ({ root: '', isEnabled: true, requireAgent: vi.fn(), requireOntology: vi.fn() }));
+vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: { getRegisteredAgentRuntime: state.requireOntology } }));
 vi.mock('@process/services/mossPersonalAgents', () => ({ requireMossPersonalAgent: state.requireAgent }));
 vi.mock('@process/initStorage', () => ({
   ProcessConfig: { getSync: (key: string) => ({ 'eeclaw.serverUrl': 'https://moss.example', 'eeclaw.accountScope': 'account', 'eeclaw.authStorage': { access_token: 'token' } })[key] },
@@ -22,6 +23,7 @@ import { prepareMossResources, readMossAssistantSnapshot, safeResourcePath, vali
 beforeEach(async () => {
   state.root = await fs.mkdtemp(path.join(os.tmpdir(), 'moss-resource-'));
   state.isEnabled = true;
+  state.requireOntology.mockReset().mockResolvedValue({ meta: { id: 'ontology-test' }, directory: state.root, presetContext: 'Published ontology rules' });
   state.requireAgent.mockReset().mockResolvedValue({ displayName: 'Personal Agent' });
 });
 afterEach(async () => {
@@ -40,6 +42,30 @@ async function serveArchive(isBadChecksum = false, isSymlink = false) {
 }
 
 describe('Moss resource preparation', () => {
+  it('uses validated local ontology rules without downloading a remote template', async () => {
+    const request = vi.fn();
+    vi.stubGlobal('fetch', request);
+    expect(await prepareMossResources('ontology-test')).toEqual({ presetContext: 'Published ontology rules', enabledSkills: [], resources: [] });
+    expect(await readMossAssistantSnapshot({ mossAccountScope: 'account', presetAssistantId: 'ontology-test' })).toMatchObject({ presetContext: 'Published ontology rules', directory: state.root });
+    expect(state.requireOntology).toHaveBeenCalledTimes(2);
+    expect(request).not.toHaveBeenCalled();
+    state.requireOntology.mockRejectedValueOnce(new Error('Agent unavailable'));
+    await expect(prepareMossResources('ontology-test')).rejects.toThrow('unavailable');
+    await expect(readMossAssistantSnapshot({ mossAccountScope: 'other', presetAssistantId: 'ontology-test' })).rejects.toThrow('different Moss account');
+    expect(state.requireOntology).toHaveBeenCalledTimes(3);
+  });
+
+  it('preserves normal managed snapshots for unregistered IDs that merely share the prefix', async () => {
+    state.requireOntology.mockResolvedValue(undefined);
+    const assistantId = 'ontology-named-remote-template';
+    await fs.writeFile(path.join(state.root, '.moss-ready'), 'digest');
+    await fs.writeFile(path.join(state.root, '_moss_meta.json'), JSON.stringify({ id: assistantId, name: 'remote-template', ruleFile: 'AGENT.md', mossDigest: 'digest' }));
+    await fs.writeFile(path.join(state.root, 'AGENT.md'), 'Remote template rules');
+    const snapshot = await readMossAssistantSnapshot({ mossAccountScope: 'account', presetAssistantId: assistantId, mossResources: [{ id: assistantId, kind: 'agents', path: state.root, digest: 'digest' }] });
+    expect(snapshot?.meta.id).toBe(assistantId);
+    expect(snapshot?.presetContext).toContain('Remote template rules');
+  });
+
   it('checks personal ownership without downloading a template or requiring its snapshot', async () => {
     const ref = 'moss-agent:own:personal';
     const request = vi.fn();
