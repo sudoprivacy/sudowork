@@ -28,7 +28,7 @@
   "createOrder": "Create order",
   "orders": "Organization recharge history",
   "order": "Order number",
-  "paidCny": "Paid (CNY)",
+  "paidCny": "Amount due (CNY)",
   "actions": "Actions",
   "alipay": "Alipay",
   "wechat": "WeChat Pay",
@@ -43,12 +43,19 @@
     "pending": "Awaiting credit",
     "sending": "Crediting",
     "credited": "Credited to organization",
-    "needs_review": "Paid; credit needs review. Contact an administrator."
+    "needs_review": "Credit needs review; contact an administrator",
+    "failed": "Confirmed not executed"
   },
   "paymentStatuses": {
     "pending": "Pending payment",
     "paying": "Payment in progress",
     "cancelled": "Cancelled"
   },
-  "expiredOrder": "Order expired. Check payment status before creating another order."
+  "expiredOrder": "Order expired. Check payment status before creating another order.",
+  "source": "Source",
+  "manualCredit": "Administrator credit",
+  "onlineCredit": "Fuiou payment",
+  "noPayment": "No payment required",
+  "operator": "Payer / operator",
+  "reason": "Credit reason"
 }

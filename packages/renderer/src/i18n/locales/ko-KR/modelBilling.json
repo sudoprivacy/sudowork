@@ -28,7 +28,7 @@
   "createOrder": "Create order",
   "orders": "Organization recharge history",
   "order": "Order number",
-  "paidCny": "Paid (CNY)",
+  "paidCny": "결제 예정액 (CNY)",
   "actions": "Actions",
   "alipay": "Alipay",
   "wechat": "WeChat Pay",
@@ -43,12 +43,19 @@
     "pending": "Awaiting credit",
     "sending": "Crediting",
     "credited": "Credited to organization",
-    "needs_review": "Paid; credit needs review. Contact an administrator."
+    "needs_review": "충전 확인이 필요합니다. 관리자에게 문의하세요",
+    "failed": "미실행 확인됨"
   },
   "paymentStatuses": {
     "pending": "Pending payment",
     "paying": "Payment in progress",
     "cancelled": "Cancelled"
   },
-  "expiredOrder": "Order expired. Check payment status before creating another order."
+  "expiredOrder": "Order expired. Check payment status before creating another order.",
+  "source": "출처",
+  "manualCredit": "관리자 충전",
+  "onlineCredit": "Fuiou 결제",
+  "noPayment": "결제 불필요",
+  "operator": "결제자 / 작업자",
+  "reason": "충전 사유"
 }

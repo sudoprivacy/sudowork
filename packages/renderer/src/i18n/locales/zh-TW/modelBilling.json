@@ -28,7 +28,7 @@
   "createOrder": "创建订单",
   "orders": "组织充值记录",
   "order": "订单号",
-  "paidCny": "实付人民币",
+  "paidCny": "應付人民幣",
   "actions": "操作",
   "alipay": "支付宝",
   "wechat": "微信支付",
@@ -43,12 +43,19 @@
     "pending": "等待入账",
     "sending": "入账处理中",
     "credited": "已到账组织账户",
-    "needs_review": "已支付，入账待核对，请联系管理员"
+    "needs_review": "入帳待核對，請聯絡管理員",
+    "failed": "確認未執行"
   },
   "paymentStatuses": {
     "pending": "待支付",
     "paying": "支付中",
     "cancelled": "已取消"
   },
-  "expiredOrder": "订单已过期，请查询付款状态后重新下单。"
+  "expiredOrder": "订单已过期，请查询付款状态后重新下单。",
+  "source": "來源",
+  "manualCredit": "後台充值",
+  "onlineCredit": "富友線上充值",
+  "noPayment": "無需支付",
+  "operator": "付款人 / 操作人",
+  "reason": "充值原因"
 }

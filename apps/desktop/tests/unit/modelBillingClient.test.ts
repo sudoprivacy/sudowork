@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createModelBillingClient } from '../../../../packages/renderer/src/pages/settings/model-account/client';
+import { createModelBillingClient, isPayableOrder, type ModelOrder } from '../../../../packages/renderer/src/pages/settings/model-account/client';
 
 describe('organization model billing client', () => {
   it('preserves USD decimal strings and a stable idempotency key on retries', async () => {
@@ -27,4 +27,10 @@ describe('organization model billing client', () => {
     const request = createModelBillingClient('https://moss.test', async () => new Response(JSON.stringify({ success: true, data: paid })));
     expect(await request('model-billing/orders/order/sync', 'POST')).toEqual(paid);
   });
+});
+
+it('manual credits cannot become payable even with malformed payment fields', () => {
+  expect(isPayableOrder({ source: 'manual', payment_status: 'pending', expires_at: Date.now() + 10000 } as unknown as ModelOrder)).toBe(false);
+  expect(isPayableOrder({ source: 'online', payment_status: 'pending', expires_at: 2000 } as ModelOrder, 1000)).toBe(true);
+  expect(isPayableOrder({ source: 'online', payment_status: 'pending', expires_at: 2000 } as ModelOrder, 2000)).toBe(false);
 });

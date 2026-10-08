@@ -3,19 +3,27 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import { useModelAccount } from '../model-account/useModelAccount';
-import type { ModelOrder, ModelPackage } from '../model-account/client';
+import { isPayableOrder, type ModelOrder, type ModelOnlineOrder, type ModelPackage } from '../model-account/client';
 
 const QRCode = lazy(async () => ({ default: (await import('qrcode.react')).QRCodeSVG }));
 export default function RechargeCenter() {
+  const model = useModelAccount();
+  return <OrganizationRechargeCenter key={model.identityKey} model={model} />;
+}
+
+interface OrganizationRechargeCenterProps {
+  model: ReturnType<typeof useModelAccount>;
+}
+function OrganizationRechargeCenter({ model }: OrganizationRechargeCenterProps) {
   const { t } = useTranslation();
-  const { account, error, isLoading, refresh, request } = useModelAccount();
+  const { account, error, isLoading, refresh, request } = model;
   const [packages, setPackages] = useState<ModelPackage[]>([]);
   const [orders, setOrders] = useState<ModelOrder[]>([]);
   const [orderPage, setOrderPage] = useState(1);
   const [orderTotal, setOrderTotal] = useState(0);
   const [amount, setAmount] = useState('10.00');
   const [method, setMethod] = useState<'ALIPAY' | 'WECHAT'>('ALIPAY');
-  const [order, setOrder] = useState<ModelOrder>();
+  const [order, setOrder] = useState<ModelOnlineOrder>();
   const [qr, setQr] = useState('');
   const [isBusy, setIsBusy] = useState(false);
   const [failure, setFailure] = useState('');
@@ -47,7 +55,7 @@ export default function RechargeCenter() {
   }, [isAllowed, request, orderPage]);
   const onSync = useCallback(
     async (orderNo: string) => {
-      const updated = await request<ModelOrder>(`model-billing/orders/${encodeURIComponent(orderNo)}/sync`, 'POST');
+      const updated = await request<ModelOnlineOrder>(`model-billing/orders/${encodeURIComponent(orderNo)}/sync`, 'POST');
       setOrder(updated);
       if (updated.payment_status === 'paid' || updated.payment_status === 'cancelled') {
         setQr('');
@@ -79,15 +87,15 @@ export default function RechargeCenter() {
       clearTimeout(timer);
     };
   }, [isAllowed, order?.order_no, order?.payment_status, order?.expires_at, onSync, t]);
-  const onPay = async (existing?: ModelOrder) => {
+  const onPay = async (existing?: ModelOnlineOrder) => {
     setIsBusy(true);
     setFailure('');
     try {
       const identity = `${amount}:${method}`;
       if (reference.current?.identity !== identity) reference.current = { identity, key: crypto.randomUUID() };
-      const created = existing ?? (await request<ModelOrder>('model-billing/orders', 'POST', { purchase_amount_usd: amount, payment_method: method }, reference.current.key));
+      const created = existing ?? (await request<ModelOnlineOrder>('model-billing/orders', 'POST', { purchase_amount_usd: amount, payment_method: method }, reference.current.key));
       setOrder(created);
-      const payment = await request<{ qr_code_url: string; order: ModelOrder }>(`model-billing/orders/${encodeURIComponent(created.order_no)}/pay`, 'POST');
+      const payment = await request<{ qr_code_url: string; order: ModelOnlineOrder }>(`model-billing/orders/${encodeURIComponent(created.order_no)}/pay`, 'POST');
       setOrder(payment.order);
       setQr(payment.qr_code_url);
       reference.current = undefined;
@@ -184,15 +192,18 @@ export default function RechargeCenter() {
             data={orders}
             pagination={{ current: orderPage, pageSize: 20, total: orderTotal, onChange: setOrderPage }}
             columns={[
+              { title: t('modelBilling.source'), render: (_, row: ModelOrder) => t(row.source === 'manual' ? 'modelBilling.manualCredit' : 'modelBilling.onlineCredit') },
               { title: t('modelBilling.order'), dataIndex: 'order_no' },
               { title: t('modelBilling.purchase'), render: (_, row: ModelOrder) => `$${row.purchase_amount_usd}` },
               { title: t('modelBilling.bonus'), render: (_, row: ModelOrder) => `$${row.bonus_amount_usd}` },
-              { title: t('modelBilling.paidCny'), render: (_, row: ModelOrder) => `¥${(row.amount_cny_fen / 100).toFixed(2)}` },
-              { title: t('modelBilling.status'), render: (_, row: ModelOrder) => t(row.payment_status === 'paid' ? `modelBilling.creditStatuses.${row.credit_status}` : `modelBilling.paymentStatuses.${row.payment_status}`) },
+              { title: t('modelBilling.paidCny'), render: (_, row: ModelOrder) => (row.source === 'manual' ? t('modelBilling.noPayment') : `¥${(row.amount_cny_fen / 100).toFixed(2)}`) },
+              { title: t('modelBilling.status'), render: (_, row: ModelOrder) => t(row.source === 'manual' || row.payment_status === 'paid' ? `modelBilling.creditStatuses.${row.credit_status}` : `modelBilling.paymentStatuses.${row.payment_status}`) },
+              { title: t('modelBilling.operator'), render: (_, row: ModelOrder) => row.payer_nickname || row.payer_username || row.payer_user_id || '—' },
+              { title: t('modelBilling.reason'), render: (_, row: ModelOrder) => row.reason || '—' },
               {
                 title: t('modelBilling.actions'),
                 render: (_, row: ModelOrder) =>
-                  ['pending', 'paying'].includes(row.payment_status) && row.expires_at > Date.now() ? (
+                  isPayableOrder(row) ? (
                     <Button loading={isBusy} onClick={() => void onPay(row)}>
                       {t('modelBilling.continuePay')}
                     </Button>

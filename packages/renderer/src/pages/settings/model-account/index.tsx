@@ -5,8 +5,16 @@ import type { ModelLog } from './client';
 import { useModelAccount } from './useModelAccount';
 
 export default function ModelAccountPanel() {
+  const model = useModelAccount();
+  return <PersonalModelAccount key={model.identityKey} model={model} />;
+}
+
+interface PersonalModelAccountProps {
+  model: ReturnType<typeof useModelAccount>;
+}
+function PersonalModelAccount({ model }: PersonalModelAccountProps) {
   const { t } = useTranslation();
-  const { account, error, isLoading, refresh, request } = useModelAccount();
+  const { account, error, isLoading, refresh, request } = model;
   const [page, setPage] = useState(1);
   const [logs, setLogs] = useState<{ items: ModelLog[]; total: number; truncated: boolean }>();
   const [logError, setLogError] = useState('');
@@ -56,12 +64,7 @@ export default function ModelAccountPanel() {
       ) : (
         <Alert type='warning' content={t('modelBilling.memberPending')} />
       )}
-      {account.can_manage && (
-        <div>
-          {t('modelBilling.organizationBalance')}: <strong>${account.model_balance_usd ?? '—'}</strong>
-        </div>
-      )}
-      <h4>{account.can_manage ? t('modelBilling.organizationUsage') : t('modelBilling.myUsage')}</h4>
+      <h4>{t('modelBilling.myUsage')}</h4>
       {logError ? (
         <Alert type='warning' content={logError} />
       ) : (

@@ -60,3 +60,30 @@ describe('organization recharge page', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'modelBilling.cancel' })).toBeNull());
   });
 });
+
+it('displays manual credits without CNY payment or a continue-payment action', async () => {
+  billing.account.can_recharge = true;
+  const manual = {
+    source: 'manual',
+    order_no: 'manual-one',
+    purchase_amount_usd: '11.00',
+    bonus_amount_usd: '0.00',
+    amount_cny_fen: null,
+    payment_method: null,
+    payment_status: 'not_required',
+    credit_status: 'needs_review',
+    created_at: Date.now(),
+    expires_at: null,
+    payer_username: 'operator',
+    reason: 'Verified correction',
+  };
+  billing.request.mockImplementation(async (path: string) => (path === 'model-billing/packages' ? { items: [] } : { items: [manual], total: 1 }));
+  render(<RechargeCenter />);
+  await screen.findByText('manual-one');
+  expect(screen.getByText('modelBilling.manualCredit')).toBeTruthy();
+  expect(screen.getByText('modelBilling.noPayment')).toBeTruthy();
+  expect(screen.getByText('modelBilling.creditStatuses.needs_review')).toBeTruthy();
+  expect(screen.getByText('operator')).toBeTruthy();
+  expect(screen.getByText('Verified correction')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'modelBilling.continuePay' })).toBeNull();
+});

@@ -13,5 +13,5 @@ export function useModelAccount() {
     [authFetch]
   );
   const { data, error, isLoading, mutate } = useSWR(user?.token ? ['model-account', user.id, user.token] : null, () => request<ModelAccount>('model-account'), { revalidateOnFocus: true, shouldRetryOnError: false });
-  return { account: data, error: error as Error | undefined, isLoading, refresh: mutate, request };
+  return { identityKey: JSON.stringify([user?.id, user?.token]), account: data, error: error as Error | undefined, isLoading, refresh: mutate, request };
 }
