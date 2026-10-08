@@ -12,7 +12,7 @@
     "linkFolder": "打开文件夹",
     "newConversation": "新建任务",
     "execution": {
-      "cloud": "云端执行",
+      "cloud": "服务器执行",
       "local": "本地执行"
     },
     "multiAgentModeEnabled": "已进入多智能体模式",

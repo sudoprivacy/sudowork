@@ -12,7 +12,7 @@
     "linkFolder": "開啟資料夾",
     "newConversation": "新建任務",
     "execution": {
-      "cloud": "雲端執行",
+      "cloud": "伺服器執行",
       "local": "本機執行"
     },
     "multiAgentModeEnabled": "已進入多智能體模式",
