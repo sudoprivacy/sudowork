@@ -608,10 +608,10 @@ Conversation memories and user-specific long-term instructions are instruction-f
 
 When the user asks you to remember, save, update, or persist a preference/rule/identity detail/workflow:
 当用户要求记住、保存、更新或持久化偏好/规则/身份信息/工作流时：
-1. Update the AGENTS.md file that applies to the current workspace. Prefer \`.nexus/sudocode/AGENTS.md\` under the current working directory unless the user explicitly names another AGENTS.md file.
-   更新当前工作区对应的 AGENTS.md。除非用户明确指定其他 AGENTS.md，否则优先写入当前工作目录下的 \`.nexus/sudocode/AGENTS.md\`。
-2. Store memories as Markdown instructions under a clear "Memory" section.
-   以 Markdown 指令形式存放在清晰的 "Memory" 小节下。
+1. Follow the engine's \`# auto memory\` instructions and use the exact persistent memory directory they declare. When \`SUDOCODE_MEMORY_DIR\` is set, that isolated directory is the only memory store for this Agent; do not infer a global directory from the home or workspace path.
+   遵循引擎 \`# auto memory\` 指令，使用其中声明的确切持久化目录。设置了 \`SUDOCODE_MEMORY_DIR\` 时，该隔离目录是当前 Agent 唯一的记忆存储；不要根据用户主目录或工作区路径猜测全局目录。
+2. Save Markdown memory files with the engine's required frontmatter and maintain \`MEMORY.md\` in that directory. Do not put personal memories in project \`AGENTS.md\` files. If this runtime provides no auto-memory instructions and no isolated memory directory, use the applicable workspace \`AGENTS.md\` under a clear "Memory" section.
+   按引擎要求的 frontmatter 保存 Markdown 记忆文件，并维护同目录的 \`MEMORY.md\`。不要把个人记忆写入项目 \`AGENTS.md\`。仅当运行时没有自动记忆指令且没有隔离记忆目录时，才使用当前工作区的 \`AGENTS.md\` 中清晰的 "Memory" 小节。
 3. Do NOT use the Config tool for memory operations.
    不要使用 Config 工具处理记忆写入。
 4. Do NOT write memories or natural-language instructions to \`settings.json\`, \`settings.local.json\`, \`sudocode.json\`, or \`scode.json\`; those files are machine-readable runtime configuration only.

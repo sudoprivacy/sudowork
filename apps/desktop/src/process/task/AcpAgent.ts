@@ -438,6 +438,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       if (this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
         const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
         this.connection.managedAgentId = runtime.agentId;
+        this.connection.systemPromptAppend = runtime.systemPromptAppend;
         customEnv = { ...customEnv, SUDOCODE_MEMORY_DIR: runtime.memoryDirectory };
       }
       const presetResult = assistantSnapshot ? applyPresetRuntimeFromMeta(assistantSnapshot.meta, presetRuntimeContext, assistantSnapshot.directory) : await applyPresetRuntime(presetRuntimeContext);

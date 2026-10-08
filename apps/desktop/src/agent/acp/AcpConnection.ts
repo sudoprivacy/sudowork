@@ -70,6 +70,7 @@ export class AcpConnection {
   public conversationId: string | null = null;
   /** Account-scoped personal identity prepared by the desktop host. */
   public managedAgentId: string | null = null;
+  public systemPromptAppend: string | null = null;
   private initializeResponse: AcpResponse | null = null;
   private workingDir: string = process.cwd();
 
@@ -806,7 +807,9 @@ export class AcpConnection {
             },
           },
         }
-      : undefined;
+      : this.backend === 'scode' && this.systemPromptAppend
+        ? { sudocode: { appendSystemPrompt: this.systemPromptAppend, memory: 'enabled' } }
+        : undefined;
 
     const response = await this.sendRequest<AcpResponse & { sessionId?: string }>('session/new', {
       cwd: normalizedCwd,
@@ -843,6 +846,7 @@ export class AcpConnection {
       sessionId,
       cwd: normalizedCwd,
       mcpServers: mcpServers ?? ([] as unknown[]),
+      ...(this.backend === 'scode' && this.systemPromptAppend && { _meta: { sudocode: { appendSystemPrompt: this.systemPromptAppend, memory: 'enabled' } } }),
     });
 
     // session/load returns modes/models/configOptions but not sessionId — keep the one we sent
