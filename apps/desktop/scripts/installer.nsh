@@ -357,6 +357,19 @@ $\r$\n\
   ; Keep Cancel button enabled during installation
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
 
+  !ifdef allowToChangeInstallationDirectory
+    Function instFilesPreserveUpdateLocationPre
+      ; Updates reuse the registered installation directory. The upstream
+      ; fresh-install sanitizer would append APP_FILENAME to a custom path.
+      ${IfNot} ${isUpdated}
+        Call instFilesPre
+      ${EndIf}
+    FunctionEnd
+
+    !undef MUI_PAGE_CUSTOMFUNCTION_PRE
+    !define MUI_PAGE_CUSTOMFUNCTION_PRE instFilesPreserveUpdateLocationPre
+  !endif
+
 !endif ; BUILD_UNINSTALLER
 !macroend
 
