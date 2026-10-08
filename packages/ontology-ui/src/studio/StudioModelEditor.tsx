@@ -264,6 +264,7 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
         <div className={styles['ontology-canvas']}>
           {view === 'graph' ? (
             <ReactFlow
+              proOptions={{ hideAttribution: true }}
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
