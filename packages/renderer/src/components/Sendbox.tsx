@@ -525,6 +525,7 @@ const SendBox: React.FC<{
   // Reusable send button component
   const sendButton = (
     <Button
+      aria-label={t('common.send')}
       shape='circle'
       type='primary'
       disabled={isButtonDisabled}

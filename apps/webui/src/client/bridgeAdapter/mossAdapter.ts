@@ -35,6 +35,7 @@ import type { IBridgeResponse } from '@sudowork/host-bridge/ipcBridge'
 import type { IConfirmation } from '@sudowork/common/chatLib'
 import type { IChannelPluginStatus } from '@sudowork/common/channelTypes'
 import { deriveConversationTitle } from '@sudowork/common/conversationTitle'
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents'
 // The moss-frame → IResponseMessage mapping is the SAME implementation the desktop
 // MossWsConnection uses (shared leaf module, full stateless-frame coverage).
 import {
@@ -78,6 +79,21 @@ type TenantConfigPayload = {
 
 const ok = <D>(data?: D): IBridgeResponse<D> => ({ success: true, data })
 const fail = (msg: string): IBridgeResponse => ({ success: false, msg })
+
+const myAgentsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(
+    z.object({
+      ref: z.string().min(1),
+      displayName: z.string(),
+      kind: z.enum(['default', 'own', 'template']),
+    }),
+  ),
+})
+
+async function listMyAgents() {
+  return myAgentsResponseSchema.parse(await apiFetch<unknown>('/api/v1/agents/mine')).data
+}
 
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -640,7 +656,15 @@ function formatCronRunTitle(jobName: string | undefined, timestamp: number): str
 }
 
 /** Minimal TChatConversation projection (enough for the sider + open flow). */
-function toChatConversation(item: ConversationListItem): Record<string, unknown> {
+function toChatConversation(
+  item: ConversationListItem,
+  displayName?: string,
+): Record<string, unknown> {
+  const agentName =
+    displayName ??
+    (isPersonalAgentRef(item.assistantName ?? undefined)
+      ? undefined
+      : (item.assistantName ?? undefined))
   const ts = item.lastActiveAt ?? Date.now()
   // cron 运行记录会话在 moss 侧用 `source`（JSON 字符串）标记；grouped-history 的
   // buildScheduledGroups 靠 extra.cronJobId 把运行记录归到对应定时任务分组，缺失则
@@ -678,7 +702,7 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
       (isCron
         ? formatCronRunTitle(cronJobName, item.createdAt ?? item.lastActiveAt ?? Date.now())
         : undefined) ??
-      item.assistantName ??
+      agentName ??
       '',
     type: 'remote-agent',
     createTime: isCron && item.createdAt ? item.createdAt : ts,
@@ -686,7 +710,7 @@ function toChatConversation(item: ConversationListItem): Record<string, unknown>
     status: item.status === 'running' ? 'running' : 'finished',
     extra: {
       backend: 'scode',
-      agentName: item.assistantName ?? undefined,
+      agentName,
       pinned: item.pinned ?? false,
       pinnedAt: item.pinnedAt ?? undefined,
       mossSessionId: item.id,
@@ -1438,17 +1462,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // doing it here would put the template-is-not-an-agent distinction into the
   // browser and give it a reason to read the organization catalog.
   'eeclaw.get-my-agents': async () => {
-    const schema = z.object({
-      success: z.literal(true),
-      data: z.array(
-        z.object({
-          ref: z.string().min(1),
-          displayName: z.string(),
-          kind: z.enum(['default', 'own', 'template']),
-        }),
-      ),
-    })
-    return ok(schema.parse(await apiFetch<unknown>('/api/v1/agents/mine')).data)
+    return ok(await listMyAgents())
   },
   'eeclaw.create-user-agent': async (req) => {
     const input = z
@@ -1700,8 +1714,14 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   'extensions.get-acp-adapters': async () => [],
 
   // --- conversation list / open ---
-  'database.get-user-conversations': async () =>
-    (await listConversations()).map(toChatConversation),
+  'database.get-user-conversations': async () => {
+    const items = await listConversations()
+    const agents = items.some((item) => isPersonalAgentRef(item.assistantName ?? undefined))
+      ? await listMyAgents().catch(() => [])
+      : []
+    const names = new Map(agents.map((agent) => [agent.ref, agent.displayName]))
+    return items.map((item) => toChatConversation(item, names.get(item.assistantName ?? '')))
+  },
   'moss.list-sessions': async () => ok((await listConversations()).map(toMossSession)),
   'moss.get-session': async (req) => {
     const found = (await listConversations()).find((c) => c.id === req?.sessionId)
@@ -1710,14 +1730,18 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   'get-conversation': async (req) => {
     const found = (await listConversations()).find((c) => c.id === req?.id)
     if (!found) return undefined
-    const conv = toChatConversation(found)
+    const isPersonal = isPersonalAgentRef(found.assistantName ?? undefined)
+    const personalAgent = isPersonal
+      ? (await listMyAgents().catch(() => [])).find((agent) => agent.ref === found.assistantName)
+      : undefined
+    const conv = toChatConversation(found, personalAgent?.displayName)
     // 会话模型回读：conversation_meta.model_id（renderer 以 extra.currentModelId 作 initialModelId）
     const model = await apiFetch<{ modelId: string | null }>(
       `/api/conversations/${encodeURIComponent(String(req?.id ?? ''))}/model`,
     ).catch(() => null)
     if (model?.modelId)
       conv.extra = { ...(conv.extra as Record<string, unknown>), currentModelId: model.modelId }
-    if (found.assistantName) {
+    if (found.assistantName && !isPersonal) {
       const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(() => [])
       const agent = agents.find(
         (item) => item.name === found.assistantName || item.id === found.assistantName,
