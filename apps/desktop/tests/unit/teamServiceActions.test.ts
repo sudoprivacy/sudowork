@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Team } from '@process/services/team/TeamStore';
+import { teamService as referenceTeamService } from '@process/services/team/TeamService';
+
+const TeamServiceClass = referenceTeamService.constructor as new () => typeof referenceTeamService;
+let teamService: typeof referenceTeamService;
 
 const h = vi.hoisted(() => ({
   emitListChanged: vi.fn(),
@@ -85,7 +89,7 @@ beforeEach(() => {
   h.hardDeleteMailboxByMember.mockReset();
   h.emitMemberRemoved.mockReset();
   h.listMembersByTeam.mockReturnValue([]);
-  vi.resetModules();
+  teamService = new TeamServiceClass();
 });
 
 function setTeamRuntime(teamService: unknown, runtime: unknown): void {
@@ -94,7 +98,6 @@ function setTeamRuntime(teamService: unknown, runtime: unknown): void {
 
 describe('TeamService team history actions', () => {
   it('updates pin state and emits an updated list event', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     h.getTeam.mockReturnValueOnce(makeTeam()).mockReturnValueOnce(makeTeam({ pinned: true, pinned_at: 123 }));
 
     const team = teamService.updateTeam('team-1', { pinned: true, pinned_at: 123 });
@@ -106,7 +109,6 @@ describe('TeamService team history actions', () => {
   });
 
   it('renames a team, syncs conversation display names, and emits rename events', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     h.getTeam.mockReturnValueOnce(makeTeam()).mockReturnValueOnce(makeTeam({ name: 'New Team' }));
     h.listMembersByTeam.mockReturnValue([{ id: 'leader-slot', team_id: 'team-1', role: 'lead', name: 'Leader', assistant_id: null, backend: 'scode', preset_agent_type: 'scode', skills: [], preset_context: null, model: null, avatar: null, conversation_id: 'conv-1', status: 'idle', created_at: 1 }]);
     h.getConversation.mockReturnValue({ data: { id: 'conv-1', name: 'Old Team', extra: { workspaceDisplayName: 'Old Team' } } });
@@ -121,7 +123,6 @@ describe('TeamService team history actions', () => {
   });
 
   it('ignores fields outside the update whitelist', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     const existing = makeTeam();
     h.getTeam.mockReturnValue(existing);
 
@@ -133,7 +134,6 @@ describe('TeamService team history actions', () => {
   });
 
   it('answers a pending question through the team member runtime agent', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     const answerQuestion = vi.fn().mockResolvedValue(undefined);
     h.getTeam.mockReturnValue(makeTeam());
     setTeamRuntime(teamService, {
@@ -148,7 +148,6 @@ describe('TeamService team history actions', () => {
   });
 
   it('rejects question answers for a mismatched team member conversation', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     const answerQuestion = vi.fn();
     h.getTeam.mockReturnValue(makeTeam());
     setTeamRuntime(teamService, {
@@ -162,7 +161,6 @@ describe('TeamService team history actions', () => {
   });
 
   it('rejects invalid question answer payloads before calling the agent', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     const answerQuestion = vi.fn();
     h.getTeam.mockReturnValue(makeTeam());
     setTeamRuntime(teamService, {
@@ -176,7 +174,6 @@ describe('TeamService team history actions', () => {
   });
 
   it('rejects question answers when the member runtime agent is unavailable', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     h.getTeam.mockReturnValue(makeTeam());
     setTeamRuntime(teamService, {
       member: { id: 'slot-1', team_id: 'team-1', role: 'lead', conversation_id: 'conv-1' },
@@ -190,7 +187,6 @@ describe('TeamService team history actions', () => {
 
 describe('TeamService removeMember ownership + leader guard', () => {
   it('throws on cross-team member (team_id mismatch) and performs no deletion', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     h.getMember.mockReturnValue({ id: 'slot-1', team_id: 'other-team', role: 'teammate', conversation_id: 'c1' });
 
     await expect(teamService.removeMember('team-1', 'slot-1')).rejects.toThrow('Member not found: slot-1');
@@ -198,7 +194,6 @@ describe('TeamService removeMember ownership + leader guard', () => {
   });
 
   it('throws when removing the team lead and performs no deletion', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     h.getMember.mockReturnValue({ id: 'leader-1', team_id: 'team-1', role: 'lead', conversation_id: 'c-lead' });
 
     await expect(teamService.removeMember('team-1', 'leader-1')).rejects.toThrow('cannot remove the team lead');
@@ -206,7 +201,6 @@ describe('TeamService removeMember ownership + leader guard', () => {
   });
 
   it('deletes a same-team teammate: soft-deletes and emits onMemberRemoved', async () => {
-    const { teamService } = await import('@process/services/team/TeamService');
     h.getMember.mockReturnValue({ id: 'slot-1', team_id: 'team-1', role: 'teammate', conversation_id: 'c1' });
 
     await teamService.removeMember('team-1', 'slot-1');

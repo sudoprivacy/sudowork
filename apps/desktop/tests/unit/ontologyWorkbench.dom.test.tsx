@@ -596,105 +596,115 @@ describe('OntologyWorkbench', () => {
       expect(api.upsertAttribute).not.toHaveBeenCalled();
     });
 
-    it('creates an attribute immediately from an empty list and retains it after closing without saving basic fields', async () => {
-      const api = createApi();
-      const parent = await openObjectEditor(api);
-      expect(within(parent).getByText('ontology.objectBuilder.emptyAttributes')).toBeInTheDocument();
-      expectAttributeCount(parent, 0);
-      const basicFields = { displayName: 'Unsaved customer', englishName: 'unsaved_customer', description: 'Unsaved description' };
-      changeEditorFields(parent, basicFields);
-      const child = await openAttributeEditor(parent);
-      expectEditorFields(child, { name: '', code: '', dataType: 'string', description: '', example: '', constraints: '{}' });
-      expect(within(child).getByRole('checkbox', { name: 'ontology.editor.required' })).not.toBeChecked();
-      expect(within(child).getByRole('button', { name: 'ontology.editor.save' })).toBeDisabled();
-      expectParentBlocked(parent);
-      changeEditorFields(child, { name: 'Email', code: 'email', description: 'Contact email', example: 'a@example.com', constraints: '{"maxLength": 255}' });
-      fireEvent.click(within(child).getByRole('checkbox', { name: 'ontology.editor.required' }));
-      await onCloseModal(within(child).getByRole('button', { name: 'ontology.editor.save' }));
+    it(
+      'creates an attribute immediately from an empty list and retains it after closing without saving basic fields',
+      async () => {
+        const api = createApi();
+        const parent = await openObjectEditor(api);
+        expect(within(parent).getByText('ontology.objectBuilder.emptyAttributes')).toBeInTheDocument();
+        expectAttributeCount(parent, 0);
+        const basicFields = { displayName: 'Unsaved customer', englishName: 'unsaved_customer', description: 'Unsaved description' };
+        changeEditorFields(parent, basicFields);
+        const child = await openAttributeEditor(parent);
+        expectEditorFields(child, { name: '', code: '', dataType: 'string', description: '', example: '', constraints: '{}' });
+        expect(within(child).getByRole('checkbox', { name: 'ontology.editor.required' })).not.toBeChecked();
+        expect(within(child).getByRole('button', { name: 'ontology.editor.save' })).toBeDisabled();
+        expectParentBlocked(parent);
+        changeEditorFields(child, { name: 'Email', code: 'email', description: 'Contact email', example: 'a@example.com', constraints: '{"maxLength": 255}' });
+        fireEvent.click(within(child).getByRole('checkbox', { name: 'ontology.editor.required' }));
+        await onCloseModal(within(child).getByRole('button', { name: 'ontology.editor.save' }));
 
-      await waitFor(() => expect(child).not.toBeVisible());
-      expect(api.upsertAttribute).toHaveBeenCalledExactlyOnceWith({
-        id: undefined,
-        objectId: 'customer',
-        name: 'Email',
-        code: 'email',
-        dataType: 'string',
-        description: 'Contact email',
-        example: 'a@example.com',
-        required: true,
-        constraints: { maxLength: 255 },
-        mappedField: undefined,
-      });
-      expectAttributeCount(parent, 1);
-      expectEditorFields(parent, basicFields);
-      expect(getAttributeRow(parent, 'Email')).toBeInTheDocument();
-      expect(within(parent).queryByText('ontology.objectBuilder.emptyAttributes')).not.toBeInTheDocument();
-      await onCloseModal(within(parent).getByRole('button', { name: 'ontology.objectEditor.close' }));
-      await waitFor(() => expect(parent).not.toBeVisible());
-      expect(api.upsertObject).not.toHaveBeenCalled();
+        await waitFor(() => expect(child).not.toBeVisible());
+        expect(api.upsertAttribute).toHaveBeenCalledExactlyOnceWith({
+          id: undefined,
+          objectId: 'customer',
+          name: 'Email',
+          code: 'email',
+          dataType: 'string',
+          description: 'Contact email',
+          example: 'a@example.com',
+          required: true,
+          constraints: { maxLength: 255 },
+          mappedField: undefined,
+        });
+        expectAttributeCount(parent, 1);
+        expectEditorFields(parent, basicFields);
+        expect(getAttributeRow(parent, 'Email')).toBeInTheDocument();
+        expect(within(parent).queryByText('ontology.objectBuilder.emptyAttributes')).not.toBeInTheDocument();
+        await onCloseModal(within(parent).getByRole('button', { name: 'ontology.objectEditor.close' }));
+        await waitFor(() => expect(parent).not.toBeVisible());
+        expect(api.upsertObject).not.toHaveBeenCalled();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Customer' }));
-      const reopened = await screen.findByRole('dialog', { name: 'ontology.editor.editObject' });
-      expectEditorFields(reopened, { displayName: 'Customer', englishName: 'customer', description: 'Customer object' });
-      expectAttributeCount(reopened, 1);
-      const reopenedChild = await openAttributeEditor(reopened, 'Email');
-      expectEditorFields(reopenedChild, { name: 'Email', code: 'email', description: 'Contact email', example: 'a@example.com' });
-      expect(JSON.parse((within(reopenedChild).getByPlaceholderText('ontology.editor.constraints') as HTMLTextAreaElement).value)).toEqual({ maxLength: 255 });
-      expect(within(reopenedChild).getByRole('checkbox', { name: 'ontology.editor.required' })).toBeChecked();
-    });
+        fireEvent.click(screen.getByRole('button', { name: 'Customer' }));
+        const reopened = await screen.findByRole('dialog', { name: 'ontology.editor.editObject' });
+        expectEditorFields(reopened, { displayName: 'Customer', englishName: 'customer', description: 'Customer object' });
+        expectAttributeCount(reopened, 1);
+        const reopenedChild = await openAttributeEditor(reopened, 'Email');
+        expectEditorFields(reopenedChild, { name: 'Email', code: 'email', description: 'Contact email', example: 'a@example.com' });
+        expect(JSON.parse((within(reopenedChild).getByPlaceholderText('ontology.editor.constraints') as HTMLTextAreaElement).value)).toEqual({ maxLength: 255 });
+        expect(within(reopenedChild).getByRole('checkbox', { name: 'ontology.editor.required' })).toBeChecked();
+        // The complete persistence journey opens four forms on Windows jsdom.
+      },
+      process.platform === 'win32' ? 20_000 : 10_000
+    );
 
-    it('edits by existing ID with description and the latest mapped field without resetting unsaved basic fields', async () => {
-      const api = createApi();
-      const snapshot = await api.getWorkbench();
-      snapshot.objects[0] = { ...snapshot.objects[0], tier: 2, status: 'warning', namespace: 'crm', sourceAssetIds: ['customers_asset'], attributes: [createAttribute()] };
-      const parent = await openObjectEditor(api);
-      const basicFields = { displayName: 'Saved customer', englishName: 'saved_customer', description: 'Saved description' };
-      changeEditorFields(parent, basicFields);
-      const child = await openAttributeEditor(parent, 'Customer ID');
-      expectEditorFields(child, { name: 'Customer ID', code: 'customer_id', dataType: 'bigint', description: 'Stable customer identifier', example: '123' });
-      expect(JSON.parse((within(child).getByPlaceholderText('ontology.editor.constraints') as HTMLTextAreaElement).value)).toEqual({ min: 1 });
-      expect(within(child).getByRole('checkbox', { name: 'ontology.editor.required' })).toBeChecked();
-      const attributeFields = { name: 'External ID', code: 'external_id', dataType: 'string', description: 'External customer identifier', example: 'C-123', constraints: '{"minLength": 2, "maxLength": 20}' };
-      changeEditorFields(child, attributeFields);
-      fireEvent.click(within(child).getByRole('checkbox', { name: 'ontology.editor.required' }));
+    it(
+      'edits by existing ID with description and the latest mapped field without resetting unsaved basic fields',
+      async () => {
+        const api = createApi();
+        const snapshot = await api.getWorkbench();
+        snapshot.objects[0] = { ...snapshot.objects[0], tier: 2, status: 'warning', namespace: 'crm', sourceAssetIds: ['customers_asset'], attributes: [createAttribute()] };
+        const parent = await openObjectEditor(api);
+        const basicFields = { displayName: 'Saved customer', englishName: 'saved_customer', description: 'Saved description' };
+        changeEditorFields(parent, basicFields);
+        const child = await openAttributeEditor(parent, 'Customer ID');
+        expectEditorFields(child, { name: 'Customer ID', code: 'customer_id', dataType: 'bigint', description: 'Stable customer identifier', example: '123' });
+        expect(JSON.parse((within(child).getByPlaceholderText('ontology.editor.constraints') as HTMLTextAreaElement).value)).toEqual({ min: 1 });
+        expect(within(child).getByRole('checkbox', { name: 'ontology.editor.required' })).toBeChecked();
+        const attributeFields = { name: 'External ID', code: 'external_id', dataType: 'string', description: 'External customer identifier', example: 'C-123', constraints: '{"minLength": 2, "maxLength": 20}' };
+        changeEditorFields(child, attributeFields);
+        fireEvent.click(within(child).getByRole('checkbox', { name: 'ontology.editor.required' }));
 
-      const mappedField = { assetId: 'customers_asset', fieldName: 'external_id' };
-      snapshot.objects = snapshot.objects.map((object) => ({ ...object, attributes: object.attributes.map((attribute) => ({ ...attribute, mappedField })) }));
-      const onWorkbenchChanged = vi.mocked(api.onWorkbenchChanged).mock.calls.at(-1)![0];
-      await act(async () => onWorkbenchChanged({ ...snapshot }));
-      expectEditorFields(child, attributeFields);
-      expectEditorFields(parent, basicFields);
-      await onCloseModal(within(child).getByRole('button', { name: 'ontology.editor.save' }));
-      await waitFor(() => expect(child).not.toBeVisible());
+        const mappedField = { assetId: 'customers_asset', fieldName: 'external_id' };
+        snapshot.objects = snapshot.objects.map((object) => ({ ...object, attributes: object.attributes.map((attribute) => ({ ...attribute, mappedField })) }));
+        const onWorkbenchChanged = vi.mocked(api.onWorkbenchChanged).mock.calls.at(-1)![0];
+        await act(async () => onWorkbenchChanged({ ...snapshot }));
+        expectEditorFields(child, attributeFields);
+        expectEditorFields(parent, basicFields);
+        await onCloseModal(within(child).getByRole('button', { name: 'ontology.editor.save' }));
+        await waitFor(() => expect(child).not.toBeVisible());
 
-      expect(api.upsertAttribute).toHaveBeenCalledExactlyOnceWith({
-        id: 'customer_id',
-        objectId: 'customer',
-        name: 'External ID',
-        code: 'external_id',
-        dataType: 'string',
-        description: 'External customer identifier',
-        example: 'C-123',
-        required: false,
-        constraints: { minLength: 2, maxLength: 20 },
-        mappedField,
-      });
-      expectAttributeCount(parent, 1);
-      expect(within(parent).queryByTitle('Customer ID')).not.toBeInTheDocument();
-      expect(within(getAttributeRow(parent, 'External ID')).queryByText('ontology.editor.required')).not.toBeInTheDocument();
-      expectEditorFields(parent, basicFields);
-      expect(api.upsertObject).not.toHaveBeenCalled();
-      await onCloseModal(within(parent).getByRole('button', { name: 'ontology.objectEditor.saveBasicInfo' }));
-      await waitFor(() => expect(parent).not.toBeVisible());
-      expect(api.upsertObject).toHaveBeenCalledExactlyOnceWith({ id: 'customer', name: 'Saved customer', code: 'saved_customer', description: 'Saved description', tier: 2, status: 'warning', namespace: 'crm', sourceAssetIds: ['customers_asset'] });
-      fireEvent.click(screen.getByRole('button', { name: 'Saved customer' }));
-      const reopened = await screen.findByRole('dialog', { name: 'ontology.editor.editObject' });
-      expectEditorFields(reopened, basicFields);
-      const reopenedChild = await openAttributeEditor(reopened, 'External ID');
-      expectEditorFields(reopenedChild, { ...attributeFields, constraints: JSON.stringify({ minLength: 2, maxLength: 20 }, null, 2) });
-      expect((await api.getWorkbench()).objects[0].attributes).toHaveLength(1);
-      expect((await api.getWorkbench()).objects[0].attributes[0].mappedField).toEqual(mappedField);
-    });
+        expect(api.upsertAttribute).toHaveBeenCalledExactlyOnceWith({
+          id: 'customer_id',
+          objectId: 'customer',
+          name: 'External ID',
+          code: 'external_id',
+          dataType: 'string',
+          description: 'External customer identifier',
+          example: 'C-123',
+          required: false,
+          constraints: { minLength: 2, maxLength: 20 },
+          mappedField,
+        });
+        expectAttributeCount(parent, 1);
+        expect(within(parent).queryByTitle('Customer ID')).not.toBeInTheDocument();
+        expect(within(getAttributeRow(parent, 'External ID')).queryByText('ontology.editor.required')).not.toBeInTheDocument();
+        expectEditorFields(parent, basicFields);
+        expect(api.upsertObject).not.toHaveBeenCalled();
+        await onCloseModal(within(parent).getByRole('button', { name: 'ontology.objectEditor.saveBasicInfo' }));
+        await waitFor(() => expect(parent).not.toBeVisible());
+        expect(api.upsertObject).toHaveBeenCalledExactlyOnceWith({ id: 'customer', name: 'Saved customer', code: 'saved_customer', description: 'Saved description', tier: 2, status: 'warning', namespace: 'crm', sourceAssetIds: ['customers_asset'] });
+        fireEvent.click(screen.getByRole('button', { name: 'Saved customer' }));
+        const reopened = await screen.findByRole('dialog', { name: 'ontology.editor.editObject' });
+        expectEditorFields(reopened, basicFields);
+        const reopenedChild = await openAttributeEditor(reopened, 'External ID');
+        expectEditorFields(reopenedChild, { ...attributeFields, constraints: JSON.stringify({ minLength: 2, maxLength: 20 }, null, 2) });
+        expect((await api.getWorkbench()).objects[0].attributes).toHaveLength(1);
+        expect((await api.getWorkbench()).objects[0].attributes[0].mappedField).toEqual(mappedField);
+        // Keep save, reopen and the mapped-field assertions in one bounded journey.
+      },
+      process.platform === 'win32' ? 20_000 : 10_000
+    );
 
     it('deletes immediately after confirmation, removes only matching mappings and preserves unsaved basic fields', async () => {
       const api = createApi();
