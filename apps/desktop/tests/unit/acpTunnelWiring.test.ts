@@ -161,6 +161,11 @@ describe('AcpConnection Nexus session routing', () => {
 describe('DynamicNexusVfsService.acpTunnelEndpoint', () => {
   async function loadService() {
     vi.resetModules();
+    // Endpoint projection does not need RPC clients, archive tools or OS supervision.
+    vi.doMock('@common/nexus/nexus-secret-client', () => ({ getNexusSecretClient: vi.fn() }));
+    vi.doMock('@common/nexus/nexus-vfs-client', () => ({ getNexusRpcClient: vi.fn() }));
+    vi.doMock('@process/services/archiveProgress', () => ({ extractTarGzWithProgress: vi.fn(), extractZipWithProgress: vi.fn() }));
+    vi.doMock('@process/ProcessSupervisor', () => ({ processSupervisor: { track: vi.fn() } }));
     const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
     return dynamicNexusVfsService as unknown as { _running: boolean; _port: number; acpTunnelEndpoint: string | null };
   }

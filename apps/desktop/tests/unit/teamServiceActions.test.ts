@@ -40,6 +40,8 @@ vi.mock('@/agent/acp/AcpDetector', () => ({ acpDetector: { getDetectedAgents: vi
 vi.mock('@process/services/claudeCli/NodeRuntimeService', () => ({ getNodeBinaryPath: () => 'node' }));
 vi.mock('@process/utils/assistantResources', () => ({ readAssistantResource: vi.fn(), ruleFilePattern: /.*/ }));
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn(), mainError: vi.fn() }));
+// These actions do not need locale bundles or main-process configuration startup.
+vi.mock('@process/i18n', () => ({ default: { t: vi.fn((key: string) => key) }, i18nReady: Promise.resolve() }));
 vi.mock('@process/services/conversationService', () => ({ createConversation: vi.fn() }));
 vi.mock('@process/services/conversationReaper', () => ({ reapConversation: vi.fn(), resolveWorkspaceDeletion: vi.fn(() => false) }));
 vi.mock('@process/services/team/TeamStore', () => ({
