@@ -280,17 +280,19 @@ Agent cert 表达身份；带 owner 的 session cert 还能表达代表谁执行
 
 先确认底层接口，再决定模型入口。撤回提前确定三个 core tool 的建议；本轮不增加 core tool。`agent_list` 继续使用现有 mailbox Directory，不因 Move 增加 IP 字段或独立发现表。目标存储节点和运行环境应通过已有连接与授权信息解析。
 
-| 所需能力 | 可复用实现 | 当前缺口或约束 |
-| --- | --- | --- |
-| 读取身份、路径和拓扑 | AgentHome、`Stat/Readdir`、`GetClusterInfo`、`DiscoverZones` | 拓扑结果不是用户可用设备清单，需按调用者授权解释 |
-| 将本地子树共享为 zone | `share_subtree_core_async`，CLI `share --mount-at` | CLI 独占数据目录；仅 share 不改变后续写入路由，mount 才改变路由 |
-| 加入已有 zone | `JoinZone`、`bootstrap_or_join_zone`，CLI `join` | CLI 默认 learner；仅 learner 不能在唯一 voter 离线时继续强一致写入 |
-| 安装挂载和委托权限 | kernel `sys_setattr(DT_MOUNT)`、现有身份与授权层 | 远端 federation Setattr 仍未贯通，普通 Agent cert 不具有节点管理权限 |
-| 复制热日志 | 现有 zone Raft/WAL 复制 | 不能代替附件 CAS、冷片段的完整持久复制 |
-| 获取普通内容和冷片段 | 现有 FetchContent、CAS 与冷片段读取/回填 | 需要显式持久保留、失败传播、引用闭包和完成确认 |
-| 查询进度与完成结果 | 可沿用持久任务/文件读取形式 | 当前没有经验证的完整 Agent 内容复制任务；工具设计等待该契约 |
+| 所需能力              | 可复用实现                                                   | 当前缺口或约束                                                                                           |
+| --------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| 读取身份、路径和拓扑  | AgentHome、`Stat/Readdir`、`GetClusterInfo`、`DiscoverZones` | 拓扑结果不是用户可用设备清单，需按调用者授权解释                                                         |
+| 将本地子树共享为 zone | `share_subtree_core_async`，CLI `share --mount-at`           | 只复制 FileMetadata，不复制 WAL stream entries/segment index；CLI 独占数据目录；mount 才改变后续写入路由 |
+| 加入已有 zone         | `JoinZone`、`bootstrap_or_join_zone`，CLI `join`             | 当前 CLI 和自动发现都默认 voter，须显式 `--as learner`；仅 learner 不能在唯一 voter 离线时继续强一致写入 |
+| 安装挂载和委托权限    | kernel `sys_setattr(DT_MOUNT)`、现有身份与授权层             | 远端 federation Setattr 仍未贯通，普通 Agent cert 不具有节点管理权限                                     |
+| 复制热日志            | 现有 zone Raft/WAL 复制                                      | 不能代替附件 CAS、冷片段的完整持久复制                                                                   |
+| 获取普通内容和冷片段  | 现有 FetchContent、CAS 与冷片段读取/回填                     | 需要显式持久保留、失败传播、引用闭包和完成确认                                                           |
+| 查询进度与完成结果    | 可沿用持久任务/文件读取形式                                  | 当前没有经验证的完整 Agent 内容复制任务；工具设计等待该契约                                              |
 
 同一 zone 的成员才能接收该 zone 的 Raft 复制；已有合适的 zone 时直接加入即可。不能只修改 `zone_id` 标签，也不需要每次 Move 都新建 zone。`/agents/{name}` 的 share 不自动包含 `/sessions/{sid}` 链接目标，必须覆盖获授权的引用内容。笔记本不应未经设计就成为云端强一致操作依赖的 voter。
+
+2026-10-07 复核 `nexus-vfs` 的 `d9ec637a3`：CLI `Join::as_role` 的默认值为 `JoinRole::Voter`，此前表中“默认 learner”有误。`reconcile_federation_from_peers` 还会遍历发现的全部非 root zone，新的自动发现成员均请求 voter；不能直接将 `--peers <Sudocloud>` 作为只复制一个 Agent 的接入契约。`MountDecl::subtree` 只限制挂载视图，不过滤该 zone 的 Raft 日志和快照。
 
 成员资格还涉及隐私边界：授权复制某个 Agent，不能直接解释为允许私人设备接收整个租户 zone 的元数据。原型须先核查现有个人 namespace 对应的 zone 和授权范围；若需要独立共享边界，必须与既有不可变身份 zone 契约对齐，不能为了 Move 重写 Agent 的身份 zone。
 
@@ -423,3 +425,124 @@ Move 的后端必须先有真实实现，再向模型提供工具。初版至少
 - Moss 服务端及管理端变更见 [PR #329](https://github.com/sudoprivacy/moss/pull/329)。`bun run test` 通过；真实 HTTP 覆盖新旧 URL 的鉴权、组织隔离、准备包下载和私人备份路径。服务端类型检查通过现有 ratchet（104 项基线错误未增加），管理端类型检查通过。
 - Sudowork 的桌面端、renderer、共享包和 WebUI 类型检查通过。WebUI 的契约与真实 PostgreSQL 集成测试通过；本机完整 WebUI 测试中部署脚本依赖 Linux 权限与用户环境，其验证交由 Ubuntu CI。
 - API 改名不会变更 catalog kind、prepared runtimeRef 或 Agent 身份派生输入。发布顺序为 Moss 兼容服务端先部署，再发布新客户端。
+
+## 11. 隔离节点实测（2026-10-07）
+
+使用 `nexus-vfs d9ec637a3` 从源码构建的 Windows `nexusd-cluster`，三个 loopback 节点、两个临时 zone，全部为合成数据。每个进程有独立 data-dir 与 identity-dir。没有连接生产端点，也没有读取或迁移用户 session。此实验关闭认证以隔离存储行为，不能作为 mTLS、租户权限或用户授权验收。
+
+夹具保持 flat+link：`/agents/alice/sessions/sid-a -> /sessions/sid-a`，会话中有普通附件、热 WAL 日志与至少两个冷片段；另有 Alice 的 memory、同 zone 的 Bob 数据以及第二个 zone 的数据。先在目标读回完整内容，再关闭源节点、重启目标；第三节点保持在线，让剩余两名 voter 保有多数派。最后成功追加热日志，确认失败不是失去 quorum 引起的。
+
+| 检查                                        | 实测结果                                                               |
+| ------------------------------------------- | ---------------------------------------------------------------------- |
+| DT_LINK 类型与目标路径                      | 保留，类型为 6、目标为 `/sessions/sid-a`                               |
+| 源端在线时的附件、冷热日志                  | 与源夹具逐字节一致                                                     |
+| 源端离线、目标重启后的热日志                | 9 字节完整读取；剩余多数派可继续追加                                   |
+| 同条件下的附件与 memory                     | 仍向已离线的原写入地址取回，读取失败                                   |
+| 同条件下的冷日志                            | 预期 240 字节，当前返回成功但为 0 字节；属于错误传播缺陷               |
+| `--peers` 自动发现的复制范围                | 同 zone 的 Bob 元数据和第二个 zone 的元数据均进入目标                  |
+| Python wrapper 使用的两个 generic Call 名称 | `federation_share_zone` / `federation_join_zone` 均返回 unknown method |
+| federation typed Setattr                    | 返回成功，但 Stat 查不到挂载点，mount table 也没有新增挂载             |
+
+实验脚本位于独立 worktree 的 `nexus-vfs-agent-move/scripts/probe-agent-move.mjs`；原始报告和各进程日志保存在本机 `sudowork-1/output/agent-move-probe-20261007-01/`。这里的“实验完成”不等于 Agent Move 验收通过。
+
+### 先修正读取错误，再补复制能力
+
+冷片段失败被 WAL `StreamBackend::read_at` 转成 `ClosedEmpty`，manager 的整段读取因而正常结束并返回空数据；批量读取还会丢弃已读前缀之后的错误。remote stream adapter 也把传输失败转成 `Empty`。修正应在公共 stream backend 错误契约中保留读取失败，使单条、阻塞、批量和整段读取一致传播，并保留真正 EOF 的行为。不能仅在 Move 操作中检查“结果非空”，因为合法空会话和缺失会话无法由此区分。
+
+修正见 [Nexus PR #392](https://github.com/nexi-lab/nexus-vfs/pull/392)，提交 `f00ccccee`，14 项检查和全部工作流通过后已合并为 `b2b194a0`（2026-10-07 11:11 UTC）。本机 kernel 全部 458 项测试、真实 daemon 冷存储套件 9 项测试通过。另用该提交的 CI Windows release 二进制重跑同一三节点实验：离线冷日志明确返回 `stream read failed`，在线读取、链接以及目标重启后的热日志读取与追加仍正常。修正后的报告在 `output/agent-move-probe-20261007-fixed/`。这验证了错误传播，不表示附件或冷片段已完成持久复制。
+
+目前完整 Move 的剩余底层能力仍是：
+
+1. **限定范围的接入**：明确成员角色及获授权的 zone；subtree mount 是视图，不是 Raft 日志/快照的过滤器。
+2. **一致的持久对象集合**：AgentHome、链接目标、WAL 正文和冷片段索引使用共同截止位置；现有 `share_subtree_core` 只复制 FileMetadata，不能直接承担会话迁移。
+3. **显式内容保留与可取回位置**：复用现有内容传输，确认目标存储成功，保留引用，并让下一台设备能向持有副本的节点取回。普通文件的 `last_writer_address` 不能被当成任意副本地址覆写。
+4. **持久完成回执**：绑定对象集合、版本与目标，失败不报告完成；源端离线、目标重启、第三节点取回均通过后，才验收 Move 的复制阶段。
+
+以上是服务内部的契约边界，不对应四个模型工具。仍不新增三个常驻 core tool；按需 Move 入口等这些契约可用后再绑定。
+
+## 12. Agent 数据 zone 与用户目录视图（方向已确认，2026-10-08）
+
+用户已确认每个真实 Agent 使用独立数据 zone。用户视图由 zone visibility 与嵌套挂载构成：不同用户或设备复制不同的目录元数据和 Agent 数据。这里不以共享租户数据上的逐项 ReBAC 过滤作为基础。仍先完成底层契约，不新增三个常驻 core tool。
+
+### 三个边界
+
+| 关注点                      | 负责的机制                         | 不应推导出的权限                                         |
+| --------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| 某个 VFS 路径的数据存在哪里 | 现有 mount / target_subtree / 路由 | 挂载成功不代表调用者获得读取或复制权限                   |
+| 用户的目录里有哪些 Agent    | 该用户可见的目录 zone 及其嵌套挂载 | 复制父目录不自动获得子 zone 的成员资格                   |
+| 哪些设备持有某份数据        | zone 的成员接入与 Raft 复制        | 一个 Agent 的复制授权不扩大为租户或其他 Agent 的成员资格 |
+
+独立 Agent 数据 zone 的首要理由是**让原生 Raft 的复制单位对应一个可移动的 Agent**。在多个 Agent 共用租户 zone 的情况下，挂载单个 subtree 只改变路径视图，成员仍接收整个 zone 的日志和快照。独立 zone 可以缩小该范围，但必须配合服务端对成员接入的授权。它不是单靠目录分层就生效的用户隔离，也不需要每个 Agent 启动一个 daemon。
+
+### 统一路径、不同的复制集合
+
+每个用户的目录 zone 只保存该用户可见的挂载声明。设备自己的 root 为本地 SOLO zone，通过 `/agents` 和 `/sessions` 挂载个人目录 zone 的对应 subtree；目录 zone 再分别挂载 Agent 数据 zone 的 AgentHome 与 flat session subtree。共享 Agent 可以出现在多个获授权目录中，正文仍只有一个存储身份。
+
+| 调用者 | `ls /agents/` 的预期结果               |
+| ------ | -------------------------------------- |
+| Alice  | `alice-work`、她获授权的 `team-helper` |
+| Bob    | `bob-work`、他获授权的 `team-helper`   |
+
+Alice 的设备不复制 Bob 的私人目录或 Agent zone，因此本地 `/agents` 列举天然不同。Zone 在物理存储中仍独立，嵌套发生在 VFS 挂载关系中。不能把共享租户 zone 挂载为不同 subtree 就当作复制隔离，因为 Raft 仍复制整个 zone。
+
+例如个人目录中的 `/agents/alice-work` 和 `/sessions/sid-a` 分别挂到 Alice Agent 数据 zone 的同名 subtree；`/agents/alice-work/sessions/sid-a` 仍指向 `/sessions/sid-a`。两个入口不产生第二份 session 正文。知道挂载目标 ID 或链接目标不授予读写或复制权限；服务端必须按凭据检查可接入的 zone。父 zone 成员资格不自动继承到子 zone。
+
+云端 cohost 同时托管多个用户的数据，需要将请求绑定到调用者的目录 zone 视图，不能把所有用户挂载合并进一个供所有请求使用的 root。一个 OS 用户的受管 daemon 可以托管多个 zone；不为每个 Agent 启动 daemon。
+
+### 当前实现与复用位置
+
+- 复用已有 DT_MOUNT、target_subtree、ZoneMetaStore、显式 learner 接入与 Raft 原生复制；目录内容以持久 DT_MOUNT 为准，路由表是派生缓存。
+- Rust `reconstruct_mount` 当前在重建嵌套挂载路径时忽略父挂载的 target_subtree，可能生成 `/agents/agents/alice`，也可能将未暴露 subtree 中的挂载投影到错误路径。本轮先修复公共映射并补回归测试。
+- 自动发现 `--peers` 会加入发现的 zone，leader mount 路径也含自动创建目标 zone 的逻辑。它们不能直接作为受限 Agent Move 的接入路径；需要明确选择 zone，并在服务端验证接入范围。
+- Python 的 zone visibility 与现有证书/zone grant 能力是后续复用审计对象。已有 ReBAC 代码不作为本轮目录视图的实现依赖。
+- cohost 的请求视图选择、成员接入权限以及数据面凭据仍需端到端验证；本地挂载测试不能替代这些验收。
+
+### 实现与验收条件
+
+1. 同一个 Agent zone 的多个 subtree 挂载保留 Agent 名称、owner、SID 与链接；原生复制包含热 WAL 及冷片段索引。
+2. 目标节点只接入获授权的 Agent 数据 zone；自动发现和重启不能扩大接入范围，用户设备不默认成为云端 quorum 必需的 voter。
+3. 两台设备分别只持有其用户的目录 zone 与 Agent zone，通过同一个 `/agents` 获得不同视图；递归、直接路径、链接访问与重启不能扩大可见集合。
+4. 引用其他 Agent 或共享对象时明确归属与复制授权；不能把所有可达链接当成当前 Agent 的私有数据。
+5. 评估 zone 数量、按需加载及管理开销，并复用每个 OS 用户一个受管 daemon 的生命周期。
+
+原型使用 Alice、Bob 各自的目录 zone、私人 Agent zone，以及双方可接入的 `team-helper`。本地节点不加入整租户 zone；下列权限项需要真实凭据测试，不能仅靠没有挂载路径判定通过：
+
+| 操作                                                         | 预期                                                                |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| 两台设备分别列举 `/agents`，含递归与分页                     | 各自只见自己的 Agent 和共享 Agent；本地目录存储没有对方的私人挂载   |
+| Alice 直接 stat/read Bob 的已知路径                          | 不返回 Bob 的私人元数据或内容；不能只在列表里隐藏                   |
+| Alice 的链接指向 Bob 的 session                              | 链接本身不授予目标读取或复制权限；Move 不把该目标纳入已授权对象集合 |
+| 撤销共享授权，确认权限版本后重试                             | 列举、直接访问、搜索和缓存结果遵循同一撤销结果                      |
+| 目标设备持有 Alice Move 的受限授权，申请加入 Bob 或租户 zone | 服务端拒绝；重启与自动发现也不能扩大范围                            |
+
+工具设计时机保持明确：先完成上述底层范围和持久复制验证，再确定一个按需 Move 操作的参数、进度与结果契约；cohost / standalone 共用实现，在 WebUI 聊天中验收后再设计专门界面。
+
+### 原生 zone 复制实验
+
+在 Nexus `b2b194a0` 上新增隔离的双节点测试，源端分别创建 Alice 和 Bob 的 zone，目标端显式作为 learner 只加入 Alice zone。使用现有 `mount_subtree_async` 声明 `/agents/alice` 和 `/sessions/sid-a`，并通过 `ZoneMetaStore` 验证投影后的原路径、目录/链接 owner、链接目标、热 WAL 正文与冷片段索引。源端关闭后读取以及目标端关闭再从相同 data-dir 重建后的读取均通过；目标只保有自己的 root 与 Alice zone，没有 Bob zone。
+
+首次运行在 owner 断言处失败，确认公共 `kernel_to_proto` 忽略 owner，`proto_to_kernel` 固定返回 `None`。修正两向转换后通过。现有 protobuf 已有 owner 字段，不需要新增线协议字段或改变身份派生。
+
+修正与回归测试见 [Nexus PR #394](https://github.com/nexi-lab/nexus-vfs/pull/394)，提交 `683ea6543`。本机 282 项 Raft 库测试、含源端离线与目标重建的 3 项集成测试，以及定向 Clippy 均通过；全部 14 项 PR 检查通过后，已于 2026-10-07 15:24 UTC 合并为 `241c65654`。CI 包含全工作区 all-features 测试、all-targets/all-features Clippy，以及 Linux、Windows 和两种 macOS 架构构建。该修正保留今后的 owner 写入和已有非空 protobuf owner，不会自动找回已被旧版本丢弃的归属信息；尚未发布到产品或生产。
+
+该实验直接使用原生 ZoneManager 与 metastore，未经过完整 daemon/WebUI；没有验证用户权限、自动发现的范围约束、冷 blob 字节持久保留或离线写入。因此它只证明存储原语可组合，不能据此宣布 Agent Move 完成。独立 Agent zone 的产品方向由用户在 2026-10-08 确认。
+
+另有独立进行中的 [Nexus PR #389](https://github.com/nexi-lab/nexus-vfs/pull/389) 补可选 zone-grants 策略与缓存权限检查。2026-10-08 复核其 `0e67d32`：它检查 API key 上的 zone 读写 grant，不包含 Raft `JoinZone` / `DiscoverZones` 等接入接口，不能直接视为复制范围授权已经完成。后续复用其适用部分。
+
+### 嵌套目录原型（2026-10-08）
+
+在 Nexus `1150b644b` 上复现并修复父挂载 subtree 丢失，见 [PR #400](https://github.com/nexi-lab/nexus-vfs/pull/400)：反向索引保留声明的 subtree，嵌套路由与 ZoneMetaStore 共用路径映射。全局路径按最长目录前缀恢复 zone 内的 key；未暴露的 subtree 不生成路由。Replay 依据本条声明是否成功投影来判断进度，不能因为其他声明已挂载同一目标 zone 就丢弃待处理项。
+
+284 项 Raft 库测试通过。新增真实 Raft 传输与 Kernel 路由测试：源端持有 Alice/Bob 个人目录 zone、各自私人 Agent zone 和共享 Agent zone；两台目标仅显式加入自己的目录、自己的 Agent 和共享 Agent，均为 learner。验证非递归、递归、限量列举、对方已知路径不存在、owner、flat session 和链接元数据。只重放父目录声明时，目标没有自动成为子 zone 成员。
+
+两个目标在独立进程中验证并退出。源节点关闭后，再用相同 data-dir 启动全新目标进程，重新通过上述检查。原生测试套件共 6 项通过（含公共夹具与子进程入口）。没有复制 Bob 私人 zone 到 Alice 后再按身份过滤。所有数据为合成数据，未启用用户认证。
+
+该测试证明显式选择 zone 的目录复制与重启重建可行。以下仍未验收：服务端受限接入凭据、自动发现范围约束、cohost 请求视图、父挂载在线变化后的后代路由重建、撤销授权、冷内容持久保留和运行交接。当前 mount apply 的在线增删与 restart replay 还不是同一套完整后代协调逻辑，后续应统一这一公共路径，不能在 Move 内另写挂载补丁。
+
+## 13. 个人 Agent API 与 Move 身份
+
+[Moss #326](https://github.com/sudoprivacy/moss/pull/326) 已合并，提供 `GET /api/v1/agents/mine`。服务端依据用户自己的会话与个人 Agent 记录解析显示名；未使用过的模板不列入个人 Agent。模板目录继续使用 `/api/v1/agent-templates`。
+
+该接口的 `ref` 对应会话的 `assistantName`，用于前端匹配分组；它不总是 `/agents/{name}` 中的名称。同一模板引用可以出现在不同用户的会话中。后续操作入口需要服务端返回的 `agentName`，其值复用 `sessionAgentName(userId, ref)`，与 runtime 已有的身份规则一致，不在 UI 新增推导规则。
+
+本轮在 [Moss #333](https://github.com/sudoprivacy/moss/pull/333) 补充 `agentName`，保留原 `ref`、`displayName`、`kind`。其中 `kind: template` 表示用户的模板实例来源，不表示模板本身是可移动 Agent。返回身份也不意味着该 Agent 已启动或所有数据已落盘；Move 仍须查询其真实存储与运行状态，并在请求边界校验归属。
