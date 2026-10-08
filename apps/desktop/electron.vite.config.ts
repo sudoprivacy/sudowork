@@ -103,6 +103,7 @@ const mainAliases = [
   // Bundle the shared workspace packages from source (see externalizeDepsPlugin
   // exclude below) so the packaged/dev main process never depends on a prior
   // `dist` build of them.
+  { find: '@sudowork/moss-client/agents', replacement: resolve('../../packages/moss-client/src/MossAgentClient.ts') },
   { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: resolve('../../packages/ontology-common/src') + '/$1' },
   { find: /^@sudowork\/ontology-common$/, replacement: resolve('../../packages/ontology-common/src/index.ts') },
