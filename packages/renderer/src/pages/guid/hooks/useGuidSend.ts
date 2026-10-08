@@ -204,11 +204,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           },
         });
 
-        if ('__error' in conversation) throw new Error(conversation.__error);
-        if (!conversation || !conversation.id) {
-          alert('Failed to create remote agent conversation');
-          return;
-        }
+        if (conversation && '__error' in conversation) throw new Error(conversation.__error);
+        if (!conversation || !conversation.id) throw new Error(t('conversation.createFailed'));
 
         console.log(`Remote agent conversation created: ${conversation.id}`);
 
@@ -240,8 +237,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         await navigate(`/conversation/${conversation.id}`);
         emitter.emit('chat.history.refresh');
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Failed to create remote agent conversation: ${errorMessage}`);
+        console.error('Failed to create remote agent conversation:', error);
         throw error;
       }
       return;
