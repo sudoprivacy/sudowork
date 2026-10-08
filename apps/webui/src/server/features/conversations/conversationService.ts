@@ -517,7 +517,10 @@ export async function getWorkspaceTree(
   search = '',
 ): Promise<unknown> {
   await requireOwnSession(deps, principal, sessionId, ctx)
-  const tree = await mapMossErrors(() => deps.moss.workspaceTree(ctx, sessionId, path, search))
+  const tree = await mapMossErrors(
+    () => deps.moss.workspaceTree(ctx, sessionId, path, search),
+    false,
+  )
   return sanitizeWorkspaceNode(tree)
 }
 
@@ -539,7 +542,7 @@ export async function getWorkspaceFile(
   ctx: MossCallContext,
 ): Promise<unknown> {
   await requireOwnSession(deps, principal, sessionId, ctx)
-  return mapMossErrors(() => deps.moss.workspaceFileGet(ctx, sessionId, path))
+  return mapMossErrors(() => deps.moss.workspaceFileGet(ctx, sessionId, path), false)
 }
 
 export async function uploadWorkspaceFile(
@@ -555,15 +558,18 @@ export async function uploadWorkspaceFile(
   if (decodedBytes > deps.config.upload.maxFileBytes) {
     throw new Error('FILE_TOO_LARGE')
   }
-  return mapMossErrors(() => deps.moss.workspaceFilePost(ctx, sessionId, path, contentBase64))
+  return mapMossErrors(
+    () => deps.moss.workspaceFilePost(ctx, sessionId, path, contentBase64),
+    false,
+  )
 }
 
-function mapMossErrors<T>(fn: () => Promise<T>): Promise<T> {
+function mapMossErrors<T>(fn: () => Promise<T>, isSessionRequest = true): Promise<T> {
   return fn().catch((err: unknown) => {
     if (err instanceof MossNetworkError) {
       throw new MossUnavailableError()
     }
-    if (err instanceof MossHttpError && err.status === 404) {
+    if (isSessionRequest && err instanceof MossHttpError && err.status === 404) {
       throw new SessionNotFoundError()
     }
     throw err
