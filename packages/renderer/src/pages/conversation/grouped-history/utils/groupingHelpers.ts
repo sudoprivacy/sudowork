@@ -6,6 +6,7 @@
 
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { getActivityTime, getTimelineLabel } from '@renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@renderer/utils/workspaceHistory';
@@ -283,8 +284,11 @@ export const buildGroupedHistory = (
 /** How many of the newest conversations the cross-agent section shows. */
 export const RECENT_CONVERSATION_LIMIT = 8;
 
-const getConversationAgentRef = (conversation: ConversationItem): string | undefined => {
-  const extra = conversation.extra as { agentName?: unknown } | undefined;
+const getConversationAgentRef = (conversation: ConversationItem, listedReferences: Set<string>): string | undefined => {
+  const extra = conversation.extra as { agentName?: unknown; mossAssistantRef?: unknown; presetAssistantId?: unknown } | undefined;
+  for (const reference of [extra?.mossAssistantRef, extra?.presetAssistantId]) {
+    if (typeof reference === 'string' && (isPersonalAgentRef(reference) || listedReferences.has(reference))) return reference;
+  }
   return typeof extra?.agentName === 'string' && extra.agentName ? extra.agentName : undefined;
 };
 
@@ -304,8 +308,9 @@ const getConversationAgentRef = (conversation: ConversationItem): string | undef
  */
 export const groupConversationsByAgent = (conversations: ConversationItem[], agents: AgentGroup[] | Array<{ ref: string; displayName: string; kind: AgentGroup['kind'] }>): AgentGroup[] => {
   const byRef = new Map<string, ConversationItem[]>();
+  const listedReferences = new Set(agents.map((agent) => agent.ref));
   for (const conversation of conversations) {
-    const ref = getConversationAgentRef(conversation);
+    const ref = getConversationAgentRef(conversation, listedReferences);
     if (!ref) continue;
     const bucket = byRef.get(ref);
     if (bucket) bucket.push(conversation);

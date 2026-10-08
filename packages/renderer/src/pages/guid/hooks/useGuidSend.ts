@@ -37,6 +37,7 @@ export type GuidSendDeps = {
   /** Resolved backend key (builtin/preset) for the selected agent; used to skip the guest model guard for claude. */
   modelBackendKey: string;
   selectedAgentInfo: AvailableAgent | undefined;
+  isAgentSelectionPending?: boolean;
   isPresetAgent: boolean;
   selectedMode: string;
   selectedAcpModel: string | null;
@@ -97,6 +98,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedAgentKey,
     modelBackendKey,
     selectedAgentInfo,
+    isAgentSelectionPending,
     isPresetAgent,
     selectedMode,
     selectedAcpModel,
@@ -126,6 +128,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const { hasModel, ready } = useHasAvailableModel();
 
   const handleSend = useCallback(async () => {
+    if (isAgentSelectionPending) return;
     // Guest pre-send check: prompt if no usable model. Login users (isGuest=false) always skip.
     // claude code carries its own config (~/.claude/settings.json) and does not consume
     // model.config; skip this guard for claude to avoid a false "no model configured".
@@ -349,6 +352,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     selectedAgentKey,
     modelBackendKey,
     selectedAgentInfo,
+    isAgentSelectionPending,
     isPresetAgent,
     selectedMode,
     selectedAcpModel,
@@ -371,6 +375,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   ]);
 
   const sendMessageHandler = useCallback(() => {
+    if (isAgentSelectionPending) return;
     setLoading(true);
     const isPreparingLocal = isEnterprise && sessionMode === 'local';
     const closePreparing = isPreparingLocal ? Message.loading({ content: t('guid.localPreparing'), duration: 0 }) : undefined;
@@ -395,10 +400,10 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         closePreparing?.();
         setLoading(false);
       });
-  }, [handleSend, isEnterprise, sessionMode, t, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
+  }, [handleSend, isAgentSelectionPending, isEnterprise, sessionMode, t, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
 
   // Calculate button disabled state
-  const isButtonDisabled = !input.trim();
+  const isButtonDisabled = Boolean(isAgentSelectionPending) || !input.trim();
 
   return {
     handleSend,

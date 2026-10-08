@@ -1,9 +1,12 @@
 import { net } from 'electron';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { z } from 'zod';
 import type { IMyAgent, IUserAgent } from '@sudowork/common/personalAgents';
 import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { ProcessConfig } from '@process/initStorage';
 import { getValidToken } from '@process/bridge/eeclawBridge';
+import { getDataPath } from '@process/utils';
 
 const myAgentsSchema = z.object({ success: z.literal(true), data: z.array(z.object({ ref: z.string().min(1), displayName: z.string(), kind: z.enum(['default', 'own', 'template']) })) });
 const createdAgentSchema = z.object({ success: z.literal(true), data: z.object({ id: z.string().uuid(), displayName: z.string().min(1), createdAt: z.number() }) });
@@ -55,4 +58,15 @@ export async function requireMossPersonalAgent(reference: string): Promise<IMyAg
   const agent = (await listMossPersonalAgents()).find((item) => item.ref === reference && item.kind !== 'template');
   if (!isPersonalAgentRef(reference) || !agent) throw new Error('Personal Agent is unavailable for this account');
   return agent;
+}
+
+/** Keep local personal identity and memory stable across conversations in one account. */
+export async function resolveMossPersonalRuntime(reference: string, accountScope: string): Promise<{ agentId: string; memoryDirectory: string }> {
+  if (!/^[a-f0-9]{64}$/.test(accountScope) || accountScope !== ProcessConfig.getSync('eeclaw.accountScope')) throw new Error('Conversation belongs to a different Moss account');
+  await requireMossPersonalAgent(reference);
+  if (accountScope !== ProcessConfig.getSync('eeclaw.accountScope')) throw new Error('Moss identity changed during runtime preparation');
+  const digest = createHash('sha256')
+    .update(JSON.stringify([accountScope, reference]))
+    .digest('hex');
+  return { agentId: `sudowork-personal-${digest}`, memoryDirectory: path.join(getDataPath(), 'managed', accountScope, 'agents', digest, 'memory') };
 }

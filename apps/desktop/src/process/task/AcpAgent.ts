@@ -52,7 +52,7 @@ import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { dynamicNexusVfsService } from '@process/services/nexus-vfs/DynamicNexusVfsService';
 import { applyPresetRuntime, applyPresetRuntimeFromMeta } from '@process/task/presetRuntime';
 import { readMossAssistantSnapshot } from '@process/services/mossResourcePreparation';
-import { requireMossPersonalAgent } from '@process/services/mossPersonalAgents';
+import { requireMossPersonalAgent, resolveMossPersonalRuntime } from '@process/services/mossPersonalAgents';
 import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
@@ -435,6 +435,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         cdpPort,
       };
       const assistantSnapshot = await readMossAssistantSnapshot(this.options);
+      if (this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
+        const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
+        this.connection.managedAgentId = runtime.agentId;
+        customEnv = { ...customEnv, SUDOCODE_MEMORY_DIR: runtime.memoryDirectory };
+      }
       const presetResult = assistantSnapshot ? applyPresetRuntimeFromMeta(assistantSnapshot.meta, presetRuntimeContext, assistantSnapshot.directory) : await applyPresetRuntime(presetRuntimeContext);
       customEnv = { ...customEnv, ...presetResult.envOverrides };
       // Always fold the runtime context appendix (auto-discovered scripts /

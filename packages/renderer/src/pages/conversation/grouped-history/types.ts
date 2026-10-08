@@ -29,7 +29,7 @@ export type WorkspaceGroup = {
  * 「招聘专家」 have two agents, and each sees only their own.
  */
 export type AgentGroup = {
-  /** What a conversation stores in `extra.agentName`. */
+  /** Stable identity from the server; display names are presentation only. */
   ref: string;
   displayName: string;
   kind: 'default' | 'own' | 'template';
