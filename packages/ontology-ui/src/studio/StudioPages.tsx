@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Empty, Form, Input, Message, Modal, Select, Space, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
-import type { IOntologyWorkbenchSnapshot, IOntologyConsistencyCheckResult, IOntologyLogicFunction, IOntologyRuntimeExecution, IOntologyEnvironmentAsset, IOntologyConnectorConfig } from '@sudowork/ontology-common';
+import type { IOntologyWorkbenchSnapshot, IOntologyLogicFunction, IOntologyRuntimeExecution, IOntologyEnvironmentAsset, IOntologyConnectorConfig } from '@sudowork/ontology-common';
 import { ontologyFieldSignature } from '@sudowork/ontology-common';
 import StudioAssetPreview from './StudioAssetPreview';
 import StudioDatabaseConnection from './StudioDatabaseConnection';
@@ -402,70 +402,7 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
   );
 }
 
-export function StudioChecksPage({ snapshot, api, onError, onLocate }: IStudioChecksPageProps) {
-  const { t } = useTranslation();
-  const text = (key: string) => t(`ontology.studio.${key}`);
-  const [result, setResult] = useState<{ revision: number; check: IOntologyConsistencyCheckResult }>();
-  const [isChecking, setIsChecking] = useState(false);
-  const onCheck = async () => {
-    setIsChecking(true);
-    try {
-      setResult({ revision: snapshot.revision || 0, check: await api.runConsistencyCheck({ workspaceId: snapshot.workspaceId }) });
-    } catch (error) {
-      onError(error);
-    } finally {
-      setIsChecking(false);
-    }
-  };
-  const isStale = result && result.revision !== (snapshot.revision || 0);
-  return (
-    <section className={styles['ontology-page']}>
-      <div className={styles['ontology-page-heading']}>
-        <div>
-          <Typography.Title heading={5}>{text('checksTitle')}</Typography.Title>
-          <Typography.Text type='secondary'>{text('checksDescription')}</Typography.Text>
-        </div>
-        <Button type='primary' loading={isChecking} onClick={() => void onCheck()}>
-          {text('runChecks')}
-        </Button>
-      </div>
-      {snapshot.semanticDocument?.imports.length ? (
-        <div className={styles['ontology-notice']}>
-          {text('importsUnresolved')}
-          <ul>
-            {snapshot.semanticDocument.imports.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {result ? (
-        <>
-          <Tag color={isStale ? 'orange' : result.check.isValid ? 'green' : 'red'}>{text(isStale ? 'staleReport' : result.check.isValid ? 'checksPassed' : 'checksFailed')}</Tag>
-          <Table
-            rowKey='id'
-            data={result.check.issues}
-            columns={[
-              { title: text('severity'), dataIndex: 'severity' },
-              { title: text('description'), dataIndex: 'message' },
-              {
-                title: text('operations'),
-                render: (_value, issue) => (
-                  <Button type='text' onClick={() => onLocate(issue.targetId)}>
-                    {text('locate')}
-                  </Button>
-                ),
-              },
-            ]}
-          />
-          <pre className={styles['ontology-code']}>{JSON.stringify(result.check.qualityRuleResults || [], null, 2)}</pre>
-        </>
-      ) : (
-        <Empty description={text('noChecks')} />
-      )}
-    </section>
-  );
-}
+export { default as StudioChecksPage } from './StudioChecksPage';
 
 export { default as StudioReleasePage } from './StudioReleasePage';
 
@@ -475,10 +412,6 @@ interface IStudioDataPageProps {
   onRefresh: () => Promise<void>;
   onError: (error: unknown) => void;
 }
-interface IStudioChecksPageProps extends IStudioDataPageProps {
-  onLocate: (objectId?: string) => void;
-}
-
 interface IStudioCapabilitiesPageProps {
   snapshot: IOntologyWorkbenchSnapshot;
   api: IOntologyStudioApi;

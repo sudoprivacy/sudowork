@@ -319,7 +319,7 @@ describe('OntologyService quality rule execution', () => {
         assetId: 'transactions-asset',
       }),
     ]);
-    await expect(service.publishCurrentDraft({ workspaceId: 'quality' })).rejects.toThrow(/failed for 2 of 3 sampled rows/);
+    await expect(service.publishCurrentDraft({ workspaceId: 'quality' })).rejects.toThrow('ontology.studio.errors.publishBlocked');
   });
 
   it('reports warning-severity failures without blocking publishing', async () => {
@@ -331,6 +331,34 @@ describe('OntologyService quality rule execution', () => {
     expect(result.isValid).toBe(true);
     expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ severity: 'warning', targetId: 'transaction-object' })]));
     await expect(service.publishCurrentDraft({ workspaceId: 'quality' })).resolves.toMatchObject({ version: { version: 'v1' } });
+  });
+
+  it('allows semantic-only warnings through candidate creation and publication', async () => {
+    const snapshot = repository.getSnapshot('quality')!;
+    snapshot.qualityRules = [];
+    snapshot.relations = [
+      {
+        id: 'advisory-relation',
+        name: 'Business association',
+        code: 'association',
+        fromObjectId: 'transaction-object',
+        toObjectId: 'transaction-object',
+        cardinality: 'unspecified',
+        relationType: 'object_property',
+        semanticType: 'association',
+        isAcyclic: false,
+        reviewDecision: 'pending',
+        updatedAt: 1,
+        dataBinding: { mode: 'semantic_only', joinKeys: [] },
+      },
+    ];
+    repository.saveSnapshot(snapshot);
+    const check = await service.runConsistencyCheck({ workspaceId: 'quality' });
+    expect(check.isValid).toBe(true);
+    expect(check.issues).toContainEqual(expect.objectContaining({ severity: 'warning', code: 'semantic_only_relation' }));
+    const candidate = await service.publishCurrentDraft({ workspaceId: 'quality' });
+    const published = await service.approvePublishedVersion({ workspaceId: 'quality', versionId: candidate.version.id });
+    expect(published.publishedVersions.find((version) => version.id === candidate.version.id)?.status).toBe('published');
   });
 
   it('marks rules without a complete single-asset mapping as skipped', async () => {

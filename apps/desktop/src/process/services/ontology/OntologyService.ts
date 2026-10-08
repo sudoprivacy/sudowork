@@ -57,6 +57,7 @@ import type {
   OntologyJsonValue,
 } from '@sudowork/ontology-common';
 import {
+  ontologyBlockingIssues,
   ontologyFieldSignature,
   projectSemanticDocument,
   uniqueStatements,
@@ -534,10 +535,12 @@ export class OntologyService {
     });
     const qualityRuleIssues = qualityRuleResults.flatMap((result) => qualityRuleIssue(result));
     const relationIssues = await evaluateRelationDataBindings(snapshot);
+    const issues = [...structuralResult.issues, ...relationIssues, ...qualityRuleIssues];
     return {
-      isValid: structuralResult.isValid && relationIssues.length === 0 && !qualityRuleResults.some(doesQualityRuleResultBlockPublishing),
+      isValid: ontologyBlockingIssues({ issues }).length === 0,
+      revision: snapshot.revision,
       checkedAt: Date.now(),
-      issues: [...structuralResult.issues, ...relationIssues, ...qualityRuleIssues],
+      issues,
       qualityRuleResults,
     };
   }
@@ -546,7 +549,7 @@ export class OntologyService {
     const workspaceId = input?.workspaceId ?? (await this.getActiveWorkspaceId());
     const expectedRevision = this.database.getSnapshot(workspaceId)?.revision;
     const check = await this.runConsistencyCheck({ workspaceId });
-    if (!check.isValid) throw new Error(check.issues.map((issue) => issue.message).join('\n'));
+    if (ontologyBlockingIssues(check).length) throw new Error('ontology.studio.errors.publishBlocked');
     return this.engine.publishCurrentDraft(workspaceId, expectedRevision);
   }
 
@@ -1536,10 +1539,6 @@ export async function evaluateOntologyQualityRules(snapshot: IOntologyWorkbenchS
     }
   }
   return results;
-}
-
-function doesQualityRuleResultBlockPublishing(result: IOntologyQualityRuleRunResult): boolean {
-  return result.reason === 'invalid_expression' || (result.severity === 'error' && (result.status === 'failed' || result.status === 'error'));
 }
 
 function qualityRuleIssue(result: IOntologyQualityRuleRunResult) {

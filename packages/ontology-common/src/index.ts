@@ -823,6 +823,7 @@ export interface IOntologyRollbackInput {
 
 export interface IOntologyConsistencyIssue {
   id: string;
+  code?: string;
   severity: 'error' | 'warning';
   message: string;
   targetType?: 'object' | 'relation' | 'quality_rule' | 'logic' | 'action' | 'version' | 'agent';
@@ -831,9 +832,15 @@ export interface IOntologyConsistencyIssue {
 
 export interface IOntologyConsistencyCheckResult {
   isValid: boolean;
+  revision?: number;
   checkedAt: number;
   issues: IOntologyConsistencyIssue[];
   qualityRuleResults?: IOntologyQualityRuleRunResult[];
+}
+
+/** Warnings are advisory; only error-severity issues prevent candidate creation. */
+export function ontologyBlockingIssues(check: Pick<IOntologyConsistencyCheckResult, 'issues'>): IOntologyConsistencyIssue[] {
+  return check.issues.filter((issue) => issue.severity === 'error');
 }
 
 export interface IOntologyAgentBlueprintInput {

@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Button, Dropdown, Empty, Form, Input, Menu, Message, Modal, Select, Space, Spin, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, MessageSquare, Plus, Save, Upload } from 'lucide-react';
-import type { IOntologyWorkbenchSnapshot, IOntologyWorkbenchSummary, IOntologyStudioModel, IOntologyStandardPreview, OntologyStudioPage } from '@sudowork/ontology-common';
+import type { IOntologyConsistencyCheckResult, IOntologyConsistencyIssue, IOntologyWorkbenchSnapshot, IOntologyWorkbenchSummary, IOntologyStudioModel, IOntologyStandardPreview, OntologyStudioPage } from '@sudowork/ontology-common';
 import { STUDIO_MAX_FILE_BYTES } from '@sudowork/ontology-common';
 import StudioModelEditor from './StudioModelEditor';
 import { StudioCapabilitiesPage, StudioChecksPage, StudioDataPage, StudioReleasePage } from './StudioPages';
@@ -26,7 +26,15 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   const [isSaving, setIsSaving] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(page === 'model');
   const [contextObjectId, setContextObjectId] = useState<string>();
+  const [checkReport, setCheckReport] = useState<IOntologyConsistencyCheckResult>();
+  const [focusIssue, setFocusIssue] = useState<IOntologyConsistencyIssue>();
+  const [repairConversationId, setRepairConversationId] = useState<string>();
+  const [isRepairing, setIsRepairing] = useState(false);
+  const [isRepairTracking, setIsRepairTracking] = useState(false);
+  const isRepairingRef = useRef(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const isCreatingRef = useRef(false);
   const [createMode, setCreateMode] = useState<'new' | 'rename'>('new');
   const [search, setSearch] = useState('');
   const [filePreview, setPreview] = useState<{ path: string; preview: IOntologyStandardPreview }>();
@@ -86,6 +94,10 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     setSnapshot(undefined);
     setBaseline('');
     setContextObjectId(undefined);
+    setCheckReport(undefined);
+    setFocusIssue(undefined);
+    setRepairConversationId(undefined);
+    setIsRepairTracking(false);
     void (
       workspaceId
         ? api.getWorkbench({ workspaceId }).then((next) => {
@@ -167,20 +179,27 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       },
     });
   const onCreate = async () => {
+    if (isCreatingRef.current) return;
     const values = await createForm.validate();
-    if (createMode === 'rename' && workspaceId) {
-      try {
+    if (isCreatingRef.current) return;
+    isCreatingRef.current = true;
+    setIsCreating(true);
+    try {
+      if (createMode === 'rename' && workspaceId) {
         const updated = await api.updateDraft({ workspaceId, title: values.name.trim(), description: values.description });
         onServerSnapshot(updated, true);
         setIsCreateOpen(false);
-      } catch (error) {
-        onError(error);
+        return;
       }
-      return;
+      const created = await api.createWorkbench({ name: values.name.trim(), code: `ontology_${crypto.randomUUID().slice(0, 8)}`, description: values.description });
+      setIsCreateOpen(false);
+      onNavigate(created.snapshot.workspaceId, 'model');
+    } catch (error) {
+      onError(error);
+    } finally {
+      isCreatingRef.current = false;
+      setIsCreating(false);
     }
-    const created = await api.createWorkbench({ name: values.name.trim(), code: `ontology_${crypto.randomUUID().slice(0, 8)}`, description: values.description });
-    setIsCreateOpen(false);
-    onNavigate(created.snapshot.workspaceId, 'model');
   };
   const onPickImport = async () => {
     try {
@@ -231,6 +250,73 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   }, [draft.objects, contextObjectId, draftRevision]);
   const pageProps = snapshot ? { snapshot, api, onRefresh, onError } : undefined;
   const isConflict = snapshot && isDirty && (snapshot.revision || 0) !== draftRevision;
+  const onCheckReport = useCallback(
+    (report: IOntologyConsistencyCheckResult) => {
+      const current = snapshotRef.current;
+      if (current && current.workspaceId === workspaceId) setCheckReport({ ...report, revision: report.revision ?? current.revision ?? 0 });
+    },
+    [workspaceId]
+  );
+  useEffect(() => {
+    if (!workspaceId || !isRepairTracking || isDirty) return;
+    let isCancelled = false;
+    const timer = setTimeout(() => {
+      void api
+        .runConsistencyCheck({ workspaceId })
+        .then((report) => {
+          if (!isCancelled) onCheckReport(report);
+        })
+        .catch((error: unknown) => {
+          if (!isCancelled) onError(error);
+        });
+    }, 1500);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [api, workspaceId, isRepairTracking, snapshot?.revision, isDirty, onCheckReport, onError]);
+  const onRepair = async (issues: IOntologyConsistencyIssue[]) => {
+    if (!snapshot || !issues.length || isRepairingRef.current) return;
+    if (isDirty) {
+      Message.warning(text('saveBeforeChecks'));
+      return;
+    }
+    const prompt = `${text('repairPrompt')}\n\n${JSON.stringify({ workspaceId: snapshot.workspaceId, ontology: snapshot.draft.title, revision: snapshot.revision || 0, issues }, null, 2)}`;
+    if (prompt.length > 80_000) {
+      onError(new Error(text('errors.repairTooLarge')));
+      return;
+    }
+    isRepairingRef.current = true;
+    setIsRepairing(true);
+    setIsChatOpen(true);
+    setRepairConversationId(undefined);
+    setIsRepairTracking(true);
+    try {
+      await api.requestAiRepair({ workspaceId: snapshot.workspaceId, title: snapshot.draft.title, prompt }, (id) => {
+        if (snapshotRef.current?.workspaceId === snapshot.workspaceId) setRepairConversationId(id);
+      });
+      Message.success(text('repairSent'));
+    } catch (error) {
+      setIsRepairTracking(false);
+      onError(error);
+    } finally {
+      isRepairingRef.current = false;
+      setIsRepairing(false);
+    }
+  };
+  const onLocateIssue = (issue: IOntologyConsistencyIssue) => {
+    if (issue.targetType === 'logic' || issue.targetType === 'action') {
+      onNavigate(workspaceId, 'capabilities');
+      return;
+    }
+    if (issue.targetType === 'agent' || issue.targetType === 'version') {
+      onNavigate(workspaceId, 'release');
+      return;
+    }
+    setFocusIssue({ ...issue });
+    setContextObjectId(issue.targetType === 'relation' ? snapshot?.relations.find((item) => item.id === issue.targetId)?.fromObjectId : issue.targetType === 'quality_rule' ? snapshot?.qualityRules.find((item) => item.id === issue.targetId)?.objectId : issue.targetId);
+    onNavigate(workspaceId, 'model');
+  };
 
   return (
     <div className={styles['ontology-studio']}>
@@ -375,7 +461,7 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
           )}
           <div className={`${styles['ontology-workspace']} ${isChatOpen ? '' : styles['is-chat-collapsed']}`} style={{ '--ontology-chat-width': `${chatWidth}%` } as CSSProperties}>
             <aside className={styles['ontology-chat-pane']} hidden={!isChatOpen}>
-              {renderChat(snapshot.workspaceId, snapshot.draft.title, context)}
+              {renderChat(snapshot.workspaceId, snapshot.draft.title, context, repairConversationId)}
             </aside>
             {isChatOpen && (
               <div
@@ -409,6 +495,7 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
                   model={draft}
                   document={snapshot.semanticDocument}
                   focusObjectId={contextObjectId}
+                  focusIssue={focusIssue}
                   onEditingChange={onEditingChange}
                   onChange={setDraft}
                   onContext={(id) => {
@@ -420,17 +507,14 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
               {page === 'data' && pageProps && <StudioDataPage {...pageProps} />}
               {page === 'capabilities' && pageProps && <StudioCapabilitiesPage {...pageProps} />}
               {page === 'checks' && pageProps && (
-                <StudioChecksPage
-                  {...pageProps}
-                  onLocate={(id) => {
-                    setContextObjectId(id);
-                    onNavigate(workspaceId, 'model');
-                  }}
-                />
+                <StudioChecksPage {...pageProps} report={checkReport} isModelDirty={isDirty} isRepairing={isRepairing} onReport={onCheckReport} onRepair={(issues) => void onRepair(issues)} onLocate={onLocateIssue} onRelease={() => onNavigate(workspaceId, 'release')} />
               )}
               {page === 'release' && pageProps && (
                 <StudioReleasePage
                   {...pageProps}
+                  isModelDirty={isDirty}
+                  onReport={onCheckReport}
+                  onViewChecks={() => onNavigate(workspaceId, 'checks')}
                   onExport={(versionId) => {
                     setIsExportDraft(false);
                     setExporting({ versionId });
@@ -443,7 +527,18 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       ) : (
         <Empty description={text('errors.notFound')} />
       )}
-      <Modal visible={isCreateOpen} title={text(createMode === 'rename' ? 'rename' : 'newOntology')} onCancel={() => setIsCreateOpen(false)} onOk={onCreate} unmountOnExit>
+      <Modal
+        visible={isCreateOpen}
+        title={text(createMode === 'rename' ? 'rename' : 'newOntology')}
+        onCancel={() => setIsCreateOpen(false)}
+        onOk={onCreate}
+        confirmLoading={isCreating}
+        cancelButtonProps={{ disabled: isCreating }}
+        closable={!isCreating}
+        maskClosable={!isCreating}
+        escToExit={!isCreating}
+        unmountOnExit
+      >
         <Form form={createForm} layout='vertical'>
           <Form.Item field='name' label={text('name')} rules={[{ required: true }]}>
             <Input />
@@ -518,7 +613,7 @@ export interface IStudioChatContext {
   revision: number;
 }
 interface IOntologyStudioProps {
-  renderChat: (workspaceId: string, workspaceName: string, context?: IStudioChatContext) => ReactNode;
+  renderChat: (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string) => ReactNode;
   api: IOntologyStudioApi;
   workspaceId?: string;
   page?: OntologyStudioPage;

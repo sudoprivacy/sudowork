@@ -63,7 +63,7 @@ import type {
   OntologyCapabilityId,
   OntologyJsonValue,
 } from '@sudowork/ontology-common';
-import { ontologyFieldSignature, createDefaultOntologyWorkbenchSnapshot, ONTOLOGY_SNAPSHOT_SCHEMA_VERSION, recalculateOntologyStats, summarizeOntologyWorkbenchSnapshot, validateQualityRuleExpression } from '@sudowork/ontology-common';
+import { ontologyBlockingIssues, ontologyFieldSignature, createDefaultOntologyWorkbenchSnapshot, ONTOLOGY_SNAPSHOT_SCHEMA_VERSION, recalculateOntologyStats, summarizeOntologyWorkbenchSnapshot, validateQualityRuleExpression } from '@sudowork/ontology-common';
 
 export interface IOntologyRepository {
   getSnapshot(workspaceId: string): IOntologyWorkbenchSnapshot | null | Promise<IOntologyWorkbenchSnapshot | null>;
@@ -893,7 +893,7 @@ export class OntologyEngine {
     if (expectedRevision !== undefined && snapshot.revision !== expectedRevision) throw new Error('ontology.studio.errors.conflict');
     const check = checkConsistency(snapshot);
     if (!check.isValid) {
-      throw new Error(check.issues.map((issue) => issue.message).join('\n'));
+      throw new Error('ontology.studio.errors.publishBlocked');
     }
     const now = Date.now();
     const nextVersion = `v${snapshot.publishedVersions.length + 1}`;
@@ -2422,6 +2422,7 @@ function checkConsistency(snapshot: IOntologyWorkbenchSnapshot): IOntologyConsis
       issues.push({
         id: randomUUID(),
         severity: 'warning',
+        code: 'semantic_only_relation',
         message: `Relation "${relation.name}" is semantic-only and cannot query related records.`,
         targetType: 'relation',
         targetId: relation.id,
@@ -2542,7 +2543,8 @@ function checkConsistency(snapshot: IOntologyWorkbenchSnapshot): IOntologyConsis
     });
   }
   return {
-    isValid: !issues.some((issue) => issue.severity === 'error'),
+    isValid: ontologyBlockingIssues({ issues }).length === 0,
+    revision: snapshot.revision,
     checkedAt: Date.now(),
     issues,
   };
