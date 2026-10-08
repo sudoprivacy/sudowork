@@ -204,8 +204,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           },
         });
 
-        if (conversation && '__error' in conversation) throw new Error(conversation.__error);
-        if (!conversation || !conversation.id) throw new Error(t('conversation.createFailed'));
+        if (!conversation) throw new Error(t('conversation.createFailed'));
+        if ('__error' in conversation) throw new Error(conversation.__error);
+        if (!conversation.id) throw new Error(t('conversation.createFailed'));
 
         console.log(`Remote agent conversation created: ${conversation.id}`);
 
