@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const installMcpServers = vi.fn();
 const removeMcpServer = vi.fn();
+const ensureBridge = vi.hoisted(() => vi.fn(async (_scope?: unknown) => ({ port: 45678, token: 'test-token' })));
 
 vi.mock('node:fs', () => ({ existsSync: () => true }));
 vi.mock('electron', () => ({
@@ -23,7 +24,7 @@ vi.mock('@process/services/claudeCli/NodeRuntimeService', () => ({
 // Break the heavy import chain that OntologyWriteBridge → ontologyService pulls in.
 // The tests only care about the MCP install call, not the write endpoint.
 vi.mock('@process/services/ontology/OntologyWriteBridge', () => ({
-  ensureOntologyWriteBridge: async () => ({ port: 45678, token: 'test-token' }),
+  ensureOntologyWriteBridge: ensureBridge,
 }));
 vi.mock('@process/services/mcpServices/agents/ScodeMcpAgent', () => ({
   ScodeMcpAgent: class {
@@ -36,6 +37,22 @@ describe('OntologyMcpRegistration', () => {
   beforeEach(() => {
     installMcpServers.mockReset().mockResolvedValue({ success: true });
     removeMcpServer.mockReset().mockResolvedValue({ success: true });
+    ensureBridge.mockClear();
+  });
+
+  it('returns session tools pinned to the published version without installing global settings', async () => {
+    const { createOntologyRuntimeMcpConfig } = await import('@process/services/ontology/OntologyMcpRegistration');
+    const config = await createOntologyRuntimeMcpConfig({ blueprintId: 'agent', workspaceId: 'orders', versionId: 'v1', exportFile: '/published.json' });
+    expect(ensureBridge).toHaveBeenCalledWith({ workspaceId: 'orders', versionId: 'v1', role: 'runtime' });
+    expect(config).toMatchObject({
+      name: 'ontology-agent',
+      command: '/mock/node',
+      env: expect.arrayContaining([
+        { name: 'ONTOLOGY_VERSION_ID', value: 'v1' },
+        { name: 'ONTOLOGY_RUNTIME_TOKEN', value: 'test-token' },
+      ]),
+    });
+    expect(installMcpServers).not.toHaveBeenCalled();
   });
 
   it('registers a version-pinned runtime server with Sudocode', async () => {

@@ -595,7 +595,7 @@ export class OntologyService {
     if (!rulePath.startsWith(directory + path.sep)) throw new Error('ontology.studio.agentErrors.identityConflict');
     const rules = await fs.readFile(rulePath, 'utf8');
     if (!rules.trim()) throw new Error('ontology.studio.agentErrors.notFound');
-    return { meta: installed.meta, directory, presetContext: `${rules}\n\nAssistant resources: ${directory}` };
+    return { meta: installed.meta, directory, presetContext: `${rules}\n\nAssistant resources: ${directory}`, mcpRegistration: { ...ownership, exportFile: this.database.getMcpExportPath(snapshot.workspaceId) } };
   }
 
   private async installRegisteredAgent(blueprint: IOntologyAgentBlueprint, snapshot: IOntologyWorkbenchSnapshot): Promise<void> {

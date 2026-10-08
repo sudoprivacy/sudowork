@@ -58,7 +58,7 @@ function formatAcpErrorMessage(error: AcpResponse['error']): string {
 }
 
 export class AcpConnection {
-  constructor(private readonly options: { isSensitive?: boolean } = {}) {}
+  constructor(private readonly options: { isSensitive?: boolean; isOntologySession?: boolean } = {}) {}
 
   private transport: AcpTransport | null = null;
   private pendingRequests = new Map<number, PendingRequest<unknown>>();
@@ -351,7 +351,9 @@ export class AcpConnection {
   /** Connect either hosting strategy through the shared session mailbox. */
   private async connectViaNexus(backend: AcpBackend, cliPath: string, workingDir: string, acpArgs: string[] | undefined, customEnv: Record<string, string> | undefined, endpoint: string): Promise<void> {
     const spawnSpec = await buildGenericSpawnSpec(backend, cliPath, workingDir, acpArgs, customEnv);
-    const agentId = this.managedAgentId || `${os.hostname()}-sudowork-${backend}-${this.conversationId ?? crypto.randomUUID().slice(0, 8)}`;
+    // Mailbox history has a retention limit. Ontology reconnects use a fresh
+    // transport while session/load still restores the original ACP history.
+    const agentId = this.options.isOntologySession ? `sudowork-ontology-${this.conversationId ?? 'session'}-${crypto.randomUUID()}` : this.managedAgentId || `${os.hostname()}-sudowork-${backend}-${this.conversationId ?? crypto.randomUUID().slice(0, 8)}`;
 
     const transport = new NexusAcpTransport({
       endpoint,

@@ -91,6 +91,7 @@ describe('ontology agent runtime integration', () => {
       await fs.writeFile(path.join(directory, 'AGENT.md'), 'Use the published v1 ontology.');
       mocks.getMeta.mockImplementation(async () => ({ meta, category: 'custom', dir: directory }));
       expect(await service.getRegisteredAgentRuntime(id)).toMatchObject({ meta: { ontologyBinding: { workspaceId: 'workspace', versionId: 'v1', blueprintId: blueprint.id } }, presetContext: expect.stringContaining('published v1') });
+      expect((await service.getRegisteredAgentRuntime(id))?.mcpRegistration).toEqual({ workspaceId: 'workspace', versionId: 'v1', blueprintId: blueprint.id, exportFile: '/synthetic/ontology.json' });
       meta.enabled = false;
       await expect(service.getRegisteredAgentRuntime(id)).rejects.toThrow('notFound');
       meta.enabled = true;
