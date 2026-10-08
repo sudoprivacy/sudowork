@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import useSWR from 'swr';
-import { getAuthServerBaseUrl } from '@sudowork/host-bridge/authServer';
+import { getSudoworkServerBaseUrl } from '@sudowork/common/sudoworkServer';
 import { useAuth } from '@renderer/context/AuthContext';
 import { createModelBillingClient, type ModelAccount } from './client';
 
@@ -8,7 +8,7 @@ export function useModelAccount() {
   const { user, authFetch } = useAuth();
   const request = useCallback(
     async <T>(path: string, method = 'GET', body?: unknown, reference?: string): Promise<T> => {
-      return createModelBillingClient(await getAuthServerBaseUrl(), authFetch)<T>(path, method, body, reference);
+      return createModelBillingClient(getSudoworkServerBaseUrl, authFetch)<T>(path, method, body, reference);
     },
     [authFetch]
   );

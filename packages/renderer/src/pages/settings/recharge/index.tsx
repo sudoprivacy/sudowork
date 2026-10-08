@@ -11,10 +11,7 @@ export default function RechargeCenter() {
   return <OrganizationRechargeCenter key={model.identityKey} model={model} />;
 }
 
-interface OrganizationRechargeCenterProps {
-  model: ReturnType<typeof useModelAccount>;
-}
-function OrganizationRechargeCenter({ model }: OrganizationRechargeCenterProps) {
+function OrganizationRechargeCenter({ model }: IOrganizationRechargeCenterProps) {
   const { t } = useTranslation();
   const { account, error, isLoading, refresh, request } = model;
   const [packages, setPackages] = useState<ModelPackage[]>([]);
@@ -27,6 +24,9 @@ function OrganizationRechargeCenter({ model }: OrganizationRechargeCenterProps) 
   const [qr, setQr] = useState('');
   const [isBusy, setIsBusy] = useState(false);
   const [failure, setFailure] = useState('');
+  const [loadFailure, setLoadFailure] = useState('');
+  const [isRecordsLoading, setIsRecordsLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
   const reference = useRef<{ identity: string; key: string } | undefined>(undefined);
   const isAllowed = account?.can_recharge === true;
   const onReload = useCallback(async () => {
@@ -37,7 +37,9 @@ function OrganizationRechargeCenter({ model }: OrganizationRechargeCenterProps) 
   }, [request, refresh, orderPage]);
   useEffect(() => {
     let isActive = true;
-    if (isAllowed)
+    if (isAllowed) {
+      setLoadFailure('');
+      setIsRecordsLoading(true);
       void Promise.all([request<{ items: ModelPackage[] }>('model-billing/packages'), request<{ items: ModelOrder[]; total: number }>(`model-billing/orders?page=${orderPage}`)])
         .then(([p, o]) => {
           if (isActive) {
@@ -47,12 +49,16 @@ function OrganizationRechargeCenter({ model }: OrganizationRechargeCenterProps) 
           }
         })
         .catch((e: Error) => {
-          if (isActive) setFailure(e.message);
+          if (isActive) setLoadFailure(e.message);
+        })
+        .finally(() => {
+          if (isActive) setIsRecordsLoading(false);
         });
+    }
     return () => {
       isActive = false;
     };
-  }, [isAllowed, request, orderPage]);
+  }, [isAllowed, request, orderPage, reloadKey]);
   const onSync = useCallback(
     async (orderNo: string) => {
       const updated = await request<ModelOnlineOrder>(`model-billing/orders/${encodeURIComponent(orderNo)}/sync`, 'POST');
@@ -125,7 +131,10 @@ function OrganizationRechargeCenter({ model }: OrganizationRechargeCenterProps) 
       {isLoading ? (
         <Spin />
       ) : error ? (
-        <Alert type='warning' content={error.message} />
+        <div>
+          <Alert type='warning' content={error.message} />
+          <Button onClick={() => void refresh()}>{t('common.retry')}</Button>
+        </div>
       ) : !isAllowed ? (
         <Alert type='warning' content={t('modelBilling.adminOnly')} />
       ) : (
@@ -137,6 +146,12 @@ function OrganizationRechargeCenter({ model }: OrganizationRechargeCenterProps) 
             <p>{t('modelBilling.rechargeDescription')}</p>
           </div>
           {failure && <Alert type='error' content={failure} />}
+          {loadFailure && (
+            <div>
+              <Alert type='error' content={loadFailure} />
+              <Button onClick={() => setReloadKey((key) => key + 1)}>{t('common.retry')}</Button>
+            </div>
+          )}
           {order?.payment_status === 'paid' && <Alert type={order.credit_status === 'credited' ? 'success' : 'warning'} content={t(`modelBilling.creditStatuses.${order.credit_status}`)} />}
           {qr && order ? (
             <div className='p-6 rd-16px border border-light flex flex-col items-center gap-4'>
@@ -187,32 +202,39 @@ function OrganizationRechargeCenter({ model }: OrganizationRechargeCenterProps) 
             </div>
           )}
           <h3>{t('modelBilling.orders')}</h3>
-          <Table
-            rowKey='order_no'
-            data={orders}
-            pagination={{ current: orderPage, pageSize: 20, total: orderTotal, onChange: setOrderPage }}
-            columns={[
-              { title: t('modelBilling.source'), render: (_, row: ModelOrder) => t(row.source === 'manual' ? 'modelBilling.manualCredit' : 'modelBilling.onlineCredit') },
-              { title: t('modelBilling.order'), dataIndex: 'order_no' },
-              { title: t('modelBilling.purchase'), render: (_, row: ModelOrder) => `$${row.purchase_amount_usd}` },
-              { title: t('modelBilling.bonus'), render: (_, row: ModelOrder) => `$${row.bonus_amount_usd}` },
-              { title: t('modelBilling.paidCny'), render: (_, row: ModelOrder) => (row.source === 'manual' ? t('modelBilling.noPayment') : `¥${(row.amount_cny_fen / 100).toFixed(2)}`) },
-              { title: t('modelBilling.status'), render: (_, row: ModelOrder) => t(row.source === 'manual' || row.payment_status === 'paid' ? `modelBilling.creditStatuses.${row.credit_status}` : `modelBilling.paymentStatuses.${row.payment_status}`) },
-              { title: t('modelBilling.operator'), render: (_, row: ModelOrder) => row.payer_nickname || row.payer_username || row.payer_user_id || '—' },
-              { title: t('modelBilling.reason'), render: (_, row: ModelOrder) => row.reason || '—' },
-              {
-                title: t('modelBilling.actions'),
-                render: (_, row: ModelOrder) =>
-                  isPayableOrder(row) ? (
-                    <Button loading={isBusy} onClick={() => void onPay(row)}>
-                      {t('modelBilling.continuePay')}
-                    </Button>
-                  ) : null,
-              },
-            ]}
-          />
+          {!loadFailure && (
+            <Table
+              loading={isRecordsLoading}
+              rowKey='order_no'
+              data={orders}
+              pagination={{ current: orderPage, pageSize: 20, total: orderTotal, onChange: setOrderPage }}
+              columns={[
+                { title: t('modelBilling.source'), render: (_, row: ModelOrder) => t(row.source === 'manual' ? 'modelBilling.manualCredit' : 'modelBilling.onlineCredit') },
+                { title: t('modelBilling.order'), dataIndex: 'order_no' },
+                { title: t('modelBilling.purchase'), render: (_, row: ModelOrder) => `$${row.purchase_amount_usd}` },
+                { title: t('modelBilling.bonus'), render: (_, row: ModelOrder) => `$${row.bonus_amount_usd}` },
+                { title: t('modelBilling.paidCny'), render: (_, row: ModelOrder) => (row.source === 'manual' ? t('modelBilling.noPayment') : `¥${(row.amount_cny_fen / 100).toFixed(2)}`) },
+                { title: t('modelBilling.status'), render: (_, row: ModelOrder) => t(row.source === 'manual' || row.payment_status === 'paid' ? `modelBilling.creditStatuses.${row.credit_status}` : `modelBilling.paymentStatuses.${row.payment_status}`) },
+                { title: t('modelBilling.operator'), render: (_, row: ModelOrder) => row.payer_nickname || row.payer_username || row.payer_user_id || '—' },
+                { title: t('modelBilling.reason'), render: (_, row: ModelOrder) => row.reason || '—' },
+                {
+                  title: t('modelBilling.actions'),
+                  render: (_, row: ModelOrder) =>
+                    isPayableOrder(row) ? (
+                      <Button loading={isBusy} onClick={() => void onPay(row)}>
+                        {t('modelBilling.continuePay')}
+                      </Button>
+                    ) : null,
+                },
+              ]}
+            />
+          )}
         </div>
       )}
     </PageWrapper>
   );
+}
+
+interface IOrganizationRechargeCenterProps {
+  model: ReturnType<typeof useModelAccount>;
 }

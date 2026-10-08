@@ -1,3 +1,5 @@
+import { requestConsumerApi } from '@sudowork/host-bridge/consumerApi';
+
 export interface ModelMember {
   token_id: number;
   token_name?: string;
@@ -72,15 +74,19 @@ export interface ModelLog {
 export function canRecharge(role?: string): boolean {
   return role === 'ENTERPRISE_ADMIN' || role === 'admin';
 }
-export function createModelBillingClient(baseUrl: string, authFetch: (url: string, options?: RequestInit) => Promise<Response>) {
+export function createModelBillingClient(baseUrl: string | (() => Promise<string>), authFetch: (url: string, options?: RequestInit) => Promise<Response>) {
   return async function request<T>(path: string, method = 'GET', body?: unknown, reference?: string): Promise<T> {
-    const response = await authFetch(`${baseUrl.replace(/\/$/, '')}/api/v1/${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json', ...(reference ? { 'Idempotency-Key': reference } : {}) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    const result = (await response.json()) as { success: boolean; data: T; error?: { message?: string }; msg?: string };
-    if (!response.ok || !result.success) throw new Error(result.error?.message || result.msg || `HTTP ${response.status}`);
+    const result = await requestConsumerApi<T>(
+      authFetch,
+      `/api/v1/${path}`,
+      {
+        method,
+        headers: { 'Content-Type': 'application/json', ...(reference ? { 'Idempotency-Key': reference } : {}) },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      },
+      typeof baseUrl === 'string' ? async () => baseUrl : baseUrl
+    );
+    if (!result.success) throw new Error(result.error?.message || result.msg || 'Model billing request failed');
     return result.data;
   };
 }
