@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 // A configured Nexus endpoint uses the session mailbox and fails closed.
@@ -88,11 +89,12 @@ describe('AcpConnection Nexus session routing', () => {
     const harness = connection as unknown as { initialize: () => Promise<void>; sendRequest: ReturnType<typeof vi.fn> };
     harness.initialize = async () => {};
     const tools = [{ name: 'ontology-agent', command: '/node' }];
+    const workspace = path.resolve('original-workspace');
     for (let attempt = 0; attempt < 2; attempt++) {
-      await connection.connect('scode', '/scode', '/original-workspace', ['acp'], { ACP_GRPC_ENDPOINT: '127.0.0.1:12022' });
+      await connection.connect('scode', '/scode', workspace, ['acp'], { ACP_GRPC_ENDPOINT: '127.0.0.1:12022' });
       harness.sendRequest = vi.fn().mockResolvedValue({});
-      await connection.loadSession('original-acp-history', '/original-workspace', tools);
-      expect(harness.sendRequest).toHaveBeenCalledWith('session/load', expect.objectContaining({ sessionId: 'original-acp-history', cwd: '/original-workspace', mcpServers: tools }));
+      await connection.loadSession('original-acp-history', workspace, tools);
+      expect(harness.sendRequest).toHaveBeenCalledWith('session/load', expect.objectContaining({ sessionId: 'original-acp-history', cwd: workspace, mcpServers: tools }));
       await connection.disconnect();
     }
     const ids = fixture.grpcOptions.map((options) => options.agentId);
