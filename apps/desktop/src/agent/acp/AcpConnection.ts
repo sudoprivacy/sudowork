@@ -68,6 +68,8 @@ export class AcpConnection {
   private backend: AcpBackend | null = null;
   /** Owning conversation id (set by AcpAgent); anchors the tunnel agentId for traceability. */
   public conversationId: string | null = null;
+  /** Account-scoped personal identity prepared by the desktop host. */
+  public managedAgentId: string | null = null;
   private initializeResponse: AcpResponse | null = null;
   private workingDir: string = process.cwd();
 
@@ -348,7 +350,7 @@ export class AcpConnection {
   /** Connect either hosting strategy through the shared session mailbox. */
   private async connectViaNexus(backend: AcpBackend, cliPath: string, workingDir: string, acpArgs: string[] | undefined, customEnv: Record<string, string> | undefined, endpoint: string): Promise<void> {
     const spawnSpec = await buildGenericSpawnSpec(backend, cliPath, workingDir, acpArgs, customEnv);
-    const agentId = `${os.hostname()}-sudowork-${backend}-${this.conversationId ?? crypto.randomUUID().slice(0, 8)}`;
+    const agentId = this.managedAgentId || `${os.hostname()}-sudowork-${backend}-${this.conversationId ?? crypto.randomUUID().slice(0, 8)}`;
 
     const transport = new NexusAcpTransport({
       endpoint,

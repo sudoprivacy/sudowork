@@ -131,6 +131,7 @@ const GuidPage: React.FC = () => {
     modelBackendKey: agentSelection.modelBackendKey,
     selectedAgentInfo: agentSelection.selectedAgentInfo,
     isPresetAgent: agentSelection.isPresetAgent,
+    isAgentSelectionPending: Boolean(assistantParam && agentSelection.selectedAgentInfo?.customAgentId !== assistantParam && agentSelection.selectedAgentInfo?.name !== assistantParam),
     selectedMode: agentSelection.selectedMode,
     selectedAcpModel: agentSelection.selectedAcpModel,
     currentModel: modelSelection.currentModel,

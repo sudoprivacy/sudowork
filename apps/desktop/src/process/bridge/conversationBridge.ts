@@ -11,10 +11,12 @@ import fs from 'fs/promises';
 import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { shouldSyncWorkspaceSkills } from '@sudowork/common/utils/workspaceSkillSync';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { assertConversationAccount } from '@process/services/mossExecutionContext';
 import { ensureScodeInstalled, getScodePath } from '@process/services/scode/ScodeInstallService';
 import { prepareMossResources, validateMossResourceSnapshot } from '@process/services/mossResourcePreparation';
 import { prepareMossLocalRuntime } from '@process/services/mossLocalRuntime';
+import { requireMossPersonalAgent } from '@process/services/mossPersonalAgents';
 import { getDatabase } from '@process/database';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
@@ -350,7 +352,9 @@ export function initConversationBridge(): void {
         if (runtime?.status !== 'ready') runtime = (await prepareMossLocalRuntime()).localRuntime;
         if (runtime.status !== 'ready') throw new Error(`Local execution is unavailable: ${runtime.status}`);
         if (!(await ensureScodeInstalled())) throw new Error('Local scode engine is unavailable');
-        const resources = await prepareMossResources(params.extra?.presetAssistantId, params.extra?.enabledSkills);
+        const assistantReference = params.extra?.presetAssistantId || `moss-agent:user:${runtime.userId}`;
+        const personalAgent = isPersonalAgentRef(assistantReference) ? await requireMossPersonalAgent(assistantReference) : undefined;
+        const resources = await prepareMossResources(assistantReference, params.extra?.enabledSkills);
         finalParams = {
           ...params,
           type: 'acp',
@@ -358,6 +362,8 @@ export function initConversationBridge(): void {
             ...params.extra,
             backend: 'scode',
             cliPath: getScodePath() || undefined,
+            presetAssistantId: assistantReference,
+            ...(personalAgent ? { agentName: personalAgent.displayName } : {}),
             presetContext: resources.presetContext || params.extra?.presetContext,
             enabledSkills: resources.enabledSkills,
             ...{ mossResources: resources.resources },

@@ -4,7 +4,8 @@ const state = vi.hoisted(() => ({ scope: 'account-a', request: vi.fn(), token: v
 vi.mock('electron', () => ({ net: { fetch: state.request } }));
 vi.mock('@process/initStorage', () => ({ ProcessConfig: { getSync: (key: string) => ({ 'eeclaw.serverUrl': 'https://moss.example/', 'eeclaw.accountScope': state.scope })[key] } }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: state.token }));
-import { createMossPersonalAgent, listMossPersonalAgents, requireMossPersonalAgent } from '@process/services/mossPersonalAgents';
+vi.mock('@process/utils', () => ({ getDataPath: () => 'C:/qa/data' }));
+import { createMossPersonalAgent, listMossPersonalAgents, requireMossPersonalAgent, resolveMossPersonalRuntime } from '@process/services/mossPersonalAgents';
 
 const agent = { ref: 'moss-agent:own:22222222-2222-4222-8222-222222222222', displayName: 'My Agent', kind: 'own' };
 beforeEach(() => {
@@ -15,6 +16,19 @@ beforeEach(() => {
 });
 
 describe('personal Agent authority in the desktop host', () => {
+  it('keeps identity and memory stable while partitioning accounts and personal Agents', async () => {
+    state.scope = 'a'.repeat(64);
+    const first = await resolveMossPersonalRuntime(agent.ref, state.scope);
+    expect(await resolveMossPersonalRuntime(agent.ref, state.scope)).toEqual(first);
+    const other = { ...agent, ref: 'moss-agent:own:33333333-3333-4333-8333-333333333333' };
+    state.request.mockImplementation(async () => Response.json({ success: true, data: [agent, other] }));
+    expect(await resolveMossPersonalRuntime(other.ref, state.scope)).not.toEqual(first);
+    state.scope = 'b'.repeat(64);
+    expect(await resolveMossPersonalRuntime(agent.ref, state.scope)).not.toEqual(first);
+    await expect(resolveMossPersonalRuntime(agent.ref, 'a'.repeat(64))).rejects.toThrow('different Moss account');
+    await expect(resolveMossPersonalRuntime(agent.ref, '../escape')).rejects.toThrow('different Moss account');
+    await expect(resolveMossPersonalRuntime(other.ref + '/../../escape', state.scope)).rejects.toThrow('unavailable');
+  });
   it('uses the current session and refreshes a rejected token once', async () => {
     state.token.mockResolvedValueOnce('expired-token').mockResolvedValueOnce('refreshed-token');
     state.request.mockResolvedValueOnce(new Response('', { status: 401 })).mockResolvedValueOnce(Response.json({ success: true, data: [agent] }));

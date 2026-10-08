@@ -26,6 +26,15 @@ const agent = (ref: string, displayName: string, kind: 'default' | 'own' | 'temp
 });
 
 describe('groupConversationsByAgent', () => {
+  it('uses personal references for local and cloud sessions with identical display names', () => {
+    const firstRef = 'moss-agent:own:11111111-1111-4111-8111-111111111111';
+    const secondRef = 'moss-agent:own:22222222-2222-4222-8222-222222222222';
+    const local = { ...conversation('local', 'Same name', 1), type: 'acp', extra: { agentName: 'Same name', presetAssistantId: firstRef } } as unknown as ConversationItem;
+    const cloud = { ...conversation('cloud', 'Same name', 2), extra: { agentName: 'Same name', mossAssistantRef: secondRef } } as unknown as ConversationItem;
+    const groups = groupConversationsByAgent([local, cloud], [agent(firstRef, 'Same name', 'own'), agent(secondRef, 'Same name', 'own')]);
+    expect(groups.map((group) => group.conversations.map((item) => item.id))).toEqual([['local'], ['cloud']]);
+    expect(groups).toHaveLength(2);
+  });
   it('groups a conversation under the agent it belongs to, not the template it came from', () => {
     const groups = groupConversationsByAgent([conversation('a', 'tpl-recruit', 2), conversation('b', 'moss-agent:user:u1', 1)], [agent('moss-agent:user:u1', '宋一民', 'default'), agent('tpl-recruit', '招聘专家', 'template')]);
     expect(groups.map((g) => [g.displayName, g.conversations.map((c) => c.id)])).toEqual([
