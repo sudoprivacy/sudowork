@@ -197,6 +197,65 @@ suite('published runtime installation and persistence', () => {
     await stop();
   }, 240_000);
 
+  it('upgrades the previous signed vault through the app installer and preserves secret history', async () => {
+    const vault = plugins.find((plugin) => plugin.name === 'nexus_vault')!;
+    const previousDigests: Record<string, string> = {
+      'nexus-vault-linux-x86_64.tar.gz': 'b8627085a8dc8738029e9d965818d999cff903fa605d5ea74a419da507299186',
+      'nexus-vault-macos-arm64.tar.gz': '88a74a2e3575d71fe46c598e32639ae21bf43736a300452cd72b0ee69a8829d8',
+      'nexus-vault-macos-x86_64.tar.gz': '8df66a631e4a39d91bfa731a28317df26f5e9b76b617b5b10fbb1a976363d343',
+      'nexus-vault-windows-x86_64.zip': '5efb56200d5521b82b00f1b379f917fe3485db98e1d6ef0f3a8a2e52ca9ee860',
+    };
+    const response = await fetch(`https://sudowork-runtime-1309794936.cos.ap-beijing.myqcloud.com/nexus-vault/release/v0.5.66/${vault.artifact}`, { signal: AbortSignal.timeout(90_000) });
+    expect(response.ok, 'Download the previous published vault fixture').toBe(true);
+    const archive = Buffer.from(await response.arrayBuffer());
+    expect(createHash('sha256').update(archive).digest('hex')).toBe(previousDigests[vault.artifact]);
+    const archivePath = path.join(root, `previous-${vault.artifact}`);
+    fs.writeFileSync(archivePath, archive);
+    const pluginDir = path.join(installRoot, 'plugins');
+    const previousDir = path.join(root, 'previous-vault');
+    fs.mkdirSync(previousDir);
+    execFileSync('tar', ['-xf', archivePath, '-C', previousDir], { timeout: 30_000, windowsHide: true });
+    for (const name of [vault.dylib, `${vault.dylib}.sig`]) fs.copyFileSync(path.join(previousDir, name), path.join(pluginDir, name));
+    const marker = path.join(pluginDir, '.nexus-vault-ready');
+    fs.writeFileSync(marker, '0.5.66');
+    const namespace = `upgrade-${randomUUID()}`;
+    const original = randomUUID();
+    const rotated = `${original}-previous`;
+    const dataDir = path.join(root, 'previous-vault-state', 'data');
+    await boot(binary, pluginDir, dataDir);
+    expect(daemonLog).not.toMatch(/plugin API version mismatch|signature did not verify|failed to load/);
+    expect((await secrets.putSecret(namespace, 'token', original)).currentVersion).toBe(1);
+    expect((await secrets.putSecret(namespace, 'token', rotated)).currentVersion).toBe(2);
+    await stop();
+
+    const { vaultPluginInstaller } = await import('../../src/process/services/nexus-vfs/VaultPluginInstaller');
+    expect(vaultPluginInstaller.checkInstalledSync()).toBe(false);
+    await vaultPluginInstaller.install(() => {});
+    expect(vaultPluginInstaller.checkInstalledSync()).toBe(true);
+    expect(fs.readFileSync(marker, 'utf8')).toBe(versions['nexus-vault']);
+    expect(
+      createHash('sha256')
+        .update(fs.readFileSync(path.join(pluginDir, vault.dylib)))
+        .digest('hex')
+    ).not.toBe(
+      createHash('sha256')
+        .update(fs.readFileSync(path.join(previousDir, vault.dylib)))
+        .digest('hex')
+    );
+    await boot(binary, pluginDir, dataDir);
+    expect(await secrets.getSecret(namespace, 'token')).toBe(rotated);
+    expect(await secrets.getSecret(namespace, 'token', 1)).toBe(original);
+    const upgraded = `${await secrets.getSecret(namespace, 'token')}-upgraded`;
+    expect((await secrets.putSecret(namespace, 'token', upgraded)).currentVersion).toBe(3);
+    await stop();
+    await boot(binary, pluginDir, dataDir);
+    expect(await secrets.getSecret(namespace, 'token')).toBe(upgraded);
+    expect(await secrets.getSecret(namespace, 'token', 2)).toBe(rotated);
+    expect(await secrets.getSecret(namespace, 'token', 1)).toBe(original);
+    expect(await secrets.deleteSecret(namespace, 'token')).toBe(true);
+    await expect(secrets.getSecret(namespace, 'token')).rejects.toThrow();
+  }, 240_000);
+
   it.skipIf(!isLegacyUpgradeEnabled)(
     'reads and rotates a secret written by the previous published runtime',
     async () => {

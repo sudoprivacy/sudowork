@@ -25,6 +25,7 @@ const request = vi.fn();
 const agent = { kind: 'agents' as const, source: 'tenant' as const, id: 'agent-1' };
 const skill = { kind: 'skills' as const, source: 'tenant' as const, id: 'skill-1' };
 const archives = new Map<string, Buffer>();
+const archiveDate = new Date('2026-01-01T00:00:00.000Z');
 
 beforeEach(async () => {
   Object.assign(state, { root: await fs.mkdtemp(path.join(os.tmpdir(), 'moss-catalog-')), scope: 'account-a', token: 'token-a', version: '1', name: 'shared-name', isCorrupt: false, isSymlink: false, isSwitching: false, isAvailable: true });
@@ -38,9 +39,9 @@ beforeEach(async () => {
       const resources = [];
       for (const item of selected) {
         const zip = new JSZip();
-        zip.file(item.kind === 'agents' ? 'system.md' : 'SKILL.md', `Resource ${item.id} version ${state.version}`);
-        zip.file('_moss_meta.json', JSON.stringify({ id: item.id, name: 'shared-name', display_name: `Display ${item.id}`, ruleFile: 'system.md', agent_type: 'chat' }));
-        if (state.isSymlink) zip.file('link', '/outside', { unixPermissions: 0o120777 });
+        zip.file(item.kind === 'agents' ? 'system.md' : 'SKILL.md', `Resource ${item.id} version ${state.version}`, { date: archiveDate });
+        zip.file('_moss_meta.json', JSON.stringify({ id: item.id, name: 'shared-name', display_name: `Display ${item.id}`, ruleFile: 'system.md', agent_type: 'chat' }), { date: archiveDate });
+        if (state.isSymlink) zip.file('link', '/outside', { unixPermissions: 0o120777, date: archiveDate });
         const bytes = await zip.generateAsync({ type: 'nodebuffer', platform: 'UNIX' });
         const digest = createHash('sha256').update(bytes).digest('hex');
         const downloadRef = `/api/v1/client/catalog/preparations/${preparationId}/${item.kind === 'agents' ? 'agent-templates' : 'skills'}/${item.id}/download`;
@@ -135,25 +136,30 @@ describe('organization catalog and local installations', () => {
     expect(await getMossCatalogInstallations()).toEqual([]);
   });
 
-  it('retains history on update/removal and respects dependencies and local disabling', async () => {
-    const original = await installMossCatalog(agent);
-    await expect(changeCatalogInstallation(skill)).rejects.toThrow('required');
-    await changeCatalogInstallation({ ...agent, isEnabled: false });
-    await expect(installMossCatalog(agent)).rejects.toThrow('disabled');
-    await changeCatalogInstallation({ ...agent, isEnabled: true });
-    state.version = '2';
-    const updated = await installMossCatalog({ ...agent, isUpdate: true });
-    expect(updated.path).not.toBe(original.path);
-    expect(await fs.readFile(path.join(original.path, 'system.md'), 'utf8')).toContain('version 1');
-    expect(await isCatalogPathVisible(original.path)).toBe(false);
-    expect(await getMossCatalogInstallations()).toHaveLength(2);
-    await changeCatalogInstallation(agent);
-    expect(await isCatalogPathVisible(updated.path)).toBe(false);
-    expect(await fs.stat(updated.path)).toBeTruthy();
-    expect((await getMossCatalogInstallations()).map((item) => item.id)).toEqual(['skill-1']);
-    state.isAvailable = false;
-    await expect(installMossCatalog(skill)).rejects.toThrow('404');
-  });
+  it(
+    'retains history on update/removal and respects dependencies and local disabling',
+    async () => {
+      const original = await installMossCatalog(agent);
+      await expect(changeCatalogInstallation(skill)).rejects.toThrow('required');
+      await changeCatalogInstallation({ ...agent, isEnabled: false });
+      await expect(installMossCatalog(agent)).rejects.toThrow('disabled');
+      await changeCatalogInstallation({ ...agent, isEnabled: true });
+      state.version = '2';
+      const updated = await installMossCatalog({ ...agent, isUpdate: true });
+      expect(updated.path).not.toBe(original.path);
+      expect(await fs.readFile(path.join(original.path, 'system.md'), 'utf8')).toContain('version 1');
+      expect(await isCatalogPathVisible(original.path)).toBe(false);
+      expect(await getMossCatalogInstallations()).toHaveLength(2);
+      await changeCatalogInstallation(agent);
+      expect(await isCatalogPathVisible(updated.path)).toBe(false);
+      expect(await fs.stat(updated.path)).toBeTruthy();
+      expect((await getMossCatalogInstallations()).map((item) => item.id)).toEqual(['skill-1']);
+      state.isAvailable = false;
+      await expect(installMossCatalog(skill)).rejects.toThrow('404');
+      // This journey performs both versions' real filesystem installs and removal.
+    },
+    process.platform === 'win32' ? 20_000 : 10_000
+  );
 
   it('does not overwrite resources with equal names and different IDs', async () => {
     const first = await installMossCatalog(skill);

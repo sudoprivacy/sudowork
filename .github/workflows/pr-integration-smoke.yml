@@ -167,7 +167,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest]
+        os: [ubuntu-22.04, windows-latest, macos-14, macos-15-intel]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     defaults:
@@ -190,6 +190,18 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Install the checksum-verified macOS FUSE dependency
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./src/shared/runtime-versions.json')['fuse-t']")
+          PACKAGE="fuse-t-macos-installer-${VERSION}.pkg"
+          DOWNLOAD="${RUNNER_TEMP}/${PACKAGE}"
+          curl -fsSL --max-time 120 "https://github.com/macos-fuse-t/fuse-t/releases/download/${VERSION}/${PACKAGE}" -o "$DOWNLOAD"
+          echo "6a29c747e61a86a405a189efc3de42812d73147135f93a1bb0624c1e7b90e654  $DOWNLOAD" | shasum -a 256 -c -
+          sudo installer -pkg "$DOWNLOAD" -target /
 
       - name: Install, restart, and update the published runtime
         env:
