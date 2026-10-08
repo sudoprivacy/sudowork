@@ -567,3 +567,6 @@ jobs:
 
       - name: Test release validation regressions
         run: python3 scripts/test-release-verification.py
+
+      - name: Test candidate promotion against local Git remotes
+        run: python3 scripts/test-candidate-promotion.py
