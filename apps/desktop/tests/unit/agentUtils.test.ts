@@ -85,6 +85,15 @@ describe('prepareFirstMessageWithSkillsIndex', () => {
     expect(result).toContain('cron');
   });
 
+  it('carries personal identity and memory context before the first user request', async () => {
+    const { prepareFirstMessageWithSkillsIndex } = await import('../../src/process/task/agentUtils');
+    const context = '[Identity Override - Personal Agent]\nName: My Agent\nMemory directory: /account/agent/memory\n\n';
+    const result = await prepareFirstMessageWithSkillsIndex('Remember my color preference.', { presetContext: context, presetAgentType: 'scode' });
+    expect(result).toContain(context.trimEnd());
+    expect(result.indexOf(context.trimEnd())).toBeLessThan(result.indexOf('[User Request]'));
+    expect(result).toMatch(/\[User Request\]\nRemember my color preference\.$/);
+  });
+
   it('omits the cron skill when org policy disallows it (#854)', async () => {
     isCronSkillAllowed.mockResolvedValue(false);
     getBuiltinSkillsIndex.mockReturnValue([

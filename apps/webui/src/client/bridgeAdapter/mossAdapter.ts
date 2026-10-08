@@ -1438,13 +1438,39 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // doing it here would put the template-is-not-an-agent distinction into the
   // browser and give it a reason to read the organization catalog.
   'eeclaw.get-my-agents': async () => {
-    const schema = z.object({ success: z.literal(true), data: z.array(z.object({ ref: z.string().min(1), displayName: z.string(), kind: z.enum(['default', 'own', 'template']) })) })
+    const schema = z.object({
+      success: z.literal(true),
+      data: z.array(
+        z.object({
+          ref: z.string().min(1),
+          displayName: z.string(),
+          kind: z.enum(['default', 'own', 'template']),
+        }),
+      ),
+    })
     return ok(schema.parse(await apiFetch<unknown>('/api/v1/agents/mine')).data)
   },
   'eeclaw.create-user-agent': async (req) => {
-    const input = z.object({ displayName: z.string().trim().min(1).max(60) }).strict().parse(req)
-    const response = z.object({ success: z.literal(true), data: z.object({ id: z.string().uuid(), displayName: z.string().min(1), createdAt: z.number() }) })
-    return ok(response.parse(await apiFetch<unknown>('/api/v1/user-agents', { method: 'POST', body: JSON.stringify(input) })).data)
+    const input = z
+      .object({ displayName: z.string().trim().min(1).max(60) })
+      .strict()
+      .parse(req)
+    const response = z.object({
+      success: z.literal(true),
+      data: z.object({
+        id: z.string().uuid(),
+        displayName: z.string().min(1),
+        createdAt: z.number(),
+      }),
+    })
+    return ok(
+      response.parse(
+        await apiFetch<unknown>('/api/v1/user-agents', {
+          method: 'POST',
+          body: JSON.stringify(input),
+        }),
+      ).data,
+    )
   },
 
   'eeclaw.get-cloud-assistants': async () => {
