@@ -45,7 +45,7 @@ describe('OntologyMcpRegistration', () => {
     const config = await createOntologyRuntimeMcpConfig({ blueprintId: 'agent', workspaceId: 'orders', versionId: 'v1', exportFile: '/published.json' });
     expect(ensureBridge).toHaveBeenCalledWith({ workspaceId: 'orders', versionId: 'v1', role: 'runtime' });
     expect(config).toMatchObject({
-      name: 'ontology-agent',
+      name: 'ontology',
       command: '/mock/node',
       env: expect.arrayContaining([
         { name: 'ONTOLOGY_VERSION_ID', value: 'v1' },

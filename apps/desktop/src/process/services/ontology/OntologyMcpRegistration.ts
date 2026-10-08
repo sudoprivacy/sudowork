@@ -5,6 +5,7 @@ import type { IMcpServer } from '@sudowork/common/storageTypes';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { ScodeMcpAgent } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import { ensureOntologyWriteBridge } from './OntologyWriteBridge';
+import { ONTOLOGY_RUNTIME_MCP_NAME } from './ontologyToolNames';
 
 function getOntologyMcpScriptPath(): string {
   if (app.isPackaged) return path.join(process.resourcesPath, 'ontology-mcp', 'index.js');
@@ -30,7 +31,7 @@ export async function createOntologyRuntimeMcpConfig(input: IOntologyMcpRegistra
   if (!existsSync(nodePath)) throw new Error('Sudowork Node runtime is unavailable.');
   const bridge = await ensureOntologyWriteBridge({ workspaceId: input.workspaceId, versionId: input.versionId, role: 'runtime' });
   return {
-    name: ontologyMcpServerName(input.blueprintId),
+    name: ONTOLOGY_RUNTIME_MCP_NAME,
     command: nodePath,
     args: [scriptPath],
     env: [

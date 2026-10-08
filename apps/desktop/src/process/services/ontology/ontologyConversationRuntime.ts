@@ -1,10 +1,14 @@
 import { ontologyService } from './OntologyService';
 import { createOntologyRuntimeMcpConfig, ensureOntologyBuilderMcpServer } from './OntologyMcpRegistration';
 import type { IOntologyBuilderMcpConfig } from './OntologyMcpRegistration';
+import { repairOntologyToolHistory } from './ontologyToolHistory';
+import { ONTOLOGY_RUNTIME_MCP_NAME } from './ontologyToolNames';
 
 export interface IOntologyConversationContext {
   purpose?: string;
   ontologyId?: string;
+  workspace?: string;
+  acpSessionId?: string;
   presetAssistantId?: string;
   extraMcpConfigs?: Array<{ name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> }>;
 }
@@ -27,7 +31,8 @@ export async function prepareOntologyConversationRuntime(input: IOntologyConvers
     const runtime = await ontologyService.getRegisteredAgentRuntime(input.presetAssistantId!);
     if (!runtime) throw new Error('ontology.studio.agentErrors.notFound');
     config = await createOntologyRuntimeMcpConfig(runtime.mcpRegistration);
+    await repairOntologyToolHistory(input, runtime.mcpRegistration.blueprintId, runtime.toolNameAliases);
     presetContext = `${runtime.presetContext}\n\nUse the connected ontology MCP tools for this published version. Start with ontology_get_overview and ontology_list_logic, then call the relevant logic_* or relation_* tools for business data. Data sources are accessed through these tools; an empty conversation workspace does not mean the ontology has no data. Do not fabricate query results.`;
   }
-  return { presetContext, extraMcpConfigs: [...(input.extraMcpConfigs || []).filter((server) => !server.name.startsWith('ontology-')), config] };
+  return { presetContext, extraMcpConfigs: [...(input.extraMcpConfigs || []).filter((server) => server.name !== ONTOLOGY_RUNTIME_MCP_NAME && !server.name.startsWith('ontology-')), config] };
 }

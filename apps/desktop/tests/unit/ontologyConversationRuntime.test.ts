@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prepareOntologyConversationRuntime } from '@process/services/ontology/ontologyConversationRuntime';
 
-const mocks = vi.hoisted(() => ({ getWorkbench: vi.fn(), getRuntime: vi.fn(), builder: vi.fn(), runtime: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getWorkbench: vi.fn(), getRuntime: vi.fn(), builder: vi.fn(), runtime: vi.fn(), repair: vi.fn() }));
 vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: { getWorkbench: mocks.getWorkbench, getRegisteredAgentRuntime: mocks.getRuntime } }));
 vi.mock('@process/services/ontology/OntologyMcpRegistration', () => ({ ensureOntologyBuilderMcpServer: mocks.builder, createOntologyRuntimeMcpConfig: mocks.runtime }));
+vi.mock('@process/services/ontology/ontologyToolHistory', () => ({ repairOntologyToolHistory: mocks.repair }));
 
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getWorkbench.mockResolvedValue({ workspaceId: 'northwind' });
   mocks.builder.mockResolvedValue({ name: 'ontology-builder', command: '/node', args: ['builder.js'], env: [{ name: 'ONTOLOGY_WRITE_TOKEN', value: 'fresh-builder-token' }] });
-  mocks.getRuntime.mockResolvedValue({ presetContext: 'Northwind v1: Products, Inventory, low_stock.', mcpRegistration: { workspaceId: 'northwind', versionId: 'v1', blueprintId: 'agent', exportFile: '/published.json' } });
-  mocks.runtime.mockResolvedValue({ name: 'ontology-agent', command: '/node', args: ['runtime.js'], env: [{ name: 'ONTOLOGY_VERSION_ID', value: 'v1' }] });
+  mocks.getRuntime.mockResolvedValue({ presetContext: 'Northwind v1: Products, Inventory, low_stock.', mcpRegistration: { workspaceId: 'northwind', versionId: 'v1', blueprintId: 'agent', exportFile: '/published.json' }, toolNameAliases: { ontology_list_logic: 'ontology_list_logic' } });
+  mocks.runtime.mockResolvedValue({ name: 'ontology', command: '/node', args: ['runtime.js'], env: [{ name: 'ONTOLOGY_VERSION_ID', value: 'v1' }] });
 });
 
 describe('ontology conversation runtime', () => {
@@ -21,6 +22,7 @@ describe('ontology conversation runtime', () => {
     expect(mocks.getWorkbench).not.toHaveBeenCalled();
     expect(mocks.getRuntime).not.toHaveBeenCalled();
     expect(mocks.runtime).not.toHaveBeenCalled();
+    expect(mocks.repair).not.toHaveBeenCalled();
   });
 
   it('restores builder tools with fresh credentials instead of inheriting a personal identity', async () => {
@@ -41,7 +43,15 @@ describe('ontology conversation runtime', () => {
   });
 
   it('loads published rules and connects the matching business tools for new and restored agent chats', async () => {
-    const input = { presetAssistantId: 'ontology-agent', extraMcpConfigs: [{ name: 'ontology-other-version', command: '/stale' }] };
+    const input = {
+      presetAssistantId: 'ontology-agent',
+      workspace: '/original',
+      acpSessionId: 'original-session',
+      extraMcpConfigs: [
+        { name: 'ontology-other-version', command: '/stale' },
+        { name: 'ontology', command: '/previous' },
+      ],
+    };
     for (let attempt = 0; attempt < 2; attempt++) {
       const result = await prepareOntologyConversationRuntime(input);
       expect(result?.presetContext).toContain('Northwind v1');
@@ -50,6 +60,7 @@ describe('ontology conversation runtime', () => {
     }
     expect(mocks.runtime).toHaveBeenCalledTimes(2);
     expect(mocks.runtime).toHaveBeenLastCalledWith({ workspaceId: 'northwind', versionId: 'v1', blueprintId: 'agent', exportFile: '/published.json' });
+    expect(mocks.repair).toHaveBeenLastCalledWith(input, 'agent', { ontology_list_logic: 'ontology_list_logic' });
   });
 
   it('fails explicitly when ownership or tools cannot be resolved', async () => {

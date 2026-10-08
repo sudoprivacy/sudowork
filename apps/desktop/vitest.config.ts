@@ -233,6 +233,8 @@ export default defineConfig({
         'src/process/services/ontology/OntologyService.ts',
         'src/process/services/ontology/OntologyMcpRegistration.ts',
         'src/process/services/ontology/ontologyConversationRuntime.ts',
+        'src/process/services/ontology/ontologyToolNames.ts',
+        'src/process/services/ontology/ontologyToolHistory.ts',
         'src/utils/configureChromium.ts',
         // ACP
         'src/agent/acp/AcpAdapter.ts',

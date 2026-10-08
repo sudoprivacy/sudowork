@@ -88,6 +88,7 @@ import { acpDetector } from '@/agent/acp/AcpDetector';
 import { studioSaveSchema } from './studioValidation';
 import { OntologyStudioDatabase as OntologyDatabase } from './OntologyStudioDatabase';
 import { installOntologyMcpServer, removeOntologyMcpServer } from './OntologyMcpRegistration';
+import { ontologyRuntimeToolAliases } from './ontologyToolNames';
 import { parseOntologyTemplateFile } from './ontologyTemplateParser';
 import { extractOntologyDocuments, readOntologyDocuments, validateOntologyDocumentFiles } from './ontologyDocumentExtractor';
 import { describeOntologyFields } from './ontologyFieldMeaning';
@@ -595,7 +596,7 @@ export class OntologyService {
     if (!rulePath.startsWith(directory + path.sep)) throw new Error('ontology.studio.agentErrors.identityConflict');
     const rules = await fs.readFile(rulePath, 'utf8');
     if (!rules.trim()) throw new Error('ontology.studio.agentErrors.notFound');
-    return { meta: installed.meta, directory, presetContext: `${rules}\n\nAssistant resources: ${directory}`, mcpRegistration: { ...ownership, exportFile: this.database.getMcpExportPath(snapshot.workspaceId) } };
+    return { meta: installed.meta, directory, presetContext: `${rules}\n\nAssistant resources: ${directory}`, mcpRegistration: { ...ownership, exportFile: this.database.getMcpExportPath(snapshot.workspaceId) }, toolNameAliases: ontologyRuntimeToolAliases(version.snapshot) };
   }
 
   private async installRegisteredAgent(blueprint: IOntologyAgentBlueprint, snapshot: IOntologyWorkbenchSnapshot): Promise<void> {
