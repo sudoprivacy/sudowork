@@ -1,10 +1,22 @@
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { IOntologyAiBuilderSession } from '@sudowork/host-bridge/ipcBridge';
 
+const pendingCreations = new Map<string, Promise<IOntologyAiBuilderSession>>();
 const pendingDefaults = new Map<string, Promise<IOntologyAiBuilderSession>>();
 
 /** Create a conversation through the shared runtime and register its ontology ownership. */
-export async function createStudioConversation({ workspaceId, title }: IStudioConversationInput): Promise<IOntologyAiBuilderSession> {
+export function createStudioConversation(input: IStudioConversationInput): Promise<IOntologyAiBuilderSession> {
+  const key = JSON.stringify([input.workspaceId, input.title]);
+  const existing = pendingCreations.get(key);
+  if (existing) return existing;
+  const operation = createRegisteredConversation(input).finally(() => {
+    if (pendingCreations.get(key) === operation) pendingCreations.delete(key);
+  });
+  pendingCreations.set(key, operation);
+  return operation;
+}
+
+async function createRegisteredConversation({ workspaceId, title }: IStudioConversationInput): Promise<IOntologyAiBuilderSession> {
   const server = await ipcBridge.ontologyAiBuilder.ensureBuilderMcp.invoke({ workspaceId });
   if (!server.success || !server.data) throw new Error(server.msg || 'ontology.studio.errors.builderUnavailable');
   const created = await ipcBridge.conversation.create.invoke({
@@ -50,7 +62,7 @@ interface IStudioConversationInput {
 
 /** Send an explicit repair request through the existing, ontology-scoped conversation runtime. */
 export async function requestStudioAiRepair(input: IStudioConversationInput & { prompt: string }, onConversationReady: (conversationId: string) => void): Promise<void> {
-  const session = await ensureDefaultStudioConversation(input);
+  const session = await withStudioConversationTimeout(ensureDefaultStudioConversation(input));
   const conversation = await ipcBridge.conversation.get.invoke({ id: session.conversationId });
   if (conversation?.type !== 'acp' || conversation.extra.purpose !== 'ontology' || conversation.extra.ontologyId !== input.workspaceId) throw new Error('ontology.studio.errors.repairScope');
   if (conversation.status === 'running') throw new Error('ontology.studio.errors.repairBusy');
@@ -61,4 +73,21 @@ export async function requestStudioAiRepair(input: IStudioConversationInput & { 
   onConversationReady(conversation.id);
   const result = await ipcBridge.conversation.sendMessage.invoke({ conversation_id: conversation.id, input: input.prompt, msg_id: crypto.randomUUID() });
   if (!result.success) throw new Error(result.msg === 'busy' ? 'ontology.studio.errors.repairBusy' : result.msg || 'ontology.studio.errors.sendFailed');
+}
+
+/** Bound UI waiting without cancelling or duplicating a still-running creation request. */
+export function withStudioConversationTimeout<T>(operation: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('ontology.studio.errors.sessionPreparationTimeout')), 30_000);
+    void operation.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }

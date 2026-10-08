@@ -1,4 +1,3 @@
-import { Message } from '@arco-design/web-react';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -7,7 +6,7 @@ import { OntologyStudio } from '@sudowork/ontology-ui';
 import type { IOntologyStudioApi, IStudioChatContext } from '@sudowork/ontology-ui';
 import { ONTOLOGY_DOCUMENT_EXTENSIONS } from '@sudowork/ontology-common';
 import type { OntologyStudioPage } from '@sudowork/ontology-common';
-import { ensureDefaultStudioConversation, requestStudioAiRepair } from './studioConversation';
+import { requestStudioAiRepair } from './studioConversation';
 import StudioConversationPanel from './StudioConversationPanel';
 
 function unwrap<T>(res: { success: boolean; data?: T; msg?: string }, fallback: string): T {
@@ -49,15 +48,7 @@ export default function OntologyPage() {
       },
       listWorkbenches: async () => unwrap(await ipcBridge.ontology.listWorkbenches.invoke(), t('ontology.errors.loadFailed')),
       getWorkbench: async (input) => unwrap(await ipcBridge.ontology.getWorkbench.invoke(input), t('ontology.errors.loadFailed')),
-      createWorkbench: async (input) => {
-        const result = unwrap(await ipcBridge.ontology.createWorkbench.invoke(input), t('ontology.errors.operationFailed'));
-        try {
-          await ensureDefaultStudioConversation({ workspaceId: result.snapshot.workspaceId, title: result.snapshot.draft.title });
-        } catch {
-          Message.warning(t('ontology.studio.errors.defaultSessionFailed'));
-        }
-        return result;
-      },
+      createWorkbench: async (input) => unwrap(await ipcBridge.ontology.createWorkbench.invoke(input), t('ontology.errors.operationFailed')),
       selectWorkbench: async (input) => unwrap(await ipcBridge.ontology.selectWorkbench.invoke(input), t('ontology.errors.loadFailed')),
       deleteWorkbench: async (input) => unwrap(await ipcBridge.ontology.deleteWorkbench.invoke(input), t('ontology.errors.operationFailed')),
       updateDraft: async (input) => unwrap(await ipcBridge.ontology.updateDraft.invoke(input), t('ontology.errors.saveFailed')),

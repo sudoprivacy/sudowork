@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { Message } from '@arco-design/web-react';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import OntologyPage from '@renderer/pages/ontology';
 import { ensureDefaultStudioConversation, requestStudioAiRepair } from '@renderer/pages/ontology/studioConversation';
@@ -87,15 +86,15 @@ afterEach(() => {
 });
 
 describe('ontology default conversation', () => {
-  it('creates a same-name ontology conversation before opening a new workbench', async () => {
+  it('opens the persisted ontology without waiting for conversation initialization', async () => {
+    bridge.ensureBuilderMcp.mockImplementation(() => new Promise(() => {}));
     mount();
     await onCreateOntology();
     await screen.findByTestId('studio-chat');
-    expect(bridge.createConversation).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: 'acp', name: '订单模型', extra: expect.objectContaining({ purpose: 'ontology', ontologyId: 'orders', extraMcpConfigs: [{ name: 'ontology-builder' }] }) }));
-    expect(bridge.createSession).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'orders', conversationId: 'chat-1', title: '订单模型' });
-    expect(bridge.createWorkbench.mock.invocationCallOrder[0]).toBeLessThan(bridge.ensureBuilderMcp.mock.invocationCallOrder[0]);
-    expect(bridge.ensureBuilderMcp.mock.invocationCallOrder[0]).toBeLessThan(bridge.createConversation.mock.invocationCallOrder[0]);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(bridge.createWorkbench).toHaveBeenCalledTimes(1);
+    expect(bridge.ensureBuilderMcp).not.toHaveBeenCalled();
+    expect(bridge.createConversation).not.toHaveBeenCalled();
   });
 
   it('does not create another conversation when opening an existing workbench', async () => {
@@ -108,15 +107,22 @@ describe('ontology default conversation', () => {
     expect(bridge.createWorkbench).not.toHaveBeenCalled();
   });
 
-  it('keeps the created ontology accessible when its default conversation fails', async () => {
-    bridge.ensureBuilderMcp.mockResolvedValue({ success: false });
-    const warning = vi.spyOn(Message, 'warning').mockReturnValue(vi.fn());
+  it('creates only one ontology when confirmation is clicked repeatedly', async () => {
+    let finish!: (value: unknown) => void;
+    bridge.createWorkbench.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
     mount();
     await onCreateOntology();
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /确定|OK/ }));
+    await waitFor(() => expect(bridge.createWorkbench).toHaveBeenCalledTimes(1));
+    finish({ success: true, data: { snapshot } });
     await screen.findByTestId('studio-chat');
-    expect(warning).toHaveBeenCalledWith(locale.studio.errors.defaultSessionFailed);
     expect(bridge.createWorkbench).toHaveBeenCalledTimes(1);
-    expect(bridge.createConversation).not.toHaveBeenCalled();
   });
 
   it('reuses an existing session within the requested ontology', async () => {

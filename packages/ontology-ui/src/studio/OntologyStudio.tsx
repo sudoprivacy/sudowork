@@ -33,6 +33,8 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   const [isRepairTracking, setIsRepairTracking] = useState(false);
   const isRepairingRef = useRef(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const isCreatingRef = useRef(false);
   const [createMode, setCreateMode] = useState<'new' | 'rename'>('new');
   const [search, setSearch] = useState('');
   const [filePreview, setPreview] = useState<{ path: string; preview: IOntologyStandardPreview }>();
@@ -177,20 +179,27 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       },
     });
   const onCreate = async () => {
+    if (isCreatingRef.current) return;
     const values = await createForm.validate();
-    if (createMode === 'rename' && workspaceId) {
-      try {
+    if (isCreatingRef.current) return;
+    isCreatingRef.current = true;
+    setIsCreating(true);
+    try {
+      if (createMode === 'rename' && workspaceId) {
         const updated = await api.updateDraft({ workspaceId, title: values.name.trim(), description: values.description });
         onServerSnapshot(updated, true);
         setIsCreateOpen(false);
-      } catch (error) {
-        onError(error);
+        return;
       }
-      return;
+      const created = await api.createWorkbench({ name: values.name.trim(), code: `ontology_${crypto.randomUUID().slice(0, 8)}`, description: values.description });
+      setIsCreateOpen(false);
+      onNavigate(created.snapshot.workspaceId, 'model');
+    } catch (error) {
+      onError(error);
+    } finally {
+      isCreatingRef.current = false;
+      setIsCreating(false);
     }
-    const created = await api.createWorkbench({ name: values.name.trim(), code: `ontology_${crypto.randomUUID().slice(0, 8)}`, description: values.description });
-    setIsCreateOpen(false);
-    onNavigate(created.snapshot.workspaceId, 'model');
   };
   const onPickImport = async () => {
     try {
@@ -518,7 +527,18 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       ) : (
         <Empty description={text('errors.notFound')} />
       )}
-      <Modal visible={isCreateOpen} title={text(createMode === 'rename' ? 'rename' : 'newOntology')} onCancel={() => setIsCreateOpen(false)} onOk={onCreate} unmountOnExit>
+      <Modal
+        visible={isCreateOpen}
+        title={text(createMode === 'rename' ? 'rename' : 'newOntology')}
+        onCancel={() => setIsCreateOpen(false)}
+        onOk={onCreate}
+        confirmLoading={isCreating}
+        cancelButtonProps={{ disabled: isCreating }}
+        closable={!isCreating}
+        maskClosable={!isCreating}
+        escToExit={!isCreating}
+        unmountOnExit
+      >
         <Form form={createForm} layout='vertical'>
           <Form.Item field='name' label={text('name')} rules={[{ required: true }]}>
             <Input />
