@@ -76,8 +76,16 @@ describe('mossAdapter: personal Agent conversation names', () => {
     })
 
     expect(await ipc.database.getUserConversations.invoke({})).toMatchObject([
-      { id: 'first', name: 'My saved title', extra: { agentName: 'Same name' } },
-      { id: 'second', name: 'Same name', extra: { agentName: 'Same name' } },
+      {
+        id: 'first',
+        name: 'My saved title',
+        extra: { agentName: 'Same name', mossAssistantRef: ownRef },
+      },
+      {
+        id: 'second',
+        name: 'Same name',
+        extra: { agentName: 'Same name', mossAssistantRef: secondRef },
+      },
     ])
   })
 
@@ -129,6 +137,23 @@ describe('mossAdapter: personal Agents', () => {
       vi.fn(async () => Response.json({ error: 'MOSS_ERROR' }, { status: 503 })),
     )
     expect(await ipcBridge.eeclaw.getMyAgents.invoke()).toMatchObject({ success: false })
+  })
+  it.each([null, {}, { success: true, data: null }])(
+    'exposes malformed inventories through the shared contract: %j',
+    async (response) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => Response.json(response)),
+      )
+      expect(await ipcBridge.eeclaw.getMyAgents.invoke()).toMatchObject({ success: false })
+    },
+  )
+  it('rejects caller-supplied ownership before making a browser request', async () => {
+    const request = vi.fn()
+    vi.stubGlobal('fetch', request)
+    const input = { displayName: 'Valid name', userId: 'foreign-owner' }
+    expect(await ipcBridge.eeclaw.createUserAgent.invoke(input)).toMatchObject({ success: false })
+    expect(request).not.toHaveBeenCalled()
   })
 })
 
@@ -1198,6 +1223,24 @@ describe('mossAdapter: newly created conversation list reads', () => {
 
     const conversation = await ipc.conversation.get.invoke({ id: 'sess-pending' })
     expect(conversation).toMatchObject({ id: 'sess-pending', name: 'Pending title' })
+  })
+
+  it('keeps the selected Agent identity through creation and pending history reads', async () => {
+    const reference = 'moss-agent:own:22222222-2222-4222-8222-222222222222'
+    stubFetch({ '/api/conversations': { id: 'identity-pending', conversations: [] } })
+    const created = await ipc.conversation.create.invoke({
+      type: 'remote-agent',
+      name: '',
+      model: {},
+      extra: { presetAssistantId: reference, agentName: 'Same name' },
+    } as never)
+    expect(created).toMatchObject({ name: 'Same name', extra: { mossAssistantRef: reference } })
+    expect(await ipc.database.getUserConversations.invoke({})).toMatchObject([
+      { id: 'identity-pending', name: 'Same name', extra: { mossAssistantRef: reference } },
+    ])
+    expect(await ipc.conversation.get.invoke({ id: 'identity-pending' })).toMatchObject({
+      extra: { mossAssistantRef: reference },
+    })
   })
 
   it('opens a newly triggered cron conversation without reusing the previous list', async () => {

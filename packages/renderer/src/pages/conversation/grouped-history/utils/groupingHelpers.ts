@@ -7,6 +7,7 @@
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
+import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 import { getActivityTime, getTimelineLabel } from '@renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@renderer/utils/workspaceHistory';
@@ -262,13 +263,18 @@ export const buildGroupedHistory = (
 
   // For timeline sections: exclude cronJobId conversations AND pinned conversations
   const normalConversations = conversations.filter((conv) => !(conv.extra as any)?.cronJobId && !isConversationPinned(conv));
+  const agentGroups = agents.length > 0 ? groupConversationsByAgent(normalConversations, agents) : [];
+  const groupedConversationIds = new Set(agentGroups.flatMap((group) => group.conversations.map((conversation) => conversation.id)));
+  // Older local conversations may have no Agent reference. Keep their timeline
+  // alongside the groups so Recent's limit cannot hide the rest of the history.
+  const timelineConversations = normalConversations.filter((conversation) => !groupedConversationIds.has(conversation.id));
 
   const result = {
     pinnedTimeline: pinnedTimeline as TChatConversation[],
     pinnedScheduled: pinnedScheduled as TChatConversation[],
-    timelineSections: groupConversationsByTimelineAndWorkspace(normalConversations as TChatConversation[], t),
+    timelineSections: groupConversationsByTimelineAndWorkspace(timelineConversations as TChatConversation[], t),
     scheduledGroups: buildScheduledGroups(conversations, cronJobs),
-    agentGroups: agents.length > 0 ? groupConversationsByAgent(normalConversations, agents) : [],
+    agentGroups,
     recent: getRecentConversations(normalConversations),
   };
 
@@ -291,6 +297,12 @@ const getConversationAgentRef = (conversation: ConversationItem, listedReference
   }
   return typeof extra?.agentName === 'string' && extra.agentName ? extra.agentName : undefined;
 };
+
+/** Open the most recently active conversation for this identity, including pinned history. */
+export function getLatestAgentConversation(conversations: ConversationItem[], reference: string): ConversationItem | undefined {
+  const references = new Set([reference]);
+  return conversations.filter((conversation) => !conversation.extra?.cronJobId && conversation.extra?.isHealthCheck !== true && !isOntologyConversation(conversation) && getConversationAgentRef(conversation, references) === reference).sort(compareConversationsByLatestActivity)[0];
+}
 
 /**
  * Conversations grouped by the agent each belongs to.
@@ -330,9 +342,10 @@ export const groupConversationsByAgent = (conversations: ConversationItem[], age
   const listed = new Set(groups.map((group) => group.ref));
   for (const [ref, bucket] of byRef) {
     if (listed.has(ref)) continue;
+    const savedName = bucket.map((conversation) => conversation.extra?.agentName).find((name) => typeof name === 'string' && name !== ref && !isPersonalAgentRef(name));
     groups.push({
       ref,
-      displayName: ref,
+      displayName: savedName || (isPersonalAgentRef(ref) ? '' : ref),
       kind: 'template',
       conversations: bucket.sort(compareConversationsByLatestActivity),
     });

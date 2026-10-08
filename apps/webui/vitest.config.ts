@@ -17,6 +17,11 @@ const requireFromHostBridge = createRequire(abs('../../packages/host-bridge/pack
 const officeAiPlatformEntry = requireFromHostBridge.resolve('@office-ai/platform')
 
 const bridgeAlias = [
+  {
+    find: '@sudowork/moss-client/agents',
+    replacement: abs('../../packages/moss-client/src/MossAgentClient.ts'),
+  },
+  { find: '@sudowork/moss-client', replacement: abs('../../packages/moss-client/src/index.ts') },
   { find: '@client', replacement: abs('./src/client') },
   { find: '@server', replacement: abs('./src/server') },
   { find: '@shared', replacement: abs('./src/shared') },

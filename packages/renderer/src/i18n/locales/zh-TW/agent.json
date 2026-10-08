@@ -35,9 +35,11 @@
     "retry": "重試",
     "default": "預設 Agent",
     "personal": "個人 Agent",
-    "startConversation": "開始對話",
+    "startConversation": "新對話",
     "empty": "尚無個人 Agent",
     "name": "Agent 名稱",
-    "createFailed": "建立失敗，請重試。"
+    "createFailed": "建立失敗，請重試。",
+    "open": "開啟 Agent",
+    "openFailed": "無法開啟 Agent 的對話，請重試。"
   }
 }

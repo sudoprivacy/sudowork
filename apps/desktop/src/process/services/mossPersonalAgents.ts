@@ -1,18 +1,14 @@
 import { net } from 'electron';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { z } from 'zod';
+import { createMossAgentPort, type MossAgentRequest } from '@sudowork/moss-client/agents';
 import type { IMyAgent, IUserAgent } from '@sudowork/common/personalAgents';
 import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { ProcessConfig } from '@process/initStorage';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { getDataPath } from '@process/utils';
 
-const myAgentsSchema = z.object({ success: z.literal(true), data: z.array(z.object({ ref: z.string().min(1), displayName: z.string(), kind: z.enum(['default', 'own', 'template']) })) });
-const createdAgentSchema = z.object({ success: z.literal(true), data: z.object({ id: z.string().uuid(), displayName: z.string().min(1), createdAt: z.number() }) });
-const createAgentSchema = z.object({ displayName: z.string().trim().min(1).max(60) }).strict();
-
-async function requestPersonalAgents(path: string, body?: { displayName: string }): Promise<unknown> {
+async function requestPersonalAgents(request: MossAgentRequest): Promise<unknown> {
   const server = ProcessConfig.getSync('eeclaw.serverUrl');
   const scope = ProcessConfig.getSync('eeclaw.accountScope');
   if (!server || !scope) throw new Error('Moss identity is unavailable');
@@ -22,10 +18,10 @@ async function requestPersonalAgents(path: string, body?: { displayName: string 
   let token = await getValidToken();
   const send = () => {
     assertIdentity();
-    return net.fetch(`${server.replace(/\/+$/, '')}/api/v1/${path}`, {
-      method: body ? 'POST' : 'GET',
-      headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-      ...(body ? { body: JSON.stringify(body) } : {}),
+    return net.fetch(`${server.replace(/\/+$/, '')}${request.path}`, {
+      method: request.method,
+      headers: { Authorization: `Bearer ${token}`, ...(request.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      ...(request.body !== undefined ? { body: JSON.stringify(request.body) } : {}),
       signal: AbortSignal.timeout(10_000),
     });
   };
@@ -42,15 +38,16 @@ async function requestPersonalAgents(path: string, body?: { displayName: string 
   return data;
 }
 
+const agentPort = createMossAgentPort(requestPersonalAgents);
+
 /** Fetch the current account's identities; failures must remain visible to callers. */
 export async function listMossPersonalAgents(): Promise<IMyAgent[]> {
-  return myAgentsSchema.parse(await requestPersonalAgents('agents/mine')).data as IMyAgent[];
+  return agentPort.listMine();
 }
 
 /** Ownership comes exclusively from the authenticated server session. */
 export async function createMossPersonalAgent(input: { displayName: string }): Promise<IUserAgent> {
-  const body = createAgentSchema.parse(input);
-  return createdAgentSchema.parse(await requestPersonalAgents('user-agents', { displayName: body.displayName! })).data as IUserAgent;
+  return agentPort.createOwned(input);
 }
 
 /** Recheck ownership before starting or restoring a local personal Agent. */

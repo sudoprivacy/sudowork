@@ -316,6 +316,7 @@
       "name": "@sudowork/moss-client",
       "version": "0.0.0",
       "dependencies": {
+        "@sudowork/common": "workspace:*",
         "@sudowork/contracts": "workspace:*",
         "ws": "8.18.3",
         "zod": "3.25.76",
