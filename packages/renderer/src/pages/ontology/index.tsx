@@ -7,7 +7,7 @@ import { OntologyStudio } from '@sudowork/ontology-ui';
 import type { IOntologyStudioApi, IStudioChatContext } from '@sudowork/ontology-ui';
 import { ONTOLOGY_DOCUMENT_EXTENSIONS } from '@sudowork/ontology-common';
 import type { OntologyStudioPage } from '@sudowork/ontology-common';
-import { ensureDefaultStudioConversation } from './studioConversation';
+import { ensureDefaultStudioConversation, requestStudioAiRepair } from './studioConversation';
 import StudioConversationPanel from './StudioConversationPanel';
 
 function unwrap<T>(res: { success: boolean; data?: T; msg?: string }, fallback: string): T {
@@ -21,6 +21,7 @@ export default function OntologyPage() {
   const { ontologyId, view } = useParams<{ ontologyId: string; view: string }>();
   const api = useMemo<IOntologyStudioApi>(
     () => ({
+      requestAiRepair: requestStudioAiRepair,
       saveStudioModel: async (input) => unwrap(await ipcBridge.ontology.saveStudioModel.invoke(input), t('ontology.errors.saveFailed')),
       previewStandardFile: async (input) => unwrap(await ipcBridge.ontology.previewStandardFile.invoke(input), t('ontology.errors.importFailed')),
       importStandardFile: async (input) => unwrap(await ipcBridge.ontology.importStandardFile.invoke(input), t('ontology.errors.importFailed')),
@@ -114,7 +115,10 @@ export default function OntologyPage() {
     [t]
   );
 
-  const renderChat = useCallback((workspaceId: string, workspaceName: string, context?: IStudioChatContext) => <StudioConversationPanel key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} context={context} />, []);
+  const renderChat = useCallback(
+    (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string) => <StudioConversationPanel key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} context={context} requestedConversationId={requestedConversationId} />,
+    []
+  );
   const onNavigate = useCallback(
     (workspaceId?: string, page: OntologyStudioPage = 'model') => {
       const query = workspaceId === ontologyId ? window.location.search : '';

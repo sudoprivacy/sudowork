@@ -1,5 +1,5 @@
 import styles from '@sudowork/ontology-ui/studio/studio.module.css';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Empty, Input, Message, Modal, Select, Spin, Tag } from '@arco-design/web-react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ import type { IStudioChatContext } from '@sudowork/ontology-ui';
 import AcpChat from '../conversation/acp/AcpChat';
 import { createStudioConversation } from './studioConversation';
 
-export default function StudioConversationPanel({ workspaceId, workspaceName, context }: IStudioConversationPanelProps) {
+export default function StudioConversationPanel({ workspaceId, workspaceName, context, requestedConversationId }: IStudioConversationPanelProps) {
   const { t } = useTranslation();
   const text = (key: string) => t(`ontology.studio.${key}`);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,6 +23,11 @@ export default function StudioConversationPanel({ workspaceId, workspaceName, co
   const [name, setName] = useState('');
   const selectedId = searchParams.get('sessionId');
   const onSelect = useCallback((conversationId: string) => setSearchParams({ sessionId: conversationId }, { replace: true }), [setSearchParams]);
+  const lastRequestedConversation = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (requestedConversationId && requestedConversationId !== lastRequestedConversation.current) onSelect(requestedConversationId);
+    lastRequestedConversation.current = requestedConversationId;
+  }, [requestedConversationId, onSelect]);
   const onLoad = useCallback(async () => {
     const result = await ipcBridge.ontologyAiBuilder.listSessions.invoke({ workspaceId });
     if (!result.success) throw new Error(result.msg || t('ontology.errors.loadFailed'));
@@ -158,4 +163,5 @@ interface IStudioConversationPanelProps {
   workspaceId: string;
   workspaceName: string;
   context?: IStudioChatContext;
+  requestedConversationId?: string;
 }

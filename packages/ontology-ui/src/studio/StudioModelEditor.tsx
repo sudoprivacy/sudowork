@@ -5,7 +5,7 @@ import { ReactFlow, Background, Controls, MiniMap, Handle, Position, applyNodeCh
 import type { Connection, Node, NodeChange } from '@xyflow/react';
 import { Plus, Redo2, Search, Trash2, Undo2, X } from 'lucide-react';
 import { modelIri, STUDIO_HISTORY_LIMIT } from '@sudowork/ontology-common';
-import type { IOntologyStudioModel, IOntologyObjectDraft, IOntologyAttributeDraft, IOntologyRelationDraft, IOntologySemanticDocument } from '@sudowork/ontology-common';
+import type { IOntologyConsistencyIssue, IOntologyStudioModel, IOntologyObjectDraft, IOntologyAttributeDraft, IOntologyRelationDraft, IOntologySemanticDocument } from '@sudowork/ontology-common';
 import '@xyflow/react/dist/style.css';
 import styles from './studio.module.css';
 
@@ -33,7 +33,7 @@ function OntologyNode({ data }: IOntologyNodeProps) {
   );
 }
 
-export default function StudioModelEditor({ workspaceId, model, document, onChange, onContext, onEditingChange, focusObjectId }: IStudioModelEditorProps) {
+export default function StudioModelEditor({ workspaceId, model, document, onChange, onContext, onEditingChange, focusObjectId, focusIssue }: IStudioModelEditorProps) {
   const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<string>();
   const [view, setView] = useState<'graph' | 'structure'>('graph');
@@ -49,6 +49,7 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
   const [objectForm] = Form.useForm();
   const [attributeForm] = Form.useForm();
   const [relationForm] = Form.useForm();
+  const lastFocusIssue = useRef<IOntologyConsistencyIssue | undefined>(undefined);
   const selected = model.objects.find((object) => object.id === selectedId);
   const label = useCallback((key: string) => t(`ontology.studio.${key}`), [t]);
 
@@ -214,6 +215,18 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
   useEffect(() => {
     if (focusObjectId) setSelectedId(focusObjectId);
   }, [focusObjectId]);
+  useEffect(() => {
+    if (!focusIssue || focusIssue === lastFocusIssue.current) return;
+    lastFocusIssue.current = focusIssue;
+    if (focusIssue.targetType === 'relation') {
+      const relation = model.relations.find((item) => item.id === focusIssue.targetId);
+      if (relation) {
+        relationForm.resetFields();
+        relationForm.setFieldsValue(relation);
+        setRelationEditor(relation);
+      }
+    }
+  }, [focusIssue, model.relations, relationForm]);
 
   return (
     <section
@@ -457,6 +470,7 @@ interface IStudioModelEditorProps {
   document?: IOntologySemanticDocument;
   onEditingChange: (isEditing: boolean) => void;
   focusObjectId?: string;
+  focusIssue?: IOntologyConsistencyIssue;
   onChange: (model: IOntologyStudioModel) => void;
   onContext: (objectId: string) => void;
 }

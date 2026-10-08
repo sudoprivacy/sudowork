@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Descriptions, Empty, Form, Input, Message, Modal, Space, Table, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Descriptions, Empty, Form, Input, Message, Modal, Space, Table, Tag, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
-import type { IOntologyAgentBlueprint, IOntologyPublishedVersion, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
+import { ontologyBlockingIssues } from '@sudowork/ontology-common';
+import type { IOntologyConsistencyCheckResult, IOntologyAgentBlueprint, IOntologyPublishedVersion, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyStudioApi } from './api';
 import styles from './studio.module.css';
 
-export default function StudioReleasePage({ snapshot, api, onRefresh, onError, onExport }: IStudioReleasePageProps) {
+export default function StudioReleasePage({ snapshot, api, onRefresh, onError, onExport, onReport, onViewChecks, isModelDirty = false }: IStudioReleasePageProps) {
   const { t } = useTranslation();
   const text = (key: string) => t(`ontology.studio.${key}`);
   const [isPublishing, setIsPublishing] = useState(false);
+  const isPublishingRef = useRef(false);
+  const [publishCheck, setPublishCheck] = useState<IOntologyConsistencyCheckResult>();
   const [registeringVersions, setRegisteringVersions] = useState<string[]>([]);
   const pending = useRef(new Set<string>());
   const [detail, setDetail] = useState<string>();
@@ -20,14 +23,34 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
   useEffect(() => {
     void onRefresh().catch(onError);
   }, [onRefresh, onError]);
+  useEffect(() => {
+    setPublishCheck(undefined);
+  }, [snapshot.revision]);
   const onSubmit = async () => {
+    if (isPublishingRef.current || isModelDirty) return;
+    isPublishingRef.current = true;
     setIsPublishing(true);
     try {
+      const check = await api.runConsistencyCheck({ workspaceId: snapshot.workspaceId });
+      setPublishCheck(check);
+      onReport?.(check);
+      if (ontologyBlockingIssues(check).length) return;
       await api.publishCurrentDraft({ workspaceId: snapshot.workspaceId });
       await onRefresh();
+      Message.success(text('candidateCreated'));
     } catch (error) {
-      onError(error);
+      if (error instanceof Error && error.message === 'ontology.studio.errors.publishBlocked') {
+        try {
+          const check = await api.runConsistencyCheck({ workspaceId: snapshot.workspaceId });
+          setPublishCheck(check);
+          onReport?.(check);
+          if (!ontologyBlockingIssues(check).length) onError(error);
+        } catch (checkError) {
+          onError(checkError);
+        }
+      } else onError(error);
     } finally {
+      isPublishingRef.current = false;
       setIsPublishing(false);
     }
   };
@@ -75,10 +98,25 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
           <Typography.Title heading={5}>{text('releaseTitle')}</Typography.Title>
           <Typography.Text type='secondary'>{text('releaseDescription')}</Typography.Text>
         </div>
-        <Button type='primary' loading={isPublishing} onClick={() => void onSubmit()}>
+        <Button type='primary' loading={isPublishing} disabled={isModelDirty} onClick={() => void onSubmit()}>
           {text('createCandidate')}
         </Button>
       </div>
+      {isModelDirty && <Alert type='warning' content={text('saveBeforeChecks')} style={{ marginBottom: 16 }} />}
+      {publishCheck && publishCheck.issues.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <Alert
+            type={ontologyBlockingIssues(publishCheck).length ? 'error' : 'warning'}
+            title={t(`ontology.studio.${ontologyBlockingIssues(publishCheck).length ? 'candidateBlocked' : 'warningSummary'}`, { errors: ontologyBlockingIssues(publishCheck).length, warnings: publishCheck.issues.filter((issue) => issue.severity === 'warning').length })}
+            content={text(ontologyBlockingIssues(publishCheck).length ? 'blockingExplanation' : 'warningsDoNotBlock')}
+          />
+          {onReport && onViewChecks && (
+            <Button type='text' onClick={onViewChecks}>
+              {text('viewAndRepair')}
+            </Button>
+          )}
+        </div>
+      )}
       <Table
         rowKey='id'
         data={[...snapshot.publishedVersions].reverse()}
@@ -221,6 +259,9 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
 }
 
 interface IStudioReleasePageProps {
+  isModelDirty?: boolean;
+  onReport?: (report: IOntologyConsistencyCheckResult) => void;
+  onViewChecks?: () => void;
   snapshot: IOntologyWorkbenchSnapshot;
   api: IOntologyStudioApi;
   onRefresh: () => Promise<void>;

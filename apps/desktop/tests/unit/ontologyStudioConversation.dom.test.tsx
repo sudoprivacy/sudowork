@@ -8,7 +8,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Message } from '@arco-design/web-react';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import OntologyPage from '@renderer/pages/ontology';
-import { ensureDefaultStudioConversation } from '@renderer/pages/ontology/studioConversation';
+import { ensureDefaultStudioConversation, requestStudioAiRepair } from '@renderer/pages/ontology/studioConversation';
 import locale from '../../../../packages/renderer/src/i18n/locales/zh-CN/ontology.json';
 
 const bridge = vi.hoisted(() => ({
@@ -19,6 +19,9 @@ const bridge = vi.hoisted(() => ({
   ensureBuilderMcp: vi.fn(),
   createConversation: vi.fn(),
   createSession: vi.fn(),
+  getConversation: vi.fn(),
+  updateConversation: vi.fn(),
+  sendMessage: vi.fn(),
 }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   ontology: {
@@ -27,7 +30,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
     getWorkbench: { invoke: bridge.getWorkbench },
     workbenchChanged: { on: () => () => {} },
   },
-  conversation: { create: { invoke: bridge.createConversation } },
+  conversation: { create: { invoke: bridge.createConversation }, get: { invoke: bridge.getConversation }, update: { invoke: bridge.updateConversation }, sendMessage: { invoke: bridge.sendMessage } },
   ontologyAiBuilder: {
     listSessions: { invoke: bridge.listSessions },
     ensureBuilderMcp: { invoke: bridge.ensureBuilderMcp },
@@ -73,6 +76,9 @@ beforeEach(() => {
   bridge.ensureBuilderMcp.mockResolvedValue({ success: true, data: { mcpConfig: { name: 'ontology-builder' } } });
   bridge.createConversation.mockResolvedValue({ id: 'chat-1' });
   bridge.createSession.mockResolvedValue({ success: true, data: session });
+  bridge.getConversation.mockResolvedValue({ id: 'chat-1', type: 'acp', status: 'finished', extra: { purpose: 'ontology', ontologyId: 'orders' } });
+  bridge.updateConversation.mockResolvedValue(true);
+  bridge.sendMessage.mockResolvedValue({ success: true });
 });
 afterEach(() => {
   cleanup();
@@ -136,5 +142,32 @@ describe('ontology default conversation', () => {
     await expect(ensureDefaultStudioConversation(input)).resolves.toEqual(session);
     expect(bridge.createConversation).toHaveBeenCalledTimes(2);
     expect(bridge.createSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ontology AI check repairs', () => {
+  it('reuses an owned conversation, refreshes tools, and sends the requested repair exactly once', async () => {
+    bridge.listSessions.mockResolvedValue({ success: true, data: { items: [session] } });
+    const onReady = vi.fn();
+    await requestStudioAiRepair({ ...input, prompt: 'Repair the checked relation' }, onReady);
+    expect(bridge.createConversation).not.toHaveBeenCalled();
+    expect(bridge.updateConversation).toHaveBeenCalledWith(expect.objectContaining({ id: 'chat-1', mergeExtra: true, updates: { extra: expect.objectContaining({ extraMcpConfigs: [{ name: 'ontology-builder' }] }) } }));
+    expect(onReady).toHaveBeenCalledExactlyOnceWith('chat-1');
+    expect(bridge.sendMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ conversation_id: 'chat-1', input: 'Repair the checked relation', msg_id: expect.any(String) }));
+    expect(onReady.mock.invocationCallOrder[0]).toBeLessThan(bridge.sendMessage.mock.invocationCallOrder[0]);
+  });
+
+  it('rejects a conversation from another ontology without sending a repair', async () => {
+    bridge.getConversation.mockResolvedValue({ id: 'chat-1', type: 'acp', extra: { purpose: 'ontology', ontologyId: 'other' } });
+    await expect(requestStudioAiRepair({ ...input, prompt: 'Repair' }, vi.fn())).rejects.toThrow('ontology.studio.errors.repairScope');
+    expect(bridge.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('does not interrupt an active conversation or report a failed dispatch as accepted', async () => {
+    bridge.getConversation.mockResolvedValueOnce({ id: 'chat-1', type: 'acp', status: 'running', extra: { purpose: 'ontology', ontologyId: 'orders' } });
+    await expect(requestStudioAiRepair({ ...input, prompt: 'Repair' }, vi.fn())).rejects.toThrow('ontology.studio.errors.repairBusy');
+    expect(bridge.sendMessage).not.toHaveBeenCalled();
+    bridge.sendMessage.mockResolvedValueOnce({ success: false, msg: 'busy' });
+    await expect(requestStudioAiRepair({ ...input, prompt: 'Repair' }, vi.fn())).rejects.toThrow('ontology.studio.errors.repairBusy');
   });
 });
