@@ -253,7 +253,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler pkg-config libssl-dev
 
-
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
 
@@ -262,7 +261,6 @@ jobs:
         # that file should re-resolve here. SHA256 mismatches caused by
         # forgetting to update scripts/download-nexus-vfs.js fail fast.
         run: bun run nexus-vfs:download
-
 
       - name: Start nexusd-cluster on :2028
         # nexusd-cluster speaks HTTP/2 gRPC. Background it, wait for the
