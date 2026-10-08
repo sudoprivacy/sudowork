@@ -563,7 +563,12 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
         return fetchAssistantsAsConfigs();
       }
     })();
-    Promise.all([assistantsPromise, ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]), isEnterprise ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] }), isEnterprise ? ipcBridge.eeclaw.getMyAgents.invoke().catch(() => ({ success: false, data: [] as IMyAgent[] })) : Promise.resolve({ success: true, data: [] as IMyAgent[] })])
+    Promise.all([
+      assistantsPromise,
+      ipcBridge.extensions.getAssistants.invoke().catch(() => [] as Record<string, unknown>[]),
+      isEnterprise ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] }),
+      isEnterprise ? ipcBridge.eeclaw.getMyAgents.invoke().catch(() => ({ success: false, data: [] as IMyAgent[] })) : Promise.resolve({ success: true, data: [] as IMyAgent[] }),
+    ])
       .then(([agents, extAssistants, cloudAssistantsResult, myAgentsResult]) => {
         if (!isActive) return;
         const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
@@ -1065,9 +1070,13 @@ This identity statement takes priority over the default identity in USER.md.
         await mutate('acp.agents.available');
       }
 
-      const [agents, cloudAssistantsResult] = await Promise.all([fetchAssistantsAsConfigs(), isEnterprise ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] })]);
+      const [agents, cloudAssistantsResult, myAgentsResult] = await Promise.all([
+        fetchAssistantsAsConfigs(),
+        isEnterprise ? ipcBridge.eeclaw.getCloudAssistants.invoke().catch(() => ({ data: [] as CloudAssistant[] })) : Promise.resolve({ data: [] as CloudAssistant[] }),
+        isEnterprise ? ipcBridge.eeclaw.getMyAgents.invoke().catch(() => ({ success: false, data: [] as IMyAgent[] })) : Promise.resolve({ success: true, data: [] as IMyAgent[] }),
+      ]);
       const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
-      const mergedAgents = isEnterprise ? mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local') : agents;
+      const mergedAgents = isEnterprise ? [...personalAgentConfigs(myAgentsResult.success ? myAgentsResult.data || [] : [], sessionMode === 'local'), ...mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local')] : agents;
 
       // Apply presetAgentType fallback for builtin assistants
       for (const agent of mergedAgents) {
