@@ -493,6 +493,9 @@ $\r$\n\
   FileReadUTF16LE $0 $1
   StrCmp $1 "sudowork-owned-files-v1$\r$\n" 0 _crf_legacy_manifest
 
+  GetFullPathName $4 "$INSTDIR"
+  StrLen $5 "$4\"
+
   ; --- Step 2: Delete each entry listed in the manifest ---
   _crf_loop:
     ClearErrors
@@ -510,8 +513,23 @@ $\r$\n\
     ; Skip empty lines
     StrCmp $1 "" _crf_loop
 
-    ; Build full path
-    StrCpy $2 "$INSTDIR\$1"
+    ; Reject wildcard and alternate-stream entries before resolving the path.
+    StrCpy $6 0
+  _crf_validate_entry:
+    StrCpy $3 $1 1 $6
+    StrCmp $3 "" _crf_resolve_entry
+    StrCmp $3 "*" _crf_skip_invalid
+    StrCmp $3 "?" _crf_skip_invalid
+    StrCmp $3 ":" _crf_skip_invalid
+    IntOp $6 $6 + 1
+    Goto _crf_validate_entry
+
+  _crf_resolve_entry:
+    ClearErrors
+    GetFullPathName $2 "$INSTDIR\$1"
+    IfErrors _crf_skip_invalid
+    StrCpy $6 $2 $5
+    StrCmp $6 "$4\" 0 _crf_skip_invalid
 
     Delete "$2"
     IfErrors 0 _crf_clean_parents
@@ -524,11 +542,15 @@ $\r$\n\
     ; Remove only empty parents. User files inside packaged directories remain.
     ${GetParent} "$2" $3
   _crf_parent_loop:
-    StrCmp $3 "$INSTDIR" _crf_loop
+    StrCmp $3 "$4" _crf_loop
     StrCmp $3 "" _crf_loop
     RMDir "$3"
     ${GetParent} "$3" $3
     Goto _crf_parent_loop
+
+  _crf_skip_invalid:
+    DetailPrint "Skipped an invalid install manifest entry"
+    Goto _crf_loop
 
   _crf_loop_done:
     FileClose $0
