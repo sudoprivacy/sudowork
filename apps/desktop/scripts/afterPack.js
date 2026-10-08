@@ -994,6 +994,35 @@ async function afterPack(context) {
   console.log(`✅ All native modules rebuilt successfully for ${targetArch}\n`);
 }
 
-module.exports = afterPack;
+/** Write the exact packaged file list before any installation directory exists. */
+function writeInstallerManifest(appOutDir) {
+  const manifestPath = path.join(appOutDir, 'resources', 'installer-owned-files.txt');
+  const files = [];
+  function visit(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new Error(`Installer payload contains a symbolic link: ${entry.name}`);
+      if (entry.isDirectory()) visit(file);
+      else if (entry.isFile() && file !== manifestPath) {
+        const relative = path.relative(appOutDir, file).replace(/\//g, '\\');
+        if (/[\r\n]/.test(relative)) throw new Error('Installer payload contains an invalid filename');
+        files.push(relative);
+      }
+    }
+  }
+  visit(appOutDir);
+  files.push('resources\\installer-owned-files.txt');
+  files.sort();
+  fs.writeFileSync(manifestPath, '\ufeffsudowork-owned-files-v1\r\n' + files.join('\r\n') + '\r\n', 'utf16le');
+  return files;
+}
+
+async function afterPackWithInstallerManifest(context) {
+  await afterPack(context);
+  if (context.electronPlatformName === 'win32') writeInstallerManifest(context.appOutDir);
+}
+
+module.exports = afterPackWithInstallerManifest;
+module.exports.writeInstallerManifest = writeInstallerManifest;
 module.exports.shouldSignArchiveInAfterPack = shouldSignArchiveInAfterPack;
 module.exports.shouldUseRuntimeEntitlementsInAfterPack = shouldUseRuntimeEntitlementsInAfterPack;
