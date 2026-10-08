@@ -24,6 +24,80 @@ import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/ty
 type FetchMock = ReturnType<typeof vi.fn>
 type StatusRoute = { status: number; body: unknown }
 
+describe('mossAdapter: personal Agent conversation names', () => {
+  let ipc: typeof import('@sudowork/host-bridge/ipcBridge')
+  const ownRef = 'moss-agent:own:22222222-2222-4222-8222-222222222222'
+  const defaultRef = 'moss-agent:user:11111111-1111-4111-8111-111111111111'
+
+  beforeEach(async () => {
+    vi.resetModules()
+    await import('@client/bridgeAdapter/mossAdapter')
+    ipc = await import('@sudowork/host-bridge/ipcBridge')
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each([
+    [ownRef, 'own'],
+    [defaultRef, 'default'],
+  ])('resolves %s by its stable reference when reopening', async (ref, kind) => {
+    const fetchMock = stubFetch({
+      '/api/conversations': { conversations: [{ id: 'personal-named', assistantName: ref }] },
+      '/api/v1/agents/mine': {
+        success: true,
+        data: [{ ref, kind, displayName: 'My named Agent' }],
+      },
+    })
+
+    expect(await ipc.conversation.get.invoke({ id: 'personal-named' })).toMatchObject({
+      name: 'My named Agent',
+      extra: { agentName: 'My named Agent' },
+    })
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/agent-templates'))).toBe(
+      false,
+    )
+  })
+
+  it('uses distinct references for same-named Agents and preserves a user conversation title', async () => {
+    const secondRef = 'moss-agent:own:33333333-3333-4333-8333-333333333333'
+    stubFetch({
+      '/api/conversations': {
+        conversations: [
+          { id: 'first', assistantName: ownRef, title: 'My saved title' },
+          { id: 'second', assistantName: secondRef },
+        ],
+      },
+      '/api/v1/agents/mine': {
+        success: true,
+        data: [
+          { ref: ownRef, kind: 'own', displayName: 'Same name' },
+          { ref: secondRef, kind: 'own', displayName: 'Same name' },
+        ],
+      },
+    })
+
+    expect(await ipc.database.getUserConversations.invoke({})).toMatchObject([
+      { id: 'first', name: 'My saved title', extra: { agentName: 'Same name' } },
+      { id: 'second', name: 'Same name', extra: { agentName: 'Same name' } },
+    ])
+  })
+
+  it('keeps history accessible without displaying private identity references when names are unavailable', async () => {
+    stubFetch({
+      '/api/conversations': { conversations: [{ id: 'personal-offline', assistantName: ownRef }] },
+      '/api/v1/agents/mine': { status: 503, body: { error: 'MOSS_ERROR' } },
+    })
+
+    expect(await ipc.conversation.get.invoke({ id: 'personal-offline' })).toMatchObject({
+      id: 'personal-offline',
+      name: '',
+      extra: { agentName: undefined },
+    })
+    expect(await ipc.database.getUserConversations.invoke({})).toMatchObject([
+      { id: 'personal-offline', name: '', extra: { agentName: undefined } },
+    ])
+  })
+})
+
 describe('mossAdapter: personal Agents', () => {
   afterEach(() => vi.unstubAllGlobals())
   it('creates with cookie authority and a trimmed name only', async () => {
