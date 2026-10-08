@@ -6,7 +6,8 @@ import { execFileSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
 
-const state = vi.hoisted(() => ({ root: '', isEnabled: true }));
+const state = vi.hoisted(() => ({ root: '', isEnabled: true, requireAgent: vi.fn() }));
+vi.mock('@process/services/mossPersonalAgents', () => ({ requireMossPersonalAgent: state.requireAgent }));
 vi.mock('@process/initStorage', () => ({
   ProcessConfig: { getSync: (key: string) => ({ 'eeclaw.serverUrl': 'https://moss.example', 'eeclaw.accountScope': 'account', 'eeclaw.authStorage': { access_token: 'token' } })[key] },
   getHubSkillsDir: () => state.root,
@@ -21,6 +22,7 @@ import { prepareMossResources, readMossAssistantSnapshot, safeResourcePath, vali
 beforeEach(async () => {
   state.root = await fs.mkdtemp(path.join(os.tmpdir(), 'moss-resource-'));
   state.isEnabled = true;
+  state.requireAgent.mockReset().mockResolvedValue({ displayName: 'Personal Agent' });
 });
 afterEach(async () => {
   vi.unstubAllGlobals();
@@ -38,6 +40,17 @@ async function serveArchive(isBadChecksum = false, isSymlink = false) {
 }
 
 describe('Moss resource preparation', () => {
+  it('checks personal ownership without downloading a template or requiring its snapshot', async () => {
+    const ref = 'moss-agent:own:personal';
+    const request = vi.fn();
+    vi.stubGlobal('fetch', request);
+    expect(await prepareMossResources(ref)).toEqual({ presetContext: '', enabledSkills: [], resources: [] });
+    expect(await readMossAssistantSnapshot({ mossAccountScope: 'account', presetAssistantId: ref })).toBeUndefined();
+    expect(state.requireAgent).toHaveBeenCalledTimes(2);
+    expect(request).not.toHaveBeenCalled();
+    state.requireAgent.mockRejectedValueOnce(new Error('Personal Agent is unavailable'));
+    await expect(readMossAssistantSnapshot({ mossAccountScope: 'account', presetAssistantId: ref })).rejects.toThrow('unavailable');
+  });
   it.each(['../outside', '/absolute', 'C:\\outside', 'nested\\..\\outside'])('rejects path traversal: %s', (value) => expect(() => safeResourcePath(state.root, value)).toThrow());
   it('does not contact Moss when no resources are needed', async () => {
     const request = vi.fn();

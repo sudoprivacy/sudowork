@@ -26,5 +26,18 @@
     "noAlternatives": "利用可能なエージェントが見つかりません",
     "configureFirst": "まず設定でエージェントを設定してください。",
     "switching": "エージェントを切り替え中..."
+  },
+  "mine": {
+    "title": "マイ Agent",
+    "create": "Agent を作成",
+    "description": "Agent は現在のアカウントに属します。Agent を選んで会話を始めるか、個人用 Agent を作成できます。",
+    "loadFailed": "Agent を読み込めませんでした。再試行してください。",
+    "retry": "再試行",
+    "default": "デフォルト Agent",
+    "personal": "個人用 Agent",
+    "startConversation": "会話を開始",
+    "empty": "個人用 Agent はまだありません",
+    "name": "Agent 名",
+    "createFailed": "Agent を作成できませんでした。再試行してください。"
   }
 }

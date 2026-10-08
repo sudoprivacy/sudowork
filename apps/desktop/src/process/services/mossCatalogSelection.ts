@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { IMossCatalogInstallation, MossCatalogKind } from '@sudowork/common/mossCatalog';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { listMossCatalog, detailMossCatalog } from './mossCatalogApi';
 import { getMossCatalogInstallations, installMossCatalog, validateCatalogInstallation, catalogResourceRoot, catalogRuntimeName } from './mossCatalogInstall';
+import { requireMossPersonalAgent } from './mossPersonalAgents';
 
 /** Resolve selected local downloads to stable remote references without confusing them with directory names. */
 export async function resolveMossCatalogSelection(assistantId?: string, skillIds: string[] = []) {
@@ -10,6 +12,10 @@ export async function resolveMossCatalogSelection(assistantId?: string, skillIds
   const selected: IMossCatalogInstallation[] = [];
   const unresolved: string[] = [];
   const resolve = async (kind: MossCatalogKind, reference: string) => {
+    if (kind === 'agents' && isPersonalAgentRef(reference)) {
+      await requireMossPersonalAgent(reference);
+      return reference;
+    }
     if (reference.startsWith('moss-prepared:')) return reference;
     const exact = installed.filter((item) => item.kind === kind && (item.id === reference || item.runtimeName === reference));
     let matches = exact.length ? exact : installed.filter((item) => item.kind === kind && item.name === reference);

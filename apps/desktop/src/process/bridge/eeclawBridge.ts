@@ -12,6 +12,7 @@ import { ProcessConfig } from '@process/initStorage';
 import { mainWarn, mainLog, mainError } from '@process/utils/mainLogger';
 import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedLocalModeAvailable, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { applyMossLocalRuntime, prepareMossLocalRuntime, clearMossLocalRuntime } from '@process/services/mossLocalRuntime';
+import { createMossPersonalAgent, listMossPersonalAgents } from '@process/services/mossPersonalAgents';
 import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
@@ -516,39 +517,18 @@ export function initEeclawBridge(): void {
    */
   ipcBridge.eeclaw.getMyAgents.provider(async () => {
     try {
-      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
-      // Local mode has no moss to ask; the sidebar keeps its timeline view.
-      if (!serverUrl) return { success: true, data: [] };
+      if (!ProcessConfig.getSync('eeclaw.serverUrl')) return { success: true, data: [] };
+      return { success: true, data: await listMossPersonalAgents() };
+    } catch {
+      return { success: false, msg: 'Personal Agent list is unavailable' };
+    }
+  });
 
-      let accessToken = await getValidToken();
-      const fetchAgents = () =>
-        net.fetch(`${serverUrl}/api/v1/agents/mine`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          signal: AbortSignal.timeout(10000),
-        });
-
-      let response = await fetchAgents();
-      if (response.status === 401) {
-        accessToken = await getValidToken(true);
-        response = await fetchAgents();
-      }
-      if (!response.ok) {
-        mainWarn('eeclawBridge', `getMyAgents failed: ${response.status}`);
-        return { success: true, data: [] };
-      }
-
-      const body = await response.json();
-      const agents = Array.isArray(body) ? body : (body?.data ?? []);
-      return { success: true, data: Array.isArray(agents) ? agents : [] };
-    } catch (error) {
-      // An empty list leaves the sidebar on its timeline view. Failing loudly
-      // here would empty the sidebar over a transient network error.
-      mainWarn('eeclawBridge', 'getMyAgents error:', error);
-      return { success: true, data: [] };
+  ipcBridge.eeclaw.createUserAgent.provider(async (input) => {
+    try {
+      return { success: true, data: await createMossPersonalAgent(input) };
+    } catch {
+      return { success: false, msg: 'Personal Agent creation failed' };
     }
   });
 

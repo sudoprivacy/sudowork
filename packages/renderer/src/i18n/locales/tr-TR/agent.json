@@ -26,5 +26,18 @@
     "noAlternatives": "No available agents found",
     "configureFirst": "Please configure an agent in Settings first.",
     "switching": "Switching agent..."
+  },
+  "mine": {
+    "title": "Agent’larım",
+    "create": "Agent oluştur",
+    "description": "Agent’lar mevcut hesabınıza aittir. Sohbet başlatmak için bir Agent seçin veya kişisel Agent oluşturun.",
+    "loadFailed": "Agent’lar yüklenemedi. Lütfen tekrar deneyin.",
+    "retry": "Tekrar dene",
+    "default": "Varsayılan Agent",
+    "personal": "Kişisel Agent",
+    "startConversation": "Sohbet başlat",
+    "empty": "Henüz kişisel Agent yok",
+    "name": "Agent adı",
+    "createFailed": "Agent oluşturulamadı. Lütfen tekrar deneyin."
   }
 }

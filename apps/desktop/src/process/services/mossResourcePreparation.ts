@@ -5,11 +5,13 @@ import JSZip from 'jszip';
 import { z } from 'zod';
 import type { IAssistantMeta } from '@sudowork/common/assistantTypes';
 import type { IMossConversationExecution } from '@sudowork/common/mossExecution';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir, clearSkillsCache } from '@process/initStorage';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { getEnterpriseTenantSkillsDir, getEnterpriseTenantAssistantsDir } from '@process/constants/enterpriseStorage';
 import { AcpSkillManager } from '@process/task/AcpSkillManager';
 import { safeResourcePath } from './mossResourcePath';
+import { requireMossPersonalAgent } from './mossPersonalAgents';
 export { safeResourcePath } from './mossResourcePath';
 
 const resourceSchema = z
@@ -33,6 +35,10 @@ export interface IMossPreparedResources {
 export async function readMossAssistantSnapshot(extra: IMossConversationExecution & { presetAssistantId?: string }): Promise<{ meta: IAssistantMeta; directory: string; presetContext: string } | undefined> {
   if (!extra.mossAccountScope || !extra.presetAssistantId) return;
   if (extra.mossAccountScope !== ProcessConfig.getSync('eeclaw.accountScope')) throw new Error('Conversation belongs to a different Moss account');
+  if (isPersonalAgentRef(extra.presetAssistantId)) {
+    await requireMossPersonalAgent(extra.presetAssistantId);
+    return;
+  }
   const resource = extra.mossResources?.find((item) => item.kind === 'agents' && item.id === extra.presetAssistantId);
   if (!resource) throw new Error('Assistant snapshot is missing');
   const root = resource.source === 'tenant' ? getEnterpriseTenantAssistantsDir() : getHubAssistantsDir();
@@ -55,6 +61,10 @@ export async function readMossAssistantSnapshot(extra: IMossConversationExecutio
 
 /** Prepare only selected resources and their dependencies, using immutable content versions. */
 export async function prepareMossResources(assistantId?: string, skillIds: string[] = [], isLegacyOnly = false): Promise<IMossPreparedResources> {
+  if (isPersonalAgentRef(assistantId)) {
+    await requireMossPersonalAgent(assistantId!);
+    return prepareMossResources(undefined, skillIds, isLegacyOnly);
+  }
   if (!isLegacyOnly && (assistantId || skillIds.length)) {
     const { prepareLocalCatalogSelection } = await import('./mossCatalogSelection');
     const catalog = await prepareLocalCatalogSelection(assistantId, skillIds);

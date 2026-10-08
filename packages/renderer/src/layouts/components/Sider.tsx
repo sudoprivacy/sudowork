@@ -63,6 +63,7 @@ const Sider: React.FC = () => {
 
   // 功能菜单项定义 / Function menu items definition
   const Menus = [
+    ...(isEnterprise ? [{ id: 'my-agents', label: t('agent.mine.title'), icon: Bot, path: '/app/agents/mine' }] : []),
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/app/agent' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/app/skills' },
     // The local knowledge base is desktop-only (WEB_CAPABILITIES.localKnowledgeBase
