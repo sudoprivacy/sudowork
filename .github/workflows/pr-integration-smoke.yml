@@ -11,6 +11,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  # Cold macOS installs can exhaust sockets while resolving the monorepo.
+  BUN_CONFIG_MAX_HTTP_REQUESTS: '32'
+
 jobs:
   browser-backend-live:
     name: Browser Backend Live (${{ matrix.os }})
