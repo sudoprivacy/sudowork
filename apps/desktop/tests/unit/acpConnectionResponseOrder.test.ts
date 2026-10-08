@@ -88,6 +88,24 @@ describe('sensitive ACP diagnostics', () => {
 });
 
 describe('AcpConnection prompt response ordering', () => {
+  it('carries personal identity and memory instructions into new and restored scode sessions', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const connection = new AcpConnection();
+    const request = vi.fn().mockResolvedValue({ sessionId: 'personal-session' });
+    const harness = connection as unknown as { backend: string; sendRequest: typeof request };
+    harness.backend = 'scode';
+    harness.sendRequest = request;
+    connection.systemPromptAppend = 'Personal identity and isolated memory directory';
+    const meta = { sudocode: { appendSystemPrompt: connection.systemPromptAppend, memory: 'enabled' } };
+    await connection.newSession('/workspace');
+    expect(request).toHaveBeenLastCalledWith('session/new', expect.objectContaining({ _meta: meta }));
+    await connection.loadSession('personal-session', '/workspace');
+    expect(request).toHaveBeenLastCalledWith('session/load', expect.objectContaining({ _meta: meta }));
+    harness.backend = 'codex';
+    await connection.newSession('/workspace');
+    expect(request.mock.calls.at(-1)?.[1]).not.toHaveProperty('_meta');
+  });
+
   it('associates first-token telemetry with the persisted task rather than the ACP session', async () => {
     const { AcpConnection } = await loadAcpConnection();
     const { recordFirstToken } = await import('@process/telemetry');
