@@ -22,6 +22,9 @@ describe('personal Agent authority in the desktop host', () => {
     expect(first.systemPromptAppend).toContain(JSON.stringify(agent.displayName));
     expect(first.systemPromptAppend).toContain(JSON.stringify(first.memoryDirectory));
     expect(first.systemPromptAppend).toContain('Do not search for or use a global memory directory');
+    expect(first.systemPromptAppend).toMatch(/^\[Identity Override/);
+    expect(first.systemPromptAppend).toContain('\n\n');
+    expect(first.displayName).toBe(agent.displayName);
     expect(await resolveMossPersonalRuntime(agent.ref, state.scope)).toEqual(first);
     const other = { ...agent, ref: 'moss-agent:own:33333333-3333-4333-8333-333333333333' };
     state.request.mockImplementation(async () => Response.json({ success: true, data: [agent, other] }));

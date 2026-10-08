@@ -32,7 +32,9 @@ export default function MyAgents() {
     }
   }, []);
 
-  useEffect(() => { void onLoad(); }, [onLoad]);
+  useEffect(() => {
+    void onLoad();
+  }, [onLoad]);
 
   async function onCreate() {
     if (!isNameValid || isCreating) return;
@@ -54,8 +56,12 @@ export default function MyAgents() {
   return (
     <div className='flex-1 min-h-0 overflow-y-auto p-4'>
       <div className='flex items-center justify-between gap-3 mb-4'>
-        <Typography.Title heading={4} style={{ margin: 0 }}>{t('agent.mine.title')}</Typography.Title>
-        <Button type='primary' disabled={isLoading || isLoadFailed} onClick={() => setIsCreateOpen(true)}>{t('agent.mine.create')}</Button>
+        <Typography.Title heading={4} style={{ margin: 0 }}>
+          {t('agent.mine.title')}
+        </Typography.Title>
+        <Button type='primary' disabled={isLoading || isLoadFailed} onClick={() => setIsCreateOpen(true)}>
+          {t('agent.mine.create')}
+        </Button>
       </div>
       <Typography.Paragraph type='secondary'>{t('agent.mine.description')}</Typography.Paragraph>
       {isLoadFailed && <Alert type='error' content={t('agent.mine.loadFailed')} action={<Button onClick={() => void onLoad()}>{t('agent.mine.retry')}</Button>} />}
@@ -69,7 +75,19 @@ export default function MyAgents() {
           {!isLoading && !isLoadFailed && agents.length === 0 && <Empty description={t('agent.mine.empty')} />}
         </Space>
       </Spin>
-      <Modal title={t('agent.mine.create')} visible={isCreateOpen} confirmLoading={isCreating} okButtonProps={{ disabled: !isNameValid }} onOk={() => void onCreate()} onCancel={() => { if (!isCreating) { setIsCreateOpen(false); setName(''); } }}>
+      <Modal
+        title={t('agent.mine.create')}
+        visible={isCreateOpen}
+        confirmLoading={isCreating}
+        okButtonProps={{ disabled: !isNameValid }}
+        onOk={() => void onCreate()}
+        onCancel={() => {
+          if (!isCreating) {
+            setIsCreateOpen(false);
+            setName('');
+          }
+        }}
+      >
         <Input aria-label={t('agent.mine.name')} placeholder={t('agent.mine.name')} maxLength={60} value={name} onChange={setName} onPressEnter={() => void onCreate()} />
       </Modal>
     </div>

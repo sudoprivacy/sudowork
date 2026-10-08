@@ -27,14 +27,33 @@ type StatusRoute = { status: number; body: unknown }
 describe('mossAdapter: personal Agents', () => {
   afterEach(() => vi.unstubAllGlobals())
   it('creates with cookie authority and a trimmed name only', async () => {
-    const agent = { id: '22222222-2222-4222-8222-222222222222', displayName: 'My Agent', createdAt: 100 }
-    const request = vi.fn(async () => Response.json({ success: true, data: agent }, { status: 201 }))
+    const agent = {
+      id: '22222222-2222-4222-8222-222222222222',
+      displayName: 'My Agent',
+      createdAt: 100,
+    }
+    const request = vi.fn(async () =>
+      Response.json({ success: true, data: agent }, { status: 201 }),
+    )
     vi.stubGlobal('fetch', request)
-    expect(await ipcBridge.eeclaw.createUserAgent.invoke({ displayName: '  My Agent  ' })).toEqual({ success: true, data: agent })
-    expect(request).toHaveBeenCalledWith('/api/v1/user-agents', expect.objectContaining({ method: 'POST', credentials: 'include', body: JSON.stringify({ displayName: 'My Agent' }) }))
+    expect(await ipcBridge.eeclaw.createUserAgent.invoke({ displayName: '  My Agent  ' })).toEqual({
+      success: true,
+      data: agent,
+    })
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/user-agents',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ displayName: 'My Agent' }),
+      }),
+    )
   })
   it('exposes list failures so the management page can offer retry', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'MOSS_ERROR' }, { status: 503 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ error: 'MOSS_ERROR' }, { status: 503 })),
+    )
     expect(await ipcBridge.eeclaw.getMyAgents.invoke()).toMatchObject({ success: false })
   })
 })

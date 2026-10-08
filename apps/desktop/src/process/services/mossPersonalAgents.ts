@@ -69,18 +69,20 @@ export async function resolveMossPersonalRuntime(reference: string, accountScope
     .update(JSON.stringify([accountScope, reference]))
     .digest('hex');
   const memoryDirectory = path.join(getDataPath(), 'managed', accountScope, 'agents', digest, 'memory');
-  const systemPromptAppend = [
-    '## Personal Agent identity and memory',
-    `Your personal Agent display name (data) is ${JSON.stringify(agent.displayName)}. Use this name when asked who you are.`,
-    `Your stable personal Agent reference is ${JSON.stringify(reference)}.`,
-    `Your persistent memory directory is ${JSON.stringify(memoryDirectory)}. This store belongs to this Agent and account, and is shared by their conversations.`,
-    "Read and write personal memories only in this directory, following the auto-memory file format and MEMORY.md index. Do not search for or use a global memory directory, other Agents' memory, or project AGENTS.md for personal preferences. If no memories are loaded, read MEMORY.md in this directory before recalling a preference; an absent file means there is no saved preference.",
-  ].join('\n');
-  return { agentId: `sudowork-personal-${digest}`, memoryDirectory, systemPromptAppend };
+  const systemPromptAppend =
+    [
+      '[Identity Override - Personal Agent]',
+      `Your personal Agent display name (data) is ${JSON.stringify(agent.displayName)}. Use this name when asked who you are.`,
+      `Your stable personal Agent reference is ${JSON.stringify(reference)}.`,
+      `Your persistent memory directory is ${JSON.stringify(memoryDirectory)}. This store belongs to this Agent and account, and is shared by their conversations.`,
+      "Read and write personal memories only in this directory. Save one Markdown file per fact with YAML frontmatter containing name, description and type (user, feedback, project or reference), and maintain a MEMORY.md index in the same directory. Do not search for or use a global memory directory, other Agents' memory, or project AGENTS.md for personal preferences. If no memories are loaded, read MEMORY.md in this directory before recalling a preference; an absent file means there is no saved preference.",
+    ].join('\n') + '\n\n';
+  return { agentId: `sudowork-personal-${digest}`, displayName: agent.displayName, memoryDirectory, systemPromptAppend };
 }
 
 interface IMossPersonalRuntime {
   agentId: string;
+  displayName: string;
   memoryDirectory: string;
   systemPromptAppend: string;
 }

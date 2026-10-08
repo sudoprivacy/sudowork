@@ -52,7 +52,7 @@ import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
 import { dynamicNexusVfsService } from '@process/services/nexus-vfs/DynamicNexusVfsService';
 import { applyPresetRuntime, applyPresetRuntimeFromMeta } from '@process/task/presetRuntime';
 import { readMossAssistantSnapshot } from '@process/services/mossResourcePreparation';
-import { requireMossPersonalAgent, resolveMossPersonalRuntime } from '@process/services/mossPersonalAgents';
+import { resolveMossPersonalRuntime } from '@process/services/mossPersonalAgents';
 import { assistantManager } from '@/process/AssistantManager';
 import { getDatabase } from '@process/database';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
@@ -439,6 +439,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
         this.connection.managedAgentId = runtime.agentId;
         this.connection.systemPromptAppend = runtime.systemPromptAppend;
+        const governanceBlock = extractGovernanceBlock(this.options.presetContext);
+        this.options.presetContext = [runtime.systemPromptAppend, governanceBlock].filter(Boolean).join('\n\n');
         customEnv = { ...customEnv, SUDOCODE_MEMORY_DIR: runtime.memoryDirectory };
       }
       const presetResult = assistantSnapshot ? applyPresetRuntimeFromMeta(assistantSnapshot.meta, presetRuntimeContext, assistantSnapshot.directory) : await applyPresetRuntime(presetRuntimeContext);
@@ -925,8 +927,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Managed chats use their prepared version; ID-based lookup can find a
       // different tenant copy or miss the digest-named snapshot entirely.
       if (this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
-        const agent = await requireMossPersonalAgent(this.options.presetAssistantId!);
-        this.options.agentName = agent.displayName;
+        const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
+        this.options.agentName = runtime.displayName;
+        const governanceBlock = extractGovernanceBlock(this.options.presetContext);
+        this.options.presetContext = [runtime.systemPromptAppend, governanceBlock].filter(Boolean).join('\n\n');
       } else if (this.options.mossAccountScope && this.options.presetAssistantId) {
         const snapshot = await readMossAssistantSnapshot(this.options);
         if (!snapshot) throw new Error('Assistant snapshot is missing');
