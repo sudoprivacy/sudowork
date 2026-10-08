@@ -87,7 +87,7 @@ export default defineConfig({
           name: 'node',
           ...(process.platform === 'win32' ? { sequence: { groupOrder: 0 } } : {}),
           environment: 'node',
-          include: ['tests/unit/**/*.test.ts', 'tests/unit/**/test_*.ts', 'tests/integration/**/*.test.ts'],
+          include: ['tests/unit/**/*.test.ts', 'tests/unit/**/test_*.ts', 'tests/integration/**/*.test.ts', 'tests/contract/**/*.test.ts'],
           exclude: ['tests/unit/**/*.dom.test.ts', 'tests/unit/**/*.dom.test.tsx'],
           setupFiles: ['./tests/vitest.setup.ts'],
         },
