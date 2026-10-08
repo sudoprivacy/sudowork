@@ -35,9 +35,11 @@
     "retry": "重试",
     "default": "默认 Agent",
     "personal": "个人 Agent",
-    "startConversation": "开始会话",
+    "startConversation": "新会话",
     "empty": "暂无个人 Agent",
     "name": "Agent 名称",
-    "createFailed": "创建失败，请重试。"
+    "createFailed": "创建失败，请重试。",
+    "open": "进入 Agent",
+    "openFailed": "无法打开 Agent 的会话，请重试。"
   }
 }

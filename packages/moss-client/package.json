@@ -8,6 +8,11 @@
       "bun": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./agents": {
+      "bun": "./src/MossAgentClient.ts",
+      "types": "./dist/MossAgentClient.d.ts",
+      "default": "./dist/MossAgentClient.js"
     }
   },
   "files": [
@@ -17,6 +22,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@sudowork/common": "workspace:*",
     "@sudowork/contracts": "workspace:*",
     "ws": "8.18.3",
     "zod": "3.25.76"

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getRecentConversations, groupConversationsByAgent } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { getLatestAgentConversation, getRecentConversations, groupConversationsByAgent } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
 import type { ConversationItem } from '@renderer/pages/conversation/grouped-history/types';
 
 const conversation = (id: string, agentRef: string | undefined, modifyTime: number): ConversationItem =>
@@ -67,6 +67,32 @@ describe('groupConversationsByAgent', () => {
   it('sorts within a group by latest activity', () => {
     const groups = groupConversationsByAgent([conversation('old', 'x', 1), conversation('new', 'x', 5), conversation('mid', 'x', 3)], [agent('x', 'X', 'template')]);
     expect(groups[0]?.conversations.map((c) => c.id)).toEqual(['new', 'mid', 'old']);
+  });
+
+  it('keeps unavailable personal Agents readable without showing identity references', () => {
+    const reference = 'moss-agent:own:22222222-2222-4222-8222-222222222222';
+    const saved = { ...conversation('saved', reference, 1), extra: { mossAssistantRef: reference, agentName: 'Saved name' } } as ConversationItem;
+    expect(groupConversationsByAgent([saved], [])[0]).toMatchObject({ ref: reference, displayName: 'Saved name' });
+    expect(groupConversationsByAgent([conversation('unnamed', reference, 1)], [])[0]).toMatchObject({ ref: reference, displayName: '' });
+  });
+});
+
+describe('getLatestAgentConversation', () => {
+  it('resumes the most recently active session by stable identity, including pinned history', () => {
+    const reference = 'moss-agent:own:22222222-2222-4222-8222-222222222222';
+    const latest = { ...conversation('latest', 'Same name', 10), extra: { presetAssistantId: reference, agentName: 'Same name', pinned: true } } as ConversationItem;
+    const other = { ...conversation('other-agent', 'Same name', 20), extra: { presetAssistantId: 'moss-agent:own:other', agentName: 'Same name' } } as ConversationItem;
+    const cron = { ...conversation('cron', reference, 30), extra: { mossAssistantRef: reference, cronJobId: 'scheduled' } } as ConversationItem;
+    const older = conversation('older', reference, 1);
+    const health = { ...conversation('health', reference, 40), extra: { mossAssistantRef: reference, isHealthCheck: true } } as ConversationItem;
+    const ontology = { ...conversation('ontology', reference, 50), extra: { mossAssistantRef: reference, purpose: 'ontology' } } as ConversationItem;
+    const input = [older, other, cron, health, ontology, latest];
+    expect(getLatestAgentConversation(input, reference)?.id).toBe('latest');
+    expect(input[0]).toBe(older);
+  });
+
+  it('returns no conversation for an unused Agent', () => {
+    expect(getLatestAgentConversation([conversation('other', 'other', 1)], 'unused')).toBeUndefined();
   });
 });
 

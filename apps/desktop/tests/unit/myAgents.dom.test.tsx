@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), emit: vi.fn() }));
-vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ eeclaw: { getMyAgents: { invoke: mocks.list }, createUserAgent: { invoke: mocks.create } } }));
+const mocks = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), emit: vi.fn(), history: vi.fn() }));
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ eeclaw: { getMyAgents: { invoke: mocks.list }, createUserAgent: { invoke: mocks.create } }, database: { getUserConversations: { invoke: mocks.history } } }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@renderer/utils/emitter', () => ({ emitter: { emit: mocks.emit } }));
 import MyAgents from '@renderer/pages/my-agents';
@@ -18,6 +18,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.list.mockResolvedValue({ success: true, data: [owned, { ref: 'template', displayName: 'Shared template', kind: 'template' }] });
   mocks.create.mockResolvedValue({ success: true, data: { id: 'new', displayName: 'New Agent' } });
+  mocks.history.mockResolvedValue([]);
 });
 afterEach(cleanup);
 function renderPage() {
@@ -36,6 +37,25 @@ describe('My Agents page', () => {
     expect(screen.queryByText('Shared template')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'agent.mine.startConversation' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/guid?assistant=moss-agent%3Aown%3Amine');
+  });
+  it('opens the latest conversation for this Agent and preserves a separate new-conversation action', async () => {
+    mocks.history.mockResolvedValue([
+      { id: 'older', createTime: 1, modifyTime: 1, extra: { mossAssistantRef: owned.ref } },
+      { id: 'foreign-agent', createTime: 30, modifyTime: 30, extra: { mossAssistantRef: 'moss-agent:own:other' } },
+      { id: 'latest', createTime: 2, modifyTime: 20, extra: { mossAssistantRef: owned.ref, pinned: true } },
+    ]);
+    renderPage();
+    await screen.findByText(owned.displayName);
+    fireEvent.click(screen.getByRole('button', { name: `agent.mine.open ${owned.displayName}` }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/conversation/latest'));
+    fireEvent.click(screen.getByRole('button', { name: 'agent.mine.startConversation' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/guid?assistant=moss-agent%3Aown%3Amine');
+  });
+  it('starts the first conversation when opening an unused Agent', async () => {
+    renderPage();
+    await screen.findByText(owned.displayName);
+    fireEvent.click(screen.getByRole('button', { name: `agent.mine.open ${owned.displayName}` }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/guid?assistant=moss-agent%3Aown%3Amine'));
   });
   it('shows an actionable failure and reloads after retry', async () => {
     mocks.list.mockResolvedValueOnce({ success: false });

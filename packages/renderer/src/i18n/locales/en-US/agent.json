@@ -35,9 +35,11 @@
     "retry": "Retry",
     "default": "Default Agent",
     "personal": "Personal Agent",
-    "startConversation": "Start conversation",
+    "startConversation": "New conversation",
     "empty": "No personal Agents yet",
     "name": "Agent name",
-    "createFailed": "Could not create the Agent. Please try again."
+    "createFailed": "Could not create the Agent. Please try again.",
+    "open": "Open Agent",
+    "openFailed": "Could not open the Agent conversations. Please try again."
   }
 }

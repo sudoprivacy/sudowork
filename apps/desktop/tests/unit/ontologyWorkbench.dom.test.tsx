@@ -347,7 +347,10 @@ function expectEditorFields(dialog: HTMLElement, fields: Record<string, string>)
 
 function expectAttributeCount(parent: HTMLElement, count: number) {
   expect(within(parent).getByText(`ontology.objectBuilder.attributes (${count})`)).toBeInTheDocument();
-  const header = screen.getByRole('columnheader', { name: 'ontology.generate.columns.attributes' });
+  // Find the table by its visible header before querying roles; a document-wide
+  // role query repeatedly walks both retained modal trees in these journeys.
+  const header = screen.getByText('ontology.generate.columns.attributes').closest('th') as HTMLElement;
+  expect(header).toBeVisible();
   const table = header.closest('table') as HTMLElement;
   const columnIndex = within(table).getAllByRole('columnheader').indexOf(header);
   const row = within(table).getByRole('button', { name: 'Customer' }).closest('tr') as HTMLElement;
@@ -566,7 +569,9 @@ describe('OntologyWorkbench', () => {
     });
   });
 
-  describe('object attribute editor', () => {
+  // These journeys edit, save and reopen two full forms. Windows full-suite
+  // runs take 12-13s; keep a bounded budget without retries or a global increase.
+  describe('object attribute editor', { timeout: process.platform === 'win32' ? 20_000 : 10_000 }, () => {
     it('shows existing attributes, required state, counts and the immediate-save hint', async () => {
       const api = createApi();
       const snapshot = await api.getWorkbench();

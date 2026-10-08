@@ -35,9 +35,11 @@
     "retry": "다시 시도",
     "default": "기본 Agent",
     "personal": "개인 Agent",
-    "startConversation": "대화 시작",
+    "startConversation": "새 대화",
     "empty": "아직 개인 Agent가 없습니다",
     "name": "Agent 이름",
-    "createFailed": "Agent를 만들지 못했습니다. 다시 시도해 주세요."
+    "createFailed": "Agent를 만들지 못했습니다. 다시 시도해 주세요.",
+    "open": "Agent 열기",
+    "openFailed": "Agent 대화를 열 수 없습니다. 다시 시도해 주세요."
   }
 }

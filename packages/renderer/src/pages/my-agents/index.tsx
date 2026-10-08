@@ -1,10 +1,11 @@
 import { Alert, Button, Card, Empty, Input, Message, Modal, Space, Spin, Tag, Typography } from '@arco-design/web-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { IMyAgent } from '@sudowork/common/personalAgents';
 import { emitter } from '@renderer/utils/emitter';
+import { getLatestAgentConversation } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
 
 export default function MyAgents() {
   const { t } = useTranslation();
@@ -14,6 +15,8 @@ export default function MyAgents() {
   const [isLoadFailed, setIsLoadFailed] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [openingAgentRef, setOpeningAgentRef] = useState<string | null>(null);
+  const openRequest = useRef(0);
   const [name, setName] = useState('');
   const isNameValid = name.trim().length > 0 && name.trim().length <= 60;
 
@@ -34,7 +37,25 @@ export default function MyAgents() {
 
   useEffect(() => {
     void onLoad();
+    return () => {
+      openRequest.current += 1;
+    };
   }, [onLoad]);
+
+  async function onOpenAgent(agent: IMyAgent) {
+    const requestId = ++openRequest.current;
+    setOpeningAgentRef(agent.ref);
+    try {
+      const conversations = await ipcBridge.database.getUserConversations.invoke({});
+      if (requestId !== openRequest.current) return;
+      const latest = getLatestAgentConversation(conversations, agent.ref);
+      void navigate(latest ? `/conversation/${encodeURIComponent(latest.id)}` : `/guid?assistant=${encodeURIComponent(agent.ref)}`);
+    } catch {
+      if (requestId === openRequest.current) Message.error(t('agent.mine.openFailed'));
+    } finally {
+      if (requestId === openRequest.current) setOpeningAgentRef(null);
+    }
+  }
 
   async function onCreate() {
     if (!isNameValid || isCreating) return;
@@ -69,7 +90,12 @@ export default function MyAgents() {
         <Space direction='vertical' size='medium' className='w-full'>
           {agents.map((agent) => (
             <Card key={agent.ref} title={agent.displayName} extra={<Tag>{t(agent.kind === 'default' ? 'agent.mine.default' : 'agent.mine.personal')}</Tag>}>
-              <Button onClick={() => void navigate(`/guid?assistant=${encodeURIComponent(agent.ref)}`)}>{t('agent.mine.startConversation')}</Button>
+              <Space>
+                <Button type='primary' aria-label={`${t('agent.mine.open')} ${agent.displayName}`} loading={openingAgentRef === agent.ref} disabled={openingAgentRef !== null} onClick={() => void onOpenAgent(agent)}>
+                  {t('agent.mine.open')}
+                </Button>
+                <Button onClick={() => void navigate(`/guid?assistant=${encodeURIComponent(agent.ref)}`)}>{t('agent.mine.startConversation')}</Button>
+              </Space>
             </Card>
           ))}
           {!isLoading && !isLoadFailed && agents.length === 0 && <Empty description={t('agent.mine.empty')} />}

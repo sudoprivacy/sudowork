@@ -35,9 +35,11 @@
     "retry": "再試行",
     "default": "デフォルト Agent",
     "personal": "個人用 Agent",
-    "startConversation": "会話を開始",
+    "startConversation": "新しい会話",
     "empty": "個人用 Agent はまだありません",
     "name": "Agent 名",
-    "createFailed": "Agent を作成できませんでした。再試行してください。"
+    "createFailed": "Agent を作成できませんでした。再試行してください。",
+    "open": "Agent を開く",
+    "openFailed": "Agent の会話を開けませんでした。もう一度お試しください。"
   }
 }
