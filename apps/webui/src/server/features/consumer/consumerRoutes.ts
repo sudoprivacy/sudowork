@@ -29,6 +29,10 @@ import type { AuthDeps } from '../auth/authService.js'
  * forward adds no authority beyond what the session already carries.
  */
 const FORWARDED = [
+  // The sidebar groups conversations by the agent each belongs to and needs
+  // the names; scoped by moss to the calling user, like everything here.
+  // Path mirrors MOSS_MY_AGENTS_PATH under this router's /api/v1 mount.
+  { method: 'GET', path: '/agents/mine' },
   { method: 'GET', path: '/user/dashboard' },
   { method: 'GET', path: '/user/profile' },
   { method: 'GET', path: '/user/model-usage-stats' },

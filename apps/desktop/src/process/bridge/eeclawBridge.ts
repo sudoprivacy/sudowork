@@ -5,6 +5,7 @@
  */
 
 import { net } from 'electron';
+import { createMossAgentPort } from '@sudowork/moss-client';
 import { hasValidLoginIdentity } from '@sudowork/common/authLogin';
 import { ipcBridge } from '@/common';
 // Match renderer SMS requests: Chromium honors system proxies and certificate settings.
@@ -12,6 +13,7 @@ import { ProcessConfig } from '@process/initStorage';
 import { mainWarn, mainLog, mainError } from '@process/utils/mainLogger';
 import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedLocalModeAvailable, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
 import { applyMossLocalRuntime, prepareMossLocalRuntime, clearMossLocalRuntime } from '@process/services/mossLocalRuntime';
+import { createDesktopMossFetch } from '../services/mossFetch.js';
 import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
@@ -514,36 +516,25 @@ export function initEeclawBridge(): void {
    * it knows which of the three kinds a stored reference is and where each
    * kind's name lives.
    */
+  /**
+   * The agents this person has, for the sidebar's grouping.
+   *
+   * Distinct from `getCloudAssistants`, which lists templates — shared
+   * definitions anybody can instantiate. Goes through the same
+   * `@sudowork/moss-client` port the webui server uses, so the two apps cannot
+   * drift on the path or the response shape; only the transport differs.
+   */
   ipcBridge.eeclaw.getMyAgents.provider(async () => {
     try {
       const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
       // Local mode has no moss to ask; the sidebar keeps its timeline view.
       if (!serverUrl) return { success: true, data: [] };
 
-      let accessToken = await getValidToken();
-      const fetchAgents = () =>
-        net.fetch(`${serverUrl}/api/v1/agents/mine`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          signal: AbortSignal.timeout(10000),
-        });
-
-      let response = await fetchAgents();
-      if (response.status === 401) {
-        accessToken = await getValidToken(true);
-        response = await fetchAgents();
-      }
-      if (!response.ok) {
-        mainWarn('eeclawBridge', `getMyAgents failed: ${response.status}`);
-        return { success: true, data: [] };
-      }
-
-      const body = await response.json();
-      const agents = Array.isArray(body) ? body : (body?.data ?? []);
-      return { success: true, data: Array.isArray(agents) ? agents : [] };
+      const agents = await createMossAgentPort(createDesktopMossFetch(getValidToken)).mine({
+        accessToken: await getValidToken(),
+        baseUrl: serverUrl,
+      });
+      return { success: true, data: agents };
     } catch (error) {
       // An empty list leaves the sidebar on its timeline view. Failing loudly
       // here would empty the sidebar over a transient network error.
