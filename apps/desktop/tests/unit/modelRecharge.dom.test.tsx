@@ -4,21 +4,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import RechargeCenter from '@renderer/pages/settings/recharge';
 
 const billing = vi.hoisted(() => ({
-  account: { can_recharge: false, model_balance_usd: '20.00' },
+  access: { can_recharge: false },
+  account: { model_balance_usd: '20.00' },
   request: vi.fn(),
   refresh: vi.fn(async () => undefined),
+  refreshAccess: vi.fn(async () => undefined),
   t: (key: string) => key,
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: billing.t }) }));
 vi.mock('@renderer/pages/settings/model-account/useModelAccount', () => ({
-  useModelAccount: () => ({ ...billing, isLoading: false, error: undefined }),
+  useModelAccount: () => ({ ...billing, isLoading: false, error: undefined, isAccessLoading: false, accessError: undefined }),
 }));
 vi.mock('@renderer/components/base/PageWrapper', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
-  billing.account.can_recharge = false;
+  billing.access.can_recharge = false;
+  billing.refresh.mockResolvedValue(undefined);
 });
 
 describe('organization recharge page', () => {
@@ -30,7 +33,7 @@ describe('organization recharge page', () => {
   });
 
   it('preserves the USD order and distinguishes a verified payment from successful credit', async () => {
-    billing.account.can_recharge = true;
+    billing.access.can_recharge = true;
     const order = {
       order_no: 'org-test-order',
       purchase_amount_usd: '10.00',
@@ -62,7 +65,7 @@ describe('organization recharge page', () => {
 });
 
 it('displays manual credits without CNY payment or a continue-payment action', async () => {
-  billing.account.can_recharge = true;
+  billing.access.can_recharge = true;
   const manual = {
     source: 'manual',
     order_no: 'manual-one',
@@ -86,4 +89,35 @@ it('displays manual credits without CNY payment or a continue-payment action', a
   expect(screen.getByText('operator')).toBeTruthy();
   expect(screen.getByText('Verified correction')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'modelBilling.continuePay' })).toBeNull();
+});
+
+it('keeps QR and verified payment visible when optional records and balance refresh fail', async () => {
+  billing.access.can_recharge = true;
+  billing.refresh.mockRejectedValue(new Error('Balance upstream unavailable'));
+  let isPaymentCreated = false;
+  const order = { order_no: 'refresh-failure', purchase_amount_usd: '10.00', bonus_amount_usd: '0.00', amount_cny_fen: 7300, payment_method: 'ALIPAY', payment_status: 'paying', credit_status: 'pending', expires_at: Date.now() + 1_800_000 };
+  billing.request.mockImplementation(async (path: string) => {
+    if (path === 'model-billing/packages') return { items: [] };
+    if (path.includes('orders?page=')) {
+      if (isPaymentCreated) throw new Error('Order list unavailable');
+      return { items: [], total: 0 };
+    }
+    if (path === 'model-billing/orders') return order;
+    if (path.endsWith('/pay')) {
+      isPaymentCreated = true;
+      return { qr_code_url: 'https://payment.test/refresh', order };
+    }
+    if (path.endsWith('/sync')) return { ...order, payment_status: 'paid', credit_status: 'credited' };
+    throw new Error(path);
+  });
+  render(<RechargeCenter />);
+  await waitFor(() => expect(billing.request).toHaveBeenCalledWith('model-billing/packages'));
+  fireEvent.click(screen.getByRole('button', { name: 'modelBilling.createOrder' }));
+  await screen.findByRole('button', { name: 'modelBilling.refresh' });
+  await screen.findByText('Order list unavailable');
+  expect(screen.queryByText('Balance upstream unavailable')).toBeNull();
+  expect(document.querySelector('svg')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'modelBilling.refresh' }));
+  await screen.findByText('modelBilling.creditStatuses.credited');
+  expect(screen.queryByText('Balance upstream unavailable')).toBeNull();
 });

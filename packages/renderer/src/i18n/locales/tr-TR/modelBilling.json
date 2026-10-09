@@ -57,5 +57,8 @@
   "onlineCredit": "Fuiou ödemesi",
   "noPayment": "Ödeme gerekmez",
   "operator": "Ödeyen / işlemi yapan",
-  "reason": "Yükleme nedeni"
+  "reason": "Yükleme nedeni",
+  "balanceUnavailable": "Bakiye geçici olarak kullanılamıyor",
+  "refreshBalance": "Bakiyeyi yenile",
+  "memberUsageUnavailable": "Üye kullanımı geçici olarak kullanılamıyor. Lütfen daha sonra yenileyin."
 }

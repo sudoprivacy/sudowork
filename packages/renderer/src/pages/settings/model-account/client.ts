@@ -10,12 +10,16 @@ export interface ModelMember {
   effective_status: string;
   key_masked: string | null;
 }
-export interface ModelAccount {
+export interface ModelAccountAccess {
   mode: 'organization_shared';
   org_id: string;
   account_status: string;
   can_manage: boolean;
   can_recharge: boolean;
+}
+export interface ModelAccount extends ModelAccountAccess {
+  balance_status?: 'available' | 'unavailable' | 'pending' | 'not_applicable';
+  member_usage_status?: 'available' | 'unavailable' | 'pending';
   model_balance_usd?: string;
   used_amount_usd?: string;
   member: ModelMember | null;
