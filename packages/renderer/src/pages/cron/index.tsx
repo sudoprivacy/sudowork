@@ -10,6 +10,7 @@ import { AlarmClock, Info, Sun } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { isManualCronSchedule } from '@sudowork/common/cronSchedule';
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useAppMode } from '@renderer/hooks/useAppMode';
@@ -28,6 +29,7 @@ function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
     <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
       {jobs.map((job) => {
         const { isPaused } = getJobStatusFlags(job);
+        const isManual = isManualCronSchedule(job.schedule);
         return (
           <div key={job.id} className='card' onClick={() => onSelectJob(job)}>
             <div className='text-15px font-medium text-foreground mb-2'>{job.name}</div>
@@ -37,7 +39,7 @@ function CronJobCardGrid({ jobs, onSelectJob }: ICronJobCardGridProps) {
                 {t('cron.create.nextRun', '下次运行')} <span className='font-medium text-foreground'>{formatNextRunRelative(t, job.state.nextRunAtMs)}</span>
               </div>
             )}
-            {isPaused && <div className='text-13px text-secondary'>{t('cron.status.paused', '已暂停')}</div>}
+            {isPaused && <div className='text-13px text-secondary'>{isManual ? t('cron.create.frequency.manual') : t('cron.status.paused', '已暂停')}</div>}
           </div>
         );
       })}

@@ -98,5 +98,13 @@
   "create.reuseConversationPlaceholder": "첫 실행 시 자동 생성",
   "create.reuseConversationHint": "기존 대화를 선택하면 첫 실행부터 해당 대화에 추가됩니다",
   "goToLastConversation": "최근 실행 대화 보기",
-  "sidebar.scheduled": "예약됨"
+  "sidebar.scheduled": "예약됨",
+  "create.nameRequired": "Please enter a name",
+  "create.promptRequired": "Please enter an instruction",
+  "create.namePlaceholder": "e.g. daily-briefing",
+  "create.assistantUnavailable": "The selected assistant is unavailable in this environment. Choose the default or another available assistant.",
+  "create.saveFailed": "Could not save. Check the configuration and connection, then try again.",
+  "create.manualHint": "Runs only when you click Run now. No automatic schedule.",
+  "create.defaultRemoteAgent": "Default cloud agent",
+  "create.defaultAgent": "Sudo Code"
 }

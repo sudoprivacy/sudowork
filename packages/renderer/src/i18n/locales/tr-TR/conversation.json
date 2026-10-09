@@ -280,5 +280,7 @@
     "recent": "Son",
     "myAgent": "Ajanım",
     "agentHasNoConversations": "Henüz konuşma yok"
-  }
+  },
+  "rightPanel.terminal.remoteUnavailable": "Interactive terminals are not available for cloud sessions. Ask the agent to run commands in chat, or use a local session.",
+  "rightPanel.terminal.createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal."
 }

@@ -1756,6 +1756,7 @@ export interface ICronJob {
 
 export interface ICreateCronJobParams {
   name: string;
+  enabled?: boolean;
   schedule: ICronSchedule;
   message: string;
   conversationId: string;

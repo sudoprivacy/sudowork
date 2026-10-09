@@ -98,5 +98,13 @@
   "create.reuseConversationPlaceholder": "Auto-create on first run",
   "create.reuseConversationHint": "Pick an existing conversation to append to on the very first run",
   "goToLastConversation": "View latest run conversation",
-  "sidebar.scheduled": "Scheduled"
+  "sidebar.scheduled": "Scheduled",
+  "create.nameRequired": "Please enter a name",
+  "create.promptRequired": "Please enter an instruction",
+  "create.namePlaceholder": "e.g. daily-briefing",
+  "create.assistantUnavailable": "The selected assistant is unavailable in this environment. Choose the default or another available assistant.",
+  "create.saveFailed": "Could not save. Check the configuration and connection, then try again.",
+  "create.manualHint": "Runs only when you click Run now. No automatic schedule.",
+  "create.defaultRemoteAgent": "Default cloud agent",
+  "create.defaultAgent": "Sudo Code"
 }

@@ -6,10 +6,13 @@
 
 import fs from 'node:fs';
 import nodePath from 'node:path';
+import { NEXUS_FILES_MARKER } from '@sudowork/common/constants';
+import { extractWorkspaceFileLinks } from '@sudowork/common/workspaceFileLinks';
 import { parseGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 import { getDatabase } from '@process/database';
 import { mainError } from '@process/utils/mainLogger';
 import { teamStore } from '@process/services/team/TeamStore';
+import { readRemoteWorkspaceSnapshot } from './remoteDeliverables';
 
 /**
  * Aggregates AI-generated file deliverables across the lifetime of a
@@ -32,6 +35,48 @@ class DeliverablesService {
    * Return the deduplicated list of AI-generated files surfaced over a
    * conversation, newest first.
    */
+  async listRemoteForConversation(conversationId: string): Promise<GeneratedFileEntry[]> {
+    const collected = this.scanConversationMarkers(conversationId);
+    const db = getDatabase();
+    const conversation = db.getConversation(conversationId).data;
+    if (conversation?.type !== 'remote-agent') return collected;
+    const extra = conversation.extra;
+    if (!extra.mossSessionId || extra.mossSessionPending || !extra.mossServerUrl) return collected;
+    const { assertConversationAccount } = await import('../mossExecutionContext');
+    assertConversationAccount(conversation);
+    const { initMossApi } = await import('@process/remote/MossSessionApi');
+    const files = await readRemoteWorkspaceSnapshot(initMossApi(extra.mossServerUrl), extra.mossSessionId).catch((error): null => {
+      mainError('DeliverablesService', `Remote workspace unavailable: ${String(error)}`);
+      return null;
+    });
+    if (!files) return dedupeAndSort(collected);
+    const inputs = new Set<string>();
+    const candidates = new Map<string, number>();
+    // Legacy cloud sessions have assistant links but no generated-file marker.
+    for (let page = 0; page < 50; page++) {
+      const result = db.getConversationMessages(conversationId, page, 200, 'ASC');
+      for (const message of result.data) {
+        if (message.type !== 'text') continue;
+        const content = message.content.content;
+        if (message.position === 'right') {
+          for (const input of content.split(NEXUS_FILES_MARKER).slice(1).join('\n').split('\n').filter(Boolean)) {
+            inputs.add(input.trim().replace(/\\/g, '/').split('/').pop() || '');
+          }
+          continue;
+        }
+        for (const relativePath of extractWorkspaceFileLinks(content, extra.workspace)) candidates.set(relativePath, message.createdAt);
+      }
+      if (!result.hasMore) break;
+    }
+    const legacy: GeneratedFileEntry[] = [];
+    for (const [relativePath, createdAt] of candidates) {
+      const file = files.get(relativePath);
+      if (!file || inputs.has(relativePath.split('/').pop() || '')) continue;
+      legacy.push({ path: file.fullPath, relativePath, kind: 'create', ext: nodePath.extname(relativePath).slice(1).toLowerCase(), size: file.size, createdAt });
+    }
+    return dedupeAndSort([...legacy, ...collected]);
+  }
+
   listForConversation(conversationId: string): GeneratedFileEntry[] {
     if (!conversationId) return [];
     const db = getDatabase();

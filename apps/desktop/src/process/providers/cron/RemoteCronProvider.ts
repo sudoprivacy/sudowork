@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { isManualCronSchedule } from '@sudowork/common/cronSchedule';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { MossCronApi, type MossCronJob, type MossCronJobRun } from '@process/remote/MossCronApi';
 import { getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
@@ -28,8 +29,9 @@ function stripBuiltinAssistantPrefix(assistantId: string): string {
   return assistantId.startsWith('builtin-') ? assistantId.slice('builtin-'.length) : assistantId;
 }
 
-function resolveMossAssistantName(presetAssistantId: string | null | undefined, fallbackAgentType: AcpBackendAll): string {
-  return presetAssistantId ? stripBuiltinAssistantPrefix(presetAssistantId) : fallbackAgentType;
+function resolveMossAssistantName(presetAssistantId: string | null | undefined): string | undefined {
+  // A backend ID (scode / remote-agent) is not a Moss assistant resource.
+  return presetAssistantId ? stripBuiltinAssistantPrefix(presetAssistantId) : undefined;
 }
 
 function getLocalConversationIdByMossSessionId(mossSessionId: string | null | undefined): string | undefined {
@@ -87,7 +89,7 @@ function mossJobToLocal(mossJob: MossCronJob): CronJob {
   let schedule: CronSchedule;
   switch (mossJob.schedule.kind) {
     case 'at':
-      schedule = { kind: 'at', atMs: mossJob.nextRunAt || Date.now(), description: mossJob.schedule.description || '' };
+      schedule = { kind: 'at', atMs: /^\d+$/.test(mossJob.schedule.value) ? Number(mossJob.schedule.value) : Date.parse(mossJob.schedule.value), description: mossJob.schedule.description || '' };
       break;
     case 'every': {
       // Parse 'every' value (e.g., "1h", "30m", "1d")
@@ -131,7 +133,7 @@ function mossJobToLocal(mossJob: MossCronJob): CronJob {
   return {
     id: mossJob.id,
     name: mossJob.name,
-    enabled: mossJob.enabled,
+    enabled: !isManualCronSchedule(schedule) && mossJob.enabled,
     schedule,
     target: {
       payload: { kind: 'message', text: mossJob.payloadMessage },
@@ -148,7 +150,7 @@ function mossJobToLocal(mossJob: MossCronJob): CronJob {
       presetAssistantId: mossJob.assistantId,
     },
     state: {
-      nextRunAtMs: mossJob.nextRunAt,
+      nextRunAtMs: isManualCronSchedule(schedule) || !mossJob.enabled ? undefined : (mossJob.nextRunAt ?? undefined),
       lastRunAtMs: mossJob.lastRunAt,
       lastStatus: mossJob.lastStatus as 'ok' | 'error' | 'skipped' | 'missed' | undefined,
       lastError: mossJob.lastError,
@@ -240,12 +242,13 @@ export class RemoteCronProvider implements ICronProvider {
       const conversationMode = params.conversationMode || 'new';
       const mossJob = await this.mossCronApi.createJob({
         name: params.name,
+        enabled: !isManualCronSchedule(params.schedule) && (params.enabled ?? true),
         schedule: mossSchedule,
         payloadMessage: params.message,
         conversationMode,
         boundSessionId: conversationMode === 'reuse' ? this.resolveMossSessionId(params.conversationId) : undefined,
         assistantId: params.presetAssistantId ?? undefined,
-        assistantName: resolveMossAssistantName(params.presetAssistantId, params.agentType),
+        assistantName: resolveMossAssistantName(params.presetAssistantId),
         workspace: params.workspace,
       });
 
@@ -259,6 +262,13 @@ export class RemoteCronProvider implements ICronProvider {
   async updateJob(jobId: string, updates: Partial<CronJob>): Promise<CronJob> {
     try {
       const mossUpdates: Record<string, unknown> = {};
+      let schedule = updates.schedule;
+      if (!schedule && updates.enabled === true) {
+        const existing = await this.getJob(jobId);
+        if (!existing) throw new Error('Unable to verify the schedule before enabling this job');
+        schedule = existing.schedule;
+      }
+      if (schedule && isManualCronSchedule(schedule)) updates = { ...updates, enabled: false };
 
       if (updates.name !== undefined) mossUpdates.name = updates.name;
       if (updates.enabled !== undefined) mossUpdates.enabled = updates.enabled;
@@ -296,14 +306,10 @@ export class RemoteCronProvider implements ICronProvider {
         mossUpdates.boundSessionId = updates.metadata.conversationMode === 'new' ? null : this.resolveMossSessionId(updates.metadata.conversationId);
       }
       if (updates.metadata?.workspace !== undefined) mossUpdates.workspace = updates.metadata.workspace;
-      if (updates.metadata?.agentType !== undefined) {
-        mossUpdates.assistantName = updates.metadata.agentType;
-      }
       if (updates.metadata && Object.prototype.hasOwnProperty.call(updates.metadata, 'presetAssistantId')) {
         const presetAssistantId = updates.metadata.presetAssistantId as string | null | undefined;
-        const fallbackAgentType = updates.metadata.agentType ?? 'remote-agent';
         mossUpdates.assistantId = presetAssistantId ?? null;
-        mossUpdates.assistantName = resolveMossAssistantName(presetAssistantId, fallbackAgentType);
+        mossUpdates.assistantName = resolveMossAssistantName(presetAssistantId) ?? null;
       }
 
       const mossJob = await this.mossCronApi.updateJob(jobId, mossUpdates);

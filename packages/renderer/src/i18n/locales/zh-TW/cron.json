@@ -98,5 +98,13 @@
   "create.reuseConversationPlaceholder": "首次執行時自動建立",
   "create.reuseConversationHint": "選擇已有會話，首次執行將直接追加到該會話",
   "goToLastConversation": "查看最近執行會話",
-  "sidebar.scheduled": "定時任務"
+  "sidebar.scheduled": "定時任務",
+  "create.nameRequired": "请输入名称",
+  "create.promptRequired": "请输入指令",
+  "create.namePlaceholder": "例如：每日简报",
+  "create.assistantUnavailable": "所选智能体在当前执行环境不可用，请选择默认智能体或其他可用智能体。",
+  "create.saveFailed": "保存失败，请检查配置和网络连接后重试。",
+  "create.manualHint": "仅在点击“立即执行”时运行，不会自动排期。",
+  "create.defaultRemoteAgent": "默认云端智能体",
+  "create.defaultAgent": "Sudo Code"
 }
