@@ -266,7 +266,7 @@ export function registerScodeBridge(): void {
   ipcBridge.scode.getConfig.provider(async () => {
     try {
       const config = readExistingConfig();
-      return { success: true, data: config };
+      return { success: true, data: config, path: SCODE_CONFIG_PATH };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       mainWarn(TAG, `Failed to read sudocode.json: ${msg}`);

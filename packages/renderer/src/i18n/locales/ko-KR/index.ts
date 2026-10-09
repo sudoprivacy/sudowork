@@ -30,7 +30,10 @@ import runtimeError from './runtimeError.json';
 import pwdLogin from './pwdLogin.json';
 import ontology from './ontology.json';
 
+import modelBilling from './modelBilling.json';
+
 export default {
+  modelBilling,
   common,
   agentMode,
   update,

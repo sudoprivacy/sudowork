@@ -1344,8 +1344,8 @@ export const sudoclaw = {
 // Types (ScodeConfig / ScodeModelEntry / ScodeModelProvider) live in
 // @sudowork/common/scodeTypes and are imported + re-exported at the top of this file.
 export const scode = {
-  /** Read scode config from ~/.nexus/sudowork/sudocode/sudocode.json */
-  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>('scode.get-config'),
+  /** Read scode config and its resolved path from the main process. */
+  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig> & { path?: string }, void>('scode.get-config'),
   /** Save full scode config to ~/.nexus/sudowork/sudocode/sudocode.json (overwrite) */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
   /** Save custom OpenAI-compatible scode model providers for the signed-in user */

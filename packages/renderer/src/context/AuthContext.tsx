@@ -36,12 +36,6 @@ export interface AuthUser {
   localModeAvailable?: boolean;
   execution?: import('@sudowork/common/mossExecution').IMossExecutionCapabilities;
   localRuntime?: import('@sudowork/common/mossExecution').TMossLocalRuntimeStatus;
-  points?: {
-    total: number;
-    used: number;
-    remaining: number;
-    bonus: number;
-  };
 }
 
 // 新的存储结构
@@ -902,7 +896,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         headers: withAuthorizationHeader(options.headers, token),
       });
 
-      if (response.status !== 401 && response.status !== 403) {
+      if (response.status !== 401) {
         return response;
       }
 
@@ -916,7 +910,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         headers: withAuthorizationHeader(options.headers, newToken),
       });
 
-      if (retryResponse.status === 401 || retryResponse.status === 403) {
+      if (retryResponse.status === 401) {
         await expireAuth('authenticated_request_unauthorized_after_retry');
         throw new Error('AUTH_EXPIRED');
       }
