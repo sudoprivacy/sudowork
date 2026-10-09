@@ -28,7 +28,7 @@
  */
 
 import { bridge } from '@office-ai/platform'
-import { z } from 'zod'
+import { createMossAgentPort } from '@sudowork/moss-client/agents'
 // Canonical wire shape — one definition shared with the renderer + main, not a
 // parallel copy.
 import type { IBridgeResponse } from '@sudowork/host-bridge/ipcBridge'
@@ -80,19 +80,15 @@ type TenantConfigPayload = {
 const ok = <D>(data?: D): IBridgeResponse<D> => ({ success: true, data })
 const fail = (msg: string): IBridgeResponse => ({ success: false, msg })
 
-const myAgentsResponseSchema = z.object({
-  success: z.literal(true),
-  data: z.array(
-    z.object({
-      ref: z.string().min(1),
-      displayName: z.string(),
-      kind: z.enum(['default', 'own', 'template']),
-    }),
-  ),
-})
+const agentPort = createMossAgentPort((request) =>
+  apiFetch<unknown>(request.path, {
+    method: request.method,
+    ...(request.body !== undefined ? { body: JSON.stringify(request.body) } : {}),
+  }),
+)
 
 async function listMyAgents() {
-  return myAgentsResponseSchema.parse(await apiFetch<unknown>('/api/v1/agents/mine')).data
+  return agentPort.listMine()
 }
 
 function errMessage(err: unknown): string {
@@ -627,6 +623,8 @@ interface ConversationListItem {
   taskId?: string | null
   status?: string
   assistantName?: string | null
+  /** Display label for a pending creation; never replaces its identity. */
+  displayName?: string
   source?: string | null
   createdAt?: number | null
   lastActiveAt?: number | null
@@ -662,6 +660,7 @@ function toChatConversation(
 ): Record<string, unknown> {
   const agentName =
     displayName ??
+    item.displayName ??
     (isPersonalAgentRef(item.assistantName ?? undefined)
       ? undefined
       : (item.assistantName ?? undefined))
@@ -711,6 +710,7 @@ function toChatConversation(
     extra: {
       backend: 'scode',
       agentName,
+      mossAssistantRef: item.assistantName ?? undefined,
       pinned: item.pinned ?? false,
       pinnedAt: item.pinnedAt ?? undefined,
       mossSessionId: item.id,
@@ -1465,26 +1465,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok(await listMyAgents())
   },
   'eeclaw.create-user-agent': async (req) => {
-    const input = z
-      .object({ displayName: z.string().trim().min(1).max(60) })
-      .strict()
-      .parse(req)
-    const response = z.object({
-      success: z.literal(true),
-      data: z.object({
-        id: z.string().uuid(),
-        displayName: z.string().min(1),
-        createdAt: z.number(),
-      }),
-    })
-    return ok(
-      response.parse(
-        await apiFetch<unknown>('/api/v1/user-agents', {
-          method: 'POST',
-          body: JSON.stringify(input),
-        }),
-      ).data,
-    )
+    return ok(await agentPort.createOwned(req))
   },
 
   'eeclaw.get-cloud-assistants': async () => {
@@ -1841,8 +1822,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       }),
     })
     ensureSessionStream(created.id)
-    // Report the UI display name (moss persists display_name) so the freshly
-    // created conversation matches what get-conversation will return later.
+    // Preserve the identity through pending list reads while showing its label.
     const displayName =
       typeof extra?.agentName === 'string' &&
       extra.agentName &&
@@ -1863,19 +1843,23 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       id: created.id,
       taskId: created.taskId,
       status: 'detached',
-      assistantName: displayName ?? null,
+      assistantName: agent || null,
+      displayName: displayName ?? undefined,
       source: null,
       lastActiveAt: Date.now(),
       title: createdTitle || null,
       pinned: false,
       pinnedAt: null,
     })
-    return toChatConversation({
-      id: created.id,
-      taskId: created.taskId,
-      assistantName: displayName,
-      title: createdTitle || null,
-    })
+    return toChatConversation(
+      {
+        id: created.id,
+        taskId: created.taskId,
+        assistantName: agent || null,
+        title: createdTitle || null,
+      },
+      displayName ?? undefined,
+    )
   },
   'moss.create-session': async (req) => {
     const created = await apiFetch<{ id: string; taskId: string }>('/api/conversations', {

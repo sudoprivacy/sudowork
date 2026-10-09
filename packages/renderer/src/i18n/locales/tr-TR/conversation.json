@@ -12,7 +12,7 @@
     "linkFolder": "Klasör Aç",
     "newConversation": "Yeni görev",
     "execution": {
-      "cloud": "Bulutta çalıştır",
+      "cloud": "Sunucuda çalıştır",
       "local": "Yerel çalıştır"
     },
     "multiAgentModeEnabled": "Çoklu ajan moduna giriliyor",

@@ -35,9 +35,11 @@
     "retry": "Tekrar dene",
     "default": "Varsayılan Agent",
     "personal": "Kişisel Agent",
-    "startConversation": "Sohbet başlat",
+    "startConversation": "Yeni görüşme",
     "empty": "Henüz kişisel Agent yok",
     "name": "Agent adı",
-    "createFailed": "Agent oluşturulamadı. Lütfen tekrar deneyin."
+    "createFailed": "Agent oluşturulamadı. Lütfen tekrar deneyin.",
+    "open": "Agent aç",
+    "openFailed": "Agent görüşmeleri açılamadı. Lütfen tekrar deneyin."
   }
 }

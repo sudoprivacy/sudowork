@@ -6,12 +6,12 @@
 
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Empty, Input, Message, Modal } from '@arco-design/web-react';
+import { Button, Empty, Input, Message, Modal } from '@arco-design/web-react';
 import { Down, FolderOpen } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
@@ -28,13 +28,15 @@ import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
-import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
+import type { AgentGroup, ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
+import { getLatestAgentConversation } from './utils/groupingHelpers';
 
 /** Section key for the cross-agent recent list; cannot collide with an agent reference. */
 const RECENT_SECTION_KEY = '__recent__';
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
 
@@ -210,6 +212,16 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       toggleSelectedConversation,
       markAsRead,
     });
+
+  function onAgentOpen(group: AgentGroup) {
+    const latest = getLatestAgentConversation(conversations, group.ref);
+    if (latest) {
+      void handleConversationClick(latest);
+      return;
+    }
+    void navigate(`/guid?assistant=${encodeURIComponent(group.ref)}`);
+    onSessionClick?.();
+  }
 
   const {
     exportTask,
@@ -508,7 +520,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
             )}
 
             {agentGroups.map((group) => {
-              const expanded = isTimelineSectionExpanded(group.ref);
+              const isExpanded = isTimelineSectionExpanded(group.ref);
               // The implicit default agent is named after the person; an account
               // with no name falls back to a label rather than showing a blank
               // row or the internal reference.
@@ -516,12 +528,21 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               return (
                 <div key={group.ref} className='mb-8px min-w-0'>
                   {!collapsed && (
-                    <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(group.ref)}>
-                      <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', expanded ? 'rotate-0' : '-rotate-90')} />
-                      <span className='truncate'>{label}</span>
+                    <div className='chat-history__section px-3 py-2 text-13px text-secondary font-bold flex items-center gap-1 min-w-0'>
+                      <Button
+                        type='text'
+                        size='mini'
+                        aria-label={`${t(isExpanded ? 'common.collapse' : 'common.expandMore')} ${label}`}
+                        aria-expanded={isExpanded}
+                        onClick={() => handleToggleTimeline(group.ref)}
+                        icon={<Down size={12} className={classNames('line-height-0 transition-transform duration-200', isExpanded ? 'rotate-0' : '-rotate-90')} />}
+                      />
+                      <Button type='text' size='mini' className='flex-1 min-w-0 text-left !justify-start !text-inherit !font-bold' disabled={batchMode} onClick={() => onAgentOpen(group)}>
+                        <span className='truncate'>{label}</span>
+                      </Button>
                     </div>
                   )}
-                  {(collapsed || expanded) && (
+                  {(collapsed || isExpanded) && (
                     <div className='flex flex-col gap-2px min-w-0'>
                       {group.conversations.length > 0
                         ? group.conversations.map((conversation) => renderConversation(conversation as ConversationItem, group.ref))
@@ -535,7 +556,6 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
         )}
 
         {activeTab === 'timeline' &&
-          agentGroups.length === 0 &&
           timelineSections.map((section) => {
             const sectionExpanded = isTimelineSectionExpanded(section.timeline);
             return (

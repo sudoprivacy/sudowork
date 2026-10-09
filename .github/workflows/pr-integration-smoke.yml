@@ -11,6 +11,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  # Cold macOS installs can exhaust sockets while resolving the monorepo.
+  BUN_CONFIG_MAX_HTTP_REQUESTS: '32'
+
 jobs:
   browser-backend-live:
     name: Browser Backend Live (${{ matrix.os }})
@@ -84,17 +89,16 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb
+          if ! command -v xvfb-run >/dev/null || ! command -v xauth >/dev/null; then
+            sudo apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+            sudo apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y xvfb xauth
+          fi
           pip install websockets websocket-client Pillow deprecated
 
       - name: Run browser port isolation test
         run: |
-          Xvfb :99 -screen 0 1280x1024x24 &
-          sleep 2
-          python3 tests/integration/browser_port_isolation.py
+          xvfb-run -a -s '-screen 0 1280x1024x24' python3 tests/integration/browser_port_isolation.py
         env:
-          DISPLAY: ':99'
           PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser
 
   browser-panel-mcp-server:
@@ -167,7 +171,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest]
+        os: [ubuntu-22.04, windows-latest, macos-14, macos-15-intel]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     defaults:
@@ -190,6 +194,18 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Install the checksum-verified macOS FUSE dependency
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./src/shared/runtime-versions.json')['fuse-t']")
+          PACKAGE="fuse-t-macos-installer-${VERSION}.pkg"
+          DOWNLOAD="${RUNNER_TEMP}/${PACKAGE}"
+          curl -fsSL --max-time 120 "https://github.com/macos-fuse-t/fuse-t/releases/download/${VERSION}/${PACKAGE}" -o "$DOWNLOAD"
+          echo "6a29c747e61a86a405a189efc3de42812d73147135f93a1bb0624c1e7b90e654  $DOWNLOAD" | shasum -a 256 -c -
+          sudo installer -pkg "$DOWNLOAD" -target /
 
       - name: Install, restart, and update the published runtime
         env:
@@ -236,7 +252,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler pkg-config libssl-dev
 
-
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
 
@@ -245,7 +260,6 @@ jobs:
         # that file should re-resolve here. SHA256 mismatches caused by
         # forgetting to update scripts/download-nexus-vfs.js fail fast.
         run: bun run nexus-vfs:download
-
 
       - name: Start nexusd-cluster on :2028
         # nexusd-cluster speaks HTTP/2 gRPC. Background it, wait for the

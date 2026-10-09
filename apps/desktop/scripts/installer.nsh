@@ -1,5 +1,5 @@
 ; Sudowork Custom NSIS Script
-; - Generates an install manifest at install time for selective uninstall
+; - Uses the packaged file manifest for selective uninstall
 ; - Replaces default "RMDir /r $INSTDIR" with manifest-based file removal
 ; - Preserves user-added files in the installation directory
 ; - Overrides Simplified Chinese NSIS uninstall strings for standard terminology
@@ -18,6 +18,7 @@
 !include "MUI2.nsh"
 !include "nsDialogs.nsh"
 !include "LogicLib.nsh"
+!include "FileFunc.nsh"
 
 ; WS_BORDER is not defined in NSIS's standard WinMessages.nsh,
 ; so we define it here for use in custom dialog controls.
@@ -356,6 +357,19 @@ $\r$\n\
   ; Keep Cancel button enabled during installation
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW instFilesShow
 
+  !ifdef allowToChangeInstallationDirectory
+    Function instFilesPreserveUpdateLocationPre
+      ; Updates reuse the registered installation directory. The upstream
+      ; fresh-install sanitizer would append APP_FILENAME to a custom path.
+      ${IfNot} ${isUpdated}
+        Call instFilesPre
+      ${EndIf}
+    FunctionEnd
+
+    !undef MUI_PAGE_CUSTOMFUNCTION_PRE
+    !define MUI_PAGE_CUSTOMFUNCTION_PRE instFilesPreserveUpdateLocationPre
+  !endif
+
 !endif ; BUILD_UNINSTALLER
 !macroend
 
@@ -434,30 +448,16 @@ $\r$\n\
     DetailPrint "Skipped start menu shortcut per user preference."
   ${EndIf}
 
-  ; Generate install manifest by scanning $INSTDIR after installation completes.
-  ; This records every top-level file/directory so the uninstaller knows what to remove.
+  ; The build records individual payload files. Scanning an existing installation
+  ; would incorrectly claim user files left by an earlier version.
   ClearErrors
-  FileOpen $0 "$INSTDIR\.install-manifest" w
+  SetFileAttributes "$INSTDIR\.install-manifest" NORMAL
+  CopyFiles /SILENT "$INSTDIR\resources\installer-owned-files.txt" "$INSTDIR\.install-manifest"
   IfErrors _ci_skip_manifest
-
-  FindFirst $1 $2 "$INSTDIR\*.*"
-  _ci_loop:
-    StrCmp $2 "" _ci_done
-    StrCmp $2 "." _ci_next
-    StrCmp $2 ".." _ci_next
-    ; Skip the manifest file itself
-    StrCmp $2 ".install-manifest" _ci_next
-    FileWrite $0 "$2$\r$\n"
-  _ci_next:
-    FindNext $1 $2
-    Goto _ci_loop
-  _ci_done:
-    FindClose $1
-    FileClose $0
 
     ; Hide the manifest so users don't accidentally modify or delete it
     SetFileAttributes "$INSTDIR\.install-manifest" HIDDEN|SYSTEM
-    DetailPrint "Install manifest created with list of installed files."
+    DetailPrint "Packaged file manifest installed."
     Goto _ci_end
 
   _ci_skip_manifest:
@@ -501,10 +501,18 @@ $\r$\n\
   FileOpen $0 "$INSTDIR\.install-manifest" r
   IfErrors _crf_no_manifest
 
+  ; The packaged UTF-16LE file starts with a two-byte BOM.
+  FileSeek $0 2 SET
+  FileReadUTF16LE $0 $1
+  StrCmp $1 "sudowork-owned-files-v1$\r$\n" 0 _crf_legacy_manifest
+
+  GetFullPathName $4 "$INSTDIR"
+  StrLen $5 "$4\"
+
   ; --- Step 2: Delete each entry listed in the manifest ---
   _crf_loop:
     ClearErrors
-    FileRead $0 $1
+    FileReadUTF16LE $0 $1
     IfErrors _crf_loop_done
 
     ; Strip trailing newline characters (handle both CRLF and LF)
@@ -518,24 +526,43 @@ $\r$\n\
     ; Skip empty lines
     StrCmp $1 "" _crf_loop
 
-    ; Build full path
-    StrCpy $2 "$INSTDIR\$1"
+    ; Reject wildcard and alternate-stream entries before resolving the path.
+    StrCpy $6 0
+  _crf_validate_entry:
+    StrCpy $3 $1 1 $6
+    StrCmp $3 "" _crf_resolve_entry
+    StrCmp $3 "*" _crf_skip_invalid
+    StrCmp $3 "?" _crf_skip_invalid
+    StrCmp $3 ":" _crf_skip_invalid
+    IntOp $6 $6 + 1
+    Goto _crf_validate_entry
 
-    ; Check if path is a directory (contains sub-entries) or a file
-    IfFileExists "$2\*.*" _crf_rmdir _crf_rmfile
+  _crf_resolve_entry:
+    ClearErrors
+    GetFullPathName $2 "$INSTDIR\$1"
+    IfErrors _crf_skip_invalid
+    StrCpy $6 $2 $5
+    StrCmp $6 "$4\" 0 _crf_skip_invalid
 
-  _crf_rmdir:
-    RMDir /r "$2"
-    IfErrors 0 _crf_loop
-      DetailPrint "Warning: Could not fully remove directory: $1"
-    Goto _crf_loop
-
-  _crf_rmfile:
     Delete "$2"
-    IfErrors 0 _crf_loop
+    IfErrors 0 _crf_clean_parents
       ; File may be locked - schedule removal on next reboot
       Delete /REBOOTOK "$2"
       DetailPrint "File locked, scheduled for removal on reboot: $1"
+    Goto _crf_loop
+
+  _crf_clean_parents:
+    ; Remove only empty parents. User files inside packaged directories remain.
+    ${GetParent} "$2" $3
+  _crf_parent_loop:
+    StrCmp $3 "$4" _crf_loop
+    StrCmp $3 "" _crf_loop
+    RMDir "$3"
+    ${GetParent} "$3" $3
+    Goto _crf_parent_loop
+
+  _crf_skip_invalid:
+    DetailPrint "Skipped an invalid install manifest entry"
     Goto _crf_loop
 
   _crf_loop_done:
@@ -557,8 +584,14 @@ $\r$\n\
 
   Goto _crf_end
 
-  ; --- Fallback: manifest missing or unreadable ---
+  _crf_legacy_manifest:
+    FileClose $0
+  ; --- Fallback: manifest missing, unreadable, or from a legacy installer ---
   _crf_no_manifest:
+    ; A silent uninstall cannot consent to deleting unknown user files.
+    ${If} ${Silent}
+      Goto _crf_end
+    ${EndIf}
     MessageBox MB_YESNO|MB_ICONQUESTION \
       "安装清单未找到，无法精确卸载。$\r$\n$\r$\n\
       是否删除整个安装目录？$\r$\n\

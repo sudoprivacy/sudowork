@@ -16,6 +16,7 @@ permissions:
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  BUN_CONFIG_MAX_HTTP_REQUESTS: '32'
 
 jobs:
   # Job 1: Skipped code quality checks (ESLint removed per requirement)
@@ -208,11 +209,15 @@ jobs:
         include:
           - os: ubuntu-latest
             name: Full Unit Test Suite
+            timeout: 20
           # Match the VS 2022 toolchain selected by rebuildNativeModules.js.
           - os: windows-2022
             name: Full Unit Test Suite (Windows)
+            # A cold install took 14m35s; preserve time for the complete suite
+            # and the Electron ABI rebuild without changing test timeouts.
+            timeout: 30
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.timeout }}
     defaults:
       run:
         working-directory: apps/desktop
@@ -250,6 +255,7 @@ jobs:
         run: node scripts/postinstall.js
 
       - name: Run full test suite
+        timeout-minutes: 10
         run: bunx vitest run
 
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
@@ -567,3 +573,6 @@ jobs:
 
       - name: Test release validation regressions
         run: python3 scripts/test-release-verification.py
+
+      - name: Test candidate promotion against local Git remotes
+        run: python3 scripts/test-candidate-promotion.py

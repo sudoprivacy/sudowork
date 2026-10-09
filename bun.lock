@@ -12,7 +12,7 @@
     },
     "apps/desktop": {
       "name": "sudowork",
-      "version": "0.2.27",
+      "version": "0.2.28",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.71.2",
         "@aws-sdk/client-bedrock": "^3.987.0",
@@ -26,7 +26,7 @@
         "@larksuiteoapi/node-sdk": "^1.58.0",
         "@lydell/node-pty": "^1.1.0",
         "@modelcontextprotocol/sdk": "^1.20.0",
-        "@nexus-ai-fs/vfs-client": "https://sudowork-runtime-1309794936.cos.accelerate.myqcloud.com/nexus-vfs/clients/node/0.5.0/nexus-ai-fs-vfs-client-0.5.0.tgz",
+        "@nexus-ai-fs/vfs-client": "https://sudowork-runtime-1309794936.cos.accelerate.myqcloud.com/nexus-vfs/clients/node/0.5.1/nexus-ai-fs-vfs-client-0.5.1.tgz",
         "@office-ai/aioncli-core": "^0.30.0",
         "@office-ai/platform": "^0.3.16",
         "@sudowork/common": "workspace:*",
@@ -316,6 +316,7 @@
       "name": "@sudowork/moss-client",
       "version": "0.0.0",
       "dependencies": {
+        "@sudowork/common": "workspace:*",
         "@sudowork/contracts": "workspace:*",
         "ws": "8.18.3",
         "zod": "3.25.76",
@@ -1293,7 +1294,7 @@
 
     "@napi-rs/wasm-tools-win32-x64-msvc": ["@napi-rs/wasm-tools-win32-x64-msvc@1.0.1", "http://registry.npm.taobao.org/@napi-rs/wasm-tools-win32-x64-msvc/-/wasm-tools-win32-x64-msvc-1.0.1.tgz", { "os": "win32", "cpu": "x64" }, "sha512-rEAf05nol3e3eei2sRButmgXP+6ATgm0/38MKhz9Isne82T4rPIMYsCIFj0kOisaGeVwoi2fnm7O9oWp5YVnYQ=="],
 
-    "@nexus-ai-fs/vfs-client": ["@nexus-ai-fs/vfs-client@https://sudowork-runtime-1309794936.cos.accelerate.myqcloud.com/nexus-vfs/clients/node/0.5.0/nexus-ai-fs-vfs-client-0.5.0.tgz", { "dependencies": { "@grpc/grpc-js": "^1.14.4", "@grpc/proto-loader": "^0.8.0", "protobufjs": "^7.6.6" } }, "sha512-pVpKxRmDvkh3QVd7aCUrPunwVAx387a++ClWTryk1VjNQUnKGooczbi5tlVDnNHGH/v5rHxK8DMoEq6Ybpfc9Q=="],
+    "@nexus-ai-fs/vfs-client": ["@nexus-ai-fs/vfs-client@https://sudowork-runtime-1309794936.cos.accelerate.myqcloud.com/nexus-vfs/clients/node/0.5.1/nexus-ai-fs-vfs-client-0.5.1.tgz", { "dependencies": { "@grpc/grpc-js": "^1.14.4", "@grpc/proto-loader": "^0.8.0", "protobufjs": "^7.6.6" } }, "sha512-R29Y6rzJTNm7KzwISVt6BFo3Frg+0teo6W9P7YWzHW8yXeMMuudXlwtJ9tA/QgUxWhxe76712RAQSmJ3nz4Ppw=="],
 
     "@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
 

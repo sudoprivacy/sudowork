@@ -59,6 +59,7 @@ describe('OntologyDatabase schema', () => {
     }
   });
 
+  // Allow the bundle build plus the subprocess's own 15-second deadline.
   it('conditionally saves an unchanged snapshot and rejects edits or deletion in an isolated SQLite database', async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ontology-database-cas-'));
     const outputFile = path.join(directory, 'verify.cjs');
@@ -168,5 +169,5 @@ describe('OntologyDatabase schema', () => {
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });

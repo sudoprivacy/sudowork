@@ -48,6 +48,7 @@ const aliases = [
   { find: /^@mcp\//, replacement: path.resolve(__dirname, './src/common') + '/' },
   // Resolve shared workspace packages to source so tests never depend on a
   // prior `dist` build (uniform local/CI; exercises the actual source).
+  { find: '@sudowork/moss-client/agents', replacement: path.resolve(__dirname, '../../packages/moss-client/src/MossAgentClient.ts') },
   { find: '@sudowork/moss-client', replacement: path.resolve(__dirname, '../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-common/src') + '/$1' },
   { find: /^@sudowork\/ontology-common$/, replacement: path.resolve(__dirname, '../../packages/ontology-common/src/index.ts') },
@@ -136,6 +137,7 @@ export default defineConfig({
         '../../packages/renderer/src/pages/guid/utils/personalAgentSelection.ts',
         '../../packages/common/src/personalAgents.ts',
         'src/process/services/mossPersonalAgents.ts',
+        '../../packages/moss-client/src/MossAgentClient.ts',
         '../../packages/common/src/mossExecution.ts',
         '../../packages/common/src/conversationTitle.ts',
         '../../packages/renderer/src/pages/conversation/grouped-history/utils/groupingHelpers.ts',
