@@ -7,6 +7,7 @@
 import { powerSaveBlocker, app } from 'electron';
 import type { CronMessageMeta, TMessage } from '@sudowork/common/chatLib';
 import { Cron } from 'croner';
+import { isManualCronSchedule } from '@sudowork/common/cronSchedule';
 import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
@@ -30,6 +31,7 @@ import { assertClientCronEnabled, getClientCronEnabled } from './cronPolicy';
  */
 export interface CreateCronJobParams {
   name: string;
+  enabled?: boolean;
   schedule: CronSchedule;
   message: string;
   conversationId: string;
@@ -94,7 +96,7 @@ class CronService {
     const job: CronJob = {
       id: jobId,
       name: params.name,
-      enabled: true,
+      enabled: !isManualCronSchedule(params.schedule) && (params.enabled ?? true),
       schedule: params.schedule,
       target: {
         payload: { kind: 'message', text: params.message },
@@ -151,6 +153,10 @@ class CronService {
       throw new Error(`Job not found: ${jobId}`);
     }
 
+    if (isManualCronSchedule(updates.schedule ?? existing.schedule)) {
+      updates = { ...updates, enabled: false };
+    }
+
     // Stop existing timer
     this.stopTimer(jobId);
 
@@ -171,7 +177,7 @@ class CronService {
     const updated = cronStore.getById(jobId)!;
 
     // Recalculate next run time if schedule changed or job is being enabled
-    if (updates.schedule || (updates.enabled === true && !existing.enabled)) {
+    if (updates.schedule || updates.enabled !== undefined) {
       this.updateNextRunTime(updated);
       cronStore.update(jobId, { state: updated.state });
     }
@@ -246,6 +252,7 @@ class CronService {
   private startTimer(job: CronJob): void {
     // Stop existing timer if any
     this.stopTimer(job.id);
+    if (!job.enabled || isManualCronSchedule(job.schedule)) return;
 
     const { schedule } = job;
     const jobId = job.id;
@@ -651,6 +658,10 @@ class CronService {
    * Update the next run time for a job
    */
   private updateNextRunTime(job: CronJob): void {
+    if (!job.enabled || isManualCronSchedule(job.schedule)) {
+      job.state.nextRunAtMs = undefined;
+      return;
+    }
     const { schedule } = job;
 
     switch (schedule.kind) {

@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { resolveWorkspaceFileLink } from '@sudowork/common/workspaceFileLinks';
+import { useConversationContextSafe } from '@renderer/context/ConversationContext';
+import WorkspaceFileLink from './WorkspaceFileLink';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 
 import SyntaxHighlighter from 'react-syntax-highlighter';
@@ -509,6 +512,7 @@ interface MarkdownViewProps {
 
 const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeStyle, className, onRef, allowHtml, children: childrenProp }) => {
   const { t } = useTranslation();
+  const conversation = useConversationContextSafe();
 
   const normalizedChildren = useMemo(() => {
     if (typeof childrenProp === 'string') {
@@ -559,21 +563,26 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
                 );
               },
               code: (props: any) => CodeBlock({ ...props, codeStyle, hiddenCodeCopyButton }),
-              a: ({ node: _node, ...props }) => (
-                <a
-                  {...props}
-                  target='_blank'
-                  rel='noreferrer'
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (!props.href) return;
-                    openExternalUrl(props.href).catch((error) => {
-                      console.error(t('messages.openLinkFailed'), error);
-                    });
-                  }}
-                />
-              ),
+              a: ({ node: _node, ...props }) => {
+                const file = props.href ? resolveWorkspaceFileLink(props.href, conversation?.workspace) : null;
+                if (file && conversation) return <WorkspaceFileLink {...props} conversation={conversation} file={file} />;
+                return (
+                  <a
+                    {...props}
+                    target='_blank'
+                    rel='noreferrer'
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!props.href) return;
+                      openExternalUrl(props.href).catch((error) => {
+                        console.error(t('messages.openLinkFailed'), error);
+                        Message.error(t('messages.openLinkFailed'));
+                      });
+                    }}
+                  />
+                );
+              },
               table: ({ node: _node, ...props }) => (
                 <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
                   <table

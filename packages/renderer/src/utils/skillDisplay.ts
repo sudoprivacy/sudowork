@@ -27,12 +27,15 @@ export function hubIconLegacyFallback(src: string | null | undefined): string | 
   return undefined;
 }
 
-/** <img onError> handler: swap a primary hub-bucket icon to the legacy bucket once. */
+/** Try the legacy host once, then a bundled icon; never leave a broken image. */
 export function handleSkillIconError(e: { currentTarget: HTMLImageElement }): void {
   const img = e.currentTarget;
   const fallback = hubIconLegacyFallback(img.src);
   if (fallback && img.src !== fallback) {
     img.src = fallback;
+  } else if (img.getAttribute('src') !== defaultSkillIcon) {
+    img.removeAttribute('crossorigin');
+    img.src = defaultSkillIcon;
   }
 }
 

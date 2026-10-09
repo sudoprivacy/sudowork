@@ -24,5 +24,10 @@
   "objectEditor.close": "閉じる",
   "objectEditor.attributeSaveHint": "属性の変更は即座に保存され、このウィンドウを閉じても元には戻りません。基本情報は別途保存してください。",
   "objectEditor.deleteAttributeTitle": "属性を削除",
-  "objectEditor.deleteAttributeContent": "属性「{{name}}」を削除しますか？関連するフィールドマッピングも削除されます。"
+  "objectEditor.deleteAttributeContent": "属性「{{name}}」を削除しますか？関連するフィールドマッピングも削除されます。",
+  "studio": {
+    "issues": {
+      "noServiceEndpoint": "Ontology tools are not available to agents yet. Open Release to publish the ontology and register an agent."
+    }
+  }
 }

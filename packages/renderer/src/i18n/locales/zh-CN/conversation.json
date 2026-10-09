@@ -335,5 +335,7 @@
     "recent": "最近",
     "myAgent": "我的智能体",
     "agentHasNoConversations": "还没有对话"
-  }
+  },
+  "rightPanel.terminal.remoteUnavailable": "云端会话暂不支持交互式终端。请在对话中让智能体执行命令，或切换到本地会话使用终端。",
+  "rightPanel.terminal.createFailed": "终端启动失败，请检查工作目录是否存在及系统 Shell 配置，然后新建终端重试。"
 }

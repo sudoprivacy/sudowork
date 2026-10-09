@@ -2538,6 +2538,7 @@ function checkConsistency(snapshot: IOntologyWorkbenchSnapshot): IOntologyConsis
     issues.push({
       id: randomUUID(),
       severity: 'warning',
+      code: 'noServiceEndpoint',
       message: 'No service endpoint exposes ontology tools yet.',
       targetType: 'agent',
     });

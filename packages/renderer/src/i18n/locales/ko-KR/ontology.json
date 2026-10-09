@@ -24,5 +24,10 @@
   "objectEditor.close": "닫기",
   "objectEditor.attributeSaveHint": "속성 변경 사항은 즉시 저장되며 이 창을 닫아도 취소되지 않습니다. 기본 정보는 별도로 저장하세요.",
   "objectEditor.deleteAttributeTitle": "속성 삭제",
-  "objectEditor.deleteAttributeContent": "속성 {{name}}을(를) 삭제하시겠습니까? 연결된 필드 매핑도 함께 삭제됩니다."
+  "objectEditor.deleteAttributeContent": "속성 {{name}}을(를) 삭제하시겠습니까? 연결된 필드 매핑도 함께 삭제됩니다.",
+  "studio": {
+    "issues": {
+      "noServiceEndpoint": "Ontology tools are not available to agents yet. Open Release to publish the ontology and register an agent."
+    }
+  }
 }

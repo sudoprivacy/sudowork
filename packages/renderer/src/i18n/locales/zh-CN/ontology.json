@@ -1320,6 +1320,9 @@
     "preparingSession": "正在准备本体对话，可继续编辑右侧本体…",
     "sessionSetupFailed": "本体可正常使用，对话尚未就绪",
     "retrySessionSetup": "重试初始化对话",
-    "agentNewConversation": "新会话"
+    "agentNewConversation": "新会话",
+    "issues": {
+      "noServiceEndpoint": "尚未向智能体提供本体工具。请前往“发布”页发布本体并注册智能体。"
+    }
   }
 }

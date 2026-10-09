@@ -1008,6 +1008,7 @@ function cronCreateBody(req: AnyReq): Record<string, unknown> {
     payloadMessage: String(req?.message ?? ''),
   }
   if (schedule) body.schedule = rendererScheduleToServer(schedule)
+  if (typeof req?.enabled === 'boolean') body.enabled = req.enabled
   if (req?.conversationMode === 'new' || req?.conversationMode === 'reuse') {
     body.conversationMode = req.conversationMode
   }

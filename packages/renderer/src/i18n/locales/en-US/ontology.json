@@ -1320,6 +1320,9 @@
     "preparingSession": "Preparing the ontology conversation. You can continue editing the model…",
     "sessionSetupFailed": "The ontology is available; the conversation is not ready yet",
     "retrySessionSetup": "Retry conversation setup",
-    "agentNewConversation": "New conversation"
+    "agentNewConversation": "New conversation",
+    "issues": {
+      "noServiceEndpoint": "Ontology tools are not available to agents yet. Open Release to publish the ontology and register an agent."
+    }
   }
 }

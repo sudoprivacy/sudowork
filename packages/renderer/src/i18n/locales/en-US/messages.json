@@ -74,5 +74,6 @@
     "yesAlwaysAllowTool": "Yes, always allow tool \"{{toolName}}\" from server \"{{serverName}}\"",
     "yesAlwaysAllowServer": "Yes, always allow all tools from server \"{{serverName}}\"",
     "no": "No (esc)"
-  }
+  },
+  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected."
 }

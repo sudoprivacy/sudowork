@@ -57,5 +57,6 @@
     "yesAlwaysAllowTool": "예, 서버 \"{{serverName}}\"의 도구 \"{{toolName}}\" 항상 허용",
     "yesAlwaysAllowServer": "예, 서버 \"{{serverName}}\"의 모든 도구 항상 허용",
     "no": "아니요 (esc)"
-  }
+  },
+  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected."
 }

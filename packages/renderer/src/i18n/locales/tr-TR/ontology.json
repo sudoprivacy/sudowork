@@ -24,5 +24,10 @@
   "objectEditor.close": "Kapat",
   "objectEditor.attributeSaveHint": "Öznitelik değişiklikleri hemen kaydedilir ve bu pencere kapatıldığında geri alınmaz. Temel bilgileri ayrıca kaydedin.",
   "objectEditor.deleteAttributeTitle": "Özniteliği sil",
-  "objectEditor.deleteAttributeContent": "{{name}} özniteliği silinsin mi? İlişkili alan eşlemeleri de silinecektir."
+  "objectEditor.deleteAttributeContent": "{{name}} özniteliği silinsin mi? İlişkili alan eşlemeleri de silinecektir.",
+  "studio": {
+    "issues": {
+      "noServiceEndpoint": "Ontology tools are not available to agents yet. Open Release to publish the ontology and register an agent."
+    }
+  }
 }

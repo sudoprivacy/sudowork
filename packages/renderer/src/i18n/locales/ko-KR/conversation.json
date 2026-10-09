@@ -278,5 +278,7 @@
     "recent": "최근",
     "myAgent": "내 에이전트",
     "agentHasNoConversations": "아직 대화가 없습니다"
-  }
+  },
+  "rightPanel.terminal.remoteUnavailable": "Interactive terminals are not available for cloud sessions. Ask the agent to run commands in chat, or use a local session.",
+  "rightPanel.terminal.createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal."
 }

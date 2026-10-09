@@ -5,11 +5,12 @@
  */
 
 import React from 'react';
-import { Dropdown, Menu } from '@arco-design/web-react';
+import { Dropdown, Empty, Menu } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { STORAGE_KEYS } from '@sudowork/common/storageKeys';
 import type { TChatConversation } from '@sudowork/common/storage';
+import { ConversationProvider } from '@renderer/context/ConversationContext';
 import { useAddEventListener } from '@renderer/utils/emitter';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import ChatWorkspace from './workspace';
@@ -155,7 +156,7 @@ const ChatSider: React.FC<{
   );
 
   return (
-    <>
+    <ConversationProvider value={{ conversationId: conversation?.id ?? '', workspace, type: conversation?.type === 'remote-agent' ? 'remote-agent' : 'acp' }}>
       <div className='flex h-full min-h-0 flex-col bg-[var(--color-bg-1)]'>
         <div className={`right-panel-tabs ${isOverflowMode ? 'right-panel-tabs--overflow' : ''}`}>
           {isOverflowMode ? (
@@ -190,7 +191,13 @@ const ChatSider: React.FC<{
             <BrowserPanel active={activeTab === 'browser'} conversationId={conversation?.id} />
           </div>
           <div className={`right-panel-stack__pane ${activeTab === 'terminal' ? 'right-panel-stack__pane--active' : ''}`}>
-            <TerminalPanel cwd={workspace} active={activeTab === 'terminal'} conversationId={conversation?.id} />
+            {conversation?.type === 'remote-agent' ? (
+              <div className='h-full flex items-center justify-center p-6'>
+                <Empty description={t('conversation.rightPanel.terminal.remoteUnavailable')} />
+              </div>
+            ) : (
+              <TerminalPanel cwd={workspace} active={activeTab === 'terminal'} conversationId={conversation?.id} />
+            )}
           </div>
           <div className={`right-panel-stack__pane ${activeTab === 'deliverables' ? 'right-panel-stack__pane--active' : ''}`}>
             <DeliverablesPanel conversationId={conversation?.id} teamId={teamId} active={activeTab === 'deliverables'} />
@@ -198,7 +205,7 @@ const ChatSider: React.FC<{
           {extraTab ? <div className={`right-panel-stack__pane ${activeTab === extraTab.id ? 'right-panel-stack__pane--active' : ''}`}>{extraTab.node}</div> : null}
         </div>
       </div>
-    </>
+    </ConversationProvider>
   );
 };
 

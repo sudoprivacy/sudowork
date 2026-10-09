@@ -190,6 +190,7 @@ export class MossCronApi {
    */
   async createJob(params: {
     name: string;
+    enabled?: boolean;
     schedule: {
       kind: 'at' | 'every' | 'cron';
       value: string;

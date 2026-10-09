@@ -48,7 +48,7 @@ const MyMcpTab: React.FC<MyMcpTabProps> = ({ servers, loading = false, onToggleE
             </Button>
           </div>
         )}
-        <EmptyState illustrationType='default' title='暂无个人 MCP' description='前往「MCP 库」浏览并安装，或点击上方按钮通过 JSON 安装。' simple />
+        <EmptyState illustrationType='default' title={t('settings.mcpPersonalEmptyTitle')} description={t(allowInstall ? 'settings.mcpPersonalEmptyInstallHint' : 'settings.mcpPersonalEmptyRestrictedHint')} simple />
         <InstallJsonModal
           visible={installVisible}
           onCancel={() => setInstallVisible(false)}

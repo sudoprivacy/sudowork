@@ -761,6 +761,25 @@ describe('mossAdapter: assistant/skill management channels', () => {
   })
 })
 
+describe('manual cron creation', () => {
+  it('forwards disabled state in the initial request', async () => {
+    const fetchMock = stubFetch({ '/api/cron': { id: 'manual' } })
+    await ipcBridge.cron.addJob.invoke({
+      name: 'manual',
+      message: 'Return OK',
+      schedule: { kind: 'at', atMs: 0, description: 'Manual' },
+      enabled: false,
+      conversationId: '',
+      agentType: 'remote-agent',
+      createdBy: 'user',
+    })
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toMatchObject({
+      enabled: false,
+      schedule: { kind: 'at', value: '0' },
+    })
+  })
+})
+
 describe('mossAdapter: zoom channels (browser-local display prefs)', () => {
   beforeEach(() => localStorage.clear())
 

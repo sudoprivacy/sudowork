@@ -5,7 +5,7 @@
  */
 
 import { FitAddon } from '@xterm/addon-fit';
-import { Tooltip } from '@arco-design/web-react';
+import { Message, Tooltip } from '@arco-design/web-react';
 import { Add, Close } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -300,6 +300,11 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conv
       });
       if (!res?.success) {
         console.error('[TerminalPanel] create.failed', res?.msg);
+        Message.error(t('conversation.rightPanel.terminal.createFailed'));
+        const state = getOrCreateConvState(ownerConvKey);
+        state.tabs = state.tabs.filter((item) => item.id !== tabId);
+        if (state.activeTabId === tabId) state.activeTabId = state.tabs.at(-1)?.id ?? null;
+        notifyListeners();
         return;
       }
 
@@ -353,7 +358,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ cwd, active = false, conv
       patchTab(tabId, { sessionId });
       scheduleFit();
     },
-    [cwd, patchTab, resizeRuntime]
+    [cwd, patchTab, resizeRuntime, t]
   );
 
   const openTab = useCallback(() => {

@@ -278,5 +278,7 @@
     "recent": "最近",
     "myAgent": "マイエージェント",
     "agentHasNoConversations": "まだ会話がありません"
-  }
+  },
+  "rightPanel.terminal.remoteUnavailable": "Interactive terminals are not available for cloud sessions. Ask the agent to run commands in chat, or use a local session.",
+  "rightPanel.terminal.createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal."
 }

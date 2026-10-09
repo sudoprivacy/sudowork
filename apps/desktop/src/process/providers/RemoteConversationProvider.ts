@@ -1,3 +1,4 @@
+import { isGeneratedFilesOnlyMessage } from '@sudowork/common/generatedFiles';
 import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 /**
  * @license
@@ -612,6 +613,15 @@ export class RemoteConversationProvider implements IConversationProvider {
 
       const allMessages = contextData.context.messages;
       const { messages, foundModel } = convertMossMessagesToTMessages(allMessages, conversationId, mossSessionId);
+
+      // Cloud history does not contain client-generated deliverable markers.
+      // Preserve those records when replacing the mirrored conversation history.
+      const remoteIds = new Set(messages.map((message) => message.id));
+      for (let page = 0; page < 50; page++) {
+        const local = db.getConversationMessages(conversationId, page, 200, 'ASC');
+        messages.push(...local.data.filter((message) => isGeneratedFilesOnlyMessage(message) && !remoteIds.has(message.id)));
+        if (!local.hasMore) break;
+      }
 
       // Clear existing local messages to avoid duplicates / 清除现有本地消息避免重复
       db.deleteConversationMessages(conversationId);
