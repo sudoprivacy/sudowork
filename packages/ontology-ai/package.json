@@ -1,0 +1,36 @@
+{
+  "name": "@sudowork/ontology-ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*",
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@arco-design/web-react": "^2.66.1",
+    "@sudowork/host-bridge": "workspace:*",
+    "@sudowork/ontology-common": "workspace:*",
+    "lucide-react": "^1.21.0",
+    "react": "^19.1.0",
+    "react-i18next": "^14.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.6",
+    "typescript": "^5.8.3"
+  }
+}

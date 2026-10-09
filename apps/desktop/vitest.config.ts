@@ -1,0 +1,283 @@
+import path from 'path';
+import { defineConfig } from 'vitest/config';
+
+// Modules that stay in apps/desktop/src/common (main-only or transitively so);
+// everything else under @common / @/common now lives in @sudowork/common.
+const DESKTOP_ONLY_COMMON = [
+  'ClientFactory',
+  'adapters/index',
+  'enterpriseDebugConfig',
+  'imagePricingSource',
+  'index',
+  'navigation/NavigationInterceptor',
+  'navigation/index',
+  'nexus/generated/nexus/secrets/v1/secrets_pb',
+  'nexus/index',
+  'nexus/moss-secret-client-factory',
+  'nexus/nexus-secret-client',
+  'nexus/nexus-secret-resilient',
+  'nexus/nexus-vfs-client',
+  'nexus/nexusVfsGrpcClient',
+  'nexus/secret-cache',
+  'nexus/secret-migration',
+  'presets/assistantPresets',
+];
+const DESKTOP_ONLY_COMMON_DIRS = ['nexus', 'navigation', 'adapters'];
+
+function commonAliasEntries() {
+  const pkg = path.resolve(__dirname, '../../packages/common/src').replace(/\\/g, '/');
+  const deskCommon = path.resolve(__dirname, './src/common').replace(/\\/g, '/');
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const entries: { find: RegExp; replacement: string }[] = [];
+  entries.push({ find: /^@\/?common$/, replacement: deskCommon });
+  for (const m of [...DESKTOP_ONLY_COMMON, ...DESKTOP_ONLY_COMMON_DIRS]) {
+    entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '(?:\\.js)?$'), replacement: `${deskCommon}/${m}` });
+  }
+  entries.push({ find: /^@\/?common\/(.*)$/, replacement: `${pkg}/$1` });
+  entries.push({ find: /^@sudowork\/common\/(.*)$/, replacement: `${pkg}/$1` });
+  return entries;
+}
+
+const aliases = [
+  ...commonAliasEntries(),
+  { find: /^@process\//, replacement: path.resolve(__dirname, './src/process') + '/' },
+  { find: /^@renderer\//, replacement: path.resolve(__dirname, '../../packages/renderer/src') + '/' },
+  { find: /^@worker\//, replacement: path.resolve(__dirname, './src/worker') + '/' },
+  { find: /^@mcp\/models\//, replacement: path.resolve(__dirname, './src/common/models') + '/' },
+  { find: /^@mcp\/types\//, replacement: path.resolve(__dirname, './src/common') + '/' },
+  { find: /^@mcp\//, replacement: path.resolve(__dirname, './src/common') + '/' },
+  // Resolve shared workspace packages to source so tests never depend on a
+  // prior `dist` build (uniform local/CI; exercises the actual source).
+  { find: '@sudowork/moss-client/agents', replacement: path.resolve(__dirname, '../../packages/moss-client/src/MossAgentClient.ts') },
+  { find: '@sudowork/moss-client', replacement: path.resolve(__dirname, '../../packages/moss-client/src/index.ts') },
+  { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-common/src') + '/$1' },
+  { find: /^@sudowork\/ontology-common$/, replacement: path.resolve(__dirname, '../../packages/ontology-common/src/index.ts') },
+  { find: /^@sudowork\/ontology-engine\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-engine/src') + '/$1' },
+  { find: /^@sudowork\/ontology-engine$/, replacement: path.resolve(__dirname, '../../packages/ontology-engine/src/index.ts') },
+  { find: /^@sudowork\/ontology-ui\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-ui/src') + '/$1' },
+  { find: /^@sudowork\/ontology-ui$/, replacement: path.resolve(__dirname, '../../packages/ontology-ui/src/index.ts') },
+  { find: '@sudowork/contracts/auth', replacement: path.resolve(__dirname, '../../packages/contracts/src/auth.ts') },
+  { find: '@sudowork/contracts/conversations', replacement: path.resolve(__dirname, '../../packages/contracts/src/conversations.ts') },
+  { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/host-bridge/src') + '/$1' },
+  { find: /^@sudowork\/host-bridge$/, replacement: path.resolve(__dirname, '../../packages/host-bridge/src/index.ts') },
+  { find: /^@\//, replacement: path.resolve(__dirname, './src') + '/' },
+];
+
+export default defineConfig({
+  resolve: {
+    alias: aliases,
+  },
+  test: {
+    globals: true,
+    testTimeout: 10000,
+    // Large Windows hosts otherwise launch CPU-count-minus-one workers. Bound
+    // import/DOM contention while retaining the same per-test timeout.
+    maxWorkers: process.platform === 'win32' ? 2 : undefined,
+    server: {
+      deps: {
+        // zod 3.25+ uses ESM-only exports; force Vite to inline/transform it in SSR mode
+        inline: ['zod'],
+      },
+    },
+    // Use projects to run different environments (Vitest 4+)
+    projects: [
+      // Node environment tests (existing tests)
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          ...(process.platform === 'win32' ? { sequence: { groupOrder: 0 } } : {}),
+          environment: 'node',
+          include: ['tests/unit/**/*.test.ts', 'tests/unit/**/test_*.ts', 'tests/integration/**/*.test.ts'],
+          exclude: ['tests/unit/**/*.dom.test.ts', 'tests/unit/**/*.dom.test.tsx'],
+          setupFiles: ['./tests/vitest.setup.ts'],
+        },
+      },
+      // jsdom environment tests (React component/hook tests)
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          // jsdom layout in the ontology journeys exceeds the same 10s test
+          // deadline when competing with other DOM or SQLite test processes.
+          ...(process.platform === 'win32' ? { maxWorkers: 1, sequence: { groupOrder: 1 } } : {}),
+          environment: 'jsdom',
+          include: ['tests/unit/**/*.dom.test.ts', 'tests/unit/**/*.dom.test.tsx'],
+          setupFiles: ['./tests/vitest.dom.setup.ts'],
+        },
+      },
+    ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'text-summary', 'html'],
+      reportsDirectory: './coverage',
+      // 手动指定需要覆盖的源文件，确保只检测新增/修改的逻辑
+      // 新增功能时，将对应的源文件路径添加到此数组
+      // 例如: 'src/process/services/newService.ts'
+      include: [
+        '../../packages/common/src/types/tenantConfig.ts',
+        '../../packages/renderer/src/components/TenantLogo.tsx',
+        '../../packages/renderer/src/layouts/components/UpdateModal.tsx',
+        '../../packages/renderer/src/context/TenantConfigContext.tsx',
+        '../../packages/renderer/src/utils/tenantBranding.ts',
+        '../../packages/common/src/authLogin.ts',
+        '../../packages/common/src/sudoworkServer.ts',
+        '../../packages/host-bridge/src/authLogin.ts',
+        '../../packages/host-bridge/src/consumerApi.ts',
+        '../../packages/renderer/src/pages/settings/recharge/index.tsx',
+        '../../packages/renderer/src/pages/settings/recharge/components/OrderList.tsx',
+        '../../packages/host-bridge/src/desktopLoginSetup.ts',
+        'src/process/services/mossCatalog*.ts',
+        'src/process/services/mossResourcePath.ts',
+        'src/process/bridge/mossCatalogBridge.ts',
+        '../../packages/renderer/src/components/MossCatalogBrowser.tsx',
+        '../../packages/renderer/src/utils/platform.ts',
+        '../../packages/renderer/src/hooks/useResponsiveSider.ts',
+        '../../packages/renderer/src/pages/my-agents/index.tsx',
+        '../../packages/renderer/src/pages/guid/utils/personalAgentSelection.ts',
+        '../../packages/common/src/personalAgents.ts',
+        'src/process/services/mossPersonalAgents.ts',
+        '../../packages/moss-client/src/MossAgentClient.ts',
+        '../../packages/common/src/mossExecution.ts',
+        '../../packages/common/src/conversationTitle.ts',
+        '../../packages/renderer/src/pages/conversation/grouped-history/utils/groupingHelpers.ts',
+        'src/process/services/mossLocalRuntime.ts',
+        'src/process/bridge/eeclawBridge.ts',
+        'src/process/bridge/sudoworkServerBridge.ts',
+        'src/process/services/mossExecutionContext.ts',
+        'src/process/services/mossResourcePreparation.ts',
+        // Process / bridge
+        'src/process/database/corruptionError.ts',
+        'src/process/database/workspaceQueries.ts',
+        'src/process/startupNotice.ts',
+        'src/process/utils/proxyAgent.ts',
+        'src/process/services/autoUpdaterService.ts',
+        'src/process/services/conversationReaper.ts',
+        'src/process/services/orphanWorkspaceSweeper.ts',
+        'src/process/services/conversionService.ts',
+        'src/process/services/scode/scodeProxyModels.ts',
+        'src/process/services/shareoneCli/shareoneCredentials.ts',
+        'src/agent/acp/acpConnectors.ts',
+        'src/process/services/sudoclaw/sudoclawRuntimeSync.ts',
+        'src/process/services/pwdLogin/errors.ts',
+        'src/process/services/pwdLogin/memorySafety.ts',
+        'src/process/services/pwdLogin/pwdAdapters.ts',
+        'src/process/services/pwdLogin/pwdLoginService.ts',
+        'src/process/services/fuset/FuseTSupervisor.ts',
+        'src/process/services/knowledge/KnowledgeRetrievalService.ts',
+        'src/process/services/local-kb/documentParser.ts',
+        'src/process/services/local-kb/query.ts',
+        'src/process/services/local-kb/vectorIndex.ts',
+        'src/process/services/local-kb/buildExecutor.ts',
+        'src/process/services/local-kb/embeddingModelService.ts',
+        'src/process/services/local-kb/LocalKnowledgeBaseSkillServer.ts',
+        'src/process/services/local-kb/LocalKnowledgeBaseService.ts',
+        'src/process/services/poppler/PopplerRuntimeService.ts',
+        'src/process/services/ffmpeg/FfmpegRuntimeService.ts',
+        'src/process/services/ffmpeg/ffmpegSkillGate.ts',
+        'src/process/services/transcription/TranscriptionService.ts',
+        'src/process/services/transcription/SubtitleService.ts',
+        'src/process/services/authProxy/subtitleApi.ts',
+        'src/process/services/authProxy/agentArchiveApi.ts',
+        'src/process/services/authProxy/AuthProxyServer.ts',
+        'src/process/services/authProxy/index.ts',
+        'src/process/services/nexus-vfs/FusePluginClient.ts',
+        'src/process/services/ontology/ontologyTemplateParser.ts',
+        'src/process/services/ontology/ontologyDocumentExtractor.ts',
+        'src/process/services/ontology/ontologyFieldMeaning.ts',
+        'src/process/services/ontology/ontologySqlite.ts',
+        'src/process/services/ontology/OntologyAgentRegistry.ts',
+        'src/process/telemetry/SudoLogTelemetryReporter.ts',
+        'src/process/telemetry/executionScope.ts',
+        'src/process/bridge/updateBridge.ts',
+        'src/process/bridge/applicationBridge.ts',
+        'src/process/bridge/acpModelSwitch.ts',
+        'src/process/bridge/documentBridge.ts',
+        'src/process/bridge/pwdLoginBridge.ts',
+        'src/process/utils/enabledSkillFilter.ts',
+        // Team collaboration
+        'src/process/bridge/teamBridge.ts',
+        'src/process/services/team/TeamService.ts',
+        'src/process/services/team/TeamStore.ts',
+        'src/process/services/team/WakeSource.ts',
+        'src/process/services/team/SlotWakeGate.ts',
+        'src/process/services/team/TeamRun.ts',
+        'src/process/services/team/RecoveryDrain.ts',
+        'src/process/services/team/CrashRecovery.ts',
+        'src/process/services/team/TeamStartupCleaner.ts',
+        'src/process/services/team/TaskBoard.ts',
+        'src/process/services/team/assistantMerger.ts',
+        'src/process/services/team/EventLoop.ts',
+        'src/process/services/team/MessageProjection.ts',
+        'src/process/services/team/GovernancePrompt.ts',
+        '../../packages/renderer/src/pages/team/hooks/useTeamWarmup.ts',
+        '../../packages/renderer/src/pages/team/components/TeamWarmupOverlay.tsx',
+        '../../packages/renderer/src/pages/settings/recharge/components/CreditApplicationPanel.tsx',
+        '../../packages/ontology-common/src/index.ts',
+        '../../packages/ontology-common/src/studio.ts',
+        '../../packages/ontology-engine/src/standardOntology.ts',
+        '../../packages/common/src/conversationPurpose.ts',
+        '../../packages/ontology-ui/src/studio/**/*.ts',
+        '../../packages/ontology-ui/src/studio/**/*.tsx',
+        '../../packages/renderer/src/pages/ontology/StudioConversationPanel.tsx',
+        '../../packages/renderer/src/pages/ontology/studioConversation.ts',
+        'src/process/services/ontology/OntologyStudioDatabase.ts',
+        'src/process/services/ontology/studioValidation.ts',
+        'src/process/services/ontology/ontologySnapshot.ts',
+        '../../packages/ontology-common/src/qualityRuleExpression.ts',
+        '../../packages/ontology-engine/src/index.ts',
+        '../../packages/ontology-ui/src/OntologyWorkbench.tsx',
+        '../../packages/renderer/src/pages/ontology/index.tsx',
+        'src/process/bridge/ontologyBridge.ts',
+        'src/process/services/ontology/OntologyDatabase.ts',
+        'src/process/services/ontology/OntologyService.ts',
+        'src/process/services/ontology/OntologyMcpRegistration.ts',
+        'src/utils/configureChromium.ts',
+        // ACP
+        'src/agent/acp/AcpAdapter.ts',
+        'src/agent/acp/AcpConnection.ts',
+        'src/agent/acp/modelInfo.ts',
+        'src/agent/acp/ndjson.ts',
+        'src/agent/acp/transport.ts',
+        'src/process/task/acpWorkspaceTracking.ts',
+        'src/process/task/CronCommandDetector.ts',
+        'src/process/task/turnInputCoordinator.ts',
+        // Common
+        'src/common/chatLib.ts',
+        'src/common/nexus/hubErrors.ts',
+        'src/common/nexus/nexusVfsGrpcClient.ts',
+        'src/common/runtime-errors.ts',
+        'src/common/nexusFiles.ts',
+        'src/common/scodeConfig.ts',
+        'src/common/slash/sudoworkCommands.ts',
+        'src/common/sudoworkAuthLogin.ts',
+        'src/common/thirdPartyAuthConfig.ts',
+        'src/common/tokenUsage.ts',
+        'src/common/update/models/VersionInfo.ts',
+        'src/common/types/conversion.ts',
+        // Renderer utils
+        '../../packages/renderer/src/components/HubEmptyState.tsx',
+        '../../packages/renderer/src/hooks/useAvailableModels.ts',
+        '../../packages/renderer/src/hooks/useHasAvailableModel.ts',
+        '../../packages/renderer/src/components/sendboxKeyGuards.ts',
+        '../../packages/renderer/src/messages/RuntimeErrorBanner.tsx',
+        '../../packages/renderer/src/messages/useAutoScroll.ts',
+        '../../packages/renderer/src/utils/emitter.ts',
+        '../../packages/renderer/src/utils/webFilePicker.ts',
+        '../../packages/renderer/src/pages/guid/utils/modelBackendKey.ts',
+        // Preview components
+        '../../packages/renderer/src/pages/conversation/preview/components/viewers/WordViewer.tsx',
+        '../../packages/renderer/src/pages/conversation/preview/components/viewers/PPTViewer.tsx',
+        // Extension system (only files with existing tests)
+        'src/extensions/ExtensionLoader.ts',
+        'src/extensions/{dependencyResolver,pathSafety,statePersistence,entryPointResolver,envResolver,fileResolver}.ts',
+      ],
+      thresholds: {
+        statements: 30,
+        branches: 10,
+        functions: 35,
+        lines: 30,
+      },
+    },
+  },
+});

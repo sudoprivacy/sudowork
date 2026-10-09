@@ -1,0 +1,11 @@
+{
+  "nexus": "0.9.43",
+  "nexus-vfs": "0.8.2",
+  "nexusd-cluster": "0.8.2",
+  "nexus-vault": "0.5.68",
+  "nexus-local-connector": "0.4.64",
+  "nexus-fuse-plugin": "0.6.64",
+  "fuse-t": "1.2.7",
+  "sudoclaw": "v0.3.0-v2026.3.23-2",
+  "scode": "0.2.22"
+}

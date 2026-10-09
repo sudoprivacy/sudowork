@@ -66,7 +66,7 @@
 
 Sudowork ships with a complete AI agent engine. Unlike tools that require you to install CLI agents separately, **Sudowork works the moment you install it**.
 
-- **No CLI tools to install** — the agent engine is built in
+- **No CLI tools to install** — the agent engine is built in (powered by [sudocode](https://github.com/sudoprivacy/sudocode))
 - **No complex setup** — sign in with Google or paste any API key
 - **Full agent capabilities** — file read/write, web search, image generation, MCP tools
 - **Ready-to-use assistants** — 11+ built-in professional assistants (Cowork, PPTX Generator, PDF to PPT, 3D Game, UI/UX Pro Max, and more) ready to use immediately

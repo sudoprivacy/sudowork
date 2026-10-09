@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node"],
+    "paths": {
+      "@sudowork/ontology-common": ["../ontology-common/dist/index.d.ts"],
+      "@sudowork/ontology-common/*": ["../ontology-common/dist/*.d.ts"]
+    }
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,316 @@
+import { describe, expect, test, vi } from 'vitest'
+import { createMossSessionPort, mossRequest } from '@sudowork/moss-client'
+import {
+  buildAnswerQuestionMessage,
+  buildControlResponseMessage,
+  buildSetModelMessage,
+  buildUserMessage,
+  validateMossWsUrl,
+  MossWsValidationError,
+} from '@sudowork/moss-client'
+
+const BASE = 'http://moss.test'
+const CTX = { accessToken: 'tk', baseUrl: BASE }
+
+describe('MossSessionPort request shapes (contract vs baseline)', () => {
+  test('list calls GET /api/v1/sessions', async () => {
+    const mock = vi.fn().mockResolvedValue({ sessions: [] })
+    const port = createMossSessionPort(mock)
+    await port.list(CTX)
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'GET',
+      path: '/api/v1/sessions',
+      accessToken: 'tk',
+    })
+  })
+
+  test('create posts assistant_name + enabled_skills + explicit skip_permissions=false, never cwd/runtime', async () => {
+    const mock = vi.fn().mockResolvedValue({
+      session_id: 's1',
+      task_id: 't1',
+      attempt_id: 'a1',
+      ws_url: 'ws://moss.test/ws/sessions/s1',
+      work_dir: '/home/x',
+    })
+    const port = createMossSessionPort(mock)
+    const created = await port.create(CTX, { assistantName: 'helper', enabledSkills: ['a', 'b'] })
+    expect(created).toEqual({
+      sessionId: 's1',
+      taskId: 't1',
+      attemptId: 'a1',
+      wsUrl: 'ws://moss.test/ws/sessions/s1',
+    })
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/sessions',
+      accessToken: 'tk',
+      body: {
+        assistant_name: 'helper',
+        enabled_skills: ['a', 'b'],
+        dangerously_skip_permissions: false,
+      },
+    })
+  })
+
+  test('setUserModel puts /api/v1/users/me/model with { modelId }', async () => {
+    const mock = vi.fn().mockResolvedValue({ data: { modelId: 'gpt-4', updatedAt: 1 } })
+    const port = createMossSessionPort(mock)
+    await port.setUserModel(CTX, 'gpt-4')
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'PUT',
+      path: '/api/v1/users/me/model',
+      accessToken: 'tk',
+      body: { modelId: 'gpt-4' },
+    })
+  })
+
+  // 上游真实形状是 { success, data: {...}, systemDefaultModel }（moss server.ts
+  // /api/v1/users/:id/model）。早先这里 mock 的是顶层 { modelId }，测试因此恒绿
+  // 而线上恒 null —— 断言必须照上游的包封写，否则它保护的是一个不存在的上游。
+  test('getUserModel reads modelId out of the data envelope and keeps systemDefaultModel', async () => {
+    const mock = vi.fn().mockResolvedValue({
+      success: true,
+      data: { modelId: 'gpt-4', updatedAt: 1 },
+      systemDefaultModel: 'sonnet',
+    })
+    const port = createMossSessionPort(mock)
+    await expect(port.getUserModel(CTX)).resolves.toEqual({
+      modelId: 'gpt-4',
+      systemDefaultModel: 'sonnet',
+    })
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'GET',
+      path: '/api/v1/users/me/model',
+      accessToken: 'tk',
+    })
+
+    const snakeMock = vi.fn().mockResolvedValue({
+      success: true,
+      data: { model_id: 'claude-x' },
+      systemDefaultModel: 'sonnet',
+    })
+    await expect(createMossSessionPort(snakeMock).getUserModel(CTX)).resolves.toEqual({
+      modelId: 'claude-x',
+      systemDefaultModel: 'sonnet',
+    })
+
+    // 未设偏好：data 为 null，但 systemDefaultModel 仍要带回，
+    // 否则调用方的第二级兜底拿不到东西，只能塌到「列表首项」。
+    const unsetMock = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: null, systemDefaultModel: 'sonnet' })
+    await expect(createMossSessionPort(unsetMock).getUserModel(CTX)).resolves.toEqual({
+      modelId: null,
+      systemDefaultModel: 'sonnet',
+    })
+  })
+
+  test('context/resume/terminate/workspace paths match baseline routes', async () => {
+    const mock = vi
+      .fn()
+      .mockImplementation((_base: string, req: { method: string; path: string }) =>
+        Promise.resolve(
+          req.path.endsWith('/context')
+            ? { context: { messages: [] } }
+            : req.path.endsWith('/resume')
+              ? {
+                  session: { sessionId: 's1', userId: 'u', orgId: 'o', status: 'active' },
+                  ws_url: 'ws://moss.test/ws/sessions/s1',
+                }
+              : req.path.includes('/workspace/tree')
+                ? { root: { name: 'r', relativePath: '', isFile: false, isDir: true } }
+                : { ok: true },
+        ),
+      )
+    const port = createMossSessionPort(mock)
+
+    await port.context(CTX, 's1')
+    expect(mock).toHaveBeenLastCalledWith(BASE, {
+      method: 'GET',
+      path: '/api/v1/sessions/s1/context',
+      accessToken: 'tk',
+    })
+
+    await port.resume(CTX, 's1')
+    expect(mock).toHaveBeenLastCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/sessions/s1/resume',
+      accessToken: 'tk',
+    })
+
+    await port.terminate(CTX, 's1')
+    expect(mock).toHaveBeenLastCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/sessions/s1/terminate',
+      accessToken: 'tk',
+    })
+
+    await port.workspaceTree(CTX, 's1', '')
+    expect(mock).toHaveBeenLastCalledWith(
+      BASE,
+      {
+        method: 'GET',
+        path: '/api/v1/sessions/s1/workspace/tree',
+        accessToken: 'tk',
+        searchParams: {},
+      },
+      90_000,
+    )
+  })
+
+  test.each(['tree', 'read', 'write'] as const)(
+    'workspace %s waits for cold runtime readiness',
+    async (operation) => {
+      vi.useFakeTimers()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_url: unknown, init: RequestInit) =>
+            new Promise<Response>((resolve, reject) => {
+              const timer = setTimeout(
+                () =>
+                  resolve(
+                    new Response(
+                      JSON.stringify({
+                        root: { name: 'workspace', relativePath: '', isFile: false, isDir: true },
+                      }),
+                    ),
+                  ),
+                20_000,
+              )
+              init.signal?.addEventListener(
+                'abort',
+                () => {
+                  clearTimeout(timer)
+                  reject(init.signal?.reason)
+                },
+                { once: true },
+              )
+            }),
+        ),
+      )
+      try {
+        const port = createMossSessionPort(mossRequest)
+        const pending =
+          operation === 'tree'
+            ? port.workspaceTree(CTX, 's1', '')
+            : operation === 'read'
+              ? port.workspaceFileGet(CTX, 's1', 'note.txt')
+              : port.workspaceFilePost(CTX, 's1', 'note.txt', 'b2s=')
+        const assertion = expect(pending).resolves.toBeDefined()
+        await vi.advanceTimersByTimeAsync(20_000)
+        await assertion
+      } finally {
+        vi.unstubAllGlobals()
+        vi.useRealTimers()
+      }
+    },
+  )
+
+  test('context accepts persisted top-level thinking messages', async () => {
+    const context = {
+      context: {
+        messages: [{ type: 'thinking', uuid: 'thinking-1', content: 'reasoning' }],
+      },
+    }
+    const mock = vi.fn().mockResolvedValue(context)
+    const port = createMossSessionPort(mock)
+
+    await expect(port.context(CTX, 's1')).resolves.toEqual(context)
+  })
+
+  test('session ids are uri-encoded once', async () => {
+    const mock = vi.fn().mockResolvedValue({ ok: true })
+    const port = createMossSessionPort(mock)
+    await port.context(CTX, 'id with space/slash')
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'GET',
+      path: '/api/v1/sessions/id%20with%20space%2Fslash/context',
+      accessToken: 'tk',
+    })
+  })
+})
+
+describe('ws_url validation (计划 3.5)', () => {
+  test('accepts exact /ws/sessions/:id on configured host', () => {
+    expect(() =>
+      validateMossWsUrl('ws://moss.test:9000/ws/sessions/s1', 's1', 'ws://moss.test:9000'),
+    ).not.toThrow()
+  })
+
+  test('rejects session mismatch', () => {
+    expect(() =>
+      validateMossWsUrl('ws://moss.test/ws/sessions/other', 's1', 'ws://moss.test'),
+    ).toThrow(MossWsValidationError)
+  })
+
+  test('rejects foreign host', () => {
+    expect(() =>
+      validateMossWsUrl('ws://evil.example/ws/sessions/s1', 's1', 'ws://moss.test'),
+    ).toThrow(MossWsValidationError)
+  })
+
+  test('rejects query credentials', () => {
+    expect(() =>
+      validateMossWsUrl('ws://moss.test/ws/sessions/s1?token=x', 's1', 'ws://moss.test'),
+    ).toThrow(MossWsValidationError)
+  })
+
+  test('rejects non-ws scheme and encoded traversal', () => {
+    expect(() =>
+      validateMossWsUrl('http://moss.test/ws/sessions/s1', 's1', 'ws://moss.test'),
+    ).toThrow(MossWsValidationError)
+    expect(() =>
+      validateMossWsUrl('ws://moss.test/ws/sessions/s1%2Fevil', 's1', 'ws://moss.test'),
+    ).toThrow(MossWsValidationError)
+  })
+})
+
+describe('protocol builders (browser message -> moss acp wire format)', () => {
+  test('buildUserMessage: image + text blocks with uuid', () => {
+    const msg = buildUserMessage({
+      sessionId: 's1',
+      text: 'hello',
+      images: [{ mediaType: 'image/png', data: 'AAAA' }],
+      parentToolUseId: null,
+    })
+    expect(msg.type).toBe('user')
+    expect(msg.parent_tool_use_id).toBeNull()
+    expect(msg.session_id).toBe('s1')
+    expect(typeof msg.uuid).toBe('string')
+    const content = (msg.message as { content: { type: string }[] }).content
+    // Image blocks precede text on purpose — see MossWebSocket.buildUserMessage
+    // (vision input first, matching the desktop vision fix).
+    expect(content).toEqual([
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+      { type: 'text', text: 'hello' },
+    ])
+  })
+
+  test('buildAnswerQuestionMessage uses parent_tool_use_id', () => {
+    const msg = buildAnswerQuestionMessage('s1', 'tool-use-uuid', 'A')
+    expect(msg.parent_tool_use_id).toBe('tool-use-uuid')
+    expect(msg.type).toBe('user')
+  })
+
+  test('buildSetModelMessage is the only supported control_request', () => {
+    const msg = buildSetModelMessage('gpt-x')
+    expect(msg).toMatchObject({
+      type: 'control_request',
+      request: { subtype: 'set_model', model_id: 'gpt-x' },
+    })
+    expect(typeof msg.request_id).toBe('string')
+  })
+
+  test('buildControlResponseMessage mirrors the desktop permission-answer shape', () => {
+    const msg = buildControlResponseMessage('req-1', 'allow_once')
+    expect(msg).toEqual({
+      type: 'control_response',
+      response: {
+        subtype: 'success',
+        request_id: 'req-1',
+        response: { behavior: 'allow_once' },
+      },
+    })
+  })
+})

@@ -1,0 +1,27 @@
+{
+  "name": "@sudowork/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./auth": {
+      "bun": "./src/auth.ts",
+      "types": "./dist/auth.d.ts",
+      "default": "./dist/auth.js"
+    },
+    "./conversations": {
+      "bun": "./src/conversations.ts",
+      "types": "./dist/conversations.d.ts",
+      "default": "./dist/conversations.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  }
+}

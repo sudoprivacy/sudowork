@@ -1,0 +1,207 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const h = vi.hoisted(() => {
+  const providers = new Map<string, (params: any) => unknown>();
+  const makeProvider = (name: string) => ({
+    provider: vi.fn((fn: (params: any) => unknown) => {
+      providers.set(name, fn);
+    }),
+  });
+  return {
+    providers,
+    makeProvider,
+    getDefaultUserId: vi.fn(() => 'user-1'),
+    createTeam: vi.fn(),
+    updateTeam: vi.fn(),
+    renameTeam: vi.fn(),
+    answerQuestion: vi.fn(),
+    retryMemberStart: vi.fn(),
+    sendMessage: vi.fn(),
+    sendMessageToMember: vi.fn(),
+    setSessionMode: vi.fn(),
+  };
+});
+
+vi.mock('@/common', () => ({
+  ipcBridge: {
+    team: {
+      listTeams: h.makeProvider('listTeams'),
+      getTeam: h.makeProvider('getTeam'),
+      listMembers: h.makeProvider('listMembers'),
+      listAssistants: h.makeProvider('listAssistants'),
+      createTeam: h.makeProvider('createTeam'),
+      updateTeam: h.makeProvider('updateTeam'),
+      removeTeam: h.makeProvider('removeTeam'),
+      renameTeam: h.makeProvider('renameTeam'),
+      addMember: h.makeProvider('addMember'),
+      removeMember: h.makeProvider('removeMember'),
+      sendMessage: h.makeProvider('sendMessage'),
+      sendMessageToMember: h.makeProvider('sendMessageToMember'),
+      answerQuestion: h.makeProvider('answerQuestion'),
+      getRunState: h.makeProvider('getRunState'),
+      cancelRun: h.makeProvider('cancelRun'),
+      cancelChildTurn: h.makeProvider('cancelChildTurn'),
+      renewActiveLease: h.makeProvider('renewActiveLease'),
+      setSessionMode: h.makeProvider('setSessionMode'),
+      ensureSession: h.makeProvider('ensureSession'),
+      stopSession: h.makeProvider('stopSession'),
+      pauseMember: h.makeProvider('pauseMember'),
+      retryMemberStart: h.makeProvider('retryMemberStart'),
+      renameMember: h.makeProvider('renameMember'),
+      reorderMembers: h.makeProvider('reorderMembers'),
+    },
+  },
+}));
+vi.mock('@process/database', () => ({ getDatabase: () => ({ getDefaultUserId: h.getDefaultUserId }) }));
+vi.mock('@process/services/team/TeamService', () => ({
+  teamService: {
+    updateTeam: h.updateTeam,
+    renameTeam: h.renameTeam,
+    listTeams: vi.fn(),
+    getTeam: vi.fn(),
+    listMembers: vi.fn(),
+    listAvailableAssistantsForTeam: vi.fn(),
+    createTeam: h.createTeam,
+    removeTeam: vi.fn(),
+    spawnMember: vi.fn(),
+    removeMember: vi.fn(),
+    sendMessage: h.sendMessage,
+    sendMessageToMember: h.sendMessageToMember,
+    answerQuestion: h.answerQuestion,
+    getRunState: vi.fn(),
+    cancelRun: vi.fn(),
+    cancelChildTurn: vi.fn(),
+    renewActiveLease: vi.fn(),
+    setSessionMode: h.setSessionMode,
+    rebuildTeam: vi.fn(),
+    stopTeamSession: vi.fn(),
+    pauseMember: vi.fn(),
+    retryMemberStart: h.retryMemberStart,
+    renameMember: vi.fn(),
+  },
+}));
+vi.mock('@process/services/team/TeamStore', () => ({ teamStore: { getMember: vi.fn() } }));
+vi.mock('@process/utils/mainLogger', () => ({ mainError: vi.fn() }));
+
+beforeEach(() => {
+  h.providers.clear();
+  h.createTeam.mockReset();
+  h.updateTeam.mockReset();
+  h.renameTeam.mockReset();
+  h.answerQuestion.mockReset();
+  h.retryMemberStart.mockReset();
+  h.sendMessage.mockReset();
+  h.sendMessageToMember.mockReset();
+  h.setSessionMode.mockReset();
+});
+
+describe('teamBridge team history providers', () => {
+  it('wires createTeam provider to TeamService.createTeam with members', async () => {
+    const result = { id: 'team-1', name: 'Team' };
+    const members = [
+      { assistant_id: 'scode', name: 'Leader', role: 'lead' },
+      { assistant_id: 'claude', name: 'Worker', role: 'teammate', model: 'model-1' },
+    ];
+    h.createTeam.mockResolvedValue(result);
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(h.providers.get('createTeam')?.({ name: 'Team', workspace: '/workspace', members })).resolves.toBe(result);
+    expect(h.createTeam).toHaveBeenCalledWith('user-1', 'Team', '/workspace', members);
+  });
+
+  it('wires updateTeam provider to TeamService.updateTeam', async () => {
+    const result = { id: 'team-1', name: 'Team' };
+    h.updateTeam.mockReturnValue(result);
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(h.providers.get('updateTeam')?.({ teamId: 'team-1', updates: { pinned: true, pinned_at: 123 } })).resolves.toBe(result);
+    expect(h.updateTeam).toHaveBeenCalledWith('team-1', { pinned: true, pinned_at: 123 });
+  });
+
+  it('wires renameTeam provider to TeamService.renameTeam', async () => {
+    const result = { id: 'team-1', name: 'New Team' };
+    h.renameTeam.mockReturnValue(result);
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(h.providers.get('renameTeam')?.({ teamId: 'team-1', name: 'New Team' })).resolves.toBe(result);
+    expect(h.renameTeam).toHaveBeenCalledWith('team-1', 'New Team');
+  });
+
+  it('wires answerQuestion provider to TeamService.answerQuestion', async () => {
+    h.answerQuestion.mockResolvedValue(undefined);
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(
+      h.providers.get('answerQuestion')?.({
+        teamId: 'team-1',
+        memberId: 'slot-1',
+        conversationId: 'conv-1',
+        toolCallId: 'tool-1',
+        answers: [{ id: 'q1', value: 'yes', label: 'Yes' }],
+      })
+    ).resolves.toEqual({ success: true });
+    expect(h.answerQuestion).toHaveBeenCalledWith('team-1', 'slot-1', 'conv-1', 'tool-1', [{ id: 'q1', value: 'yes', label: 'Yes' }]);
+  });
+
+  it('wires retryMemberStart provider and returns an error envelope on failure', async () => {
+    h.retryMemberStart.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('retry failed'));
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(h.providers.get('retryMemberStart')?.({ teamId: 'team-1', slotId: 'slot-1' })).resolves.toBeUndefined();
+    expect(h.retryMemberStart).toHaveBeenCalledWith('team-1', 'slot-1');
+
+    await expect(h.providers.get('retryMemberStart')?.({ teamId: 'team-1', slotId: 'slot-1' })).resolves.toEqual({ __error: 'retry failed' });
+  });
+});
+
+describe('teamBridge runtime shape validation (zod, M5)', () => {
+  it('rejects a createTeam payload whose name is blank before reaching the service', async () => {
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    const res = await h.providers.get('createTeam')?.({ name: '   ', members: [{ assistant_id: 'scode', name: 'L', role: 'lead' }] });
+
+    expect(res).toEqual({ __error: expect.stringContaining('name') });
+    expect(h.createTeam).not.toHaveBeenCalled();
+  });
+
+  it('rejects a sendMessage payload whose input exceeds the size cap before reaching the service', async () => {
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    const res = await h.providers.get('sendMessage')?.({ teamId: 'team-1', input: 'x'.repeat(256 * 1024 + 1) });
+
+    expect(res).toEqual({ __error: expect.any(String) });
+    expect(h.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('passes a valid sendMessage payload through to the service', async () => {
+    h.sendMessage.mockResolvedValue({ ok: true });
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    await expect(h.providers.get('sendMessage')?.({ teamId: 'team-1', input: 'hello', files: ['a.txt'] })).resolves.toEqual({ ok: true });
+    expect(h.sendMessage).toHaveBeenCalledWith('team-1', 'hello', ['a.txt'], undefined);
+  });
+});
+
+describe('teamBridge setSessionMode await (M13)', () => {
+  it('invokes the service with parsed params and surfaces a service rejection as an error envelope', async () => {
+    h.setSessionMode.mockRejectedValueOnce(new Error('mode failed'));
+    const { initTeamBridge } = await import('@process/bridge/teamBridge');
+    initTeamBridge();
+
+    // A rejection only reaches the envelope if the provider awaits the (async) service call.
+    await expect(h.providers.get('setSessionMode')?.({ teamId: 'team-1', sessionMode: 'acceptEdits' })).resolves.toEqual({ __error: 'mode failed' });
+    expect(h.setSessionMode).toHaveBeenCalledWith('team-1', 'acceptEdits');
+
+    h.setSessionMode.mockResolvedValueOnce(undefined);
+    await expect(h.providers.get('setSessionMode')?.({ teamId: 'team-1', sessionMode: 'default' })).resolves.toBeUndefined();
+    expect(h.setSessionMode).toHaveBeenCalledWith('team-1', 'default');
+  });
+});

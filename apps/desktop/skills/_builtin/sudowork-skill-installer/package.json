@@ -1,0 +1,14 @@
+{
+  "name": "sudowork-skill-installer",
+  "version": "1.0.0",
+  "description": "Sudo Hub Skill installer CLI",
+  "bin": {
+    "sudowork-skill": "./scripts/sudowork-skill.mjs"
+  },
+  "files": [
+    "scripts/",
+    "SKILL.md",
+    "_sudowork_meta.json"
+  ],
+  "license": "Apache-2.0"
+}

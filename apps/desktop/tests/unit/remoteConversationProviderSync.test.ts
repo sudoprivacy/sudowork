@@ -1,0 +1,73 @@
+import { describe, expect, it } from 'vitest';
+import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib';
+
+describe('convertMossMessagesToTMessages Moss sync conversion', () => {
+  it('uses local DB message status values for synced Moss history', () => {
+    const { messages, foundModel } = convertMossMessagesToTMessages(
+      [
+        {
+          type: 'user',
+          timestamp: '2026-06-10T00:00:00.000Z',
+          message: { content: [{ type: 'text', text: '记住我是 ybc' }] },
+        },
+        {
+          type: 'assistant',
+          timestamp: '2026-06-10T00:00:01.000Z',
+          message: {
+            model: 'gemini-3.5-flash',
+            content: [{ type: 'text', text: '已记住' }],
+          },
+        },
+      ],
+      'conv-1',
+      'moss-session-1'
+    );
+
+    expect(foundModel).toBe('gemini-3.5-flash');
+    expect(messages).toHaveLength(2);
+    expect(messages.map((message: any) => message.status)).toEqual(['finish', 'finish']);
+    expect(messages.map((message: any) => message.position)).toEqual(['right', 'left']);
+  });
+
+  it('strips injected cron prompt blocks from remote user messages', () => {
+    const { messages } = convertMossMessagesToTMessages(
+      [
+        {
+          type: 'user',
+          timestamp: '2026-06-10T00:00:00.000Z',
+          message: {
+            content: [
+              {
+                type: 'text',
+                text: '[Scheduled Task Skill — you MUST follow this to manage scheduled tasks; output the [CRON_*] commands directly in your reply]\n\n[Assistant Rules - You MUST follow these instructions]\n\n[User Request]\n生成一个 go 语言的 knn 算法',
+              },
+            ],
+          },
+        },
+      ],
+      'conv-1',
+      'moss-session-1'
+    );
+
+    expect(messages).toHaveLength(1);
+    expect((messages[0] as any).content.content).toBe('生成一个 go 语言的 knn 算法');
+  });
+
+  it('maps the moss user message uuid to msg_id for streaming/history dedup', () => {
+    const { messages } = convertMossMessagesToTMessages(
+      [
+        {
+          type: 'user',
+          uuid: 'msg-uuid-1',
+          timestamp: '2026-06-10T00:00:00.000Z',
+          message: { content: [{ type: 'text', text: 'hi' }] },
+        },
+      ],
+      'conv-1',
+      'moss-session-1'
+    );
+
+    expect(messages).toHaveLength(1);
+    expect((messages[0] as any).msg_id).toBe('msg-uuid-1');
+  });
+});

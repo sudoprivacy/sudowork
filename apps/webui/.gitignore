@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+.env
+.env.*
+!.env.example
+*.local
+peer-review-runs/
+bun.lockb
+.DS_Store
+*.log
+config/sudowork-webui.json

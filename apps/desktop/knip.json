@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "../../packages/renderer/src/index.ts",
+    "../../packages/renderer/src/avatar/index.ts"
+  ],
+  "project": ["../../packages/renderer/src/**/*.{ts,tsx}"],
+  "ignore": [
+    "../../packages/renderer/src/i18n/locales/**"
+  ],
+  "ignoreExportsUsedInFile": true
+}

@@ -1,0 +1,190 @@
+# Sudowork WebUI
+
+独立 Web 服务：不修改 Moss 与桌面端 Sudowork，提供可登录、多用户并发使用的 Moss 远程对话
+Web 界面，含智能体、技能库、定时任务、会话历史与四项设置（用户中心 / MCP 服务 / 显示 / 关于）。
+
+- **架构**：浏览器只访问同源的 WebUI 后端；后端以配置的固定 Moss 地址代理 REST/WebSocket，
+  按 Cookie 会话隔离用户与 Moss token。Moss 是唯一业务数据源，WebUI 不复制业务数据。
+- **前端单入口**：`index.html` → `src/client/shared-renderer/main.ts` 挂载 `packages/renderer`
+  （与桌面端同一份 React 19 UI，hash 路由 `/#/`）；传输层 `src/client/bridgeAdapter/mossAdapter.ts`
+  把 renderer 的 bridge channel 翻译为同源 HTTP + WS。桌面端专属页面由运行时门控裁剪，桌面行为零影响。
+- **技术栈**：Node.js ≥22 <26、Bun、React 19、TypeScript strict、Vite、
+  Arco Design、UnoCSS、Express 5、ws、PostgreSQL、pg、Zod、Vitest、Supertest、Playwright。
+
+## 快速开始（开发）
+
+```bash
+# 1) 依赖
+bun install
+
+# 2) PostgreSQL（已有实例可跳过；或用 Docker）
+docker run -d --name sudowork-webui-postgres \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sudowork_webui \
+  -p 5432:5432 postgres:16-alpine
+
+# 3) 环境变量（复制 .env.example 为 .env 并填写三个密钥）
+cp .env.example .env
+
+# 4) 建表（幂等）
+bun run migrate
+
+# 5) 启动（server :26809 + vite :26808，/api 与 /ws 自动代理）
+bun run dev
+```
+
+打开 http://localhost:26808，用 Moss 账户密码或 API Key 登录。
+
+旧路径 URL 会被客户端重定向到对应 hash 路由：`/agents`→`/#/app/agent`、`/skills`→`/#/app/skills`、
+`/cron[/:id]`→`/#/app/cron[/:id]`、`/settings/{profile,display,about,mcp}`→`/#/settings/…`、
+`/conversation/:id`→`/#/conversation/:id`；未匹配落 `/#/guid`。
+
+## 环境变量
+
+| 变量                                 | 说明                                                                                            |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                       | WebUI 自有 PostgreSQL（仅存 Web Session / 偏好 / 会话锁）                                       |
+| `SESSION_HMAC_KEY`                   | Cookie token 的 HMAC 密钥（≥32 字节，`openssl rand -hex 32`）                                   |
+| `TOKEN_AES_KEY`                      | Moss access/refresh token 的 AES-256-GCM 密钥（32 字节，`openssl rand -base64 32`）             |
+| `PUBLIC_ORIGIN`                      | 对外完整 Origin；生产必须 HTTPS（外部反向代理终结 TLS）                                         |
+| `MOSS_BASE_URL` / `MOSS_WS_BASE_URL` | Moss 服务地址（只读访问，不由 WebUI 部署；两者主机必须一致）                                    |
+| `MOSS_ALLOWED_ORIGINS`               | 登录页允许手填的额外 Moss Origin，逗号分隔；默认只允许 `MOSS_BASE_URL`                          |
+| `PORT`                               | 服务端口（默认 26809；开发时前端 vite 跑 26808 并代理到此端口，生产由本服务同端口托管静态产物） |
+
+配置文件（`config/sudowork-webui.json`，可 `CONFIG_PATH` 覆盖）提供 server/publicOrigin/
+trustProxy/moss/session/upload 段；环境变量优先。
+
+## 一键部署（推荐）
+
+前置条件：Docker 20.10+、Docker Compose v2，以及已经启用的 Moss Server。生产环境需要
+一个由 Nginx/Caddy 等反向代理提供 HTTPS 的 WebUI 域名。
+
+在 Linux amd64 服务器上执行，不需要下载源码：
+
+```bash
+curl -fsSL https://sudowork-release-1309794936.cos.accelerate.myqcloud.com/sudowork/webui/latest/install.sh | sudo bash
+```
+
+脚本会提示 WebUI 的公开 HTTPS Origin 和 Moss 对外地址，随后自动：
+
+- 生成 PostgreSQL 密码、Session HMAC 密钥和 Token AES 密钥；
+- 下载并校验 CI 构建的 WebUI/PostgreSQL 镜像包，不在服务器上编译源码；
+- 将配置以 `0600` 权限保存到 `~/.sudowork/webui/.env`；
+- 启动 PostgreSQL、数据库迁移和 WebUI；
+- 升级前备份数据库、配置和版本信息，健康检查失败时自动恢复；
+- 等待容器健康检查通过并输出状态、日志和停止命令。
+
+非交互部署：
+
+```bash
+curl -fsSL https://sudowork-release-1309794936.cos.accelerate.myqcloud.com/sudowork/webui/latest/install.sh | \
+  sudo PUBLIC_ORIGIN=https://webui.example.com \
+       MOSS_BASE_URL=http://10.0.1.206:43127 \
+       bash -s -- --non-interactive
+```
+
+`MOSS_WS_BASE_URL` 默认根据 `MOSS_BASE_URL` 推导。两者的主机和端口必须与 Moss
+`server.publicBaseUrl` 一致，否则 HTTP 页面可以加载，但创建会话后的 WebSocket 会被拒绝。
+如需让用户在登录页切换到其他 Moss，管理员还需设置
+`MOSS_ALLOWED_ORIGINS=https://moss-a.example.com,https://moss-b.example.com`；未列入白名单的地址会由
+WebUI 服务端拒绝，不能作为代理目标。
+安装完成后通过配置的 `PUBLIC_ORIGIN` 打开 WebUI，并直接使用 Moss 账号登录。常用维护命令：
+
+```bash
+sudo ~/.sudowork/webui/status.sh
+sudo ~/.sudowork/webui/backup.sh
+sudo ~/.sudowork/webui/restore.sh ~/.sudowork/webui/backups/<timestamp>
+sudo ~/.sudowork/webui/install.sh --upgrade
+sudo ~/.sudowork/webui/stop.sh
+sudo ~/.sudowork/webui/uninstall.sh             # 保留配置和数据库
+sudo ~/.sudowork/webui/uninstall.sh --purge     # 同时删除本地数据
+```
+
+升级会获取最新安装器，在 `backups/<UTC 时间>` 中保存 PostgreSQL、`.env`、Compose 和版本信息，
+并保留最近 5 份备份。新版本健康检查失败时自动恢复升级前的数据和程序配置。如需离线部署，先在联网机器下载完整发布包：
+
+```bash
+./install.sh --download ./sudowork-webui-offline
+# 将目录复制到目标服务器
+sudo ./sudowork-webui-offline/install.sh --offline
+```
+
+CI 在版本发布时生成 `install.sh`、`SHA256SUMS` 和
+`sudowork-webui-<version>-linux-amd64.tar.gz`，同时附加到 GitHub Release；稳定版还会同步到
+COS 的不可变版本目录，并在校验通过后更新上述 `latest/install.sh`。
+
+从源码部署仍可在仓库中执行 `cd apps/webui && bun run deploy`。该模式使用当前源码构建镜像，
+配置保存在 `apps/webui/.env.deploy`，适合开发验证，不等同于 CI 发布包安装。
+
+## 手动生产部署（Docker Compose）
+
+```bash
+export SESSION_HMAC_KEY=... TOKEN_AES_KEY=... PUBLIC_ORIGIN=https://webui.example.com \
+       MOSS_BASE_URL=http://moss.internal:43127 MOSS_WS_BASE_URL=ws://moss.internal:43127
+docker compose up -d --build
+```
+
+Compose 启动顺序（计划 3.12）：`postgres`（healthcheck）→ 一次性 `migrate`（成功退出）→
+`webui`（`node dist/server/index.js`）。生产要求外部 HTTPS 反向代理；Express 仅在显式
+`trustProxy` 时信任代理头。
+
+## 数据库迁移
+
+- `migrations/` 按文件名顺序执行；`schema_migrations` 记录 version/checksum/applied_at。
+- 每个 migration 单事务执行，失败回滚并非 0 退出；已应用的 checksum 变化将拒绝启动。
+- 空库重复执行 `bun run migrate` 幂等（Compose 的 migrate 服务即依赖此性质）。
+
+## 测试
+
+```bash
+bun run typecheck && bun run lint
+bun run test:unit          # 单元（含组件）
+bun run test:contract      # Moss 请求形状契约（打桩，不依赖真实 Moss）
+bun run test:integration   # 集成（需要本地 PostgreSQL，自动建删 sudowork_webui_test 库）
+bun run build
+bun run test:e2e           # 真实 Moss E2E（见下）
+```
+
+### 真实 Moss E2E（计划 3.11）
+
+E2E 只允许专用测试 Moss。必填环境变量（缺失即失败，不 skip）：
+
+```
+E2E_BASE_URL=http://127.0.0.1:26808
+E2E_USER_A_USERNAME / E2E_USER_A_PASSWORD
+E2E_USER_B_USERNAME / E2E_USER_B_PASSWORD
+E2E_USER_A_API_KEY
+E2E_TEST_PREFIX=webui-e2e-<unique>
+```
+
+前置健康检查：两用户可登录、`/api/v1/models/available` 至少一个可用模型。
+测试创建的资源一律带 `E2E_TEST_PREFIX` 前缀并在结束时清理；清理失败使 E2E 失败。
+
+## 已知限制（如实保留，不在 WebUI 中伪造成功）
+
+- Moss 无 Session 重命名/删除：WebUI 不提供这两个操作。
+- Moss 无普通用户自助改密：用户中心不显示改密。
+- 浏览器 WebSocket 无法设置 Moss 要求的 Authorization 头：由 WebUI 后端代理。
+- Moss 同一 Session 无多写者协调：WebUI 只保证“经当前实例”的单写（conversation_locks），
+  不能约束桌面端、Cron 或 Moss 直连客户端。
+- Agent/Skill 同名解析继承 Moss 现状（`assistant_name` / `enabled_skills` 字符串），
+  WebUI 在提交前重新核验当前用户可见列表，但不宣称消除同名碰撞。
+- WebUI 登出不调用 Moss logout（会影响该用户全部会话的 provider token）；
+  Web Session 删除后 Moss token 按自身 TTL 失效。
+- 当前上游 WS 协议不发射 thinking 事件、不支持 turn 级 interrupt：WebUI 保留协议兼容位，
+  不伪造这两类交互；终止会话走 REST terminate。
+- 登录限流为进程内存存储（单实例约束）。
+- 会话右侧面板仅工作区（只读树 + 文本/图片预览）与交付物；浏览器 tab（Electron `<webview>` 专属）
+  与终端 tab（产品决策隐藏）在 Web 端不出现。工作区上传子功能与 html/pdf/office/媒体预览不支持
+  （依赖本地磁盘，与 console 现状一致）。
+- 助手编辑入口在 Web 端隐藏（Moss meta 端点无法回写 renderer 的 I18n/prompt 字段）；创建仍可用。
+- Agent 启停开关在 Web 端隐藏（Moss 无对应端点）；Agent/Skill 的创建/卸载、Skill 启停对非
+  `admin:settings` 用户隐藏控件（服务端强制）。
+
+## 范围外（首版明确不做）
+
+Local 会话/终端/浏览器面板/本地知识库/频道/团队/安全中心/充值/成员管理/企业管理/扩展设置；
+多实例、Redis、分布式锁、审计平台、outbox、MCP SSE relay、性能压测平台。
+
+## License
+
+Apache-2.0（含自 Sudowork 摘取的样式与组件，保留原始版权头）。

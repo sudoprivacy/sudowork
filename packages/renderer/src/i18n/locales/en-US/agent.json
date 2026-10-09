@@ -1,0 +1,45 @@
+{
+  "health": {
+    "detectedError": "Detected error with current agent ({{agent}})",
+    "autoSwitching": ". System will attempt to switch automatically.",
+    "evaluating": "Evaluating network latency and model availability...",
+    "checking": "Checking {{agent}} endpoint...",
+    "foundBest": "Found best alternative",
+    "recommendSwitch": "Recommended",
+    "available": "Available",
+    "lowLatency": "Low Latency",
+    "mediumLatency": "Medium Latency",
+    "highLatency": "High Latency",
+    "bestMatch": "Best Match",
+    "noAvailable": "No available agents in current environment",
+    "checkConfig": "Please check configuration or try again later"
+  },
+  "setup": {
+    "connectionError": "Connection Error",
+    "notConfigured": "{{agent}} is not configured",
+    "authRequired": "Authentication or API key is required to use this agent.",
+    "findingAlternatives": "Finding available alternatives...",
+    "checkingAgent": "Checking {{agent}}...",
+    "alternativesFound": "{{count}} available alternatives found",
+    "autoSwitching": "Auto-switching to best available agent...",
+    "configError": "Configuration error. Please check your settings or select an alternative:",
+    "noAlternatives": "No available agents found",
+    "configureFirst": "Please configure an agent in Settings first.",
+    "switching": "Switching agent..."
+  },
+  "mine": {
+    "title": "My Agents",
+    "create": "Create Agent",
+    "description": "Agents belong to your current account. Choose an Agent to start a conversation or create a personal Agent.",
+    "loadFailed": "Could not load Agents. Please try again.",
+    "retry": "Retry",
+    "default": "Default Agent",
+    "personal": "Personal Agent",
+    "startConversation": "New conversation",
+    "empty": "No personal Agents yet",
+    "name": "Agent name",
+    "createFailed": "Could not create the Agent. Please try again.",
+    "open": "Open Agent",
+    "openFailed": "Could not open the Agent conversations. Please try again."
+  }
+}

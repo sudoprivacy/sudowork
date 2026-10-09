@@ -1,0 +1,180 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.search {
+  flex: 1;
+  min-width: 200px;
+  max-width: 440px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 16px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 14px;
+  background: var(--color-bg-2);
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+.card:hover {
+  border-color: var(--color-border-3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+.cardHeading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.icon {
+  display: flex;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--color-fill-2);
+  color: var(--color-text-2);
+  font-size: 26px;
+}
+.icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.title {
+  display: block !important;
+  max-width: 100%;
+  height: auto !important;
+  padding: 0 !important;
+  color: var(--color-text-1) !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.source {
+  display: block;
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.description {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 60px;
+  margin: 16px 0 12px;
+  color: var(--color-text-2);
+  font-size: 13px;
+  line-height: 20px;
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+  margin-bottom: 16px;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border-1);
+}
+.actions :global(.arco-btn-text) {
+  padding-left: 0;
+  color: var(--color-text-2);
+}
+.detailHeader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.detailTitle {
+  margin: 0 0 6px;
+  color: var(--color-text-1);
+  font-size: 22px;
+  line-height: 1.4;
+}
+.detailBody {
+  max-height: 55vh;
+  overflow: auto;
+  color: var(--color-text-2);
+  line-height: 1.75;
+}
+.instructionsHeading {
+  margin: 24px 0 12px;
+  color: var(--color-text-1);
+  font-size: 14px;
+}
+.markdown {
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--color-fill-1);
+  overflow-wrap: anywhere;
+}
+.markdown :first-child {
+  margin-top: 0;
+}
+.markdown pre {
+  overflow-x: auto;
+  padding: 12px;
+  background: var(--color-fill-2);
+  border-radius: 8px;
+}
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.markdown th,
+.markdown td {
+  padding: 8px;
+  border: 1px solid var(--color-border-2);
+  text-align: left;
+}
+.detailActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 20px;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.feature {
+  padding: 16px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 10px;
+}
+.feature p {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .features {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@sudowork/ontology-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*.ts",
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@rdfjs/types": "^2.0.1",
+    "@sudowork/ontology-common": "workspace:*",
+    "@xmldom/xmldom": "0.8.11",
+    "rdfxml-streaming-parser": "3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "rdflib": "2.4.1"
+  }
+}

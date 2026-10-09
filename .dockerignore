@@ -1,0 +1,28 @@
+# Build context is the repo root (for apps/webui/Dockerfile). Keep it lean:
+# dependencies and build output are regenerated inside the image, and the desktop
+# app is not part of the webui build.
+**/node_modules
+**/dist
+**/out
+**/.turbo
+**/coverage
+**/*.log
+
+.git
+.github
+.husky
+
+# The desktop app source is not needed to build the webui, but its manifest is
+# required so the frozen workspace install resolves against the shared lockfile.
+apps/desktop
+!apps/desktop/package.json
+
+# Editor / OS cruft
+**/.vscode
+**/.idea
+**/.DS_Store
+
+# Test artifacts
+**/playwright-report
+**/test-results
+tests/e2e

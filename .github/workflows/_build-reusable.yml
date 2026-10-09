@@ -4,30 +4,39 @@ on:
   workflow_call:
     inputs:
       matrix:
-        description: 'Build matrix as JSON string (passed via fromJSON in caller)'
+        description: "Build matrix as JSON string (passed via fromJSON in caller)"
         type: string
         required: true
       ref:
-        description: 'Git ref to checkout (leave empty to use the triggering commit)'
+        description: "Git ref to checkout (leave empty to use the triggering commit)"
         type: string
-        default: ''
+        default: ""
       skip_code_quality:
-        description: 'Skip code quality checks (faster builds for debugging)'
+        description: "Skip code quality checks (faster builds for debugging)"
         type: boolean
         default: false
       append_commit_hash:
-        description: 'Append short commit hash to artifact names'
+        description: "Append short commit hash to artifact names"
+        type: boolean
+        default: false
+      server_base_url:
+        description: "Optional Moss base URL injected via Vite define (empty = hosted Moss)"
+        type: string
+        default: ""
+      server_locked:
+        description: "Prevent users from overriding the injected Moss address"
         type: boolean
         default: false
 
 env:
-  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
-  UV_DEFAULT_INDEX: 'https://pypi.org/simple/'
+  BUN_INSTALL_REGISTRY: "https://registry.npmjs.org/"
+  UV_DEFAULT_INDEX: "https://pypi.org/simple/"
 
 jobs:
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: ${{ !inputs.skip_code_quality }}
 
     steps:
@@ -37,35 +46,55 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: '1.3.14'
 
       - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+        run: bun install --frozen-lockfile
 
-      - name: Run postinstall
-        run: bun run postinstall || true
+      - name: Build shared packages
+        run: bun run build:packages
+
+      - name: Ensure Electron is installed for native SQLite tests
+        working-directory: apps/desktop
+        run: node node_modules/electron/install.js
+
+      - name: Rebuild SQLite for the desktop Electron ABI
+        working-directory: apps/desktop
+        env:
+          SUDOWORK_FORCE_REBUILD: '1'
+        run: bun run postinstall
 
       - name: Check Prettier formatting
         run: bun run format:check
 
       - name: TypeScript type check
-        run: bunx tsc --noEmit
+        run: bun run type:check
 
       - name: Run unit tests
-        run: bunx vitest run
+        run: bun run test
 
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     needs: code-quality
     if: ${{ always() && (inputs.skip_code_quality || needs.code-quality.result == 'success') }}
+    defaults:
+      run:
+        working-directory: apps/desktop
+
+    # Job-level env propagates to every step in this job AND to subprocesses spawned by those steps
+    # (e.g. build-with-builder.js → electron-vite). Existing release/nightly callers do not pass
+    # `server_base_url`, so this resolves to '' and the runtime helper falls back to hosted Moss.
+    env:
+      BUILD_SERVER_BASE_URL: ${{ inputs.server_base_url }}
+      BUILD_SERVER_LOCKED: ${{ inputs.server_locked }}
 
     outputs:
       commit-short: ${{ steps.commit.outputs.short }}
@@ -98,7 +127,7 @@ jobs:
       - name: Verify ai-dev-browser submodule is bundled
         shell: bash
         run: |
-          pkg="vendor/ai-dev-browser/ai_dev_browser"
+          pkg="$GITHUB_WORKSPACE/vendor/ai-dev-browser/ai_dev_browser"
           count=$(find "$pkg" -name '*.py' 2>/dev/null | wc -l | tr -d ' ')
           if [ "${count:-0}" -eq 0 ]; then
             echo "::error::ai-dev-browser package is empty or missing ($pkg has no .py files). The browser builtin skill would ship dead. Ensure checkout uses 'submodules: recursive' and the submodule is initialized."
@@ -107,9 +136,9 @@ jobs:
           echo "ai-dev-browser package present: $count .py files under $pkg"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
@@ -117,9 +146,9 @@ jobs:
           bun-version: latest
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -127,7 +156,7 @@ jobs:
       # Restore Electron/Electron-Builder caches before any build-related install
       - name: Cache Electron artifacts
         id: electron-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ runner.temp }}/.cache/electron
@@ -144,7 +173,7 @@ jobs:
         run: echo "electron-cache-hit=${{ steps.electron-cache.outputs.cache-hit }}"
 
       - name: Install dependencies
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -193,7 +222,7 @@ jobs:
       - name: Install MSVC ARM64 toolchain (Windows ARM64 only)
         if: matrix.platform == 'windows-arm64'
         continue-on-error: true
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 20
           max_attempts: 3
@@ -212,7 +241,7 @@ jobs:
         if: startsWith(matrix.platform, 'windows')
         uses: microsoft/setup-msbuild@v2
         with:
-          vs-version: '17.0'
+          vs-version: "17.0"
 
       - name: Rebuild native modules for Electron
         if: "!startsWith(matrix.platform, 'windows')"
@@ -256,6 +285,12 @@ jobs:
             security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
             security default-keychain -s build.keychain
             security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+            # Disable keychain auto-lock: unlock-keychain only stays unlocked ~5min,
+            # after which codesign (called late in afterPack on slow runners) hits a
+            # relocked keychain, triggers a GUI auth prompt, and hangs headless CI
+            # until the 6h job timeout. set-keychain-settings with no flags disables
+            # both idle-timeout and lock-on-sleep.
+            security set-keychain-settings build.keychain
 
             # Import certificate
             security import certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
@@ -417,6 +452,14 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
+      - name: Verify NSIS update installation directory (Windows)
+        if: startsWith(matrix.platform, 'windows') && steps.windows-build.outputs.result == 'success'
+        shell: pwsh
+        run: bunx vitest run tests/integration/nsis-update-location.test.ts
+        env:
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/.cache/electron-builder
+          NSIS_TEST_REQUIRE_COMPILER: '1'
+
       # Clean up any stale disk images before DMG creation (macOS only)
       # 清理可能残留的磁盘镜像，避免 hdiutil "Device not configured" 错误
       - name: Clean up stale disk images (macOS only)
@@ -479,8 +522,12 @@ jobs:
             exit 0
           fi
 
-          # Build failed - check if it's just notarization failure
-          if [ "$DMG_EXISTS" = true ]; then
+          # Notarization failure must not hide missing auto-update artifacts.
+          ZIP_EXISTS=false
+          if ls out/*-mac-${{ matrix.arch }}.zip out/*-mac-${{ matrix.arch }}.zip.blockmap 1> /dev/null 2>&1; then
+            ZIP_EXISTS=true
+          fi
+          if [ "$DMG_EXISTS" = true ] && [ "$ZIP_EXISTS" = true ]; then
             # DMG exists but build failed - likely notarization issue
             if grep -qiE "notariz|staple" "${RUNNER_TEMP}/build.log"; then
               echo "⚠️ DMG created but notarization failed"
@@ -527,7 +574,7 @@ jobs:
       # Linux: 标准构建，无特殊错误处理
       - name: Build with electron-builder (Linux)
         if: matrix.platform == 'linux'
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 60
           max_attempts: 2
@@ -547,8 +594,6 @@ jobs:
           npm_config_target_arch: ${{ matrix.arch }}
           CI: true
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-
 
       - name: Verify packaged i18n assets
         if: >-
@@ -610,20 +655,20 @@ jobs:
       # - macOS: 公证超时但有产物（已在构建步骤中处理）
       # - Windows: 仅当 windows-build 步骤成功
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: >-
           success() &&
           (!startsWith(matrix.platform, 'windows') || steps.windows-build.outputs.result == 'success')
         with:
           name: ${{ inputs.append_commit_hash && format('{0}-{1}', matrix.artifact-name, steps.commit.outputs.short) || matrix.artifact-name }}
           path: |
-            out/*.exe
-            out/*.msi
-            out/*.dmg
-            out/*.AppImage
-            out/*.zip
-            out/*.yml
-            out/*.blockmap
+            apps/desktop/out/*.exe
+            apps/desktop/out/*.msi
+            apps/desktop/out/*.dmg
+            apps/desktop/out/*.AppImage
+            apps/desktop/out/*.zip
+            apps/desktop/out/*.yml
+            apps/desktop/out/*.blockmap
           if-no-files-found: warn
           retention-days: 7
 

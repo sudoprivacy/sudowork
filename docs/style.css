@@ -155,7 +155,7 @@ body {
     line-height: 1.2;
     margin-bottom: 1.5rem;
     background: -webkit-linear-gradient(45deg, #007BFF, #44aaff);
-    -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -401,14 +401,4 @@ body {
     padding: 2px 4px;
     border-radius: 4px;
     font-family: var(--font-mono);
-}
-
-/* --- Responsive Adjustments --- */
-@media (max-width: 768px) {
-    .hero-title {
-        font-size: 2.5rem;
-    }
-    .main-nav {
-        display: none; /* Simple hide for mobile, can be replaced with a burger menu */
-    }
 }

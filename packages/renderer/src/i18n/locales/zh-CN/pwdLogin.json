@@ -1,0 +1,17 @@
+{
+  "section.captcha": "验证码",
+  "section.configured": "已配置",
+  "section.custom": "自定义",
+  "section.desc": "为网站保存登录凭证，sudowork 自动填表并识别验证码登录。密码仅存于本地 Nexus 密钥库，绝不进入 AI 上下文。",
+  "section.hasCred": "已保存凭证",
+  "section.loginFailed": "自动登录失败: {{e}}",
+  "section.loginNow": "立即登录",
+  "section.loginOk": "已在浏览器中自动填充并提交登录",
+  "section.needBoth": "请填写用户名和密码",
+  "section.password": "登录密码（仅本地保存，绝不发送给 AI）",
+  "section.save": "保存凭证",
+  "section.saveFailed": "保存失败",
+  "section.saved": "凭证已安全保存到本地密钥库",
+  "section.title": "网站自动登录",
+  "section.username": "登录用户名"
+}

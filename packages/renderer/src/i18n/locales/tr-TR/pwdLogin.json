@@ -1,0 +1,17 @@
+{
+  "section.captcha": "Doğrulama kodu",
+  "section.configured": "Yapılandırıldı",
+  "section.custom": "Özel",
+  "section.desc": "Web siteleri için giriş bilgilerini kaydedin. Sudowork formları otomatik doldurur ve doğrulama kodu girişini işler. Parolalar yalnızca yerel Nexus kasasında tutulur ve AI bağlamına asla girmez.",
+  "section.hasCred": "Kimlik bilgileri kaydedildi",
+  "section.loginFailed": "Otomatik giriş başarısız: {{e}}",
+  "section.loginNow": "Şimdi giriş yap",
+  "section.loginOk": "Tarayıcıda giriş bilgileri otomatik dolduruldu ve gönderildi",
+  "section.needBoth": "Lütfen kullanıcı adı ve parola girin",
+  "section.password": "Giriş parolası (yalnızca yerelde saklanır, AI’ye asla gönderilmez)",
+  "section.save": "Kimlik bilgilerini kaydet",
+  "section.saveFailed": "Kaydedilemedi",
+  "section.saved": "Kimlik bilgileri yerel kasaya güvenli şekilde kaydedildi",
+  "section.title": "Web sitesi otomatik girişi",
+  "section.username": "Giriş kullanıcı adı"
+}

@@ -1,0 +1,21 @@
+node_modules/
+dist/
+build/
+.webpack/
+out/
+*.min.js
+*.min.css
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+*.log
+.DS_Store
+Thumbs.db
+public/
+resources/
+docs/
+config/webpack/
+scripts/
+
+# Auto-generated (scripts/generate-i18n-types.js) — not hand-edited, don't format-gate
+src/renderer/i18n/i18n-keys.d.ts

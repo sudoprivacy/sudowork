@@ -1,0 +1,122 @@
+{
+  "list": {
+    "title": "Teams",
+    "empty": "No team session history yet\nClick the + above to create a team",
+    "createButton": "New Team"
+  },
+  "create": {
+    "drawerTitle": "Create Team",
+    "nameLabel": "Team Name",
+    "namePlaceholder": "Enter a team name",
+    "leaderLabel": "Leader",
+    "leaderPlaceholder": "Select an assistant to lead the team",
+    "workspaceLabel": "Workspace",
+    "selectFolder": "Select project folder",
+    "clearWorkspace": "Use temporary space",
+    "temporaryWorkspaceHint": "Leave empty to use a shared temporary team workspace.",
+    "selectWorkspaceFailed": "Failed to select folder.",
+    "submit": "Create",
+    "cancel": "Cancel",
+    "noAssistants": "No assistants available. Install one first.",
+    "createFailed": "Failed to create team. Check the information and try again.",
+    "loadAssistantsFailed": "Failed to load assistants. Please try again.",
+    "subtitle": "Select one or more agents for the team and choose one as Leader.",
+    "searchPlaceholder": "Search agents by name or description",
+    "allAssistantsCount": "All agents ({{count}})",
+    "selectedMembersCount": "Selected members ({{count}})",
+    "leaderHint": "Click Leader to choose the owner",
+    "leaderButton": "Leader",
+    "emptyMembersTitle": "Add agents from the left",
+    "emptyMembersSubtitle": "The first added member becomes Leader by default. You can change it anytime.",
+    "agentDescriptionFallback": "An agent suitable for team collaboration.",
+    "addMember": "Add member",
+    "removeMember": "Remove member"
+  },
+  "detail": {
+    "memberTab": "Team Members",
+    "leaderChat": "Leader",
+    "selectMember": "Select a member",
+    "noMembers": "No team members yet",
+    "workspaceTitle": "Workspace",
+    "workspaceCustom": "Custom workspace",
+    "workspaceTemporary": "Temporary team workspace",
+    "workspacePending": "Workspace is not ready",
+    "empty": {
+      "subtitle": "Describe your goal, and I will coordinate the team to get it done.",
+      "prompt": {
+        "productDevQaOps": "Have product, engineering, QA, and operations collaborate to ship a feature",
+        "growth": "Have marketing, content, design, and ads collaborate on a growth plan",
+        "delivery": "Have owners, executors, risk control, and retrospectives collaborate to deliver a project"
+      }
+    },
+    "leaderNotFound": "Team Leader not found.",
+    "addMemberFailed": "Failed to add member. Please try again.",
+    "removeMemberFailed": "Failed to remove member. Please try again.",
+    "renameMemberFailed": "Failed to rename member. Please try again.",
+    "loadError": "Failed to load team. Please retry.",
+    "retry": "Retry",
+    "stopMemberFailed": "Failed to stop this member. Please try again.",
+    "retryStartFailed": "Failed to restart this member. Please try again."
+  },
+  "status": {
+    "pending": "Pending",
+    "idle": "Idle",
+    "active": "Working",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "role": {
+    "leader": "Leader",
+    "teammate": "Teammate"
+  },
+  "actions": {
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "rename": "Rename",
+    "remove": "Remove",
+    "delete": "Delete",
+    "export": "Export",
+    "retryStart": "Retry start"
+  },
+  "rename": {
+    "title": "Rename Team",
+    "placeholder": "Enter a team name",
+    "success": "Team renamed",
+    "failed": "Failed to rename team"
+  },
+  "pin": {
+    "failed": "Failed to update pin state"
+  },
+  "export": {
+    "dialogTitle": "Export Team",
+    "dialogDescription": "Export team information, Leader and member conversation records, and team workspace files as a ZIP archive.",
+    "targetFolder": "Export to folder",
+    "selectFolder": "Select an export folder",
+    "hint": "Confirm to start exporting the team archive.",
+    "exporting": "Exporting...",
+    "success": "Team exported",
+    "failed": "Failed to export team",
+    "canceled": "Team export canceled"
+  },
+  "confirm": {
+    "deleteTeamTitle": "Delete team?",
+    "deleteTeam": "Delete this team? Members will be removed.",
+    "deleteTeamCustomHint": "This team's workspace is a custom folder and will be kept. Remove it manually if needed.",
+    "deleteWorkspaceOption": "Also delete workspace folder",
+    "confirmDelete": "Delete",
+    "cancelDelete": "Cancel",
+    "deleteSuccess": "Team deleted",
+    "deleteFailed": "Failed to delete team",
+    "removeMember": "Remove member {{name}} from the team?"
+  },
+  "warmup": {
+    "title": "Waking up team",
+    "subtitle": "Starting team members. Please wait.",
+    "failedTitle": "Team wakeup failed",
+    "failedHint": "Some members failed to start. Please retry.",
+    "retry": "Retry"
+  },
+  "membership": {
+    "memberAddedNotice": "A teammate was added to the team. Call team_members to get the latest roster before delegating work."
+  }
+}

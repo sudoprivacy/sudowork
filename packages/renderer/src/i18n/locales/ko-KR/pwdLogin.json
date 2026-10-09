@@ -1,0 +1,17 @@
+{
+  "section.captcha": "인증 코드",
+  "section.configured": "설정됨",
+  "section.custom": "사용자 지정",
+  "section.desc": "웹사이트 로그인 자격 증명을 저장합니다. Sudowork가 양식을 자동 입력하고 인증 코드 로그인을 처리합니다. 비밀번호는 로컬 Nexus 금고에만 저장되며 AI 컨텍스트로 들어가지 않습니다.",
+  "section.hasCred": "자격 증명 저장됨",
+  "section.loginFailed": "자동 로그인 실패: {{e}}",
+  "section.loginNow": "지금 로그인",
+  "section.loginOk": "브라우저에서 로그인 정보를 자동 입력하고 제출했습니다",
+  "section.needBoth": "사용자 이름과 비밀번호를 입력하세요",
+  "section.password": "로그인 비밀번호(로컬에만 저장, AI로 전송되지 않음)",
+  "section.save": "자격 증명 저장",
+  "section.saveFailed": "저장 실패",
+  "section.saved": "자격 증명이 로컬 금고에 안전하게 저장되었습니다",
+  "section.title": "웹사이트 자동 로그인",
+  "section.username": "로그인 사용자 이름"
+}

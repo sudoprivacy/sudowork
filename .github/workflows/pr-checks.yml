@@ -2,7 +2,7 @@ name: '✓PR Checks'
 
 on:
   pull_request:
-    types: [opened, synchronize, edited]
+    types: [opened, synchronize, reopened]
     branches: [main, dev]
 
 concurrency:
@@ -16,30 +16,256 @@ permissions:
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  BUN_CONFIG_MAX_HTTP_REQUESTS: '32'
 
 jobs:
-  # Job 0: Reject PRs targeting main — all PRs should target dev
-  check-base-branch:
-    name: Check PR Base Branch
-    if: github.event.pull_request.base.ref == 'main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Reject PR to main
-        run: |
-          echo "::error::PRs should target 'dev', not 'main'. Please change the base branch."
-          echo "To fix: gh pr edit ${{ github.event.pull_request.number }} --base dev"
-          exit 1
-
   # Job 1: Skipped code quality checks (ESLint removed per requirement)
 
-# Job 2: Skipped unit tests (removed per requirement)
+  # Job 2: Vault secrets unit tests — pure mock, no native deps
+  unit-tests-secrets:
+    name: Secrets Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run secrets unit tests
+        # secretsGrpcOnly is a static source-code guard (refuses HTTP
+        # secrets paths reintroducing the pre-PR-#733 bug that hit
+        # external user 进二 on v0.2.7). Pure file reads, no native deps
+        # — fits in this cheap unit-test job, not the heavy
+        # pr-integration-smoke that spins up a real cluster.
+        #
+        # nexus-secret-resilient covers the single→batch fallback wrapper
+        # that secretsApi.handlePut + pwdLoginService both call. Mocked,
+        # no native deps either.
+        run: bunx vitest run tests/unit/secrets/nexus-secret-client.test.ts tests/unit/secrets/secret-cache.test.ts tests/unit/secrets/nexus-secret-resilient.test.ts tests/unit/secrets/secretsApi.test.ts tests/integration/secretsGrpcOnly.integration.test.ts
+
+  # Job 2b: Hub catalog empty-state differentiation tests
+  unit-tests-hub:
+    name: Hub Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run hub unit tests
+        # hubErrors: typed error parser unit (mocked, no deps).
+        # HubEmptyState: DOM test (jsdom) for the 3-way empty-state UI
+        # that surfaces TOKEN_MISSING vs FETCH_FAILED vs actually-empty
+        # — observability fix for the bug class where users (e.g. 进二
+        # on v0.2.7) saw silent empty catalogs without any signal that
+        # their skillhub token wasn't provisioned.
+        run: bunx vitest run tests/unit/hubErrors.test.ts tests/unit/HubEmptyState.dom.test.tsx tests/unit/skillUpdateVersion.test.ts
+
+  # Job 2b2: Prettier formatting gate. Root cause of the v0.2.16 nightly failure:
+  # prettier was enforced ONLY at nightly (build-nightly Code Quality), never in
+  # PR CI, so unformatted code merged freely to dev and broke the release build.
+  # Gate the exact same check at PR time (same script as nightly) so dev stays
+  # release-clean. Deterministic + fast — not the ESLint that was removed.
+  format-check:
+    name: Format Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Check Prettier formatting
+        run: bun run format:check
+
+  # Job 2b3: TypeScript type-check gate for the whole monorepo. The shared
+  # renderer now lives in packages/renderer (outside apps/desktop's tsconfig),
+  # so the SSOT `type:check` script checks BOTH apps/desktop AND
+  # @sudowork/renderer. Previously PR CI had no tsc gate at all.
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      # Emit dist types for the workspace packages so apps/desktop's tsc can
+      # resolve them via their `types` condition.
+      - name: Build shared packages
+        run: bun run build:packages
+
+      - name: Type check (apps/desktop + packages/renderer)
+        run: bun run type:check
+
+      - name: Lint (packages/renderer)
+        run: bun run --filter '@sudowork/renderer' lint
+
+      - name: Format check (packages/renderer)
+        run: bun run --filter '@sudowork/renderer' format:check
+
+  # Job 2c: Conversation resource reaper regression tests
+  unit-tests-conversation-reaper:
+    name: Conversation Reaper Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+
+      - name: Run conversation reaper tests
+        # Guards the conversation-lifecycle cleanup SSOT against regression:
+        # reaper step order + workspace-deletion guard (never delete a user
+        # asset), boot orphan sweeper (referenced kept / aged orphan swept /
+        # fresh skipped), preset-uninstall routing through the reaper, and the
+        # leaked-cache disposers (message timer, telemetry discard). All mocked
+        # / tmp-dir based — no native deps or display. Encodes the behaviors
+        # verified end-to-end against the live app.
+        run: bunx vitest run tests/integration/conversationReaper.test.ts tests/integration/orphanWorkspaceSweeper.test.ts tests/integration/assistantHubUninstallReaper.test.ts tests/unit/conversationTrackerDiscard.test.ts tests/unit/messageDispose.test.ts
+
+  # Job 2d: FULL test suite. Root cause of the v0.2.16 release being blocked by 87
+  # broken tests on dev: PR CI only ran the hardcoded subsets above, never the whole
+  # suite — so test-breaking merges (renamed APIs, moved modules, changed component
+  # contracts) passed PR review and only surfaced at the release nightly. Gate the
+  # entire suite here (same `vitest run` the nightly Code Quality job runs on Linux)
+  # so dev stays release-clean and regressions are caught at PR time, not release time.
+  unit-tests-full:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Full Unit Test Suite
+            timeout: 20
+          # Match the VS 2022 toolchain selected by rebuildNativeModules.js.
+          - os: windows-2022
+            name: Full Unit Test Suite (Windows)
+            # A cold install took 14m35s; preserve time for the complete suite
+            # and the Electron ABI rebuild without changing test timeouts.
+            timeout: 30
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout }}
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Ensure Electron is installed for native SQLite tests
+        run: node node_modules/electron/install.js
+
+      - name: Setup MSBuild for native SQLite tests
+        if: runner.os == 'Windows'
+        uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: '17.0'
+
+      - name: Rebuild SQLite for the desktop Electron ABI
+        # CI postinstall normally skips this. The native SQLite suite launches
+        # Electron, so a Node.js prebuild cannot satisfy its driver contract.
+        env:
+          SUDOWORK_FORCE_REBUILD: '1'
+        run: node scripts/postinstall.js
+
+      - name: Run full test suite
+        timeout-minutes: 10
+        run: bunx vitest run
 
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
     name: Build Test (${{ matrix.platform }})
-    if: github.event.action != 'edited'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: ${{ matrix.timeout }}
+    defaults:
+      run:
+        working-directory: apps/desktop
     strategy:
       fail-fast: false
       matrix:
@@ -50,24 +276,28 @@ jobs:
             target: '--mac'
             build_args: '--mac --arm64'
             unpacked_dir: 'mac-arm64'
+            timeout: 30
           - platform: 'macos-x64'
             os: 'macos-14'
             arch: 'x64'
             target: '--mac'
             build_args: '--mac --x64'
             unpacked_dir: 'mac'
+            timeout: 30
           - platform: 'windows-x64'
             os: 'windows-2022'
             arch: 'x64'
             target: '--win'
             build_args: '--win --x64'
             unpacked_dir: 'win-unpacked'
+            timeout: 75
           - platform: 'windows-arm64'
             os: 'windows-2022'
             arch: 'arm64'
             target: '--win'
             build_args: '--win --arm64'
             unpacked_dir: 'win-arm64-unpacked'
+            timeout: 75
           # Linux build disabled — no .deb target configured, snap requires snapcraft login
           # - platform: 'linux'
           #   os: 'ubuntu-latest'
@@ -81,7 +311,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
 
@@ -91,7 +321,7 @@ jobs:
           bun-version: latest
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -124,7 +354,7 @@ jobs:
       # Restore Electron/Electron-Builder caches before install-app-deps
       - name: Cache Electron artifacts
         id: electron-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ runner.temp }}/.cache/electron
@@ -165,7 +395,7 @@ jobs:
           just build-win-x64
           Write-Host "✓Build test passed for ${{ matrix.platform }}"
         env:
-          NODE_OPTIONS: "--max-old-space-size=8192"
+          NODE_OPTIONS: '--max-old-space-size=8192'
           MSVS_VERSION: 2022
           GYP_MSVS_VERSION: 2022
           WindowsTargetPlatformVersion: 10.0.19041.0
@@ -181,7 +411,7 @@ jobs:
           just build-win-arm64
           Write-Host "✓Build test passed for ${{ matrix.platform }}"
         env:
-          NODE_OPTIONS: "--max-old-space-size=8192"
+          NODE_OPTIONS: '--max-old-space-size=8192'
           MSVS_VERSION: 2022
           GYP_MSVS_VERSION: 2022
           WindowsTargetPlatformVersion: 10.0.19041.0
@@ -197,7 +427,7 @@ jobs:
           node scripts/build-with-builder.js auto ${{ matrix.build_args }}
           echo "✓Build test passed for ${{ matrix.platform }}"
         env:
-          NODE_OPTIONS: "--max-old-space-size=8192"
+          NODE_OPTIONS: '--max-old-space-size=8192'
           npm_config_arch: ${{ matrix.arch }}
           npm_config_target_arch: ${{ matrix.arch }}
           npm_config_runtime: electron
@@ -320,9 +550,11 @@ jobs:
   # Job 4: Test release scripts (fast, no build required)
   release-script-test:
     name: Release Script Test
-    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -339,59 +571,8 @@ jobs:
         shell: bash
         run: bash scripts/verify-release-assets.sh release-assets
 
-  # Job 5: Trigger GPT AI review (only on first PR submission)
-  review:
-    name: AI Review
-    needs: [build-test, release-script-test]
-    if: github.event.action == 'opened' && needs.build-test.result == 'success' && needs.release-script-test.result == 'success'
-    uses: './.github/workflows/gpt-review.yml'
-    with:
-      pr_number: '${{ github.event.pull_request.number }}'
-    permissions:
-      contents: read
-      pull-requests: write
-    secrets: inherit
+      - name: Test release validation regressions
+        run: python3 scripts/test-release-verification.py
 
-  # Job 6: Check if PR author is an external contributor
-  check-external:
-    name: Check External
-    needs: [build-test, release-script-test]
-    if: github.event.action == 'opened' && needs.build-test.result == 'success' && needs.release-script-test.result == 'success'
-    runs-on: ubuntu-latest
-    outputs:
-      is_external: ${{ steps.check.outputs.is_external }}
-    steps:
-      - name: Check author permission level
-        id: check
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const username = context.payload.pull_request.user.login;
-            try {
-              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                username,
-              });
-              const permission = data.permission;
-              const isExternal = permission !== 'admin' && permission !== 'maintain' && permission !== 'write';
-              core.info(`User ${username}: permission=${permission}, is external: ${isExternal}`);
-              core.setOutput('is_external', String(isExternal));
-            } catch (error) {
-              core.info(`User ${username}: permission check failed (${error.message}), treating as external`);
-              core.setOutput('is_external', 'true');
-            }
-
-  # Job 7: Trigger GPT PR assessment for external contributors
-  assessment:
-    name: PR Assessment
-    needs: [check-external]
-    if: needs.check-external.outputs.is_external == 'true'
-    uses: './.github/workflows/gpt-pr-assessment.yml'
-    with:
-      pr_number: '${{ github.event.pull_request.number }}'
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: read
-    secrets: inherit
+      - name: Test candidate promotion against local Git remotes
+        run: python3 scripts/test-candidate-promotion.py

@@ -1,0 +1,2449 @@
+/**
+ * @license
+ * Copyright 2026 SudoPrivacy
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * Web (moss) transport adapter for the shared `@sudowork/renderer`.
+ *
+ * The shared renderer talks to its backend ONLY through the `@office-ai/platform`
+ * `bridge` (the `ipcBridge` in `@sudowork/host-bridge`). On desktop that bridge is
+ * wired to Electron IPC; here it is wired to the apps/webui Express server
+ * (same-origin, cookie auth) which fronts moss. This module is a SIDE-EFFECT
+ * import: it calls `bridge.adapter()` at import time so the transport is live
+ * before the renderer's eager module-level ipcBridge calls run (see the ordering
+ * note in `shared-renderer/main.ts`).
+ *
+ * Protocol (from `@office-ai/platform`):
+ *  - `invoke(channel, req)` emits `subscribe-<channel>` with `{ id, data: req }`.
+ *  - the reply MUST come back as `subscribe.callback-<channel><id>` delivered
+ *    through the `emitter` passed to `on`.
+ *  - `buildEmitter(channel).on(cb)` registers `cb` on that same emitter, so a
+ *    server-pushed stream frame reaches the UI via `emitter.emit(channel, frame)`.
+ *
+ * Every `emit()` branch delivers a callback — an unanswered invoke hangs the UI.
+ * Channels without a web mapping resolve to a `not-supported-on-web`
+ * `IBridgeResponse` (never left pending), logged once for triage.
+ */
+
+import { bridge } from '@office-ai/platform'
+import { createMossAgentPort } from '@sudowork/moss-client/agents'
+// Canonical wire shape — one definition shared with the renderer + main, not a
+// parallel copy.
+import type { IBridgeResponse } from '@sudowork/host-bridge/ipcBridge'
+import type { IConfirmation } from '@sudowork/common/chatLib'
+import type { IChannelPluginStatus } from '@sudowork/common/channelTypes'
+import { deriveConversationTitle } from '@sudowork/common/conversationTitle'
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents'
+// The moss-frame → IResponseMessage mapping is the SAME implementation the desktop
+// MossWsConnection uses (shared leaf module, full stateless-frame coverage).
+import {
+  isUserAbortError,
+  mossControlRequestToConfirmation,
+  mossFrameToResponses,
+} from '@sudowork/common/mossResponse'
+
+declare global {
+  interface Window {
+    /** Set by this adapter to mark a shared-renderer web host (read by the renderer's isWebBridgeAvailable). */
+    __sudoworkWebBridge?: boolean
+    /** Staged web-upload files written by the renderer's webFilePicker; consumed by chat.send.message. */
+    __sudoworkWebFileStaging?: Map<string, File>
+  }
+}
+
+interface BridgeEmitter {
+  emit: (name: string, data: unknown) => void
+}
+
+type AnyReq = Record<string, unknown>
+type TenantConfigPayload = {
+  success?: unknown
+  data?: unknown
+  logo?: unknown
+  app_name?: unknown
+  appName?: unknown
+  top_name?: unknown
+  topName?: unknown
+  about_name?: unknown
+  aboutName?: unknown
+  app_company_name?: unknown
+  appCompanyName?: unknown
+  login_desp?: unknown
+  loginDesp?: unknown
+  client_cron_enabled?: unknown
+  client_show_tool_calls?: unknown
+  workspace_upload_limit_bytes?: unknown
+}
+
+const ok = <D>(data?: D): IBridgeResponse<D> => ({ success: true, data })
+const fail = (msg: string): IBridgeResponse => ({ success: false, msg })
+
+const agentPort = createMossAgentPort((request) =>
+  apiFetch<unknown>(request.path, {
+    method: request.method,
+    ...(request.body !== undefined ? { body: JSON.stringify(request.body) } : {}),
+  }),
+)
+
+async function listMyAgents() {
+  return agentPort.listMine()
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+function tenantConfigFromPayload(payload: TenantConfigPayload | null): TenantConfigPayload | null {
+  if (!payload || typeof payload !== 'object') return null
+  if (payload.success === true && payload.data && typeof payload.data === 'object') {
+    return payload.data as TenantConfigPayload
+  }
+  return payload
+}
+
+// ---------------------------------------------------------------------------
+// Bridge emitter (inbound channel — set synchronously when bridge.adapter runs).
+// ---------------------------------------------------------------------------
+
+let emitterRef: BridgeEmitter | null = null
+const unmappedLogged = new Set<string>()
+
+// ---------------------------------------------------------------------------
+// ConfigStorage / ChatStorage / EnvStorage groups: `@office-ai/platform`
+// `buildStorage(group)` routes get/set/remove/clear through the bridge as
+// `<group>.storage.<op>`. On desktop these hit the main process; on the web we
+// back them onto localStorage so the renderer's config layer works offline.
+// ---------------------------------------------------------------------------
+
+const STORAGE_PREFIX = 'sw.web-bridge'
+const STORAGE_RE = /^(.+)\.storage\.(get|set|remove|clear)$/
+
+// Only durable renderer CONFIG is browser-persisted on web. The chat/message
+// groups (agent.chat / agent.chat.message) are SERVER-OWNED — moss is their
+// single source of truth — so we never shadow them in localStorage (that would
+// persist ephemeral server state and create a second source). Their reads fall
+// through to undefined; the renderer's data comes from the moss channels below.
+const DURABLE_STORAGE_GROUPS = new Set(['agent.config', 'agent.env'])
+
+function storageKey(group: string, key: string): string {
+  return `${STORAGE_PREFIX}:${group}:${key}`
+}
+
+function storageGet(group: string, key: string): unknown {
+  const raw = localStorage.getItem(storageKey(group, key))
+  if (raw == null) return undefined
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return undefined
+  }
+}
+
+function storageSet(group: string, key: string, data: unknown): void {
+  try {
+    localStorage.setItem(storageKey(group, key), JSON.stringify(data))
+  } catch {
+    /* quota / serialization — best-effort */
+  }
+}
+
+function storageRemove(group: string, key: string): void {
+  localStorage.removeItem(storageKey(group, key))
+}
+
+function storageClear(group: string): void {
+  const prefix = `${STORAGE_PREFIX}:${group}:`
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i)
+    if (k && k.startsWith(prefix)) localStorage.removeItem(k)
+  }
+}
+
+// Web host always uses the online Moss execution context. Seed the compatibility
+// key before useAppMode resolves; the retired account-mode picker is never shown.
+if (typeof window !== 'undefined' && storageGet('agent.config', 'system.appMode') === undefined) {
+  storageSet('agent.config', 'system.appMode', 'e')
+}
+
+// The renderer's enterprise login and MCP client read `eeclaw.serverUrl` before
+// doing anything; seed it with this origin so those paths resolve against the
+// webui server (the web transport ignores the value and stays same-origin).
+if (typeof window !== 'undefined' && storageGet('agent.config', 'eeclaw.serverUrl') === undefined) {
+  storageSet('agent.config', 'eeclaw.serverUrl', window.location.origin)
+}
+
+// ---------------------------------------------------------------------------
+// Same-origin HTTP to the apps/webui server (cookie session auth).
+// ---------------------------------------------------------------------------
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    credentials: 'include',
+    ...init,
+    headers: {
+      ...(init?.body !== undefined ? { 'content-type': 'application/json' } : {}),
+      ...init?.headers,
+    },
+  })
+  // A successful mutation to the conversation collection invalidates the cache.
+  if (
+    res.ok &&
+    (init?.method ?? 'GET').toUpperCase() !== 'GET' &&
+    path.startsWith('/api/conversations')
+  ) {
+    invalidateConversations()
+  }
+  const text = await res.text()
+  let body: unknown = null
+  if (text) {
+    try {
+      body = JSON.parse(text)
+    } catch {
+      body = null
+    }
+  }
+  if (!res.ok) {
+    const code =
+      body &&
+      typeof body === 'object' &&
+      'error' in body &&
+      typeof (body as { error?: unknown }).error === 'string'
+        ? (body as { error: string }).error
+        : `HTTP_${res.status}`
+    throw new Error(code)
+  }
+  return body as T
+}
+
+/**
+ * 给还没有名字的历史会话补一个名字。
+ *
+ * 会话现在在第一条用户消息被接受时命名，但在那之前名字只在读路径产生，所以没人
+ * 打开过的会话一直是空的。继续聊的会话下一条消息就会被命名，剩下的缺口只有
+ * 「打开了但不再发消息」的那批——打开时消息本来就已经取回来了，用用户自己的
+ * 重命名接口补一次即可，不必在 GET 里藏一个写操作。
+ *
+ * 只对空标题生效，所以每个会话至多补一次；失败不影响打开会话。
+ */
+async function nameLegacyConversation(
+  sessionId: string,
+  title: string | null | undefined,
+  messages: unknown[],
+): Promise<void> {
+  if (title) return
+  const firstUser = messages.find((m) => (m as { role?: unknown })?.role === 'user') as
+    { content?: { content?: unknown } } | undefined
+  const text = firstUser?.content?.content
+  if (typeof text !== 'string') return
+  const derived = deriveConversationTitle(text)
+  if (!derived) return
+  await apiFetch(`/api/conversations/${encodeURIComponent(sessionId)}/meta`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title: derived }),
+  }).catch(() => {})
+}
+
+// ---------------------------------------------------------------------------
+// Session stream (chat): the server exposes one WS per moss session at
+// `/ws/conversations/:mossSessionId` (cookie auth, upstream managed server-side).
+// Raw server frames are forwarded to the renderer's stream emitters. Frame-shape
+// translation to IResponseMessage is the live-e2e follow-up.
+// ---------------------------------------------------------------------------
+
+const openStreams = new Map<string, WebSocket>()
+const syncedHistory = new Map<string, string>()
+
+// Per-session interactive state (browser memory, mirrors the desktop main-process
+// maps; cleared with the session WS on close).
+// - pending permission prompts shown through the renderer's confirmation UI
+const pendingConfirmations = new Map<string, IConfirmation[]>()
+// - pending AskUserQuestion cards keyed by toolCallId AND responseToolCallId
+//   (mirrors desktop RemoteAgent.pendingQuestions double-keying)
+const pendingQuestions = new Map<
+  string,
+  Map<string, { msgId: string; responseToolUseId?: string; toolCallId: string }>
+>()
+// - sessions whose last result was a user abort: trailing assistant frames are
+//   suppressed until the user sends again (desktop models this as the connection
+//   lifecycle; here the reset point is the next outbound send)
+const abortedSessions = new Set<string>()
+
+let __mid = 0
+function nextMsgId(): string {
+  __mid += 1
+  return `web-${__mid}-${Math.random().toString(16).slice(2, 8)}`
+}
+
+function wsUrlFor(sessionId: string): string {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${proto}//${location.host}/ws/conversations/${encodeURIComponent(sessionId)}`
+}
+
+function ensureSessionStream(sessionId: string): WebSocket | null {
+  if (!sessionId) return null
+  const existing = openStreams.get(sessionId)
+  if (existing) return existing
+  const ws = new WebSocket(wsUrlFor(sessionId))
+  openStreams.set(sessionId, ws)
+  ws.addEventListener('message', (ev) => {
+    let frame: { kind?: string; event?: unknown; code?: string | number }
+    try {
+      frame = JSON.parse(String(ev.data))
+    } catch {
+      return
+    }
+    // The server wraps the moss stream in { kind: 'upstream', event }, where
+    // `event` is an anthropic-style moss message. The renderer expects
+    // IResponseMessage, so translate (mirrors the desktop MossWsConnection).
+    if (frame && frame.kind === 'upstream' && frame.event) {
+      // moss frame shapes are open-ended; narrow to the fields the branches below touch
+      const event = frame.event as {
+        type?: string
+        request?: unknown
+        request_id?: string
+      }
+
+      // Permission prompt → renderer confirmation card (mirrors desktop
+      // RemoteAgent.handlePermissionRequest via the shared converter).
+      if (event.type === 'control_request' && typeof event.request_id === 'string') {
+        const confirmation: IConfirmation & { conversation_id: string } = {
+          ...mossControlRequestToConfirmation(event.request, event.request_id),
+          conversation_id: sessionId,
+        }
+        const list = pendingConfirmations.get(sessionId) ?? []
+        list.push(confirmation)
+        pendingConfirmations.set(sessionId, list)
+        emitterRef?.emit('confirmation.add', confirmation)
+        return
+      }
+
+      // User-abort tracking: suppress trailing assistant frames until the next send.
+      if (event.type === 'result' && isUserAbortError(event)) {
+        abortedSessions.add(sessionId)
+      }
+      if (event.type === 'assistant' && abortedSessions.has(sessionId)) {
+        return
+      }
+
+      for (const msg of mossFrameToResponses(event, {
+        sessionId,
+        conversationId: sessionId,
+        nextMsgId,
+      })) {
+        // Register pending question cards under BOTH ids (mirrors desktop
+        // RemoteAgent.pendingQuestions double-keying) so the answer handler can
+        // resolve the original msg_id for the "answered" update.
+        if (msg.type === 'acp_question') {
+          const data = msg.data as { toolCallId?: string; responseToolCallId?: string }
+          if (data?.toolCallId) {
+            const pending = {
+              msgId: msg.msg_id,
+              responseToolUseId: data.responseToolCallId,
+              toolCallId: data.toolCallId,
+            }
+            const map =
+              pendingQuestions.get(sessionId) ??
+              new Map<string, { msgId: string; responseToolUseId?: string; toolCallId: string }>()
+            map.set(data.toolCallId, pending)
+            if (data.responseToolCallId) map.set(data.responseToolCallId, pending)
+            pendingQuestions.set(sessionId, map)
+          }
+        }
+        // The upstream acp_model_info only carries the current model (empty
+        // availableModels); merge the cached list so a model_changed confirmation
+        // does not flip the selector back to read-only.
+        if (msg.type === 'acp_model_info' && cachedModels && cachedModels.length > 0) {
+          const modelInfoData = msg.data as { availableModels?: unknown[] } | undefined
+          if (!modelInfoData?.availableModels?.length) {
+            msg.data = {
+              ...modelInfoData,
+              availableModels: cachedModels,
+              canSwitch: cachedModels.length > 1,
+            }
+          }
+        }
+        emitterRef?.emit('chat.response.stream', msg)
+        emitterRef?.emit('moss.response-stream', msg)
+        // Turn finished — the workspace tree auto-refreshes off this same stream,
+        // but deliverables have no server push, so re-pull them now.
+        if (msg.type === 'finish') void refreshDeliverables(sessionId)
+      }
+    } else if (frame && frame.kind === 'error') {
+      emitterRef?.emit('chat.response.stream', {
+        type: 'error',
+        msg_id: nextMsgId(),
+        conversation_id: sessionId,
+        data: String(frame.code ?? 'error'),
+      })
+    }
+  })
+  ws.addEventListener('close', () => {
+    openStreams.delete(sessionId)
+    pendingConfirmations.delete(sessionId)
+    pendingQuestions.delete(sessionId)
+    abortedSessions.delete(sessionId)
+  })
+  ws.addEventListener('error', () => {
+    try {
+      ws.close()
+    } catch {
+      /* noop */
+    }
+  })
+  return ws
+}
+
+function sendOverStream(sessionId: string, payload: unknown): boolean {
+  const ws = ensureSessionStream(sessionId)
+  if (!ws) return false
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(payload))
+    return true
+  }
+  ws.addEventListener(
+    'open',
+    () => {
+      try {
+        ws.send(JSON.stringify(payload))
+      } catch {
+        /* noop */
+      }
+    },
+    { once: true },
+  )
+  return true
+}
+
+function extractText(req: AnyReq): string {
+  if (typeof req?.content === 'string') return req.content
+  if (typeof req?.text === 'string') return req.text
+  if (typeof req?.input === 'string') return req.input
+  if (Array.isArray(req?.content)) {
+    return req.content.map((p: AnyReq) => (typeof p?.text === 'string' ? p.text : '')).join('')
+  }
+  return ''
+}
+
+// --- web upload attachments (staged by the renderer's webFilePicker) ---
+
+const WEB_UPLOAD_PREFIX = '/webupload/'
+const IMAGE_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+// Contract caps for send-frame images: 15,000,000 base64 chars per image → 11,250,000
+// raw bytes (10^6-based; 1024-based math would let (11,250,000, 11,796,480] slip past
+// the precheck and get rejected as INVALID_MESSAGE), and at most 4 images per message.
+const IMAGE_MAX_BYTES = 11_250_000
+const IMAGE_MAX_COUNT = 4
+const DEFAULT_UPLOAD_LIMIT_BYTES = 20_000_000
+
+interface StagedUpload {
+  webPath: string
+  file: File
+}
+
+function extractStagedUploads(req: AnyReq): StagedUpload[] {
+  const staging = typeof window !== 'undefined' ? window.__sudoworkWebFileStaging : undefined
+  if (!staging || staging.size === 0) return []
+  const files = Array.isArray(req?.files) ? req.files : []
+  const staged: StagedUpload[] = []
+  for (const item of files) {
+    if (typeof item !== 'string' || !item.startsWith(WEB_UPLOAD_PREFIX)) continue
+    const file = staging.get(item)
+    if (file) staged.push({ webPath: item, file })
+  }
+  return staged
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () =>
+      resolve(typeof reader.result === 'string' ? (reader.result.split(',')[1] ?? '') : '')
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
+let cachedUploadLimitBytes: number | undefined
+
+async function fetchUploadLimitBytes(): Promise<number> {
+  if (typeof cachedUploadLimitBytes === 'number') return cachedUploadLimitBytes
+  try {
+    const raw = await apiFetch<Record<string, unknown>>('/api/v1/tenant/config')
+    const payload = (
+      raw && typeof raw === 'object' && 'data' in raw ? (raw as { data?: unknown }).data : raw
+    ) as Record<string, unknown> | null
+    const limit = payload?.workspace_upload_limit_bytes ?? payload?.workspaceUploadLimitBytes
+    if (typeof limit === 'number' && limit > 0) {
+      cachedUploadLimitBytes = limit
+      return limit
+    }
+  } catch {
+    // fall back to the conservative default
+  }
+  return DEFAULT_UPLOAD_LIMIT_BYTES
+}
+
+interface StagedUploadResult {
+  images: Array<{ mediaType: string; data: string }>
+  refs: string[]
+  error?: string
+}
+
+// Mirrors the desktop RemoteAgent flow: images are inlined as vision blocks (never
+// uploaded — the agent cannot Read an image back as vision), other files are uploaded
+// to the session workspace and @-referenced so the agent can Read them.
+async function processStagedUploads(
+  sessionId: string,
+  staged: StagedUpload[],
+): Promise<StagedUploadResult> {
+  const images: Array<{ mediaType: string; data: string }> = []
+  const refs: string[] = []
+  const imageFiles = staged.filter((item) => IMAGE_MEDIA_TYPES.has(item.file.type))
+  const otherFiles = staged.filter((item) => !IMAGE_MEDIA_TYPES.has(item.file.type))
+
+  // Fail fast before any base64 work (mirrors desktop RemoteAgent prechecks).
+  if (imageFiles.length > IMAGE_MAX_COUNT) {
+    return {
+      images,
+      refs,
+      error:
+        '附件发送失败 / Attachment send failed — 最多附带 4 张图片 / at most 4 images per message',
+    }
+  }
+  const oversizedImage = imageFiles.find((item) => item.file.size > IMAGE_MAX_BYTES)
+  if (oversizedImage) {
+    return {
+      images,
+      refs,
+      error: `附件发送失败 / Attachment send failed — ${oversizedImage.file.name} 超过 11,250,000 字节上限 / exceeds the 11,250,000-byte image limit`,
+    }
+  }
+  const limitBytes = otherFiles.length > 0 ? await fetchUploadLimitBytes() : 0
+  const oversizedFile = otherFiles.find((item) => item.file.size > limitBytes)
+  if (oversizedFile) {
+    const limitMb = Math.round(limitBytes / 1_000_000)
+    return {
+      images,
+      refs,
+      error: `附件发送失败 / Attachment send failed — ${oversizedFile.file.name} 超出大小上限 ${limitMb}MB / exceeds size limit (${limitMb}MB)`,
+    }
+  }
+
+  try {
+    for (const item of imageFiles) {
+      images.push({ mediaType: item.file.type, data: await readFileAsBase64(item.file) })
+    }
+  } catch (err) {
+    return { images, refs, error: `附件读取失败 / Attachment read failed — ${errMessage(err)}` }
+  }
+  for (const item of otherFiles) {
+    try {
+      const basename = item.file.name
+      const uploaded = await apiFetch<{ relativePath?: unknown }>(
+        `/api/conversations/${encodeURIComponent(sessionId)}/workspace/file`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            path: basename,
+            content_base64: await readFileAsBase64(item.file),
+          }),
+        },
+      )
+      const relativePath =
+        typeof uploaded?.relativePath === 'string' && uploaded.relativePath
+          ? uploaded.relativePath
+          : basename
+      refs.push(relativePath.includes(' ') ? `@"${relativePath}"` : `@${relativePath}`)
+    } catch (err) {
+      console.warn('[mossAdapter] workspace file upload failed:', item.webPath, err)
+      return {
+        images,
+        refs,
+        error: `附件上传失败 / Attachment upload failed — ${item.file.name}: ${errMessage(err)}`,
+      }
+    }
+  }
+  return { images, refs }
+}
+
+// ---------------------------------------------------------------------------
+// Model surface shared by the remote-agent and ACP selector channels.
+// The upstream acp_model_info stream only carries the CURRENT model (empty list),
+// so this side owns the available-models cache and merges it into stream frames
+// to keep the selector switchable after a model_changed confirmation.
+// ---------------------------------------------------------------------------
+
+let cachedModels: Array<{ id: string; label: string }> | null = null
+
+async function fetchAvailableModels(): Promise<Array<{ id: string; label: string }>> {
+  const opts = await apiFetch<{ models: { id: string; name: string }[] }>(
+    '/api/conversations/options',
+  )
+  const models = opts.models.map((m) => ({ id: m.id, label: m.name || m.id }))
+  cachedModels = models
+  return models
+}
+
+/** Current model with a three-level fallback mirroring the renderer's fetchMossModelInfo:
+ *  conversation model → user preference → first available. */
+async function resolveCurrentModelId(sessionId?: string): Promise<string> {
+  if (sessionId) {
+    const conv = await apiFetch<{ modelId: string | null }>(
+      `/api/conversations/${encodeURIComponent(sessionId)}/model`,
+    ).catch(() => null)
+    if (conv?.modelId) return conv.modelId
+  }
+  const user = await apiFetch<{ modelId: string | null; systemDefaultModel: string | null }>(
+    '/api/conversations/user-model',
+  ).catch(() => null)
+  if (user?.modelId) return user.modelId
+  if (user?.systemDefaultModel) return user.systemDefaultModel
+  return cachedModels?.[0]?.id ?? ''
+}
+
+function makeModelInfo(models: Array<{ id: string; label: string }>, currentModelId: string) {
+  const match = models.find((m) => m.id === currentModelId)
+  return {
+    source: 'models',
+    currentModelId,
+    currentModelLabel: match?.label || currentModelId,
+    canSwitch: models.length > 1,
+    availableModels: models,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DTO adapters: apps/webui server shapes -> renderer shapes.
+// ---------------------------------------------------------------------------
+
+interface ConversationListItem {
+  id: string
+  taskId?: string | null
+  status?: string
+  assistantName?: string | null
+  /** Display label for a pending creation; never replaces its identity. */
+  displayName?: string
+  source?: string | null
+  createdAt?: number | null
+  lastActiveAt?: number | null
+  title?: string | null
+  pinned?: boolean
+  pinnedAt?: number | null
+}
+
+/**
+ * cron 运行记录会话标题：与桌面端 RemoteConversationProvider.formatCronSessionTitle
+ * 逐字符保持同步（查看者本地时区，`<jobName> YYYY-MM-DD HH:mm`）。
+ */
+function formatCronRunTitle(jobName: string | undefined, timestamp: number): string {
+  const name = jobName || 'Cron Session'
+  const date = new Date(timestamp || Date.now())
+  const runTime = date
+    .toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    .replace(/\//g, '-')
+  return `${name} ${runTime}`
+}
+
+/** Minimal TChatConversation projection (enough for the sider + open flow). */
+function toChatConversation(
+  item: ConversationListItem,
+  displayName?: string,
+): Record<string, unknown> {
+  const agentName =
+    displayName ??
+    item.displayName ??
+    (isPersonalAgentRef(item.assistantName ?? undefined)
+      ? undefined
+      : (item.assistantName ?? undefined))
+  const ts = item.lastActiveAt ?? Date.now()
+  // cron 运行记录会话在 moss 侧用 `source`（JSON 字符串）标记；grouped-history 的
+  // buildScheduledGroups 靠 extra.cronJobId 把运行记录归到对应定时任务分组，缺失则
+  // 「定时任务」tab 为空。仅对字符串 source 容错解析，非 cron 会话不写入。
+  let cronJobId: string | undefined
+  let cronJobName: string | undefined
+  let isCron = false
+  if (typeof item.source === 'string') {
+    try {
+      const parsed = JSON.parse(item.source) as {
+        source?: unknown
+        cronJobId?: unknown
+        cronJobName?: unknown
+      }
+      if (parsed.source === 'cron') {
+        isCron = true
+        if (typeof parsed.cronJobId === 'string') cronJobId = parsed.cronJobId
+        if (typeof parsed.cronJobName === 'string') cronJobName = parsed.cronJobName
+      }
+    } catch {
+      // 非 JSON / 非 cron 会话：忽略
+    }
+  }
+  return {
+    id: item.id,
+    // 'remote-agent' (not 'acp') so ChatSider mounts the moss-session workspace
+    // panel (readonly tree + deliverables); chat/model/stream all go through the
+    // already-mapped remote-agent channels.
+    // 标题优先级与桌面端对齐：本地已有 title（含用户改名）优先，其次 cron 会话按
+    // 「任务名 + 运行时间」组装（时间基准 = 会话创建时间），非 cron 会话保持原兜底链。
+    // 末级曾经是 item.id：会话既没标题又没助手时，侧栏直接显示一串 uuid。uuid 不是
+    // 名字，留空即可，由渲染层显示本地化的「新对话」。
+    name:
+      item.title ??
+      (isCron
+        ? formatCronRunTitle(cronJobName, item.createdAt ?? item.lastActiveAt ?? Date.now())
+        : undefined) ??
+      agentName ??
+      '',
+    type: 'remote-agent',
+    createTime: isCron && item.createdAt ? item.createdAt : ts,
+    modifyTime: ts,
+    status: item.status === 'running' ? 'running' : 'finished',
+    extra: {
+      backend: 'scode',
+      agentName,
+      mossAssistantRef: item.assistantName ?? undefined,
+      pinned: item.pinned ?? false,
+      pinnedAt: item.pinnedAt ?? undefined,
+      mossSessionId: item.id,
+      ...(cronJobId ? { cronJobId } : {}),
+    },
+    model: { platform: '', name: '', useModel: '', id: '' },
+  }
+}
+
+/** Minimal MossSessionInfo projection. */
+function toMossSession(item: ConversationListItem): Record<string, unknown> {
+  return {
+    sessionId: item.id,
+    taskId: item.taskId ?? item.id,
+    status: item.status ?? 'active',
+    assistantName: item.assistantName ?? null,
+    title: item.title ?? null,
+    lastActiveAt: item.lastActiveAt ?? null,
+  }
+}
+
+// The list is read by get-conversation / moss.get-session / list-all, so an
+// uncached impl re-fetches the whole collection on the critical open path.
+// Short TTL + invalidation on any conversation mutation (see apiFetch).
+let convCache: { at: number; items: ConversationListItem[] } | null = null
+let listFetchSeq = 0
+const CONV_CACHE_MS = 3000
+const PENDING_CREATED_TTL_MS = 60_000
+const pendingCreatedConversations = new Map<string, ConversationListItem>()
+
+function invalidateConversations(): void {
+  convCache = null
+  ++listFetchSeq
+}
+
+function mergePendingCreated(items: ConversationListItem[]): ConversationListItem[] {
+  if (pendingCreatedConversations.size === 0) return items
+  const merged = [...items]
+  for (const [id, item] of pendingCreatedConversations) {
+    if (Date.now() - (item.lastActiveAt ?? 0) > PENDING_CREATED_TTL_MS) {
+      pendingCreatedConversations.delete(id)
+    } else if (merged.some((conversation) => conversation.id === id)) {
+      pendingCreatedConversations.delete(id)
+    } else {
+      merged.push(item)
+    }
+  }
+  return merged
+}
+
+async function listConversations(): Promise<ConversationListItem[]> {
+  if (convCache && Date.now() - convCache.at < CONV_CACHE_MS) {
+    return mergePendingCreated(convCache.items)
+  }
+  const seq = ++listFetchSeq
+  const { conversations } = await apiFetch<{ conversations: ConversationListItem[] }>(
+    '/api/conversations',
+  )
+  if (seq === listFetchSeq) {
+    convCache = { at: Date.now(), items: conversations }
+  }
+  return mergePendingCreated(conversations)
+}
+
+// ---------------------------------------------------------------------------
+// Channel mapping table. Everything not listed falls through to a default reject.
+// ---------------------------------------------------------------------------
+
+/** Moss installed-agent row as projected by GET /api/agent-templates. */
+interface MossAgentItem {
+  id?: string
+  name: string
+  displayName?: string
+  display_name?: string
+  description?: string
+  defaultInitPrompt?: string
+  promptsI18n?: Record<string, string[]>
+  prompts_i18n?: Record<string, string[]>
+  avatar?: string
+  emoji?: string
+  /** 'hub' | 'custom' | 'system' | 'tenant' (absent for user-created rows) */
+  tag?: string
+  isBuiltin?: boolean
+  enabled?: boolean
+  categories?: string[]
+  enabledSkills?: string[]
+}
+
+/** Moss installed-skill row as projected by GET /api/skills. */
+interface MossSkillItem {
+  id?: string
+  name: string
+  version?: string
+  description?: string
+  display_name?: string
+  displayName?: string
+  enabled?: boolean
+  isBuiltin?: boolean
+  isHubInstalled?: boolean
+  category?: string
+  categories?: string[]
+  meta?: Record<string, unknown>
+}
+
+type WebAssistantCategory = 'custom' | 'hub' | 'system' | 'tenant'
+
+function toWebCategory(tag: unknown): WebAssistantCategory {
+  return tag === 'hub' || tag === 'system' || tag === 'tenant' ? tag : 'custom'
+}
+
+/** moss agent row → renderer IAssistantInfo (see assistantTypes.ts). Wire is untyped. */
+function mossAgentToAssistantInfo(a: MossAgentItem): unknown {
+  const displayName = a.displayName ?? a.display_name ?? a.name
+  return {
+    id: a.id,
+    name: a.name,
+    isBuiltin: a.isBuiltin === true,
+    isHubInstalled: a.tag === 'hub',
+    enabled: a.enabled !== false,
+    category: toWebCategory(a.tag),
+    meta: {
+      id: a.id,
+      name: a.name,
+      display_name: displayName,
+      description: a.description,
+      defaultInitPrompt: a.defaultInitPrompt,
+      promptsI18n: a.promptsI18n ?? a.prompts_i18n,
+      avatar: a.avatar || a.emoji || '',
+      emoji: a.emoji ?? null,
+      categories: Array.isArray(a.categories) ? a.categories : undefined,
+      tag: typeof a.tag === 'string' ? a.tag : undefined,
+      source_type: typeof a.tag === 'string' ? a.tag : 'custom',
+      is_builtin: a.isBuiltin === true,
+      enabledSkills: Array.isArray(a.enabledSkills) ? a.enabledSkills : undefined,
+    },
+  }
+}
+
+/** moss skill row → renderer IInstalledSkillInfo (see ipcBridge IInstalledSkillInfo). Wire is untyped. */
+function mossSkillToInstalledInfo(s: MossSkillItem): unknown {
+  const isHub = s.isHubInstalled === true
+  const rawMeta = (s.meta && typeof s.meta === 'object' ? s.meta : {}) as Record<string, unknown>
+  const displayName = s.display_name ?? s.displayName ?? s.name
+  // toWebCategory folds a missing/unknown moss category into 'custom', but the
+  // tenant marker lives in meta.source_type (moss returns an empty category on
+  // tenant rows) — without this fallback tenant skills land in the custom panel.
+  const resolvedCategory = toWebCategory(s.category)
+  const category =
+    resolvedCategory === 'custom' && rawMeta.source_type === 'tenant' ? 'tenant' : resolvedCategory
+  return {
+    name: s.name,
+    version: String(s.version ?? ''),
+    isHubInstalled: isHub,
+    isBuiltin: s.isBuiltin === true,
+    enabled: s.enabled !== false,
+    category,
+    meta: {
+      ...rawMeta,
+      id: rawMeta.id ?? s.id ?? s.name,
+      name: s.name,
+      display_name: rawMeta.display_name ?? displayName,
+      description: rawMeta.description ?? s.description ?? '',
+      // Fallback keeps the renderer's `source_type === 'hub'` branch honest even
+      // when moss omits it on non-hub rows.
+      source_type: rawMeta.source_type ?? (isHub ? 'hub' : 'system'),
+      categories: rawMeta.categories ?? (Array.isArray(s.categories) ? s.categories : []),
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cron schedule conversion. The renderer's ICronSchedule is a discriminated
+// union (atMs/everyMs/expr); the moss/server ScheduleSchema is a flat
+// {kind, value, tz?, description?}. These two pure functions round-trip it, and
+// are exercised by a round-trip unit test.
+// ---------------------------------------------------------------------------
+
+type ServerSchedule = {
+  kind: 'at' | 'every' | 'cron'
+  value: string
+  tz?: string
+  description?: string
+}
+type RendererSchedule =
+  | { kind: 'at'; atMs: number; description: string }
+  | { kind: 'every'; everyMs: number; description: string }
+  | { kind: 'cron'; expr: string; tz?: string; description: string }
+
+const DURATION_UNITS: Array<[string, number]> = [
+  ['d', 86_400_000],
+  ['h', 3_600_000],
+  ['m', 60_000],
+  ['s', 1000],
+  ['ms', 1],
+]
+
+/**
+ * everyMs → a duration string. Console encodes minutes ('60m' for hourly), so we
+ * prefer minutes, then whole seconds, then raw ms — never hours/days (durationToMs
+ * still parses those, for moss values authored elsewhere).
+ */
+export function msToDuration(ms: number): string {
+  if (ms % 60_000 === 0 && ms >= 60_000) return `${ms / 60_000}m`
+  if (ms % 1000 === 0 && ms >= 1000) return `${ms / 1000}s`
+  return `${ms}ms`
+}
+
+/** '60m' | '2h' | plain ms → milliseconds. NaN-safe (0 on failure). */
+export function durationToMs(value: string): number {
+  const m = /^(\d+)(ms|s|m|h|d)?$/.exec(value.trim())
+  if (!m) return 0
+  const n = Number(m[1])
+  const unit = m[2] ?? 'ms'
+  const size = DURATION_UNITS.find(([u]) => u === unit)?.[1] ?? 1
+  return Number.isFinite(n) ? n * size : 0
+}
+
+export function rendererScheduleToServer(schedule: RendererSchedule): ServerSchedule {
+  if (schedule.kind === 'at') {
+    return { kind: 'at', value: String(schedule.atMs), description: schedule.description }
+  }
+  if (schedule.kind === 'every') {
+    return {
+      kind: 'every',
+      value: msToDuration(schedule.everyMs),
+      description: schedule.description,
+    }
+  }
+  return { kind: 'cron', value: schedule.expr, tz: schedule.tz, description: schedule.description }
+}
+
+export function serverScheduleToRenderer(raw: unknown): RendererSchedule {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Partial<ServerSchedule>
+  const description = typeof s.description === 'string' ? s.description : ''
+  const value = typeof s.value === 'string' ? s.value : ''
+  if (s.kind === 'at') {
+    // Console never emits 'at'; moss value may be epoch-ms or an ISO string.
+    const n = Number(value)
+    const atMs = Number.isFinite(n) && value !== '' ? n : Date.parse(value) || 0
+    return { kind: 'at', atMs, description }
+  }
+  if (s.kind === 'every') {
+    return { kind: 'every', everyMs: durationToMs(value), description }
+  }
+  return { kind: 'cron', expr: value, tz: typeof s.tz === 'string' ? s.tz : undefined, description }
+}
+
+/** moss cron job row (transparent passthrough) → renderer ICronJob. Wire is untyped. */
+function toIcronJob(raw: unknown): unknown {
+  // moss 单任务 / 创建 / 更新接口返回 `{ success, data }` 信封（列表接口已由服务端
+  // extractRows 解包为裸数组）。仅当同时含 success+data 顶层字段时取 data，否则用
+  // raw 本身——裸 job 不含这两个字段，走 else 分支、行为不变。
+  const unwrapped =
+    raw && typeof raw === 'object' && 'success' in raw && 'data' in raw
+      ? (raw as { data: unknown }).data
+      : raw
+  const j = (unwrapped && typeof unwrapped === 'object' ? unwrapped : {}) as Record<string, unknown>
+  const num = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) ? v : undefined
+  const createdAt = num(j.createdAt ?? j.created_at) ?? Date.now()
+  const updatedAt = num(j.updatedAt ?? j.updated_at) ?? createdAt
+  return {
+    id: String(j.id ?? ''),
+    name: String(j.name ?? ''),
+    enabled: j.enabled !== false,
+    schedule: serverScheduleToRenderer(j.schedule),
+    target: { payload: { kind: 'message', text: String(j.payloadMessage ?? '') } },
+    metadata: {
+      conversationId: j.boundSessionId != null ? String(j.boundSessionId) : '',
+      agentType: typeof j.assistantName === 'string' ? j.assistantName : '',
+      createdBy: 'user',
+      createdAt,
+      updatedAt,
+      conversationMode: j.conversationMode === 'reuse' ? 'reuse' : 'new',
+      workspace: typeof j.workspace === 'string' ? j.workspace : undefined,
+      presetAssistantId: typeof j.assistantId === 'string' ? j.assistantId : undefined,
+    },
+    state: {
+      nextRunAtMs: num(j.nextRunAtMs ?? j.nextRunAt),
+      lastRunAtMs: num(j.lastRunAtMs ?? j.lastRunAt),
+      runCount: num(j.runCount) ?? 0,
+      retryCount: num(j.retryCount) ?? 0,
+      maxRetries: num(j.maxRetries) ?? 0,
+      lastConversationId: j.lastSessionId != null ? String(j.lastSessionId) : undefined,
+    },
+  }
+}
+
+/** renderer ICreateCronJobParams / Partial<ICronJob> updates → server strict body. */
+function cronCreateBody(req: AnyReq): Record<string, unknown> {
+  const schedule = req?.schedule as RendererSchedule | undefined
+  const conversationId = typeof req?.conversationId === 'string' ? req.conversationId : ''
+  const body: Record<string, unknown> = {
+    name: String(req?.name ?? ''),
+    payloadMessage: String(req?.message ?? ''),
+  }
+  if (schedule) body.schedule = rendererScheduleToServer(schedule)
+  if (req?.conversationMode === 'new' || req?.conversationMode === 'reuse') {
+    body.conversationMode = req.conversationMode
+  }
+  body.boundSessionId = conversationId || null
+  // NOTE: the renderer's `agentType` is an ACP backend id (scode/claude/…), NOT a
+  // moss assistant name. The server validates assistantName against the caller's
+  // visible agents (assertAssistantName → InvalidSelectionError), so forwarding
+  // the backend id would reject every create. Omit it; moss picks its default
+  // assistant. (This is the one place the plan's agentType→assistantName mapping
+  // could not hold.)
+  return body
+}
+
+/**
+ * Runs a cron call and, on failure, returns the desktop bridge's `{ __error }`
+ * envelope instead of rejecting — matching what `unwrapCronResult` and the
+ * useCronAccess probe expect (a non-array on failure, never a thrown invoke).
+ */
+async function cronResult<T>(fn: () => Promise<T>): Promise<T | { __error: string }> {
+  try {
+    return await fn()
+  } catch (err) {
+    return { __error: errMessage(err) }
+  }
+}
+
+/** renderer Partial<ICronJob> (update-job) → server strict patch body (only known fields). */
+function cronUpdateBody(updates: AnyReq): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  if (typeof updates?.name === 'string') body.name = updates.name
+  if (typeof updates?.enabled === 'boolean') body.enabled = updates.enabled
+  const schedule = updates?.schedule as RendererSchedule | undefined
+  if (schedule) body.schedule = rendererScheduleToServer(schedule)
+  const target = updates?.target as { payload?: { text?: unknown } } | undefined
+  if (typeof target?.payload?.text === 'string') body.payloadMessage = target.payload.text
+  const metadata = updates?.metadata as { conversationMode?: unknown } | undefined
+  if (metadata?.conversationMode === 'new' || metadata?.conversationMode === 'reuse') {
+    body.conversationMode = metadata.conversationMode
+  }
+  return body
+}
+
+// ---------------------------------------------------------------------------
+// Workspace / deliverables (moss-session right panel). The server strips
+// `fullPath` from workspace nodes (DTO whitelist); we synth it from
+// relativePath, matching the desktop convertMossWorkspaceNode transform.
+// ---------------------------------------------------------------------------
+
+function convertWorkspaceNode(node: unknown): unknown {
+  const n = (node && typeof node === 'object' ? node : {}) as Record<string, unknown>
+  const relativePath = typeof n.relativePath === 'string' ? n.relativePath : ''
+  return {
+    name: typeof n.name === 'string' ? n.name : '',
+    relativePath,
+    fullPath: relativePath,
+    isDir: n.isDir === true,
+    isFile: n.isFile === true,
+    children: Array.isArray(n.children) ? n.children.map(convertWorkspaceNode) : undefined,
+  }
+}
+
+interface ServerDeliverable {
+  name: string
+  relativePath: string
+  kind: 'create' | 'edit'
+  ext: string
+  size: number | null
+  mime: string | null
+  createdAt: string
+}
+
+function mapDeliverables(items: ServerDeliverable[]): unknown[] {
+  return items.map((d) => {
+    const parsed = Date.parse(d.createdAt)
+    return {
+      path: d.relativePath,
+      relativePath: d.relativePath,
+      kind: d.kind,
+      ext: d.ext,
+      mime: d.mime ?? undefined,
+      size: typeof d.size === 'number' ? d.size : undefined,
+      // moss timestamp is a wire string; NaN guard keeps sort/time display sane.
+      createdAt: Number.isFinite(parsed) ? parsed : 0,
+    }
+  })
+}
+
+async function fetchDeliverables(conversationId: string): Promise<unknown[]> {
+  const res = await apiFetch<{ items?: ServerDeliverable[] }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/deliverables`,
+  )
+  return mapDeliverables(Array.isArray(res.items) ? res.items : [])
+}
+
+// After a turn finishes, moss may have written new files. There is no server push
+// for deliverables, so re-pull and emit `deliverables.changed`; the panel merges
+// by path (idempotent).
+async function refreshDeliverables(conversationId: string): Promise<void> {
+  try {
+    const files = await fetchDeliverables(conversationId)
+    emitterRef?.emit('deliverables.changed', { conversationId, files })
+  } catch {
+    /* best-effort — the panel keeps its last list */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Remote connections (`channel.*` wires): forwarded to this origin's
+// /api/channels/* routes, which proxy moss /api/v1/channels/* under the
+// session. Wire-shape translation (moss `{ok,...}` envelopes →
+// IBridgeResponse) lives HERE, next to the wires it serves.
+// ---------------------------------------------------------------------------
+
+interface ChannelFetchResult {
+  /** 0 = request itself failed (offline/Network error) — no status/body at all. */
+  status: number
+  body: AnyReq | null
+}
+
+/** Unlike apiFetch this never throws: channel callers map moss's per-endpoint
+ * envelopes (`{ok,message}` / `{success,error}` / bare rows) themselves, and a
+ * thrown HTTP_ code would drop the failure reason moss sent. */
+async function channelFetch(path: string, init?: RequestInit): Promise<ChannelFetchResult> {
+  try {
+    const res = await fetch(`/api/channels${path}`, {
+      credentials: 'include',
+      ...init,
+      headers: {
+        ...(init?.body !== undefined ? { 'content-type': 'application/json' } : {}),
+        ...init?.headers,
+      },
+    })
+    const text = await res.text()
+    let body: AnyReq | null = null
+    if (text) {
+      try {
+        body = JSON.parse(text) as AnyReq
+      } catch {
+        body = null
+      }
+    }
+    return { status: res.status, body }
+  } catch {
+    return { status: 0, body: null }
+  }
+}
+
+const CHANNEL_NETWORK_FAIL: IBridgeResponse = fail('network error')
+
+/** moss plugin row → the renderer's status shape. Full list, no per-type
+ * collapsing: ChannelPanel shows a type's first row as its main card and the
+ * rest as extra connections, so rows must survive intact. */
+function toPluginStatusRow(row: AnyReq): IChannelPluginStatus {
+  const configured = Array.isArray(row.configuredSecretFields)
+    ? row.configuredSecretFields.length
+    : 0
+  return {
+    id: String(row.id ?? ''),
+    type: String(row.type ?? '') as IChannelPluginStatus['type'],
+    name: String(row.name ?? ''),
+    enabled: Boolean(row.enabled),
+    connected: row.status === 'running',
+    status: String(row.status ?? 'stopped') as IChannelPluginStatus['status'],
+    lastConnected: typeof row.lastConnected === 'number' ? row.lastConnected : undefined,
+    activeUsers: 0,
+    hasToken: configured > 0,
+    isExtension: false,
+  }
+}
+
+/** Map the forms' uniform `{token, extraConfig:{appId,appSecret}}` onto the
+ * per-platform credential field names moss's testConnection reads — the same
+ * mapping the desktop's ChannelManager.testPlugin applies. */
+function testCredentialsFor(pluginId: string, req: AnyReq): Record<string, unknown> {
+  const extra = (req.extraConfig ?? {}) as { appId?: string; appSecret?: string }
+  if (pluginId.startsWith('telegram')) return { token: req.token }
+  if (pluginId.startsWith('dingtalk'))
+    return { clientId: extra.appId, clientSecret: extra.appSecret }
+  if (pluginId.startsWith('wecom')) return { botId: extra.appId, secret: extra.appSecret }
+  if (pluginId.startsWith('lark')) return { appId: extra.appId, appSecret: extra.appSecret }
+  // Unknown/extension types: forward whatever was provided.
+  const credentials: Record<string, unknown> = {}
+  if (req.token) credentials.token = req.token
+  if (extra.appId) credentials.appId = extra.appId
+  if (extra.appSecret) credentials.appSecret = extra.appSecret
+  return credentials
+}
+
+// --- WeChat QR login: qr-start + client-side 3s qr-poll, emitting the same
+// phase sequence the desktop's main process pushes over IPC. ---
+let wechatQrTimer: ReturnType<typeof setInterval> | null = null
+
+function stopWechatQrPolling(): void {
+  if (wechatQrTimer) {
+    clearInterval(wechatQrTimer)
+    wechatQrTimer = null
+  }
+}
+
+function emitWechatQrEvent(payload: Record<string, unknown>): void {
+  emitterRef?.emit('channel.wechat-qr-login', payload)
+}
+
+async function handleWechatStartQrLogin(): Promise<IBridgeResponse> {
+  // Cancel any previous attempt first (desktop abort semantics).
+  stopWechatQrPolling()
+  const start = await channelFetch('/wechat/qr-start', { method: 'POST', body: JSON.stringify({}) })
+  if (start.status !== 200 || !start.body?.ok) {
+    const message =
+      typeof start.body?.error === 'string' ? start.body.error : 'Failed to get QR code'
+    emitWechatQrEvent({ phase: 'error', message })
+    return fail(message)
+  }
+  const qrcodeToken = String(start.body.qrcode ?? '')
+  emitWechatQrEvent({ phase: 'qrcode', qrUrl: start.body.qrcodeImgContent })
+
+  let polls = 0
+  wechatQrTimer = setInterval(() => {
+    void (async () => {
+      polls++
+      if (polls > 100) {
+        // ~5 minutes, the same cap as the desktop flow.
+        stopWechatQrPolling()
+        emitWechatQrEvent({ phase: 'timeout', message: 'Login timed out. Please try again.' })
+        return
+      }
+      const poll = await channelFetch(`/wechat/qr-poll?qrcode=${encodeURIComponent(qrcodeToken)}`)
+      if (poll.status !== 200 || !poll.body?.ok) return // transient error: keep polling
+      const status = String(poll.body.status ?? '')
+      if (status === 'scaned') {
+        emitWechatQrEvent({ phase: 'scanned' })
+      } else if (status === 'confirmed') {
+        stopWechatQrPolling()
+        emitWechatQrEvent({
+          phase: 'confirmed',
+          botToken: poll.body.botToken,
+          accountId: poll.body.accountId,
+        })
+      } else if (status === 'expired') {
+        stopWechatQrPolling()
+        emitWechatQrEvent({ phase: 'timeout', message: 'QR code expired. Please try again.' })
+      }
+      // 'wait' and anything else: keep polling, same as the desktop loop.
+    })().catch(() => {
+      /* transient poll errors keep the loop alive */
+    })
+  }, 3000)
+  return ok()
+}
+
+// --- Channel events: moss has no push, so the server polls it per principal
+// and streams deltas over /ws/channels; re-emit them on the renderer's wires.
+// Opened lazily on the first `channel.*` invoke (the channels page's first
+// getPluginStatus), so tabs that never visit the page hold no socket. ---
+let channelWs: WebSocket | null = null
+let channelWsConnecting = false
+
+function ensureChannelEventsSocket(): void {
+  if (
+    channelWs ||
+    channelWsConnecting ||
+    typeof window === 'undefined' ||
+    typeof WebSocket === 'undefined'
+  )
+    return
+  channelWsConnecting = true
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  const ws = new WebSocket(`${protocol}://${window.location.host}/ws/channels`)
+  channelWs = ws
+  let wasOpen = false
+  ws.onopen = () => {
+    wasOpen = true
+  }
+  ws.onmessage = (event) => {
+    let frames: Array<{ type?: string; payload?: { pluginId?: unknown; plugin?: AnyReq } }>
+    try {
+      frames = JSON.parse(String(event.data))
+    } catch {
+      return
+    }
+    if (!Array.isArray(frames)) return
+    for (const frame of frames) {
+      if (frame?.type === 'pairingRequested') {
+        emitterRef?.emit('channel.pairing-requested', frame.payload)
+      } else if (frame?.type === 'userAuthorized') {
+        emitterRef?.emit('channel.user-authorized', frame.payload)
+      } else if (frame?.type === 'pluginStatusChanged' && frame.payload?.plugin) {
+        emitterRef?.emit('channel.plugin-status-changed', {
+          pluginId: frame.payload.pluginId,
+          status: toPluginStatusRow(frame.payload.plugin),
+        })
+      }
+    }
+  }
+  ws.onclose = () => {
+    channelWs = null
+    channelWsConnecting = false
+    // Simple reconnect once after a dropped link; if the page is gone the
+    // timer never fires, so no zombie socket.
+    if (wasOpen) window.setTimeout(ensureChannelEventsSocket, 5000)
+  }
+  ws.onerror = () => {
+    /* onclose follows */
+  }
+}
+
+const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
+  'get-file-metadata': async (req) => {
+    const path = String(req.path ?? '')
+    const file = window.__sudoworkWebFileStaging?.get(path)
+    if (!file) throw new Error('FILE_NOT_STAGED')
+    return {
+      name: file.name,
+      path,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified,
+    }
+  },
+  'get-image-base64': async (req) => {
+    const file = window.__sudoworkWebFileStaging?.get(String(req.path ?? ''))
+    if (!file) throw new Error('FILE_NOT_STAGED')
+    return `data:${file.type};base64,${await readFileAsBase64(file)}`
+  },
+  'system-settings:get-show-tool-calls': async () => {
+    const value = storageGet('agent.config', 'system.showToolCalls')
+    return typeof value === 'boolean' ? value : null
+  },
+  'system-settings:set-show-tool-calls': async (req) => {
+    const isEnabled = req.enabled === true
+    storageSet('agent.config', 'system.showToolCalls', isEnabled)
+    emitterRef?.emit('system-settings:show-tool-calls-changed', { enabled: isEnabled })
+  },
+  'system-settings:get-show-token-usage-badges': async () =>
+    storageGet('agent.config', 'system.showTokenUsageBadges') === true,
+  'system-settings:set-show-token-usage-badges': async (req) => {
+    const isEnabled = req.enabled === true
+    storageSet('agent.config', 'system.showTokenUsageBadges', isEnabled)
+    emitterRef?.emit('system-settings:show-token-usage-badges-changed', { enabled: isEnabled })
+  },
+  // --- enterprise/session flags ---
+  'moss.is-enterprise-mode': async () => true,
+  'moss.get-config': async () => ({ serverUrl: location.origin, hasToken: true }),
+  'moss.set-auth-token': async () => ok(),
+
+  // The pages that show points, usage and orders ask this channel where to send
+  // their requests. On the web that is this origin, which proxies to the moss
+  // this browser is signed in to — the same server that issued the session.
+  // Without it those pages fell through to `not-supported-on-web` and rendered
+  // an empty panel with no error.
+  'sudowork-server.get-config': async () => ({ baseUrl: location.origin }),
+  'sudowork-server.update-config': async () => ok(),
+
+  // --- zoom / font scale: RAW number providers. Display prefs live in the
+  //     browser (R8); no server round-trip. useFontScale calls these directly. ---
+  'app.get-zoom-factor': async () => {
+    const raw = Number(localStorage.getItem('sw.web-zoom'))
+    return Number.isFinite(raw) && raw > 0 ? raw : 1
+  },
+  'app.set-zoom-factor': async (req) => {
+    const factor = Number(req?.factor)
+    const next = Number.isFinite(factor) && factor > 0 ? factor : 1
+    localStorage.setItem('sw.web-zoom', String(next))
+    document.documentElement.style.zoom = String(next)
+    return next
+  },
+
+  // --- eeclaw tenancy: tenant config / profile / cloud assistants ---
+  'eeclaw.verify-server': async () => {
+    const tenantConfig = tenantConfigFromPayload(
+      await apiFetch<TenantConfigPayload>('/api/v1/tenant/config').catch(() => null),
+    )
+    // Missing/null fields are filled by resolveTenantConfig on the consumer side.
+    return ok({
+      id: location.origin,
+      logo: typeof tenantConfig?.logo === 'string' ? tenantConfig.logo : null,
+      app_name:
+        typeof tenantConfig?.app_name === 'string'
+          ? tenantConfig.app_name
+          : typeof tenantConfig?.appName === 'string'
+            ? tenantConfig.appName
+            : null,
+      top_name:
+        typeof tenantConfig?.top_name === 'string'
+          ? tenantConfig.top_name
+          : typeof tenantConfig?.topName === 'string'
+            ? tenantConfig.topName
+            : null,
+      about_name:
+        typeof tenantConfig?.about_name === 'string'
+          ? tenantConfig.about_name
+          : typeof tenantConfig?.aboutName === 'string'
+            ? tenantConfig.aboutName
+            : null,
+      app_company_name:
+        typeof tenantConfig?.app_company_name === 'string'
+          ? tenantConfig.app_company_name
+          : typeof tenantConfig?.appCompanyName === 'string'
+            ? tenantConfig.appCompanyName
+            : null,
+      login_desp:
+        typeof tenantConfig?.login_desp === 'string'
+          ? tenantConfig.login_desp
+          : typeof tenantConfig?.loginDesp === 'string'
+            ? tenantConfig.loginDesp
+            : null,
+      client_cron_enabled:
+        typeof tenantConfig?.client_cron_enabled === 'boolean'
+          ? tenantConfig.client_cron_enabled
+          : null,
+      client_show_tool_calls:
+        typeof tenantConfig?.client_show_tool_calls === 'boolean'
+          ? tenantConfig.client_show_tool_calls
+          : null,
+      workspace_upload_limit_bytes:
+        typeof tenantConfig?.workspace_upload_limit_bytes === 'number'
+          ? tenantConfig.workspace_upload_limit_bytes
+          : null,
+      updated_at: Date.now(),
+    })
+  },
+  'eeclaw.get-user-profile': async () => {
+    // Same lenient field rules as the console ProfilePage (moss may return
+    // snake_case or camelCase depending on version).
+    const raw = await apiFetch<Record<string, unknown>>('/api/settings/profile').catch(() => null)
+    const p = ((raw && typeof raw === 'object' ? ((raw as { data?: unknown }).data ?? raw) : {}) ??
+      {}) as {
+      username?: unknown
+      name?: unknown
+      displayName?: unknown
+      department?: unknown
+      departmentName?: unknown
+      role?: unknown
+      usage?: Record<string, unknown>
+    }
+    const usage = (p.usage ?? {}) as Record<string, unknown>
+    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+    return ok({
+      username: String(p.username ?? p.name ?? p.displayName ?? '—'),
+      department: String(p.department ?? p.departmentName ?? '—'),
+      role: String(p.role ?? 'user'),
+      usage: {
+        input_tokens: num(usage.input_tokens),
+        output_tokens: num(usage.output_tokens),
+        total_tokens: num(usage.total_tokens ?? usage.totalTokens),
+        session_count: num(usage.session_count ?? usage.sessionCount),
+      },
+    })
+  },
+  // The agents this person has. Assembled by moss because only it knows which
+  // of the three kinds a stored reference is and where each kind's name lives;
+  // doing it here would put the template-is-not-an-agent distinction into the
+  // browser and give it a reason to read the organization catalog.
+  'eeclaw.get-my-agents': async () => {
+    return ok(await listMyAgents())
+  },
+  'eeclaw.create-user-agent': async (req) => {
+    return ok(await agentPort.createOwned(req))
+  },
+
+  'eeclaw.get-cloud-assistants': async () => {
+    const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(
+      () => [] as MossAgentItem[],
+    )
+    // key/name/avatar/emoji/description satisfy the channel type; the extra
+    // isBuiltin/isHubInstalled/sourceType fields feed the guid selector's
+    // isSelectableCloudAssistant filter (it drops rows without them).
+    return ok(
+      (Array.isArray(agents) ? agents : []).map((a) => ({
+        key: a.name,
+        name: String(a.displayName ?? a.display_name ?? a.name),
+        avatar: typeof a.avatar === 'string' ? a.avatar : undefined,
+        emoji: typeof a.emoji === 'string' ? a.emoji : undefined,
+        description: typeof a.description === 'string' ? a.description : undefined,
+        isBuiltin: a.isBuiltin === true,
+        isHubInstalled: a.tag === 'hub',
+        sourceType: typeof a.tag === 'string' ? a.tag : undefined,
+      })),
+    )
+  },
+
+  // --- assistant-hub: installed agents (management page) ---
+  'assistant-hub.get-installed-assistants': async () => {
+    const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(
+      () => [] as MossAgentItem[],
+    )
+    return ok((Array.isArray(agents) ? agents : []).map(mossAgentToAssistantInfo))
+  },
+  // with-visibility ignores accessToken: the server already scopes rows by session.
+  'assistant-hub.get-installed-assistants-with-visibility': async () => {
+    const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(
+      () => [] as MossAgentItem[],
+    )
+    return ok((Array.isArray(agents) ? agents : []).map(mossAgentToAssistantInfo))
+  },
+  'assistant-hub.create-assistant': async (req) => {
+    // CreateAgentRequestSchema (name/displayName/description?/avatar?/prompt?) is
+    // not .strict(): zod strips unknown keys, so we send only the minimal set.
+    const meta = (req?.meta ?? {}) as Record<string, unknown>
+    const name = String(meta.name ?? meta.id ?? '')
+    const names = (meta.nameI18n ?? {}) as Record<string, string>
+    const descriptions = (meta.descriptionI18n ?? {}) as Record<string, string>
+    const displayName = String(
+      meta.display_name ?? names['zh-CN'] ?? names['en-US'] ?? Object.values(names)[0] ?? name,
+    )
+    await apiFetch('/api/agent-templates/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        displayName,
+        description:
+          typeof meta.description === 'string'
+            ? meta.description
+            : (descriptions['zh-CN'] ?? descriptions['en-US'] ?? Object.values(descriptions)[0]),
+        avatar: typeof meta.avatar === 'string' ? meta.avatar : undefined,
+        prompt: typeof req?.ruleContent === 'string' ? req.ruleContent : undefined,
+        skills: Array.isArray(meta.enabledSkills) ? meta.enabledSkills : [],
+      }),
+    })
+    return ok()
+  },
+  'assistant-hub.update-assistant-meta': async (req) => {
+    const updates = (req.updates ?? {}) as Record<string, unknown>
+    const names = (updates.nameI18n ?? {}) as Record<string, string>
+    const descriptions = (updates.descriptionI18n ?? {}) as Record<string, string>
+    await apiFetch('/api/agent-templates/meta', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: req.name,
+        updates: {
+          display_name:
+            updates.display_name ?? names['zh-CN'] ?? names['en-US'] ?? Object.values(names)[0],
+          description:
+            updates.description ??
+            descriptions['zh-CN'] ??
+            descriptions['en-US'] ??
+            Object.values(descriptions)[0],
+          avatar: updates.avatar,
+          emoji: updates.emoji,
+          enabledSkills: updates.enabledSkills,
+        },
+      }),
+    })
+    return ok()
+  },
+  'write-assistant-rule': async (req) => {
+    try {
+      await apiFetch('/api/agent-templates/meta', {
+        method: 'PATCH',
+        body: JSON.stringify({ name: req.assistantId, updates: { rules: req.content } }),
+      })
+      return true
+    } catch {
+      return false
+    }
+  },
+  'assistant-hub.uninstall-assistant': async (req) => {
+    await apiFetch('/api/agent-templates/uninstall', {
+      method: 'POST',
+      body: JSON.stringify({ name: String(req?.name ?? '') }),
+    })
+    return ok()
+  },
+  // --- assistant-hub: browse store (hub) & exclusive (tenant) lists ---
+  'assistant-hub.download-and-install-assistant': async (req) =>
+    ok(
+      await apiFetch('/api/agent-templates/install', {
+        method: 'POST',
+        body: JSON.stringify({ name: req.assistantName }),
+      }),
+    ),
+  'assistant-hub.fetch-categories': async () =>
+    ok(await apiFetch<string[]>('/api/agent-templates/hub/categories')),
+  'assistant-hub.fetch-assistants': async (req) => {
+    if (String(req?.sourceType ?? '') === 'tenant') {
+      // 专属：/tenant 为 session 维度，moss 按登录企业身份返回，无需 tenant_id
+      const rows = await apiFetch<unknown[]>('/api/agent-templates/tenant')
+      return ok({ assistants: Array.isArray(rows) ? rows : [], next_cursor: null, has_more: false })
+    }
+    const params = new URLSearchParams()
+    if (req?.cursor) params.set('cursor', String(req.cursor))
+    params.set('limit', String(req?.limit ?? 40))
+    if (req?.category) params.set('category', String(req.category))
+    if (req?.query) params.set('search', String(req.query))
+    const body = await apiFetch<{
+      items?: unknown[]
+      next_cursor?: string | null
+      has_more?: boolean
+    }>(`/api/agent-templates/hub/list?${params.toString()}`)
+    return ok({
+      assistants: Array.isArray(body?.items) ? body.items : [],
+      next_cursor: typeof body?.next_cursor === 'string' ? body.next_cursor : null,
+      has_more: body?.has_more === true,
+    })
+  },
+
+  // --- assistant rule read (web opens the installed-assistant drawer read-only) ---
+  // ipcBridge.fs.readAssistantRule's wire channel is 'read-assistant-rule' (the fs
+  // prefix is only the TS namespace). Desktop returns a bare string; moss returns
+  // {rules} and is admin-scoped — degrade to '' (drawer shows the empty-state)
+  // instead of surfacing an error. webui ids are moss directory names, builtin-
+  // prefixed for system rows.
+  'read-assistant-rule': async (req) => {
+    const name = String(req?.assistantId ?? '').replace(/^builtin-/, '')
+    try {
+      const body = await apiFetch<{ rules?: unknown }>(
+        `/api/agent-templates/rules/${encodeURIComponent(name)}`,
+      )
+      return typeof body?.rules === 'string' ? body.rules : ''
+    } catch {
+      return ''
+    }
+  },
+
+  // --- skill-hub: installed skills (management page) ---
+  'skill-hub.get-installed-skills': async () => {
+    const skills = await apiFetch<MossSkillItem[]>('/api/skills').catch(() => [] as MossSkillItem[])
+    return ok((Array.isArray(skills) ? skills : []).map(mossSkillToInstalledInfo))
+  },
+  'skill-hub.set-skill-enabled': async (req) => {
+    await apiFetch('/api/skills/enabled', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: String(req?.skillName ?? ''), enabled: req?.enabled === true }),
+    })
+    return ok()
+  },
+  'skill-hub.uninstall-skill': async (req) => {
+    await apiFetch('/api/skills/uninstall', {
+      method: 'POST',
+      body: JSON.stringify({ name: String(req?.skillName ?? '') }),
+    })
+    return ok()
+  },
+  // --- skill-hub: browse store (hub) & exclusive (tenant) lists ---
+  'skill-hub.fetch-categories': async () =>
+    ok(await apiFetch<string[]>('/api/skills/hub/categories')),
+  'skill-hub.fetch-skill-detail': async (req) => {
+    const detail = await apiFetch<Record<string, unknown> | null>(
+      `/api/skills/hub/${encodeURIComponent(String(req?.skillId ?? ''))}`,
+    )
+    if (!detail) return fail('NOT_FOUND')
+    const { versions, ...skill } = detail
+    return ok({ skill, versions: Array.isArray(versions) ? versions : [] })
+  },
+  'skill-hub.download-and-install-skill': async (req) => {
+    const meta = req?.skillMeta as { id?: unknown } | undefined
+    if (typeof meta?.id !== 'string' || !meta.id.trim()) return fail('INVALID_REQUEST')
+    const result = await apiFetch('/api/skills/install', {
+      method: 'POST',
+      body: JSON.stringify({ id: meta.id }),
+    })
+    emitterRef?.emit('skill-hub.changed', { source: 'hub' })
+    return ok(result)
+  },
+  'skill-hub.fetch-skills': async (req) => {
+    if (req?.tenantId) {
+      // 专属：/tenant 为 session 维度，moss 按登录企业身份返回，无需 tenant_id
+      const rows = await apiFetch<unknown[]>('/api/skills/tenant')
+      return ok({ skills: Array.isArray(rows) ? rows : [], next_cursor: null, has_more: false })
+    }
+    const params = new URLSearchParams()
+    if (req?.cursor) params.set('cursor', String(req.cursor))
+    params.set('limit', String(req?.limit ?? 40))
+    if (req?.category) params.set('category', String(req.category))
+    if (req?.query) params.set('search', String(req.query))
+    const body = await apiFetch<{
+      items?: unknown[]
+      next_cursor?: string | null
+      has_more?: boolean
+    }>(`/api/skills/hub/list?${params.toString()}`)
+    return ok({
+      skills: Array.isArray(body?.items) ? body.items : [],
+      next_cursor: typeof body?.next_cursor === 'string' ? body.next_cursor : null,
+      has_more: body?.has_more === true,
+    })
+  },
+
+  // --- extensions: web host has no local extension host; consumers tolerate []. ---
+  // Extensions do not run in the browser host. These answer with an empty
+  // list rather than falling through to `not-supported-on-web`, which
+  // resolves an IBridgeResponse object — a caller expecting an array then
+  // iterates it and throws.
+  'extensions.get-settings-tabs': async () => [],
+  'extensions.get-assistants': async () => [],
+  'extensions.get-acp-adapters': async () => [],
+
+  // --- conversation list / open ---
+  'database.get-user-conversations': async () => {
+    const items = await listConversations()
+    const agents = items.some((item) => isPersonalAgentRef(item.assistantName ?? undefined))
+      ? await listMyAgents().catch(() => [])
+      : []
+    const names = new Map(agents.map((agent) => [agent.ref, agent.displayName]))
+    return items.map((item) => toChatConversation(item, names.get(item.assistantName ?? '')))
+  },
+  'moss.list-sessions': async () => ok((await listConversations()).map(toMossSession)),
+  'moss.get-session': async (req) => {
+    const found = (await listConversations()).find((c) => c.id === req?.sessionId)
+    return found ? ok(toMossSession(found)) : fail('SESSION_NOT_FOUND')
+  },
+  'get-conversation': async (req) => {
+    const found = (await listConversations()).find((c) => c.id === req?.id)
+    if (!found) return undefined
+    const isPersonal = isPersonalAgentRef(found.assistantName ?? undefined)
+    const personalAgent = isPersonal
+      ? (await listMyAgents().catch(() => [])).find((agent) => agent.ref === found.assistantName)
+      : undefined
+    const conv = toChatConversation(found, personalAgent?.displayName)
+    // 会话模型回读：conversation_meta.model_id（renderer 以 extra.currentModelId 作 initialModelId）
+    const model = await apiFetch<{ modelId: string | null }>(
+      `/api/conversations/${encodeURIComponent(String(req?.id ?? ''))}/model`,
+    ).catch(() => null)
+    if (model?.modelId)
+      conv.extra = { ...(conv.extra as Record<string, unknown>), currentModelId: model.modelId }
+    if (found.assistantName && !isPersonal) {
+      const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(() => [])
+      const agent = agents.find(
+        (item) => item.name === found.assistantName || item.id === found.assistantName,
+      )
+      if (agent)
+        conv.extra = {
+          ...(conv.extra as Record<string, unknown>),
+          agentName: agent.displayName ?? agent.display_name ?? agent.name,
+        }
+    }
+    return conv
+  },
+  'database.get-conversation-messages': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const ctx = await apiFetch<{ messages?: unknown[]; title?: string | null }>(
+      `/api/conversations/${encodeURIComponent(id)}/context`,
+    )
+    const messages = ctx.messages ?? []
+    void nameLegacyConversation(id, ctx.title, messages)
+    return messages
+  },
+  'conversation.sync-messages': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    // Attach before reading history so externally started turns (such as cron)
+    // keep streaming after the initial snapshot has been rendered.
+    ensureSessionStream(id)
+    const context = await apiFetch<{ messages?: unknown[] }>(
+      `/api/conversations/${encodeURIComponent(id)}/context`,
+    )
+    const fingerprint = JSON.stringify(context.messages ?? [])
+    const isChanged = syncedHistory.get(id) !== fingerprint
+    syncedHistory.set(id, fingerprint)
+    return ok({ syncedCount: isChanged ? (context.messages?.length ?? 0) : 0, nameUpdated: false })
+  },
+
+  // --- workspace / deliverables (moss-session right panel) ---
+  'conversation.get-remote-workspace': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const params = new URLSearchParams()
+    if (typeof req?.path === 'string' && req.path) params.set('path', req.path)
+    if (typeof req?.search === 'string' && req.search) params.set('search', req.search)
+    const qs = params.toString()
+    try {
+      const root = await apiFetch<unknown>(
+        `/api/conversations/${encodeURIComponent(id)}/workspace/tree${qs ? `?${qs}` : ''}`,
+      )
+      return ok({ files: root ? [convertWorkspaceNode(root)] : [], pending: false })
+    } catch (err) {
+      return { success: false, msg: errMessage(err), data: { files: [], pending: false } }
+    }
+  },
+  'conversation.preview-remote-workspace-file': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const path = String(req?.path ?? '')
+    const preview = await apiFetch<unknown>(
+      `/api/conversations/${encodeURIComponent(id)}/workspace/file?path=${encodeURIComponent(path)}`,
+    )
+    return ok(preview)
+  },
+  'conversation.get-remote-available-skills': async (req) => {
+    const id = String(req?.conversation_id ?? '')
+    const res = await apiFetch<{ skills?: unknown[] }>(
+      `/api/conversations/${encodeURIComponent(id)}/skills/available`,
+    ).catch(() => ({ skills: [] }))
+    return ok({ skills: Array.isArray(res.skills) ? res.skills : [], pending: false })
+  },
+  'deliverables.list': async (req) => {
+    const id = String(req?.conversationId ?? '')
+    if (!id) return ok([])
+    const files = await fetchDeliverables(id).catch(() => [])
+    return ok(files)
+  },
+
+  // --- create / update / delete ---
+  'create-conversation': async (req) => {
+    // The renderer carries the selected assistant as extra.presetAssistantId —
+    // the moss installed-agent `name`, possibly prefixed `builtin-` by the
+    // desktop-style id. UI placeholders ("Remote Agent"/"Moss Server") are not
+    // moss agents — passing them yields SELECTION_NOT_AVAILABLE, so fall back to
+    // an empty assistantName and let moss pick its default agent.
+    const extra = req?.extra as
+      | {
+          presetAssistantId?: unknown
+          agentName?: unknown
+          enabledSkills?: unknown
+          nameIsFirstMessage?: unknown
+        }
+      | undefined
+    const raw = typeof extra?.presetAssistantId === 'string' ? extra.presetAssistantId : ''
+    const agent =
+      raw && raw !== 'Remote Agent' && raw !== 'Moss Server' ? raw.replace(/^builtin-/, '') : ''
+    const created = await apiFetch<{ id: string; taskId: string }>('/api/conversations', {
+      method: 'POST',
+      body: JSON.stringify({
+        assistantName: agent,
+        enabledSkills: extra?.enabledSkills ?? req?.enabledSkills ?? [],
+      }),
+    })
+    ensureSessionStream(created.id)
+    // Preserve the identity through pending list reads while showing its label.
+    const displayName =
+      typeof extra?.agentName === 'string' &&
+      extra.agentName &&
+      extra.agentName !== 'Remote Agent' &&
+      extra.agentName !== 'Moss Server'
+        ? extra.agentName
+        : agent || null
+    const rawName =
+      extra?.nameIsFirstMessage === true && typeof req?.name === 'string' ? req.name.trim() : ''
+    const createdTitle = rawName ? (rawName.split('\n')[0] ?? '').slice(0, 50).trim() : ''
+    if (createdTitle) {
+      await apiFetch(`/api/conversations/${encodeURIComponent(created.id)}/meta`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title: createdTitle }),
+      }).catch(() => {})
+    }
+    pendingCreatedConversations.set(created.id, {
+      id: created.id,
+      taskId: created.taskId,
+      status: 'detached',
+      assistantName: agent || null,
+      displayName: displayName ?? undefined,
+      source: null,
+      lastActiveAt: Date.now(),
+      title: createdTitle || null,
+      pinned: false,
+      pinnedAt: null,
+    })
+    return toChatConversation(
+      {
+        id: created.id,
+        taskId: created.taskId,
+        assistantName: agent || null,
+        title: createdTitle || null,
+      },
+      displayName ?? undefined,
+    )
+  },
+  'moss.create-session': async (req) => {
+    const created = await apiFetch<{ id: string; taskId: string }>('/api/conversations', {
+      method: 'POST',
+      body: JSON.stringify({ assistantName: req?.assistantName ?? '', enabledSkills: [] }),
+    })
+    ensureSessionStream(created.id)
+    return ok(
+      toMossSession({
+        id: created.id,
+        taskId: created.taskId,
+        assistantName: typeof req?.assistantName === 'string' ? req.assistantName : null,
+      }),
+    )
+  },
+  'moss.resume-session': async (req) => {
+    const sessionId = String(req?.sessionId ?? '')
+    ensureSessionStream(sessionId)
+    return ok({ wsUrl: wsUrlFor(sessionId), session: toMossSession({ id: sessionId }) })
+  },
+  'moss.update-session': async (req) => {
+    const sessionId = String(req?.sessionId ?? '')
+    await apiFetch(`/api/conversations/${encodeURIComponent(sessionId)}/meta`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title: req?.title }),
+    })
+    return ok(
+      toMossSession({ id: sessionId, title: typeof req?.title === 'string' ? req.title : null }),
+    )
+  },
+  'update-conversation': async (req) => {
+    const id = String(req?.id ?? '')
+    const updates = (req?.updates ?? {}) as { name?: unknown; extra?: { pinned?: unknown } }
+    const body: Record<string, unknown> = {}
+    if (typeof updates.name === 'string') body.title = updates.name
+    if (typeof updates?.extra?.pinned === 'boolean') body.pinned = updates.extra.pinned
+    if (Object.keys(body).length > 0) {
+      await apiFetch(`/api/conversations/${encodeURIComponent(id)}/meta`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }).catch(() => {})
+    }
+    return true
+  },
+  'moss.delete-session': async (req) => {
+    await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.sessionId ?? ''))}`, {
+      method: 'DELETE',
+    })
+    pendingCreatedConversations.delete(String(req?.sessionId ?? ''))
+    return ok()
+  },
+  'remove-conversation': async (req) => {
+    await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.id ?? ''))}`, {
+      method: 'DELETE',
+    })
+    pendingCreatedConversations.delete(String(req?.id ?? ''))
+    return true
+  },
+
+  // --- models ---
+  'mode.get-model-config': async () => [],
+  'moss.get-available-models': async () => {
+    const models = await fetchAvailableModels()
+    return ok(models.map((m) => ({ id: m.id, name: m.label, ratio: 1 })))
+  },
+  'moss.get-user-model': async () => {
+    const data = await apiFetch<{ modelId: string | null; systemDefaultModel: string | null }>(
+      '/api/conversations/user-model',
+    )
+    return ok(data ?? { modelId: null, systemDefaultModel: null })
+  },
+  'moss.set-user-model': async (req) => {
+    const modelId = String(req?.modelId ?? '')
+    await apiFetch('/api/conversations/user-model', {
+      method: 'PUT',
+      body: JSON.stringify({ modelId }),
+    })
+    return ok({ modelId, updatedAt: Date.now() })
+  },
+
+  // --- chat send / control (over the session WS) ---
+  'chat.send.message': async (req) => {
+    const sessionId = String(req?.conversation_id ?? req?.sessionId ?? '')
+    if (!sessionId) return fail('NO_SESSION')
+    abortedSessions.delete(sessionId)
+    const msgId = String(req?.msg_id ?? nextMsgId())
+    let text = extractText(req)
+    // Attachments staged by the renderer's webFilePicker (pseudo /webupload/ paths);
+    // any other files entries keep being ignored, as before.
+    const staged = extractStagedUploads(req)
+    let images: Array<{ mediaType: string; data: string }> = []
+    if (staged.length > 0) {
+      const result = await processStagedUploads(sessionId, staged)
+      if (result.error) {
+        // Abort the send: the renderer already cleared the input (same as the desktop
+        // abort path), so this error frame is the only feedback the user gets.
+        emitterRef?.emit('chat.response.stream', {
+          type: 'error',
+          msg_id: nextMsgId(),
+          conversation_id: sessionId,
+          data: result.error,
+        })
+        return ok()
+      }
+      images = result.images
+      if (result.refs.length > 0) {
+        text = `${result.refs.join(' ')} ${text}`
+      }
+      for (const item of staged) {
+        window.__sudoworkWebFileStaging?.delete(item.webPath)
+      }
+    }
+    sendOverStream(
+      sessionId,
+      images.length > 0 ? { kind: 'send', text, msgId, images } : { kind: 'send', text, msgId },
+    )
+    // Echo the user's own message back so its bubble shows: the shared renderer does
+    // no optimistic insert and relies on a user_content frame (desktop RemoteAgent does
+    // the same). moss's user echo frame is dropped by mossFrameToResponses, so synthesize
+    // it here. The echo and the WS send share msgId: moss persists it as the message uuid,
+    // /context returns it, and the history merge dedupes this echo by msg_id.
+    emitterRef?.emit('chat.response.stream', {
+      type: 'user_content',
+      msg_id: msgId,
+      conversation_id: sessionId,
+      data: text,
+    })
+    return ok()
+  },
+  'moss.send-message': async (req) => {
+    const sessionId = String(req?.sessionId ?? '')
+    if (!sessionId) return fail('NO_SESSION')
+    abortedSessions.delete(sessionId)
+    sendOverStream(sessionId, { kind: 'send', text: String(req?.content ?? '') })
+    return ok()
+  },
+  'chat.stop.stream': async (req) => {
+    sendOverStream(String(req?.conversation_id ?? ''), { kind: 'stop' })
+    return ok()
+  },
+  'moss.stop': async (req) => {
+    sendOverStream(String(req?.sessionId ?? ''), { kind: 'stop' })
+    return ok()
+  },
+  'moss.set-model': async (req) => {
+    sendOverStream(String(req?.sessionId ?? ''), {
+      kind: 'set_model',
+      modelId: String(req?.modelId ?? ''),
+    })
+    return ok()
+  },
+
+  // --- in-session model switch (renderer AcpModelSelector, non-remote-agent branch) ---
+  'acp.set-model': async (req) => {
+    const sessionId = String(req?.conversationId ?? '')
+    const modelId = String(req?.modelId ?? '')
+    if (!sessionId || !modelId) return fail('Invalid conversationId or modelId')
+    if (!sendOverStream(sessionId, { kind: 'set_model', modelId })) return fail('NO_SESSION')
+    return ok()
+  },
+
+  // --- AskUserQuestion answer loop (server already forwards answer_question) ---
+  'acp.answer-question': async (req) => {
+    const sessionId = String(req?.conversationId ?? '')
+    if (!sessionId || typeof sessionId !== 'string') return fail('Invalid conversationId')
+    const toolCallId = String(req?.toolCallId ?? '')
+    if (!toolCallId) return fail('Invalid toolCallId')
+    const answers = Array.isArray(req?.answers) ? req.answers : []
+    if (answers.length === 0) return fail('answers must be a non-empty array')
+    const text = answers
+      .map((a: { value?: unknown }) => (typeof a?.value === 'string' ? a.value : ''))
+      .filter(Boolean)
+      .join('\n')
+    if (!text) return fail('answers must contain non-empty values')
+    if (!sendOverStream(sessionId, { kind: 'answer_question', parentToolUseId: toolCallId, text }))
+      return fail('NO_SESSION')
+    abortedSessions.delete(sessionId)
+
+    // Flip the pending card to answered (mirrors desktop emitQuestionAnswered).
+    // Without a registration (e.g. after a page refresh) the answer is still sent;
+    // there is just no local card to update.
+    const pending = pendingQuestions.get(sessionId)?.get(toolCallId)
+    if (pending) {
+      const map = pendingQuestions.get(sessionId)!
+      map.delete(pending.toolCallId)
+      if (pending.responseToolUseId) map.delete(pending.responseToolUseId)
+      const answerItems = answers.map(
+        (a: { id?: unknown; value?: unknown; label?: unknown }, index: number) => ({
+          id: typeof a?.id === 'string' ? a.id : String(index + 1),
+          index: index + 1,
+          submissionValue: typeof a?.value === 'string' ? a.value : '',
+          displayValue:
+            (typeof a?.label === 'string' && a.label) ||
+            (typeof a?.value === 'string' && a.value) ||
+            '',
+          skipped: a?.value === '[skipped]',
+        }),
+      )
+      const selectedAnswer = answerItems
+        .map((a) => `${a.index}. ${a.skipped ? '[skipped]' : a.displayValue}`)
+        .join('\n')
+      const answered = {
+        type: 'acp_question',
+        msg_id: pending.msgId,
+        conversation_id: sessionId,
+        data: { answered: true, selectedAnswer, answerItems },
+      }
+      emitterRef?.emit('chat.response.stream', answered)
+      emitterRef?.emit('moss.response-stream', answered)
+    }
+    return ok()
+  },
+
+  // --- permission approval loop (renderer confirmation card) ---
+  'confirmation.confirm': async (req) => {
+    const sessionId = String(req?.conversation_id ?? '')
+    if (
+      !sendOverStream(sessionId, {
+        kind: 'control_response',
+        requestId: String(req?.callId ?? ''),
+        optionId: String(req?.data ?? ''),
+      })
+    ) {
+      return fail('NO_SESSION')
+    }
+    const list = pendingConfirmations.get(sessionId)
+    if (list)
+      pendingConfirmations.set(
+        sessionId,
+        list.filter((c) => c.id !== req?.msg_id),
+      )
+    emitterRef?.emit('confirmation.remove', {
+      conversation_id: sessionId,
+      id: String(req?.msg_id ?? ''),
+    })
+    return ok()
+  },
+
+  // --- model surface for the renderer's AcpModelSelector (scode projection path) ---
+  'acp.get-model-info': async (req) => {
+    const models = await fetchAvailableModels()
+    if (models.length === 0) return ok({ modelInfo: null })
+    const currentModelId = await resolveCurrentModelId(String(req?.conversationId ?? ''))
+    return ok({ modelInfo: makeModelInfo(models, currentModelId) })
+  },
+
+  'scode.refresh-models': async () => {
+    const models = await fetchAvailableModels()
+    const currentModelId = await resolveCurrentModelId()
+    // data is checked by the renderer (result.success && result.data) — must be a
+    // real AcpModelInfo, never a bare ok().
+    return ok({ modelInfo: makeModelInfo(models, currentModelId) })
+  },
+
+  // --- misc surfaces the enterprise chat page touches early ---
+  'conversation.get-slash-commands': async () => ok({ commands: [] }),
+
+  // --- cron: all providers are RAW (no ok() envelope). On failure they return
+  //     the SAME `{ __error }` shape the desktop main-process bridge uses, so
+  //     `unwrapCronResult` throws for callers and `Array.isArray` stays false for
+  //     the useCronAccess probe. GET /api/cron returns {jobs,canCreate,...}. ---
+  'cron.list-jobs': async () =>
+    cronResult(async () => {
+      const res = await apiFetch<{ jobs?: unknown[] }>('/api/cron')
+      return (Array.isArray(res.jobs) ? res.jobs : []).map(toIcronJob)
+    }),
+  'cron.list-jobs-by-conversation': async (req) =>
+    cronResult(async () => {
+      const conversationId = String(req?.conversationId ?? '')
+      const res = await apiFetch<{ jobs?: unknown[] }>('/api/cron')
+      return (Array.isArray(res.jobs) ? res.jobs : [])
+        .map(toIcronJob)
+        .filter(
+          (j) =>
+            (j as { metadata?: { conversationId?: string } }).metadata?.conversationId ===
+            conversationId,
+        )
+    }),
+  'cron.get-job': async (req) =>
+    cronResult(async () => {
+      const job = await apiFetch<unknown>(
+        `/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}`,
+      )
+      return job ? toIcronJob(job) : null
+    }),
+  'cron.add-job': async (req) =>
+    cronResult(async () => {
+      const job = await apiFetch<unknown>('/api/cron', {
+        method: 'POST',
+        body: JSON.stringify(cronCreateBody(req)),
+      })
+      const created = toIcronJob(job)
+      emitterRef?.emit('cron.job-created', created)
+      return created
+    }),
+  'cron.update-job': async (req) =>
+    cronResult(async () => {
+      const jobId = encodeURIComponent(String(req?.jobId ?? ''))
+      const job = await apiFetch<unknown>(`/api/cron/${jobId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(cronUpdateBody((req?.updates ?? {}) as AnyReq)),
+      })
+      const updated = toIcronJob(job)
+      emitterRef?.emit('cron.job-updated', updated)
+      return updated
+    }),
+  'cron.remove-job': async (req) =>
+    cronResult(async () => {
+      await apiFetch(`/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}`, {
+        method: 'DELETE',
+      })
+      emitterRef?.emit('cron.job-removed', { jobId: String(req?.jobId ?? '') })
+      return undefined
+    }),
+  'cron.trigger-job': async (req) =>
+    cronResult(async () => {
+      await apiFetch(`/api/cron/${encodeURIComponent(String(req?.jobId ?? ''))}/trigger`, {
+        method: 'POST',
+      })
+      // The trigger can create a session that is absent from the current list snapshot.
+      invalidateConversations()
+      return undefined
+    }),
+  // The conversation view loads these on open; they return RAW arrays, so the
+  // default-reject object breaks array consumers ("data is not iterable").
+  'confirmation.list': async (req) =>
+    pendingConfirmations.get(String(req?.conversation_id ?? '')) ?? [],
+  'approval.check': async () => false,
+  'acp.get-mode': async () => ok({ mode: 'default', initialized: true }),
+  'conversation.flush-pending-messages': async () => undefined,
+
+  // --- remote connections: see the channelFetch section above for the
+  // envelope rationale. All paths are this origin's /api/channels forwards. ---
+  'channel.get-plugin-status': async () => {
+    const res = await channelFetch('/plugins')
+    if (res.status !== 200 || !Array.isArray(res.body?.plugins)) return CHANNEL_NETWORK_FAIL
+    return ok(res.body.plugins.map((row) => toPluginStatusRow(row as AnyReq)))
+  },
+  'channel.get-plugin-credentials': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/credentials`,
+    )
+    if (res.status === 404) return fail('Plugin not found')
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    // moss answers `{}` for an unconfigured plugin; the desktop wire uses null.
+    const data = res.body && Object.keys(res.body).length > 0 ? res.body : null
+    return ok(data)
+  },
+  'channel.test-plugin': async (req) => {
+    const pluginId = String(req.pluginId ?? '')
+    const res = await channelFetch(`/plugins/${encodeURIComponent(pluginId)}/test`, {
+      method: 'POST',
+      body: JSON.stringify(testCredentialsFor(pluginId, req)),
+    })
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    // moss `{ok, message}`: message is the error OR the bot username.
+    const isOk = Boolean(res.body?.ok)
+    const message = typeof res.body?.message === 'string' ? res.body.message : ''
+    return ok({
+      success: isOk,
+      ...(isOk ? { botUsername: message || undefined } : { error: message || 'Connection failed' }),
+    })
+  },
+  'channel.enable-plugin': async (req) => {
+    // moss replies 409 + `{ok:false, message}` when it refuses (e.g. the bot
+    // is already connected by someone else) — the reason must reach the form.
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/enable`,
+      {
+        method: 'POST',
+        body: JSON.stringify(req.config ?? {}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' && res.body.message
+        ? res.body.message
+        : 'Failed to enable plugin',
+    )
+  },
+  'channel.disable-plugin': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/disable`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to disable plugin',
+    )
+  },
+  'channel.create-plugin': async (req) => {
+    const res = await channelFetch('/plugins/create', {
+      method: 'POST',
+      body: JSON.stringify({ type: req.type, name: req.name }),
+    })
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok && res.body.id) return ok({ pluginId: String(res.body.id) })
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to add connection',
+    )
+  },
+  'channel.get-pending-pairings': async () => {
+    const res = await channelFetch('/pairings/pending')
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    return ok(Array.isArray(res.body?.pairings) ? res.body.pairings : [])
+  },
+  'channel.approve-pairing': async (req) => {
+    const res = await channelFetch(
+      `/pairings/${encodeURIComponent(String(req.code ?? ''))}/approve`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail('Failed to approve pairing')
+  },
+  'channel.reject-pairing': async (req) => {
+    const res = await channelFetch(
+      `/pairings/${encodeURIComponent(String(req.code ?? ''))}/reject`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    // Two moss envelopes here: the pairing service's `{success, error?}` and
+    // the cross-user guard's `{ok:false, message:'Forbidden'}`.
+    const isOk =
+      typeof res.body?.success === 'boolean' ? Boolean(res.body.success) : Boolean(res.body?.ok)
+    if (isOk) return ok()
+    const msg = res.body?.error ?? res.body?.message
+    return fail(typeof msg === 'string' && msg ? msg : 'Failed to reject pairing')
+  },
+  'channel.get-authorized-users': async () => {
+    const res = await channelFetch('/users')
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    return ok(Array.isArray(res.body?.users) ? res.body.users : [])
+  },
+  'channel.revoke-user': async (req) => {
+    const res = await channelFetch(`/users/${encodeURIComponent(String(req.userId ?? ''))}`, {
+      method: 'DELETE',
+    })
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(typeof res.body?.message === 'string' ? res.body.message : 'Failed to revoke user')
+  },
+  'channel.sync-channel-settings': async (req) => {
+    const res = await channelFetch('/settings/sync', {
+      method: 'POST',
+      body: JSON.stringify({ platform: req.platform, agent: req.agent, model: req.model }),
+    })
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to sync settings',
+    )
+  },
+  'channel.wechat-start-qr-login': () => handleWechatStartQrLogin(),
+  'channel.wechat-cancel-qr-login': async () => {
+    stopWechatQrPolling()
+    return ok()
+  },
+  'moss.get-channel-agents': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/agents`,
+    )
+    if (res.status !== 200) return CHANNEL_NETWORK_FAIL
+    return ok({ agents: res.body?.agents ?? [], defaultAgent: res.body?.defaultAgent ?? null })
+  },
+  'moss.set-channel-default-agent': async (req) => {
+    const res = await channelFetch(
+      `/plugins/${encodeURIComponent(String(req.pluginId ?? ''))}/agents/default`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ agentName: req.agentName ?? null }),
+      },
+    )
+    if (res.status === 0) return CHANNEL_NETWORK_FAIL
+    if (res.body?.ok) return ok()
+    return fail(
+      typeof res.body?.message === 'string' ? res.body.message : 'Failed to set default agent',
+    )
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Dispatch.
+// ---------------------------------------------------------------------------
+
+function handleInvoke(channel: string, id: string, req: unknown): void {
+  // First channel wire use opens the events socket (lazily; see its section).
+  if (channel.startsWith('channel.')) ensureChannelEventsSocket()
+  // Defer to a microtask: `invoke()` emits the request and THEN registers the
+  // callback listener, both synchronously. A synchronous deliver (the
+  // localStorage-backed storage ops) would fire the callback before that
+  // listener exists → the invoke hangs (this stuck the app-mode prime). The
+  // async-mapped handlers already resolve on a later tick; deferring uniformly
+  // guarantees the listener is registered first for every branch.
+  const deliver = (result: unknown): void => {
+    queueMicrotask(() => emitterRef?.emit('subscribe.callback-' + channel + id, result))
+  }
+
+  const storageMatch = STORAGE_RE.exec(channel)
+  if (storageMatch) {
+    const group = storageMatch[1] as string
+    const op = storageMatch[2] as string
+    if (!DURABLE_STORAGE_GROUPS.has(group)) {
+      // Server-owned group (chat/messages): don't browser-persist. get -> no
+      // local cache; set/remove/clear -> no-op. moss is the SSOT for this data.
+      deliver(undefined)
+      return
+    }
+    try {
+      if (op === 'get') {
+        deliver(storageGet(group, String(req ?? '')))
+      } else if (op === 'set') {
+        const payload = (req ?? {}) as { key?: string; data?: unknown }
+        storageSet(group, String(payload.key ?? ''), payload.data)
+        deliver(undefined)
+      } else if (op === 'remove') {
+        storageRemove(group, String(req ?? ''))
+        deliver(undefined)
+      } else {
+        storageClear(group)
+        deliver(undefined)
+      }
+    } catch {
+      deliver(undefined)
+    }
+    return
+  }
+
+  const handler = handlers[channel]
+  if (handler) {
+    handler((req ?? {}) as AnyReq)
+      .then(deliver)
+      .catch((err: unknown) => {
+        console.warn('[mossAdapter] channel failed:', channel, err)
+        deliver(fail(errMessage(err)))
+      })
+    return
+  }
+
+  if (!unmappedLogged.has(channel)) {
+    unmappedLogged.add(channel)
+    console.warn('[mossAdapter] no web mapping for channel (returning not-supported):', channel)
+  }
+  deliver(fail('not-supported-on-web'))
+}
+
+// ---------------------------------------------------------------------------
+// Wire the transport (side effect).
+// ---------------------------------------------------------------------------
+
+// Marks this window as a shared-renderer web host. The renderer's
+// `isWebBridgeAvailable()` reads it to relax desktop-only data guards; desktop
+// never loads this module, so the flag (and every guard keyed on it) stays
+// inert there.
+if (typeof window !== 'undefined') {
+  window.__sudoworkWebBridge = true
+}
+
+bridge.adapter({
+  emit(name: string, data: unknown) {
+    try {
+      if (typeof name === 'string' && name.startsWith('subscribe-')) {
+        const channel = name.slice('subscribe-'.length)
+        const env = (data ?? {}) as { id?: string; data?: unknown }
+        handleInvoke(channel, String(env.id ?? ''), env.data)
+      }
+      // Non-`subscribe-` emits are renderer-side buildEmitter emits with no reply
+      // contract; there is nothing to answer, so they are intentionally ignored.
+    } catch (err) {
+      console.warn('[mossAdapter] emit error:', err)
+    }
+  },
+  on(emitter: BridgeEmitter) {
+    emitterRef = emitter
+  },
+})

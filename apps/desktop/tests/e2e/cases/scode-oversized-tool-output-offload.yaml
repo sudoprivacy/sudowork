@@ -1,0 +1,45 @@
+name: "scode oversized tool-output offload"
+description: >
+  Verify oversized tool-output offload end-to-end through the product. Ask Sudo
+  Code to run a command whose output far exceeds the inline budget (seq 1 50000,
+  ~340 KB). The engine must offload the full result to a write-once file and keep
+  only a head preview + a <persisted-output> marker in the transcript, so:
+  (1) the model still answers correctly - offload is transparent mid-turn; and
+  (2) the UI ingests the (now small) tool result without choking on 340 KB.
+  A tool call is asserted via db_audit; the offloaded blob + marker are
+  engine-internal (scode session dir) and asserted out-of-band.
+
+steps:
+  # -- Phase 0: app startup --
+  - op: wait_for_app_ready
+    timeout: 300
+  - op: screenshot
+    path: "screenshots/scode-offload-00-ready.png"
+  # Sudo Code is the default agent on a fresh conversation.
+  - op: judge
+    expect: "Sudo Code"
+
+  # -- Phase 1: trigger an oversized tool output --
+  - op: type_text
+    text: "Use the bash tool to run exactly this command: seq 1 50000 - then reply with only the number of the last line it printed. Do not use read_tool_output."
+  - op: press_key
+    key: "Enter"
+    wait: 3
+  - op: wait_for_response
+    timeout: 180
+  # Let the conversation DB settle before auditing tool calls.
+  - op: pause
+    duration: 8000
+  - op: screenshot
+    path: "screenshots/scode-offload-01-answer.png"
+
+  # -- Phase 2: assertions --
+  # Offload is transparent: despite a ~340 KB bash result (which without
+  # offload would blow the context budget), the turn completed and the correct
+  # last line is on screen. The engine-internal ground truth (the
+  # <persisted-output> marker + the write-once blob under the scode session's
+  # tool-results/<session-id>/ dir) is asserted at the scode layer
+  # (runtime/tools unit + real-kernel VFS tests); this case is the product-level
+  # smoke that the GUI ingests the offloaded turn without choking.
+  - op: judge
+    expect: "50000"

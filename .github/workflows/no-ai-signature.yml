@@ -1,0 +1,39 @@
+name: No AI Signatures
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  check:
+    name: Block AI Authorship Signatures
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Self-test the detector
+        run: sh scripts/ci/check-no-ai-signature.sh --selftest
+
+      - name: Reject AI signatures in commit messages
+        run: |
+          HEAD_REF="${{ github.head_ref }}"
+          HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+
+          # dev→main promotions replay history already gated at feature→dev.
+          if [ "$HEAD_REF" = "dev" ] && [ "$BASE_REF" = "main" ] && [ "$HEAD_REPO" = "${{ github.repository }}" ]; then
+            echo "✅ dev → main promotion — skipping AI-signature scan"
+            exit 0
+          fi
+
+          HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          BASE_SHA=$(git merge-base "origin/${BASE_REF}" "$HEAD_SHA" 2>/dev/null || echo "")
+          if [ -z "$BASE_SHA" ]; then
+            echo "⚠️ Could not compute merge-base for origin/${BASE_REF}..${HEAD_SHA}, skipping"
+            exit 0
+          fi
+
+          sh scripts/ci/check-no-ai-signature.sh --range "${BASE_SHA}..${HEAD_SHA}"

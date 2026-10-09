@@ -1,0 +1,804 @@
+/**
+ * @license
+ * Copyright 2025 Sudowork (sudowork.ai)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { net } from 'electron';
+import { hasValidLoginIdentity } from '@sudowork/common/authLogin';
+import { ipcBridge } from '@/common';
+// Match renderer SMS requests: Chromium honors system proxies and certificate settings.
+import { ProcessConfig } from '@process/initStorage';
+import { mainWarn, mainLog, mainError } from '@process/utils/mainLogger';
+import { setCachedAuthToken, setCachedServerUrl, setCachedAppMode, setCachedLocalModeAvailable, setCachedSessionMode } from '@/common/enterpriseDebugConfig';
+import { applyMossLocalRuntime, prepareMossLocalRuntime, clearMossLocalRuntime } from '@process/services/mossLocalRuntime';
+import { createMossPersonalAgent, listMossPersonalAgents } from '@process/services/mossPersonalAgents';
+import { resetConversationProvider } from '../providers';
+
+let refreshPromise: Promise<string> | null = null;
+
+// Serializes every mutation of eeclaw.authStorage (login, logout, refresh).
+// Without this, a logout/login race can persist an already-revoked token as
+// "current", permanently breaking session resume (see issue #849).
+let authStorageWriteLock: Promise<unknown> = Promise.resolve();
+
+export function withAuthStorageLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run: Promise<T> = authStorageWriteLock.then(
+    (): Promise<T> => fn(),
+    (): Promise<T> => fn()
+  );
+  authStorageWriteLock = run.catch((): undefined => undefined);
+  return run;
+}
+
+// Emitted at most once per window so a burst of 401s doesn't spam the renderer.
+let lastAuthRequiredAt = 0;
+const AUTH_REQUIRED_EMIT_INTERVAL_MS = 30_000;
+
+function emitAuthRequired(reason: 'no_refresh_token' | 'refresh_failed'): void {
+  const now = Date.now();
+  if (now - lastAuthRequiredAt < AUTH_REQUIRED_EMIT_INTERVAL_MS) return;
+  lastAuthRequiredAt = now;
+  mainWarn('eeclawBridge', `Auth required (${reason}) — prompting re-login`);
+  try {
+    ipcBridge.eeclaw.authRequired.emit({ reason });
+  } catch (e) {
+    mainWarn('eeclawBridge', 'Failed to emit authRequired event:', e);
+  }
+}
+
+async function markAuthRequired(reason: 'no_refresh_token' | 'refresh_failed'): Promise<void> {
+  await withAuthStorageLock(async () => {
+    await ProcessConfig.set('eeclaw.authStorage', null);
+    await ProcessConfig.set('eeclaw.localModeAvailable', null);
+    await clearMossLocalRuntime();
+    setCachedAuthToken('');
+    setCachedLocalModeAvailable(null);
+    resetConversationProvider();
+  });
+  emitAuthRequired(reason);
+}
+
+export async function getValidToken(forceRefresh = false): Promise<string> {
+  const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+  const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+
+  if (!authStorage || !serverUrl) {
+    throw new Error('No auth storage or server URL found');
+  }
+
+  const { access_token, refresh_token, expires_at, device_id } = authStorage;
+  // OAuth2 sessions refresh via a distinct grant so MOSS routes them through the
+  // credential script; password/api_key sessions use the standard refresh grant.
+  const refreshGrantType = authStorage.session_type === 'oauth2' ? 'oauth2_refresh_token' : 'refresh_token';
+
+  const now = Date.now();
+  const remainingMs = expires_at - now;
+
+  if (!forceRefresh && expires_at > now + 5 * 60 * 1000) {
+    mainLog('eeclawBridge', `[getValidToken] Token still valid (remaining=${Math.round(remainingMs / 1000)}s), returning cached access_token`);
+    return access_token;
+  }
+
+  if (refreshPromise) {
+    mainLog('eeclawBridge', '[getValidToken] Refresh already in progress, waiting...');
+    return refreshPromise;
+  }
+
+  // Non-refreshable session (e.g. OAuth2 where the IdP issued no refresh
+  // token): there is nothing to retry — surface a single re-login prompt
+  // instead of looping on "No refresh token available".
+  if (!refresh_token) {
+    await markAuthRequired('no_refresh_token');
+    throw new Error('AUTH_REQUIRED: session is not refreshable, please sign in again');
+  }
+
+  mainLog('eeclawBridge', `[getValidToken] ${forceRefresh ? 'Force refresh requested' : `Token expired (remaining=${Math.round(remainingMs / 1000)}s)`}, starting refresh`);
+
+  refreshPromise = (async () => {
+    try {
+      // OAuth2 sessions send the provider refresh_token inside a generic `params`
+      // dict (moss forwards it to the credential script); other sessions send the
+      // moss refresh_token at the top level as before.
+      const refreshBody = refreshGrantType === 'oauth2_refresh_token' ? { grant_type: refreshGrantType, params: { refresh_token } } : { grant_type: refreshGrantType, refresh_token };
+
+      mainLog('eeclawBridge', `[getValidToken] Sending refresh request to ${serverUrl}/api/v1/auth/token`);
+      const response = await net.fetch(`${serverUrl}/api/v1/auth/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': device_id,
+        },
+        body: JSON.stringify(refreshBody),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // If "Invalid refresh token", the renderer may have already rotated it.
+        // Invalidate cache and retry once with the latest token from file.
+        if (data?.error === 'Invalid refresh token' || response.status === 401) {
+          mainLog('eeclawBridge', '[getValidToken] Got Invalid refresh token, invalidating cache and retrying with latest from file');
+          ProcessConfig.invalidateCache();
+          const latestAuth = ProcessConfig.getSync('eeclaw.authStorage');
+          if (latestAuth?.refresh_token && latestAuth.refresh_token !== refresh_token) {
+            mainLog('eeclawBridge', `[getValidToken] Found rotated refresh token in file, retrying`);
+            const retryBody = latestAuth.session_type === 'oauth2' ? { grant_type: 'oauth2_refresh_token', params: { refresh_token: latestAuth.refresh_token } } : { grant_type: 'refresh_token', refresh_token: latestAuth.refresh_token };
+            const retryResponse = await net.fetch(`${serverUrl}/api/v1/auth/token`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Device-Id': latestAuth.device_id,
+              },
+              body: JSON.stringify(retryBody),
+              signal: AbortSignal.timeout(15000),
+            });
+            const retryData = await retryResponse.json();
+            if (retryResponse.ok && retryData.access_token) {
+              const newAuthStorage = {
+                access_token: retryData.access_token,
+                refresh_token: retryData.refresh_token || latestAuth.refresh_token,
+                expires_at: Date.now() + (retryData.expires_in || 3600) * 1000,
+                device_id: latestAuth.device_id,
+                session_type: latestAuth.session_type,
+              };
+              mainLog('eeclawBridge', `[getValidToken] Retry refresh successful! new_expires_at=${newAuthStorage.expires_at}`);
+              await withAuthStorageLock(async () => {
+                if (ProcessConfig.getSync('eeclaw.authStorage')?.access_token !== latestAuth.access_token) throw new Error('Moss identity changed during refresh');
+                await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
+                if (retryData.execution && retryData.localRuntime) await applyMossLocalRuntime(retryData, serverUrl);
+              });
+              setCachedAuthToken(retryData.access_token);
+              try {
+                ipcBridge.eeclaw.tokenRefreshed.emit({
+                  access_token: retryData.access_token,
+                  refresh_token: retryData.refresh_token || latestAuth.refresh_token,
+                  expires_at: newAuthStorage.expires_at,
+                });
+              } catch (e) {
+                mainLog('eeclawBridge', 'Failed to emit token refresh event:', e);
+              }
+              return retryData.access_token;
+            }
+            mainWarn('eeclawBridge', `[getValidToken] Retry also failed: status=${retryResponse.status}, error=${retryData?.error || 'unknown'}`);
+          } else {
+            mainWarn('eeclawBridge', '[getValidToken] No different refresh_token found in file after cache invalidation');
+          }
+        }
+        mainWarn('eeclawBridge', `[getValidToken] Refresh failed: status=${response.status}, error=${data?.error || 'unknown'}`);
+        // The server definitively rejected the refresh (not a network blip) —
+        // the session is dead and only an interactive re-login can recover it.
+        if (response.status === 401 || data?.error === 'Invalid refresh token') {
+          await markAuthRequired('refresh_failed');
+        }
+        throw new Error(data?.error || 'token_refresh_failed');
+      }
+
+      const newAuthStorage = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token || refresh_token,
+        expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+        device_id,
+        session_type: authStorage.session_type,
+      };
+
+      mainLog('eeclawBridge', `[getValidToken] Refresh successful! new_expires_at=${newAuthStorage.expires_at}`);
+
+      await withAuthStorageLock(async () => {
+        if (ProcessConfig.getSync('eeclaw.authStorage')?.access_token !== access_token) throw new Error('Moss identity changed during refresh');
+        await ProcessConfig.set('eeclaw.authStorage', newAuthStorage);
+        if (data.execution && data.localRuntime) await applyMossLocalRuntime(data, serverUrl);
+      });
+      setCachedAuthToken(data.access_token);
+
+      // Notify renderer process about the refreshed token
+      try {
+        ipcBridge.eeclaw.tokenRefreshed.emit({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token || refresh_token,
+          expires_at: newAuthStorage.expires_at,
+        });
+      } catch (e) {
+        mainLog('eeclawBridge', 'Failed to emit token refresh event:', e);
+      }
+
+      return data.access_token;
+    } catch (error) {
+      mainWarn('eeclawBridge', 'Token refresh failed:', error);
+      setCachedAuthToken('');
+      throw error;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+export function initEeclawBridge(): void {
+  // Set app mode and update main process cache
+  // 设置应用模式并更新主进程缓存
+  ipcBridge.eeclaw.setAppMode.provider(async ({ mode }) => {
+    await ProcessConfig.set('system.appMode', mode);
+    setCachedAppMode(mode);
+    mainLog('eeclawBridge', `App mode set to: ${mode}`);
+
+    // setAppMode 是核心服务的兜底启动点。两条进入路径都走这里：
+    //   1. 真新用户 ModeSetup → handleConsumerNext: setAppMode + startConsumerServices
+    //   2. 老用户升级（auth_v2 存在 + appMode 缺失）→ useAppMode 自动 setAppMode('c')
+    // 路径 2 没有 startConsumerServices，必须在本 provider 内完成启动收敛。
+    //
+    // 不要用 "previousMode === null" 来跳过：renderer 端的 setAppMode
+    // （src/common/eeclawMode.ts）会先通过 ConfigStorage.set 经由 BroadcastChannel-RPC
+    // 写入主进程 ProcessConfig，再走这条 IPC。等本 provider 跑到时 ProcessConfig
+    // 已经是新值，previousMode 永远等于新 mode，判定恒为 false，老用户升级路径
+    // 会完全静默卡死（事故现场：日志出现 "App mode set to: c (previous: c)"
+    // 但没有任何 serviceManager.startup 的 PERF 日志，UI 卡在 0%）。
+    //
+    // 改为无条件 fire-and-forget。重入由各自的内部守卫保证：
+    //   - ServiceManager.startup() 入口的 startupInProgress 守卫（ServiceManager.ts:80）
+    //   - ChannelManager.initialize() 入口的 this.initialized 守卫（ChannelManager.ts:82）
+    //   - 已 ready 的会话再次进入 startup() 时，RuntimeInstaller.ensureAll() 的 fast
+    //     check（RuntimeInstaller.ts:51-108）会直接短路返回，零成本。
+    if (mode === 'c' || mode === 'e') {
+      try {
+        const { serviceManager } = await import('@process/services/serviceManager');
+        void serviceManager.startup();
+        mainLog('eeclawBridge', 'Triggered serviceManager.startup() via setAppMode');
+      } catch (error) {
+        mainError('eeclawBridge', 'Failed to trigger serviceManager.startup():', error);
+      }
+      try {
+        const { getChannelManager } = await import('@/channels');
+        getChannelManager()
+          .initialize()
+          .catch((error) => {
+            mainLog('eeclawBridge', 'ChannelManager already initialized or failed: ' + String(error));
+          });
+      } catch (error) {
+        mainLog('eeclawBridge', 'Failed to import ChannelManager: ' + String(error));
+      }
+    }
+  });
+
+  ipcBridge.eeclaw.prepareLocalRuntime.provider(async () => {
+    try {
+      return { success: true, data: await prepareMossLocalRuntime() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Set session mode (remote/local) for enterprise mode
+  // 设置 session 模式（remote/local），用于企业模式
+  ipcBridge.eeclaw.setSessionMode.provider(async ({ mode }) => {
+    const localModeAvailable = ProcessConfig.getSync('eeclaw.localModeAvailable');
+    const execution = ProcessConfig.getSync('eeclaw.execution');
+    if (mode === 'local' && localModeAvailable === false) throw new Error('Local execution is not allowed');
+    if (mode === 'remote' && execution?.isRemoteAllowed === false) throw new Error('Cloud execution is not allowed');
+    const resolvedMode = mode;
+    await ProcessConfig.set('guid.sessionMode', resolvedMode);
+    setCachedSessionMode(resolvedMode);
+    resetConversationProvider();
+    mainLog('eeclawBridge', `Session mode set to: ${resolvedMode}`);
+  });
+
+  ipcBridge.eeclaw.verifyServer.provider(async ({ serverUrl }) => {
+    try {
+      // Before login this remains a public connectivity/branding probe. Once
+      // authenticated against the same origin, include the token so Moss can
+      // return the current organization's configuration. Never forward a token
+      // while the user is testing a different manually-entered server.
+      const configuredServerUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      let accessToken: string | null = null;
+      try {
+        if (configuredServerUrl && new URL(configuredServerUrl).origin === new URL(serverUrl).origin) {
+          accessToken = await getValidToken();
+        }
+      } catch {
+        // Missing/expired authentication is valid on the login screen.
+      }
+      const response = await net.fetch(`${serverUrl}/api/v1/tenant/config`, {
+        method: 'GET',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        signal: AbortSignal.timeout(10000),
+      });
+      if (response.ok) {
+        const json = await response.json();
+        if (json.success && json.data) {
+          return { success: true, data: json.data };
+        }
+        return { success: false, error: 'server_error' as const, data: undefined };
+      }
+      return { success: false, error: 'server_error' as const, data: undefined };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'verifyServer error:', error);
+      return { success: false, error: 'network_error' as const, data: undefined };
+    }
+  });
+
+  ipcBridge.eeclaw.oauth2Config.provider(async ({ serverUrl }) => {
+    try {
+      const response = await net.fetch(`${serverUrl}/api/v1/auth/oauth2/config`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) {
+        return { success: false, error: 'server_error' as const, data: undefined };
+      }
+      const data = await response.json();
+      return {
+        success: true,
+        data: {
+          enabled: data?.enabled === true,
+          authorize_url: typeof data?.authorize_url === 'string' ? data.authorize_url : undefined,
+          // Default true when absent — older moss builds didn't send this field
+          // and we should preserve the CSRF check in that case.
+          require_state: data?.require_state !== false,
+        },
+      };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'oauth2Config error:', error);
+      return { success: false, error: 'network_error' as const, data: undefined };
+    }
+  });
+
+  ipcBridge.eeclaw.login.provider(async ({ serverUrl, body, deviceId }) => {
+    let stage: 'request' | 'response' | 'persistence' | 'local-runtime' = 'request';
+    try {
+      const isPhoneRegistration = body.grant_type === 'phone_register';
+      const response = await net.fetch(`${serverUrl}${isPhoneRegistration ? '/api/v1/auth/register' : '/api/v1/auth/login'}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      stage = 'response';
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: (data?.code || data?.error || 'login_failed') as string,
+          msg: (data?.msg || data?.message) as string | undefined,
+          data: undefined,
+        };
+      }
+
+      // Password/API-key/OAuth2 responses are bare token payloads; phone login
+      // and registration use the older { success, data } envelope.
+      const authData = data?.success === true && data?.data ? data.data : data;
+      if (!hasValidLoginIdentity(authData)) {
+        mainWarn('eeclawBridge', 'login error:', { stage, name: 'InvalidLoginIdentity' });
+        return { success: false, error: 'invalid_response', data: undefined };
+      }
+
+      const localModeAvailable = authData.execution?.isLocalAllowed ?? !!(authData.user.localAuth && authData.sudorouter_key && authData.model_service_url && Array.isArray(authData.models) && authData.models.length > 0);
+
+      // Save server URL and auth storage to ProcessConfig
+      // 将服务器 URL 和认证存储保存到 ProcessConfig
+      const sessionType: 'password' | 'api_key' | 'oauth2' | 'phone' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : body.grant_type === 'phone' || body.grant_type === 'phone_register' ? 'phone' : 'password';
+      let runtime: Awaited<ReturnType<typeof applyMossLocalRuntime>> | undefined;
+      stage = 'persistence';
+      await withAuthStorageLock(async () => {
+        await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
+        await ProcessConfig.set('eeclaw.authStorage', {
+          access_token: authData.access_token,
+          refresh_token: authData.refresh_token,
+          expires_at: Date.now() + (authData.expires_in || 3600) * 1000,
+          device_id: deviceId,
+          session_type: sessionType,
+        });
+        await ProcessConfig.set('eeclaw.localModeAvailable', localModeAvailable);
+        stage = 'local-runtime';
+        runtime = authData.execution && authData.localRuntime ? await applyMossLocalRuntime(authData, serverUrl) : undefined;
+        stage = 'persistence';
+        await ProcessConfig.set('eeclaw.userInfo', { id: authData.user.id, username: authData.user.name, role: authData.user.role, orgId: authData.user.orgId });
+      });
+
+      // Update enterprise cache for synchronous access
+      // 更新企业配置缓存以供同步访问
+      setCachedServerUrl(serverUrl);
+      setCachedAuthToken(authData.access_token);
+      setCachedAppMode('e');
+      setCachedLocalModeAvailable(localModeAvailable);
+
+      // Reset provider singleton so next call creates RemoteConversationProvider
+      // 重置 Provider 单例，下次调用时会创建 RemoteConversationProvider
+      resetConversationProvider();
+
+      mainLog('eeclawBridge', 'Login successful, cache updated, provider reset');
+
+      // Managed credentials and model configuration stay in the main process.
+      const defaultMode = runtime?.execution.defaultTarget || (localModeAvailable ? 'local' : 'remote');
+      await ProcessConfig.set('guid.sessionMode', defaultMode);
+      setCachedSessionMode(defaultMode);
+
+      return {
+        success: true,
+        data: {
+          access_token: authData.access_token,
+          refresh_token: authData.refresh_token,
+          expires_in: authData.expires_in,
+          user: {
+            id: authData.user.id,
+            name: authData.user.name,
+            role: authData.user.role,
+            orgId: authData.user.orgId,
+            localAuth: authData.user.localAuth === true,
+          },
+          execution: runtime?.execution,
+          localRuntime: runtime?.localRuntime,
+          sudorouter_key: runtime ? undefined : authData.sudorouter_key,
+          model_service_url: runtime ? undefined : authData.model_service_url,
+          models: Array.isArray(authData.models) ? authData.models : undefined,
+          scode_auto_model: typeof authData.scode_auto_model === 'string' ? authData.scode_auto_model : undefined,
+        },
+      };
+    } catch (error) {
+      const failure = error instanceof Error ? error : undefined;
+      const cause = failure?.cause;
+      const causeCode = cause && typeof cause === 'object' && 'code' in cause ? cause.code : undefined;
+      const networkCode = typeof causeCode === 'string' && /^[A-Z0-9_]{1,80}$/.test(causeCode) ? causeCode : failure?.message.match(/\bERR_[A-Z_]+\b/)?.[0];
+      // Do not log request bodies, tokens, or arbitrary response/error text.
+      mainWarn('eeclawBridge', 'login error:', { stage, name: failure?.name || 'UnknownError', networkCode });
+      const isRequestFailure = stage === 'request' || stage === 'response';
+      const isTimeout = isRequestFailure && (failure?.name === 'TimeoutError' || failure?.name === 'AbortError');
+      return { success: false, error: isTimeout ? 'request_timeout' : stage === 'request' ? 'network_error' : stage === 'response' ? 'invalid_response' : 'local_setup_failed', data: undefined };
+    }
+  });
+
+  ipcBridge.eeclaw.getUserProfile.provider(async () => {
+    try {
+      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      if (!serverUrl) {
+        return { success: false, error: 'no_server_url' as const, data: undefined };
+      }
+
+      let accessToken = await getValidToken();
+
+      let response = await net.fetch(`${serverUrl}/api/v1/user/profile`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (response.status === 401) {
+        accessToken = await getValidToken(true);
+        response = await net.fetch(`${serverUrl}/api/v1/user/profile`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+      }
+
+      if (response.status === 401) {
+        await markAuthRequired('refresh_failed');
+        return { success: false, error: 'unauthorized' as const, data: undefined };
+      }
+
+      if (!response.ok) {
+        mainWarn('eeclawBridge', `getUserProfile failed: ${response.status}`);
+        return { success: false, error: 'server_error' as const, data: undefined };
+      }
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        return { success: true, data: data.data };
+      }
+      return { success: false, error: 'server_error' as const, data: undefined };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'getUserProfile error:', error);
+      if (error instanceof Error && (error.message.includes('AUTH_REQUIRED') || error.message.includes('Invalid refresh token'))) {
+        return { success: false, error: 'unauthorized' as const, data: undefined };
+      }
+      return { success: false, error: 'network_error' as const, data: undefined };
+    }
+  });
+
+  /**
+   * The agents this person has, for the sidebar's grouping.
+   *
+   * Distinct from `getCloudAssistants`, which lists templates — shared
+   * definitions anybody can instantiate. Moss assembles this one because only
+   * it knows which of the three kinds a stored reference is and where each
+   * kind's name lives.
+   */
+  ipcBridge.eeclaw.getMyAgents.provider(async () => {
+    try {
+      if (!ProcessConfig.getSync('eeclaw.serverUrl')) return { success: true, data: [] };
+      return { success: true, data: await listMossPersonalAgents() };
+    } catch {
+      return { success: false, msg: 'Personal Agent list is unavailable' };
+    }
+  });
+
+  ipcBridge.eeclaw.createUserAgent.provider(async (input) => {
+    try {
+      return { success: true, data: await createMossPersonalAgent(input) };
+    } catch {
+      return { success: false, msg: 'Personal Agent creation failed' };
+    }
+  });
+
+  ipcBridge.eeclaw.getCloudAssistants.provider(async () => {
+    try {
+      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      if (!serverUrl) {
+        return { success: false, error: 'no_server_url' as const, data: undefined };
+      }
+
+      let accessToken = await getValidToken();
+
+      let response = await net.fetch(`${serverUrl}/api/v1/agent-templates/installed`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (response.status === 401) {
+        accessToken = await getValidToken(true);
+        response = await net.fetch(`${serverUrl}/api/v1/agent-templates/installed`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+      }
+
+      if (response.status === 401) {
+        await markAuthRequired('refresh_failed');
+        return { success: false, error: 'unauthorized' as const, data: undefined };
+      }
+
+      if (!response.ok) {
+        mainWarn('eeclawBridge', `getCloudAssistants failed: ${response.status}`);
+        return { success: false, error: 'server_error' as const, data: undefined };
+      }
+
+      const data = await response.json();
+      // Server returns InstalledAssistantInfo[], map to { key, name, avatar, emoji, description }
+      const assistants: Array<{ key: string; name: string; avatar?: string; emoji?: string; description?: string }> = (Array.isArray(data) ? data : (data?.data ?? [])).map((a: any) => ({
+        key: a.id || a.name,
+        name: a.displayName || a.name,
+        avatar: a.avatar || undefined,
+        emoji: a.emoji || undefined,
+        description: a.description || undefined,
+      }));
+      return { success: true, data: assistants };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'getCloudAssistants error:', error);
+      if (error instanceof Error && (error.message.includes('AUTH_REQUIRED') || error.message.includes('Invalid refresh token'))) {
+        return { success: false, error: 'unauthorized' as const, data: undefined };
+      }
+      return { success: false, error: 'network_error' as const, data: undefined };
+    }
+  });
+
+  ipcBridge.eeclaw.refreshToken.provider(async () => {
+    try {
+      const token = await getValidToken(true);
+      const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+      return {
+        success: true,
+        data: {
+          access_token: token,
+          refresh_token: authStorage?.refresh_token,
+          expires_at: authStorage?.expires_at,
+        },
+      };
+    } catch (error) {
+      mainWarn('eeclawBridge', 'refreshToken error:', error);
+      return { success: false, error: String((error as Error)?.message || error), data: undefined };
+    }
+  });
+
+  ipcBridge.eeclaw.logout.provider(async () => {
+    // The whole revoke-then-clear sequence holds the auth storage lock: the
+    // token snapshot, the server-side revocation and the local clear must not
+    // interleave with a concurrent login/refresh write, otherwise a revoked
+    // token can survive as the persisted "current" token (issue #849).
+    await withAuthStorageLock(async () => {
+      try {
+        const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+        const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
+
+        if (serverUrl && authStorage?.access_token) {
+          await net
+            .fetch(`${serverUrl}/api/v1/auth/logout`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${authStorage.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                refresh_token: authStorage.refresh_token || undefined,
+              }),
+              signal: AbortSignal.timeout(5000),
+            })
+            .catch((err) => mainWarn('eeclawBridge', 'Logout request failed:', err));
+        }
+      } finally {
+        // Always clear local state even if server request fails
+        await ProcessConfig.set('eeclaw.authStorage', null);
+        await ProcessConfig.set('eeclaw.localModeAvailable', null);
+        await clearMossLocalRuntime();
+        setCachedAuthToken('');
+        setCachedLocalModeAvailable(null);
+        resetConversationProvider();
+        mainLog('eeclawBridge', 'Logged out, local storage cleared');
+      }
+    });
+    return { success: true, data: {} };
+  });
+
+  // Manual sync trigger (for Local mode or retry)
+  ipcBridge.eeclaw.syncFromRemote.provider(async () => {
+    try {
+      const empty = () => ({ installed: [] as string[], skipped: [] as string[], deleted: [] as string[], failed: [] as Array<{ id: string; name: string; error: string }> });
+      const result = { skills: { hub: empty(), tenant: empty() }, assistants: { hub: empty(), tenant: empty() } };
+      // Emit sync completed event to notify renderer
+      ipcBridge.eeclaw.syncCompleted.emit(result);
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      mainError('eeclawBridge', 'syncFromRemote error:', error);
+      return {
+        success: false,
+        data: {
+          skills: { hub: { installed: [], skipped: [], deleted: [], failed: [] }, tenant: { installed: [], skipped: [], deleted: [], failed: [] } },
+          assistants: { hub: { installed: [], skipped: [], deleted: [], failed: [] }, tenant: { installed: [], skipped: [], deleted: [], failed: [] } },
+        },
+        msg: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  // === Custom Skill/Assistant Upload ===
+  ipcBridge.eeclaw.uploadCustomSkill.provider(async (params) => {
+    mainLog('eeclawBridge', 'uploadCustomSkill called with params:', params);
+    try {
+      const { uploadCustomSkill } = await import('@process/sync/customUpload');
+      const result = await uploadCustomSkill(params);
+      mainLog('eeclawBridge', 'uploadCustomSkill result:', result);
+      if (result.success) {
+        return { success: true, data: { id: result.id || '', name: result.name, status: result.status || 'active' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'uploadCustomSkill error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.uploadCustomAssistant.provider(async (params) => {
+    mainLog('eeclawBridge', 'uploadCustomAssistant called with params:', params);
+    try {
+      const { uploadCustomAssistant } = await import('@process/sync/customUpload');
+      const result = await uploadCustomAssistant(params);
+      mainLog('eeclawBridge', 'uploadCustomAssistant result:', result);
+      if (result.success) {
+        return { success: true, data: { id: result.id || '', name: result.name, status: result.status || 'active' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'uploadCustomAssistant error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // === Tenant Skill/Assistant ===
+  ipcBridge.eeclaw.getTenantSkills.provider(async () => {
+    try {
+      const { fetchTenantSkills } = await import('@process/sync/tenantSync');
+      const skills = await fetchTenantSkills();
+      return { success: true, data: skills };
+    } catch (error) {
+      mainError('eeclawBridge', 'getTenantSkills error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.getTenantAssistants.provider(async () => {
+    try {
+      const { fetchTenantAssistants } = await import('@process/sync/tenantSync');
+      const assistants = await fetchTenantAssistants();
+      return { success: true, data: assistants };
+    } catch (error) {
+      mainError('eeclawBridge', 'getTenantAssistants error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.installTenantSkill.provider(async ({ skillId }) => {
+    try {
+      const { installTenantSkill } = await import('@process/sync/tenantSync');
+      const result = await installTenantSkill(skillId);
+      if (result.success) {
+        return { success: true, data: { name: result.name || '' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'installTenantSkill error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.installTenantAssistant.provider(async ({ assistantId }) => {
+    try {
+      const { installTenantAssistant } = await import('@process/sync/tenantSync');
+      const result = await installTenantAssistant(assistantId);
+      if (result.success) {
+        return { success: true, data: { name: result.name || '' } };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'installTenantAssistant error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.publishTenantSkill.provider(async ({ skillId, publishNote }) => {
+    try {
+      const { publishTenantSkill } = await import('@process/sync/tenantSync');
+      const result = await publishTenantSkill(skillId, publishNote);
+      if (result.success) {
+        return {
+          success: true,
+          data: {
+            id: result.id || '',
+            skillId: result.skillId || skillId,
+            skillName: result.skillName || '',
+            status: result.status || 'pending',
+            message: result.message,
+          },
+        };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'publishTenantSkill error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.publishTenantAssistant.provider(async ({ assistantId, publishNote }) => {
+    try {
+      const { publishTenantAssistant } = await import('@process/sync/tenantSync');
+      const result = await publishTenantAssistant(assistantId, publishNote);
+      if (result.success) {
+        return {
+          success: true,
+          data: {
+            id: result.id || '',
+            assistantId: result.assistantId || assistantId,
+            assistantName: result.assistantName || '',
+            status: result.status || 'pending',
+            message: result.message,
+          },
+        };
+      }
+      return { success: false, msg: result.error };
+    } catch (error) {
+      mainError('eeclawBridge', 'publishTenantAssistant error:', error);
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+}

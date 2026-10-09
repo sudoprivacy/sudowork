@@ -32,6 +32,11 @@ on:
         required: false
         type: boolean
         default: false
+      notify_qa:
+        description: 'Send the QA build notification'
+        required: false
+        type: boolean
+        default: true
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
@@ -86,7 +91,7 @@ jobs:
           LINUX='{"platform":"linux","os":"ubuntu-latest","command":"node scripts/build-with-builder.js auto --linux","artifact-name":"linux-build","arch":"x64-arm64"}'
 
           if [ "$PLATFORM" = "all" ]; then
-            MATRIX="{\"include\":[$MACOS_ARM64,$WINDOWS_X64]}"
+            MATRIX="{\"include\":[$MACOS_ARM64,$MACOS_X64,$WINDOWS_X64]}"
           elif [ "$PLATFORM" = "macos-arm64" ]; then
             MATRIX="{\"include\":[$MACOS_ARM64]}"
           elif [ "$PLATFORM" = "macos-x64" ]; then
@@ -248,7 +253,7 @@ jobs:
   notify-qa:
     name: Notify QA Team
     needs: [prepare, build-pipeline, release]
-    if: success()
+    if: success() && (github.event_name != 'workflow_dispatch' || inputs.notify_qa)
     runs-on: ubuntu-latest
     env:
       FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_QA_WEBHOOK_URL }}

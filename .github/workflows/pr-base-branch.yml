@@ -1,0 +1,27 @@
+name: '✓PR Base Branch'
+
+# Metadata edits must not create skipped suites that supersede required builds.
+# Keep retargeting validation in its own workflow and concurrency group.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main, dev]
+
+concurrency:
+  group: pr-base-branch-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-base-branch:
+    name: Check PR Base Branch
+    if: github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject PR to main
+        run: |
+          echo "::error::PRs should target 'dev', not 'main'. Please change the base branch."
+          echo "To fix: gh pr edit ${{ github.event.pull_request.number }} --base dev"
+          exit 1

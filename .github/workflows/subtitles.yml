@@ -1,0 +1,93 @@
+name: Subtitle media tests
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "bun.lock"
+      - "apps/desktop/package.json"
+      - "apps/desktop/src/agent/acp/AcpConnection.ts"
+      - "apps/desktop/src/process/initStorage.ts"
+      - "apps/desktop/src/process/bridge/conversationBridge.ts"
+      - "apps/desktop/src/process/utils/workspaceSkillTargets.ts"
+      - "apps/desktop/src/process/task/AcpAgent.ts"
+      - "apps/desktop/src/process/task/acpWorkspaceTracking.ts"
+      - "packages/renderer/src/utils/platform.ts"
+      - "apps/desktop/resources/transcription/**"
+      - "apps/desktop/src/process/services/transcription/**"
+      - "apps/desktop/src/process/services/authProxy/**"
+      - "apps/desktop/src/process/services/ffmpeg/**"
+      - "apps/desktop/src/shared/ffmpeg-runtime.json"
+      - "apps/desktop/skills/_builtin/video-subtitles/**"
+      - "apps/desktop/tests/integration/subtitles.integration.test.ts"
+      - "apps/desktop/tests/unit/*transcription*"
+      - "apps/desktop/tests/unit/subtitleService.test.ts"
+      - "apps/desktop/tests/unit/test_cloud_subtitles.py"
+      - "apps/desktop/tests/fixtures/subtitles/**"
+      - ".github/workflows/subtitles.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: subtitles-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  media:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: bun install --no-frozen-lockfile
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/huggingface
+          key: subtitles-whisper-small-v1-${{ runner.os }}
+      - name: Install speech dependencies
+        run: python -m pip install -r skills/_builtin/video-subtitles/scripts/requirements-cloud.txt pysilk-mod
+      - name: Install Chinese fonts
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+      - name: Prepare the pinned encoder from the runtime mirror
+        shell: python
+        run: |
+          import hashlib, json, os, pathlib, sys, tarfile, urllib.request
+          cfg = json.loads(pathlib.Path('src/shared/ffmpeg-runtime.json').read_text(encoding='utf-8'))
+          key = 'win32-x64' if sys.platform == 'win32' else 'linux-x64'
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'subtitle-ffmpeg'
+          root.mkdir(exist_ok=True)
+          archive = root / 'ffmpeg.tar.gz'
+          base = cfg['cos']['baseUrl'].replace('.cos.ap-beijing.', '.cos.accelerate.')
+          urllib.request.urlretrieve(f"{base}/ffmpeg/{cfg['tag']}/ffmpeg-{key}.tar.gz", archive)
+          assert hashlib.sha256(archive.read_bytes()).hexdigest() == cfg['cos']['sha256'][key]
+          with tarfile.open(archive) as packed:
+              packed.extractall(root, filter='data')
+          binary = root / ('ffmpeg.exe' if sys.platform == 'win32' else 'ffmpeg')
+          binary.chmod(0o755)
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
+              env.write(f'SUBTITLE_TEST_FFMPEG={binary}\nSUBTITLE_TEST_PYTHON={sys.executable}\n')
+      - name: Check SRT formatting and existing voice behavior
+        run: |
+          python -B tests/unit/test_transcription_helper.py
+          python -B tests/unit/test_cloud_subtitles.py
+          bunx vitest run tests/unit/transcriptionService.test.ts tests/unit/subtitleService.test.ts tests/unit/FfmpegRuntimeService.test.ts tests/unit/ffmpegSkillGate.test.ts
+      - name: Exercise skill CLI, real ASR, and burned video
+        env:
+          SUBTITLE_LIVE_TEST: "1"
+        run: bunx vitest run tests/integration/subtitles.integration.test.ts

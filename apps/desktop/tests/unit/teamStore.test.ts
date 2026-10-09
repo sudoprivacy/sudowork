@@ -1,0 +1,279 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { CURRENT_DB_VERSION } from '@process/database/schema';
+import { ALL_MIGRATIONS } from '@process/database/migrations';
+import { teamStore } from '@process/services/team/TeamStore';
+import type { Team, TeamMember, TeamTask } from '@process/services/team/TeamStore';
+
+const h = vi.hoisted(() => ({
+  mutate: vi.fn(),
+  query: vi.fn(),
+  queryOne: vi.fn(),
+  runTransaction: vi.fn(),
+}));
+
+vi.mock('@process/database', () => ({
+  getDatabase: () => ({
+    mutate: h.mutate,
+    query: h.query,
+    queryOne: h.queryOne,
+    runTransaction: h.runTransaction,
+  }),
+}));
+vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn(), mainError: vi.fn() }));
+
+function makeTeam(overrides: Partial<Team> = {}): Team {
+  return {
+    id: 'team-1',
+    user_id: 'u1',
+    name: 'Team A',
+    workspace: '/tmp/ws',
+    workspace_kind: 'custom',
+    leader_member_id: null,
+    session_mode: null,
+    pinned: false,
+    pinned_at: null,
+    created_at: 1000,
+    updated_at: 1000,
+    ...overrides,
+  };
+}
+
+function makeMember(overrides: Partial<TeamMember> = {}): TeamMember {
+  return {
+    id: 'slot-1',
+    team_id: 'team-1',
+    role: 'lead',
+    name: 'Leader',
+    assistant_id: 'asst-1',
+    source: 'assistant',
+    backend: 'scode',
+    preset_agent_type: 'scode',
+    skills: ['s1'],
+    preset_context: 'rules',
+    model: 'default',
+    avatar: null,
+    conversation_id: null,
+    status: 'idle',
+    created_at: 1000,
+    ...overrides,
+  };
+}
+
+function makeTask(overrides: Partial<TeamTask> = {}): TeamTask {
+  return {
+    id: 'task-1',
+    team_id: 'team-1',
+    subject: 'Do X',
+    description: null,
+    status: 'pending',
+    owner: null,
+    blocked_by: [],
+    blocks: [],
+    metadata: null,
+    created_at: 1000,
+    updated_at: 1000,
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  h.mutate.mockReset();
+  h.query.mockReset();
+  h.queryOne.mockReset();
+  h.runTransaction.mockReset();
+  h.mutate.mockReturnValue({ success: true, data: 1 });
+  h.query.mockReturnValue({ success: true, data: [] });
+  h.queryOne.mockReturnValue({ success: true, data: null });
+  h.runTransaction.mockImplementation(<T>(fn: () => T) => ({ success: true, data: fn() }));
+});
+
+describe('team migrations', () => {
+  it('CURRENT_DB_VERSION equals the highest migration, migrations are contiguous', () => {
+    // Invariant that survives future bumps: the schema version must match the
+    // newest migration, and migrations must be contiguous with no gaps.
+    const versions = ALL_MIGRATIONS.map((m) => m.version).sort((a, b) => a - b);
+    expect(CURRENT_DB_VERSION).toBe(versions[versions.length - 1]);
+    for (let i = 1; i < versions.length; i++) {
+      expect(versions[i]).toBe(versions[i - 1] + 1);
+    }
+  });
+  it('migration_v24 has name + up/down functions', () => {
+    const m = ALL_MIGRATIONS.find((x) => x.version === 24)!;
+    expect(m.name).toBeTruthy();
+    expect(typeof m.up).toBe('function');
+    expect(typeof m.down).toBe('function');
+  });
+  it('migration_v31 cleans duplicate leads, adds the single-lead index + mailbox created_at index, rebuilds the mailbox CHECK with crash_testament (M4/M14/M22)', () => {
+    const m = ALL_MIGRATIONS.find((x) => x.version === 31)!;
+    const execSql = (collector: string[]) => ({ exec: (sql: string) => collector.push(sql) });
+    const upSql: string[] = [];
+    m.up(execSql(upSql) as never);
+    const up = upSql.join('\n');
+    // M14: soft-delete duplicate active leads first (keep MIN(id)), then enforce one leader per team.
+    expect(up).toContain('UPDATE team_members SET deleted = 1');
+    expect(up).toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_single_lead');
+    expect(up).toContain("WHERE role = 'lead' AND deleted = 0");
+    // M4: created_at index for the finalizeTurn watermark / EXISTS queries.
+    expect(up).toContain('CREATE INDEX IF NOT EXISTS idx_team_mailbox_team_created');
+    // M22: mailbox rebuilt with a four-value type CHECK (rollback-table pattern, not plain drop).
+    expect(up).toContain("'crash_testament'");
+    expect(up).toContain('DROP TABLE team_mailbox');
+    expect(up).toContain('RENAME');
+    const downSql: string[] = [];
+    m.down(execSql(downSql) as never);
+    const down = downSql.join('\n');
+    expect(down).toContain('DROP INDEX IF EXISTS idx_team_members_single_lead');
+    expect(down).toContain('DROP INDEX IF EXISTS idx_team_mailbox_team_created');
+    // Rollback restores the three-value CHECK, folding crash_testament rows back to 'message'.
+    expect(down).toContain("CHECK(type IN ('message', 'idle_notification', 'shutdown_request'))");
+    expect(down).toContain("CASE WHEN type = 'crash_testament' THEN 'message'");
+  });
+});
+
+describe('TeamStore - team CRUD + soft delete', () => {
+  it('insertTeam calls mutate with INSERT INTO teams', () => {
+    teamStore.insertTeam(makeTeam());
+    expect(h.mutate).toHaveBeenCalledTimes(1);
+    expect(h.mutate.mock.calls[0][0]).toContain('INSERT INTO teams');
+    expect(h.mutate.mock.calls[0][0]).toContain('workspace_kind');
+    expect(h.mutate.mock.calls[0][0]).toContain('pinned');
+    expect(h.mutate.mock.calls[0][1]).toBe('team-1');
+    expect(h.mutate.mock.calls[0][5]).toBe('custom');
+    expect(h.mutate.mock.calls[0][8]).toBe(0);
+  });
+  it('insertTeam throws on DB failure', () => {
+    h.mutate.mockReturnValue({ success: false, error: 'boom' });
+    expect(() => teamStore.insertTeam(makeTeam())).toThrow('boom');
+  });
+  it('getTeam returns null when no row', () => {
+    h.queryOne.mockReturnValue({ success: true, data: null });
+    expect(teamStore.getTeam('team-1')).toBeNull();
+  });
+  it('getTeam queries with deleted = 0 filter and maps row', () => {
+    h.queryOne.mockReturnValue({
+      success: true,
+      data: { id: 'team-1', user_id: 'u1', name: 'A', workspace: null, workspace_kind: null, leader_member_id: null, session_mode: null, pinned: 1, pinned_at: 3, created_at: 1, updated_at: 2 },
+    });
+    const t = teamStore.getTeam('team-1');
+    expect(h.queryOne.mock.calls[0][0]).toContain('deleted = 0');
+    expect(t?.id).toBe('team-1');
+    expect(t?.name).toBe('A');
+    expect(t?.workspace_kind).toBeNull();
+    expect(t?.pinned).toBe(true);
+    expect(t?.pinned_at).toBe(3);
+  });
+  it('updateTeam merges and updates', () => {
+    h.queryOne.mockReturnValue({
+      success: true,
+      data: { id: 'team-1', user_id: 'u1', name: 'Old', workspace: null, workspace_kind: null, leader_member_id: null, session_mode: null, pinned: 0, pinned_at: null, created_at: 1, updated_at: 1 },
+    });
+    teamStore.updateTeam('team-1', { name: 'New' });
+    expect(h.mutate.mock.calls[0][0]).toContain('UPDATE teams');
+    expect(h.mutate.mock.calls[0][0]).toContain('workspace_kind');
+    expect(h.mutate.mock.calls[0][0]).toContain('pinned');
+    expect(h.mutate.mock.calls[0][1]).toBe('New');
+  });
+  it('updateTeam throws if team not found', () => {
+    h.queryOne.mockReturnValue({ success: true, data: null });
+    expect(() => teamStore.updateTeam('team-1', { name: 'New' })).toThrow('Team not found');
+  });
+  it('softDeleteTeam sets deleted = 1', () => {
+    teamStore.softDeleteTeam('team-1');
+    expect(h.mutate.mock.calls[0][0]).toContain('deleted = 1');
+  });
+  it('listTeams queries with deleted = 0 and pinned order', () => {
+    teamStore.listTeams();
+    expect(h.query.mock.calls[0][0]).toContain('deleted = 0');
+    expect(h.query.mock.calls[0][0]).toContain('ORDER BY pinned DESC, pinned_at DESC, updated_at DESC');
+  });
+  it('listByUser filters by user_id and pinned order', () => {
+    teamStore.listByUser('u1');
+    expect(h.query.mock.calls[0][0]).toContain('user_id = ?');
+    expect(h.query.mock.calls[0][0]).toContain('ORDER BY pinned DESC, pinned_at DESC, updated_at DESC');
+    expect(h.query.mock.calls[0][1]).toBe('u1');
+  });
+});
+
+describe('TeamStore - member CRUD + soft delete', () => {
+  it('insertMember stringifies skills', () => {
+    teamStore.insertMember(makeMember({ skills: ['a', 'b'] }));
+    const params = h.mutate.mock.calls[0];
+    expect(params[0]).toContain('INSERT INTO team_members');
+    expect(params[9]).toBe(JSON.stringify(['a', 'b']));
+  });
+  it('getMember parses skills JSON', () => {
+    h.queryOne.mockReturnValue({
+      success: true,
+      data: { id: 'slot-1', team_id: 'team-1', role: 'lead', name: 'L', assistant_id: null, source: 'agent', backend: 'scode', preset_agent_type: 'scode', skills: JSON.stringify(['x']), preset_context: null, model: null, avatar: null, conversation_id: null, status: 'idle', created_at: 1 },
+    });
+    expect(teamStore.getMember('slot-1')?.skills).toEqual(['x']);
+  });
+  it('softDeleteMember sets deleted = 1', () => {
+    teamStore.softDeleteMember('slot-1');
+    expect(h.mutate.mock.calls[0][0]).toContain('deleted = 1');
+  });
+});
+
+describe('TeamStore - mailbox peek-then-mark', () => {
+  it('peekUnread uses query (NOT mutate) with read = 0', () => {
+    teamStore.peekUnread('team-1', 'slot-1');
+    expect(h.query).toHaveBeenCalledTimes(1);
+    expect(h.query.mock.calls[0][0]).toContain('read = 0');
+    expect(h.mutate).not.toHaveBeenCalled();
+  });
+  it('markReadBatch empty returns 0 and does not call mutate', () => {
+    expect(teamStore.markReadBatch([])).toBe(0);
+    expect(h.mutate).not.toHaveBeenCalled();
+  });
+  it('markReadBatch chunks >500 into multiple mutate calls', () => {
+    h.mutate.mockReturnValue({ success: true, data: 500 });
+    const ids = Array.from({ length: 550 }, (_, i) => `m${i}`);
+    teamStore.markReadBatch(ids);
+    expect(h.mutate).toHaveBeenCalledTimes(2);
+  });
+  it('markReadBatch uses UPDATE read = 1 WHERE id IN', () => {
+    teamStore.markReadBatch(['m1']);
+    expect(h.mutate.mock.calls[0][0]).toContain('read = 1');
+    expect(h.mutate.mock.calls[0][0]).toContain('IN');
+  });
+  it('hasUnread uses COUNT with read = 0', () => {
+    h.queryOne.mockReturnValue({ success: true, data: { count: 0 } });
+    teamStore.hasUnread('team-1', 'slot-1');
+    expect(h.queryOne.mock.calls[0][0]).toContain('COUNT');
+    expect(h.queryOne.mock.calls[0][0]).toContain('read = 0');
+    expect(h.queryOne.mock.calls[0][0]).toContain('from_member_id !='); // M11: self-mail is never deliverable
+    expect(h.queryOne.mock.calls[0][3]).toBe('slot-1'); // toMemberId reused for the self filter
+  });
+  it('hasUnread returns true when count > 0', () => {
+    h.queryOne.mockReturnValue({ success: true, data: { count: 3 } });
+    expect(teamStore.hasUnread('team-1', 'slot-1')).toBe(true);
+  });
+  it('getHistory does not filter by read', () => {
+    teamStore.getHistory('team-1', 'slot-1');
+    expect(h.query.mock.calls[0][0]).not.toContain('read = 0');
+  });
+});
+
+describe('TeamStore - task CRUD', () => {
+  it('insertTask stringifies blocked_by/blocks/metadata', () => {
+    teamStore.insertTask(makeTask({ blocked_by: ['t0'], blocks: ['t2'], metadata: { k: 1 } }));
+    const params = h.mutate.mock.calls[0];
+    expect(params[0]).toContain('INSERT INTO team_tasks');
+    expect(params.some((p) => p === JSON.stringify(['t0']))).toBe(true);
+    expect(params.some((p) => p === JSON.stringify({ k: 1 }))).toBe(true);
+  });
+  it('getTask parses JSON arrays/object', () => {
+    h.queryOne.mockReturnValue({
+      success: true,
+      data: { id: 'task-1', team_id: 'team-1', subject: 'S', description: null, status: 'pending', owner: null, blocked_by: JSON.stringify(['a']), blocks: JSON.stringify(['b']), metadata: JSON.stringify({ k: 1 }), created_at: 1, updated_at: 1 },
+    });
+    const t = teamStore.getTask('task-1');
+    expect(t?.blocked_by).toEqual(['a']);
+    expect(t?.blocks).toEqual(['b']);
+    expect(t?.metadata).toEqual({ k: 1 });
+  });
+  it('listTasksByTeam excludes deleted status', () => {
+    teamStore.listTasksByTeam('team-1');
+    expect(h.query.mock.calls[0][0]).toContain("status != 'deleted'");
+  });
+});

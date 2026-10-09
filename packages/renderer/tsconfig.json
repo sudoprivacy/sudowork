@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["./src/*"],
+      "@sudowork/common/*": ["../common/src/*"],
+      "@sudowork/host-bridge/*": ["../host-bridge/src/*"],
+      "@sudowork/host-bridge": ["../host-bridge/src/index.ts"],
+      "@sudowork/ontology-common": ["../ontology-common/src/index.ts"],
+      "@sudowork/ontology-common/*": ["../ontology-common/src/*"],
+      "@sudowork/ontology-ui": ["../ontology-ui/src/index.ts"],
+      "@sudowork/ontology-ui/*": ["../ontology-ui/src/*"],
+      "@sudowork/ontology-ai": ["../ontology-ai/src/index.ts"],
+      "@sudowork/ontology-ai/*": ["../ontology-ai/src/*"]
+    }
+  },
+  "include": ["src"]
+}

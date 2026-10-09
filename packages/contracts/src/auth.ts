@@ -1,0 +1,86 @@
+import { z } from 'zod'
+
+/**
+ * 认证契约（计划 3.7）：前后端共用的 Zod schema。
+ * 浏览器永远收不到 Moss 原始 token，只收到白名单字段。
+ */
+
+/** Moss 登录/刷新响应（基线 auth/service.ts:248-251）。 */
+export const MossTokenSetSchema = z.object({
+  access_token: z.string().min(1),
+  refresh_token: z.string().min(1),
+  token_type: z.literal('Bearer'),
+  expires_in: z.number().int().positive(),
+})
+export type MossTokenSet = z.infer<typeof MossTokenSetSchema>
+
+/** Moss GET /api/v1/auth/me 响应（必要字段白名单）。 */
+export const MossMeSchema = z.object({
+  user: z
+    .object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+    })
+    .passthrough(),
+  organization: z
+    .object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+    })
+    .nullable(),
+  scopes: z.array(z.string()),
+  role: z.string(),
+  isSuperAdmin: z.boolean().optional(),
+})
+export type MossMe = z.infer<typeof MossMeSchema>
+
+/** 自定义 Moss 服务器地址（可选）：仅 http(s) 完整 URL，登录时该会话所有 moss 调用走此地址 */
+const MossBaseUrlSchema = z.string().trim().url().regex(/^https?:\/\//i).max(2048).optional()
+
+export const LoginPasswordRequestSchema = z.object({
+  username: z.string().trim().min(1).max(255),
+  password: z.string().min(1).max(1024),
+  mossBaseUrl: MossBaseUrlSchema,
+})
+export type LoginPasswordRequest = z.infer<typeof LoginPasswordRequestSchema>
+
+export const LoginApiKeyRequestSchema = z.object({
+  apiKey: z.string().trim().min(1).max(512),
+  mossBaseUrl: MossBaseUrlSchema,
+})
+export type LoginApiKeyRequest = z.infer<typeof LoginApiKeyRequestSchema>
+
+/** Phone verification. Bounds mirror the server-side validator in moss. */
+export const SendPhoneCodeRequestSchema = z.object({
+  phone: z.string().trim().min(11).max(16),
+  mossBaseUrl: MossBaseUrlSchema,
+})
+export type SendPhoneCodeRequest = z.infer<typeof SendPhoneCodeRequestSchema>
+
+export const LoginPhoneRequestSchema = z.object({
+  phone: z.string().trim().min(11).max(16),
+  code: z.string().trim().regex(/^\d{4,8}$/),
+  mossBaseUrl: MossBaseUrlSchema,
+})
+export type LoginPhoneRequest = z.infer<typeof LoginPhoneRequestSchema>
+
+export const RegisterPhoneRequestSchema = z.object({
+  phone: z.string().trim().min(11).max(16),
+  code: z.string().trim().regex(/^\d{4,8}$/),
+  nickname: z.string().trim().min(1).max(64),
+  invitationCode: z.string().trim().min(1).max(64),
+  mossBaseUrl: MossBaseUrlSchema,
+})
+export type RegisterPhoneRequest = z.infer<typeof RegisterPhoneRequestSchema>
+
+/** GET /api/auth/session 的浏览器响应（白名单 DTO）。 */
+export const SessionResponseSchema = z.object({
+  user: z.object({ id: z.string(), name: z.string() }),
+  organization: z.object({ id: z.string(), name: z.string() }).nullable(),
+  role: z.string(),
+  scopes: z.array(z.string()),
+})
+export type SessionResponse = z.infer<typeof SessionResponseSchema>
+
+export const ErrorResponseSchema = z.object({ error: z.string() })
+export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
