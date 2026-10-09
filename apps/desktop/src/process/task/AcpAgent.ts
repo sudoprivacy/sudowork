@@ -167,6 +167,8 @@ function normalizeToolCallStatus(status: string | undefined): 'pending' | 'in_pr
 }
 
 export interface AcpAgentData extends IMossConversationExecution {
+  purpose?: 'general' | 'ontology';
+  ontologyId?: string;
   workspace?: string;
   backend: AcpBackend;
   cliPath?: string;
@@ -193,6 +195,9 @@ export interface AcpAgentData extends IMossConversationExecution {
 class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   workspace: string;
   private bootstrap: Promise<void> | undefined;
+  private get isOntologySession(): boolean {
+    return this.options.purpose === 'ontology' || !!this.options.presetAssistantId?.startsWith('ontology-');
+  }
   private isFirstMessage: boolean = true;
   options: AcpAgentData;
   private currentMode: string = 'default';
@@ -294,7 +299,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.status = 'pending';
     this.yoloMode = this.yoloMode || this.currentMode === 'yolo' || this.currentMode === 'bypassPermissions';
 
-    this.connection = new AcpConnection();
+    this.connection = new AcpConnection({ isOntologySession: this.isOntologySession });
     this.connection.conversationId = data.conversation_id;
     this.adapter = new AcpAdapter(data.conversation_id, data.backend);
     this.extra = {
@@ -434,8 +439,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         workspace: this.extra.workspace,
         cdpPort,
       };
-      const assistantSnapshot = await readMossAssistantSnapshot(this.options);
-      if (this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
+      const assistantSnapshot = this.options.purpose === 'ontology' ? undefined : await readMossAssistantSnapshot(this.options);
+      if (!this.isOntologySession && this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
         const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
         this.connection.managedAgentId = runtime.agentId;
         this.connection.systemPromptAppend = runtime.systemPromptAppend;
@@ -452,6 +457,15 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // forcing the agent to `find` for its own scripts.
       if (presetResult.contextAppendix) {
         this.options.presetContext = (this.options.presetContext || '') + presetResult.contextAppendix;
+      }
+
+      if (this.isOntologySession) {
+        const { prepareOntologyConversationRuntime } = await import('@process/services/ontology/ontologyConversationRuntime');
+        const runtime = await prepareOntologyConversationRuntime(this.options);
+        if (!runtime) throw new Error('ontology.studio.errors.builderUnavailable');
+        this.options.presetContext = runtime.presetContext;
+        this.options.extraMcpConfigs = runtime.extraMcpConfigs;
+        this.connection.systemPromptAppend = runtime.presetContext;
       }
 
       // Store resolved config for connection
@@ -551,7 +565,14 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         void this.cacheModelList(modelInfo);
       }
     })();
-    return this.bootstrap;
+    const bootstrap = this.bootstrap;
+    if (this.isOntologySession) {
+      // A failed initialization must not poison every subsequent send.
+      void bootstrap.catch(() => {
+        if (this.bootstrap === bootstrap) this.bootstrap = undefined;
+      });
+    }
+    return bootstrap;
   }
 
   private async connect(): Promise<void> {
@@ -926,19 +947,19 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Managed chats use their prepared version; ID-based lookup can find a
       // different tenant copy or miss the digest-named snapshot entirely.
-      if (this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
+      if (this.options.purpose !== 'ontology' && this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
         const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
         this.options.agentName = runtime.displayName;
         const governanceBlock = extractGovernanceBlock(this.options.presetContext);
         this.options.presetContext = [runtime.systemPromptAppend, governanceBlock].filter(Boolean).join('\n\n');
-      } else if (this.options.mossAccountScope && this.options.presetAssistantId) {
+      } else if (this.options.purpose !== 'ontology' && this.options.mossAccountScope && this.options.presetAssistantId) {
         const snapshot = await readMossAssistantSnapshot(this.options);
         if (!snapshot) throw new Error('Assistant snapshot is missing');
         const governanceBlock = extractGovernanceBlock(this.options.presetContext);
         const presetResult = applyPresetRuntimeFromMeta(snapshot.meta, { presetAssistantId: this.options.presetAssistantId, backend: this.extra.backend, workspace: this.extra.workspace, cdpPort: chromiumCdpPort || 9230 }, snapshot.directory);
         this.options.presetContext = [snapshot.presetContext, governanceBlock].filter(Boolean).join('\n\n') + presetResult.contextAppendix;
         this.options.agentName = snapshot.meta.display_name || snapshot.meta.nameI18n?.[app.getLocale()] || snapshot.meta.name || this.options.agentName;
-      } else if (this.options.presetAssistantId) {
+      } else if (this.options.purpose !== 'ontology' && this.options.presetAssistantId) {
         // Non-managed presets continue to pick up local edits between turns.
         try {
           const strippedId = this.options.presetAssistantId.startsWith('builtin-') ? this.options.presetAssistantId.slice('builtin-'.length) : this.options.presetAssistantId;

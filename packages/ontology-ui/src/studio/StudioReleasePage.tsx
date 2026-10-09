@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Descriptions, Empty, Form, Input, Message, Modal, Space, Table, Tag, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
+import { Plus } from 'lucide-react';
 import { ontologyBlockingIssues } from '@sudowork/ontology-common';
 import type { IOntologyConsistencyCheckResult, IOntologyAgentBlueprint, IOntologyPublishedVersion, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyStudioApi } from './api';
 import styles from './studio.module.css';
 
-export default function StudioReleasePage({ snapshot, api, onRefresh, onError, onExport, onReport, onViewChecks, isModelDirty = false }: IStudioReleasePageProps) {
+export default function StudioReleasePage({ snapshot, api, onRefresh, onError, onExport, onReport, onViewChecks, onStartAgentConversation, isModelDirty = false }: IStudioReleasePageProps) {
   const { t } = useTranslation();
   const text = (key: string) => t(`ontology.studio.${key}`);
   const [isPublishing, setIsPublishing] = useState(false);
   const isPublishingRef = useRef(false);
   const [publishCheck, setPublishCheck] = useState<IOntologyConsistencyCheckResult>();
+  const [openingAgentId, setOpeningAgentId] = useState<string>();
+  const isOpeningAgentRef = useRef(false);
   const [registeringVersions, setRegisteringVersions] = useState<string[]>([]);
   const pending = useRef(new Set<string>());
   const [detail, setDetail] = useState<string>();
@@ -90,6 +93,19 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
     if (registeringVersions.includes(versionId) || blueprint?.status === 'registering') return 'registering';
     if (!blueprint || blueprint.status === 'draft') return 'unregistered';
     return blueprint.status === 'published' ? 'registered' : blueprint.status;
+  };
+  const onNewAgentConversation = async (agent: IOntologyAgentBlueprint) => {
+    if (!onStartAgentConversation || !agent.registeredAssistantId || isOpeningAgentRef.current) return;
+    isOpeningAgentRef.current = true;
+    setOpeningAgentId(agent.id);
+    try {
+      await onStartAgentConversation(agent.registeredAssistantId);
+    } catch (error) {
+      onError(error);
+    } finally {
+      isOpeningAgentRef.current = false;
+      setOpeningAgentId(undefined);
+    }
   };
   return (
     <section className={styles['ontology-page']}>
@@ -215,6 +231,18 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
                 return <Tag color={status === 'registered' ? 'green' : status === 'failed' ? 'red' : status === 'registering' ? 'orange' : undefined}>{text(`agentStatus.${status}`)}</Tag>;
               },
             },
+            {
+              title: text('operations'),
+              width: 150,
+              render: (_value, agent) =>
+                getStatus(agent.ontologyVersionId, agent) === 'registered' && agent.registeredAssistantId && snapshot.publishedVersions.some((version) => version.id === agent.ontologyVersionId && version.status === 'published') ? (
+                  <Button type='text' icon={<Plus size={14} />} loading={openingAgentId === agent.id} disabled={!onStartAgentConversation || !!openingAgentId} onClick={() => void onNewAgentConversation(agent)}>
+                    {text('agentNewConversation')}
+                  </Button>
+                ) : (
+                  text('unknownValue')
+                ),
+            },
           ]}
         />
       </section>
@@ -259,6 +287,7 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
 }
 
 interface IStudioReleasePageProps {
+  onStartAgentConversation?: (assistantId: string) => void | Promise<void>;
   isModelDirty?: boolean;
   onReport?: (report: IOntologyConsistencyCheckResult) => void;
   onViewChecks?: () => void;

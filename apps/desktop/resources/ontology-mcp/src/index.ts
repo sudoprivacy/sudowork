@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@modelcontextprotocol/sdk/types.js';
+import { ontologyRuntimeToolName } from '../../../src/process/services/ontology/ontologyToolNames';
 
 interface IOntologyExport {
   workspaceId: string;
@@ -115,7 +116,7 @@ function runtimeTools(version: IOntologyExportVersion): Tool[] {
 
 function relationRuntimeTool(relation: IRuntimeRelation): Tool {
   return {
-    name: `relation_${relation.code}`.replace(/[^a-zA-Z0-9_-]/g, '_'),
+    name: ontologyRuntimeToolName('relation', relation),
     description: `Traverse ${relation.name} through its configured field-level join.`,
     inputSchema: {
       type: 'object',
@@ -134,7 +135,7 @@ function relationRuntimeTool(relation: IRuntimeRelation): Tool {
 function runtimeTool(kind: 'logic' | 'action', artifact: IRuntimeArtifact): Tool {
   const parameters = artifact.parameters ?? [];
   return {
-    name: `${kind}_${artifact.code}`.replace(/[^a-zA-Z0-9_-]/g, '_'),
+    name: ontologyRuntimeToolName(kind, artifact),
     description: artifact.description || artifact.name,
     inputSchema: {
       type: 'object',
@@ -252,11 +253,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'ontology_list_actions':
         return textResult(version.snapshot.actions);
       default: {
-        const logicFunction = version.snapshot.logicFunctions.find((item) => `logic_${item.code}`.replace(/[^a-zA-Z0-9_-]/g, '_') === request.params.name);
+        const logicFunction = version.snapshot.logicFunctions.find((item) => ontologyRuntimeToolName('logic', item) === request.params.name);
         if (logicFunction) return textResult(await callRuntime('execute_logic_function', logicFunction.id, input));
-        const action = version.snapshot.actions.find((item) => `action_${item.code}`.replace(/[^a-zA-Z0-9_-]/g, '_') === request.params.name);
+        const action = version.snapshot.actions.find((item) => ontologyRuntimeToolName('action', item) === request.params.name);
         if (action) return textResult(await callRuntime('execute_action', action.id, input));
-        const relation = version.snapshot.relations.find((item) => `relation_${item.code}`.replace(/[^a-zA-Z0-9_-]/g, '_') === request.params.name);
+        const relation = version.snapshot.relations.find((item) => ontologyRuntimeToolName('relation', item) === request.params.name);
         if (relation) return textResult(await callRuntime('execute_relation', relation.id, input));
         throw new Error(`Unknown tool: ${request.params.name}.`);
       }
