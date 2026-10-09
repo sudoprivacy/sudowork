@@ -25,6 +25,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.config.mockResolvedValue('https://moss.example');
   state.authFetch.mockImplementation(async (url: string) => {
+    if (url.endsWith('/model-account/access')) return respond({ can_recharge: true });
     if (url.endsWith('/model-account')) return respond({ can_recharge: true, model_balance_usd: '42.00', member: { used_amount_usd: '2.00' } });
     if (url.endsWith('/model-billing/packages')) return respond({ items: [pkg] });
     if (url.includes('/model-billing/orders?page=')) return respond({ items: [], total: 0 });
@@ -70,4 +71,34 @@ it('reports an order-list failure instead of claiming there are no orders', asyn
   await waitFor(() => expect(document.querySelector('.arco-table')).not.toBeNull());
   await waitFor(() => expect(document.querySelector('.arco-spin-loading')).toBeNull());
   expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('offers recharge while the optional Router dashboard is still hanging', async () => {
+  const normal = state.authFetch.getMockImplementation()!;
+  state.authFetch.mockImplementation((url: string) => (url.endsWith('/model-account') ? new Promise(() => undefined) : normal(url)));
+  const view = renderRecharge();
+  await screen.findByRole('button', { name: '$5.00 + $0.00 · ¥35.00' });
+  expect(screen.getByRole('button', { name: 'modelBilling.createOrder' })).toBeTruthy();
+  expect(screen.queryByText(/\$0.00$/)).toBeNull();
+  view.unmount();
+});
+
+it('shows unavailable balance without blocking payment and recovers on refresh', async () => {
+  const normal = state.authFetch.getMockImplementation()!;
+  state.authFetch.mockImplementation((url: string) => (url.endsWith('/model-account') ? Promise.resolve(new Response(JSON.stringify({ success: false, msg: 'Router down' }), { status: 503 })) : normal(url)));
+  renderRecharge();
+  await screen.findByRole('button', { name: 'modelBilling.refreshBalance' });
+  expect(screen.getByText('modelBilling.organizationBalance: modelBilling.balanceUnavailable')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'modelBilling.createOrder' })).toBeTruthy();
+  state.authFetch.mockImplementation(normal);
+  fireEvent.click(screen.getByRole('button', { name: 'modelBilling.refreshBalance' }));
+  await screen.findByText('modelBilling.organizationBalance: $42.00');
+});
+
+it('denies recharge according to access even if a stale dashboard claims it is allowed', async () => {
+  const normal = state.authFetch.getMockImplementation()!;
+  state.authFetch.mockImplementation((url: string) => (url.endsWith('/model-account/access') ? Promise.resolve(respond({ can_recharge: false })) : normal(url)));
+  renderRecharge();
+  await screen.findByText('modelBilling.adminOnly');
+  expect(state.authFetch.mock.calls.some(([url]) => url.includes('/model-billing/'))).toBe(false);
 });

@@ -57,5 +57,8 @@
   "onlineCredit": "富友在线充值",
   "noPayment": "无需支付",
   "operator": "付款人 / 操作人",
-  "reason": "充值原因"
+  "reason": "充值原因",
+  "balanceUnavailable": "余额暂不可用",
+  "refreshBalance": "刷新余额",
+  "memberUsageUnavailable": "成员用量暂不可用，请稍后刷新"
 }

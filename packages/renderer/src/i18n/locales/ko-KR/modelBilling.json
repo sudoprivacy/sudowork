@@ -57,5 +57,8 @@
   "onlineCredit": "Fuiou 결제",
   "noPayment": "결제 불필요",
   "operator": "결제자 / 작업자",
-  "reason": "충전 사유"
+  "reason": "충전 사유",
+  "balanceUnavailable": "잔액을 일시적으로 조회할 수 없습니다",
+  "refreshBalance": "잔액 새로고침",
+  "memberUsageUnavailable": "멤버 사용량을 일시적으로 조회할 수 없습니다. 나중에 새로고침하세요."
 }

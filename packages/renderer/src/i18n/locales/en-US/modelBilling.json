@@ -57,5 +57,8 @@
   "onlineCredit": "Fuiou payment",
   "noPayment": "No payment required",
   "operator": "Payer / operator",
-  "reason": "Credit reason"
+  "reason": "Credit reason",
+  "balanceUnavailable": "Balance temporarily unavailable",
+  "refreshBalance": "Refresh balance",
+  "memberUsageUnavailable": "Member usage is temporarily unavailable. Please refresh later."
 }

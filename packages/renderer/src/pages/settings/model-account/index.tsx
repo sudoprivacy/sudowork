@@ -62,7 +62,7 @@ function PersonalModelAccount({ model }: PersonalModelAccountProps) {
           </div>
         </div>
       ) : (
-        <Alert type='warning' content={t('modelBilling.memberPending')} />
+        <Alert type='warning' content={t(account.member_usage_status === 'unavailable' ? 'modelBilling.memberUsageUnavailable' : 'modelBilling.memberPending')} />
       )}
       <h4>{t('modelBilling.myUsage')}</h4>
       {logError ? (

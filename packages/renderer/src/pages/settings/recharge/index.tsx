@@ -13,7 +13,7 @@ export default function RechargeCenter() {
 
 function OrganizationRechargeCenter({ model }: IOrganizationRechargeCenterProps) {
   const { t } = useTranslation();
-  const { account, error, isLoading, refresh, request } = model;
+  const { account, error, isLoading, refresh, request, access, accessError, isAccessLoading, refreshAccess } = model;
   const [packages, setPackages] = useState<ModelPackage[]>([]);
   const [orders, setOrders] = useState<ModelOrder[]>([]);
   const [orderPage, setOrderPage] = useState(1);
@@ -28,12 +28,17 @@ function OrganizationRechargeCenter({ model }: IOrganizationRechargeCenterProps)
   const [isRecordsLoading, setIsRecordsLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const reference = useRef<{ identity: string; key: string } | undefined>(undefined);
-  const isAllowed = account?.can_recharge === true;
-  const onReload = useCallback(async () => {
-    const result = await request<{ items: ModelOrder[]; total: number }>(`model-billing/orders?page=${orderPage}`);
-    setOrders(result.items);
-    setOrderTotal(result.total);
-    await refresh();
+  const isAllowed = access?.can_recharge === true && !accessError;
+  const onReload = useCallback(() => {
+    // Refreshes are independent of the successful payment operation.
+    void request<{ items: ModelOrder[]; total: number }>(`model-billing/orders?page=${orderPage}`)
+      .then((result) => {
+        setOrders(result.items);
+        setOrderTotal(result.total);
+        setLoadFailure('');
+      })
+      .catch((e: Error) => setLoadFailure(e.message));
+    void refresh().catch((): void => undefined);
   }, [request, refresh, orderPage]);
   useEffect(() => {
     let isActive = true;
@@ -65,7 +70,7 @@ function OrganizationRechargeCenter({ model }: IOrganizationRechargeCenterProps)
       setOrder(updated);
       if (updated.payment_status === 'paid' || updated.payment_status === 'cancelled') {
         setQr('');
-        await onReload();
+        onReload();
       }
       return updated;
     },
@@ -92,7 +97,7 @@ function OrganizationRechargeCenter({ model }: IOrganizationRechargeCenterProps)
       isStopped = true;
       clearTimeout(timer);
     };
-  }, [isAllowed, order?.order_no, order?.payment_status, order?.expires_at, onSync, t]);
+  }, [isAllowed, order, onSync, t]);
   const onPay = async (existing?: ModelOnlineOrder) => {
     setIsBusy(true);
     setFailure('');
@@ -105,7 +110,7 @@ function OrganizationRechargeCenter({ model }: IOrganizationRechargeCenterProps)
       setOrder(payment.order);
       setQr(payment.qr_code_url);
       reference.current = undefined;
-      await onReload();
+      onReload();
     } catch (e) {
       setFailure((e as Error).message);
     } finally {
@@ -119,7 +124,7 @@ function OrganizationRechargeCenter({ model }: IOrganizationRechargeCenterProps)
       await request(`model-billing/orders/${encodeURIComponent(order.order_no)}/cancel`, 'POST');
       setOrder(undefined);
       setQr('');
-      await onReload();
+      onReload();
     } catch (e) {
       Message.error((e as Error).message);
     } finally {
@@ -128,12 +133,19 @@ function OrganizationRechargeCenter({ model }: IOrganizationRechargeCenterProps)
   };
   return (
     <PageWrapper title={t('modelBilling.recharge')}>
-      {isLoading ? (
+      {isAccessLoading ? (
         <Spin />
-      ) : error ? (
+      ) : accessError ? (
         <div>
-          <Alert type='warning' content={error.message} />
-          <Button onClick={() => void refresh()}>{t('common.retry')}</Button>
+          <Alert type='warning' content={accessError.message} />
+          <Button
+            onClick={() => {
+              void refreshAccess().catch((): void => undefined);
+              void refresh().catch((): void => undefined);
+            }}
+          >
+            {t('common.retry')}
+          </Button>
         </div>
       ) : !isAllowed ? (
         <Alert type='warning' content={t('modelBilling.adminOnly')} />
@@ -141,8 +153,9 @@ function OrganizationRechargeCenter({ model }: IOrganizationRechargeCenterProps)
         <div className='flex flex-col gap-4'>
           <div className='p-6 rd-16px border border-light'>
             <h3>
-              {t('modelBilling.organizationBalance')}: ${account?.model_balance_usd ?? '—'}
+              {t('modelBilling.organizationBalance')}: {error || account?.balance_status === 'unavailable' ? t('modelBilling.balanceUnavailable') : isLoading ? '—' : account?.model_balance_usd !== undefined ? `$${account.model_balance_usd}` : '—'}
             </h3>
+            {(error || account?.balance_status === 'unavailable') && <Button onClick={() => void refresh().catch((): void => undefined)}>{t('modelBilling.refreshBalance')}</Button>}
             <p>{t('modelBilling.rechargeDescription')}</p>
           </div>
           {failure && <Alert type='error' content={failure} />}

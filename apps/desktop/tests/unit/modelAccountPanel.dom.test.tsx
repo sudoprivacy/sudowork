@@ -5,7 +5,7 @@ import ModelAccountPanel from '@renderer/pages/settings/model-account';
 
 const billing = vi.hoisted(() => ({
   identityKey: 'admin',
-  account: { org_id: 'org', can_manage: true, account_status: 'ready', model_balance_usd: '999.00', used_amount_usd: '888.00', member: { unlimited: false, remaining_limit_usd: '5.00', used_amount_usd: '1.00', effective_status: 'active' } as object | null },
+  account: { member_usage_status: 'available', org_id: 'org', can_manage: true, account_status: 'ready', model_balance_usd: '999.00', used_amount_usd: '888.00', member: { unlimited: false, remaining_limit_usd: '5.00', used_amount_usd: '1.00', effective_status: 'active' } as object | null },
   request: vi.fn(),
   refresh: vi.fn(),
   t: (key: string) => key,
@@ -30,6 +30,7 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   billing.identityKey = 'admin';
+  billing.account.member_usage_status = 'available';
   billing.account.member = { unlimited: false, remaining_limit_usd: '5.00', used_amount_usd: '1.00', effective_status: 'active' };
 });
 describe('personal model usage', () => {
@@ -69,8 +70,27 @@ describe('personal model usage', () => {
   it('shows pending member credentials without falling back to organization usage', async () => {
     billing.account.member = null;
     billing.request.mockResolvedValue({ items: [], total: 0 });
-    render(<ModelAccountPanel />);
+    await act(async () => {
+      render(<ModelAccountPanel />);
+    });
     expect(screen.getByText('modelBilling.memberPending')).toBeTruthy();
     expect(screen.queryByText(/999.00|888.00/)).toBeNull();
   });
+});
+
+it('distinguishes unavailable personal usage from pending credentials and recovers', async () => {
+  billing.account.member = null;
+  billing.account.member_usage_status = 'unavailable';
+  billing.request.mockResolvedValue({ items: [], total: 0 });
+  const view = render(<ModelAccountPanel />);
+  expect(screen.getByText('modelBilling.memberUsageUnavailable')).toBeTruthy();
+  expect(screen.queryByText('modelBilling.memberPending')).toBeNull();
+  expect(screen.queryByText(/999.00|888.00/)).toBeNull();
+  billing.account.member = { unlimited: true, used_amount_usd: '2.50', effective_status: 'active' };
+  billing.account.member_usage_status = 'available';
+  await act(async () => {
+    view.rerender(<ModelAccountPanel />);
+  });
+  expect(screen.getByText('$2.50')).toBeTruthy();
+  expect(screen.queryByText('modelBilling.memberUsageUnavailable')).toBeNull();
 });

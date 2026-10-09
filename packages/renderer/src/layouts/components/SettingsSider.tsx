@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@sudowork/host-bridge/ipcBridge';
-import { useModelAccount } from '@renderer/pages/settings/model-account/useModelAccount';
+import { useModelAccountAccess } from '@renderer/pages/settings/model-account/useModelAccount';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useExtI18n } from '@renderer/hooks/useExtI18n';
@@ -24,11 +24,8 @@ const BUILTIN_TAB_IDS = ['profile', 'recharge', 'members', 'model', 'agent', 'to
 /**
  * Enterprise mode builtin tab IDs (restricted subset).
  *
- * `recharge` is listed even though this is the restricted set: the entry is
- * already gated on the server's `recharge_mode`, so a deployment that declares
- * `disabled` still hides it. Leaving it out of the list instead meant a control
- * plane could serve points and applications and no one could reach the page —
- * the route existed, the menu never offered it.
+ * Recharge visibility uses the server's local payment capability, independently
+ * of Router balance and member usage availability.
  */
 const ENTERPRISE_BUILTIN_TAB_IDS = ['profile', 'enterprise', 'recharge', 'mcp', 'display', 'channels', 'system', 'about'] as const;
 
@@ -51,7 +48,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const { isGuest } = useAuth();
 
   const [extensionTabs, setExtensionTabs] = useState<IExtensionSettingsTab[]>([]);
-  const { account: modelAccount } = useModelAccount();
+  const { access: modelAccess, accessError } = useModelAccountAccess();
   const { resolveExtTabName } = useExtI18n();
 
   const loadExtensionTabs = useCallback(async (): Promise<IExtensionSettingsTab[]> => {
@@ -125,7 +122,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         label: t('modelBilling.recharge'),
         icon: <CreditCard />,
         path: 'recharge',
-        hidden: modelAccount?.can_recharge !== true,
+        hidden: !!accessError || modelAccess?.can_recharge !== true,
       },
       members: {
         id: 'members',
@@ -224,7 +221,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     }
 
     return result;
-  }, [t, modelAccount?.can_recharge, isDesktop, extensionTabs, resolveExtTabName, isEnterprise, isGuest]);
+  }, [t, accessError, modelAccess?.can_recharge, isDesktop, extensionTabs, resolveExtTabName, isEnterprise, isGuest]);
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   return (

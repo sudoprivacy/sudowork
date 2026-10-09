@@ -57,5 +57,8 @@
   "onlineCredit": "Fuiou 決済",
   "noPayment": "支払い不要",
   "operator": "支払者 / 操作者",
-  "reason": "入金理由"
+  "reason": "入金理由",
+  "balanceUnavailable": "残高を一時的に取得できません",
+  "refreshBalance": "残高を更新",
+  "memberUsageUnavailable": "メンバーの利用状況を一時的に取得できません。後でもう一度更新してください。"
 }
