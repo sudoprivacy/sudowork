@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 // A configured Nexus endpoint uses the session mailbox and fails closed.
@@ -40,7 +41,11 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
   }));
 
   const grpcSent: Array<{ id?: number; method?: string }> = [];
+  const grpcOptions: Array<{ agentId: string }> = [];
   class MockNexusAcpTransport {
+    constructor(options: { agentId: string }) {
+      grpcOptions.push(options);
+    }
     connect = grpcConnect;
     close = grpcClose;
     send = vi.fn((message: { id?: number; method?: string }) => {
@@ -72,10 +77,34 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
   }));
 
   const mod = await import('@/agent/acp/AcpConnection');
-  return { AcpConnection: mod.AcpConnection, grpcClose, grpcConnect, spawnGeneric, buildSpec, mainLog, mainWarn, grpcSent };
+  return { AcpConnection: mod.AcpConnection, grpcClose, grpcConnect, spawnGeneric, buildSpec, mainLog, mainWarn, grpcSent, grpcOptions };
 }
 
 describe('AcpConnection Nexus session routing', () => {
+  it.each([false, true])('isolates ontology mailboxes across reconnects without changing ordinary identities: ontology=%s', async (isOntologySession) => {
+    const fixture = await loadAcpConnection({ grpcConnect: async () => {}, spawnGeneric: async () => {} });
+    const connection = new fixture.AcpConnection({ isOntologySession });
+    connection.conversationId = 'existing-chat';
+    connection.managedAgentId = 'personal-agent';
+    const harness = connection as unknown as { initialize: () => Promise<void>; sendRequest: ReturnType<typeof vi.fn> };
+    harness.initialize = async () => {};
+    const tools = [{ name: 'ontology-agent', command: '/node' }];
+    const workspace = path.resolve('original-workspace');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await connection.connect('scode', '/scode', workspace, ['acp'], { ACP_GRPC_ENDPOINT: '127.0.0.1:12022' });
+      harness.sendRequest = vi.fn().mockResolvedValue({});
+      await connection.loadSession('original-acp-history', workspace, tools);
+      expect(harness.sendRequest).toHaveBeenCalledWith('session/load', expect.objectContaining({ sessionId: 'original-acp-history', cwd: workspace, mcpServers: tools }));
+      await connection.disconnect();
+    }
+    const ids = fixture.grpcOptions.map((options) => options.agentId);
+    if (isOntologySession) {
+      expect(ids[0]).toMatch(/^sudowork-ontology-existing-chat-/);
+      expect(ids[1]).not.toBe(ids[0]);
+    } else {
+      expect(ids).toEqual(['personal-agent', 'personal-agent']);
+    }
+  });
   it('gives online local agents a media endpoint without a credential proxy', async () => {
     const { AcpConnection, spawnGeneric } = await loadAcpConnection({
       localApiPort: 43210,

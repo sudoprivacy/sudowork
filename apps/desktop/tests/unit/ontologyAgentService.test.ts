@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
@@ -78,6 +81,43 @@ beforeEach(() => {
 const create = () => service.createAgentBlueprint({ workspaceId: 'workspace', ontologyVersionId: 'v1', name: 'Orders v1' });
 
 describe('ontology agent runtime integration', () => {
+  it('loads the registered version rules and refuses disabled or mismatched agents', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-agent-runtime-'));
+    try {
+      const { blueprint } = await create();
+      const registered = await service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id });
+      const id = registered.blueprint.registeredAssistantId!;
+      const meta = agents.get(id)!;
+      await fs.writeFile(path.join(directory, 'AGENT.md'), 'Use the published v1 ontology.');
+      mocks.getMeta.mockImplementation(async () => ({ meta, category: 'custom', dir: directory }));
+      expect(await service.getRegisteredAgentRuntime(id)).toMatchObject({ meta: { ontologyBinding: { workspaceId: 'workspace', versionId: 'v1', blueprintId: blueprint.id } }, presetContext: expect.stringContaining('published v1') });
+      expect((await service.getRegisteredAgentRuntime(id))?.mcpRegistration).toEqual({ workspaceId: 'workspace', versionId: 'v1', blueprintId: blueprint.id, exportFile: '/synthetic/ontology.json' });
+      meta.enabled = false;
+      await expect(service.getRegisteredAgentRuntime(id)).rejects.toThrow('notFound');
+      meta.enabled = true;
+      meta.ontologyBinding!.versionId = 'unrelated';
+      await expect(service.getRegisteredAgentRuntime(id)).rejects.toThrow('identityConflict');
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects rule files outside the registered agent directory', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-agent-path-'));
+    try {
+      const agentDir = path.join(directory, 'agent');
+      await fs.mkdir(agentDir);
+      await fs.writeFile(path.join(directory, 'other.md'), 'Unrelated rules');
+      const { blueprint } = await create();
+      const registered = await service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id });
+      const id = registered.blueprint.registeredAssistantId!;
+      mocks.getMeta.mockResolvedValue({ meta: { ...agents.get(id), ruleFile: '../other.md' }, category: 'custom', dir: agentDir });
+      await expect(service.getRegisteredAgentRuntime(id)).rejects.toThrow('identityConflict');
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('creates an owned agent and enables it only after its version-specific tools are installed', async () => {
     const { blueprint } = await create();
     const result = await service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id });

@@ -80,6 +80,7 @@ const GuidPage: React.FC = () => {
   const searchParams = new URLSearchParams(location.search);
   const skillParam = searchParams.get('skill');
   const assistantParam = searchParams.get('assistant');
+  const isOntologyEntry = searchParams.get('source') === 'ontology' && assistantParam?.startsWith('ontology-') === true;
 
   // --- Hooks ---
   const modelSelection = useGuidModelSelection();
@@ -89,6 +90,7 @@ const GuidPage: React.FC = () => {
     isGoogleAuth: modelSelection.isGoogleAuth,
     localeKey,
     assistantFromUrl: assistantParam,
+    isOntologyEntry,
   });
 
   const guidInput = useGuidInput({
@@ -314,12 +316,13 @@ const GuidPage: React.FC = () => {
   // assistantParam 变化无条件覆盖（无 defaultInitPrompt 则清空），不依赖输入框是否为空。
   useEffect(() => {
     if (!assistantParam || !agentSelection.customAgents || agentSelection.customAgents.length === 0) return;
-    if (prevAssistantParamRef.current === assistantParam) return;
-    const target = agentSelection.customAgents.find((a) => a.name === assistantParam || a.id === assistantParam);
+    const selectionKey = isOntologyEntry ? `ontology:${assistantParam}` : assistantParam;
+    if (prevAssistantParamRef.current === selectionKey) return;
+    const target = isOntologyEntry ? agentSelection.customAgents.find((a) => a.id === assistantParam && !!a.ontologyBinding && a.enabled !== false) : agentSelection.customAgents.find((a) => a.name === assistantParam || a.id === assistantParam);
     if (!target) return; // customAgents 尚未加载到目标，不更新 ref，等加载后重跑
-    prevAssistantParamRef.current = assistantParam;
+    prevAssistantParamRef.current = selectionKey;
     guidInput.setInput(target.defaultInitPrompt || '');
-  }, [assistantParam, agentSelection.customAgents, guidInput]);
+  }, [assistantParam, agentSelection.customAgents, guidInput, isOntologyEntry]);
 
   // Listen for guid.reset event to reset agent/mention state only
   const handleGuidReset = useCallback(() => {
