@@ -94,6 +94,29 @@ beforeEach(() => {
 })
 
 describe('conversation reconnect during generation', () => {
+  test('forwards tool output and artifacts without treating tool completion as turn completion', async () => {
+    const service = coordinator(),
+      browser = connection()
+    service.subscribe(browser)
+    await service.handleClientMessage(browser, { kind: 'send', text: 'Read file' })
+    const upstream = state.sockets[0]!
+    const events = [
+      { type: 'tool_result', tool_use_id: 'read-1', content: 'FileNotFound', is_error: true },
+      { type: 'artifacts', v: 1, records: [] },
+    ]
+    for (const event of events) upstream.onEvent(event)
+    await vi.waitFor(() => {
+      for (const event of events)
+        expect(browser.ws.send).toHaveBeenCalledWith(JSON.stringify({ kind: 'upstream', event }))
+    })
+    expect(state.lock?.state).toBe('running')
+    upstream.onEvent({ type: 'private-internal-event', secret: 'must not be forwarded' })
+    expect(browser.ws.send).not.toHaveBeenCalledWith(
+      expect.stringContaining('must not be forwarded'),
+    )
+    await service.terminate('principal-a', 'session-a')
+  })
+
   test('keeps the upstream until a returning browser receives completion and can send again', async () => {
     const service = coordinator(),
       original = connection()

@@ -170,6 +170,27 @@ export function mossFrameToResponses(frame: any, ctx: MossResponseCtx): IRespons
     return out;
   }
 
+  if (frame.type === 'tool_result') {
+    const toolUseId = frame.tool_use_id;
+    if (typeof toolUseId !== 'string' || !toolUseId) return out;
+    const text = extractTextFromContent(frame.content);
+    out.push({
+      type: 'acp_tool_call',
+      msg_id: toolUseId,
+      conversation_id: conversationId,
+      data: {
+        sessionId: ctx.sessionId,
+        update: {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: toolUseId,
+          status: frame.is_error ? 'failed' : 'completed',
+          content: [{ type: 'content', content: { type: 'text', text } }],
+        },
+      },
+    });
+    return out;
+  }
+
   if (frame.type === 'tool_use') {
     const toolName = frame.name || frame.tool_name || '';
     const toolUseId = frame.tool_use_id || frame.id || frame.uuid || ctx.nextMsgId();
@@ -270,7 +291,7 @@ export function mossFrameToResponses(frame: any, ctx: MossResponseCtx): IRespons
           }
         } else if (block?.type === 'text') {
           const textContent = block.text || '';
-          if (textContent && textContent.trim() && !isAbortRelatedText(textContent)) {
+          if (textContent && (frame.delta === true || textContent.trim()) && !isAbortRelatedText(textContent)) {
             out.push({
               type: 'content',
               msg_id: frame.uuid || ctx.nextMsgId(),
@@ -300,7 +321,7 @@ export function mossFrameToResponses(frame: any, ctx: MossResponseCtx): IRespons
       }
     } else {
       const content = extractTextFromContent(contentArray);
-      if (content && content.trim() && !isAbortRelatedText(content)) {
+      if (content && (frame.delta === true || content.trim()) && !isAbortRelatedText(content)) {
         out.push({
           type: 'content',
           msg_id: frame.uuid || ctx.nextMsgId(),
@@ -323,7 +344,15 @@ export function mossFrameToResponses(frame: any, ctx: MossResponseCtx): IRespons
           sessionUpdate: 'tool_call_update',
           toolCallId: frame.tool_use_id || ctx.nextMsgId(),
           status: 'in_progress',
-          content: [{ type: 'content', content: { type: 'text', text: `Executing... (${frame.elapsed_time_seconds}s)` } }],
+          content: [
+            {
+              type: 'content',
+              content: {
+                type: 'text',
+                text: `Executing... (${frame.elapsed_time_seconds}s)`,
+              },
+            },
+          ],
         },
       },
     });

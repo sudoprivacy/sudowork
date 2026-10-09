@@ -90,7 +90,40 @@ describe('mossFrameToResponses', () => {
     });
   });
 
+  describe('tool_result', () => {
+    it('keeps successful tool output attached to its original call', () => {
+      const out = mossFrameToResponses({ type: 'tool_result', uuid: 'result-1', tool_use_id: 'tu-1', content: [{ type: 'text', text: 'actual file content' }], is_error: false }, makeCtx({ conversationId: 'conv-1' }));
+      expect(out).toEqual([
+        {
+          type: 'acp_tool_call',
+          msg_id: 'tu-1',
+          conversation_id: 'conv-1',
+          data: { sessionId: 'sess-1', update: { sessionUpdate: 'tool_call_update', toolCallId: 'tu-1', status: 'completed', content: [{ type: 'content', content: { type: 'text', text: 'actual file content' } }] } },
+        },
+      ]);
+    });
+
+    it('renders failed tool output instead of a successful completion badge', () => {
+      const out = mossFrameToResponses({ type: 'tool_result', tool_use_id: 'tu-2', content: 'FileNotFound: workspace/proof.txt', is_error: true }, makeCtx());
+      expect(out[0]).toMatchObject({ msg_id: 'tu-2', data: { update: { status: 'failed', content: [{ type: 'content', content: { type: 'text', text: 'FileNotFound: workspace/proof.txt' } }] } } });
+    });
+
+    it('retains empty successful output and ignores results without a call id', () => {
+      expect(mossFrameToResponses({ type: 'tool_result', tool_use_id: 'tu-empty', content: '', is_error: false }, makeCtx())[0]).toMatchObject({ data: { update: { status: 'completed', content: [{ type: 'content', content: { type: 'text', text: '' } }] } } });
+      expect(mossFrameToResponses({ type: 'tool_result', uuid: 'orphan-result', content: 'orphan' }, makeCtx())).toEqual([]);
+    });
+  });
+
   describe('assistant', () => {
+    it('preserves spaces and newlines between streamed text fragments', () => {
+      const ctx = makeCtx({ conversationId: 'conv-1' });
+      const chunks = ['The', ' ', 'file', '\n', 'exists.'];
+      const responses = chunks.flatMap((text) => mossFrameToResponses({ type: 'assistant', uuid: 'answer-1', delta: true, message: { content: [{ type: 'text', text }] } }, ctx));
+      expect(responses.map((response) => response.data).join('')).toBe('The file\nexists.');
+      expect(responses.every((response) => response.msg_id === 'answer-1' && response.conversation_id === 'conv-1')).toBe(true);
+      expect(mossFrameToResponses({ type: 'assistant', message: { content: [{ type: 'text', text: '  ' }] } }, ctx)).toEqual([]);
+    });
+
     it('maps thinking / text blocks to thought / content and skips abort-related text', () => {
       const out = mossFrameToResponses(
         {

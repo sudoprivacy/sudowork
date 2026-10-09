@@ -208,8 +208,15 @@ export type ClientOutboundMessage = z.infer<typeof ClientOutboundMessageSchema>
 export const ServerInboundEventSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('upstream'), event: z.unknown() }),
   z.object({ kind: z.literal('writer'), isWriter: z.boolean() }),
-  z.object({ kind: z.literal('lock'), state: z.enum(['idle', 'running', 'uncertain']) }),
-  z.object({ kind: z.literal('error'), code: z.string(), message: z.string().optional() }),
+  z.object({
+    kind: z.literal('lock'),
+    state: z.enum(['idle', 'running', 'uncertain']),
+  }),
+  z.object({
+    kind: z.literal('error'),
+    code: z.string(),
+    message: z.string().optional(),
+  }),
 ])
 export type ServerInboundEvent = z.infer<typeof ServerInboundEventSchema>
 
@@ -218,6 +225,8 @@ export const UPSTREAM_EVENT_TYPES = new Set([
   'hello',
   'assistant',
   'tool_use',
+  'tool_result',
+  'artifacts',
   'result',
   'system',
   'thinking', // 当前上游不发射；保留兼容位，未来上游支持即生效
