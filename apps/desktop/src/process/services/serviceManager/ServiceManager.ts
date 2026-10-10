@@ -36,14 +36,8 @@ export class ServiceManager {
   private gateway: SudoclawGateway | null = null;
   private adbSidechannel: AdbResultSidechannel | null = null;
   private startupInProgress = false;
-  // Set true only after a startup() run completes its readiness verification.
-  // Guards against a *second sequential* startup() (startupInProgress only
-  // guards concurrent re-entry and is cleared in the finally below). Both
-  // consumer and enterprise ModeSetup re-invoke startup() via
-  // startConsumerServices after the initial boot startup, and a redundant run
-  // re-does nexus port-prep (killProcessesOnPort(12022)), killing the already
-  // running nexusd and silently tearing the app down. Reset by shutdown() so a
-  // post-quit relaunch path can start fresh.
+  // ModeSetup can invoke startup again after boot. Reuse completed startup
+  // until shutdown; startupInProgress only protects concurrent calls.
   private startupCompleted = false;
   private shuttingDown = false;
   private sudoclawStartPromise: Promise<void> | null = null;
@@ -234,10 +228,6 @@ export class ServiceManager {
 
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
-          await this.preparePortForStart(12022, 'Nexus');
-          // Reset Nexus running state after killing port processes
-          // because preparePortForStart may have killed the process externally
-          dynamicNexusVfsService.resetRunningState();
           const startupDetail = attempt > 1 ? (phase === 'reinstall' ? `重装后正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...` : `正在启动 Nexus 服务（第 ${attempt}/${attempts} 次）...`) : phase === 'reinstall' ? '重装后正在启动 Nexus 服务...' : '正在启动 Nexus 服务...';
           initStatusManager.setStepState('nexus', 'active', startupDetail);
           initStatusManager.setStepProgress('nexus', 92, initStatusManager.getStatus().stepDetails?.nexus);
@@ -261,7 +251,6 @@ export class ServiceManager {
           if (dynamicNexusVfsService.tryHealStalePlugins()) {
             initStatusManager.addLog('↻ 已清理过期插件，将重新下载匹配版本');
           }
-          await this.killProcessesOnPort(12022, 'Nexus');
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
@@ -810,7 +799,7 @@ export class ServiceManager {
     });
   }
 
-  private async preparePortForStart(port: number, label: 'Sudoclaw' | 'Nexus'): Promise<void> {
+  private async preparePortForStart(port: number, label: 'Sudoclaw'): Promise<void> {
     const occupied = await this.isPortOccupied(port);
     if (!occupied) {
       return;

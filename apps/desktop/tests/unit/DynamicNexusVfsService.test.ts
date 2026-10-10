@@ -173,6 +173,104 @@ describe('DynamicNexusVfsService', () => {
     expect(dynamicNexusVfsService.isRunning).toBe(true);
   });
 
+  it('refuses an occupied endpoint without spawning or stopping its listener', async () => {
+    mockPortSequence([true]);
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+
+    await expect(dynamicNexusVfsService.start()).rejects.toThrow('already in use by another process');
+    await dynamicNexusVfsService.stop();
+
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(execMock).not.toHaveBeenCalled();
+    expect(processKill).not.toHaveBeenCalled();
+    expect(dynamicNexusVfsService.acpTunnelEndpoint).toBeNull();
+  });
+
+  it('does not report an unrelated listener as its running daemon', async () => {
+    mockPortSequence([true]);
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+
+    expect(await dynamicNexusVfsService.checkActualRunning()).toBe(false);
+    expect(dynamicNexusVfsService.acpTunnelEndpoint).toBeNull();
+  });
+
+  it('recovers a transient health failure without starting another child', async () => {
+    listSecrets.mockReturnValue([]);
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    await dynamicNexusVfsService.start();
+    serverInfo.mockRejectedValueOnce(new Error('temporary RPC failure'));
+
+    expect(await dynamicNexusVfsService.checkActualRunning()).toBe(false);
+    expect(await dynamicNexusVfsService.checkActualRunning()).toBe(true);
+    await dynamicNexusVfsService.start();
+    expect(spawnMock).toHaveBeenCalledOnce();
+    await dynamicNexusVfsService.stop();
+  });
+
+  it('retains its installation while an unhealthy owned process is alive', async () => {
+    listSecrets.mockReturnValue([]);
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    await dynamicNexusVfsService.start();
+    serverInfo.mockRejectedValueOnce(new Error('temporary RPC failure'));
+    expect(await dynamicNexusVfsService.checkActualRunning()).toBe(false);
+
+    await expect(dynamicNexusVfsService.install()).rejects.toThrow('please stop it first');
+    expect(() => dynamicNexusVfsService.removeInstallation()).toThrow('Stop the owned Nexus process');
+    await dynamicNexusVfsService.stop();
+  });
+
+  it('starts one child for concurrent startup requests and stops that child', async () => {
+    listSecrets.mockReturnValue([]);
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+
+    await Promise.all([dynamicNexusVfsService.start(), dynamicNexusVfsService.start(), dynamicNexusVfsService.start()]);
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+
+    await dynamicNexusVfsService.stop();
+    expect(processKill).toHaveBeenCalledOnce();
+    expect(processKill).toHaveBeenCalledWith('SIGTERM');
+    expect(dynamicNexusVfsService.isRunning).toBe(false);
+  });
+
+  it('finishes an in-flight startup before stopping its owned child', async () => {
+    let onVaultReady: (value: unknown[]) => void = () => {};
+    listSecrets.mockReturnValue(new Promise((resolve) => (onVaultReady = resolve)));
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    const starting = dynamicNexusVfsService.start();
+    await vi.waitFor(() => expect(listSecrets).toHaveBeenCalled());
+    const stopping = dynamicNexusVfsService.stop();
+    onVaultReady([]);
+    await Promise.all([starting, stopping]);
+
+    expect(processKill).toHaveBeenCalledWith('SIGTERM');
+    expect(dynamicNexusVfsService.isRunning).toBe(false);
+    expect(dynamicNexusVfsService.acpTunnelEndpoint).toBeNull();
+  });
+
+  it('escalates termination of its own child even after SIGTERM was sent', async () => {
+    vi.useFakeTimers();
+    listSecrets.mockReturnValue([]);
+    const child = new FakeChildProcess();
+    child.kill = (signal?: NodeJS.Signals): boolean => {
+      child.killed = true;
+      processKill(signal);
+      if (signal === 'SIGKILL') {
+        child.signalCode = signal;
+        child.emit('exit', null, signal);
+      }
+      return true;
+    };
+    spawnMock.mockReturnValue(child);
+    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
+    await dynamicNexusVfsService.start();
+    const stopping = dynamicNexusVfsService.stop();
+    await vi.advanceTimersByTimeAsync(3000);
+    await stopping;
+
+    expect(processKill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL']]);
+    expect(execMock).not.toHaveBeenCalled();
+  });
+
   it('names a Windows heap-corruption crash instead of logging a bare number', async () => {
     listSecrets.mockReturnValue([]);
     const child = new FakeChildProcess();

@@ -196,7 +196,12 @@ describe('DynamicNexusVfsService.acpTunnelEndpoint', () => {
     vi.doMock('@process/services/archiveProgress', () => ({ extractTarGzWithProgress: vi.fn(), extractZipWithProgress: vi.fn() }));
     vi.doMock('@process/ProcessSupervisor', () => ({ processSupervisor: { track: vi.fn() } }));
     const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
-    return dynamicNexusVfsService as unknown as { _running: boolean; _port: number; acpTunnelEndpoint: string | null };
+    return dynamicNexusVfsService as unknown as {
+      _running: boolean;
+      _port: number;
+      process: { exitCode: number | null; signalCode: NodeJS.Signals | null } | null;
+      acpTunnelEndpoint: string | null;
+    };
   }
 
   it('is null when the daemon is not running', async () => {
@@ -208,6 +213,7 @@ describe('DynamicNexusVfsService.acpTunnelEndpoint', () => {
 
   it('is null when running without a bound port', async () => {
     const svc = await loadService();
+    svc.process = { exitCode: null, signalCode: null };
     svc._running = true;
     svc._port = 0;
     expect(svc.acpTunnelEndpoint).toBeNull();
@@ -215,6 +221,7 @@ describe('DynamicNexusVfsService.acpTunnelEndpoint', () => {
 
   it('is the loopback host:port when the daemon is serving', async () => {
     const svc = await loadService();
+    svc.process = { exitCode: null, signalCode: null };
     svc._running = true;
     svc._port = 12022;
     expect(svc.acpTunnelEndpoint).toBe('127.0.0.1:12022');
