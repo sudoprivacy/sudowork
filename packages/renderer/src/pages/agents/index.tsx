@@ -940,11 +940,9 @@ const AgentSettings: React.FC = () => {
     if (!hubDetailAssistant) return;
     setHubDetailVisible(false);
 
-    // Use display_name for URL parameter to match customAgents.name in useGuidAgentSelection
-    // hubDetailAssistant.name is the identifier (UUID), display_name is the user-facing name
-    const assistantName = hubDetailAssistant.display_name || hubDetailAssistant.name;
+    const assistantReference = hubDetailAssistant.name;
     await refreshAgentDetection();
-    void navigate(`/guid?assistant=${encodeURIComponent(assistantName)}`);
+    void navigate(`/guid?assistant=${encodeURIComponent(assistantReference)}`);
   }, [hubDetailAssistant, navigate, refreshAgentDetection]);
 
   // Open duplicate confirm modal for hub assistant

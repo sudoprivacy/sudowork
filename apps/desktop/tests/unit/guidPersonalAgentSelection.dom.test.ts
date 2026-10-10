@@ -52,6 +52,19 @@ afterEach(() => {
 });
 
 describe('personal Agent selection through picker refreshes', () => {
+  it('keeps a named template URL pending when multiple templates share that name', async () => {
+    state.isEnterprise = false;
+    state.local = [
+      { id: 'first-template', name: 'Research', enabled: true },
+      { id: 'second-template', name: 'Research', enabled: true },
+    ];
+    const { result, rerender } = renderHook(({ reference }) => useGuidAgentSelection({ localeKey: 'en-US', assistantFromUrl: reference }), { initialProps: { reference: 'Research' } });
+    await waitFor(() => expect(result.current.customAgents).toHaveLength(2));
+    expect(result.current.isAgentSelectionPending).toBe(true);
+    rerender({ reference: 'second-template' });
+    await waitFor(() => expect(result.current.isAgentSelectionPending).toBe(false));
+    expect(result.current.selectedAgentInfo?.customAgentId).toBe('second-template');
+  });
   it.each(['local', 'remote'])('retains the URL identity after initial and event refreshes in %s mode', async (mode) => {
     state.mode = mode;
     const ref = state.mine[0].ref;

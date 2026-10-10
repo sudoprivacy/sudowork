@@ -14,6 +14,7 @@ import type { IProvider } from '@sudowork/common/storage';
 import { ConfigStorage } from '@sudowork/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@sudowork/common/acpTypes';
 import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
+import { resolveAssistantReference } from '@renderer/shared/agents/assistantReference';
 import type { IMyAgent } from '@sudowork/common/personalAgents';
 import { fetchAssistantsAsConfigs } from '@renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@renderer/utils/agentModes';
@@ -159,6 +160,7 @@ export type GuidAgentSelectionResult = {
   setSelectedAgentKey: (key: string) => void;
   selectedAgent: AcpBackend | 'custom';
   selectedAgentInfo: AvailableAgent | undefined;
+  isAgentSelectionPending: boolean;
   isPresetAgent: boolean;
   availableAgents: AvailableAgent[] | undefined;
   /** Available agents filtered for mention selector (enterprise local mode only exposes scode) */
@@ -195,7 +197,7 @@ type UseGuidAgentSelectionOptions = {
   modelList: IProvider[];
   isGoogleAuth: boolean;
   localeKey: string;
-  /** URL query parameter for assistant name to pre-select */
+  /** Stable assistant reference; older links may contain an unambiguous name. */
   assistantFromUrl?: string | null;
   isOntologyEntry?: boolean;
 };
@@ -652,18 +654,21 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
     };
   }, [isEnterprise, sessionMode, availableCustomAgentIds, isOntologyEntry, ontologyAssistantId]);
 
-  // Pre-select assistant from URL parameter (assistantFromUrl)
-  useEffect(() => {
-    if (!assistantFromUrl || !customAgents || customAgents.length === 0) return;
+  const requestedAssistant = useMemo(() => {
+    if (!assistantFromUrl) return undefined;
+    const candidates = customAgents.filter((agent) => agent.enabled !== false && (!isOntologyEntry || !!agent.ontologyBinding));
+    return isOntologyEntry ? candidates.find((agent) => agent.id === assistantFromUrl) : resolveAssistantReference(candidates, assistantFromUrl);
+  }, [assistantFromUrl, customAgents, isOntologyEntry]);
+  const isAgentSelectionPending = Boolean(assistantFromUrl && (!requestedAssistant || selectedAgentInfo?.customAgentId !== requestedAssistant.id));
 
-    // Find the assistant by name (assistantFromUrl is the assistant name, not ID)
-    const matchedAgent = isOntologyEntry ? customAgents.find((agent) => agent.id === assistantFromUrl && !!agent.ontologyBinding && agent.enabled !== false) : customAgents.find((agent) => agent.name === assistantFromUrl || agent.id === assistantFromUrl);
-    if (matchedAgent) {
-      const agentKey = `custom:${matchedAgent.id}`;
+  // Pre-select the resolved identity when its catalog entry becomes available.
+  useEffect(() => {
+    if (requestedAssistant) {
+      const agentKey = `custom:${requestedAssistant.id}`;
       if (isOntologyEntry) _setSelectedAgentKeyWithRef(agentKey);
       else setSelectedAgentKey(agentKey);
     }
-  }, [assistantFromUrl, customAgents, setSelectedAgentKey, isOntologyEntry, _setSelectedAgentKeyWithRef]);
+  }, [requestedAssistant, setSelectedAgentKey, isOntologyEntry, _setSelectedAgentKeyWithRef]);
 
   // Load cached ACP model lists
   useEffect(() => {
@@ -1222,6 +1227,7 @@ This identity statement takes priority over the default identity in USER.md.
     setSelectedAgentKey,
     selectedAgent,
     selectedAgentInfo,
+    isAgentSelectionPending,
     isPresetAgent,
     availableAgents,
     mentionAvailableAgents,
