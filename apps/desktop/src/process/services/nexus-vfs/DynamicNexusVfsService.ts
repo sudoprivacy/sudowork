@@ -5,8 +5,7 @@ import * as http from 'http';
 import * as net from 'net';
 import * as crypto from 'crypto';
 import { app } from 'electron';
-import { spawn, exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import { COS_RUNTIME_BASE, COS_LEGACY_NEXUS_VFS_BASE } from '@sudowork/common/cos';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { getProxyAgent } from '@process/utils/proxyAgent';
@@ -18,25 +17,10 @@ import { getNexusRpcClient } from '@common/nexus/nexus-vfs-client';
 import { extractTarGzWithProgress, extractZipWithProgress } from '../archiveProgress';
 import { vaultPluginInstaller, nexusPluginInstallers } from './VaultPluginInstaller';
 
-const execAsync = promisify(exec);
-
 /**
- * nexus-vfs — a third managed runtime, independent of and additive to the
- * existing Nexus (~/.nexus, port 12012) and Sudocode runtimes. It launches the
- * `nexusd-cluster` daemon from the nexus-vfs repo (version pinned in runtime-versions.json) under ~/.nexus-vfs
- * and binds gRPC on 127.0.0.1:12022.
- *
- * Differences from DynamicNexusService that matter here:
- *  - nexusd-cluster speaks gRPC only; there is NO HTTP /health endpoint, so
- *    readiness is a TCP-connect probe against the bind port followed by a real
- *    call through the VFS plane. The port alone is not enough: upstream stopped
- *    opening persisted zones before serving, so an accepted connection does not
- *    mean the root zone can answer.
- *  - It is launched via the `serve-local --port <p>` subcommand (nexus-vfs
- *    >=v0.6.0), the shorthand for `--bind-addr 127.0.0.1:<p> --no-tls` — the
- *    trusted-local-backend posture. With no peers it founds a healthy
- *    single-node 1-voter root zone; the boot action is inferred from on-disk
- *    state (--bootstrap-mode was removed upstream in Phase G).
+ * Installs and supervises the desktop's local Nexus daemon. Process ownership
+ * comes from the child handle returned by spawn. An occupied endpoint does not
+ * grant authority to adopt or stop its listener.
  */
 
 const NEXUS_VFS_BIND_HOST = '127.0.0.1';
@@ -102,6 +86,8 @@ export type NexusVfsUnsubscribe = () => void;
 
 class DynamicNexusVfsService {
   private process: import('child_process').ChildProcess | null = null;
+  private startPromise: Promise<void> | null = null;
+  private stopPromise: Promise<void> | null = null;
   private _running = false;
   private _port = 0;
   private _stage: NexusVfsStage = 'idle';
@@ -111,7 +97,7 @@ class DynamicNexusVfsService {
   private _lastStderr = '';
 
   get isRunning(): boolean {
-    return this._running;
+    return this._running && this.isOwnedProcessAlive();
   }
 
   get port(): number {
@@ -125,16 +111,11 @@ class DynamicNexusVfsService {
    * via ACP_GRPC_ENDPOINT. Null ⇒ callers fall back to a local agent spawn.
    */
   get acpTunnelEndpoint(): string | null {
-    return this._running && this._port > 0 ? `${NEXUS_VFS_BIND_HOST}:${this._port}` : null;
+    return this.isRunning && this._port > 0 ? `${NEXUS_VFS_BIND_HOST}:${this._port}` : null;
   }
 
   get setupStage(): NexusVfsStage {
     return this._stage;
-  }
-
-  resetRunningState(): void {
-    this._running = false;
-    this.process = null;
   }
 
   onSetupStatus(cb: NexusVfsCallback): NexusVfsUnsubscribe {
@@ -256,6 +237,7 @@ class DynamicNexusVfsService {
 
   /** Reset managed executables after stopping the daemon; retain databases and identity. */
   removeInstallation(): void {
+    if (this.isOwnedProcessAlive()) throw new Error('Stop the owned Nexus process before removing its installation');
     fs.rmSync(this.getBinDir(), { recursive: true, force: true });
     for (const installer of nexusPluginInstallers) installer.removeInstallation();
   }
@@ -359,7 +341,7 @@ class DynamicNexusVfsService {
    * the SHA-verified binary to ~/.nexus-vfs/bin.
    */
   async install(): Promise<void> {
-    if (this._running) {
+    if (this.isOwnedProcessAlive()) {
       throw new Error('nexus-vfs is already running, please stop it first');
     }
 
@@ -499,24 +481,34 @@ class DynamicNexusVfsService {
   }
 
   async start(): Promise<void> {
-    if (this._running) return;
+    if (this.stopPromise) await this.stopPromise;
+    if (this.startPromise) return this.startPromise;
+    this.startPromise = this.startOwnedProcess().finally(() => {
+      this.startPromise = null;
+    });
+    return this.startPromise;
+  }
 
-    for (const installer of nexusPluginInstallers) installer.prepareForStartup();
+  private isOwnedProcessAlive(): boolean {
+    return this.process !== null && this.process.exitCode === null && this.process.signalCode === null;
+  }
+
+  private async startOwnedProcess(): Promise<void> {
+    if (this._running && this.isOwnedProcessAlive()) return;
+    if (this.isOwnedProcessAlive()) {
+      throw new Error('The owned Nexus process has not stopped; refusing to start a second daemon');
+    }
 
     this._port = NEXUS_VFS_DEFAULT_PORT;
     this._running = false;
 
     const launchCommand = this.resolveStartCommand(this._port);
 
-    // Clear any stale listener before spawning, otherwise the readiness probe can
-    // latch onto an old process and report a false-positive start.
     if (await this.isPortInUse(this._port)) {
-      await this.forceKillProcessesOnPort(this._port);
-      if (await this.isPortInUse(this._port)) {
-        throw new Error(`nexus-vfs port ${this._port} is still in use after pre-start cleanup`);
-      }
+      throw new Error(`Nexus endpoint ${NEXUS_VFS_BIND_HOST}:${this._port} is already in use by another process`);
     }
 
+    for (const installer of nexusPluginInstallers) installer.prepareForStartup();
     fs.mkdirSync(this.getDaemonDataDir(), { recursive: true });
 
     this._lastStderr = '';
@@ -530,11 +522,12 @@ class DynamicNexusVfsService {
     // writes vault data to whatever cwd the shortcut/exe inherited.
     // Spread process.env first, then assign — Node spawn does NOT inherit env
     // when the option is set, so PATH/HOME/etc. must be carried explicitly.
-    this.process = spawn(launchCommand.command, launchCommand.args, {
+    const proc = spawn(launchCommand.command, launchCommand.args, {
       stdio: 'pipe',
       env: { ...process.env, NEXUS_DATA_DIR: this.getDaemonDataDir() },
     });
-    processSupervisor.track(this.process);
+    this.process = proc;
+    processSupervisor.track(proc);
 
     this.process.stdout?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();
@@ -557,51 +550,67 @@ class DynamicNexusVfsService {
       if (code !== null && WINDOWS_CRASH_EXIT_CODES[code]) {
         mainError('NexusVfs', `Daemon crashed: ${WINDOWS_CRASH_EXIT_CODES[code]} (exit code ${code}).`);
       }
-      this._running = false;
+      if (this.process === proc) this._running = false;
     });
     this.process.on('error', (err) => {
       mainError('NexusVfs', `Failed to start process: ${err.message}`);
-      this._running = false;
+      if (this.process === proc) this._running = false;
       this.emit('error', `Failed to start process: ${err.message}`);
     });
 
     mainLog('NexusVfs', `Waiting for nexus-vfs gRPC port ${this._port} to accept connections...`);
-    await this.waitForPortReady(this._port, NEXUS_VFS_START_TIMEOUT_MS);
-    const elapsed = Date.now() - spawnStart;
     try {
+      await this.waitForPortReady(this._port, NEXUS_VFS_START_TIMEOUT_MS);
       await this.waitForVfsZoneReady(NEXUS_VFS_ZONE_READY_TIMEOUT_MS);
       await this.waitForVaultServiceReady(NEXUS_VAULT_READY_TIMEOUT_MS);
+      if (!this.isOwnedProcessAlive()) throw new Error('The owned Nexus process exited during startup');
     } catch (err) {
-      await this.stop().catch(() => {});
+      await this.stopOwnedProcess();
       throw err;
     }
+    const elapsed = Date.now() - spawnStart;
     mainLog('NexusVfs', `nexus-vfs ready — port=${this._port} startup=${elapsed}ms`);
     this._running = true;
     this.emit('ready', `nexus-vfs ready on ${NEXUS_VFS_BIND_HOST}:${this._port}`);
   }
 
   async stop(): Promise<void> {
+    if (this.stopPromise) return this.stopPromise;
+    this.stopPromise = this.stopAfterStart().finally(() => {
+      this.stopPromise = null;
+    });
+    return this.stopPromise;
+  }
+
+  private async stopAfterStart(): Promise<void> {
+    await this.startPromise?.catch(() => {});
+    await this.stopOwnedProcess();
+  }
+
+  private async stopOwnedProcess(): Promise<void> {
     this._running = false;
     const proc = this.process;
-    if (proc && proc.exitCode === null && !proc.killed) {
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(() => {
-          if (proc.exitCode === null && !proc.killed) {
-            mainWarn('NexusVfs', 'SIGTERM timeout, sending SIGKILL');
-            proc.kill('SIGKILL');
-          }
-          resolve();
-        }, 3000);
-        proc.once('exit', () => {
+    if (proc && proc.exitCode === null && proc.signalCode === null) {
+      await new Promise<void>((resolve, reject) => {
+        let forceTimer: ReturnType<typeof setTimeout> | undefined;
+        const onExit = (): void => {
           clearTimeout(timer);
+          clearTimeout(forceTimer);
           resolve();
-        });
+        };
+        const timer = setTimeout(() => {
+          mainWarn('NexusVfs', 'SIGTERM timeout, sending SIGKILL to the owned process');
+          forceTimer = setTimeout(() => {
+            proc.off('exit', onExit);
+            reject(new Error('The owned Nexus process did not exit after SIGKILL'));
+          }, 3000);
+          proc.kill('SIGKILL');
+        }, 3000);
+        proc.once('exit', onExit);
         proc.kill('SIGTERM');
       });
     }
-    // Fallback: clear anything still bound to the port.
-    await this.forceKillProcessesOnPort(this._port || NEXUS_VFS_DEFAULT_PORT);
-    this.process = null;
+    if (this.process === proc) this.process = null;
   }
 
   /**
@@ -758,50 +767,17 @@ class DynamicNexusVfsService {
   }
 
   async checkActualRunning(): Promise<boolean> {
-    const port = this._port > 0 ? this._port : NEXUS_VFS_DEFAULT_PORT;
-    const listening = await this.isPortInUse(port);
-    if (listening) this._port = port;
-    this._running = listening;
-    return listening;
-  }
-
-  private async getPidsOnPort(port: number): Promise<string[]> {
+    if (this.startPromise || this.stopPromise) return false;
+    if (!this.isOwnedProcessAlive()) {
+      this._running = false;
+      return false;
+    }
     try {
-      if (this.isWindows) {
-        const { stdout } = await execAsync(`netstat -ano | findstr :${port} | findstr LISTENING`);
-        return stdout
-          .trim()
-          .split('\n')
-          .map((line) => line.trim().split(/\s+/).at(-1) ?? '')
-          .filter((pid) => /^\d+$/.test(pid) && pid !== '0' && pid !== String(process.pid));
-      }
-      // Do not include connected clients: one of them may be the Electron main process.
-      const { stdout } = await execAsync(`lsof -nP -a -iTCP:${port} -sTCP:LISTEN -t`);
-      return stdout
-        .trim()
-        .split('\n')
-        .map((pid) => pid.trim())
-        .filter((pid) => /^\d+$/.test(pid) && pid !== '0' && pid !== String(process.pid));
+      this._running = (await this.isPortInUse(this._port)) && Boolean((await getNexusRpcClient().serverInfo())?.zone_id);
     } catch {
-      return [];
+      this._running = false;
     }
-  }
-
-  private async forceKillProcessesOnPort(port: number): Promise<void> {
-    const pids = await this.getPidsOnPort(port);
-    if (pids.length === 0) return;
-    mainWarn('NexusVfs', `Force-killing processes on port ${port}: ${pids.join(',')}`);
-    for (const pid of pids) {
-      try {
-        if (this.isWindows) {
-          await execAsync(`taskkill /F /T /PID ${pid}`).catch(() => {});
-        } else {
-          await execAsync(`kill -9 ${pid}`).catch(() => {});
-        }
-      } catch {
-        // Process may already be gone.
-      }
-    }
+    return this._running;
   }
 }
 
