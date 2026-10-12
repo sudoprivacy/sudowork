@@ -2,7 +2,7 @@ import type { Pool } from 'pg'
 import type WebSocket from 'ws'
 import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
-import { getMossContext } from '../auth/authService.js'
+import { getMossContext, MossUnauthorizedError } from '../auth/authService.js'
 import { findPrincipalById, resolveSessionOwnerPrincipalId } from '../auth/principalRepository.js'
 import { requireAccessibleSession, SessionForbiddenError } from './conversationService.js'
 import type { WebSessionRow } from '../auth/sessionRepository.js'
@@ -317,6 +317,9 @@ export class ConversationCoordinator {
     const entry = this.entryFor(conn.principalId, conn.mossSessionId)
 
     try {
+      // An existing upstream socket does not retain a revoked management grant.
+      const authorized = await this.authorize(conn.webSession, entry.mossSessionId)
+      if (authorized.ownerPrincipalId !== conn.principalId) throw new SessionForbiddenError()
       if (msg.kind === 'send' || msg.kind === 'answer_question') {
         const acquired = await acquireWriteLock(this.deps.pool, {
           principalId: conn.principalId,
@@ -451,6 +454,21 @@ export class ConversationCoordinator {
         }
       }
     } catch (err) {
+      if (
+        err instanceof SessionForbiddenError ||
+        err instanceof MossUnauthorizedError ||
+        (err instanceof MossHttpError && (err.status === 401 || err.status === 403))
+      ) {
+        const isUnauthorized =
+          err instanceof MossUnauthorizedError ||
+          (err instanceof MossHttpError && err.status === 401)
+        this.sendTo(conn.ws, {
+          kind: 'error',
+          code: isUnauthorized ? 'MOSS_UNAUTHORIZED' : 'SESSION_FORBIDDEN',
+        })
+        conn.ws.close(1008, 'Session permission revoked')
+        return
+      }
       const known =
         err instanceof Error &&
         ['SESSION_NOT_FOUND', 'MOSS_UNAVAILABLE', 'UPSTREAM_OWNER_MISMATCH'].includes(err.message)
