@@ -1,4 +1,3 @@
-import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -19,6 +18,7 @@ import type { IAssistantInfo } from '@sudowork/common/assistantTypes';
 import { resolveLocaleKey, uuid } from '@sudowork/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@sudowork/common/acpTypes';
 import { parseHubError, type HubError } from '@sudowork/common/nexus/hubErrors';
+import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 import HubEmptyState from '@renderer/components/HubEmptyState';
 import { toBackendConfig, resolveAssistantName } from '@renderer/shared/agents/assistantAdapter';
 import Tabs from '@renderer/components/ui/Tabs';
@@ -27,6 +27,7 @@ import { isElectronDesktop, isWebBridgeAvailable } from '@renderer/utils/platfor
 import { useAuth } from '@renderer/context/AuthContext';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { emitter } from '@renderer/utils/emitter';
+import { clearGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import HubAssistantCard from './components/HubAssistantCard';
 import AssistantDetailModal from './components/AssistantDetailModal';
@@ -935,15 +936,23 @@ const AgentSettings: React.FC = () => {
     [hubAssistantList, hubDetailAssistant, isEnterprise, resolveAssistantVersionInfo, fetchInstalledAssistantNames, loadAssistants, refreshAgentDetection, t]
   );
 
+  const onUseAssistantReference = useCallback(
+    async (reference: string) => {
+      await refreshAgentDetection();
+      clearGuidDraft();
+      emitter.emit('guid.reset');
+      void navigate(`/guid?assistant=${encodeURIComponent(resolveAssistantName(reference))}`);
+    },
+    [navigate, refreshAgentDetection]
+  );
+
   // Go use installed assistant (navigate to guid page with assistant pre-selected)
   const handleGoUseHubAssistant = useCallback(async () => {
     if (!hubDetailAssistant) return;
     setHubDetailVisible(false);
 
-    const assistantReference = hubDetailAssistant.name;
-    await refreshAgentDetection();
-    void navigate(`/guid?assistant=${encodeURIComponent(assistantReference)}`);
-  }, [hubDetailAssistant, navigate, refreshAgentDetection]);
+    await onUseAssistantReference(hubDetailAssistant.name);
+  }, [hubDetailAssistant, onUseAssistantReference]);
 
   // Open duplicate confirm modal for hub assistant
   const handleOpenDuplicateModal = useCallback((assistant: IAssistantHubSkill) => {
@@ -1637,6 +1646,7 @@ const AgentSettings: React.FC = () => {
             onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
             uploadStatus={uploadStatus}
             onClick={() => void handleEdit(assistant)}
+            onUse={() => void onUseAssistantReference(assistant.id)}
             canManage={canManage}
             hideDelete={hideDelete}
             allowToggle={allowToggle}
@@ -1692,6 +1702,7 @@ const AgentSettings: React.FC = () => {
             onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
             hasUpdate={false}
             onClick={() => void handleEdit(assistant)}
+            onUse={() => void onUseAssistantReference(assistant.id)}
             canManage={canManage}
             enterprisePublishButton={enterprisePublishButton}
           />

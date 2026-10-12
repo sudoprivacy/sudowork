@@ -135,6 +135,7 @@ export default defineConfig({
         '../../packages/renderer/src/pages/my-agents/index.tsx',
         '../../packages/renderer/src/pages/guid/utils/personalAgentSelection.ts',
         '../../packages/renderer/src/pages/guid/hooks/useGuidEntryPrompt.ts',
+        '../../packages/renderer/src/pages/agents/components/InstalledAssistantCard.tsx',
         '../../packages/renderer/src/shared/agents/assistantReference.ts',
         '../../packages/common/src/personalAgents.ts',
         'src/process/services/mossPersonalAgents.ts',
