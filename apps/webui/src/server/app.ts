@@ -395,6 +395,30 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
             mossSessionId: decodeURIComponent(conversationMatch[1] ?? ''),
           }
           coordinator.subscribe(conn)
+          let isCheckingManagementAccess = false
+          const managementAccessTimer =
+            authorized.ownerPrincipalId !== webSession.principalId
+              ? setInterval(() => {
+                  if (isCheckingManagementAccess || ws.readyState !== ws.OPEN) return
+                  isCheckingManagementAccess = true
+                  void coordinator
+                    .authorize(webSession, conn.mossSessionId)
+                    .then((current) => {
+                      if (current.ownerPrincipalId !== conn.principalId)
+                        throw new SessionForbiddenError()
+                    })
+                    .catch(() => {
+                      if (ws.readyState === ws.OPEN) {
+                        ws.send(JSON.stringify({ kind: 'error', code: 'SESSION_FORBIDDEN' }))
+                        ws.close(1008, 'Session permission revoked')
+                      }
+                    })
+                    .finally(() => {
+                      isCheckingManagementAccess = false
+                    })
+                }, 5000)
+              : undefined
+          managementAccessTimer?.unref()
           ws.on('message', (data) => {
             let parsed: unknown
             try {
@@ -404,8 +428,14 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
             }
             void coordinator.handleClientMessage(conn, parsed)
           })
-          ws.on('close', () => void coordinator.unsubscribe(conn))
-          ws.on('error', () => void coordinator.unsubscribe(conn))
+          ws.on('close', () => {
+            clearInterval(managementAccessTimer)
+            void coordinator.unsubscribe(conn)
+          })
+          ws.on('error', () => {
+            clearInterval(managementAccessTimer)
+            void coordinator.unsubscribe(conn)
+          })
         })
         return
       }

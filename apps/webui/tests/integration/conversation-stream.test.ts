@@ -537,6 +537,21 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     }
   }, 20_000)
 
+  test('an idle management subscriber is disconnected after its grant is revoked', async () => {
+    isManagerSession = true
+    const ws = await browserWs(cookie1)
+    const events = collector(ws)
+    try {
+      managerActorId = 'another-manager'
+      await events.waitFor((event) => event.kind === 'error' && event.code === 'SESSION_FORBIDDEN')
+      await vi.waitFor(() => expect(ws.readyState).toBe(WebSocket.CLOSED))
+    } finally {
+      ws.close()
+      managerActorId = 'moss-a'
+      isManagerSession = false
+    }
+  }, 10_000)
+
   test.each([401, 403])(
     'Moss refusal %s blocks another turn on an established upstream socket',
     async (status) => {
