@@ -5,8 +5,10 @@ import { SWRConfig } from 'swr';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TChatConversation } from '@sudowork/common/storage';
 
-const state = vi.hoisted(() => ({ userId: 'user-a', sessionMode: 'remote', history: vi.fn(), agents: vi.fn(), onChanged: vi.fn(), emit: vi.fn(), listeners: new Map<string, () => void>() }));
-vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: { id: state.userId }, ready: true, status: 'authenticated' }) }));
+const state = vi.hoisted(() => ({ userId: 'user-a', isGuest: false, sessionMode: 'remote', history: vi.fn(), agents: vi.fn(), onChanged: vi.fn(), emit: vi.fn(), save: vi.fn(), listeners: new Map<string, () => void>() }));
+vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: { id: state.userId }, ready: true, status: state.isGuest ? 'guest' : 'authenticated', isGuest: state.isGuest }) }));
+vi.mock('@renderer/hooks/useAppMode', () => ({ useAppMode: () => ({ isEnterprise: !state.isGuest }) }));
+vi.mock('@sudowork/common/storage', () => ({ ConfigStorage: { set: state.save } }));
 vi.mock('@renderer/pages/guid/hooks/useGuidAgentSelection', () => ({ getRendererSessionMode: () => state.sessionMode }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   eeclaw: { getMyAgents: { invoke: state.agents } },
@@ -24,12 +26,14 @@ vi.mock('@renderer/pages/conversation/components/ConversationTitleMinimap', () =
 vi.mock('@renderer/pages/conversation/context/ConversationTabsContext', () => ({ useConversationTabs: () => ({ openTab: vi.fn() }) }));
 
 import AgentSessionHeader from '@renderer/pages/conversation/components/AgentSessionHeader';
+import NewConversationButton from '@renderer/pages/conversation/components/NewConversationButton';
 import { ConversationHistoryProvider, useConversationHistory } from '@renderer/pages/conversation/context/ConversationHistoryContext';
 
 const reference = 'moss-agent:own:agent-a';
 const agents = [
   { ref: reference, displayName: 'Renamed Agent', kind: 'own' },
   { ref: 'moss-agent:own:agent-b', displayName: 'Renamed Agent', kind: 'own' },
+  { ref: 'moss-agent:user:user-a', displayName: 'Personal default', kind: 'default' },
 ];
 function conversation(id: string, agentRef = reference, extra = {}): TChatConversation {
   return { id, name: `Session ${id}`, type: 'remote-agent', createTime: 1, modifyTime: id === 'current' ? 10 : 1, extra: { agentName: 'Old name', mossAssistantRef: agentRef, ...extra } } as TChatConversation;
@@ -43,6 +47,7 @@ function Page() {
   const id = location.pathname.split('/')[2];
   return (
     <>
+      <NewConversationButton onSessionClick={() => {}} />
       <AgentSessionHeader conversationId={id} title='Fallback title' />
       <output aria-label='route'>{location.pathname + location.search}</output>
       <HistoryReader label='sidebar history' />
@@ -69,15 +74,35 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   state.userId = 'user-a';
+  state.isGuest = false;
   state.sessionMode = 'remote';
   state.listeners.clear();
   state.onChanged.mockReturnValue(() => {});
+  state.save.mockResolvedValue(undefined);
   state.agents.mockResolvedValue({ success: true, data: agents });
   state.history.mockResolvedValue([conversation('current'), conversation('pinned', reference, { pinned: true }), conversation('other', agents[1].ref), conversation('scheduled', reference, { cronJobId: 'job' }), conversation('health', reference, { isHealthCheck: true })]);
 });
 afterEach(cleanup);
 
 describe('Agent session navigation', () => {
+  it('uses the personal default Agent for global New instead of retaining the current Agent', async () => {
+    renderPage();
+    const button = screen.getByRole('button', { name: 'conversation.welcome.newConversation' });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    expect(screen.getByLabelText('route')).toHaveTextContent(`/guid?assistant=${encodeURIComponent('moss-agent:user:user-a')}`);
+    expect(state.emit).toHaveBeenCalledExactlyOnceWith('guid.reset');
+    expect(state.save).toHaveBeenCalledWith('guid.lastSelectedAgent', '');
+  });
+
+  it('keeps offline New available without an online Agent catalogue', async () => {
+    state.isGuest = true;
+    renderPage();
+    await waitFor(() => expect(screen.getByLabelText('sidebar history')).toHaveTextContent('current'));
+    fireEvent.click(screen.getByRole('button', { name: 'conversation.welcome.newConversation' }));
+    expect(screen.getByLabelText('route').textContent).toBe('/guid');
+    expect(state.agents).not.toHaveBeenCalled();
+  });
   it('uses the current Agent name and offers its pinned history without another Agent or background runs', async () => {
     renderPage();
     await screen.findByText('Renamed Agent');

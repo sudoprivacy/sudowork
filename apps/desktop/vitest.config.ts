@@ -118,6 +118,7 @@ export default defineConfig({
         '../../packages/renderer/src/pages/conversation/utils/agentIdentity.ts',
         '../../packages/renderer/src/pages/conversation/context/ConversationHistoryContext.tsx',
         '../../packages/renderer/src/pages/conversation/components/AgentSessionHeader.tsx',
+        '../../packages/renderer/src/pages/conversation/components/NewConversationButton.tsx',
         '../../packages/common/src/types/tenantConfig.ts',
         '../../packages/renderer/src/components/TenantLogo.tsx',
         '../../packages/renderer/src/layouts/components/UpdateModal.tsx',
