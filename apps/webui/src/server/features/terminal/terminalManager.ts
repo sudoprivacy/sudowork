@@ -1,16 +1,4 @@
-/**
- * 服务器端终端管理（对齐 Sudowork terminalBridge 的语义，Apache-2.0, Copyright 2026 SudoPrivacy）。
- * - shell 选择对齐 Sudowork：win=%ComSpec%（默认 cmd.exe），其他=$SHELL（默认 /bin/bash）
- * - cwd：每会话独立的服务器临时目录（webui 服务器上没有会话工作区——Moss 会话工作区在 Moss 服务器上）
- * - 上限对齐 Sudowork：全局 50（terminalBridge GLOBAL_PTY_HARD_LIMIT）、每会话 10
- *   （TerminalPanel PER_CONV_TAB_LIMIT，Sudowork 在 renderer 层限制，此处在 manager 层实现同等值）
- * - 生命周期：关闭终端/WS 断开即销毁 pty；会话 DELETE 时关闭该会话全部 pty（对齐 closeByConversation）
- */
-import { mkdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import pty from '@lydell/node-pty'
 
 const GLOBAL_HARD_LIMIT = 50
 const PER_CONVERSATION_LIMIT = 10
@@ -29,21 +17,30 @@ export class TerminalLimitError extends Error {
   }
 }
 
-function defaultShell(): string {
-  if (process.platform === 'win32') {
-    return process.env.ComSpec ?? 'cmd.exe'
+export class TerminalUnavailableError extends Error {
+  constructor() {
+    super('The Agent runtime does not provide a remote terminal')
   }
-  return process.env.SHELL ?? '/bin/bash'
 }
 
+export type TerminalFactory = (
+  conversationId: string,
+  onOutput: (data: string) => void,
+  onExit: () => void,
+) => Omit<TerminalSession, 'terminalId' | 'conversationId'>
+
+/** Track runtime terminals without starting a shell on the WebUI host. */
 export class TerminalManager {
   private terminals = new Map<string, TerminalSession>()
+
+  constructor(private readonly openTerminal?: TerminalFactory) {}
 
   create(
     conversationId: string,
     onOutput: (data: string) => void,
     onExit: () => void,
   ): TerminalSession {
+    if (!this.openTerminal) throw new TerminalUnavailableError()
     if (this.terminals.size >= GLOBAL_HARD_LIMIT) {
       throw new TerminalLimitError('GLOBAL_LIMIT')
     }
@@ -56,52 +53,29 @@ export class TerminalManager {
     }
 
     const terminalId = randomUUID()
-    const cwd = join(tmpdir(), 'sudowork-webui-terminal', conversationId)
-    try {
-      mkdirSync(cwd, { recursive: true })
-    } catch {
-      // 目录创建失败时退回系统临时目录
-    }
-    const proc = pty.spawn(defaultShell(), [], {
-      name: 'xterm-256color',
-      // 初始 120x30 对齐 Sudowork terminalBridge（前端 fit 后会发 resize 帧校正）
-      cols: 120,
-      rows: 30,
-      cwd,
-      env: process.env as Record<string, string>,
+    let isDisposed = false
+    const terminal = this.openTerminal(conversationId, onOutput, () => {
+      isDisposed = true
+      this.terminals.delete(terminalId)
+      onExit()
     })
     const session: TerminalSession = {
       terminalId,
       conversationId,
       write: (data) => {
-        try {
-          proc.write(data)
-        } catch {
-          /* 进程已退出 */
-        }
+        if (!isDisposed) terminal.write(data)
       },
       resize: (cols, rows) => {
-        try {
-          proc.resize(cols, rows)
-        } catch {
-          /* 进程已退出 */
-        }
+        if (!isDisposed) terminal.resize(cols, rows)
       },
       dispose: () => {
+        if (isDisposed) return
+        isDisposed = true
         this.terminals.delete(terminalId)
-        try {
-          proc.kill()
-        } catch {
-          /* 已退出 */
-        }
+        terminal.dispose()
       },
     }
-    proc.onData(onOutput)
-    proc.onExit(() => {
-      this.terminals.delete(terminalId)
-      onExit()
-    })
-    this.terminals.set(terminalId, session)
+    if (!isDisposed) this.terminals.set(terminalId, session)
     return session
   }
 

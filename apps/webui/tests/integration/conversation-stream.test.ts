@@ -15,7 +15,7 @@ import { createWebSession } from '@server/features/auth/sessionRepository.js'
 import { digestToken, generateSessionToken } from '@server/security/sessionToken.js'
 import { encryptToken } from '@server/security/tokenCipher.js'
 import { createTestDatabase, destroyTestDatabase } from './helpers'
-import type { TerminalManager } from '@server/features/terminal/terminalManager.js'
+import { TerminalManager } from '@server/features/terminal/terminalManager.js'
 
 const HMAC_KEY = Buffer.from('integration-test-hmac-key-32-bytes-ok!')
 const AES_KEY = Buffer.alloc(32, 7)
@@ -95,6 +95,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   const upstreamAuthHeaders: string[] = []
   const terminalWrites: string[] = []
   let terminalDisposals = 0
+  let isRemoteTerminalAvailable = true
 
   function browserWs(cookie: string): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
@@ -287,6 +288,12 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     browserServer = createServer(app)
     const terminals = {
       create(conversationId: string) {
+        if (!isRemoteTerminalAvailable)
+          return new TerminalManager().create(
+            conversationId,
+            () => {},
+            () => {},
+          )
         return {
           terminalId: 'fixture-terminal',
           conversationId,
@@ -587,6 +594,23 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       }
     },
   )
+
+  test('a terminal without an owner-runtime provider is refused explicitly', async () => {
+    isRemoteTerminalAvailable = false
+    const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/terminal?conversation=${SID}`, {
+      headers: { cookie: cookie1, origin: 'http://localhost:5273' },
+    })
+    const events = collector(ws)
+    try {
+      await events.waitFor(
+        (event) => event.type === 'error' && event.code === 'REMOTE_TERMINAL_UNAVAILABLE',
+      )
+      await vi.waitFor(() => expect(ws.readyState).toBe(WebSocket.CLOSED))
+    } finally {
+      ws.close()
+      isRemoteTerminalAvailable = true
+    }
+  })
 
   test('terminal frames ignore JSON null, preserve input order and stop after a management grant is revoked', async () => {
     isManagerSession = true

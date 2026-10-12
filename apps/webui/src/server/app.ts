@@ -55,6 +55,7 @@ import { createMcpRouter } from './features/mcp/mcpRoutes.js'
 import {
   TerminalManager,
   TerminalLimitError,
+  TerminalUnavailableError,
   type TerminalSession,
 } from './features/terminal/terminalManager.js'
 
@@ -473,7 +474,12 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
         } catch (err) {
           send({
             type: 'error',
-            code: err instanceof TerminalLimitError ? err.reason : 'TERMINAL_FAILED',
+            code:
+              err instanceof TerminalLimitError
+                ? err.reason
+                : err instanceof TerminalUnavailableError
+                  ? 'REMOTE_TERMINAL_UNAVAILABLE'
+                  : 'TERMINAL_FAILED',
           })
           ws.close()
           return
