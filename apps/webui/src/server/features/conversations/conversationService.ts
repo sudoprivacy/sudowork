@@ -1,8 +1,10 @@
 import { z } from 'zod'
+import { isSessionAccessible } from './sessionAccess.js'
 import type { Pool } from 'pg'
 import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
 import type { Principal } from '../auth/principalRepository.js'
+import { resolveSessionOwnerPrincipalId } from '../auth/principalRepository.js'
 import type { MossCallContext, MossSessionPort } from '@sudowork/moss-client'
 import {
   type MossAsset,
@@ -16,6 +18,7 @@ import type {
   ConversationModelResponse,
   CreateConversationRequest,
   UserModelResponse,
+  MossSessionSummary,
 } from '@sudowork/contracts/conversations'
 import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib'
 import type { TMessage } from '@sudowork/common/chatLib'
@@ -31,7 +34,7 @@ import {
 
 /**
  * 会话服务（计划 3.3/3.10）：
- * - 列表/单项访问强制过滤 session.userId === 当前 moss_user_id
+ * - List and individual access share the owner/verified management actor boundary.
  * - Agent/Skill 提交前重新核验当前可见列表（不接受浏览器自造名字）
  * - 浏览器 DTO 严格白名单：不出 ws_url/work_dir/cwd/fullPath/Moss origin
  */
@@ -147,11 +150,9 @@ export async function listConversations(
   ctx: MossCallContext,
 ): Promise<ConversationListItem[]> {
   const sessions = await mapMossErrors(() => deps.moss.list(ctx))
-  // 强制过滤：即使 token 带 sessions:list:any 也只返回本人会话（计划 3.3）；
-  // 并过滤 terminated（部署版实测 terminate 后 list 仍返回该会话，不过滤则用户视角「删除无效」）
+  // A management actor sees only the sessions they initiated through Moss.
   const visible = sessions.filter(
-    (s) =>
-      s.userId === principal.mossUserId && s.orgId === principal.orgId && s.status !== 'terminated',
+    (s) => isSessionAccessible(s, principal) && s.status !== 'terminated',
   )
   const metaMap = await getConversationMetaMap(
     deps.pool,
@@ -166,6 +167,18 @@ export async function listConversations(
       status: s.status,
       assistantName: s.assistantName ?? null,
       source: s.source ?? null,
+      managementContext:
+        s.source === 'agent-manager' &&
+        typeof s.clientMetadata?.agent_manager_agent_name === 'string' &&
+        typeof s.clientMetadata?.agent_manager_display_name === 'string' &&
+        typeof s.clientMetadata?.agent_manager_owner_name === 'string'
+          ? {
+              ownerId: s.userId,
+              ownerName: s.clientMetadata.agent_manager_owner_name,
+              agentName: s.clientMetadata.agent_manager_agent_name,
+              displayName: s.clientMetadata.agent_manager_display_name,
+            }
+          : null,
       createdAt:
         typeof (s as { createdAt?: unknown }).createdAt === 'number'
           ? (s as { createdAt?: number }).createdAt!
@@ -214,17 +227,18 @@ export async function createConversation(
 }
 
 /** 计划 3.3：打开会话先重新查询该 Session 并校验归属。 */
-export async function requireOwnSession(
-  deps: ConversationDeps,
+export async function requireAccessibleSession(
+  deps: Pick<ConversationDeps, 'moss'>,
   principal: Principal,
   sessionId: string,
   ctx: MossCallContext,
-): Promise<void> {
+): Promise<MossSessionSummary> {
   const session = await mapMossErrors(() => deps.moss.get(ctx, sessionId))
   if (!session) throw new SessionNotFoundError()
-  if (session.userId !== principal.mossUserId || session.orgId !== principal.orgId) {
+  if (!isSessionAccessible(session, principal)) {
     throw new SessionForbiddenError()
   }
+  return session
 }
 
 /**
@@ -263,7 +277,7 @@ export async function getConversationModel(
   sessionId: string,
   ctx: MossCallContext,
 ): Promise<ConversationModelResponse> {
-  await requireOwnSession(deps, principal, sessionId, ctx)
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
   const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
   return { modelId: meta?.modelId ?? null }
 }
@@ -279,7 +293,7 @@ export async function getContext(
   modelId: string | null
   messages: TMessage[]
 }> {
-  await requireOwnSession(deps, principal, sessionId, ctx)
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
   const localMeta = async (): Promise<{ title: string | null; modelId: string | null }> => {
     const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
     return { title: meta?.title ?? null, modelId: meta?.modelId ?? null }
@@ -326,9 +340,12 @@ export async function terminateConversation(
   sessionId: string,
   ctx: MossCallContext,
 ): Promise<void> {
-  await requireOwnSession(deps, principal, sessionId, ctx)
+  const session = await requireAccessibleSession(deps, principal, sessionId, ctx)
   await mapMossErrors(() => deps.moss.terminate(ctx, sessionId))
-  await deps.coordinator.terminate(principal.id, sessionId)
+  await deps.coordinator.terminate(
+    await resolveSessionOwnerPrincipalId(deps.pool, principal, session.userId),
+    sessionId,
+  )
 }
 
 /** meta 更新（重命名/置顶，写本地表；Moss 无对应 API） */
@@ -339,7 +356,7 @@ export async function updateConversationMeta(
   ctx: MossCallContext,
   update: { title?: string; pinned?: boolean },
 ): Promise<void> {
-  await requireOwnSession(deps, principal, sessionId, ctx)
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
   await updateConversationMetaRow(deps.pool, principal.id, sessionId, update)
 }
 
@@ -362,9 +379,12 @@ export async function deleteConversation(
   sessionId: string,
   ctx: MossCallContext,
 ): Promise<void> {
-  await requireOwnSession(deps, principal, sessionId, ctx)
+  const session = await requireAccessibleSession(deps, principal, sessionId, ctx)
   await mapMossErrors(() => deps.moss.terminate(ctx, sessionId))
-  await deps.coordinator.terminate(principal.id, sessionId)
+  await deps.coordinator.terminate(
+    await resolveSessionOwnerPrincipalId(deps.pool, principal, session.userId),
+    sessionId,
+  )
   await deleteConversationMetaRow(deps.pool, principal.id, sessionId)
   deps.closeTerminals?.(sessionId)
 }
@@ -516,7 +536,7 @@ export async function getWorkspaceTree(
   ctx: MossCallContext,
   search = '',
 ): Promise<unknown> {
-  await requireOwnSession(deps, principal, sessionId, ctx)
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
   const tree = await mapMossErrors(
     () => deps.moss.workspaceTree(ctx, sessionId, path, search),
     false,
@@ -541,7 +561,7 @@ export async function getWorkspaceFile(
   path: string,
   ctx: MossCallContext,
 ): Promise<unknown> {
-  await requireOwnSession(deps, principal, sessionId, ctx)
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
   return mapMossErrors(() => deps.moss.workspaceFileGet(ctx, sessionId, path), false)
 }
 
@@ -553,7 +573,7 @@ export async function uploadWorkspaceFile(
   contentBase64: string,
   ctx: MossCallContext,
 ): Promise<unknown> {
-  await requireOwnSession(deps, principal, sessionId, ctx)
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
   const decodedBytes = Math.floor((contentBase64.length * 3) / 4)
   if (decodedBytes > deps.config.upload.maxFileBytes) {
     throw new Error('FILE_TOO_LARGE')

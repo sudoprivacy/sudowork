@@ -98,6 +98,7 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/common/src/loginReturnPath.ts',
         '../../packages/renderer/src/pages/conversation/utils/agentIdentity.ts',
         '../../packages/renderer/src/pages/conversation/context/ConversationHistoryContext.tsx',
         '../../packages/renderer/src/pages/conversation/components/AgentSessionHeader.tsx',

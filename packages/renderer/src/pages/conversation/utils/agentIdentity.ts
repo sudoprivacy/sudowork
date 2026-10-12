@@ -7,6 +7,7 @@ import type { IMyAgent } from '@sudowork/common/personalAgents';
 /** Resolve identity before display names, including unambiguous legacy templates. */
 export function getConversationAgentRef(conversation: TChatConversation, listedReferences: ReadonlySet<string>): string | undefined {
   const extra = conversation.extra;
+  if (extra?.agentManagement) return `moss-managed:${extra.agentManagement.ownerId}:${extra.agentManagement.agentName}`;
   for (const reference of [extra?.mossAssistantRef, extra?.presetAssistantId]) {
     if (typeof reference === 'string' && (isPersonalAgentRef(reference) || listedReferences.has(reference))) return reference;
   }
@@ -31,6 +32,7 @@ export function getLatestAgentConversation(conversations: TChatConversation[], r
 
 /** Prefer the current catalog name without presenting an internal personal reference. */
 export function getConversationAgentName(conversation: TChatConversation, agents: IMyAgent[], fallback: string): string {
+  if (conversation.extra?.agentManagement) return conversation.extra.agentManagement.displayName;
   const reference = getConversationAgentRef(conversation, new Set(agents.map((agent) => agent.ref)));
   const name = agents.find((agent) => agent.ref === reference)?.displayName;
   if (name) return name;

@@ -21,6 +21,7 @@ export const MossSessionSummarySchema = z
     status: z.string(),
     assistantName: z.string().nullable().optional(),
     source: z.string().nullable().optional(),
+    clientMetadata: z.record(z.unknown()).optional(),
   })
   .passthrough()
 export type MossSessionSummary = z.infer<typeof MossSessionSummarySchema>
@@ -126,6 +127,15 @@ export const ConversationListItemSchema = z.object({
   status: z.string(),
   assistantName: z.string().nullable(),
   source: z.string().nullable(),
+  managementContext: z
+    .object({
+      ownerId: z.string(),
+      ownerName: z.string(),
+      agentName: z.string(),
+      displayName: z.string(),
+    })
+    .nullable()
+    .optional(),
   /** 上游 epoch 毫秒时间戳（会话创建时间，moss sessions 列表 passthrough 字段）；未知时为 null */
   createdAt: z.number().nullable(),
   /** 上游 epoch 毫秒时间戳；未知时为 null */

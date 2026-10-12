@@ -7,7 +7,7 @@
  */
 import { MossHttpError, type MossCallContext } from '@sudowork/moss-client'
 import type { ConversationDeps } from './conversationService.js'
-import { requireOwnSession } from './conversationService.js'
+import { requireAccessibleSession } from './conversationService.js'
 
 /** 文件写入类工具名 → kind（部署版实测 write_file；新增工具按实测补充） */
 const WRITE_TOOLS = new Map<string, 'create' | 'edit'>([
@@ -83,11 +83,11 @@ function mimeOf(ext: string): string {
 
 export async function getDeliverables(
   deps: ConversationDeps,
-  principal: Parameters<typeof requireOwnSession>[1],
+  principal: Parameters<typeof requireAccessibleSession>[1],
   sessionId: string,
   ctx: MossCallContext,
 ): Promise<{ items: DeliverableItem[] }> {
-  await requireOwnSession(deps, principal, sessionId, ctx)
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
 
   const [contextJson, treeJson] = await Promise.all([
     deps.moss.context(ctx, sessionId).catch((err: unknown) => {
