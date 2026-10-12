@@ -28,7 +28,9 @@ document.querySelector('form').onsubmit=async(e)=>{e.preventDefault();await fetc
 
 describe('real browser wrapper migration', () => {
   it.each(['ai-dev-browser', 'sudohand'])('%s: discover → reserve → capture → reload, with correlated results', async (backend) => {
-    expect(process.env.SUDOWORK_SUDOHAND_PATH, 'Set SUDOWORK_SUDOHAND_PATH to the pinned suh binary').toBeTruthy();
+    if (backend === 'sudohand') {
+      expect(process.env.SUDOWORK_SUDOHAND_PATH, 'Set SUDOWORK_SUDOHAND_PATH to the pinned suh binary').toBeTruthy();
+    }
     const receipts: { name: string; trusted: boolean; id: string }[] = [];
     const fixture = createServer((req, res) => {
       if (req.url === '/reserve' && req.method === 'POST') {
