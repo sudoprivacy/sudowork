@@ -92,6 +92,11 @@ export function initInitBridge(): void {
     ipcBridge.init.onStatusChange.emit(status);
   });
 
+  // The renderer is loaded before backend initialization so its first status
+  // request can arrive before this provider exists. The bridge library leaves
+  // that request pending, so replay the current snapshot to any early subscriber.
+  ipcBridge.init.onStatusChange.emit(initStatusManager.getStatus());
+
   // Quit the entire application
   ipcBridge.init.quitApp.provider(() => {
     app.exit(0);

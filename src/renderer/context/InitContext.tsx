@@ -4,8 +4,36 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { init, type InitStatus } from '@/common/ipcBridge';
+import { markAppModeBridgeReady } from '@/renderer/hooks/useAppMode';
+
+const STATUS_REQUEST_TIMEOUT_MS = 5000;
+const STATUS_RETRY_DELAY_MS = 500;
+const MAX_STATUS_REQUEST_ATTEMPTS = 3;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(`Initialization status request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    );
+  });
+}
+
+function wait(delayMs: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, delayMs));
+}
 
 interface InitContextValue {
   status: InitStatus;
@@ -27,54 +55,68 @@ export const InitProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [status, setStatus] = useState<InitStatus>(isElectron ? { phase: 'pending', message: '准备初始化...', progress: 0 } : { phase: 'ready', message: '初始化完成', progress: 100 });
   const [hasResolvedInitialStatus, setHasResolvedInitialStatus] = useState(!isElectron);
   const [isInitScreenSkipped, setIsInitScreenSkipped] = useState(false);
+  const statusRequestGenerationRef = useRef(0);
+
+  const onStatusResolved = useCallback((newStatus: InitStatus) => {
+    statusRequestGenerationRef.current += 1;
+    markAppModeBridgeReady();
+    setStatus(newStatus);
+    setHasResolvedInitialStatus(true);
+  }, []);
 
   const refetch = useCallback(async () => {
-    let retries = 0;
-    const maxRetries = 10;
-    const baseDelay = 500;
+    const requestGeneration = statusRequestGenerationRef.current + 1;
+    statusRequestGenerationRef.current = requestGeneration;
+    let lastError: Error | null = null;
 
-    const attempt = async () => {
+    for (let attempt = 1; attempt <= MAX_STATUS_REQUEST_ATTEMPTS; attempt += 1) {
       try {
-        const result = await init.getStatus.invoke();
+        const result = await withTimeout(init.getStatus.invoke(), STATUS_REQUEST_TIMEOUT_MS);
+        if (statusRequestGenerationRef.current !== requestGeneration) return;
+
         if (result.success) {
+          markAppModeBridgeReady();
           setStatus(result.data);
           setHasResolvedInitialStatus(true);
-          return true;
+          return;
         }
-      } catch (err) {
-        if (retries < maxRetries) {
-          const delay = baseDelay * Math.pow(1.2, retries);
-          retries++;
-          // console.warn(`[InitContext] Bridge not ready, retrying in ${Math.round(delay)}ms... (${retries}/${maxRetries})`);
-          setTimeout(() => {
-            void attempt();
-          }, delay);
-          return false;
-        }
-        console.error('[InitContext] Failed to fetch status after retries:', err);
+        lastError = new Error(result.msg || 'Initialization status request was unsuccessful');
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
       }
-      return false;
-    };
 
-    void attempt();
+      if (attempt < MAX_STATUS_REQUEST_ATTEMPTS) {
+        await wait(STATUS_RETRY_DELAY_MS);
+        if (statusRequestGenerationRef.current !== requestGeneration) return;
+      }
+    }
+
+    if (statusRequestGenerationRef.current === requestGeneration) {
+      console.error('[InitContext] Failed to fetch status after retries:', lastError);
+    }
   }, []);
 
   useEffect(() => {
     // For Web environment, we don't need to poll or subscribe to backend init status
     // because the backend is already running on the server.
-    if (!isElectron) return;
+    if (!isElectron) {
+      markAppModeBridgeReady();
+      return;
+    }
 
     // Fetch initial status
     void refetch();
 
     // Subscribe to status changes
     const unsubscribe = init.onStatusChange.on((newStatus: InitStatus) => {
-      setStatus(newStatus);
-      setHasResolvedInitialStatus(true);
+      onStatusResolved(newStatus);
     });
 
-    return unsubscribe;
-  }, [refetch, isElectron]);
+    return () => {
+      statusRequestGenerationRef.current += 1;
+      unsubscribe();
+    };
+  }, [isElectron, onStatusResolved, refetch]);
 
   useEffect(() => {
     if (status.phase === 'ready' && isInitScreenSkipped) {

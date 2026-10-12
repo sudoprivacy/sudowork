@@ -4,65 +4,85 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getAppMode, setAppMode } from '@/common/eeclawMode';
 
-// Pre-initialize app mode on module load (avoids first-frame flash)
-// Follows the same early-initialization pattern as useTheme.ts
-let initialModePromise: Promise<'c' | 'e'> | null = null;
-let initialModeResolved = false;
-let appModeWasNull = false; // true when ConfigStorage had no appMode (true new user)
-let cachedMode: 'c' | 'e' | null = null; // cache for synchronous access
+let initialModePromise: Promise<void> | null = null;
+let isInitialModeResolved = false;
+let isAppModeMissing = false;
+let isAppModeBridgeReady = false;
+let cachedMode: 'c' | 'e' | null = null;
+const appModeBridgeListeners = new Set<() => void>();
 
-if (typeof window !== 'undefined') {
+function onAppModeBridgeReadyChange(onStoreChange: () => void): () => void {
+  appModeBridgeListeners.add(onStoreChange);
+  return () => appModeBridgeListeners.delete(onStoreChange);
+}
+
+function getAppModeBridgeReadySnapshot(): boolean {
+  return isAppModeBridgeReady;
+}
+
+export function markAppModeBridgeReady(): void {
+  if (isAppModeBridgeReady) return;
+  isAppModeBridgeReady = true;
+  for (const onStoreChange of appModeBridgeListeners) {
+    onStoreChange();
+  }
+}
+
+function initializeAppMode(): Promise<void> {
+  if (initialModePromise) return initialModePromise;
+
   initialModePromise = getAppMode()
     .then((mode) => {
-      initialModeResolved = true;
       cachedMode = mode ?? 'c';
-      appModeWasNull = mode === null; // null = new user who never chose a mode
+      isAppModeMissing = mode === null;
+
       // Old user upgrade: has sudowork_auth_v2 but no appMode → auto-set 'c'
       if (mode === null && localStorage.getItem('sudowork_auth_v2')) {
-        setAppMode('c').catch((e) => {
-          console.error('[useAppMode] Failed to auto-set consumer mode for upgrading user:', e);
+        void setAppMode('c').catch((error) => {
+          console.error('[useAppMode] Failed to auto-set consumer mode for upgrading user:', error);
         });
       }
-      return cachedMode;
-      // getAppMode() returns null for new users, fallback to 'c'
-      // needsSetup is determined by appModeWasNull, not by the mode value itself
     })
     .catch((error) => {
       console.error('[useAppMode] Failed to get initial mode:', error);
-      initialModeResolved = true;
       cachedMode = 'c';
-      return 'c' as const;
+      isAppModeMissing = false;
+    })
+    .finally(() => {
+      isInitialModeResolved = true;
     });
+
+  return initialModePromise;
 }
 
-export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSetup: boolean } {
-  const [mode, setMode] = useState<'c' | 'e'>(() => {
-    // Use cached mode if already resolved, otherwise default to 'c'
-    // 如果已解析则使用缓存模式，否则默认 'c'
-    if (cachedMode !== null) {
-      return cachedMode;
-    }
-    return 'c'; // safe default
-  });
+function getAppModeState(): IAppModeState {
+  const mode = cachedMode ?? 'c';
+  const isSetupNeeded = isInitialModeResolved && isAppModeMissing && typeof window !== 'undefined' && !localStorage.getItem('sudowork_auth_v2');
+  return { mode, isEnterprise: mode === 'e', isSetupNeeded, isModeResolved: isInitialModeResolved };
+}
+
+export function useAppMode(): IAppModeState {
+  const isBridgeReady = useSyncExternalStore(onAppModeBridgeReadyChange, getAppModeBridgeReadySnapshot, () => false);
+  const [appModeState, setAppModeState] = useState<IAppModeState>(getAppModeState);
 
   useEffect(() => {
-    void initialModePromise?.then((resolvedMode) => {
-      setMode(resolvedMode);
+    if (!isBridgeReady || appModeState.isModeResolved) return;
+
+    let isCancelled = false;
+    void initializeAppMode().then(() => {
+      if (!isCancelled) {
+        setAppModeState(getAppModeState());
+      }
     });
-  }, []);
+    return () => {
+      isCancelled = true;
+    };
+  }, [appModeState.isModeResolved, isBridgeReady]);
 
-  const isEnterprise = mode === 'e';
-
-  // needsSetup: whether to show ModeSetup (new user first launch)
-  // Uses appModeWasNull to determine: ConfigStorage has no appMode = true new user
-  // Old user upgrade scenario: appMode null + sudowork_auth_v2 exists → main.tsx auto-sets 'c'
-  // After restart: appMode = 'c' → appModeWasNull = false → needsSetup = false
-  const needsSetup = initialModeResolved && appModeWasNull && typeof window !== 'undefined' && !localStorage.getItem('sudowork_auth_v2');
-
-  return { mode, isEnterprise, needsSetup };
+  return appModeState;
 }
 
 /**
@@ -70,7 +90,7 @@ export function useAppMode(): { mode: 'c' | 'e'; isEnterprise: boolean; needsSet
  * Used in main.tsx guard to prevent first-frame flash.
  */
 export function isModeResolved(): boolean {
-  return initialModeResolved;
+  return isInitialModeResolved;
 }
 
 /**
@@ -78,4 +98,11 @@ export function isModeResolved(): boolean {
  */
 export function getCachedMode(): 'c' | 'e' | null {
   return cachedMode;
+}
+
+interface IAppModeState {
+  mode: 'c' | 'e';
+  isEnterprise: boolean;
+  isSetupNeeded: boolean;
+  isModeResolved: boolean;
 }

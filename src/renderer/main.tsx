@@ -11,7 +11,7 @@ import OptInDialog from '@/renderer/pages/settings/system/components/OptInDialog
 import ModeSetup from '@renderer/pages/setup/ModeSetup';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useInit } from '@renderer/context/InitContext';
-import { useAppMode, isModeResolved } from '@renderer/hooks/useAppMode';
+import { useAppMode } from '@renderer/hooks/useAppMode';
 import Layout from '@renderer/layouts/layout';
 import Router from '@renderer/router';
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary';
@@ -38,7 +38,7 @@ async function fetchSystemConfigAndSync(): Promise<SystemConfig | null> {
 const Main = () => {
   const { ready: authReady } = useAuth();
   const { status, isReady: initReady, hasResolvedInitialStatus, isInitScreenSkipped } = useInit();
-  const { needsSetup, isEnterprise } = useAppMode();
+  const { isSetupNeeded, isEnterprise, isModeResolved } = useAppMode();
 
   // Product improvement opt-in dialog state (shown only on first install for new users)
   const [isOptInDialogOpen, setIsOptInDialogOpen] = useState(false);
@@ -112,18 +112,18 @@ const Main = () => {
 
   // Wait for useAppMode async initialization to prevent first-frame flash
   // (e.g. new user seeing Router briefly before ModeSetup appears)
-  if (!isModeResolved()) {
+  if (!isModeResolved) {
     return <AppLoader text='正在加载...' />;
   }
 
   // New user: show ModeSetup (first-time mode selection)
-  if (needsSetup) {
+  if (isSetupNeeded) {
     return <ModeSetup />;
   }
 
   // Show InitLoading until services are ready.
   // No separate AppLoader for "正在准备运行环境" — it caused a flash
-  // when isModeResolved() resolved before primeStatusForStartup() set displayMode.
+  // when app mode resolved before primeStatusForStartup() set displayMode.
   if (!initReady && !isInitScreenSkipped) {
     return <InitLoading variant={status.displayMode === 'startup' ? 'startup' : 'full'} />;
   }
