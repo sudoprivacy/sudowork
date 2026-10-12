@@ -13,6 +13,11 @@
       "bun": "./src/MossAgentClient.ts",
       "types": "./dist/MossAgentClient.d.ts",
       "default": "./dist/MossAgentClient.js"
+    },
+    "./external-providers": {
+      "bun": "./src/MossExternalProviderClient.ts",
+      "types": "./dist/MossExternalProviderClient.d.ts",
+      "default": "./dist/MossExternalProviderClient.js"
     }
   },
   "files": [

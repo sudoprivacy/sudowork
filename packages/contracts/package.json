@@ -18,6 +18,11 @@
       "bun": "./src/conversations.ts",
       "types": "./dist/conversations.d.ts",
       "default": "./dist/conversations.js"
+    },
+    "./external-provider": {
+      "bun": "./src/external-provider.gen.ts",
+      "types": "./dist/external-provider.gen.d.ts",
+      "default": "./dist/external-provider.gen.js"
     }
   },
   "files": [

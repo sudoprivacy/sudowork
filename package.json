@@ -20,7 +20,8 @@
     "type:check": "bun run --filter sudowork type:check && bun run --filter '@sudowork/renderer' type:check",
     "format": "bun run --filter sudowork format",
     "format:check": "bun run --filter sudowork format:check",
-    "test": "bun run --filter sudowork test"
+    "test": "bun run --filter sudowork test",
+    "check:external-contract": "node scripts/check-external-contract.mjs"
   },
   "license": "Apache-2.0",
   "resolutions": {
