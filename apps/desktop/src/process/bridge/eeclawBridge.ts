@@ -17,6 +17,24 @@ import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
 
+function readNonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function isMachineErrorCode(value: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9_.:-]*$/.test(value);
+}
+
+function normalizeLoginFailure(data: unknown): { error: string; msg?: string } {
+  const body = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const code = readNonEmptyString(body.code);
+  const error = readNonEmptyString(body.error);
+  const message = readNonEmptyString(body.msg) ?? readNonEmptyString(body.message);
+  if (message) return { error: code ?? error ?? 'login_failed', msg: message };
+  if (error && !isMachineErrorCode(error)) return { error: code ?? 'auth_request_rejected', msg: error };
+  return { error: code ?? error ?? 'login_failed' };
+}
+
 // Serializes every mutation of eeclaw.authStorage (login, logout, refresh).
 // Without this, a logout/login race can persist an already-revoked token as
 // "current", permanently breaking session resume (see issue #849).
@@ -364,8 +382,7 @@ export function initEeclawBridge(): void {
       if (!response.ok) {
         return {
           success: false,
-          error: (data?.code || data?.error || 'login_failed') as string,
-          msg: (data?.msg || data?.message) as string | undefined,
+          ...normalizeLoginFailure(data),
           data: undefined,
         };
       }

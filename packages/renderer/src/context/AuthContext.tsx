@@ -1301,7 +1301,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               ? 'login.errors.localSetup'
               : result.code === 'invalidCredentials'
                 ? 'login.errors.invalidCredentials'
-                : result.code === 'invalidResponse'
+                : result.code === 'invalidResponse' || result.code === 'authRejected'
                   ? 'login.errors.serverError'
                   : 'login.errors.networkError';
       return { success: false, code: result.code, message: result.message || t(messageKey) };
