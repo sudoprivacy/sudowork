@@ -5,6 +5,7 @@
  */
 
 import React, { Suspense } from 'react';
+import { loginReturnPath } from '@sudowork/common/loginReturnPath';
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
@@ -112,7 +113,7 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   }
 
   if (status !== 'authenticated' && status !== 'guest') {
-    return <Navigate to='/login' replace />;
+    return <Navigate to='/login' replace state={{ returnTo: location.pathname }} />;
   }
 
   if (!isElectronDesktop() && isDesktopOnlyRoute(location.pathname)) {
@@ -148,6 +149,12 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   return React.cloneElement(layout);
 };
 
+function LoginRoute() {
+  const { status } = useAuth();
+  const location = useLocation();
+  return status === 'authenticated' || status === 'guest' ? <Navigate to={loginReturnPath(location.state)} replace /> : withRouteFallback(LoginPage);
+}
+
 const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
   const canEnterApp = status === 'authenticated' || status === 'guest';
@@ -156,7 +163,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
     <HashRouter>
       {isElectronDesktop() && <UpdateModal />}
       <Routes>
-        <Route path='/login' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)} />
+        <Route path='/login' element={<LoginRoute />} />
         <Route path='/register' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
         <Route element={<ProtectedLayout layout={layout} />}>
           <Route index element={<Navigate to='/guid' replace />} />

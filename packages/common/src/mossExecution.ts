@@ -42,6 +42,13 @@ export function resolveConversationExecutionTarget(conversation: {
 }
 
 export interface IMossConversationExecution {
+  /** Display-only context verified by the Moss Agent manager. Access stays server-side. */
+  agentManagement?: {
+    ownerId: string;
+    ownerName: string;
+    agentName: string;
+    displayName: string;
+  };
   executionTarget?: "local" | "remote";
   mossAccountScope?: string;
   mossAssistantRef?: string;

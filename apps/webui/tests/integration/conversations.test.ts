@@ -14,6 +14,7 @@ import { createWebSession } from '@server/features/auth/sessionRepository'
 import { digestToken, generateSessionToken } from '@server/security/sessionToken'
 import { encryptToken } from '@server/security/tokenCipher'
 import { createTestDatabase, destroyTestDatabase } from './helpers'
+import type { MossSessionSummary } from '@sudowork/contracts/conversations'
 
 const HMAC_KEY = Buffer.from('integration-test-hmac-key-32-bytes-ok!')
 const AES_KEY = Buffer.alloc(32, 7)
@@ -33,7 +34,7 @@ const testConfig: AppConfig = {
 }
 
 /** Moss session 桩：A 用户两个会话 + B 用户一个会话（测强制过滤）。 */
-const SESSIONS = [
+const SESSIONS: MossSessionSummary[] = [
   {
     sessionId: 'sess-a1',
     userId: 'moss-a',
@@ -255,6 +256,80 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .set('Cookie', cookieB)
     expect(res.status).toBe(200)
     expect((res.body.conversations as { id: string }[]).map((c) => c.id)).toEqual(['sess-b1'])
+  })
+
+  test('a manager workbench uses a verified grant while retaining the Agent owner', async () => {
+    const managed: MossSessionSummary = {
+      sessionId: 'manager-owned-by-b',
+      userId: 'moss-b',
+      orgId: 'org-1',
+      status: 'active',
+      source: 'agent-manager',
+      assistantName: 'moss-agent:nexus:cGVyc2lzdGVudA',
+      clientMetadata: {
+        agent_manager_actor_id: 'moss-a',
+        agent_manager_agent_name: 'persistent',
+        agent_manager_display_name: 'Persistent Agent',
+        agent_manager_owner_name: 'Owner B',
+      },
+    }
+    SESSIONS.push(managed)
+    try {
+      const app = await buildApp()
+      const listed = await request(app).get('/api/conversations').set('Cookie', cookieA)
+      expect(listed.status).toBe(200)
+      expect(
+        listed.body.conversations.find((item: { id: string }) => item.id === managed.sessionId)
+          ?.managementContext,
+      ).toEqual({
+        ownerId: 'moss-b',
+        ownerName: 'Owner B',
+        agentName: 'persistent',
+        displayName: 'Persistent Agent',
+      })
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/context`)
+            .set('Cookie', cookieA)
+        ).status,
+      ).toBe(200)
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/model`)
+            .set('Cookie', cookieA)
+        ).status,
+      ).toBe(200)
+      managed.clientMetadata = {
+        ...managed.clientMetadata,
+        agent_manager_actor_id: 'another-manager',
+      }
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/context`)
+            .set('Cookie', cookieA)
+        ).status,
+      ).toBe(403)
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/context`)
+            .set('Cookie', cookieB)
+        ).status,
+      ).toBe(200)
+      managed.orgId = 'another-org'
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/context`)
+            .set('Cookie', cookieB)
+        ).status,
+      ).toBe(403)
+    } finally {
+      SESSIONS.pop()
+    }
   })
 
   test('GET context sanitizes cwd and enforces ownership', async () => {

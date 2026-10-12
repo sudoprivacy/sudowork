@@ -282,6 +282,7 @@
   "rightPanel.terminal.remoteUnavailable": "Interactive terminals are not available for cloud sessions. Ask the agent to run commands in chat, or use a local session.",
   "rightPanel.terminal.createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal.",
   "agentSessions": {
+    "ownerBilling": "モデルアカウントと請求の所有者：{{owner}}",
     "select": "このエージェントのセッションを選択",
     "new": "このエージェントの新しいセッション",
     "messages": "メッセージへ移動"

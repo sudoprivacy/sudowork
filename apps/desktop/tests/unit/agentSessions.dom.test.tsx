@@ -85,6 +85,21 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Agent session navigation', () => {
+  it('shows the managed Agent and billing owner while keeping same-named owners apart', async () => {
+    const context = { ownerId: 'alice', ownerName: 'Alice', agentName: 'research', displayName: 'Research Agent' };
+    state.history.mockResolvedValue([
+      conversation('current', 'moss-agent:nexus:cmVzZWFyY2g', { agentManagement: context }),
+      conversation('pinned', 'moss-agent:nexus:cmVzZWFyY2g', { agentManagement: context }),
+      conversation('other', 'moss-agent:nexus:cmVzZWFyY2g', { agentManagement: { ...context, ownerId: 'bob', ownerName: 'Bob' } }),
+    ]);
+    renderPage();
+    await screen.findByText('Research Agent');
+    expect(screen.getByText('conversation.agentSessions.ownerBilling')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'conversation.agentSessions.new' })).toBeNull();
+    fireEvent.click(screen.getByRole('combobox', { name: 'conversation.agentSessions.select' }));
+    await screen.findByText('Session pinned');
+    expect(screen.queryByText('Session other')).toBeNull();
+  });
   it('uses the personal default Agent for global New instead of retaining the current Agent', async () => {
     renderPage();
     const button = screen.getByRole('button', { name: 'conversation.welcome.newConversation' });

@@ -45,3 +45,22 @@ export async function findPrincipalById(pool: Pool, id: string): Promise<Princip
   )
   return rows[0] ?? null
 }
+
+/** Share a conversation's writer lock through its verified Moss owner identity. */
+export async function resolveSessionOwnerPrincipalId(
+  pool: Pool,
+  principal: Principal,
+  ownerId: string,
+): Promise<string> {
+  if (principal.mossUserId === ownerId) return principal.id
+  const { rows } = await pool.query<Principal>(
+    `INSERT INTO web_principals (id, moss_user_id, org_id, username, moss_base_url, created_at, last_login_at)
+     VALUES ($1, $2, $3, $2, $4, now(), now())
+     ON CONFLICT (COALESCE(moss_base_url, ''), org_id, moss_user_id) DO UPDATE
+       SET id = web_principals.id
+     RETURNING ${PRINCIPAL_COLUMNS}`,
+    [randomUUID(), ownerId, principal.orgId, principal.mossBaseUrl],
+  )
+  if (!rows[0]) throw new Error('Session owner identity is unavailable')
+  return rows[0].id
+}

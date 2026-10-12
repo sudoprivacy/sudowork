@@ -7,7 +7,8 @@
 import TenantLogo from '@renderer/components/TenantLogo';
 import { LoginAttempt, LoginError } from '@sudowork/common/authLogin';
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { loginReturnPath } from '@sudowork/common/loginReturnPath';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { Key, Link, Lock, Phone, Protect, Server, User } from '@icon-park/react';
@@ -59,6 +60,7 @@ function generateOAuth2State(): string {
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const { status, enterGuest, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
   const { authMethods, systemConfig } = useSystemLoginMethod();
@@ -152,7 +154,7 @@ export default function LoginPage() {
       window.location.reload();
       return;
     }
-    void navigate('/guid', { replace: true });
+    void navigate(loginReturnPath(location.state), { replace: true });
   };
 
   const onPrepareOnline = async (): Promise<boolean> => {

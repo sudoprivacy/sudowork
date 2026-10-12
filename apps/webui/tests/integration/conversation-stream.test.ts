@@ -75,6 +75,9 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   let principal: Principal
   let cookie1 = ''
   let cookie2 = ''
+  let ownerCookie = ''
+  let isManagerSession = false
+  let managerActorId = 'moss-a'
   let app: Express
   let browserServer: Server
   let browserPort = 0
@@ -145,10 +148,10 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     upstreamPort = await listen(upstreamServer)
 
     // cookies 在上游端口确定后创建（mossBaseUrl 需指向 fake 上游的实际 host）
-    const mkCookie = async (accessToken: string): Promise<string> => {
+    const mkCookie = async (accessToken: string, principalId = principal.id): Promise<string> => {
       const token = generateSessionToken()
       await createWebSession(pool, {
-        principalId: principal.id,
+        principalId,
         tokenDigest: digestToken(token, HMAC_KEY),
         encrypted: encryptToken(
           JSON.stringify({ accessToken, refreshToken: 'rt', expiresAt: Date.now() + 3600_000 }),
@@ -164,6 +167,12 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     }
     cookie1 = await mkCookie('at-stream')
     cookie2 = await mkCookie('at-stream-2')
+    const owner = await upsertPrincipal(pool, {
+      mossUserId: 'moss-b',
+      orgId: 'org-1',
+      username: 'owner_b',
+    })
+    ownerCookie = await mkCookie('at-owner', owner.id)
 
     // ---- WebUI app ----
     const testConfig: AppConfig = {
@@ -212,6 +221,15 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         return []
       },
       async get(_tk, id) {
+        if (isManagerSession)
+          return {
+            sessionId: id,
+            userId: 'moss-b',
+            orgId: 'org-1',
+            status: 'active',
+            source: 'agent-manager',
+            clientMetadata: { agent_manager_actor_id: managerActorId },
+          }
         return { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' }
       },
       async create(_input) {
@@ -407,8 +425,14 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     try {
       await c1.waitFor((e) => e.kind === 'lock')
       // ws1 成为 writer 并 running；ws2 为非 writer 观察者
+      const promptStart = upstreamReceived.length
       ws1.send(JSON.stringify({ kind: 'send', text: 'needs approval', images: [] }))
       await c1.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+      await vi.waitFor(() =>
+        expect(upstreamReceived.slice(promptStart).some((frame) => frame.type === 'user')).toBe(
+          true,
+        ),
+      )
 
       // 审批回批不做 writer 校验（回批者必为会话拥有者；审批可能跨越锁边界）——
       // 非 writer 的 ws2 发 control_response 也能转发；上游收到与桌面端
@@ -417,7 +441,11 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       ws2.send(
         JSON.stringify({ kind: 'control_response', requestId: 'perm-1', optionId: 'allow_once' }),
       )
-      await sleep(300)
+      await vi.waitFor(() =>
+        expect(
+          upstreamReceived.slice(before).some((frame) => frame.type === 'control_response'),
+        ).toBe(true),
+      )
       const frames = upstreamReceived
         .slice(before)
         .filter((e) => (e as { type?: string }).type === 'control_response')
@@ -439,6 +467,46 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         .set('Cookie', cookie1)
         .set('Origin', 'http://localhost:5273')
       await sleep(150)
+    }
+  }, 20_000)
+
+  test('the manager and Agent owner share one writer lock and one upstream session', async () => {
+    isManagerSession = true
+    upstreamMode = 'hold'
+    const manager = await browserWs(cookie1)
+    const owner = await browserWs(ownerCookie)
+    const managerEvents = collector(manager)
+    const ownerEvents = collector(owner)
+    try {
+      await managerEvents.waitFor((event) => event.kind === 'lock')
+      const before = upstreamReceived.length
+      manager.send(JSON.stringify({ kind: 'send', text: 'manager turn', images: [] }))
+      await ownerEvents.waitFor((event) => event.kind === 'lock' && event.state === 'running')
+      await vi.waitFor(() =>
+        expect(
+          upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+        ).toHaveLength(1),
+      )
+      owner.send(JSON.stringify({ kind: 'send', text: 'concurrent owner turn', images: [] }))
+      await ownerEvents.waitFor(
+        (event) => event.kind === 'error' && event.code === 'CONVERSATION_BUSY',
+      )
+      expect(upstreamReceived.slice(before).filter((event) => event.type === 'user')).toHaveLength(
+        1,
+      )
+      managerActorId = 'another-manager'
+      await expect(browserWs(cookie2)).rejects.toThrow('403')
+      managerActorId = 'moss-a'
+    } finally {
+      manager.close()
+      owner.close()
+      managerActorId = 'moss-a'
+      await request(app)
+        .post(`/api/conversations/${SID}/terminate`)
+        .set('Cookie', cookie1)
+        .set('Origin', 'http://localhost:5273')
+      isManagerSession = false
+      upstreamMode = 'auto'
     }
   }, 20_000)
 

@@ -34,6 +34,11 @@ import {
   type AuthedRequest,
 } from './features/auth/sessionMiddleware.js'
 import { ConversationCoordinator } from './features/conversations/ConversationCoordinator.js'
+import {
+  SessionForbiddenError,
+  SessionNotFoundError,
+  MossUnavailableError,
+} from './features/conversations/conversationService.js'
 import { createConversationRouter } from './features/conversations/conversationRoutes.js'
 import { createChannelsRouter } from './features/channels/channelsRoutes.js'
 import { attachChannelEvents } from './features/channels/channelEvents.js'
@@ -378,11 +383,15 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
       }
 
       if (conversationMatch) {
+        const authorized = await coordinator.authorize(
+          webSession,
+          decodeURIComponent(conversationMatch[1] ?? ''),
+        )
         wss.handleUpgrade(req, socket, head, (ws) => {
           const conn = {
             ws,
             webSession,
-            principalId: webSession.principalId,
+            principalId: authorized.ownerPrincipalId,
             mossSessionId: decodeURIComponent(conversationMatch[1] ?? ''),
           }
           coordinator.subscribe(conn)
@@ -416,6 +425,7 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
         socket.destroy()
         return
       }
+      await coordinator.authorize(webSession, conversationId)
       terminalWss.handleUpgrade(req, socket, head, (ws) => {
         let session: TerminalSession | null = null
         const send = (payload: Record<string, unknown>): void => {
@@ -467,8 +477,19 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
         ws.on('close', dispose)
         ws.on('error', dispose)
       })
-    })().catch(() => {
-      socket.destroy()
+    })().catch((error: unknown) => {
+      const status =
+        error instanceof SessionForbiddenError
+          ? '403 Forbidden'
+          : error instanceof SessionNotFoundError
+            ? '404 Not Found'
+            : error instanceof MossUnauthorizedError
+              ? '401 Unauthorized'
+              : error instanceof MossUnavailableError
+                ? '503 Service Unavailable'
+                : null
+      if (status) socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
+      else socket.destroy()
     })
   })
 }

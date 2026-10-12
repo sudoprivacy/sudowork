@@ -631,6 +631,12 @@ interface ConversationListItem {
   assistantName?: string | null
   /** Display label for a pending creation; never replaces its identity. */
   displayName?: string
+  managementContext?: {
+    ownerId: string
+    ownerName: string
+    agentName: string
+    displayName: string
+  } | null
   source?: string | null
   createdAt?: number | null
   lastActiveAt?: number | null
@@ -665,6 +671,7 @@ function toChatConversation(
   displayName?: string,
 ): Record<string, unknown> {
   const agentName =
+    item.managementContext?.displayName ??
     displayName ??
     item.displayName ??
     (isPersonalAgentRef(item.assistantName ?? undefined)
@@ -720,6 +727,7 @@ function toChatConversation(
       pinned: item.pinned ?? false,
       pinnedAt: item.pinnedAt ?? undefined,
       mossSessionId: item.id,
+      ...(item.managementContext ? { agentManagement: item.managementContext } : {}),
       ...(cronJobId ? { cronJobId } : {}),
     },
     model: { platform: '', name: '', useModel: '', id: '' },
@@ -1769,7 +1777,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     ).catch(() => null)
     if (model?.modelId)
       conv.extra = { ...(conv.extra as Record<string, unknown>), currentModelId: model.modelId }
-    if (found.assistantName && !isPersonal) {
+    if (found.assistantName && !isPersonal && !found.managementContext) {
       const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(() => [])
       const agent = agents.find(
         (item) => item.name === found.assistantName || item.id === found.assistantName,
