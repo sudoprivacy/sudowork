@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { IMyAgent } from '@sudowork/common/personalAgents';
 import { emitter } from '@renderer/utils/emitter';
-import { getLatestAgentConversation } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { getLatestAgentConversation } from '@renderer/pages/conversation/utils/agentIdentity';
 
 export default function MyAgents() {
   const { t } = useTranslation();

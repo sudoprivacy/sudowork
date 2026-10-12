@@ -87,6 +87,7 @@ export type ExportTask = { mode: 'single'; conversation: TChatConversation } | {
 
 export type ConversationRowProps = {
   conversation: ConversationItem;
+  agentDisplayName?: string;
   collapsed: boolean;
   tooltipEnabled: boolean;
   batchMode: boolean;

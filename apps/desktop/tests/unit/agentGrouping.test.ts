@@ -5,7 +5,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getLatestAgentConversation, getRecentConversations, groupConversationsByAgent } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { getRecentConversations, groupConversationsByAgent } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { getLatestAgentConversation } from '@renderer/pages/conversation/utils/agentIdentity';
 import type { ConversationItem } from '@renderer/pages/conversation/grouped-history/types';
 
 const conversation = (id: string, agentRef: string | undefined, modifyTime: number): ConversationItem =>
