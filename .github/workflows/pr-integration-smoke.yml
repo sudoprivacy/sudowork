@@ -193,6 +193,9 @@ jobs:
           bun-version-file: package.json
 
       - name: Install dependencies
+        env:
+          # This job drives the real native runtime with Node; Electron is mocked.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: bun install --frozen-lockfile
 
       - name: Install the checksum-verified macOS FUSE dependency
@@ -203,7 +206,7 @@ jobs:
           VERSION=$(node -p "require('./src/shared/runtime-versions.json')['fuse-t']")
           PACKAGE="fuse-t-macos-installer-${VERSION}.pkg"
           DOWNLOAD="${RUNNER_TEMP}/${PACKAGE}"
-          curl -fsSL --max-time 120 "https://github.com/macos-fuse-t/fuse-t/releases/download/${VERSION}/${PACKAGE}" -o "$DOWNLOAD"
+          curl -fsSL --retry 3 --retry-max-time 180 --connect-timeout 15 --max-time 120 "https://github.com/macos-fuse-t/fuse-t/releases/download/${VERSION}/${PACKAGE}" -o "$DOWNLOAD"
           echo "6a29c747e61a86a405a189efc3de42812d73147135f93a1bb0624c1e7b90e654  $DOWNLOAD" | shasum -a 256 -c -
           sudo installer -pkg "$DOWNLOAD" -target /
 
