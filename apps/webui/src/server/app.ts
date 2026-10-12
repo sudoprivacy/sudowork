@@ -449,6 +449,7 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
           return
         }
         send({ type: 'ready', terminalId: session.terminalId })
+        let messages = Promise.resolve()
         ws.on('message', (data) => {
           if (!session) return
           let parsed: unknown
@@ -457,18 +458,34 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
           } catch {
             return
           }
+          if (parsed === null || typeof parsed !== 'object') return
           const frame = parsed as { type?: string; data?: string; cols?: number; rows?: number }
-          if (frame.type === 'input' && typeof frame.data === 'string') {
-            session.write(frame.data)
-          } else if (
+          const isInput = frame.type === 'input' && typeof frame.data === 'string'
+          const isResize =
             frame.type === 'resize' &&
             typeof frame.cols === 'number' &&
             typeof frame.rows === 'number' &&
             Number.isFinite(frame.cols) &&
             Number.isFinite(frame.rows)
-          ) {
-            session.resize(Math.max(1, Math.floor(frame.cols)), Math.max(1, Math.floor(frame.rows)))
-          }
+          if (!isInput && !isResize) return
+          messages = messages
+            .then(async () => {
+              if (!session || ws.readyState !== ws.OPEN) return
+              await coordinator.authorize(webSession, conversationId)
+              if (!session || ws.readyState !== ws.OPEN) return
+              if (isInput) session.write(frame.data!)
+              else
+                session.resize(
+                  Math.max(1, Math.floor(frame.cols!)),
+                  Math.max(1, Math.floor(frame.rows!)),
+                )
+            })
+            .catch(() => {
+              send({ type: 'error', code: 'TERMINAL_FORBIDDEN' })
+              session?.dispose()
+              session = null
+              ws.close(1008, 'Terminal permission revoked')
+            })
         })
         const dispose = (): void => {
           session?.dispose()

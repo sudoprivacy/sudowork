@@ -15,6 +15,7 @@ import { createWebSession } from '@server/features/auth/sessionRepository.js'
 import { digestToken, generateSessionToken } from '@server/security/sessionToken.js'
 import { encryptToken } from '@server/security/tokenCipher.js'
 import { createTestDatabase, destroyTestDatabase } from './helpers'
+import type { TerminalManager } from '@server/features/terminal/terminalManager.js'
 
 const HMAC_KEY = Buffer.from('integration-test-hmac-key-32-bytes-ok!')
 const AES_KEY = Buffer.alloc(32, 7)
@@ -78,6 +79,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   let ownerCookie = ''
   let isManagerSession = false
   let managerActorId = 'moss-a'
+  let mossAccessRefusal: number | undefined
   let app: Express
   let browserServer: Server
   let browserPort = 0
@@ -91,6 +93,8 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   let upstreamWsUrlOverride: string | null = null
   const upstreamReceived: WsEvent[] = []
   const upstreamAuthHeaders: string[] = []
+  const terminalWrites: string[] = []
+  let terminalDisposals = 0
 
   function browserWs(cookie: string): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
@@ -221,6 +225,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         return []
       },
       async get(_tk, id) {
+        if (mossAccessRefusal) throw new MossHttpError(mossAccessRefusal, '', '')
         if (isManagerSession)
           return {
             sessionId: id,
@@ -280,7 +285,22 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     })
 
     browserServer = createServer(app)
-    attachConversationWebSocket(browserServer, { config: testConfig, pool, coordinator })
+    const terminals = {
+      create(conversationId: string) {
+        return {
+          terminalId: 'fixture-terminal',
+          conversationId,
+          write: (text: string) => {
+            terminalWrites.push(text)
+          },
+          resize: () => {},
+          dispose: () => {
+            terminalDisposals++
+          },
+        }
+      },
+    } as unknown as TerminalManager
+    attachConversationWebSocket(browserServer, { config: testConfig, pool, coordinator, terminals })
     browserPort = await listen(browserServer)
   })
 
@@ -496,6 +516,13 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       )
       managerActorId = 'another-manager'
       await expect(browserWs(cookie2)).rejects.toThrow('403')
+      manager.send(JSON.stringify({ kind: 'send', text: 'revoked manager turn', images: [] }))
+      await managerEvents.waitFor(
+        (event) => event.kind === 'error' && event.code === 'SESSION_FORBIDDEN',
+      )
+      expect(upstreamReceived.slice(before).filter((event) => event.type === 'user')).toHaveLength(
+        1,
+      )
       managerActorId = 'moss-a'
     } finally {
       manager.close()
@@ -509,6 +536,71 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       upstreamMode = 'auto'
     }
   }, 20_000)
+
+  test.each([401, 403])(
+    'Moss refusal %s blocks another turn on an established upstream socket',
+    async (status) => {
+      upstreamMode = 'hold'
+      const ws = await browserWs(cookie1)
+      const events = collector(ws)
+      const before = upstreamReceived.length
+      try {
+        ws.send(JSON.stringify({ kind: 'send', text: 'authorized turn', images: [] }))
+        await vi.waitFor(() =>
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+          ).toHaveLength(1),
+        )
+        mossAccessRefusal = status
+        ws.send(JSON.stringify({ kind: 'send', text: 'revoked turn', images: [] }))
+        await events.waitFor(
+          (event) =>
+            event.kind === 'error' &&
+            event.code === (status === 401 ? 'MOSS_UNAUTHORIZED' : 'SESSION_FORBIDDEN'),
+        )
+        expect(
+          upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+        ).toHaveLength(1)
+      } finally {
+        mossAccessRefusal = undefined
+        ws.close()
+        await request(app)
+          .post(`/api/conversations/${SID}/terminate`)
+          .set('Cookie', cookie1)
+          .set('Origin', 'http://localhost:5273')
+        upstreamMode = 'auto'
+      }
+    },
+  )
+
+  test('terminal frames ignore JSON null, preserve input order and stop after a management grant is revoked', async () => {
+    isManagerSession = true
+    const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/terminal?conversation=${SID}`, {
+      headers: { cookie: cookie1, origin: 'http://localhost:5273' },
+    })
+    const events = collector(ws)
+    const before = terminalWrites.length
+    const disposedBefore = terminalDisposals
+    try {
+      await new Promise<void>((resolve, reject) => {
+        ws.once('open', resolve)
+        ws.once('error', reject)
+      })
+      ws.send('null')
+      ws.send(JSON.stringify({ type: 'input', data: 'first' }))
+      ws.send(JSON.stringify({ type: 'input', data: 'second' }))
+      await vi.waitFor(() => expect(terminalWrites.slice(before)).toEqual(['first', 'second']))
+      managerActorId = 'another-manager'
+      ws.send(JSON.stringify({ type: 'input', data: 'revoked command' }))
+      await events.waitFor((event) => event.type === 'error' && event.code === 'TERMINAL_FORBIDDEN')
+      expect(terminalWrites.slice(before)).toEqual(['first', 'second'])
+      expect(terminalDisposals).toBe(disposedBefore + 1)
+    } finally {
+      ws.close()
+      managerActorId = 'moss-a'
+      isManagerSession = false
+    }
+  })
 
   test('writer disconnect during running marks uncertain and blocks other writers', async () => {
     upstreamMode = 'hold'
