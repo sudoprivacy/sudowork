@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDragUpload } from '@renderer/hooks/useDragUpload';
 import { usePasteService } from '@renderer/hooks/usePasteService';
 import { allSupportedExts, type FileMetadata } from '@renderer/services/FileService';
@@ -14,6 +14,7 @@ import { getGuidDraft, setGuidDraft } from './useGuidDraft';
 export type GuidInputResult = {
   input: string;
   setInput: React.Dispatch<React.SetStateAction<string>>;
+  getInputRevision: () => number;
   files: string[];
   setFiles: React.Dispatch<React.SetStateAction<string[]>>;
   dir: string;
@@ -41,6 +42,7 @@ type UseGuidInputOptions = {
 export const useGuidInput = ({ locationState }: UseGuidInputOptions): GuidInputResult => {
   const draft = getGuidDraft();
   const [input, setInputState] = useState(draft?.input ?? '');
+  const inputRevisionRef = useRef(0);
   const [files, setFilesState] = useState<string[]>(draft?.files ?? []);
   const [dir, setDirState] = useState<string>(draft?.dir ?? '');
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -55,12 +57,15 @@ export const useGuidInput = ({ locationState }: UseGuidInputOptions): GuidInputR
   }, [locationState]);
 
   const setInput = useCallback((value: string | ((prev: string) => string)) => {
+    inputRevisionRef.current += 1;
     setInputState((prev) => {
       const next = typeof value === 'function' ? value(prev) : value;
       setGuidDraft({ input: next });
       return next;
     });
   }, []);
+
+  const getInputRevision = useCallback(() => inputRevisionRef.current, []);
 
   const setFiles = useCallback((value: string[] | ((prev: string[]) => string[])) => {
     setFilesState((prev) => {
@@ -79,20 +84,29 @@ export const useGuidInput = ({ locationState }: UseGuidInputOptions): GuidInputR
   }, []);
 
   // Handle pasted files (append mode to support multiple pastes)
-  const handleFilesPasted = useCallback((pastedFiles: FileMetadata[]) => {
-    const filePaths = pastedFiles.map((file) => file.path);
-    setFiles((prevFiles) => [...prevFiles, ...filePaths]);
-    setDir('');
-  }, []);
+  const handleFilesPasted = useCallback(
+    (pastedFiles: FileMetadata[]) => {
+      const filePaths = pastedFiles.map((file) => file.path);
+      setFiles((prevFiles) => [...prevFiles, ...filePaths]);
+      setDir('');
+    },
+    [setDir, setFiles]
+  );
 
   // Handle files uploaded via dialog (append mode)
-  const handleFilesUploaded = useCallback((uploadedPaths: string[]) => {
-    setFiles((prevFiles) => [...prevFiles, ...uploadedPaths]);
-  }, []);
+  const handleFilesUploaded = useCallback(
+    (uploadedPaths: string[]) => {
+      setFiles((prevFiles) => [...prevFiles, ...uploadedPaths]);
+    },
+    [setFiles]
+  );
 
-  const handleRemoveFile = useCallback((targetPath: string) => {
-    setFiles((prevFiles) => prevFiles.filter((file) => file !== targetPath));
-  }, []);
+  const handleRemoveFile = useCallback(
+    (targetPath: string) => {
+      setFiles((prevFiles) => prevFiles.filter((file) => file !== targetPath));
+    },
+    [setFiles]
+  );
 
   // Use drag upload hook (drag treated like paste, appends to existing files)
   const { isFileDragging, dragHandlers } = useDragUpload({
@@ -137,6 +151,7 @@ export const useGuidInput = ({ locationState }: UseGuidInputOptions): GuidInputR
   return {
     input,
     setInput,
+    getInputRevision,
     files,
     setFiles,
     dir,
