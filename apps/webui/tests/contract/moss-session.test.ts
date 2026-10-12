@@ -40,16 +40,20 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
       attemptId: 'a1',
       wsUrl: 'ws://moss.test/ws/sessions/s1',
     })
-    expect(mock).toHaveBeenCalledWith(BASE, {
-      method: 'POST',
-      path: '/api/v1/sessions',
-      accessToken: 'tk',
-      body: {
-        assistant_name: 'helper',
-        enabled_skills: ['a', 'b'],
-        dangerously_skip_permissions: false,
+    expect(mock).toHaveBeenCalledWith(
+      BASE,
+      {
+        method: 'POST',
+        path: '/api/v1/sessions',
+        accessToken: 'tk',
+        body: {
+          assistant_name: 'helper',
+          enabled_skills: ['a', 'b'],
+          dangerously_skip_permissions: false,
+        },
       },
-    })
+      180_000,
+    )
   })
 
   test('setUserModel puts /api/v1/users/me/model with { modelId }', async () => {
@@ -132,11 +136,15 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     })
 
     await port.resume(CTX, 's1')
-    expect(mock).toHaveBeenLastCalledWith(BASE, {
-      method: 'POST',
-      path: '/api/v1/sessions/s1/resume',
-      accessToken: 'tk',
-    })
+    expect(mock).toHaveBeenLastCalledWith(
+      BASE,
+      {
+        method: 'POST',
+        path: '/api/v1/sessions/s1/resume',
+        accessToken: 'tk',
+      },
+      180_000,
+    )
 
     await port.terminate(CTX, 's1')
     expect(mock).toHaveBeenLastCalledWith(BASE, {
@@ -158,8 +166,8 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     )
   })
 
-  test.each(['tree', 'read', 'write'] as const)(
-    'workspace %s waits for cold runtime readiness',
+  test.each(['tree', 'read', 'write', 'create', 'resume'] as const)(
+    '%s waits for cold runtime readiness beyond the metadata timeout',
     async (operation) => {
       vi.useFakeTimers()
       vi.stubGlobal(
@@ -173,6 +181,9 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
                     new Response(
                       JSON.stringify({
                         root: { name: 'workspace', relativePath: '', isFile: false, isDir: true },
+                        session_id: 's1',
+                        session: { sessionId: 's1', userId: 'u', orgId: 'o', status: 'active' },
+                        ws_url: 'ws://moss.test/ws/sessions/s1',
                       }),
                     ),
                   ),
@@ -196,7 +207,11 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
             ? port.workspaceTree(CTX, 's1', '')
             : operation === 'read'
               ? port.workspaceFileGet(CTX, 's1', 'note.txt')
-              : port.workspaceFilePost(CTX, 's1', 'note.txt', 'b2s=')
+              : operation === 'write'
+                ? port.workspaceFilePost(CTX, 's1', 'note.txt', 'b2s=')
+                : operation === 'create'
+                  ? port.create(CTX, { assistantName: 'helper', enabledSkills: [] })
+                  : port.resume(CTX, 's1')
         const assertion = expect(pending).resolves.toBeDefined()
         await vi.advanceTimersByTimeAsync(20_000)
         await assertion
