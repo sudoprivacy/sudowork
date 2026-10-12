@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ScodeAcpTransport } from '../../src/agent/acp/transport';
 import { configureScodeService, getScodeServiceClient } from '../../src/common/scode/serviceClient';
 import type { AcpMessage } from '../../src/types/acpTypes';
@@ -41,11 +41,19 @@ suite('desktop session adapter through the actual Sudocode service', () => {
   }, 600_000);
 
   afterAll(async () => {
-    await Promise.all(transports.map((transport) => transport.close()));
-    if (root) await getScodeServiceClient().request('service.shutdown');
-    getScodeServiceClient().close();
-    if (originalServiceRoot === undefined) delete process.env.SCODE_SERVICE_ROOT;
-    else process.env.SCODE_SERVICE_ROOT = originalServiceRoot;
+    try {
+      await Promise.all(transports.map((transport) => transport.close()));
+      if (root) {
+        // Cancellation acknowledges the signal before the runtime is reaped.
+        // Shutdown refuses active /proc entries, so observe the actual cleanup.
+        await vi.waitFor(async () => expect(await getScodeServiceClient().request('files.list', { path: '/proc/' })).toEqual([]), { timeout: 15_000, interval: 25 });
+        await getScodeServiceClient().request('service.shutdown');
+      }
+    } finally {
+      getScodeServiceClient().close();
+      if (originalServiceRoot === undefined) delete process.env.SCODE_SERVICE_ROOT;
+      else process.env.SCODE_SERVICE_ROOT = originalServiceRoot;
+    }
   });
 
   it('runs two managed agents, preserves their separate mailboxes, and sends while reads wait', async () => {
