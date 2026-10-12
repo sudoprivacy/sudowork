@@ -5,21 +5,21 @@
  */
 
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Network, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Network, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dropdown, Menu, Message, Popover, Tabs } from '@arco-design/web-react';
-import { ConfigStorage } from '@sudowork/common/storage';
 import type { BatchHistoryApi } from '@renderer/pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { useAuth } from '@renderer/context/AuthContext';
-import { addEventListener, emitter } from '@renderer/utils/emitter';
+import { addEventListener } from '@renderer/utils/emitter';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useCronAccess } from '@renderer/hooks/useCronAccess';
 import { isElectronDesktop } from '@renderer/utils/platform';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
+import NewConversationButton from '@renderer/pages/conversation/components/NewConversationButton';
 import { maskPhone } from '@renderer/utils';
 import SidebarNavItem from '@renderer/layouts/components/SidebarNavItem';
 import SettingsSider from './SettingsSider';
@@ -191,23 +191,13 @@ const Sider: React.FC = () => {
         ) : (
           <div className='h-full min-h-0 flex flex-col overflow-hidden py-2 box-border'>
             <div className='min-h-0 shrink overflow-y-auto scrollbar-hide'>
-              {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
-              <div
-                className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-3 cursor-pointer transition-all border bg-subtle hover:bg-hover active:bg-fill-2'
-                onClick={() => {
+              <NewConversationButton
+                onSessionClick={() => {
                   cleanupSiderTooltips();
                   setIsBatchMode(false);
-                  // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
-                  void ConfigStorage.set('guid.lastSelectedAgent', '');
-                  // 触发 Guide 页面重置所有用户输入状态
-                  emitter.emit('guid.reset');
-                  void navigate('/guid');
                   onSessionClick();
                 }}
-              >
-                <Plus size={18} strokeWidth={1.8} className='text-foreground shrink-0' />
-                <span className='text-15px font-medium text-foreground truncate'>{t('conversation.welcome.newConversation')}</span>
-              </div>
+              />
 
               {/* 功能菜单区域 / Function menu area */}
               <div className='mb-4 flex flex-col gap-0.5'>

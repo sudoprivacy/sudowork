@@ -337,5 +337,10 @@
     "agentHasNoConversations": "No conversations yet"
   },
   "rightPanel.terminal.remoteUnavailable": "Interactive terminals are not available for cloud sessions. Ask the agent to run commands in chat, or use a local session.",
-  "rightPanel.terminal.createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal."
+  "rightPanel.terminal.createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal.",
+  "agentSessions": {
+    "select": "Choose a session for this agent",
+    "new": "New session for this agent",
+    "messages": "Jump to message"
+  }
 }

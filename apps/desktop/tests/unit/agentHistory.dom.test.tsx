@@ -17,8 +17,8 @@ vi.mock('@renderer/pages/conversation/grouped-history/hooks/useExport', () => ({
 vi.mock('@renderer/pages/conversation/grouped-history/hooks/useDragAndDrop', () => ({ useDragAndDrop: () => ({}) }));
 vi.mock('@renderer/components/DirectorySelectionModal', () => ({ default: () => null }));
 vi.mock('@renderer/pages/conversation/grouped-history/ConversationRow', () => ({
-  default: function ConversationRowMock({ conversation }: IConversationRowMockProps) {
-    return <button>{conversation.name}</button>;
+  default: function ConversationRowMock({ conversation, agentDisplayName }: IConversationRowMockProps) {
+    return <button>{agentDisplayName ? `${agentDisplayName} · ${conversation.name}` : conversation.name}</button>;
   },
 }));
 
@@ -69,7 +69,11 @@ describe('Agent history compatibility', () => {
     state.history = buildGroupedHistory([...conversations, owned], t, [], [myAgent]);
     render(<WorkspaceGroupedHistory />);
 
-    expect(screen.getAllByRole('button', { name: owned.name })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: owned.name })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: `common.expandMore ${myAgent.displayName}` }));
+    expect(screen.getAllByRole('button', { name: owned.name })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'conversation.sidebar.recent' }));
+    expect(screen.getByRole('button', { name: `${myAgent.displayName} · ${owned.name}` })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: conversations[0].name })).toBeInTheDocument();
   });
 
@@ -83,7 +87,7 @@ describe('Agent history compatibility', () => {
     }
   });
 
-  it('opens the latest session when clicking an Agent and collapses only with its arrow', () => {
+  it('opens the latest session when clicking an Agent and changes expansion only with its arrow', () => {
     const conversations = legacyConversations()
       .slice(0, 2)
       .map((conversation) => ({ ...conversation, extra: { presetAssistantId: myAgent.ref, agentName: myAgent.displayName } }) as ConversationItem);
@@ -94,9 +98,12 @@ describe('Agent history compatibility', () => {
     fireEvent.click(screen.getByRole('button', { name: myAgent.displayName, exact: true }));
     expect(state.onConversationClick).toHaveBeenCalledWith(conversations[1]);
     expect(state.navigate).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: `common.collapse ${myAgent.displayName}` }));
+    expect(screen.queryByRole('button', { name: conversations[0].name })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: `common.expandMore ${myAgent.displayName}` }));
     expect(state.onConversationClick).toHaveBeenCalledTimes(1);
     expect(screen.getAllByRole('button', { name: conversations[0].name })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: `common.collapse ${myAgent.displayName}` }));
+    expect(screen.queryByRole('button', { name: conversations[0].name })).toBeNull();
   });
 
   it('opens a new conversation under an unused Agent', () => {
@@ -110,4 +117,5 @@ describe('Agent history compatibility', () => {
 
 interface IConversationRowMockProps {
   conversation: ConversationItem;
+  agentDisplayName?: string;
 }
