@@ -50,7 +50,7 @@ export interface ILoginSession {
   isLocalAvailable: boolean;
 }
 
-export type LoginFailureCode = 'invalidCredentials' | 'networkError' | 'timeout' | 'invalidResponse' | 'setupError';
+export type LoginFailureCode = 'invalidCredentials' | 'authRejected' | 'networkError' | 'timeout' | 'invalidResponse' | 'setupError';
 
 export class LoginError extends Error {
   constructor(
@@ -139,7 +139,7 @@ export async function runLogin(
   try {
     const result = await attempt.step('authenticate', () => port.authenticate(request, deviceId, attempt));
     if (!result.success) {
-      const code: LoginFailureCode = result.error === 'network_error' ? 'networkError' : result.error === 'request_timeout' ? 'timeout' : result.error === 'invalid_response' ? 'invalidResponse' : result.error === 'local_setup_failed' ? 'setupError' : 'invalidCredentials';
+      const code: LoginFailureCode = result.error === 'network_error' ? 'networkError' : result.error === 'request_timeout' ? 'timeout' : result.error === 'invalid_response' ? 'invalidResponse' : result.error === 'local_setup_failed' ? 'setupError' : result.error === 'auth_request_rejected' ? 'authRejected' : 'invalidCredentials';
       throw new LoginError(code, result.error, result.msg);
     }
     const data = result.data;

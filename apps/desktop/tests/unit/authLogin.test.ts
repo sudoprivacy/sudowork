@@ -111,6 +111,14 @@ it('does not manufacture a successful web identity when the cookie session is ab
   expect(commit).not.toHaveBeenCalled();
 });
 
+it('keeps a web authentication policy rejection distinct from invalid credentials', async () => {
+  const message = 'Current organization does not allow phone code login';
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'AUTH_REQUEST_REJECTED', message }), { status: 403 })));
+  const commit = vi.fn();
+  expect(await runLogin(phone, 'device', webLoginPort, commit)).toMatchObject({ success: false, code: 'authRejected', error: 'AUTH_REQUEST_REJECTED', message });
+  expect(commit).not.toHaveBeenCalled();
+});
+
 it('uses the same flow for desktop OAuth2 callbacks', async () => {
   const commit = vi.fn();
   expect(await runLogin({ grant_type: 'oauth2', params: { code: 'test' } }, 'device', desktopLoginPort, commit)).toEqual({ success: true });
@@ -164,6 +172,7 @@ it.each([
   ['request_timeout', 'timeout'],
   ['invalid_response', 'invalidResponse'],
   ['local_setup_failed', 'setupError'],
+  ['auth_request_rejected', 'authRejected'],
 ])('preserves the desktop failure category %s through the shared flow', async (error, code) => {
   mocks.login.mockResolvedValue({ success: false, error });
   const commit = vi.fn();

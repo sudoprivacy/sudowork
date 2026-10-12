@@ -31,7 +31,8 @@ export const webLoginPort: ILoginPort = {
       const data = (await response.json().catch((): null => null)) as { ok?: boolean; error?: string; message?: string } | null;
       if (!response.ok || data?.ok !== true) {
         const isUnavailable = response.status >= 500 || data?.error === 'MOSS_UNAVAILABLE';
-        throw new LoginError(isUnavailable ? 'networkError' : 'invalidCredentials', data?.error, data?.message);
+        const isAuthRejected = data?.error === 'AUTH_REQUEST_REJECTED';
+        throw new LoginError(isUnavailable ? 'networkError' : isAuthRejected ? 'authRejected' : 'invalidCredentials', data?.error, data?.message);
       }
       return data;
     });
