@@ -27,7 +27,7 @@ import { initMainAdapterWithWindow } from './adapter/main';
 import { createAvatarWindow } from './process/avatarWindow';
 import { ipcBridge } from './common';
 import { AION_ASSET_PROTOCOL, createAssetProtocolResponse } from './extensions/assetProtocol';
-import { initializeProcess } from './process';
+import { initializeProcess, startProcessServices } from './process';
 import { ProcessConfig } from './process/initStorage';
 import { loadShellEnvironmentAsync, mergePaths } from './process/utils/shellEnv';
 import { initializeAcpDetector } from './process/bridge';
@@ -37,7 +37,7 @@ import WorkerManage from './process/WorkerManage';
 import { setupApplicationMenu } from './utils/appMenu';
 import { applyZoomToWindow } from './process/utils/zoom';
 import i18n from '@process/i18n';
-import { mainLog, mainError } from './process/utils/mainLogger';
+import { mainLog, mainError, perfLog } from './process/utils/mainLogger';
 import { ensureMainSystemConfig } from './process/services/systemConfigBootstrap';
 import { isNightlyBuild } from '@common/buildInfo';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
@@ -762,13 +762,13 @@ const handleAppReady = async (): Promise<void> => {
   }
 
   {
-    // PERF: Create window FIRST so user sees the InitLoading UI immediately (~200ms),
-    // then initialize backend in parallel. The renderer's InitContext uses exponential
-    // backoff retry for IPC calls, so it gracefully handles bridges not being ready yet.
+    const processStart = Date.now();
+    // Every renderer request has a registered provider before its module loads.
+    await initializeProcess();
     createWindow();
 
-    // Start backend initialization in parallel with window rendering
-    const initDone = initializeProcess().catch((error) => {
+    // Runtime provisioning and channel startup run alongside window rendering.
+    const initDone = startProcessServices().catch((error) => {
       console.error('Failed to initialize process:', error);
       app.exit(1);
     });
@@ -778,6 +778,7 @@ const handleAppReady = async (): Promise<void> => {
 
     // Wait for backend initialization to complete before proceeding with tray/settings
     await initDone;
+    perfLog('total_startup', Date.now() - processStart);
 
     await ensureMainSystemConfig();
 

@@ -1,5 +1,5 @@
 import type { InitStepStatus } from '../initStatus';
-import type { NexusVfsStage as NexusSetupStage, NexusVfsStatus as NexusSetupStatus } from '../nexus-vfs/DynamicNexusVfsService';
+import type { NexusVfsStage as NexusSetupStage, NexusVfsStatus as NexusSetupStatus } from '../scode/ScodeRuntimeService';
 
 export type NexusSetupLogSnapshot = {
   stage: NexusSetupStage;

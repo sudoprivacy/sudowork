@@ -18,15 +18,15 @@ describe('resolveTunnelEnv', () => {
   beforeEach(() => mainWarn.mockClear());
 
   it('routes scode through the tunnel when one is serving', () => {
-    expect(resolveTunnelEnv('scode', '127.0.0.1:12022')).toEqual({
-      ACP_GRPC_ENDPOINT: '127.0.0.1:12022',
+    expect(resolveTunnelEnv('scode', true)).toEqual({
+      SCODE_MANAGED_SERVICE: '1',
     });
     expect(mainWarn).not.toHaveBeenCalled();
   });
 
   it('says so when the daemon is not serving, rather than going local in silence', () => {
-    expect(resolveTunnelEnv('scode', null)).toEqual({});
-    expect(mainWarn).toHaveBeenCalledWith('[AcpAgent]', expect.stringContaining('tunnel unavailable'));
+    expect(resolveTunnelEnv('scode', false)).toEqual({});
+    expect(mainWarn).toHaveBeenCalledWith('[AcpAgent]', expect.stringContaining('service unavailable'));
     expect(mainWarn).toHaveBeenCalledWith('[AcpAgent]', expect.stringContaining('scode'));
   });
 
@@ -35,8 +35,8 @@ describe('resolveTunnelEnv', () => {
     // backend proven end-to-end over the tunnel, so the others are not
     // "failing" to tunnel and must not be reported as though they were.
     for (const backend of ['claude', 'codex', 'gemini', 'qwen']) {
-      expect(resolveTunnelEnv(backend, '127.0.0.1:12022'), backend).toEqual({});
-      expect(resolveTunnelEnv(backend, null), backend).toEqual({});
+      expect(resolveTunnelEnv(backend, true), backend).toEqual({});
+      expect(resolveTunnelEnv(backend, false), backend).toEqual({});
     }
     expect(mainWarn).not.toHaveBeenCalled();
   });

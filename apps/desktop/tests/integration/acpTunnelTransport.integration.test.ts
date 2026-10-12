@@ -1,69 +1,76 @@
-/**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * Production NexusAcpTransport against a live daemon and subprocess adapter.
- * ACP messages travel in session envelopes on the conversation transcript.
- * Set ACP_GRPC_ENDPOINT to run; the agent is a shell fixture with no model.
- */
-
-import { describe, it, expect } from 'vitest';
-import { NexusAcpTransport } from '../../src/agent/acp/transport';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ScodeAcpTransport } from '../../src/agent/acp/transport';
+import { configureScodeService, getScodeServiceClient } from '../../src/common/scode/serviceClient';
 import type { AcpMessage } from '../../src/types/acpTypes';
 
-const ENDPOINT = process.env.ACP_GRPC_ENDPOINT;
-const suite = ENDPOINT ? describe : describe.skip;
+const suite = process.env.SUDOWORK_RUNTIME_E2E === '1' ? describe : describe.skip;
 
-async function waitFor(pred: () => boolean, timeoutMs: number): Promise<void> {
-  const start = Date.now();
-  while (!pred()) {
-    if (Date.now() - start > timeoutMs) throw new Error('waitFor timed out');
-    await new Promise((r) => setTimeout(r, 20));
+async function waitFor(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error('Session did not respond before the deadline');
+    await new Promise((resolve) => setTimeout(resolve, 25));
   }
 }
 
-// Mock ACP agent: emit one NDJSON notification on startup, then reply with a
-// fixed NDJSON response for every line received on stdin (round-trip proof).
-const MOCK_AGENT = [`printf '{"jsonrpc":"2.0","method":"hello","params":{"x":1}}\\n'`, `while IFS= read -r line; do printf '{"jsonrpc":"2.0","id":1,"result":"pong"}\\n'; done`].join('; ');
+suite('desktop session adapter through the actual Sudocode service', () => {
+  let root: string;
+  let originalServiceRoot: string | undefined;
+  const transports: ScodeAcpTransport[] = [];
+  beforeAll(async () => {
+    if (!process.env.SCODE_BIN) throw new Error('SCODE_BIN is required');
+    root = await mkdtemp(path.join(os.tmpdir(), 'scode-sessions-'));
+    originalServiceRoot = process.env.SCODE_SERVICE_ROOT;
+    process.env.SCODE_SERVICE_ROOT = root;
+    configureScodeService(() => process.env.SCODE_BIN!);
+    await getScodeServiceClient().request('service.install', {}, 600_000);
+    await writeFile(
+      path.join(root, 'agent.cjs'),
+      [
+        "const readline = require('node:readline');",
+        "console.log(JSON.stringify({jsonrpc:'2.0',method:'hello',params:{pid:process.pid}}));",
+        "readline.createInterface({input:process.stdin}).on('line', line => {",
+        '  const message = JSON.parse(line);',
+        "  console.log(JSON.stringify({jsonrpc:'2.0',id:message.id,result:message.params}));",
+        '});',
+      ].join('\n')
+    );
+  }, 600_000);
 
-suite('NexusAcpTransport ↔ live nexusd-cluster', () => {
-  it('spawns via managed_agent, exchanges session messages both directions, cancels on close', async () => {
-    const messages: AcpMessage[] = [];
-    let closed = false;
-    const transport = new NexusAcpTransport({
-      endpoint: ENDPOINT!,
-      authToken: '',
-      agentId: 'acp-transport-itest',
-      spawnSpec: { cmd: 'sh', args: ['-c', MOCK_AGENT], env: { PATH: '/usr/bin:/bin' }, cwd: '/tmp', shell: false },
-      events: {
-        onMessage: (m) => messages.push(m),
-        onClose: () => {
-          closed = true;
-        },
-        onSetupError: () => {},
-      },
-    });
+  afterAll(async () => {
+    await Promise.all(transports.map((transport) => transport.close()));
+    if (root) await getScodeServiceClient().request('service.shutdown');
+    getScodeServiceClient().close();
+    if (originalServiceRoot === undefined) delete process.env.SCODE_SERVICE_ROOT;
+    else process.env.SCODE_SERVICE_ROOT = originalServiceRoot;
+  });
 
-    await transport.connect();
-    expect(transport.connected).toBe(true);
-
-    // 1. Agent → client: the startup notification arrives, through the session mailbox.
-    await waitFor(() => messages.some((m) => (m as { method?: string }).method === 'hello'), 5000);
-    expect(messages.find((m) => (m as { method?: string }).method === 'hello')).toMatchObject({
-      method: 'hello',
-      params: { x: 1 },
-    });
-
-    // 2. Round-trip through the shared mailbox and internal subprocess adapter.
-    transport.send({ jsonrpc: '2.0', id: 1, method: 'ping' });
-    await waitFor(() => messages.some((m) => (m as { id?: number }).id === 1 && (m as { result?: string }).result === 'pong'), 5000);
-
-    // 3. close() cancels the managed session and tears down the client.
-    await transport.close();
-    expect(transport.connected).toBe(false);
-    expect(closed).toBe(false); // graceful close() is not a runtime onClose
-  }, 30000);
+  it('runs two managed agents, preserves their separate mailboxes, and sends while reads wait', async () => {
+    const messages: AcpMessage[][] = [[], []];
+    for (let index = 0; index < 2; index++) {
+      const transport = new ScodeAcpTransport({
+        agentId: `service-fixture-${index}`,
+        spawnSpec: { cmd: process.execPath, args: [path.join(root, 'agent.cjs')], env: { ...process.env }, cwd: root, shell: false },
+        events: { onMessage: (message) => messages[index].push(message), onClose: () => {}, onSetupError: () => {} },
+      });
+      transports.push(transport);
+      await transport.connect();
+    }
+    await waitFor(() => messages.every((entries) => entries.some((message) => 'method' in message && message.method === 'hello')));
+    const start = Date.now();
+    transports.forEach((transport, index) => transport.send({ jsonrpc: '2.0', id: 7, method: 'ping', params: { recipient: index, text: '完整字节 round trip' } }));
+    await waitFor(() => messages.every((entries) => entries.some((message) => 'id' in message && message.id === 7)));
+    expect(Date.now() - start).toBeLessThan(2000);
+    messages.forEach((entries, index) => expect(entries.find((message) => 'id' in message && message.id === 7)).toMatchObject({ result: { recipient: index, text: '完整字节 round trip' } }));
+    const pids = transports.map((transport) => transport.pid);
+    expect(pids.every((pid) => typeof pid === 'number' && pid > 0)).toBe(true);
+    expect(new Set(pids).size).toBe(2);
+    await transports[0].close();
+    expect(transports[1].connected).toBe(true);
+    transports[1].send({ jsonrpc: '2.0', id: 8, method: 'ping', params: { afterPeerClosed: true } });
+    await waitFor(() => messages[1].some((message) => 'id' in message && message.id === 8));
+  }, 45_000);
 });

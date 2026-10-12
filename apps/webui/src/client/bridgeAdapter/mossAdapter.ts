@@ -28,6 +28,12 @@
  */
 
 import { bridge } from '@office-ai/platform'
+import {
+  mossSecretPath,
+  mossSecretResult,
+  type MossSecretEntry,
+  type MossResponse,
+} from '@sudowork/common/nexus/moss-secret-client'
 import { createMossAgentPort } from '@sudowork/moss-client/agents'
 // Canonical wire shape — one definition shared with the renderer + main, not a
 // parallel copy.
@@ -1316,6 +1322,46 @@ function ensureChannelEventsSocket(): void {
 }
 
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
+  'secret.get': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key))
+    const data = mossSecretResult(await apiFetch<MossResponse<{ value: string }>>(path))
+    return ok(data?.value ?? null)
+  },
+  'secret.put': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key))
+    mossSecretResult(
+      await apiFetch<MossResponse<void>>(path, {
+        method: 'PUT',
+        body: JSON.stringify({ value: req.value }),
+      }),
+    )
+    return { success: true }
+  },
+  'secret.delete': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key))
+    mossSecretResult(await apiFetch<MossResponse<void>>(path, { method: 'DELETE' }))
+    return ok(true)
+  },
+  'secret.restore': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key), 'enable')
+    mossSecretResult(await apiFetch<MossResponse<void>>(path, { method: 'POST', body: '{}' }))
+    return ok(true)
+  },
+  'secret.list': async (req) => {
+    const entries = mossSecretResult(
+      await apiFetch<MossResponse<MossSecretEntry[]>>('/api/v1/me/secrets'),
+    )
+    return ok(
+      (entries ?? [])
+        .filter((entry) => entry.namespace === req.namespace)
+        .map((entry) => ({
+          namespace: entry.namespace,
+          key: entry.key,
+          currentVersion: entry.version,
+          deleted: !entry.enabled,
+        })),
+    )
+  },
   'get-file-metadata': async (req) => {
     const path = String(req.path ?? '')
     const file = window.__sudoworkWebFileStaging?.get(path)

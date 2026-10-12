@@ -12,7 +12,7 @@
  *     → AuthProxyServer HTTP listen on 127.0.0.1
  *     → token validation
  *     → handleSecretsRequest dispatch
- *     → NexusSecretClient (mocked in-memory)
+ *     → ScodeSecretsClient (mocked in-memory)
  *
  * Boots a real AuthProxyServer in-process, registers a test token via
  * the real `registerToken` API, then drives real HTTP `fetch` calls
@@ -91,13 +91,9 @@ const mockClient = {
 
 // ─── Mock the heavy infra the handler imports ───────────────────────
 
-vi.mock('@common/nexus/nexus-secret-client', () => ({
-  getNexusSecretClient: () => mockClient,
+vi.mock('@common/scode/secretsClient', () => ({
+  getScodeSecretsClient: () => mockClient,
 }));
-vi.mock('@common/nexus/nexus-secret-resilient', async () => {
-  const { putSecretResilient } = await import('../../src/common/nexus/nexus-secret-resilient');
-  return { putSecretResilient };
-});
 vi.mock('@common/nexus/secret-cache', () => ({
   cachePut: vi.fn(),
   cacheDelete: vi.fn(),
@@ -276,21 +272,3 @@ describe('AuthProxy /secrets HTTP — request body + response shape', () => {
 });
 
 // ─── The 进二 bug class — full HTTP round-trip with vault method-missing ─
-
-describe('AuthProxy /secrets HTTP — vault method-missing resilience', () => {
-  it('skill PUT returns 200 even when single-secret dispatch is missing (batch fallback)', async () => {
-    // Simulate the v0.2.7 / future-regression scenario: vault dylib
-    // missing secret_put. Without resilience, skill sees 500 →
-    // discards the API key → falls back to credits → 进二's exact
-    // bug.
-    mockClient.putSecret.mockImplementationOnce(() => {
-      throw new Error('method not found');
-    });
-    mockClient.batchPut.mockReturnValueOnce([{ namespace: 'ns', key: 'k', currentVersion: 1, deleted: false, description: undefined, createdAt: Date.now(), updatedAt: Date.now() }]);
-
-    const res = await skillFetch('PUT', '/secrets/ns/k', { value: 'v' });
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(mockClient.batchPut).toHaveBeenCalled();
-  });
-});

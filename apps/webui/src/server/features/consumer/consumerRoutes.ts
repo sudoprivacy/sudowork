@@ -30,6 +30,13 @@ import type { AuthDeps } from '../auth/authService.js'
  */
 const FORWARDED = [
   { method: 'GET', path: '/agents/mine' },
+  { method: 'GET', path: '/config/items' },
+  { method: 'GET', path: '/me/secrets' },
+  { method: 'GET', path: '/me/secrets/:namespace/:key' },
+  { method: 'PUT', path: '/me/secrets/:namespace/:key' },
+  { method: 'DELETE', path: '/me/secrets/:namespace/:key' },
+  { method: 'POST', path: '/me/secrets/:namespace/:key/enable' },
+  { method: 'POST', path: '/me/secrets/:namespace/:key/disable' },
   { method: 'GET', path: '/user-agents' },
   { method: 'POST', path: '/user-agents' },
   { method: 'GET', path: '/user/dashboard' },
@@ -53,6 +60,7 @@ export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
   const router = Router()
 
   for (const route of FORWARDED) {
+    const isBodyMethod = route.method === 'POST' || route.method === 'PUT'
     const handler = async (
       req: AuthedRequest,
       res: Response,
@@ -76,9 +84,9 @@ export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
           method: route.method,
           headers: {
             Authorization: `Bearer ${ctx.accessToken}`,
-            ...(route.method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
+            ...(isBodyMethod ? { 'Content-Type': 'application/json' } : {}),
           },
-          ...(route.method === 'POST' ? { body: JSON.stringify(body) } : {}),
+          ...(isBodyMethod ? { body: JSON.stringify(body) } : {}),
         })
         const text = await upstream.text()
         // Passed through verbatim, status included: these pages read moss's own
@@ -90,8 +98,9 @@ export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
       }
     }
 
-    if (route.method === 'GET') router.get(route.path, requireSession, handler)
-    else router.post(route.path, requireSession, handler)
+    const endpoint = router.route(route.path)
+    const method = route.method.toLowerCase() as Lowercase<typeof route.method>
+    endpoint[method](requireSession, handler)
   }
 
   return router

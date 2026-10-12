@@ -12,7 +12,7 @@
 
 import fs from 'fs';
 import { extractSudorouterCreds } from '@sudowork/common/scodeConfig';
-import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
+import { getScodeSecretsClient } from '@common/scode/secretsClient';
 import { resolveSecret, cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { SCODE_CONFIG_PATH } from '@process/services/scode/scodePaths';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
@@ -92,7 +92,7 @@ async function writeSecretIfChanged(key: string, value: string): Promise<void> {
     if (current === value) {
       return; // unchanged — avoid bumping Nexus version number on every save
     }
-    const client = getNexusSecretClient();
+    const client = getScodeSecretsClient();
     await client.putSecret(USER_KEY_NAMESPACE, key, value);
     try {
       await client.restoreSecret(USER_KEY_NAMESPACE, key);
@@ -110,7 +110,7 @@ async function writeSecretIfChanged(key: string, value: string): Promise<void> {
 async function clearSecret(key: string): Promise<void> {
   cacheDelete(USER_KEY_NAMESPACE, key);
   try {
-    await getNexusSecretClient().deleteSecret(USER_KEY_NAMESPACE, key);
+    await getScodeSecretsClient().deleteSecret(USER_KEY_NAMESPACE, key);
   } catch (error) {
     mainWarn(TAG, `failed to clear ${USER_KEY_NAMESPACE}/${key}`, error);
   }

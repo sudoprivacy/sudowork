@@ -10,6 +10,28 @@ Sudowork is an Electron app with three types of processes:
 
 Cross-process communication must go through the IPC bridge.
 
+## Sudocode Services
+
+Sudocode owns the shared local Nexus service, its verified runtime assembly,
+and the Vault, file and managed session capabilities. Desktop adapters in
+`apps/desktop/src/common/scode/` use one `scode service stdio` connection.
+Closing Sudowork disconnects that frontend; the shared service preserves
+its data and remains available to other Sudocode clients.
+
+```mermaid
+flowchart LR
+    UI[Shared renderer] --> IPC[Desktop IPC bridge]
+    IPC --> Client[Sudocode capability client]
+    CLI[Sudocode clients] --> Service[Sudocode shared service]
+    Client --> Service
+    Service --> Nexus[Nexus and Vault]
+```
+
+The capability and lifecycle contract is maintained in
+[Sudocode shared services](https://github.com/sudoprivacy/sudocode/blob/main/docs/shared-services.md).
+Storage and IPC providers register before the application renderer loads;
+runtime provisioning runs alongside the visible initialization screen.
+
 ## IPC Communication
 
 - Preload script: `src/preload.ts` — exposes a secure `contextBridge` API to the renderer

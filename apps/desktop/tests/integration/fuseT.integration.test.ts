@@ -167,42 +167,7 @@ describe('FUSE-T — IPC platform gate', () => {
   });
 });
 
-describe('FUSE-T — eager dylib dispatch in download-nexus-vfs.js', () => {
-  // Artifact/dylib naming was extracted from download-nexus-vfs.js into the
-  // SSOT module scripts/plugin-naming.js (getPluginArtifact / getPluginDylib),
-  // which download-nexus-vfs.js consumes. Assert the composed names the kernel
-  // team's release pipeline matches against — importing the pure namer is safe
-  // (no network) and pins the actual contract, not a source substring.
-  const { getPluginArtifact, getPluginDylib } = require(path.join(REPO_ROOT, 'scripts/plugin-naming.js'));
-
-  it('macOS arm64 + x86_64 fuse-plugin artifact names are exposed', () => {
-    expect(getPluginArtifact('darwin', 'arm64', 'nexus_fuse_plugin')).toBe('nexus-fuse-plugin-macos-arm64.tar.gz');
-    expect(getPluginArtifact('darwin', 'x64', 'nexus_fuse_plugin')).toBe('nexus-fuse-plugin-macos-x86_64.tar.gz');
-  });
-
-  it('libnexus_fuse_plugin.dylib is wired for darwin', () => {
-    expect(getPluginDylib('darwin', 'nexus_fuse_plugin')).toBe('libnexus_fuse_plugin.dylib');
-  });
-
-  it('macOS + Linux fuse-plugin SHA256 sums are filled in the canonical JSON', () => {
-    // Earlier in PR #916 these landed commented-out (fail-closed pending the
-    // first cross-platform fuse-vX.Y.Z release). v0.2.0 shipped all three
-    // archives, so the verifier now has real sums for every platform we
-    // dispatch to. Assert each entry is a 64-char hex string — a regression
-    // like a placeholder or a truncated copy/paste would otherwise let an
-    // unverified dylib pass when CI doesn't actually exercise the macOS
-    // download path on Linux runners.
-    //
-    // Sums migrated out of `scripts/download-nexus-vfs.js` into
-    // `src/shared/runtime-sha256.json` to fix the cross-file drift PR
-    // #918 hit on Mac smoke (script bumped, runtime tables not); the
-    // assertion now reads the canonical JSON directly.
-    const sha = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'src/shared/runtime-sha256.json'), 'utf-8')) as Record<string, string>;
-    for (const artifact of ['nexus-fuse-plugin-linux-x86_64.tar.gz', 'nexus-fuse-plugin-macos-arm64.tar.gz', 'nexus-fuse-plugin-macos-x86_64.tar.gz']) {
-      expect(sha[artifact], `missing SHA for ${artifact}`).toMatch(/^[a-f0-9]{64}$/);
-    }
-  });
-
+describe('FUSE-T system installer artifact verification', () => {
   it('FuseTInstallService has a pinned SHA256 for the active fuse-t version (no unverified pkg)', () => {
     // The pkg install path runs `installer -pkg` with administrator
     // privileges. Refusing to install a binary whose SHA isn't on the
@@ -216,15 +181,5 @@ describe('FUSE-T — eager dylib dispatch in download-nexus-vfs.js', () => {
     expect(pinned).toBeTruthy();
     const tableEntryRe = new RegExp(`'${pinned.replace(/[.]/g, '\\.')}':\\s*'([a-f0-9]{64})'`);
     expect(service).toMatch(tableEntryRe);
-  });
-
-  it('fuse-t + nexus-fuse-plugin version pins live in runtime-versions.json (single source of truth)', () => {
-    const versions = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'src/shared/runtime-versions.json'), 'utf-8')) as Record<string, string>;
-    expect(versions['fuse-t']).toMatch(/^\d+\.\d+\.\d+$/);
-    // nexus-fuse-plugin must stay at or above v0.2.0 — that's the first
-    // release that ships macOS arm64 + x86_64 dylibs. A regression to
-    // 0.1.x would drop the macOS archives the dispatch in
-    // download-nexus-vfs.js now references, breaking macOS installs.
-    expect(versions['nexus-fuse-plugin']).toMatch(/^0\.(?:[2-9]|\d{2,})\.\d+$/);
   });
 });

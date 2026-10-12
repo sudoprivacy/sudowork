@@ -22,11 +22,7 @@ export const badgeColors: Record<string, string> = {
   nexus: 'text-[#f6c65b] border border-[#6f5520] bg-[#2b2212]',
 };
 
-function getRunningStatusText(t: TranslateFn, port?: number): string {
-  if (port != null) {
-    return t('settings.runtimeSettings.status.running', { port });
-  }
-
+function getRunningStatusText(t: TranslateFn): string {
   return t('settings.runtimeSettings.status.running', { port: '' }).replace(' :', '');
 }
 
@@ -81,7 +77,7 @@ export function getStatusInfo(record: ToolRow, t: TranslateFn): { dotColor: stri
     case 'running':
       return {
         dotColor: 'bg-green-5',
-        statusText: getRunningStatusText(t, record.key === 'nexus' ? record.nexusPort : undefined),
+        statusText: getRunningStatusText(t),
       };
     case 'installed':
       return {

@@ -3,23 +3,21 @@
  *
  * Responsibilities:
  * 1. Check if migration has already been done (via secret_migration_version)
- * 2. Wait for Nexus to be healthy
- * 3. Migrate all secret types in order:
+ * 2. Migrate all secret types through Sudocode in order:
  *    - Channel credentials (Telegram, Feishu, DingTalk, WeChat)
  *    - AI Platform API Keys (OpenAI, Anthropic, Gemini, Bedrock)
  *    - ACP Auth Tokens
  *    - JWT Secrets
- * 4. Mark migration as complete
- * 5. Trigger cache preload
+ * 3. Mark migration as complete
+ * 4. Trigger cache preload
  */
 
 import { decryptCredentials } from '@/channels/utils/credentialCrypto';
 import { getDatabase } from '@process/database/export';
 import { ProcessConfig } from '@process/initStorage';
-import { resolveConfig } from '@common/nexus/config';
+import type { ScodeSecretsClient } from '../scode/secretsClient';
+import { getScodeSecretsClient } from '../scode/secretsClient';
 import { secretCache, markMigrated } from './secret-cache';
-import type { NexusSecretClient } from './nexus-secret-client';
-import { getNexusSecretClient } from './nexus-secret-client';
 
 // ============================================================================
 // Types
@@ -64,15 +62,14 @@ const CHANNEL_CREDENTIAL_FIELDS: Record<string, string[]> = {
 // ============================================================================
 
 export class SecretMigrationCoordinator {
-  private client: NexusSecretClient | null = null;
+  private client: ScodeSecretsClient | null = null;
   private migrationMap: MigrationMap = {};
 
   /**
-   * Initialize the coordinator with optional credentials for Nexus authentication.
-   * Uses resolveConfig() to get full config if no options provided.
+   * Initialize the coordinator with Sudocode's Vault capability.
    */
   initialize(): void {
-    this.client = getNexusSecretClient();
+    this.client = getScodeSecretsClient();
     secretCache.initialize();
   }
 
@@ -103,21 +100,10 @@ export class SecretMigrationCoordinator {
       return result;
     }
 
-    // Step 2: Wait for Nexus to be healthy
-    console.log('[SecretMigration] Waiting for Nexus to be healthy...');
-    const nexusHealthy = await this.waitForNexus(30000); // 30s timeout
-    if (!nexusHealthy) {
-      result.success = false;
-      result.errors.push('Nexus is not healthy, cannot migrate');
-      return result;
-    }
-
-    console.log('[SecretMigration] Nexus is healthy, starting migration...');
-
-    // Step 3: Load migration map
+    // Load durable migration progress before submitting Vault operations.
     await this.loadMigrationMap();
 
-    // Step 4: Migrate each secret type
+    // Migrate each secret type.
     const migrateFunctions = [this.migrateChannelCredentials.bind(this), this.migrateAIPlatformCredentials.bind(this), this.migrateACPAuthTokens.bind(this)];
 
     for (const migrateFn of migrateFunctions) {
@@ -131,7 +117,7 @@ export class SecretMigrationCoordinator {
       }
     }
 
-    // Step 5: Mark migration as complete
+    // Mark migration complete after all writes have been verified.
     if (result.failedCount === 0) {
       await this.setMigrationVersion(SECRET_MIGRATION_VERSION);
       console.log(`[SecretMigration] Migration complete: ${result.migratedCount} secrets migrated`);
@@ -141,33 +127,6 @@ export class SecretMigrationCoordinator {
     }
 
     return result;
-  }
-
-  /**
-   * Check if Nexus is healthy by calling /health endpoint.
-   * Uses the configured baseUrl from config.yaml instead of hardcoded port.
-   */
-  private async waitForNexus(timeoutMs: number): Promise<boolean> {
-    const config = resolveConfig();
-    const healthUrl = `${config.baseUrl}/health`;
-    console.log(`[SecretMigration] Checking Nexus health at: ${healthUrl}`);
-
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      try {
-        const response = await fetch(healthUrl, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000),
-        });
-        if (response.ok) {
-          return true;
-        }
-      } catch {
-        // Ignore errors, keep waiting
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-    return false;
   }
 
   /**
@@ -234,7 +193,7 @@ export class SecretMigrationCoordinator {
    */
   private async migrateSecret(namespace: string, key: string, value: string): Promise<void> {
     if (!this.client) {
-      throw new Error('NexusSecretClient not initialized');
+      throw new Error('ScodeSecretsClient not initialized');
     }
 
     const ref = `${namespace}:${key}`;
@@ -460,7 +419,7 @@ export function getMigrationCoordinator(): SecretMigrationCoordinator {
 
 /**
  * Initialize and run migration, then preload the cache.
- * This should be called after Nexus is healthy.
+ * Called after the Sudocode service connection is ready.
  */
 export async function initializeSecrets(): Promise<void> {
   const coordinator = getMigrationCoordinator();
