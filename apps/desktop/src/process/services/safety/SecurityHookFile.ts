@@ -14,8 +14,7 @@
  * Action files: /safe/action/{uuid}
  */
 
-import type { Nexus } from '@/common/nexus';
-import { getNexusRpcClient } from '@/common/nexus';
+import { getScodeFilesClient, type ScodeFilesClient } from '@/common/scode/filesClient';
 import type { IActionFileData, IEventFileData, IFileEventData, INetworkEventData, IProcessEventData, ISafetyStatus, RiskLevel } from '@common/types/security';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 
@@ -43,8 +42,8 @@ export const DEFAULT_HOOK_CONFIG = {
 /**
  * Get Nexus RPC client instance
  */
-export function getNexusClient(): Nexus {
-  return getNexusRpcClient();
+export function getNexusClient(): ScodeFilesClient {
+  return getScodeFilesClient();
 }
 
 /**

@@ -49,7 +49,7 @@ import type {
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError, getAcpResumeStrategy } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
-import { dynamicNexusVfsService } from '@process/services/nexus-vfs/DynamicNexusVfsService';
+import { scodeRuntimeService } from '@process/services/scode/ScodeRuntimeService';
 import { applyPresetRuntime, applyPresetRuntimeFromMeta } from '@process/task/presetRuntime';
 import { readMossAssistantSnapshot } from '@process/services/mossResourcePreparation';
 import { resolveMossPersonalRuntime } from '@process/services/mossPersonalAgents';
@@ -486,7 +486,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // until validated.
       customEnv = {
         ...customEnv,
-        ...resolveTunnelEnv(data.backend, dynamicNexusVfsService.acpTunnelEndpoint),
+        ...resolveTunnelEnv(data.backend, scodeRuntimeService.isRunning),
       };
 
       this.extra = {

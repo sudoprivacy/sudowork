@@ -29,22 +29,6 @@ const ARCHIVE_CLEANUP_SUBSTRINGS = [
 ];
 
 /**
- * Nexus plugin archives carry a detached Nexus runtime signature next to the
- * dylib/dll. Re-signing the binary for macOS notarization changes its bytes
- * and invalidates that plugin signature, so these archives must stay pristine.
- */
-const NEXUS_SIGNED_PLUGIN_ARCHIVE_RE = /^v[\d.]+-nexus-(?:vault|local-connector|fuse-plugin)-.*\.(?:tar\.gz|tgz|tar|zip)$/;
-const NEXUS_CLUSTER_ARCHIVE_RE = /^v[\d.]+-nexusd-cluster-.*\.(?:tar\.gz|tgz|tar)$/;
-
-function shouldSignArchiveInAfterPack(archiveName) {
-  return !NEXUS_SIGNED_PLUGIN_ARCHIVE_RE.test(archiveName);
-}
-
-function shouldUseRuntimeEntitlementsInAfterPack(archiveName, nodeArchiveName) {
-  return archiveName === nodeArchiveName || NEXUS_CLUSTER_ARCHIVE_RE.test(archiveName);
-}
-
-/**
  * Remove known-problematic files from a directory tree before repacking.
  * Returns the number of files deleted.
  * @param {string} dir - Root of the extracted archive
@@ -774,21 +758,6 @@ async function afterPack(context) {
       }
     }
 
-    // Sign versioned nexus archives by unpacking and re-signing their bundled binaries.
-    // Current macOS resources ship Nexus as .tar.gz/.tgz archives, not plain executables.
-    const nexusArchives = [];
-    try {
-      nexusArchives.push(
-        ...fs
-          .readdirSync(resourcesDir)
-          .filter(f => /^v[\d.]+-nexus.*-.*\.(?:tar\.gz|tgz|tar)$/.test(f))
-          .filter(shouldSignArchiveInAfterPack),
-      );
-    } catch {
-      // Resources dir not readable — nexus archives will be skipped
-    }
-
-    // claude-code.tgz removed — see electron-builder.yml extraResources note.
     const fixedArchives = ['mcporter.tgz', 'shareone.tgz'];
 
     // Node runtime has architecture-specific name (e.g., node-darwin-arm64.tar.gz)
@@ -798,15 +767,13 @@ async function afterPack(context) {
     const scodeVersion = runtimeVersions.scode;
     const scodeArchive = `v${scodeVersion}-scode-macos-${targetArch}.tar.gz`;
 
-    const archivesToSign = [...fixedArchives, nodeArchive, scodeArchive, ...nexusArchives];
-    // Node.js needs JIT/memory entitlements. nexusd-cluster needs
-    // disable-library-validation so macOS can dlopen signed Nexus plugins whose
-    // own detached Nexus signatures must stay pristine.
+    const archivesToSign = [...fixedArchives, nodeArchive, scodeArchive];
+    // Node.js uses the runtime JIT entitlements.
     const entitlementsPath = path.join(__dirname, '..', 'entitlements.plist');
 
     for (const archiveFile of archivesToSign) {
       const archivePath = path.join(resourcesDir, archiveFile);
-      const useEntitlements = shouldUseRuntimeEntitlementsInAfterPack(archiveFile, nodeArchive) ? entitlementsPath : null;
+      const useEntitlements = archiveFile === nodeArchive ? entitlementsPath : null;
       try {
         await signBinariesInArchive(archivePath, identity, false, useEntitlements);
       } catch (err) {
@@ -1024,5 +991,3 @@ async function afterPackWithInstallerManifest(context) {
 
 module.exports = afterPackWithInstallerManifest;
 module.exports.writeInstallerManifest = writeInstallerManifest;
-module.exports.shouldSignArchiveInAfterPack = shouldSignArchiveInAfterPack;
-module.exports.shouldUseRuntimeEntitlementsInAfterPack = shouldUseRuntimeEntitlementsInAfterPack;

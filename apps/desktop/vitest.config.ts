@@ -3,26 +3,8 @@ import { defineConfig } from 'vitest/config';
 
 // Modules that stay in apps/desktop/src/common (main-only or transitively so);
 // everything else under @common / @/common now lives in @sudowork/common.
-const DESKTOP_ONLY_COMMON = [
-  'ClientFactory',
-  'adapters/index',
-  'enterpriseDebugConfig',
-  'imagePricingSource',
-  'index',
-  'navigation/NavigationInterceptor',
-  'navigation/index',
-  'nexus/generated/nexus/secrets/v1/secrets_pb',
-  'nexus/index',
-  'nexus/moss-secret-client-factory',
-  'nexus/nexus-secret-client',
-  'nexus/nexus-secret-resilient',
-  'nexus/nexus-vfs-client',
-  'nexus/nexusVfsGrpcClient',
-  'nexus/secret-cache',
-  'nexus/secret-migration',
-  'presets/assistantPresets',
-];
-const DESKTOP_ONLY_COMMON_DIRS = ['nexus', 'navigation', 'adapters'];
+const DESKTOP_ONLY_COMMON = ['ClientFactory', 'adapters/index', 'enterpriseDebugConfig', 'imagePricingSource', 'index', 'navigation/NavigationInterceptor', 'navigation/index', 'nexus/moss-secret-client-factory', 'nexus/secret-cache', 'nexus/secret-migration', 'presets/assistantPresets'];
+const DESKTOP_ONLY_COMMON_DIRS = ['navigation', 'adapters'];
 
 function commonAliasEntries() {
   const pkg = path.resolve(__dirname, '../../packages/common/src').replace(/\\/g, '/');
@@ -30,6 +12,7 @@ function commonAliasEntries() {
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const entries: { find: RegExp; replacement: string }[] = [];
   entries.push({ find: /^@\/?common$/, replacement: deskCommon });
+  entries.push({ find: /^@\/?common\/scode\/(.*)$/, replacement: `${deskCommon}/scode/$1` });
   for (const m of [...DESKTOP_ONLY_COMMON, ...DESKTOP_ONLY_COMMON_DIRS]) {
     entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '(?:\\.js)?$'), replacement: `${deskCommon}/${m}` });
   }
@@ -119,6 +102,11 @@ export default defineConfig({
         '../../packages/renderer/src/pages/conversation/context/ConversationHistoryContext.tsx',
         '../../packages/renderer/src/pages/conversation/components/AgentSessionHeader.tsx',
         '../../packages/renderer/src/pages/conversation/components/NewConversationButton.tsx',
+        'src/common/scode/serviceClient.ts',
+        'src/common/scode/secretsClient.ts',
+        'src/common/scode/filesClient.ts',
+        'src/common/scode/sessionsClient.ts',
+        'src/process/services/scode/ScodeRuntimeService.ts',
         '../../packages/common/src/types/tenantConfig.ts',
         '../../packages/renderer/src/components/TenantLogo.tsx',
         '../../packages/renderer/src/layouts/components/UpdateModal.tsx',
@@ -260,7 +248,6 @@ export default defineConfig({
         // Common
         'src/common/chatLib.ts',
         'src/common/nexus/hubErrors.ts',
-        'src/common/nexus/nexusVfsGrpcClient.ts',
         'src/common/runtime-errors.ts',
         'src/common/nexusFiles.ts',
         'src/common/scodeConfig.ts',

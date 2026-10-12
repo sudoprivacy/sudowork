@@ -9,14 +9,9 @@ vi.mock('@process/utils/mainLogger', () => ({
 // Stub the singleton dependencies — the supervisor accepts injected
 // fakes for all of them in tests, but importing the module still
 // pulls these in transitively (DynamicNexusVfsService imports electron).
-vi.mock('@process/services/nexus-vfs/DynamicNexusVfsService', () => ({
-  dynamicNexusVfsService: {
-    stop: vi.fn(),
-    start: vi.fn(),
-    install: vi.fn(),
-    get isRunning() {
-      return false;
-    },
+vi.mock('@process/services/scode/ScodeRuntimeService', () => ({
+  scodeRuntimeService: {
+    restart: vi.fn(),
   },
 }));
 vi.mock('@process/services/fuset/FuseTInstallService', () => ({
@@ -32,15 +27,12 @@ import type { FusePluginStatus, FusePluginStatusResult } from '../../src/process
 interface Mocks {
   getStatus: ReturnType<typeof vi.fn>;
   ensureInstalled: ReturnType<typeof vi.fn>;
-  clusterStop: ReturnType<typeof vi.fn>;
-  clusterStart: ReturnType<typeof vi.fn>;
-  clusterInstall: ReturnType<typeof vi.fn>;
+  clusterRestart: ReturnType<typeof vi.fn>;
 }
 
 interface BuildOpts {
   statusSequence: FusePluginStatusResult[];
   ensureInstalledImpl?: () => Promise<void>;
-  clusterIsRunning?: boolean;
   platform?: NodeJS.Platform;
 }
 
@@ -48,23 +40,16 @@ function build(opts: BuildOpts): { supervisor: FuseTSupervisor; mocks: Mocks } {
   const statusQueue = [...opts.statusSequence];
   const getStatus = vi.fn(() => Promise.resolve(statusQueue.shift() ?? { status: 'unknown' as FusePluginStatus, raw: '' }));
   const ensureInstalled = vi.fn(opts.ensureInstalledImpl ?? (() => Promise.resolve()));
-  const clusterStop = vi.fn(() => Promise.resolve());
-  const clusterInstall = vi.fn(() => Promise.resolve());
-  const clusterStart = vi.fn(() => Promise.resolve());
+  const clusterRestart = vi.fn(() => Promise.resolve());
   const supervisor = new FuseTSupervisor({
     platform: opts.platform ?? 'darwin',
     pluginClient: { getStatus } as never,
     installService: { ensureInstalled },
     cluster: {
-      stop: clusterStop,
-      start: clusterStart,
-      install: clusterInstall,
-      get isRunning() {
-        return opts.clusterIsRunning ?? true;
-      },
+      restart: clusterRestart,
     },
   });
-  return { supervisor, mocks: { getStatus, ensureInstalled, clusterStop, clusterStart, clusterInstall } };
+  return { supervisor, mocks: { getStatus, ensureInstalled, clusterRestart } };
 }
 
 describe('FuseTSupervisor.runLazyInstallProbe', () => {
@@ -77,8 +62,7 @@ describe('FuseTSupervisor.runLazyInstallProbe', () => {
     // contract safe to call from any UI surface — repeated
     // invocations cost one gRPC roundtrip, not a UAC dialog.
     expect(mocks.ensureInstalled).not.toHaveBeenCalled();
-    expect(mocks.clusterStop).not.toHaveBeenCalled();
-    expect(mocks.clusterStart).not.toHaveBeenCalled();
+    expect(mocks.clusterRestart).not.toHaveBeenCalled();
   });
 
   it('returns `unmounted-no-prereq-action` and does NOT install when plugin reports unmounted', async () => {
@@ -119,30 +103,7 @@ describe('FuseTSupervisor.runLazyInstallProbe', () => {
       rawStatus: 'mounted',
     });
     expect(mocks.ensureInstalled).toHaveBeenCalledTimes(1);
-    // Both stop+start must run — the plugin's `create` only re-probes
-    // FUSE-T on a fresh `nexus_service_create` invocation, not in
-    // place. If the supervisor ever skips the restart, the second
-    // probe will still see `fuse-t-missing` even after a successful
-    // install.
-    expect(mocks.clusterStop).toHaveBeenCalledTimes(1);
-    expect(mocks.clusterStart).toHaveBeenCalledTimes(1);
-    expect(mocks.clusterInstall).toHaveBeenCalledTimes(1);
-    expect(mocks.clusterInstall.mock.invocationCallOrder[0]).toBeLessThan(mocks.clusterStart.mock.invocationCallOrder[0]);
-  });
-
-  it('skips cluster.stop() when cluster is not currently running, but still starts it', async () => {
-    const { supervisor, mocks } = build({
-      statusSequence: [
-        { status: 'fuse-t-missing', raw: 'fuse-t-missing' },
-        { status: 'mounted', raw: 'mounted' },
-      ],
-      clusterIsRunning: false,
-    });
-    await supervisor.runLazyInstallProbe();
-    expect(mocks.clusterStop).not.toHaveBeenCalled();
-    expect(mocks.clusterStart).toHaveBeenCalledTimes(1);
-    expect(mocks.clusterInstall).toHaveBeenCalledTimes(1);
-    expect(mocks.clusterInstall.mock.invocationCallOrder[0]).toBeLessThan(mocks.clusterStart.mock.invocationCallOrder[0]);
+    expect(mocks.clusterRestart).toHaveBeenCalledTimes(1);
   });
 
   it('returns `installed-but-not-mounted` when install succeeds but plugin still does not mount', async () => {
@@ -171,15 +132,14 @@ describe('FuseTSupervisor.runLazyInstallProbe', () => {
     expect(result.errorMessage).toContain('SHA mismatch');
     // No cluster restart on install failure — the plugin's state
     // hasn't changed, so a restart would just churn the daemon.
-    expect(mocks.clusterStop).not.toHaveBeenCalled();
-    expect(mocks.clusterStart).not.toHaveBeenCalled();
+    expect(mocks.clusterRestart).not.toHaveBeenCalled();
   });
 
   it('returns `install-failed` when cluster restart blows up post-install', async () => {
     const { supervisor, mocks } = build({
       statusSequence: [{ status: 'fuse-t-missing', raw: 'fuse-t-missing' }],
     });
-    mocks.clusterStart.mockRejectedValueOnce(new Error('port in use'));
+    mocks.clusterRestart.mockRejectedValueOnce(new Error('port in use'));
     const result = await supervisor.runLazyInstallProbe();
     expect(result.outcome).toBe('install-failed');
     expect(result.errorMessage).toContain('cluster restart failed');

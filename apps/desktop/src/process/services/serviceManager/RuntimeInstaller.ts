@@ -7,12 +7,12 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { isNodeInstalled } from '../claudeCli/NodeRuntimeService';
 import { initStatusManager } from '../initStatus';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
-import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
-import { dynamicNexusVfsService as installedNexusService } from '../nexus-vfs/DynamicNexusVfsService';
+import { scodeRuntimeService as installedNexusService } from '../scode/ScodeRuntimeService';
 import { isScodeInstalled as isInstalledScode, ensureScodeInstalled, getScodeVersionState, ensureAgentsMdRules } from '../scode/ScodeInstallService';
+import { createNexusSetupLogSnapshot, getNexusStepProgressFromSetupStatus, getNexusStepStateFromSetupStatus, shouldLogNexusSetupStatus, type NexusSetupLogSnapshot } from './nexusSetupStatus';
 
 const TAG = 'RuntimeInstaller';
 
@@ -40,17 +40,12 @@ class RuntimeInstaller {
     const isWin32 = process.platform === 'win32';
     const shouldAssumeBundledResources = app.isPackaged;
 
-    // ── Fast synchronous pre-check (no awaits, only sync fs) ────────────────
-    // Running before the first `await` means this executes synchronously in the
-    // same event-loop tick as `void serviceManager.startup()`, so
-    // initStatusManager is set to 'ready' before the renderer can poll
-    // getStatus via IPC. This prevents the brief "组件安装中" flash on
-    // subsequent launches.
+    // Local component checks precede the service capability probe.
     const resDir = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
 
     const fastNodeOk = isNodeInstalled();
     const fastScodeOk = isInstalledScode();
-    const fastNexusOk = installedNexusService.checkInstalledSync();
+    const fastNexusOk = fastScodeOk && !getScodeVersionState().needsUpgrade ? await installedNexusService.checkInstalled() : false;
 
     const markFastInstalledSteps = (): void => {
       initStatusManager.setStepState('git', 'done', 'Git 环境检查已跳过');
@@ -114,9 +109,9 @@ class RuntimeInstaller {
 
     // ── At least one component appears to be missing — do full async check ──
     mainLog(TAG, 'Checking runtime dependencies...');
-    const runtimeModules = await Promise.all([import('../nexus-vfs/DynamicNexusVfsService'), import('../claudeCli/CliInstallService'), import('../git/GitInstallService'), import('../bdpan/BdpanInstallService')]);
+    const runtimeModules = await Promise.all([import('../scode/ScodeRuntimeService'), import('../claudeCli/CliInstallService'), import('../git/GitInstallService'), import('../bdpan/BdpanInstallService')]);
     const [nexusModule, claudeCliModule, gitModule, bdpanModule] = runtimeModules;
-    const { dynamicNexusVfsService } = nexusModule;
+    const { scodeRuntimeService } = nexusModule;
     const { claudeCliService } = claudeCliModule;
     const { ensureGitInstalled, isGitInstalled } = gitModule;
     const { ensureBdpanInstalled, isBdpanInstalled } = bdpanModule;
@@ -124,7 +119,7 @@ class RuntimeInstaller {
     const nodeInstalled = isNodeInstalled();
     const scodeInstalled = isInstalledScode();
     const scodeVersionState = getScodeVersionState();
-    const nexusInstalledPromise = dynamicNexusVfsService.checkInstalled();
+    const nexusInstalledPromise = scodeInstalled && !scodeVersionState.needsUpgrade ? scodeRuntimeService.checkInstalled() : Promise.resolve(false);
     const gitInstalledPromise = isGitInstalled();
     const claudeStatusPromise = claudeCliService.checkInstalled();
     const bdpanInstalledPromise = Promise.resolve().then(() => isBdpanInstalled());
@@ -414,6 +409,10 @@ class RuntimeInstaller {
     })();
 
     const nexusTask: Promise<TaskResult> = (async () => {
+      const scodeResult = await scodeTask;
+      if (!scodeResult.ok) {
+        return { step: 'nexus', ok: false, required: true, error: scodeResult.error };
+      }
       if (nexusInstalled) {
         if (!options?.startNexus) {
           return { step: 'nexus', ok: true, required: true };
@@ -438,7 +437,7 @@ class RuntimeInstaller {
         initStatusManager.addLog(`开始${action}...`);
 
         let lastLoggedSetupStatus: NexusSetupLogSnapshot | null = null;
-        const unsubNexus = dynamicNexusVfsService.onSetupStatus((nexusStatus) => {
+        const unsubNexus = scodeRuntimeService.onSetupStatus((nexusStatus) => {
           const currentProgress = initStatusManager.getStatus().stepProgress?.nexus ?? 0;
           const progress = getNexusStepProgressFromSetupStatus(nexusStatus, currentProgress);
           const state = getNexusStepStateFromSetupStatus(nexusStatus);
@@ -452,7 +451,7 @@ class RuntimeInstaller {
         });
 
         try {
-          await dynamicNexusVfsService.install();
+          await scodeRuntimeService.install();
         } finally {
           unsubNexus();
         }

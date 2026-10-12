@@ -10,8 +10,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { URL } from 'url';
-import { getNexusSecretClient } from '@common/nexus/nexus-secret-client';
-import { putSecretResilient } from '@common/nexus/nexus-secret-resilient';
+import { getScodeSecretsClient } from '@common/scode/secretsClient';
 import { cachePut, cacheDelete } from '@common/nexus/secret-cache';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@/process/initStorage';
@@ -77,7 +76,7 @@ async function applyEnableSideEffect(namespace: string, intentEnable: boolean): 
     } else {
       // Check if all entries' secrets are gone before disabling
       try {
-        const client = getNexusSecretClient();
+        const client = getScodeSecretsClient();
         const activeSecrets = await client.listSecrets(namespace, false);
         const hasActiveEntry = configItem.entries.some((entry) => activeSecrets.some((s) => s.key === entry.config_key));
         if (!hasActiveEntry) {
@@ -109,7 +108,7 @@ async function applyEnableSideEffect(namespace: string, intentEnable: boolean): 
 async function handleList(req: IncomingMessage, res: ServerResponse, parsedUrl: URL): Promise<void> {
   try {
     const namespace = parsedUrl.searchParams.get('namespace') ?? undefined;
-    const client = getNexusSecretClient();
+    const client = getScodeSecretsClient();
     const secrets = await client.listSecrets(namespace, false);
     const metadata = secrets.map((s) => ({
       namespace: s.namespace,
@@ -153,21 +152,21 @@ async function handlePut(req: IncomingMessage, res: ServerResponse, namespace: s
       return;
     }
 
-    // putSecretResilient transparently falls back to batch_put if the
+    // putSecret transparently falls back to batch_put if the
     // deployed vault dylib is missing the single-secret dispatch — the
     // recurring "plugin ABI skew" pattern documented in memory
     // [[vault_plugin_secret_get_missing]]. Without this, 进二 (v0.2.7)'s
     // bug class (API key won't persist → 500 → skill falls back to local
     // file → user keeps falling back to credits) could recur in any
     // future release that pins a vault dylib build missing secret_put.
-    const result = await putSecretResilient(namespace, key, value, description as string | undefined);
+    const result = await getScodeSecretsClient().putSecret(namespace, key, value, description as string | undefined);
 
     // PUT on a previously soft-deleted secret creates a new version but keeps deleted state.
     // restoreSecret clears deleted state, making the secret active again.
     // For non-deleted or first-create secrets, restoreSecret returns error which we ignore.
     // (No resilient wrapper here — restore has no batch variant upstream.)
     try {
-      await getNexusSecretClient().restoreSecret(namespace, key);
+      await getScodeSecretsClient().restoreSecret(namespace, key);
     } catch {
       // Intentional: restoreSecret throws on non-deleted secrets (the
       // common path for first-time PUT). The throw isn't a failure.
@@ -186,7 +185,7 @@ async function handlePut(req: IncomingMessage, res: ServerResponse, namespace: s
 
 async function handleDelete(req: IncomingMessage, res: ServerResponse, namespace: string, key: string): Promise<void> {
   try {
-    const client = getNexusSecretClient();
+    const client = getScodeSecretsClient();
     const result = await client.deleteSecret(namespace, key);
     cacheDelete(namespace, key);
 

@@ -13,39 +13,10 @@
  * flow) and exposes the libfuse3 ABI the `fuser` Rust crate already consumes,
  * so the kernel-side plugin source body is unchanged.
  *
- * Why this is a separate service from the eager downloader in
- * `scripts/download-nexus-vfs.js`:
- *
- *   - The eager downloader only copies files (signed dylibs) into
- *     `~/.nexus-vfs/plugins/`. Zero UAC; safe for every Mac user on cold start.
- *
- *   - FUSE-T itself ships as a system `.pkg` and the install requires
- *     `osascript -e 'do shell script "installer -pkg ... -target /"
- *     with administrator privileges'` — i.e. an admin password prompt.
- *     Running that on every cold start would prompt every Mac user
- *     even if they never trigger a FUSE mount, which violates the
- *     "non-opt-in users see no UX change" contract.
- *
- * So this service is **explicitly lazy**: NOT wired into
- * `RuntimeInstaller.ensureAll()`. Callers (the mount entry point in
- * sudocode / nexusd-cluster, or a future renderer "enable cross-machine
- * mount" UI) invoke `ensureInstalled()` themselves right before requesting
- * a FUSE mount. First mount → one admin password prompt → cached.
- * Subsequent mounts → no prompt.
- *
- * Decision artifacts:
- *   - nexi-lab/nexus PR #4409 — FUSE-T over macFUSE rationale
- *     (GPL/kext/reboot tradeoff, NFS attr cache caveat for mtime/size).
- *   - nexi-lab/nexus
- *     `docs/superpowers/specs/2026-06-23-local-plugin-signing-dev-root.md`
- *     — local trust-root signing recipe used until the kernel release
- *     pipeline emits signed macOS dylibs.
- *   - nexi-lab/nexus
- *     `docs/superpowers/specs/2026-06-13-sealed-keystore-dogfood-design.md`
- *     — sealed-keystore dogfood follow-up tracking the missing
- *     `dogfood_keystore_fetch.py` rehydrate path that's blocking the
- *     upstream signed-release pipeline.
- *   - Sudowork issue #915 — this work.
+ * The mount UI invokes ensureInstalled() when the user enables a mount.
+ * Installing the system .pkg requests administrator permission once;
+ * later mounts reuse the installed driver. Sudocode owns the Nexus plugin
+ * assembly and service restart after the driver becomes available.
  */
 
 import { execFile } from 'child_process';
@@ -177,10 +148,7 @@ export class FuseTInstallService {
   }
 
   /**
-   * Cache path for the downloaded pkg under `~/.nexus-vfs/downloads/`.
-   * Re-uses the same staging dir as the rest of the nexus-vfs installer so
-   * housekeeping (e.g. clearing the runtime cache during a re-install) stays
-   * in one place.
+   * Cache path for the downloaded system driver package.
    */
   private getCachedPkgPath(): string {
     return path.join(os.homedir(), '.nexus-vfs', 'downloads', `fuse-t-${FUSE_T_VERSION}.pkg`);

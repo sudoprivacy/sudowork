@@ -24,6 +24,56 @@ import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/ty
 type FetchMock = ReturnType<typeof vi.fn>
 type StatusRoute = { status: number; body: unknown }
 
+describe('mossAdapter: user Vault capability', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    await import('@client/bridgeAdapter/mossAdapter')
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('maps current metadata and obtains values through the read operation', async () => {
+    const namespace = 'user:alice:mail'
+    const resource = '/api/v1/me/secrets/user%3Aalice%3Amail/password'
+    const fetch = stubFetch({
+      [resource]: { success: true, data: { value: 'synthetic', status: 'enabled', version: 2 } },
+      '/api/v1/me/secrets': {
+        success: true,
+        data: [
+          { namespace, key: 'password', status: 'enabled', enabled: true, version: 2 },
+          { namespace, key: 'disabled', status: 'disabled', enabled: false, version: 3 },
+        ],
+      },
+    })
+    const ipc = await import('@sudowork/host-bridge/ipcBridge')
+    expect(await ipc.secret.list.invoke({ namespace })).toMatchObject({
+      success: true,
+      data: [
+        { namespace, key: 'password', currentVersion: 2, deleted: false },
+        { namespace, key: 'disabled', currentVersion: 3, deleted: true },
+      ],
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(await ipc.secret.get.invoke({ namespace, key: 'password' })).toMatchObject({
+      success: true,
+      data: 'synthetic',
+    })
+  })
+
+  it('returns a storage failure instead of an empty successful list', async () => {
+    stubFetch({
+      '/api/v1/me/secrets': {
+        success: false,
+        error: { code: 'secret_store_unavailable', message: 'Vault unavailable' },
+      },
+    })
+    const ipc = await import('@sudowork/host-bridge/ipcBridge')
+    expect(await ipc.secret.list.invoke({ namespace: 'user:alice:mail' })).toMatchObject({
+      success: false,
+      msg: 'Vault unavailable',
+    })
+  })
+})
+
 describe('mossAdapter: personal Agent conversation names', () => {
   let ipc: typeof import('@sudowork/host-bridge/ipcBridge')
   const ownRef = 'moss-agent:own:22222222-2222-4222-8222-222222222222'

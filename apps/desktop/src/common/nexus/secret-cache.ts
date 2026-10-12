@@ -11,8 +11,8 @@
  * then serving from memory during runtime.
  */
 
-import type { NexusSecretClient } from './nexus-secret-client.js';
-import { getNexusSecretClient } from './nexus-secret-client.js';
+import type { ScodeSecretsClient } from '../scode/secretsClient.js';
+import { getScodeSecretsClient } from '../scode/secretsClient.js';
 
 // ============================================================================
 // Types
@@ -32,16 +32,15 @@ export interface MigrationMap {
 class SecretCacheImpl {
   private cache = new Map<string, string>(); // key: "namespace:key" -> 明文值
   private migrated = new Set<string>(); // 已迁移的 secretRef 集合
-  private client: NexusSecretClient | null = null;
+  private client: ScodeSecretsClient | null = null;
   private initialized = false;
 
   /**
    * Initialize the client.
-   * Uses resolveConfig() to get full config including identity headers.
    * Called once at startup.
    */
   initialize(): void {
-    this.client = getNexusSecretClient();
+    this.client = getScodeSecretsClient();
   }
 
   /**

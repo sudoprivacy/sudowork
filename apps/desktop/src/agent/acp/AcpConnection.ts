@@ -16,7 +16,7 @@ import { resolveNpxPath } from '@process/utils/shellEnv';
 import { recordFirstToken } from '@process/telemetry';
 import { ensureLocalAgentApiPort, getCredentialProxyUrl, registerToken, revokeToken } from '@process/services/authProxy';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
-import { StdioAcpTransport, NexusAcpTransport } from './transport';
+import { StdioAcpTransport, ScodeAcpTransport } from './transport';
 import type { AcpTransport } from './transport';
 import { buildGenericSpawnSpec, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import { ACP_PERF_LOG } from './perf';
@@ -291,10 +291,10 @@ export class AcpConnection {
 
     // A configured Nexus session must stay on the mailbox transport. Connection
     // failures are terminal: changing the execution host would change its policy.
-    const nexusEndpoint = customEnv?.ACP_GRPC_ENDPOINT;
-    if (nexusEndpoint && cliPath && !AcpConnection.NPX_BACKENDS.has(backend)) {
+    const isManagedService = customEnv?.SCODE_MANAGED_SERVICE === '1';
+    if (isManagedService && cliPath && !AcpConnection.NPX_BACKENDS.has(backend)) {
       try {
-        await this.connectViaNexus(backend, cliPath, workingDir, acpArgs, customEnv, nexusEndpoint);
+        await this.connectViaScode(backend, cliPath, workingDir, acpArgs, customEnv);
         return;
       } catch (error) {
         await this.closeTransport();
@@ -349,15 +349,13 @@ export class AcpConnection {
   }
 
   /** Connect either hosting strategy through the shared session mailbox. */
-  private async connectViaNexus(backend: AcpBackend, cliPath: string, workingDir: string, acpArgs: string[] | undefined, customEnv: Record<string, string> | undefined, endpoint: string): Promise<void> {
+  private async connectViaScode(backend: AcpBackend, cliPath: string, workingDir: string, acpArgs: string[] | undefined, customEnv: Record<string, string> | undefined): Promise<void> {
     const spawnSpec = await buildGenericSpawnSpec(backend, cliPath, workingDir, acpArgs, customEnv);
     // Mailbox history has a retention limit. Ontology reconnects use a fresh
     // transport while session/load still restores the original ACP history.
     const agentId = this.options.isOntologySession ? `sudowork-ontology-${this.conversationId ?? 'session'}-${crypto.randomUUID()}` : this.managedAgentId || `${os.hostname()}-sudowork-${backend}-${this.conversationId ?? crypto.randomUUID().slice(0, 8)}`;
 
-    const transport = new NexusAcpTransport({
-      endpoint,
-      authToken: this.proxyToken || '',
+    const transport = new ScodeAcpTransport({
       agentId,
       spawnSpec,
       events: {
@@ -390,7 +388,7 @@ export class AcpConnection {
 
     await this.initialize();
     this.isSetupComplete = true;
-    mainLog('[ACP]', `${backend} connected over the Nexus session mailbox (${endpoint})`);
+    mainLog('[ACP]', `${backend} connected through Sudocode's session service`);
   }
 
   /**

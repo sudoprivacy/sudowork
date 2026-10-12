@@ -1,3 +1,5 @@
+vi.mock('@/process/services/scode/ScodeRuntimeService', () => ({ scodeRuntimeService: { stop: vi.fn(), start: vi.fn(), install: vi.fn() } }));
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@process/utils/mainLogger', () => ({

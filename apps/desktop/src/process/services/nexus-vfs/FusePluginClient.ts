@@ -1,37 +1,10 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * FusePluginClient — typed wrapper over the `nexus-fuse-plugin`
- * dispatch surface served by `nexusd-cluster` on port 12022.
- *
- * The plugin exposes a single `dispatch(method, payload)` C-ABI entry
- * point (registered as service plugin `"fuse"` via
- * `declare_service_plugin!`). Routing convention on the cluster's
- * generic Call RPC: `"<plugin-name>.<method>"`, mirroring how
- * `NexusSecretClient` reaches vault via `password-vault.<method>`.
- *
- * Today this client uses option **(b)** from the supervisor PR plan:
- * reuse the existing v2 dispatch surface with raw UTF-8 byte payloads
- * (the plugin's first-cut admin surface). The trade-off vs option
- * (a) — adding a typed `nexus.fuse.v1.FusePluginService` gRPC service
- * to the plugin's `nexus_plugin_grpc_services` table — is documented
- * in the FUSE-T supervisor PR plan; option (a) is the migration
- * target once the `dispatch("status")` vocabulary grows beyond
- * `<prereq>-missing` / `mounted` / `unmounted`. The string surface
- * is fine as the wire format until then, because the supervisor
- * already only matches on the `<prereq>-missing` shape (not on a
- * structured field), and adding a new prereq is a single-line
- * change on both sides.
+ * Frontend adapter for Nexus filesystem driver status through Sudocode capabilities.
  */
 
 import { mainWarn } from '@process/utils/mainLogger';
 import { type FusePluginStatus, type FusePluginStatusResult } from '@common/nexus/fuse-plugin-status';
-import { getNexusRpcClient, type Nexus } from '@common/nexus/nexus-vfs-client';
-import { isFuseLibraryAvailable } from './VaultPluginInstaller';
+import { getScodeFilesClient, type ScodeFilesClient } from '@common/scode/filesClient';
 
 export type { FusePluginStatus, FusePluginStatusResult } from '@common/nexus/fuse-plugin-status';
 
@@ -47,9 +20,9 @@ const TAG = 'FusePluginClient';
 const FUSE_PLUGIN_NAME = 'fuse';
 
 export class FusePluginClient {
-  private readonly nexus: Nexus;
+  private readonly nexus: ScodeFilesClient;
 
-  constructor(nexus: Nexus) {
+  constructor(nexus: ScodeFilesClient) {
     this.nexus = nexus;
   }
 
@@ -66,12 +39,6 @@ export class FusePluginClient {
   async getStatus(): Promise<FusePluginStatusResult> {
     let response: Buffer;
     try {
-      if (!isFuseLibraryAvailable()) {
-        // A deferred plugin cannot answer status. Verify the daemon is healthy
-        // before reporting a missing driver to the opt-in mount installer.
-        await this.nexus.serverInfo();
-        return { status: 'fuse-t-missing', raw: 'fuse-t-missing' };
-      }
       response = await this.nexus.callBinary(`${FUSE_PLUGIN_NAME}.status`, Buffer.alloc(0));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -98,7 +65,7 @@ let instance: FusePluginClient | null = null;
 
 export function getFusePluginClient(): FusePluginClient {
   if (!instance) {
-    instance = new FusePluginClient(getNexusRpcClient());
+    instance = new FusePluginClient(getScodeFilesClient());
   }
   return instance;
 }
