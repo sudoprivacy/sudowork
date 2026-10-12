@@ -1,4 +1,4 @@
-name: '✓PR E2E Artifacts'
+name: "✓PR E2E Artifacts"
 
 # Runs the real Python + YAML e2e infra (tests/e2e/runner.py + tests/e2e/cases/*.yaml)
 # against a headless Electron launched with mock enterprise auth pre-seeded. Kept as
@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       case_filter:
-        description: 'Name substring (matches runner.py --case)'
+        description: "Name substring (matches runner.py --case)"
         required: false
-        default: 'interrupt-queue-batched-flush'
+        default: "interrupt-queue-batched-flush"
 
 concurrency:
   group: pr-e2e-artifacts-${{ github.run_id }}
@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  BUN_INSTALL_REGISTRY: "https://registry.npmjs.org/"
 
 jobs:
   e2e-artifacts:
@@ -40,17 +40,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install Python e2e deps
         # ai-dev-browser >= 0.13.0 is a HARD floor, not a preference: from that
@@ -226,10 +226,10 @@ jobs:
           python tests/e2e/restart_electron.py --enterprise --auth --port 9232
         env:
           CI: true
-          E2E_DEV: '1'
+          E2E_DEV: "1"
           NEXUS_EXTENSIONS_PATH: ${{ github.workspace }}/examples
-          NEXUS_CDP_PORT: '9232'
-          SUDOWORK_SKIP_PREREQ_CHECK: '1'
+          NEXUS_CDP_PORT: "9232"
+          SUDOWORK_SKIP_PREREQ_CHECK: "1"
 
       - name: Run e2e runner against CDP
         run: |
@@ -238,9 +238,9 @@ jobs:
           python runner.py --port 9232 --case "$CASE_FILTER"
         env:
           CI: true
-          E2E_DEV: '1'
-          E2E_SCREENSHOTS: '1'
-          NEXUS_CDP_PORT: '9232'
+          E2E_DEV: "1"
+          E2E_SCREENSHOTS: "1"
+          NEXUS_CDP_PORT: "9232"
           CASE_FILTER: ${{ inputs.case_filter || 'interrupt-queue-batched-flush' }}
 
       - name: Dump launch log on failure
