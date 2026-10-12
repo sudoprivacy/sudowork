@@ -222,6 +222,9 @@ export interface AcpBackendConfig {
   /** 后端唯一标识符 / Unique identifier for the backend (e.g., 'claude', 'gemini', 'custom') */
   id: string;
 
+  /** Server identity for cloud execution; the local preset lookup remains id. */
+  serverId?: string;
+
   /** UI 显示名称 / Display name shown in the UI (e.g., 'Goose', 'Claude Code') */
   name: string;
 

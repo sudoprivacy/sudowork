@@ -342,7 +342,13 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
   it('get-cloud-assistants maps agents and carries the guid-selector filter fields', async () => {
     stubFetch({
       '/api/agent-templates': [
-        { name: 'hub-1', displayName: 'Hub One', tag: 'hub', description: 'd1' },
+        {
+          id: 'server-hub-1',
+          name: 'hub-1',
+          displayName: 'Hub One',
+          tag: 'hub',
+          description: 'd1',
+        },
         { name: 'builtin-1', display_name: 'Builtin', isBuiltin: true, tag: 'system' },
         { name: 'mine', tag: 'custom' },
       ],
@@ -352,7 +358,7 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
     expect(result.success).toBe(true)
     expect(result.data).toEqual([
       expect.objectContaining({
-        key: 'hub-1',
+        key: 'server-hub-1',
         name: 'Hub One',
         description: 'd1',
         isBuiltin: false,

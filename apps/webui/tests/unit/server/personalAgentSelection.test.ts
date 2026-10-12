@@ -26,10 +26,11 @@ function setup() {
     { ref: 'moss-agent:own:alice-project', kind: 'own' },
     { ref: 'removed-template', kind: 'template' },
   ]
+  const templates = [{ id: 'template-id', name: 'installed-template' }]
   const create = vi.fn().mockResolvedValue({ sessionId: 'session-a' })
   const mossFetch = vi.fn(async (_base, req) => {
     if (req.path === '/api/v1/agents/mine') return { success: true, data: mine }
-    if (req.path === '/api/v1/agent-templates/installed') return [{ name: 'installed-template' }]
+    if (req.path === '/api/v1/agent-templates/installed') return templates
     throw new Error(`Unexpected request: ${req.path}`)
   })
   // These collaborators are not used by creation without a model override.
@@ -41,7 +42,7 @@ function setup() {
     moss: { create } as unknown as MossSessionPort,
     mossFetch,
   }
-  return { deps, create, mossFetch, mine }
+  return { deps, create, mossFetch, mine, templates }
 }
 
 describe('personal Agent selection', () => {
@@ -94,10 +95,47 @@ describe('personal Agent selection', () => {
       ctx,
     )
     expect(create).toHaveBeenCalledTimes(1)
+    expect(create).toHaveBeenCalledWith(ctx, { assistantName: 'template-id', enabledSkills: [] })
     expect(mossFetch).toHaveBeenCalledWith(ctx.baseUrl, {
       method: 'GET',
       path: '/api/v1/agent-templates/installed',
       accessToken: ctx.accessToken,
+    })
+  })
+
+  test('uses the stable installed ID even when the template name changes', async () => {
+    const { deps, create, templates } = setup()
+    templates[0].name = 'renamed-template'
+    await createConversation(
+      deps,
+      principal,
+      { assistantName: 'template-id', enabledSkills: [] },
+      ctx,
+    )
+    expect(create).toHaveBeenCalledWith(ctx, { assistantName: 'template-id', enabledSkills: [] })
+  })
+
+  test('refuses an ambiguous template name and accepts an exact visible ID', async () => {
+    const { deps, create, templates } = setup()
+    templates.push({ id: 'other-template-id', name: 'installed-template' })
+    await expect(
+      createConversation(
+        deps,
+        principal,
+        { assistantName: 'installed-template', enabledSkills: [] },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(InvalidSelectionError)
+    expect(create).not.toHaveBeenCalled()
+    await createConversation(
+      deps,
+      principal,
+      { assistantName: 'other-template-id', enabledSkills: [] },
+      ctx,
+    )
+    expect(create).toHaveBeenCalledWith(ctx, {
+      assistantName: 'other-template-id',
+      enabledSkills: [],
     })
   })
 

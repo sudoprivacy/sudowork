@@ -12,20 +12,19 @@ const EMPTY_CONVERSATIONS: TChatConversation[] = [];
 const EMPTY_AGENTS: IMyAgent[] = [];
 const ConversationHistoryContext = createContext<IConversationHistory | null>(null);
 
+async function fetchConversations(sessionMode: ReturnType<typeof getRendererSessionMode>): Promise<TChatConversation[]> {
+  const data = await ipcBridge.database.getUserConversations.invoke({ page: 0, pageSize: 10000, sessionMode });
+  if (!Array.isArray(data)) throw new Error('Conversation history unavailable');
+  return data.filter((conversation) => !isOntologyConversation(conversation) && conversation.extra?.isHealthCheck !== true);
+}
+
 /** Share one account-scoped history source across the sidebar and conversation header. */
 export function ConversationHistoryProvider({ children }: PropsWithChildren) {
   const { user, ready, status } = useAuth();
   const [sessionMode, setSessionMode] = useState(getRendererSessionMode);
   const scope = ready && (status === 'authenticated' || status === 'guest') ? [user?.id ?? 'local', sessionMode] : null;
-  const history = useSWR(
-    scope ? ['conversation.history', ...scope] : null,
-    async () => {
-      const data = await ipcBridge.database.getUserConversations.invoke({ page: 0, pageSize: 10000, sessionMode });
-      if (!Array.isArray(data)) throw new Error('Conversation history unavailable');
-      return data.filter((conversation) => !isOntologyConversation(conversation) && conversation.extra?.isHealthCheck !== true);
-    },
-    { refreshInterval: 30_000 }
-  );
+  const scopeKey = scope ? JSON.stringify(scope) : null;
+  const history = useSWR(scope ? ['conversation.history', ...scope] : null, () => fetchConversations(sessionMode), { refreshInterval: 30_000 });
   const agentList = useSWR(scope && status === 'authenticated' ? ['conversation.agents', ...scope] : null, async () => {
     const result = await ipcBridge.eeclaw.getMyAgents.invoke();
     if (!result?.success || !Array.isArray(result.data)) throw new Error('Agent list unavailable');
@@ -33,6 +32,13 @@ export function ConversationHistoryProvider({ children }: PropsWithChildren) {
   });
   const { mutate: refreshHistory } = history;
   const { mutate: refreshAgents } = agentList;
+
+  const getFreshConversations = useCallback(async () => {
+    if (!scopeKey) throw new Error('Conversation history unavailable');
+    const conversations = await refreshHistory(fetchConversations(sessionMode), { revalidate: false, throwOnError: true });
+    if (!conversations) throw new Error('Conversation history unavailable');
+    return conversations;
+  }, [scopeKey, sessionMode, refreshHistory]);
 
   const refresh = useCallback(async () => {
     await Promise.allSettled([refreshHistory(), refreshAgents()]);
@@ -53,8 +59,8 @@ export function ConversationHistoryProvider({ children }: PropsWithChildren) {
   }, [refresh, sessionMode]);
 
   const value = useMemo(
-    () => ({ conversations: history.data ?? EMPTY_CONVERSATIONS, agents: agentList.data ?? EMPTY_AGENTS, isLoading: history.isLoading || agentList.isLoading, isLoadFailed: Boolean(history.error), refresh }),
-    [history.data, agentList.data, history.isLoading, agentList.isLoading, history.error, refresh]
+    () => ({ conversations: history.data ?? EMPTY_CONVERSATIONS, agents: agentList.data ?? EMPTY_AGENTS, isLoading: history.isLoading || agentList.isLoading, isLoadFailed: Boolean(history.error), refresh, getFreshConversations, scopeKey }),
+    [history.data, agentList.data, history.isLoading, agentList.isLoading, history.error, refresh, getFreshConversations, scopeKey]
   );
 
   return <ConversationHistoryContext.Provider value={value}>{children}</ConversationHistoryContext.Provider>;
@@ -73,4 +79,6 @@ interface IConversationHistory {
   isLoading: boolean;
   isLoadFailed: boolean;
   refresh: () => Promise<void>;
+  getFreshConversations: () => Promise<TChatConversation[]>;
+  scopeKey: string | null;
 }
