@@ -1534,7 +1534,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     // isSelectableCloudAssistant filter (it drops rows without them).
     return ok(
       (Array.isArray(agents) ? agents : []).map((a) => ({
-        key: a.name,
+        key: a.id || a.name,
         name: String(a.displayName ?? a.display_name ?? a.name),
         avatar: typeof a.avatar === 'string' ? a.avatar : undefined,
         emoji: typeof a.emoji === 'string' ? a.emoji : undefined,

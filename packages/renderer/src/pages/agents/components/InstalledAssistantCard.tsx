@@ -15,7 +15,7 @@ import { normalizeAssistantVersion, resolveAvatarImageSrc } from '../utils';
 
 export default function InstalledAssistantCard(props: IInstalledAssistantCardProps) {
   const { assistant, isExtension, localeKey } = props;
-  const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick, onUse } = props;
+  const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick, onUse, isOpening, isUseDisabled } = props;
   const { uploadStatus, enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode, canManage = true } = props;
   const { t } = useTranslation();
   const isCustom = enterpriseMode ? assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled) : !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
@@ -73,7 +73,8 @@ export default function InstalledAssistantCard(props: IInstalledAssistantCardPro
               size='small'
               type='primary'
               icon={<ArrowUpRight size={13} />}
-              disabled={!isEnabled}
+              loading={isOpening}
+              disabled={!isEnabled || isUseDisabled}
               onClick={(event) => {
                 event.stopPropagation();
                 onUse();
@@ -148,6 +149,8 @@ interface IInstalledAssistantCardProps {
   uploadStatus?: React.ReactNode;
   onClick: () => void;
   onUse?: () => void;
+  isOpening?: boolean;
+  isUseDisabled?: boolean;
   /** Enterprise mode: publish button element */
   enterprisePublishButton?: React.ReactNode;
   /** Enterprise mode: whether to hide delete button (only custom assistants can be deleted) */

@@ -52,6 +52,17 @@ afterEach(() => {
 });
 
 describe('personal Agent selection through picker refreshes', () => {
+  it('uses Cloud mode before the Guid page mounts in the WebUI host', () => {
+    vi.stubGlobal('electronAPI', undefined);
+    vi.stubGlobal('__sudoworkWebBridge', true);
+    setRendererSessionMode('local');
+    expect(getRendererSessionMode()).toBe('remote');
+  });
+  it('preserves the Desktop local execution preference', () => {
+    vi.stubGlobal('__sudoworkWebBridge', false);
+    setRendererSessionMode('local');
+    expect(getRendererSessionMode()).toBe('local');
+  });
   it('keeps a named template URL pending when multiple templates share that name', async () => {
     state.isEnterprise = false;
     state.local = [

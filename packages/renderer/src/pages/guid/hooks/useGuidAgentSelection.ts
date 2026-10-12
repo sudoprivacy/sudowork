@@ -19,6 +19,7 @@ import type { IMyAgent } from '@sudowork/common/personalAgents';
 import { fetchAssistantsAsConfigs } from '@renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@renderer/utils/agentModes';
 import { useAppMode } from '@renderer/hooks/useAppMode';
+import { isWebBridgeAvailable } from '@renderer/utils/platform';
 import { emitter } from '@renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@renderer/context/AuthContext';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
@@ -31,7 +32,7 @@ let rendererCachedSessionMode: 'remote' | 'local' = 'local';
 
 /** 供 useConversations 等非 GuidPage 组件树同步读取当前 sessionMode */
 export function getRendererSessionMode(): 'remote' | 'local' {
-  return rendererCachedSessionMode;
+  return isWebBridgeAvailable() ? 'remote' : rendererCachedSessionMode;
 }
 
 export function setRendererSessionMode(mode: 'remote' | 'local'): void {

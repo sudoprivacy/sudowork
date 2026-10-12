@@ -64,7 +64,9 @@ export interface ConversationDeps {
   closeTerminals?: (conversationId: string) => void
 }
 
-const NameListSchema = z.array(z.object({ name: z.string() }).passthrough())
+const NameListSchema = z.array(
+  z.object({ id: z.string().optional(), name: z.string() }).passthrough(),
+)
 
 const MyAgentsSchema = z.object({
   success: z.literal(true),
@@ -96,7 +98,8 @@ async function assertSelectionVisible(
   deps: ConversationDeps,
   input: CreateConversationRequest,
   ctx: MossCallContext,
-): Promise<void> {
+): Promise<string> {
+  let assistantReference = input.assistantName
   if (input.assistantName) {
     let isVisible: boolean
     if (/^moss-agent:(user|own):/.test(input.assistantName)) {
@@ -110,8 +113,18 @@ async function assertSelectionVisible(
         (agent) => agent.kind !== 'template' && agent.ref === input.assistantName,
       )
     } else {
-      const names = await fetchVisibleNames(deps, '/api/v1/agent-templates/installed', ctx)
-      isVisible = names.has(input.assistantName)
+      const json = await deps.mossFetch(ctx.baseUrl, {
+        method: 'GET',
+        path: '/api/v1/agent-templates/installed',
+        accessToken: ctx.accessToken,
+      })
+      const installed = NameListSchema.parse(json)
+      const exact = installed.find((item) => item.id === input.assistantName)
+      const matches = installed.filter((item) => item.name === input.assistantName)
+      const selected = exact ?? (matches.length === 1 ? matches[0] : undefined)
+      if (!selected) throw new InvalidSelectionError('assistantName', input.assistantName)
+      isVisible = true
+      assistantReference = selected.id || selected.name
     }
     if (!isVisible) {
       throw new InvalidSelectionError('assistantName', input.assistantName)
@@ -125,6 +138,7 @@ async function assertSelectionVisible(
       }
     }
   }
+  return assistantReference
 }
 
 /** 建会话选模型时：核验 modelId 在当前用户可用模型列表中（不接受浏览器自造）。 */
@@ -200,7 +214,7 @@ export async function createConversation(
   input: CreateConversationRequest,
   ctx: MossCallContext,
 ): Promise<{ id: string; taskId: string }> {
-  await assertSelectionVisible(deps, input, ctx)
+  const assistantName = await assertSelectionVisible(deps, input, ctx)
   // 模型：先校验可用（不通过则 400，不建会话）→ setUserModel（Moss 用户级），使新会话采用该模型
   if (input.modelId) {
     await assertModelAvailable(deps, input.modelId, ctx)
@@ -208,7 +222,7 @@ export async function createConversation(
   }
   const created = await mapMossErrors(() =>
     deps.moss.create(ctx, {
-      assistantName: input.assistantName,
+      assistantName,
       enabledSkills: input.enabledSkills,
     }),
   )

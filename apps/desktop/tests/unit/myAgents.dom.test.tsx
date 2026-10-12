@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), emit: vi.fn(),
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ eeclaw: { getMyAgents: { invoke: mocks.list }, createUserAgent: { invoke: mocks.create } }, database: { getUserConversations: { invoke: mocks.history } } }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@renderer/utils/emitter', () => ({ emitter: { emit: mocks.emit } }));
+vi.mock('@renderer/pages/conversation/context/ConversationHistoryContext', () => ({ useConversationHistory: () => ({ scopeKey: 'user-a:remote', getFreshConversations: mocks.history }) }));
 import MyAgents from '@renderer/pages/my-agents';
 
 const owned = { ref: 'moss-agent:own:mine', displayName: 'Private assistant', kind: 'own' };
