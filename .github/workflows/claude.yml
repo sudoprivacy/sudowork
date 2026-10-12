@@ -36,6 +36,8 @@ jobs:
           sudo apt-get install -y xvfb python3-websockets
 
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
 
       - name: Install project dependencies
         run: bun install

@@ -36,7 +36,7 @@ jobs:
           node-version: "22"
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Download the pinned Sudocode frontend

@@ -7,16 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       create_release:
-        description: 'Create a release with the resources'
+        description: "Create a release with the resources"
         type: boolean
         default: false
       tag_name:
-        description: 'Tag name for release (e.g., resources-v1.0.0)'
+        description: "Tag name for release (e.g., resources-v1.0.0)"
         type: string
         required: false
 
 env:
-  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  BUN_INSTALL_REGISTRY: "https://registry.npmjs.org/"
 
 jobs:
   # Build all CLI bundles on each target platform (x64 and arm64)
@@ -47,12 +47,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: "24"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Build claude-code
         run: node scripts/download-claude-code.js --force

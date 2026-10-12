@@ -76,7 +76,7 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Install uv
         # `bun run start` chains `hook:build` which builds the Python
