@@ -98,13 +98,7 @@ export class MossSessionApi {
    * Get all sessions from Moss Server
    * GET /api/v1/sessions
    *
-   * WARNING: This API is NOT for sudowork client session list.
-   * Session list metadata is maintained locally in client SQLite.
-   * 警告：此 API 不用于 sudowork 客户端会话列表。
-   * 会话列表元数据维护在本地客户端 SQLite。
-   *
-   * This method is kept for future administrative/debugging purposes only.
-   * 此方法仅保留用于未来的管理/调试目的。
+   * The server applies visibility; callers select their owner's sessions for local caches.
    */
   async listSessions(params?: { source?: string }): Promise<MossSession[]> {
     const query = params?.source ? `?source=${encodeURIComponent(params.source)}` : '';
@@ -1299,6 +1293,7 @@ export interface MossSession {
   role?: string;
   scopes?: string[];
   source?: string;
+  title?: string | null;
 }
 
 /**
