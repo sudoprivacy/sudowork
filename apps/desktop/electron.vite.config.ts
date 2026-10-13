@@ -236,6 +236,8 @@ export default defineConfig(({ mode }) => {
           browserPageViewAlias,
           browserSessionContractAlias,
           ...commonAliasEntries(),
+          { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
+          { find: '@sudowork/contracts/external-provider', replacement: resolve('../../packages/contracts/src/external-provider.gen.ts') },
           { find: '@renderer', replacement: resolve('../../packages/renderer/src') },
           { find: '@process', replacement: resolve('src/process') },
           { find: '@worker', replacement: resolve('src/worker') },

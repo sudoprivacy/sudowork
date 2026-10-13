@@ -3,18 +3,22 @@ import { loadConfigFromFile } from 'electron-vite';
 import { build } from 'vite';
 import { expect, it } from 'vitest';
 
-it('bundles the external provider client with production aliases without reading generated package dist', async () => {
+it.each(['main', 'renderer'] as const)('bundles the external provider client in %s without generated package dist', async (target) => {
   const loaded = await loadConfigFromFile({ command: 'build', mode: 'production' }, path.resolve('electron.vite.config.ts'));
-  expect(loaded?.config.main?.resolve).toBeDefined();
+  expect(loaded?.config[target]?.resolve).toBeDefined();
   const result = await build({
     configFile: false,
     logLevel: 'silent',
-    resolve: loaded!.config.main!.resolve,
+    resolve: loaded!.config[target]!.resolve,
     plugins: [
       {
-        name: 'reject-contract-dist',
+        name: 'external-provider-source-probe',
+        resolveId(id) {
+          if (id === 'external-provider-build-probe' || id.endsWith('/external-provider-build-probe')) return '\0external-provider-build-probe';
+        },
         load(id) {
-          if (id.replace(/\\/g, '/').includes('/contracts/dist/')) {
+          if (id === '\0external-provider-build-probe') return 'export { applyExternalEventsPage } from "@sudowork/moss-client/external-providers"';
+          if (/\/(?:contracts|moss-client)\/dist\//.test(id.replace(/\\/g, '/'))) {
             throw new Error('Production external providers must bundle the contract from source');
           }
         },
@@ -23,7 +27,7 @@ it('bundles the external provider client with production aliases without reading
     build: {
       write: false,
       minify: false,
-      lib: { entry: path.resolve('../../packages/moss-client/src/MossExternalProviderClient.ts'), formats: ['es'] },
+      lib: { entry: 'external-provider-build-probe', formats: ['es'] },
       rollupOptions: { external: ['zod'] },
     },
   });
