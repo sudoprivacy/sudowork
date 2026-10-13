@@ -26,7 +26,8 @@ function setup() {
     { ref: 'moss-agent:own:alice-project', kind: 'own' },
     { ref: 'removed-template', kind: 'template' },
   ]
-  const templates = [{ id: 'template-id', name: 'installed-template' }]
+  const template = { id: 'template-id', name: 'installed-template' }
+  const templates = [template]
   const create = vi.fn().mockResolvedValue({ sessionId: 'session-a' })
   const mossFetch = vi.fn(async (_base, req) => {
     if (req.path === '/api/v1/agents/mine') return { success: true, data: mine }
@@ -42,7 +43,7 @@ function setup() {
     moss: { create } as unknown as MossSessionPort,
     mossFetch,
   }
-  return { deps, create, mossFetch, mine, templates }
+  return { deps, create, mossFetch, mine, template, templates }
 }
 
 describe('personal Agent selection', () => {
@@ -104,8 +105,8 @@ describe('personal Agent selection', () => {
   })
 
   test('uses the stable installed ID even when the template name changes', async () => {
-    const { deps, create, templates } = setup()
-    templates[0].name = 'renamed-template'
+    const { deps, create, template } = setup()
+    template.name = 'renamed-template'
     await createConversation(
       deps,
       principal,
