@@ -36,11 +36,17 @@ function sleep(ms: number): Promise<void> {
 
 type WsEvent = Record<string, unknown>
 
-/** 消息收集器：预先挂监听，避免逐条 await 丢失快速连续到达的事件。 */
-function collector(ws: WebSocket): {
+interface IWsEventCollector {
   events: WsEvent[]
-  waitFor: (pred: (e: WsEvent) => boolean, timeoutMs?: number) => Promise<WsEvent>
-} {
+  waitFor: (pred: (event: WsEvent) => boolean, timeoutMs?: number) => Promise<WsEvent>
+}
+
+const collectors = new WeakMap<WebSocket, IWsEventCollector>()
+
+/** 消息收集器：预先挂监听，避免逐条 await 丢失快速连续到达的事件。 */
+function collector(ws: WebSocket): IWsEventCollector {
+  const existing = collectors.get(ws)
+  if (existing) return existing
   const events: WsEvent[] = []
   ws.on('message', (data) => {
     try {
@@ -49,7 +55,7 @@ function collector(ws: WebSocket): {
       // ignore non-json
     }
   })
-  return {
+  const result: IWsEventCollector = {
     events,
     waitFor: (pred, timeoutMs = 8000) =>
       new Promise<WsEvent>((resolve, reject) => {
@@ -69,6 +75,8 @@ function collector(ws: WebSocket): {
         void check()
       }),
   }
+  collectors.set(ws, result)
+  return result
 }
 
 describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)', () => {
@@ -102,6 +110,8 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/conversations/${SID}`, {
         headers: { cookie, origin: 'http://localhost:5273' },
       })
+      // The upgrade response can contain the first lock frame in the same packet.
+      collector(ws)
       ws.once('open', () => resolve(ws))
       ws.once('error', reject)
     })
