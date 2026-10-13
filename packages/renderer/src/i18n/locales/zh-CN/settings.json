@@ -1432,7 +1432,7 @@
   "mossCatalog": {
     "agentLibrary": "模板库",
     "skillLibrary": "技能库",
-    "exclusiveAgents": "专属模板",
+    "exclusiveAgents": "专属智能体",
     "exclusiveSkills": "专属技能",
     "myAgents": "已安装模板",
     "mySkills": "我的技能",

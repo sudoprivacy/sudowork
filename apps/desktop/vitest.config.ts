@@ -147,7 +147,6 @@ export default defineConfig({
         '../../packages/renderer/src/hooks/useResponsiveSider.ts',
         '../../packages/renderer/src/pages/my-agents/index.tsx',
         '../../packages/renderer/src/pages/external-agents/**/*.{ts,tsx}',
-        '../../packages/renderer/src/pages/external-agents/ExternalAgentManagement.tsx',
         '../../packages/moss-client/src/MossExternalProviderClient.ts',
         'src/process/services/mossExternalProviders.ts',
         '../../packages/renderer/src/pages/guid/utils/personalAgentSelection.ts',

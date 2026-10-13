@@ -1428,7 +1428,7 @@
   "mossCatalog": {
     "agentLibrary": "Template Library",
     "skillLibrary": "Skill library",
-    "exclusiveAgents": "Organization Templates",
+    "exclusiveAgents": "Organization agents",
     "exclusiveSkills": "Organization skills",
     "myAgents": "Installed Templates",
     "mySkills": "My skills",

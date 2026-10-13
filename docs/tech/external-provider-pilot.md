@@ -1,42 +1,39 @@
-# 外部智能体：组织目录、统一对话与接入管理
+# 外部智能体：Moss 组织管理与 SudoWork 对话
 
-2026-10-13 更新。管理员发布并授权的 Dify 智能体展示在侧栏 **智能体列表 → 组织发布的智能体**，点击 **开始对话** 后进入共用对话布局。管理员统一管理智能体；每位用户只看到自己的会话。组织智能体不进入 **我的 Agent**，也不作为个人模板出现在目录的 **我的智能体 / 已安装模板** 页签。
+2026-10-13 更新。管理员在 **Moss → 智能体管理 → 专属智能体** 接入和发布外部智能体；授权用户在 **SudoWork → 智能体列表 → 专属智能体 → 外部托管** 开始对话。组织资源不进入“我的 Agent”或个人/已安装模板。
 
-## 管理员操作
+## 组织管理员操作（Moss）
 
-1. 打开 **智能体列表 → 外部智能体管理 → 配置试点范围**。平台管理员启用当前组织并保存获准的 Dify `/v1` 地址。
-2. 组织管理员点击 **接入 Dify 智能体**，输入 App API Key 并测试连接。
-3. 填入 Dify App/Workspace ID、上传 YAML/JSON 定义，选择本组织用户，填写审核说明，保存待审核配置。
-4. 核对 Dify 当前发布定义，点击 **审核发布** 并选择有效期（1/3/7天）。授权用户随后可在智能体列表开始对话。
-5. 后续可测试连接、编辑配置、更换密钥、停用或归档；编辑与换密钥会撤销发布状态，必须再次审核。归档保留历史和加密凭据。
+1. 登录 Moss 后打开 **智能体管理 → 专属智能体**。页面分别展示 **外部托管** 和 **原生模板**。外部智能体使用接入、测试和审核操作，不显示下载或本地规则编辑。
+2. 首次部署时，平台管理员在 **配置接入范围** 启用当前组织并保存允许的 Dify `/v1` 地址；组织管理员只读该范围，负责组织内部接入和发布。
+3. 点击 **接入外部智能体**，选择 **外部托管 / Dify** 和服务地址，输入应用的 App API Key，点击 **测试连接并继续**。
+4. 填写 App ID、Workspace ID，上传当前发布的 YAML/JSON 定义，选择组织成员和结果格式，填写审核说明，点击 **保存待审核配置**。
+5. 在条目上点击 **审核发布**，核对定义、授权用户，选择1/3/7天有效期并确认。授权用户随后可在 SudoWork 的专属智能体中使用。
+6. 后续可 **测试连接、编辑配置、更换密钥、停用、归档**。编辑或换密钥会撤销发布，必须重新审核。停用阻止新派发，已派发任务不会因此取消；归档保留历史和加密凭据。
 
-不需要为单个智能体修改环境变量、手工创建 Secret 引用、计算摘要或调用 API。部署前仍需让 Moss 连接到可写 Nexus Secret；页面会提示凭据服务不可用。普通用户没有管理入口，Moss 也独立校验每次管理和执行请求的权限。
+Moss 使用已有 `external-agents/admin` 与 review 接口，凭据仍存放 Nexus Secret，原数据无需重建。网络接入范围由平台管理员维护，普通用户无外部管理入口。权限由后端独立校验；切换组织或账号会清空表单并取消旧请求。原生模板创建接口与外部接入接口相互独立。
 
-## 用户操作
+## 用户操作（SudoWork）
 
-1. 登录后进入 **智能体列表**，在 **组织发布的智能体** 找到获准使用的智能体，点击 **开始对话**。目录搜索也适用于该区域。
-2. 在底部输入框输入合成测试问题。Enter 发送，Shift+Enter 换行；回答在消息区增量展示，可复制。
-3. 同一会话继续追问，复用 Dify conversation。左侧 **对话 → 最近 / 今天等时间分组** 可找回历史；刷新或在另一宿主登录同一账号仍可继续。
-4. 顶部 **新建会话** 开启该智能体的新会话。停用、审批到期或撤销授权后，自己的既有历史仍可读取，禁止新派发。
+1. 打开 **智能体列表 → 专属智能体**，在 **外部托管** 分区选择已授权智能体，点击 **开始对话**。目录搜索适用于外部智能体。
+2. 在底部输入合成测试问题。Enter发送，Shift+Enter换行；回答在消息区增量显示，可复制。
+3. 同一会话继续追问，复用 Dify conversation。左侧 **对话 → 最近 / 今天等时间分组** 可找回历史，刷新或跨 WebUI/桌面登录同一账号可继续。
+4. 顶部 **新建会话** 开启独立会话。审批到期、停用、撤销授权后的个人历史仍可读取，禁止新派发。
 
-示例：发送“6乘7，只返回数字”得到 42，再发送“上次结果加8，只返回数字”得到 50。模型由管理员在 Dify 中配置，当前不提供本地模型切换、附件、工作区、本地工具或远端停止按钮；返回的 actions 不执行本机操作。
+例如发送“6乘7，只返回数字”得到42，再发送“上次结果加8，只返回数字”得到50。模型与工具在 Dify 发布配置中确定；客户端不提供不支持的本地模型切换、附件、工作区、工具或停止按钮，不执行返回的 actions。
 
-外部历史当前支持查看和续聊，暂不支持重命名、置顶、删除、批量删除或导出。批量操作模式下这些条目不可选，避免被传给原生会话接口。提交响应不明时保留原幂等 key 核对；unknown 会话只读；读取事件失败后的刷新只重读结果，不重新派发。
+外部历史暂不支持改名、置顶、删除、批量删除或导出。批量模式不可选，避免被传入原生会话接口。提交响应不明时保留原幂等 key 核对；unknown 会话只读；读取事件失败的刷新只重读，不重新派发。
 
-旧链接 `/app/agents/external?session=<id>` 自动跳转统一对话，无 session 的旧入口跳转智能体列表。独立的“外部智能体（试点）”侧栏入口已移除。
+旧 `/app/agents/external?session=<id>` 自动跳转统一对话，无session则跳到智能体列表。SudoWork中已删除接入管理组件，桌面/WebUI桥接管理API保留兼容性，不新增另一套管理数据。
 
-## 实现边界
+## 实现与验证
 
-- Desktop：IPC `external-providers.*` → `mossExternalProviders` → 当前账号 Moss 地址/令牌（Electron net.fetch）；账号切换拒绝迟到响应。
-- WebUI：相同 IPC 契约 → mossAdapter → 管理/用户接口白名单代理 → Session 的 Moss 上下文。
-- 客户端会话地址为 `/conversation/external%3A<session-id>`。通过 renderer 只读投影合并时间线，外部 Session/Task 的事实源仍在 Moss，不伪造 ACP 会话或复制到原生会话数据库。
-- 页面复用 ChatLayout，能力由外部执行方决定；消息不解释本地文件/action 标记，也不自动加载 provider 图片。
-- `@sudowork/moss-client/external-providers` 使用运行时 schema 验证结果。密钥保存在服务端 Nexus Secret，用户执行不持有 Dify key。
-- 契约语义源在 Moss，经 sudostack experimental 派生。`bun run check:external-contract` 校验来源与 digest；本轮 UI 整合未变更稳定 contracts exports 或外部任务 API。
-- Moss 旧可安装模板及 enhancement 路径排除 `external_hosted`，避免组织智能体同时出现安装和直接对话两条入口。
+- Desktop：`external-providers.*` IPC → Moss HTTP；WebUI：同一IPC契约 → Session代理 → Moss。当前账号/组织和权限均由真实令牌限定。
+- 会话路由 `/conversation/external%3A<session-id>`。renderer只读投影合并时间线，外部Session/Task事实源仍在Moss，不复制为ACP或原生会话。
+- 页面复用ChatLayout，provider内容不解析成本地action/file标记，也不自动加载远端图片。
+- Moss原生模板列表、规则详情与兼容Hub/enhancement路径排除`external_hosted`，消除重复下载入口和规则404。
+- 外部契约仍为Moss语义源，经sudostack experimental派生。本轮未改变任务API、稳定exports或已有智能体/会话数据。
 
-## 验证记录
+自动检查与完整Moss后台 → SudoWork → 真实Dify的验收记录见Moss工作树 `docs/external-provider-pilot.md` 及 `docs/external-provider-pilot/evidence/moss-management-migration-result.json`。WebUI真实对话42→50，完整Electron开发应用对话7×8→56并刷新恢复历史，桌面记录为同目录的 `moss-management-desktop-result.json`。SudoWork全量3187项通过、36项跳过；类型检查与外部契约摘要校验通过。生产安装包和Moss任务库PG/多副本验收仍未覆盖。
 
-本轮使用完整 WebUI、完整 Moss、真实 Nexus 和已发布 Dify 应用验证目录进入对话、42→50、左侧历史、刷新恢复、旧链接兼容和普通用户隔离。另以完整 Electron 开发应用验证桌面 IPC、跨宿主历史及续聊，证据见配套 Moss 分支的 `docs/external-provider-pilot/evidence/unified-*.json` 与截图。开发应用验收不等于生产安装包验收。
-
-自动检查和真实联调的最终结果、既有基础设施边界见配套 Moss 分支 `docs/external-provider-pilot.md`。本地启动配置和操作入口见 `~/.local/share/dify-pilot-20261012/manual-verification.md`。本轮验收结束后恢复服务停止状态，保留测试数据。
+本地入口、测试账号与启动状态见 `~/.local/share/dify-pilot-20261012/manual-verification.md`。本轮按用户要求先停服务修改，完成后重新启动并保留运行。

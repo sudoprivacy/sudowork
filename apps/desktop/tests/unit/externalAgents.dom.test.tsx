@@ -20,7 +20,6 @@ vi.mock('@renderer/pages/conversation/ChatLayout', () => ({
 vi.mock('@renderer/pages/conversation/context/ConversationTabsContext', () => ({ useConversationTabs: () => ({ closeAllTabs: mocks.close }) }));
 vi.mock('@renderer/pages/conversation/preview', () => ({ usePreviewContext: () => ({ closePreview: mocks.close }) }));
 vi.mock('@renderer/utils/clipboard', () => ({ copyText: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('@renderer/pages/external-agents/ExternalAgentManagement', () => ({ default: () => <div>admin-management</div> }));
 import ExternalAgents from '@renderer/pages/external-agents';
 import ExternalConversationPage from '@renderer/pages/external-agents/ExternalConversationPage';
 import PublishedExternalAgents from '@renderer/pages/external-agents/PublishedExternalAgents';
@@ -67,13 +66,17 @@ it('starts from the organization directory and uses the conversation route witho
   expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Anew?agent=agent-1');
 });
 
-it('shows management in the agent directory only for administrators', async () => {
-  mocks.access.mockResolvedValue({ success: true, data: { can_manage: true } });
-  mocks.agents.mockResolvedValue({ success: true, data: [] });
-  page('/app/agent');
-  fireEvent.click(await screen.findByRole('button', { name: 'agent.external.manage.title' }));
-  await screen.findByText('admin-management');
-  expect(screen.queryByRole('button', { name: 'agent.external.published.start' })).toBeNull();
+it('keeps administrator usage in the client and exposes no onboarding or management', async () => {
+  mocks.access.mockResolvedValue({ success: true, data: { can_manage: true, can_manage_policy: true, credential_storage_available: true } });
+  render(
+    <MemoryRouter>
+      <PublishedExternalAgents />
+    </MemoryRouter>
+  );
+  await screen.findByText('Dify pilot');
+  expect(screen.queryByRole('button', { name: 'agent.external.manage.title' })).toBeNull();
+  expect(mocks.access).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: /download|install|edit/i })).toBeNull();
 });
 
 it('sends the selected agent, refreshes shared history and restores the acknowledged conversation', async () => {
@@ -83,7 +86,7 @@ it('sends the selected agent, refreshes shared history and restores the acknowle
   fireEvent.click(screen.getByRole('button', { name: 'agent.external.send' }));
   await screen.findByText('42');
   expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ agent_id: 'agent-1', query: '6 * 7', idempotency_key: expect.any(String) }));
-  expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Asession-1');
+  await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Asession-1'));
   expect(mocks.emit).toHaveBeenCalledWith('chat.history.refresh');
 });
 
@@ -116,7 +119,7 @@ it('redirects old links, preserves unavailable-agent history and prevents new di
   mocks.agents.mockResolvedValue({ success: true, data: [] });
   page('/app/agents/external?session=session-1');
   await screen.findByText('42');
-  expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Asession-1');
+  await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Asession-1'));
   expect(screen.getByRole('button', { name: 'agent.external.send' })).toBeDisabled();
   expect(screen.queryByRole('combobox')).toBeNull();
   expect(mocks.create).not.toHaveBeenCalled();

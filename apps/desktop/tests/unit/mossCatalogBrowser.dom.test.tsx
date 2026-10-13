@@ -54,7 +54,7 @@ vi.mock('@arco-design/web-react', async () => {
     Spin: Box,
     Switch: () => null,
     Tag: Box,
-    Typography: { Paragraph: Box },
+    Typography: { Paragraph: Box, Title: Box },
     Modal: ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (visible ? <div>{children}</div> : null),
     Alert: ({ content }: { content: string }) => <div role='alert'>{content}</div>,
     Message: { success: vi.fn(), error: state.error },
@@ -120,9 +120,11 @@ it('shows the server catalog before any download, and My contains only local rec
   expect(screen.getByText('Local custom')).toBeTruthy();
 });
 
-it('shows organization-published agents in the directory and excludes them from My agents', async () => {
+it('shows organization-published agents only in the exclusive directory', async () => {
   render(<MossCatalogBrowser {...props} publishedContent={(query) => <div>Organization agent: {query}</div>} />);
   await screen.findByText('Catalog agent');
+  expect(screen.queryByText('Organization agent:')).toBeNull();
+  fireEvent.click(screen.getByText('exclusiveAgents'));
   expect(screen.getByText('Organization agent:')).toBeTruthy();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Dify' } });
   expect(screen.getByText('Organization agent: Dify')).toBeTruthy();

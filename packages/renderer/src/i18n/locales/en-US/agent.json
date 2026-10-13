@@ -165,13 +165,15 @@
       "definitionDigest": "Definition digest"
     },
     "published": {
-      "title": "Organization-published agents",
-      "description": "Available to your account. Conversations are private to you.",
+      "title": "Externally hosted",
+      "description": "Published by your organization in Moss. Only agents authorized for your account appear here.",
       "search": "Search published agents",
       "scope": "Managed by your organization · Synthetic-data pilot",
       "start": "Start conversation",
-      "empty": "No published agents yet. Connect and approve an agent to make it available.",
-      "fallbackName": "Organization agent"
+      "empty": "No external agents are available. Ask an organization administrator to connect and publish one in Moss.",
+      "fallbackName": "Organization agent",
+      "nativeTitle": "Native templates",
+      "nativeEmpty": "No native templates"
     },
     "chat": {
       "messages": "Conversation messages",

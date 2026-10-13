@@ -165,13 +165,15 @@
       "definitionDigest": "定义摘要"
     },
     "published": {
-      "title": "组织发布的智能体",
-      "description": "展示当前账号获准使用的智能体，对话记录仅自己可见。",
+      "title": "外部托管",
+      "description": "由组织管理员在 Moss 发布，展示当前账号获准使用的外部智能体。",
       "search": "搜索已发布智能体",
       "scope": "组织统一管理 · 合成数据试点",
       "start": "开始对话",
-      "empty": "暂无已发布智能体，接入并审核发布后，授权用户即可使用。",
-      "fallbackName": "组织智能体"
+      "empty": "暂无获准使用的外部智能体，请联系组织管理员在 Moss 接入并发布。",
+      "fallbackName": "组织智能体",
+      "nativeTitle": "原生模板",
+      "nativeEmpty": "暂无原生模板"
     },
     "chat": {
       "messages": "对话消息",

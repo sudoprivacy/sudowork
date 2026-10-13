@@ -201,7 +201,8 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
       {isCached && tab !== 'installed' && <Alert type='warning' content={label('cached')} />}
       {error && <Alert type='error' content={error} />}
       <div className='flex-1 min-h-0 overflow-auto pb-4'>
-        {tab !== 'installed' && publishedContent?.(query)}
+        {tab === 'tenant' && publishedContent?.(query)}
+        {tab === 'tenant' && kind === 'agents' && <Typography.Title heading={5}>{t('agent.external.published.nativeTitle')}</Typography.Title>}
         {tab === 'installed' ? (
           <>
             <div className={styles.grid}>

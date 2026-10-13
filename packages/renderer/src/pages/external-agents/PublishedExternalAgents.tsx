@@ -1,21 +1,16 @@
-import { Alert, Button, Drawer, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Tag, Typography } from '@arco-design/web-react';
 import { Bot, ArrowUpRight, RefreshCw } from 'lucide-react';
-import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { emitter } from '@renderer/utils/emitter';
 import styles from '@renderer/components/MossCatalogBrowser.module.css';
 import { newExternalConversationPath } from './navigation';
 import { useExternalDirectory } from './useExternalDirectory';
 
-const Management = lazy(() => import('./ExternalAgentManagement'));
-
 export default function PublishedExternalAgents({ query = '' }: IPublishedExternalAgentsProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { agents, access, identity, isLoading, isFailed, onRefresh } = useExternalDirectory();
-  const [isManagementOpen, setIsManagementOpen] = useState(false);
-  if (!identity || (!isLoading && !isFailed && !agents.length && !access?.can_manage)) return null;
+  const { agents, identity, isLoading, isFailed, onRefresh } = useExternalDirectory();
+  if (!identity) return null;
   return (
     <section aria-label={t('agent.external.published.title')} className='shrink-0 mb-4'>
       <div className='flex items-center justify-between gap-3 mb-3 flex-wrap'>
@@ -27,7 +22,6 @@ export default function PublishedExternalAgents({ query = '' }: IPublishedExtern
         </div>
         <div className='flex gap-2 items-center'>
           <Button aria-label={t('agent.external.refresh')} icon={<RefreshCw size={16} />} loading={isLoading} onClick={() => void onRefresh()} />
-          {access?.can_manage && <Button onClick={() => setIsManagementOpen(true)}>{t('agent.external.manage.title')}</Button>}
         </div>
       </div>
       {isFailed && <Alert type='warning' content={t('agent.external.loadFailed')} />}
@@ -50,21 +44,7 @@ export default function PublishedExternalAgents({ query = '' }: IPublishedExtern
             </article>
           ))}
       </div>
-      {!isLoading && !isFailed && !agents.length && access?.can_manage && <Typography.Paragraph type='secondary'>{t('agent.external.published.empty')}</Typography.Paragraph>}
-      <Drawer key={identity} title={t('agent.external.manage.title')} width={880} visible={isManagementOpen && Boolean(access?.can_manage)} onCancel={() => setIsManagementOpen(false)} footer={null} unmountOnExit>
-        {isManagementOpen && access?.can_manage && (
-          <Suspense fallback={null}>
-            <Management
-              isPlatformAdmin={access.can_manage_policy}
-              isCredentialStorageAvailable={access.credential_storage_available}
-              onChanged={async () => {
-                emitter.emit('chat.history.refresh');
-                await onRefresh();
-              }}
-            />
-          </Suspense>
-        )}
-      </Drawer>
+      {!isLoading && !isFailed && !agents.length && <Typography.Paragraph type='secondary'>{t('agent.external.published.empty')}</Typography.Paragraph>}
     </section>
   );
 }

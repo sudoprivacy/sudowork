@@ -44,13 +44,15 @@
   },
   "external": {
     "published": {
-      "title": "組織發布的智能體",
-      "description": "展示目前帳號獲准使用的智能體，對話記錄僅自己可見。",
+      "title": "外部託管",
+      "description": "由組織管理員在 Moss 發布，顯示目前帳號獲准使用的外部智慧體。",
       "search": "搜尋已發布智能體",
       "scope": "組織統一管理 · 合成資料試點",
       "start": "開始對話",
-      "empty": "暫無已發布智能體，接入並審核發布後，授權使用者即可使用。",
-      "fallbackName": "組織智能體"
+      "empty": "暫無獲准使用的外部智慧體，請聯絡組織管理員在 Moss 接入並發布。",
+      "fallbackName": "組織智能體",
+      "nativeTitle": "原生範本",
+      "nativeEmpty": "暫無原生範本"
     },
     "chat": {
       "messages": "對話訊息",

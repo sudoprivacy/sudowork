@@ -5,7 +5,7 @@ import PublishedExternalAgents from '@renderer/pages/external-agents/PublishedEx
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Input, Message, Spin, Tooltip } from '@arco-design/web-react';
+import { Button, Input, Message, Spin, Tooltip, Typography } from '@arco-design/web-react';
 import { Bot, Check, Plus, Search, Share2, Shield } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -1807,7 +1807,7 @@ const AgentSettings: React.FC = () => {
 
                 {/* Assistant grid */}
                 <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleHubScroll}>
-                  <PublishedExternalAgents query={hubSearchQuery} />
+                  {activeTab === 'exclusive' && <><PublishedExternalAgents query={hubSearchQuery} /><Typography.Title heading={5}>{t('agent.external.published.nativeTitle')}</Typography.Title></>}
                   {/* Enterprise mode: show tenant assistants from local tenant/ directory */}
                   {activeTab === 'exclusive' && isEnterprise ? (
                     hubLoading ? (
@@ -1817,7 +1817,7 @@ const AgentSettings: React.FC = () => {
                     ) : hubAssistantList.length === 0 ? (
                       <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
                         <Shield size={32} className='text-tertiary' />
-                        <span className='text-13px'>{t('settings.assistant.noTenantAssistants', '暂无专属智能体')}</span>
+                        <span className='text-13px'>{t('agent.external.published.nativeEmpty')}</span>
                       </div>
                     ) : (
                       <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
