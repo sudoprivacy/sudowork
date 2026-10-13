@@ -1,0 +1,202 @@
+# Shared browser sessions for Desktop and WebUI
+
+Status: implementation in progress. The shared ai-dev-browser viewer primitives are merged; the complete SudoWork panel, managed deployment, handoff and local relay still require acceptance. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+
+## 1. Decisions
+
+- Desktop and WebUI use the same React BrowserPanel and browser session contract. Hosts adapt authentication, execution and display transport.
+- WebUI prefers managed cloud Chrome with the ai-dev-browser extension. Each user has an isolated, persistent profile; each running profile has one browser owner.
+- The model chooses headless or headful using the task and reported capabilities. Connecting to an existing browser preserves its launch mode.
+- Headless runs no Xvfb, x11vnc or websockify. A page viewer starts producing frames only while a viewer is attached. Headful uses an isolated display; window viewing and its proxy start on demand.
+- Closing a viewer detaches display resources. It does not close Chrome, erase the profile or resume AI execution.
+- BrowserPanel and a viewer in a separate local tab observe and control the same remote session. Neither requires the viewer device to run Chrome.
+- Human control is a server-enforced lease. It applies across panels, viewer tabs, the main agent and all child agents sharing the browser.
+- Public browser lifecycle, CDP, page display and window display belong in ai-dev-browser. Ladder retains billing, invitations, allowed sites and product policy.
+
+## 2. Independent choices
+
+Browser location, automation transport and display surface are separate choices. Headless is a launch attribute, not another transport.
+
+| Host and browser location        | Automation                               | User display                             | Handoff scope                                              |
+| -------------------------------- | ---------------------------------------- | ---------------------------------------- | ---------------------------------------------------------- |
+| Desktop, local standalone Chrome | CDP                                      | Shared panel, native Chrome when headful | Main and child agents using that browser                   |
+| Desktop, existing local Chrome   | Extension                                | Shared panel and native Chrome           | Main and child agents; launch mode stays unchanged         |
+| Desktop, cloud Chrome            | Managed extension, explicit CDP fallback | Shared panel or remote viewer tab        | Cloud execution session                                    |
+| WebUI, cloud Chrome              | Managed extension by default             | Shared panel or remote viewer tab        | Cloud execution session                                    |
+| WebUI, cloud standalone Chrome   | Explicit CDP selection                   | Same shared panel/viewer                 | Cloud execution session                                    |
+| WebUI, user's local Chrome       | Authorized outbound relay to extension   | Same panel/viewer and native Chrome      | Explicitly paired local browser                            |
+| Existing Electron guest          | Electron debugger                        | Embedded guest through the shared panel  | All affected Desktop agent tools until isolation is proven |
+
+An Electron `<webview>` is a Chromium guest, not a DOM component available in ordinary browsers. The remote surface adapts this difference without duplicating tab, navigation or handoff UX.
+
+## 3. Architecture
+
+```mermaid
+flowchart LR
+  Desktop[Desktop host] --> Panel[Shared React BrowserPanel]
+  Web[WebUI host] --> Panel
+  NewTab[Authenticated viewer tab] --> Session[Browser session API]
+  Panel --> Session
+  Session --> Lease[Control lease and execution barrier]
+  Lease --> Core[Public ai-dev-browser core]
+  Core --> Cloud[Isolated cloud Chrome and profile]
+  Core --> Local[Local Chrome or Electron guest]
+  Cloud --> Page[Page view on demand]
+  Cloud --> Window[Headful window view on demand]
+  Page --> Panel
+  Window --> Panel
+  Private[Ladder business policy] --> Core
+```
+
+SudoWork owns user authorization, conversation-to-browser binding, runtime deployment, agent execution barriers, the shared panel and file transfer UX. The public core supplies browser identity, lifecycle, capabilities and the display adapters extracted from ladder.
+
+Both AI tools and human input resolve the same browser/session/profile/tab identity. A viewer is never a second browser or a separate login.
+
+## 4. Managed cloud runtime and resource use
+
+1. The authenticated runtime resolves the tenant, user, profile and execution session. User-supplied filesystem paths or arbitrary remote debugging URLs are not accepted as session identity.
+2. A single browser process owns a profile directory. Concurrent requests attach to that process; another execution session queues or explicitly creates another profile.
+3. Launch mode is selected before starting Chrome. Mode changes require an explicit restart and a warning that in-memory page state may be lost. Persistent profile data remains.
+4. Headless starts Chrome and the extension/control bridge only. No desktop display service is provisioned.
+5. A page viewer attaches when the user opens the panel or viewer tab. Frame production stops when the last viewer detaches. Background automation can continue under the AI lease.
+6. Headful starts an isolated X display with Chrome. x11vnc, websockify and their authenticated gateway are lazy window-view resources. Detaching their last viewer stops those owned resources, while the X display and Chrome continue for the headful session.
+7. End-session shuts down the owned browser and runtime resources; ordinary viewer disconnect does not.
+
+Bounded frame rates, shared frame production, backpressure and visible-tab subscriptions prevent one encoder/polling loop per viewer. Idle profiles consume storage; they do not require running Chrome. Reaping must preserve the profile and leave a recoverable stopped state.
+
+### Production extension compatibility
+
+Recent headless Chrome can run extensions, but packaged Chrome installation must be verified separately from Chrome for Testing. Branded Chrome 137+ removed `--load-extension`; production needs a supported installation method and a successful extension handshake. Do not silently label a CDP-only browser as extension-connected.
+
+Expose browser version, actual transport, headless state, `pageView`, `windowView`, extension connection and profile persistence in capabilities. A missing extension produces an actionable reconnect/install error. CDP fallback requires explicit selection.
+
+## 5. Cloud sign-in and the local profile
+
+The cloud browser can offer **Sign in to cloud Chrome** during human control. The user chooses whether to save or sync browser data in their Google Account. Chrome documents account-backed bookmarks, passwords, extensions and settings, plus optional history and tabs. See [Chrome account data](https://support.google.com/chrome/answer/165139?hl=en).
+
+This creates a cloud profile. It does not establish access to the existing local profile. Website cookies, local storage, device-bound credentials, installed extension state and local files must not be assumed to transfer. A user may still need to log in to individual websites on the VM. Never copy an open local Chrome profile directory into the VM.
+
+Offer two explicit choices:
+
+- **Cloud browser**: persistent isolated profile; the user signs in to sites or optionally Chrome on the VM.
+- **Connect my Chrome**: pair the local extension through an authenticated outbound relay when exact local login/device context is needed.
+
+Cloud sign-in is a useful first path, not a replacement for the local relay.
+
+## 6. Local extension relay
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant W as WebUI
+  participant G as Authorized gateway
+  participant E as Local extension
+  participant A as Cloud agent
+  U->>W: Connect my Chrome
+  W->>G: Create expiring pairing request
+  U->>E: Approve device, session and tab scope
+  E->>G: Establish outbound authenticated WSS
+  A->>G: Browser operation under AI lease
+  G->>E: Scoped operation
+  E-->>G: Result from the paired tab
+  G-->>W: Same session identity and view
+  U->>W: Revoke connection
+  W->>G: Revoke pairing and pending operations
+```
+
+Pairing binds tenant, user, device, execution session, allowed browser/tab scope and expiry. Revocation is immediate. The extension makes an outbound connection; no public local CDP listener or inbound router configuration is required. Existing Chrome keeps its headless/headful mode. Reconnecting proves the same browser identity or asks the user to pair again.
+
+## 7. User handoff UX
+
+The panel and viewer tab share the same status and actions. A compact session control also remains available outside BrowserPanel so users of native Chrome can hand off explicitly.
+
+| State                                 | What the user sees                             | Controls                                              | What AI receives                                        |
+| ------------------------------------- | ---------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| Stopped                               | Browser is not running                         | Start; transport and mode selection                   | Start capabilities and no active target                 |
+| AI control                            | AI is controlling this browser                 | Take control; observe; open viewer                    | Current lease and target identity                       |
+| Pausing                               | Waiting for the current operation to stop      | Cancel request if no lease has transferred; view only | New writes blocked; in-flight completion required       |
+| Human control                         | You are controlling this browser; AI is paused | Navigation, typing, tabs, uploads; Return to AI       | Waiting state, reason and control epoch; no retry loop  |
+| Returning                             | Reconnecting and observing the current page    | View only; cancel continuation                        | Fresh observation required; prior queued writes invalid |
+| Disconnected while human owns control | Connection lost; AI remains paused             | Reconnect; explicit end or return after reconnection  | No automatic lease transfer                             |
+| Error or uncertain execution          | Operation status could not be confirmed        | Inspect/reconnect/end; no unsafe automatic retry      | Structured failure and observation requirement          |
+
+### Taking control
+
+1. The user clicks **Take control** in the panel, viewer or session control.
+2. The server advances the control epoch and blocks new AI operations from the main agent and children. Queued actions from the earlier epoch are discarded.
+3. An already-running atomic input sequence finishes, including mouse/key release. For unisolated Desktop shell access, the runtime must stop all affected tool execution and verify no browser operation remains active. A UI-only pause cannot grant the human lease.
+4. Only after that barrier succeeds does the UI show **You are controlling** and enable human input. Failure leaves input disabled with a clear retry/end action.
+5. The user completes login, consent, CAPTCHA or another manual step in the same tab and profile. Native windows and window-view Chrome settings are covered by the same explicit lease.
+
+### Returning to AI
+
+1. The user clicks **Return to AI**; optional text explains what they changed.
+2. Human input is disabled and the control epoch changes again.
+3. The runtime obtains current tabs, active target, URL and a fresh screenshot/DOM observation. It rejects actions planned against the old target or epoch.
+4. The agent receives a continuation message: human control ended, what the user reported, current target identity and an instruction to observe before acting.
+5. Execution resumes after the observation barrier. It does not replay a stale submit, purchase, navigation or click.
+
+Closing a tab/window, losing connectivity or a browser timeout never silently returns control to AI. Another viewer can observe but cannot replace the human controller without explicit authenticated transfer. Manual input outside the panel requires the same explicit handoff; do not imply that arbitrary OS input is automatically detected.
+
+```mermaid
+stateDiagram-v2
+  [*] --> AI
+  AI --> Pausing: Take control
+  Pausing --> Human: Operations drained
+  Pausing --> Error: Barrier failed
+  Human --> Disconnected: Viewer lost
+  Disconnected --> Human: Controller reconnects
+  Human --> Observing: Return to AI
+  Observing --> AI: Fresh observation confirmed
+  Observing --> Error: Observation failed
+  Error --> Human: Explicit recovery
+```
+
+## 8. LLM and tool contract
+
+Tools return structured state with `browserSessionId`, browser identity, `profileId`, active `targetId`, `controlEpoch`, `targetEpoch`, controller and capabilities. Each write must match the current lease and epochs.
+
+- During human control, tool requests return `browser_control_held_by_user` with a wait instruction. They do not poll, recreate the browser, switch profiles or use a different transport to bypass the lease.
+- The agent may request handoff with a short explanation, such as needing login. The UI presents the request and the user explicitly accepts it.
+- After return, the first operation is a fresh observation. A child agent cannot use a cached screenshot from before handoff.
+- Read-only access is an exact allowlist. Arbitrary JavaScript evaluation is a write because it can change page state. Closing, restarting, navigating and changing tabs are also writes.
+- Cancellation and session termination remain available while paused. They do not transfer control or imply that an uncertain write had no effect.
+- Avoid model calls while waiting. Notify the agent on a state change instead of repeated tool failures.
+
+Agent shell access must not expose an unrestricted browser endpoint or the human controller's credential. Cloud runtime isolation puts browser control behind the broker. Desktop uses the conservative all-tools pause until equivalent isolation is established for every supported ACP host.
+
+## 9. Shared panel and viewer behavior
+
+- Tabs, title, URL, back/forward/reload, transport/profile status, handoff, reconnect and error UX are shared components.
+- Electron can embed its guest; remote Chrome uses the public page surface. Headful window view exposes Chrome UI when needed, including profile sign-in and extension management.
+- Opening a viewer tab uses the existing authenticated session. Credentials are not placed in the URL. A copied link requires login and current session permission.
+- Target changes advance `targetEpoch`; stale frames and input are rejected. Coordinates are calculated from the actual remote viewport, including resizing and mobile touch input.
+- Reconnection verifies browser identity. It never attaches silently to another user's browser or starts a replacement because a transient connection failed.
+- Uploads and downloads belong to the same authenticated session. Desktop picks local files; WebUI stages files through authorized upload/download routes. Cloud pages cannot read arbitrary viewer-device paths.
+- Page view and window view are two surfaces of the same headful browser. Headless has page view only; requesting Chrome UI requires an explicit headful restart.
+
+## 10. Acceptance and rollout
+
+Acceptance covers actual browser behavior and actual AI execution. A fake model or standalone display primitive test does not prove the application handoff.
+
+| Journey                          | Required evidence                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop local CDP and extension  | Real AI tool use, same-profile login, take/return control, child-agent barrier and fresh observation                              |
+| WebUI cloud extension, headless  | Real extension handshake, panel and new-tab viewer share the same target, no display processes while idle                         |
+| WebUI cloud extension, headful   | Actual managed Chrome install, window viewer trusted input, sign-in UI reachable, lazy viewer lifecycle                           |
+| User isolation and persistence   | Two authorized users cannot view/control each other; cookies/profile survive owned restart; concurrent profile ownership enforced |
+| Handoff races and recovery       | In-flight operation drains; stale action rejected; disconnect stays paused; reconnect and return observe current page             |
+| Files and multiple tabs          | Session-bound upload/download, popup/tab identity and stale frame/input handling                                                  |
+| Local relay                      | Real local extension pairing, authorized scope, same local profile, revoke/disconnect, no inbound CDP port                        |
+| Mobile and browser compatibility | Real phone interaction plus Safari/Firefox/Chrome viewers; desktop emulation alone is insufficient                                |
+
+Use the repository live workflow and real model credentials. Prefer live PTY for model/runtime journeys, real Chrome for UI, and local Docker or the restricted production VM for infrastructure. Commit locally-run live tests and add suitable regression coverage to CI. Preserve failed evidence, clean only owned fixtures, and report any remaining acceptance gap explicitly.
+
+### Delivery already completed
+
+- [SudoWork #1227](https://github.com/sudoprivacy/sudowork/pull/1227): ai-dev-browser v0.52.1 baseline and live CI prerequisites; merged.
+- [ai-dev-browser #15](https://github.com/sudoprivacy/ai-dev-browser/pull/15): mode guidelines and browser session lifecycle; merged source.
+- [ai-dev-browser #14](https://github.com/sudoprivacy/ai-dev-browser/pull/14): public CDP, page surface and VNC primitives, actual-browser regression tests and lifecycle/proxy fixes; merged, nine CI jobs passed.
+- [Ladder #48](https://github.com/elfenlieds7/ladder/pull/48): use the public primitives and remove duplicated viewers; merged, 59 private tests passed.
+
+These completed changes do not yet establish full SudoWork UI, production managed-browser deployment, agent handoff or local-relay acceptance. Record each delivered implementation and its real evidence here as it lands.
