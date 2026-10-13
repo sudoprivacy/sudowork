@@ -93,7 +93,7 @@ jobs:
             sudo apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
             sudo apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y xvfb xauth
           fi
-          pip install websockets websocket-client Pillow deprecated
+          pip install "${{ github.workspace }}/vendor/ai-dev-browser"
 
       - name: Run browser port isolation test
         run: |

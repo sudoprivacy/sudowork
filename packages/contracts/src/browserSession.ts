@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const EpochSchema = z.number().int().nonnegative();
+const SurfaceSchema = z.enum(['page', 'window']);
 
 export const BrowserSessionStateSchema = z.object({
   browserSessionId: z.string().min(1),
@@ -19,6 +20,7 @@ export const BrowserSessionStateSchema = z.object({
   activeTargetId: z.string().nullable(),
   tabs: z.array(z.object({ id: z.string().min(1), title: z.string(), url: z.string() })),
   error: z.string().nullable(),
+  dialog: z.object({ type: z.string(), message: z.string(), defaultPrompt: z.string().optional() }).nullable().optional(),
 });
 
 export const BrowserInputSchema = z.discriminatedUnion('kind', [
@@ -39,7 +41,7 @@ export const BrowserInputSchema = z.discriminatedUnion('kind', [
       .string()
       .min(1)
       .max(512)
-      .refine((value) => !/[\u0000-\u001f]/.test(value)),
+      .refine((value) => Array.from(value).every((character) => character.charCodeAt(0) >= 32)),
   }),
   z.object({
     kind: z.literal('key'),
@@ -57,12 +59,21 @@ const operation = { controlEpoch: EpochSchema, targetEpoch: EpochSchema };
 
 export const BrowserSessionActionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('state') }),
-  z.object({ kind: z.literal('start'), isHeadless: z.boolean(), transport: z.enum(['cdp', 'extension']) }),
-  z.object({ kind: z.literal('attach'), viewerId: z.string().uuid() }),
+  z.object({
+    kind: z.literal('start'),
+    isHeadless: z.boolean(),
+    transport: z.enum(['cdp', 'extension']),
+  }),
+  z.object({
+    kind: z.literal('attach'),
+    viewerId: z.string().uuid(),
+    surface: SurfaceSchema.optional(),
+  }),
   z.object({ kind: z.literal('detach'), viewerId: z.string().uuid() }),
   z.object({
     kind: z.literal('frame'),
     viewerId: z.string().uuid(),
+    surface: SurfaceSchema.optional(),
     ...operation,
   }),
   z.object({ kind: z.literal('take'), ...operation }),
@@ -74,6 +85,7 @@ export const BrowserSessionActionSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('input'),
     input: BrowserInputSchema,
+    surface: SurfaceSchema.optional(),
     ...operation,
   }),
   z.object({
@@ -110,6 +122,7 @@ export const BrowserSessionReplySchema = z.object({
       height: z.number().int().positive().max(8192),
       controlEpoch: EpochSchema,
       targetEpoch: EpochSchema,
+      surface: SurfaceSchema.optional(),
     })
     .optional(),
 });

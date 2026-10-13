@@ -1,5 +1,22 @@
 {
   "browserSession": {
+    "viewMode": "浏览器视图",
+    "windowView": "完整 Chrome 窗口",
+    "pageView": "仅网页",
+    "dialog": "浏览器对话框",
+    "dialogText": "对话框回复",
+    "acceptDialog": "确认",
+    "dismissDialog": "取消",
+    "errors": {
+      "browser_profile_in_use": "另一个会话正在使用你的浏览器 profile。结束那个会话后，再在这里打开浏览器。",
+      "stale_browser_operation": "浏览器状态已改变，请等画面更新后再操作。",
+      "browser_disconnected": "浏览器连接已断开。请重新连接并确认页面状态，再决定是否重复操作。",
+      "browser_dialog_requires_response": "请先处理浏览器对话框，再继续操作。",
+      "browser_window_view_unavailable": "完整窗口视图暂不可用，请切换到网页视图。",
+      "browser_restart_requires_observation": "请重新启动浏览器，确认页面状态后再交回 AI。",
+      "browser_control_held_by_user": "你已接管浏览器，交回控制权后 AI 才能继续操作。",
+      "browser_return_notification_failed": "浏览器控制权已交回。自动通知未获确认，请在对话中发消息让 AI 继续。"
+    },
     "start": "启动浏览器",
     "launchMode": "浏览器显示模式",
     "transport": "浏览器连接方式",
@@ -13,7 +30,7 @@
     "openViewer": "在新标签页查看",
     "unavailable": "浏览器会话不可用，请重新连接后继续。",
     "waiting": "AI 启动浏览器后，页面将在这里显示。",
-    "disconnected": "连接已断开。AI 会保持暂停，直到你重新连接并交回控制权。",
+    "disconnected": "连接已断开。AI 浏览器操作会保持暂停，直到你重新连接并交回控制权。",
     "tab": "浏览器标签页",
     "closeTab": "关闭标签页",
     "back": "后退",
@@ -28,7 +45,7 @@
       "stopped": "浏览器尚未运行",
       "ai": "AI 正在控制浏览器",
       "pausing": "正在等待 AI 操作结束",
-      "human": "你已接管 · AI 已暂停",
+      "human": "你已接管 · AI 浏览器操作已暂停",
       "observing": "AI 正在重新观察页面",
       "error": "浏览器控制需要恢复"
     }

@@ -1,6 +1,9 @@
 import react from '@vitejs/plugin-react'
 import { createRequire } from 'node:module'
-import { browserPageViewAlias } from '../../scripts/browser-view-alias.mjs'
+import {
+  browserPageViewAlias,
+  browserSessionContractAlias,
+} from '../../scripts/browser-view-alias.mjs'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import UnoCss from 'unocss/vite'
@@ -21,6 +24,7 @@ export default defineConfig({
     // can sit next to the existing exact-string client aliases.
     alias: [
       browserPageViewAlias,
+      browserSessionContractAlias,
       { find: '@client', replacement: abs('./src/client') },
       { find: '@shared', replacement: abs('./src/shared') },
       // Shared renderer + its workspace deps, bundled from source (same as desktop).

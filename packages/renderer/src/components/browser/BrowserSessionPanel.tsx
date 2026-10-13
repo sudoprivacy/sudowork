@@ -14,21 +14,26 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
+  const [dialogText, setDialogText] = useState('');
   const [isFrameReady, setIsFrameReady] = useState(false);
   const [isHeadless, setIsHeadless] = useState(true);
   const [transport, setTransport] = useState<'extension' | 'cdp'>('extension');
+  const [selectedSurface, setSelectedSurface] = useState<'page' | 'window' | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const surfaceRef = useRef<PageSurface | null>(null);
   const sessionRef = useRef<BrowserSessionState | null>(null);
   const invokeRef = useRef<((action: BrowserSessionAction) => Promise<BrowserSessionReply>) | undefined>(undefined);
   const isInteractiveRef = useRef(false);
+  const surfaceModeRef = useRef<'page' | 'window'>('page');
   const generationRef = useRef(0);
-  const viewerRef = useRef(crypto.randomUUID());
 
   const invoke = useCallback(
     async (action: BrowserSessionAction) => {
       const reply = await ipcBridge.browserSession.invoke.invoke({ conversationId, action });
-      if (!reply?.success) throw new Error(reply?.msg || t('conversation.browserSession.unavailable'));
+      if (!reply?.success) {
+        const code = reply?.msg || 'unavailable';
+        throw new Error(t(`conversation.browserSession.errors.${code}`, { defaultValue: t('conversation.browserSession.unavailable') }));
+      }
       return BrowserSessionReplySchema.parse(reply.data);
     },
     [conversationId, t]
@@ -50,12 +55,14 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     if (!previous || previous.activeTargetId !== next.activeTargetId || previous.tabs.find((tab) => tab.id === previous.activeTargetId)?.url !== target?.url) setUrl(target?.url || '');
     setError(null);
   }, []);
+  const updateRef = useRef(update);
+  updateRef.current = update;
 
   useEffect(() => {
     const generation = ++generationRef.current;
     let isClosed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const viewerId = viewerRef.current;
+    const viewerId = crypto.randomUUID();
     sessionRef.current = null;
     setSession(null);
     setError(null);
@@ -67,14 +74,16 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         const stateReply = await invoke({ kind: 'state' });
         if (isClosed) return;
         update(stateReply.session);
+        const viewMode = selectedSurface === 'page' || !stateReply.session.capabilities.windowView ? 'page' : 'window';
+        surfaceModeRef.current = viewMode;
         if (document.visibilityState === 'visible' && stateReply.session.state !== 'stopped' && stateReply.session.capabilities.pageView && stateReply.session.activeTargetId) {
-          await invoke({ kind: 'attach', viewerId });
+          await invoke({ kind: 'attach', viewerId, surface: viewMode });
           if (isClosed) return;
           const state = sessionRef.current!;
-          const reply = await invoke({ kind: 'frame', viewerId, controlEpoch: state.controlEpoch, targetEpoch: state.targetEpoch });
+          const reply = await invoke({ kind: 'frame', viewerId, surface: viewMode, controlEpoch: state.controlEpoch, targetEpoch: state.targetEpoch });
           if (isClosed || generationRef.current !== generation) return;
           update(reply.session);
-          if (reply.frame && sessionRef.current && isCurrentBrowserFrame(sessionRef.current, reply.frame)) {
+          if (reply.frame && (reply.frame.surface || 'page') === viewMode && sessionRef.current && isCurrentBrowserFrame(sessionRef.current, reply.frame)) {
             surfaceRef.current?.frame(reply.frame);
           }
         } else {
@@ -97,7 +106,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       // Detach only the view. The server retains the browser and human lease.
       void invoke({ kind: 'detach', viewerId }).catch(() => {});
     };
-  }, [conversationId, invoke, isActive, t, update]);
+  }, [conversationId, invoke, isActive, selectedSurface, t, update]);
 
   const isController = session?.state === 'human' && session.isController && !isTransferring && !error;
   isInteractiveRef.current = !!isController;
@@ -132,9 +141,14 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       const input = BrowserInputSchema.safeParse(value);
       if (!input.success) return;
       const generation = generationRef.current;
-      void invokeRef.current?.({ kind: 'input', input: input.data, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch }).catch((failure: unknown) => {
-        if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
-      });
+      void invokeRef
+        .current?.({ kind: 'input', input: input.data, surface: surfaceModeRef.current, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch })
+        .then((reply) => {
+          if (generationRef.current === generation) updateRef.current(reply.session);
+        })
+        .catch((failure: unknown) => {
+          if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+        });
     });
     surfaceRef.current = surface;
     return () => {
@@ -147,7 +161,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     const current = sessionRef.current;
     if (!current || !isController || !text) return;
     try {
-      await invoke({ kind: 'input', input: { kind: 'text', text }, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+      const reply = await invoke({ kind: 'input', input: { kind: 'text', text }, surface: surfaceModeRef.current, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+      update(reply.session);
       setText('');
     } catch (failure) {
       Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
@@ -167,15 +182,23 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
   };
 
+  const onRespondDialog = async (isAccepted: boolean) => {
+    const current = sessionRef.current;
+    if (!current || current.state !== 'human' || !current.isController) return;
+    try {
+      const reply = await invoke({ kind: 'input', surface: 'page', input: { kind: 'dialog', accept: isAccepted, text: dialogText }, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+      update(reply.session);
+      setDialogText('');
+    } catch (failure) {
+      Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+    }
+  };
+
   return (
     <div className='h-full min-h-0 flex flex-col gap-2 p-2' data-testid='browser-session-panel'>
       <div className='flex flex-wrap items-center gap-2'>
         <span role='status'>{isTransferring ? t('conversation.browserSession.transferring') : t(`conversation.browserSession.state.${session?.state || 'stopped'}`)}</span>
-        {session ? (
-          <span className='text-xs text-t-secondary'>
-            {t(`conversation.browserSession.${session.isHeadless ? 'headless' : 'headful'}`)}
-          </span>
-        ) : null}
+        {session ? <span className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session.isHeadless ? 'headless' : 'headful'}`)}</span> : null}
         <Button size='mini' disabled={!session || session.state !== 'ai' || isTransferring || !!error} onClick={() => void onAction('take')}>
           {t('conversation.browserSession.take')}
         </Button>
@@ -186,6 +209,18 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           <Button size='mini' onClick={() => window.open(`${location.pathname}${location.search}#/browser-viewer/${encodeURIComponent(conversationId)}`, '_blank', 'noopener')}>
             {t('conversation.browserSession.openViewer')}
           </Button>
+        ) : null}
+        {session?.capabilities.windowView ? (
+          <Select
+            aria-label={t('conversation.browserSession.viewMode')}
+            value={selectedSurface || 'window'}
+            onChange={setSelectedSurface}
+            style={{ width: 180 }}
+            options={[
+              { value: 'window', label: t('conversation.browserSession.windowView') },
+              { value: 'page', label: t('conversation.browserSession.pageView') },
+            ]}
+          />
         ) : null}
       </div>
       {session?.state === 'stopped' ? (
@@ -212,6 +247,18 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           />
           <Button size='mini' disabled={isTransferring || !!error} onClick={() => void onStart()}>
             {t('conversation.browserSession.start')}
+          </Button>
+        </div>
+      ) : null}
+      {session?.dialog ? (
+        <div role='alertdialog' aria-label={t('conversation.browserSession.dialog')} className='flex flex-wrap items-center gap-2'>
+          <span>{session.dialog.message}</span>
+          {session.dialog.type === 'prompt' ? <Input aria-label={t('conversation.browserSession.dialogText')} value={dialogText} onChange={setDialogText} maxLength={512} style={{ width: 240 }} /> : null}
+          <Button size='mini' disabled={session.state !== 'human' || !session.isController || isTransferring} onClick={() => void onRespondDialog(true)}>
+            {t('conversation.browserSession.acceptDialog')}
+          </Button>
+          <Button size='mini' disabled={session.state !== 'human' || !session.isController || isTransferring} onClick={() => void onRespondDialog(false)}>
+            {t('conversation.browserSession.dismissDialog')}
           </Button>
         </div>
       ) : null}

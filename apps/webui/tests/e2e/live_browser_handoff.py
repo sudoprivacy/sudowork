@@ -126,9 +126,10 @@ async def main(args):
                 await editor.fill(text)
                 await editor.press("Enter")
 
-            async def wait_turn(start):
+            async def wait_turn(start, required):
                 deadline = time.monotonic() + args.turn_timeout
                 while time.monotonic() < deadline:
+                    is_current_turn = False
                     for raw in messages[start:]:
                         if not isinstance(raw, str):
                             continue
@@ -137,10 +138,11 @@ async def main(args):
                         except ValueError:
                             continue
                         event = message.get("event", {})
-                        if (
-                            message.get("kind") == "upstream"
-                            and event.get("type") == "result"
-                        ):
+                        if message.get("kind") != "upstream":
+                            continue
+                        if required(event):
+                            is_current_turn = True
+                        if is_current_turn and event.get("type") == "result":
                             assert not event.get("is_error"), "Real model turn failed"
                             return
                     await asyncio.sleep(0.25)
@@ -148,15 +150,31 @@ async def main(args):
                     json.dumps(stream_summary(messages), indent=2), encoding="utf-8"
                 )
                 raise AssertionError(
-                    "Real UI model turn did not finish; inspect private stream"
+                    "The current model journey did not finish; inspect stream-summary.json"
                 )
 
             start = len(messages)
             await send(
                 f"Browser handoff acceptance. Use only the sudowork-browser MCP tools, not shell or another browser. Observe the shared browser. If it is stopped, launch it with an explicit headless choice suited to this background task and the configured transport. Then navigate its current tab to {url}, and observe the Participant form. Do not fill or submit anything. Reply READY_FOR_HUMAN when the form is open."
             )
-            await wait_turn(start)
+            await wait_turn(
+                start,
+                lambda event: (
+                    event.get("type") == "tool_use"
+                    and url in json.dumps(event.get("input", ""))
+                ),
+            )
             loaded = await state()
+            # A connected conversation can replay an earlier result while its
+            # new turn is still running. Require this run's unique fixture URL
+            # before treating a completion as acceptance of the new request.
+            deadline = time.monotonic() + args.turn_timeout
+            while (
+                not any(tab["url"] == url for tab in loaded["tabs"])
+                and time.monotonic() < deadline
+            ):
+                await asyncio.sleep(0.25)
+                loaded = await state()
             assert loaded["profileId"] == initial_profile
             if before["state"] != "stopped":
                 assert loaded["browserSessionId"] == before["browserSessionId"]
@@ -212,7 +230,13 @@ async def main(args):
             await send(
                 "Control is held by the human. Attempt exactly one browser_action reload using freshly observed epochs to verify it is rejected. Do not use any other route, change anything or submit. Report HELD_BY_HUMAN and stop."
             )
-            await wait_turn(start)
+            await wait_turn(
+                start,
+                lambda event: (
+                    event.get("type") == "tool_result"
+                    and "browser_control_held_by_user" in json.dumps(event)
+                ),
+            )
             held = messages[start:]
             assert any(
                 "browser_control_held_by_user" in m for m in held if isinstance(m, str)
@@ -220,19 +244,28 @@ async def main(args):
             assert receipts == [], receipts
             await viewer.bring_to_front()
             await viewer_panel.get_by_label(labels["note"], exact=True).fill(
-                "I filled the Participant field. Please review and submit it once."
+                "I filled the Participant field. Freshly observe the same page, report the exact value, "
+                "then submit once with a real click. Do not change the value, call the form API, "
+                "use a JS click, or start another browser."
             )
+            start = len(messages)
             await viewer_panel.get_by_role(
                 "button", name=labels["return"], exact=True
             ).click()
             await expect(
                 viewer_panel.get_by_role("button", name=labels["take"], exact=True)
             ).to_be_enabled(timeout=15000)
-            start = len(messages)
-            await send(
-                "Human control has been explicitly returned. Use sudowork-browser MCP browser_observe to freshly read the same page. Report the exact Participant value you see, then submit the review exactly once with a real click. Do not replace or fill the value, use JS click, call the form API, or start another browser."
+            if args.manual_continuation:
+                await send(
+                    "Human control has been explicitly returned. Use sudowork-browser MCP browser_observe to freshly read the same page. Report the exact Participant value you see, then submit the review exactly once with a real click. Do not replace or fill the value, use JS click, call the form API, or start another browser."
+                )
+            await wait_turn(
+                start,
+                lambda event: (
+                    event.get("type") in ("tool_result", "assistant")
+                    and expected in json.dumps(event)
+                ),
             )
-            await wait_turn(start)
             deadline = time.monotonic() + 10
             while not receipts and time.monotonic() < deadline:
                 await asyncio.sleep(0.1)
@@ -259,6 +292,7 @@ async def main(args):
                 "receipts": receipts,
                 "mainPanelAndViewerShareBrowser": True,
                 "heldAgentWriteRejected": True,
+                "automaticReturnNotification": not args.manual_continuation,
                 "realProvider": "SudoRouter",
                 "model": config.get("model"),
                 "usage": stream_summary(messages),
@@ -335,4 +369,9 @@ if __name__ == "__main__":
         help="Address of this fixture reachable from the managed Chrome worker.",
     )
     parser.add_argument("--turn-timeout", type=int, default=180)
+    parser.add_argument(
+        "--manual-continuation",
+        action="store_true",
+        help="Legacy gateway acceptance: explicitly send a chat instruction after return.",
+    )
     asyncio.run(main(parser.parse_args()))

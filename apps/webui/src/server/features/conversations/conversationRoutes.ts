@@ -102,7 +102,20 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       res
         .status(200)
         .json(await invokeBrowserSession(deps, principal, String(req.params.id), ctx, input))
-    })().catch((err: unknown) => convErrorHandler(err, res, next))
+    })().catch((err: unknown) => {
+      if (err instanceof MossHttpError && [400, 403, 409, 503].includes(err.status)) {
+        try {
+          const body = JSON.parse(err.bodyText) as { error?: unknown }
+          if (typeof body.error === 'string' && /^[a-z_]{1,80}$/.test(body.error)) {
+            res.status(err.status).json({ error: body.error })
+            return
+          }
+        } catch {
+          /* Unknown upstream errors use the existing error handler. */
+        }
+      }
+      convErrorHandler(err, res, next)
+    })
   })
 
   router.post('/', requireSession, (req, res, next) => {
