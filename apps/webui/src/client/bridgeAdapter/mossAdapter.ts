@@ -28,6 +28,7 @@
  */
 
 import { bridge } from '@office-ai/platform'
+import { prepareWebAgentWorkspace } from '@sudowork/host-bridge/agentWorkspace'
 import {
   mossSecretPath,
   mossSecretResult,
@@ -185,6 +186,7 @@ if (typeof window !== 'undefined' && storageGet('agent.config', 'eeclaw.serverUr
 // ---------------------------------------------------------------------------
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  await prepareWebAgentWorkspace()
   const res = await fetch(path, {
     credentials: 'include',
     ...init,

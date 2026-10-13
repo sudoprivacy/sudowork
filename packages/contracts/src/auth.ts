@@ -35,7 +35,13 @@ export const MossMeSchema = z.object({
 export type MossMe = z.infer<typeof MossMeSchema>
 
 /** 自定义 Moss 服务器地址（可选）：仅 http(s) 完整 URL，登录时该会话所有 moss 调用走此地址 */
-const MossBaseUrlSchema = z.string().trim().url().regex(/^https?:\/\//i).max(2048).optional()
+const MossBaseUrlSchema = z
+  .string()
+  .trim()
+  .url()
+  .regex(/^https?:\/\//i)
+  .max(2048)
+  .optional()
 
 export const LoginPasswordRequestSchema = z.object({
   username: z.string().trim().min(1).max(255),
@@ -43,6 +49,13 @@ export const LoginPasswordRequestSchema = z.object({
   mossBaseUrl: MossBaseUrlSchema,
 })
 export type LoginPasswordRequest = z.infer<typeof LoginPasswordRequestSchema>
+
+/** Public identity hints are verified against Moss before switching the cookie session. */
+export const OpenAgentWorkspaceRequestSchema = z.object({
+  sessionId: z.string().regex(/^[A-Za-z0-9-]{1,128}$/),
+  orgId: z.string().regex(/^[A-Za-z0-9-]{1,128}$/),
+})
+export type OpenAgentWorkspaceRequest = z.infer<typeof OpenAgentWorkspaceRequestSchema>
 
 export const LoginApiKeyRequestSchema = z.object({
   apiKey: z.string().trim().min(1).max(512),
@@ -59,14 +72,20 @@ export type SendPhoneCodeRequest = z.infer<typeof SendPhoneCodeRequestSchema>
 
 export const LoginPhoneRequestSchema = z.object({
   phone: z.string().trim().min(11).max(16),
-  code: z.string().trim().regex(/^\d{4,8}$/),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{4,8}$/),
   mossBaseUrl: MossBaseUrlSchema,
 })
 export type LoginPhoneRequest = z.infer<typeof LoginPhoneRequestSchema>
 
 export const RegisterPhoneRequestSchema = z.object({
   phone: z.string().trim().min(11).max(16),
-  code: z.string().trim().regex(/^\d{4,8}$/),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{4,8}$/),
   nickname: z.string().trim().min(1).max(64),
   invitationCode: z.string().trim().min(1).max(64),
   mossBaseUrl: MossBaseUrlSchema,

@@ -4,8 +4,8 @@ import type { Express } from 'express'
 import { Pool } from 'pg'
 import { createApp, registerApiRoutes } from '@server/app'
 import type { AppConfig } from '@server/config'
-import type { MossAuthPort } from '@sudowork/moss-client'
-import { MossHttpError } from '@sudowork/moss-client'
+import type { MossAuthPort, MossSessionPort } from '@sudowork/moss-client'
+import { MossHttpError, createMossSessionPort } from '@sudowork/moss-client'
 import { createTestDatabase, destroyTestDatabase } from './helpers'
 
 const TOKENS_A = {
@@ -80,9 +80,12 @@ const testConfig: AppConfig = {
 describe('auth routes (real PostgreSQL + fake moss)', () => {
   let pool: Pool
 
-  function buildApp(mossAuth: MossAuthPort = createFakeMossAuth()): Express {
+  function buildApp(
+    mossAuth: MossAuthPort = createFakeMossAuth(),
+    mossSession?: MossSessionPort,
+  ): Express {
     const app = createApp({ publicOrigin: testConfig.publicOrigin })
-    registerApiRoutes(app, { config: testConfig, pool, mossAuth })
+    registerApiRoutes(app, { config: testConfig, pool, mossAuth, mossSession })
     return app
   }
 
@@ -275,6 +278,163 @@ describe('auth routes (real PostgreSQL + fake moss)', () => {
       .set('Origin', 'https://evil.example')
       .send({ username: 'user_a', password: 'right' })
     expect(res.status).toBe(403)
+  })
+
+  function workspaceApp(
+    options: { actorId?: string; sessionOrgId?: string; switchedUserId?: string } = {},
+  ) {
+    let switches = 0
+    const auth: MossAuthPort = {
+      ...createFakeMossAuth(),
+      async loginWithPassword(input, baseUrl) {
+        if (input.username === 'root') return { ...TOKENS_A, access_token: 'root-home' }
+        return createFakeMossAuth().loginWithPassword(input, baseUrl)
+      },
+      async switchOrg(_accessToken, orgId) {
+        switches += 1
+        if (orgId !== 'org-2') throw new MossHttpError(400, '', '/api/v1/auth/switch-org')
+        return { ...TOKENS_A, access_token: 'root-scoped' }
+      },
+      async me(accessToken, baseUrl) {
+        if (accessToken === 'root-home' || accessToken === 'root-scoped')
+          return {
+            user: {
+              id:
+                accessToken === 'root-scoped'
+                  ? (options.switchedUserId ?? 'root-user')
+                  : 'root-user',
+              name: 'Root',
+            },
+            organization: {
+              id: accessToken === 'root-scoped' ? 'org-2' : 'org-1',
+              name: 'Selected organization',
+            },
+            scopes: ['sessions:attach:any'],
+            role: 'super_admin',
+            isSuperAdmin: true,
+          }
+        return createFakeMossAuth().me(accessToken, baseUrl)
+      },
+    }
+    const sessions = createMossSessionPort(async (_baseUrl, input) => {
+      if (input.path === '/api/v1/sessions/owned-home')
+        return {
+          session: { sessionId: 'owned-home', userId: 'moss-a', orgId: 'org-1', status: 'active' },
+        }
+      if (input.path !== '/api/v1/sessions/managed-scoped')
+        throw new MossHttpError(404, '', input.path)
+      if (input.accessToken !== 'root-scoped') throw new MossHttpError(403, '', input.path)
+      return {
+        session: {
+          sessionId: 'managed-scoped',
+          userId: 'owner-two',
+          orgId: options.sessionOrgId ?? 'org-2',
+          status: 'active',
+          source: 'agent-manager',
+          clientMetadata: { agent_manager_actor_id: options.actorId ?? 'root-user' },
+        },
+      }
+    })
+    return { app: buildApp(auth, sessions), switches: () => switches }
+  }
+
+  async function workspaceLogin(app: Express, username = 'root') {
+    const response = await request(app)
+      .post('/api/auth/login/password')
+      .set('Origin', testConfig.publicOrigin)
+      .send({ username, password: 'right' })
+    expect(response.status).toBe(200)
+    return parseCookie(response.headers['set-cookie'])
+  }
+
+  test('a verified manager handoff rotates the cookie into the selected organization', async () => {
+    const { app, switches } = workspaceApp()
+    const original = await workspaceLogin(app)
+    const opened = await request(app)
+      .post('/api/auth/agent-workspace')
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', original)
+      .send({ orgId: 'org-2', sessionId: 'managed-scoped' })
+    expect(opened.status).toBe(200)
+    expect(opened.body).toEqual({ ok: true })
+    const next = parseCookie(opened.headers['set-cookie'])
+    expect(next).not.toBe(original)
+    const me = await request(app).get('/api/auth/session').set('Cookie', next)
+    expect(me.body.user.id).toBe('root-user')
+    expect(me.body.organization.id).toBe('org-2')
+    expect((await request(app).get('/api/auth/session').set('Cookie', original)).status).toBe(401)
+    expect(switches()).toBe(1)
+    expect(JSON.stringify(opened.body)).not.toContain('root-scoped')
+  })
+
+  test('ordinary users cannot turn a public organization hint into switch authority', async () => {
+    const { app, switches } = workspaceApp()
+    const cookie = await workspaceLogin(app, 'user_a')
+    const response = await request(app)
+      .post('/api/auth/agent-workspace')
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', cookie)
+      .send({ orgId: 'org-2', sessionId: 'managed-scoped' })
+    expect(response.status).toBe(403)
+    expect(switches()).toBe(0)
+    expect(
+      (await request(app).get('/api/auth/session').set('Cookie', cookie)).body.organization.id,
+    ).toBe('org-1')
+  })
+
+  test.each([
+    { actorId: 'another-manager' },
+    { sessionOrgId: 'org-3' },
+    { switchedUserId: 'another-user' },
+  ])('a rejected handoff retains the original cookie identity: %j', async (options) => {
+    const { app } = workspaceApp(options)
+    const cookie = await workspaceLogin(app)
+    const response = await request(app)
+      .post('/api/auth/agent-workspace')
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', cookie)
+      .send({ orgId: 'org-2', sessionId: 'managed-scoped' })
+    expect(response.status).toBe(403)
+    expect(response.headers['set-cookie']).toBeUndefined()
+    expect(
+      (await request(app).get('/api/auth/session').set('Cookie', cookie)).body.organization.id,
+    ).toBe('org-1')
+  })
+
+  test('same-organization owner handoffs verify access without rotating the cookie', async () => {
+    const { app, switches } = workspaceApp()
+    const cookie = await workspaceLogin(app, 'user_a')
+    const response = await request(app)
+      .post('/api/auth/agent-workspace')
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', cookie)
+      .send({ orgId: 'org-1', sessionId: 'owned-home' })
+    expect(response.status).toBe(200)
+    expect(response.headers['set-cookie']).toBeUndefined()
+    expect(switches()).toBe(0)
+  })
+
+  test('workspace handoffs require authentication and same-origin POST', async () => {
+    const { app } = workspaceApp()
+    const input = { orgId: 'org-2', sessionId: 'managed-scoped' }
+    expect(
+      (
+        await request(app)
+          .post('/api/auth/agent-workspace')
+          .set('Origin', testConfig.publicOrigin)
+          .send(input)
+      ).status,
+    ).toBe(401)
+    const cookie = await workspaceLogin(app)
+    expect(
+      (
+        await request(app)
+          .post('/api/auth/agent-workspace')
+          .set('Origin', 'https://evil.example')
+          .set('Cookie', cookie)
+          .send(input)
+      ).status,
+    ).toBe(403)
   })
 })
 

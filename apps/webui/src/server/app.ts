@@ -215,10 +215,10 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
     })().catch(next)
   })
 
-  app.use('/api/auth', createAuthRouter({ pool, config, mossAuth: deps.mossAuth }))
+  const mossSession = deps.mossSession ?? createMossSessionPort(mossFetch)
+  app.use('/api/auth', createAuthRouter({ pool, config, mossAuth: deps.mossAuth }, mossSession))
 
   const auth = { pool, config, mossAuth: deps.mossAuth }
-  const mossSession = deps.mossSession ?? createMossSessionPort(mossFetch)
   const coordinator =
     deps.coordinator ?? new ConversationCoordinator({ pool, config, auth, moss: mossSession })
   const agents = deps.agents ?? createMossAgentTemplatePort(mossFetch)
