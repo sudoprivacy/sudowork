@@ -10,12 +10,14 @@ import remarkGfm from 'remark-gfm';
 import { COS_HUB_BASE } from '@sudowork/common/cos';
 import styles from './MossCatalogBrowser.module.css';
 import { useAuth } from '@renderer/context/AuthContext';
+import { useAgentEntry } from '@renderer/pages/conversation/hooks/useAgentEntry';
 
 const itemKey = (item: { source: string; id: string }) => `${item.source}:${item.id}`;
 
 export default function MossCatalogBrowser({ kind, customContent, builtinContent, onCreate, onInstalled }: IMossCatalogBrowserProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { onOpenAgent } = useAgentEntry();
   const { user } = useAuth();
   const [tab, setTab] = useState<'hub' | 'tenant' | 'installed'>('hub');
   const [source, setSource] = useState('all');
@@ -108,7 +110,8 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
       if (identityRef.current !== token) return;
       if (isUse) {
         setDetail(null);
-        void navigate(`/guid?${kind === 'agents' ? 'assistant' : 'skill'}=${encodeURIComponent(kind === 'agents' ? result.data.id : result.data.runtimeName)}`);
+        if (kind === 'agents') await onOpenAgent(result.data.id);
+        else void navigate(`/guid?skill=${encodeURIComponent(result.data.runtimeName)}`);
       } else Message.success(t('settings.mossCatalog.downloaded'));
     } catch (cause) {
       if (identityRef.current === token) Message.error(cause instanceof Error ? cause.message : String(cause));

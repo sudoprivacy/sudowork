@@ -59,8 +59,18 @@ export function ConversationHistoryProvider({ children }: PropsWithChildren) {
   }, [refresh, sessionMode]);
 
   const value = useMemo(
-    () => ({ conversations: history.data ?? EMPTY_CONVERSATIONS, agents: agentList.data ?? EMPTY_AGENTS, isLoading: history.isLoading || agentList.isLoading, isLoadFailed: Boolean(history.error), refresh, getFreshConversations, scopeKey }),
-    [history.data, agentList.data, history.isLoading, agentList.isLoading, history.error, refresh, getFreshConversations, scopeKey]
+    () => ({
+      conversations: history.data ?? EMPTY_CONVERSATIONS,
+      agents: agentList.data ?? EMPTY_AGENTS,
+      isLoading: history.isLoading || agentList.isLoading,
+      isLoadFailed: Boolean(history.error),
+      isAgentsLoading: agentList.isLoading,
+      isAgentsLoadFailed: Boolean(agentList.error),
+      refresh,
+      getFreshConversations,
+      scopeKey,
+    }),
+    [history.data, agentList.data, history.isLoading, agentList.isLoading, history.error, agentList.error, refresh, getFreshConversations, scopeKey]
   );
 
   return <ConversationHistoryContext.Provider value={value}>{children}</ConversationHistoryContext.Provider>;
@@ -78,6 +88,8 @@ interface IConversationHistory {
   agents: IMyAgent[];
   isLoading: boolean;
   isLoadFailed: boolean;
+  isAgentsLoading: boolean;
+  isAgentsLoadFailed: boolean;
   refresh: () => Promise<void>;
   getFreshConversations: () => Promise<TChatConversation[]>;
   scopeKey: string | null;
