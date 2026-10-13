@@ -101,6 +101,7 @@ export default defineConfig({
         '../../packages/common/src/loginReturnPath.ts',
         '../../packages/host-bridge/src/agentWorkspace.ts',
         '../../packages/renderer/src/pages/conversation/utils/agentIdentity.ts',
+        '../../packages/renderer/src/pages/conversation/acp/useAcpMessage.ts',
         '../../packages/renderer/src/pages/conversation/context/ConversationHistoryContext.tsx',
         '../../packages/renderer/src/pages/conversation/components/AgentSessionHeader.tsx',
         '../../packages/renderer/src/pages/conversation/components/NewConversationButton.tsx',

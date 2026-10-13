@@ -86,6 +86,7 @@ export interface IConfigStorageRefer {
   'migration.promptsI18nAdded'?: boolean;
   /** Locally hidden remote cron execution sessions keyed by Moss session ID. */
   'remote.hiddenCronSessionIds'?: Record<string, number>;
+  'remote.hiddenSessionIds'?: Record<string, Record<string, number>>;
   /** Migration flag: skill subdirectory restructuring completed */
   'migration.skillSubdirectoriesMigrated'?: boolean;
   /** Migration flag: channel agent migrated to scode (Sudo Code) */
