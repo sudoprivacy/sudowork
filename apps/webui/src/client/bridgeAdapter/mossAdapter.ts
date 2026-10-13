@@ -1332,6 +1332,20 @@ function ensureChannelEventsSocket(): void {
 }
 
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
+  'browser-session:invoke': async (req) => {
+    try {
+      const data = await apiFetch(
+        `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/browser`,
+        {
+          method: 'POST',
+          body: JSON.stringify(req.action),
+        },
+      )
+      return ok(data)
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
   'secret.get': async (req) => {
     const path = mossSecretPath(String(req.namespace), String(req.key))
     const data = mossSecretResult(await apiFetch<MossResponse<{ value: string }>>(path))

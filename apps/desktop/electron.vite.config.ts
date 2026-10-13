@@ -6,6 +6,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import UnoCSS from 'unocss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { browserPageViewAlias } from '../../scripts/browser-view-alias.mjs';
 import unoConfig from './uno.config.ts';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -229,6 +230,7 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: [
+          browserPageViewAlias,
           ...commonAliasEntries(),
           { find: '@renderer', replacement: resolve('../../packages/renderer/src') },
           { find: '@process', replacement: resolve('src/process') },

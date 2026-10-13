@@ -1,4 +1,38 @@
 {
+  "browserSession": {
+    "start": "启动浏览器",
+    "launchMode": "浏览器显示模式",
+    "transport": "浏览器连接方式",
+    "extension": "受管 Chrome 扩展",
+    "cdp": "独立 Chrome（CDP）",
+    "take": "接管浏览器",
+    "return": "交回 AI",
+    "transferring": "正在移交浏览器控制权…",
+    "headless": "无窗口",
+    "headful": "显示窗口",
+    "openViewer": "在新标签页查看",
+    "unavailable": "浏览器会话不可用，请重新连接后继续。",
+    "waiting": "AI 启动浏览器后，页面将在这里显示。",
+    "disconnected": "连接已断开。AI 会保持暂停，直到你重新连接并交回控制权。",
+    "tab": "浏览器标签页",
+    "closeTab": "关闭标签页",
+    "back": "后退",
+    "forward": "前进",
+    "reload": "重新加载",
+    "address": "页面地址",
+    "page": "远程浏览器页面",
+    "text": "要输入到网页的文字",
+    "insert": "输入文字",
+    "note": "告诉 AI 你修改了什么（可选）",
+    "state": {
+      "stopped": "浏览器尚未运行",
+      "ai": "AI 正在控制浏览器",
+      "pausing": "正在等待 AI 操作结束",
+      "human": "你已接管 · AI 已暂停",
+      "observing": "AI 正在重新观察页面",
+      "error": "浏览器控制需要恢复"
+    }
+  },
   "interruptConfirm": {
     "title": "打断当前回复？",
     "body": "在 Agent 回复过程中发送新消息，会中断当前回复并立即处理新消息。",

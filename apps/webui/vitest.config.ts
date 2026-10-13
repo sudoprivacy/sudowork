@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { browserPageViewAlias } from '../../scripts/browser-view-alias.mjs'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
@@ -17,6 +18,11 @@ const requireFromHostBridge = createRequire(abs('../../packages/host-bridge/pack
 const officeAiPlatformEntry = requireFromHostBridge.resolve('@office-ai/platform')
 
 const bridgeAlias = [
+  browserPageViewAlias,
+  {
+    find: '@sudowork/contracts/browser-session',
+    replacement: abs('../../packages/contracts/src/browserSession.ts'),
+  },
   {
     find: '@sudowork/moss-client/agents',
     replacement: abs('../../packages/moss-client/src/MossAgentClient.ts'),

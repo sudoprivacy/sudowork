@@ -33,6 +33,8 @@ import {
   type ConversationDeps,
 } from './conversationService.js'
 import { getDeliverables } from './deliverablesService.js'
+import { BrowserSessionActionSchema } from '@sudowork/contracts/browser-session'
+import { invokeBrowserSession } from './browserSessionService.js'
 
 /**
  * 会话 REST 路由（计划 Task 5）。
@@ -88,6 +90,18 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const ctx = await resolveCtx(req as AuthedRequest)
       res.status(200).json({ conversations: await listConversations(deps, principal, ctx) })
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.post('/:id/browser', requireSession, (req, res, next) => {
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const ctx = await resolveCtx(req as AuthedRequest)
+      const input = BrowserSessionActionSchema.parse(req.body)
+      res
+        .status(200)
+        .json(await invokeBrowserSession(deps, principal, String(req.params.id), ctx, input))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

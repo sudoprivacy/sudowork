@@ -6,6 +6,7 @@ import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, Moss
  */
 
 import { bridge } from '@office-ai/platform';
+import type { BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
 import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@sudowork/common/channelTypes';
@@ -1513,6 +1514,10 @@ export const logs = {
 // Right-panel BrowserPanel control API. The panel itself lives in the renderer
 // (Electron <webview>); these IPCs let the main process clear its partition
 // cache and (later) attach CDP-based agent tooling.
+export const browserSession = {
+  invoke: bridge.buildProvider<IBridgeResponse<BrowserSessionReply>, { conversationId: string; action: BrowserSessionAction }>('browser-session:invoke'),
+};
+
 export const browserPanel = {
   clearCache: bridge.buildProvider<IBridgeResponse<void>, void>('browser-panel:clear-cache'),
 

@@ -343,5 +343,39 @@
     "select": "Choose a session for this agent",
     "new": "New session for this agent",
     "messages": "Jump to message"
+  },
+  "browserSession": {
+    "start": "Start browser",
+    "launchMode": "Browser launch mode",
+    "transport": "Browser connection",
+    "extension": "Managed Chrome extension",
+    "cdp": "Standalone Chrome (CDP)",
+    "take": "Take control",
+    "return": "Return to AI",
+    "transferring": "Transferring browser control…",
+    "headless": "Headless",
+    "headful": "Windowed",
+    "openViewer": "Open viewer tab",
+    "unavailable": "The browser session is unavailable. Reconnect to continue.",
+    "waiting": "The browser will appear when the agent starts it.",
+    "disconnected": "Connection lost. AI remains paused until you reconnect and explicitly return control.",
+    "tab": "Browser tab",
+    "closeTab": "Close browser tab",
+    "back": "Go back",
+    "forward": "Go forward",
+    "reload": "Reload",
+    "address": "Page address",
+    "page": "Remote browser page",
+    "text": "Text to enter in the page",
+    "insert": "Insert text",
+    "note": "Tell AI what you changed (optional)",
+    "state": {
+      "stopped": "Browser is not running",
+      "ai": "AI is controlling this browser",
+      "pausing": "Waiting for AI operations to stop",
+      "human": "Human control · AI is paused",
+      "observing": "AI is observing the updated page",
+      "error": "Browser control needs recovery"
+    }
   }
 }

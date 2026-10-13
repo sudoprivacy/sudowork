@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { BROWSER_PANEL_PARTITION, DEFAULT_BROWSER_PANEL_HOMEPAGE, normalizeBrowserUrl } from '@sudowork/common/browserPanelUrl';
 import WebviewHost from '@renderer/components/WebviewHost';
+import BrowserSessionPanel from '@renderer/components/browser/BrowserSessionPanel';
+import { isElectronDesktop } from '@renderer/utils/platform';
 import { useAddEventListener } from '@renderer/utils/emitter';
 
 type BrowserTab = {
@@ -69,7 +71,7 @@ interface BrowserPanelProps {
   conversationId?: string;
 }
 
-const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversationId }) => {
+const EmbeddedBrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversationId }) => {
   const { t } = useTranslation();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const browserTabsScrollerRef = useRef<HTMLDivElement | null>(null);
@@ -381,4 +383,11 @@ const BrowserPanel: React.FC<BrowserPanelProps> = ({ active = false, conversatio
   );
 };
 
-export default BrowserPanel;
+export default function BrowserPanel({ active = false, conversationId, isCloud = false }: IBrowserPanelProps) {
+  if (!isElectronDesktop() || isCloud) return <BrowserSessionPanel conversationId={conversationId || ''} isActive={active} />;
+  return <EmbeddedBrowserPanel active={active} conversationId={conversationId} />;
+}
+
+interface IBrowserPanelProps extends BrowserPanelProps {
+  isCloud?: boolean;
+}

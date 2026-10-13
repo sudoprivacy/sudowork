@@ -31,6 +31,7 @@ const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/tools'));
 const ChannelsPage = React.lazy(() => import('./pages/settings/channels'));
+const BrowserViewerPage = React.lazy(() => import('./pages/browser-viewer'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
 const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
@@ -68,6 +69,7 @@ const SettingsDefaultRoute: React.FC = () => {
 const PROTECTED_ROUTE_CONFIGS = [
   { path: '/guid', component: Guid },
   { path: '/conversation/:id', component: Conversation },
+  { path: '/browser-viewer/:conversationId', component: BrowserViewerPage },
   { path: '/moss-session/:sessionId', component: MossSessionPage },
   { path: '/settings/gemini', component: GeminiSettings },
   { path: '/settings/model', component: SudocodeModelSettings },
