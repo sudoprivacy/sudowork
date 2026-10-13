@@ -6,7 +6,7 @@ import { ConfigStorage } from '@sudowork/common/storage';
 import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useAppMode } from '@renderer/hooks/useAppMode';
-import { emitter } from '@renderer/utils/emitter';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { useConversationHistory } from '../context/ConversationHistoryContext';
 
 /** Start a fresh conversation under the account's default Agent. */
@@ -26,7 +26,7 @@ export default function NewConversationButton({ onSessionClick }: INewConversati
       return;
     }
     void ConfigStorage.set('guid.lastSelectedAgent', '');
-    emitter.emit('guid.reset');
+    resetGuidDraft();
     void navigate(isPersonalSession ? `/guid?assistant=${encodeURIComponent(defaultAgent!.ref)}` : '/guid');
     onSessionClick();
   }

@@ -27,6 +27,7 @@ vi.mock('@renderer/pages/conversation/context/ConversationTabsContext', () => ({
 
 import AgentSessionHeader from '@renderer/pages/conversation/components/AgentSessionHeader';
 import NewConversationButton from '@renderer/pages/conversation/components/NewConversationButton';
+import { clearGuidDraft, getGuidDraft, setGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { ConversationHistoryProvider, useConversationHistory } from '@renderer/pages/conversation/context/ConversationHistoryContext';
 
 const reference = 'moss-agent:own:agent-a';
@@ -82,7 +83,10 @@ beforeEach(() => {
   state.agents.mockResolvedValue({ success: true, data: agents });
   state.history.mockResolvedValue([conversation('current'), conversation('pinned', reference, { pinned: true }), conversation('other', agents[1].ref), conversation('scheduled', reference, { cronJobId: 'job' }), conversation('health', reference, { isHealthCheck: true })]);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearGuidDraft();
+});
 
 describe('Agent session navigation', () => {
   it('shows the managed Agent and billing owner while keeping same-named owners apart', async () => {
@@ -101,6 +105,7 @@ describe('Agent session navigation', () => {
     expect(screen.queryByText('Session other')).toBeNull();
   });
   it('uses the personal default Agent for global New instead of retaining the current Agent', async () => {
+    setGuidDraft({ input: 'Previous Agent draft' });
     renderPage();
     const button = screen.getByRole('button', { name: 'conversation.welcome.newConversation' });
     await waitFor(() => expect(button).toBeEnabled());
@@ -108,6 +113,7 @@ describe('Agent session navigation', () => {
     expect(screen.getByLabelText('route')).toHaveTextContent(`/guid?assistant=${encodeURIComponent('moss-agent:user:user-a')}`);
     expect(state.emit).toHaveBeenCalledExactlyOnceWith('guid.reset');
     expect(state.save).toHaveBeenCalledWith('guid.lastSelectedAgent', '');
+    expect(getGuidDraft()).toBeUndefined();
   });
 
   it('keeps offline New available without an online Agent catalogue', async () => {
@@ -131,12 +137,14 @@ describe('Agent session navigation', () => {
   });
 
   it('keeps the Agent identity when starting a new session without allocating a runtime on navigation', async () => {
+    setGuidDraft({ input: 'Previous Session draft' });
     renderPage();
     const button = await screen.findByRole('button', { name: 'conversation.agentSessions.new' });
     await waitFor(() => expect(button).toBeEnabled());
     fireEvent.click(button);
     expect(screen.getByLabelText('route')).toHaveTextContent(`/guid?assistant=${encodeURIComponent(reference)}`);
     expect(state.emit).toHaveBeenCalledExactlyOnceWith('guid.reset');
+    expect(getGuidDraft()).toBeUndefined();
   });
 
   it('loads history and installs subscriptions once for all three consumers', async () => {

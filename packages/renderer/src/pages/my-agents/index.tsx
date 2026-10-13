@@ -6,6 +6,7 @@ import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { emitter } from '@renderer/utils/emitter';
 import { useAgentEntry } from '@renderer/pages/conversation/hooks/useAgentEntry';
 import { useConversationHistory } from '@renderer/pages/conversation/context/ConversationHistoryContext';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 
 export default function MyAgents() {
   const { t } = useTranslation();
@@ -54,7 +55,14 @@ export default function MyAgents() {
                 <Button type='primary' aria-label={`${t('agent.mine.open')} ${agent.displayName}`} loading={openingReference === agent.ref} disabled={openingReference !== null} onClick={() => void onOpenAgent(agent.ref)}>
                   {t('agent.mine.open')}
                 </Button>
-                <Button onClick={() => void navigate(`/guid?assistant=${encodeURIComponent(agent.ref)}`)}>{t('agent.mine.startConversation')}</Button>
+                <Button
+                  onClick={() => {
+                    resetGuidDraft();
+                    void navigate(`/guid?assistant=${encodeURIComponent(agent.ref)}`);
+                  }}
+                >
+                  {t('agent.mine.startConversation')}
+                </Button>
               </Space>
             </Card>
           ))}

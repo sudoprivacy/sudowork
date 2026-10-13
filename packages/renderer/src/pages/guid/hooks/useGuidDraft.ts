@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { emitter } from '@renderer/utils/emitter';
+
 export type GuidDraftState = {
   input: string;
   files: string[];
@@ -35,3 +37,9 @@ export const setGuidDraft = (draft: Partial<GuidDraftState>): void => {
 export const clearGuidDraft = (): void => {
   guidDraftStore.delete(GUID_DRAFT_KEY);
 };
+
+/** Clear the cached draft and reset a draft page that is already mounted. */
+export function resetGuidDraft(): void {
+  clearGuidDraft();
+  emitter.emit('guid.reset');
+}

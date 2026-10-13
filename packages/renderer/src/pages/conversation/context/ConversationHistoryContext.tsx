@@ -22,7 +22,7 @@ async function fetchConversations(sessionMode: ReturnType<typeof getRendererSess
 export function ConversationHistoryProvider({ children }: PropsWithChildren) {
   const { user, ready, status } = useAuth();
   const [sessionMode, setSessionMode] = useState(getRendererSessionMode);
-  const scope = ready && (status === 'authenticated' || status === 'guest') ? [user?.id ?? 'local', sessionMode] : null;
+  const scope = ready && (status === 'authenticated' || status === 'guest') ? [user?.id ?? 'local', user?.enterprise_code ?? '', user?.role ?? status, sessionMode] : null;
   const scopeKey = scope ? JSON.stringify(scope) : null;
   const history = useSWR(scope ? ['conversation.history', ...scope] : null, () => fetchConversations(sessionMode), { refreshInterval: 30_000 });
   const agentList = useSWR(scope && status === 'authenticated' ? ['conversation.agents', ...scope] : null, async () => {

@@ -3,7 +3,7 @@ import { List, Plus } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useMemo, type ReactNode } from 'react';
-import { emitter } from '@renderer/utils/emitter';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { useConversationHistory } from '../context/ConversationHistoryContext';
 import { useConversationTabs } from '../context/ConversationTabsContext';
 import { getAgentConversations, getConversationAgentName, getConversationAgentRef, getSelectableConversationAgentRef } from '../utils/agentIdentity';
@@ -32,7 +32,7 @@ export default function AgentSessionHeader({ conversationId, title }: IAgentSess
   }
 
   function onNewSession() {
-    emitter.emit('guid.reset');
+    resetGuidDraft();
     void navigate(`/guid?assistant=${encodeURIComponent(reference)}`);
   }
 
