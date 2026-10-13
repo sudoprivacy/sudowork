@@ -1,42 +1,22 @@
 import { Alert, Button, Card, Empty, Input, Message, Modal, Space, Spin, Tag, Typography } from '@arco-design/web-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import type { IMyAgent } from '@sudowork/common/personalAgents';
 import { emitter } from '@renderer/utils/emitter';
 import { useAgentEntry } from '@renderer/pages/conversation/hooks/useAgentEntry';
+import { useConversationHistory } from '@renderer/pages/conversation/context/ConversationHistoryContext';
 
 export default function MyAgents() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { openingReference, onOpenAgent } = useAgentEntry();
-  const [agents, setAgents] = useState<IMyAgent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadFailed, setIsLoadFailed] = useState(false);
+  const { agents: listedAgents, isAgentsLoading: isLoading, isAgentsLoadFailed: isLoadFailed, refresh: onLoad } = useConversationHistory();
+  const agents = listedAgents.filter((agent) => agent.kind !== 'template');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [name, setName] = useState('');
   const isNameValid = name.trim().length > 0 && name.trim().length <= 60;
-
-  const onLoad = useCallback(async () => {
-    setIsLoading(true);
-    setIsLoadFailed(false);
-    try {
-      const result = await ipcBridge.eeclaw.getMyAgents.invoke();
-      if (!result.success || !Array.isArray(result.data)) throw new Error('Agent list unavailable');
-      setAgents(result.data.filter((agent) => agent.kind !== 'template'));
-    } catch {
-      setAgents([]);
-      setIsLoadFailed(true);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void onLoad();
-  }, [onLoad]);
 
   async function onCreate() {
     if (!isNameValid || isCreating) return;
@@ -47,7 +27,6 @@ export default function MyAgents() {
       setIsCreateOpen(false);
       setName('');
       emitter.emit('chat.history.refresh');
-      await onLoad();
     } catch {
       Message.error(t('agent.mine.createFailed'));
     } finally {
