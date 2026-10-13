@@ -187,7 +187,12 @@ if (typeof window !== 'undefined' && storageGet('agent.config', 'eeclaw.serverUr
 // Same-origin HTTP to the apps/webui server (cookie session auth).
 // ---------------------------------------------------------------------------
 
-const externalProviderPort = createMossExternalProviderPort(request => apiFetch(request.path, { method: request.method, ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }) }))
+const externalProviderPort = createMossExternalProviderPort((request) =>
+  apiFetch(request.path, {
+    method: request.method,
+    ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+  }),
+)
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   await prepareWebAgentWorkspace()
@@ -1608,23 +1613,80 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // of the three kinds a stored reference is and where each kind's name lives;
   // doing it here would put the template-is-not-an-agent distinction into the
   // browser and give it a reason to read the organization catalog.
-  'external-providers.access': async () => { return ok(await externalProviderPort.access()) },
-  'external-providers.policy': async () => { return ok(await externalProviderPort.policy()) },
-  'external-providers.savePolicy': async (req) => { const input = req as unknown as ExternalContract.ExternalPilotPolicy; return ok(await externalProviderPort.savePolicy(input)) },
-  'external-providers.adminAgents': async () => { return ok(await externalProviderPort.adminAgents()) },
-  'external-providers.members': async () => { return ok(await externalProviderPort.members()) },
-  'external-providers.inspect': async (req) => { const input = req as unknown as ExternalContract.InspectExternalConnection; return ok(await externalProviderPort.inspect(input)) },
-  'external-providers.onboard': async (req) => { const input = req as unknown as ExternalContract.OnboardExternalAgent; return ok(await externalProviderPort.onboard(input)) },
-  'external-providers.update': async (req) => { const input = req as unknown as { agentId: string; input: ExternalContract.UpdateExternalAgent }; return ok(await externalProviderPort.update(input.agentId, input.input)) },
-  'external-providers.rotate': async (req) => { const input = req as unknown as { agentId: string; revision: number; api_key: string }; return ok(await externalProviderPort.rotate(input.agentId, { revision: input.revision, api_key: input.api_key })) },
-  'external-providers.archive': async (req) => { const input = req as unknown as { agentId: string; revision: number }; return ok(await externalProviderPort.archive(input.agentId, input.revision)) },
-  'external-providers.testAgent': async (req) => { const input = req as unknown as { agentId: string }; return ok(await externalProviderPort.testAgent(input.agentId)) },
-  'external-providers.review': async (req) => { const input = req as unknown as { agentId: string; approved: boolean; revision: number; review_days?: number }; return ok(await externalProviderPort.review(input.agentId, { approved: input.approved, revision: input.revision, review_days: input.review_days })) },
+  'external-providers.access': async () => {
+    return ok(await externalProviderPort.access())
+  },
+  'external-providers.policy': async () => {
+    return ok(await externalProviderPort.policy())
+  },
+  'external-providers.savePolicy': async (req) => {
+    const input = req as unknown as ExternalContract.ExternalPilotPolicy
+    return ok(await externalProviderPort.savePolicy(input))
+  },
+  'external-providers.adminAgents': async () => {
+    return ok(await externalProviderPort.adminAgents())
+  },
+  'external-providers.members': async () => {
+    return ok(await externalProviderPort.members())
+  },
+  'external-providers.inspect': async (req) => {
+    const input = req as unknown as ExternalContract.InspectExternalConnection
+    return ok(await externalProviderPort.inspect(input))
+  },
+  'external-providers.onboard': async (req) => {
+    const input = req as unknown as ExternalContract.OnboardExternalAgent
+    return ok(await externalProviderPort.onboard(input))
+  },
+  'external-providers.update': async (req) => {
+    const input = req as unknown as { agentId: string; input: ExternalContract.UpdateExternalAgent }
+    return ok(await externalProviderPort.update(input.agentId, input.input))
+  },
+  'external-providers.rotate': async (req) => {
+    const input = req as unknown as { agentId: string; revision: number; api_key: string }
+    return ok(
+      await externalProviderPort.rotate(input.agentId, {
+        revision: input.revision,
+        api_key: input.api_key,
+      }),
+    )
+  },
+  'external-providers.archive': async (req) => {
+    const input = req as unknown as { agentId: string; revision: number }
+    return ok(await externalProviderPort.archive(input.agentId, input.revision))
+  },
+  'external-providers.testAgent': async (req) => {
+    const input = req as unknown as { agentId: string }
+    return ok(await externalProviderPort.testAgent(input.agentId))
+  },
+  'external-providers.review': async (req) => {
+    const input = req as unknown as {
+      agentId: string
+      approved: boolean
+      revision: number
+      review_days?: number
+    }
+    return ok(
+      await externalProviderPort.review(input.agentId, {
+        approved: input.approved,
+        revision: input.revision,
+        review_days: input.review_days,
+      }),
+    )
+  },
   'external-providers.agents': async () => ok(await externalProviderPort.agents()),
   'external-providers.sessions': async () => ok(await externalProviderPort.sessions()),
-  'external-providers.history': async (req) => ok(await externalProviderPort.history((req as { sessionId: string }).sessionId)),
-  'external-providers.create': async (req) => ok(await externalProviderPort.create(req as unknown as import('@sudowork/contracts/external-provider').CreateExternalTask)),
-  'external-providers.events': async (req) => { const input = req as { taskId: string; cursor: number }; return ok(await externalProviderPort.events(input.taskId, input.cursor)) },
+  'external-providers.history': async (req) =>
+    ok(await externalProviderPort.history((req as { sessionId: string }).sessionId)),
+  'external-providers.create': async (req) =>
+    ok(
+      await externalProviderPort.create(
+        req as unknown as import('@sudowork/contracts/external-provider').CreateExternalTask,
+      ),
+    ),
+  'external-providers.events': async (req) => {
+    const input = req as { taskId: string; cursor: number }
+    return ok(await externalProviderPort.events(input.taskId, input.cursor))
+  },
   'eeclaw.get-my-agents': async () => {
     return ok(await listMyAgents())
   },

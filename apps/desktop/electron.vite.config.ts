@@ -97,6 +97,7 @@ const mainAliases = [
   { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
   { find: '@sudowork/contracts/conversations', replacement: resolve('../../packages/contracts/src/conversations.ts') },
   browserSessionContractAlias,
+  { find: '@sudowork/contracts/external-provider', replacement: resolve('../../packages/contracts/src/external-provider.gen.ts') },
   { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
   { find: /^@sudowork\/host-bridge$/, replacement: resolve('../../packages/host-bridge/src/index.ts') },
   { find: '@', replacement: resolve('src') },

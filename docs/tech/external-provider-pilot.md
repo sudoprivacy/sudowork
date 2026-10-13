@@ -34,6 +34,15 @@ Moss 使用已有 `external-agents/admin` 与 review 接口，凭据仍存放 Ne
 - Moss原生模板列表、规则详情与兼容Hub/enhancement路径排除`external_hosted`，消除重复下载入口和规则404。
 - 外部契约仍为Moss语义源，经sudostack experimental派生。本轮未改变任务API、稳定exports或已有智能体/会话数据。
 
-自动检查与完整Moss后台 → SudoWork → 真实Dify的验收记录见Moss工作树 `docs/external-provider-pilot.md` 及 `docs/external-provider-pilot/evidence/moss-management-migration-result.json`。WebUI真实对话42→50，完整Electron开发应用对话7×8→56并刷新恢复历史，桌面记录为同目录的 `moss-management-desktop-result.json`。SudoWork全量3187项通过、36项跳过；类型检查与外部契约摘要校验通过。生产安装包和Moss任务库PG/多副本验收仍未覆盖。
+自动检查与完整Moss后台 → SudoWork → 真实Dify的验收记录见Moss工作树 `docs/external-provider-pilot.md` 及 `docs/external-provider-pilot/evidence/moss-management-migration-result.json`。WebUI真实对话42→50，完整Electron开发应用对话7×8→56并刷新恢复历史，桌面记录为同目录的 `moss-management-desktop-result.json`。管理入口迁移阶段SudoWork全量3187项通过、36项跳过；类型检查与外部契约摘要校验通过。生产安装包和Moss任务库PG/多副本验收仍未覆盖。
 
 本地入口、测试账号与启动状态见 `~/.local/share/dify-pilot-20261012/manual-verification.md`。本轮按用户要求先停服务修改，完成后重新启动并保留运行。
+
+
+## 2026-10-13 PR 构建检查修正
+
+PR #1234 的干净构建暴露两个遗漏：WebUI 三个文件未按该应用的 Prettier 配置格式化；Electron main 的源码别名漏掉 `@sudowork/contracts/external-provider`。本地已生成的 `packages/contracts/dist` 让后者未在此前联调中出现；macOS/Windows 生产构建与 Linux dev shim 均在相同 import 处失败。
+
+已补齐契约源码别名，保持桌面从源码打包的既有方式。新增 `tests/integration/externalProviderBuild.test.ts`，读取正式生产配置并实际打包外部客户端，同时拒绝读取 `contracts/dist`；修复前失败，修复后通过，避免已有本地产物掩盖回归。完整生产 main bundle 同样在禁止读取契约 dist 的条件下构建通过。
+
+WebUI 已按 CI 顺序通过类型、lint、格式、单元 239 项、契约 46 项和 PostgreSQL 集成 88 项检查；集成测试使用单独临时容器，未操作现有试点数据库。desktop 类型及变更文件 lint/格式通过；修复后根 `bun run test --maxWorkers=1` 全量 3137 项通过 / 30 项跳过（含新增构建回归）。CI 最终状态见 [PR #1234](https://github.com/sudoprivacy/sudowork/pull/1234)，本地 main 构建通过不代表生产安装包已验收。
