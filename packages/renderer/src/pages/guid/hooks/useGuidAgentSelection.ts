@@ -797,12 +797,14 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
         _setSelectedAcpModel(currentModelId);
       })
       .catch((error) => {
+        if (cancelled) return;
         probedModelBackendsRef.current.delete('remote-agent');
         console.warn('[Guid][remote-agent] Failed to probe Moss model info:', error);
       });
 
     return () => {
       cancelled = true;
+      probedModelBackendsRef.current.delete('remote-agent');
     };
   }, [isEnterprise, modelBackendKey, sessionMode]);
 
