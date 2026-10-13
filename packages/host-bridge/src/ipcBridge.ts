@@ -1048,7 +1048,13 @@ export const ontology = {
   saveStudioModel: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStudioSaveInput>('ontology.studio.save-model'),
   previewStandardFile: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStandardPreview>, { filePath: string }>('ontology.studio.preview-file'),
   importStandardFile: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStandardImportInput>('ontology.studio.import-file'),
-  exportStandardFile: bridge.buildProvider<IBridgeResponse<{ content: string; format: import('@sudowork/ontology-common').OntologyFileFormat }>, import('@sudowork/ontology-common').IOntologyStandardExportInput>('ontology.studio.export-file'),
+  exportStandardFile: bridge.buildProvider<
+    IBridgeResponse<{
+      content: string;
+      format: import('@sudowork/ontology-common').OntologyFileFormat;
+    }>,
+    import('@sudowork/ontology-common').IOntologyStandardExportInput
+  >('ontology.studio.export-file'),
   listWorkbenches: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchListResult>, void>('ontology.workbench.list'),
   getWorkbench: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologySelectWorkbenchInput | undefined>('ontology.workbench.get'),
   createWorkbench: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchMutationResult>, IOntologyCreateWorkbenchInput>('ontology.workbench.create'),
@@ -1344,8 +1350,8 @@ export const sudoclaw = {
 // Types (ScodeConfig / ScodeModelEntry / ScodeModelProvider) live in
 // @sudowork/common/scodeTypes and are imported + re-exported at the top of this file.
 export const scode = {
-  /** Read scode config from ~/.nexus/sudowork/sudocode/sudocode.json */
-  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>('scode.get-config'),
+  /** Read scode config and its resolved path from the main process. */
+  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig> & { path?: string }, void>('scode.get-config'),
   /** Save full scode config to ~/.nexus/sudowork/sudocode/sudocode.json (overwrite) */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
   /** Save custom OpenAI-compatible scode model providers for the signed-in user */
@@ -1426,7 +1432,6 @@ export const nexus = {
   getStatus: bridge.buildProvider<
     IBridgeResponse<{
       running: boolean;
-      port: number;
       setupStage: string;
       installed: boolean;
       version?: string;
@@ -1446,8 +1451,6 @@ export const nexus = {
   }>('nexus.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('nexus.install-result'),
-  /** Install Nexus server from local file */
-  installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('nexus.install-from-local-file'),
   /** Start Nexus server */
   start: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.start'),
   /** Stop Nexus server */
@@ -1756,6 +1759,7 @@ export interface ICronJob {
 
 export interface ICreateCronJobParams {
   name: string;
+  enabled?: boolean;
   schedule: ICronSchedule;
   message: string;
   conversationId: string;
@@ -3527,11 +3531,44 @@ export const eeclaw = {
 };
 
 export const mossCatalog = {
-  list: bridge.buildProvider<IBridgeResponse<IMossCatalogPage>, { kind: MossCatalogKind; source: MossCatalogSource; query?: string; category?: string; cursor?: string }>('moss-catalog.list'),
-  detail: bridge.buildProvider<IBridgeResponse<IMossCatalogItem>, { kind: MossCatalogKind; source: MossCatalogSource; id: string; isLocal?: boolean }>('moss-catalog.detail'),
+  list: bridge.buildProvider<
+    IBridgeResponse<IMossCatalogPage>,
+    {
+      kind: MossCatalogKind;
+      source: MossCatalogSource;
+      query?: string;
+      category?: string;
+      cursor?: string;
+    }
+  >('moss-catalog.list'),
+  detail: bridge.buildProvider<
+    IBridgeResponse<IMossCatalogItem>,
+    {
+      kind: MossCatalogKind;
+      source: MossCatalogSource;
+      id: string;
+      isLocal?: boolean;
+    }
+  >('moss-catalog.detail'),
   installed: bridge.buildProvider<IBridgeResponse<IMossCatalogInstallation[]>, void>('moss-catalog.installed'),
-  install: bridge.buildProvider<IBridgeResponse<IMossCatalogInstallation>, { kind: MossCatalogKind; source: MossCatalogSource; id: string; isUpdate?: boolean }>('moss-catalog.install'),
+  install: bridge.buildProvider<
+    IBridgeResponse<IMossCatalogInstallation>,
+    {
+      kind: MossCatalogKind;
+      source: MossCatalogSource;
+      id: string;
+      isUpdate?: boolean;
+    }
+  >('moss-catalog.install'),
   remove: bridge.buildProvider<IBridgeResponse<void>, { kind: MossCatalogKind; source: MossCatalogSource; id: string }>('moss-catalog.remove'),
-  setEnabled: bridge.buildProvider<IBridgeResponse<void>, { kind: MossCatalogKind; source: MossCatalogSource; id: string; isEnabled: boolean }>('moss-catalog.set-enabled'),
+  setEnabled: bridge.buildProvider<
+    IBridgeResponse<void>,
+    {
+      kind: MossCatalogKind;
+      source: MossCatalogSource;
+      id: string;
+      isEnabled: boolean;
+    }
+  >('moss-catalog.set-enabled'),
   changed: bridge.buildEmitter<void>('moss-catalog.changed'),
 };

@@ -15,6 +15,7 @@ import { createWebSession } from '@server/features/auth/sessionRepository.js'
 import { digestToken, generateSessionToken } from '@server/security/sessionToken.js'
 import { encryptToken } from '@server/security/tokenCipher.js'
 import { createTestDatabase, destroyTestDatabase } from './helpers'
+import { TerminalManager } from '@server/features/terminal/terminalManager.js'
 
 const HMAC_KEY = Buffer.from('integration-test-hmac-key-32-bytes-ok!')
 const AES_KEY = Buffer.alloc(32, 7)
@@ -75,6 +76,10 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   let principal: Principal
   let cookie1 = ''
   let cookie2 = ''
+  let ownerCookie = ''
+  let isManagerSession = false
+  let managerActorId = 'moss-a'
+  let mossAccessRefusal: number | undefined
   let app: Express
   let browserServer: Server
   let browserPort = 0
@@ -88,6 +93,9 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   let upstreamWsUrlOverride: string | null = null
   const upstreamReceived: WsEvent[] = []
   const upstreamAuthHeaders: string[] = []
+  const terminalWrites: string[] = []
+  let terminalDisposals = 0
+  let isRemoteTerminalAvailable = true
 
   function browserWs(cookie: string): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
@@ -145,10 +153,10 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     upstreamPort = await listen(upstreamServer)
 
     // cookies 在上游端口确定后创建（mossBaseUrl 需指向 fake 上游的实际 host）
-    const mkCookie = async (accessToken: string): Promise<string> => {
+    const mkCookie = async (accessToken: string, principalId = principal.id): Promise<string> => {
       const token = generateSessionToken()
       await createWebSession(pool, {
-        principalId: principal.id,
+        principalId,
         tokenDigest: digestToken(token, HMAC_KEY),
         encrypted: encryptToken(
           JSON.stringify({ accessToken, refreshToken: 'rt', expiresAt: Date.now() + 3600_000 }),
@@ -164,6 +172,12 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     }
     cookie1 = await mkCookie('at-stream')
     cookie2 = await mkCookie('at-stream-2')
+    const owner = await upsertPrincipal(pool, {
+      mossUserId: 'moss-b',
+      orgId: 'org-1',
+      username: 'owner_b',
+    })
+    ownerCookie = await mkCookie('at-owner', owner.id)
 
     // ---- WebUI app ----
     const testConfig: AppConfig = {
@@ -212,6 +226,16 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         return []
       },
       async get(_tk, id) {
+        if (mossAccessRefusal) throw new MossHttpError(mossAccessRefusal, '', '')
+        if (isManagerSession)
+          return {
+            sessionId: id,
+            userId: 'moss-b',
+            orgId: 'org-1',
+            status: 'active',
+            source: 'agent-manager',
+            clientMetadata: { agent_manager_actor_id: managerActorId },
+          }
         return { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' }
       },
       async create(_input) {
@@ -262,7 +286,28 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     })
 
     browserServer = createServer(app)
-    attachConversationWebSocket(browserServer, { config: testConfig, pool, coordinator })
+    const terminals = {
+      create(conversationId: string) {
+        if (!isRemoteTerminalAvailable)
+          return new TerminalManager().create(
+            conversationId,
+            () => {},
+            () => {},
+          )
+        return {
+          terminalId: 'fixture-terminal',
+          conversationId,
+          write: (text: string) => {
+            terminalWrites.push(text)
+          },
+          resize: () => {},
+          dispose: () => {
+            terminalDisposals++
+          },
+        }
+      },
+    } as unknown as TerminalManager
+    attachConversationWebSocket(browserServer, { config: testConfig, pool, coordinator, terminals })
     browserPort = await listen(browserServer)
   })
 
@@ -407,8 +452,14 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     try {
       await c1.waitFor((e) => e.kind === 'lock')
       // ws1 成为 writer 并 running；ws2 为非 writer 观察者
+      const promptStart = upstreamReceived.length
       ws1.send(JSON.stringify({ kind: 'send', text: 'needs approval', images: [] }))
       await c1.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+      await vi.waitFor(() =>
+        expect(upstreamReceived.slice(promptStart).some((frame) => frame.type === 'user')).toBe(
+          true,
+        ),
+      )
 
       // 审批回批不做 writer 校验（回批者必为会话拥有者；审批可能跨越锁边界）——
       // 非 writer 的 ws2 发 control_response 也能转发；上游收到与桌面端
@@ -417,7 +468,11 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       ws2.send(
         JSON.stringify({ kind: 'control_response', requestId: 'perm-1', optionId: 'allow_once' }),
       )
-      await sleep(300)
+      await vi.waitFor(() =>
+        expect(
+          upstreamReceived.slice(before).some((frame) => frame.type === 'control_response'),
+        ).toBe(true),
+      )
       const frames = upstreamReceived
         .slice(before)
         .filter((e) => (e as { type?: string }).type === 'control_response')
@@ -441,6 +496,150 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       await sleep(150)
     }
   }, 20_000)
+
+  test('the manager and Agent owner share one writer lock and one upstream session', async () => {
+    isManagerSession = true
+    upstreamMode = 'hold'
+    const manager = await browserWs(cookie1)
+    const owner = await browserWs(ownerCookie)
+    const managerEvents = collector(manager)
+    const ownerEvents = collector(owner)
+    try {
+      await managerEvents.waitFor((event) => event.kind === 'lock')
+      const before = upstreamReceived.length
+      manager.send(JSON.stringify({ kind: 'send', text: 'manager turn', images: [] }))
+      await ownerEvents.waitFor((event) => event.kind === 'lock' && event.state === 'running')
+      await vi.waitFor(() =>
+        expect(
+          upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+        ).toHaveLength(1),
+      )
+      owner.send(JSON.stringify({ kind: 'send', text: 'concurrent owner turn', images: [] }))
+      await ownerEvents.waitFor(
+        (event) => event.kind === 'error' && event.code === 'CONVERSATION_BUSY',
+      )
+      expect(upstreamReceived.slice(before).filter((event) => event.type === 'user')).toHaveLength(
+        1,
+      )
+      managerActorId = 'another-manager'
+      await expect(browserWs(cookie2)).rejects.toThrow('403')
+      manager.send(JSON.stringify({ kind: 'send', text: 'revoked manager turn', images: [] }))
+      await managerEvents.waitFor(
+        (event) => event.kind === 'error' && event.code === 'SESSION_FORBIDDEN',
+      )
+      expect(upstreamReceived.slice(before).filter((event) => event.type === 'user')).toHaveLength(
+        1,
+      )
+      managerActorId = 'moss-a'
+    } finally {
+      manager.close()
+      owner.close()
+      managerActorId = 'moss-a'
+      await request(app)
+        .post(`/api/conversations/${SID}/terminate`)
+        .set('Cookie', cookie1)
+        .set('Origin', 'http://localhost:5273')
+      isManagerSession = false
+      upstreamMode = 'auto'
+    }
+  }, 20_000)
+
+  test('an idle management subscriber is disconnected after its grant is revoked', async () => {
+    isManagerSession = true
+    const ws = await browserWs(cookie1)
+    const events = collector(ws)
+    try {
+      managerActorId = 'another-manager'
+      await events.waitFor((event) => event.kind === 'error' && event.code === 'SESSION_FORBIDDEN')
+      await vi.waitFor(() => expect(ws.readyState).toBe(WebSocket.CLOSED))
+    } finally {
+      ws.close()
+      managerActorId = 'moss-a'
+      isManagerSession = false
+    }
+  }, 10_000)
+
+  test.each([401, 403])(
+    'Moss refusal %s blocks another turn on an established upstream socket',
+    async (status) => {
+      upstreamMode = 'hold'
+      const ws = await browserWs(cookie1)
+      const events = collector(ws)
+      const before = upstreamReceived.length
+      try {
+        ws.send(JSON.stringify({ kind: 'send', text: 'authorized turn', images: [] }))
+        await vi.waitFor(() =>
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+          ).toHaveLength(1),
+        )
+        mossAccessRefusal = status
+        ws.send(JSON.stringify({ kind: 'send', text: 'revoked turn', images: [] }))
+        await events.waitFor(
+          (event) =>
+            event.kind === 'error' &&
+            event.code === (status === 401 ? 'MOSS_UNAUTHORIZED' : 'SESSION_FORBIDDEN'),
+        )
+        expect(
+          upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+        ).toHaveLength(1)
+      } finally {
+        mossAccessRefusal = undefined
+        ws.close()
+        await request(app)
+          .post(`/api/conversations/${SID}/terminate`)
+          .set('Cookie', cookie1)
+          .set('Origin', 'http://localhost:5273')
+        upstreamMode = 'auto'
+      }
+    },
+  )
+
+  test('a terminal without an owner-runtime provider is refused explicitly', async () => {
+    isRemoteTerminalAvailable = false
+    const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/terminal?conversation=${SID}`, {
+      headers: { cookie: cookie1, origin: 'http://localhost:5273' },
+    })
+    const events = collector(ws)
+    try {
+      await events.waitFor(
+        (event) => event.type === 'error' && event.code === 'REMOTE_TERMINAL_UNAVAILABLE',
+      )
+      await vi.waitFor(() => expect(ws.readyState).toBe(WebSocket.CLOSED))
+    } finally {
+      ws.close()
+      isRemoteTerminalAvailable = true
+    }
+  })
+
+  test('terminal frames ignore JSON null, preserve input order and stop after a management grant is revoked', async () => {
+    isManagerSession = true
+    const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/terminal?conversation=${SID}`, {
+      headers: { cookie: cookie1, origin: 'http://localhost:5273' },
+    })
+    const events = collector(ws)
+    const before = terminalWrites.length
+    const disposedBefore = terminalDisposals
+    try {
+      await new Promise<void>((resolve, reject) => {
+        ws.once('open', resolve)
+        ws.once('error', reject)
+      })
+      ws.send('null')
+      ws.send(JSON.stringify({ type: 'input', data: 'first' }))
+      ws.send(JSON.stringify({ type: 'input', data: 'second' }))
+      await vi.waitFor(() => expect(terminalWrites.slice(before)).toEqual(['first', 'second']))
+      managerActorId = 'another-manager'
+      ws.send(JSON.stringify({ type: 'input', data: 'revoked command' }))
+      await events.waitFor((event) => event.type === 'error' && event.code === 'TERMINAL_FORBIDDEN')
+      expect(terminalWrites.slice(before)).toEqual(['first', 'second'])
+      expect(terminalDisposals).toBe(disposedBefore + 1)
+    } finally {
+      ws.close()
+      managerActorId = 'moss-a'
+      isManagerSession = false
+    }
+  })
 
   test('writer disconnect during running marks uncertain and blocks other writers', async () => {
     upstreamMode = 'hold'

@@ -1,4 +1,3 @@
-import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -19,14 +18,17 @@ import type { IAssistantInfo } from '@sudowork/common/assistantTypes';
 import { resolveLocaleKey, uuid } from '@sudowork/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@sudowork/common/acpTypes';
 import { parseHubError, type HubError } from '@sudowork/common/nexus/hubErrors';
+import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 import HubEmptyState from '@renderer/components/HubEmptyState';
-import { toBackendConfig, resolveAssistantName } from '@renderer/shared/agents/assistantAdapter';
+import { toBackendConfig, resolveAssistantName, resolveAssistantEntryReference } from '@renderer/shared/agents/assistantAdapter';
 import Tabs from '@renderer/components/ui/Tabs';
 import AionScrollArea from '@renderer/components/base/AionScrollArea';
 import { isElectronDesktop, isWebBridgeAvailable } from '@renderer/utils/platform';
 import { useAuth } from '@renderer/context/AuthContext';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { emitter } from '@renderer/utils/emitter';
+import { useAgentEntry } from '@renderer/pages/conversation/hooks/useAgentEntry';
+import { getRendererSessionMode } from '@renderer/pages/guid/hooks/useGuidAgentSelection';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 import HubAssistantCard from './components/HubAssistantCard';
 import AssistantDetailModal from './components/AssistantDetailModal';
@@ -52,6 +54,7 @@ async function createAssistant(input: Parameters<typeof ipcBridge.assistantHub.c
 }
 
 const AgentSettings: React.FC = () => {
+  const { openingReference, onOpenAgent } = useAgentEntry();
   const { t, i18n } = useTranslation();
   const localeKey = resolveLocaleKey(i18n.language);
 
@@ -935,17 +938,16 @@ const AgentSettings: React.FC = () => {
     [hubAssistantList, hubDetailAssistant, isEnterprise, resolveAssistantVersionInfo, fetchInstalledAssistantNames, loadAssistants, refreshAgentDetection, t]
   );
 
-  // Go use installed assistant (navigate to guid page with assistant pre-selected)
+  const getEntryReference = useCallback((id: string) => resolveAssistantEntryReference(assistants.find((assistant) => assistant.id === id) ?? { id }, isEnterprise && getRendererSessionMode() === 'remote'), [assistants, isEnterprise]);
+  const onUseAssistantReference = useCallback((reference: string) => onOpenAgent(getEntryReference(reference), refreshAgentDetection), [onOpenAgent, getEntryReference, refreshAgentDetection]);
+
+  // Enter the installed Agent's latest Session, or its first draft.
   const handleGoUseHubAssistant = useCallback(async () => {
     if (!hubDetailAssistant) return;
     setHubDetailVisible(false);
 
-    // Use display_name for URL parameter to match customAgents.name in useGuidAgentSelection
-    // hubDetailAssistant.name is the identifier (UUID), display_name is the user-facing name
-    const assistantName = hubDetailAssistant.display_name || hubDetailAssistant.name;
-    await refreshAgentDetection();
-    void navigate(`/guid?assistant=${encodeURIComponent(assistantName)}`);
-  }, [hubDetailAssistant, navigate, refreshAgentDetection]);
+    await onUseAssistantReference(hubDetailAssistant.name);
+  }, [hubDetailAssistant, onUseAssistantReference]);
 
   // Open duplicate confirm modal for hub assistant
   const handleOpenDuplicateModal = useCallback((assistant: IAssistantHubSkill) => {
@@ -1639,6 +1641,9 @@ const AgentSettings: React.FC = () => {
             onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
             uploadStatus={uploadStatus}
             onClick={() => void handleEdit(assistant)}
+            onUse={() => void onUseAssistantReference(assistant.id)}
+            isOpening={openingReference === getEntryReference(assistant.id)}
+            isUseDisabled={openingReference !== null}
             canManage={canManage}
             hideDelete={hideDelete}
             allowToggle={allowToggle}
@@ -1694,6 +1699,9 @@ const AgentSettings: React.FC = () => {
             onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
             hasUpdate={false}
             onClick={() => void handleEdit(assistant)}
+            onUse={() => void onUseAssistantReference(assistant.id)}
+            isOpening={openingReference === getEntryReference(assistant.id)}
+            isUseDisabled={openingReference !== null}
             canManage={canManage}
             enterprisePublishButton={enterprisePublishButton}
           />

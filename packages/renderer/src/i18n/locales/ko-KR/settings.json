@@ -1360,5 +1360,8 @@
     "noInstructions": "The server has not provided additional instructions.",
     "scenarios": "Use cases",
     "features": "Core capabilities"
-  }
+  },
+  "mcpPersonalEmptyTitle": "No personal MCP servers",
+  "mcpPersonalEmptyInstallHint": "Browse the MCP library to install a server, or use the button above to install from JSON.",
+  "mcpPersonalEmptyRestrictedHint": "Your organization does not allow personal MCP installation. Open Enterprise MCP to view the services provided by your organization."
 }

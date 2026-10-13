@@ -43,11 +43,11 @@ export function initInitBridge(): void {
       initStatusManager.clearRetry();
 
       if (component === 'nexus') {
-        const { dynamicNexusVfsService } = await import('../services/nexus-vfs/DynamicNexusVfsService');
+        const { scodeRuntimeService } = await import('../services/scode/ScodeRuntimeService');
 
         initStatusManager.addLog('↻ 手动触发 Nexus 重装...');
         await serviceManager.stopNexus();
-        dynamicNexusVfsService.removeInstallation();
+        await scodeRuntimeService.install();
       } else {
         const { removeScodeInstallation } = await import('../services/scode/ScodeInstallService');
 

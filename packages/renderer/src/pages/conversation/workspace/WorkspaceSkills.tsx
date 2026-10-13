@@ -340,7 +340,7 @@ const SkillIconGraphic: React.FC<{
   }, [fallbackToDefaultImage, iconUrl]);
 
   if (resolvedIconUrl) {
-    return <img src={resolvedIconUrl} alt={displayName} className='workspace-skill-card__icon-image' referrerPolicy='no-referrer' crossOrigin='anonymous' onError={handleSkillIconError} />;
+    return <img src={resolvedIconUrl} alt={displayName} className='workspace-skill-card__icon-image' referrerPolicy='no-referrer' onError={handleSkillIconError} />;
   }
 
   if (emoji) {

@@ -9,6 +9,17 @@ function okTokenSet() {
 }
 
 describe('MossAuthPort request shapes (contract vs baseline)', () => {
+  test('organization switches retain the authenticated actor and use the selected Moss origin', async () => {
+    const mock = vi.fn().mockResolvedValue(okTokenSet())
+    const port = createMossAuthPort(mock)
+    expect(await port.switchOrg!('actor-token', 'org-2', BASE)).toEqual(okTokenSet())
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'POST',
+      path: '/api/v1/auth/switch-org',
+      accessToken: 'actor-token',
+      body: { org_id: 'org-2' },
+    })
+  })
   test('password login posts grant_type=password to /api/v1/auth/login', async () => {
     const mock = vi.fn().mockResolvedValue(okTokenSet())
     const port = createMossAuthPort(mock)

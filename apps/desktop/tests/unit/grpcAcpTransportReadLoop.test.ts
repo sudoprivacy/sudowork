@@ -21,23 +21,21 @@ async function loadTransport(supportsMailbox = true) {
     }),
     close: vi.fn(),
   };
-  vi.doMock('@common/nexus/nexusVfsGrpcClient', () => ({
-    NexusVfsGrpcClient: vi.fn(function () {
+  vi.doMock('@common/scode/sessionsClient', () => ({
+    ScodeSessionsClient: vi.fn(function () {
       return client;
     }),
   }));
-  const { NexusAcpTransport } = await import('@/agent/acp/transport');
-  return { NexusAcpTransport, client, mailbox, getEvents: () => events! };
+  const { ScodeAcpTransport } = await import('@/agent/acp/transport');
+  return { ScodeAcpTransport, client, mailbox, getEvents: () => events! };
 }
 
 describe('Nexus session mailbox transport', () => {
   it.each([false, true])('uses the same transport with subprocess hosting=%s', async (subprocess) => {
-    const { NexusAcpTransport, client, mailbox, getEvents } = await loadTransport();
+    const { ScodeAcpTransport, client, mailbox, getEvents } = await loadTransport();
     const onMessage = vi.fn();
     const onClose = vi.fn();
-    const transport = new NexusAcpTransport({
-      endpoint: 'localhost:1',
-      authToken: '',
+    const transport = new ScodeAcpTransport({
       agentId: 'worker',
       ...(subprocess ? { spawnSpec: { cmd: 'scode', args: ['acp'], env: {}, cwd: '/' } } : {}),
       events: { onMessage, onClose, onSetupError: vi.fn() },
@@ -54,14 +52,14 @@ describe('Nexus session mailbox transport', () => {
     await transport.close();
     expect(mailbox.close).toHaveBeenCalledOnce();
     expect(client.call).toHaveBeenLastCalledWith('managed_agent.cancel_v1', { session_id: 'pid-1', mode: 'session' });
-    expect(client.close).toHaveBeenCalledOnce();
+    expect(client.close).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 
   it('refuses an old daemon and reaps the process it created', async () => {
-    const { NexusAcpTransport, client } = await loadTransport(false);
+    const { ScodeAcpTransport, client } = await loadTransport(false);
     const onSetupError = vi.fn();
-    const transport = new NexusAcpTransport({ endpoint: 'localhost:1', authToken: '', agentId: 'worker', events: { onMessage: vi.fn(), onClose: vi.fn(), onSetupError } });
+    const transport = new ScodeAcpTransport({ agentId: 'worker', events: { onMessage: vi.fn(), onClose: vi.fn(), onSetupError } });
     await expect(transport.connect()).rejects.toThrow('does not support session mailboxes');
     expect(client.openSession).not.toHaveBeenCalled();
     expect(client.call).toHaveBeenLastCalledWith('managed_agent.cancel_v1', { session_id: 'pid-1', mode: 'session' });

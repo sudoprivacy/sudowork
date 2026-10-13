@@ -121,7 +121,9 @@
     },
     "terminal": {
       "tab": "终端",
-      "newTab": "新终端"
+      "newTab": "新终端",
+      "remoteUnavailable": "云端会话暂不支持交互式终端。请在对话中让智能体执行命令，或切换到本地会话使用终端。",
+      "createFailed": "终端启动失败，请检查工作目录是否存在及系统 Shell 配置，然后新建终端重试。"
     }
   },
   "layout": {
@@ -335,5 +337,11 @@
     "recent": "最近",
     "myAgent": "我的智能体",
     "agentHasNoConversations": "还没有对话"
+  },
+  "agentSessions": {
+    "ownerBilling": "模型账户与计费所有者：{{owner}}",
+    "select": "选择此智能体的会话",
+    "new": "此智能体的新会话",
+    "messages": "定位消息"
   }
 }

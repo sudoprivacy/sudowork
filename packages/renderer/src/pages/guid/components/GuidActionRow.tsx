@@ -155,7 +155,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
           {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
         </div>
-        <Button shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} color='white' />} onClick={onSend} />
+        <Button aria-label={t('common.send')} shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} color='white' />} onClick={onSend} />
       </div>
 
       <BdpanImportFilePicker

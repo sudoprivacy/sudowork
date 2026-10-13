@@ -24,5 +24,10 @@
   "objectEditor.close": "關閉",
   "objectEditor.attributeSaveHint": "屬性操作會立即儲存，關閉視窗不會復原；基本資訊需另行儲存。",
   "objectEditor.deleteAttributeTitle": "刪除屬性",
-  "objectEditor.deleteAttributeContent": "確定要刪除屬性 {{name}} 嗎？相關的欄位對應也會一併刪除。"
+  "objectEditor.deleteAttributeContent": "確定要刪除屬性 {{name}} 嗎？相關的欄位對應也會一併刪除。",
+  "studio": {
+    "issues": {
+      "noServiceEndpoint": "尚未向智能体提供本体工具。请前往“发布”页发布本体并注册智能体。"
+    }
+  }
 }

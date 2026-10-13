@@ -21,6 +21,7 @@ export const MossSessionSummarySchema = z
     status: z.string(),
     assistantName: z.string().nullable().optional(),
     source: z.string().nullable().optional(),
+    clientMetadata: z.record(z.unknown()).optional(),
   })
   .passthrough()
 export type MossSessionSummary = z.infer<typeof MossSessionSummarySchema>
@@ -126,6 +127,15 @@ export const ConversationListItemSchema = z.object({
   status: z.string(),
   assistantName: z.string().nullable(),
   source: z.string().nullable(),
+  managementContext: z
+    .object({
+      ownerId: z.string(),
+      ownerName: z.string(),
+      agentName: z.string(),
+      displayName: z.string(),
+    })
+    .nullable()
+    .optional(),
   /** 上游 epoch 毫秒时间戳（会话创建时间，moss sessions 列表 passthrough 字段）；未知时为 null */
   createdAt: z.number().nullable(),
   /** 上游 epoch 毫秒时间戳；未知时为 null */
@@ -208,8 +218,15 @@ export type ClientOutboundMessage = z.infer<typeof ClientOutboundMessageSchema>
 export const ServerInboundEventSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('upstream'), event: z.unknown() }),
   z.object({ kind: z.literal('writer'), isWriter: z.boolean() }),
-  z.object({ kind: z.literal('lock'), state: z.enum(['idle', 'running', 'uncertain']) }),
-  z.object({ kind: z.literal('error'), code: z.string(), message: z.string().optional() }),
+  z.object({
+    kind: z.literal('lock'),
+    state: z.enum(['idle', 'running', 'uncertain']),
+  }),
+  z.object({
+    kind: z.literal('error'),
+    code: z.string(),
+    message: z.string().optional(),
+  }),
 ])
 export type ServerInboundEvent = z.infer<typeof ServerInboundEventSchema>
 
@@ -218,6 +235,8 @@ export const UPSTREAM_EVENT_TYPES = new Set([
   'hello',
   'assistant',
   'tool_use',
+  'tool_result',
+  'artifacts',
   'result',
   'system',
   'thinking', // 当前上游不发射；保留兼容位，未来上游支持即生效

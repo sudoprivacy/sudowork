@@ -36,6 +36,14 @@ vi.mock('@server/features/conversations/lockRepository', () => ({
 vi.mock('@server/features/auth/authService', () => ({
   getMossContext: vi.fn(async () => ({ baseUrl: 'https://moss.test', accessToken: 'fixture' })),
 }))
+vi.mock('@server/features/auth/principalRepository', () => ({
+  findPrincipalById: vi.fn(async () => ({
+    id: 'principal-a',
+    mossUserId: 'moss-a',
+    orgId: 'org-a',
+  })),
+  resolveSessionOwnerPrincipalId: vi.fn(async () => 'principal-a'),
+}))
 vi.mock('@server/features/conversations/conversationMetaRepository', () => ({
   setConversationTitleIfUnset: vi.fn(async () => {}),
   upsertConversationModel: vi.fn(async () => {}),
@@ -76,7 +84,7 @@ function connection(): BrowserConnection {
   return {
     principalId: 'principal-a',
     mossSessionId: 'session-a',
-    webSession: { id: 'web-a' },
+    webSession: { id: 'web-a', principalId: 'principal-a' },
     ws: { readyState: 1, OPEN: 1, send: vi.fn() },
   } as unknown as BrowserConnection
 }
@@ -85,7 +93,15 @@ function coordinator() {
     pool: {} as never,
     config: {} as never,
     auth: {} as never,
-    moss: { resume: vi.fn(async () => ({ wsUrl: 'wss://moss.test/ws' })) } as never,
+    moss: {
+      get: vi.fn(async () => ({
+        sessionId: 'session-a',
+        userId: 'moss-a',
+        orgId: 'org-a',
+        status: 'active',
+      })),
+      resume: vi.fn(async () => ({ wsUrl: 'wss://moss.test/ws' })),
+    } as never,
   })
 }
 beforeEach(() => {
@@ -94,6 +110,29 @@ beforeEach(() => {
 })
 
 describe('conversation reconnect during generation', () => {
+  test('forwards tool output and artifacts without treating tool completion as turn completion', async () => {
+    const service = coordinator(),
+      browser = connection()
+    service.subscribe(browser)
+    await service.handleClientMessage(browser, { kind: 'send', text: 'Read file' })
+    const upstream = state.sockets[0]!
+    const events = [
+      { type: 'tool_result', tool_use_id: 'read-1', content: 'FileNotFound', is_error: true },
+      { type: 'artifacts', v: 1, records: [] },
+    ]
+    for (const event of events) upstream.onEvent(event)
+    await vi.waitFor(() => {
+      for (const event of events)
+        expect(browser.ws.send).toHaveBeenCalledWith(JSON.stringify({ kind: 'upstream', event }))
+    })
+    expect(state.lock?.state).toBe('running')
+    upstream.onEvent({ type: 'private-internal-event', secret: 'must not be forwarded' })
+    expect(browser.ws.send).not.toHaveBeenCalledWith(
+      expect.stringContaining('must not be forwarded'),
+    )
+    await service.terminate('principal-a', 'session-a')
+  })
+
   test('keeps the upstream until a returning browser receives completion and can send again', async () => {
     const service = coordinator(),
       original = connection()

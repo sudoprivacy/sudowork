@@ -3,7 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 
-const state = vi.hoisted(() => ({ user: { id: 'a', enterprise_code: 'org' }, list: vi.fn(), installed: vi.fn(), install: vi.fn(), detail: vi.fn(), remove: vi.fn(), navigate: vi.fn(), error: vi.fn() }));
+const state = vi.hoisted(() => ({ user: { id: 'a', enterprise_code: 'org' }, list: vi.fn(), installed: vi.fn(), install: vi.fn(), detail: vi.fn(), remove: vi.fn(), navigate: vi.fn(), error: vi.fn(), history: vi.fn(), emit: vi.fn() }));
+vi.mock('@renderer/pages/conversation/context/ConversationHistoryContext', () => ({ useConversationHistory: () => ({ scopeKey: `${state.user.id}:${state.user.enterprise_code}`, getFreshConversations: state.history }) }));
+vi.mock('@renderer/utils/emitter', () => ({ emitter: { emit: state.emit } }));
 vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: state.user }) }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => state.navigate }));
 vi.mock('react-i18next', () => {
@@ -65,6 +67,7 @@ beforeEach(() => {
   state.user = { id: 'a', enterprise_code: 'org' };
   state.list.mockResolvedValue({ success: true, data: { items: [remote], categories: [], nextCursor: null } });
   state.installed.mockResolvedValue({ success: true, data: [] });
+  state.history.mockResolvedValue([]);
   state.detail.mockResolvedValue({ success: true, data: { ...remote, content: '# Published instructions' } });
 });
 
@@ -91,6 +94,22 @@ it('opens My resource details from the downloaded version and displays failures'
   expect(state.detail).toHaveBeenCalledWith({ kind: 'agents', source: 'hub', id: 'a1', isLocal: true });
 });
 afterEach(cleanup);
+
+it('opens the installed server identity latest Session through the shared Agent entry', async () => {
+  state.install.mockResolvedValue({ success: true, data: { id: 'a1', runtimeName: 'Agent' } });
+  state.history.mockResolvedValue([{ id: 'previous-session', createTime: 1, modifyTime: 1, extra: { mossAssistantRef: 'a1' } }]);
+  render(<MossCatalogBrowser {...props} />);
+  fireEvent.click(await screen.findByText('use'));
+  await waitFor(() => expect(state.navigate).toHaveBeenCalledWith('/conversation/previous-session'));
+  expect(state.emit).toHaveBeenCalledWith('guid.reset');
+});
+
+it('opens a draft for an installed Agent without history', async () => {
+  state.install.mockResolvedValue({ success: true, data: { id: 'a1', runtimeName: 'Agent' } });
+  render(<MossCatalogBrowser {...props} />);
+  fireEvent.click(await screen.findByText('use'));
+  await waitFor(() => expect(state.navigate).toHaveBeenCalledWith('/guid?assistant=a1'));
+});
 
 it('shows the server catalog before any download, and My contains only local records', async () => {
   render(<MossCatalogBrowser {...props} />);

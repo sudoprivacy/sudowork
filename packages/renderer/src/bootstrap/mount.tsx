@@ -25,6 +25,7 @@ import { DashboardStatsProvider } from '@renderer/context/DashboardStatsContext'
 import { TenantConfigProvider } from '@renderer/context/TenantConfigContext';
 import { ThemeProvider, useThemeContext } from '@renderer/context/ThemeContext';
 import { ConversationTabsProvider } from '@renderer/pages/conversation/context/ConversationTabsContext';
+import { ConversationHistoryProvider } from '@renderer/pages/conversation/context/ConversationHistoryContext';
 import { PreviewProvider } from '@renderer/pages/conversation/preview/context/PreviewContext';
 import { InitProvider } from '@renderer/context/InitContext';
 import '@renderer/i18n';
@@ -64,7 +65,15 @@ const AppProviders: React.FC<PropsWithChildren> = ({ children }) =>
   React.createElement(
     InitProvider,
     null,
-    React.createElement(AuthProvider, null, React.createElement(DashboardStatsProvider, null, React.createElement(TenantConfigProvider, null, React.createElement(ThemeProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children))))))
+    React.createElement(
+      AuthProvider,
+      null,
+      React.createElement(
+        DashboardStatsProvider,
+        null,
+        React.createElement(TenantConfigProvider, null, React.createElement(ThemeProvider, null, React.createElement(PreviewProvider, null, React.createElement(ConversationHistoryProvider, null, React.createElement(ConversationTabsProvider, null, children)))))
+      )
+    )
   );
 
 const Config: React.FC<PropsWithChildren> = ({ children }) => {

@@ -86,6 +86,7 @@ export interface IConfigStorageRefer {
   'migration.promptsI18nAdded'?: boolean;
   /** Locally hidden remote cron execution sessions keyed by Moss session ID. */
   'remote.hiddenCronSessionIds'?: Record<string, number>;
+  'remote.hiddenSessionIds'?: Record<string, Record<string, number>>;
   /** Migration flag: skill subdirectory restructuring completed */
   'migration.skillSubdirectoriesMigrated'?: boolean;
   /** Migration flag: channel agent migrated to scode (Sudo Code) */
@@ -449,6 +450,12 @@ export type TChatConversation =
           /** Whether Moss session is pending creation (lazy creation pattern) / Moss session 是否待创建（延迟创建模式） */
           mossSessionPending?: boolean;
           mossAssistantRef?: string;
+          agentManagement?: {
+            ownerId: string;
+            ownerName: string;
+            agentName: string;
+            displayName: string;
+          };
           /** Display name override for workspace */
           workspaceDisplayName?: string;
           /** Cron job ID that created this conversation */

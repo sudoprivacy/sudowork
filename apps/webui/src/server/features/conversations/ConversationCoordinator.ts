@@ -2,7 +2,9 @@ import type { Pool } from 'pg'
 import type WebSocket from 'ws'
 import type { AppConfig } from '../../config.js'
 import type { AuthDeps } from '../auth/authService.js'
-import { getMossContext } from '../auth/authService.js'
+import { getMossContext, MossUnauthorizedError } from '../auth/authService.js'
+import { findPrincipalById, resolveSessionOwnerPrincipalId } from '../auth/principalRepository.js'
+import { requireAccessibleSession, SessionForbiddenError } from './conversationService.js'
 import type { WebSessionRow } from '../auth/sessionRepository.js'
 import type { MossSessionPort } from '@sudowork/moss-client'
 import { MossHttpError, MossNetworkError, deriveWsBaseUrl } from '@sudowork/moss-client'
@@ -67,6 +69,20 @@ export class ConversationCoordinator {
   private entries = new Map<string, Entry>()
 
   constructor(private deps: CoordinatorDeps) {}
+
+  /** Apply the HTTP workbench boundary before subscribing or creating a terminal. */
+  async authorize(webSession: WebSessionRow, sessionId: string) {
+    const principal = await findPrincipalById(this.deps.pool, webSession.principalId)
+    if (!principal) throw new SessionForbiddenError()
+    const ctx = await getMossContext(this.deps.auth, webSession)
+    const session = await requireAccessibleSession(this.deps, principal, sessionId, ctx)
+    const ownerPrincipalId = await resolveSessionOwnerPrincipalId(
+      this.deps.pool,
+      principal,
+      session.userId,
+    )
+    return { ...ctx, ownerPrincipalId }
+  }
 
   private key(principalId: string, mossSessionId: string): string {
     return `${principalId}:${mossSessionId}`
@@ -202,7 +218,7 @@ export class ConversationCoordinator {
       }
     }
 
-    const ctx = await getMossContext(this.deps.auth, conn.webSession)
+    const ctx = await this.authorize(conn.webSession, entry.mossSessionId)
     const resumed = await this.deps.moss.resume(ctx, entry.mossSessionId).catch((err: unknown) => {
       if (err instanceof MossHttpError && err.status === 404) {
         throw new Error('SESSION_NOT_FOUND')
@@ -301,6 +317,9 @@ export class ConversationCoordinator {
     const entry = this.entryFor(conn.principalId, conn.mossSessionId)
 
     try {
+      // An existing upstream socket does not retain a revoked management grant.
+      const authorized = await this.authorize(conn.webSession, entry.mossSessionId)
+      if (authorized.ownerPrincipalId !== conn.principalId) throw new SessionForbiddenError()
       if (msg.kind === 'send' || msg.kind === 'answer_question') {
         const acquired = await acquireWriteLock(this.deps.pool, {
           principalId: conn.principalId,
@@ -406,8 +425,8 @@ export class ConversationCoordinator {
       }
 
       if (msg.kind === 'control_response') {
-        // 权限审批回批：转发上游。WS 连接已按 (principalId, mossSessionId) 隔离，回批者必为
-        // 会话拥有者；审批可能跨越写锁的 uncertain 边界，故不做 writer 锁校验。审批请求来自
+        // Permission answers come from an authorized owner or manager. Both share the
+        // owner's writer lock; an answer can cross its uncertain boundary. Requests come from
         // 当前活跃的上游连接（活着才有请求）——不 ensureUpstream 重建（非 writer 连接会被
         // UPSTREAM_OWNER_MISMATCH 拒绝，且失联的请求本就无需回批）。
         if (
@@ -435,6 +454,21 @@ export class ConversationCoordinator {
         }
       }
     } catch (err) {
+      if (
+        err instanceof SessionForbiddenError ||
+        err instanceof MossUnauthorizedError ||
+        (err instanceof MossHttpError && (err.status === 401 || err.status === 403))
+      ) {
+        const isUnauthorized =
+          err instanceof MossUnauthorizedError ||
+          (err instanceof MossHttpError && err.status === 401)
+        this.sendTo(conn.ws, {
+          kind: 'error',
+          code: isUnauthorized ? 'MOSS_UNAUTHORIZED' : 'SESSION_FORBIDDEN',
+        })
+        conn.ws.close(1008, 'Session permission revoked')
+        return
+      }
       const known =
         err instanceof Error &&
         ['SESSION_NOT_FOUND', 'MOSS_UNAVAILABLE', 'UPSTREAM_OWNER_MISMATCH'].includes(err.message)

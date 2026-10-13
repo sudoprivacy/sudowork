@@ -24,6 +24,56 @@ import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/ty
 type FetchMock = ReturnType<typeof vi.fn>
 type StatusRoute = { status: number; body: unknown }
 
+describe('mossAdapter: user Vault capability', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    await import('@client/bridgeAdapter/mossAdapter')
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('maps current metadata and obtains values through the read operation', async () => {
+    const namespace = 'user:alice:mail'
+    const resource = '/api/v1/me/secrets/user%3Aalice%3Amail/password'
+    const fetch = stubFetch({
+      [resource]: { success: true, data: { value: 'synthetic', status: 'enabled', version: 2 } },
+      '/api/v1/me/secrets': {
+        success: true,
+        data: [
+          { namespace, key: 'password', status: 'enabled', enabled: true, version: 2 },
+          { namespace, key: 'disabled', status: 'disabled', enabled: false, version: 3 },
+        ],
+      },
+    })
+    const ipc = await import('@sudowork/host-bridge/ipcBridge')
+    expect(await ipc.secret.list.invoke({ namespace })).toMatchObject({
+      success: true,
+      data: [
+        { namespace, key: 'password', currentVersion: 2, deleted: false },
+        { namespace, key: 'disabled', currentVersion: 3, deleted: true },
+      ],
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(await ipc.secret.get.invoke({ namespace, key: 'password' })).toMatchObject({
+      success: true,
+      data: 'synthetic',
+    })
+  })
+
+  it('returns a storage failure instead of an empty successful list', async () => {
+    stubFetch({
+      '/api/v1/me/secrets': {
+        success: false,
+        error: { code: 'secret_store_unavailable', message: 'Vault unavailable' },
+      },
+    })
+    const ipc = await import('@sudowork/host-bridge/ipcBridge')
+    expect(await ipc.secret.list.invoke({ namespace: 'user:alice:mail' })).toMatchObject({
+      success: false,
+      msg: 'Vault unavailable',
+    })
+  })
+})
+
 describe('mossAdapter: personal Agent conversation names', () => {
   let ipc: typeof import('@sudowork/host-bridge/ipcBridge')
   const ownRef = 'moss-agent:own:22222222-2222-4222-8222-222222222222'
@@ -292,7 +342,13 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
   it('get-cloud-assistants maps agents and carries the guid-selector filter fields', async () => {
     stubFetch({
       '/api/agent-templates': [
-        { name: 'hub-1', displayName: 'Hub One', tag: 'hub', description: 'd1' },
+        {
+          id: 'server-hub-1',
+          name: 'hub-1',
+          displayName: 'Hub One',
+          tag: 'hub',
+          description: 'd1',
+        },
         { name: 'builtin-1', display_name: 'Builtin', isBuiltin: true, tag: 'system' },
         { name: 'mine', tag: 'custom' },
       ],
@@ -302,7 +358,7 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
     expect(result.success).toBe(true)
     expect(result.data).toEqual([
       expect.objectContaining({
-        key: 'hub-1',
+        key: 'server-hub-1',
         name: 'Hub One',
         description: 'd1',
         isBuiltin: false,
@@ -758,6 +814,25 @@ describe('mossAdapter: assistant/skill management channels', () => {
     const adapters = await ipcBridge.extensions.getAcpAdapters.invoke()
     expect(assistants).toEqual([])
     expect(adapters).toEqual([])
+  })
+})
+
+describe('manual cron creation', () => {
+  it('forwards disabled state in the initial request', async () => {
+    const fetchMock = stubFetch({ '/api/cron': { id: 'manual' } })
+    await ipcBridge.cron.addJob.invoke({
+      name: 'manual',
+      message: 'Return OK',
+      schedule: { kind: 'at', atMs: 0, description: 'Manual' },
+      enabled: false,
+      conversationId: '',
+      agentType: 'remote-agent',
+      createdBy: 'user',
+    })
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toMatchObject({
+      enabled: false,
+      schedule: { kind: 'at', value: '0' },
+    })
   })
 })
 
@@ -1274,6 +1349,7 @@ describe('mossAdapter: newly created conversation list reads', () => {
 
     const oldRead = ipc.database.getUserConversations.invoke({})
     const newRead = ipc.database.getUserConversations.invoke({})
+    await vi.waitFor(() => expect(pending).toHaveLength(2))
     pending[1]?.(new Response(JSON.stringify({ conversations: [{ id: 'newer' }] })))
     expect((await newRead).map((item) => item.id)).toEqual(['newer'])
     pending[0]?.(new Response(JSON.stringify({ conversations: [{ id: 'older' }] })))

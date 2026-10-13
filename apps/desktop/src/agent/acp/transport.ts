@@ -8,7 +8,7 @@
  * ACP Transport abstraction — pluggable wire protocols for AcpConnection.
  *
  * StdioAcpTransport: spawn local CLI, communicate via stdin/stdout (default)
- * NexusAcpTransport:  nexus spawns + supervises the agent; sudowork drives its
+ * ScodeAcpTransport:  nexus spawns + supervises the agent; sudowork drives its
  *                    session through its durable A2A conversation.
  */
 
@@ -16,7 +16,7 @@ import type { ChildProcess } from 'child_process';
 import type { NexusSessionEndpoint, NexusSessionTransport, SessionRpcMessage } from '@nexus-ai-fs/vfs-client';
 import type { AcpMessage, AcpIncomingMessage } from '@/types/acpTypes';
 import { processSupervisor } from '@process/ProcessSupervisor';
-import { NexusVfsGrpcClient } from '@common/nexus/nexusVfsGrpcClient';
+import { ScodeSessionsClient } from '@common/scode/sessionsClient';
 import { NdjsonParser } from './ndjson';
 import { killChild } from './utils';
 import { ACP_PERF_LOG } from './perf';
@@ -230,9 +230,7 @@ export class StdioAcpTransport implements AcpTransport {
 
 // ── Session mailbox transport (nexus ManagedAgentService) ──────────────
 
-export interface NexusTransportOptions {
-  endpoint: string;
-  authToken: string;
+export interface ScodeTransportOptions {
   agentId: string;
   spawnSpec?: GenericSpawnSpec;
   model?: string;
@@ -241,14 +239,14 @@ export interface NexusTransportOptions {
 }
 
 /** Both hosting strategies use the shared session mailbox transport. */
-export class NexusAcpTransport implements AcpTransport {
-  private client: NexusVfsGrpcClient | null = null;
+export class ScodeAcpTransport implements AcpTransport {
+  private client: ScodeSessionsClient | null = null;
   private mailbox: NexusSessionTransport | null = null;
   private processId: string | null = null;
   private osPid: number | null = null;
   private isClosing = false;
 
-  constructor(private readonly options: NexusTransportOptions) {}
+  constructor(private readonly options: ScodeTransportOptions) {}
 
   get connected(): boolean {
     return this.mailbox?.connected ?? false;
@@ -259,7 +257,7 @@ export class NexusAcpTransport implements AcpTransport {
 
   async connect(): Promise<void> {
     try {
-      this.client = new NexusVfsGrpcClient(this.options.endpoint, this.options.authToken);
+      this.client = new ScodeSessionsClient();
       const spec = this.options.spawnSpec;
       const response = await this.client.call<{
         session_id: string;
@@ -312,7 +310,6 @@ export class NexusAcpTransport implements AcpTransport {
         await this.client.call('managed_agent.cancel_v1', { session_id: this.processId, mode: 'session' }).catch(() => {});
       }
     } finally {
-      this.client?.close();
       this.client = null;
       this.mailbox = null;
     }

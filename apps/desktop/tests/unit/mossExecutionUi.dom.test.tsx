@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 
 const state = vi.hoisted(() => ({ create: vi.fn(), closePreparing: vi.fn(), showError: vi.fn() }));
-vi.mock('@arco-design/web-react', () => ({ Message: { loading: () => state.closePreparing, error: state.showError } }));
+vi.mock('@arco-design/web-react', async (original) => ({ ...(await original<typeof import('@arco-design/web-react')>()), Message: { loading: () => state.closePreparing, error: state.showError } }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ conversation: { create: { invoke: state.create } } }));
 vi.mock('@renderer/hooks/useAppMode', () => ({ useAppMode: () => ({ isEnterprise: true }) }));
 vi.mock('@renderer/hooks/useHasAvailableModel', () => ({ useHasAvailableModel: () => ({ hasModel: true, ready: true }) }));

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { afterEach, describe, expect, it } from 'vitest';
+import { ONTOLOGY_TOOL_PREFIX, ontologyRuntimeToolName } from '@process/services/ontology/ontologyToolNames';
 
 const bundlePath = path.resolve(__dirname, '../../resources/ontology-mcp/index.js');
 const temporaryDirectories: string[] = [];
@@ -21,6 +22,9 @@ describe('ontology MCP bundle', () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'sudowork-ontology-mcp-'));
     temporaryDirectories.push(directory);
     const exportPath = path.join(directory, 'ontology.json');
+    const longLogic = { id: 'long-lookup', code: 'query_inventory_reorder_threshold_'.repeat(5), name: 'Long inventory query', status: 'active', parameters: [] };
+    const otherLongLogic = { ...longLogic, id: 'other-lookup', code: longLogic.code + 'other' };
+    const longAction = { id: 'long-action', code: 'notify_inventory_manager_'.repeat(5), name: 'Long action', status: 'active', executor: 'notification', parameters: [] };
     await fs.writeFile(
       exportPath,
       JSON.stringify({
@@ -52,8 +56,8 @@ describe('ontology MCP bundle', () => {
               ],
               mappings: [],
               qualityRules: [],
-              logicFunctions: [{ id: 'lookup', code: 'customer_lookup', name: 'Customer Lookup', status: 'active', parameters: [{ name: 'query', type: 'object', required: true }] }],
-              actions: [{ id: 'notify', code: 'notify_customer', name: 'Notify Customer', status: 'active', executor: 'notification', parameters: [{ name: 'recordId', type: 'string', required: true }] }],
+              logicFunctions: [{ id: 'lookup', code: 'customer_lookup', name: 'Customer Lookup', status: 'active', parameters: [{ name: 'query', type: 'object', required: true }] }, longLogic, otherLongLogic],
+              actions: [{ id: 'notify', code: 'notify_customer', name: 'Notify Customer', status: 'active', executor: 'notification', parameters: [{ name: 'recordId', type: 'string', required: true }] }, longAction],
             },
           },
         ],
@@ -92,7 +96,23 @@ describe('ontology MCP bundle', () => {
     try {
       await client.connect(transport);
       const listed = await client.listTools();
-      expect(listed.tools.map((tool) => tool.name)).toEqual(['ontology_get_overview', 'ontology_search', 'ontology_get_object', 'ontology_list_logic', 'ontology_list_relations', 'ontology_list_actions', 'logic_customer_lookup', 'action_notify_customer', 'relation_customer_orders']);
+      const names = listed.tools.map((tool) => tool.name);
+      expect(names).toEqual([
+        'ontology_get_overview',
+        'ontology_search',
+        'ontology_get_object',
+        'ontology_list_logic',
+        'ontology_list_relations',
+        'ontology_list_actions',
+        'logic_customer_lookup',
+        ontologyRuntimeToolName('logic', longLogic),
+        ontologyRuntimeToolName('logic', otherLongLogic),
+        'action_notify_customer',
+        ontologyRuntimeToolName('action', longAction),
+        'relation_customer_orders',
+      ]);
+      expect(new Set(names).size).toBe(names.length);
+      expect(names.every((name) => (ONTOLOGY_TOOL_PREFIX + name).length <= 64)).toBe(true);
 
       const result = await client.callTool({ name: 'ontology_get_object', arguments: { id_or_code: 'customer' } });
       expect(JSON.stringify(result.content)).toContain('Customer');
@@ -114,6 +134,15 @@ describe('ontology MCP bundle', () => {
           input: { id: 'customer-orders', versionId: 'version-1', arguments: { query: { id: 'customer-1' } } },
         },
       ]);
+      for (const [kind, artifact] of [
+        ['logic', longLogic],
+        ['logic', otherLongLogic],
+        ['action', longAction],
+      ] as const) {
+        const result = await client.callTool({ name: ontologyRuntimeToolName(kind, artifact), arguments: {} });
+        expect(result.isError).not.toBe(true);
+        expect(calls.at(-1)).toEqual({ workspaceId: 'crm', input: { id: artifact.id, versionId: 'version-1', arguments: {} } });
+      }
     } finally {
       await client.close();
     }

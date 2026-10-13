@@ -28,6 +28,13 @@
  */
 
 import { bridge } from '@office-ai/platform'
+import { prepareWebAgentWorkspace } from '@sudowork/host-bridge/agentWorkspace'
+import {
+  mossSecretPath,
+  mossSecretResult,
+  type MossSecretEntry,
+  type MossResponse,
+} from '@sudowork/common/nexus/moss-secret-client'
 import { createMossAgentPort } from '@sudowork/moss-client/agents'
 // Canonical wire shape — one definition shared with the renderer + main, not a
 // parallel copy.
@@ -179,6 +186,7 @@ if (typeof window !== 'undefined' && storageGet('agent.config', 'eeclaw.serverUr
 // ---------------------------------------------------------------------------
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  await prepareWebAgentWorkspace()
   const res = await fetch(path, {
     credentials: 'include',
     ...init,
@@ -625,6 +633,12 @@ interface ConversationListItem {
   assistantName?: string | null
   /** Display label for a pending creation; never replaces its identity. */
   displayName?: string
+  managementContext?: {
+    ownerId: string
+    ownerName: string
+    agentName: string
+    displayName: string
+  } | null
   source?: string | null
   createdAt?: number | null
   lastActiveAt?: number | null
@@ -659,6 +673,7 @@ function toChatConversation(
   displayName?: string,
 ): Record<string, unknown> {
   const agentName =
+    item.managementContext?.displayName ??
     displayName ??
     item.displayName ??
     (isPersonalAgentRef(item.assistantName ?? undefined)
@@ -714,6 +729,7 @@ function toChatConversation(
       pinned: item.pinned ?? false,
       pinnedAt: item.pinnedAt ?? undefined,
       mossSessionId: item.id,
+      ...(item.managementContext ? { agentManagement: item.managementContext } : {}),
       ...(cronJobId ? { cronJobId } : {}),
     },
     model: { platform: '', name: '', useModel: '', id: '' },
@@ -1008,6 +1024,7 @@ function cronCreateBody(req: AnyReq): Record<string, unknown> {
     payloadMessage: String(req?.message ?? ''),
   }
   if (schedule) body.schedule = rendererScheduleToServer(schedule)
+  if (typeof req?.enabled === 'boolean') body.enabled = req.enabled
   if (req?.conversationMode === 'new' || req?.conversationMode === 'reuse') {
     body.conversationMode = req.conversationMode
   }
@@ -1315,6 +1332,46 @@ function ensureChannelEventsSocket(): void {
 }
 
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
+  'secret.get': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key))
+    const data = mossSecretResult(await apiFetch<MossResponse<{ value: string }>>(path))
+    return ok(data?.value ?? null)
+  },
+  'secret.put': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key))
+    mossSecretResult(
+      await apiFetch<MossResponse<void>>(path, {
+        method: 'PUT',
+        body: JSON.stringify({ value: req.value }),
+      }),
+    )
+    return { success: true }
+  },
+  'secret.delete': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key))
+    mossSecretResult(await apiFetch<MossResponse<void>>(path, { method: 'DELETE' }))
+    return ok(true)
+  },
+  'secret.restore': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key), 'enable')
+    mossSecretResult(await apiFetch<MossResponse<void>>(path, { method: 'POST', body: '{}' }))
+    return ok(true)
+  },
+  'secret.list': async (req) => {
+    const entries = mossSecretResult(
+      await apiFetch<MossResponse<MossSecretEntry[]>>('/api/v1/me/secrets'),
+    )
+    return ok(
+      (entries ?? [])
+        .filter((entry) => entry.namespace === req.namespace)
+        .map((entry) => ({
+          namespace: entry.namespace,
+          key: entry.key,
+          currentVersion: entry.version,
+          deleted: !entry.enabled,
+        })),
+    )
+  },
   'get-file-metadata': async (req) => {
     const path = String(req.path ?? '')
     const file = window.__sudoworkWebFileStaging?.get(path)
@@ -1477,7 +1534,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     // isSelectableCloudAssistant filter (it drops rows without them).
     return ok(
       (Array.isArray(agents) ? agents : []).map((a) => ({
-        key: a.name,
+        key: a.id || a.name,
         name: String(a.displayName ?? a.display_name ?? a.name),
         avatar: typeof a.avatar === 'string' ? a.avatar : undefined,
         emoji: typeof a.emoji === 'string' ? a.emoji : undefined,
@@ -1722,7 +1779,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     ).catch(() => null)
     if (model?.modelId)
       conv.extra = { ...(conv.extra as Record<string, unknown>), currentModelId: model.modelId }
-    if (found.assistantName && !isPersonal) {
+    if (found.assistantName && !isPersonal && !found.managementContext) {
       const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(() => [])
       const agent = agents.find(
         (item) => item.name === found.assistantName || item.id === found.assistantName,

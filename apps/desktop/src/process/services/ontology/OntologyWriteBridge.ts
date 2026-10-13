@@ -41,7 +41,8 @@ type Handler = (ctx: IHandlerContext) => Promise<unknown>;
 let serverInstance: http.Server | null = null;
 let bearerToken: string | null = null;
 let boundPort: number | null = null;
-const scopedTokens = new Map<string, { workspaceId: string; role: 'builder' }>();
+type OntologyBridgeScope = { workspaceId: string; role: 'builder' } | { workspaceId: string; versionId: string; role: 'runtime' };
+const scopedTokens = new Map<string, OntologyBridgeScope>();
 
 const handlers: Record<string, Handler> = {
   preview_asset: async ({ workspaceId, input }) => ontologyService.previewAsset({ workspaceId, id: String(input.id || ''), limit: typeof input.limit === 'number' ? input.limit : 20 }),
@@ -107,7 +108,7 @@ async function readBody(req: http.IncomingMessage): Promise<string> {
  * the existing endpoint. Also returns the token so the caller can push it
  * into the MCP subprocess env.
  */
-export async function ensureOntologyWriteBridge(scope?: { workspaceId: string; role: 'builder' }): Promise<{ port: number; token: string }> {
+export async function ensureOntologyWriteBridge(scope?: OntologyBridgeScope): Promise<{ port: number; token: string }> {
   if (scope) {
     const bridge = await ensureOntologyWriteBridge();
     const token = randomBytes(24).toString('hex');
@@ -157,6 +158,10 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     const toolName = match[1];
+    if (scoped?.role === 'runtime' && !['execute_logic_function', 'execute_relation', 'execute_action'].includes(toolName)) {
+      writeJson(res, 403, { ok: false, message: 'Published ontology agents can only execute their version-bound capabilities.' });
+      return;
+    }
     if (scoped?.role === 'builder' && ['execute_action', 'approve_all', 'publish_current_draft', 'register_agent_blueprint'].includes(toolName)) {
       writeJson(res, 403, { ok: false, message: 'This operation requires the workbench review or execution interface.' });
       return;
@@ -174,7 +179,14 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     const workspaceId = scoped?.workspaceId || (typeof body.workspaceId === 'string' && body.workspaceId ? body.workspaceId : await resolveActiveWorkspaceId());
     const input = (body.input && typeof body.input === 'object' ? body.input : {}) as Record<string, unknown>;
-    if (scoped && toolName === 'execute_logic_function') {
+    if (scoped?.role === 'runtime') {
+      if ((input.workspaceId && input.workspaceId !== scoped.workspaceId) || (input.versionId && input.versionId !== scoped.versionId)) {
+        writeJson(res, 403, { ok: false, message: 'Published ontology version scope mismatch.' });
+        return;
+      }
+      input.versionId = scoped.versionId;
+    }
+    if (scoped?.role === 'builder' && toolName === 'execute_logic_function') {
       const snapshot = await ontologyService.getWorkbench({ workspaceId });
       const fn = snapshot.logicFunctions.find((item) => (input.id ? item.id === input.id : item.code === input.code));
       if (fn && fn.runtime !== 'sql' && fn.configuration.builtIn !== 'lookup') {
@@ -186,6 +198,11 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     const data = await handler({ workspaceId, input: { ...input, workspaceId } });
     const changed = data && typeof data === 'object' && 'snapshot' in data ? data.snapshot : data;
     if (toolName !== 'get_snapshot' && changed && typeof changed === 'object' && 'workspaceId' in changed && 'objects' in changed) ipcBridge.ontology.workbenchChanged.emit(redactOntologySecrets(changed as import('@sudowork/ontology-common').IOntologyWorkbenchSnapshot));
+    if (scoped?.role === 'runtime') {
+      if (!data || typeof data !== 'object' || !('execution' in data)) throw new Error('Ontology runtime returned no execution result.');
+      writeJson(res, 200, { ok: true, data: { workspaceId, versionId: scoped.versionId, execution: data.execution } });
+      return;
+    }
     writeJson(res, 200, { ok: true, data: summarizeResult(data, input) });
   } catch (err) {
     mainError('OntologyWriteBridge', 'request failed', err);

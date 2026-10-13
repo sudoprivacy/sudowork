@@ -13,24 +13,26 @@ import { DEFAULT_CODEX_MODELS } from '@sudowork/common/codex/codexModels';
 import type { IProvider } from '@sudowork/common/storage';
 import { ConfigStorage } from '@sudowork/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@sudowork/common/acpTypes';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
+import { resolveAssistantReference } from '@renderer/shared/agents/assistantReference';
+import type { IMyAgent } from '@sudowork/common/personalAgents';
 import { fetchAssistantsAsConfigs } from '@renderer/shared/agents/assistantAdapter';
 import { getAgentModes } from '@renderer/utils/agentModes';
 import { useAppMode } from '@renderer/hooks/useAppMode';
+import { isWebBridgeAvailable } from '@renderer/utils/platform';
 import { emitter } from '@renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@renderer/context/AuthContext';
 import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
 import { resolveGuidModelBackendKey } from '../utils/modelBackendKey';
 import { personalAgentConfigs } from '../utils/personalAgentSelection';
-import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
-import type { IMyAgent } from '@sudowork/common/personalAgents';
 
 // Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
 // 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取
-let rendererCachedSessionMode: 'remote' | 'local' = 'local';
+let rendererCachedSessionMode: 'remote' | 'local' = 'remote';
 
 /** 供 useConversations 等非 GuidPage 组件树同步读取当前 sessionMode */
 export function getRendererSessionMode(): 'remote' | 'local' {
-  return rendererCachedSessionMode;
+  return isWebBridgeAvailable() ? 'remote' : rendererCachedSessionMode;
 }
 
 export function setRendererSessionMode(mode: 'remote' | 'local'): void {
@@ -159,6 +161,7 @@ export type GuidAgentSelectionResult = {
   setSelectedAgentKey: (key: string) => void;
   selectedAgent: AcpBackend | 'custom';
   selectedAgentInfo: AvailableAgent | undefined;
+  isAgentSelectionPending: boolean;
   isPresetAgent: boolean;
   availableAgents: AvailableAgent[] | undefined;
   /** Available agents filtered for mention selector (enterprise local mode only exposes scode) */
@@ -195,15 +198,23 @@ type UseGuidAgentSelectionOptions = {
   modelList: IProvider[];
   isGoogleAuth: boolean;
   localeKey: string;
-  /** URL query parameter for assistant name to pre-select */
+  /** Stable assistant reference; older links may contain an unambiguous name. */
   assistantFromUrl?: string | null;
+  isOntologyEntry?: boolean;
 };
 
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
-export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
+export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyEntry = false }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const { isEnterprise } = useAppMode();
+  const ontologyAssistantId = isOntologyEntry ? assistantFromUrl : undefined;
+  const ontologyEntryRef = useRef(ontologyAssistantId);
+  const ontologyEntryEpochRef = useRef(0);
+  if (ontologyEntryRef.current !== ontologyAssistantId) {
+    ontologyEntryRef.current = ontologyAssistantId;
+    ontologyEntryEpochRef.current += 1;
+  }
 
   // Initial selected agent key: enterprise mode defaults to generic 'remote-agent'
   const getInitialAgentKey = useCallback(() => {
@@ -219,7 +230,9 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   // Session mode state (remote/local) - SSOT for enterprise mode
   // sessionMode 状态（remote/local）— 企业模式的唯一权威来源
-  const [sessionMode, _setSessionMode] = useState<'remote' | 'local'>('local');
+  const [preferredSessionMode, _setSessionMode] = useState<'remote' | 'local'>('remote');
+  // The ontology entry uses local execution for this page without changing stored preferences.
+  const sessionMode = isOntologyEntry ? 'local' : preferredSessionMode;
   const [selectedMode, _setSelectedMode] = useState<string>('default');
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
@@ -282,9 +295,11 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
   // 应用启动时从 ConfigStorage 异步读取 sessionMode，同步更新模块缓存
   // 仅企业模式需要 sessionMode，C端用户无需初始化
   useEffect(() => {
-    if (!isEnterprise) return;
+    if (!isEnterprise || isOntologyEntry) return;
+    const entryEpoch = ontologyEntryEpochRef.current;
     void ConfigStorage.get('guid.sessionMode').then(async (stored) => {
-      let mode = stored ?? 'local';
+      if (ontologyEntryEpochRef.current !== entryEpoch) return;
+      let mode = stored ?? 'remote';
       // Validate localModeAvailable: fallback to remote if 'local' persisted but user lacks permission
       if (mode === 'local') {
         try {
@@ -299,6 +314,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
           await ConfigStorage.set('guid.sessionMode', 'remote').catch(() => {});
         }
       }
+      if (ontologyEntryEpochRef.current !== entryEpoch) return;
       _setSessionMode(mode);
       rendererCachedSessionMode = mode;
       if (mode === 'local') {
@@ -310,29 +326,35 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
       }
       emitter.emit('chat.history.refresh');
     });
-  }, [isEnterprise]);
+  }, [isEnterprise, isOntologyEntry]);
 
   // --- sessionMode: setSessionMode wrapper with side effects ---
   // setSessionMode 封装：同步模块缓存 + 持久化 + IPC + 刷新历史 + 重置 agent 选择
-  const setSessionMode = useCallback((mode: 'remote' | 'local') => {
-    _setSessionMode(mode);
-    rendererCachedSessionMode = mode;
-    ConfigStorage.set('guid.sessionMode', mode).catch(() => {});
-    ipcBridge.eeclaw.setSessionMode.invoke({ mode }).catch(() => {});
-    emitter.emit('chat.history.refresh');
+  const setSessionMode = useCallback(
+    (mode: 'remote' | 'local') => {
+      if (isOntologyEntry) return;
+      _setSessionMode(mode);
+      rendererCachedSessionMode = mode;
+      ConfigStorage.set('guid.sessionMode', mode).catch(() => {});
+      ipcBridge.eeclaw.setSessionMode.invoke({ mode }).catch(() => {});
+      emitter.emit('chat.history.refresh');
 
-    setCustomAgents([]);
+      const isPersonalSelection = selectedAgentKeyRef.current.startsWith('custom:') && isPersonalAgentRef(selectedAgentKeyRef.current.slice('custom:'.length));
+      if (isPersonalSelection) return;
+      setCustomAgents([]);
 
-    // Reset selectedAgentKey to the default for the new mode
-    // 切换 mode 时重置 agent 选择为对应 mode 的默认值
-    if (mode === 'local') {
-      _setSelectedAgentKey('scode');
-      selectedAgentKeyRef.current = 'scode';
-    } else {
-      _setSelectedAgentKey('remote-agent');
-      selectedAgentKeyRef.current = 'remote-agent';
-    }
-  }, []);
+      // Reset selectedAgentKey to the default for the new mode
+      // 切换 mode 时重置 agent 选择为对应 mode 的默认值
+      if (mode === 'local') {
+        _setSelectedAgentKey('scode');
+        selectedAgentKeyRef.current = 'scode';
+      } else {
+        _setSelectedAgentKey('remote-agent');
+        selectedAgentKeyRef.current = 'remote-agent';
+      }
+    },
+    [isOntologyEntry]
+  );
 
   // When isEnterprise changes, update the default agent selection
   useEffect(() => {
@@ -572,7 +594,13 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
       .then(([agents, extAssistants, cloudAssistantsResult, myAgentsResult]) => {
         if (!isActive) return;
         const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
-        const mergedAgents = isEnterprise ? [...personalAgentConfigs(myAgentsResult.success ? myAgentsResult.data || [] : [], sessionMode === 'local'), ...mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local')] : agents;
+        const mergedAgents = isEnterprise
+          ? [
+              ...personalAgentConfigs(myAgentsResult.success ? myAgentsResult.data || [] : [], sessionMode === 'local'),
+              ...agents.filter((agent) => isOntologyEntry && agent.id === ontologyAssistantId && !!agent.ontologyBinding && agent.enabled !== false).map((agent) => ({ ...agent, isPreset: true })),
+              ...mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local'),
+            ]
+          : agents.map((agent) => (isOntologyEntry && agent.id === ontologyAssistantId && !!agent.ontologyBinding && agent.enabled !== false ? { ...agent, isPreset: true } : agent));
         const list = mergedAgents.filter((agent: AcpBackendConfig) => {
           // Keep preset assistants (builtin + hub-installed) visible on Guid homepage
           // even when ACP detection has not produced custom IDs yet.
@@ -627,19 +655,23 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl }: UseGuidAg
     return () => {
       isActive = false;
     };
-  }, [isEnterprise, sessionMode, availableCustomAgentIds]);
+  }, [isEnterprise, sessionMode, availableCustomAgentIds, isOntologyEntry, ontologyAssistantId]);
 
-  // Pre-select assistant from URL parameter (assistantFromUrl)
+  const requestedAssistant = useMemo(() => {
+    if (!assistantFromUrl) return undefined;
+    const candidates = customAgents.filter((agent) => agent.enabled !== false && (!isOntologyEntry || !!agent.ontologyBinding));
+    return isOntologyEntry ? candidates.find((agent) => agent.id === assistantFromUrl) : resolveAssistantReference(candidates, assistantFromUrl);
+  }, [assistantFromUrl, customAgents, isOntologyEntry]);
+  const isAgentSelectionPending = Boolean(assistantFromUrl && (!requestedAssistant || selectedAgentInfo?.customAgentId !== requestedAssistant.id));
+
+  // Pre-select the resolved identity when its catalog entry becomes available.
   useEffect(() => {
-    if (!assistantFromUrl || !customAgents || customAgents.length === 0) return;
-
-    // Find the assistant by name (assistantFromUrl is the assistant name, not ID)
-    const matchedAgent = customAgents.find((agent) => agent.name === assistantFromUrl || agent.id === assistantFromUrl);
-    if (matchedAgent) {
-      const agentKey = `custom:${matchedAgent.id}`;
-      setSelectedAgentKey(agentKey);
+    if (requestedAssistant) {
+      const agentKey = `custom:${requestedAssistant.id}`;
+      if (isOntologyEntry) _setSelectedAgentKeyWithRef(agentKey);
+      else setSelectedAgentKey(agentKey);
     }
-  }, [assistantFromUrl, customAgents, setSelectedAgentKey]);
+  }, [requestedAssistant, setSelectedAgentKey, isOntologyEntry, _setSelectedAgentKeyWithRef]);
 
   // Load cached ACP model lists
   useEffect(() => {
@@ -1061,6 +1093,8 @@ This identity statement takes priority over the default identity in USER.md.
   }, [availableAgents, currentEffectiveAgentInfo, selectedAgent]);
 
   const refreshCustomAgents = useCallback(async () => {
+    if (ontologyEntryRef.current !== ontologyAssistantId) return;
+    const entryEpoch = ontologyEntryEpochRef.current;
     try {
       // Enterprise modes (remote + local) and Consumer mode all read customAgents from local
       // hub/tenant/custom/system. Only Consumer/Enterprise-Local need ACP availableAgents refresh.
@@ -1076,7 +1110,13 @@ This identity statement takes priority over the default identity in USER.md.
         isEnterprise ? ipcBridge.eeclaw.getMyAgents.invoke().catch(() => ({ success: false, data: [] as IMyAgent[] })) : Promise.resolve({ success: true, data: [] as IMyAgent[] }),
       ]);
       const cloudAssistants = Array.isArray(cloudAssistantsResult?.data) ? (cloudAssistantsResult.data as CloudAssistant[]) : [];
-      const mergedAgents = isEnterprise ? [...personalAgentConfigs(myAgentsResult.success ? myAgentsResult.data || [] : [], sessionMode === 'local'), ...mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local')] : agents;
+      const mergedAgents = isEnterprise
+        ? [
+            ...personalAgentConfigs(myAgentsResult.success ? myAgentsResult.data || [] : [], sessionMode === 'local'),
+            ...agents.filter((agent) => isOntologyEntry && agent.id === ontologyAssistantId && !!agent.ontologyBinding && agent.enabled !== false).map((agent) => ({ ...agent, isPreset: true })),
+            ...mergeAssistantConfigs([], cloudAssistants, sessionMode === 'local'),
+          ]
+        : agents.map((agent) => (isOntologyEntry && agent.id === ontologyAssistantId && !!agent.ontologyBinding && agent.enabled !== false ? { ...agent, isPreset: true } : agent));
 
       // Apply presetAgentType fallback for builtin assistants
       for (const agent of mergedAgents) {
@@ -1089,11 +1129,11 @@ This identity statement takes priority over the default identity in USER.md.
         }
       }
 
-      setCustomAgents(mergedAgents);
+      if (ontologyEntryEpochRef.current === entryEpoch && ontologyEntryRef.current === ontologyAssistantId) setCustomAgents(mergedAgents);
     } catch (error) {
       console.error('Failed to refresh custom agents:', error);
     }
-  }, [isEnterprise, sessionMode]);
+  }, [isEnterprise, sessionMode, isOntologyEntry, ontologyAssistantId]);
 
   useEffect(() => {
     void refreshCustomAgents();
@@ -1190,6 +1230,7 @@ This identity statement takes priority over the default identity in USER.md.
     setSelectedAgentKey,
     selectedAgent,
     selectedAgentInfo,
+    isAgentSelectionPending,
     isPresetAgent,
     availableAgents,
     mentionAvailableAgents,

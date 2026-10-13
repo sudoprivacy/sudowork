@@ -66,13 +66,12 @@ describe('runtimeStatus helpers', () => {
       statusResolved: true,
       nexusInstalled: true,
       nexusRunning: true,
-      nexusPort: 7331,
     });
 
     expect(resolveRuntimeStatus(record)).toBe('running');
     expect(getStatusInfo(record, t)).toEqual({
       dotColor: 'bg-green-5',
-      statusText: '运行中 :7331',
+      statusText: '运行中',
     });
   });
 

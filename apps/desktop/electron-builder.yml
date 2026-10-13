@@ -38,7 +38,6 @@ files:
   # ai-dev-browser Python package (browser skill runtime)
   - vendor/ai-dev-browser/ai_dev_browser/**/*
   - package.json
-  # Rust napi addon (nexus gRPC client)
   # Native modules and their runtime dependencies
   - node_modules/better-sqlite3/**/*
   - node_modules/bcrypt/**/*
@@ -208,22 +207,11 @@ extraResources:
     to: ontology-mcp/index.js
   - from: resources/ontology-builder-mcp/index.js
     to: ontology-builder-mcp/index.js
-  # Nexus binary - versioned, optional (may not be available for all platforms)
-  # Copy from the resources directory with filters; using a glob in `from`
-  # is not reliable for electron-builder file-set matching.
-  - from: resources
-    to: .
-    filter:
-      - v*-nexusd-cluster-macos-*
   # Scode binary - versioned, optional
   - from: resources
     to: .
     filter:
       - v*-scode-macos-*
-  # Vault plugin is intentionally NOT bundled on macOS: its dylib carries a
-  # detached Nexus signature and must not be Apple-codesigned (afterPack.js
-  # excludes it), but Apple notarization rejects unsigned Mach-O inside the
-  # .app. VaultPluginInstaller downloads it at runtime into ~/.nexus-vfs/plugins.
 
 win:
   legalTrademarks: Copyright © 2026 北京数牍科技有限公司
@@ -240,22 +228,11 @@ win:
     # bdpan installer for Windows (bundled at build time)
     - from: resources/bdpan-installer-windows-${arch}.exe
       to: bdpan-installer-windows-${arch}.exe
-    # Nexus binary for Windows - versioned
-    - from: resources
-      to: .
-      filter:
-        - v*-nexusd-cluster-windows-*
     # Scode binary for Windows - versioned
     - from: resources
       to: .
       filter:
         - v*-scode-windows-*
-    # Vault plugin for Windows - versioned
-    - from: resources
-      to: .
-      filter:
-        - v*-nexus-vault-windows-*
-        - v*-nexus-local-connector-windows-*
 
 nsis:
   oneClick: false

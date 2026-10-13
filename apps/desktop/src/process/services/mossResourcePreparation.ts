@@ -35,6 +35,20 @@ export interface IMossPreparedResources {
 export async function readMossAssistantSnapshot(extra: IMossConversationExecution & { presetAssistantId?: string }): Promise<{ meta: IAssistantMeta; directory: string; presetContext: string } | undefined> {
   if (!extra.mossAccountScope || !extra.presetAssistantId) return;
   if (extra.mossAccountScope !== ProcessConfig.getSync('eeclaw.accountScope')) throw new Error('Conversation belongs to a different Moss account');
+  if (extra.presetAssistantId.startsWith('ontology-')) {
+    const { ontologyService } = await import('./ontology/OntologyService');
+    const assistant = await ontologyService.getRegisteredAgentRuntime(extra.presetAssistantId);
+    if (assistant) {
+      let presetContext = assistant.presetContext;
+      for (const skill of extra.mossResources || []) {
+        if (skill.kind !== 'skills') continue;
+        const root = skill.source === 'tenant' ? getEnterpriseTenantSkillsDir() : getHubSkillsDir();
+        const directory = safeResourcePath(root, path.relative(root, skill.path));
+        presetContext += `\nSkill ${path.basename(directory)}: ${path.join(directory, 'SKILL.md')}`;
+      }
+      return { ...assistant, presetContext };
+    }
+  }
   if (isPersonalAgentRef(extra.presetAssistantId)) {
     await requireMossPersonalAgent(extra.presetAssistantId);
     return;
@@ -61,6 +75,14 @@ export async function readMossAssistantSnapshot(extra: IMossConversationExecutio
 
 /** Prepare only selected resources and their dependencies, using immutable content versions. */
 export async function prepareMossResources(assistantId?: string, skillIds: string[] = [], isLegacyOnly = false): Promise<IMossPreparedResources> {
+  if (assistantId?.startsWith('ontology-')) {
+    const { ontologyService } = await import('./ontology/OntologyService');
+    const assistant = await ontologyService.getRegisteredAgentRuntime(assistantId);
+    if (assistant) {
+      const skills = await prepareMossResources(undefined, skillIds, isLegacyOnly);
+      return { ...skills, presetContext: [assistant.presetContext, skills.presetContext].filter(Boolean).join('\n\n') };
+    }
+  }
   if (isPersonalAgentRef(assistantId)) {
     await requireMossPersonalAgent(assistantId!);
     return prepareMossResources(undefined, skillIds, isLegacyOnly);

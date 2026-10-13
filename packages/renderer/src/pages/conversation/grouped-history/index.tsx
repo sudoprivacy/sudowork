@@ -16,6 +16,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { emitter } from '@renderer/utils/emitter';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { useCronJobsMap } from '@renderer/pages/cron/hooks/useCronJobs';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import DirectorySelectionModal from '@renderer/components/DirectorySelectionModal';
@@ -29,7 +30,7 @@ import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { AgentGroup, ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
-import { getLatestAgentConversation } from './utils/groupingHelpers';
+import { getConversationAgentName, getLatestAgentConversation, getSelectableConversationAgentRef } from '../utils/agentIdentity';
 
 /** Section key for the cross-agent recent list; cannot collide with an agent reference. */
 const RECENT_SECTION_KEY = '__recent__';
@@ -76,7 +77,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
   // ── Timeline section collapse state ──
   const TIMELINE_EXPANSION_KEY = 'sudowork_timeline_expansion';
-  // Map of timeline label → expanded boolean. undefined means "use default" (true).
+  // Preserve explicit choices; Agent groups and Recent start collapsed.
   const [expandedTimeline, setExpandedTimeline] = React.useState<Record<string, boolean>>(() => {
     try {
       const stored = localStorage.getItem(TIMELINE_EXPANSION_KEY);
@@ -91,16 +92,16 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   });
 
   const isTimelineSectionExpanded = useCallback(
-    (timelineLabel: string): boolean => {
-      return expandedTimeline[timelineLabel] !== false; // default to expanded
+    (timelineLabel: string, isDefaultExpanded = true): boolean => {
+      return expandedTimeline[timelineLabel] ?? isDefaultExpanded;
     },
     [expandedTimeline]
   );
 
-  const handleToggleTimeline = useCallback((timelineLabel: string) => {
+  const onToggleTimeline = useCallback((timelineLabel: string, isDefaultExpanded = true) => {
     setExpandedTimeline((prev) => {
-      const currentlyExpanded = prev[timelineLabel] !== false; // default true
-      const next = { ...prev, [timelineLabel]: !currentlyExpanded };
+      const isCurrentlyExpanded = prev[timelineLabel] ?? isDefaultExpanded;
+      const next = { ...prev, [timelineLabel]: !isCurrentlyExpanded };
       try {
         localStorage.setItem(TIMELINE_EXPANSION_KEY, JSON.stringify(next));
       } catch {
@@ -219,6 +220,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       void handleConversationClick(latest);
       return;
     }
+    resetGuidDraft();
     void navigate(`/guid?assistant=${encodeURIComponent(group.ref)}`);
     onSessionClick?.();
   }
@@ -297,7 +299,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
    */
   const renderConversation = (conversation: ConversationItem, scope?: string) => {
     const rowProps = getConversationRowProps(conversation);
-    return <ConversationRow key={scope ? `${scope}:${conversation.id}` : conversation.id} {...rowProps} />;
+    const agentDisplayName = scope === RECENT_SECTION_KEY && getSelectableConversationAgentRef(conversation, agentGroups) ? getConversationAgentName(conversation, agentGroups, t('conversation.sidebar.myAgent')) : undefined;
+    return <ConversationRow key={scope ? `${scope}:${conversation.id}` : conversation.id} {...rowProps} agentDisplayName={agentDisplayName} />;
   };
 
   // Collect all sortable IDs for the pinned section
@@ -510,17 +513,17 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
             {recent.length > 0 && (
               <div className='mb-8px min-w-0'>
                 {!collapsed && (
-                  <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(RECENT_SECTION_KEY)}>
-                    <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', isTimelineSectionExpanded(RECENT_SECTION_KEY) ? 'rotate-0' : '-rotate-90')} />
+                  <Button type='text' className='chat-history__section w-full !justify-start !px-3 !py-2 !text-secondary !font-bold' aria-expanded={isTimelineSectionExpanded(RECENT_SECTION_KEY, false)} onClick={() => onToggleTimeline(RECENT_SECTION_KEY, false)}>
+                    <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', isTimelineSectionExpanded(RECENT_SECTION_KEY, false) ? 'rotate-0' : '-rotate-90')} />
                     <span>{t('conversation.sidebar.recent', '最近')}</span>
-                  </div>
+                  </Button>
                 )}
-                {(collapsed || isTimelineSectionExpanded(RECENT_SECTION_KEY)) && <div className='flex flex-col gap-2px min-w-0'>{recent.map((conversation) => renderConversation(conversation as ConversationItem, RECENT_SECTION_KEY))}</div>}
+                {(collapsed || isTimelineSectionExpanded(RECENT_SECTION_KEY, false)) && <div className='flex flex-col gap-2px min-w-0'>{recent.map((conversation) => renderConversation(conversation as ConversationItem, RECENT_SECTION_KEY))}</div>}
               </div>
             )}
 
             {agentGroups.map((group) => {
-              const isExpanded = isTimelineSectionExpanded(group.ref);
+              const isExpanded = isTimelineSectionExpanded(group.ref, false);
               // The implicit default agent is named after the person; an account
               // with no name falls back to a label rather than showing a blank
               // row or the internal reference.
@@ -534,7 +537,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                         size='mini'
                         aria-label={`${t(isExpanded ? 'common.collapse' : 'common.expandMore')} ${label}`}
                         aria-expanded={isExpanded}
-                        onClick={() => handleToggleTimeline(group.ref)}
+                        onClick={() => onToggleTimeline(group.ref, false)}
                         icon={<Down size={12} className={classNames('line-height-0 transition-transform duration-200', isExpanded ? 'rotate-0' : '-rotate-90')} />}
                       />
                       <Button type='text' size='mini' className='flex-1 min-w-0 text-left !justify-start !text-inherit !font-bold' disabled={batchMode} onClick={() => onAgentOpen(group)}>
@@ -561,7 +564,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
             return (
               <div key={section.timeline} className='mb-8px min-w-0'>
                 {!collapsed && (
-                  <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
+                  <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => onToggleTimeline(section.timeline)}>
                     <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
                     <span>{section.timeline}</span>
                   </div>

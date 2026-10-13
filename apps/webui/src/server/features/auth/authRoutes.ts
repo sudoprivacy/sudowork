@@ -3,12 +3,14 @@ import rateLimit from 'express-rate-limit'
 import { ZodError } from 'zod'
 import type { AppConfig } from '../../config.js'
 import { SmsRateLimitedError } from '@sudowork/moss-client'
+import type { MossSessionPort } from '@sudowork/moss-client'
 import {
   LoginApiKeyRequestSchema,
   LoginPasswordRequestSchema,
   LoginPhoneRequestSchema,
   RegisterPhoneRequestSchema,
   SendPhoneCodeRequestSchema,
+  OpenAgentWorkspaceRequestSchema,
 } from '@sudowork/contracts/auth'
 import {
   AuthRequestRejectedError,
@@ -24,6 +26,7 @@ import {
   registerWithPhone,
   sendPhoneCode,
   resolveSession,
+  openAgentWorkspace,
   type AuthDeps,
 } from './authService.js'
 import { SESSION_COOKIE_NAME, requireSession, type AuthedRequest } from './sessionMiddleware.js'
@@ -82,7 +85,7 @@ function authErrorHandler(err: unknown, res: Response, next: NextFunction): void
   next(err)
 }
 
-export function createAuthRouter(deps: AuthDeps): Router {
+export function createAuthRouter(deps: AuthDeps, sessions: MossSessionPort): Router {
   const router = Router()
 
   // 登录限流：进程内存存储（单实例约束，计划 2.1 说明）
@@ -152,6 +155,20 @@ export function createAuthRouter(deps: AuthDeps): Router {
       const input = RegisterPhoneRequestSchema.parse(req.body)
       const result = await registerWithPhone(deps, input)
       setSessionCookie(res, deps.config, result.cookieToken)
+      res.status(200).json({ ok: true })
+    })().catch((err: unknown) => authErrorHandler(err, res, next))
+  })
+
+  router.post('/agent-workspace', requireSession, (req, res, next) => {
+    void (async () => {
+      const input = OpenAgentWorkspaceRequestSchema.parse(req.body)
+      const result = await openAgentWorkspace(
+        deps,
+        (req as AuthedRequest).webSession!,
+        input,
+        sessions,
+      )
+      if (result) setSessionCookie(res, deps.config, result.cookieToken)
       res.status(200).json({ ok: true })
     })().catch((err: unknown) => authErrorHandler(err, res, next))
   })

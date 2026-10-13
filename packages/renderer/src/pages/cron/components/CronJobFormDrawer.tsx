@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
+import { isManualCronSchedule } from '@sudowork/common/cronSchedule';
 import type { AcpBackendAll } from '@sudowork/common/acpTypes';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@sudowork/common/acpTypes';
 import { useAssistantsForCron } from '@renderer/pages/cron/hooks/useAssistantsForCron';
@@ -27,7 +28,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
   const { t, i18n } = useTranslation();
 
   const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
-  const assistants = useAssistantsForCron();
+  const assistants = useAssistantsForCron(sessionMode);
 
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
@@ -115,7 +116,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
     };
   }, [visible, conversationMode]);
 
-  const handleSelectFolder = useCallback(async () => {
+  const onSelectFolder = useCallback(async () => {
     try {
       const res = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
       if (res?.success && res.data && !res.data.canceled && res.data.filePaths.length > 0) {
@@ -126,13 +127,14 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
     }
   }, []);
 
-  const handleSave = async () => {
+  const onSave = async () => {
+    // Arco may reject with an Error carrying .errors; validation stays inline.
+    const values = await form.validate().catch((): undefined => undefined);
+    if (!values) return;
     try {
-      const values = await form.validate();
       setSaving(true);
 
-      const frequencySchedule = frequencyToSchedule(frequency, { hour, minute, weekday }, t);
-      const baseSchedule = frequencySchedule || editJob?.schedule || { kind: 'cron' as const, expr: '0 9 * * *', description: values.name };
+      const baseSchedule = frequencyToSchedule(frequency, { hour, minute, weekday }, t);
       const schedule = { ...baseSchedule, description: values.description?.trim() || baseSchedule.description };
       const isManual = frequency === 'manual';
 
@@ -146,7 +148,12 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
       const effectiveAssistantId = isDefaultAssistant ? undefined : selectedAssistantId;
       const selectedAssistant = effectiveAssistantId ? assistants.find((assistant) => assistant.id === effectiveAssistantId) : undefined;
       const presetAgentType = selectedAssistant?.presetAgentType || DEFAULT_PRESET_AGENT_TYPE;
-      const agentType = resolvePresetAgentBackend(presetAgentType) as AcpBackendAll;
+      if (!isDefaultAssistant && !selectedAssistant && !useBoundConversationDefaults) {
+        Message.error(t('cron.create.assistantUnavailable'));
+        setShowMore(true);
+        return;
+      }
+      const agentType = sessionMode === 'remote' ? 'remote-agent' : (resolvePresetAgentBackend(presetAgentType) as AcpBackendAll);
 
       // For reuse mode, allow optionally binding an existing conversation so the
       // very first run appends to it. New mode ignores the picker entirely.
@@ -163,7 +170,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
           jobId: editJob.id,
           updates: {
             name: values.name,
-            enabled: isManual ? false : editJob.enabled,
+            enabled: isManual ? false : isManualCronSchedule(editJob.schedule) ? true : editJob.enabled,
             schedule,
             target: { payload: { kind: 'message', text: values.prompt } },
             metadata: {
@@ -183,6 +190,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
         result = await ipcBridge.cron.addJob.invoke({
           name: values.name,
           schedule,
+          enabled: !isManual,
           message: values.prompt,
           conversationId: reuseConvId,
           conversationTitle: reuseConvTitle,
@@ -200,12 +208,12 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
       onSaved();
       onClose();
     } catch (err: unknown) {
-      // Arco form.validate() rejects with a non-Error object on validation
-      // failure — only show a toast for actual runtime / IPC errors.
+      // Field validation is handled above; this reports persistence failures.
       if (err instanceof Error) {
-        Message.error(err.message);
+        Message.error(t('cron.create.saveFailed'));
+        console.error('[CronJobFormDrawer] save failed', err);
       } else if (typeof err === 'string') {
-        Message.error(err);
+        Message.error(t('cron.create.saveFailed'));
       }
     } finally {
       setSaving(false);
@@ -225,22 +233,22 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
       footer={
         <div className='flex justify-end gap-2'>
           <Button onClick={onClose}>{t('cron.create.cancel', '取消')}</Button>
-          <Button type='primary' loading={saving} onClick={handleSave}>
+          <Button type='primary' loading={saving} onClick={onSave}>
             {t('cron.drawer.save', '保存')}
           </Button>
         </div>
       }
     >
       <Form form={form} layout='vertical'>
-        <Form.Item label={t('cron.drawer.name', '名称')} field='name' rules={[{ required: true }]}>
-          <Input placeholder='daily-briefing' />
+        <Form.Item label={t('cron.drawer.name', '名称')} field='name' rules={[{ required: true, match: /\S/, message: t('cron.create.nameRequired') }]}>
+          <Input placeholder={t('cron.create.namePlaceholder')} />
         </Form.Item>
 
         <Form.Item label={t('cron.create.description', '描述')} field='description'>
           <Input placeholder={t('cron.create.descriptionPlaceholder', '简述任务目的')} />
         </Form.Item>
 
-        <Form.Item label={t('cron.create.prompt', '指令')} field='prompt' rules={[{ required: true }]}>
+        <Form.Item label={t('cron.create.prompt', '指令')} field='prompt' rules={[{ required: true, match: /\S/, message: t('cron.create.promptRequired') }]}>
           <TextArea placeholder={t('cron.create.promptPlaceholder', '输入触发时要发送的指令...')} autoSize={{ minRows: 4, maxRows: 10 }} />
         </Form.Item>
 
@@ -286,7 +294,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
             </div>
           )}
 
-          <div className='text-12px text-secondary mt-1'>{t('cron.create.frequencyHint', '定时任务会有几分钟的随机延迟')}</div>
+          <div className='text-12px text-secondary mt-1'>{frequency === 'manual' ? t('cron.create.manualHint') : t('cron.create.frequencyHint', '定时任务会有几分钟的随机延迟')}</div>
         </div>
 
         <div>
@@ -338,7 +346,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
                   <div className='text-13px text-secondary mb-1'>{t('cron.create.agent', '智能体')}</div>
                   <Select value={selectedAssistantId} onChange={(value) => setSelectedAssistantId(value as string)} disabled={sessionMode !== 'remote' && editJob != null && conversationMode === 'reuse'}>
                     <Select.Option value={DEFAULT_ASSISTANT}>
-                      <span className='text-secondary'>{t('cron.create.agentPlaceholder', '默认 (Sudo Code)')}</span>
+                      <span className='text-secondary'>{t(sessionMode === 'remote' ? 'cron.create.defaultRemoteAgent' : 'cron.create.defaultAgent')}</span>
                     </Select.Option>
                     {selectedAssistantId !== DEFAULT_ASSISTANT && !assistants.some((assistant) => assistant.id === selectedAssistantId) && (
                       <Select.Option value={selectedAssistantId}>
@@ -366,7 +374,7 @@ export default function CronJobFormDrawer({ visible, editJob, sessionMode, onClo
               {sessionMode !== 'remote' && !(conversationMode === 'reuse' && selectedConversationId) && (
                 <div>
                   <div className='text-13px text-secondary mb-1'>{t('cron.create.workspace', '工作目录')}</div>
-                  <Button long onClick={handleSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
+                  <Button long onClick={onSelectFolder} className='!justify-start !text-left' disabled={editJob != null && conversationMode === 'reuse'}>
                     {workspace ? <span className='truncate'>{workspace.split('/').pop()}</span> : <span className='text-secondary'>{t('cron.create.selectFolder', '选择文件夹')}</span>}
                   </Button>
                 </div>

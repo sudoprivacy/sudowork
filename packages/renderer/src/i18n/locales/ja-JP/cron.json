@@ -98,5 +98,13 @@
   "create.reuseConversationPlaceholder": "初回実行時に自動作成",
   "create.reuseConversationHint": "既存の会話を選択すると、初回実行時からその会話に追記されます",
   "goToLastConversation": "最新の実行会話を表示",
-  "sidebar.scheduled": "スケジュール済み"
+  "sidebar.scheduled": "スケジュール済み",
+  "create.nameRequired": "Please enter a name",
+  "create.promptRequired": "Please enter an instruction",
+  "create.namePlaceholder": "e.g. daily-briefing",
+  "create.assistantUnavailable": "The selected assistant is unavailable in this environment. Choose the default or another available assistant.",
+  "create.saveFailed": "Could not save. Check the configuration and connection, then try again.",
+  "create.manualHint": "Runs only when you click Run now. No automatic schedule.",
+  "create.defaultRemoteAgent": "Default cloud agent",
+  "create.defaultAgent": "Sudo Code"
 }

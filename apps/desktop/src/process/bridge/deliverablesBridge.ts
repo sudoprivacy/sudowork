@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { getDatabase } from '@process/database';
 import { ipcBridge } from '@/common';
 import { deliverablesService } from '@process/services/deliverables/DeliverablesService';
 import { mainError } from '@process/utils/mainLogger';
@@ -17,7 +18,8 @@ import { mainError } from '@process/utils/mainLogger';
 export function initDeliverablesBridge(): void {
   ipcBridge.deliverables.list.provider(async ({ conversationId, teamId }) => {
     try {
-      const files = teamId ? deliverablesService.listForTeam(teamId) : deliverablesService.listForConversation(conversationId ?? '');
+      const isRemote = conversationId && getDatabase().getConversation(conversationId).data?.type === 'remote-agent';
+      const files = teamId ? deliverablesService.listForTeam(teamId) : isRemote ? await deliverablesService.listRemoteForConversation(conversationId) : deliverablesService.listForConversation(conversationId ?? '');
       return { success: true, data: files };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);

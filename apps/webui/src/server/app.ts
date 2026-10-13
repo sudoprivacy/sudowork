@@ -34,6 +34,11 @@ import {
   type AuthedRequest,
 } from './features/auth/sessionMiddleware.js'
 import { ConversationCoordinator } from './features/conversations/ConversationCoordinator.js'
+import {
+  SessionForbiddenError,
+  SessionNotFoundError,
+  MossUnavailableError,
+} from './features/conversations/conversationService.js'
 import { createConversationRouter } from './features/conversations/conversationRoutes.js'
 import { createChannelsRouter } from './features/channels/channelsRoutes.js'
 import { attachChannelEvents } from './features/channels/channelEvents.js'
@@ -50,6 +55,7 @@ import { createMcpRouter } from './features/mcp/mcpRoutes.js'
 import {
   TerminalManager,
   TerminalLimitError,
+  TerminalUnavailableError,
   type TerminalSession,
 } from './features/terminal/terminalManager.js'
 
@@ -209,10 +215,10 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
     })().catch(next)
   })
 
-  app.use('/api/auth', createAuthRouter({ pool, config, mossAuth: deps.mossAuth }))
+  const mossSession = deps.mossSession ?? createMossSessionPort(mossFetch)
+  app.use('/api/auth', createAuthRouter({ pool, config, mossAuth: deps.mossAuth }, mossSession))
 
   const auth = { pool, config, mossAuth: deps.mossAuth }
-  const mossSession = deps.mossSession ?? createMossSessionPort(mossFetch)
   const coordinator =
     deps.coordinator ?? new ConversationCoordinator({ pool, config, auth, moss: mossSession })
   const agents = deps.agents ?? createMossAgentTemplatePort(mossFetch)
@@ -378,14 +384,42 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
       }
 
       if (conversationMatch) {
+        const authorized = await coordinator.authorize(
+          webSession,
+          decodeURIComponent(conversationMatch[1] ?? ''),
+        )
         wss.handleUpgrade(req, socket, head, (ws) => {
           const conn = {
             ws,
             webSession,
-            principalId: webSession.principalId,
+            principalId: authorized.ownerPrincipalId,
             mossSessionId: decodeURIComponent(conversationMatch[1] ?? ''),
           }
           coordinator.subscribe(conn)
+          let isCheckingManagementAccess = false
+          const managementAccessTimer =
+            authorized.ownerPrincipalId !== webSession.principalId
+              ? setInterval(() => {
+                  if (isCheckingManagementAccess || ws.readyState !== ws.OPEN) return
+                  isCheckingManagementAccess = true
+                  void coordinator
+                    .authorize(webSession, conn.mossSessionId)
+                    .then((current) => {
+                      if (current.ownerPrincipalId !== conn.principalId)
+                        throw new SessionForbiddenError()
+                    })
+                    .catch(() => {
+                      if (ws.readyState === ws.OPEN) {
+                        ws.send(JSON.stringify({ kind: 'error', code: 'SESSION_FORBIDDEN' }))
+                        ws.close(1008, 'Session permission revoked')
+                      }
+                    })
+                    .finally(() => {
+                      isCheckingManagementAccess = false
+                    })
+                }, 5000)
+              : undefined
+          managementAccessTimer?.unref()
           ws.on('message', (data) => {
             let parsed: unknown
             try {
@@ -395,8 +429,14 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
             }
             void coordinator.handleClientMessage(conn, parsed)
           })
-          ws.on('close', () => void coordinator.unsubscribe(conn))
-          ws.on('error', () => void coordinator.unsubscribe(conn))
+          ws.on('close', () => {
+            clearInterval(managementAccessTimer)
+            void coordinator.unsubscribe(conn)
+          })
+          ws.on('error', () => {
+            clearInterval(managementAccessTimer)
+            void coordinator.unsubscribe(conn)
+          })
         })
         return
       }
@@ -416,6 +456,7 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
         socket.destroy()
         return
       }
+      await coordinator.authorize(webSession, conversationId)
       terminalWss.handleUpgrade(req, socket, head, (ws) => {
         let session: TerminalSession | null = null
         const send = (payload: Record<string, unknown>): void => {
@@ -433,12 +474,18 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
         } catch (err) {
           send({
             type: 'error',
-            code: err instanceof TerminalLimitError ? err.reason : 'TERMINAL_FAILED',
+            code:
+              err instanceof TerminalLimitError
+                ? err.reason
+                : err instanceof TerminalUnavailableError
+                  ? 'REMOTE_TERMINAL_UNAVAILABLE'
+                  : 'TERMINAL_FAILED',
           })
           ws.close()
           return
         }
         send({ type: 'ready', terminalId: session.terminalId })
+        let messages = Promise.resolve()
         ws.on('message', (data) => {
           if (!session) return
           let parsed: unknown
@@ -447,18 +494,34 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
           } catch {
             return
           }
+          if (parsed === null || typeof parsed !== 'object') return
           const frame = parsed as { type?: string; data?: string; cols?: number; rows?: number }
-          if (frame.type === 'input' && typeof frame.data === 'string') {
-            session.write(frame.data)
-          } else if (
+          const isInput = frame.type === 'input' && typeof frame.data === 'string'
+          const isResize =
             frame.type === 'resize' &&
             typeof frame.cols === 'number' &&
             typeof frame.rows === 'number' &&
             Number.isFinite(frame.cols) &&
             Number.isFinite(frame.rows)
-          ) {
-            session.resize(Math.max(1, Math.floor(frame.cols)), Math.max(1, Math.floor(frame.rows)))
-          }
+          if (!isInput && !isResize) return
+          messages = messages
+            .then(async () => {
+              if (!session || ws.readyState !== ws.OPEN) return
+              await coordinator.authorize(webSession, conversationId)
+              if (!session || ws.readyState !== ws.OPEN) return
+              if (isInput) session.write(frame.data!)
+              else
+                session.resize(
+                  Math.max(1, Math.floor(frame.cols!)),
+                  Math.max(1, Math.floor(frame.rows!)),
+                )
+            })
+            .catch(() => {
+              send({ type: 'error', code: 'TERMINAL_FORBIDDEN' })
+              session?.dispose()
+              session = null
+              ws.close(1008, 'Terminal permission revoked')
+            })
         })
         const dispose = (): void => {
           session?.dispose()
@@ -467,8 +530,19 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
         ws.on('close', dispose)
         ws.on('error', dispose)
       })
-    })().catch(() => {
-      socket.destroy()
+    })().catch((error: unknown) => {
+      const status =
+        error instanceof SessionForbiddenError
+          ? '403 Forbidden'
+          : error instanceof SessionNotFoundError
+            ? '404 Not Found'
+            : error instanceof MossUnauthorizedError
+              ? '401 Unauthorized'
+              : error instanceof MossUnavailableError
+                ? '503 Service Unavailable'
+                : null
+      if (status) socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
+      else socket.destroy()
     })
   })
 }

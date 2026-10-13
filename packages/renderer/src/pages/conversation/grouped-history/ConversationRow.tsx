@@ -37,7 +37,8 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const ptyActiveCount = useTerminalActiveCount(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   // 一个还没命名的会话显示本地化的「新对话」，而不是留白或漏出内部标识符
-  const displayName = conversation.name || t('conversation.welcome.newConversation');
+  const sessionName = conversation.name || t('conversation.welcome.newConversation');
+  const displayName = props.agentDisplayName ? `${props.agentDisplayName} · ${sessionName}` : sessionName;
   const inlineNameTooltipEnabled = !collapsed && !!conversation.name;
 
   const actionReserveClass = isPinned ? 'mr-9' : menuVisible ? 'mr-9' : 'group-hover:mr-9';
@@ -111,7 +112,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
           </Tooltip>
         )}
         <FlexFullContainer className={classNames('h-6 min-w-0 flex-1 collapsed-hidden ml-2.5', actionReserveClass)}>
-          <Tooltip content={conversation.name} disabled={!inlineNameTooltipEnabled} trigger='hover' popupVisible={inlineNameTooltipEnabled ? undefined : false} unmountOnExit popupHoverStay={false} position='top'>
+          <Tooltip content={displayName} disabled={!inlineNameTooltipEnabled} trigger='hover' popupVisible={inlineNameTooltipEnabled ? undefined : false} unmountOnExit popupHoverStay={false} position='top'>
             <div className={classNames('chat-history__item-name overflow-hidden text-ellipsis block w-full text-14px lh-24px whitespace-nowrap min-w-0 group-hover:text-1', selected && !batchMode ? 'text-1 font-medium' : 'text-2')}>{displayName}</div>
           </Tooltip>
         </FlexFullContainer>

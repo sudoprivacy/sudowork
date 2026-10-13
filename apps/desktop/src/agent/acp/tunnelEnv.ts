@@ -23,13 +23,13 @@ const TUNNELLED_BACKENDS = new Set(['scode']);
  * Others stay local until validated, and that is a deliberate allowlist rather
  * than a capability check.
  */
-export function resolveTunnelEnv(backend: string, tunnelEndpoint: string | null): Record<string, string> {
+export function resolveTunnelEnv(backend: string, isServiceRunning: boolean): Record<string, string> {
   if (!TUNNELLED_BACKENDS.has(backend)) return {};
 
-  if (!tunnelEndpoint) {
-    mainWarn('[AcpAgent]', `nexus tunnel unavailable (nexusd-cluster not serving); spawning ${backend} locally`);
+  if (!isServiceRunning) {
+    mainWarn('[AcpAgent]', `Sudocode service unavailable; spawning ${backend} locally`);
     return {};
   }
 
-  return { ACP_GRPC_ENDPOINT: tunnelEndpoint };
+  return { SCODE_MANAGED_SERVICE: '1' };
 }

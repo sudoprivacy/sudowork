@@ -52,7 +52,7 @@ function fixture(status?: IOntologyAgentBlueprint['status'], title = 'Orders') {
   };
   if (status) snapshot.agentBlueprints = [blueprint];
   const api = { createAgentBlueprint: vi.fn().mockResolvedValue({ snapshot, blueprint }), registerAgentBlueprint: vi.fn().mockResolvedValue({ snapshot }) } as unknown as IOntologyStudioApi;
-  const props = { snapshot, api, onRefresh: vi.fn().mockResolvedValue(undefined), onError: vi.fn(), onExport: vi.fn() };
+  const props = { snapshot, api, onRefresh: vi.fn().mockResolvedValue(undefined), onError: vi.fn(), onExport: vi.fn(), onStartAgentConversation: vi.fn().mockResolvedValue(undefined) };
   render(
     <I18nextProvider i18n={i18n}>
       <StudioReleasePage {...props} />
@@ -62,6 +62,20 @@ function fixture(status?: IOntologyAgentBlueprint['status'], title = 'Orders') {
 }
 
 describe('ontology version registration UI', () => {
+  it('starts a new conversation using the registered identity rather than the display name', async () => {
+    const props = fixture('registered', 'Same display name');
+    const list = screen.getByRole('region', { name: locale.studio.registeredAssistants });
+    fireEvent.click(within(list).getByRole('button', { name: '新会话' }));
+    await waitFor(() => expect(props.onStartAgentConversation).toHaveBeenCalledExactlyOnceWith('agent-id'));
+    expect(props.api.createAgentBlueprint).not.toHaveBeenCalled();
+    expect(props.api.registerAgentBlueprint).not.toHaveBeenCalled();
+  });
+
+  it.each(['draft', 'registering', 'failed', 'deleted'] as const)('does not offer a new conversation for %s agents', (status) => {
+    fixture(status);
+    expect(screen.queryByRole('button', { name: '新会话' })).not.toBeInTheDocument();
+  });
+
   it('creates with the confirmed user name only once and registers the returned blueprint', async () => {
     const props = fixture(undefined, '项目管理本体');
     let finish!: () => void;

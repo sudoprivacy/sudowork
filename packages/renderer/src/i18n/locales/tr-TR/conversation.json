@@ -280,5 +280,17 @@
     "recent": "Son",
     "myAgent": "Ajanım",
     "agentHasNoConversations": "Henüz konuşma yok"
+  },
+  "agentSessions": {
+    "ownerBilling": "Model hesabı ve faturalandırma sahibi: {{owner}}",
+    "select": "Bu ajan için bir oturum seçin",
+    "new": "Bu ajan için yeni oturum",
+    "messages": "Mesaja git"
+  },
+  "rightPanel": {
+    "terminal": {
+      "remoteUnavailable": "Interactive terminals are not available for cloud sessions. Ask the agent to run commands in chat, or use a local session.",
+      "createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal."
+    }
   }
 }

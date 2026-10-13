@@ -7,10 +7,10 @@
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
-import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 import { getActivityTime, getTimelineLabel } from '@renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@renderer/utils/workspaceHistory';
+import { compareConversationsByLatestActivity, getConversationAgentRef } from '../../utils/agentIdentity';
 
 import type { AgentGroup, ConversationItem, GroupedHistoryResult, ScheduledGroup, SidebarTabKey, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
 import { getConversationSortOrder } from './sortOrderHelpers';
@@ -36,16 +36,6 @@ export const getConversationPinnedAt = (conversation: ConversationItem): number 
 export const getConversationPinnedTab = (conversation: ConversationItem): SidebarTabKey | undefined => {
   const extra = conversation.extra as { pinnedTab?: SidebarTabKey } | undefined;
   return extra?.pinnedTab;
-};
-
-const compareConversationsByLatestActivity = (a: TChatConversation, b: TChatConversation): number => {
-  const activityDiff = getActivityTime(b) - getActivityTime(a);
-  if (activityDiff !== 0) return activityDiff;
-
-  const createTimeDiff = (b.createTime || 0) - (a.createTime || 0);
-  if (createTimeDiff !== 0) return createTimeDiff;
-
-  return b.id.localeCompare(a.id);
 };
 
 const getCronConversationTime = (conversation: TChatConversation): number => conversation.createTime || getActivityTime(conversation);
@@ -289,20 +279,6 @@ export const buildGroupedHistory = (
 
 /** How many of the newest conversations the cross-agent section shows. */
 export const RECENT_CONVERSATION_LIMIT = 8;
-
-const getConversationAgentRef = (conversation: ConversationItem, listedReferences: Set<string>): string | undefined => {
-  const extra = conversation.extra as { agentName?: unknown; mossAssistantRef?: unknown; presetAssistantId?: unknown } | undefined;
-  for (const reference of [extra?.mossAssistantRef, extra?.presetAssistantId]) {
-    if (typeof reference === 'string' && (isPersonalAgentRef(reference) || listedReferences.has(reference))) return reference;
-  }
-  return typeof extra?.agentName === 'string' && extra.agentName ? extra.agentName : undefined;
-};
-
-/** Open the most recently active conversation for this identity, including pinned history. */
-export function getLatestAgentConversation(conversations: ConversationItem[], reference: string): ConversationItem | undefined {
-  const references = new Set([reference]);
-  return conversations.filter((conversation) => !conversation.extra?.cronJobId && conversation.extra?.isHealthCheck !== true && !isOntologyConversation(conversation) && getConversationAgentRef(conversation, references) === reference).sort(compareConversationsByLatestActivity)[0];
-}
 
 /**
  * Conversations grouped by the agent each belongs to.

@@ -32,12 +32,9 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
   const openConfigEditor = useCallback(async () => {
     setConfigLoading(true);
     try {
-      const homeDir = await ipcBridge.application.getPath.invoke({ name: 'home' });
-      const configFilePath = `${homeDir}/.nexus/sudowork/sudocode/sudocode.json`;
-      setConfigPath(configFilePath);
-
       const res = await ipcBridge.scode.getConfig.invoke();
       if (res?.success && res.data) {
+        setConfigPath(res.path ?? '');
         setConfigContent(JSON.stringify(res.data, null, 2));
         setEditVisible(true);
       } else {
@@ -98,9 +95,7 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
           <div className='flex items-center justify-between p-3 border-light rd-8px'>
             <div className='flex-1'>
               <div className='text-14px text-foreground font-500'>{t('settings.ops.configFile', 'Sudo Code 配置文件')}</div>
-              <Tooltip content='~/.nexus/sudowork/sudocode/sudocode.json'>
-                <div className='text-12px text-secondary mt-0.5'>{t('settings.ops.editConfigFile', '直接编辑配置文件')}</div>
-              </Tooltip>
+              <div className='text-12px text-secondary mt-0.5'>{t('settings.ops.editConfigFile', '直接编辑配置文件')}</div>
             </div>
             <Button size='small' icon={<IconEdit />} onClick={openConfigEditor} loading={configLoading}>
               {t('settings.ops.editConfig', '编辑配置')}
@@ -114,12 +109,14 @@ const OpsModal: React.FC<OpsModalProps> = ({ visible, onClose, onConfigSaved }) 
       {/* 配置编辑 Modal */}
       <Modal title={t('settings.ops.editConfigTitle', '编辑 Sudo Code 配置')} visible={editVisible} onOk={handleSaveRawConfig} onCancel={() => setEditVisible(false)} style={{ width: 700 }} confirmLoading={configLoading}>
         <div className='flex flex-col gap-2'>
-          <Tooltip content={configPath}>
-            <Text type='secondary' className='text-12px'>
-              {t('settings.ops.pathLabel', '路径：')}
-              {configPath}
-            </Text>
-          </Tooltip>
+          {configPath && (
+            <Tooltip content={configPath}>
+              <Text type='secondary' className='text-12px'>
+                {t('settings.ops.pathLabel', '路径：')}
+                {configPath}
+              </Text>
+            </Tooltip>
+          )}
           <Input.TextArea value={configContent} onChange={(value) => setConfigContent(value)} style={{ height: 400, fontFamily: 'monospace', fontSize: 13 }} />
         </div>
       </Modal>

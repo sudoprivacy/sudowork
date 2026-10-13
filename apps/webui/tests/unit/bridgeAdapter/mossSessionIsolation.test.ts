@@ -144,6 +144,47 @@ describe('WebUI conversations belonging to the same agent', () => {
     expect(await pending(SESSION_B)).toMatchObject([{ id: 'request-1', title: 'Write' }])
   })
 
+  it('delivers completed tool errors and whitespace deltas to the renderer for their session', () => {
+    const socket = socketFor(SESSION_A)
+    socket.receive({ type: 'tool_use', name: 'Read', tool_use_id: 'read-1', status: 'completed' })
+    socket.receive({
+      type: 'tool_result',
+      tool_use_id: 'read-1',
+      content: 'FileNotFound: workspace/proof.txt',
+      is_error: true,
+    })
+    for (const text of ['The', ' ', 'file', '\n', 'is missing.'])
+      socket.receive({ ...reply(text), delta: true })
+    expect(frames.slice(0, 2)).toMatchObject([
+      {
+        conversation_id: SESSION_A,
+        data: { update: { toolCallId: 'read-1', status: 'completed' } },
+      },
+      {
+        conversation_id: SESSION_A,
+        data: {
+          update: {
+            toolCallId: 'read-1',
+            status: 'failed',
+            content: [
+              {
+                type: 'content',
+                content: { type: 'text', text: 'FileNotFound: workspace/proof.txt' },
+              },
+            ],
+          },
+        },
+      },
+    ])
+    expect(
+      frames
+        .filter((frame) => frame.type === 'content')
+        .map((frame) => frame.data)
+        .join(''),
+    ).toBe('The file\nis missing.')
+    expect(frames.every((frame) => frame.conversation_id === SESSION_A)).toBe(true)
+  })
+
   it('cancels one conversation while the other keeps receiving replies', async () => {
     await ipcBridge.conversation.stop.invoke({ conversation_id: SESSION_A })
     expect(socketFor(SESSION_A).sent).toEqual([{ kind: 'stop' }])

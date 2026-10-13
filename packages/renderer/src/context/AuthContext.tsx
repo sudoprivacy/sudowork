@@ -6,6 +6,7 @@
 
 import { runLogin, type LoginFailureCode, type LoginRequest } from '@sudowork/common/authLogin';
 import { desktopLoginPort, webLoginPort, WEB_SESSION_TOKEN } from '@sudowork/host-bridge/authLogin';
+import { prepareWebAgentWorkspace } from '@sudowork/host-bridge/agentWorkspace';
 import { applyLoginImageModel, fetchAndCacheCredentials, prepareDesktopLogin, syncScodeGuidModelPreference } from '@sudowork/host-bridge/desktopLoginSetup';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -36,12 +37,6 @@ export interface AuthUser {
   localModeAvailable?: boolean;
   execution?: import('@sudowork/common/mossExecution').IMossExecutionCapabilities;
   localRuntime?: import('@sudowork/common/mossExecution').TMossLocalRuntimeStatus;
-  points?: {
-    total: number;
-    used: number;
-    remaining: number;
-    bonus: number;
-  };
 }
 
 // 新的存储结构
@@ -339,6 +334,7 @@ function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: st
 // the existing enterprise branches read.
 async function fetchWebSession(): Promise<AuthUser | null> {
   try {
+    await prepareWebAgentWorkspace();
     const response = await fetch('/api/auth/session', {
       method: 'GET',
       credentials: 'include',
@@ -902,7 +898,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         headers: withAuthorizationHeader(options.headers, token),
       });
 
-      if (response.status !== 401 && response.status !== 403) {
+      if (response.status !== 401) {
         return response;
       }
 
@@ -916,7 +912,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         headers: withAuthorizationHeader(options.headers, newToken),
       });
 
-      if (retryResponse.status === 401 || retryResponse.status === 403) {
+      if (retryResponse.status === 401) {
         await expireAuth('authenticated_request_unauthorized_after_retry');
         throw new Error('AUTH_EXPIRED');
       }
@@ -1307,7 +1303,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               ? 'login.errors.localSetup'
               : result.code === 'invalidCredentials'
                 ? 'login.errors.invalidCredentials'
-                : result.code === 'invalidResponse'
+                : result.code === 'invalidResponse' || result.code === 'authRejected'
                   ? 'login.errors.serverError'
                   : 'login.errors.networkError';
       return { success: false, code: result.code, message: result.message || t(messageKey) };

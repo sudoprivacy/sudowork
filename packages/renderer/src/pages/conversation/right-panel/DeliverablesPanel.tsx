@@ -26,7 +26,7 @@ interface DeliverablesPanelProps {
  * Dedupe semantics match the backend service: latest-wins per absolute path,
  * so re-generating a file shows the newest snapshot, not a log.
  */
-const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, teamId }) => {
+const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, teamId, active }) => {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<GeneratedFileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,7 +55,7 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, t
     return () => {
       cancelled = true;
     };
-  }, [conversationId, teamId]);
+  }, [conversationId, teamId, active]);
 
   // Live appends from AcpAgent at turn-finish.
   useEffect(() => {
@@ -68,7 +68,7 @@ const DeliverablesPanel: React.FC<DeliverablesPanelProps> = ({ conversationId, t
     return () => {
       unsubscribe();
     };
-  }, [conversationId, teamId]);
+  }, [conversationId, teamId, active]);
 
   const grouped = useMemo(() => groupByDay(entries, t), [entries, t]);
 

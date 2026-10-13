@@ -36,6 +36,64 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
 })
 
+describe('user Vault forwarding', () => {
+  test('loads the credential form definitions under the authenticated session', async () => {
+    const items = [{ id: 1, name: 'Mail', scope: 'user', entries: [{ config_key: 'password' }] }]
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: items }))
+    const response = await request(setupApp())
+      .get('/api/v1/config/items')
+      .set('Authorization', 'Bearer forged')
+    expect(response.body).toEqual({ success: true, data: items })
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'http://moss.test/api/v1/config/items',
+      expect.objectContaining({ headers: { Authorization: 'Bearer tok-1' } }),
+    )
+    expect((await request(setupApp()).put('/api/v1/config/items').send({})).status).toBe(404)
+  })
+
+  test.each(['GET', 'PUT', 'DELETE', 'POST'])(
+    'uses the session credential for %s',
+    async (method) => {
+      const route =
+        '/api/v1/me/secrets/user%3Aalice%3Amail/password' + (method === 'POST' ? '/enable' : '')
+      const agent = request(setupApp())
+      const response =
+        method === 'GET'
+          ? await agent.get(route).set('Authorization', 'Bearer forged')
+          : method === 'PUT'
+            ? await agent
+                .put(route)
+                .set('Authorization', 'Bearer forged')
+                .send({ value: 'synthetic' })
+            : method === 'DELETE'
+              ? await agent.delete(route).set('Authorization', 'Bearer forged')
+              : await agent.post(route).set('Authorization', 'Bearer forged').send({})
+      expect(response.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledWith(
+        `http://moss.test${route}`,
+        expect.objectContaining({
+          method,
+          headers: expect.objectContaining({ Authorization: 'Bearer tok-1' }),
+        }),
+      )
+      if (method === 'PUT')
+        expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+          body: JSON.stringify({ value: 'synthetic' }),
+        })
+    },
+  )
+
+  test('keeps other user and administrative grants at Moss', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ success: false, error: { code: 'forbidden', message: 'Access denied' } }, 403),
+    )
+    const result = await request(setupApp()).get('/api/v1/me/secrets/user%3Abob%3Amail/password')
+    expect(result.status).toBe(403)
+    expect(result.body.error.code).toBe('forbidden')
+    expect((await request(setupApp()).get('/api/v1/admin/secrets')).status).toBe(404)
+  })
+})
+
 describe('consumer 转发：recharge 路径', () => {
   test('套餐列表转发到 moss 并透传响应', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: [{ points: 5 }] }))

@@ -6,6 +6,7 @@
 
 import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
+import { appendGeneratedFilesMarker } from '@sudowork/common/generatedFiles';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpQuestionAnswerItem, TMessage } from '@sudowork/common/chatLib';
 import { mossControlRequestToConfirmation } from '@sudowork/common/mossResponse';
@@ -15,6 +16,7 @@ import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } f
 import { ipcBridge } from '@/common';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import { uuid } from '@/common/utils';
+import { readRemoteWorkspaceSnapshot, diffRemoteDeliverables, type RemoteWorkspaceSnapshot } from '../services/deliverables/remoteDeliverables';
 import { mainLog, mainError, mainWarn } from '../utils/mainLogger';
 import { getDatabase } from '../database/export';
 import { addOrUpdateMessage } from '../message';
@@ -140,6 +142,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
    * agent's "created" narration is shown while nothing is created and the
    * client_cron_enabled gate never runs. See processFinishedCronCommands.
    */
+  private remoteDeliverablesPromise: Promise<void> = Promise.resolve();
+  private remoteTurnSnapshot: RemoteWorkspaceSnapshot | null = null;
   private currentTurnText = '';
   private currentTurnMsgId: string | null = null;
 
@@ -507,6 +511,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   }
 
   async sendMessage(data: { content: string; files?: string[]; msg_id?: string; skills?: string[] }): Promise<{ success: boolean; msg?: string }> {
+    await this.remoteDeliverablesPromise;
     mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
     mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
     // Activity: cancel any pending idle detach before we start work.
@@ -729,6 +734,16 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         const db = getDatabase();
         const current = db.getConversation(this.conversation_id);
         if (current.success && current.data?.type === 'remote-agent') db.updateConversation(this.conversation_id, { ...current.data, extra: { ...current.data.extra, enabledSkills: this.options.enabledSkills } });
+      }
+
+      // Capture after uploads so input attachments are not reported as outputs.
+      this.remoteTurnSnapshot = null;
+      if (this.mossSessionId) {
+        try {
+          this.remoteTurnSnapshot = await readRemoteWorkspaceSnapshot(initMossApi(this.options.serverUrl), this.mossSessionId);
+        } catch (error) {
+          mainLog('RemoteAgent', `Unable to snapshot remote workspace: ${String(error)}`);
+        }
       }
 
       // Send to Moss Server
@@ -1075,6 +1090,11 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     // 只有收到 'finish' 消息才设置 finished 状态
     // 'content' 消息是流式的，不代表会话结束
     if (msg.type === 'finish') {
+      const snapshot = this.remoteTurnSnapshot;
+      this.remoteTurnSnapshot = null;
+      if (snapshot && this.mossSessionId && !this.userCancelled) {
+        this.remoteDeliverablesPromise = this.recordRemoteDeliverables(snapshot, this.mossSessionId);
+      }
       this.status = 'finished';
       this.turnActive = false;
       this.processingStartTime = undefined;
@@ -1146,10 +1166,31 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     }
   }
 
-  /**
-   * Track file operations from tool calls
-   * 追踪工具调用中的文件操作
-   */
+  /** Persist cloud outputs without reopening the completed response stream. */
+  private async recordRemoteDeliverables(before: RemoteWorkspaceSnapshot, sessionId: string): Promise<void> {
+    const createdAt = Date.now();
+    try {
+      const after = await readRemoteWorkspaceSnapshot(initMossApi(this.options.serverUrl), sessionId);
+      const files = diffRemoteDeliverables(before, after, createdAt);
+      if (!files.length) return;
+      const content = appendGeneratedFilesMarker('', files);
+      const msgId = uuid();
+      addOrUpdateMessage(this.conversation_id, {
+        id: msgId,
+        msg_id: msgId,
+        conversation_id: this.conversation_id,
+        type: 'text',
+        position: 'left',
+        createdAt,
+        status: 'finish',
+        content: { content },
+      });
+      ipcBridge.deliverables.changed.emit({ conversationId: this.conversation_id, files });
+    } catch (error) {
+      mainError('RemoteAgent', `Failed to record remote deliverables: ${String(error)}`);
+    }
+  }
+
   private trackFileOperation(toolCallData: any): void {
     if (!toolCallData) return;
 

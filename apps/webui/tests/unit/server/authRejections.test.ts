@@ -2,7 +2,12 @@
 import { describe, expect, test, vi } from 'vitest'
 import express from 'express'
 import request from 'supertest'
-import { MossHttpError, MossNetworkError, SmsRateLimitedError } from '@sudowork/moss-client'
+import {
+  MossHttpError,
+  MossNetworkError,
+  SmsRateLimitedError,
+  createMossSessionPort,
+} from '@sudowork/moss-client'
 import type { Pool } from 'pg'
 import { createAuthRouter } from '@server/features/auth/authRoutes'
 import type { AuthDeps } from '@server/features/auth/authService'
@@ -38,7 +43,15 @@ function setup(error: Error) {
   }
   const app = express()
   app.use(express.json())
-  app.use('/api/auth', createAuthRouter(deps))
+  app.use(
+    '/api/auth',
+    createAuthRouter(
+      deps,
+      createMossSessionPort(async () => {
+        throw new Error('Unused session request')
+      }),
+    ),
+  )
   return { app, query, me }
 }
 

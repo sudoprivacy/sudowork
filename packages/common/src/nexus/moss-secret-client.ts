@@ -5,21 +5,28 @@
  */
 
 export interface MossSecretEntry {
-  id: string;
   namespace: string;
   key: string;
-  description: string | null;
   enabled: boolean;
-  current_version: number;
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
+  status: 'enabled' | 'disabled';
+  version: number;
 }
 
-interface MossResponse<T> {
+/** User-scoped secret resource shared by desktop and web frontend adapters. */
+export function mossSecretPath(namespace: string, key: string, action?: 'enable' | 'disable'): string {
+  const path = `/api/v1/me/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}`;
+  return action ? `${path}/${action}` : path;
+}
+
+export interface MossResponse<T> {
   success: boolean;
   data?: T;
   error?: { code: string; message: string };
+}
+
+export function mossSecretResult<T>(body: MossResponse<T>): T {
+  if (!body.success) throw new Error(body.error?.message || body.error?.code || 'Moss secret request failed');
+  return body.data as T;
 }
 
 export class MossSecretClient {
@@ -34,24 +41,21 @@ export class MossSecretClient {
     };
   }
 
-  private url(namespace: string, key: string, action?: string): string {
-    const ns = encodeURIComponent(namespace);
-    const k = encodeURIComponent(key);
-    const base = `${this.baseUrl}/api/v1/me/secrets/${ns}/${k}`;
-    return action ? `${base}/${action}` : base;
+  private url(namespace: string, key: string, action?: 'enable' | 'disable'): string {
+    return `${this.baseUrl}${mossSecretPath(namespace, key, action)}`;
   }
 
   private async request<T>(url: string, options: RequestInit): Promise<T> {
-    const res = await fetch(url, { ...options, headers: { ...this.headers, ...options.headers }, signal: AbortSignal.timeout(10000) });
+    const res = await fetch(url, {
+      ...options,
+      headers: { ...this.headers, ...options.headers },
+      signal: AbortSignal.timeout(10000),
+    });
     if (res.status === 404) {
       return null as T;
     }
     const body = (await res.json()) as MossResponse<T>;
-    if (!body.success) {
-      const msg = body.error?.message || body.error?.code || `HTTP ${res.status}`;
-      throw new Error(`Moss API error: ${msg}`);
-    }
-    return body.data as T;
+    return mossSecretResult(body);
   }
 
   async getSecret(namespace: string, key: string): Promise<string | null> {
@@ -79,11 +83,15 @@ export class MossSecretClient {
   }
 
   async enableSecret(namespace: string, key: string): Promise<void> {
-    await this.request<void>(this.url(namespace, key, 'enable'), { method: 'POST' });
+    await this.request<void>(this.url(namespace, key, 'enable'), {
+      method: 'POST',
+    });
   }
 
   async disableSecret(namespace: string, key: string): Promise<void> {
-    await this.request<void>(this.url(namespace, key, 'disable'), { method: 'POST' });
+    await this.request<void>(this.url(namespace, key, 'disable'), {
+      method: 'POST',
+    });
   }
 
   async listSecrets(): Promise<MossSecretEntry[]> {
@@ -96,6 +104,6 @@ export class MossSecretClient {
       throw new Error(`Moss LIST failed: ${res.status} ${text}`);
     }
     const body = (await res.json()) as MossResponse<MossSecretEntry[]>;
-    return body.data ?? [];
+    return mossSecretResult(body) ?? [];
   }
 }

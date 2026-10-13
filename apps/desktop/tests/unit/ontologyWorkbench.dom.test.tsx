@@ -372,18 +372,12 @@ function expectParentBlocked(parent: HTMLElement) {
 }
 
 async function onCloseModal(button: HTMLElement) {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  try {
-    await act(async () => {
-      fireEvent.click(button);
-    });
-    // Arco registers its 400ms exit timer after the asynchronous save commits.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(400);
-    });
-  } finally {
-    vi.useRealTimers();
-  }
+  const dialog = button.closest('[role="dialog"]');
+  expect(dialog).not.toBeNull();
+  await act(async () => {
+    fireEvent.click(button);
+  });
+  await waitFor(() => expect(dialog).not.toBeVisible());
 }
 
 async function openNewConnector(category = 'database') {
@@ -404,7 +398,9 @@ function getConnectorField(dialog: HTMLElement, field: string) {
 
 async function openConnectorTypeOptions(dialog: HTMLElement) {
   fireEvent.click(getConnectorFormItem(dialog, 'type').querySelector('.arco-select-view') as HTMLElement);
-  return screen.findAllByRole('option');
+  const listbox = await screen.findByRole('listbox');
+  expect(listbox).toBeVisible();
+  return within(listbox).findAllByRole('option', { hidden: true });
 }
 
 async function openDeleteConfirmation(parent: HTMLElement, name = 'Customer ID') {

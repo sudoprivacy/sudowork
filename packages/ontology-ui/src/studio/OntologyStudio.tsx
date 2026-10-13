@@ -13,7 +13,7 @@ import styles from './studio.module.css';
 const pages: OntologyStudioPage[] = ['model', 'data', 'capabilities', 'checks', 'release'];
 const toModel = (snapshot: IOntologyWorkbenchSnapshot): IOntologyStudioModel => ({ objects: snapshot.objects, relations: snapshot.relations });
 
-export default function OntologyStudio({ api, workspaceId, page = 'model', onNavigate, renderChat }: IOntologyStudioProps) {
+export default function OntologyStudio({ api, workspaceId, page = 'model', onNavigate, renderChat, onStartAgentConversation }: IOntologyStudioProps) {
   const { t } = useTranslation();
   const text = useCallback((key: string) => t(`ontology.studio.${key}`), [t]);
   const importHint = t('ontology.studio.importFileHint', { maxSize: STUDIO_MAX_FILE_BYTES / (1024 * 1024) });
@@ -512,6 +512,7 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
               {page === 'release' && pageProps && (
                 <StudioReleasePage
                   {...pageProps}
+                  onStartAgentConversation={onStartAgentConversation}
                   isModelDirty={isDirty}
                   onReport={onCheckReport}
                   onViewChecks={() => onNavigate(workspaceId, 'checks')}
@@ -613,6 +614,7 @@ export interface IStudioChatContext {
   revision: number;
 }
 interface IOntologyStudioProps {
+  onStartAgentConversation?: (assistantId: string) => void | Promise<void>;
   renderChat: (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string) => ReactNode;
   api: IOntologyStudioApi;
   workspaceId?: string;

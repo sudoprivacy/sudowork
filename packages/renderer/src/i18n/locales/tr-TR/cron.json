@@ -59,7 +59,6 @@
   "create.cronExprRequired": "Please enter a cron expression",
   "create.scheduleDescription": "Schedule Description",
   "create.scheduleDescriptionPlaceholder": "e.g., Weekdays at 9:00 AM",
-  "runNowSuccess": "Görev çalıştırma tetiklendi",
   "create.description": "Açıklama",
   "create.descriptionPlaceholder": "Görev amacını kısaca açıklayın",
   "create.prompt": "Talimatlar",
@@ -99,5 +98,13 @@
   "create.reuseConversationPlaceholder": "İlk çalıştırmada otomatik oluştur",
   "create.reuseConversationHint": "Mevcut bir konuşma seçerseniz ilk çalıştırmadan itibaren o konuşmaya eklenir",
   "goToLastConversation": "Son çalıştırma konuşmasını görüntüle",
-  "sidebar.scheduled": "Planlanmış"
+  "sidebar.scheduled": "Planlanmış",
+  "create.nameRequired": "Please enter a name",
+  "create.promptRequired": "Please enter an instruction",
+  "create.namePlaceholder": "e.g. daily-briefing",
+  "create.assistantUnavailable": "The selected assistant is unavailable in this environment. Choose the default or another available assistant.",
+  "create.saveFailed": "Could not save. Check the configuration and connection, then try again.",
+  "create.manualHint": "Runs only when you click Run now. No automatic schedule.",
+  "create.defaultRemoteAgent": "Default cloud agent",
+  "create.defaultAgent": "Sudo Code"
 }

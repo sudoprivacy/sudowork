@@ -51,27 +51,9 @@ function iconParkPlugin() {
 // module). Everything else under @common / @/common has moved to @sudowork/common
 // (packages/common). commonAliasEntries() routes the stayed modules back to the
 // desktop tree via exact-match regex, and routes the rest to the package source.
-const DESKTOP_ONLY_COMMON = [
-  'ClientFactory',
-  'adapters/index',
-  'enterpriseDebugConfig',
-  'imagePricingSource',
-  'index',
-  'navigation/NavigationInterceptor',
-  'navigation/index',
-  'nexus/generated/nexus/secrets/v1/secrets_pb',
-  'nexus/index',
-  'nexus/moss-secret-client-factory',
-  'nexus/nexus-secret-client',
-  'nexus/nexus-secret-resilient',
-  'nexus/nexus-vfs-client',
-  'nexus/nexusVfsGrpcClient',
-  'nexus/secret-cache',
-  'nexus/secret-migration',
-  'presets/assistantPresets',
-];
+const DESKTOP_ONLY_COMMON = ['ClientFactory', 'adapters/index', 'enterpriseDebugConfig', 'imagePricingSource', 'index', 'navigation/NavigationInterceptor', 'navigation/index', 'nexus/moss-secret-client-factory', 'nexus/secret-cache', 'nexus/secret-migration', 'presets/assistantPresets'];
 // Split directories whose barrel index stays in the desktop tree (siblings moved).
-const DESKTOP_ONLY_COMMON_DIRS = ['nexus', 'navigation', 'adapters'];
+const DESKTOP_ONLY_COMMON_DIRS = ['navigation', 'adapters'];
 
 // Alias entries (regex, evaluated first-match-wins) shared by main/preload/renderer
 // so both `@common/*` and `@/common/*` resolve correctly across the split.
@@ -82,6 +64,7 @@ function commonAliasEntries() {
   const entries: { find: RegExp; replacement: string }[] = [];
   // Bare barrel (`@common` / `@/common`) -> desktop index.ts
   entries.push({ find: /^@\/?common$/, replacement: deskCommon });
+  entries.push({ find: /^@\/?common\/scode\/(.*)$/, replacement: `${deskCommon}/scode/$1` });
   // Stayed modules + split-dir barrels (exact match) -> desktop tree
   for (const m of [...DESKTOP_ONLY_COMMON, ...DESKTOP_ONLY_COMMON_DIRS]) {
     entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '$'), replacement: `${deskCommon}/${m}` });

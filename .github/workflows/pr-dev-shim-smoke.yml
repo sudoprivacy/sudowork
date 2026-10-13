@@ -1,4 +1,4 @@
-name: '✓PR Dev Shim Smoke'
+name: "✓PR Dev Shim Smoke"
 
 # Closes PR #921's regression gap. That PR added the renderer-side
 # dev-trigger shim at `window.__sudoworkDebug.fuseT.*` so Mac CDP-driven
@@ -39,13 +39,13 @@ permissions:
   contents: read
 
 env:
-  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  BUN_INSTALL_REGISTRY: "https://registry.npmjs.org/"
   # Pin uv to upstream PyPI — without this, uv may inherit a tsinghua
   # mirror from runner image config that 403s intermittently on wheels
   # (observed PR #940 round 2: `mypy-extensions` 403 from
   # pypi.tuna.tsinghua.edu.cn → hook:build dies → Electron never
   # starts → CDP probe times out 240s). Matches _build-reusable.yml.
-  UV_DEFAULT_INDEX: 'https://pypi.org/simple/'
+  UV_DEFAULT_INDEX: "https://pypi.org/simple/"
 
 jobs:
   dev-shim-smoke:
@@ -71,12 +71,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Install uv
         # `bun run start` chains `hook:build` which builds the Python
@@ -94,7 +94,6 @@ jobs:
           # try both so the job survives a runner image refresh.
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
-
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
 
@@ -107,13 +106,8 @@ jobs:
           npm_config_runtime: electron
           npm_config_disturl: https://electronjs.org/headers
 
-
-      - name: Download nexus-vfs cluster + plugins from COS
-        # Honors src/shared/runtime-versions.json. Even though the smoke
-        # doesn't drive the FUSE mount, the main process initializes
-        # the dynamic nexus-vfs service on bootstrap; without the
-        # binaries it would fall through to a slower error path.
-        run: bun run nexus-vfs:download
+      - name: Download Sudocode
+        run: bun run scode:download
 
       - name: Build dev prereqs (hook + team-mcp) outside the CDP wait window
         # `start` chains hook:build + team-mcp:build, which take several minutes
@@ -129,8 +123,8 @@ jobs:
           # Force chromium-level logging so a sandbox / GPU init failure
           # shows up in the log instead of vanishing after "starting
           # electron app..." (round-2 symptom).
-          ELECTRON_ENABLE_LOGGING: '1'
-          ELECTRON_ENABLE_STACK_DUMPING: '1'
+          ELECTRON_ENABLE_LOGGING: "1"
+          ELECTRON_ENABLE_STACK_DUMPING: "1"
         run: |
           set -uo pipefail
           export NEXUS_CDP_PORT=9230

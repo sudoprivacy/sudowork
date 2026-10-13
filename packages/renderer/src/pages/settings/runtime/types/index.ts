@@ -16,7 +16,6 @@ export interface ToolRow {
   badge: string;
   status: ICliStatus | null;
   statusResolved?: boolean;
-  nexusPort?: number;
   nexusRunning?: boolean;
   nexusInstalled?: boolean;
   loadState: LoadState;

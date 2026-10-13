@@ -1,3 +1,5 @@
+vi.mock('@/process/services/scode/ScodeRuntimeService', () => ({ scodeRuntimeService: { stop: vi.fn(), start: vi.fn(), install: vi.fn() } }));
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@process/utils/mainLogger', () => ({
@@ -42,6 +44,8 @@ import { initStatusManager } from '@/process/services/initStatus';
 import { ensureSudoworkBinDispatchers } from '@/process/services/sudoclaw/SudoclawInstallService';
 
 type TestableServiceManager = ServiceManager & {
+  startNexusOnce: () => Promise<void>;
+  preparePortForStart: (port: number, label: string) => Promise<void>;
   startNexusWithRetries: () => Promise<void>;
   startSudoclawWithRetries: () => Promise<void>;
   verifyStartupReadiness: () => Promise<void>;
@@ -80,6 +84,16 @@ describe('ServiceManager', () => {
     await Promise.all([manager.startNexus(), manager.startNexus(), manager.startNexus()]);
 
     expect(startNexusWithRetries).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts Nexus without clearing a listener by port', async () => {
+    const manager = new ServiceManager() as TestableServiceManager;
+    vi.spyOn(manager, 'startNexusOnce').mockResolvedValue(undefined);
+    const portCleanup = vi.spyOn(manager, 'preparePortForStart').mockResolvedValue(undefined);
+
+    await manager.startNexus();
+
+    expect(portCleanup).not.toHaveBeenCalled();
   });
 
   it('starts up without requesting Sudoclaw startup', async () => {

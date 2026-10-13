@@ -1473,5 +1473,8 @@
     "noInstructions": "服务端未提供更多说明。",
     "scenarios": "适用场景",
     "features": "核心能力"
-  }
+  },
+  "mcpPersonalEmptyTitle": "暂无个人 MCP",
+  "mcpPersonalEmptyInstallHint": "前往“MCP 库”浏览并安装，或点击上方按钮通过 JSON 安装。",
+  "mcpPersonalEmptyRestrictedHint": "当前组织策略不允许安装个人 MCP。请在“企业 MCP”中查看组织提供的服务。"
 }
