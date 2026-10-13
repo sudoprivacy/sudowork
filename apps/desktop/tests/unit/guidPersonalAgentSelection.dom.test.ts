@@ -63,6 +63,24 @@ describe('personal Agent selection through picker refreshes', () => {
     setRendererSessionMode('local');
     expect(getRendererSessionMode()).toBe('local');
   });
+  it('defaults an online account to cloud when there is no execution preference', async () => {
+    state.readConfig.mockImplementation(async () => undefined);
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US', assistantFromUrl: state.mine[0].ref }));
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe(state.mine[0].ref));
+    expect(result.current.sessionMode).toBe('remote');
+  });
+
+  it('retains the personal Agent when its execution target changes', async () => {
+    const ref = state.mine[0].ref;
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US', assistantFromUrl: ref }));
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe(ref));
+    await act(async () => result.current.setSessionMode('remote'));
+    await waitFor(() => {
+      expect(result.current.sessionMode).toBe('remote');
+      expect(result.current.selectedAgentInfo?.customAgentId).toBe(ref);
+    });
+  });
+
   it('keeps a named template URL pending when multiple templates share that name', async () => {
     state.isEnterprise = false;
     state.local = [

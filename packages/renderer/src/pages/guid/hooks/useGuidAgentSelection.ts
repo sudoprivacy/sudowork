@@ -28,7 +28,7 @@ import { personalAgentConfigs } from '../utils/personalAgentSelection';
 
 // Module-level cache for cross-component-tree synchronous access (e.g., useConversations)
 // 模块级缓存，供非 GuidPage 组件树（如 useConversations）同步读取
-let rendererCachedSessionMode: 'remote' | 'local' = 'local';
+let rendererCachedSessionMode: 'remote' | 'local' = 'remote';
 
 /** 供 useConversations 等非 GuidPage 组件树同步读取当前 sessionMode */
 export function getRendererSessionMode(): 'remote' | 'local' {
@@ -230,7 +230,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   // Session mode state (remote/local) - SSOT for enterprise mode
   // sessionMode 状态（remote/local）— 企业模式的唯一权威来源
-  const [preferredSessionMode, _setSessionMode] = useState<'remote' | 'local'>('local');
+  const [preferredSessionMode, _setSessionMode] = useState<'remote' | 'local'>('remote');
   // The ontology entry uses local execution for this page without changing stored preferences.
   const sessionMode = isOntologyEntry ? 'local' : preferredSessionMode;
   const [selectedMode, _setSelectedMode] = useState<string>('default');
@@ -299,7 +299,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
     const entryEpoch = ontologyEntryEpochRef.current;
     void ConfigStorage.get('guid.sessionMode').then(async (stored) => {
       if (ontologyEntryEpochRef.current !== entryEpoch) return;
-      let mode = stored ?? 'local';
+      let mode = stored ?? 'remote';
       // Validate localModeAvailable: fallback to remote if 'local' persisted but user lacks permission
       if (mode === 'local') {
         try {
@@ -339,6 +339,8 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
       ipcBridge.eeclaw.setSessionMode.invoke({ mode }).catch(() => {});
       emitter.emit('chat.history.refresh');
 
+      const isPersonalSelection = selectedAgentKeyRef.current.startsWith('custom:') && isPersonalAgentRef(selectedAgentKeyRef.current.slice('custom:'.length));
+      if (isPersonalSelection) return;
       setCustomAgents([]);
 
       // Reset selectedAgentKey to the default for the new mode

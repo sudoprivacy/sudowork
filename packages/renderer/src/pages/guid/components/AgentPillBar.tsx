@@ -6,15 +6,14 @@
 
 import { Robot } from '@icon-park/react';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import { getAgentPriority } from '@sudowork/common/acpTypes';
 import type { AcpBackendAll } from '@sudowork/common/acpTypes';
 import { getAgentLogo } from '@renderer/utils/agentLogo';
 import { resolveExtensionAssetUrl } from '@renderer/utils/platform';
 import type { AvailableAgent } from '../types';
+import ExecutionModeSelector from './ExecutionModeSelector';
 
 function AgentPillBar({ availableAgents, selectedAgentKey, getAgentKey, onSelectAgent, sessionMode, onSessionModeChange, isEnterprise, localModeAvailable }: IAgentPillBarProps) {
-  const { t } = useTranslation();
   // Sort agents according to priority
   const sortedAgents = [...availableAgents].sort((a, b) => {
     // For non-custom agents, use priority-based sorting
@@ -38,48 +37,7 @@ function AgentPillBar({ availableAgents, selectedAgentKey, getAgentKey, onSelect
     <div className='w-full flex justify-center'>
       {/* Enterprise mode: Remote/Local tab */}
       {isEnterprise ? (
-        localModeAvailable ? (
-          /* Enterprise with Local mode: Remote | Local tab switcher */
-          <div className='f-center mb-5 p-1.5 rd-30px bg-guid-agent-bar w-fit max-w-full gap-1 text-foreground' style={{ transition: 'background-color 0.35s ease' }}>
-            {/* Shared Remote icon */}
-            <span className='inline-flex h-5 w-5 shrink-0 items-center justify-center leading-none'>
-              <img src={getAgentLogo('remote-agent')} alt={t('conversation.welcome.execution.cloud')} width={20} height={20} className='block object-contain' />
-            </span>
-            {/* Remote tab */}
-            <div
-              data-agent-pill='true'
-              data-session-mode='remote'
-              className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'remote' ? 'opacity-100 px-3 py-2 rd-20px mx-0.5 bg-fill-0 transition-[opacity,background-color] duration-250 ease-out [animation:animationPop_0.4s_ease-out_forwards]' : 'opacity-60 p-1 hover:opacity-100'}`}
-              style={sessionMode === 'remote' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
-              onClick={() => onSessionModeChange?.('remote')}
-            >
-              <span className='font-semibold text-14px ml-1 text-foreground'>{t('conversation.welcome.execution.cloud')}</span>
-            </div>
-            {/* Divider + Local tab */}
-            <>
-              <div className='text-16px lh-1 p-0.5 select-none opacity-30'>|</div>
-              <div
-                data-agent-pill='true'
-                data-session-mode='local'
-                className={`group relative flex items-center cursor-pointer whitespace-nowrap ${sessionMode === 'local' ? 'opacity-100 px-3 py-2 rd-20px mx-0.5 bg-fill-0 transition-[opacity,background-color] duration-250 ease-out [animation:animationPop_0.4s_ease-out_forwards]' : 'opacity-60 p-1 hover:opacity-100'}`}
-                style={sessionMode === 'local' ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : { transition: 'opacity 0.2s ease' }}
-                onClick={() => onSessionModeChange?.('local')}
-              >
-                <span className='font-semibold text-14px ml-1 text-foreground'>{t('conversation.welcome.execution.local')}</span>
-              </div>
-            </>
-          </div>
-        ) : (
-          /* Enterprise without Local mode: single pill with consumer style */
-          <div className='f-center mb-5 p-1.5 rd-30px bg-guid-agent-bar w-fit max-w-full text-foreground'>
-            <div className='group relative flex items-center whitespace-nowrap px-3 py-2 rd-20px mx-0.5 bg-fill-0 transition-[opacity,background-color] duration-250 ease-out [animation:animationPop_0.4s_ease-out_forwards]' style={{ transition: 'opacity 0.2s ease, background-color 0.2s ease' }}>
-              <span className='inline-flex h-5 w-5 shrink-0 items-center justify-center leading-none'>
-                <img src={getAgentLogo('remote-agent')} alt={t('conversation.welcome.execution.cloud')} width={20} height={20} className='block object-contain' />
-              </span>
-              <span className='font-semibold text-14px ml-1 text-foreground'>{t('conversation.welcome.execution.cloud')}</span>
-            </div>
-          </div>
-        )
+        <ExecutionModeSelector sessionMode={sessionMode ?? 'remote'} isLocalAvailable={localModeAvailable ?? false} onSessionModeChange={onSessionModeChange} />
       ) : (
         /* Consumer mode: original pill bar */
         <div className='f-center mb-5 p-1.5 rd-30px bg-guid-agent-bar w-fit max-w-full overflow-hidden gap-1 flex-nowrap text-foreground' style={{ transition: 'background-color 0.35s ease' }}>
