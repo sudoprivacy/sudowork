@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
@@ -28,7 +28,7 @@ import { useExternalHistory } from '@renderer/pages/external-agents/useExternalH
 
 const agent = { id: 'agent-1', name: 'Dify pilot', provider: 'dify' };
 const task = {
-  api_version: 'external-provider.sudo.dev/v1alpha2',
+  api_version: 'external-provider.sudo.dev/v1alpha3',
   agent_name: 'agent-1',
   attempt_id: 'attempt-1',
   raw_answer: '',
@@ -58,7 +58,7 @@ beforeEach(() => {
   mocks.sessions.mockResolvedValue({ success: true, data: [session] });
   mocks.history.mockResolvedValue({ success: true, data: [task] });
   mocks.create.mockResolvedValue({ success: true, data: task });
-  mocks.events.mockResolvedValue({ success: true, data: { task, events: [], next_cursor: 4, snapshot_sequence: 4, has_more: false } });
+  mocks.events.mockResolvedValue({ success: true, data: { api_version: task.api_version, kind: 'ExternalEventsPage', task, events: [], next_cursor: 4, snapshot_sequence: 4, has_more: false } });
 });
 afterEach(cleanup);
 function Location() {
@@ -232,4 +232,53 @@ it('does not poll directory or history when the host has no Moss context', async
   await waitFor(() => expect(mocks.context).toHaveBeenCalled());
   expect(mocks.agents).not.toHaveBeenCalled();
   expect(mocks.sessions).not.toHaveBeenCalled();
+});
+
+it('backs off idle reads, reduces hidden-page polling, refreshes on focus and stops on terminal', async () => {
+  const running = { ...task, status: 'running' };
+  mocks.history.mockResolvedValue({ success: true, data: [running] });
+  mocks.events.mockResolvedValue({ success: true, data: { api_version: task.api_version, kind: 'ExternalEventsPage', task: running, events: [], next_cursor: 4, snapshot_sequence: 4, has_more: false } });
+  page('/conversation/external:session-1');
+  await waitFor(() => expect(mocks.events).toHaveBeenCalledTimes(1));
+  vi.useFakeTimers();
+  try {
+    // Re-enter foreground to replace the initial real timer with a controlled one.
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+    });
+    const initial = mocks.events.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1499);
+    });
+    expect(mocks.events).toHaveBeenCalledTimes(initial);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(mocks.events).toHaveBeenCalledTimes(initial + 1);
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(14999);
+    });
+    expect(mocks.events).toHaveBeenCalledTimes(initial + 1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(mocks.events).toHaveBeenCalledTimes(initial + 2);
+    mocks.events.mockResolvedValue({ success: true, data: { api_version: task.api_version, kind: 'ExternalEventsPage', task, events: [], next_cursor: 5, snapshot_sequence: 5, has_more: false } });
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+    });
+    expect(mocks.events).toHaveBeenCalledTimes(initial + 3);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+    expect(mocks.events).toHaveBeenCalledTimes(initial + 3);
+    expect(mocks.create).not.toHaveBeenCalled();
+  } finally {
+    cleanup();
+    vi.useRealTimers();
+    delete (document as unknown as { hidden?: boolean }).hidden;
+  }
 });

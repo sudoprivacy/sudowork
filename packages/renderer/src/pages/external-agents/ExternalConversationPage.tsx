@@ -94,10 +94,15 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
     if (!activeTaskId) return;
     let isCancelled = false;
     let cursor = 0;
+    let idlePolls = 0;
+    let isPolling = false;
+    let isStopped = false;
     let currentTask = activeTaskRef.current;
     let timer: ReturnType<typeof setTimeout>;
     setIsPollFailed(false);
     const onPoll = async () => {
+      if (isPolling || isStopped || isCancelled) return;
+      isPolling = true;
       try {
         const response = await externalProviders.events.invoke({ taskId: activeTaskId, cursor });
         if (isCancelled) return;
@@ -105,22 +110,40 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
         const page = response.data;
         if (!currentTask) throw new Error('Task unavailable');
         currentTask = applyExternalEventsPage(currentTask, cursor, page);
+        const isChanged = page.next_cursor !== cursor;
         cursor = page.next_cursor;
+        idlePolls = isChanged ? 0 : Math.min(idlePolls + 1, 3);
         const updatedTask = currentTask;
         setTasks((current) => current.map((task) => (task.id === updatedTask.id ? updatedTask : task)));
         if (isFinished(updatedTask)) {
+          isStopped = true;
           emitter.emit('chat.history.refresh');
           return;
         }
-        timer = setTimeout(() => void onPoll(), page.has_more ? 0 : 750);
+        const delay = document.hidden ? 15000 : page.has_more ? 0 : Math.min(6000, 750 * 2 ** idlePolls);
+        timer = setTimeout(() => void onPoll(), delay);
       } catch {
+        isStopped = true;
         if (!isCancelled) setIsPollFailed(true);
+      } finally {
+        isPolling = false;
       }
     };
+    const onVisibility = () => {
+      if (isPolling || isStopped || isCancelled) return;
+      clearTimeout(timer);
+      if (document.hidden) timer = setTimeout(() => void onPoll(), 15000);
+      else {
+        idlePolls = 0;
+        void onPoll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     void onPoll();
     return () => {
       isCancelled = true;
       clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [activeTaskId, pollGeneration]);
 

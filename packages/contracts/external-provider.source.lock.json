@@ -4,15 +4,15 @@
     "maturity": "experimental-synthetic-pilot",
     "semanticOwner": "moss",
     "repository": "https://github.com/sudoprivacy/moss",
-    "revision": "2bae843f5c29e239afa0ff2a3ef7239c3045d134",
+    "revision": "3d12c355c52d6017df73efb6d99b0910ad2d4902",
     "path": "contracts/external-provider/v1/contract.ts",
-    "digest": "sha256:da0a3662aa77f92d0aae4f5bbea9dade7d2451fb938dbf56e1871cce70112212"
+    "digest": "sha256:cd3102357a54f54ddfdcc902605475654445afe4dc0cea8fc84cfc9b57f11cab"
   },
   "artifact": {
     "repository": "https://github.com/sudoprivacy/sudostack",
-    "revision": "cced11a2a550846df3957a9035ed0fb293b7a8ec",
+    "revision": "f6ec49b2a7e917878a2db7bb21377bf8fc521bd7",
     "path": "contracts/experimental/external-provider/contract.gen.ts",
     "source_lock_path": "contracts/experimental/external-provider/source.lock.json",
-    "digest": "sha256:2d2f9765020d74d02d1ff0b8928a489c6a2c06b3a5b28126bf2d64367681a086"
+    "digest": "sha256:54311e527366c8c38eb3e85d0b9496a80a5a54e0d0b67cd95aaf972d463e96ea"
   }
 }

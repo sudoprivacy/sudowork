@@ -14,7 +14,8 @@ it.each(['main', 'renderer'] as const)('bundles the external provider client in 
       {
         name: 'external-provider-source-probe',
         resolveId(id) {
-          if (id === 'external-provider-build-probe' || id.endsWith('/external-provider-build-probe')) return '\0external-provider-build-probe';
+          const normalized = id.replace(/\\/g, '/');
+          if (normalized === 'external-provider-build-probe' || normalized.endsWith('/external-provider-build-probe')) return '\0external-provider-build-probe';
         },
         load(id) {
           if (id === '\0external-provider-build-probe') return 'export { applyExternalEventsPage } from "@sudowork/moss-client/external-providers"';

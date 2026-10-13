@@ -56,6 +56,7 @@ const task = z.object({
   query: z.string(),
   answer: z.string(),
   raw_answer: z.string(),
+  raw_answer_freshness: z.enum(["current", "legacy_checkpoint"]).optional(),
   output_status: z.enum(["pending", "valid", "invalid"]),
   error_code: z.string().nullable(),
   source_digest: z.string(),
@@ -102,12 +103,16 @@ const agent = z.object({
   }),
 });
 const events = z.object({
+  api_version: z.literal(EXTERNAL_PROVIDER_API),
+  kind: z.literal("ExternalEventsPage"),
   task: task.optional(),
   snapshot_sequence: z.number().int().positive().optional(),
   has_more: z.boolean(),
   next_cursor: z.number().int().nonnegative(),
   events: z.array(
     z.object({
+      api_version: z.literal(EXTERNAL_PROVIDER_API),
+      kind: z.literal("ExternalTaskEvent"),
       task_id: id,
       sequence: z.number().int().positive(),
       type: z.enum(["status", "answer", "provider_refs"]),
@@ -117,6 +122,15 @@ const events = z.object({
           offset: z.number().int().nonnegative(),
           text: z.string().max(128000),
         })
+        .optional(),
+      raw_delta: z
+        .union([
+          z.object({
+            offset: z.number().int().nonnegative(),
+            text: z.string().max(128000),
+          }),
+          z.object({ from_answer: z.literal(true) }),
+        ])
         .optional(),
       state: task.pick({
         status: true,
@@ -309,6 +323,18 @@ export function applyExternalEventsPage(
         throw new Error("EXTERNAL_DELTA_OFFSET");
       next.answer = next.answer.slice(0, event.delta.offset) + event.delta.text;
       if (next.answer.length > 128000) throw new Error("EXTERNAL_ANSWER_LIMIT");
+    }
+    if (event.raw_delta) {
+      if ("from_answer" in event.raw_delta) next.raw_answer = next.answer;
+      else {
+        if (event.raw_delta.offset > next.raw_answer.length)
+          throw new Error("EXTERNAL_RAW_DELTA_OFFSET");
+        next.raw_answer =
+          next.raw_answer.slice(0, event.raw_delta.offset) +
+          event.raw_delta.text;
+      }
+      if (next.raw_answer.length > 128000)
+        throw new Error("EXTERNAL_RAW_ANSWER_LIMIT");
     }
     Object.assign(next, event.state);
     sequence = event.sequence;
