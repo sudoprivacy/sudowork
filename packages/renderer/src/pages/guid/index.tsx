@@ -34,6 +34,7 @@ import { CUSTOM_AVATAR_IMAGE_MAP } from './utils/constants';
 import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkeleton';
 import GuidActionRow from './components/GuidActionRow';
 import AgentPillBar from './components/AgentPillBar';
+import ExecutionModeSelector from './components/ExecutionModeSelector';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown from './components/MentionDropdown';
@@ -650,6 +651,7 @@ const GuidPage: React.FC = () => {
             <div className='w-full px-4 py-3 mb-4 rd-2xl text-sm border box-border animate-fade-in animate-duration-400 animate-ease-out'>
               {selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}
             </div>
+            {isEnterprise && !isOntologyEntry && <ExecutionModeSelector sessionMode={agentSelection.sessionMode} isLocalAvailable={user?.localModeAvailable ?? false} onSessionModeChange={agentSelection.setSessionMode} />}
           </>
         ) : (
           /* ========== Normal Mode ========== */
