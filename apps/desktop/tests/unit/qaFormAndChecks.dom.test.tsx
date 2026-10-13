@@ -1,6 +1,6 @@
 import '@arco-design/web-react/lib/_util/react-19-adapter';
 import React, { useState } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Message } from '@arco-design/web-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInstance } from 'i18next';
@@ -26,8 +26,12 @@ beforeEach(() => {
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() });
   vi.clearAllMocks();
 });
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await act(async () => {
+    cleanup();
+    Message.clear();
+  });
+  await waitFor(() => expect(document.querySelector('.arco-message')).toBeNull());
   vi.restoreAllMocks();
 });
 
@@ -42,13 +46,18 @@ describe('QA form and localized feedback', () => {
     expect(addJob).not.toHaveBeenCalled();
   });
   it('creates a manual cloud task disabled with the remote backend', async () => {
-    wrap(<CronJobFormDrawer visible sessionMode='remote' onClose={vi.fn()} onSaved={vi.fn()} />);
+    const onSaved = vi.fn();
+    const onClose = vi.fn();
+    wrap(<CronJobFormDrawer visible sessionMode='remote' onClose={onClose} onSaved={onSaved} />);
     fireEvent.change(screen.getByPlaceholderText('例如：每日简报'), { target: { value: 'QA manual' } });
     fireEvent.change(screen.getByPlaceholderText('输入触发时要发送的指令...'), { target: { value: 'Return OK' } });
     fireEvent.click(screen.getByText('每天'));
     fireEvent.click(await screen.findByText('手动'));
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
     await waitFor(() => expect(addJob).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, agentType: 'remote-agent', schedule: expect.objectContaining({ kind: 'at', atMs: 0 }) })));
+    expect(await screen.findByText('保存成功')).toBeInTheDocument();
+    expect(onSaved).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
   });
   it('renders the ontology warning in Chinese and omits empty raw quality results', async () => {
     const onLocate = vi.fn();
