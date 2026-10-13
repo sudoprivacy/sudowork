@@ -109,6 +109,13 @@ async function assertSelectionVisible(
     } else {
       const names = await fetchVisibleNames(deps, '/api/v1/agent-templates/installed', ctx)
       isVisible = names.has(input.assistantName)
+      if (!isVisible) {
+        // Park-assigned assistants live in another org, so the caller's
+        // installed list can never contain them. The assignment table is the
+        // authoritative visibility for enterprise users; moss re-checks on
+        // session creation anyway (its assertParkAssistantAllowed gate).
+        isVisible = await isParkAssignedAssistant(deps, ctx, input.assistantName)
+      }
     }
     if (!isVisible) {
       throw new InvalidSelectionError('assistantName', input.assistantName)
@@ -121,6 +128,42 @@ async function assertSelectionVisible(
         throw new InvalidSelectionError('enabledSkills', skill)
       }
     }
+  }
+}
+
+/** 园区分配的 Assistant（跨 org）：GET /api/v1/enterprise/assistant 返回本企业被分配的
+ * 园区咨询 Assistant（assistant_id/name/display_name）。任何形式命中即放行。 */
+export async function isParkAssignedAssistant(
+  deps: ConversationDeps,
+  ctx: MossCallContext,
+  assistantName: string,
+): Promise<boolean> {
+  try {
+    const json = await deps.mossFetch(ctx.baseUrl, {
+      method: 'GET',
+      path: '/api/v1/enterprise/assistant',
+      accessToken: ctx.accessToken,
+    })
+    const parsed = z
+      .object({
+        items: z.array(
+          z
+            .object({ assistant_id: z.string(), name: z.string(), display_name: z.string() })
+            .passthrough(),
+        ),
+      })
+      .passthrough()
+      .safeParse(json)
+    if (!parsed.success) return false
+    return parsed.data.items.some(
+      (item) =>
+        assistantName === item.assistant_id ||
+        assistantName === item.name ||
+        assistantName === item.display_name,
+    )
+  } catch {
+    // 非 park 企业（403 等）走原有拒绝路径。
+    return false
   }
 }
 

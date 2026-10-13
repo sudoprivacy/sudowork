@@ -10,6 +10,7 @@
  */
 
 import common from './common.json';
+import park from './park.json';
 import agentMode from './agentMode.json';
 import update from './update.json';
 import login from './login.json';

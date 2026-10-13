@@ -2184,6 +2184,129 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       invalidateConversations()
       return undefined
     }),
+
+  // --- park（园区 AI 招商 P0）：转发到同源 BFF（/api/park、/api/enterprise、
+  //     /api/parks），组织上下文由服务端从会话推导。RAW 返回，错误经 apiFetch 抛出。 ---
+  'park.get-context': async () => apiFetch('/api/park/context'),
+  'park.register-enterprise': async (req) =>
+    apiFetch('/api/park/register-enterprise', {
+      method: 'POST',
+      body: JSON.stringify(req ?? {}),
+    }),
+  'park.enterprise.get-profile': async () => apiFetch('/api/enterprise/profile'),
+  'park.enterprise.get-policies': async () => apiFetch('/api/enterprise/policies'),
+  'park.enterprise.get-services': async () => apiFetch('/api/enterprise/services'),
+  'park.enterprise.get-inquiries': async () => apiFetch('/api/enterprise/inquiries'),
+  'park.enterprise.get-assistants': async () => apiFetch('/api/enterprise/assistant'),
+  'park.list-enterprises': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/enterprises`),
+  'park.get-enterprise-detail': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/enterprises/${encodeURIComponent(String(req?.enterpriseOrgId ?? ''))}`,
+    ),
+  'park.update-enterprise-followup': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/enterprises/${encodeURIComponent(String(req?.enterpriseOrgId ?? ''))}`,
+      { method: 'PATCH', body: JSON.stringify(req?.updates ?? {}) },
+    ),
+  'park.create-binding': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/enterprise-bindings`, {
+      method: 'POST',
+      body: JSON.stringify({ enterprise_org_id: req?.enterpriseOrgId, lifecycle: req?.lifecycle }),
+    }),
+  'park.list-leads': async (req) => {
+    const params = new URLSearchParams()
+    if (req?.status) params.set('status', String(req.status))
+    if (req?.watched) params.set('watched', '1')
+    const qs = params.toString()
+    return apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads${qs ? `?${qs}` : ''}`,
+    )
+  },
+  'park.create-manual-lead': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads`, {
+      method: 'POST',
+      body: JSON.stringify({
+        enterprise_org_id: req?.enterpriseOrgId,
+        note: req?.note,
+        industry_tags: req?.industryTags,
+      }),
+    }),
+  'park.get-lead-detail': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads/${encodeURIComponent(String(req?.leadId ?? ''))}`,
+    ),
+  'park.claim-lead': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads/${encodeURIComponent(String(req?.leadId ?? ''))}/claim`,
+      { method: 'POST' },
+    ),
+  'park.update-lead': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads/${encodeURIComponent(String(req?.leadId ?? ''))}`,
+      { method: 'PATCH', body: JSON.stringify(req?.updates ?? {}) },
+    ),
+  'park.watch-lead': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads/${encodeURIComponent(String(req?.leadId ?? ''))}/watch`,
+      { method: 'POST' },
+    ),
+  'park.unwatch-lead': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads/${encodeURIComponent(String(req?.leadId ?? ''))}/watch`,
+      { method: 'DELETE' },
+    ),
+  'park.list-consultations': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/consultations`),
+  'park.get-metrics': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/metrics`),
+  'park.list-audit-events': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/audit-events`),
+  'park.list-members': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/members`),
+  'park.add-member': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: req?.userId, park_role: req?.parkRole }),
+    }),
+  'park.remove-member': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/members`, {
+      method: 'DELETE',
+      body: JSON.stringify({ user_id: req?.userId }),
+    }),
+  'park.list-assignments': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/assistant-assignments`,
+    ),
+  'park.assign-assistant': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/assistant-assignments`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          assistant_id: req?.assistantId,
+          enterprise_org_id: req?.enterpriseOrgId,
+        }),
+      },
+    ),
+  'park.unassign-assistant': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/assistant-assignments`,
+      {
+        method: 'DELETE',
+        body: JSON.stringify({
+          assistant_id: req?.assistantId,
+          enterprise_org_id: req?.enterpriseOrgId,
+        }),
+      },
+    ),
+  'park.get-settings': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/settings`),
+  'park.update-settings': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(req?.updates ?? {}),
+    }),
   // The conversation view loads these on open; they return RAW arrays, so the
   // default-reject object breaks array consumers ("data is not iterable").
   'confirmation.list': async (req) =>

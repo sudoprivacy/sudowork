@@ -1,0 +1,194 @@
+{
+  "nav": {
+    "enterpriseHome": "企业工作台",
+    "assistant": "园区咨询",
+    "policies": "政策信息",
+    "services": "入驻服务",
+    "inquiries": "我的咨询记录",
+    "overview": "园区总览",
+    "leads": "线索池",
+    "leadDetail": "线索详情",
+    "consultations": "咨询摘要",
+    "enterprises": "企业列表",
+    "enterpriseDetail": "企业画像",
+    "admin": "系统管理",
+    "adminOrganizations": "组织与绑定",
+    "adminUsers": "用户与角色",
+    "adminAssistant": "Assistant 分配",
+    "adminPolicies": "政策知识库",
+    "adminAudit": "审计日志"
+  },
+  "common": {
+    "loading": "加载中…",
+    "loadFailed": "加载失败",
+    "retry": "重试",
+    "empty": "暂无数据",
+    "confirm": "确定",
+    "cancel": "取消",
+    "create": "新建",
+    "save": "保存",
+    "createdAt": "创建时间",
+    "actions": "操作",
+    "status": "状态",
+    "score": "评分",
+    "enterprise": "企业",
+    "notFound": "未找到"
+  },
+  "status": {
+    "proposed": "待确认",
+    "confirmed": "已确认",
+    "assigned": "已分派",
+    "following_up": "跟进中",
+    "converted": "已转化",
+    "lost": "已流失",
+    "rejected": "已驳回",
+    "prospect": "意向",
+    "active": "已入驻",
+    "exiting": "退出中",
+    "exited": "已退出"
+  },
+  "role": {
+    "park_leader": "园区领导",
+    "park_ops": "招商运营",
+    "park_system_operator": "系统运营"
+  },
+  "overview": {
+    "title": "园区总览",
+    "funnel": "招留管退漏斗",
+    "leadStatus": "线索状态分布",
+    "highScore": "高意向线索",
+    "totals": "总量",
+    "enterprises": "企业",
+    "inquiries": "咨询",
+    "leads": "线索"
+  },
+  "leads": {
+    "title": "线索池",
+    "filterAll": "全部",
+    "filterProposed": "待确认",
+    "filterMine": "我的",
+    "filterWatched": "已关注",
+    "createManual": "新建线索",
+    "claim": "认领",
+    "confirmLead": "确认",
+    "reject": "驳回",
+    "dispatch": "分派",
+    "convert": "转化",
+    "lost": "流失",
+    "watch": "关注",
+    "unwatch": "取消关注",
+    "rejectReasonRequired": "请填写驳回理由",
+    "rejectReasonPlaceholder": "驳回理由（必填）",
+    "source": "来源",
+    "assistant": "咨询",
+    "manual": "人工",
+    "scoreExplanation": "评分依据",
+    "inquirySummary": "咨询摘要（脱敏）",
+    "suggestedAction": "建议动作",
+    "industryTags": "行业标签",
+    "owner": "负责人",
+    "noOwner": "未认领",
+    "createdManual": "线索已创建",
+    "updateFailed": "操作失败"
+  },
+  "consultations": {
+    "title": "咨询摘要",
+    "question": "咨询内容（脱敏）",
+    "answer": "回答（脱敏）",
+    "intent": "意图",
+    "confidence": "置信度",
+    "hasLead": "已产生线索",
+    "noLead": "未产生线索",
+    "category": {
+      "consultation": "政策咨询",
+      "service_request": "服务请求"
+    }
+  },
+  "enterprises": {
+    "title": "企业列表",
+    "name": "企业名称",
+    "lifecycle": "生命周期",
+    "industry": "行业",
+    "scale": "规模",
+    "contact": "联系人",
+    "tags": "标签",
+    "leadSummary": "线索汇总",
+    "followUp": "跟进信息",
+    "contactName": "联系人姓名",
+    "contactPhone": "联系电话",
+    "assignedOwner": "负责运营"
+  },
+  "assistant": {
+    "title": "园区咨询助手",
+    "selectAssistant": "选择助手",
+    "startSession": "开始咨询",
+    "noAssistant": "暂未分配园区咨询助手，请联系园区运营"
+  },
+  "policies": {
+    "title": "政策信息",
+    "wiki": "政策库",
+    "files": "政策文件"
+  },
+  "services": {
+    "title": "入驻服务",
+    "name": "服务名称",
+    "description": "服务说明"
+  },
+  "inquiries": {
+    "title": "我的咨询记录",
+    "question": "我的提问",
+    "answer": "园区答复",
+    "time": "咨询时间"
+  },
+  "admin": {
+    "organizations": {
+      "title": "组织与绑定",
+      "bindEnterprise": "绑定企业",
+      "enterpriseOrgId": "企业组织 ID",
+      "parkOrgId": "园区组织 ID",
+      "lifecycle": "生命周期",
+      "bound": "绑定成功"
+    },
+    "users": {
+      "title": "用户与角色",
+      "userId": "用户 ID",
+      "addMember": "添加成员",
+      "remove": "移除",
+      "role": "园区角色",
+      "added": "已添加"
+    },
+    "assistant": {
+      "title": "Assistant 分配",
+      "assistantId": "Assistant ID",
+      "enterpriseOrgId": "企业组织 ID",
+      "assign": "分配",
+      "unassign": "取消分配"
+    },
+    "policies": {
+      "title": "政策知识库",
+      "uploadNote": "政策文件经文档中心上传并构建 wiki 后，挂到园区咨询 Assistant 的 enabledWikis 即可被检索。此页面提供 moss 现有文档中心能力的入口说明。",
+      "rebuildNote": "政策更新方式：上传新文件 + 删除旧文件 + 重建 wiki（P0 无版本管理）。"
+    },
+    "audit": {
+      "title": "审计日志",
+      "action": "操作",
+      "target": "对象",
+      "actor": "操作人",
+      "reason": "理由",
+      "before": "变更前",
+      "after": "变更后",
+      "time": "时间"
+    }
+  },
+  "register": {
+    "enterpriseStepTitle": "企业信息",
+    "enterpriseName": "企业名称",
+    "enterpriseNamePlaceholder": "请输入企业名称",
+    "contactName": "联系人",
+    "contactNamePlaceholder": "请输入联系人姓名",
+    "inviteCode": "园区邀请码（可选）",
+    "inviteCodePlaceholder": "如有邀请码请填写",
+    "submit": "注册企业账号",
+    "success": "注册成功，即将进入登录"
+  }
+}

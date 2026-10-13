@@ -1,0 +1,194 @@
+{
+  "nav": {
+    "enterpriseHome": "Enterprise Home",
+    "assistant": "Park Assistant",
+    "policies": "Policies",
+    "services": "Services",
+    "inquiries": "My Inquiries",
+    "overview": "Park Overview",
+    "leads": "Lead Pool",
+    "leadDetail": "Lead Detail",
+    "consultations": "Consultations",
+    "enterprises": "Enterprises",
+    "enterpriseDetail": "Enterprise Profile",
+    "admin": "Administration",
+    "adminOrganizations": "Organizations & Bindings",
+    "adminUsers": "Users & Roles",
+    "adminAssistant": "Assistant Assignments",
+    "adminPolicies": "Policy Knowledge Base",
+    "adminAudit": "Audit Log"
+  },
+  "common": {
+    "loading": "Loading…",
+    "loadFailed": "Failed to load",
+    "retry": "Retry",
+    "empty": "No data",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "createdAt": "Created At",
+    "actions": "Actions",
+    "status": "Status",
+    "score": "Score",
+    "enterprise": "Enterprise",
+    "notFound": "Not found"
+  },
+  "status": {
+    "proposed": "Proposed",
+    "confirmed": "Confirmed",
+    "assigned": "Assigned",
+    "following_up": "Following up",
+    "converted": "Converted",
+    "lost": "Lost",
+    "rejected": "Rejected",
+    "prospect": "Prospect",
+    "active": "Active",
+    "exiting": "Exiting",
+    "exited": "Exited"
+  },
+  "role": {
+    "park_leader": "Park Leader",
+    "park_ops": "Investment Ops",
+    "park_system_operator": "System Operator"
+  },
+  "overview": {
+    "title": "Park Overview",
+    "funnel": "Lifecycle Funnel",
+    "leadStatus": "Lead Status",
+    "highScore": "High-intent Leads",
+    "totals": "Totals",
+    "enterprises": "Enterprises",
+    "inquiries": "Inquiries",
+    "leads": "Leads"
+  },
+  "leads": {
+    "title": "Lead Pool",
+    "filterAll": "All",
+    "filterProposed": "Proposed",
+    "filterMine": "Mine",
+    "filterWatched": "Watched",
+    "createManual": "New Lead",
+    "claim": "Claim",
+    "confirmLead": "Confirm",
+    "reject": "Reject",
+    "dispatch": "Dispatch",
+    "convert": "Convert",
+    "lost": "Mark Lost",
+    "watch": "Watch",
+    "unwatch": "Unwatch",
+    "rejectReasonRequired": "Rejection reason is required",
+    "rejectReasonPlaceholder": "Rejection reason (required)",
+    "source": "Source",
+    "assistant": "Consultation",
+    "manual": "Manual",
+    "scoreExplanation": "Score Explanation",
+    "inquirySummary": "Consultation Summary (redacted)",
+    "suggestedAction": "Suggested Action",
+    "industryTags": "Industry Tags",
+    "owner": "Owner",
+    "noOwner": "Unclaimed",
+    "createdManual": "Lead created",
+    "updateFailed": "Operation failed"
+  },
+  "consultations": {
+    "title": "Consultation Summary",
+    "question": "Question (redacted)",
+    "answer": "Answer (redacted)",
+    "intent": "Intent",
+    "confidence": "Confidence",
+    "hasLead": "Has lead",
+    "noLead": "No lead",
+    "category": {
+      "consultation": "Consultation",
+      "service_request": "Service request"
+    }
+  },
+  "enterprises": {
+    "title": "Enterprises",
+    "name": "Enterprise",
+    "lifecycle": "Lifecycle",
+    "industry": "Industry",
+    "scale": "Scale",
+    "contact": "Contact",
+    "tags": "Tags",
+    "leadSummary": "Lead Summary",
+    "followUp": "Follow-up",
+    "contactName": "Contact Name",
+    "contactPhone": "Contact Phone",
+    "assignedOwner": "Assigned Owner"
+  },
+  "assistant": {
+    "title": "Park Consultation Assistant",
+    "selectAssistant": "Select assistant",
+    "startSession": "Start consultation",
+    "noAssistant": "No park assistant assigned yet; contact park operations"
+  },
+  "policies": {
+    "title": "Policies",
+    "wiki": "Policy Library",
+    "files": "Policy Files"
+  },
+  "services": {
+    "title": "Services",
+    "name": "Service",
+    "description": "Description"
+  },
+  "inquiries": {
+    "title": "My Inquiries",
+    "question": "My Question",
+    "answer": "Park Answer",
+    "time": "Time"
+  },
+  "admin": {
+    "organizations": {
+      "title": "Organizations & Bindings",
+      "bindEnterprise": "Bind enterprise",
+      "enterpriseOrgId": "Enterprise org ID",
+      "parkOrgId": "Park org ID",
+      "lifecycle": "Lifecycle",
+      "bound": "Bound"
+    },
+    "users": {
+      "title": "Users & Roles",
+      "userId": "User ID",
+      "addMember": "Add member",
+      "remove": "Remove",
+      "role": "Park role",
+      "added": "Added"
+    },
+    "assistant": {
+      "title": "Assistant Assignments",
+      "assistantId": "Assistant ID",
+      "enterpriseOrgId": "Enterprise org ID",
+      "assign": "Assign",
+      "unassign": "Unassign"
+    },
+    "policies": {
+      "title": "Policy Knowledge Base",
+      "uploadNote": "Upload policy files via the document center and build a wiki, then attach it to the consulting assistant's enabledWikis for retrieval. This page documents the existing moss document-center entry.",
+      "rebuildNote": "Policy update: upload new file + delete old file + rebuild wiki (no versioning in P0)."
+    },
+    "audit": {
+      "title": "Audit Log",
+      "action": "Action",
+      "target": "Target",
+      "actor": "Actor",
+      "reason": "Reason",
+      "before": "Before",
+      "after": "After",
+      "time": "Time"
+    }
+  },
+  "register": {
+    "enterpriseStepTitle": "Enterprise Info",
+    "enterpriseName": "Enterprise name",
+    "enterpriseNamePlaceholder": "Enter enterprise name",
+    "contactName": "Contact name",
+    "contactNamePlaceholder": "Enter contact name",
+    "inviteCode": "Park invite code (optional)",
+    "inviteCodePlaceholder": "Enter invite code if any",
+    "submit": "Register enterprise account",
+    "success": "Registered, redirecting to login"
+  }
+}

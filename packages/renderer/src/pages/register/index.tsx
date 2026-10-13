@@ -6,18 +6,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { User, Protect } from '@icon-park/react';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
-import { useAuth } from '../../context/AuthContext';
+import { invokePark } from '@renderer/hooks/usePark';
 import '../login/LoginPage.css';
 
 const AionLogoMark: React.FC = () => <img src={SudoworkIcon} alt='Sudowork' className='w-64px h-64px object-contain' />;
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  const { register } = useAuth();
 
   // Legacy route retained for bookmarked links; registration now requires the
   // phone verification code directly and normally lives on the login page.
@@ -25,6 +26,7 @@ const RegisterPage: React.FC = () => {
   const phoneFromUrl = searchParams.get('phone') || '';
 
   const [nickname, setNickname] = useState('');
+  const [enterpriseName, setEnterpriseName] = useState('');
   const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -46,13 +48,13 @@ const RegisterPage: React.FC = () => {
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
-    if (!nickname.trim()) {
-      Message.warning('请输入昵称');
+    if (!enterpriseName.trim()) {
+      Message.warning(t('park.register.enterpriseNamePlaceholder', '请输入企业名称'));
       return;
     }
 
-    if (!invitationCode.trim()) {
-      Message.warning('请输入邀请码');
+    if (!nickname.trim()) {
+      Message.warning('请输入昵称');
       return;
     }
 
@@ -63,17 +65,20 @@ const RegisterPage: React.FC = () => {
     }
 
     setLoading(true);
-    const result = await register({
-      phone: phoneFromUrl,
-      code: codeFromUrl,
-      nickname: nickname.trim(),
-      invitation_code: invitationCode.trim(),
-    });
-
-    if (result.success) {
-      setTimeout(() => navigate('/guid', { replace: true }), 300);
-    } else {
-      Message.error(result.message || '注册失败');
+    try {
+      // 园区企业注册（P0）：创建 prospect enterprise org 并绑定园区
+      // （邀请码可选；无邀请码时绑定部署默认园区）。注册成功后走登录。
+      await invokePark('registerEnterprise', {
+        phone: phoneFromUrl,
+        sms_code: codeFromUrl,
+        enterprise_name: enterpriseName.trim(),
+        contact_name: nickname.trim(),
+        ...(invitationCode.trim() ? { invite_token: invitationCode.trim() } : {}),
+      });
+      Message.success(t('park.register.success', '注册成功，即将进入登录'));
+      setTimeout(() => navigate('/login', { replace: true }), 600);
+    } catch (err) {
+      Message.error(err instanceof Error ? err.message : '注册失败');
     }
     setLoading(false);
   };
@@ -123,20 +128,26 @@ const RegisterPage: React.FC = () => {
             <Input size='large' prefix={<User className='text-tertiary' />} value={phoneFromUrl} disabled className='login-input !rd-12px h-48px' />
           </div>
 
+          {/* 企业名称（园区 P0：prospect enterprise 注册） */}
+          <div className='flex flex-col gap-8px'>
+            <div className='text-12px font-600 text-secondary ml-4px'>{t('park.register.enterpriseName', '企业名称')}</div>
+            <Input size='large' prefix={<User className='text-tertiary' />} placeholder={t('park.register.enterpriseNamePlaceholder', '请输入企业名称')} value={enterpriseName} onChange={setEnterpriseName} className='login-input !rd-12px h-48px' maxLength={60} />
+          </div>
+
           {/* 昵称输入 */}
           <div className='flex flex-col gap-8px'>
             <div className='text-12px font-600 text-secondary ml-4px'>昵称</div>
             <Input size='large' prefix={<User className='text-tertiary' />} placeholder='请输入您的昵称' value={nickname} onChange={setNickname} className='login-input !rd-12px h-48px' maxLength={20} />
           </div>
 
-          {/* 邀请码输入 */}
+          {/* 邀请码输入（园区邀请，可选） */}
           <div className='flex flex-col gap-8px'>
-            <div className='text-12px font-600 text-secondary ml-4px'>邀请码</div>
-            <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder='请输入 6 位邀请码' value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={6} />
+            <div className='text-12px font-600 text-secondary ml-4px'>{t('park.register.inviteCode', '园区邀请码（可选）')}</div>
+            <Input size='large' prefix={<Protect className='text-tertiary' />} placeholder={t('park.register.inviteCodePlaceholder', '如有邀请码请填写')} value={invitationCode} onChange={setInvitationCode} className='login-input !rd-12px h-48px' maxLength={64} />
           </div>
 
           <Button type='primary' size='large' loading={loading} onClick={() => handleSubmit()} className='login-btn-primary !rd-12px h-52px mt-12px font-700 text-16px'>
-            完成注册
+            {t('park.register.submit', '注册企业账号')}
           </Button>
 
           <Button size='large' onClick={() => navigate('/login', { replace: true })} className='login-btn-secondary !rd-12px h-48px'>

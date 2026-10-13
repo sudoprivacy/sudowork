@@ -5,7 +5,7 @@
  */
 
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Network, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlarmClock, ArrowLeft, BookOpen, Bot, Building2, ChevronDown, ClipboardList, Globe, ListChecks, LogIn, LogOut, MessageSquareText, Network, PieChart, Plus, Settings, ShieldCheck, Sparkles, Wrench } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -18,6 +18,7 @@ import { addEventListener, emitter } from '@renderer/utils/emitter';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useCronAccess } from '@renderer/hooks/useCronAccess';
 import { isElectronDesktop } from '@renderer/utils/platform';
+import { useParkQuery } from '@renderer/hooks/usePark';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
 import { maskPhone } from '@renderer/utils';
@@ -41,6 +42,11 @@ const Sider: React.FC = () => {
   const { logout, user: currentUser, isGuest } = useAuth();
   const { isEnterprise, mode } = useAppMode();
   const { isCronVisible } = useCronAccess();
+  // 园区业务域导航（园区 AI 招商 P0）：按服务端推导的 org 类型/角色注入菜单；
+  // 桌面端不展示园区入口（与路由守卫一致，仅 WebUI）。
+  const { data: parkContext } = useParkQuery<{ org_type: 'park' | 'enterprise' | null; park_role: string | null }>(
+    isElectronDesktop() ? null : 'getContext',
+  );
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   // 账户菜单触发区，用于让弹层宽度与之对齐
@@ -61,8 +67,36 @@ const Sider: React.FC = () => {
     return 'timeline';
   });
 
+  // 园区业务域菜单（WebUI only；enterprise 用户 / park 三角色）
+  const parkMenus =
+    !isElectronDesktop() && parkContext?.org_type === 'enterprise'
+      ? [
+          { id: 'park-ent-home', label: t('park.nav.enterpriseHome', '企业工作台'), icon: Building2, path: '/enterprise/home' },
+          { id: 'park-ent-assistant', label: t('park.nav.assistant', '园区咨询'), icon: MessageSquareText, path: '/enterprise/assistant' },
+          { id: 'park-ent-policies', label: t('park.nav.policies', '政策信息'), icon: BookOpen, path: '/enterprise/policies' },
+          { id: 'park-ent-inquiries', label: t('park.nav.inquiries', '我的咨询记录'), icon: ClipboardList, path: '/enterprise/inquiries' },
+        ]
+      : !isElectronDesktop() && parkContext?.org_type === 'park'
+        ? [
+            ...(parkContext.park_role === 'park_leader'
+              ? [{ id: 'park-overview', label: t('park.nav.overview', '园区总览'), icon: PieChart, path: '/park/overview' }]
+              : []),
+            ...(parkContext.park_role === 'park_ops' || parkContext.park_role === 'park_leader'
+              ? [
+                  { id: 'park-leads', label: t('park.nav.leads', '线索池'), icon: ClipboardList, path: '/park/leads' },
+                  { id: 'park-consultations', label: t('park.nav.consultations', '咨询摘要'), icon: MessageSquareText, path: '/park/consultations' },
+                  { id: 'park-enterprises', label: t('park.nav.enterprises', '企业列表'), icon: Building2, path: '/park/enterprises' },
+                ]
+              : []),
+            ...(parkContext.park_role === 'park_system_operator'
+              ? [{ id: 'park-admin', label: t('park.nav.admin', '系统管理'), icon: Wrench, path: '/park/admin' }]
+              : []),
+          ]
+        : [];
+
   // 功能菜单项定义 / Function menu items definition
   const Menus = [
+    ...parkMenus,
     ...(isEnterprise ? [{ id: 'my-agents', label: t('agent.mine.title'), icon: Bot, path: '/app/agents/mine' }] : []),
     { id: 'agent', label: t('common.siderMenu.agent'), icon: Bot, path: '/app/agent' },
     { id: 'skill-store', label: t('common.siderMenu.skillStore'), icon: Sparkles, path: '/app/skills' },
@@ -144,7 +178,7 @@ const Sider: React.FC = () => {
       setActiveTab(nextTab);
       localStorage.setItem(SIDER_TAB_STORAGE_KEY, nextTab);
       const menu = Menus.find((m) => m.id === menuId);
-      if (menu?.path.startsWith('/app/')) {
+      if (menu?.path.startsWith('/app/') || menu?.path.startsWith('/enterprise/') || menu?.path.startsWith('/park/')) {
         void navigate(menu.path);
       }
     } catch {

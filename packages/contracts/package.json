@@ -13,6 +13,11 @@
       "bun": "./src/conversations.ts",
       "types": "./dist/conversations.d.ts",
       "default": "./dist/conversations.js"
+    },
+    "./park": {
+      "bun": "./src/park.ts",
+      "types": "./dist/park.d.ts",
+      "default": "./dist/park.js"
     }
   },
   "files": [

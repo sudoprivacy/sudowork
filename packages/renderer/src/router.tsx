@@ -11,6 +11,8 @@ import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
 import { useCronAccess } from './hooks/useCronAccess';
 import { isDesktopOnlyRoute, isElectronDesktop } from './utils/platform';
+import { useParkQuery } from './hooks/usePark';
+import { resolveParkRoute } from './park/parkRouteGuard';
 import UpdateModal from './layouts/components/UpdateModal';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
@@ -43,7 +45,22 @@ const MemberManagement = React.lazy(() => import('./pages/settings/members'));
 const EnterpriseSettings = React.lazy(() => import('./pages/settings/enterprise'));
 const EnterpriseMcpSettings = React.lazy(() => import('./pages/settings/enterprise_mcps'));
 
-const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
+// Park domain pages (园区 AI 招商 P0) — WebUI only (hidden on desktop), role-gated by server-derived park context.
+const EnterpriseHomePage = React.lazy(() => import('./pages/enterprise/home'));
+const EnterpriseAssistantPage = React.lazy(() => import('./pages/enterprise/assistant'));
+const EnterprisePoliciesPage = React.lazy(() => import('./pages/enterprise/policies'));
+const EnterpriseServicesPage = React.lazy(() => import('./pages/enterprise/services'));
+const EnterpriseInquiriesPage = React.lazy(() => import('./pages/enterprise/inquiries'));
+const ParkOverviewPage = React.lazy(() => import('./pages/park/overview'));
+const ParkLeadsPage = React.lazy(() => import('./pages/park/leads'));
+const ParkLeadDetailPage = React.lazy(() => import('./pages/park/leads/detail'));
+const ParkConsultationsPage = React.lazy(() => import('./pages/park/consultations'));
+const ParkEnterprisesPage = React.lazy(() => import('./pages/park/enterprises'));
+const ParkEnterpriseDetailPage = React.lazy(() => import('./pages/park/enterprises/detail'));
+const ParkAdminPage = React.lazy(() => import('./pages/park/admin'));
+
+// Accepts lazy AND plain components (park guards return plain FCs wrapping lazy pages).
+const withRouteFallback = (Component: React.ComponentType) => (
   <Suspense fallback={<AppLoader />}>
     <Component />
   </Suspense>
@@ -64,7 +81,38 @@ const SettingsDefaultRoute: React.FC = () => {
   return <Navigate to={isGuest ? '/settings/model' : isEnterprise ? '/settings/enterprise' : '/settings/profile'} replace />;
 };
 
+/** Park 域路由守卫（园区 AI 招商 P0）：
+ *  桌面端隐藏（同 router.tsx:58,133 的上下文裁剪先例；isDesktopRuntime 标识符定义于
+ *  AuthContext.tsx:213）；WebUI 下按服务端推导的 org 类型放行，其余重定向首页。
+ *  前端守卫只裁剪导航，权威鉴权在 moss park 域（ParkAuthorization）。 */
+export function withParkGuard(expected: 'park' | 'enterprise', Page: React.ComponentType) {
+  function ParkGuardedPage() {
+    const { data, loading } = useParkQuery<{ org_type: 'park' | 'enterprise' | null }>('getContext');
+    const decision = resolveParkRoute(expected, data, { loading, isDesktop: isElectronDesktop() });
+    if (decision === 'redirect') return <Navigate to='/guid' replace />;
+    if (decision === 'wait') return null;
+    return <Page />;
+  }
+  return ParkGuardedPage;
+}
+
 const PROTECTED_ROUTE_CONFIGS = [
+  // ---- Park domain routes（园区 AI 招商 P0）----
+  // 守卫：桌面端隐藏（isDesktopRuntime）；服务端推导的 org 类型/角色决定导航
+  // （guard 组件仅做前端导航裁剪，权威鉴权在 moss park 域）。
+  { path: '/enterprise/home', component: withParkGuard('enterprise', EnterpriseHomePage) },
+  { path: '/enterprise/assistant', component: withParkGuard('enterprise', EnterpriseAssistantPage) },
+  { path: '/enterprise/policies', component: withParkGuard('enterprise', EnterprisePoliciesPage) },
+  { path: '/enterprise/services', component: withParkGuard('enterprise', EnterpriseServicesPage) },
+  { path: '/enterprise/inquiries', component: withParkGuard('enterprise', EnterpriseInquiriesPage) },
+  { path: '/park/overview', component: withParkGuard('park', ParkOverviewPage) },
+  { path: '/park/leads', component: withParkGuard('park', ParkLeadsPage) },
+  { path: '/park/leads/:leadId', component: withParkGuard('park', ParkLeadDetailPage) },
+  { path: '/park/consultations', component: withParkGuard('park', ParkConsultationsPage) },
+  { path: '/park/enterprises', component: withParkGuard('park', ParkEnterprisesPage) },
+  { path: '/park/enterprises/:enterpriseOrgId', component: withParkGuard('park', ParkEnterpriseDetailPage) },
+  { path: '/park/admin', component: withParkGuard('park', ParkAdminPage) },
+  { path: '/park/admin/:section', component: withParkGuard('park', ParkAdminPage) },
   { path: '/guid', component: Guid },
   { path: '/conversation/:id', component: Conversation },
   { path: '/moss-session/:sessionId', component: MossSessionPage },

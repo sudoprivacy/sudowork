@@ -1617,6 +1617,45 @@ export const browserPanel = {
   clearBuffers: bridge.buildProvider<IBridgeResponse<void>, { tabId?: string }>('browser-panel:clear-buffers'),
 };
 
+// Park business domain API / 园区业务域接口（数据结构见 @sudowork/contracts/park；
+// 此处以宽松类型声明——运行时校验在 BFF/moss 侧完成）
+export const park = {
+  // Context & registration
+  getContext: bridge.buildProvider<unknown, void>('park.get-context'),
+  registerEnterprise: bridge.buildProvider<unknown, { phone: string; sms_code: string; enterprise_name: string; contact_name: string; invite_token?: string }>('park.register-enterprise'),
+  // Enterprise side
+  getEnterpriseProfile: bridge.buildProvider<unknown, void>('park.enterprise.get-profile'),
+  getEnterprisePolicies: bridge.buildProvider<unknown, void>('park.enterprise.get-policies'),
+  getEnterpriseServices: bridge.buildProvider<unknown, void>('park.enterprise.get-services'),
+  getEnterpriseInquiries: bridge.buildProvider<unknown, void>('park.enterprise.get-inquiries'),
+  getEnterpriseAssistants: bridge.buildProvider<unknown, void>('park.enterprise.get-assistants'),
+  // Park side — enterprises
+  listEnterprises: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-enterprises'),
+  getEnterpriseDetail: bridge.buildProvider<unknown, { parkOrgId: string; enterpriseOrgId: string }>('park.get-enterprise-detail'),
+  updateEnterpriseFollowUp: bridge.buildProvider<unknown, { parkOrgId: string; enterpriseOrgId: string; updates: Record<string, unknown> }>('park.update-enterprise-followup'),
+  createBinding: bridge.buildProvider<unknown, { parkOrgId: string; enterpriseOrgId: string; lifecycle?: string }>('park.create-binding'),
+  // Park side — leads
+  listLeads: bridge.buildProvider<unknown, { parkOrgId: string; status?: string; watched?: boolean }>('park.list-leads'),
+  createManualLead: bridge.buildProvider<unknown, { parkOrgId: string; enterpriseOrgId: string; note?: string; industryTags?: string[] }>('park.create-manual-lead'),
+  getLeadDetail: bridge.buildProvider<unknown, { parkOrgId: string; leadId: string }>('park.get-lead-detail'),
+  claimLead: bridge.buildProvider<unknown, { parkOrgId: string; leadId: string }>('park.claim-lead'),
+  updateLead: bridge.buildProvider<unknown, { parkOrgId: string; leadId: string; updates: Record<string, unknown> }>('park.update-lead'),
+  watchLead: bridge.buildProvider<unknown, { parkOrgId: string; leadId: string }>('park.watch-lead'),
+  unwatchLead: bridge.buildProvider<unknown, { parkOrgId: string; leadId: string }>('park.unwatch-lead'),
+  // Park side — consultations / metrics / audit / members / assignments
+  listConsultations: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-consultations'),
+  getMetrics: bridge.buildProvider<unknown, { parkOrgId: string }>('park.get-metrics'),
+  listAuditEvents: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-audit-events'),
+  listMembers: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-members'),
+  addMember: bridge.buildProvider<unknown, { parkOrgId: string; userId: string; parkRole: string }>('park.add-member'),
+  removeMember: bridge.buildProvider<unknown, { parkOrgId: string; userId: string }>('park.remove-member'),
+  listAssignments: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-assignments'),
+  assignAssistant: bridge.buildProvider<unknown, { parkOrgId: string; assistantId: string; enterpriseOrgId: string }>('park.assign-assistant'),
+  unassignAssistant: bridge.buildProvider<unknown, { parkOrgId: string; assistantId: string; enterpriseOrgId: string }>('park.unassign-assistant'),
+  getSettings: bridge.buildProvider<unknown, { parkOrgId: string }>('park.get-settings'),
+  updateSettings: bridge.buildProvider<unknown, { parkOrgId: string; updates: Record<string, unknown> }>('park.update-settings'),
+};
+
 // Cron job management API / 定时任务管理接口
 export const cron = {
   // Query

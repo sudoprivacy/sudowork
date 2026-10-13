@@ -26,6 +26,9 @@ const bridgeAlias = [
   { find: '@server', replacement: abs('./src/server') },
   { find: '@shared', replacement: abs('./src/shared') },
   { find: /^@sudowork\/renderer\/(.*)$/, replacement: abs('../../packages/renderer/src') + '/$1' },
+  // renderer 内部源码使用 @renderer/* 自引用别名（见 renderer tsconfig paths）——
+  // unit project 从源码加载 renderer 组件（如 router 守卫测试）时需要同样的解析。
+  { find: /^@renderer\/(.*)$/, replacement: abs('../../packages/renderer/src') + '/$1' },
   { find: /^@sudowork\/common\/(.*)$/, replacement: abs('../../packages/common/src') + '/$1' },
   { find: /^@sudowork\/common$/, replacement: abs('../../packages/common/src/index.ts') },
   {
@@ -38,6 +41,13 @@ const bridgeAlias = [
 
 export default defineConfig({
   test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'text-summary'],
+      reportsDirectory: './coverage',
+      // 手动指定需要覆盖的源文件：新增功能区时将源文件路径加入此数组
+      include: ['src/server/features/park/**/*.ts'],
+    },
     projects: [
       {
         resolve: { alias: bridgeAlias },

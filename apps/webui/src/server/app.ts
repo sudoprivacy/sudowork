@@ -39,12 +39,17 @@ import { createChannelsRouter } from './features/channels/channelsRoutes.js'
 import { attachChannelEvents } from './features/channels/channelEvents.js'
 import { createMossAgentTemplatePort, type MossAgentTemplatePort } from '@sudowork/moss-client'
 import { createMossSkillPort, type MossSkillPort } from '@sudowork/moss-client'
-import { createMossCronPort } from '@sudowork/moss-client'
+import { createMossCronPort, createMossParkPort } from '@sudowork/moss-client'
 import { createMossMcpPort, type MossMcpPort } from '@sudowork/moss-client'
 import { createConsumerRouter } from './features/consumer/consumerRoutes.js'
 import { createAgentRouter } from './features/agents/agentRoutes.js'
 import { createSkillRouter } from './features/skills/skillRoutes.js'
 import { createCronRouter } from './features/cron/cronRoutes.js'
+import {
+  createEnterpriseRouter,
+  createParkRouter,
+  createParksRouter,
+} from './features/park/parkRoutes.js'
 import { createSettingsRouter } from './features/settings/settingsRoutes.js'
 import { createMcpRouter } from './features/mcp/mcpRoutes.js'
 import {
@@ -274,6 +279,21 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   const mcp = deps.mcp ?? createMossMcpPort(mossFetch)
   app.use('/api/settings', createSettingsRouter({ pool, config, auth, mcp }))
   app.use('/api/mcp', createMcpRouter({ pool, config, auth, mcp }))
+
+  // Park business domain (园区 AI 招商 P0)：/api/park（注册免登录+context）、
+  // /api/enterprise（企业侧）、/api/parks（园区侧，镜像 moss 路径）。
+  const parkDeps = {
+    pool,
+    config,
+    mossAuth: deps.mossAuth,
+    park:
+      (deps as { park?: import('@sudowork/moss-client').MossParkPort }).park ??
+      createMossParkPort(mossFetch),
+    mossFetch,
+  }
+  app.use('/api/park', createParkRouter(parkDeps))
+  app.use('/api/enterprise', createEnterpriseRouter(parkDeps))
+  app.use('/api/parks', createParksRouter(parkDeps))
 
   // 全局错误中间件：兜住各路由 next(err) 的未识别错误，统一返回 JSON（杜绝 Express 默认
   // HTML 错误页——前端对非 {error} JSON 只能显示 UNKNOWN）。必须注册在全部 /api 路由之后。
