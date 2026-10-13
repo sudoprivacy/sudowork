@@ -291,8 +291,13 @@ export async function getConversationModel(
   sessionId: string,
   ctx: MossCallContext,
 ): Promise<ConversationModelResponse> {
-  await requireAccessibleSession(deps, principal, sessionId, ctx)
-  const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
+  const session = await requireAccessibleSession(deps, principal, sessionId, ctx)
+  const ownerPrincipalId = await resolveSessionOwnerPrincipalId(
+    deps.pool,
+    principal,
+    session.userId,
+  )
+  const meta = await getConversationMeta(deps.pool, ownerPrincipalId, sessionId)
   return { modelId: meta?.modelId ?? null }
 }
 
@@ -307,10 +312,19 @@ export async function getContext(
   modelId: string | null
   messages: TMessage[]
 }> {
-  await requireAccessibleSession(deps, principal, sessionId, ctx)
+  const session = await requireAccessibleSession(deps, principal, sessionId, ctx)
+  const ownerPrincipalId = await resolveSessionOwnerPrincipalId(
+    deps.pool,
+    principal,
+    session.userId,
+  )
   const localMeta = async (): Promise<{ title: string | null; modelId: string | null }> => {
     const meta = await getConversationMeta(deps.pool, principal.id, sessionId)
-    return { title: meta?.title ?? null, modelId: meta?.modelId ?? null }
+    const ownerMeta =
+      ownerPrincipalId === principal.id
+        ? meta
+        : await getConversationMeta(deps.pool, ownerPrincipalId, sessionId)
+    return { title: meta?.title ?? null, modelId: ownerMeta?.modelId ?? null }
   }
   let parsed: unknown
   try {

@@ -11,6 +11,26 @@ import WebSocket from 'ws'
 
 export class MossWsValidationError extends Error {}
 
+/** Decode structured engine records inside a Moss runner stdout envelope. */
+export function decodeMossEventPayloads(event: unknown): Record<string, unknown>[] {
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return []
+  const frame = event as Record<string, unknown>
+  if (frame.type !== 'stdout') return [frame]
+  if (typeof frame.line !== 'string') return []
+  const records: Record<string, unknown>[] = []
+  for (const line of frame.line.split('\n')) {
+    try {
+      const parsed: unknown = JSON.parse(line)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        records.push(parsed as Record<string, unknown>)
+      }
+    } catch {
+      // A non-JSON line is not a structured engine event.
+    }
+  }
+  return records
+}
+
 /** 由会话生效的 http(s) moss 地址推导同 host 的 ws 地址（http→ws、https→wss）。 */
 export function deriveWsBaseUrl(httpBaseUrl: string): string {
   return httpBaseUrl.replace(/^http/i, 'ws')
@@ -121,7 +141,8 @@ export class MossUpstreamSocket {
           this.closed = true
           reject(err)
         }
-        const onClose = (code: number): void => onFail(new Error(`upstream closed during handshake (${code})`))
+        const onClose = (code: number): void =>
+          onFail(new Error(`upstream closed during handshake (${code})`))
         this.ws.once('open', onOpen)
         this.ws.once('error', onFail)
         this.ws.once('close', onClose)
@@ -216,7 +237,10 @@ export function buildInterruptMessage(requestId?: string): Record<string, unknow
 }
 
 /** 权限审批回批（与桌面端 MossWsConnection.respondToPermissionRequest 的消息形状一致） */
-export function buildControlResponseMessage(requestId: string, optionId: string): Record<string, unknown> {
+export function buildControlResponseMessage(
+  requestId: string,
+  optionId: string,
+): Record<string, unknown> {
   return {
     type: 'control_response',
     response: {
