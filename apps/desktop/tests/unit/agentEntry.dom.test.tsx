@@ -6,8 +6,8 @@ import { SWRConfig } from 'swr';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TChatConversation } from '@sudowork/common/storage';
 
-const state = vi.hoisted(() => ({ userId: 'user-a', mode: 'remote', history: vi.fn(), agents: vi.fn(), changed: vi.fn(), emit: vi.fn(), listeners: new Map<string, () => void>() }));
-vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: { id: state.userId }, ready: true, status: 'authenticated' }) }));
+const state = vi.hoisted(() => ({ userId: 'user-a', organization: 'org-a', role: 'USER', mode: 'remote', history: vi.fn(), agents: vi.fn(), changed: vi.fn(), emit: vi.fn(), listeners: new Map<string, () => void>() }));
+vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: { id: state.userId, enterprise_code: state.organization, role: state.role }, ready: true, status: 'authenticated' }) }));
 vi.mock('@renderer/pages/guid/hooks/useGuidAgentSelection', () => ({ getRendererSessionMode: () => state.mode }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ eeclaw: { getMyAgents: { invoke: state.agents } }, database: { getUserConversations: { invoke: state.history }, conversationChanged: { on: state.changed } } }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -68,6 +68,8 @@ function deferred<T>() {
 beforeEach(() => {
   vi.clearAllMocks();
   state.userId = 'user-a';
+  state.organization = 'org-a';
+  state.role = 'USER';
   state.mode = 'remote';
   state.listeners.clear();
   state.changed.mockReturnValue(() => {});
@@ -129,7 +131,7 @@ describe('shared Agent entry', () => {
     await waitFor(() => expect(screen.getByLabelText('route')).toHaveTextContent('/conversation/latest'));
     expect(state.history).toHaveBeenCalledTimes(2);
   });
-  it.each(['account', 'mode'])('discards a late response after changing %s', async (change) => {
+  it.each(['account', 'organization', 'role', 'mode'])('discards a late response after changing %s', async (change) => {
     const page = renderEntry();
     await screen.findByText('cached');
     const pending = deferred<TChatConversation[]>();
@@ -137,8 +139,10 @@ describe('shared Agent entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use template' }));
     await waitFor(() => expect(state.history).toHaveBeenCalledTimes(2));
     state.history.mockResolvedValue([]);
-    if (change === 'account') {
-      state.userId = 'user-b';
+    if (change !== 'mode') {
+      if (change === 'account') state.userId = 'user-b';
+      else if (change === 'organization') state.organization = 'org-b';
+      else state.role = 'ADMIN';
       page.rerender(page.element());
     } else {
       state.mode = 'local';

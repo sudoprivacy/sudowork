@@ -16,6 +16,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { emitter } from '@renderer/utils/emitter';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { useCronJobsMap } from '@renderer/pages/cron/hooks/useCronJobs';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import DirectorySelectionModal from '@renderer/components/DirectorySelectionModal';
@@ -219,6 +220,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       void handleConversationClick(latest);
       return;
     }
+    resetGuidDraft();
     void navigate(`/guid?assistant=${encodeURIComponent(group.ref)}`);
     onSessionClick?.();
   }

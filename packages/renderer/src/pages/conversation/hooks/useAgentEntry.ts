@@ -2,8 +2,7 @@ import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { clearGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
-import { emitter } from '@renderer/utils/emitter';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { useConversationHistory } from '../context/ConversationHistoryContext';
 import { getLatestAgentConversation } from '../utils/agentIdentity';
 
@@ -36,8 +35,7 @@ export function useAgentEntry() {
         const conversations = await getFreshConversations();
         if (epoch !== request.current) return;
         const latest = getLatestAgentConversation(conversations, reference);
-        clearGuidDraft();
-        emitter.emit('guid.reset');
+        resetGuidDraft();
         void navigate(latest ? `/conversation/${encodeURIComponent(latest.id)}` : `/guid?assistant=${encodeURIComponent(reference)}`);
       } catch {
         if (epoch === request.current) Message.error(t('agent.mine.openFailed'));

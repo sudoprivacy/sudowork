@@ -19,7 +19,7 @@ import { useDirectorySelection } from '@renderer/hooks/useDirectorySelection';
 import { useMultiAgentDetection } from '@renderer/hooks/useMultiAgentDetection';
 import { useResponsiveSider } from '@renderer/hooks/useResponsiveSider';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
-import { emitter } from '@renderer/utils/emitter';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import DebugPanel from '@renderer/layouts/components/DebugPanel';
 import Sider from '@renderer/layouts/components/Sider';
 import Titlebar from '@renderer/layouts/components/TitleBar';
@@ -70,7 +70,7 @@ function Layout() {
     // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
     void ConfigStorage.set('guid.lastSelectedAgent', '');
     // 触发 Guide 页面重置所有用户输入状态
-    emitter.emit('guid.reset');
+    resetGuidDraft();
     void navigate('/guid');
   }, [navigate]);
   useMultiAgentDetection();

@@ -23,6 +23,7 @@ vi.mock('@renderer/utils/emitter', () => ({
 }));
 import MyAgents from '@renderer/pages/my-agents';
 import { ConversationHistoryProvider } from '@renderer/pages/conversation/context/ConversationHistoryContext';
+import { clearGuidDraft, getGuidDraft, setGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 
 const owned = { ref: 'moss-agent:own:mine', displayName: 'Private assistant', kind: 'own' };
 function Location() {
@@ -37,7 +38,10 @@ beforeEach(() => {
   mocks.create.mockResolvedValue({ success: true, data: { id: 'new', displayName: 'New Agent' } });
   mocks.history.mockResolvedValue([]);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearGuidDraft();
+});
 function renderPage() {
   const cache = new Map();
   const value = { provider: () => cache, dedupingInterval: 0, shouldRetryOnError: false };
@@ -75,11 +79,14 @@ describe('My Agents page', () => {
     expect(screen.getByText('Bob personal Agent')).toBeVisible();
   });
   it('starts a conversation using the stable owned identity', async () => {
+    setGuidDraft({ input: 'A cached draft from the preceding Session' });
     renderPage();
     await screen.findByText(owned.displayName);
     expect(screen.queryByText('Shared template')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'agent.mine.startConversation' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/guid?assistant=moss-agent%3Aown%3Amine');
+    expect(getGuidDraft()).toBeUndefined();
+    expect(mocks.emit).toHaveBeenCalledWith('guid.reset');
   });
   it('opens the latest conversation for this Agent and preserves a separate new-conversation action', async () => {
     mocks.history.mockResolvedValue([

@@ -13,6 +13,7 @@ import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { updateWorkspaceTime } from '@renderer/utils/workspaceHistory';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { getAgentLogo } from '@renderer/utils/agentLogo';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@renderer/pages/guid/utils/constants';
 import { formatSessionTime } from '@renderer/utils/messageTime';
@@ -165,7 +166,7 @@ const ConversationTabs: React.FC = () => {
       // 如果关闭的是当前 tab，导航将由 context 自动处理（切换到最后一个）
       // 如果没有 tab 了，导航到欢迎页
       if (openTabs.length === 1 && tabId === activeTabId) {
-        emitter.emit('guid.reset');
+        resetGuidDraft();
         void navigate('/guid');
       }
     },
@@ -177,7 +178,7 @@ const ConversationTabs: React.FC = () => {
     async (key: string) => {
       const currentTab = openTabs.find((tab) => tab.id === activeTabId);
       if (!currentTab?.workspace) {
-        emitter.emit('guid.reset');
+        resetGuidDraft();
         void navigate('/guid');
         return;
       }
@@ -282,7 +283,7 @@ const ConversationTabs: React.FC = () => {
             switch (key) {
               case 'close-all':
                 closeAllTabs();
-                emitter.emit('guid.reset');
+                resetGuidDraft();
                 void navigate('/guid');
                 break;
               case 'close-left':
@@ -356,7 +357,7 @@ const ConversationTabs: React.FC = () => {
             disabled={isHistoryLoading || isLoadFailed}
             icon={<Plus size={16} />}
             onClick={() => {
-              emitter.emit('guid.reset');
+              resetGuidDraft();
               void navigate(`/guid?assistant=${encodeURIComponent(activeAgentRef)}`);
             }}
           />
