@@ -1807,7 +1807,12 @@ const AgentSettings: React.FC = () => {
 
                 {/* Assistant grid */}
                 <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleHubScroll}>
-                  {activeTab === 'exclusive' && <><PublishedExternalAgents query={hubSearchQuery} /><Typography.Title heading={5}>{t('agent.external.published.nativeTitle')}</Typography.Title></>}
+                  {activeTab === 'exclusive' && (
+                    <>
+                      <PublishedExternalAgents query={hubSearchQuery} />
+                      <Typography.Title heading={5}>{t('agent.external.published.nativeTitle')}</Typography.Title>
+                    </>
+                  )}
                   {/* Enterprise mode: show tenant assistants from local tenant/ directory */}
                   {activeTab === 'exclusive' && isEnterprise ? (
                     hubLoading ? (

@@ -534,52 +534,88 @@ export function initEeclawBridge(): void {
    * kind's name lives.
    */
   ipcBridge.externalProviders.access.provider(async () => {
-    try { return { success: true, data: await externalProviderPort.access() }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.access() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.policy.provider(async () => {
-    try { return { success: true, data: await externalProviderPort.policy() }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.policy() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.savePolicy.provider(async (input) => {
-    try { return { success: true, data: await externalProviderPort.savePolicy(input) }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.savePolicy(input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.adminAgents.provider(async () => {
-    try { return { success: true, data: await externalProviderPort.adminAgents() }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.adminAgents() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.members.provider(async () => {
-    try { return { success: true, data: await externalProviderPort.members() }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.members() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.inspect.provider(async (input) => {
-    try { return { success: true, data: await externalProviderPort.inspect(input) }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.inspect(input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.onboard.provider(async (input) => {
-    try { return { success: true, data: await externalProviderPort.onboard(input) }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.onboard(input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.update.provider(async (input) => {
-    try { return { success: true, data: await externalProviderPort.update(input.agentId, input.input) }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.update(input.agentId, input.input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.rotate.provider(async (input) => {
-    try { return { success: true, data: await externalProviderPort.rotate(input.agentId, { revision: input.revision, api_key: input.api_key }) }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.rotate(input.agentId, { revision: input.revision, api_key: input.api_key }) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.archive.provider(async (input) => {
-    try { return { success: true, data: await externalProviderPort.archive(input.agentId, input.revision) }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.archive(input.agentId, input.revision) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.testAgent.provider(async (input) => {
-    try { return { success: true, data: await externalProviderPort.testAgent(input.agentId) }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.testAgent(input.agentId) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.review.provider(async (input) => {
-    try { return { success: true, data: await externalProviderPort.review(input.agentId, { approved: input.approved, revision: input.revision, review_days: input.review_days }) }; }
-    catch (error) { return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' }; }
+    try {
+      return { success: true, data: await externalProviderPort.review(input.agentId, { approved: input.approved, revision: input.revision, review_days: input.review_days }) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
   });
   ipcBridge.externalProviders.agents.provider(async () => {
     try {
