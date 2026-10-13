@@ -102,7 +102,7 @@ function evaluateInRendererOnce(wsUrl, expression) {
           id: 1,
           method: 'Runtime.evaluate',
           params: { expression, awaitPromise: true, returnByValue: true },
-        }),
+        })
       );
     });
     ws.on('message', (raw) => {
@@ -193,17 +193,20 @@ async function main() {
   console.log(`[cdp-dev-shim-smoke] initial CDP target: ${initialPage.url}`);
 
   // A fresh profile must leave the initial mode/storage guard without reload.
-  const readiness = await evaluateInRendererResilient(cdpPort, `(async () => {
+  const readiness = await evaluateInRendererResilient(
+    cdpPort,
+    `(async () => {
     const deadline = Date.now() + 45000;
     while (Date.now() < deadline) {
-      const text = document.body.innerText.trim();
+      const text = document.body?.innerText?.trim() || '';
       if (text && !/^(正在加载|正在获取初始化状态)\\.{3}$/.test(text)) {
         return { ready: true };
       }
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     throw new Error('Fresh renderer remained in the initial mode/storage guard');
-  })()`);
+  })()`
+  );
   if (readiness?.result?.value?.ready !== true) throw new Error('Renderer readiness probe failed');
   console.log('[cdp-dev-shim-smoke] fresh renderer resolved storage and app mode');
 
