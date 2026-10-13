@@ -3582,6 +3582,7 @@ export const mossCatalog = {
 };
 
 export const externalProviders = {
+  context: bridge.buildProvider<IBridgeResponse<{ isAvailable: boolean; identity: string }>, void>('external-providers.context'),
   access: bridge.buildProvider<IBridgeResponse<ExternalProviderAccess>, void>('external-providers.access'),
   policy: bridge.buildProvider<IBridgeResponse<ExternalPilotPolicy>, void>('external-providers.policy'),
   savePolicy: bridge.buildProvider<IBridgeResponse<ExternalPilotPolicy>, ExternalPilotPolicy>('external-providers.savePolicy'),

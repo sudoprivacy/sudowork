@@ -6,7 +6,28 @@ import { addEventListener } from '@renderer/utils/emitter';
 
 export function useExternalIdentity() {
   const { user, isGuest } = useAuth();
-  return !user || isGuest ? '' : `${user.id}:${user.enterprise_code || ''}`;
+  const authIdentity = !user || isGuest ? '' : `${user.id}:${user.enterprise_code || ''}:${Boolean(user.localAuth)}`;
+  const [context, setContext] = useState({ authIdentity: '', identity: '' });
+  useEffect(() => {
+    let isActive = true;
+    if (!authIdentity) return;
+    const onCheck = (): void =>
+      void externalProviders.context
+        .invoke()
+        .then((result) => {
+          if (isActive) setContext({ authIdentity, identity: result.success && result.data?.isAvailable ? result.data.identity : '' });
+        })
+        .catch(() => {
+          if (isActive) setContext({ authIdentity, identity: '' });
+        });
+    onCheck();
+    const off = addEventListener('chat.history.refresh', onCheck);
+    return () => {
+      isActive = false;
+      off();
+    };
+  }, [authIdentity]);
+  return authIdentity && context.authIdentity === authIdentity && context.identity ? `${authIdentity}:${context.identity}` : '';
 }
 
 export function useExternalDirectory() {

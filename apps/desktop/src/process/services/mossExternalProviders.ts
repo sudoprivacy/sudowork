@@ -10,15 +10,24 @@ export const externalProviderPort = createMossExternalProviderPort(async (reques
   const assertIdentity = () => {
     if (server !== ProcessConfig.getSync('eeclaw.serverUrl') || scope !== ProcessConfig.getSync('eeclaw.accountScope')) throw new Error('Moss identity changed');
   };
-  const token = await getValidToken();
+  let token = await getValidToken();
   assertIdentity();
-  const response = await net.fetch(`${server.replace(/\/+$/, '')}${request.path}`, {
-    method: request.method,
-    headers: { Authorization: `Bearer ${token}`, ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-    ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
-    signal: AbortSignal.timeout(15_000),
-  });
+  const send = () =>
+    net.fetch(`${server.replace(/\/+$/, '')}${request.path}`, {
+      method: request.method,
+      headers: { Authorization: `Bearer ${token}`, ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  let response = await send();
   assertIdentity();
+  if (response.status === 401) {
+    await response.body?.cancel();
+    token = await getValidToken(true);
+    assertIdentity();
+    response = await send();
+    assertIdentity();
+  }
   const data: unknown = await response.json();
   if (!response.ok) {
     const code = (data as { error?: { code?: unknown } })?.error?.code;

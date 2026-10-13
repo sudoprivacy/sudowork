@@ -41,6 +41,16 @@ const task = z.object({
   session_id: id,
   agent_id: id,
   agent_name: z.string(),
+  configuration_revision: z.number().int().positive().optional(),
+  dispatch_authorized_at: z.number().optional(),
+  reconciliation: z
+    .object({
+      action: z.literal("closed"),
+      note: z.string(),
+      user_id: z.string(),
+      created_at: z.number(),
+    })
+    .optional(),
   attempt_id: z.string().nullable(),
   status,
   query: z.string(),
@@ -92,7 +102,9 @@ const agent = z.object({
   }),
 });
 const events = z.object({
-  task,
+  task: task.optional(),
+  snapshot_sequence: z.number().int().positive().optional(),
+  has_more: z.boolean(),
   next_cursor: z.number().int().nonnegative(),
   events: z.array(
     z.object({
@@ -100,7 +112,22 @@ const events = z.object({
       sequence: z.number().int().positive(),
       type: z.enum(["status", "answer", "provider_refs"]),
       status,
-      answer: z.string().optional(),
+      delta: z
+        .object({
+          offset: z.number().int().nonnegative(),
+          text: z.string().max(128000),
+        })
+        .optional(),
+      state: task.pick({
+        status: true,
+        attempt_id: true,
+        output_status: true,
+        error_code: true,
+        provider_refs: true,
+        updated_at: true,
+        dispatch_authorized_at: true,
+        reconciliation: true,
+      }),
       created_at: z.number(),
     }),
   ),
@@ -130,6 +157,9 @@ const adminAgentSchema = agent.extend({
   revision: z.number().int(),
   archived: z.boolean(),
   credential_configured: z.boolean(),
+  credential_state: z.enum(["ready", "updating", "rotation_required"]),
+  registration_mode: z.enum(["onboarding", "reference_compat"]),
+  definition_evidence: z.enum(["validated_dsl", "digest_only"]),
 });
 
 export interface MossExternalProviderPort {
@@ -243,4 +273,47 @@ export function createMossExternalProviderPort(
         `/api/v1/tasks/${id.parse(taskId)}/events?cursor=${z.number().int().nonnegative().parse(cursor)}`,
       ),
   };
+}
+
+/** Apply only a contiguous stream or an explicit snapshot. The caller resyncs from
+ * cursor 0 after a gap; accepted tasks are never resubmitted to repair a read. */
+export function applyExternalEventsPage(
+  current: ExternalTask,
+  cursor: number,
+  input: ExternalEventsPage,
+): ExternalTask {
+  const page = events.parse(input);
+  if (page.next_cursor < cursor && !page.task)
+    throw new Error("EXTERNAL_EVENT_CURSOR_REGRESSED");
+  if (page.task) {
+    if (
+      page.task.id !== current.id ||
+      page.task.session_id !== current.session_id ||
+      page.task.agent_id !== current.agent_id ||
+      page.snapshot_sequence !== page.next_cursor
+    )
+      throw new Error("EXTERNAL_SNAPSHOT_MISMATCH");
+    return page.task;
+  }
+  const next = { ...current };
+  let sequence = cursor;
+  for (const event of page.events) {
+    if (
+      event.task_id !== current.id ||
+      event.sequence !== sequence + 1 ||
+      event.state.status !== event.status
+    )
+      throw new Error("EXTERNAL_EVENT_GAP");
+    if (event.delta) {
+      if (event.delta.offset > next.answer.length)
+        throw new Error("EXTERNAL_DELTA_OFFSET");
+      next.answer = next.answer.slice(0, event.delta.offset) + event.delta.text;
+      if (next.answer.length > 128000) throw new Error("EXTERNAL_ANSWER_LIMIT");
+    }
+    Object.assign(next, event.state);
+    sequence = event.sequence;
+  }
+  if (sequence !== page.next_cursor || (page.has_more && sequence === cursor))
+    throw new Error("EXTERNAL_EVENT_CURSOR_MISMATCH");
+  return next;
 }

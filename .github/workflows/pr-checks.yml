@@ -19,6 +19,22 @@ env:
   BUN_CONFIG_MAX_HTTP_REQUESTS: "32"
 
 jobs:
+  external-provider-contract:
+    name: External Provider Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Verify the exact published sudostack artifact and semantic source lock
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-external-contract.mjs
+      - name: Reject independent local repins and generated drift
+        run: node --test scripts/check-external-contract.test.mjs
+
   # Job 1: Skipped code quality checks (ESLint removed per requirement)
 
   # Job 2: Vault secrets unit tests — pure mock, no native deps

@@ -6,6 +6,19 @@ import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js
 /** Allowlisted user/admin routes; Moss enforces organization-scoped role and platform policy permissions. */
 export function createExternalProviderRouter(deps: { auth: AuthDeps; request: MossFetch }): Router {
   const router = Router()
+  router.get('/external-context', requireSession, (req: AuthedRequest, res) => {
+    const session = req.webSession!
+    const baseUrl = session.mossBaseUrl ?? deps.auth.config.moss.baseUrl
+    const isAvailable = Boolean(baseUrl && session.encryptedMossTokens?.length)
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({
+      success: true,
+      data: {
+        isAvailable,
+        identity: isAvailable ? JSON.stringify([baseUrl, session.principalId]) : '',
+      },
+    })
+  })
   const routes: Array<{ method: 'get' | 'post'; path: string }> = [
     { method: 'get', path: '/external-agents/access' },
     { method: 'get', path: '/external-agents/admin/policy' },
@@ -28,16 +41,28 @@ export function createExternalProviderRouter(deps: { auth: AuthDeps; request: Mo
   for (const route of routes)
     router[route.method](route.path, requireSession, (req: AuthedRequest, res, next) => {
       void (async () => {
-        const context = await getMossContext(deps.auth, req.webSession!)
-        const result = await deps.request(context.baseUrl, {
-          method: route.method === 'get' ? 'GET' : 'POST',
-          path: `/api/v1${req.path}`,
-          accessToken: context.accessToken,
-          ...(route.method === 'post' ? { body: req.body } : {}),
-          ...(req.query.cursor === undefined
-            ? {}
-            : { searchParams: { cursor: String(req.query.cursor) } }),
-        })
+        let context = await getMossContext(deps.auth, req.webSession!)
+        const baseUrl = context.baseUrl
+        const send = () =>
+          deps.request(context.baseUrl, {
+            method: route.method === 'get' ? 'GET' : 'POST',
+            path: `/api/v1${req.path}`,
+            accessToken: context.accessToken,
+            ...(route.method === 'post' ? { body: req.body } : {}),
+            ...(req.query.cursor === undefined
+              ? {}
+              : { searchParams: { cursor: String(req.query.cursor) } }),
+          })
+        let result: unknown
+        try {
+          result = await send()
+        } catch (error) {
+          if (!(error instanceof MossHttpError) || error.status !== 401) throw error
+          context = await getMossContext(deps.auth, req.webSession!, true)
+          if (context.baseUrl !== baseUrl)
+            throw new Error('Moss identity changed', { cause: error })
+          result = await send()
+        }
         res.setHeader('Cache-Control', 'no-store')
         res
           .status(

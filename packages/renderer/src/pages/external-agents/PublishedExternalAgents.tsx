@@ -33,7 +33,7 @@ export default function PublishedExternalAgents({ query = '' }: IPublishedExtern
               <div className={styles.cardHeading}>
                 <Bot size={24} />
                 <Typography.Text bold>{agent.name}</Typography.Text>
-                <Tag>{agent.provider === 'dify' ? 'Dify' : agent.provider}</Tag>
+                <Tag>{agent.provider === 'dify' ? t('agent.external.provider.dify') : agent.provider}</Tag>
               </div>
               <p className={styles.description}>{t('agent.external.published.scope')}</p>
               <div className={styles.actions}>

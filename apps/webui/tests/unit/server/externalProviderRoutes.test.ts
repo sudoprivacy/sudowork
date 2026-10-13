@@ -1,23 +1,34 @@
 // @vitest-environment node
-import { expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 import express from 'express'
 import request from 'supertest'
+import { MossHttpError } from '@sudowork/moss-client'
+import { getMossContext } from '@server/features/auth/authService'
 import type { AuthedRequest } from '@server/features/auth/sessionMiddleware'
 vi.mock('@server/features/auth/authService', () => ({
-  getMossContext: vi.fn(async (_deps, session) => ({
+  getMossContext: vi.fn(async (_deps, session, isForced) => ({
     baseUrl: 'http://moss.test',
-    accessToken: session.principalId,
+    accessToken: isForced ? `${session.principalId}-refreshed` : session.principalId,
   })),
 }))
 const { createExternalProviderRouter } =
   await import('@server/features/externalProviders/externalProviderRoutes')
 const upstream = vi.fn(async () => ({ success: true, data: [] }))
+beforeEach(() => {
+  upstream.mockReset()
+  upstream.mockResolvedValue({ success: true, data: [] })
+  vi.mocked(getMossContext).mockClear()
+})
 function app(principalId?: string) {
   const server = express()
   server.use(express.json())
   server.use((req, _res, next) => {
     if (principalId)
-      (req as AuthedRequest).webSession = { principalId } as AuthedRequest['webSession']
+      (req as AuthedRequest).webSession = {
+        principalId,
+        encryptedMossTokens: Buffer.from('synthetic-encrypted'),
+        mossBaseUrl: 'http://moss.test',
+      } as AuthedRequest['webSession']
     next()
   })
   server.use('/api/v1', createExternalProviderRouter({ auth: {} as never, request: upstream }))
@@ -64,4 +75,25 @@ it('forwards admin writes through the caller session and never exposes unrestric
     (await request(app('admin')).post('/api/v1/external-agents/admin/arbitrary-action').send({}))
       .status,
   ).toBe(404)
+})
+
+it('retries an unexpected upstream 401 exactly once with the same request body', async () => {
+  upstream.mockRejectedValueOnce(new MossHttpError(401, 'Unauthorized', '{}'))
+  const body = { agent_id: 'a', query: 'synthetic', idempotency_key: 'same-key' }
+  expect((await request(app('u')).post('/api/v1/tasks').send(body)).status).toBe(202)
+  expect(upstream).toHaveBeenCalledTimes(2)
+  expect(getMossContext).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), true)
+  expect(upstream).toHaveBeenLastCalledWith(
+    'http://moss.test',
+    expect.objectContaining({ accessToken: 'u-refreshed', body }),
+  )
+})
+it('stops after the second 401 and reports local context without upstream traffic', async () => {
+  upstream.mockRejectedValue(new MossHttpError(401, 'Unauthorized', '{}'))
+  expect((await request(app('u')).get('/api/v1/external-agents')).status).toBe(401)
+  expect(upstream).toHaveBeenCalledTimes(2)
+  upstream.mockClear()
+  const context = await request(app('u')).get('/api/v1/external-context')
+  expect(context.body.data.isAvailable).toBe(true)
+  expect(upstream).not.toHaveBeenCalled()
 })

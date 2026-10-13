@@ -26,3 +26,25 @@ it('transport errors do not trigger an automatic task retry', async () => {
   await expect(externalProviderPort.create({ agent_id: 'a', query: 'synthetic', idempotency_key: 'key-123456' })).rejects.toThrow();
   expect(state.request).toHaveBeenCalledTimes(1);
 });
+
+it('refreshes once after an unexpected 401 and preserves the exact POST identity', async () => {
+  state.token.mockResolvedValueOnce('old-token').mockResolvedValueOnce('new-token');
+  state.request.mockResolvedValueOnce(Response.json({}, { status: 401 })).mockResolvedValueOnce(Response.json({ success: true, data: [] }));
+  await expect(externalProviderPort.create({ agent_id: 'a', query: 'synthetic', idempotency_key: 'key-123456' })).rejects.toThrow();
+  expect(state.token).toHaveBeenLastCalledWith(true);
+  expect(state.request).toHaveBeenCalledTimes(2);
+  expect(state.request.mock.calls[0][1].body).toBe(state.request.mock.calls[1][1].body);
+  expect(state.request.mock.calls[1][1].headers.Authorization).toBe('Bearer new-token');
+});
+it('does not loop on 401 or retry after identity changes during refresh', async () => {
+  state.request.mockImplementation(async () => Response.json({}, { status: 401 }));
+  await expect(externalProviderPort.agents()).rejects.toThrow();
+  expect(state.request).toHaveBeenCalledTimes(2);
+  state.request.mockClear();
+  state.token.mockImplementation(async (isForced: boolean) => {
+    if (isForced) state.scope = 'account-b';
+    return 'token';
+  });
+  await expect(externalProviderPort.agents()).rejects.toThrow('identity changed');
+  expect(state.request).toHaveBeenCalledTimes(1);
+});

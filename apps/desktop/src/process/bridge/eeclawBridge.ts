@@ -533,6 +533,13 @@ export function initEeclawBridge(): void {
    * it knows which of the three kinds a stored reference is and where each
    * kind's name lives.
    */
+  ipcBridge.externalProviders.context.provider(async () => {
+    const server = ProcessConfig.getSync('eeclaw.serverUrl');
+    const scope = ProcessConfig.getSync('eeclaw.accountScope');
+    const auth = ProcessConfig.getSync('eeclaw.authStorage');
+    const isAvailable = Boolean(server && scope && auth?.access_token);
+    return { success: true, data: { isAvailable, identity: isAvailable ? JSON.stringify([server, scope]) : '' } };
+  });
   ipcBridge.externalProviders.access.provider(async () => {
     try {
       return { success: true, data: await externalProviderPort.access() };

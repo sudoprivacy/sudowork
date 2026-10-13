@@ -3,8 +3,8 @@ import { ArrowUp, Copy, Plus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import MarkdownView from '@renderer/components/Markdown';
+import { applyExternalEventsPage } from '@sudowork/moss-client/external-providers';
 import type { CreateExternalTask, ExternalSession, ExternalTask } from '@sudowork/contracts/external-provider';
 import { externalProviders } from '@sudowork/host-bridge/ipcBridge';
 import ChatLayout from '@renderer/pages/conversation/ChatLayout';
@@ -56,7 +56,10 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
   }, []);
 
   const onLoadHistory = useCallback(async () => {
-    if (!identity || !sessionId) return;
+    if (!identity || !sessionId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setIsLoadFailed(false);
     try {
@@ -80,6 +83,8 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
   const agent = agents.find((item) => item.id === selectedAgentId);
   const activeTask = tasks.find((item) => !isFinished(item));
   const activeTaskId = activeTask?.id;
+  const activeTaskRef = useRef(activeTask);
+  activeTaskRef.current = activeTask;
   const isUnknown = tasks.some((item) => item.status === 'unknown');
   const isBusy = isSending || isLoading || Boolean(activeTask) || isUnknown;
   const isReadOnly = !isDirectoryLoading && !agent;
@@ -89,6 +94,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
     if (!activeTaskId) return;
     let isCancelled = false;
     let cursor = 0;
+    let currentTask = activeTaskRef.current;
     let timer: ReturnType<typeof setTimeout>;
     setIsPollFailed(false);
     const onPoll = async () => {
@@ -97,13 +103,16 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
         if (isCancelled) return;
         if (!response.success || !response.data) throw new Error('Events unavailable');
         const page = response.data;
+        if (!currentTask) throw new Error('Task unavailable');
+        currentTask = applyExternalEventsPage(currentTask, cursor, page);
         cursor = page.next_cursor;
-        setTasks((current) => current.map((task) => (task.id === page.task.id ? page.task : task)));
-        if (isFinished(page.task)) {
+        const updatedTask = currentTask;
+        setTasks((current) => current.map((task) => (task.id === updatedTask.id ? updatedTask : task)));
+        if (isFinished(updatedTask)) {
           emitter.emit('chat.history.refresh');
           return;
         }
-        timer = setTimeout(() => void onPoll(), 750);
+        timer = setTimeout(() => void onPoll(), page.has_more ? 0 : 750);
       } catch {
         if (!isCancelled) setIsPollFailed(true);
       }
@@ -150,7 +159,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
       headerLeft={
         <div className='flex gap-2 items-center'>
           <Typography.Text bold>{title}</Typography.Text>
-          <Tag>{agent?.provider === 'dify' || !agent ? 'Dify' : agent.provider}</Tag>
+          <Tag>{agent?.provider === 'dify' || !agent ? t('agent.external.provider.dify') : agent.provider}</Tag>
         </div>
       }
       headerExtra={
@@ -200,20 +209,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                 </div>
                 <div className='message-item min-w-0 break-words' aria-label={t('agent.external.chat.reply')}>
                   <div className='markdown-body'>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      skipHtml
-                      components={{
-                        img: ({ alt }) => <span>{alt}</span>,
-                        a: ({ href, children }) => (
-                          <a href={href && /^https?:\/\//i.test(href) ? href : undefined} target='_blank' rel='noopener noreferrer'>
-                            {children}
-                          </a>
-                        ),
-                      }}
-                    >
-                      {task.answer || t('agent.external.waiting')}
-                    </ReactMarkdown>
+                    <MarkdownView isExternalContent>{task.answer || t('agent.external.waiting')}</MarkdownView>
                   </div>
                   <div className='flex gap-2 items-center mt-2 text-xs text-secondary' role='status'>
                     <span>{t(`agent.external.status.${task.status}`)}</span>
@@ -234,6 +230,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                     )}
                   </div>
                   {task.output_status === 'invalid' && <Alert type='warning' content={t('agent.external.invalidOutput')} />}
+                  {task.reconciliation && <Alert type='info' content={t('agent.external.chat.reconciled')} />}
                   {task.error_code && <Typography.Paragraph type='secondary'>{t('agent.external.taskError', { code: task.error_code })}</Typography.Paragraph>}
                 </div>
               </div>

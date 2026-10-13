@@ -401,6 +401,7 @@
         "@sudowork/common": "workspace:*",
         "@sudowork/contracts": "workspace:*",
         "@sudowork/host-bridge": "workspace:*",
+        "@sudowork/moss-client": "workspace:*",
         "@sudowork/ontology-ai": "workspace:*",
         "@sudowork/ontology-common": "workspace:*",
         "@sudowork/ontology-ui": "workspace:*",

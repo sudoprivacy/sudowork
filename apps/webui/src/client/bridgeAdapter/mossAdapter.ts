@@ -1613,6 +1613,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // of the three kinds a stored reference is and where each kind's name lives;
   // doing it here would put the template-is-not-an-agent distinction into the
   // browser and give it a reason to read the organization catalog.
+  'external-providers.context': async () => apiFetch('/api/v1/external-context'),
   'external-providers.access': async () => {
     return ok(await externalProviderPort.access())
   },

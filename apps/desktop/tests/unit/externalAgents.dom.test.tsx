@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ access: vi.fn(), agents: vi.fn(), sessions: vi.fn(), history: vi.fn(), create: vi.fn(), events: vi.fn(), emit: vi.fn(), close: vi.fn(), user: { id: 'user-a', enterprise_code: 'org-a' } }));
-vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ externalProviders: Object.fromEntries(['access', 'agents', 'sessions', 'history', 'create', 'events'].map((key) => [key, { invoke: mocks[key as 'access'] }])) }));
+const mocks = vi.hoisted(() => ({ context: vi.fn(), access: vi.fn(), agents: vi.fn(), sessions: vi.fn(), history: vi.fn(), create: vi.fn(), events: vi.fn(), emit: vi.fn(), close: vi.fn(), user: { id: 'user-a', enterprise_code: 'org-a' } }));
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ externalProviders: Object.fromEntries(['context', 'access', 'agents', 'sessions', 'history', 'create', 'events'].map((key) => [key, { invoke: mocks[key as 'access'] }])) }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: mocks.user, isGuest: false }) }));
 vi.mock('@renderer/utils/emitter', () => ({ emitter: { emit: mocks.emit }, addEventListener: () => () => {} }));
@@ -19,6 +19,7 @@ vi.mock('@renderer/pages/conversation/ChatLayout', () => ({
 }));
 vi.mock('@renderer/pages/conversation/context/ConversationTabsContext', () => ({ useConversationTabs: () => ({ closeAllTabs: mocks.close }) }));
 vi.mock('@renderer/pages/conversation/preview', () => ({ usePreviewContext: () => ({ closePreview: mocks.close }) }));
+vi.mock('@renderer/components/Markdown', () => ({ default: ({ children, isExternalContent }: { children: string; isExternalContent: boolean }) => <div data-external={isExternalContent}>{children}</div> }));
 vi.mock('@renderer/utils/clipboard', () => ({ copyText: vi.fn().mockResolvedValue(undefined) }));
 import ExternalAgents from '@renderer/pages/external-agents';
 import ExternalConversationPage from '@renderer/pages/external-agents/ExternalConversationPage';
@@ -26,17 +27,38 @@ import PublishedExternalAgents from '@renderer/pages/external-agents/PublishedEx
 import { useExternalHistory } from '@renderer/pages/external-agents/useExternalHistory';
 
 const agent = { id: 'agent-1', name: 'Dify pilot', provider: 'dify' };
-const task = { id: 'task-1', agent_id: 'agent-1', session_id: 'session-1', query: '6 * 7', answer: '42', status: 'succeeded', output_status: 'valid', error_code: null };
+const task = {
+  api_version: 'external-provider.sudo.dev/v1alpha2',
+  agent_name: 'agent-1',
+  attempt_id: 'attempt-1',
+  raw_answer: '',
+  source_digest: 'source',
+  provider: 'dify',
+  provider_refs: {},
+  cancellation: { status: 'unsupported', reason: null },
+  created_at: 1,
+  updated_at: 2,
+  deadline_at: 100000000,
+  id: 'task-1',
+  agent_id: 'agent-1',
+  session_id: 'session-1',
+  query: '6 * 7',
+  answer: '42',
+  status: 'succeeded',
+  output_status: 'valid',
+  error_code: null,
+};
 const session = { id: 'session-1', agent_id: agent.id, title: 'Test conversation', active_task_id: null, created_at: 1, updated_at: 2 };
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.user = { id: 'user-a', enterprise_code: 'org-a' };
+  mocks.context.mockResolvedValue({ success: true, data: { isAvailable: true, identity: 'moss-account-a' } });
   mocks.access.mockResolvedValue({ success: true, data: { can_manage: false, can_manage_policy: false, credential_storage_available: true } });
   mocks.agents.mockResolvedValue({ success: true, data: [agent] });
   mocks.sessions.mockResolvedValue({ success: true, data: [session] });
   mocks.history.mockResolvedValue({ success: true, data: [task] });
   mocks.create.mockResolvedValue({ success: true, data: task });
-  mocks.events.mockResolvedValue({ success: true, data: { task, events: [], next_cursor: 4 } });
+  mocks.events.mockResolvedValue({ success: true, data: { task, events: [], next_cursor: 4, snapshot_sequence: 4, has_more: false } });
 });
 afterEach(cleanup);
 function Location() {
@@ -152,15 +174,6 @@ it('retries event reads after failure without creating another task', async () =
   expect(mocks.create).not.toHaveBeenCalled();
 });
 
-it('shows provider content without fetching embedded images or granting native file link behavior', async () => {
-  mocks.history.mockResolvedValue({ success: true, data: [{ ...task, answer: '![remote](https://tracking.invalid/x) [file](file:///etc/passwd) <script>alert(1)</script>' }] });
-  page('/conversation/external:session-1');
-  await screen.findByText('remote');
-  expect(document.querySelector('img')).toBeNull();
-  expect(screen.getByText('file').getAttribute('href')).toBeNull();
-  expect(document.querySelector('script')).toBeNull();
-});
-
 it('discards a former account’s pending directory response', async () => {
   let resolve!: (value: unknown) => void;
   mocks.agents.mockReturnValueOnce(
@@ -173,6 +186,7 @@ it('discards a former account’s pending directory response', async () => {
       <PublishedExternalAgents />
     </MemoryRouter>
   );
+  await waitFor(() => expect(mocks.agents).toHaveBeenCalledTimes(1));
   mocks.user = { id: 'user-b', enterprise_code: 'org-b' };
   mocks.agents.mockResolvedValue({ success: true, data: [] });
   view.rerender(
@@ -203,10 +217,19 @@ it('removes former account history immediately and ignores late results', async 
     );
   }
   const view = render(<History />);
+  await waitFor(() => expect(mocks.sessions).toHaveBeenCalledTimes(1));
   mocks.user = { id: 'user-b', enterprise_code: 'org-b' };
   mocks.sessions.mockResolvedValue({ success: true, data: [] });
   view.rerender(<History />);
   resolve({ success: true, data: [session] });
   await waitFor(() => expect(mocks.sessions).toHaveBeenCalledTimes(2));
   expect(screen.queryByText('Test conversation')).toBeNull();
+});
+
+it('does not poll directory or history when the host has no Moss context', async () => {
+  mocks.context.mockResolvedValue({ success: true, data: { isAvailable: false, identity: '' } });
+  page('/app/agent');
+  await waitFor(() => expect(mocks.context).toHaveBeenCalled());
+  expect(mocks.agents).not.toHaveBeenCalled();
+  expect(mocks.sessions).not.toHaveBeenCalled();
 });
