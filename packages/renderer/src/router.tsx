@@ -113,7 +113,7 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   }
 
   if (status !== 'authenticated' && status !== 'guest') {
-    return <Navigate to='/login' replace state={{ returnTo: location.pathname }} />;
+    return <Navigate to='/login' replace state={{ returnTo: `${location.pathname}${location.search}` }} />;
   }
 
   if (!isElectronDesktop() && isDesktopOnlyRoute(location.pathname)) {

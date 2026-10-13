@@ -6,6 +6,7 @@
 
 import { runLogin, type LoginFailureCode, type LoginRequest } from '@sudowork/common/authLogin';
 import { desktopLoginPort, webLoginPort, WEB_SESSION_TOKEN } from '@sudowork/host-bridge/authLogin';
+import { prepareWebAgentWorkspace } from '@sudowork/host-bridge/agentWorkspace';
 import { applyLoginImageModel, fetchAndCacheCredentials, prepareDesktopLogin, syncScodeGuidModelPreference } from '@sudowork/host-bridge/desktopLoginSetup';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -333,6 +334,7 @@ function mapEnterpriseUser(enterpriseUser: { id: string; name: string; role?: st
 // the existing enterprise branches read.
 async function fetchWebSession(): Promise<AuthUser | null> {
   try {
+    await prepareWebAgentWorkspace();
     const response = await fetch('/api/auth/session', {
       method: 'GET',
       credentials: 'include',

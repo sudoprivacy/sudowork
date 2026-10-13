@@ -99,6 +99,7 @@ export default defineConfig({
       // 例如: 'src/process/services/newService.ts'
       include: [
         '../../packages/common/src/loginReturnPath.ts',
+        '../../packages/host-bridge/src/agentWorkspace.ts',
         '../../packages/renderer/src/pages/conversation/utils/agentIdentity.ts',
         '../../packages/renderer/src/pages/conversation/context/ConversationHistoryContext.tsx',
         '../../packages/renderer/src/pages/conversation/components/AgentSessionHeader.tsx',
