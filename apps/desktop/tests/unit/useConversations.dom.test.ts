@@ -39,6 +39,8 @@ const mockConversationChangedOn = vi.fn((cb: (...args: unknown[]) => void) => {
   };
 });
 
+vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: null, isGuest: true }) }));
+
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   eeclaw: { getMyAgents: { invoke: async () => ({ success: true, data: [] }) } },
   cron: {
@@ -73,6 +75,11 @@ const testState = { sections: [] as TimelineSection[] };
 vi.mock('@renderer/pages/conversation/grouped-history/utils/groupingHelpers', () => ({
   buildGroupedHistory: () => ({
     pinnedConversations: [],
+    recent: [],
+    pinnedTimeline: [],
+    pinnedScheduled: [],
+    scheduledGroups: [],
+    agentGroups: [],
     timelineSections: testState.sections,
   }),
 }));

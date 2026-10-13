@@ -120,6 +120,18 @@ it('shows the server catalog before any download, and My contains only local rec
   expect(screen.getByText('Local custom')).toBeTruthy();
 });
 
+it('shows organization-published agents in the directory and excludes them from My agents', async () => {
+  render(<MossCatalogBrowser {...props} publishedContent={(query) => <div>Organization agent: {query}</div>} />);
+  await screen.findByText('Catalog agent');
+  expect(screen.getByText('Organization agent:')).toBeTruthy();
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Dify' } });
+  expect(screen.getByText('Organization agent: Dify')).toBeTruthy();
+  fireEvent.click(screen.getByText('myAgents'));
+  expect(screen.queryByText(/Organization agent:/)).toBeNull();
+  expect(screen.getByText('Local custom')).toBeTruthy();
+  expect(state.install).not.toHaveBeenCalled();
+});
+
 it('does not enter a conversation or show an installation when preparation fails', async () => {
   state.install.mockResolvedValue({ success: false, msg: 'Dependency failed' });
   render(<MossCatalogBrowser {...props} />);

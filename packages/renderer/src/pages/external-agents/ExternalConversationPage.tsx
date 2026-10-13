@@ -1,0 +1,288 @@
+import { Alert, Button, Input, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { ArrowUp, Copy, Plus } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { CreateExternalTask, ExternalSession, ExternalTask } from '@sudowork/contracts/external-provider';
+import { externalProviders } from '@sudowork/host-bridge/ipcBridge';
+import ChatLayout from '@renderer/pages/conversation/ChatLayout';
+import { useConversationTabs } from '@renderer/pages/conversation/context/ConversationTabsContext';
+import { usePreviewContext } from '@renderer/pages/conversation/preview';
+import { emitter } from '@renderer/utils/emitter';
+import { copyText } from '@renderer/utils/clipboard';
+import { externalConversationPath, EXTERNAL_CONVERSATION_PREFIX, newExternalConversationPath } from './navigation';
+import { useExternalDirectory, useExternalIdentity } from './useExternalDirectory';
+
+const isFinished = (task: ExternalTask) => ['succeeded', 'failed', 'rejected', 'unknown'].includes(task.status);
+
+export default function ExternalConversationPage() {
+  const { id = '' } = useParams();
+  const [search] = useSearchParams();
+  const identity = useExternalIdentity();
+  return <ExternalChat key={`${identity}:${id}:${search.get('agent') || ''}`} sessionId={id.slice(EXTERNAL_CONVERSATION_PREFIX.length)} agentId={search.get('agent') || ''} />;
+}
+
+function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps) {
+  const sessionId = routeSessionId === 'new' ? '' : routeSessionId;
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { agents, identity, isLoading: isDirectoryLoading, isFailed: isDirectoryFailed, onRefresh } = useExternalDirectory();
+  const [session, setSession] = useState<ExternalSession | null>(null);
+  const [tasks, setTasks] = useState<ExternalTask[]>([]);
+  const [query, setQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(Boolean(sessionId));
+  const [isLoadFailed, setIsLoadFailed] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isPollFailed, setIsPollFailed] = useState(false);
+  const [pending, setPending] = useState<CreateExternalTask | null>(null);
+  const [pollGeneration, setPollGeneration] = useState(0);
+  const [copyStatus, setCopyStatus] = useState('');
+  const mounted = useRef(true);
+  const scroll = useRef<HTMLDivElement>(null);
+  const isAtBottom = useRef(true);
+  const { closeAllTabs } = useConversationTabs();
+  const { closePreview } = usePreviewContext();
+  useEffect(() => {
+    closeAllTabs();
+    closePreview();
+  }, [closeAllTabs, closePreview]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const onLoadHistory = useCallback(async () => {
+    if (!identity || !sessionId) return;
+    setIsLoading(true);
+    setIsLoadFailed(false);
+    try {
+      const [sessions, history] = await Promise.all([externalProviders.sessions.invoke(), externalProviders.history.invoke({ sessionId })]);
+      if (!mounted.current) return;
+      if (!sessions.success || !sessions.data || !history.success || !history.data) throw new Error('History unavailable');
+      // History remains readable even after catalog approval is revoked or the latest-100 list rolls over.
+      setSession(sessions.data.find((item) => item.id === sessionId) ?? null);
+      setTasks(history.data);
+    } catch {
+      if (mounted.current) setIsLoadFailed(true);
+    } finally {
+      if (mounted.current) setIsLoading(false);
+    }
+  }, [identity, sessionId]);
+  useEffect(() => {
+    void onLoadHistory();
+  }, [onLoadHistory]);
+
+  const selectedAgentId = session?.agent_id || tasks[0]?.agent_id || agentId;
+  const agent = agents.find((item) => item.id === selectedAgentId);
+  const activeTask = tasks.find((item) => !isFinished(item));
+  const activeTaskId = activeTask?.id;
+  const isUnknown = tasks.some((item) => item.status === 'unknown');
+  const isBusy = isSending || isLoading || Boolean(activeTask) || isUnknown;
+  const isReadOnly = !isDirectoryLoading && !agent;
+  const title = agent?.name || t('agent.external.published.fallbackName');
+
+  useEffect(() => {
+    if (!activeTaskId) return;
+    let isCancelled = false;
+    let cursor = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    setIsPollFailed(false);
+    const onPoll = async () => {
+      try {
+        const response = await externalProviders.events.invoke({ taskId: activeTaskId, cursor });
+        if (isCancelled) return;
+        if (!response.success || !response.data) throw new Error('Events unavailable');
+        const page = response.data;
+        cursor = page.next_cursor;
+        setTasks((current) => current.map((task) => (task.id === page.task.id ? page.task : task)));
+        if (isFinished(page.task)) {
+          emitter.emit('chat.history.refresh');
+          return;
+        }
+        timer = setTimeout(() => void onPoll(), 750);
+      } catch {
+        if (!isCancelled) setIsPollFailed(true);
+      }
+    };
+    void onPoll();
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [activeTaskId, pollGeneration]);
+
+  useEffect(() => {
+    if (isAtBottom.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
+  }, [tasks, pending]);
+
+  async function onSend() {
+    if (isSending || (!pending && (isBusy || isReadOnly || isDirectoryLoading || !query.trim()))) return;
+    const request = pending ?? { agent_id: selectedAgentId, ...(sessionId ? { session_id: sessionId } : {}), query: query.trim(), idempotency_key: crypto.randomUUID() };
+    setPending(request);
+    setIsSending(true);
+    try {
+      const response = await externalProviders.create.invoke(request);
+      if (!mounted.current) return;
+      if (!response.success || !response.data) throw new Error('Acceptance unconfirmed');
+      const task = response.data;
+      setPending(null);
+      setQuery('');
+      isAtBottom.current = true;
+      setTasks((current) => (current.some((item) => item.id === task.id) ? current : [...current, task]));
+      emitter.emit('chat.history.refresh');
+      if (task.session_id !== sessionId) void navigate(externalConversationPath(task.session_id), { replace: true });
+    } catch {
+      /* Retry preserves the exact request until acknowledgment. */
+    } finally {
+      if (mounted.current) setIsSending(false);
+    }
+  }
+
+  return (
+    <ChatLayout
+      sider={null}
+      workspaceEnabled={false}
+      title={session?.title || title}
+      headerLeft={
+        <div className='flex gap-2 items-center'>
+          <Typography.Text bold>{title}</Typography.Text>
+          <Tag>{agent?.provider === 'dify' || !agent ? 'Dify' : agent.provider}</Tag>
+        </div>
+      }
+      headerExtra={
+        <Button icon={<Plus size={16} />} disabled={!agent || Boolean(pending) || isSending} onClick={() => void navigate(newExternalConversationPath(selectedAgentId))}>
+          {t('agent.external.newSession')}
+        </Button>
+      }
+    >
+      <div className='flex flex-col flex-1 min-h-0'>
+        <div
+          ref={scroll}
+          role='log'
+          aria-label={t('agent.external.chat.messages')}
+          className='flex-1 min-h-0 overflow-y-auto px-4 py-4'
+          onScroll={() => {
+            const el = scroll.current;
+            if (el) isAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          }}
+        >
+          <div className='max-w-800px mx-auto w-full'>
+            <Alert type='info' content={t('agent.external.pilot')} className='mb-4' />
+            {isLoading && <Spin />}
+            {(isLoadFailed || isDirectoryFailed) && (
+              <Alert
+                type='error'
+                content={t('agent.external.loadFailed')}
+                action={
+                  <Button
+                    onClick={() => {
+                      void onRefresh();
+                      void onLoadHistory();
+                    }}
+                  >
+                    {t('agent.external.refresh')}
+                  </Button>
+                }
+              />
+            )}
+            {!isLoading && isReadOnly && <Alert type='warning' content={t('agent.external.chat.unavailable')} />}
+            {isPollFailed && <Alert type='warning' content={t('agent.external.pollFailed')} action={<Button onClick={() => setPollGeneration((value) => value + 1)}>{t('agent.external.refresh')}</Button>} />}
+            {isUnknown && <Alert type='warning' content={t('agent.external.unknown')} />}
+            {!isLoading && !tasks.length && agent && <div className='py-8 text-center text-secondary'>{t('agent.external.chat.welcome', { name: title })}</div>}
+            {tasks.map((task) => (
+              <div key={task.id} data-task-id={task.id} className='mb-6'>
+                <div className='message-item flex justify-end mt-3 mb-4'>
+                  <div className='max-w-full rounded-2xl bg-3 px-4 py-3 whitespace-pre-wrap break-words'>{task.query}</div>
+                </div>
+                <div className='message-item min-w-0 break-words' aria-label={t('agent.external.chat.reply')}>
+                  <div className='markdown-body'>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      skipHtml
+                      components={{
+                        img: ({ alt }) => <span>{alt}</span>,
+                        a: ({ href, children }) => (
+                          <a href={href && /^https?:\/\//i.test(href) ? href : undefined} target='_blank' rel='noopener noreferrer'>
+                            {children}
+                          </a>
+                        ),
+                      }}
+                    >
+                      {task.answer || t('agent.external.waiting')}
+                    </ReactMarkdown>
+                  </div>
+                  <div className='flex gap-2 items-center mt-2 text-xs text-secondary' role='status'>
+                    <span>{t(`agent.external.status.${task.status}`)}</span>
+                    {task.answer && (
+                      <Tooltip content={t('common.copy')}>
+                        <Button
+                          type='text'
+                          size='mini'
+                          aria-label={t('common.copy')}
+                          icon={<Copy size={14} />}
+                          onClick={() => {
+                            void copyText(task.answer)
+                              .then(() => setCopyStatus(t('agent.external.chat.copied')))
+                              .catch(() => setCopyStatus(t('common.copyFailed')));
+                          }}
+                        />
+                      </Tooltip>
+                    )}
+                  </div>
+                  {task.output_status === 'invalid' && <Alert type='warning' content={t('agent.external.invalidOutput')} />}
+                  {task.error_code && <Typography.Paragraph type='secondary'>{t('agent.external.taskError', { code: task.error_code })}</Typography.Paragraph>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className='shrink-0 px-4 pb-4 pt-2'>
+          <div className='max-w-800px mx-auto w-full'>
+            {copyStatus && (
+              <div role='status' className='text-secondary text-xs mb-2'>
+                {copyStatus}
+              </div>
+            )}
+            {pending && !isSending && <Alert type='warning' content={t('agent.external.sendUnconfirmed')} className='mb-3' />}
+            <div className='border border-solid border-[var(--color-border-2)] rounded-2xl p-3 bg-1'>
+              <Input.TextArea
+                aria-label={t('agent.external.query')}
+                placeholder={t('agent.external.query')}
+                value={query}
+                onChange={setQuery}
+                maxLength={8000}
+                disabled={isBusy || isReadOnly || isDirectoryLoading || Boolean(pending) || isLoadFailed}
+                autoSize={{ minRows: 2, maxRows: 8 }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    void onSend();
+                  }
+                }}
+              />
+              <div className='flex justify-between items-center gap-3 mt-2'>
+                <Typography.Text type='secondary' className='text-xs'>
+                  {t('agent.external.chat.inputHint')}
+                </Typography.Text>
+                <Button type='primary' shape='round' icon={<ArrowUp size={16} />} loading={isSending} disabled={isSending || (!pending && (isBusy || isReadOnly || isDirectoryLoading || isLoadFailed || !query.trim()))} onClick={() => void onSend()}>
+                  {t(pending ? 'agent.external.retrySameRequest' : 'agent.external.send')}
+                </Button>
+              </div>
+            </div>
+            <Typography.Paragraph type='secondary' className='text-xs mt-2 mb-0'>
+              {t('agent.external.chat.capabilities')}
+            </Typography.Paragraph>
+          </div>
+        </div>
+      </div>
+    </ChatLayout>
+  );
+}
+interface IExternalChatProps {
+  sessionId: string;
+  agentId: string;
+}

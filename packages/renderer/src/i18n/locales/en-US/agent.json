@@ -163,6 +163,26 @@
       },
       "save": "Save",
       "definitionDigest": "Definition digest"
+    },
+    "published": {
+      "title": "Organization-published agents",
+      "description": "Available to your account. Conversations are private to you.",
+      "search": "Search published agents",
+      "scope": "Managed by your organization · Synthetic-data pilot",
+      "start": "Start conversation",
+      "empty": "No published agents yet. Connect and approve an agent to make it available.",
+      "fallbackName": "Organization agent"
+    },
+    "chat": {
+      "messages": "Conversation messages",
+      "reply": "Agent reply",
+      "welcome": "Start a conversation with {{name}}",
+      "unavailable": "This agent is unavailable or no longer authorized. Existing history remains readable.",
+      "inputHint": "Enter to send · Shift+Enter for a new line",
+      "capabilities": "The model is configured by the agent publisher. Attachments, local tools and stopping remote execution are unavailable.",
+      "copied": "Copied",
+      "historyReadOnly": "External history supports opening and continuing conversations; batch deletion and export are unavailable.",
+      "historyFailed": "External history could not load. Click to retry."
     }
   }
 }

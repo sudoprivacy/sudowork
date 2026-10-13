@@ -1,3 +1,4 @@
+import PublishedExternalAgents from '@renderer/pages/external-agents/PublishedExternalAgents';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -1714,10 +1715,11 @@ const AgentSettings: React.FC = () => {
 
   return (
     <PageWrapper>
-      <div className='flex flex-col h-full w-full'>
+      <div className='flex flex-col h-full w-full min-h-0'>
         {isEnterprise && isElectronDesktop() ? (
           <MossCatalogBrowser
             kind='agents'
+            publishedContent={(query) => <PublishedExternalAgents query={query} />}
             customContent={renderCustomAssistantGridWithEnterpriseActions(customAssistants)}
             onCreate={() => {
               void handleCreate();
@@ -1805,6 +1807,7 @@ const AgentSettings: React.FC = () => {
 
                 {/* Assistant grid */}
                 <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleHubScroll}>
+                  <PublishedExternalAgents query={hubSearchQuery} />
                   {/* Enterprise mode: show tenant assistants from local tenant/ directory */}
                   {activeTab === 'exclusive' && isEnterprise ? (
                     hubLoading ? (

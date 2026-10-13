@@ -163,6 +163,26 @@
       },
       "save": "保存",
       "definitionDigest": "定义摘要"
+    },
+    "published": {
+      "title": "组织发布的智能体",
+      "description": "展示当前账号获准使用的智能体，对话记录仅自己可见。",
+      "search": "搜索已发布智能体",
+      "scope": "组织统一管理 · 合成数据试点",
+      "start": "开始对话",
+      "empty": "暂无已发布智能体，接入并审核发布后，授权用户即可使用。",
+      "fallbackName": "组织智能体"
+    },
+    "chat": {
+      "messages": "对话消息",
+      "reply": "智能体回复",
+      "welcome": "与 {{name}} 开始对话",
+      "unavailable": "此智能体已停用、不可用或当前账号不再获准使用，已有历史仍可查看。",
+      "inputHint": "Enter 发送 · Shift+Enter 换行",
+      "capabilities": "模型由智能体发布方配置；当前不支持附件、本地工具或停止远端执行。",
+      "copied": "已复制",
+      "historyReadOnly": "外部会话支持打开和继续对话，暂不支持批量删除或导出。",
+      "historyFailed": "外部会话历史加载失败，点击重试。"
     }
   }
 }
