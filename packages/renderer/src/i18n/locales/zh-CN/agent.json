@@ -172,8 +172,8 @@
       "start": "开始对话",
       "empty": "暂无获准使用的外部智能体，请联系组织管理员在 Moss 接入并发布。",
       "fallbackName": "组织智能体",
-      "nativeTitle": "原生模板",
-      "nativeEmpty": "暂无原生模板"
+      "nativeTitle": "内部托管",
+      "nativeEmpty": "暂无内部托管智能体"
     },
     "chat": {
       "messages": "对话消息",

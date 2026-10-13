@@ -1746,13 +1746,13 @@ const AgentSettings: React.FC = () => {
                   setActiveTab(value as AssistantStoreTab);
                 }}
                 items={[
-                  { value: 'store', label: t('settings.assistant.storeTab', '智能体库') },
-                  { value: 'exclusive', label: t('settings.assistant.exclusiveTab', '专属智能体') },
+                  { value: 'store', label: t('settings.mossCatalog.agentLibrary') },
+                  { value: 'exclusive', label: t('settings.mossCatalog.exclusiveAgents') },
                   {
                     value: 'installed',
                     label: (
                       <>
-                        {t('settings.assistant.installedTab', '我的智能体')}
+                        {t('settings.mossCatalog.myAgents')}
                         {assistants.length > 0 && <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{assistants.length}</span>}
                       </>
                     ),

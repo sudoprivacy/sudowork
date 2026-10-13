@@ -172,8 +172,8 @@
       "start": "Start conversation",
       "empty": "No external agents are available. Ask an organization administrator to connect and publish one in Moss.",
       "fallbackName": "Organization agent",
-      "nativeTitle": "Native templates",
-      "nativeEmpty": "No native templates"
+      "nativeTitle": "Internally hosted",
+      "nativeEmpty": "No internally hosted agents"
     },
     "chat": {
       "messages": "Conversation messages",

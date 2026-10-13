@@ -51,8 +51,8 @@
       "start": "開始對話",
       "empty": "暫無獲准使用的外部智慧體，請聯絡組織管理員在 Moss 接入並發布。",
       "fallbackName": "組織智能體",
-      "nativeTitle": "原生範本",
-      "nativeEmpty": "暫無原生範本"
+      "nativeTitle": "內部託管",
+      "nativeEmpty": "暫無內部託管智慧體"
     },
     "chat": {
       "messages": "對話訊息",

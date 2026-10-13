@@ -357,7 +357,7 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
                 <Spin />
               </div>
             )}
-            {!isLoading && !items.length && !error && <Typography.Paragraph>{label('empty')}</Typography.Paragraph>}
+            {!isLoading && !items.length && !error && <Typography.Paragraph>{tab === 'tenant' && kind === 'agents' ? t('agent.external.published.nativeEmpty') : label('empty')}</Typography.Paragraph>}
             {cursor && (
               <Button
                 disabled={isLoading}
