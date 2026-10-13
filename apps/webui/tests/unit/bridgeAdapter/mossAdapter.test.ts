@@ -1343,6 +1343,7 @@ describe('mossAdapter: newly created conversation list reads', () => {
 
     const oldRead = ipc.database.getUserConversations.invoke({})
     const newRead = ipc.database.getUserConversations.invoke({})
+    await vi.waitFor(() => expect(pending).toHaveLength(2))
     pending[1]?.(new Response(JSON.stringify({ conversations: [{ id: 'newer' }] })))
     expect((await newRead).map((item) => item.id)).toEqual(['newer'])
     pending[0]?.(new Response(JSON.stringify({ conversations: [{ id: 'older' }] })))
