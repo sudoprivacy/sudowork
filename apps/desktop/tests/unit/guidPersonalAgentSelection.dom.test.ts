@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   saveConfig: vi.fn(),
   readConfig: vi.fn(),
   loadInstalled: vi.fn(),
+  loadMossModels: vi.fn(),
   local: [] as any[],
   available: [{ backend: 'scode', name: 'Sudo Code' }],
   mine: [{ ref: 'moss-agent:own:22222222-2222-4222-8222-222222222222', displayName: 'Research', kind: 'own' }],
@@ -25,7 +26,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => {
     extensions: { getAssistants: { invoke: async () => [] } },
     assistantHub: { getInstalledAssistants: { invoke: installed }, getInstalledAssistantsWithVisibility: { invoke: installed } },
     acpConversation: { refreshCustomAgents: { invoke: async () => undefined }, rescanAgents: { invoke: async () => undefined }, probeModelInfo: { invoke: async () => ({ success: false }) }, getAvailableAgents: { invoke: async () => ({ data: state.available }) } },
-    moss: { getAvailableModels: { invoke: async () => ({ success: false }) }, getUserModel: { invoke: async () => ({ success: false }) }, setUserModel: { invoke: async () => undefined } },
+    moss: { getAvailableModels: { invoke: state.loadMossModels }, getUserModel: { invoke: async () => ({ success: false }) }, setUserModel: { invoke: async () => undefined } },
   };
 });
 
@@ -37,6 +38,7 @@ beforeEach(() => {
   state.mode = 'local';
   state.isEnterprise = true;
   state.saveConfig.mockReset().mockResolvedValue(undefined);
+  state.loadMossModels.mockReset().mockResolvedValue({ success: false });
   state.local = [];
   setRendererSessionMode('remote');
   state.readConfig.mockReset().mockImplementation(async (key: string) => (key === 'guid.sessionMode' ? state.mode : undefined));
@@ -81,6 +83,27 @@ describe('personal Agent selection through picker refreshes', () => {
     });
   });
 
+  it('loads cloud models after switching away during an unfinished request', async () => {
+    state.mode = 'remote';
+    const requests: Array<(value: IMossModelCatalogResult) => void> = [];
+    state.loadMossModels.mockImplementation(() => new Promise<IMossModelCatalogResult>((resolve) => requests.push(resolve)));
+    const ref = state.mine[0].ref;
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US', assistantFromUrl: ref }));
+    await waitFor(() => {
+      expect(result.current.selectedAgentInfo?.customAgentId).toBe(ref);
+      expect(requests).toHaveLength(1);
+    });
+    await act(async () => result.current.setSessionMode('local'));
+    await waitFor(() => expect(result.current.sessionMode).toBe('local'));
+    await act(async () => result.current.setSessionMode('remote'));
+    await waitFor(() => expect(requests).toHaveLength(2));
+    await act(async () => requests[1]({ success: true, data: [{ id: 'current-model', name: 'Current model' }] }));
+    await waitFor(() => expect(result.current.selectedAcpModel).toBe('current-model'));
+    await act(async () => requests[0]({ success: true, data: [{ id: 'stale-model', name: 'Stale model' }] }));
+    expect(result.current.currentAcpCachedModelInfo?.availableModels).toEqual([{ id: 'current-model', label: 'Current model' }]);
+    expect(result.current.selectedAcpModel).toBe('current-model');
+  });
+
   it('keeps a named template URL pending when multiple templates share that name', async () => {
     state.isEnterprise = false;
     state.local = [
@@ -109,6 +132,11 @@ describe('personal Agent selection through picker refreshes', () => {
     });
   });
 });
+
+interface IMossModelCatalogResult {
+  success: boolean;
+  data: Array<{ id: string; name: string }>;
+}
 
 describe('registered ontology Agent selection', () => {
   it('ignores a late ordinary preference read after entering the ontology page', async () => {

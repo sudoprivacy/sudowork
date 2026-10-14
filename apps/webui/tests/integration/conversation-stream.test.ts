@@ -36,11 +36,17 @@ function sleep(ms: number): Promise<void> {
 
 type WsEvent = Record<string, unknown>
 
-/** 消息收集器：预先挂监听，避免逐条 await 丢失快速连续到达的事件。 */
-function collector(ws: WebSocket): {
+interface IWsEventCollector {
   events: WsEvent[]
-  waitFor: (pred: (e: WsEvent) => boolean, timeoutMs?: number) => Promise<WsEvent>
-} {
+  waitFor: (pred: (event: WsEvent) => boolean, timeoutMs?: number) => Promise<WsEvent>
+}
+
+const collectors = new WeakMap<WebSocket, IWsEventCollector>()
+
+/** 消息收集器：预先挂监听，避免逐条 await 丢失快速连续到达的事件。 */
+function collector(ws: WebSocket): IWsEventCollector {
+  const existing = collectors.get(ws)
+  if (existing) return existing
   const events: WsEvent[] = []
   ws.on('message', (data) => {
     try {
@@ -49,7 +55,7 @@ function collector(ws: WebSocket): {
       // ignore non-json
     }
   })
-  return {
+  const result: IWsEventCollector = {
     events,
     waitFor: (pred, timeoutMs = 8000) =>
       new Promise<WsEvent>((resolve, reject) => {
@@ -69,6 +75,8 @@ function collector(ws: WebSocket): {
         void check()
       }),
   }
+  collectors.set(ws, result)
+  return result
 }
 
 describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)', () => {
@@ -88,7 +96,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   let coordinator: ConversationCoordinator
 
   /** upstream 行为：auto=收到消息立即回完整 turn；hold=保持 running */
-  let upstreamMode: 'auto' | 'hold' = 'auto'
+  let upstreamMode: 'auto' | 'hold' | 'runner' = 'auto'
   /** When set, `resume` hands back this ws_url instead of the matching one — used to exercise rejection. */
   let upstreamWsUrlOverride: string | null = null
   const upstreamReceived: WsEvent[] = []
@@ -102,6 +110,8 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/conversations/${SID}`, {
         headers: { cookie, origin: 'http://localhost:5273' },
       })
+      // The upgrade response can contain the first lock frame in the same packet.
+      collector(ws)
       ws.once('open', () => resolve(ws))
       ws.once('error', reject)
     })
@@ -127,7 +137,27 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       upstreamAuthHeaders.push(String(req.headers.authorization ?? ''))
       upstreamWss.handleUpgrade(req, socket, head, (ws) => {
         ws.on('message', (data) => {
-          upstreamReceived.push(JSON.parse(data.toString('utf8')) as WsEvent)
+          const message = JSON.parse(data.toString('utf8')) as WsEvent
+          upstreamReceived.push(message)
+          if (upstreamMode === 'runner') {
+            const control = message.request as { subtype?: string; model_id?: string } | undefined
+            const frames =
+              control?.subtype === 'set_model'
+                ? [{ type: 'system', subtype: 'model_changed', model: control.model_id }]
+                : [
+                    {
+                      type: 'assistant',
+                      uuid: 'runner-reply',
+                      message: {
+                        role: 'assistant',
+                        content: [{ type: 'text', text: 'Runner reply' }],
+                      },
+                    },
+                    { type: 'result', session_id: SID, status: 'success' },
+                  ]
+            for (const frame of frames)
+              ws.send(JSON.stringify({ type: 'stdout', line: JSON.stringify(frame) + '\n' }))
+          }
           if (upstreamMode === 'auto') {
             ws.send(JSON.stringify({ type: 'hello', session_id: SID, runtimeType: 'host' }))
             ws.send(
@@ -383,6 +413,47 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     ws1.close()
     ws2.close()
     await sleep(150)
+  }, 20_000)
+
+  test('runner stdout envelopes persist model changes and release the writer after a turn', async () => {
+    upstreamMode = 'runner'
+    const ws = await browserWs(cookie1)
+    const events = collector(ws)
+    try {
+      ws.send(JSON.stringify({ kind: 'set_model', modelId: 'gpt-4o-mini' }))
+      await events.waitFor(
+        (event) =>
+          event.kind === 'upstream' &&
+          (event.event as { subtype?: string })?.subtype === 'model_changed',
+      )
+      await vi.waitFor(async () => {
+        const response = await request(app)
+          .get(`/api/conversations/${SID}/model`)
+          .set('Cookie', cookie1)
+        expect(response.status).toBe(200)
+        expect(response.body.modelId).toBe('gpt-4o-mini')
+      })
+      ws.send(JSON.stringify({ kind: 'send', text: 'Runner turn', images: [] }))
+      const result = await events.waitFor(
+        (event) =>
+          event.kind === 'upstream' && (event.event as { type?: string })?.type === 'result',
+      )
+      await events.waitFor(
+        (event) =>
+          event.kind === 'lock' &&
+          event.state === 'idle' &&
+          events.events.indexOf(event) > events.events.indexOf(result),
+      )
+      const context = await request(app)
+        .get(`/api/conversations/${SID}/context`)
+        .set('Cookie', cookie1)
+      expect(context.status).toBe(200)
+      expect(context.body.modelId).toBe('gpt-4o-mini')
+    } finally {
+      ws.close()
+      upstreamMode = 'auto'
+      await sleep(150)
+    }
   }, 20_000)
 
   test('stop (writer) forwards interrupt control_request to upstream; non-writer rejected', async () => {

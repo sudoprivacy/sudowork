@@ -15,6 +15,7 @@ import {
   buildInterruptMessage,
   buildSetModelMessage,
   buildUserMessage,
+  decodeMossEventPayloads,
 } from '@sudowork/moss-client'
 import {
   UPSTREAM_EVENT_TYPES,
@@ -250,38 +251,37 @@ export class ConversationCoordinator {
   }
 
   private async handleUpstreamEvent(entry: Entry, event: unknown): Promise<void> {
-    const type = (event as { type?: unknown })?.type
-    if (typeof type !== 'string' || !UPSTREAM_EVENT_TYPES.has(type)) {
-      return // 白名单外事件不透传
-    }
-    this.broadcast(entry, { kind: 'upstream', event })
-
     // 会话内切模型：本地持久化（重开会话时回读显示）。失败隔离：写库失败不影响事件转发
     // （对齐 generateTitleIfMissing 吞错模式）。上游 model 带 proxy/ 前缀，剥离后落库。
-    if (type === 'system') {
-      const subtype = (event as { subtype?: unknown }).subtype
-      const model = (event as { model?: unknown }).model
-      if (subtype === 'model_changed' && typeof model === 'string' && model) {
-        await upsertConversationModel(
-          this.deps.pool,
-          entry.principalId,
-          entry.mossSessionId,
-          model.replace(/^proxy\//, ''),
-        ).catch((err: unknown) =>
-          console.warn(
-            `[coordinator] persist model failed (session=${entry.mossSessionId.slice(0, 8)}): ${(err as Error).message}`,
-          ),
-        )
+    for (const payload of decodeMossEventPayloads(event)) {
+      const type = payload.type
+      if (typeof type !== 'string' || !UPSTREAM_EVENT_TYPES.has(type)) continue
+      this.broadcast(entry, { kind: 'upstream', event: payload })
+      if (payload.type === 'system') {
+        const subtype = payload.subtype
+        const model = payload.model
+        if (subtype === 'model_changed' && typeof model === 'string' && model) {
+          await upsertConversationModel(
+            this.deps.pool,
+            entry.principalId,
+            entry.mossSessionId,
+            model.replace(/^proxy\//, ''),
+          ).catch((err: unknown) =>
+            console.warn(
+              `[coordinator] persist model failed (session=${entry.mossSessionId.slice(0, 8)}): ${(err as Error).message}`,
+            ),
+          )
+        }
       }
-    }
 
-    if (type === 'result') {
-      await releaseToIdle(this.deps.pool, {
-        principalId: entry.principalId,
-        mossSessionId: entry.mossSessionId,
-      })
-      await this.broadcastLockState(entry)
-      this.closeUnusedEntry(entry)
+      if (payload.type === 'result') {
+        await releaseToIdle(this.deps.pool, {
+          principalId: entry.principalId,
+          mossSessionId: entry.mossSessionId,
+        })
+        await this.broadcastLockState(entry)
+        this.closeUnusedEntry(entry)
+      }
     }
   }
 

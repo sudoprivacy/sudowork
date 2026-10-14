@@ -275,6 +275,8 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     }
     SESSIONS.push(managed)
     try {
+      await upsertConversationModel(pool, principalB.id, managed.sessionId, 'gpt-4o-mini')
+      await upsertConversationModel(pool, principalA.id, managed.sessionId, 'manager-preference')
       const app = await buildApp()
       const listed = await request(app).get('/api/conversations').set('Cookie', cookieA)
       expect(listed.status).toBe(200)
@@ -294,6 +296,14 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
             .set('Cookie', cookieA)
         ).status,
       ).toBe(200)
+      const model = await request(app)
+        .get(`/api/conversations/${managed.sessionId}/model`)
+        .set('Cookie', cookieA)
+      expect(model.body.modelId).toBe('gpt-4o-mini')
+      const context = await request(app)
+        .get(`/api/conversations/${managed.sessionId}/context`)
+        .set('Cookie', cookieA)
+      expect(context.body.modelId).toBe('gpt-4o-mini')
       expect(
         (
           await request(app)
