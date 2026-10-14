@@ -283,3 +283,21 @@ it('backs off idle reads, reduces hidden-page polling, refreshes on focus and st
     delete (document as unknown as { hidden?: boolean }).hidden;
   }
 });
+
+it('renders Custom HTTP in the same directory and keeps rejected history out of the waiting state', async () => {
+  mocks.agents.mockResolvedValue({ success: true, data: [{ ...agent, provider: 'custom_http' }] });
+  mocks.history.mockResolvedValue({ success: true, data: [{ ...task, provider: 'custom_http', status: 'rejected', answer: '', attempt_id: null, policy_decision: { status: 'rejected', reason_code: 'DATA_DOMAIN_FORBIDDEN', reason: 'Synthetic only', policy_version: 'policy-1' } }] });
+  page('/conversation/external:session-1');
+  await screen.findByText('agent.external.chat.policyRejected');
+  expect(screen.getByText('agent.external.provider.custom_http')).toBeInTheDocument();
+  expect(screen.queryByText('agent.external.waiting')).toBeNull();
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+
+it('retains the translated provider name when revoked agents disappear from the directory', async () => {
+  mocks.agents.mockResolvedValue({ success: true, data: [] });
+  mocks.history.mockResolvedValue({ success: true, data: [{ ...task, provider: 'custom_http' }] });
+  page('/conversation/external:session-1');
+  await screen.findByText('agent.external.provider.custom_http');
+  expect(screen.queryByText('custom_http')).toBeNull();
+});

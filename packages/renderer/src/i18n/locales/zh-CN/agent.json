@@ -86,5 +86,9 @@
   "external.chat.historyReadOnly": "外部会话支持打开和继续对话，暂不支持批量删除或导出。",
   "external.chat.historyFailed": "外部会话历史加载失败，点击重试。",
   "external.provider.dify": "Dify",
-  "external.chat.reconciled": "管理员已记录核对结论并关闭此对话。请新建对话，不要重复提交原任务。"
+  "external.chat.reconciled": "管理员已记录核对结论并关闭此对话。请新建对话，不要重复提交原任务。",
+  "external.provider.custom_http": "自研 HTTP",
+  "external.chat.noOutput": "本次任务未产生输出。",
+  "external.chat.policyRejected": "请求被拒绝：{{reason}}",
+  "external.chat.hosted": "外部托管"
 }

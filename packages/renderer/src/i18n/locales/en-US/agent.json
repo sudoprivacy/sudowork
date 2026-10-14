@@ -86,5 +86,9 @@
   "external.chat.historyReadOnly": "External history supports opening and continuing conversations; batch deletion and export are unavailable.",
   "external.chat.historyFailed": "External history could not load. Click to retry.",
   "external.provider.dify": "Dify",
-  "external.chat.reconciled": "An administrator recorded the review and closed this session. Start a new conversation; do not resubmit the original task."
+  "external.chat.reconciled": "An administrator recorded the review and closed this session. Start a new conversation; do not resubmit the original task.",
+  "external.provider.custom_http": "Custom HTTP",
+  "external.chat.noOutput": "No output was produced.",
+  "external.chat.policyRejected": "Request rejected: {{reason}}",
+  "external.chat.hosted": "Externally hosted"
 }

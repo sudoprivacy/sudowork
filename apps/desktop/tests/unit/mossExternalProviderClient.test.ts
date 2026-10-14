@@ -84,3 +84,33 @@ it('restores raw deltas and rejects unknown event or page versions before changi
   expect(() => applyExternalEventsPage(task, 1, { ...page, events: [{ ...event(), raw_delta: { offset: 20, text: 'invalid' } }] })).toThrow('OFFSET');
   expect(task.raw_answer).toBe('');
 });
+
+it('submits a typed TaskSpec request once and retains rejection decisions in history', async () => {
+  const decision = { status: 'rejected' as const, reason_code: 'DATA_DOMAIN_FORBIDDEN', reason: 'Synthetic data only', policy_version: 'policy-1' };
+  const rejected = { ...task, status: 'rejected', attempt_id: null, task_contract_version: 'task.sudo.dev/v1alpha1', policy_decision: decision, provider: 'custom_http', provider_refs: { run_id: 'remote-run' } };
+  const request = vi.fn().mockResolvedValue({ success: true, data: rejected });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.create({ agent_id: 'agent-1', session_id: 'session-1', query: '6 * 7', idempotency_key: 'request-1234' })).policy_decision).toEqual(decision);
+  expect(request).toHaveBeenCalledExactlyOnceWith({
+    method: 'POST',
+    path: '/api/v1/tasks',
+    body: {
+      api_version: 'task.sudo.dev/v1alpha1',
+      kind: 'SubmitTask',
+      agent: { catalog_id: 'agent-1' },
+      session_id: 'session-1',
+      request_source: 'interactive',
+      input: { instruction: '6 * 7', resource_refs: [] },
+      workspace_refs: [],
+      requested_mode: 'auto',
+      data_classification: 'synthetic',
+      required_capabilities: [],
+      constraints: { idempotency_key: 'request-1234' },
+    },
+  });
+  request.mockResolvedValue({ success: true, data: [rejected] });
+  expect((await port.history('session-1'))[0].policy_decision).toEqual(decision);
+  request.mockRejectedValue(new Error('connection lost'));
+  await expect(port.create({ agent_id: 'agent-1', query: '6 * 7', idempotency_key: 'request-1234' })).rejects.toThrow('connection lost');
+  expect(request).toHaveBeenCalledTimes(3);
+});

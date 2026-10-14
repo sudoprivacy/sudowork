@@ -18,7 +18,7 @@ it.each(['main', 'renderer'] as const)('bundles the external provider client in 
           if (normalized === 'external-provider-build-probe' || normalized.endsWith('/external-provider-build-probe')) return '\0external-provider-build-probe';
         },
         load(id) {
-          if (id === '\0external-provider-build-probe') return 'export { applyExternalEventsPage } from "@sudowork/moss-client/external-providers"';
+          if (id === '\0external-provider-build-probe') return 'export { applyExternalEventsPage, createMossExternalProviderPort } from "@sudowork/moss-client/external-providers"';
           if (/\/(?:contracts|moss-client)\/dist\//.test(id.replace(/\\/g, '/'))) {
             throw new Error('Production external providers must bundle the contract from source');
           }
@@ -37,5 +37,5 @@ it.each(['main', 'renderer'] as const)('bundles the external provider client in 
     if (!('output' in output)) throw new Error('Expected a completed build');
     return output.output.flatMap((chunk) => (chunk.type === 'chunk' ? Object.keys(chunk.modules) : []));
   });
-  expect(modules.map((id) => id.replace(/\\/g, '/'))).toContain(path.resolve('../../packages/contracts/src/external-provider.gen.ts').replace(/\\/g, '/'));
+  for (const file of ['external-provider.gen.ts', 'task.gen.ts']) expect(modules.map((id) => id.replace(/\\/g, '/'))).toContain(path.resolve('../../packages/contracts/src', file).replace(/\\/g, '/'));
 });

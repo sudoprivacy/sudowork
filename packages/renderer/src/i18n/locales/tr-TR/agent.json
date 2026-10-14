@@ -86,5 +86,9 @@
   "external.chat.historyReadOnly": "Harici geçmiş açılabilir ve sohbet sürdürülebilir. Toplu silme ve dışa aktarma kullanılamaz.",
   "external.chat.historyFailed": "Harici geçmiş yüklenemedi. Yeniden denemek için tıklayın.",
   "external.provider.dify": "Dify",
-  "external.chat.reconciled": "Yönetici inceleme sonucunu kaydedip bu oturumu kapattı. Yeni bir oturum açın; özgün görevi yeniden göndermeyin."
+  "external.chat.reconciled": "Yönetici inceleme sonucunu kaydedip bu oturumu kapattı. Yeni bir oturum açın; özgün görevi yeniden göndermeyin.",
+  "external.provider.custom_http": "Özel HTTP",
+  "external.chat.noOutput": "Bu görev çıktı üretmedi.",
+  "external.chat.policyRejected": "İstek reddedildi: {{reason}}",
+  "external.chat.hosted": "Harici barındırma"
 }

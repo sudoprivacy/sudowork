@@ -31,9 +31,11 @@ jobs:
       - name: Verify the exact published sudostack artifact and semantic source lock
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/check-external-contract.mjs
+        run: |
+          node scripts/check-external-contract.mjs
+          node scripts/check-task-contract.mjs
       - name: Reject independent local repins and generated drift
-        run: node --test scripts/check-external-contract.test.mjs
+        run: node --test scripts/check-external-contract.test.mjs scripts/check-task-contract.test.mjs
 
   # Job 1: Skipped code quality checks (ESLint removed per requirement)
 

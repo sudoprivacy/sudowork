@@ -86,5 +86,9 @@
   "external.chat.historyReadOnly": "外部履歴から会話を開いて続けられます。一括削除とエクスポートは利用できません。",
   "external.chat.historyFailed": "外部履歴を読み込めませんでした。クリックして再試行してください。",
   "external.provider.dify": "Dify",
-  "external.chat.reconciled": "管理者が確認結果を記録し、この会話を閉じました。新しい会話を開始し、元のタスクを再送しないでください。"
+  "external.chat.reconciled": "管理者が確認結果を記録し、この会話を閉じました。新しい会話を開始し、元のタスクを再送しないでください。",
+  "external.provider.custom_http": "カスタム HTTP",
+  "external.chat.noOutput": "このタスクには出力がありません。",
+  "external.chat.policyRejected": "リクエストが拒否されました：{{reason}}",
+  "external.chat.hosted": "外部ホスト"
 }

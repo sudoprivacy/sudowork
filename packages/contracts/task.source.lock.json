@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "https://github.com/sudoprivacy/moss",
+    "revision": "211ed0fb26eea047b56ec1dab2d1527024165438",
+    "semanticOwner": "moss",
+    "maturity": "experimental-adapter-baseline",
+    "apiVersion": "agent-federation.sudo.dev/v1alpha1",
+    "files": {
+      "contracts/agent-federation/v1alpha1/contract.ts": {
+        "output": "contract.gen.ts",
+        "digest": "sha256:bbadcca1397ec4761b477fcb2d6784b94b42fa773fde6cf083f227c6a315c1f0"
+      },
+      "contracts/agent-federation/v1alpha1/schema.json": {
+        "output": "schema.gen.json",
+        "digest": "sha256:1513127cd576fbd002abc73f850c249e0e30443b2fd53e1edb4a3bbb37a9fb2f"
+      },
+      "contracts/task/v1alpha1/contract.ts": {
+        "output": "task.contract.gen.ts",
+        "digest": "sha256:ebd3568d572eadd64c3eb54ec5cda11bef157d86c5f82587d22285ced60fab32"
+      },
+      "contracts/task/v1alpha1/schema.json": {
+        "output": "task.schema.gen.json",
+        "digest": "sha256:4aa15cbca89915e3127a485ab70c52405da8784ae9e13dfd5413285bc8be69e5"
+      }
+    }
+  },
+  "artifact": {
+    "repository": "https://github.com/sudoprivacy/sudostack",
+    "revision": "8a24e11b525172ca04fd34b0e96902bceb8f3eb0",
+    "source_lock_path": "contracts/experimental/agent-federation/source.lock.json",
+    "files": {
+      "contracts/task/v1alpha1/contract.ts": {
+        "path": "contracts/experimental/agent-federation/task.contract.gen.ts",
+        "local": "packages/contracts/src/task.gen.ts",
+        "digest": "sha256:a93d38e5b33cb7f1612ef2da4574adf809738fefaf2f2ecca1512e4bbbb40350"
+      },
+      "contracts/task/v1alpha1/schema.json": {
+        "path": "contracts/experimental/agent-federation/task.schema.gen.json",
+        "local": "packages/contracts/task.schema.json",
+        "digest": "sha256:4aa15cbca89915e3127a485ab70c52405da8784ae9e13dfd5413285bc8be69e5"
+      }
+    }
+  }
+}

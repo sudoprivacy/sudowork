@@ -86,5 +86,9 @@
   "external.chat.historyReadOnly": "외부 기록을 열어 대화를 이어갈 수 있습니다. 일괄 삭제와 내보내기는 지원하지 않습니다.",
   "external.chat.historyFailed": "외부 기록을 불러오지 못했습니다. 클릭하여 다시 시도하세요.",
   "external.provider.dify": "Dify",
-  "external.chat.reconciled": "관리자가 확인 결과를 기록하고 대화를 닫았습니다. 새 대화를 시작하고 원래 작업을 다시 제출하지 마세요."
+  "external.chat.reconciled": "관리자가 확인 결과를 기록하고 대화를 닫았습니다. 새 대화를 시작하고 원래 작업을 다시 제출하지 마세요.",
+  "external.provider.custom_http": "사용자 정의 HTTP",
+  "external.chat.noOutput": "이 작업에서 출력이 생성되지 않았습니다.",
+  "external.chat.policyRejected": "요청이 거부되었습니다: {{reason}}",
+  "external.chat.hosted": "외부 호스팅"
 }

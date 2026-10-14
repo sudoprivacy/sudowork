@@ -81,6 +81,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
 
   const selectedAgentId = session?.agent_id || tasks[0]?.agent_id || agentId;
   const agent = agents.find((item) => item.id === selectedAgentId);
+  const provider = agent?.provider || tasks[0]?.provider;
   const activeTask = tasks.find((item) => !isFinished(item));
   const activeTaskId = activeTask?.id;
   const activeTaskRef = useRef(activeTask);
@@ -182,7 +183,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
       headerLeft={
         <div className='flex gap-2 items-center'>
           <Typography.Text bold>{title}</Typography.Text>
-          <Tag>{agent?.provider === 'dify' || !agent ? t('agent.external.provider.dify') : agent.provider}</Tag>
+          <Tag>{provider && ['dify', 'custom_http'].includes(provider) ? t(`agent.external.provider.${provider}`) : provider || t('agent.external.chat.hosted')}</Tag>
         </div>
       }
       headerExtra={
@@ -232,7 +233,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                 </div>
                 <div className='message-item min-w-0 break-words' aria-label={t('agent.external.chat.reply')}>
                   <div className='markdown-body'>
-                    <MarkdownView isExternalContent>{task.answer || t('agent.external.waiting')}</MarkdownView>
+                    <MarkdownView isExternalContent>{task.answer || (isFinished(task) ? t('agent.external.chat.noOutput') : t('agent.external.waiting'))}</MarkdownView>
                   </div>
                   <div className='flex gap-2 items-center mt-2 text-xs text-secondary' role='status'>
                     <span>{t(`agent.external.status.${task.status}`)}</span>
@@ -254,7 +255,8 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                   </div>
                   {task.output_status === 'invalid' && <Alert type='warning' content={t('agent.external.invalidOutput')} />}
                   {task.reconciliation && <Alert type='info' content={t('agent.external.chat.reconciled')} />}
-                  {task.error_code && <Typography.Paragraph type='secondary'>{t('agent.external.taskError', { code: task.error_code })}</Typography.Paragraph>}
+                  {task.policy_decision?.status === 'rejected' && <Alert type='warning' content={t('agent.external.chat.policyRejected', { reason: task.policy_decision.reason })} />}
+                  {task.error_code && !task.policy_decision && <Typography.Paragraph type='secondary'>{t('agent.external.taskError', { code: task.error_code })}</Typography.Paragraph>}
                 </div>
               </div>
             ))}

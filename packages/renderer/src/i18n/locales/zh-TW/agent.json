@@ -86,5 +86,9 @@
   "external.chat.historyReadOnly": "外部歷史支援開啟並繼續對話，不支援批次刪除及匯出。",
   "external.chat.historyFailed": "外部歷史載入失敗，點選重試。",
   "external.provider.dify": "Dify",
-  "external.chat.reconciled": "管理員已記錄核對結論並關閉此對話。請新建對話，勿重複提交原任務。"
+  "external.chat.reconciled": "管理員已記錄核對結論並關閉此對話。請新建對話，勿重複提交原任務。",
+  "external.provider.custom_http": "自研 HTTP",
+  "external.chat.noOutput": "本次任務未產生輸出。",
+  "external.chat.policyRejected": "請求被拒絕：{{reason}}",
+  "external.chat.hosted": "外部託管"
 }

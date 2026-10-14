@@ -23,6 +23,11 @@
       "bun": "./src/external-provider.gen.ts",
       "types": "./dist/external-provider.gen.d.ts",
       "default": "./dist/external-provider.gen.js"
+    },
+    "./task": {
+      "bun": "./src/task.gen.ts",
+      "types": "./dist/task.gen.d.ts",
+      "default": "./dist/task.gen.js"
     }
   },
   "files": [
@@ -32,6 +37,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "@sudo/contracts": "github:sudoprivacy/sudostack#273fd4097cbc33c1c049c39bb1fb60cef2663e2b"
   }
 }

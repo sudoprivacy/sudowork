@@ -18,7 +18,7 @@ export function verifyExternalSnapshot(lock, contract, artifact, sourceLock) {
   const header = `// Derived from Moss ${source.revision}:${source.path}. DO NOT EDIT.\n`
   if (source.repository !== 'https://github.com/sudoprivacy/moss' || !/^[a-f0-9]{40}$/.test(source.revision) || !artifact.startsWith(header) || digest(artifact.slice(header.length)) !== source.digest) throw new Error('Invalid semantic source provenance')
 }
-async function readArtifact(lock, path, checkout) {
+export async function readArtifact(lock, path, checkout) {
   const artifact = lock.artifact
   if (checkout) {
     const origin = execFileSync('git', ['-C', checkout, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim().replace(/^git@github.com:/, 'https://github.com/').replace(/\.git$/, '')

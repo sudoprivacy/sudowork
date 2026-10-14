@@ -1,3 +1,4 @@
+import { TASK_API, type SubmitTask } from "@sudowork/contracts/task";
 import {
   type ExternalAgentAdmin,
   type ExternalPilotPolicy,
@@ -62,6 +63,11 @@ const task = z.object({
   session_id: id,
   agent_id: id,
   agent_name: z.string(),
+  task_contract_version: z.literal(TASK_API).optional(),
+  policy_decision: z.object({
+    status: z.enum(["accepted", "rejected"]), reason_code: z.string(),
+    reason: z.string(), policy_version: z.string(),
+  }).optional(),
   configuration_revision: z.number().int().positive().optional(),
   dispatch_authorized_at: z.number().optional(),
   reconciliation: z
@@ -87,6 +93,7 @@ const task = z.object({
     message_id: z.string().optional(),
     task_id: z.string().optional(),
     workflow_run_id: z.string().optional(),
+    run_id: z.string().optional(),
   }),
   cancellation: z.object({
     status: z.enum(["none", "unsupported"]),
@@ -194,7 +201,7 @@ const adminAgentSchema = agent.extend({
   credential_configured: z.boolean(),
   credential_state: z.enum(["ready", "updating", "rotation_required"]),
   registration_mode: z.enum(["onboarding", "reference_compat"]),
-  definition_evidence: z.enum(["validated_dsl", "digest_only"]),
+  definition_evidence: z.enum(["validated_dsl", "validated_manifest", "digest_only"]),
 });
 
 export interface MossExternalProviderPort {
@@ -301,7 +308,18 @@ export function createMossExternalProviderPort(
         z.array(task),
         `/api/v1/external-sessions/${id.parse(sessionId)}/tasks`,
       ),
-    create: (input) => read(task, "/api/v1/tasks", taskInput.parse(input)),
+    create: (input) => {
+      const legacy = taskInput.parse(input);
+      const submission: SubmitTask = {
+        api_version: TASK_API, kind: "SubmitTask", agent: { catalog_id: legacy.agent_id },
+        ...(legacy.session_id ? { session_id: legacy.session_id } : {}),
+        request_source: "interactive", input: { instruction: legacy.query, resource_refs: [] },
+        workspace_refs: [], requested_mode: "auto", data_classification: "synthetic",
+        required_capabilities: [], constraints: { idempotency_key: legacy.idempotency_key },
+      };
+      // No fallback POST: an ambiguous response may already have created a task.
+      return read(task, "/api/v1/tasks", submission);
+    },
     events: (taskId, cursor) =>
       read(
         events,

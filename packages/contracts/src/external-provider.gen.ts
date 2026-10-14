@@ -1,4 +1,4 @@
-// Derived from Moss a5b336c33e6e74025502f279581bf52f3e37d80c:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss 211ed0fb26eea047b56ec1dab2d1527024165438:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
 export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha4' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'
@@ -36,6 +36,8 @@ export interface ExternalSession {
 }
 
 export interface ExternalTask {
+  task_contract_version?: string
+  policy_decision?: { status: 'accepted' | 'rejected'; reason_code: string; reason: string; policy_version: string }
   api_version: typeof EXTERNAL_PROVIDER_API
   id: string
   session_id: string
@@ -53,7 +55,7 @@ export interface ExternalTask {
   error_code: string | null
   source_digest: string
   provider: string
-  provider_refs: { conversation_id?: string; message_id?: string; task_id?: string; workflow_run_id?: string }
+  provider_refs: { run_id?: string; conversation_id?: string; message_id?: string; task_id?: string; workflow_run_id?: string }
   reconciliation?: { action: 'closed'; note: string; user_id: string; created_at: number }
   cancellation: { status: 'none' | 'unsupported'; reason: string | null }
   created_at: number
@@ -85,6 +87,7 @@ export interface ExternalEventsPage {
 }
 
 export interface RegisterExternalAgent {
+  provider_kind?: 'dify' | 'custom_http'
   name: string
   endpoint: string
   app_id: string
@@ -123,9 +126,9 @@ export interface ExternalAgentAdmin extends ExternalAgent {
   credential_configured: boolean
   credential_state: 'ready' | 'updating' | 'rotation_required'
   registration_mode: 'onboarding' | 'reference_compat'
-  definition_evidence: 'validated_dsl' | 'digest_only'
+  definition_evidence: 'validated_dsl' | 'validated_manifest' | 'digest_only'
 }
-export interface InspectExternalConnection { endpoint: string; api_key: string }
+export interface InspectExternalConnection { endpoint: string; api_key: string; provider_kind?: 'dify' | 'custom_http'; source_definition?: string }
 export interface ExternalConnectionInspection { name: string; parameters_digest: string; checked_at: number }
 export interface OnboardExternalAgent extends InspectExternalConnection {
   request_id: string
