@@ -1,4 +1,5 @@
 import React from 'react';
+import { EXTERNAL_PROVIDER_API } from '@sudowork/contracts/external-provider';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -28,7 +29,7 @@ import { useExternalHistory } from '@renderer/pages/external-agents/useExternalH
 
 const agent = { id: 'agent-1', name: 'Dify pilot', provider: 'dify' };
 const task = {
-  api_version: 'external-provider.sudo.dev/v1alpha3',
+  api_version: EXTERNAL_PROVIDER_API,
   agent_name: 'agent-1',
   attempt_id: 'attempt-1',
   raw_answer: '',

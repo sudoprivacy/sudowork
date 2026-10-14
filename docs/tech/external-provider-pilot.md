@@ -1,6 +1,6 @@
 # 外部智能体：Moss 组织管理与 SudoWork 对话
 
-2026-10-13 更新。管理员在 **Moss → 智能体管理 → 专属智能体** 接入和发布外部智能体；授权用户在 **SudoWork → 智能体列表 → 专属智能体 → 外部托管** 开始对话。桌面端和 WebUI 页签统一为 **智能体库 / 专属智能体 / 我的智能体**，专属页分为 **外部托管 / 内部托管**。组织发布的外部智能体不进入“我的 Agent”或“我的智能体”。
+2026-10-14 更新。管理员在 **Moss → 智能体管理 → 专属智能体** 接入和发布外部智能体；授权用户在 **SudoWork → 智能体列表 → 专属智能体 → 外部托管** 开始对话。桌面端和 WebUI 页签统一为 **智能体库 / 专属智能体 / 我的智能体**，专属页分为 **外部托管 / 内部托管**。组织发布的外部智能体不进入“我的 Agent”或“我的智能体”。
 
 ## 组织管理员操作（Moss）
 
@@ -46,3 +46,12 @@ PR #1234 的干净构建暴露两个遗漏：WebUI 三个文件未按该应用�
 已补齐契约源码别名，保持桌面从源码打包的既有方式。新增 `tests/integration/externalProviderBuild.test.ts`，读取正式生产配置并实际打包外部客户端，同时拒绝读取 `contracts/dist`；修复前失败，修复后通过，避免已有本地产物掩盖回归。完整生产 main bundle 同样在禁止读取契约 dist 的条件下构建通过。
 
 WebUI 已按 CI 顺序通过类型、lint、格式、单元 239 项、契约 46 项和 PostgreSQL 集成 88 项检查；集成测试使用单独临时容器，未操作现有试点数据库。desktop 类型及变更文件 lint/格式通过；修复后根 `bun run test --maxWorkers=1` 全量 3137 项通过 / 30 项跳过（含新增构建回归）。CI 最终状态见 [PR #1234](https://github.com/sudoprivacy/sudowork/pull/1234)，本地 main 构建通过不代表生产安装包已验收。
+
+
+## alpha4 升级与本轮评审修复
+
+当前客户端消费固定 SudoStack 产物中的 `external-provider.sudo.dev/v1alpha4`，三仓来源与产物由锁文件及 CI 核对；不等于正式 Task/Agent 契约已 Accepted。
+
+桌面、浏览器到 WebUI、WebUI 到 Moss 均使用 15 秒总请求期限，包含身份获取、401 刷新和响应读取。超时返回 `EXTERNAL_TASK_TIMEOUT`，身份变更返回 `EXTERNAL_IDENTITY_CHANGED`。401 最多刷新一次，保留原 request body 和幂等 key；超时后不自动重放任务。
+
+Moss 现在要求完整定义（包含 workflow.features），仅准入 Start → LLM → Answer 的 query-only profile；旧条目需在 Moss 编辑、重新上传定义并审核。上传摘要不能证明 Dify 执行了不可变版本。alpha3 历史可恢复为 alpha4 快照并保留完整原文；alpha2 缺失原文仍为 legacy_checkpoint。协调升级两端，不用创建新任务修复版本读取错误。

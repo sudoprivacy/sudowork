@@ -1,5 +1,9 @@
 import { Router } from 'express'
-import { MossHttpError, type MossFetch } from '@sudowork/moss-client'
+import { MossHttpError, MossNetworkError, type MossFetch } from '@sudowork/moss-client'
+import {
+  EXTERNAL_REQUEST_TIMEOUT_MS,
+  withExternalRequestDeadline,
+} from '@sudowork/moss-client/external-providers'
 import { getMossContext, type AuthDeps } from '../auth/authService.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
 
@@ -40,29 +44,52 @@ export function createExternalProviderRouter(deps: { auth: AuthDeps; request: Mo
   ]
   for (const route of routes)
     router[route.method](route.path, requireSession, (req: AuthedRequest, res, next) => {
-      void (async () => {
+      void withExternalRequestDeadline(async (signal) => {
+        const deadline = Date.now() + EXTERNAL_REQUEST_TIMEOUT_MS
+        const principalId = req.webSession!.principalId
         let context = await getMossContext(deps.auth, req.webSession!)
         const baseUrl = context.baseUrl
+        const expectedIdentity = req.get('X-Sudo-External-Identity')
+        const assertIdentity = () => {
+          signal.throwIfAborted()
+          if (
+            req.webSession!.principalId !== principalId ||
+            context.baseUrl !== baseUrl ||
+            (expectedIdentity !== undefined &&
+              expectedIdentity !== JSON.stringify([baseUrl, principalId]))
+          ) {
+            throw new MossHttpError(
+              409,
+              JSON.stringify({ error: { code: 'EXTERNAL_IDENTITY_CHANGED' } }),
+              req.path,
+            )
+          }
+        }
+        assertIdentity()
         const send = () =>
-          deps.request(context.baseUrl, {
-            method: route.method === 'get' ? 'GET' : 'POST',
-            path: `/api/v1${req.path}`,
-            accessToken: context.accessToken,
-            ...(route.method === 'post' ? { body: req.body } : {}),
-            ...(req.query.cursor === undefined
-              ? {}
-              : { searchParams: { cursor: String(req.query.cursor) } }),
-          })
+          deps.request(
+            context.baseUrl,
+            {
+              method: route.method === 'get' ? 'GET' : 'POST',
+              path: `/api/v1${req.path}`,
+              accessToken: context.accessToken,
+              ...(route.method === 'post' ? { body: req.body } : {}),
+              ...(req.query.cursor === undefined
+                ? {}
+                : { searchParams: { cursor: String(req.query.cursor) } }),
+            },
+            Math.max(1, deadline - Date.now()),
+          )
         let result: unknown
         try {
           result = await send()
         } catch (error) {
           if (!(error instanceof MossHttpError) || error.status !== 401) throw error
           context = await getMossContext(deps.auth, req.webSession!, true)
-          if (context.baseUrl !== baseUrl)
-            throw new Error('Moss identity changed', { cause: error })
+          assertIdentity()
           result = await send()
         }
+        assertIdentity()
         res.setHeader('Cache-Control', 'no-store')
         res
           .status(
@@ -73,7 +100,15 @@ export function createExternalProviderRouter(deps: { auth: AuthDeps; request: Mo
                 : 200,
           )
           .json(result)
-      })().catch((error: unknown) => {
+      }).catch((error: unknown) => {
+        if (error instanceof Error && error.message === 'EXTERNAL_TASK_TIMEOUT') {
+          res.status(504).json({ error: 'EXTERNAL_TASK_TIMEOUT' })
+          return
+        }
+        if (error instanceof MossNetworkError) {
+          res.status(502).json({ error: 'EXTERNAL_TASK_REQUEST_FAILED' })
+          return
+        }
         if (error instanceof MossHttpError) {
           let code = 'EXTERNAL_TASK_REQUEST_FAILED'
           try {

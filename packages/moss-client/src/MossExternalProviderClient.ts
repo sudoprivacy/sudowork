@@ -17,6 +17,27 @@ import {
 import { z } from "zod";
 import type { MossAgentFetch } from "./MossAgentClient.js";
 
+export const EXTERNAL_REQUEST_TIMEOUT_MS = 15_000;
+/** One deadline covers token refresh, HTTP retries and response decoding. Never retries execution. */
+export async function withExternalRequestDeadline<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout>;
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("EXTERNAL_TASK_TIMEOUT"));
+    }, EXTERNAL_REQUEST_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([operation(controller.signal), expired]);
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("EXTERNAL_TASK_TIMEOUT", { cause: error });
+    throw error;
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 const id = z.string().regex(/^[\w-]{1,100}$/);
 const taskInput = z
   .object({

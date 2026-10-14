@@ -1,6 +1,6 @@
-// Derived from Moss 3d12c355c52d6017df73efb6d99b0910ad2d4902:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss a5b336c33e6e74025502f279581bf52f3e37d80c:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
-export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha3' as const
+export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha4' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'
 export type ExternalTaskStatus = 'accepted' | 'dispatching' | 'running' | 'succeeded' | 'failed' | 'unknown' | 'rejected'
 export type OutputDecoder = 'text' | 'reply_actions_v1'
@@ -97,6 +97,11 @@ export interface RegisterExternalAgent {
   review_note: string
 }
 
+export interface RegisterExternalAgentRequest extends RegisterExternalAgent {
+  request_id: string
+  source_definition: string
+}
+
 export interface ExternalPilotPolicy {
   enabled: boolean
   endpoints: string[]
@@ -134,6 +139,7 @@ export interface OnboardExternalAgent extends InspectExternalConnection {
   review_note: string
 }
 export interface UpdateExternalAgent {
+  source_definition?: string
   revision: number
   name: string
   decoder: OutputDecoder

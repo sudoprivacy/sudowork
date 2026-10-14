@@ -1,9 +1,11 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { EXTERNAL_REQUEST_TIMEOUT_MS } from '@sudowork/moss-client/external-providers';
 const state = vi.hoisted(() => ({ scope: 'account-a', request: vi.fn(), token: vi.fn() }));
 vi.mock('electron', () => ({ net: { fetch: state.request } }));
 vi.mock('@process/initStorage', () => ({ ProcessConfig: { getSync: (key: string) => (key === 'eeclaw.serverUrl' ? 'http://moss.test' : state.scope) } }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: state.token }));
 import { externalProviderPort } from '@process/services/mossExternalProviders';
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
   vi.clearAllMocks();
   state.scope = 'account-a';
@@ -19,7 +21,7 @@ it('account switches invalidate a late response', async () => {
     state.scope = 'account-b';
     return Response.json({ success: true, data: [] });
   });
-  await expect(externalProviderPort.agents()).rejects.toThrow('identity changed');
+  await expect(externalProviderPort.agents()).rejects.toThrow('EXTERNAL_IDENTITY_CHANGED');
 });
 it('transport errors do not trigger an automatic task retry', async () => {
   state.request.mockRejectedValue(new Error('connection closed'));
@@ -45,6 +47,38 @@ it('does not loop on 401 or retry after identity changes during refresh', async 
     if (isForced) state.scope = 'account-b';
     return 'token';
   });
-  await expect(externalProviderPort.agents()).rejects.toThrow('identity changed');
+  await expect(externalProviderPort.agents()).rejects.toThrow('EXTERNAL_IDENTITY_CHANGED');
+  expect(state.request).toHaveBeenCalledTimes(1);
+});
+
+it('bounds a stalled token read and cannot send a task after the deadline', async () => {
+  vi.useFakeTimers();
+  let release!: (token: string) => void;
+  state.token.mockImplementation(
+    () =>
+      new Promise<string>((resolve) => {
+        release = resolve;
+      })
+  );
+  const request = externalProviderPort.create({ agent_id: 'a', query: 'synthetic', idempotency_key: 'key-123456' });
+  const rejected = expect(request).rejects.toThrow('EXTERNAL_TASK_TIMEOUT');
+  await vi.advanceTimersByTimeAsync(EXTERNAL_REQUEST_TIMEOUT_MS);
+  await rejected;
+  release('late-token');
+  await Promise.resolve();
+  expect(state.request).not.toHaveBeenCalled();
+});
+
+it('aborts a stalled HTTP request without automatically retrying', async () => {
+  vi.useFakeTimers();
+  let signal!: AbortSignal;
+  state.request.mockImplementation((_url, init) => {
+    signal = init.signal;
+    return new Promise(() => {});
+  });
+  const rejected = expect(externalProviderPort.agents()).rejects.toThrow('EXTERNAL_TASK_TIMEOUT');
+  await vi.advanceTimersByTimeAsync(EXTERNAL_REQUEST_TIMEOUT_MS);
+  await rejected;
+  expect(signal.aborted).toBe(true);
   expect(state.request).toHaveBeenCalledTimes(1);
 });

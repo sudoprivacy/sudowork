@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import express from 'express'
 import request from 'supertest'
 import { MossHttpError } from '@sudowork/moss-client'
@@ -13,6 +13,9 @@ vi.mock('@server/features/auth/authService', () => ({
 }))
 const { createExternalProviderRouter } =
   await import('@server/features/externalProviders/externalProviderRoutes')
+afterEach(() => {
+  vi.useRealTimers()
+})
 const upstream = vi.fn(async () => ({ success: true, data: [] }))
 beforeEach(() => {
   upstream.mockReset()
@@ -40,21 +43,29 @@ it('requires a session and leaves admin registration out of the WebUI proxy', as
 })
 it('forwards each session token, request key and cursor independently', async () => {
   await request(app('u1')).get('/api/v1/tasks/task-1/events?cursor=8')
-  expect(upstream).toHaveBeenLastCalledWith('http://moss.test', {
-    method: 'GET',
-    path: '/api/v1/tasks/task-1/events',
-    accessToken: 'u1',
-    searchParams: { cursor: '8' },
-  })
+  expect(upstream).toHaveBeenLastCalledWith(
+    'http://moss.test',
+    {
+      method: 'GET',
+      path: '/api/v1/tasks/task-1/events',
+      accessToken: 'u1',
+      searchParams: { cursor: '8' },
+    },
+    expect.any(Number),
+  )
   const body = { agent_id: 'a', query: 'synthetic', idempotency_key: 'same-key' }
   const response = await request(app('u2')).post('/api/v1/tasks').send(body)
   expect(response.status).toBe(202)
-  expect(upstream).toHaveBeenLastCalledWith('http://moss.test', {
-    method: 'POST',
-    path: '/api/v1/tasks',
-    accessToken: 'u2',
-    body,
-  })
+  expect(upstream).toHaveBeenLastCalledWith(
+    'http://moss.test',
+    {
+      method: 'POST',
+      path: '/api/v1/tasks',
+      accessToken: 'u2',
+      body,
+    },
+    expect.any(Number),
+  )
 })
 it('forwards admin writes through the caller session and never exposes unrestricted upstream paths', async () => {
   const body = { endpoint: 'http://127.0.0.1/v1', api_key: 'synthetic-key' }
@@ -62,12 +73,16 @@ it('forwards admin writes through the caller session and never exposes unrestric
     .post('/api/v1/external-agents/admin/inspect')
     .send(body)
   expect(response.status).toBe(200)
-  expect(upstream).toHaveBeenLastCalledWith('http://moss.test', {
-    method: 'POST',
-    path: '/api/v1/external-agents/admin/inspect',
-    accessToken: 'admin',
-    body,
-  })
+  expect(upstream).toHaveBeenLastCalledWith(
+    'http://moss.test',
+    {
+      method: 'POST',
+      path: '/api/v1/external-agents/admin/inspect',
+      accessToken: 'admin',
+      body,
+    },
+    expect.any(Number),
+  )
   expect(
     (await request(app()).post('/api/v1/external-agents/admin/onboard').send(body)).status,
   ).toBe(401)
@@ -86,6 +101,7 @@ it('retries an unexpected upstream 401 exactly once with the same request body',
   expect(upstream).toHaveBeenLastCalledWith(
     'http://moss.test',
     expect.objectContaining({ accessToken: 'u-refreshed', body }),
+    expect.any(Number),
   )
 })
 it('stops after the second 401 and reports local context without upstream traffic', async () => {
@@ -96,4 +112,50 @@ it('stops after the second 401 and reports local context without upstream traffi
   const context = await request(app('u')).get('/api/v1/external-context')
   expect(context.body.data.isAvailable).toBe(true)
   expect(upstream).not.toHaveBeenCalled()
+})
+
+it('rejects stale browser identity before forwarding a task', async () => {
+  const response = await request(app('current-user'))
+    .post('/api/v1/tasks')
+    .set('X-Sudo-External-Identity', JSON.stringify(['http://moss.test', 'previous-user']))
+    .send({ agent_id: 'a', query: 'synthetic', idempotency_key: 'same-key' })
+  expect(response.status).toBe(409)
+  expect(response.body.error).toBe('EXTERNAL_IDENTITY_CHANGED')
+  expect(upstream).not.toHaveBeenCalled()
+})
+
+it('bounds token refresh and never dispatches a late retry after the proxy deadline', async () => {
+  vi.useFakeTimers()
+  let release!: (value: Awaited<ReturnType<typeof getMossContext>>) => void
+  let enter!: () => void
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve
+  })
+  upstream.mockRejectedValueOnce(new MossHttpError(401, 'Unauthorized', '{}'))
+  vi.mocked(getMossContext).mockImplementationOnce(async () => ({
+    baseUrl: 'http://moss.test',
+    accessToken: 'u',
+  }))
+  vi.mocked(getMossContext).mockImplementationOnce(async () => {
+    enter()
+    return new Promise((resolve) => {
+      release = resolve
+    })
+  })
+  const pending = request(app('u'))
+    .post('/api/v1/tasks')
+    .send({ agent_id: 'a', query: 'synthetic', idempotency_key: 'same-key' })
+    .then((value) => value)
+  try {
+    await entered
+    await vi.advanceTimersByTimeAsync(15_000)
+    const response = await pending
+    expect(response.status).toBe(504)
+    expect(response.body.error).toBe('EXTERNAL_TASK_TIMEOUT')
+    release({ baseUrl: 'http://moss.test', accessToken: 'late-token' })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(upstream).toHaveBeenCalledTimes(1)
+  } finally {
+    vi.useRealTimers()
+  }
 })

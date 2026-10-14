@@ -1,5 +1,8 @@
 import type * as ExternalContract from '@sudowork/contracts/external-provider'
-import { createMossExternalProviderPort } from '@sudowork/moss-client/external-providers'
+import {
+  createMossExternalProviderPort,
+  withExternalRequestDeadline,
+} from '@sudowork/moss-client/external-providers'
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -187,12 +190,36 @@ if (typeof window !== 'undefined' && storageGet('agent.config', 'eeclaw.serverUr
 // Same-origin HTTP to the apps/webui server (cookie session auth).
 // ---------------------------------------------------------------------------
 
-const externalProviderPort = createMossExternalProviderPort((request) =>
-  apiFetch(request.path, {
-    method: request.method,
-    ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+let externalIdentity = ''
+let externalContextGeneration = 0
+export async function readExternalContext(signal: AbortSignal) {
+  const generation = ++externalContextGeneration
+  const context = await apiFetch<{
+    success: boolean
+    data?: { isAvailable: boolean; identity: string }
+  }>('/api/v1/external-context', { signal })
+  signal.throwIfAborted()
+  if (generation !== externalContextGeneration) throw new Error('EXTERNAL_IDENTITY_CHANGED')
+  externalIdentity = context.success && context.data?.isAvailable ? context.data.identity : ''
+  return context
+}
+export const externalBrowserPort = createMossExternalProviderPort((request) =>
+  withExternalRequestDeadline(async (signal) => {
+    if (!externalIdentity) await readExternalContext(signal)
+    const identity = externalIdentity
+    if (!identity) throw new Error('EXTERNAL_IDENTITY_CHANGED')
+    const result = await apiFetch(request.path, {
+      method: request.method,
+      signal,
+      headers: { 'X-Sudo-External-Identity': identity },
+      ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+    })
+    signal.throwIfAborted()
+    if (identity !== externalIdentity) throw new Error('EXTERNAL_IDENTITY_CHANGED')
+    return result
   }),
 )
+const externalProviderPort = externalBrowserPort
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   await prepareWebAgentWorkspace()
@@ -1613,7 +1640,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // of the three kinds a stored reference is and where each kind's name lives;
   // doing it here would put the template-is-not-an-agent distinction into the
   // browser and give it a reason to read the organization catalog.
-  'external-providers.context': async () => apiFetch('/api/v1/external-context'),
+  'external-providers.context': async () => withExternalRequestDeadline(readExternalContext),
   'external-providers.access': async () => {
     return ok(await externalProviderPort.access())
   },
