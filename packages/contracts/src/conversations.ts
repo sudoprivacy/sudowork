@@ -56,7 +56,14 @@ export const MossContextResponseSchema = z.object({
         .array(
           z
             .object({
-              type: z.enum(['user', 'assistant', 'thinking', 'tool_use', 'tool_result']),
+              type: z.enum([
+                'user',
+                'assistant',
+                'thinking',
+                'tool_use',
+                'tool_result',
+                'artifacts',
+              ]),
               uuid: z.string().optional(),
             })
             .passthrough(),

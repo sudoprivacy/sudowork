@@ -130,10 +130,11 @@ async def main(args):
                 await editor.fill(text)
                 await editor.press("Enter")
 
-            async def wait_turn(start, required):
+            async def wait_turn(start, required=None, assistant_reply=None):
                 deadline = time.monotonic() + args.turn_timeout
                 while time.monotonic() < deadline:
                     is_current_turn = False
+                    assistant_text = ""
                     for raw in messages[start:]:
                         if not isinstance(raw, str):
                             continue
@@ -144,8 +145,21 @@ async def main(args):
                         event = message.get("event", {})
                         if message.get("kind") != "upstream":
                             continue
-                        if required(event):
+                        if required and required(event):
                             is_current_turn = True
+                        if assistant_reply and event.get("type") == "assistant":
+                            content = event.get("message", {}).get("content", [])
+                            if isinstance(content, str):
+                                assistant_text += content
+                            elif isinstance(content, list):
+                                assistant_text += "".join(
+                                    block.get("text", "")
+                                    for block in content
+                                    if isinstance(block, dict)
+                                    and block.get("type") == "text"
+                                )
+                            if assistant_reply in assistant_text:
+                                is_current_turn = True
                         if is_current_turn and event.get("type") == "result":
                             assert not event.get("is_error"), "Real model turn failed"
                             return
@@ -306,10 +320,7 @@ async def main(args):
                 )
             await wait_turn(
                 start,
-                lambda event: (
-                    event.get("type") in ("tool_result", "assistant")
-                    and expected in json.dumps(event)
-                ),
+                assistant_reply=expected,
             )
             deadline = time.monotonic() + 10
             while not receipts and time.monotonic() < deadline:
@@ -324,6 +335,52 @@ async def main(args):
             after = await state()
             assert after["browserSessionId"] == before["browserSessionId"]
             assert after["profileId"] == before["profileId"]
+            await page.bring_to_front()
+            await expect(page.get_by_text(expected, exact=False).first).to_be_visible(
+                timeout=20000
+            )
+            # A successful live stream must survive a real browser refresh.
+            # Moss persists artifacts alongside messages; rejecting those frames
+            # previously made the entire history disappear after navigation.
+            async with page.expect_response(
+                lambda response: response.url.endswith(
+                    f"/api/conversations/{sid}/context"
+                )
+            ) as restored:
+                await page.reload()
+            history_response = await restored.value
+            assert history_response.status == 200, await history_response.text()
+            history = await history_response.json()
+            restored_texts = [
+                message.get("content", {}).get("content", "")
+                for message in history.get("messages", [])
+                if message.get("type") == "text" and message.get("position") == "left"
+            ]
+            (evidence_root / "history-summary.json").write_text(
+                json.dumps(
+                    {
+                        "messageCount": len(history.get("messages", [])),
+                        "expectedAssistantTextPresent": any(
+                            expected in text for text in restored_texts
+                        ),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            assert any(expected in text for text in restored_texts), (
+                "Completed assistant response was lost"
+            )
+            await expect(page.get_by_text(expected, exact=False).first).to_be_visible(
+                timeout=20000
+            )
+            await page.get_by_role(
+                "tab", name=conversation["rightPanel"]["tabs"]["browser"], exact=True
+            ).click()
+            panel = page.get_by_test_id("browser-session-panel")
+            await panel.wait_for(state="visible")
+            restored_state = await state()
+            assert restored_state["browserSessionId"] == after["browserSessionId"]
+            assert restored_state["profileId"] == after["profileId"]
             await page.screenshot(
                 path=str(evidence_root / "ui-handoff-conversation.png")
             )
@@ -338,6 +395,7 @@ async def main(args):
                 "mainPanelAndViewerShareBrowser": True,
                 "heldAgentWriteRejected": True,
                 "automaticReturnNotification": not args.manual_continuation,
+                "historyRestoredAfterReload": True,
                 "headfulWindowSurface": args.headful,
                 "realProvider": "SudoRouter",
                 "model": config.get("model"),

@@ -10,13 +10,15 @@ that an AI write is rejected. Clicking Return to AI sends the handoff note to
 the real conversation automatically. The AI reads the same page and clicks
 Submit exactly once, without another chat instruction. The fixture verifies
 the random value, original cookie, and trusted browser click. Both views must
-retain the same browser and profile identities.
+retain the same browser and profile identities. Finally, the journey reloads
+the conversation and checks that its completed model history and random human
+input remain visible, with the same browser and profile still attached.
 
 Prerequisites:
 
 - A running WebUI and Moss configured with the managed browser gateway.
 - A fresh test conversation with a real model account and no unfinished turn.
-- Python with `ai-dev-browser >= 0.54.0` and Playwright.
+- Python with `ai-dev-browser >= 0.55.0` and Playwright.
 - An isolated test profile. The journey navigates and types into its current tab.
 
 Create a private JSON file outside the repository:

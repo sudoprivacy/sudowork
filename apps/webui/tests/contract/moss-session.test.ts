@@ -234,6 +234,46 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     await expect(port.context(CTX, 's1')).resolves.toEqual(context)
   })
 
+  test('context preserves conversation history containing persisted artifact frames', async () => {
+    // Real Moss transcripts append artifacts after each completed model turn.
+    const context = {
+      context: {
+        messages: [
+          { type: 'user', uuid: 'user-1', content: 'Review the shared browser' },
+          { type: 'tool_use', uuid: 'tool-1', name: 'browser_observe', input: {} },
+          { type: 'tool_result', uuid: 'result-1', content: 'Human review 12345678' },
+          { type: 'assistant', uuid: 'assistant-1', content: 'Human review 12345678' },
+          {
+            type: 'artifacts',
+            uuid: 'artifacts-1',
+            v: 1,
+            workspace: '/workspace',
+            records: [
+              {
+                sessionId: 's1',
+                relativePath: 'review.txt',
+                intent: 'final',
+                origin: 'generated',
+                size: 21,
+              },
+            ],
+          },
+          { type: 'artifacts', uuid: 'artifacts-2', v: 1, records: [] },
+        ],
+      },
+    }
+    const port = createMossSessionPort(vi.fn().mockResolvedValue(context))
+
+    await expect(port.context(CTX, 's1')).resolves.toEqual(context)
+  })
+
+  test('context still rejects unknown transcript message types', async () => {
+    const port = createMossSessionPort(
+      vi.fn().mockResolvedValue({ context: { messages: [{ type: 'unknown-frame' }] } }),
+    )
+    await expect(port.context(CTX, 's1')).rejects.toThrow()
+  })
+
   test('session ids are uri-encoded once', async () => {
     const mock = vi.fn().mockResolvedValue({ ok: true })
     const port = createMossSessionPort(mock)
