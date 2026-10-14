@@ -42,9 +42,11 @@ that the model or the conversation UI can see the picture.
 ## Live acceptance
 
 The [2026-10-02 acceptance record](browser-backend-acceptance.json) covers both
-backends through Chrome and through the real model/application UI. The full
-Windows unit suite still has 15 failures reproduced on the unchanged baseline;
-they are recorded separately from the passing browser acceptance.
+backends through Chrome and through the real model/application UI. That record
+also preserves the unit-suite failures reproduced on its October 2 baseline.
+The [October 14 startup follow-up](browser-startup-acceptance-20261014.json)
+checks the upstream IPv4 startup race fix with parallel Chrome launches and
+both real application wrappers; its full unit suite has no failures.
 
 From `apps/desktop`, with Chrome, Python browser dependencies and the pinned
 `suh` binary installed:
