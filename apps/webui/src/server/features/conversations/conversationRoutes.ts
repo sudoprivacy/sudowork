@@ -114,15 +114,27 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const ctx = await resolveCtx(req as AuthedRequest)
       const input = BrowserSessionActionSchema.parse(req.body)
+      let reserved = false
       if (input.kind === 'return') {
-        await deps.coordinator.prepareBrowserReturn(
+        reserved = await deps.coordinator.prepareBrowserReturn(
           (req as AuthedRequest).webSession!,
           String(req.params.id),
         )
       }
-      res
-        .status(200)
-        .json(await invokeBrowserSession(deps, principal, String(req.params.id), ctx, input))
+      try {
+        res
+          .status(200)
+          .json(await invokeBrowserSession(deps, principal, String(req.params.id), ctx, input))
+      } catch (error) {
+        if (reserved) {
+          await deps.coordinator.failBrowserReturn(
+            (req as AuthedRequest).webSession!,
+            String(req.params.id),
+            error instanceof MossHttpError && error.status >= 400 && error.status < 500,
+          )
+        }
+        throw error
+      }
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

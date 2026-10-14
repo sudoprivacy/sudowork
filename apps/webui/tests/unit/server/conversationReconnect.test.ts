@@ -28,7 +28,12 @@ vi.mock('@server/features/conversations/lockRepository', () => ({
   releaseToIdle: vi.fn(async () => {
     state.lock = { state: 'idle', writerWebSessionId: null }
   }),
-  releaseToIdleIfHeld: vi.fn(),
+  releaseToIdleIfHeld: vi.fn(async (_pool, input) => {
+    if (state.lock?.state !== 'running' || state.lock.writerWebSessionId !== input.webSessionId)
+      return false
+    state.lock = { state: 'idle', writerWebSessionId: input.webSessionId }
+    return true
+  }),
   deleteLock: vi.fn(async () => {
     state.lock = null
   }),
@@ -110,14 +115,28 @@ beforeEach(() => {
 })
 
 describe('conversation reconnect during generation', () => {
-  test('streams the first browser handoff without sending chat or acquiring a writer lock', async () => {
+  test('keeps the writer active while another tab in the same authenticated session remains connected', async () => {
+    const service = coordinator(),
+      original = connection(),
+      viewer = connection()
+    service.subscribe(original)
+    service.subscribe(viewer)
+    await service.prepareBrowserReturn(original.webSession, original.mossSessionId)
+    await service.unsubscribe(original)
+    expect(state.lock).toEqual({ state: 'running', writerWebSessionId: 'web-a' })
+    expect(state.sockets[0]!.close).not.toHaveBeenCalled()
+    await service.unsubscribe(viewer)
+    expect(state.lock?.state).toBe('uncertain')
+    await service.terminate('principal-a', 'session-a')
+  })
+  test('reserves the first browser handoff until the actual model turn finishes', async () => {
     const service = coordinator(),
       browser = connection()
     service.subscribe(browser)
     expect(state.sockets).toHaveLength(0)
     await service.prepareBrowserReturn(browser.webSession, browser.mossSessionId)
     expect(state.sockets).toHaveLength(1)
-    expect(state.lock).toBeNull()
+    expect(state.lock).toEqual({ state: 'running', writerWebSessionId: 'web-a' })
     const event = { type: 'assistant', message: { content: 'The browser stays stopped' } }
     state.sockets[0]!.onEvent(event)
     await vi.waitFor(() =>
@@ -127,6 +146,51 @@ describe('conversation reconnect during generation', () => {
     expect(state.sockets).toHaveLength(1)
     await service.terminate('principal-a', 'session-a')
   })
+
+  test('replays a pending permission after reconnect and retires its answered request', async () => {
+    const service = coordinator(),
+      original = connection()
+    service.subscribe(original)
+    await service.prepareBrowserReturn(original.webSession, original.mossSessionId)
+    const upstream = state.sockets[0]!
+    const event = {
+      type: 'control_request',
+      request_id: 'permission-1',
+      request: { tool_name: 'ToolSearch' },
+    }
+    upstream.onEvent(event)
+    await service.unsubscribe(original)
+    expect(upstream.close).not.toHaveBeenCalled()
+    const returning = connection()
+    service.subscribe(returning)
+    expect(returning.ws.send).toHaveBeenCalledWith(JSON.stringify({ kind: 'upstream', event }))
+    await service.handleClientMessage(returning, {
+      kind: 'control_response',
+      requestId: 'permission-1',
+      optionId: 'allow_once',
+    })
+    const another = connection()
+    service.subscribe(another)
+    expect(another.ws.send).not.toHaveBeenCalledWith(JSON.stringify({ kind: 'upstream', event }))
+    upstream.onEvent({ type: 'result', result: 'finished' })
+    await vi.waitFor(() => expect(state.lock?.state).toBe('idle'))
+    await service.terminate('principal-a', 'session-a')
+  })
+
+  test.each([true, false])(
+    'preserves the known or uncertain outcome of a failed browser return (%s)',
+    async (isRejected) => {
+      const service = coordinator(),
+        browser = connection()
+      service.subscribe(browser)
+      expect(await service.prepareBrowserReturn(browser.webSession, browser.mossSessionId)).toBe(
+        true,
+      )
+      await service.failBrowserReturn(browser.webSession, browser.mossSessionId, isRejected)
+      expect(state.lock?.state).toBe(isRejected ? 'idle' : 'uncertain')
+      await service.terminate('principal-a', 'session-a')
+    },
+  )
 
   test('retains the current writer stream when another viewer returns browser control', async () => {
     const service = coordinator(),

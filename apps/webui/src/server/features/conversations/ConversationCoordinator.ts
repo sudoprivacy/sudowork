@@ -57,6 +57,7 @@ interface Entry {
   subscribers: Set<BrowserConnection>
   upstream: MossUpstreamSocket | null
   upstreamOwnerWebSessionId: string | null
+  pendingPermissions: Map<string, unknown>
 }
 
 export interface CoordinatorDeps {
@@ -99,6 +100,7 @@ export class ConversationCoordinator {
         subscribers: new Set(),
         upstream: null,
         upstreamOwnerWebSessionId: null,
+        pendingPermissions: new Map(),
       }
       this.entries.set(k, entry)
     }
@@ -143,23 +145,64 @@ export class ConversationCoordinator {
   subscribe(conn: BrowserConnection): void {
     const entry = this.entryFor(conn.principalId, conn.mossSessionId)
     entry.subscribers.add(conn)
+    for (const event of entry.pendingPermissions.values()) {
+      this.sendTo(conn.ws, { kind: 'upstream', event })
+    }
     // 不发 WebUI 自制 hello；上游 hello 事件会作为首帧转发
     void this.broadcastLockState(entry)
   }
 
   /** Attach chat observers before an external browser handoff can start its first turn. */
-  async prepareBrowserReturn(webSession: WebSessionRow, sessionId: string): Promise<void> {
+  async prepareBrowserReturn(webSession: WebSessionRow, sessionId: string): Promise<boolean> {
     const authorized = await this.authorize(webSession, sessionId)
     const entry = this.entries.get(this.key(authorized.ownerPrincipalId, sessionId))
-    if (!entry) return
-    if (entry.upstream && !entry.upstream.isClosed) {
-      await entry.upstream.whenOpen()
-      return
-    }
+    if (!entry) return false
     const observer = [...entry.subscribers].find(
       (conn) => conn.webSession.id === webSession.id && conn.ws.readyState === conn.ws.OPEN,
     )
-    if (observer) await this.ensureUpstream(entry, observer)
+    if (!observer && (!entry.upstream || entry.upstream.isClosed)) return false
+    const lock = await getLock(this.deps.pool, {
+      principalId: entry.principalId,
+      mossSessionId: sessionId,
+    })
+    let reserved = false
+    if (!lock || lock.state === 'idle') {
+      const acquired = await acquireWriteLock(this.deps.pool, {
+        principalId: entry.principalId,
+        mossSessionId: sessionId,
+        webSessionId: webSession.id,
+      })
+      if (!acquired.ok) throw new Error('browser_return_conversation_busy')
+      reserved = true
+      await this.broadcastLockState(entry)
+    }
+    try {
+      if (entry.upstream && !entry.upstream.isClosed) await entry.upstream.whenOpen()
+      else if (observer) await this.ensureUpstream(entry, observer)
+    } catch (error) {
+      if (reserved) await this.failBrowserReturn(webSession, sessionId, true)
+      throw error
+    }
+    return reserved
+  }
+
+  /** Release a known rejected return; preserve uncertain delivery for recovery. */
+  async failBrowserReturn(
+    webSession: WebSessionRow,
+    sessionId: string,
+    isRejected: boolean,
+  ): Promise<void> {
+    const authorized = await this.authorize(webSession, sessionId)
+    const entry = this.entries.get(this.key(authorized.ownerPrincipalId, sessionId))
+    if (!entry) return
+    const input = {
+      principalId: entry.principalId,
+      mossSessionId: sessionId,
+      webSessionId: webSession.id,
+    }
+    if (isRejected) await releaseToIdleIfHeld(this.deps.pool, input)
+    else await markUncertain(this.deps.pool, input)
+    await this.broadcastLockState(entry)
   }
 
   async unsubscribe(conn: BrowserConnection): Promise<void> {
@@ -172,7 +215,12 @@ export class ConversationCoordinator {
       principalId: conn.principalId,
       mossSessionId: conn.mossSessionId,
     })
-    const isWriter = lock?.writerWebSessionId === conn.webSession.id
+    const isWriter =
+      lock?.writerWebSessionId === conn.webSession.id &&
+      ![...entry.subscribers].some(
+        (other) =>
+          other.webSession.id === conn.webSession.id && other.ws.readyState === other.ws.OPEN,
+      )
 
     if (isWriter && lock) {
       if (lock.state === 'running') {
@@ -271,6 +319,10 @@ export class ConversationCoordinator {
     for (const payload of decodeMossEventPayloads(event)) {
       const type = payload.type
       if (typeof type !== 'string' || !UPSTREAM_EVENT_TYPES.has(type)) continue
+      if (type === 'control_request' && typeof payload.request_id === 'string') {
+        entry.pendingPermissions.set(payload.request_id, payload)
+      }
+      if (type === 'result') entry.pendingPermissions.clear()
       this.broadcast(entry, { kind: 'upstream', event: payload })
       if (payload.type === 'system') {
         const subtype = payload.subtype
@@ -450,7 +502,7 @@ export class ConversationCoordinator {
           !entry.upstream.send(buildControlResponseMessage(msg.requestId, msg.optionId))
         ) {
           this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
-        }
+        } else entry.pendingPermissions.delete(msg.requestId)
         return
       }
 
