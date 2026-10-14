@@ -17,6 +17,17 @@ const state = {
 } as const;
 
 describe('browser session boundary', () => {
+  it('requires an acknowledged restart and preserves the stopped human lease', () => {
+    const restart = { kind: 'restart', isHeadless: false, transport: 'extension', controlEpoch: 4, targetEpoch: 2 };
+    expect(BrowserSessionActionSchema.safeParse(restart).success).toBe(false);
+    expect(BrowserSessionActionSchema.safeParse({ ...restart, acknowledgeStateLoss: false }).success).toBe(false);
+    expect(BrowserSessionActionSchema.parse({ ...restart, acknowledgeStateLoss: true, actor: 'ai', profile: '/another-owner' })).toEqual({ ...restart, acknowledgeStateLoss: true });
+    const stopped = BrowserSessionReplySchema.parse({ session: { ...state, state: 'stopped', isHumanControlHeld: true, capabilities: { ...state.capabilities, lifecycle: true } } });
+    expect(stopped.session.isController).toBe(true);
+    expect(stopped.session.isHumanControlHeld).toBe(true);
+    expect(stopped.session.capabilities.lifecycle).toBe(true);
+  });
+
   it('drops a frame from before handoff or before a tab switch', () => {
     const reply = BrowserSessionReplySchema.parse({ session: state, frame: { data: 'pixels', width: 480, height: 850, controlEpoch: 3, targetEpoch: 2 } });
     expect(isCurrentBrowserFrame(reply.session, reply.frame!)).toBe(false);

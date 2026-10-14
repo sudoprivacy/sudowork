@@ -10,9 +10,11 @@ export const BrowserSessionStateSchema = z.object({
   controlEpoch: EpochSchema,
   targetEpoch: EpochSchema,
   isController: z.boolean(),
+  isHumanControlHeld: z.boolean().optional(),
   isHeadless: z.boolean(),
   transport: z.enum(['cdp', 'extension', 'electron']),
   capabilities: z.object({
+    lifecycle: z.boolean().optional(),
     pageView: z.boolean(),
     windowView: z.boolean(),
     persistentProfile: z.boolean(),
@@ -59,6 +61,14 @@ const operation = { controlEpoch: EpochSchema, targetEpoch: EpochSchema };
 
 export const BrowserSessionActionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('state') }),
+  z.object({ kind: z.literal('stop'), ...operation }),
+  z.object({
+    kind: z.literal('restart'),
+    isHeadless: z.boolean(),
+    transport: z.enum(['cdp', 'extension']),
+    acknowledgeStateLoss: z.literal(true),
+    ...operation,
+  }),
   z.object({
     kind: z.literal('start'),
     isHeadless: z.boolean(),

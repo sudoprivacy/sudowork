@@ -110,6 +110,40 @@ beforeEach(() => {
 })
 
 describe('conversation reconnect during generation', () => {
+  test('streams the first browser handoff without sending chat or acquiring a writer lock', async () => {
+    const service = coordinator(),
+      browser = connection()
+    service.subscribe(browser)
+    expect(state.sockets).toHaveLength(0)
+    await service.prepareBrowserReturn(browser.webSession, browser.mossSessionId)
+    expect(state.sockets).toHaveLength(1)
+    expect(state.lock).toBeNull()
+    const event = { type: 'assistant', message: { content: 'The browser stays stopped' } }
+    state.sockets[0]!.onEvent(event)
+    await vi.waitFor(() =>
+      expect(browser.ws.send).toHaveBeenCalledWith(JSON.stringify({ kind: 'upstream', event })),
+    )
+    await service.prepareBrowserReturn(browser.webSession, browser.mossSessionId)
+    expect(state.sockets).toHaveLength(1)
+    await service.terminate('principal-a', 'session-a')
+  })
+
+  test('retains the current writer stream when another viewer returns browser control', async () => {
+    const service = coordinator(),
+      writer = connection(),
+      viewer = connection()
+    viewer.webSession = { ...viewer.webSession, id: 'web-b' }
+    service.subscribe(writer)
+    service.subscribe(viewer)
+    await service.handleClientMessage(writer, { kind: 'send', text: 'Original turn' })
+    const upstream = state.sockets[0]!
+    await service.prepareBrowserReturn(viewer.webSession, viewer.mossSessionId)
+    expect(state.sockets).toHaveLength(1)
+    expect(upstream.close).not.toHaveBeenCalled()
+    expect(state.lock?.writerWebSessionId).toBe('web-a')
+    await service.terminate('principal-a', 'session-a')
+  })
+
   test('forwards tool output and artifacts without treating tool completion as turn completion', async () => {
     const service = coordinator(),
       browser = connection()

@@ -1,4 +1,4 @@
-import { Button, Empty, Input, Message, Select, Spin } from '@arco-design/web-react';
+import { Button, Empty, Input, Message, Modal, Select, Spin } from '@arco-design/web-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
@@ -51,6 +51,10 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
     sessionRef.current = next;
     setSession(next);
+    if ((!previous || !isSameBrowser) && next.state !== 'stopped') {
+      setIsHeadless(next.isHeadless);
+      if (next.transport !== 'electron') setTransport(next.transport);
+    }
     const target = next.tabs.find((tab) => tab.id === next.activeTargetId);
     if (!previous || previous.activeTargetId !== next.activeTargetId || previous.tabs.find((tab) => tab.id === previous.activeTargetId)?.url !== target?.url) setUrl(target?.url || '');
     setError(null);
@@ -101,6 +105,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     void poll();
     return () => {
       isClosed = true;
+      generationRef.current += 1;
       if (timer) clearTimeout(timer);
       surfaceRef.current?.clear();
       // Detach only the view. The server retains the browser and human lease.
@@ -109,6 +114,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   }, [conversationId, invoke, isActive, selectedSurface, t, update]);
 
   const isController = session?.state === 'human' && session.isController && !isTransferring && !error;
+  const isStoppedController = session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
+  const isReturnAvailable = !!(isController || isStoppedController);
   isInteractiveRef.current = !!isController;
 
   const onAction = useCallback(
@@ -194,6 +201,34 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
   };
 
+  const onLifecycle = (kind: 'stop' | 'restart') => {
+    const generation = generationRef.current;
+    const requestedMode = { isHeadless, transport };
+    Modal.confirm({
+      title: t(`conversation.browserSession.${kind}ConfirmTitle`),
+      content: t(`conversation.browserSession.${kind}ConfirmBody`, { mode: t(`conversation.browserSession.${isHeadless ? 'headless' : 'headful'}`), transport: t(`conversation.browserSession.${transport}`) }),
+      okText: t(`conversation.browserSession.${kind}`),
+      cancelText: t('common.cancel'),
+      onOk: async () => {
+        const current = sessionRef.current;
+        if (generationRef.current !== generation || !current || current.state !== 'human' || !current.isController) return;
+        setIsTransferring(true);
+        surfaceRef.current?.clear();
+        setIsFrameReady(false);
+        try {
+          const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
+          const action: BrowserSessionAction = kind === 'stop' ? { kind, ...epochs } : { kind, ...requestedMode, acknowledgeStateLoss: true, ...epochs };
+          const reply = await invoke(action);
+          if (generationRef.current === generation) update(reply.session);
+        } catch (failure) {
+          if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+        } finally {
+          if (generationRef.current === generation) setIsTransferring(false);
+        }
+      },
+    });
+  };
+
   return (
     <div className='h-full min-h-0 flex flex-col gap-2 p-2' data-testid='browser-session-panel'>
       <div className='flex flex-wrap items-center gap-2'>
@@ -202,7 +237,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         <Button size='mini' disabled={!session || session.state !== 'ai' || isTransferring || !!error} onClick={() => void onAction('take')}>
           {t('conversation.browserSession.take')}
         </Button>
-        <Button size='mini' disabled={!isController} onClick={() => void onAction('return')}>
+        <Button size='mini' disabled={!isReturnAvailable} onClick={() => void onAction('return')}>
           {t('conversation.browserSession.return')}
         </Button>
         {!isViewer ? (
@@ -223,11 +258,12 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           />
         ) : null}
       </div>
-      {session?.state === 'stopped' ? (
+      {session?.state === 'stopped' || (isController && session?.capabilities.lifecycle) ? (
         <div className='flex flex-wrap items-center gap-2'>
           <Select
             aria-label={t('conversation.browserSession.launchMode')}
             value={isHeadless ? 'headless' : 'headful'}
+            disabled={isTransferring}
             onChange={(value) => setIsHeadless(value === 'headless')}
             style={{ width: 140 }}
             options={[
@@ -238,6 +274,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           <Select
             aria-label={t('conversation.browserSession.transport')}
             value={transport}
+            disabled={isTransferring}
             onChange={setTransport}
             style={{ width: 220 }}
             options={[
@@ -245,11 +282,23 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
               { value: 'cdp', label: t('conversation.browserSession.cdp') },
             ]}
           />
-          <Button size='mini' disabled={isTransferring || !!error} onClick={() => void onStart()}>
-            {t('conversation.browserSession.start')}
-          </Button>
+          {session.state === 'stopped' ? (
+            <Button size='mini' disabled={isTransferring || !!error} onClick={() => void onStart()}>
+              {t('conversation.browserSession.start')}
+            </Button>
+          ) : (
+            <>
+              <Button size='mini' disabled={!isController} onClick={() => onLifecycle('restart')}>
+                {t('conversation.browserSession.restart')}
+              </Button>
+              <Button size='mini' disabled={!isController} onClick={() => onLifecycle('stop')}>
+                {t('conversation.browserSession.stop')}
+              </Button>
+            </>
+          )}
         </div>
       ) : null}
+      {isStoppedController ? <div role='status'>{t('conversation.browserSession.stoppedHuman')}</div> : null}
       {session?.dialog ? (
         <div role='alertdialog' aria-label={t('conversation.browserSession.dialog')} className='flex flex-wrap items-center gap-2'>
           <span>{session.dialog.message}</span>
@@ -310,9 +359,9 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
               {t('conversation.browserSession.insert')}
             </Button>
           </div>
-          <Input aria-label={t('conversation.browserSession.note')} placeholder={t('conversation.browserSession.note')} value={note} maxLength={2000} onChange={setNote} />
         </>
       ) : null}
+      {isReturnAvailable ? <Input aria-label={t('conversation.browserSession.note')} placeholder={t('conversation.browserSession.note')} value={note} maxLength={2000} onChange={setNote} /> : null}
       {session?.state === 'human' && error ? <div role='alert'>{t('conversation.browserSession.disconnected')}</div> : null}
     </div>
   );

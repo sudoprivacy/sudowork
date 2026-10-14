@@ -70,3 +70,32 @@ This journey covers the browser write gate and automatic return notification.
 Headful window views are covered when `--headful` is selected.
 Runtime-wide pause/resume, child agents, file transfer,
 local extension relay, and phone input require their separate live journeys.
+
+## Browser lifecycle controls
+
+`live_browser_lifecycle.py` covers the actual shared panel's Start, Restart,
+Stop and Return to AI controls. Use a fresh real-model conversation with a
+stopped managed worker, both extension/CDP transports and the window surface.
+The test sends no initial chat message: the first AI turn must come from the
+browser handoff, and its new random receipt must appear in the conversation.
+
+```sh
+python apps/webui/tests/e2e/live_browser_lifecycle.py \
+  --config /private/browser-live.json \
+  --locale en-US \
+  --fixture-origin http://worker-reachable-fixture:50181 \
+  --output /private/evidence/browser-lifecycle-001
+```
+
+The synthetic fixture listens on local loopback at `--fixture-port` (50181 by
+default). A remote worker needs an authenticated tunnel or private relay to this
+listener. The journey starts headful extension Chrome, restarts it headless,
+then explicitly changes to headful CDP. A unique login cookie is issued once;
+both restarts must preserve it in the same persistent profile. Every restart
+must create a different browser session. Stop must keep the human control lease
+until Return to AI; the real model must finish without reopening Chrome.
+
+Evidence includes five UI screenshots, profile/browser identities, a random
+assistant receipt, usage and page errors. Output directories must be new.
+Failures retain their screenshot; the test closes only its own viewing Chrome.
+The managed browser is left stopped for explicit fixture cleanup.
