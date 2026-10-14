@@ -1,5 +1,6 @@
 import path from 'path';
 import { defineConfig } from 'vitest/config';
+import { browserPageViewAlias } from '../../scripts/browser-view-alias.mjs';
 
 // Modules that stay in apps/desktop/src/common (main-only or transitively so);
 // everything else under @common / @/common now lives in @sudowork/common.
@@ -22,6 +23,7 @@ function commonAliasEntries() {
 }
 
 const aliases = [
+  browserPageViewAlias,
   ...commonAliasEntries(),
   { find: /^@process\//, replacement: path.resolve(__dirname, './src/process') + '/' },
   { find: /^@renderer\//, replacement: path.resolve(__dirname, '../../packages/renderer/src') + '/' },
@@ -40,6 +42,7 @@ const aliases = [
   { find: /^@sudowork\/ontology-ui\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-ui/src') + '/$1' },
   { find: /^@sudowork\/ontology-ui$/, replacement: path.resolve(__dirname, '../../packages/ontology-ui/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: path.resolve(__dirname, '../../packages/contracts/src/auth.ts') },
+  { find: '@sudowork/contracts/browser-session', replacement: path.resolve(__dirname, '../../packages/contracts/src/browserSession.ts') },
   { find: '@sudowork/contracts/conversations', replacement: path.resolve(__dirname, '../../packages/contracts/src/conversations.ts') },
   { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/host-bridge/src') + '/$1' },
   { find: /^@sudowork\/host-bridge$/, replacement: path.resolve(__dirname, '../../packages/host-bridge/src/index.ts') },
@@ -98,6 +101,8 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/contracts/src/browserSession.ts',
+        '../../packages/renderer/src/components/browser/BrowserSessionPanel.tsx',
         '../../packages/common/src/loginReturnPath.ts',
         '../../packages/host-bridge/src/agentWorkspace.ts',
         '../../packages/renderer/src/pages/conversation/utils/agentIdentity.ts',

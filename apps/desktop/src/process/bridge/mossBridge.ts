@@ -9,6 +9,7 @@ import { ipcBridge } from '@/common';
 import { isEnterpriseMode, getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { uuid } from '@/common/utils';
+import { getDatabase } from '@process/database/export';
 import { initMossApi, getMossApi, getMossApiServerUrl, resetMossApi, type MossSessionApi } from '../remote/MossSessionApi';
 
 /**
@@ -61,6 +62,18 @@ async function ensureMossApiInitialized(): Promise<MossSessionApi | null> {
 }
 
 export function initMossBridge(): void {
+  ipcBridge.browserSession.invoke.provider(async ({ conversationId, action }) => {
+    try {
+      const api = await ensureMossApiInitialized();
+      if (!api) return { success: false, msg: 'Cloud browser connection is not configured' };
+      const conversation = getDatabase().getConversation(conversationId);
+      const extra = conversation.success ? (conversation.data?.extra as { mossSessionId?: string } | undefined) : undefined;
+      const sessionId = extra?.mossSessionId || conversationId;
+      return { success: true, data: await api.invokeBrowserSession(sessionId, action) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : 'Browser connection failed' };
+    }
+  });
   // moss.is-enterprise-mode
   ipcBridge.moss.isEnterpriseMode.provider(async () => {
     return isEnterpriseMode();

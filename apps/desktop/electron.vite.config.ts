@@ -6,6 +6,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import UnoCSS from 'unocss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { browserPageViewAlias, browserSessionContractAlias } from '../../scripts/browser-view-alias.mjs';
 import unoConfig from './uno.config.ts';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -94,6 +95,7 @@ const mainAliases = [
   { find: /^@sudowork\/ontology-engine$/, replacement: resolve('../../packages/ontology-engine/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
   { find: '@sudowork/contracts/conversations', replacement: resolve('../../packages/contracts/src/conversations.ts') },
+  browserSessionContractAlias,
   { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
   { find: /^@sudowork\/host-bridge$/, replacement: resolve('../../packages/host-bridge/src/index.ts') },
   { find: '@', replacement: resolve('src') },
@@ -229,6 +231,8 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: [
+          browserPageViewAlias,
+          browserSessionContractAlias,
           ...commonAliasEntries(),
           { find: '@renderer', replacement: resolve('../../packages/renderer/src') },
           { find: '@process', replacement: resolve('src/process') },

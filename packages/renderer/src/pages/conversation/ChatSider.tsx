@@ -129,11 +129,10 @@ const ChatSider: React.FC<{
     );
   };
 
-  // Web host: `<webview>` is Electron-only and the server exposes no shell, so
-  // the browser/terminal tabs are filtered out (desktop keeps all four).
+  // The browser surface is shared; only the local shell remains Desktop-only.
   const isDesktop = isElectronDesktop();
-  const visibleBuiltinTabs = isDesktop ? BUILTIN_RIGHT_PANEL_TABS : BUILTIN_RIGHT_PANEL_TABS.filter((tab) => tab !== 'browser' && tab !== 'terminal');
-  const visibleOverflowTabs = isDesktop ? OVERFLOW_PANEL_TABS : ([] as OverflowPanelTab[]);
+  const visibleBuiltinTabs = isDesktop ? BUILTIN_RIGHT_PANEL_TABS : BUILTIN_RIGHT_PANEL_TABS.filter((tab) => tab !== 'terminal');
+  const visibleOverflowTabs = isDesktop ? OVERFLOW_PANEL_TABS : (['browser'] as OverflowPanelTab[]);
   const overflowMenuTabs = visibleOverflowTabs.filter((tab) => tab !== promotedOverflowTab);
   const overflowMenu = (
     <Menu onClickMenuItem={(key) => onOverflowTabSelect(key as OverflowPanelTab)}>
@@ -188,7 +187,7 @@ const ChatSider: React.FC<{
         <div className='right-panel-stack'>
           <div className={`right-panel-stack__pane ${activeTab === 'workspace' ? 'right-panel-stack__pane--active' : ''}`}>{workspaceNode}</div>
           <div className={`right-panel-stack__pane ${activeTab === 'browser' ? 'right-panel-stack__pane--active' : ''}`}>
-            <BrowserPanel active={activeTab === 'browser'} conversationId={conversation?.id} />
+            <BrowserPanel active={activeTab === 'browser'} conversationId={conversation?.id} isCloud={conversation?.type === 'remote-agent'} />
           </div>
           <div className={`right-panel-stack__pane ${activeTab === 'terminal' ? 'right-panel-stack__pane--active' : ''}`}>
             {conversation?.type === 'remote-agent' ? (

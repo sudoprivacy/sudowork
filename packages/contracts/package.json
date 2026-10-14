@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./browser-session": {
+      "bun": "./src/browserSession.ts",
+      "types": "./dist/browserSession.d.ts",
+      "default": "./dist/browserSession.js"
+    },
     "./auth": {
       "bun": "./src/auth.ts",
       "types": "./dist/auth.d.ts",

@@ -26,6 +26,7 @@
         "@office-ai/aioncli-core": "^0.30.0",
         "@office-ai/platform": "^0.3.16",
         "@sudowork/common": "workspace:*",
+        "@sudowork/contracts": "workspace:*",
         "@sudowork/host-bridge": "workspace:*",
         "@sudowork/moss-client": "workspace:*",
         "@sudowork/ontology-common": "workspace:*",
@@ -304,6 +305,7 @@
       "dependencies": {
         "@office-ai/platform": "^0.3.16",
         "@sudowork/common": "workspace:*",
+        "@sudowork/contracts": "workspace:*",
         "@sudowork/ontology-common": "workspace:*",
         "zod": "3.25.76",
       },
@@ -397,6 +399,7 @@
         "@monaco-editor/react": "^4.7.0",
         "@office-ai/platform": "^0.3.16",
         "@sudowork/common": "workspace:*",
+        "@sudowork/contracts": "workspace:*",
         "@sudowork/host-bridge": "workspace:*",
         "@sudowork/ontology-ai": "workspace:*",
         "@sudowork/ontology-common": "workspace:*",

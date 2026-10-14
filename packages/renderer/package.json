@@ -18,6 +18,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,scss,json}\""
   },
   "dependencies": {
+    "@sudowork/contracts": "workspace:*",
     "@arco-design/web-react": "^2.66.1",
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/commands": "^6.10.3",

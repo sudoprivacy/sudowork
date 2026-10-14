@@ -6,6 +6,7 @@
 
 import WebSocket from 'ws';
 import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
+import { BrowserSessionActionSchema, BrowserSessionReplySchema, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
@@ -27,6 +28,18 @@ export class MossSessionApi {
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl;
+  }
+
+  async invokeBrowserSession(sessionId: string, action: BrowserSessionAction): Promise<BrowserSessionReply> {
+    const token = await this.ensureAuthenticated();
+    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/browser`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(BrowserSessionActionSchema.parse(action)),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) throw new Error(`Browser session request failed (${response.status})`);
+    return BrowserSessionReplySchema.parse(await response.json());
   }
 
   /**
