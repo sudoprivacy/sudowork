@@ -4,7 +4,7 @@ import {
   type BrowserSessionAction,
   type BrowserSessionReply,
 } from '@sudowork/contracts/browser-session'
-import type { MossCallContext } from '@sudowork/moss-client'
+import { uploadBrowserFile, downloadBrowserFile, type MossCallContext } from '@sudowork/moss-client'
 import type { Principal } from '../auth/principalRepository.js'
 import { requireAccessibleSession, type ConversationDeps } from './conversationService.js'
 
@@ -26,7 +26,30 @@ export async function invokeBrowserSession(
       accessToken: ctx.accessToken,
       body: input,
     },
-    30_000,
+    input.kind === 'start' || input.kind === 'restart' ? 90_000 : 30_000,
   )
   return BrowserSessionReplySchema.parse(reply)
+}
+
+export async function receiveBrowserFile(
+  deps: Pick<ConversationDeps, 'moss' | 'mossFetch'>,
+  principal: Principal,
+  sessionId: string,
+  ctx: MossCallContext,
+  input: { name: string; controlEpoch: number; targetEpoch: number },
+  data: Uint8Array,
+) {
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
+  return uploadBrowserFile(ctx, sessionId, input, data)
+}
+
+export async function readBrowserFile(
+  deps: Pick<ConversationDeps, 'moss' | 'mossFetch'>,
+  principal: Principal,
+  sessionId: string,
+  ctx: MossCallContext,
+  fileId: string,
+) {
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
+  return downloadBrowserFile(ctx, sessionId, fileId)
 }

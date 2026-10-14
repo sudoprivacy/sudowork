@@ -405,6 +405,13 @@
     "stopConfirmBody": "Chrome and its tabs will close. Unsubmitted page changes can be lost; your profile and login cookies remain. AI browser actions stay paused until you return control.",
     "restartConfirmTitle": "Restart this browser?",
     "restartConfirmBody": "Restart in {{mode}} using {{transport}}. Unsubmitted page changes can be lost; your profile and login cookies remain. You keep control after the restart.",
-    "stoppedHuman": "Browser stopped. AI browser actions remain paused until you return control."
+    "stoppedHuman": "Browser stopped. AI browser actions remain paused until you return control.",
+    "chooseFilesPrompt": "This page requested a file. Take control to upload from your device.",
+    "chooseFiles": "Choose files",
+    "fileLimit": "Choose up to 20 files, no more than 16 MB each.",
+    "fileChooserChanged": "The browser changed while choosing files. Open the file picker again.",
+    "fileTransferFailed": "File transfer failed. Check the page before trying again.",
+    "downloads": "Browser downloads",
+    "downloadFile": "Download {{name}}"
   }
 }

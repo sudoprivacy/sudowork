@@ -3,6 +3,19 @@ import { z } from 'zod';
 const EpochSchema = z.number().int().nonnegative();
 const SurfaceSchema = z.enum(['page', 'window']);
 
+export const BrowserFileSchema = z.object({
+  id: z.string().regex(/^[a-f0-9]{32}$/),
+  name: z.string().min(1).max(240),
+  bytes: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(16 * 1024 * 1024),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  kind: z.enum(['upload', 'download']),
+});
+export type BrowserFile = z.infer<typeof BrowserFileSchema>;
+
 export const BrowserSessionStateSchema = z.object({
   browserSessionId: z.string().min(1),
   profileId: z.string().min(1),
@@ -15,6 +28,7 @@ export const BrowserSessionStateSchema = z.object({
   transport: z.enum(['cdp', 'extension', 'electron']),
   capabilities: z.object({
     lifecycle: z.boolean().optional(),
+    fileTransfer: z.boolean().optional(),
     pageView: z.boolean(),
     windowView: z.boolean(),
     persistentProfile: z.boolean(),
@@ -22,7 +36,22 @@ export const BrowserSessionStateSchema = z.object({
   activeTargetId: z.string().nullable(),
   tabs: z.array(z.object({ id: z.string().min(1), title: z.string(), url: z.string() })),
   error: z.string().nullable(),
-  dialog: z.object({ type: z.string(), message: z.string(), defaultPrompt: z.string().optional() }).nullable().optional(),
+  dialog: z
+    .object({
+      type: z.string(),
+      message: z.string(),
+      defaultPrompt: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
+  fileChooser: z
+    .object({
+      id: z.string().regex(/^[a-f0-9]{32}$/),
+      mode: z.enum(['selectSingle', 'selectMultiple']),
+    })
+    .nullable()
+    .optional(),
+  downloads: z.array(BrowserFileSchema).max(100).optional(),
 });
 
 export const BrowserInputSchema = z.discriminatedUnion('kind', [
@@ -61,6 +90,16 @@ const operation = { controlEpoch: EpochSchema, targetEpoch: EpochSchema };
 
 export const BrowserSessionActionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('state') }),
+  z.object({
+    kind: z.literal('upload-files'),
+    chooserId: z.string().regex(/^[a-f0-9]{32}$/),
+    fileIds: z
+      .array(z.string().regex(/^[a-f0-9]{32}$/))
+      .min(1)
+      .max(20)
+      .refine((ids) => new Set(ids).size === ids.length),
+    ...operation,
+  }),
   z.object({ kind: z.literal('stop'), ...operation }),
   z.object({
     kind: z.literal('restart'),

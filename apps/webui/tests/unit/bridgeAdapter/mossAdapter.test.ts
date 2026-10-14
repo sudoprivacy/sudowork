@@ -207,6 +207,31 @@ describe('mossAdapter: personal Agents', () => {
   })
 })
 
+describe('mossAdapter: browser binary files', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it('preserves binary bytes and has one octet-stream content type through the provider', async () => {
+    const data = new Uint8Array([0, 255, 42])
+    const request = vi.fn(async (_url: RequestInfo | URL, _options?: RequestInit) =>
+      Response.json({ file: { id: 'a'.repeat(32) } }),
+    )
+    vi.stubGlobal('fetch', request)
+    const result = await ipcBridge.browserSession.uploadFile.invoke({
+      conversationId: 'conversation',
+      name: 'review.txt',
+      controlEpoch: 2,
+      targetEpoch: 3,
+      data,
+    })
+    expect(result).toEqual({ success: true, data: { id: 'a'.repeat(32) } })
+    const options = request.mock.calls[0]?.[1]
+    expect(options).toBeDefined()
+    if (!options) throw new Error('Binary upload request was not dispatched')
+    expect(new Headers(options.headers).get('content-type')).toBe('application/octet-stream')
+    expect(new Uint8Array(options.body as ArrayBuffer)).toEqual(data)
+    expect(options.credentials).toBe('include')
+  })
+})
+
 describe('mossAdapter: browser display preferences', () => {
   beforeEach(() => localStorage.clear())
 

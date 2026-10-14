@@ -2,7 +2,7 @@ import { Button, Empty, Input, Message, Modal, Select, Spin } from '@arco-design
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
+import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
 import { PageSurface } from '@ai-dev-browser/remote-page';
 
 /** Shared remote browser UI. The host authenticates and enforces every action. */
@@ -11,6 +11,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [session, setSession] = useState<BrowserSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [isFileTransferring, setIsFileTransferring] = useState(false);
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
@@ -20,6 +21,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [transport, setTransport] = useState<'extension' | 'cdp'>('extension');
   const [selectedSurface, setSelectedSurface] = useState<'page' | 'window' | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileChoiceRef = useRef<{ generation: number; chooserId: string; controlEpoch: number; targetEpoch: number } | null>(null);
   const surfaceRef = useRef<PageSurface | null>(null);
   const sessionRef = useRef<BrowserSessionState | null>(null);
   const invokeRef = useRef<((action: BrowserSessionAction) => Promise<BrowserSessionReply>) | undefined>(undefined);
@@ -71,6 +74,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     setSession(null);
     setError(null);
     setIsFrameReady(false);
+    setIsFileTransferring(false);
+    fileChoiceRef.current = null;
     if (!isActive || !conversationId) return;
 
     async function poll() {
@@ -113,7 +118,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     };
   }, [conversationId, invoke, isActive, selectedSurface, t, update]);
 
-  const isController = session?.state === 'human' && session.isController && !isTransferring && !error;
+  const isController = session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
   const isReturnAvailable = !!(isController || isStoppedController);
   isInteractiveRef.current = !!isController;
@@ -229,6 +234,74 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     });
   };
 
+  const onSelectFiles = async (files: FileList | null) => {
+    const current = sessionRef.current;
+    const chooser = current?.fileChooser;
+    const choice = fileChoiceRef.current;
+    fileChoiceRef.current = null;
+    if (!current || !chooser || !choice || !isController || !files?.length) return;
+    if (choice.generation !== generationRef.current || choice.chooserId !== chooser.id || choice.controlEpoch !== current.controlEpoch || choice.targetEpoch !== current.targetEpoch) {
+      Message.error(t('conversation.browserSession.fileChooserChanged'));
+      return;
+    }
+    const generation = generationRef.current;
+    const selected = Array.from(files);
+    if (selected.length > 20 || (chooser.mode === 'selectSingle' && selected.length !== 1) || selected.some((file) => file.size > 16 * 1024 * 1024)) {
+      Message.error(t('conversation.browserSession.fileLimit'));
+      return;
+    }
+    const isCurrentChooser = () => {
+      const next = sessionRef.current;
+      return generationRef.current === generation && next?.isController && next.state === 'human' && next.fileChooser?.id === chooser.id && next.controlEpoch === current.controlEpoch && next.targetEpoch === current.targetEpoch;
+    };
+    setIsFileTransferring(true);
+    try {
+      const fileIds: string[] = [];
+      for (const file of selected) {
+        if (!isCurrentChooser()) throw new Error(t('conversation.browserSession.fileChooserChanged'));
+        const data = new Uint8Array(await file.arrayBuffer());
+        if (!isCurrentChooser()) throw new Error(t('conversation.browserSession.fileChooserChanged'));
+        const reply = await ipcBridge.browserSession.uploadFile.invoke({ conversationId, name: file.name, data, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+        if (!reply.success) throw new Error(t('conversation.browserSession.fileTransferFailed'));
+        fileIds.push(BrowserFileSchema.parse(reply.data).id);
+      }
+      if (!isCurrentChooser()) throw new Error(t('conversation.browserSession.fileChooserChanged'));
+      const reply = await invoke({ kind: 'upload-files', chooserId: chooser.id, fileIds, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+      if (generationRef.current === generation) update(reply.session);
+    } catch (failure) {
+      if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.fileTransferFailed'));
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (generationRef.current === generation) setIsFileTransferring(false);
+    }
+  };
+
+  const onDownloadFile = async (file: BrowserFile) => {
+    const generation = generationRef.current;
+    setIsFileTransferring(true);
+    try {
+      const reply = await ipcBridge.browserSession.downloadFile.invoke({ conversationId, fileId: file.id });
+      if (generationRef.current !== generation) return;
+      if (!reply.success || !reply.data) throw new Error(t('conversation.browserSession.fileTransferFailed'));
+      const data = new Uint8Array(reply.data);
+      const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', data.buffer)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      if (data.byteLength !== file.bytes || digest !== file.sha256) throw new Error(t('conversation.browserSession.fileTransferFailed'));
+      if (generationRef.current !== generation) return;
+      const url = URL.createObjectURL(new Blob([data.buffer], { type: 'application/octet-stream' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch (failure) {
+      if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.fileTransferFailed'));
+    } finally {
+      if (generationRef.current === generation) setIsFileTransferring(false);
+    }
+  };
+
   return (
     <div className='h-full min-h-0 flex flex-col gap-2 p-2' data-testid='browser-session-panel'>
       <div className='flex flex-wrap items-center gap-2'>
@@ -299,6 +372,34 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         </div>
       ) : null}
       {isStoppedController ? <div role='status'>{t('conversation.browserSession.stoppedHuman')}</div> : null}
+      {session?.capabilities.fileTransfer && session.fileChooser ? (
+        <div className='flex items-center gap-2' data-testid='browser-file-chooser'>
+          <span>{t('conversation.browserSession.chooseFilesPrompt')}</span>
+          <input ref={fileInputRef} type='file' className='hidden' aria-label={t('conversation.browserSession.chooseFiles')} multiple={session.fileChooser.mode === 'selectMultiple'} disabled={!isController} onChange={(event) => void onSelectFiles(event.target.files)} />
+          <Button
+            size='mini'
+            disabled={!isController}
+            loading={isFileTransferring}
+            onClick={() => {
+              const current = sessionRef.current;
+              if (!current?.fileChooser || current.state !== 'human' || !current.isController) return;
+              fileChoiceRef.current = { generation: generationRef.current, chooserId: current.fileChooser.id, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
+              fileInputRef.current?.click();
+            }}
+          >
+            {t('conversation.browserSession.chooseFiles')}
+          </Button>
+        </div>
+      ) : null}
+      {session?.capabilities.fileTransfer && session.downloads?.length ? (
+        <div aria-label={t('conversation.browserSession.downloads')} className='flex flex-wrap gap-2' data-testid='browser-downloads'>
+          {session.downloads.map((file) => (
+            <Button key={file.id} size='mini' disabled={isFileTransferring} onClick={() => void onDownloadFile(file)}>
+              {t('conversation.browserSession.downloadFile', { name: file.name })}
+            </Button>
+          ))}
+        </div>
+      ) : null}
       {session?.dialog ? (
         <div role='alertdialog' aria-label={t('conversation.browserSession.dialog')} className='flex flex-wrap items-center gap-2'>
           <span>{session.dialog.message}</span>

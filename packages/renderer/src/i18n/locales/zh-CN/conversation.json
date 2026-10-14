@@ -60,7 +60,14 @@
     "stopConfirmBody": "Chrome 和它的标签页将关闭，尚未提交的页面内容可能丢失；个人配置和登录 cookie 会保留。交回控制权前，AI 的浏览器操作继续暂停。",
     "restartConfirmTitle": "重启这个浏览器？",
     "restartConfirmBody": "将使用{{transport}}以{{mode}}模式重启。尚未提交的页面内容可能丢失；个人配置和登录 cookie 会保留。重启后仍由你控制。",
-    "stoppedHuman": "浏览器已停止。交回控制权前，AI 的浏览器操作继续暂停。"
+    "stoppedHuman": "浏览器已停止。交回控制权前，AI 的浏览器操作继续暂停。",
+    "chooseFilesPrompt": "网页请求选择文件。接管后可从你的设备上传。",
+    "chooseFiles": "选择文件",
+    "fileLimit": "最多选择 20 个文件，每个不超过 16 MB。",
+    "fileChooserChanged": "选择文件时浏览器已变化，请重新打开文件选择器。",
+    "fileTransferFailed": "文件传输失败，请检查网页后再试。",
+    "downloads": "浏览器下载",
+    "downloadFile": "下载 {{name}}"
   },
   "interruptConfirm": {
     "title": "打断当前回复？",

@@ -203,9 +203,10 @@ Use the repository live workflow and real model credentials. Prefer live PTY for
 
 - [ai-dev-browser #19](https://github.com/sudoprivacy/ai-dev-browser/pull/19) is merged and released as v0.54.0. It provides the managed signed Chrome runtime, shared control and authenticated page views.
 - [ai-dev-browser #20](https://github.com/sudoprivacy/ai-dev-browser/pull/20) is merged and released as v0.55.0 on GitHub and PyPI. It adds the isolated X11/Openbox window surface, native tab selection and Unicode input. Real VM CDP and signed extension journeys passed. Both ordinary Windows installed-profile modes passed explicit restart and stale-session rejection. All ten CI checks passed before merge.
+- [ai-dev-browser #21](https://github.com/sudoprivacy/ai-dev-browser/pull/21) is merged and released as v0.56.0 on GitHub and PyPI. It adds native file-chooser uploads and completed downloads with opaque IDs, size and SHA-256. Real Chrome and signed extension acceptance passed, including Unicode filenames, trusted change events, stale requests, host file boundaries and exact downloaded bytes.
 - [Moss #374](https://github.com/sudoprivacy/moss/pull/374) is merged. It implements authenticated owner profiles, scoped HTTP MCP, shared browser control and automatic handoff notification. Real VM tests confirmed user isolation, exclusive profile ownership, conversation transfer, discovery without allocation and restart recovery. The signed 0.4.1 to 0.4.2 upgrade preserved the profile, cookie and human lease through subsequent crash recovery; this live journey is also in CI.
 - [SudoWork #1239](https://github.com/sudoprivacy/sudowork/pull/1239) is merged. It implements the shared page/window panel and authenticated viewer. Actual built WebUI, Moss/Nexus, ACP scode, real SudoRouter gpt-6-luna and Chrome passed headless and headful automatic handoff. The human operated the native Chrome address bar, entered a random value, and returned control. The AI observed that value and submitted exactly once with a trusted click and the original cookie; browser/profile identity stayed constant and there were no page errors. The committed live test supports remote fixtures and native window acceptance.
-- [Sudo Code #944](https://github.com/sudoprivacy/sudocode/pull/944) is merged. HTTP MCP capabilities and headers reach the engine, and native MCP images reach the model. The published nightly artifact at `afb5006` also passed the real API/PTY image journey; stable release promotion is pending.
+- [Sudo Code #944](https://github.com/sudoprivacy/sudocode/pull/944) is merged and included in stable v0.2.30. HTTP MCP capabilities and headers reach the engine, and native MCP images reach the model. The published nightly and RC passed real API browser workflows and the repository's live PTY image journey before promotion on the same commit. The matching co-host release pairs the engine with Nexus 0.8.14.
 
 ### Explicit browser lifecycle
 
@@ -232,4 +233,37 @@ attaches the conversation stream before sending the handoff, so this first turn
 is visible without an earlier chat message. The committed live journey is
 documented in `apps/webui/tests/e2e/README.md`.
 
-Production rollout and acceptance remain. Local Desktop toolbar/control parity, the runtime barrier for main and child agents, session file transfer, local extension relay and actual phone/browser compatibility also require their remaining implementation or live journeys. Explicit managed lifecycle controls are validated and awaiting delivery. The validated flows above establish the shared application handoff; each remaining journey must have its own evidence before this design is considered fully delivered.
+Moss #375 and [SudoWork #1243](https://github.com/sudoprivacy/sudowork/pull/1243)
+are merged after all applicable CI passed.
+
+### Session files
+
+The same shared panel handles files on Desktop and WebUI. A native page file
+chooser exposes a request ID and single/multiple selection mode. The user
+takes control, selects files on their device, and the authenticated host stages
+bytes in the isolated browser profile. Attachment uses the exact chooser and
+control/target epochs. Switching targets, restarting or returning control
+invalidates the old request. Each file is limited to 16 MiB; a multiple chooser
+accepts up to 20 files.
+
+The viewer lists completed downloads by filename. Saving one uses the current
+authenticated session, checks its size and SHA-256, and saves it on the viewer's
+device. The browser profile retains completed files and IDs across restart.
+Neither viewer nor model receives a VM filesystem path. Managed extension
+upload explicitly enables Chrome file access only in the owned isolated
+profile while Chrome is stopped.
+
+[Moss #377](https://github.com/sudoprivacy/moss/pull/377) provides authenticated
+byte transport. Actual Windows Chrome and VM CDP/extension file journeys
+passed and are protected in CI. The shared application's committed live
+journey drives a real model, human takeover, native local file selection,
+server receipt, automatic return, AI download and local save. It verifies
+Unicode filename/content, login cookie, trusted upload event, unchanged
+browser/profile identity, stale/anonymous rejection and exact download bytes.
+
+Production rollout and acceptance remain. Local Desktop toolbar/control parity,
+the runtime barrier for main and child agents, local extension relay and actual
+phone/browser compatibility also require their remaining implementation or
+live journeys. Session files are validated and awaiting consumer delivery.
+Each remaining journey must have its own evidence before this design is
+considered fully delivered.
