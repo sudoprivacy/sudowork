@@ -29,6 +29,25 @@ env:
   BUN_INSTALL_REGISTRY: "https://registry.npmjs.org/"
 
 jobs:
+  webui-container:
+    name: WebUI Container E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/webui/Dockerfile
+          load: true
+          tags: sudowork-webui:container-e2e
+          cache-from: type=gha,scope=webui-container-e2e
+          cache-to: type=gha,mode=max,scope=webui-container-e2e
+      - name: Boot the packaged server and production SPA
+        run: python3 apps/webui/tests/e2e/container_smoke.py --image sudowork-webui:container-e2e
   webui-checks:
     name: WebUI Checks
     runs-on: ubuntu-latest
