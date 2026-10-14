@@ -1,6 +1,6 @@
-// Derived from Moss 211ed0fb26eea047b56ec1dab2d1527024165438:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss dd0b29f36d574ad07e288870034f9ba18ba95cba:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
-export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha4' as const
+export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha5' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'
 export type ExternalTaskStatus = 'accepted' | 'dispatching' | 'running' | 'succeeded' | 'failed' | 'unknown' | 'rejected'
 export type OutputDecoder = 'text' | 'reply_actions_v1'
@@ -11,6 +11,8 @@ export interface ExternalAgent {
   provider: string
   execution_mode: 'external_hosted'
   profile: 'synthetic_pilot'
+  /** App/workspace and reviewed source are not bound to the API key by this adapter. */
+  source_identity_evidence: 'unverified'
   source_digest: string
   decoder: OutputDecoder
   approved: boolean
@@ -18,6 +20,7 @@ export interface ExternalAgent {
   capabilities: { streaming: Capability; cancel: Capability; resume: Capability; version_pin: Capability }
 }
 
+/** Historical/storage shape only. HTTP submissions must use SubmitTask. */
 export interface CreateExternalTask {
   agent_id: string
   session_id?: string
@@ -36,6 +39,10 @@ export interface ExternalSession {
 }
 
 export interface ExternalTask {
+  /** Missing on historical tasks; never implies verified identity. */
+  source_identity_evidence?: 'unverified'
+  /** Monotonic creation order within this session; missing on legacy records. */
+  session_sequence?: number
   task_contract_version?: string
   policy_decision?: { status: 'accepted' | 'rejected'; reason_code: string; reason: string; policy_version: string }
   api_version: typeof EXTERNAL_PROVIDER_API
@@ -129,7 +136,7 @@ export interface ExternalAgentAdmin extends ExternalAgent {
   definition_evidence: 'validated_dsl' | 'validated_manifest' | 'digest_only'
 }
 export interface InspectExternalConnection { endpoint: string; api_key: string; provider_kind?: 'dify' | 'custom_http'; source_definition?: string }
-export interface ExternalConnectionInspection { name: string; parameters_digest: string; checked_at: number }
+export interface ExternalConnectionInspection { name: string; parameters_digest: string; checked_at: number; source_identity_evidence: 'unverified' }
 export interface OnboardExternalAgent extends InspectExternalConnection {
   request_id: string
   name: string

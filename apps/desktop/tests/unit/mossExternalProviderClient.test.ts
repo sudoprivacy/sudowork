@@ -24,6 +24,27 @@ it.each([null, { success: false }, { success: true, data: [{ id: 'fake' }] }])('
   await expect(createMossExternalProviderPort(vi.fn().mockResolvedValue(response)).agents()).rejects.toThrow();
 });
 
+it('preserves unverified source evidence and refuses unsupported verified claims', async () => {
+  const agent = {
+    id: 'agent-1',
+    name: 'Declared app',
+    provider: 'dify',
+    execution_mode: 'external_hosted',
+    profile: 'synthetic_pilot',
+    source_identity_evidence: 'unverified',
+    source_digest: 'digest',
+    decoder: 'text',
+    approved: true,
+    review_expires_at: 1000,
+    capabilities: { streaming: 'supported', cancel: 'unsupported', resume: 'unsupported', version_pin: 'unsupported' },
+  };
+  const request = vi.fn().mockResolvedValue({ success: true, data: [agent] });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.agents())[0].source_identity_evidence).toBe('unverified');
+  request.mockResolvedValue({ success: true, data: [{ ...agent, source_identity_evidence: 'verified' }] });
+  await expect(port.agents()).rejects.toThrow();
+});
+
 const task: ExternalTask = {
   api_version: EXTERNAL_PROVIDER_API,
   id: 'task-1',
@@ -45,6 +66,12 @@ const task: ExternalTask = {
   updated_at: 2,
   deadline_at: 1000,
 };
+
+it('retains server creation sequence and source evidence in history', async () => {
+  const value = { ...task, session_sequence: 2, source_identity_evidence: 'unverified' };
+  const port = createMossExternalProviderPort(vi.fn().mockResolvedValue({ success: true, data: [value] }));
+  expect((await port.history('session-1'))[0]).toMatchObject({ session_sequence: 2, source_identity_evidence: 'unverified' });
+});
 function event(sequence = 2): ExternalTaskEvent {
   return {
     api_version: EXTERNAL_PROVIDER_API,

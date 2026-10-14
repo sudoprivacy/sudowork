@@ -36,6 +36,7 @@ export default function PublishedExternalAgents({ query = '' }: IPublishedExtern
                 <Tag>{['dify', 'custom_http'].includes(agent.provider) ? t(`agent.external.provider.${agent.provider}`) : agent.provider}</Tag>
               </div>
               <p className={styles.description}>{t('agent.external.published.scope')}</p>
+              <Typography.Text type='secondary'>{t('agent.external.sourceIdentityUnverified')}</Typography.Text>
               <div className={styles.actions}>
                 <Button type='primary' icon={<ArrowUpRight size={14} />} onClick={() => void navigate(newExternalConversationPath(agent.id))}>
                   {t('agent.external.published.start')}

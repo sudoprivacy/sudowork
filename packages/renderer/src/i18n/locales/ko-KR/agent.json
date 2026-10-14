@@ -90,5 +90,6 @@
   "external.provider.custom_http": "사용자 정의 HTTP",
   "external.chat.noOutput": "이 작업에서 출력이 생성되지 않았습니다.",
   "external.chat.policyRejected": "요청이 거부되었습니다: {{reason}}",
-  "external.chat.hosted": "외부 호스팅"
+  "external.chat.hosted": "외부 호스팅",
+  "external.sourceIdentityUnverified": "앱 출처는 관리자가 지정했으며 서비스 자격 증명과의 연결은 검증되지 않았습니다."
 }

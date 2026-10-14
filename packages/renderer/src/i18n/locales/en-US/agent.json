@@ -90,5 +90,6 @@
   "external.provider.custom_http": "Custom HTTP",
   "external.chat.noOutput": "No output was produced.",
   "external.chat.policyRejected": "Request rejected: {{reason}}",
-  "external.chat.hosted": "Externally hosted"
+  "external.chat.hosted": "Externally hosted",
+  "external.sourceIdentityUnverified": "The application source is declared by an administrator; its binding to the service credentials is unverified."
 }

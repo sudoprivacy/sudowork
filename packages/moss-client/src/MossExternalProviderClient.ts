@@ -20,7 +20,9 @@ import type { MossAgentFetch } from "./MossAgentClient.js";
 
 export const EXTERNAL_REQUEST_TIMEOUT_MS = 15_000;
 /** One deadline covers token refresh, HTTP retries and response decoding. Never retries execution. */
-export async function withExternalRequestDeadline<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export async function withExternalRequestDeadline<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout>;
   const expired = new Promise<never>((_, reject) => {
@@ -32,7 +34,8 @@ export async function withExternalRequestDeadline<T>(operation: (signal: AbortSi
   try {
     return await Promise.race([operation(controller.signal), expired]);
   } catch (error) {
-    if (controller.signal.aborted) throw new Error("EXTERNAL_TASK_TIMEOUT", { cause: error });
+    if (controller.signal.aborted)
+      throw new Error("EXTERNAL_TASK_TIMEOUT", { cause: error });
     throw error;
   } finally {
     clearTimeout(timer!);
@@ -58,16 +61,22 @@ const status = z.enum([
   "rejected",
 ]);
 const task = z.object({
+  source_identity_evidence: z.literal("unverified").optional(),
+  session_sequence: z.number().int().positive().optional(),
   api_version: z.literal(EXTERNAL_PROVIDER_API),
   id,
   session_id: id,
   agent_id: id,
   agent_name: z.string(),
   task_contract_version: z.literal(TASK_API).optional(),
-  policy_decision: z.object({
-    status: z.enum(["accepted", "rejected"]), reason_code: z.string(),
-    reason: z.string(), policy_version: z.string(),
-  }).optional(),
+  policy_decision: z
+    .object({
+      status: z.enum(["accepted", "rejected"]),
+      reason_code: z.string(),
+      reason: z.string(),
+      policy_version: z.string(),
+    })
+    .optional(),
   configuration_revision: z.number().int().positive().optional(),
   dispatch_authorized_at: z.number().optional(),
   reconciliation: z
@@ -119,6 +128,7 @@ const agent = z.object({
   provider: z.string(),
   execution_mode: z.literal("external_hosted"),
   profile: z.literal("synthetic_pilot"),
+  source_identity_evidence: z.literal("unverified"),
   source_digest: z.string(),
   decoder: z.enum(["text", "reply_actions_v1"]),
   approved: z.boolean(),
@@ -186,6 +196,7 @@ const accessSchema = z.object({
   credential_storage_available: z.boolean(),
 });
 const inspectionSchema = z.object({
+  source_identity_evidence: z.literal("unverified"),
   name: z.string(),
   parameters_digest: z.string(),
   checked_at: z.number(),
@@ -201,7 +212,11 @@ const adminAgentSchema = agent.extend({
   credential_configured: z.boolean(),
   credential_state: z.enum(["ready", "updating", "rotation_required"]),
   registration_mode: z.enum(["onboarding", "reference_compat"]),
-  definition_evidence: z.enum(["validated_dsl", "validated_manifest", "digest_only"]),
+  definition_evidence: z.enum([
+    "validated_dsl",
+    "validated_manifest",
+    "digest_only",
+  ]),
 });
 
 export interface MossExternalProviderPort {
@@ -311,11 +326,17 @@ export function createMossExternalProviderPort(
     create: (input) => {
       const legacy = taskInput.parse(input);
       const submission: SubmitTask = {
-        api_version: TASK_API, kind: "SubmitTask", agent: { catalog_id: legacy.agent_id },
+        api_version: TASK_API,
+        kind: "SubmitTask",
+        agent: { catalog_id: legacy.agent_id },
         ...(legacy.session_id ? { session_id: legacy.session_id } : {}),
-        request_source: "interactive", input: { instruction: legacy.query, resource_refs: [] },
-        workspace_refs: [], requested_mode: "auto", data_classification: "synthetic",
-        required_capabilities: [], constraints: { idempotency_key: legacy.idempotency_key },
+        request_source: "interactive",
+        input: { instruction: legacy.query, resource_refs: [] },
+        workspace_refs: [],
+        requested_mode: "auto",
+        data_classification: "synthetic",
+        required_capabilities: [],
+        constraints: { idempotency_key: legacy.idempotency_key },
       };
       // No fallback POST: an ambiguous response may already have created a task.
       return read(task, "/api/v1/tasks", submission);

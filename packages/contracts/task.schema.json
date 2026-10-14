@@ -505,6 +505,19 @@
                 },
                 "version_evidence": {
                   "const": "source_snapshot_only"
+                },
+                "source_identity_evidence": {
+                  "const": "unverified"
+                },
+                "claimed_app_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "claimed_workspace_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
                 }
               },
               "required": [

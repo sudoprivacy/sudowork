@@ -90,5 +90,6 @@
   "external.provider.custom_http": "カスタム HTTP",
   "external.chat.noOutput": "このタスクには出力がありません。",
   "external.chat.policyRejected": "リクエストが拒否されました：{{reason}}",
-  "external.chat.hosted": "外部ホスト"
+  "external.chat.hosted": "外部ホスト",
+  "external.sourceIdentityUnverified": "アプリの提供元は管理者の申告に基づき、サービス認証情報との対応は未検証です。"
 }

@@ -90,5 +90,6 @@
   "external.provider.custom_http": "Özel HTTP",
   "external.chat.noOutput": "Bu görev çıktı üretmedi.",
   "external.chat.policyRejected": "İstek reddedildi: {{reason}}",
-  "external.chat.hosted": "Harici barındırma"
+  "external.chat.hosted": "Harici barındırma",
+  "external.sourceIdentityUnverified": "Uygulama kaynağı yönetici tarafından beyan edilmiştir; hizmet kimlik bilgileriyle bağlantısı doğrulanmamıştır."
 }

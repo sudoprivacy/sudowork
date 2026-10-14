@@ -90,5 +90,6 @@
   "external.provider.custom_http": "自研 HTTP",
   "external.chat.noOutput": "本次任務未產生輸出。",
   "external.chat.policyRejected": "請求被拒絕：{{reason}}",
-  "external.chat.hosted": "外部託管"
+  "external.chat.hosted": "外部託管",
+  "external.sourceIdentityUnverified": "應用來源由管理員聲明，尚未驗證與服務憑證的綁定。"
 }
