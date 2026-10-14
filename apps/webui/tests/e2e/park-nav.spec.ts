@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test'
  * 这是曾经被绕过的路径（URL 直达测的是路由+页面，点击测的是 Sider→navigate 链）。
  */
 
-const ORIGIN = 'http://localhost:26808'
+const ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:26808'
 
 async function loginAs(page: import('@playwright/test').Page, user: string, password: string) {
   const res = await page.request.post('/api/auth/login/password', {
@@ -66,8 +66,8 @@ test('entuser：点击「我的咨询记录」菜单导航', async ({ page }) =>
   await expect(page).toHaveURL(/#\/enterprise\/inquiries/, { timeout: 10_000 })
 })
 
-test('sysop：点击「系统管理」菜单导航', async ({ page }) => {
+test('sysop：点击「组织与绑定」菜单导航', async ({ page }) => {
   await loginAs(page, 'sysop', 'Sysop@2026')
-  await page.getByText('系统管理').first().click()
-  await expect(page).toHaveURL(/#\/park\/admin/, { timeout: 10_000 })
+  await page.getByText('组织与绑定').first().click()
+  await expect(page).toHaveURL(/#\/park\/admin\/organizations/, { timeout: 10_000 })
 })

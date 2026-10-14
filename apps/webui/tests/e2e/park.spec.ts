@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+const ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:26808'
+
 /**
  * 园区业务域页面 E2E（真实 moss @ 10.0.1.157）
  * 登录经 API 注入 cookie；验证：角色导航注入（侧栏文案存在于 DOM）、
@@ -8,7 +10,7 @@ import { expect, test } from '@playwright/test'
 
 async function loginAs(page: import('@playwright/test').Page, user: string, password: string) {
   const res = await page.request.post('/api/auth/login/password', {
-    headers: { origin: 'http://localhost:26808' },
+    headers: { origin: ORIGIN },
     data: { username: user, password },
   })
   expect(res.status(), `login ${user} should be 200`).toBe(200)
@@ -17,7 +19,7 @@ async function loginAs(page: import('@playwright/test').Page, user: string, pass
   expect(separator).toBeGreaterThan(0)
   const name = setCookie.slice(0, separator)
   const value = setCookie.slice(separator + 1)
-  await page.context().addCookies([{ name, value, url: 'http://localhost:26808' }])
+  await page.context().addCookies([{ name, value, url: ORIGIN }])
   await page.goto('/#/guid')
   // 等待应用就绪（侧栏渲染）
   await page.waitForTimeout(4000)
@@ -31,7 +33,7 @@ test('ops：园区菜单注入 + 线索池真实数据渲染', async ({ page }) 
   // 直达线索池，表格渲染真实数据
   await page.goto('/#/park/leads')
   await expect(
-    page.getByText(/proposed|converted|lost|rejected|confirmed|assigned|following/).first(),
+    page.getByText(/待确认|已确认|已分派|跟进中|已转化|已流失|已驳回/).first(),
   ).toBeVisible({ timeout: 30_000 })
 })
 
@@ -66,8 +68,8 @@ test('leader：园区总览菜单 + metrics 真实数字渲染', async ({ page }
 
 test('sysop：系统管理菜单 + 分配列表渲染', async ({ page }) => {
   await loginAs(page, 'sysop', 'Sysop@2026')
-  expect(await page.getByText('系统管理').count()).toBeGreaterThan(0)
-  await page.goto('/#/park/admin')
+  expect(await page.getByText('组织与绑定').count()).toBeGreaterThan(0)
+  await page.goto('/#/park/admin/organizations')
   await expect(page.getByText(/SudoRouter|park-consultation|组织与绑定/).first()).toBeVisible({
     timeout: 30_000,
   })

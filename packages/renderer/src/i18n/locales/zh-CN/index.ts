@@ -42,6 +42,7 @@ import modelBilling from './modelBilling.json';
 export default {
   modelBilling,
   common,
+  park,
   agentMode,
   update,
   login,

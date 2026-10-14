@@ -7,7 +7,7 @@
 import TenantLogo from '@renderer/components/TenantLogo';
 import { LoginAttempt, LoginError } from '@sudowork/common/authLogin';
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message } from '@arco-design/web-react';
 import { Key, Link, Lock, Phone, Protect, Server, User } from '@icon-park/react';
@@ -19,6 +19,7 @@ import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import SudoworkIcon from '@renderer/assets/sudowork-icon-dark.svg';
 import AppLoader from '@renderer/components/AppLoader';
 import WindowControls from '@renderer/components/WindowControls';
+import EnterpriseRegisterPanel from './EnterpriseRegisterPanel';
 import ThirdPartyAuthPanel from './ThirdPartyAuthPanel';
 import { useSystemLoginMethod } from '@renderer/hooks/useSystemLoginMethod';
 import { isElectronDesktop, isMacOS } from '@renderer/utils/platform';
@@ -30,7 +31,7 @@ const MOSS_URL_STORAGE_KEY = 'login.mossBaseUrl';
 const showWindowControls = isElectronDesktop() && !isMacOS();
 const isWebRuntime = typeof window !== 'undefined' && !window.electronAPI;
 
-type LoginTab = 'phone' | 'password' | 'api_key' | 'register' | 'sso';
+type LoginTab = 'phone' | 'password' | 'api_key' | 'register' | 'enterprise_register' | 'sso';
 
 function isValidPhone(phone: string): boolean {
   if (phone.length === 11) return phone[0] === '1' && /^\d{11}$/.test(phone);
@@ -59,6 +60,7 @@ function generateOAuth2State(): string {
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const { status, enterGuest, login, register, enterpriseLogin, enterpriseLoginWithOAuth2 } = useAuth();
   const { authMethods, systemConfig } = useSystemLoginMethod();
@@ -66,7 +68,7 @@ export default function LoginPage() {
   // Before login, the account's organization is unknown. Keep the standard
   // entries available and let Moss enforce the policy when credentials arrive.
   const isSsoAvailable = isElectronDesktop() && authMethods.includes('sso');
-  const [loginTab, setLoginTab] = useState<LoginTab>('phone');
+  const [loginTab, setLoginTab] = useState<LoginTab>(!isWebRuntime && searchParams.get('tab') === 'register' ? 'register' : 'phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [nickname, setNickname] = useState('');
@@ -353,8 +355,9 @@ export default function LoginPage() {
           <LoginTabButton isActive={loginTab === 'phone'} label={t('login.phoneTab')} onClick={() => setLoginTab('phone')} />
           <LoginTabButton isActive={loginTab === 'password'} label={t('login.passwordTab')} onClick={() => setLoginTab('password')} />
           <LoginTabButton isActive={loginTab === 'api_key'} label={t('login.apiKeyTab')} onClick={() => setLoginTab('api_key')} />
-          <LoginTabButton isActive={loginTab === 'register'} label={t('login.pwdRegisterTab')} onClick={() => setLoginTab('register')} />
+          {!isWebRuntime && <LoginTabButton isActive={loginTab === 'register'} label={t('login.pwdRegisterTab')} onClick={() => setLoginTab('register')} />}
           {isSsoAvailable && <LoginTabButton isActive={loginTab === 'sso'} label={t('login.ssoTab')} onClick={() => setLoginTab('sso')} />}
+          {isWebRuntime && <LoginTabButton isActive={loginTab === 'enterprise_register'} label={t('park.register.tab', '企业注册')} onClick={() => setLoginTab('enterprise_register')} />}
         </div>
 
         <div className='flex flex-col gap-20px mt-24px'>
@@ -392,7 +395,7 @@ export default function LoginPage() {
             </>
           )}
 
-          {loginTab === 'register' && (
+          {loginTab === 'register' && !isWebRuntime && (
             <>
               <Input size='large' prefix={<Phone className='text-tertiary' />} placeholder={t('login.phonePlaceholder')} value={phone} onChange={setPhone} className='login-input !rd-12px h-48px' />
               <div className='flex w-full'>
@@ -421,22 +424,24 @@ export default function LoginPage() {
               {!isOauth2Loading && !oauth2Config?.enabled && <div className='text-center text-12px text-tertiary'>{t('login.thirdPartyUnavailable')}</div>}
             </>
           )}
-          {isServerExpanded ? (
-            <div className='flex flex-col gap-8px'>
-              <div className='text-12px font-600 text-secondary ml-4px'>{t('login.mossBaseUrlLabel')}</div>
-              <div className='flex w-full'>
-                <Input size='large' maxLength={2048} disabled={isServerLocked} prefix={<Server className='text-tertiary' />} placeholder={DEFAULT_MOSS_URL} value={serverUrl} onChange={setServerUrl} className='login-input !rd-l-12px h-48px flex-1' />
-                <Button size='large' loading={isLoading} disabled={isServerLocked} onClick={() => void onApplyServer()} className='h-48px !rd-r-12px'>
-                  {t('login.serverApply')}
-                </Button>
+          {loginTab === 'enterprise_register' && isWebRuntime && <EnterpriseRegisterPanel onRegistered={() => setLoginTab('phone')} />}
+          {loginTab !== 'enterprise_register' &&
+            (isServerExpanded ? (
+              <div className='flex flex-col gap-8px'>
+                <div className='text-12px font-600 text-secondary ml-4px'>{t('login.mossBaseUrlLabel')}</div>
+                <div className='flex w-full'>
+                  <Input size='large' maxLength={2048} disabled={isServerLocked} prefix={<Server className='text-tertiary' />} placeholder={DEFAULT_MOSS_URL} value={serverUrl} onChange={setServerUrl} className='login-input !rd-l-12px h-48px flex-1' />
+                  <Button size='large' loading={isLoading} disabled={isServerLocked} onClick={() => void onApplyServer()} className='h-48px !rd-r-12px'>
+                    {t('login.serverApply')}
+                  </Button>
+                </div>
+                {isServerLocked && <div className='text-12px text-tertiary ml-4px'>{t('login.serverLocked')}</div>}
               </div>
-              {isServerLocked && <div className='text-12px text-tertiary ml-4px'>{t('login.serverLocked')}</div>}
-            </div>
-          ) : (
-            <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={() => setIsServerExpanded(true)}>
-              {t('login.customServerToggle')}
-            </span>
-          )}
+            ) : (
+              <span className='text-12px text-tertiary cursor-pointer hover:text-secondary transition-colors' onClick={() => setIsServerExpanded(true)}>
+                {t('login.customServerToggle')}
+              </span>
+            ))}
 
           {isElectronDesktop() && (
             <div className='text-center'>

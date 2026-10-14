@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AssistantAssignmentSchema,
+  AuditEventSchema,
+  BindingSchema,
+  EnterpriseDetailSchema,
+  EnterpriseListItemSchema,
+  EnterpriseProfileSchema,
+  ParkAssistantInfoSchema,
   ParkContextSchema,
+  ParkMemberSchema,
+  RegisterEnterpriseRequestSchema,
+  RegisterEnterpriseResponseSchema,
   LeadSchema,
   LeadDetailSchema,
   InquiryViewSchema,
   ParkMetricsSchema,
-  RegisterEnterpriseRequestSchema,
+  PolicySummarySchema,
   ServiceCatalogSchema,
 } from '@sudowork/contracts/park'
 
@@ -136,5 +146,138 @@ describe('park contracts（园区契约 schema 解析）', () => {
       items: [{ name: '工商注册协助', description: '全程代办' }],
     })
     expect(catalog.items[0]?.name).toBe('工商注册协助')
+  })
+
+  it('RegisterEnterpriseResponse：注册返回三元组', () => {
+    const res = RegisterEnterpriseResponseSchema.parse({
+      enterprise_org_id: 'e1',
+      park_org_id: 'p1',
+      user_id: 'u1',
+    })
+    expect(res.enterprise_org_id).toBe('e1')
+    expect(() => RegisterEnterpriseResponseSchema.parse({ enterprise_org_id: 'e1' })).toThrow()
+  })
+
+  it('EnterpriseProfile：可空字段与标签数组', () => {
+    const profile = EnterpriseProfileSchema.parse({
+      enterprise_org_id: 'e1',
+      park_org_id: 'p1',
+      enterprise_name: '星澜智能',
+      industry: null,
+      scale: null,
+      contact_name: '张三',
+      contact_phone: null,
+      lifecycle: 'prospect',
+      tags: ['AI'],
+      created_at: 1,
+    })
+    expect(profile.tags).toEqual(['AI'])
+    expect(profile.industry).toBeNull()
+  })
+
+  it('EnterpriseListItem：必填基础 + 可选画像字段', () => {
+    const item = EnterpriseListItemSchema.parse({
+      enterprise_org_id: 'e1',
+      enterprise_name: '星澜智能',
+      lifecycle: 'prospect',
+      tags: [],
+      assigned_owner_id: null,
+      created_at: 1,
+    })
+    expect(item.lead_count).toBeUndefined()
+    expect(() => EnterpriseListItemSchema.parse({ enterprise_org_id: 'e1' })).toThrow()
+  })
+
+  it('EnterpriseDetail：lead_summary 聚合结构', () => {
+    const detail = EnterpriseDetailSchema.parse({
+      enterprise_org_id: 'e1',
+      park_org_id: 'p1',
+      enterprise_name: '星澜智能',
+      industry: null,
+      scale: null,
+      contact_name: null,
+      contact_phone: null,
+      assigned_owner_id: null,
+      tags: [],
+      lifecycle: 'active',
+      lead_summary: { total: 3, by_status: { proposed: 2, confirmed: 1 } },
+      created_at: 1,
+    })
+    expect(detail.lead_summary.by_status.proposed).toBe(2)
+  })
+
+  it('PolicySummary：wiki 与文件列表', () => {
+    const summary = PolicySummarySchema.parse({
+      wikis: [{ wiki_id: 'w1', wiki_name: '政策库', files: ['租金.md'] }],
+    })
+    expect(summary.wikis[0]?.files).toEqual(['租金.md'])
+  })
+
+  it('ParkAssistantInfo：完整展示字段（跨 org 可见）', () => {
+    const assistant = ParkAssistantInfoSchema.parse({
+      assistant_id: 'a1',
+      name: 'park-consultation',
+      display_name: '园区咨询',
+      description: null,
+      avatar: null,
+      emoji: null,
+      enabled_wikis: ['w1'],
+    })
+    expect(assistant.enabled_wikis).toEqual(['w1'])
+  })
+
+  it('AuditEvent：before/after 摘要可空', () => {
+    const event = AuditEventSchema.parse({
+      audit_id: 'au1',
+      action: 'park.lead_claim',
+      target_type: 'lead',
+      target_id: 'l1',
+      actor_user_id: 'ops',
+      reason: null,
+      before: { status: 'proposed' },
+      after: { status: 'confirmed' },
+      result: null,
+      created_at: 1,
+    })
+    expect(event.action).toBe('park.lead_claim')
+    expect(() => AuditEventSchema.parse({ audit_id: 'au1' })).toThrow()
+  })
+
+  it('ParkMember：三角色枚举', () => {
+    const member = ParkMemberSchema.parse({
+      id: 'm1',
+      park_org_id: 'p1',
+      user_id: 'u1',
+      park_role: 'park_ops',
+      created_at: 1,
+    })
+    expect(member.park_role).toBe('park_ops')
+    expect(() => ParkMemberSchema.parse({ ...member, park_role: 'admin' })).toThrow()
+  })
+
+  it('AssistantAssignment：跨组织分配记录', () => {
+    const assignment = AssistantAssignmentSchema.parse({
+      id: 'as1',
+      park_org_id: 'p1',
+      assistant_id: 'a1',
+      enterprise_org_id: 'e1',
+      created_at: 1,
+    })
+    expect(assignment.enterprise_org_id).toBe('e1')
+  })
+
+  it('Binding：生命周期四态枚举', () => {
+    const binding = BindingSchema.parse({
+      binding_id: 'b1',
+      park_org_id: 'p1',
+      enterprise_org_id: 'e1',
+      lifecycle: 'prospect',
+      relationship_type: null,
+      assigned_owner_id: null,
+      joined_at: null,
+      exited_at: null,
+    })
+    expect(binding.lifecycle).toBe('prospect')
+    expect(() => BindingSchema.parse({ ...binding, lifecycle: 'closed' })).toThrow()
   })
 })

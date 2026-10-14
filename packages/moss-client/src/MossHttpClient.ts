@@ -34,6 +34,8 @@ export interface MossRequest {
   body?: unknown
   accessToken?: string
   searchParams?: Record<string, string>
+  /** Extra request headers (e.g. x-forwarded-for passthrough); never overrides auth/content-type. */
+  headers?: Record<string, string>
 }
 
 export type MossFetch = (baseUrl: string, req: MossRequest, timeoutMs?: number) => Promise<unknown>
@@ -59,7 +61,7 @@ export async function mossRequest(
     url.searchParams.set(key, value)
   }
 
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { ...req.headers }
   if (req.accessToken) {
     headers.authorization = `Bearer ${req.accessToken}`
   }

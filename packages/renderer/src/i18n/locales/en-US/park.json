@@ -67,6 +67,8 @@
     "filterAll": "All",
     "filterProposed": "Proposed",
     "filterMine": "Mine",
+    "filterDefault": "Pending and mine",
+    "notePlaceholder": "Note",
     "filterWatched": "Watched",
     "createManual": "New Lead",
     "claim": "Claim",
@@ -102,7 +104,8 @@
     "category": {
       "consultation": "Consultation",
       "service_request": "Service request"
-    }
+    },
+    "filterEnterprise": "Filter by enterprise"
   },
   "enterprises": {
     "title": "Enterprises",
@@ -155,19 +158,42 @@
       "addMember": "Add member",
       "remove": "Remove",
       "role": "Park role",
-      "added": "Added"
+      "added": "Added",
+      "removed": "Removed"
     },
     "assistant": {
       "title": "Assistant Assignments",
       "assistantId": "Assistant ID",
       "enterpriseOrgId": "Enterprise org ID",
       "assign": "Assign",
-      "unassign": "Unassign"
+      "unassign": "Unassign",
+      "assigned": "Assigned",
+      "unassigned": "Unassigned"
     },
     "policies": {
       "title": "Policy Knowledge Base",
-      "uploadNote": "Upload policy files via the document center and build a wiki, then attach it to the consulting assistant's enabledWikis for retrieval. This page documents the existing moss document-center entry.",
-      "rebuildNote": "Policy update: upload new file + delete old file + rebuild wiki (no versioning in P0)."
+      "uploadNote": "Upload policy files and build a wiki here. Add the wiki to the park consulting assistant's enabledWikis to make it searchable.",
+      "rebuildNote": "Policy update: upload new file + delete old file + rebuild wiki (no versioning in P0).",
+      "node": "Document folder",
+      "newNode": "New folder name",
+      "file": "Policy file",
+      "fileTooLarge": "File exceeds 50 MB",
+      "deleteOld": "Delete old file",
+      "wiki": "Wiki",
+      "newWiki": "New wiki name",
+      "sources": "Select source files",
+      "rebuild": "Save sources and build",
+      "buildStatus": "Build status",
+      "buildStates": {
+        "queued": "Queued",
+        "pending": "Pending",
+        "running": "Building",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "unknown": "Unknown"
+      },
+      "saved": "Saved"
     },
     "audit": {
       "title": "Audit Log",
@@ -189,6 +215,8 @@
     "inviteCode": "Park invite code (optional)",
     "inviteCodePlaceholder": "Enter invite code if any",
     "submit": "Register enterprise account",
-    "success": "Registered, redirecting to login"
+    "success": "Registered, you can sign in with your phone number",
+    "tab": "Enterprise Sign-up",
+    "pageSubtitle": "The park service team will contact you after sign-up"
   }
 }

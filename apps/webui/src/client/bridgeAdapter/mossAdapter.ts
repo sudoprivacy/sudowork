@@ -2223,6 +2223,18 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads${qs ? `?${qs}` : ''}`,
     )
   },
+  'park.list-consultations': async (req) => {
+    const params = new URLSearchParams()
+    if (req?.enterpriseOrgId) params.set('enterprise_org_id', String(req.enterpriseOrgId))
+    if (req?.beforeCreatedAt !== undefined)
+      params.set('before_created_at', String(req.beforeCreatedAt))
+    if (req?.afterCreatedAt !== undefined)
+      params.set('after_created_at', String(req.afterCreatedAt))
+    const qs = params.toString()
+    return apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/consultations${qs ? `?${qs}` : ''}`,
+    )
+  },
   'park.create-manual-lead': async (req) =>
     apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads`, {
       method: 'POST',
@@ -2256,8 +2268,6 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/leads/${encodeURIComponent(String(req?.leadId ?? ''))}/watch`,
       { method: 'DELETE' },
     ),
-  'park.list-consultations': async (req) =>
-    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/consultations`),
   'park.get-metrics': async (req) =>
     apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/metrics`),
   'park.list-audit-events': async (req) =>
@@ -2307,6 +2317,62 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       method: 'PUT',
       body: JSON.stringify(req?.updates ?? {}),
     }),
+  'park.policy-tree': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/tree`),
+  'park.policy-create-node': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/tree/nodes`, {
+      method: 'POST',
+      body: JSON.stringify({ name: req?.name }),
+    }),
+  'park.policy-documents': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/nodes/${encodeURIComponent(String(req?.nodeId ?? ''))}/documents`,
+    ),
+  'park.policy-upload-document': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/nodes/${encodeURIComponent(String(req?.nodeId ?? ''))}/documents`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          file_name: req?.fileName,
+          mime_type: req?.mimeType,
+          content_base64: req?.contentBase64,
+        }),
+      },
+    ),
+  'park.policy-delete-document': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/documents/${encodeURIComponent(String(req?.documentId ?? ''))}`,
+      { method: 'DELETE' },
+    ),
+  'park.policy-wikis': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/wikis`),
+  'park.policy-create-wiki': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/wikis`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: req?.name,
+        source_mode: 'files',
+        source_document_ids: req?.sourceDocumentIds,
+      }),
+    }),
+  'park.policy-update-wiki': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/wikis/${encodeURIComponent(String(req?.wikiId ?? ''))}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ source_document_ids: req?.sourceDocumentIds }),
+      },
+    ),
+  'park.policy-build-wiki': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/wikis/${encodeURIComponent(String(req?.wikiId ?? ''))}/build`,
+      { method: 'POST' },
+    ),
+  'park.policy-build-status': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/policy/wikis/${encodeURIComponent(String(req?.wikiId ?? ''))}/build-status`,
+    ),
   // The conversation view loads these on open; they return RAW arrays, so the
   // default-reject object breaks array consumers ("data is not iterable").
   'confirmation.list': async (req) =>

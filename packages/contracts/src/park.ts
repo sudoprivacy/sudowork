@@ -196,6 +196,19 @@ export const ParkMemberSchema = z.object({
 })
 export type ParkMember = z.infer<typeof ParkMemberSchema>
 
+/** 园区-企业绑定资源（park_enterprise_bindings 读形态；创建端点返回薄确认 { binding_id }）。 */
+export const BindingSchema = z.object({
+  binding_id: z.string(),
+  park_org_id: z.string(),
+  enterprise_org_id: z.string(),
+  lifecycle: z.enum(['prospect', 'active', 'exiting', 'exited']),
+  relationship_type: z.string().nullable(),
+  assigned_owner_id: z.string().nullable(),
+  joined_at: z.number().nullable(),
+  exited_at: z.number().nullable(),
+})
+export type Binding = z.infer<typeof BindingSchema>
+
 export const AssistantAssignmentSchema = z.object({
   id: z.string(),
   park_org_id: z.string(),

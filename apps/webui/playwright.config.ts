@@ -1,9 +1,14 @@
 import { existsSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from '@playwright/test'
 
+const localEnv = fileURLToPath(new URL('./.env', import.meta.url))
+if (existsSync(localEnv)) process.loadEnvFile(localEnv)
+
 const PORT = Number(process.env.E2E_PORT ?? 26808)
-const BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`
+const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`
 
 // 使用本地已下载的完整 chromium（headless shell 变体缺失时绕过）
 const LOCAL_CHROMIUM = join(
@@ -24,6 +29,7 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: BASE_URL,
+    locale: 'zh-CN',
     screenshot: 'only-on-failure',
     ...(executablePath ? { launchOptions: { executablePath } } : {}),
   },
@@ -41,8 +47,8 @@ export default defineConfig({
           DATABASE_URL:
             process.env.DATABASE_URL ??
             'postgresql://postgres:postgres@127.0.0.1:5432/sudowork_webui',
-          SESSION_HMAC_KEY: process.env.SESSION_HMAC_KEY ?? '',
-          TOKEN_AES_KEY: process.env.TOKEN_AES_KEY ?? '',
+          SESSION_HMAC_KEY: process.env.SESSION_HMAC_KEY ?? randomBytes(32).toString('hex'),
+          TOKEN_AES_KEY: process.env.TOKEN_AES_KEY ?? randomBytes(32).toString('hex'),
           MOSS_BASE_URL: process.env.MOSS_BASE_URL ?? 'http://10.0.1.79:43127',
           MOSS_WS_BASE_URL: process.env.MOSS_WS_BASE_URL ?? 'ws://10.0.1.79:43127',
           LOGIN_RATE_LIMIT: '1000',

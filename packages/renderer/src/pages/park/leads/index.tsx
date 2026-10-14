@@ -9,11 +9,13 @@ import { IconPlus } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useAuth } from '@renderer/context/AuthContext';
 import { invokePark, useParkOrgId, useParkQuery } from '@renderer/hooks/usePark';
 import PageWrapper from '@renderer/components/base/PageWrapper';
 
 interface ILeadRow {
   lead_id: string;
+  enterprise_name?: string | null;
   enterprise_org_id: string;
   source: 'inquiry' | 'manual';
   score: number | null;
@@ -22,13 +24,14 @@ interface ILeadRow {
   created_at: number;
 }
 
-type IFilter = 'all' | 'proposed' | 'mine' | 'watched';
+type IFilter = 'default' | 'all' | 'proposed' | 'mine' | 'watched';
 
 export default function ParkLeadsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { parkOrgId, role } = useParkOrgId();
-  const [filter, setFilter] = useState<IFilter>('all');
+  const [filter, setFilter] = useState<IFilter>('default');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [enterpriseOrgId, setEnterpriseOrgId] = useState('');
   const [note, setNote] = useState('');
@@ -44,8 +47,9 @@ export default function ParkLeadsPage() {
       : undefined,
   );
 
-  const items = (data?.items ?? []).filter(
-    lead => filter !== 'mine' || lead.owner_id !== null,
+  const items = (data?.items ?? []).filter(lead =>
+    filter === 'default' ? lead.status === 'proposed' || lead.owner_id === user?.id
+      : filter !== 'mine' || lead.owner_id === user?.id,
   )
 
   async function createManual() {
@@ -80,6 +84,7 @@ export default function ParkLeadsPage() {
       <Card loading={loading}>
         <div className='mb-3 flex items-center gap-3'>
           <Radio.Group value={filter} onChange={v => setFilter(v as IFilter)}>
+            <Radio value='default'>{t('park.leads.filterDefault')}</Radio>
             <Radio value='all'>{t('park.leads.filterAll', '全部')}</Radio>
             <Radio value='proposed'>{t('park.leads.filterProposed', '待确认')}</Radio>
             <Radio value='mine'>{t('park.leads.filterMine', '我的')}</Radio>
@@ -99,7 +104,7 @@ export default function ParkLeadsPage() {
               onClick: () => navigate(`/park/leads/${String((record as ILeadRow).lead_id)}`),
             })}
             columns={[
-              { title: t('park.common.enterprise', '企业'), dataIndex: 'enterprise_org_id' },
+              { title: t('park.common.enterprise', '企业'), dataIndex: 'enterprise_name', render: (v: string | null, record: ILeadRow) => v || record.enterprise_org_id },
               {
                 title: t('park.leads.source', '来源'),
                 dataIndex: 'source',
@@ -137,7 +142,7 @@ export default function ParkLeadsPage() {
             value={enterpriseOrgId}
             onChange={setEnterpriseOrgId}
           />
-          <Input placeholder='Note' value={note} onChange={setNote} />
+          <Input placeholder={t('park.leads.notePlaceholder')} value={note} onChange={setNote} />
         </div>
       </Modal>
     </PageWrapper>

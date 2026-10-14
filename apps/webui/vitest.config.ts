@@ -46,7 +46,16 @@ export default defineConfig({
       reporter: ['text', 'text-summary'],
       reportsDirectory: './coverage',
       // 手动指定需要覆盖的源文件：新增功能区时将源文件路径加入此数组
-      include: ['src/server/features/park/**/*.ts'],
+      include: [
+        'src/server/features/park/**/*.ts',
+        '../../packages/renderer/src/pages/park/admin/PolicyManagement.tsx',
+        '../../packages/renderer/src/pages/park/admin/audit.tsx',
+        '../../packages/renderer/src/pages/park/admin/assistant.tsx',
+        '../../packages/renderer/src/pages/park/admin/organizations.tsx',
+        '../../packages/renderer/src/pages/park/admin/policies.tsx',
+        '../../packages/renderer/src/pages/park/admin/users.tsx',
+        '../../packages/renderer/src/pages/login/EnterpriseRegisterPanel.tsx',
+      ],
     },
     projects: [
       {

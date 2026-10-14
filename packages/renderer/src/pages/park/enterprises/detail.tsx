@@ -51,7 +51,7 @@ export default function ParkEnterpriseDetailPage() {
   }
 
   return (
-    <PageWrapper title={t('park.enterprises.enterpriseDetail', '企业画像')} back={{ onClick: () => navigate('/park/enterprises') }}>
+    <PageWrapper title={t('park.nav.enterpriseDetail', '企业画像')} back={{ onClick: () => navigate('/park/enterprises') }}>
       {error ? (
         <Typography.Text type='error'>{t('park.common.loadFailed', '加载失败')}: {error}</Typography.Text>
       ) : (

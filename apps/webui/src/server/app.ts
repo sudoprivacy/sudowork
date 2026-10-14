@@ -101,8 +101,16 @@ export function createApp(deps: AppDeps): Express {
   // 其余维持 1mb。必须在全局挂载点分流——Express 中间件严格按注册顺序，路由级再挂更大的
   // 解析器永远不生效（≤1mb 时 body 已被读、解析器被跳过；>1mb 时在读取阶段即抛 413）。
   const uploadJsonParser = express.json({ limit: '16mb' })
+  const policyUploadJsonParser = express.json({ limit: '70mb' })
   const defaultJsonParser = express.json({ limit: '1mb' })
   app.use((req, res, next) => {
+    if (
+      req.method === 'POST' &&
+      /^\/api\/parks\/[^/]+\/policy\/nodes\/[^/]+\/documents$/.test(req.path)
+    ) {
+      policyUploadJsonParser(req, res, next)
+      return
+    }
     if (req.method === 'POST' && /^\/api\/conversations\/[^/]+\/workspace\/file$/.test(req.path)) {
       uploadJsonParser(req, res, next)
       return

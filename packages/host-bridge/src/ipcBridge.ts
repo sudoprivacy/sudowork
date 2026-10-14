@@ -1643,7 +1643,12 @@ export const park = {
   watchLead: bridge.buildProvider<unknown, { parkOrgId: string; leadId: string }>('park.watch-lead'),
   unwatchLead: bridge.buildProvider<unknown, { parkOrgId: string; leadId: string }>('park.unwatch-lead'),
   // Park side — consultations / metrics / audit / members / assignments
-  listConsultations: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-consultations'),
+  listConsultations: bridge.buildProvider<unknown, {
+    parkOrgId: string
+    enterpriseOrgId?: string
+    beforeCreatedAt?: number
+    afterCreatedAt?: number
+  }>('park.list-consultations'),
   getMetrics: bridge.buildProvider<unknown, { parkOrgId: string }>('park.get-metrics'),
   listAuditEvents: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-audit-events'),
   listMembers: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-members'),
@@ -1654,6 +1659,16 @@ export const park = {
   unassignAssistant: bridge.buildProvider<unknown, { parkOrgId: string; assistantId: string; enterpriseOrgId: string }>('park.unassign-assistant'),
   getSettings: bridge.buildProvider<unknown, { parkOrgId: string }>('park.get-settings'),
   updateSettings: bridge.buildProvider<unknown, { parkOrgId: string; updates: Record<string, unknown> }>('park.update-settings'),
+  policyTree: bridge.buildProvider<unknown, { parkOrgId: string }>('park.policy-tree'),
+  createPolicyNode: bridge.buildProvider<unknown, { parkOrgId: string; name: string }>('park.policy-create-node'),
+  policyDocuments: bridge.buildProvider<unknown, { parkOrgId: string; nodeId: string }>('park.policy-documents'),
+  uploadPolicyDocument: bridge.buildProvider<unknown, { parkOrgId: string; nodeId: string; fileName: string; mimeType: string; contentBase64: string }>('park.policy-upload-document'),
+  deletePolicyDocument: bridge.buildProvider<unknown, { parkOrgId: string; documentId: string }>('park.policy-delete-document'),
+  policyWikis: bridge.buildProvider<unknown, { parkOrgId: string }>('park.policy-wikis'),
+  createPolicyWiki: bridge.buildProvider<unknown, { parkOrgId: string; name: string; sourceDocumentIds: string[] }>('park.policy-create-wiki'),
+  updatePolicyWiki: bridge.buildProvider<unknown, { parkOrgId: string; wikiId: string; sourceDocumentIds: string[] }>('park.policy-update-wiki'),
+  buildPolicyWiki: bridge.buildProvider<unknown, { parkOrgId: string; wikiId: string }>('park.policy-build-wiki'),
+  policyBuildStatus: bridge.buildProvider<unknown, { parkOrgId: string; wikiId: string }>('park.policy-build-status'),
 };
 
 // Cron job management API / 定时任务管理接口

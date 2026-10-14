@@ -12,7 +12,7 @@ import { useAppMode, isModeResolved } from './hooks/useAppMode';
 import { useCronAccess } from './hooks/useCronAccess';
 import { isDesktopOnlyRoute, isElectronDesktop } from './utils/platform';
 import { useParkQuery } from './hooks/usePark';
-import { resolveParkRoute } from './park/parkRouteGuard';
+import { resolveParkRoute, type ParkRole } from './park/parkRouteGuard';
 import UpdateModal from './layouts/components/UpdateModal';
 
 const Conversation = React.lazy(() => import('./pages/conversation'));
@@ -38,7 +38,6 @@ const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
 const TeamDetailPage = React.lazy(() => import('./pages/team/detail'));
 const ExtensionSettingsPage = React.lazy(() => import('./pages/settings/extensions'));
 const LoginPage = React.lazy(() => import('./pages/login'));
-const RegisterPage = React.lazy(() => import('./pages/register'));
 const UserProfile = React.lazy(() => import('./pages/settings/profile'));
 const RechargeCenter = React.lazy(() => import('./pages/settings/recharge'));
 const MemberManagement = React.lazy(() => import('./pages/settings/members'));
@@ -58,6 +57,11 @@ const ParkConsultationsPage = React.lazy(() => import('./pages/park/consultation
 const ParkEnterprisesPage = React.lazy(() => import('./pages/park/enterprises'));
 const ParkEnterpriseDetailPage = React.lazy(() => import('./pages/park/enterprises/detail'));
 const ParkAdminPage = React.lazy(() => import('./pages/park/admin'));
+const ParkAdminOrganizationsPage = React.lazy(() => import('./pages/park/admin/organizations'));
+const ParkAdminUsersPage = React.lazy(() => import('./pages/park/admin/users'));
+const ParkAdminAssistantPage = React.lazy(() => import('./pages/park/admin/assistant'));
+const ParkAdminPoliciesPage = React.lazy(() => import('./pages/park/admin/policies'));
+const ParkAdminAuditPage = React.lazy(() => import('./pages/park/admin/audit'));
 
 // Accepts lazy AND plain components (park guards return plain FCs wrapping lazy pages).
 const withRouteFallback = (Component: React.ComponentType) => (
@@ -82,13 +86,13 @@ const SettingsDefaultRoute: React.FC = () => {
 };
 
 /** Park 域路由守卫（园区 AI 招商 P0）：
- *  桌面端隐藏（同 router.tsx:58,133 的上下文裁剪先例；isDesktopRuntime 标识符定义于
- *  AuthContext.tsx:213）；WebUI 下按服务端推导的 org 类型放行，其余重定向首页。
- *  前端守卫只裁剪导航，权威鉴权在 moss park 域（ParkAuthorization）。 */
-export function withParkGuard(expected: 'park' | 'enterprise', Page: React.ComponentType) {
+ *  桌面端隐藏（isElectronDesktop()，utils/platform.ts 导出；AuthContext 内另有
+ *  未导出的同义标识符 isDesktopRuntime）；WebUI 下按服务端推导的 org 类型放行，
+ *  其余重定向首页。前端守卫只裁剪导航，权威鉴权在 moss park 域（ParkAuthorization）。 */
+export function withParkGuard(expected: 'park' | 'enterprise', Page: React.ComponentType, allowedRoles?: ParkRole[]) {
   function ParkGuardedPage() {
-    const { data, loading } = useParkQuery<{ org_type: 'park' | 'enterprise' | null }>('getContext');
-    const decision = resolveParkRoute(expected, data, { loading, isDesktop: isElectronDesktop() });
+    const { data, loading } = useParkQuery<{ org_type: 'park' | 'enterprise' | null; park_role: ParkRole | null }>('getContext');
+    const decision = resolveParkRoute(expected, data, { loading, isDesktop: isElectronDesktop(), allowedRoles });
     if (decision === 'redirect') return <Navigate to='/guid' replace />;
     if (decision === 'wait') return null;
     return <Page />;
@@ -105,14 +109,19 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/enterprise/policies', component: withParkGuard('enterprise', EnterprisePoliciesPage) },
   { path: '/enterprise/services', component: withParkGuard('enterprise', EnterpriseServicesPage) },
   { path: '/enterprise/inquiries', component: withParkGuard('enterprise', EnterpriseInquiriesPage) },
-  { path: '/park/overview', component: withParkGuard('park', ParkOverviewPage) },
-  { path: '/park/leads', component: withParkGuard('park', ParkLeadsPage) },
-  { path: '/park/leads/:leadId', component: withParkGuard('park', ParkLeadDetailPage) },
+  { path: '/park/overview', component: withParkGuard('park', ParkOverviewPage, ['park_leader']) },
+  { path: '/park/leads', component: withParkGuard('park', ParkLeadsPage, ['park_leader', 'park_ops']) },
+  { path: '/park/leads/:leadId', component: withParkGuard('park', ParkLeadDetailPage, ['park_leader', 'park_ops']) },
   { path: '/park/consultations', component: withParkGuard('park', ParkConsultationsPage) },
   { path: '/park/enterprises', component: withParkGuard('park', ParkEnterprisesPage) },
   { path: '/park/enterprises/:enterpriseOrgId', component: withParkGuard('park', ParkEnterpriseDetailPage) },
-  { path: '/park/admin', component: withParkGuard('park', ParkAdminPage) },
-  { path: '/park/admin/:section', component: withParkGuard('park', ParkAdminPage) },
+  // 系统运营五个独立管理页（计划 3.5）；/park/admin 仅为收藏链接兼容的重定向入口。
+  { path: '/park/admin', component: withParkGuard('park', ParkAdminPage, ['park_system_operator']) },
+  { path: '/park/admin/organizations', component: withParkGuard('park', ParkAdminOrganizationsPage, ['park_system_operator']) },
+  { path: '/park/admin/users', component: withParkGuard('park', ParkAdminUsersPage, ['park_system_operator']) },
+  { path: '/park/admin/assistant', component: withParkGuard('park', ParkAdminAssistantPage, ['park_system_operator']) },
+  { path: '/park/admin/policies', component: withParkGuard('park', ParkAdminPoliciesPage, ['park_system_operator']) },
+  { path: '/park/admin/audit', component: withParkGuard('park', ParkAdminAuditPage, ['park_system_operator']) },
   { path: '/guid', component: Guid },
   { path: '/conversation/:id', component: Conversation },
   { path: '/moss-session/:sessionId', component: MossSessionPage },
@@ -147,7 +156,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/ext/:tabId', component: ExtensionSettingsPage },
 ] as const;
 
-export const REGISTERED_ROUTE_PATHS = ['/login', '/register', '/', ...PROTECTED_ROUTE_CONFIGS.map((route) => route.path), '/settings'] as const;
+export const REGISTERED_ROUTE_PATHS = ['/login', '/', ...PROTECTED_ROUTE_CONFIGS.map((route) => route.path), '/settings'] as const;
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
@@ -205,7 +214,6 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
       {isElectronDesktop() && <UpdateModal />}
       <Routes>
         <Route path='/login' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)} />
-        <Route path='/register' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
         <Route element={<ProtectedLayout layout={layout} />}>
           <Route index element={<Navigate to='/guid' replace />} />
           {PROTECTED_ROUTE_CONFIGS.map(({ path, component }) => (

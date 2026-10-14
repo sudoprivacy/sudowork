@@ -74,6 +74,7 @@ const Sider: React.FC = () => {
           { id: 'park-ent-home', label: t('park.nav.enterpriseHome', '企业工作台'), icon: Building2, path: '/enterprise/home' },
           { id: 'park-ent-assistant', label: t('park.nav.assistant', '园区咨询'), icon: MessageSquareText, path: '/enterprise/assistant' },
           { id: 'park-ent-policies', label: t('park.nav.policies', '政策信息'), icon: BookOpen, path: '/enterprise/policies' },
+          { id: 'park-ent-services', label: t('park.nav.services', '入驻服务'), icon: Wrench, path: '/enterprise/services' },
           { id: 'park-ent-inquiries', label: t('park.nav.inquiries', '我的咨询记录'), icon: ClipboardList, path: '/enterprise/inquiries' },
         ]
       : !isElectronDesktop() && parkContext?.org_type === 'park'
@@ -84,12 +85,19 @@ const Sider: React.FC = () => {
             ...(parkContext.park_role === 'park_ops' || parkContext.park_role === 'park_leader'
               ? [
                   { id: 'park-leads', label: t('park.nav.leads', '线索池'), icon: ClipboardList, path: '/park/leads' },
-                  { id: 'park-consultations', label: t('park.nav.consultations', '咨询摘要'), icon: MessageSquareText, path: '/park/consultations' },
-                  { id: 'park-enterprises', label: t('park.nav.enterprises', '企业列表'), icon: Building2, path: '/park/enterprises' },
                 ]
               : []),
+            // 咨询摘要与企业列表：三角色均有读权限（§4.2 权限矩阵）
+            { id: 'park-consultations', label: t('park.nav.consultations', '咨询摘要'), icon: MessageSquareText, path: '/park/consultations' },
+            { id: 'park-enterprises', label: t('park.nav.enterprises', '企业列表'), icon: Building2, path: '/park/enterprises' },
             ...(parkContext.park_role === 'park_system_operator'
-              ? [{ id: 'park-admin', label: t('park.nav.admin', '系统管理'), icon: Wrench, path: '/park/admin' }]
+              ? [
+                  { id: 'park-admin-organizations', label: t('park.nav.adminOrganizations', '组织与绑定'), icon: Building2, path: '/park/admin/organizations' },
+                  { id: 'park-admin-users', label: t('park.nav.adminUsers', '用户与角色'), icon: ClipboardList, path: '/park/admin/users' },
+                  { id: 'park-admin-assistant', label: t('park.nav.adminAssistant', 'Assistant 分配'), icon: Bot, path: '/park/admin/assistant' },
+                  { id: 'park-admin-policies', label: t('park.nav.adminPolicies', '政策知识库'), icon: BookOpen, path: '/park/admin/policies' },
+                  { id: 'park-admin-audit', label: t('park.nav.adminAudit', '审计日志'), icon: Wrench, path: '/park/admin/audit' },
+                ]
               : []),
           ]
         : [];

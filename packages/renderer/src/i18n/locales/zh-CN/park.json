@@ -67,6 +67,8 @@
     "filterAll": "全部",
     "filterProposed": "待确认",
     "filterMine": "我的",
+    "filterDefault": "待确认和我的",
+    "notePlaceholder": "备注",
     "filterWatched": "已关注",
     "createManual": "新建线索",
     "claim": "认领",
@@ -102,7 +104,8 @@
     "category": {
       "consultation": "政策咨询",
       "service_request": "服务请求"
-    }
+    },
+    "filterEnterprise": "按企业筛选"
   },
   "enterprises": {
     "title": "企业列表",
@@ -155,19 +158,42 @@
       "addMember": "添加成员",
       "remove": "移除",
       "role": "园区角色",
-      "added": "已添加"
+      "added": "已添加",
+      "removed": "已移除"
     },
     "assistant": {
       "title": "Assistant 分配",
       "assistantId": "Assistant ID",
       "enterpriseOrgId": "企业组织 ID",
       "assign": "分配",
-      "unassign": "取消分配"
+      "unassign": "取消分配",
+      "assigned": "已分配",
+      "unassigned": "已取消分配"
     },
     "policies": {
       "title": "政策知识库",
-      "uploadNote": "政策文件经文档中心上传并构建 wiki 后，挂到园区咨询 Assistant 的 enabledWikis 即可被检索。此页面提供 moss 现有文档中心能力的入口说明。",
-      "rebuildNote": "政策更新方式：上传新文件 + 删除旧文件 + 重建 wiki（P0 无版本管理）。"
+      "uploadNote": "在此上传政策文件并构建 wiki；将 wiki 加入园区咨询 Assistant 的 enabledWikis 后即可检索。",
+      "rebuildNote": "政策更新方式：上传新文件 + 删除旧文件 + 重建 wiki（P0 无版本管理）。",
+      "node": "文档目录",
+      "newNode": "新目录名称",
+      "file": "政策文件",
+      "fileTooLarge": "文件不能超过 50 MB",
+      "deleteOld": "删除旧文件",
+      "wiki": "知识库",
+      "newWiki": "新知识库名称",
+      "sources": "选择来源文件",
+      "rebuild": "保存来源并构建",
+      "buildStatus": "构建状态",
+      "buildStates": {
+        "queued": "排队中",
+        "pending": "待构建",
+        "running": "构建中",
+        "succeeded": "构建成功",
+        "failed": "构建失败",
+        "cancelled": "已取消",
+        "unknown": "未知"
+      },
+      "saved": "操作成功"
     },
     "audit": {
       "title": "审计日志",
@@ -189,6 +215,8 @@
     "inviteCode": "园区邀请码（可选）",
     "inviteCodePlaceholder": "如有邀请码请填写",
     "submit": "注册企业账号",
-    "success": "注册成功，即将进入登录"
+    "success": "注册成功，可使用手机号登录",
+    "tab": "企业注册",
+    "pageSubtitle": "注册后由园区服务团队与您对接"
   }
 }

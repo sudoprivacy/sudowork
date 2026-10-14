@@ -158,6 +158,20 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     )
   })
 
+  test('context accepts completed Moss transcripts with artifacts', async () => {
+    const transcript = {
+      context: {
+        messages: [
+          { type: 'user', content: 'question' },
+          { type: 'assistant', content: [{ type: 'text', text: 'answer' }] },
+          { type: 'artifacts', artifacts: [] },
+        ],
+      },
+    }
+    const mock = vi.fn().mockResolvedValue(transcript)
+    await expect(createMossSessionPort(mock).context(CTX, 's1')).resolves.toEqual(transcript)
+  })
+
   test.each(['tree', 'read', 'write'] as const)(
     'workspace %s waits for cold runtime readiness',
     async (operation) => {
