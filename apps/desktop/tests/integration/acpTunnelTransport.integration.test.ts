@@ -1,10 +1,11 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ScodeAcpTransport } from '../../src/agent/acp/transport';
 import { configureScodeService, getScodeServiceClient } from '../../src/common/scode/serviceClient';
 import type { AcpMessage } from '../../src/types/acpTypes';
+import { recordRuntimeEvidence } from './runtimeEvidence';
 
 const suite = process.env.SUDOWORK_RUNTIME_E2E === '1' ? describe : describe.skip;
 
@@ -20,6 +21,7 @@ suite('desktop session adapter through the actual Sudocode service', () => {
   let root: string;
   let originalServiceRoot: string | undefined;
   const transports: ScodeAcpTransport[] = [];
+  afterEach(() => recordRuntimeEvidence(root, 'acp-tunnel'));
   beforeAll(async () => {
     if (!process.env.SCODE_BIN) throw new Error('SCODE_BIN is required');
     root = await mkdtemp(path.join(os.tmpdir(), 'scode-sessions-'));
