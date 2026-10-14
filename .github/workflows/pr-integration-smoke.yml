@@ -195,7 +195,7 @@ jobs:
       - name: Install dependencies
         env:
           # This job drives the real native runtime with Node; Electron is mocked.
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: bun install --frozen-lockfile
 
       - name: Install the checksum-verified macOS FUSE dependency
@@ -232,6 +232,10 @@ jobs:
     name: Scode Config-Home Isolation
     runs-on: windows-latest
     timeout-minutes: 10
+    # This gate drives scode and node-pty under Node, without an Electron UI.
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      SUDOWORK_REQUIRE_SCODE_ISOLATION: "1"
     defaults:
       run:
         working-directory: apps/desktop
@@ -251,7 +255,7 @@ jobs:
           bun-version-file: package.json
 
       - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Download scode binary (windows archive)
         run: bun run scode:download
