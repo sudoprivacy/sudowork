@@ -192,6 +192,7 @@ if (typeof window !== 'undefined' && storageGet('agent.config', 'eeclaw.serverUr
 
 let externalIdentity = ''
 let externalContextGeneration = 0
+let externalContextAppliedGeneration = 0
 export async function readExternalContext(signal: AbortSignal) {
   const generation = ++externalContextGeneration
   const context = await apiFetch<{
@@ -199,8 +200,13 @@ export async function readExternalContext(signal: AbortSignal) {
     data?: { isAvailable: boolean; identity: string }
   }>('/api/v1/external-context', { signal })
   signal.throwIfAborted()
-  if (generation !== externalContextGeneration) throw new Error('EXTERNAL_IDENTITY_CHANGED')
-  externalIdentity = context.success && context.data?.isAvailable ? context.data.identity : ''
+  const identity = context.success && context.data?.isAvailable ? context.data.identity : ''
+  if (generation < externalContextAppliedGeneration && identity !== externalIdentity)
+    throw new Error('EXTERNAL_IDENTITY_CHANGED')
+  if (generation >= externalContextAppliedGeneration) {
+    externalContextAppliedGeneration = generation
+    externalIdentity = identity
+  }
   return context
 }
 export const externalBrowserPort = createMossExternalProviderPort((request) =>

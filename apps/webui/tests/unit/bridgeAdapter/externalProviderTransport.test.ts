@@ -67,3 +67,52 @@ it('rejects a response when the browser identity changes during the request', as
   finish(Response.json({ success: true, data: [] }))
   await rejected
 })
+
+it.each([false, true])(
+  'allows concurrent context reads for the same identity, newer first: %s',
+  async (isNewerFirst) => {
+    const complete: Array<(response: Response) => void> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            complete.push(resolve)
+          }),
+      ),
+    )
+    const first = adapter.readExternalContext(new AbortController().signal)
+    const second = adapter.readExternalContext(new AbortController().signal)
+    const both = Promise.all([first, second])
+    await vi.waitFor(() => expect(complete).toHaveLength(2))
+    const early = isNewerFirst ? 1 : 0
+    complete[early]!(Response.json({ success: true, data: { isAvailable: true, identity } }))
+    await (isNewerFirst ? second : first)
+    complete[1 - early]!(Response.json({ success: true, data: { isAvailable: true, identity } }))
+    expect((await both).map((result) => result.data?.identity)).toEqual([identity, identity])
+  },
+)
+
+it('does not restore an older identity after a newer context response', async () => {
+  const complete: Array<(response: Response) => void> = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          complete.push(resolve)
+        }),
+    ),
+  )
+  const rejected = expect(
+    adapter.readExternalContext(new AbortController().signal),
+  ).rejects.toThrow('EXTERNAL_IDENTITY_CHANGED')
+  const second = adapter.readExternalContext(new AbortController().signal)
+  await vi.waitFor(() => expect(complete).toHaveLength(2))
+  complete[1]!(
+    Response.json({ success: true, data: { isAvailable: true, identity: 'new-identity' } }),
+  )
+  await second
+  complete[0]!(Response.json({ success: true, data: { isAvailable: true, identity } }))
+  await rejected
+})
