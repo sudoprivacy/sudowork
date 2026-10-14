@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { ScodeServiceClient } from '../../src/common/scode/serviceClient';
 import { ScodeSecretsClient } from '../../src/common/scode/secretsClient';
+import { recordRuntimeEvidence } from './runtimeEvidence';
 
 const isLive = process.env.SUDOWORK_RUNTIME_E2E === '1';
 const executable = process.env.SCODE_BIN;
@@ -21,6 +22,7 @@ let originalLog: string | undefined;
 
 /** Actual desktop adapters -> Scode process channel -> signed runtime -> encrypted Vault. */
 describe.skipIf(!isLive)('Sudocode shared services using published runtime artifacts', () => {
+  afterEach(() => recordRuntimeEvidence(root, 'vault'));
   beforeAll(async () => {
     if (!executable || !fs.existsSync(executable)) throw new Error('SCODE_BIN must name the actual tested CLI');
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'sudowork-scode-service-'));

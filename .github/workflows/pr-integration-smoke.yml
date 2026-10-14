@@ -218,7 +218,17 @@ jobs:
       - name: Install, restart, and update the published runtime
         env:
           SUDOWORK_RUNTIME_E2E: "1"
+          SUDOWORK_RUNTIME_EVIDENCE_DIR: ${{ runner.temp }}/sudowork-runtime-evidence
         run: bunx vitest run tests/integration/vault-signed-download.integration.test.ts tests/integration/acpTunnelTransport.integration.test.ts
+
+      - name: Preserve native runtime startup evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: runtime-startup-${{ matrix.os }}
+          path: ${{ runner.temp }}/sudowork-runtime-evidence
+          if-no-files-found: warn
+          retention-days: 7
 
   scode-config-isolation:
     # Real cross-repo contract: sudowork isolates its engine-scode by spawning
