@@ -10,6 +10,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright, expect
 
 receipts = []
@@ -67,9 +68,12 @@ async def main(args):
         (locale / "conversation.json").read_text(encoding="utf-8")
     )
     labels = conversation["browserSession"]
-    site = ThreadingHTTPServer((args.fixture_bind, 0), Site)
+    site = ThreadingHTTPServer((args.fixture_bind, args.fixture_port), Site)
     threading.Thread(target=site.serve_forever, daemon=True).start()
-    url = f"http://{args.fixture_host}:{site.server_port}/review"
+    fixture_origin = (
+        args.fixture_origin or f"http://{args.fixture_host}:{site.server_port}"
+    )
+    url = fixture_origin.rstrip("/") + "/review"
     expected = "Human review " + uuid.uuid4().hex[:8]
     own = browser_start(headless=True, temp=True, reuse="none", silent_stderr=True)
     assert "error" not in own, own
@@ -154,8 +158,13 @@ async def main(args):
                 )
 
             start = len(messages)
+            launch_requirement = (
+                "This task needs Chrome's native window controls. Launch a headful managed extension browser if stopped."
+                if args.headful
+                else "If it is stopped, launch it with an explicit headless choice suited to this background task and the configured transport."
+            )
             await send(
-                f"Browser handoff acceptance. Use only the sudowork-browser MCP tools, not shell or another browser. Observe the shared browser. If it is stopped, launch it with an explicit headless choice suited to this background task and the configured transport. Then navigate its current tab to {url}, and observe the Participant form. Do not fill or submit anything. Reply READY_FOR_HUMAN when the form is open."
+                f"Browser handoff acceptance. Use only the sudowork-browser MCP tools, not shell or another browser. Observe the shared browser. {launch_requirement} Then navigate its current tab to {url}, and observe the Participant form. Do not fill or submit anything. Reply READY_FOR_HUMAN when the form is open."
             )
             await wait_turn(
                 start,
@@ -176,6 +185,11 @@ async def main(args):
                 await asyncio.sleep(0.25)
                 loaded = await state()
             assert loaded["profileId"] == initial_profile
+            if args.headful:
+                assert (
+                    loaded["isHeadless"] is False and loaded["transport"] == "extension"
+                ), loaded
+                assert loaded["capabilities"]["windowView"] is True, loaded
             if before["state"] != "stopped":
                 assert loaded["browserSessionId"] == before["browserSessionId"]
             before = loaded
@@ -207,6 +221,37 @@ async def main(args):
             ).to_be_disabled()
             image = viewer_panel.get_by_role("img", name=labels["page"], exact=True)
             await expect(image).to_be_visible()
+            if args.headful:
+                await viewer.wait_for_function(
+                    "()=>document.querySelector('[data-testid=browser-session-panel] img')?.naturalWidth===1280"
+                )
+                await viewer.screenshot(
+                    path=str(evidence_root / "ui-headful-window.png")
+                )
+                # Exercise native Chrome input through the actual authenticated
+                # window surface, then use page view for the review form.
+                window_size = await image.evaluate(
+                    "e=>({w:e.clientWidth,h:e.clientHeight,nw:e.naturalWidth,nh:e.naturalHeight})"
+                )
+                await image.click(
+                    position={
+                        "x": 300 * window_size["w"] / window_size["nw"],
+                        "y": 70 * window_size["h"] / window_size["nh"],
+                    }
+                )
+                await viewer_panel.get_by_label(labels["text"], exact=True).fill(url)
+                await viewer_panel.get_by_role(
+                    "button", name=labels["insert"], exact=True
+                ).click()
+                await expect(
+                    viewer_panel.get_by_label(labels["text"], exact=True)
+                ).to_have_value("")
+                await image.press("Enter")
+                await viewer_panel.get_by_label(labels["viewMode"], exact=True).click()
+                await viewer.get_by_text(labels["pageView"], exact=True).click()
+                await viewer.wait_for_function(
+                    "()=>{const e=document.querySelector('[data-testid=browser-session-panel] img');return e?.naturalWidth>100&&e.naturalHeight<900}"
+                )
             size = await image.evaluate(
                 "(e)=>({w:e.clientWidth,h:e.clientHeight,nw:e.naturalWidth,nh:e.naturalHeight})"
             )
@@ -293,6 +338,7 @@ async def main(args):
                 "mainPanelAndViewerShareBrowser": True,
                 "heldAgentWriteRejected": True,
                 "automaticReturnNotification": not args.manual_continuation,
+                "headfulWindowSurface": args.headful,
                 "realProvider": "SudoRouter",
                 "model": config.get("model"),
                 "usage": stream_summary(messages),
@@ -308,6 +354,20 @@ async def main(args):
     except BaseException:
         (evidence_root / "ui-handoff-failure.json").write_text(
             json.dumps({"receipts": receipts, "expected": expected})
+        )
+        # Preserve the actual UI at the failing step, before owned Chrome closes.
+        for name in ("page", "viewer"):
+            surface = locals().get(name)
+            if surface is not None and not surface.is_closed():
+                try:
+                    await surface.screenshot(
+                        path=str(evidence_root / f"ui-handoff-failure-{name}.png")
+                    )
+                except (PlaywrightError, OSError) as error:
+                    print(f"Failure screenshot unavailable: {type(error).__name__}")
+        (evidence_root / "stream-summary.json").write_text(
+            json.dumps(stream_summary(locals().get("messages", [])), indent=2),
+            encoding="utf-8",
         )
         raise
     finally:
@@ -363,6 +423,16 @@ if __name__ == "__main__":
         "--locale", default="zh-CN", help="The current application UI locale."
     )
     parser.add_argument("--fixture-bind", default="127.0.0.1")
+    parser.add_argument("--fixture-port", type=int, default=0)
+    parser.add_argument(
+        "--fixture-origin",
+        help="Origin through which a remote worker reaches this fixture.",
+    )
+    parser.add_argument(
+        "--headful",
+        action="store_true",
+        help="Exercise managed Chrome's native window and shared page surfaces.",
+    )
     parser.add_argument(
         "--fixture-host",
         default="127.0.0.1",

@@ -41,12 +41,23 @@ python apps/webui/tests/e2e/live_browser_handoff.py \
 `--locale` must match the running UI. For a browser worker in Docker or on a
 remote VM, set `--fixture-bind` and `--fixture-host` so that worker can reach this
 synthetic fixture. The default uses loopback for an entirely local deployment.
+An authenticated SSH tunnel or a private fixture relay can expose a different
+worker-facing origin. In that case, set `--fixture-port` for the local listener
+and `--fixture-origin` for the address reachable from the worker.
 The output directory must be new; earlier evidence is never overwritten.
+
+Add `--headful` to exercise managed Chrome's native window. This journey requires
+the worker and public browser core to support the window surface. The model
+launches headful extension Chrome, the viewer operates its native address bar,
+and then switches to Page only for the same form and handoff workflow. It checks
+the selected transport, headful state, and window capability explicitly.
 
 Evidence includes three screenshots, the single submission receipt, identities,
 model usage summaries, and page errors. Raw WebSocket traffic, authorization
 headers, page screenshots in base64, and model credentials are excluded from
 the saved stream summary. The test closes only its own viewing Chrome.
+Headful runs also save the native window screenshot. Failures retain available
+UI screenshots and usage summaries before the viewing Chrome closes.
 
 Turn completion is accepted only after a causal tool result for the current
 fixture, rejected write or random human input. Historical event replay cannot
@@ -54,5 +65,6 @@ satisfy the test. Use `--manual-continuation` only when separately exercising
 explicit chat continuation; the default protects automatic handoff notification.
 
 This journey covers the browser write gate and automatic return notification.
-Runtime-wide pause/resume, child agents, headful window views, file transfer,
+Headful window views are covered when `--headful` is selected.
+Runtime-wide pause/resume, child agents, file transfer,
 local extension relay, and phone input require their separate live journeys.
