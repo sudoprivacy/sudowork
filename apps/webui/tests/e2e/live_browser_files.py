@@ -85,6 +85,8 @@ async def main(args):
     page = None
     driver = await async_playwright().start()
     messages = []
+    approvals = []
+    approved_ids = set()
     try:
         chrome = await driver.chromium.connect_over_cdp(
             f"http://127.0.0.1:{own['port']}"
@@ -157,6 +159,7 @@ async def main(args):
             deadline = time.monotonic() + args.turn_timeout
             while time.monotonic() < deadline:
                 text = ""
+                last_tool = None
                 for raw in messages[start:]:
                     if not isinstance(raw, str):
                         continue
@@ -167,6 +170,73 @@ async def main(args):
                     if message.get("kind") != "upstream":
                         continue
                     event = message.get("event", {})
+                    if event.get("type") == "tool_use":
+                        tool_input = event.get("input", {})
+                        if isinstance(tool_input, str):
+                            tool_input = json.loads(tool_input)
+                        last_tool = (event.get("name", ""), tool_input)
+                    if event.get("type") == "control_request":
+                        request_id = event.get("request_id")
+                        if request_id in approved_ids:
+                            continue
+                        request = event.get("request", {})
+                        tool = request.get("tool_name") or request.get(
+                            "toolCall", {}
+                        ).get("title", "")
+                        raw_input = (
+                            request.get("rawInput") or request.get("input") or {}
+                        )
+                        if isinstance(raw_input, str):
+                            raw_input = json.loads(raw_input)
+                        source = "permission"
+                        if not tool:
+                            # Older scode omits the optional ACP title. Require
+                            # this turn's preceding tool event and identical
+                            # arguments before clicking its visible permission.
+                            assert last_tool and last_tool[1] == raw_input, (
+                                "An untitled permission must match the current tool"
+                            )
+                            tool = last_tool[0]
+                            source = "matching-tool-event"
+                        assert tool.startswith("mcp__sudowork-browser__") or (
+                            tool == "ToolSearch"
+                            and "sudowork-browser" in json.dumps(raw_input)
+                        ), f"Unexpected permission in browser-only acceptance: {tool}"
+                        options = request.get("options") or [
+                            {"name": "Allow", "optionId": "allow_once"}
+                        ]
+                        once = next(
+                            (
+                                option
+                                for option in options
+                                if isinstance(option, dict)
+                                and option.get("optionId")
+                                in ("allow_once", "proceed_once")
+                            ),
+                            None,
+                        )
+                        assert once is not None, (
+                            "A normal one-time approval is required"
+                        )
+                        title = (
+                            request.get("title")
+                            or request.get("tool_name")
+                            or "Permission Required"
+                        )
+                        card = page.get_by_text(title, exact=True).locator(
+                            "xpath=ancestor::div[contains(@class,'max-w-800px')][1]"
+                        )
+                        # The option also contains its keyboard shortcut.
+                        await card.get_by_text(once["name"], exact=False).click(
+                            timeout=10000
+                        )
+                        approved_ids.add(request_id)
+                        approvals.append(
+                            {"tool": tool, "requestId": request_id, "source": source}
+                        )
+                        print(
+                            f"Approved the visible one-time {tool} request", flush=True
+                        )
                     if event.get("type") == "assistant":
                         content = event.get("message", {}).get("content", [])
                         if isinstance(content, str):
@@ -326,6 +396,7 @@ async def main(args):
                     "staleUploadStatus": stale.status,
                     "anonymousUploadStatus": unauthenticated.status,
                     "pageErrors": errors,
+                    "visibleOneTimeApprovals": approvals,
                 },
                 ensure_ascii=False,
                 indent=2,
