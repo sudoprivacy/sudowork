@@ -508,7 +508,7 @@ const SendBox: React.FC<{
       });
   };
 
-  const stopHandler = async () => {
+  const onStopClick = async () => {
     if (!onStop || isStopping) return;
     setIsStopping(true);
     try {
@@ -535,6 +535,8 @@ const SendBox: React.FC<{
       }}
     />
   );
+
+  const actionButton = isLoading || loading ? <Button aria-label={t('common.cancel')} shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={onStopClick} /> : sendButton;
 
   return (
     <div className={className}>
@@ -688,7 +690,7 @@ const SendBox: React.FC<{
               });
               if (guardAction === 'interrupt') {
                 event.preventDefault();
-                void stopHandler();
+                void onStopClick();
                 return true;
               }
               if (guardAction === 'dequeue') {
@@ -702,7 +704,7 @@ const SendBox: React.FC<{
           {isSingleLine && (
             <div className='flex items-center gap-3'>
               {sendButtonPrefix}
-              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
+              {actionButton}
             </div>
           )}
         </div>
@@ -714,7 +716,7 @@ const SendBox: React.FC<{
             </div>
             <div className='flex items-center gap-3'>
               {sendButtonPrefix}
-              {isLoading || loading ? <Button shape='circle' type='secondary' className='bg-animate' disabled={isStopping} icon={<div className='mx-auto size-12px bg-6'></div>} onClick={stopHandler}></Button> : sendButton}
+              {actionButton}
             </div>
           </div>
         )}
