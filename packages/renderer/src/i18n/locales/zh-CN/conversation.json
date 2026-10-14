@@ -15,7 +15,12 @@
       "browser_window_view_unavailable": "完整窗口视图暂不可用，请切换到网页视图。",
       "browser_restart_requires_observation": "请重新启动浏览器，确认页面状态后再交回 AI。",
       "browser_control_held_by_user": "你已接管浏览器，交回控制权后 AI 才能继续操作。",
-      "browser_return_notification_failed": "浏览器控制权已交回。自动通知未获确认，请在对话中发消息让 AI 继续。"
+      "browser_return_notification_failed": "浏览器控制权已交回。自动通知未获确认，请在对话中发消息让 AI 继续。",
+      "browser_restart_required": "先接管浏览器，再通过重启切换启动模式。",
+      "browser_restart_acknowledgement_required": "切换模式前，请确认重启浏览器。",
+      "browser_stop_uncertain": "尚未确认浏览器已关闭。请重新连接并检查状态后再操作。",
+      "managed_browser_reconnect_required": "请重新连接浏览器，检查当前状态后再继续。",
+      "browser_not_enabled_for_owner": "你的账号尚未启用共享浏览器功能。"
     },
     "start": "启动浏览器",
     "launchMode": "浏览器显示模式",
@@ -48,7 +53,14 @@
       "human": "你已接管 · AI 浏览器操作已暂停",
       "observing": "AI 正在重新观察页面",
       "error": "浏览器控制需要恢复"
-    }
+    },
+    "stop": "停止浏览器",
+    "restart": "重启浏览器",
+    "stopConfirmTitle": "停止这个浏览器？",
+    "stopConfirmBody": "Chrome 和它的标签页将关闭，尚未提交的页面内容可能丢失；个人配置和登录 cookie 会保留。交回控制权前，AI 的浏览器操作继续暂停。",
+    "restartConfirmTitle": "重启这个浏览器？",
+    "restartConfirmBody": "将使用{{transport}}以{{mode}}模式重启。尚未提交的页面内容可能丢失；个人配置和登录 cookie 会保留。重启后仍由你控制。",
+    "stoppedHuman": "浏览器已停止。交回控制权前，AI 的浏览器操作继续暂停。"
   },
   "interruptConfirm": {
     "title": "打断当前回复？",

@@ -147,6 +147,21 @@ export class ConversationCoordinator {
     void this.broadcastLockState(entry)
   }
 
+  /** Attach chat observers before an external browser handoff can start its first turn. */
+  async prepareBrowserReturn(webSession: WebSessionRow, sessionId: string): Promise<void> {
+    const authorized = await this.authorize(webSession, sessionId)
+    const entry = this.entries.get(this.key(authorized.ownerPrincipalId, sessionId))
+    if (!entry) return
+    if (entry.upstream && !entry.upstream.isClosed) {
+      await entry.upstream.whenOpen()
+      return
+    }
+    const observer = [...entry.subscribers].find(
+      (conn) => conn.webSession.id === webSession.id && conn.ws.readyState === conn.ws.OPEN,
+    )
+    if (observer) await this.ensureUpstream(entry, observer)
+  }
+
   async unsubscribe(conn: BrowserConnection): Promise<void> {
     const k = this.key(conn.principalId, conn.mossSessionId)
     const entry = this.entries.get(k)

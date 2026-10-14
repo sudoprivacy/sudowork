@@ -202,9 +202,34 @@ Use the repository live workflow and real model credentials. Prefer live PTY for
 ### Validated delivery in progress
 
 - [ai-dev-browser #19](https://github.com/sudoprivacy/ai-dev-browser/pull/19) is merged and released as v0.54.0. It provides the managed signed Chrome runtime, shared control and authenticated page views.
-- [ai-dev-browser #20](https://github.com/sudoprivacy/ai-dev-browser/pull/20) is merged and tagged v0.55.0. It adds the isolated X11/Openbox window surface, native tab selection and Unicode input. Real VM CDP and signed extension journeys passed. Both ordinary Windows installed-profile modes passed explicit restart and stale-session rejection. All ten CI checks passed before merge.
-- [Moss #374](https://github.com/sudoprivacy/moss/pull/374) implements authenticated owner profiles, scoped HTTP MCP, shared browser control and automatic handoff notification. Real VM tests confirmed user isolation, exclusive profile ownership, conversation transfer, discovery without allocation and restart recovery. The signed 0.4.1 to 0.4.2 upgrade preserved the profile, cookie and human lease through subsequent crash recovery; this live journey is also in CI.
-- [SudoWork #1239](https://github.com/sudoprivacy/sudowork/pull/1239) implements the shared page/window panel and authenticated viewer. Actual built WebUI, Moss/Nexus, ACP scode, real SudoRouter gpt-6-luna and Chrome passed headless and headful automatic handoff. The human operated the native Chrome address bar, entered a random value, and returned control. The AI observed that value and submitted exactly once with a trusted click and the original cookie; browser/profile identity stayed constant and there were no page errors. The committed live test supports remote fixtures and native window acceptance.
+- [ai-dev-browser #20](https://github.com/sudoprivacy/ai-dev-browser/pull/20) is merged and released as v0.55.0 on GitHub and PyPI. It adds the isolated X11/Openbox window surface, native tab selection and Unicode input. Real VM CDP and signed extension journeys passed. Both ordinary Windows installed-profile modes passed explicit restart and stale-session rejection. All ten CI checks passed before merge.
+- [Moss #374](https://github.com/sudoprivacy/moss/pull/374) is merged. It implements authenticated owner profiles, scoped HTTP MCP, shared browser control and automatic handoff notification. Real VM tests confirmed user isolation, exclusive profile ownership, conversation transfer, discovery without allocation and restart recovery. The signed 0.4.1 to 0.4.2 upgrade preserved the profile, cookie and human lease through subsequent crash recovery; this live journey is also in CI.
+- [SudoWork #1239](https://github.com/sudoprivacy/sudowork/pull/1239) is merged. It implements the shared page/window panel and authenticated viewer. Actual built WebUI, Moss/Nexus, ACP scode, real SudoRouter gpt-6-luna and Chrome passed headless and headful automatic handoff. The human operated the native Chrome address bar, entered a random value, and returned control. The AI observed that value and submitted exactly once with a trusted click and the original cookie; browser/profile identity stayed constant and there were no page errors. The committed live test supports remote fixtures and native window acceptance.
 - [Sudo Code #944](https://github.com/sudoprivacy/sudocode/pull/944) is merged. HTTP MCP capabilities and headers reach the engine, and native MCP images reach the model. The published nightly artifact at `afb5006` also passed the real API/PTY image journey; stable release promotion is pending.
 
-Production rollout and acceptance remain. Local Desktop toolbar/control parity, the runtime barrier for main and child agents, explicit managed browser mode changes, session file transfer, local extension relay and actual phone/browser compatibility also require their remaining implementation or live journeys. The validated flows above establish the shared application handoff; each remaining journey must have its own evidence before this design is considered fully delivered.
+### Explicit browser lifecycle
+
+While holding control, the user can select headless/headful and extension/CDP,
+then choose Restart. A confirmation explains that unsaved page state will be
+lost while the persistent profile and login cookies are retained. Stop has its
+own confirmation and releases Chrome and its display while retaining the human
+lease. Return to AI remains available while stopped; it sends the user's note
+and a fresh stopped-state observation without restarting Chrome. The AI chooses
+whether to launch again according to the task and the user's instructions.
+
+Restart and Stop pass through the same write gate as page operations. They
+advance the epochs before changing Chrome, so input from the previous browser
+cannot reach its replacement. A failed or uncertain stop cannot launch a second
+Chrome against the same profile. Older backends omit the lifecycle capability,
+so the shared panel shows the controls only when the backend supports them.
+
+[Moss #375](https://github.com/sudoprivacy/moss/pull/375) adds these lifecycle
+operations to HTTP and MCP. Real Windows Chrome, both VM transports, mode
+changes and a real ACP model journey passed. The shared panel's live acceptance
+also passed with actual UI controls, persistent cookies across extension/CDP,
+and a first AI turn triggered by Return while Chrome stayed stopped. WebUI
+attaches the conversation stream before sending the handoff, so this first turn
+is visible without an earlier chat message. The committed live journey is
+documented in `apps/webui/tests/e2e/README.md`.
+
+Production rollout and acceptance remain. Local Desktop toolbar/control parity, the runtime barrier for main and child agents, session file transfer, local extension relay and actual phone/browser compatibility also require their remaining implementation or live journeys. Explicit managed lifecycle controls are validated and awaiting delivery. The validated flows above establish the shared application handoff; each remaining journey must have its own evidence before this design is considered fully delivered.

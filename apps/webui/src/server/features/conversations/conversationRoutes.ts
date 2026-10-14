@@ -99,6 +99,12 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const ctx = await resolveCtx(req as AuthedRequest)
       const input = BrowserSessionActionSchema.parse(req.body)
+      if (input.kind === 'return') {
+        await deps.coordinator.prepareBrowserReturn(
+          (req as AuthedRequest).webSession!,
+          String(req.params.id),
+        )
+      }
       res
         .status(200)
         .json(await invokeBrowserSession(deps, principal, String(req.params.id), ctx, input))

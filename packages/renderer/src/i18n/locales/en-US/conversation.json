@@ -360,7 +360,12 @@
       "browser_window_view_unavailable": "The full window view is unavailable. Switch to the page view.",
       "browser_restart_requires_observation": "Restart the browser, check its page, then explicitly return control to AI.",
       "browser_control_held_by_user": "Human control is active. Return control when you want AI to continue.",
-      "browser_return_notification_failed": "Browser control was returned. Send a chat message to continue; the automatic notification was not acknowledged."
+      "browser_return_notification_failed": "Browser control was returned. Send a chat message to continue; the automatic notification was not acknowledged.",
+      "browser_restart_required": "Take control and restart the browser to change its launch mode.",
+      "browser_restart_acknowledgement_required": "Confirm the restart before changing browser mode.",
+      "browser_stop_uncertain": "Shutdown was not confirmed. Reconnect and inspect the browser before another action.",
+      "managed_browser_reconnect_required": "Reconnect to the browser and check its state before continuing.",
+      "browser_not_enabled_for_owner": "The shared browser feature is not enabled for your account."
     },
     "start": "Start browser",
     "launchMode": "Browser launch mode",
@@ -393,6 +398,13 @@
       "human": "Human control · AI browser actions are paused",
       "observing": "AI is observing the updated page",
       "error": "Browser control needs recovery"
-    }
+    },
+    "stop": "Stop browser",
+    "restart": "Restart browser",
+    "stopConfirmTitle": "Stop this browser?",
+    "stopConfirmBody": "Chrome and its tabs will close. Unsubmitted page changes can be lost; your profile and login cookies remain. AI browser actions stay paused until you return control.",
+    "restartConfirmTitle": "Restart this browser?",
+    "restartConfirmBody": "Restart in {{mode}} using {{transport}}. Unsubmitted page changes can be lost; your profile and login cookies remain. You keep control after the restart.",
+    "stoppedHuman": "Browser stopped. AI browser actions remain paused until you return control."
   }
 }
